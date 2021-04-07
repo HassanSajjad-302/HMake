@@ -1,0 +1,8 @@
+
+#ifndef HMAKE_DEPENDENCYTYPE_HPP
+#define HMAKE_DEPENDENCYTYPE_HPP
+
+enum class dependencyType{
+    PUBLIC, PRIVATE, INTERFACE
+};
+#endif //HMAKE_DEPENDENCYTYPE_HPP
