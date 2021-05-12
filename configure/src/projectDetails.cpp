@@ -1,4 +1,4 @@
-#include "projectdetails.hpp"
+#include "projectDetails.hpp"
 
 projectDetails::projectDetails
 (const CmakeVersion cmake_minimum_required, std::string projectName, const Languages languages):

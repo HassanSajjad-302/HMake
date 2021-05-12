@@ -3,7 +3,7 @@
 #define HMAKE_INSTRUCTIONSFILEMAIN_HPP
 
 
-#include "projectdetails.hpp"
+#include "projectDetails.hpp"
 #include "cxx_standard.hpp"
 #include "executable.hpp"
 
