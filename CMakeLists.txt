@@ -29,6 +29,7 @@ target_include_directories(configure
 add_executable(HMake main.cpp)
 add_dependencies(HMake configure)
 
+target_include_directories(HMake PRIVATE cxxopts/include)
 set_target_properties(HMake PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY /home/hassan/Projects/HMake/TestingProject)
 
