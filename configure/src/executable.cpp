@@ -1,96 +1,51 @@
 #include "executable.hpp"
 
 
-executable::executable(std::string targetName, file file) :runTimeDir(directory(".")){
+executable::executable(std::string targetName, file file){
 this->targetName = targetName;
 this->sourceFiles.emplace_back(std::move(file));
 }
 
-std::string executable::getScript() {
-    std::string script;
-    if(!libraryDependencies.empty()){
-        for(auto& i : libraryDependencies){
-            script += i.library_.getScript();
-        }
-    }
+executable::executable(std::string targetName_, directory sourceDirectory_):targetName(std::move(targetName_)) {
+    //TODO: check if source directory is under the project::SOURCE_DIRECTORY. Else throw the exception. Otherwise
+    //initialize the required variables.
 
-
-    script += "add_executable(" + targetName + "\n";
-
-    for(auto& f: sourceFiles){
-        script += f.getScript() + "\n";
-    }
-    script += ")\n\n";
-
-    if(!includeDirectoryDependencies.empty()){
-        script += "target_include_directories(" + targetName + "\n";
-        for(auto& i : includeDirectoryDependencies){
-            if(i.directoryDependency == dependencyType::PUBLIC){
-                script += "PUBLIC ";
-            }else if(i.directoryDependency == dependencyType::PRIVATE){
-                script += "PRIVATE ";
-            }else if(i.directoryDependency == dependencyType::INTERFACE){
-                script += "INTERFACE ";
-            }
-            script += i.includeDirectory.getScript() + "\n";
-        }
-        script += ")\n\n";
-    }
-
-    if(!libraryDependencies.empty()){
-        script += "target_link_libraries(" + targetName + "\n";
-        for(auto& i : libraryDependencies){
-            if(i.libraryDependencyType == dependencyType::PUBLIC){
-                script += "PUBLIC ";
-            }else if(i.libraryDependencyType == dependencyType::PRIVATE){
-                script += "PRIVATE ";
-            }else if(i.libraryDependencyType == dependencyType::INTERFACE){
-                script += "INTERFACE ";
-            }
-            script += i.library_.targetName;
-        }
-        script += ")\n\n";
-    }
-
-    if(!compilerOptionDependencies.empty()){
-        script += "target_compile_options(" + targetName + "\n";
-        for(auto& i : compilerOptionDependencies){
-            if(i.compilerOptionDependency == dependencyType::PUBLIC){
-                script += "PUBLIC ";
-            }else if(i.compilerOptionDependency == dependencyType::PRIVATE){
-                script += "PRIVATE ";
-            }else if(i.compilerOptionDependency == dependencyType::INTERFACE){
-                script += "INTERFACE ";
-            }
-            script += i.compilerOption;
-        }
-        script += ")\n\n";
-    }
-
-    if(!compileDefinitionDependencies.empty()){
-        script += "target_compile_definitions(" + targetName + "\n";
-        for(auto& i : compileDefinitionDependencies){
-            if(i.compileDefinitionDependency == dependencyType::PUBLIC){
-                script += "PUBLIC ";
-            }else if(i.compileDefinitionDependency == dependencyType::PRIVATE){
-                script += "PRIVATE ";
-            }else if(i.compileDefinitionDependency == dependencyType::INTERFACE){
-                script += "INTERFACE ";
-            }
-            script += i.compileDefinition;
-        }
-        script += ")\n\n";
-    }
-
-    if(runTimeDirectoryEnabled){
-        script += "set_target_properties(" + targetName + " PROPERTIES\n" +
-                  "        RUNTIME_OUTPUT_DIRECTORY " + runTimeDir.getScript() + ")";
-    }
-    return script;
 }
 
-void executable::setRunTimeOutputDirectory(directory dir) {
-    runTimeDirectoryEnabled = true;
-    runTimeDir = dir;
+executable::executable(std::string targetName_, directory sourceDirectory_, directory configureDirectory_):
+        targetName(std::move(targetName_)), sourceDirectory(std::move(sourceDirectory_)),
+        configureDirectory(configureDirectory_),
+        buildDirectory(std::move(configureDirectory_)){
+
 }
 
+executable::executable(std::string targetName_, directory sourceDirectory_, directory configureDirectory_, directory buildDirectory_):
+        targetName(std::move(targetName_)), sourceDirectory(std::move(sourceDirectory_)),
+        configureDirectory(std::move(configureDirectory_)),
+        buildDirectory(std::move(buildDirectory_)){
+
+}
+
+void to_json(json &j, const executable &p) {
+    j["NAME"] = p.targetName;
+    json sourceFilesArray;
+    for(auto e: p.sourceFiles){
+        json sourceFileObject;
+        sourceFileObject["PATH"] = e.path.string();
+        sourceFilesArray.push_back(sourceFileObject);
+    }
+    j["SOURCE_FILES"] = sourceFilesArray;
+    //library dependencies
+
+
+    json IDDArray;
+    for(auto e: p.includeDirectoryDependencies){
+        json IDDObject;
+        IDDObject["PATH"] = e.includeDirectory.path.string();
+        IDDObject["TYPE"] = e.directoryDependency;
+        IDDArray.push_back(IDDObject);
+    }
+    j["INCLUDE_DIRECTORIES"] = sourceFilesArray;
+
+
+}

@@ -37,3 +37,7 @@ directory::directory(fs::path path, commonDirectories relative_to){
 std::string directory::getScript(){
     return path;
 }
+
+directory::directory() {
+    path = fs::current_path();
+}

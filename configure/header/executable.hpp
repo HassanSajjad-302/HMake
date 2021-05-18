@@ -9,6 +9,7 @@
 #include"file.hpp"
 #include "IDD.hpp"
 #include "libraryDependency.hpp"
+#include "nlohmann/json.hpp"
 
 struct executable{
     std::vector<IDD> includeDirectoryDependencies;
@@ -17,12 +18,16 @@ struct executable{
     std::vector<compileDefinitionDependency> compileDefinitionDependencies;
     std::vector<file> sourceFiles;
     std::string targetName;
-
-    bool runTimeDirectoryEnabled = false;
-    directory runTimeDir;
+    directory sourceDirectory;
+    directory configureDirectory;
+    directory buildDirectory;
     executable(std::string targetName, file file);
-    void setRunTimeOutputDirectory(directory dir);
-    std::string getScript();
+    executable(std::string targetName_, directory sourceDirectory_);
+    executable(std::string targetName_, directory sourceDirectory_, directory configureDirectory_);
+    executable(std::string targetName_, directory sourceDirectory_, directory configureDirectory_, directory buildDirectory_);
 };
 
+typedef nlohmann::json json;
+
+void to_json(json &j, const executable &p);
 #endif // EXECUTABLE_HPP

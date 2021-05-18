@@ -10,6 +10,7 @@ namespace fs = std::filesystem;
 struct directory
 {
     fs::path path;
+    directory();
     directory(fs::path path);
     directory(fs::path path, fs::path relative_to);
     directory(fs::path path, commonDirectories relative_to);

@@ -4,7 +4,7 @@
 
 #include<vector>
 
-#include"Include_Directory.hpp"
+#include"directory.hpp"
 
 class Target{
     std::string include_directories;

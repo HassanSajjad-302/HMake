@@ -7,10 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(configure
         configure/src/executable.cpp
-        configure/src/projectDetails.cpp
         configure/src/file.cpp
         configure/src/directory.cpp
-        configure/src/instructionsFileMain.cpp
         configure/src/cxx_standard.cpp
         configure/src/cxxStandard.cpp
         configure/src/libraryDependency.cpp
@@ -20,10 +18,15 @@ add_library(configure
         configure/src/targetImportedFromFile.cpp
         configure/src/customFunctions.cpp
         configure/src/commanVaribles.cpp
+        configure/src/initialize.cpp
+        configure/src/configure.cpp
+        configure/src/project.cpp
+        configure/src/dependencyType.cpp
         )
 
 target_include_directories(configure
         PUBLIC configure/header
+        PUBLIC cxxopts/include
         )
 
 add_executable(HMake main.cpp)
@@ -35,3 +38,6 @@ set_target_properties(HMake PROPERTIES
 
 add_executable(UnBuiltTarget TestingProject/hmake.cpp)
 target_include_directories(UnBuiltTarget PRIVATE configure/header)
+add_subdirectory(json)
+target_link_libraries(HMake PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(configure PRIVATE nlohmann_json::nlohmann_json)
