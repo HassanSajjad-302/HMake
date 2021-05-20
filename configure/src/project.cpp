@@ -34,4 +34,20 @@ void to_json(json& j, const project& p) {
     }
     j["EXECUTABLES"] = exeArray;
     j["CONFIGURATION"] = project::projectConfigurationType;
+    j["FLAGS"]["CXX_COMPILER"]["DEBUG"] = "-g";
+    j["FLAGS"]["CXX_COMPILER"]["RELEASE"] = "-g";
+    j["FLAGS"]["CXX_COMPILER"]["RELWITHDEBUGINFO"] = "-g";
+    j["FLAGS"]["CXX_COMPILER"]["MINSIZEREL"] = "-g";
+    j["FLAGS"]["LINKER"]["EXECUTABLE"]["DEBUG"] = "-g";
+    j["FLAGS"]["LINKER"]["EXECUTABLE"]["RELEASE"] = "-g";
+    j["FLAGS"]["LINKER"]["EXECUTABLE"]["RELWITHDEBUGINFO"] = "-g";
+    j["FLAGS"]["LINKER"]["EXECUTABLE"]["MINSIZERELEASE"] = "-g";
+    j["FLAGS"]["LINKER"]["SHARED"]["DEBUG"] = "-g";
+    j["FLAGS"]["LINKER"]["SHARED"]["RELEASE"] = "-g";
+    j["FLAGS"]["LINKER"]["SHARED"]["RELWITHDEBUGINFO"] = "-g";
+    j["FLAGS"]["LINKER"]["SHARED"]["MINSIZERELEASE"] = "-g";
+    j["FLAGS"]["LINKER"]["STATIC"]["DEBUG"] = "-g";
+    j["FLAGS"]["LINKER"]["STATIC"]["RELEASE"] = "-g";
+    j["FLAGS"]["LINKER"]["STATIC"]["RELWITHDEBUGINFO"] = "-g";
+    j["FLAGS"]["LINKER"]["STATIC"]["MINSIZERELEASE"] = "-g";
 }

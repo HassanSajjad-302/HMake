@@ -1,38 +1,33 @@
 #include "executable.hpp"
+#include "project.hpp"
 
-
-executable::executable(std::string targetName, file file){
-this->targetName = targetName;
-this->sourceFiles.emplace_back(std::move(file));
+executable::executable(std::string targetName_, file file):
+        targetName(std::move(targetName_)){
+    sourceFiles.emplace_back(std::move(file));
 }
 
-executable::executable(std::string targetName_, directory sourceDirectory_):targetName(std::move(targetName_)) {
-    //TODO: check if source directory is under the project::SOURCE_DIRECTORY. Else throw the exception. Otherwise
-    //initialize the required variables.
-
+executable::executable(std::string targetName_, file file, fs::path configureDirectoryPathRelativeToProjectBuildPath):
+        targetName(std::move(targetName_)) {
+    auto targetConfigureDirectoryPath =
+            project::BUILD_DIRECTORY.path / configureDirectoryPathRelativeToProjectBuildPath;
+    fs::create_directory(targetConfigureDirectoryPath);
+    configureDirectory = directory(targetConfigureDirectoryPath);
+    buildDirectoryPath = targetConfigureDirectoryPath;
+    sourceFiles.emplace_back(std::move(file));
 }
 
-executable::executable(std::string targetName_, directory sourceDirectory_, directory configureDirectory_):
-        targetName(std::move(targetName_)), sourceDirectory(std::move(sourceDirectory_)),
-        configureDirectory(configureDirectory_),
-        buildDirectory(std::move(configureDirectory_)){
-
-}
-
-executable::executable(std::string targetName_, directory sourceDirectory_, directory configureDirectory_, directory buildDirectory_):
-        targetName(std::move(targetName_)), sourceDirectory(std::move(sourceDirectory_)),
-        configureDirectory(std::move(configureDirectory_)),
-        buildDirectory(std::move(buildDirectory_)){
-
+executable::executable(std::string targetName_, file file, directory configureDirectory_):
+        targetName(std::move(targetName_)), buildDirectoryPath(configureDirectory_.path),
+        configureDirectory(std::move(configureDirectory_)) {
+    sourceFiles.emplace_back(std::move(file));
 }
 
 void to_json(json &j, const executable &p) {
+    j["BUILD_DIRECTORY"] = project::BUILD_DIRECTORY.path.string();
     j["NAME"] = p.targetName;
     json sourceFilesArray;
     for(auto e: p.sourceFiles){
-        json sourceFileObject;
-        sourceFileObject["PATH"] = e.path.string();
-        sourceFilesArray.push_back(sourceFileObject);
+        sourceFilesArray.push_back(e.path.string());
     }
     j["SOURCE_FILES"] = sourceFilesArray;
     //library dependencies
@@ -42,10 +37,23 @@ void to_json(json &j, const executable &p) {
     for(auto e: p.includeDirectoryDependencies){
         json IDDObject;
         IDDObject["PATH"] = e.includeDirectory.path.string();
-        IDDObject["TYPE"] = e.directoryDependency;
         IDDArray.push_back(IDDObject);
     }
-    j["INCLUDE_DIRECTORIES"] = sourceFilesArray;
+    j["INCLUDE_DIRECTORIES"] = IDDArray;
 
+    json compilerOptionsArray;
+    for(auto e: p.compilerOptionDependencies){
+        json compilerOptionObject;
+        compilerOptionObject["VALUE"] = e.compilerOption;
+        compilerOptionsArray.push_back(compilerOptionObject);
+    }
+    j["COMPILER_OPTIONS"] = compilerOptionsArray;
 
+    json compileDefinitionsArray;
+    for(auto e: p.compileDefinitionDependencies){
+        json compileDefinitionObject;
+        compileDefinitionObject["NAME"] = e.compileDefinition;
+        compileDefinitionsArray.push_back(compileDefinitionObject);
+    }
+    j["COMPILE_DEFINITIONS"] = compileDefinitionsArray;
 }

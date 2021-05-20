@@ -1,6 +1,7 @@
 #include <iostream>
 #include <filesystem>
 #include "cxxopts.hpp"
+#include "build.hpp"
 namespace fs = std::filesystem;
 
 enum class hmakeMode{
@@ -8,7 +9,7 @@ enum class hmakeMode{
 };
 int main(int argc, char** argv)
 {
-    const std::string TARGET_FILE_EXTENSION = ".target.json5";
+    const std::string TARGET_FILE_EXTENSION = ".target.hmake";
     const std::string FILE_NAME = "hmake.cpp";
 
     auto opt = cxxopts::Options("HMake", "A c++ build sytem");
@@ -93,12 +94,18 @@ int main(int argc, char** argv)
     //hmake mode is configure.
     if(mode == hmakeMode::CONFIGURE){
         std::cout << "Success " << std::endl;
-        std::string compileCommand = "g++ -std=c++20 -I/home/hassan/Projects/HMake/configure/header "
-                                     + std::string("-L/home/hassan/Projects/HMake/cmake-build-debug/ -lconfigure ")
-                                     + fileName.string() + " -o app";
+        fs::create_directory(buildDirectory);
+        std::string compileCommand = "g++ -std=c++20 "
+                                     "-I /home/hassan/Projects/HMake/configure/header "
+                                     "-I /home/hassan/Projects/HMake/json/include " +
+                                     fileName.string() +
+                                     std::string(" -L /home/hassan/Projects/HMake/cmake-build-debug/ -l configure ") +
+                                     " -o " + (buildDirectory / "configure").string() ;
         int code = system(compileCommand.c_str());
+
         exit(EXIT_SUCCESS);
     }else{
-
+        //mode is build. so lets build the project. let's analyze the file
+        build(fileName);
     }
 }

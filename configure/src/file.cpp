@@ -5,10 +5,9 @@ file::file(std::filesystem::__cxx11::path path)
 {
     if (fs::directory_entry(path).status().type() == fs::file_type::regular){
         this->path = path;
-    }else{
-        std::cerr <<"Not a Regular file: "<<path<<std::endl;
-        exit(-1);
+        return;
     }
+    throw std::runtime_error(path.string() + " Is Not a Regular File");
 }
 
 std::string file::getScript()

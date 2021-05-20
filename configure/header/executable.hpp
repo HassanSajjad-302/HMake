@@ -18,16 +18,18 @@ struct executable{
     std::vector<compileDefinitionDependency> compileDefinitionDependencies;
     std::vector<file> sourceFiles;
     std::string targetName;
-    directory sourceDirectory;
     directory configureDirectory;
-    directory buildDirectory;
-    executable(std::string targetName, file file);
-    executable(std::string targetName_, directory sourceDirectory_);
-    executable(std::string targetName_, directory sourceDirectory_, directory configureDirectory_);
-    executable(std::string targetName_, directory sourceDirectory_, directory configureDirectory_, directory buildDirectory_);
-};
+    fs::path buildDirectoryPath;
+    //configureDirectory will be same as project::SOURCE_DIRECTORY. And the executable's build directory will be
+    //same as configureDirectory. To specify a different build directory, set the buildDirectoryPath variable.
+    executable(std::string targetName_, file file);
 
-typedef nlohmann::json json;
+    //This will create a configure directory under the project::BUILD_DIRECTORY.
+    executable(std::string targetName_, file file, fs::path configureDirectoryPathRelativeToProjectBuildPath);
+
+    //This will not create the configureDirectory
+    executable(std::string targetName_, file file, directory configureDirectory_);
+};
 
 void to_json(json &j, const executable &p);
 #endif // EXECUTABLE_HPP

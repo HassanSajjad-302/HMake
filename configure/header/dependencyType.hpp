@@ -3,7 +3,7 @@
 #define HMAKE_DEPENDENCYTYPE_HPP
 
 #include "nlohmann/json.hpp"
-typedef nlohmann::json json;
+typedef nlohmann::ordered_json json;
 enum class dependencyType{
     PUBLIC, PRIVATE, INTERFACE
 };

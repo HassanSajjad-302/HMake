@@ -16,8 +16,8 @@ struct projectVersion{
 struct project {
 public:
     project(std::string projectName, projectVersion version = projectVersion());
-    static std::vector<library> projectLibraries;
-    static std::vector<executable> projectExecutables;
+    static inline std::vector<library> projectLibraries;
+    static inline std::vector<executable> projectExecutables;
     static inline std::string PROJECT_NAME;
     static inline projectVersion PROJECT_VERSION;
     static inline fs::path CXX_COMPILER;
@@ -25,7 +25,7 @@ public:
     static inline directory BUILD_DIRECTORY;
     static inline configurationType projectConfigurationType;
 };
-typedef nlohmann::json json;
+
 void to_json(json& j, const projectVersion& p);
 void to_json(json&j, const configurationType& p);
 void to_json(json& j, const project& p);

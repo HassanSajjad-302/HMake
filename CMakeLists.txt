@@ -22,6 +22,7 @@ add_library(configure
         configure/src/configure.cpp
         configure/src/project.cpp
         configure/src/dependencyType.cpp
+        configure/src/build.cpp
         )
 
 target_include_directories(configure
@@ -30,14 +31,19 @@ target_include_directories(configure
         )
 
 add_executable(HMake main.cpp)
-add_dependencies(HMake configure)
+target_link_libraries(HMake PRIVATE configure)
 
 target_include_directories(HMake PRIVATE cxxopts/include)
 set_target_properties(HMake PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY /home/hassan/Projects/HMake/TestingProject)
+        RUNTIME_OUTPUT_DIRECTORY /home/hassan/Projects/HMake/TestingProject/Build)
 
 add_executable(UnBuiltTarget TestingProject/hmake.cpp)
 target_include_directories(UnBuiltTarget PRIVATE configure/header)
 add_subdirectory(json)
 target_link_libraries(HMake PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(configure PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(UnBuiltTarget PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(UnBuiltTarget PRIVATE configure)
+add_dependencies(UnBuiltTarget configure)
+set_target_properties(UnBuiltTarget PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY /home/hassan/Projects/HMake/TestingProject/Build/)

@@ -1,7 +1,7 @@
 #include"directory.hpp"
 
 directory::directory(fs::path path){
-    path.lexically_normal();
+    path = path.lexically_normal();
     if (fs::directory_entry(path).status().type() == fs::file_type::directory){
         this->path = path;
     }else{
