@@ -5,6 +5,8 @@
 #include "filesystem"
 
 namespace fs = std::filesystem;
-void build(fs::path path);
+namespace build{
+    void build(fs::path exeHmakeFilePath);
+}
 
 #endif //HMAKE_BUILD_HPP

@@ -14,7 +14,7 @@
 struct executable{
     std::vector<IDD> includeDirectoryDependencies;
     std::vector<libraryDependency> libraryDependencies;
-    std::vector<compilerOptionDependency> compilerOptionDependencies;
+    std::vector<compilerFlagDependency> compilerFlagDependencies;
     std::vector<compileDefinitionDependency> compileDefinitionDependencies;
     std::vector<file> sourceFiles;
     std::string targetName;

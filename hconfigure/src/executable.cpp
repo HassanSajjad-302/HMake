@@ -2,7 +2,8 @@
 #include "project.hpp"
 
 executable::executable(std::string targetName_, file file):
-        targetName(std::move(targetName_)){
+        targetName(std::move(targetName_)), configureDirectory(project::BUILD_DIRECTORY.path),
+        buildDirectoryPath(project::BUILD_DIRECTORY.path){
     sourceFiles.emplace_back(std::move(file));
 }
 
@@ -16,6 +17,8 @@ executable::executable(std::string targetName_, file file, fs::path configureDir
     sourceFiles.emplace_back(std::move(file));
 }
 
+//This will imply that directory already exists. While in the above constructor directory will be built while building
+//the project.
 executable::executable(std::string targetName_, file file, directory configureDirectory_):
         targetName(std::move(targetName_)), buildDirectoryPath(configureDirectory_.path),
         configureDirectory(std::move(configureDirectory_)) {
@@ -23,8 +26,9 @@ executable::executable(std::string targetName_, file file, directory configureDi
 }
 
 void to_json(json &j, const executable &p) {
-    j["BUILD_DIRECTORY"] = project::BUILD_DIRECTORY.path.string();
+    j["PROJECT_FILE_PATH"] = project::BUILD_DIRECTORY.path.string() + project::PROJECT_NAME + ".hmake";
     j["NAME"] = p.targetName;
+    j["BUILD_DIRECTORY"] = p.buildDirectoryPath.string();
     json sourceFilesArray;
     for(auto e: p.sourceFiles){
         sourceFilesArray.push_back(e.path.string());
@@ -41,13 +45,13 @@ void to_json(json &j, const executable &p) {
     }
     j["INCLUDE_DIRECTORIES"] = IDDArray;
 
-    json compilerOptionsArray;
-    for(auto e: p.compilerOptionDependencies){
-        json compilerOptionObject;
-        compilerOptionObject["VALUE"] = e.compilerOption;
-        compilerOptionsArray.push_back(compilerOptionObject);
+    json compilerFlagsArray;
+    for(auto e: p.compilerFlagDependencies){
+        json compilerFlagObject;
+        compilerFlagObject["VALUE"] = e.compilerOption;
+        compilerFlagsArray.push_back(compilerFlagObject);
     }
-    j["COMPILER_OPTIONS"] = compilerOptionsArray;
+    j["COMPILER_TRANSITIVE_FLAGS"] = compilerFlagsArray;
 
     json compileDefinitionsArray;
     for(auto e: p.compileDefinitionDependencies){

@@ -1,9 +1,0 @@
-
-#ifndef HMAKE_CONFIGURATIONTYPE_HPP
-#define HMAKE_CONFIGURATIONTYPE_HPP
-
-enum class configurationType{
-    DEBUG,
-    RELEASE
-};
-#endif //HMAKE_CONFIGURATIONTYPE_HPP

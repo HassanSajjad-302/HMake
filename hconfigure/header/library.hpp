@@ -18,7 +18,7 @@ struct libraryDependency;
 struct library {
     std::vector<IDD> includeDirectoryDependencies;
     std::vector<libraryDependency> libraryDependencies;
-    std::vector<compilerOptionDependency> compilerOptionDependencies;
+    std::vector<compilerFlagDependency> compilerOptionDependencies;
     std::vector<compileDefinitionDependency> compileDefinitionDependencies;
     std::vector<file> sourceFiles;
     std::string targetName;

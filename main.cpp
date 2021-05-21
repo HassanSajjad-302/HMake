@@ -106,6 +106,7 @@ int main(int argc, char** argv)
         exit(EXIT_SUCCESS);
     }else{
         //mode is build. so lets build the project. let's analyze the file
-        build(fileName);
+        fileName = std::filesystem::absolute(fileName);
+        build::build(fileName);
     }
 }

@@ -19,16 +19,17 @@ void initialize(int argc, char const **argv) {
     }
     fs::path sourceDirectoryPath = result["SOURCE_DIRECTORY"].as<std::string>();
     fs::path buildDirectoryPath = result["BUILD_DIRECTORY"].as<std::string>();
-    auto normalize = [](fs::path p)->fs::path{
-        if(p.is_absolute()){
-            return p;
-        }else{
-            return (fs::current_path()/p).lexically_normal();
-        }
-    };
-    sourceDirectoryPath = normalize(sourceDirectoryPath);
-    buildDirectoryPath = normalize(buildDirectoryPath);
+    fs::absolute(sourceDirectoryPath);
+    fs::absolute(buildDirectoryPath);
+    sourceDirectoryPath /= fs::path();
+    buildDirectoryPath /= fs::path();
     project::SOURCE_DIRECTORY = directory(sourceDirectoryPath);
     project::BUILD_DIRECTORY = directory(buildDirectoryPath);
-    project::CXX_COMPILER = "g++ ";
+    compiler comp{COMPILER_FAMILY::GCC, "/usr/bin/g++"};
+    project::ourCompiler = comp;
+    linker link{LINKER_FAMILY::GCC, "/usr/bin/g++"};
+    project::ourLinker = link;
+    project::flags[COMPILER_FAMILY::GCC][CONFIG_TYPE::DEBUG] = "-g";
+    project::flags[COMPILER_FAMILY::GCC][CONFIG_TYPE::RELEASE] = "-O3 -DNDEBUG";
+
 }

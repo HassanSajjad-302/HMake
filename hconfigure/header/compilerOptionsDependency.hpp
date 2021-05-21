@@ -5,7 +5,7 @@
 #include <string>
 #include "dependencyType.hpp"
 
-struct compilerOptionDependency {
+struct compilerFlagDependency {
     std::string compilerOption;
     dependencyType compilerOptionDependency;
 };
