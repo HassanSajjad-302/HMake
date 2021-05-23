@@ -5,29 +5,28 @@
 #include "iostream"
 #include "nlohmann/json.hpp"
 
-typedef nlohmann::ordered_json json;
-
+typedef nlohmann::ordered_json Json;
 
 void build::build(fs::path exeHmakeFilePath) {
-    json exeFileJSON;
-    std::ifstream(exeHmakeFilePath) >> exeFileJSON;
-    fs::path filePath = exeFileJSON.at("PROJECT_FILE_PATH").get<std::string>();
-    json mainFileJSON;
-    std::ifstream(filePath) >> mainFileJSON;
+  Json exeFileJSON;
+  std::ifstream(exeHmakeFilePath) >> exeFileJSON;
+  fs::path filePath = exeFileJSON.at("PROJECT_FILE_PATH").get<std::string>();
+  Json mainFileJSON;
+  std::ifstream(filePath) >> mainFileJSON;
 
-    fs::path compilerPath = mainFileJSON.at("COMPILER").get<json>().at("PATH").get<std::string>();
-    fs::path linkerPath = mainFileJSON.at("LINKER").get<json>().at("PATH").get<std::string>();
-    std::string compilerFlags = mainFileJSON.at("COMPILER_FLAGS").get<std::string>();
-    std::string linkerFlags = mainFileJSON.at("LINKER_FLAGS").get<std::string>();
-    //todo: if there is anything more specific to the executable it should be checked here. Otherwise for most parts
-    // we will be defaulting to the defaults of main project file.
+  fs::path compilerPath = mainFileJSON.at("COMPILER").get<Json>().at("PATH").get<std::string>();
+  fs::path linkerPath = mainFileJSON.at("LINKER").get<Json>().at("PATH").get<std::string>();
+  std::string compilerFlags = mainFileJSON.at("COMPILER_FLAGS").get<std::string>();
+  std::string linkerFlags = mainFileJSON.at("LINKER_FLAGS").get<std::string>();
+  //todo: if there is anything more specific to the executable it should be checked here. Otherwise for most parts
+  // we will be defaulting to the defaults of main project file.
 
-    std::string exeName = exeFileJSON.at("NAME").get<std::string>();
-    fs::path exeBuildDirectory = exeFileJSON.at("BUILD_DIRECTORY").get<fs::path>();
-    auto exeSourceFiles = exeFileJSON.at("SOURCE_FILES").get<std::vector<fs::path>>();
+  std::string exeName = exeFileJSON.at("NAME").get<std::string>();
+  fs::path exeBuildDirectory = exeFileJSON.at("BUILD_DIRECTORY").get<fs::path>();
+  auto exeSourceFiles = exeFileJSON.at("SOURCE_FILES").get<std::vector<fs::path>>();
 
-    //build process starts
-    fs::create_directory(exeBuildDirectory);
+  //build process starts
+  fs::create_directory(exeBuildDirectory);
     fs::path buildCacheFilesDirPath = exeHmakeFilePath.parent_path() / "Cache_Build_Files";
     bool skipLinking = true;
     if(fs::exists(exeBuildDirectory/exeName)){

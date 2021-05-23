@@ -2,12 +2,12 @@
 #ifndef HMAKE_IDD_HPP
 #define HMAKE_IDD_HPP
 
-#include "directory.hpp"
-#include "dependencyType.hpp"
+#include "DependencyType.hpp"
+#include "Directory.hpp"
 
 // include directory dependency
-struct IDD{
-    directory includeDirectory;
-    dependencyType directoryDependency;
+struct IDD {
+  Directory includeDirectory;
+  DependencyType directoryDependency;
 };
-#endif //HMAKE_IDD_HPP
+#endif//HMAKE_IDD_HPP

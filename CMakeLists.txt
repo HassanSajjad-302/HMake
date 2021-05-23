@@ -6,24 +6,23 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(hconfigure
-        hconfigure/src/executable.cpp
-        hconfigure/src/file.cpp
-        hconfigure/src/directory.cpp
-        hconfigure/src/cxx_standard.cpp
-        hconfigure/src/cxxStandard.cpp
-        hconfigure/src/libraryDependency.cpp
-        hconfigure/src/library.cpp
-        hconfigure/src/binaryDirExportFile.cpp
-        hconfigure/src/binaryDirImportFile.cpp
-        hconfigure/src/targetImportedFromFile.cpp
-        hconfigure/src/customFunctions.cpp
-        hconfigure/src/commanVaribles.cpp
-        hconfigure/src/initialize.cpp
-        hconfigure/src/configure.cpp
-        hconfigure/src/project.cpp
-        hconfigure/src/dependencyType.cpp
-        hconfigure/src/flags.cpp
-        hconfigure/src/family.cpp
+        hconfigure/src/Executable.cpp
+        hconfigure/src/File.cpp
+        hconfigure/src/Directory.cpp
+        hconfigure/src/CxxStandard.cpp
+        hconfigure/src/LibraryDependency.cpp
+        hconfigure/src/Library.cpp
+        hconfigure/src/BinaryDirExportFile.cpp
+        hconfigure/src/BinaryDirImportFile.cpp
+        hconfigure/src/TargetImportedFromFile.cpp
+        hconfigure/src/CustomFunctions.cpp
+        hconfigure/src/CommanVariables.cpp
+        hconfigure/src/Initialize.cpp
+        hconfigure/src/Configure.cpp
+        hconfigure/src/Project.cpp
+        hconfigure/src/DependencyType.cpp
+        hconfigure/src/Flags.cpp
+        hconfigure/src/Family.cpp
         )
 
 target_include_directories(hconfigure
