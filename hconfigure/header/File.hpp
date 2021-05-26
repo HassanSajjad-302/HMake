@@ -8,7 +8,7 @@
 namespace fs = std::filesystem;
 struct File {
   fs::path path;
-  File(const fs::path& path);
+  File(fs::path path);
 };
 
 class FileArray {

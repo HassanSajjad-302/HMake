@@ -1,9 +1,13 @@
 
 #include "File.hpp"
-#include <filesystem>
-File::File(const std::filesystem::__cxx11::path &path) {
-  if (fs::directory_entry(path).status().type() == fs::file_type::regular) {
-    this->path = path;
+#include "Project.hpp"
+#include "filesystem"
+File::File(std::filesystem::__cxx11::path path_) {
+  if (path_.is_relative()) {
+    path_ = Project::SOURCE_DIRECTORY.path / path_;
+  }
+  if (fs::directory_entry(path_).status().type() == fs::file_type::regular) {
+    path = path_;
     return;
   }
   throw std::runtime_error(path.string() + " Is Not a Regular File");

@@ -6,6 +6,7 @@
 #include "File.hpp"
 #include "IDD.hpp"
 #include "LibraryDependency.hpp"
+#include "LinkerFlagsDependency.hpp"
 #include "nlohmann/json.hpp"
 #include <filesystem>
 #include <string>
@@ -14,7 +15,8 @@
 struct Executable {
   std::vector<IDD> includeDirectoryDependencies;
   std::vector<LibraryDependency> libraryDependencies;
-  std::vector<CompilerFlagsDependency> compilerFlagDependencies;
+  std::vector<CompilerFlagsDependency> compilerFlagsDependencies;
+  std::vector<LinkerFlagsDependency> linkerFlagsDependencies;
   std::vector<CompileDefinitionDependency> compileDefinitionDependencies;
   std::vector<File> sourceFiles;
   std::string targetName;
@@ -31,5 +33,5 @@ struct Executable {
   Executable(std::string targetName_, File file, Directory configureDirectory_);
 };
 
-void to_json(Json &j, const Executable &p);
+void to_json(Json &j, const Executable &executable);
 #endif// EXECUTABLE_HPP

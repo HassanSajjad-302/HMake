@@ -13,9 +13,7 @@ namespace fs = std::filesystem;
 struct Directory {
   fs::path path;
   Directory();
-  Directory(fs::path path);
-  Directory(fs::path path, fs::path relative_to);
-  Directory(fs::path path, CommonDirectories relative_to);
+  explicit Directory(fs::path path);
 };
 
 #endif// DIRECTORY_HPP

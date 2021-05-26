@@ -2,6 +2,7 @@
 
 #include "Project.hpp"
 
+#include <HConfigureCustomFunctions.hpp>
 #include <utility>
 Project::Project(std::string projectName, projectVersion version) {
   Project::PROJECT_NAME = std::move(projectName);
@@ -39,14 +40,15 @@ void to_json(Json &j, const Project &p) {
     exeObject["LOCATION"] = e.configureDirectory.path.string();
     exeArray.push_back(exeObject);
   }
-  j["EXECUTABLES"] = exeArray;
+  jsonAssignSpecialist("EXECUTABLES", j, exeArray);
 
+  Json libArray = Json::array();
   for (const auto &e : Project::projectLibraries) {
     Json exeObject;
     exeObject["NAME"] = e.targetName;
     exeObject["LOCATION"] = e.configureDirectory.path.string();
     exeArray.push_back(exeObject);
   }
-  j["LIBRARIES"] = exeArray;
+  jsonAssignSpecialist("LIBRARIES", j, libArray);
   j["LIBRARY_TYPE"] = Project::libraryType;
 }

@@ -15,7 +15,7 @@ add_library(hconfigure
         hconfigure/src/BinaryDirExportFile.cpp
         hconfigure/src/BinaryDirImportFile.cpp
         hconfigure/src/TargetImportedFromFile.cpp
-        hconfigure/src/CustomFunctions.cpp
+        hconfigure/src/HConfigureCustomFunctions.cpp
         hconfigure/src/CommanVariables.cpp
         hconfigure/src/Initialize.cpp
         hconfigure/src/Configure.cpp
@@ -31,8 +31,12 @@ target_include_directories(hconfigure
         )
 
 add_library(hbuild
-        hbuild/src/build.cpp)
+        hbuild/src/Build.cpp
+        hbuild/src/HBuildCustomFunctions.cpp
+        hbuild/src/BProject.cpp
+        hbuild/src/BBuildTarget.cpp)
 target_include_directories(hbuild PUBLIC hbuild/header)
+target_include_directories(hbuild PRIVATE hconfigure/header)
 
 add_executable(HMake main.cpp)
 target_link_libraries(HMake PRIVATE hconfigure)

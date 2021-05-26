@@ -14,11 +14,8 @@ void configure(const Library &library) {
   }
   p /= fileName;
   std::ofstream(p) << json.dump(4);
-  for (auto &t : Project::projectExecutables) {
-    configure(t);
-  }
-  for (auto &t : Project::projectLibraries) {
-    configure(t);
+  for (auto &l : library.libraryDependencies) {
+    configure(l.library);
   }
 }
 
@@ -29,11 +26,8 @@ void configure(const Executable &executable) {
   std::string fileName = executable.targetName + ".executable.hmake";
   p /= fileName;
   std::ofstream(p) << json.dump(4);
-  for (auto &t : Project::projectExecutables) {
-    configure(t);
-  }
-  for (auto &t : Project::projectLibraries) {
-    configure(t);
+  for (const auto &l : executable.libraryDependencies) {
+    configure(l.library);
   }
 }
 

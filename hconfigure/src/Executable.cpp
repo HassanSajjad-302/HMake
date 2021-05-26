@@ -1,4 +1,5 @@
 #include "Executable.hpp"
+#include "HConfigureCustomFunctions.hpp"
 #include "Project.hpp"
 #include <stack>
 
@@ -23,38 +24,43 @@ Executable::Executable(std::string targetName_, File file, Directory configureDi
   sourceFiles.emplace_back(std::move(file));
 }
 
-void to_json(Json &j, const Executable &p) {
+void to_json(Json &j, const Executable &executable) {
   j["PROJECT_FILE_PATH"] = Project::BUILD_DIRECTORY.path.string() + Project::PROJECT_NAME + ".hmake";
-  j["NAME"] = p.targetName;
-  j["BUILD_DIRECTORY"] = p.buildDirectoryPath.string();
-  Json sourceFilesArray;
-  for (const auto &e : p.sourceFiles) {
+  j["BUILD_DIRECTORY"] = executable.buildDirectoryPath.string();
+  std::vector<std::string> sourceFilesArray;
+  for (const auto &e : executable.sourceFiles) {
     sourceFilesArray.push_back(e.path.string());
   }
-  j["SOURCE_FILES"] = sourceFilesArray;
+  jsonAssignSpecialist("SOURCE_FILES", j, sourceFilesArray);
   //library dependencies
 
-  Json includeDirectories;
-  for (const auto &e : p.includeDirectoryDependencies) {
+  std::vector<std::string> includeDirectories;
+  for (const auto &e : executable.includeDirectoryDependencies) {
     includeDirectories.push_back(e.includeDirectory.path.string());
   }
 
   std::string compilerFlags;
-  for (const auto &e : p.compilerFlagDependencies) {
+  for (const auto &e : executable.compilerFlagsDependencies) {
     compilerFlags.append(" " + e.compilerFlags + " ");
   }
 
+  std::string linkerFlags;
+  for (const auto &e : executable.linkerFlagsDependencies) {
+    compilerFlags.append(" " + e.linkerFlags + " ");
+  }
+
   Json compileDefinitionsArray;
-  for (const auto &e : p.compileDefinitionDependencies) {
+  for (const auto &e : executable.compileDefinitionDependencies) {
     Json compileDefinitionObject;
-    compileDefinitionObject["NAME"] = e.compileDefinition;
+    compileDefinitionObject["NAME"] = e.compileDefinition.name;
+    compileDefinitionObject["VALUE"] = e.compileDefinition.value;
     compileDefinitionsArray.push_back(compileDefinitionObject);
   }
 
   //This adds first layer of dependencies as is but next layers are added only if they are public.
-  std::vector<Library *> dependencies;
-  for (auto l : p.libraryDependencies) {
-    std::stack<Library *> st;
+  std::vector<const Library *> dependencies;
+  for (const auto &l : executable.libraryDependencies) {
+    std::stack<const Library *> st;
     st.push(&(l.library));
     while (!st.empty()) {
       auto obj = st.top();
@@ -68,27 +74,47 @@ void to_json(Json &j, const Executable &p) {
     }
   }
 
+  std::vector<std::string> libraryDependencies;
   for (auto i : dependencies) {
-    for (const auto &E : i->includeDirectoryDependencies) {
-      includeDirectories.push_back(E.includeDirectory.path.string());
+    for (const auto &e : i->includeDirectoryDependencies) {
+      if (e.dependencyType == DependencyType::PUBLIC) {
+        std::string str = e.includeDirectory.path.string();
+        includeDirectories.push_back(str);
+      }
     }
 
     for (const auto &e : i->compilerFlagsDependencies) {
-      compilerFlags.append(" " + e.compilerFlags + " ");
+      if (e.dependencyType == DependencyType::PUBLIC) {
+        compilerFlags.append(" " + e.compilerFlags + " ");
+      }
     }
 
-    for (const auto &E : i->compileDefinitionDependencies) {
-      Json compileDefinitionObject;
-      compileDefinitionObject["NAME"] = E.compileDefinition;
-      compileDefinitionsArray.push_back(compileDefinitionObject);
+    for (const auto &e : i->linkerFlagsDependencies) {
+      if (e.dependencyType == DependencyType::PUBLIC) {
+        compilerFlags.append(" " + e.linkerFlags + " ");
+      }
     }
+
+    for (const auto &e : i->compileDefinitionDependencies) {
+      if (e.dependencyType == DependencyType::PUBLIC) {
+        Json compileDefinitionObject;
+        compileDefinitionObject["NAME"] = e.compileDefinition.name;
+        compileDefinitionObject["VALUE"] = e.compileDefinition.value;
+        compileDefinitionsArray.push_back(compileDefinitionObject);
+      }
+    }
+    libraryDependencies.emplace_back(i->configureDirectory.path.string() + i->targetName + "." + [=]() {
+      if (i->libraryType == LibraryType::STATIC) {
+        return "static";
+      } else {
+        return "shared";
+      }
+    }() + "." + "hmake");
   }
 
-  j["INCLUDE_DIRECTORIES"] = includeDirectories;
-  if (compilerFlags.empty()) {
-    j["COMPILER_TRANSITIVE_FLAGS"] = Json();
-  } else {
-    j["COMPILER_TRANSITIVE_FLAGS"] = compilerFlags;
-  }
-  j["COMPILE_DEFINITIONS"] = compileDefinitionsArray;
+  jsonAssignSpecialist("LIBRARY_DEPENDENCIES", j, libraryDependencies);
+  jsonAssignSpecialist("INCLUDE_DIRECTORIES", j, includeDirectories);
+  jsonAssignSpecialist("COMPILER_TRANSITIVE_FLAGS", j, compilerFlags);
+  jsonAssignSpecialist("LINKER_TRANSITIVE_FLAGS", j, linkerFlags);
+  jsonAssignSpecialist("COMPILE_DEFINITIONS", j, compileDefinitionsArray);
 }

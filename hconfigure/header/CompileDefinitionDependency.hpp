@@ -6,9 +6,14 @@
 #include "DependencyType.hpp"
 #include <string>
 
+struct CompileDefinition {
+  std::string name;
+  std::string value;
+};
+
 struct CompileDefinitionDependency {
-  std::string compileDefinition;
-  DependencyType compileDefinitionDependency;
+  CompileDefinition compileDefinition;
+  DependencyType dependencyType;
 };
 
 #endif//HMAKE_COMPILEDEFINITIONDEPENDENCY_HPP

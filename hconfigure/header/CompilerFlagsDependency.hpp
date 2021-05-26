@@ -7,7 +7,7 @@
 
 struct CompilerFlagsDependency {
   std::string compilerFlags;
-  DependencyType compilerFlagsDependency;
+  DependencyType dependencyType;
 };
 
 #endif//HMAKE_COMPILEROPTIONSDEPENDENCY_HPP

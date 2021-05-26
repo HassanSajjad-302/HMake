@@ -8,6 +8,6 @@
 // include directory dependency
 struct IDD {
   Directory includeDirectory;
-  DependencyType directoryDependency;
+  DependencyType dependencyType;
 };
 #endif//HMAKE_IDD_HPP

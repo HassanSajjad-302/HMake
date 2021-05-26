@@ -1,18 +1,20 @@
-#include <iostream>
-#include <filesystem>
+#include "HBuildCustomFunctions.hpp"
 #include "cxxopts.hpp"
-#include "build.hpp"
+#include <filesystem>
+#include <iostream>
 namespace fs = std::filesystem;
 
-enum class hmakeMode{
-    CONFIGURE, BUILD, FAIL
+//todo: Add all code in namespace
+enum class hmakeMode {
+  CONFIGURE,
+  BUILD,
+  FAIL
 };
-int main(int argc, char** argv)
-{
-    const std::string TARGET_FILE_EXTENSION = ".target.hmake";
-    const std::string FILE_NAME = "hmake.cpp";
+int main(int argc, char **argv) {
+  const std::string TARGET_FILE_EXTENSION = ".executable.hmake";
+  const std::string FILE_NAME = "hmake.cpp";
 
-    auto opt = cxxopts::Options("HMake", "A c++ build sytem");
+  auto opt = cxxopts::Options("HMake", "A c++ build sytem");
 
     opt.add_options()("f,file","target or project file or file directory", cxxopts::value<std::string>())
             ("S", " <path-to-source> Explicitly specify a source directory.", cxxopts::value<std::string>())
@@ -104,9 +106,10 @@ int main(int argc, char** argv)
         int code = system(compileCommand.c_str());
 
         exit(EXIT_SUCCESS);
-    }else{
-        //mode is build. so lets build the project. let's analyze the file
-        fileName = std::filesystem::absolute(fileName);
-        build::build(fileName);
+    }else {
+      //mode is build. so lets build the project. let's analyze the file
+      fileName = std::filesystem::absolute(fileName);
+
+      build::parseProjectFileAdStartBuildingTarget(fileName);
     }
 }
