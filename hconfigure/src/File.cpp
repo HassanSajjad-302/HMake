@@ -10,7 +10,7 @@ File::File(std::filesystem::__cxx11::path path_) {
     path = path_;
     return;
   }
-  throw std::runtime_error(path.string() + " Is Not a Regular File");
+  throw std::runtime_error(path_.string() + " Is Not a Regular File");
 }
 
 FileArray::FileArray(Directory dir, bool (*predicate)(std::string)) {

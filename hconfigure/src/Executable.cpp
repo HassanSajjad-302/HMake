@@ -64,13 +64,13 @@ void to_json(Json &j, const Executable &executable) {
     st.push(&(l.library));
     while (!st.empty()) {
       auto obj = st.top();
+      st.pop();
       dependencies.push_back(obj);
-      for (auto i : obj->libraryDependencies) {
+      for (const auto &i : obj->libraryDependencies) {
         if (i.libraryDependencyType == DependencyType::PUBLIC) {
-          dependencies.push_back(&(i.library));
+          st.push(&(i.library));
         }
       }
-      st.pop();
     }
   }
 

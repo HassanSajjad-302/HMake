@@ -113,8 +113,10 @@ void build::BBuildTarget::build() {
     if (targetType == BTargetType::EXECUTABLE) {
       std::cout << "Linking" << std::endl;
       linkerCommand = BProject::linkerPath.string()
-          + " " + BProject::linkerFlags + " " + linkerTransitiveFlags + " " + libraryDependenciesFlags
-          + " " + fs::path(buildCacheFilesDirPath / fs::path("")).string() + "*.o " + " -o " + (targetBuildDirectory / targetNameBuildConvention).string();
+          + " " + BProject::linkerFlags + " " + linkerTransitiveFlags
+          + " " + fs::path(buildCacheFilesDirPath / fs::path("")).string() + "*.o "
+          + " " + libraryDependenciesFlags
+          + " -o " + (targetBuildDirectory / targetNameBuildConvention).string();
     } else if (targetType == BTargetType::STATIC) {
       linkerCommand = "/usr/bin/ar rcs " + (targetBuildDirectory / fs::path(targetNameBuildConvention)).string()
           + " " + fs::path(buildCacheFilesDirPath / fs::path("")).string() + "*.o ";
