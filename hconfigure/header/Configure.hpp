@@ -6,6 +6,6 @@
 
 void configure(const Library &library);
 void configure(const Executable &ourExecutable);
-void configure(Project project);
+void configure();
 
 #endif//HMAKE_CONFIGURE_HPP

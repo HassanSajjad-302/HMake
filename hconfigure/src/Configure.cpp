@@ -31,9 +31,8 @@ void configure(const Executable &executable) {
   }
 }
 
-void configure(Project project) {
-  Json json;
-  json = project;
+void configure() {
+  Json json = Project();
   fs::path p = Project::BUILD_DIRECTORY.path;
   std::string fileName = Project::PROJECT_NAME + ".hmake";
   p /= fileName;

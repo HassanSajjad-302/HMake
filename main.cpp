@@ -103,9 +103,7 @@ int main(int argc, char **argv) {
                                      fileName.string() +
                                      std::string(" -L /home/hassan/Projects/HMake/cmake-build-debug/ -l configure ") +
                                      " -o " + (buildDirectory / "configure").string() ;
-        int code = system(compileCommand.c_str());
-
-        exit(EXIT_SUCCESS);
+        exit(system(compileCommand.c_str()));
     }else {
       //mode is build. so lets build the project. let's analyze the file
       fileName = std::filesystem::absolute(fileName);

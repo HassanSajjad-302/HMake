@@ -5,6 +5,9 @@ project(HMake LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+add_executable(hhelper hhelper/src/main.cpp)
+target_include_directories(hhelper PRIVATE hhelper/src)
+
 add_library(hconfigure
         hconfigure/src/Executable.cpp
         hconfigure/src/File.cpp
@@ -23,6 +26,11 @@ add_library(hconfigure
         hconfigure/src/DependencyType.cpp
         hconfigure/src/Flags.cpp
         hconfigure/src/Family.cpp
+        hconfigure/src/Cache.cpp
+        hconfigure/src/Version.cpp
+        hconfigure/src/SubDirectory.cpp
+        hconfigure/src/Package.cpp
+        hconfigure/src/PackageVariant.cpp
         )
 
 target_include_directories(hconfigure
@@ -49,6 +57,7 @@ add_subdirectory(json)
 target_link_libraries(HMake PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(hconfigure PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(hbuild PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(hhelper PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(UnBuiltTarget PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(UnBuiltTarget PRIVATE hconfigure)
 add_dependencies(UnBuiltTarget hconfigure)

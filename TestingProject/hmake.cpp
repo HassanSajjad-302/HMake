@@ -3,13 +3,16 @@
 #include "Executable.hpp"
 #include "Initialize.hpp"
 #include "Project.hpp"
+#include "SubDirectory.hpp"
 int main(int argc, const char **argv) {
-  initialize(argc, argv);
-
-  Project animal("Animal");
+  initializeCacheAndInitializeProject(argc, argv, "Animal");
 
   Executable animalExe{"Animal", File("main.cpp")};
 
+  SubDirectory cat2("./cat/");
+  cat2.configure();
+  SLibrary cat = cat2.getLibrary("cat"); //Subdirectory Library
+  PLibrary //Packaged Library
   Library cat("Cat");
   IDD catIncludeDependency{Directory("Cat/header"), DependencyType::PUBLIC};
   cat.includeDirectoryDependencies.push_back(catIncludeDependency);
@@ -21,8 +24,14 @@ int main(int argc, const char **argv) {
   kitten.sourceFiles.emplace_back(File("Kitten/src/Kitten.cpp"));
 
   cat.libraryDependencies.emplace_back(kitten, DependencyType::PUBLIC);
-  animalExe.libraryDependencies.emplace_back(cat, DependencyType::PRIVATE);
+  animalExe.libraryDependencieks.emplace_back(cat, DependencyType::PRIVATE);
   Project::projectExecutables.push_back(animalExe);
+  configure();
 
-  configure(animal);
+
+  Package package;
+
+
+
+
 }

@@ -5,21 +5,13 @@
 #include "CONFIG_TYPE.hpp"
 #include "Executable.hpp"
 #include "Flags.hpp"
-#include "Library.hpp"
-#include "nlohmann/json.hpp"
+#include "Version.hpp"
 #include "set"
 #include "string"
-struct projectVersion {
-  int majorVersion{};
-  int minorVersion{};
-  int patchVersion{};
-};
-class Project {
 
-public:
-  explicit Project(std::string projectName, projectVersion version = projectVersion());
+struct Project {
   static inline std::string PROJECT_NAME;
-  static inline projectVersion PROJECT_VERSION;
+  static inline Version PROJECT_VERSION;
   static inline Directory SOURCE_DIRECTORY;
   static inline Directory BUILD_DIRECTORY;
   static inline CONFIG_TYPE projectConfigurationType;
@@ -29,9 +21,10 @@ public:
   static inline std::vector<Library> projectLibraries;
   static inline Flags flags;
   static inline LibraryType libraryType;
+  static inline bool hasParent;
+  static inline fs::path parentPath;
 };
 
-void to_json(Json &j, const projectVersion &p);
 void to_json(Json &j, const CONFIG_TYPE &p);
 void to_json(Json &j, const Project &p);
 

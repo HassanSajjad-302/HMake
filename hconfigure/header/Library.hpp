@@ -31,7 +31,7 @@ struct Library {
   fs::path buildDirectoryPath;
   LibraryType libraryType;
 
-  Library(std::string targetName);
+  explicit Library(std::string targetName);
   Library(std::string targetName_, fs::path configureDirectoryPathRelativeToProjectBuildPath);
   Library(std::string targetName_, Directory configureDirectory_);
 };

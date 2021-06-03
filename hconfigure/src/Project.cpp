@@ -4,14 +4,6 @@
 
 #include <HConfigureCustomFunctions.hpp>
 #include <utility>
-Project::Project(std::string projectName, projectVersion version) {
-  Project::PROJECT_NAME = std::move(projectName);
-  Project::PROJECT_VERSION = version;
-}
-
-void to_json(Json &j, const projectVersion &p) {
-  j = std::to_string(p.majorVersion) + "." + std::to_string(p.minorVersion) + "." + std::to_string(p.patchVersion);
-}
 
 void to_json(Json &j, const CONFIG_TYPE &p) {
   if (p == CONFIG_TYPE::DEBUG) {
