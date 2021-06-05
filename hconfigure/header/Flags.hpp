@@ -3,15 +3,15 @@
 #ifndef HMAKE_FLAGS_HPP
 #define HMAKE_FLAGS_HPP
 
-#include "CONFIG_TYPE.hpp"
+#include "ConfigType.hpp"
 #include "Family.hpp"
 #include <iostream>
 
 //TODO: Improve the console message and documentation.
 struct Flags {
 
-  std::map<std::tuple<CompilerFamily, CONFIG_TYPE>, std::string> compilerFlags;
-  std::map<std::tuple<LinkerFamily, CONFIG_TYPE>, std::string> linkerFlags;
+  std::map<std::tuple<CompilerFamily, ConfigType>, std::string> compilerFlags;
+  std::map<std::tuple<LinkerFamily, ConfigType>, std::string> linkerFlags;
 
   //bool and enum helpers for using Flags class with some operator overload magic
   bool compileHelper = false;
@@ -20,12 +20,12 @@ struct Flags {
 
   CompilerFamily compilerCurrent;
   LinkerFamily linkerCurrent;
-  CONFIG_TYPE configCurrent;
+  ConfigType configCurrent;
 
 public:
   Flags &operator[](CompilerFamily compilerFamily);
   Flags &operator[](LinkerFamily linkerFamily);
-  Flags &operator[](CONFIG_TYPE configType);
+  Flags &operator[](ConfigType configType);
 
   void operator=(const std::string& flags);
 

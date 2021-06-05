@@ -3,7 +3,7 @@
 #ifndef HMAKE_HCONFIGURE_HEADER_CACHE_HPP
 #define HMAKE_HCONFIGURE_HEADER_CACHE_HPP
 
-#include "CONFIG_TYPE.hpp"
+#include "ConfigType.hpp"
 #include "Library.hpp"
 #include "filesystem"
 #include "vector"
@@ -12,8 +12,8 @@ namespace fs = std::filesystem;
 #include "Family.hpp"
 struct Cache {
   static inline Directory SOURCE_DIRECTORY;
-  static inline Directory BUILD_DIRECTORY;
-  static inline CONFIG_TYPE projectConfigurationType;
+  static inline Directory CONFIGURE_DIRECTORY;
+  static inline ConfigType projectConfigurationType;
   static inline std::vector<Compiler> compilerArray;
   static inline int selectedCompilerArrayIndex;
   static inline std::vector<Linker> linkerArray;

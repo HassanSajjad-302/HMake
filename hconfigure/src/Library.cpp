@@ -3,13 +3,13 @@
 #include "Project.hpp"
 #include "stack"
 #include <HConfigureCustomFunctions.hpp>
-Library::Library(std::string targetName_) : libraryType(Project::libraryType), targetName(std::move(targetName_)), configureDirectory(Project::BUILD_DIRECTORY.path),
-                                            buildDirectoryPath(Project::BUILD_DIRECTORY.path) {
+Library::Library(std::string targetName_) : libraryType(Project::libraryType), targetName(std::move(targetName_)), configureDirectory(Project::CONFIGURE_DIRECTORY.path),
+                                            buildDirectoryPath(Project::CONFIGURE_DIRECTORY.path) {
 }
 
 Library::Library(std::string targetName_, fs::path configureDirectoryPathRelativeToProjectBuildPath) : targetName(std::move(targetName_)), libraryType(Project::libraryType) {
   auto targetConfigureDirectoryPath =
-      Project::BUILD_DIRECTORY.path / configureDirectoryPathRelativeToProjectBuildPath;
+      Project::CONFIGURE_DIRECTORY.path / configureDirectoryPathRelativeToProjectBuildPath;
   fs::create_directory(targetConfigureDirectoryPath);
   configureDirectory = Directory(targetConfigureDirectoryPath);
   buildDirectoryPath = targetConfigureDirectoryPath;
@@ -33,7 +33,7 @@ void to_json(Json &j, const LibraryType &p) {
 //todo: improve property values in compile definitions.
 //todo: add transitive linker flags
 void to_json(Json &j, const Library &library) {
-  j["PROJECT_FILE_PATH"] = Project::BUILD_DIRECTORY.path.string() + Project::PROJECT_NAME + ".hmake";
+  j["PROJECT_FILE_PATH"] = Project::CONFIGURE_DIRECTORY.path.string() + Project::PROJECT_NAME + ".hmake";
   j["BUILD_DIRECTORY"] = library.buildDirectoryPath.string();
   std::vector<std::string> sourceFilesArray;
   for (const auto &e : library.sourceFiles) {

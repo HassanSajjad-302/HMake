@@ -3,7 +3,7 @@
 #ifndef HMAKE_HCONFIGURE_HEADER_SUBDIRECTORY_HPP
 #define HMAKE_HCONFIGURE_HEADER_SUBDIRECTORY_HPP
 
-#include "CONFIG_TYPE.hpp"
+#include "ConfigType.hpp"
 #include "Directory.hpp"
 #include "Family.hpp"
 #include "Library.hpp"
@@ -11,7 +11,7 @@
 struct SubDirectory {
   Directory sourceDirectory;
   Directory buildDirectory;
-  CONFIG_TYPE projectConfigurationType;
+  ConfigType projectConfigurationType;
   std::vector<Compiler> compilerArray;
   int selectedCompilerArrayIndex;
   std::vector<Linker> linkerArray;

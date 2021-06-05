@@ -3,14 +3,14 @@
 #include "Project.hpp"
 #include <stack>
 
-Executable::Executable(std::string targetName_, File file) : targetName(std::move(targetName_)), configureDirectory(Project::BUILD_DIRECTORY.path),
-                                                             buildDirectoryPath(Project::BUILD_DIRECTORY.path) {
+Executable::Executable(std::string targetName_, File file) : targetName(std::move(targetName_)), configureDirectory(Project::CONFIGURE_DIRECTORY.path),
+                                                             buildDirectoryPath(Project::CONFIGURE_DIRECTORY.path) {
   sourceFiles.emplace_back(std::move(file));
 }
 
 Executable::Executable(std::string targetName_, File file, fs::path configureDirectoryPathRelativeToProjectBuildPath) : targetName(std::move(targetName_)) {
   auto targetConfigureDirectoryPath =
-      Project::BUILD_DIRECTORY.path / configureDirectoryPathRelativeToProjectBuildPath;
+      Project::CONFIGURE_DIRECTORY.path / configureDirectoryPathRelativeToProjectBuildPath;
   fs::create_directory(targetConfigureDirectoryPath);
   configureDirectory = Directory(targetConfigureDirectoryPath);
   buildDirectoryPath = targetConfigureDirectoryPath;
@@ -25,7 +25,7 @@ Executable::Executable(std::string targetName_, File file, Directory configureDi
 }
 
 void to_json(Json &j, const Executable &executable) {
-  j["PROJECT_FILE_PATH"] = Project::BUILD_DIRECTORY.path.string() + Project::PROJECT_NAME + ".hmake";
+  j["PROJECT_FILE_PATH"] = Project::CONFIGURE_DIRECTORY.path.string() + Project::PROJECT_NAME + ".hmake";
   j["BUILD_DIRECTORY"] = executable.buildDirectoryPath.string();
   std::vector<std::string> sourceFilesArray;
   for (const auto &e : executable.sourceFiles) {

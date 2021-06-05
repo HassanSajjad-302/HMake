@@ -2,6 +2,7 @@
 #include "Configure.hpp"
 #include "Executable.hpp"
 #include "Initialize.hpp"
+#include "Package.hpp"
 #include "Project.hpp"
 #include "SubDirectory.hpp"
 int main(int argc, const char **argv) {
@@ -28,10 +29,13 @@ int main(int argc, const char **argv) {
   Project::projectExecutables.push_back(animalExe);
   configure();
 
-
-  Package package;
-
-
-
-
+  Package package("AnimalPackage");
+  for (auto i : ConfigTypeIterator()) {
+    Json j;
+    j["CONFIGURATION"] = i;
+    PackageVariant variant;
+    variant.packageVariantConfigurationType = i;
+    variant.associtedJson = j;
+    package.packageVariants.emplace_back(variant);
+  }
 }

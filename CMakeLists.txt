@@ -31,6 +31,7 @@ add_library(hconfigure
         hconfigure/src/SubDirectory.cpp
         hconfigure/src/Package.cpp
         hconfigure/src/PackageVariant.cpp
+        hconfigure/src/PCP.cpp
         )
 
 target_include_directories(hconfigure

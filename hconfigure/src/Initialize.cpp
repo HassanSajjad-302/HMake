@@ -14,14 +14,14 @@ void initializeCache(int argc, char const **argv) {
   std::ifstream(filePath) >> cacheJson;
 
   Cache::SOURCE_DIRECTORY = Directory(fs::path(cacheJson.at("SOURCE_DIRECTORY").get<std::string>()));
-  Cache::BUILD_DIRECTORY = Directory(fs::path(cacheJson.at("BUILD_DIRECTORY").get<std::string>()));
+  Cache::CONFIGURE_DIRECTORY = Directory(fs::path(cacheJson.at("BUILD_DIRECTORY").get<std::string>()));
 
   std::string configTypeString = cacheJson.at("CONFIGURATION").get<std::string>();
-  CONFIG_TYPE configType;
+  ConfigType configType;
   if (configTypeString == "DEBUG") {
-    configType = CONFIG_TYPE::DEBUG;
+    configType = ConfigType::DEBUG;
   } else if (configTypeString == "RELEASE") {
-    configType = CONFIG_TYPE::RELEASE;
+    configType = ConfigType::RELEASE;
   } else {
     throw std::runtime_error("Unknown CONFIG_TYPE " + configTypeString);
   }
@@ -87,15 +87,15 @@ void initializeProject(const std::string &projectName, Version projectVersion) {
   Project::PROJECT_NAME = projectName;
   Project::PROJECT_VERSION = projectVersion;
   Project::SOURCE_DIRECTORY = Cache::SOURCE_DIRECTORY;
-  Project::BUILD_DIRECTORY = Cache::BUILD_DIRECTORY;
+  Project::CONFIGURE_DIRECTORY = Cache::CONFIGURE_DIRECTORY;
   Project::projectConfigurationType = Cache::projectConfigurationType;
   Project::ourCompiler = Cache::compilerArray[Cache::selectedCompilerArrayIndex];
   Project::ourLinker = Cache::linkerArray[Cache::selectedLinkerArrayIndex];
   Project::libraryType = Cache::libraryType;
   Project::hasParent = Cache::hasParent;
   Project::parentPath = Cache::parentPath;
-  Project::flags[CompilerFamily::GCC][CONFIG_TYPE::DEBUG] = "-g";
-  Project::flags[CompilerFamily::GCC][CONFIG_TYPE::RELEASE] = "-O3 -DNDEBUG";
+  Project::flags[CompilerFamily::GCC][ConfigType::DEBUG] = "-g";
+  Project::flags[CompilerFamily::GCC][ConfigType::RELEASE] = "-O3 -DNDEBUG";
   Project::libraryType = LibraryType::STATIC;
 }
 

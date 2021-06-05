@@ -10,7 +10,7 @@ SubDirectory::SubDirectory(const fs::path &subDirectorySourcePathRelativeToParen
     : SubDirectory(Directory(), Directory()) {
   sourceDirectory = Directory(subDirectorySourcePathRelativeToParentSourcePath);
   auto subDirectoryBuildDirectoryPath =
-      Project::BUILD_DIRECTORY.path / subDirectorySourcePathRelativeToParentSourcePath;
+      Project::CONFIGURE_DIRECTORY.path / subDirectorySourcePathRelativeToParentSourcePath;
   fs::create_directory(subDirectoryBuildDirectoryPath);
   buildDirectory = Directory(subDirectoryBuildDirectoryPath);
 }
@@ -50,7 +50,7 @@ void SubDirectory::configure() {
     cacheFileJson["LINKER_SELECTED_ARRAY_INDEX"] = selectedLinkerArrayIndex;
     cacheFileJson["LIBRARY_TYPE"] = libraryType;
     cacheFileJson["HAS_PARENT"] = true;
-    cacheFileJson["PARENT_PATH"] = Project::BUILD_DIRECTORY.path.string();
+    cacheFileJson["PARENT_PATH"] = Project::CONFIGURE_DIRECTORY.path.string();
     cacheFileJson["USER_DEFINED"] = cacheVariablesJson;
     std::ofstream(cacheFilePath) << cacheFileJson.dump(4);
     //TODO: Here we will call the compilation command somehow.

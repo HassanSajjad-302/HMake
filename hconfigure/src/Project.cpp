@@ -5,8 +5,8 @@
 #include <HConfigureCustomFunctions.hpp>
 #include <utility>
 
-void to_json(Json &j, const CONFIG_TYPE &p) {
-  if (p == CONFIG_TYPE::DEBUG) {
+void to_json(Json &j, const ConfigType &p) {
+  if (p == ConfigType::DEBUG) {
     j = "DEBUG";
     j = "RELEASE";
   }
@@ -16,7 +16,7 @@ void to_json(Json &j, const Project &p) {
   j["PROJECT_NAME"] = Project::PROJECT_NAME;
   j["PROJECT_VERSION"] = Project::PROJECT_VERSION;
   j["SOURCE_DIRECTORY"] = Project::SOURCE_DIRECTORY.path.string();
-  j["BUILD_DIRECTORY"] = Project::BUILD_DIRECTORY.path.string();
+  j["BUILD_DIRECTORY"] = Project::CONFIGURE_DIRECTORY.path.string();
   j["CONFIGURATION"] = Project::projectConfigurationType;
   j["COMPILER"] = Project::ourCompiler;
   j["LINKER"] = Project::ourLinker;

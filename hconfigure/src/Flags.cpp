@@ -1,6 +1,7 @@
 
 #include "Flags.hpp"
 
+Flags flags;
 Flags &Flags::operator[](CompilerFamily compilerFamily) {
   if (compileHelper || linkHelper || configHelper) {
     throw std::logic_error("Wrong Usage Of Flag Class.");
@@ -17,7 +18,7 @@ Flags &Flags::operator[](LinkerFamily linkerFamily) {
   linkerCurrent = linkerFamily;
   return *this;
 }
-Flags &Flags::operator[](CONFIG_TYPE configType) {
+Flags &Flags::operator[](ConfigType configType) {
   if (!compileHelper && !linkHelper) {
     throw std::logic_error("Wrong Usage Of Flag Class. First use operator[] with COMPILER_FAMILY or LINKER_FAMILY");
   }
