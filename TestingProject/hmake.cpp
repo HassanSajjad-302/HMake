@@ -35,7 +35,7 @@ int main(int argc, const char **argv) {
     j["CONFIGURATION"] = i;
     PackageVariant variant;
     variant.packageVariantConfigurationType = i;
-    variant.associtedJson = j;
+    variant.associatedJson = j;
     package.packageVariants.emplace_back(variant);
   }
 }

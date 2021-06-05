@@ -9,29 +9,7 @@ add_executable(hhelper hhelper/src/main.cpp)
 target_include_directories(hhelper PRIVATE hhelper/src)
 
 add_library(hconfigure
-        hconfigure/src/Executable.cpp
-        hconfigure/src/File.cpp
-        hconfigure/src/Directory.cpp
-        hconfigure/src/CxxStandard.cpp
-        hconfigure/src/LibraryDependency.cpp
-        hconfigure/src/Library.cpp
-        hconfigure/src/BinaryDirExportFile.cpp
-        hconfigure/src/BinaryDirImportFile.cpp
-        hconfigure/src/TargetImportedFromFile.cpp
-        hconfigure/src/HConfigureCustomFunctions.cpp
-        hconfigure/src/CommanVariables.cpp
-        hconfigure/src/Initialize.cpp
         hconfigure/src/Configure.cpp
-        hconfigure/src/Project.cpp
-        hconfigure/src/DependencyType.cpp
-        hconfigure/src/Flags.cpp
-        hconfigure/src/Family.cpp
-        hconfigure/src/Cache.cpp
-        hconfigure/src/Version.cpp
-        hconfigure/src/SubDirectory.cpp
-        hconfigure/src/Package.cpp
-        hconfigure/src/PackageVariant.cpp
-        hconfigure/src/PCP.cpp
         )
 
 target_include_directories(hconfigure
