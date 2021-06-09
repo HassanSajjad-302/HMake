@@ -26,7 +26,7 @@ int main(int argc, const char **argv) {
 
   cat.libraryDependencies.emplace_back(kitten, DependencyType::PUBLIC);
   animalExe.libraryDependencieks.emplace_back(cat, DependencyType::PRIVATE);
-  Project::projectExecutables.push_back(animalExe);
+  Project::executables.push_back(animalExe);
   configure();
 
   Package package("AnimalPackage");

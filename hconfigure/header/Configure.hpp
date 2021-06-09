@@ -20,6 +20,8 @@ struct Directory {
 };
 
 using Json = nlohmann::ordered_json;
+using JObject = decltype(Json::object());
+using JArray = decltype(Json::array());
 
 enum class DependencyType {
   PUBLIC,
@@ -27,19 +29,29 @@ enum class DependencyType {
 };
 void to_json(Json &j, const DependencyType &p);
 
+//Package Copy Guide
+struct PCGuide {
+  bool usePCPClass = true;
+  fs::path copyItemToThisPath = "";
+};
+
 struct IDD {
   Directory includeDirectory;
   DependencyType dependencyType = DependencyType::PRIVATE;
+  bool copyToPackage = true;
+  PCGuide guide;
 };
 
 struct LibraryDependency;
 struct CompilerFlagsDependency {
   std::string compilerFlags;
   DependencyType dependencyType;
+  bool copyToPackage = true;
 };
 struct LinkerFlagsDependency {
   std::string linkerFlags;
   DependencyType dependencyType;
+  bool copyToPackage = true;
 };
 struct CompileDefinition {
   std::string name;
@@ -49,59 +61,9 @@ struct CompileDefinition {
 struct CompileDefinitionDependency {
   CompileDefinition compileDefinition;
   DependencyType dependencyType = DependencyType::PRIVATE;
+  bool copyToPackage = true;
 };
-
-//TODO: This function should be in namespace
-void jsonAssignSpecialist(const std::string &jstr, Json &j, auto &container);
-struct Target {
-  std::vector<IDD> includeDirectoryDependencies;
-  std::vector<LibraryDependency> libraryDependencies;
-  std::vector<CompilerFlagsDependency> compilerFlagsDependencies;
-  std::vector<LinkerFlagsDependency> linkerFlagsDependencies;
-  std::vector<CompileDefinitionDependency> compileDefinitionDependencies;
-  std::vector<File> sourceFiles;
-  std::string targetName;
-  Directory configureDirectory;
-  //todo: Why is it not Directory. Rename it to outputDirectoryPath
-  fs::path buildDirectoryPath;
-
-  //configureDirectory will be same as project::SOURCE_DIRECTORY. And the target's build directory will be
-  //same as configureDirectory. To specify a different build directory, set the buildDirectoryPath variable.
-  explicit Target(std::string targetName_);
-
-  //This will create a configure directory under the project::BUILD_DIRECTORY.
-  Target(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath);
-
-  //TODO: This constructor should not exist. A Project's configure directory
-  //should also be the configure directory for all of the targets or
-  //packages.
-  //This will not create the configureDirectory
-  Target(std::string targetName_, Directory configureDirectory_);
-};
-void to_json(Json &j, const Target &target);
-
-enum class LibraryType {
-  STATIC,
-  SHARED,
-};
-
-struct Executable : public Target {
-  explicit Executable(std::string targetName_);
-  Executable(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath);
-  Executable(std::string targetName_, Directory configureDirectory_);
-};
-
-struct Library : public Target {
-  LibraryType libraryType;
-  explicit Library(std::string targetName_);
-  Library(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath);
-  Library(std::string targetName_, Directory configureDirectory_);
-};
-
-struct LibraryDependency {
-  Library library;
-  DependencyType dependencyType = DependencyType::PRIVATE;
-};
+void to_json(Json &j, const CompileDefinitionDependency &p);
 
 enum class CompilerFamily {
   ANY,
@@ -160,6 +122,11 @@ public:
   operator std::string();
 };
 
+enum class LibraryType {
+  STATIC,
+  SHARED,
+};
+
 struct Cache {
   static inline Directory SOURCE_DIRECTORY;
   static inline Directory CONFIGURE_DIRECTORY;
@@ -186,38 +153,48 @@ enum class Platform {
   CLANG
 };
 
+//Package Copy Category
+enum class PCCategory {
+  EXECUTABLE,
+  STATIC,
+  SHARED,
+  INCLUDE
+};
 //package copy paths
 class PCP {
-  std::map<std::tuple<Platform, LibraryType>, fs::path> packageCopyPaths;
+  std::map<std::tuple<Platform, PCCategory>, fs::path> packageCopyPaths;
 
   //bool and enum helpers for using Platform class with some operator overload magic
   bool platformHelper = false;
-  bool libraryTypeHelper = false;
+  bool packageCopyCategoryHelper = false;
 
   Platform platformCurrent;
-  LibraryType libraryTypeCurrent;
+  PCCategory packageCopyCategoryCurrent;
 
 public:
   PCP &operator[](Platform platform);
-  PCP &operator[](LibraryType libraryType);
+  PCP &operator[](PCCategory packageCopyCategory);
 
   void operator=(const fs::path &copyPathRelativeToPackageVariantInstallDirectory);
 
   operator fs::path();
 };
 
+class Executable;
+class Library;
 struct Project {
-  static inline std::string PROJECT_NAME;
-  static inline Version PROJECT_VERSION;
-  static inline Directory SOURCE_DIRECTORY;
-  static inline Directory CONFIGURE_DIRECTORY;
+  static inline std::string name;
+  static inline Version version;
+  static inline Directory sourceDirectory;
+  static inline Directory configureDirectory;
   static inline ConfigType projectConfigurationType;
-  static inline Compiler ourCompiler;
-  static inline Linker ourLinker;
-  static inline std::vector<Executable> projectExecutables;
-  static inline std::vector<Library> projectLibraries;
+  static inline Compiler compiler;
+  static inline Linker linker;
+  static inline std::vector<Executable> executables;
+  static inline std::vector<Library> libraries;
   static inline Flags flags;
   static inline LibraryType libraryType;
+  static inline PCP packageCopyPaths;
   static inline bool hasParent;
   static inline fs::path parentPath;
 };
@@ -231,34 +208,102 @@ void initializeCache(int argc, const char **argv);
 void initializeProject(const std::string &projectName, Version projectVersion);
 void initializeCacheAndInitializeProject(int argc, char const **argv, const std::string &projectName, Version projectVersion = Version{0, 0, 0});
 
-void configure(const Library &library);
-void configure(const Executable &ourExecutable);
 void configure();
-class Package;
-void configure(const Package &package);
 
-struct PackageVariant {
-  ConfigType packageVariantConfigurationType;
-  Compiler packageVariantCompiler;
-  Linker packageVariantLinker;
+class PackageVariant {
+public:
+  ConfigType configurationType;
+  Compiler compiler;
+  Linker linker;
   Flags flags;
+  mutable PCP copyPaths;
   LibraryType libraryType;
-  std::vector<Executable> projectExecutables;
-  std::vector<Library> projectLibraries;
+  std::vector<Executable> executables;
+  std::vector<Library> libraries;
 
-  decltype(Json::object()) associatedJson;
+  decltype(Json::object()) json;
   PackageVariant();
+  //TODO: This should be friend of Project and method should be public.
+  Json convertToJson(const Directory &packageConfigureDirectory, int count);
 };
 
-struct Package {
+class Package;
+class Target {
+public:
+  std::vector<IDD> includeDirectoryDependencies;
+  std::vector<LibraryDependency> libraryDependencies;
+  std::vector<CompilerFlagsDependency> compilerFlagsDependencies;
+  std::vector<LinkerFlagsDependency> linkerFlagsDependencies;
+  std::vector<CompileDefinitionDependency> compileDefinitionDependencies;
+  std::vector<File> sourceFiles;
+  std::string targetName;
+  Directory configureDirectory;
+  Directory buildOutputDirectory;
+  bool copyToPackage = true;
+  PCGuide guide;
+
+  //Where should this be built for packaging. Path is relative to packageVariant because a packageVaraint may have
+  //different path depending on it's number. Default value is targetName.
+  fs::path configureDirectoryPathRelativeToPV;
+
+  std::vector<const LibraryDependency *> getDependencies() const;
+  Json getVariantJson(const std::vector<const LibraryDependency *> &dependencies, const Package &package,
+                      const PackageVariant &variant, int count) const;
+  void configure() const;
+  void configure(const Package &package, const PackageVariant &variant, int count) const;
+  Json convertToJson(std::vector<const LibraryDependency *> &dependencies) const;
+
+protected:
+  //configureDirectory will be same as project::SOURCE_DIRECTORY. And the target's build directory will be
+  //same as configureDirectory. To specify a different build directory, set the buildDirectoryPath variable.
+  explicit Target(std::string targetName_);
+
+  //This will create a configure directory under the project::BUILD_DIRECTORY.
+  Target(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath);
+  virtual ~Target() = default;
+  Target(const Target & /* other */) = default;
+  Target &operator=(const Target & /* other */) = default;
+  Target(Target && /* other */) = default;
+  Target &operator=(Target && /* other */) = default;
+
+  virtual std::string getFileName() const = 0;
+  virtual fs::path getCopyLocation(const Package &package, const PackageVariant &variant) const = 0;
+};
+
+struct Executable : public Target {
+  explicit Executable(std::string targetName_);
+  Executable(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath);
+  std::string getFileName() const override;
+  fs::path getCopyLocation(const Package &package, const PackageVariant &variant);
+};
+
+struct Library : public Target {
+  LibraryType libraryType;
+  explicit Library(std::string targetName_);
+  Library(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath);
+  std::string getFileName() const override;
+  fs::path getCopyLocation(const Package &package, const PackageVariant &variant) const;
+};
+
+struct LibraryDependency {
+  Library library;
+  DependencyType dependencyType = DependencyType::PRIVATE;
+};
+
+class Package {
+public:
   Directory packageConfigureDirectory;
   Directory packageInstallDirectory;
   std::vector<PackageVariant> packageVariants;
 
   explicit Package(const fs::path &packageConfigureDirectoryPathRelativeToConfigureDirectory);
+  void configure();
+
+private:
+  void checkForSimilarJsonsInPackageVariants();
 };
 
-struct SubDirectory {
+class SubDirectory {
   Directory sourceDirectory;
   Directory buildDirectory;
   ConfigType projectConfigurationType;
