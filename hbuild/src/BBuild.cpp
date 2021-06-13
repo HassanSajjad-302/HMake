@@ -1,11 +1,73 @@
 
 
-#include "BBuildTarget.hpp"
-#include "BProject.hpp"
-#include "HBuildCustomFunctions.hpp"
+#include "BBuild.hpp"
 #include "fstream"
+#include "iostream"
 
-build::BBuildTarget::BBuildTarget(fs::path targetFilePath_, Json &json_) : targetFilePath(std::move(targetFilePath_)), json(json_) {
+static void doJsonSpecialParseAndConvertStringArrayToPathArray(const std::string &jstr, Json &j, std::vector<fs::path> &container) {
+  if (!j.contains(jstr)) {
+    return;
+  } else {
+    if (j.at(jstr).size() == 1) {
+      std::string str = j.at(jstr).get<std::string>();
+      container.emplace_back(fs::path(str));
+      return;
+    }
+    std::vector<std::string> tmpContainer;
+    j.at(jstr).get_to(tmpContainer);
+    for (auto &i : tmpContainer) {
+      container.emplace_back(fs::path(i));
+    }
+  }
+}
+
+BProject::BProject(const fs::path &projectFilePath) {
+  Json projectFileJson;
+  std::ifstream(projectFilePath) >> projectFileJson;
+
+  compilerPath = projectFileJson.at("COMPILER").get<Json>().at("PATH").get<std::string>();
+  linkerPath = projectFileJson.at("LINKER").get<Json>().at("PATH").get<std::string>();
+  compilerFlags = projectFileJson.at("COMPILER_FLAGS").get<std::string>();
+  linkerFlags = projectFileJson.at("LINKER_FLAGS").get<std::string>();
+  std::string libraryTypeString = projectFileJson.at("LIBRARY_TYPE").get<std::string>();
+  LibraryType fileLibraryType;
+  if (libraryTypeString == "STATIC") {
+    fileLibraryType = LibraryType::STATIC;
+  } else if (libraryTypeString == "SHARED") {
+    fileLibraryType = LibraryType::SHARED;
+  } else {
+    throw std::runtime_error(libraryTypeString + " is not in accepted values for LIBRARY_TYPE");
+  }
+  libraryType = fileLibraryType;
+  doJsonSpecialParseAndConvertStringArrayToPathArray("TARGETS", projectFileJson, targetFilePaths);
+}
+
+fs::path BProject::getProjectFilePathFromTargetFilePath(const fs::path &targetFilePath) {
+  Json targetFileJson;
+  std::ifstream(targetFilePath) >> targetFileJson;
+
+  fs::path projectFilePath = targetFileJson.at("PROJECT_FILE_PATH").get<std::string>();
+  return projectFilePath;
+}
+
+void BProject::build() {
+  BTargetBuilder builer(*this);
+  for (const auto &t : targetFilePaths) {
+    builer.initializeTargetTypeAndParseJsonAndBuild(t);
+  }
+}
+
+template<size_t N>
+constexpr size_t length(char const (&)[N]) {
+  return N - 1;
+}
+
+BTargetBuilder::BTargetBuilder(BProject project_)
+    : project(std::move(project_)) {
+}
+
+void BTargetBuilder::initializeTargetTypeAndParseJsonAndBuild(const fs::path &targetFilePath) {
+
   if (targetFilePath.string().ends_with(".executable.hmake")) {
     targetType = BTargetType::EXECUTABLE;
   } else if (targetFilePath.string().ends_with(".static.hmake")) {
@@ -29,10 +91,9 @@ build::BBuildTarget::BBuildTarget(fs::path targetFilePath_, Json &json_) : targe
     targetName = fileName.substr(0, fileName.size() - length(".static.hmake"));
     targetNameBuildConvention = "lib" + targetName + ".a";
   }
-  parseJson();
-}
 
-void build::BBuildTarget::parseJson() {
+  Json json;
+  std::ifstream(targetFilePath) >> json;
   //todo: if there is anything more specific to the executable it should be checked here. Otherwise for most parts
   // we will be defaulting to the defaults of main project file.
 
@@ -40,19 +101,19 @@ void build::BBuildTarget::parseJson() {
   if (json.contains("BUILD_DIRECTORY")) {
     targetBuildDirectory = json.at("BUILD_DIRECTORY").get<fs::path>();
   } else {
-    targetBuildDirectory = BProject::projectFilePath.parent_path();
+    targetBuildDirectory = project.projectFilePath.parent_path();
   }
 
   //assigning source files
   if (!json.contains("SOURCE_FILES")) {
     throw std::runtime_error("Target " + targetName + " Does Not Has Any Source Files Specified in Json File.");
   } else {
-    build::doJsonSpecialParseAndConvertStringArrayToPathArray("SOURCE_FILES", json, sourceFiles);
+    doJsonSpecialParseAndConvertStringArrayToPathArray("SOURCE_FILES", json, sourceFiles);
   }
 
   //assigning library dependencies
-  build::doJsonSpecialParseAndConvertStringArrayToPathArray("LIBRARY_DEPENDENCIES", json, libraryDependencies);
-  build::doJsonSpecialParseAndConvertStringArrayToPathArray("INCLUDE_DIRECTORIES", json, includeDirectories);
+  doJsonSpecialParseAndConvertStringArrayToPathArray("LIBRARY_DEPENDENCIES", json, libraryDependencies);
+  doJsonSpecialParseAndConvertStringArrayToPathArray("INCLUDE_DIRECTORIES", json, includeDirectories);
 
   if (json.contains("COMPILER_TRANSITIVE_FLAGS")) {
     json.at("COMPILER_TRANSITIVE_FLAGS").get_to(compilerTransitiveFlags);
@@ -66,25 +127,25 @@ void build::BBuildTarget::parseJson() {
   }
 
   buildCacheFilesDirPath = targetFilePath.parent_path() / ("Cache_Build_Files_" + targetName);
+  build();
 }
 
-void build::BBuildTarget::compileAFilePath(const fs::path &compileFileName) const {
-  std::string compileCommand = BProject::compilerPath.string()
-      + " " + BProject::compilerFlags + " " + compilerTransitiveFlags + " " + includeDirectoriesFlags
+void BTargetBuilder::compileAFilePath(const fs::path &compileFileName) const {
+  std::string compileCommand = project.compilerPath.string()
+      + " " + project.compilerFlags + " " + compilerTransitiveFlags + " " + includeDirectoriesFlags
       + " -c " + compileFileName.string()
       + " -o " + (buildCacheFilesDirPath / compileFileName.filename()).string() + ".o";
   std::cout << compileCommand << std::endl;
   system(compileCommand.c_str());
 }
 
-void build::BBuildTarget::build() {
+void BTargetBuilder::build() {
 
   for (const auto &i : libraryDependencies) {
-    Json json1;
-    std::ifstream(i) >> json1;
-    BBuildTarget buildTarget(i, json1);
+
+    BTargetBuilder buildTarget(this->project);
+    buildTarget.initializeTargetTypeAndParseJsonAndBuild(i);
     libraryDependenciesFlags.append("-L" + buildTarget.targetBuildDirectory.string() + " -l" + buildTarget.targetName + " ");
-    buildTarget.build();
   }
   //build process starts
   fs::create_directory(targetBuildDirectory);
@@ -112,8 +173,8 @@ void build::BBuildTarget::build() {
     std::string linkerCommand;
     if (targetType == BTargetType::EXECUTABLE) {
       std::cout << "Linking" << std::endl;
-      linkerCommand = BProject::linkerPath.string()
-          + " " + BProject::linkerFlags + " " + linkerTransitiveFlags
+      linkerCommand = project.linkerPath.string()
+          + " " + project.linkerFlags + " " + linkerTransitiveFlags
           + " " + fs::path(buildCacheFilesDirPath / fs::path("")).string() + "*.o "
           + " " + libraryDependenciesFlags
           + " -o " + (targetBuildDirectory / targetNameBuildConvention).string();

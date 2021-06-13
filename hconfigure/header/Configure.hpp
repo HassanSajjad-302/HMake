@@ -29,29 +29,19 @@ enum class DependencyType {
 };
 void to_json(Json &j, const DependencyType &p);
 
-//Package Copy Guide
-struct PCGuide {
-  bool usePCPClass = true;
-  fs::path copyItemToThisPath = "";
-};
-
 struct IDD {
   Directory includeDirectory;
   DependencyType dependencyType = DependencyType::PRIVATE;
-  bool copyToPackage = true;
-  PCGuide guide;
 };
 
 struct LibraryDependency;
 struct CompilerFlagsDependency {
   std::string compilerFlags;
   DependencyType dependencyType;
-  bool copyToPackage = true;
 };
 struct LinkerFlagsDependency {
   std::string linkerFlags;
   DependencyType dependencyType;
-  bool copyToPackage = true;
 };
 struct CompileDefinition {
   std::string name;
@@ -61,9 +51,8 @@ struct CompileDefinition {
 struct CompileDefinitionDependency {
   CompileDefinition compileDefinition;
   DependencyType dependencyType = DependencyType::PRIVATE;
-  bool copyToPackage = true;
 };
-void to_json(Json &j, const CompileDefinitionDependency &p);
+void to_json(Json &j, const CompileDefinitionDependency &cdd);
 
 enum class CompilerFamily {
   ANY,
@@ -89,13 +78,20 @@ struct Linker {
   fs::path path;
 };
 
-void to_json(Json &j, const Compiler &p);
-void to_json(Json &j, const Linker &p);
+enum class LibraryType {
+  STATIC,
+  SHARED,
+};
 
 enum class ConfigType {
   DEBUG,
   RELEASE
 };
+
+void to_json(Json &j, const Compiler &compiler);
+void to_json(Json &j, const Linker &linker);
+void to_json(Json &j, LibraryType libraryType);
+void to_json(Json &j, ConfigType configType);
 
 //TODO: Improve the console message and documentation.
 struct Flags {
@@ -120,11 +116,6 @@ public:
   void operator=(const std::string &flags);
 
   operator std::string();
-};
-
-enum class LibraryType {
-  STATIC,
-  SHARED,
 };
 
 struct Cache {
@@ -160,25 +151,6 @@ enum class PCCategory {
   SHARED,
   INCLUDE
 };
-//package copy paths
-class PCP {
-  std::map<std::tuple<Platform, PCCategory>, fs::path> packageCopyPaths;
-
-  //bool and enum helpers for using Platform class with some operator overload magic
-  bool platformHelper = false;
-  bool packageCopyCategoryHelper = false;
-
-  Platform platformCurrent;
-  PCCategory packageCopyCategoryCurrent;
-
-public:
-  PCP &operator[](Platform platform);
-  PCP &operator[](PCCategory packageCopyCategory);
-
-  void operator=(const fs::path &copyPathRelativeToPackageVariantInstallDirectory);
-
-  operator fs::path();
-};
 
 class Executable;
 class Library;
@@ -194,14 +166,11 @@ struct Project {
   static inline std::vector<Library> libraries;
   static inline Flags flags;
   static inline LibraryType libraryType;
-  static inline PCP packageCopyPaths;
   static inline bool hasParent;
   static inline fs::path parentPath;
 };
 
-void to_json(Json &j, const ConfigType &p);
 void to_json(Json &j, const Project &p);
-
 void to_json(Json &j, const Version &p);
 
 void initializeCache(int argc, const char **argv);
@@ -216,14 +185,14 @@ public:
   Compiler compiler;
   Linker linker;
   Flags flags;
-  mutable PCP copyPaths;
   LibraryType libraryType;
   std::vector<Executable> executables;
   std::vector<Library> libraries;
 
   decltype(Json::object()) json;
   PackageVariant();
-  //TODO: This should be friend of Project and method should be public.
+  //TODO: This should be friend of Project and method should not be public because it is called by configure
+  //method while PackageVariant don't have configure method.
   Json convertToJson(const Directory &packageConfigureDirectory, int count);
 };
 
@@ -239,19 +208,18 @@ public:
   std::string targetName;
   Directory configureDirectory;
   Directory buildOutputDirectory;
-  bool copyToPackage = true;
-  PCGuide guide;
 
   //Where should this be built for packaging. Path is relative to packageVariant because a packageVaraint may have
   //different path depending on it's number. Default value is targetName.
   fs::path configureDirectoryPathRelativeToPV;
 
   std::vector<const LibraryDependency *> getDependencies() const;
-  Json getVariantJson(const std::vector<const LibraryDependency *> &dependencies, const Package &package,
-                      const PackageVariant &variant, int count) const;
+  //Json getVariantJson(const std::vector<const LibraryDependency *> &dependencies, const Package &package,
+  //                  const PackageVariant &variant, int count) const;
   void configure() const;
+  Json convertToJson() const;
   void configure(const Package &package, const PackageVariant &variant, int count) const;
-  Json convertToJson(std::vector<const LibraryDependency *> &dependencies) const;
+  Json convertToJson(const Package &package, const PackageVariant &variant, int count) const;
 
 protected:
   //configureDirectory will be same as project::SOURCE_DIRECTORY. And the target's build directory will be
@@ -267,14 +235,13 @@ protected:
   Target &operator=(Target && /* other */) = default;
 
   virtual std::string getFileName() const = 0;
-  virtual fs::path getCopyLocation(const Package &package, const PackageVariant &variant) const = 0;
 };
 
+//TODO: Throw in configure stage if there are no source files for Executable.
 struct Executable : public Target {
   explicit Executable(std::string targetName_);
   Executable(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath);
   std::string getFileName() const override;
-  fs::path getCopyLocation(const Package &package, const PackageVariant &variant);
 };
 
 struct Library : public Target {
@@ -282,7 +249,6 @@ struct Library : public Target {
   explicit Library(std::string targetName_);
   Library(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath);
   std::string getFileName() const override;
-  fs::path getCopyLocation(const Package &package, const PackageVariant &variant) const;
 };
 
 struct LibraryDependency {

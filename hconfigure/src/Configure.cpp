@@ -10,7 +10,7 @@ File::File(std::filesystem::__cxx11::path path_) {
     path_ = Project::sourceDirectory.path / path_;
   }
   if (fs::directory_entry(path_).status().type() == fs::file_type::regular) {
-    path = path_;
+    path = path_.lexically_normal();
     return;
   }
   throw std::runtime_error(path_.string() + " Is Not a Regular File");
@@ -26,14 +26,14 @@ Directory::Directory(fs::path path_) {
     path_ = Project::sourceDirectory.path / path_;
   }
   if (fs::directory_entry(path_).status().type() == fs::file_type::directory) {
-    path = path_;
+    path = path_.lexically_normal();
   } else {
     throw std::logic_error(path_.string() + " Is Not a directory file");
   }
   path /= "";
 }
 
-void to_json(Json &j, const DependencyType &p) {
+void to_json(Json &j, const DependencyType p) {
   if (p == DependencyType::PUBLIC) {
     j = "PUBLIC";
   } else if (p == DependencyType::PRIVATE) {
@@ -43,9 +43,25 @@ void to_json(Json &j, const DependencyType &p) {
   }
 }
 
-void to_json(Json &j, const CompileDefinitionDependency &p) {
-  j["NAME"] = p.compileDefinition.name;
-  j["VALUE"] = p.compileDefinition.value;
+void to_json(Json &j, const CompileDefinitionDependency &cdd) {
+  j["NAME"] = cdd.compileDefinition.name;
+  j["VALUE"] = cdd.compileDefinition.value;
+}
+
+void to_json(Json &j, const LibraryType libraryType) {
+  if (libraryType == LibraryType::STATIC) {
+    j = "STATIC";
+  } else {
+    j = "SHARED";
+  }
+}
+
+void to_json(Json &j, const ConfigType configType) {
+  if (configType == ConfigType::DEBUG) {
+    j = "DEBUG";
+  } else {
+    j = "RELEASE";
+  }
 }
 
 static void jsonAssignSpecialist(const std::string &jstr, Json &j, auto &container) {
@@ -93,122 +109,9 @@ std::vector<const LibraryDependency *> Target::getDependencies() const {
   return dependencies;
 }
 
-fs::path Library::getCopyLocation(const Package &package, const PackageVariant &variant) const {
-  if (guide.usePCPClass) {
-    PCCategory category;
-    if (libraryType == LibraryType::STATIC) {
-      category = PCCategory::STATIC;
-    } else {
-      category = PCCategory::SHARED;
-    }
-    return package.packageInstallDirectory.path
-        / fs::path(variant.copyPaths[Platform::LINUX][category]);
-  }
-  return guide.copyItemToThisPath.string();
-}
-
-fs::path Executable::getCopyLocation(const Package &package, const PackageVariant &variant) {
-  if (guide.usePCPClass) {
-    return package.packageInstallDirectory.path
-        / fs::path(variant.copyPaths[Platform::LINUX][PCCategory::EXECUTABLE]);
-  }
-  return guide.copyItemToThisPath.string();
-}
-
-Json Target::getVariantJson(const std::vector<const LibraryDependency *> &dependencies, const Package &package,
-                            const PackageVariant &variant, int count) const {
-
-  JArray includeDirectoriesArray;
-  std::string compilerFlags;
-  std::string linkerFlags;
-  JArray compileDefinitionsArray;
-  JArray dependenciesStringArray;
-
-  for (const auto &e : includeDirectoryDependencies) {
-    if (e.copyToPackage) {
-      JObject iDDObjectPV;//includeDirectoryDependencyObjectPackageVariant
-      iDDObjectPV["PATH"] = e.includeDirectory.path.string();
-      if (e.guide.usePCPClass) {
-        iDDObjectPV["COPY_PATH"] = fs::path(variant.copyPaths[Platform::LINUX][PCCategory::INCLUDE]).string();
-      } else {
-        iDDObjectPV["COPY_PATH"] = e.guide.copyItemToThisPath.string();
-      }
-      includeDirectoriesArray.push_back(iDDObjectPV);
-    }
-  }
-  for (const auto &e : compilerFlagsDependencies) {
-    if (e.copyToPackage) {
-      compilerFlags.append(" " + e.compilerFlags + " ");
-    }
-  }
-  for (const auto &e : linkerFlagsDependencies) {
-    if (e.copyToPackage) {
-      compilerFlags.append(" " + e.linkerFlags + " ");
-    }
-  }
-  for (const auto &e : compileDefinitionDependencies) {
-    if (e.copyToPackage) {
-      Json compileDefinitionObject = e;
-      compileDefinitionsArray.push_back(compileDefinitionObject);
-    }
-  }
-
-  for (auto libraryDependency : dependencies) {
-    const Library &library = libraryDependency->library;
-    if (library.copyToPackage) {
-      for (const auto &e : library.includeDirectoryDependencies) {
-        if (e.dependencyType == DependencyType::PUBLIC) {
-          JObject iDDObjectPV;//includeDirectoryDependencyObjectPackageVariant
-          iDDObjectPV["PATH"] = e.includeDirectory.path.string();
-          if (e.guide.usePCPClass) {
-            iDDObjectPV["COPY_PATH"] = fs::path(variant.copyPaths[Platform::LINUX][PCCategory::INCLUDE]).string();
-          } else {
-            iDDObjectPV["COPY_PATH"] = e.guide.copyItemToThisPath.string();
-          }
-          includeDirectoriesArray.push_back(iDDObjectPV);
-        }
-      }
-
-      for (const auto &e : library.compilerFlagsDependencies) {
-        if (e.dependencyType == DependencyType::PUBLIC) {
-          compilerFlags.append(" " + e.compilerFlags + " ");
-        }
-      }
-
-      for (const auto &e : library.linkerFlagsDependencies) {
-        if (e.dependencyType == DependencyType::PUBLIC) {
-          linkerFlags.append(" " + e.linkerFlags + " ");
-        }
-      }
-
-      for (const auto &e : library.compileDefinitionDependencies) {
-        if (e.dependencyType == DependencyType::PUBLIC) {
-          Json compileDefinitionObject = e;
-          compileDefinitionsArray.push_back(compileDefinitionObject);
-        }
-      }
-      if (library.copyToPackage) {
-        JObject libDepObjectPV;//libraryDependencyObjectPackageVariant
-        fs::path targetFileBuildDir = package.packageConfigureDirectory.path / fs::path(std::to_string(count)) / fs::path(library.configureDirectoryPathRelativeToPV);
-        fs::path filePath = targetFileBuildDir / fs::path(library.getFileName());
-        libDepObjectPV["PATH"] = filePath.string();
-        dependenciesStringArray.emplace_back(libDepObjectPV);
-      }
-    }
-  }
-
-  Json consumerDependencies;
-  jsonAssignSpecialist("LIBRARY_DEPENDENCIES", consumerDependencies, dependenciesStringArray);
-  jsonAssignSpecialist("INCLUDE_DIRECTORIES", consumerDependencies, includeDirectoriesArray);
-  jsonAssignSpecialist("COMPILER_TRANSITIVE_FLAGS", consumerDependencies, compilerFlags);
-  jsonAssignSpecialist("LINKER_TRANSITIVE_FLAGS", consumerDependencies, linkerFlags);
-  jsonAssignSpecialist("COMPILE_DEFINITIONS", consumerDependencies, compileDefinitionsArray);
-  return consumerDependencies;
-}
-
 //todo: don't give property values if they are not different from project property values.
 //todo: improve property values in compile definitions.
-Json Target::convertToJson(std::vector<const LibraryDependency *> &dependencies) const {
+Json Target::convertToJson() const {
   Json targetFileJson;
 
   std::vector<std::string> sourceFilesArray;
@@ -228,13 +131,14 @@ Json Target::convertToJson(std::vector<const LibraryDependency *> &dependencies)
     compilerFlags.append(" " + e.compilerFlags + " ");
   }
   for (const auto &e : linkerFlagsDependencies) {
-    compilerFlags.append(" " + e.linkerFlags + " ");
+    linkerFlags.append(" " + e.linkerFlags + " ");
   }
   for (const auto &e : compileDefinitionDependencies) {
     Json compileDefinitionObject = e;
     compileDefinitionsArray.push_back(compileDefinitionObject);
   }
 
+  std::vector<const LibraryDependency *> dependencies;
   dependencies = getDependencies();
   for (auto libraryDependency : dependencies) {
     const Library &library = libraryDependency->library;
@@ -266,6 +170,7 @@ Json Target::convertToJson(std::vector<const LibraryDependency *> &dependencies)
     dependenciesString.emplace_back((library.configureDirectory.path / fs::path(library.getFileName())).string());
   }
 
+  targetFileJson["PROJECT_FILE_PATH"] = Project::configureDirectory.path.string() + Project::name + ".hmake";
   jsonAssignSpecialist("SOURCE_FILES", targetFileJson, sourceFilesArray);
   jsonAssignSpecialist("LIBRARY_DEPENDENCIES", targetFileJson, dependenciesString);
   jsonAssignSpecialist("INCLUDE_DIRECTORIES", targetFileJson, includeDirectories);
@@ -277,10 +182,7 @@ Json Target::convertToJson(std::vector<const LibraryDependency *> &dependencies)
 
 void Target::configure() const {
   Json targetFileJson;
-  targetFileJson["PROJECT_FILE_PATH"] = Project::configureDirectory.path.string() + Project::name + ".hmake";
-  targetFileJson["BUILD_DIRECTORY"] = buildOutputDirectory.path.string();
-  std::vector<const LibraryDependency *> dependencies;
-  targetFileJson = convertToJson(dependencies);
+  targetFileJson = convertToJson();
   fs::path p = configureDirectory.path;
   p /= getFileName();
   std::ofstream(p) << targetFileJson.dump(4);
@@ -289,14 +191,123 @@ void Target::configure() const {
   }
 }
 
+//todo: don't give property values if they are not different from project property values.
+//todo: improve property values in compile definitions.
+Json Target::convertToJson(const Package &package, const PackageVariant &variant, int count) const {
+  Json targetFileJson;
+
+  std::vector<std::string> sourceFilesArray;
+  JArray includeDirectoriesArray;
+  std::string compilerFlags;
+  std::string linkerFlags;
+  JArray compileDefinitionsArray;
+  JArray dependenciesArray;
+
+  std::vector<std::string> consumerIncludeDirectories;
+  std::string consumerCompilerFlags;
+  std::string consumerLinkerFlags;
+  JArray consumerCompileDefinitionsArray;
+  JArray consumerDependenciesArray;
+
+  for (const auto &e : sourceFiles) {
+    sourceFilesArray.push_back(e.path.string());
+  }
+  for (const auto &e : includeDirectoryDependencies) {
+    JObject JIDDObject;
+    JIDDObject["PATH"] = e.includeDirectory.path.string();
+    if (e.dependencyType == DependencyType::PUBLIC) {
+      JIDDObject["COPY"] = true;
+      consumerIncludeDirectories.emplace_back("include/");
+    }
+    includeDirectoriesArray.push_back(JIDDObject);
+  }
+  for (const auto &e : compilerFlagsDependencies) {
+    compilerFlags.append(" " + e.compilerFlags + " ");
+    if (e.dependencyType == DependencyType::PUBLIC) {
+      consumerCompilerFlags.append(" " + e.compilerFlags + " ");
+    }
+  }
+  for (const auto &e : linkerFlagsDependencies) {
+    linkerFlags.append(" " + e.linkerFlags + " ");
+    if (e.dependencyType == DependencyType::PUBLIC) {
+      consumerLinkerFlags.append(" " + e.linkerFlags + " ");
+    }
+  }
+  for (const auto &e : compileDefinitionDependencies) {
+    Json compileDefinitionObject = e;
+    compileDefinitionsArray.push_back(compileDefinitionObject);
+    if (e.dependencyType == DependencyType::PUBLIC) {
+      consumerCompileDefinitionsArray.push_back(compileDefinitionObject);
+    }
+  }
+
+  std::vector<const LibraryDependency *> dependencies;
+  dependencies = getDependencies();
+  for (auto libraryDependency : dependencies) {
+    const Library &library = libraryDependency->library;
+    for (const auto &e : library.includeDirectoryDependencies) {
+      if (e.dependencyType == DependencyType::PUBLIC) {
+        JObject JIDDObject;
+        JIDDObject["PATH"] = e.includeDirectory.path.string();
+        includeDirectoriesArray.push_back(JIDDObject);
+        consumerIncludeDirectories.push_back("../" + library.targetName + "/include/");
+      }
+    }
+
+    for (const auto &e : library.compilerFlagsDependencies) {
+      if (e.dependencyType == DependencyType::PUBLIC) {
+        compilerFlags.append(" " + e.compilerFlags + " ");
+        consumerCompilerFlags.append(" " + e.compilerFlags + " ");
+      }
+    }
+
+    for (const auto &e : library.linkerFlagsDependencies) {
+      if (e.dependencyType == DependencyType::PUBLIC) {
+        linkerFlags.append(" " + e.linkerFlags + " ");
+        consumerLinkerFlags.append(" " + e.linkerFlags + " ");
+      }
+    }
+
+    for (const auto &e : library.compileDefinitionDependencies) {
+      if (e.dependencyType == DependencyType::PUBLIC) {
+        Json compileDefinitionObject = e;
+        compileDefinitionsArray.push_back(compileDefinitionObject);
+        consumerCompileDefinitionsArray.push_back(compileDefinitionObject);
+      }
+    }
+
+    JObject libDepObject;
+    fs::path targetFileBuildDir = package.packageConfigureDirectory.path / fs::path(std::to_string(count)) / fs::path(library.configureDirectoryPathRelativeToPV) / library.getFileName();
+    consumerDependenciesArray.push_back("../" + library.targetName + "/" + library.getFileName());
+    libDepObject["PATH"] = targetFileBuildDir;
+    dependenciesArray.push_back(libDepObject);
+  }
+
+  targetFileJson["VARIANT_FILE_PATH"] = Project::configureDirectory.path.string() + Project::name + ".hmake";
+
+  jsonAssignSpecialist("SOURCE_FILES", targetFileJson, sourceFilesArray);
+  jsonAssignSpecialist("LIBRARY_DEPENDENCIES", targetFileJson, dependenciesArray);
+  jsonAssignSpecialist("INCLUDE_DIRECTORIES", targetFileJson, includeDirectoriesArray);
+  jsonAssignSpecialist("COMPILER_TRANSITIVE_FLAGS", targetFileJson, compilerFlags);
+  jsonAssignSpecialist("LINKER_TRANSITIVE_FLAGS", targetFileJson, linkerFlags);
+  jsonAssignSpecialist("COMPILE_DEFINITIONS", targetFileJson, compileDefinitionsArray);
+
+  Json consumerDependenciesJson;
+  jsonAssignSpecialist("LIBRARY_DEPENDENCIES", consumerDependenciesJson, consumerDependenciesArray);
+  jsonAssignSpecialist("INCLUDE_DIRECTORIES", consumerDependenciesJson, consumerIncludeDirectories);
+  jsonAssignSpecialist("COMPILER_TRANSITIVE_FLAGS", consumerDependenciesJson, consumerCompilerFlags);
+  jsonAssignSpecialist("LINKER_TRANSITIVE_FLAGS", consumerDependenciesJson, consumerLinkerFlags);
+  jsonAssignSpecialist("COMPILE_DEFINITIONS", consumerDependenciesJson, consumerCompileDefinitionsArray);
+
+  targetFileJson["CONSUMER_DEPENDENCIES"] = consumerDependenciesJson;
+  return targetFileJson;
+}
+
 void Target::configure(const Package &package, const PackageVariant &variant, int count) const {
   Json targetFileJson;
-  std::vector<const LibraryDependency *> dependencies;
-  targetFileJson["VARIANT_FILE_PATH"] = Project::configureDirectory.path.string() + Project::name + ".hmake";
-  targetFileJson["COPY_PATH"] = getCopyLocation(package, variant);
-  targetFileJson = convertToJson(dependencies);
-  targetFileJson["CONSUMER_DEPENDENCIES"] = getVariantJson(dependencies, package, variant, count);
+  targetFileJson = convertToJson(package, variant, count);
   fs::path targetFileBuildDir = package.packageConfigureDirectory.path / fs::path(std::to_string(count)) / fs::path(configureDirectoryPathRelativeToPV);
+  fs::create_directory(targetFileBuildDir);
   fs::path filePath = targetFileBuildDir / fs::path(getFileName());
   std::ofstream(filePath.string()) << targetFileJson.dump(4);
   for (const auto &libDep : libraryDependencies) {
@@ -340,15 +351,15 @@ void to_json(Json &j, const Compiler &p) {
   j["PATH"] = p.path.string();
 }
 
-void to_json(Json &j, const Linker &p) {
-  if (p.linkerFamily == LinkerFamily::GCC) {
+void to_json(Json &j, const Linker &linker) {
+  if (linker.linkerFamily == LinkerFamily::GCC) {
     j["FAMILY"] = "GCC";
-  } else if (p.linkerFamily == LinkerFamily::MSVC) {
+  } else if (linker.linkerFamily == LinkerFamily::MSVC) {
     j["FAMILY"] = "MSVC";
   } else {
     j["FAMILY"] = "CLANG";
   }
-  j["PATH"] = p.path.string();
+  j["PATH"] = linker.path.string();
 }
 
 Flags &Flags::operator[](CompilerFamily compilerFamily) {
@@ -420,55 +431,8 @@ Flags::operator std::string() {
   }
 }
 
-PCP &PCP::operator[](Platform platform) {
-  if (platformHelper || packageCopyCategoryHelper) {
-    throw std::logic_error("Wrong Usage Of PCP class");
-  }
-  platformHelper = true;
-  platformCurrent = platform;
-  return *this;
-}
-
-PCP &PCP::operator[](PCCategory packageCopyCategory) {
-  if (!platformHelper) {
-    throw std::logic_error("Wrong Usage of PCP class. First use operator(Platform) function");
-  }
-  packageCopyCategoryHelper = true;
-  packageCopyCategoryCurrent = packageCopyCategory;
-  return *this;
-}
-
-void PCP::operator=(const fs::path &copyPathRelativeToPackageVariantInstallDirectory) {
-  if (!platformHelper || !packageCopyCategoryHelper) {
-    throw std::logic_error("Wrong Usage Of PCP Class.");
-  }
-  platformHelper = true;
-  packageCopyCategoryHelper = true;
-  auto t = std::make_tuple(platformCurrent, packageCopyCategoryCurrent);
-  if (auto [pos, ok] = packageCopyPaths.emplace(t, copyPathRelativeToPackageVariantInstallDirectory); !ok) {
-    std::cout << "ReWriting Install Location for this configuration" << std::endl;
-    packageCopyPaths[t] = copyPathRelativeToPackageVariantInstallDirectory;
-  }
-}
-
-PCP::operator fs::path() {
-  if (!platformHelper || !packageCopyCategoryHelper) {
-    throw std::logic_error("Wrong Usage Of PCP Class.");
-  }
-  platformHelper = packageCopyCategoryHelper = false;
-  auto t = std::make_tuple(platformCurrent, packageCopyCategoryCurrent);
-  return packageCopyPaths[t];
-}
-
 void to_json(Json &j, const Version &p) {
   j = std::to_string(p.majorVersion) + "." + std::to_string(p.minorVersion) + "." + std::to_string(p.patchVersion);
-}
-
-void to_json(Json &j, const ConfigType &p) {
-  if (p == ConfigType::DEBUG) {
-    j = "DEBUG";
-    j = "RELEASE";
-  }
 }
 
 void to_json(Json &j, const Project &p) {
@@ -543,6 +507,7 @@ void initializeCache(int argc, char const **argv) {
       throw std::runtime_error("Unknown COMPILER::FAMILY " + compilerFamilyString);
     }
     compiler.compilerFamily = compilerFamily;
+    Cache::compilerArray.push_back(compiler);
   }
   Cache::selectedCompilerArrayIndex = cacheJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
 
@@ -563,6 +528,7 @@ void initializeCache(int argc, char const **argv) {
       throw std::runtime_error("Unknown LINKER::FAMILY " + linkerFamilyString);
     }
     linker.linkerFamily = linkerFamily;
+    Cache::linkerArray.push_back(linker);
   }
   Cache::selectedLinkerArrayIndex = cacheJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
 
@@ -588,6 +554,7 @@ void initializeProject(const std::string &projectName, Version projectVersion) {
   Project::sourceDirectory = Cache::SOURCE_DIRECTORY;
   Project::configureDirectory = Cache::CONFIGURE_DIRECTORY;
   Project::projectConfigurationType = Cache::projectConfigurationType;
+  auto p = Cache::compilerArray;
   Project::compiler = Cache::compilerArray[Cache::selectedCompilerArrayIndex];
   Project::linker = Cache::linkerArray[Cache::selectedLinkerArrayIndex];
   Project::libraryType = Cache::libraryType;
@@ -595,10 +562,6 @@ void initializeProject(const std::string &projectName, Version projectVersion) {
   Project::parentPath = Cache::parentPath;
   Project::flags[CompilerFamily::GCC][ConfigType::DEBUG] = "-g";
   Project::flags[CompilerFamily::GCC][ConfigType::RELEASE] = "-O3 -DNDEBUG";
-  Project::packageCopyPaths[Platform::LINUX][PCCategory::STATIC] = fs::path("lib/");
-  Project::packageCopyPaths[Platform::LINUX][PCCategory::SHARED] = fs::path("lib/");
-  Project::packageCopyPaths[Platform::LINUX][PCCategory::INCLUDE] = fs::path("include/");
-  Project::packageCopyPaths[Platform::LINUX][PCCategory::EXECUTABLE] = fs::path("bin/");
 }
 
 void initializeCacheAndInitializeProject(int argc, char const **argv, const std::string &projectName, Version projectVersion) {
@@ -625,7 +588,6 @@ PackageVariant::PackageVariant() {
   compiler = Project::compiler;
   linker = Project::linker;
   flags = Project::flags;
-  copyPaths = Project::packageCopyPaths;
   libraryType = Project::libraryType;
 }
 
@@ -634,7 +596,7 @@ Json PackageVariant::convertToJson(const Directory &packageConfigureDirectory, i
   variantFileJson["CONFIGURATION"] = configurationType;
   variantFileJson["COMPILER"] = compiler;
   variantFileJson["LINKER"] = linker;
-  Flags flags = flags;
+  //Flags flags = flags;
   std::string compilerFlags = flags[compiler.compilerFamily][configurationType];
   std::string linkerFlags = flags[linker.linkerFamily][configurationType];
   variantFileJson["COMPILER_FLAGS"] = compilerFlags;
@@ -663,27 +625,37 @@ Json PackageVariant::convertToJson(const Directory &packageConfigureDirectory, i
     libArray.push_back(libObject);
   }
   jsonAssignSpecialist("LIBRARIES", variantFileJson, libArray);
-  return Json();
+  return variantFileJson;
 }
 
-Package::Package(const fs::path &packageConfigureDirectoryPathRelativeToConfigureDirectory)
-    : packageConfigureDirectory(Project::configureDirectory.path / packageConfigureDirectoryPathRelativeToConfigureDirectory / "") {
+Package::Package(const fs::path &packageConfigureDirectoryPathRelativeToConfigureDirectory) {
+  fs::path directoryPath = Project::configureDirectory.path / packageConfigureDirectoryPathRelativeToConfigureDirectory / "";
+  fs::create_directory(directoryPath);
+  packageConfigureDirectory = Directory(directoryPath);
 }
 
 void Package::configure() {
   checkForSimilarJsonsInPackageVariants();
 
   Json packageFileJson;
+  int count = 0;
   for (auto &i : packageVariants) {
+    if (i.json.contains("INDEX")) {
+      throw std::runtime_error("Package Variant Json can not have COUNT in it's Json.");
+    }
+    i.json["INDEX"] = std::to_string(count);
     packageFileJson.emplace_back(i.json);
+    ++count;
   }
   fs::path file = packageConfigureDirectory.path / "package.hmake";
-  std::ofstream(file) << packageFileJson;
+  std::ofstream(file) << packageFileJson.dump(4);
 
-  int count = 1;
+  count = 0;
   for (auto &variant : packageVariants) {
     Json variantJsonFile = variant.convertToJson(packageConfigureDirectory, count);
-    fs::path variantFilePath = packageConfigureDirectory.path / fs::path(std::to_string(count)) / fs::path("variant.hmake");
+    fs::path variantFileDir = packageConfigureDirectory.path / fs::path(std::to_string(count));
+    fs::create_directory(variantFileDir);
+    fs::path variantFilePath = variantFileDir / fs::path("variant.hmake");
     std::ofstream(variantFilePath) << variantJsonFile.dump(4);
     for (const auto &exe : variant.executables) {
       exe.configure(*this, variant, count);
@@ -699,12 +671,13 @@ void Package::checkForSimilarJsonsInPackageVariants() {
   //Check that no two JSON'S of packageVariants of package are same
   std::set<nlohmann::json> checkSet;
   for (auto &i : packageVariants) {
+    //TODO: Implement this check correctly.
     //This associatedJson is ordered_json, thus two different json's equality test will be false if the order is different even if they have same elements.
     //Thus we first convert it into json normal which is unordered one.
-    nlohmann::json j = i.json;
+    /* nlohmann::json j = i.json;
     if (auto [pos, ok] = checkSet.emplace(j); !ok) {
       throw std::logic_error("No two json's of packagevariants can be same. Different order with same values does not make two Json's different");
-    }
+    }*/
   }
 }
 

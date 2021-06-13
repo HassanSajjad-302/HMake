@@ -18,10 +18,9 @@ target_include_directories(hconfigure
         )
 
 add_library(hbuild
-        hbuild/src/Build.cpp
         hbuild/src/HBuildCustomFunctions.cpp
-        hbuild/src/BProject.cpp
-        hbuild/src/BBuildTarget.cpp)
+        hbuild/src/BBuild.cpp
+        hbuild/src/main.cpp)
 target_include_directories(hbuild PUBLIC hbuild/header)
 target_include_directories(hbuild PRIVATE hconfigure/header)
 

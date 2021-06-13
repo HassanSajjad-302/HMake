@@ -44,18 +44,18 @@ struct Linker {
 };
 
 typedef nlohmann::ordered_json Json;
-void to_json(Json &j, const Compiler &p);
-void to_json(Json &j, const Linker &p);
+void to_json(Json &j, const Compiler &compiler);
+void to_json(Json &j, const Linker &linker);
 
-void to_json(Json &j, const Compiler &p) {
-  if (p.compilerFamily == CompilerFamily::GCC) {
+void to_json(Json &j, const Compiler &compiler) {
+  if (compiler.compilerFamily == CompilerFamily::GCC) {
     j["FAMILY"] = "GCC";
-  } else if (p.compilerFamily == CompilerFamily::MSVC) {
+  } else if (compiler.compilerFamily == CompilerFamily::MSVC) {
     j["FAMILY"] = "MSVC";
   } else {
     j["FAMILY"] = "CLANG";
   }
-  j["PATH"] = p.path.string();
+  j["PATH"] = compiler.path.string();
 }
 
 void to_json(Json &j, const Linker &p) {
@@ -110,16 +110,23 @@ int main(){
     fs::path sourceDirPath = fs::path(std::string(j["SOURCE_DIRECTORY"]));
     fs::path buildDirPath = fs::path(std::string(j["BUILD_DIRECTORY"]));
     fs::path filePath = sourceDirPath/fs::path("hmake.cpp");
-    if(!is_regular_file(filePath)){
-      throw std::runtime_error("Error in finding out the source file in specified source directory");
+    if (!is_regular_file(filePath)) {
+      throw std::runtime_error("hmake.cpp not found. This path is  not regular file " + filePath.string());
     }
 
     std::string compileCommand = "g++ -std=c++20 "
-                                 "-I /home/hassan/Projects/HMake/configure/header "
-                                 "-I /home/hassan/Projects/HMake/json/include " +
-        filePath.string() +
-        std::string(" -L /home/hassan/Projects/HMake/cmake-build-debug/ -l configure ") +
-        " -o " + (buildDirPath / "configure").string() ;
-    exit(system(compileCommand.c_str()));
+                                 "-I /home/hassan/Projects/HMake/hconfigure/header/ "
+                                 "-I /home/hassan/Projects/HMake/json/include/ "
+        + filePath.string() + std::string(" -L /home/hassan/Projects/HMake/cmake-build-debug/ -l hconfigure ") + " -o " + (buildDirPath / "configure").string();
+    std::cout << compileCommand << std::endl;
+    int code = system(compileCommand.c_str());
+    if (code != EXIT_SUCCESS) {
+      exit(code);
+    }
+    std::string configureCommand = (buildDirPath / "configure").string();
+    code = system(configureCommand.c_str());
+    if (code != EXIT_SUCCESS) {
+      exit(code);
+    }
   }
 }
