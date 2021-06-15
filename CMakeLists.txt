@@ -18,7 +18,6 @@ target_include_directories(hconfigure
         )
 
 add_library(hbuild
-        hbuild/src/HBuildCustomFunctions.cpp
         hbuild/src/BBuild.cpp
         hbuild/src/main.cpp)
 target_include_directories(hbuild PUBLIC hbuild/header)

@@ -1,26 +1,28 @@
 
 #include "Configure.hpp"
 int main(int argc, const char **argv) {
-  initializeCacheAndInitializeProject(argc, argv, "Animal");
+  ::flags = Flags::defaultFlags();
+  initializeCache(argc, argv);
+  Project project("Animal");
 
-  Executable animalExe{"Animal"};
+  Executable animalExe{"Animal", project};
 
-  Library cat("Cat");
+  Library cat("Cat", project);
   IDD catIncludeDependency{Directory("Cat/header"), DependencyType::PUBLIC};
   cat.includeDirectoryDependencies.push_back(catIncludeDependency);
   cat.sourceFiles.emplace_back("Cat/src/Cat.cpp");
 
-  Library kitten("Kitten");
+  Library kitten("Kitten", project);
   IDD kittenIncludeDependency{Directory("Kitten/header"), DependencyType::PUBLIC};
   kitten.includeDirectoryDependencies.push_back(kittenIncludeDependency);
   kitten.sourceFiles.emplace_back(File("Kitten/src/Kitten.cpp"));
 
   cat.libraryDependencies.emplace_back(LibraryDependency{kitten, DependencyType::PRIVATE});
   animalExe.libraryDependencies.emplace_back(LibraryDependency{cat, DependencyType::PRIVATE});
-  Project::executables.push_back(animalExe);
-  configure();
+  project.executables.push_back(animalExe);
+  project.configure();
 
-  Package package("AnimalPackage");
+  Package package;
   PackageVariant variantRelease;
   variantRelease.configurationType = ConfigType::RELEASE;
   Json vJson;

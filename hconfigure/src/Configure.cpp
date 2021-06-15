@@ -1,13 +1,15 @@
 
 #include "Configure.hpp"
+
 #include "fstream"
 #include "iostream"
 #include "set"
 #include "stack"
+#include <utility>
 
 File::File(std::filesystem::__cxx11::path path_) {
   if (path_.is_relative()) {
-    path_ = Project::sourceDirectory.path / path_;
+    path_ = Cache::sourceDirectory.path / path_;
   }
   if (fs::directory_entry(path_).status().type() == fs::file_type::regular) {
     path = path_.lexically_normal();
@@ -23,7 +25,7 @@ Directory::Directory() {
 Directory::Directory(fs::path path_) {
   path = path_.lexically_normal();
   if (path_.is_relative()) {
-    path_ = Project::sourceDirectory.path / path_;
+    path_ = Cache::sourceDirectory.path / path_;
   }
   if (fs::directory_entry(path_).status().type() == fs::file_type::directory) {
     path = path_.lexically_normal();
@@ -75,18 +77,19 @@ static void jsonAssignSpecialist(const std::string &jstr, Json &j, auto &contain
   j[jstr] = container;
 }
 
-Target::Target(std::string targetName_)
-    : targetName(std::move(targetName_)), configureDirectory(Project::configureDirectory),
-      buildOutputDirectory(Project::configureDirectory), configureDirectoryPathRelativeToPV(fs::path(targetName + "/")) {
+Target::Target(std::string targetName_, Project project_)
+    : targetName(std::move(targetName_)), project(std::move(project_)), outputName(targetName) {
+  fs::path targetConfigureDirectory = getTargetConfigureDirectoryPath();
+  fs::create_directory(targetConfigureDirectory);
+  outputDirectory = Directory(targetConfigureDirectory);
 }
 
-Target::Target(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath)
-    : targetName(std::move(targetName_)), configureDirectoryPathRelativeToPV(fs::path(targetName + "/")) {
-  auto targetConfigureDirectoryPath =
-      Project::configureDirectory.path / configureDirectoryPathRelativeToProjectBuildPath;
-  fs::create_directory(targetConfigureDirectoryPath);
-  configureDirectory = Directory(targetConfigureDirectoryPath);
-  buildOutputDirectory = configureDirectory;
+fs::path Target::getTargetConfigureDirectoryPath() const {
+  return project.configureDirectory.path / targetName;
+}
+
+fs::path Target::getTargetVariantDirectoryPath(int variantCount) const {
+  return project.configureDirectory.path / "Package" / std::to_string(variantCount) / targetName;
 }
 
 std::vector<const LibraryDependency *> Target::getDependencies() const {
@@ -167,10 +170,10 @@ Json Target::convertToJson() const {
         compileDefinitionsArray.push_back(compileDefinitionObject);
       }
     }
-    dependenciesString.emplace_back((library.configureDirectory.path / fs::path(library.getFileName())).string());
+    dependenciesString.emplace_back((library.getTargetConfigureDirectoryPath() / library.getFileName()).string());
   }
 
-  targetFileJson["PROJECT_FILE_PATH"] = Project::configureDirectory.path.string() + Project::name + ".hmake";
+  targetFileJson["PROJECT_FILE_PATH"] = project.configureDirectory.path.string() + project.name + ".hmake";
   jsonAssignSpecialist("SOURCE_FILES", targetFileJson, sourceFilesArray);
   jsonAssignSpecialist("LIBRARY_DEPENDENCIES", targetFileJson, dependenciesString);
   jsonAssignSpecialist("INCLUDE_DIRECTORIES", targetFileJson, includeDirectories);
@@ -183,9 +186,8 @@ Json Target::convertToJson() const {
 void Target::configure() const {
   Json targetFileJson;
   targetFileJson = convertToJson();
-  fs::path p = configureDirectory.path;
-  p /= getFileName();
-  std::ofstream(p) << targetFileJson.dump(4);
+  fs::path targetFilePath = getTargetConfigureDirectoryPath() / getFileName();
+  std::ofstream(targetFilePath) << targetFileJson.dump(4);
   for (const auto &libDep : libraryDependencies) {
     libDep.library.configure();
   }
@@ -277,13 +279,12 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
     }
 
     JObject libDepObject;
-    fs::path targetFileBuildDir = package.packageConfigureDirectory.path / fs::path(std::to_string(count)) / fs::path(library.configureDirectoryPathRelativeToPV) / library.getFileName();
     consumerDependenciesArray.push_back("../" + library.targetName + "/" + library.getFileName());
-    libDepObject["PATH"] = targetFileBuildDir;
+    libDepObject["PATH"] = (getTargetVariantDirectoryPath(count) / getFileName()).string();
     dependenciesArray.push_back(libDepObject);
   }
 
-  targetFileJson["VARIANT_FILE_PATH"] = Project::configureDirectory.path.string() + Project::name + ".hmake";
+  targetFileJson["VARIANT_FILE_PATH"] = project.configureDirectory.path.string() + project.name + ".hmake";
 
   jsonAssignSpecialist("SOURCE_FILES", targetFileJson, sourceFilesArray);
   jsonAssignSpecialist("LIBRARY_DEPENDENCIES", targetFileJson, dependenciesArray);
@@ -306,31 +307,24 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
 void Target::configure(const Package &package, const PackageVariant &variant, int count) const {
   Json targetFileJson;
   targetFileJson = convertToJson(package, variant, count);
-  fs::path targetFileBuildDir = package.packageConfigureDirectory.path / fs::path(std::to_string(count)) / fs::path(configureDirectoryPathRelativeToPV);
+  fs::path targetFileBuildDir = getTargetVariantDirectoryPath(count);
   fs::create_directory(targetFileBuildDir);
-  fs::path filePath = targetFileBuildDir / fs::path(getFileName());
+  fs::path filePath = targetFileBuildDir / getFileName();
   std::ofstream(filePath.string()) << targetFileJson.dump(4);
   for (const auto &libDep : libraryDependencies) {
     libDep.library.configure(package, variant, count);
   }
 }
 
-Executable::Executable(std::string targetName_) : Target(std::move(targetName_)) {
-}
-Executable::Executable(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath)
-    : Target(std::move(targetName_), configureDirectoryPathRelativeToProjectBuildPath) {
+Executable::Executable(std::string targetName_, Project project_) : Target(std::move(targetName_), std::move(project_)) {
 }
 
 std::string Executable::getFileName() const {
   return targetName + ".executable.hmake";
 }
 
-Library::Library(std::string targetName_)
-    : libraryType(Project::libraryType), Target(std::move(targetName_)) {
-}
-Library::Library(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath)
-    : libraryType(Project::libraryType), Target(std::move(targetName_),
-                                                configureDirectoryPathRelativeToProjectBuildPath) {
+Library::Library(std::string targetName_, Project project_)
+    : libraryType(project_.libraryType), Target(std::move(targetName_), std::move(project_)) {
 }
 
 std::string Library::getFileName() const {
@@ -362,29 +356,29 @@ void to_json(Json &j, const Linker &linker) {
   j["PATH"] = linker.path.string();
 }
 
-Flags &Flags::operator[](CompilerFamily compilerFamily) {
+Flags &Flags::operator[](CompilerFamily compilerFamily) const {
   if (compileHelper || linkHelper || configHelper) {
     throw std::logic_error("Wrong Usage Of Flag Class.");
   }
   compileHelper = true;
   compilerCurrent = compilerFamily;
-  return *this;
+  return const_cast<Flags &>(*this);
 }
-Flags &Flags::operator[](LinkerFamily linkerFamily) {
+Flags &Flags::operator[](LinkerFamily linkerFamily) const {
   if (compileHelper || linkHelper || configHelper) {
     throw std::logic_error("Wrong Usage Of Flag Class.");
   }
   linkHelper = true;
   linkerCurrent = linkerFamily;
-  return *this;
+  return const_cast<Flags &>(*this);
 }
-Flags &Flags::operator[](ConfigType configType) {
+Flags &Flags::operator[](ConfigType configType) const {
   if (!compileHelper && !linkHelper) {
     throw std::logic_error("Wrong Usage Of Flag Class. First use operator[] with COMPILER_FAMILY or LINKER_FAMILY");
   }
   configHelper = true;
   configCurrent = configType;
-  return *this;
+  return const_cast<Flags &>(*this);
 }
 
 void Flags::operator=(const std::string &flags) {
@@ -409,25 +403,34 @@ void Flags::operator=(const std::string &flags) {
   }
 }
 
-Flags::operator std::string() {
+Flags Flags::defaultFlags() {
+  Flags flags1;
+  flags1[CompilerFamily::GCC][ConfigType::DEBUG] = "-g";
+  flags1[CompilerFamily::GCC][ConfigType::RELEASE] = "-O3 -DNDEBUG";
+  return flags1;
+}
+
+Flags::operator std::string() const {
   if ((!compileHelper && !linkHelper) && !configHelper) {
     throw std::logic_error("Wrong Usage Of Flag Class.");
   }
   configHelper = false;
   if (compileHelper) {
     auto t = std::make_tuple(compilerCurrent, configCurrent);
-    if (compilerFlags.find(t) == compilerFlags.end() || compilerFlags[t].empty()) {
-      std::cout << "No Compiler Flags Defined For This Configuration." << std::endl;
-    }
     compileHelper = false;
-    return compilerFlags[t];
+    if (compilerFlags.find(t) == compilerFlags.end() || compilerFlags.at(t).empty()) {
+      std::cout << "No Compiler Flags Defined For This Configuration." << std::endl;
+      return "";
+    }
+    return compilerFlags.at(t);
   } else {
     auto t = std::make_tuple(linkerCurrent, configCurrent);
-    if (linkerFlags.find(t) == linkerFlags.end() || linkerFlags[t].empty()) {
-      std::cout << "No Linker Flags Defined For This Configuration." << std::endl;
-    }
     linkHelper = false;
-    return linkerFlags[t];
+    if (linkerFlags.find(t) == linkerFlags.end() || linkerFlags.at(t).empty()) {
+      std::cout << "No Linker Flags Defined For This Configuration." << std::endl;
+      return "";
+    }
+    return linkerFlags.at(t);
   }
 }
 
@@ -435,39 +438,6 @@ void to_json(Json &j, const Version &p) {
   j = std::to_string(p.majorVersion) + "." + std::to_string(p.minorVersion) + "." + std::to_string(p.patchVersion);
 }
 
-void to_json(Json &j, const Project &p) {
-  j["PROJECT_NAME"] = Project::name;
-  j["PROJECT_VERSION"] = Project::version;
-  //TODO: Following two are not required.
-  j["SOURCE_DIRECTORY"] = Project::sourceDirectory.path.string();
-  j["BUILD_DIRECTORY"] = Project::configureDirectory.path.string();
-  j["CONFIGURATION"] = Project::projectConfigurationType;
-  j["COMPILER"] = Project::compiler;
-  j["LINKER"] = Project::linker;
-  std::string compilerFlags = Project::flags[Project::compiler.compilerFamily][Project::projectConfigurationType];
-  j["COMPILER_FLAGS"] = compilerFlags;
-  std::string linkerFlags = Project::flags[Project::linker.linkerFamily][Project::projectConfigurationType];
-  j["LINKER_FLAGS"] = linkerFlags;
-
-  JArray exeArray;
-  for (const auto &exe : Project::executables) {
-    Json exeObject;
-    exeObject["NAME"] = exe.targetName;
-    exeObject["LOCATION"] = exe.configureDirectory.path.string();
-    exeArray.push_back(exeObject);
-  }
-  jsonAssignSpecialist("EXECUTABLES", j, exeArray);
-
-  JArray libArray;
-  for (const auto &lib : Project::libraries) {
-    Json libObject;
-    libObject["NAME"] = lib.targetName;
-    libObject["LOCATION"] = lib.configureDirectory.path.string();
-    libArray.push_back(libObject);
-  }
-  jsonAssignSpecialist("LIBRARIES", j, libArray);
-  j["LIBRARY_TYPE"] = Project::libraryType;
-}
 void initializeCache(int argc, char const **argv) {
   fs::path filePath = fs::current_path() / "cache.hmake";
   if (!exists(filePath) || !is_regular_file(filePath)) {
@@ -476,8 +446,8 @@ void initializeCache(int argc, char const **argv) {
   Json cacheJson;
   std::ifstream(filePath) >> cacheJson;
 
-  Cache::SOURCE_DIRECTORY = Directory(fs::path(cacheJson.at("SOURCE_DIRECTORY").get<std::string>()));
-  Cache::CONFIGURE_DIRECTORY = Directory(fs::path(cacheJson.at("BUILD_DIRECTORY").get<std::string>()));
+  Cache::sourceDirectory = Directory(cacheJson.at("SOURCE_DIRECTORY").get<std::string>());
+  Cache::configureDirectory = Directory(cacheJson.at("BUILD_DIRECTORY").get<std::string>());
 
   std::string configTypeString = cacheJson.at("CONFIGURATION").get<std::string>();
   ConfigType configType;
@@ -548,47 +518,67 @@ void initializeCache(int argc, char const **argv) {
   }
 }
 
-void initializeProject(const std::string &projectName, Version projectVersion) {
-  Project::name = projectName;
-  Project::version = projectVersion;
-  Project::sourceDirectory = Cache::SOURCE_DIRECTORY;
-  Project::configureDirectory = Cache::CONFIGURE_DIRECTORY;
-  Project::projectConfigurationType = Cache::projectConfigurationType;
-  auto p = Cache::compilerArray;
-  Project::compiler = Cache::compilerArray[Cache::selectedCompilerArrayIndex];
-  Project::linker = Cache::linkerArray[Cache::selectedLinkerArrayIndex];
-  Project::libraryType = Cache::libraryType;
-  Project::hasParent = Cache::hasParent;
-  Project::parentPath = Cache::parentPath;
-  Project::flags[CompilerFamily::GCC][ConfigType::DEBUG] = "-g";
-  Project::flags[CompilerFamily::GCC][ConfigType::RELEASE] = "-O3 -DNDEBUG";
+Project::Project(std::string name_, Version version_) : name(std::move(name_)), version(version_) {
+  configureDirectory = Cache::configureDirectory;
+  projectConfigurationType = Cache::projectConfigurationType;
+  compiler = Cache::compilerArray[Cache::selectedCompilerArrayIndex];
+  linker = Cache::linkerArray[Cache::selectedLinkerArrayIndex];
+  libraryType = Cache::libraryType;
+  hasParent = Cache::hasParent;
+  parentPath = Cache::parentPath;
+  flags = ::flags;
 }
 
-void initializeCacheAndInitializeProject(int argc, char const **argv, const std::string &projectName, Version projectVersion) {
-  initializeCache(argc, argv);
-  initializeProject(projectName, projectVersion);
-}
+Json Project::convertToJson() {
+  Json projectJson;
+  projectJson["NAME"] = name;
+  projectJson["VERSION"] = version;
+  projectJson["CONFIGURATION"] = projectConfigurationType;
+  projectJson["COMPILER"] = compiler;
+  projectJson["LINKER"] = linker;
+  std::string compilerFlags = flags[compiler.compilerFamily][projectConfigurationType];
+  projectJson["COMPILER_FLAGS"] = compilerFlags;
+  std::string linkerFlags = flags[linker.linkerFamily][projectConfigurationType];
+  projectJson["LINKER_FLAGS"] = linkerFlags;
 
-void configure() {
-  Json json = Project();
-  fs::path p = Project::configureDirectory.path;
-  std::string fileName = Project::name + ".hmake";
-  p /= fileName;
-  std::ofstream(p) << json.dump(4);
-  for (auto &exe : Project::executables) {
+  JArray exeArray;
+  for (const auto &exe : executables) {
+    Json exeObject;
+    exeObject["NAME"] = exe.targetName;
+    exeObject["PATH"] = exe.getTargetConfigureDirectoryPath().string();
+    exeArray.push_back(exeObject);
+  }
+  jsonAssignSpecialist("EXECUTABLES", projectJson, exeArray);
+
+  JArray libArray;
+  for (const auto &lib : libraries) {
+    Json libObject;
+    libObject["NAME"] = lib.targetName;
+    libObject["PATH"] = lib.getTargetConfigureDirectoryPath().string();
+    libArray.push_back(libObject);
+  }
+  jsonAssignSpecialist("LIBRARIES", projectJson, libArray);
+  projectJson["LIBRARY_TYPE"] = libraryType;
+  return projectJson;
+}
+void Project::configure() {
+  Json json = convertToJson();
+  fs::path projectFilePath = configureDirectory.path / "Project.hmake";
+  std::ofstream(projectFilePath) << json.dump(4);
+  for (auto &exe : executables) {
     exe.configure();
   }
-  for (auto &lib : Project::libraries) {
+  for (auto &lib : libraries) {
     lib.configure();
   }
 }
 
 PackageVariant::PackageVariant() {
-  configurationType = Project::projectConfigurationType;
-  compiler = Project::compiler;
-  linker = Project::linker;
-  flags = Project::flags;
-  libraryType = Project::libraryType;
+  configurationType = Cache::projectConfigurationType;
+  compiler = Cache::compilerArray[Cache::selectedCompilerArrayIndex];
+  linker = Cache::linkerArray[Cache::selectedLinkerArrayIndex];
+  flags = ::flags;
+  libraryType = Cache::libraryType;
 }
 
 Json PackageVariant::convertToJson(const Directory &packageConfigureDirectory, int count) {
@@ -604,13 +594,10 @@ Json PackageVariant::convertToJson(const Directory &packageConfigureDirectory, i
   variantFileJson["LIBRARY_TYPE"] = libraryType;
   JArray exeArray;
   for (const auto &exe : executables) {
-
-    fs::path exeFilePathPV = packageConfigureDirectory.path / fs::path(std::to_string(count))
-        / exe.configureDirectoryPathRelativeToPV;
     Json exeObject;
     //TODO: Maybe Not Required
     exeObject["NAME"] = exe.targetName;
-    exeObject["LOCATION"] = exeFilePathPV.string();
+    exeObject["LOCATION"] = (exe.getTargetVariantDirectoryPath(count) / exe.getFileName()).string();
     exeArray.push_back(exeObject);
   }
   jsonAssignSpecialist("EXECUTABLES", variantFileJson, exeArray);
@@ -619,19 +606,14 @@ Json PackageVariant::convertToJson(const Directory &packageConfigureDirectory, i
   for (const auto &lib : libraries) {
     Json libObject;
     libObject["NAME"] = lib.targetName;
-    libObject["LOCATION"] = (packageConfigureDirectory.path / fs::path(std::to_string(count))
-                             / lib.configureDirectoryPathRelativeToPV)
-                                .string();
+    libObject["LOCATION"] = (lib.getTargetVariantDirectoryPath(count) / lib.getFileName()).string();
     libArray.push_back(libObject);
   }
   jsonAssignSpecialist("LIBRARIES", variantFileJson, libArray);
   return variantFileJson;
 }
 
-Package::Package(const fs::path &packageConfigureDirectoryPathRelativeToConfigureDirectory) {
-  fs::path directoryPath = Project::configureDirectory.path / packageConfigureDirectoryPathRelativeToConfigureDirectory / "";
-  fs::create_directory(directoryPath);
-  packageConfigureDirectory = Directory(directoryPath);
+Package::Package() {
 }
 
 void Package::configure() {
@@ -647,15 +629,18 @@ void Package::configure() {
     packageFileJson.emplace_back(i.json);
     ++count;
   }
-  fs::path file = packageConfigureDirectory.path / "package.hmake";
+  fs::path packageDirectorypath = Cache::configureDirectory.path / "Package";
+  fs::create_directory(packageDirectorypath);
+  Directory packageDirectory(packageDirectorypath);
+  fs::path file = packageDirectory.path / "package.hmake";
   std::ofstream(file) << packageFileJson.dump(4);
 
   count = 0;
   for (auto &variant : packageVariants) {
-    Json variantJsonFile = variant.convertToJson(packageConfigureDirectory, count);
-    fs::path variantFileDir = packageConfigureDirectory.path / fs::path(std::to_string(count));
+    Json variantJsonFile = variant.convertToJson(packageDirectory, count);
+    fs::path variantFileDir = packageDirectory.path / std::to_string(count);
     fs::create_directory(variantFileDir);
-    fs::path variantFilePath = variantFileDir / fs::path("variant.hmake");
+    fs::path variantFilePath = variantFileDir / "variant.hmake";
     std::ofstream(variantFilePath) << variantJsonFile.dump(4);
     for (const auto &exe : variant.executables) {
       exe.configure(*this, variant, count);
@@ -685,7 +670,7 @@ SubDirectory::SubDirectory(const fs::path &subDirectorySourcePathRelativeToParen
     : SubDirectory(Directory(), Directory()) {
   sourceDirectory = Directory(subDirectorySourcePathRelativeToParentSourcePath);
   auto subDirectoryBuildDirectoryPath =
-      Project::configureDirectory.path / subDirectorySourcePathRelativeToParentSourcePath;
+      Cache::configureDirectory.path / subDirectorySourcePathRelativeToParentSourcePath;
   fs::create_directory(subDirectoryBuildDirectoryPath);
   buildDirectory = Directory(subDirectoryBuildDirectoryPath);
 }
@@ -713,9 +698,9 @@ void SubDirectory::configure() {
   if (count == 0) {
     Json cacheFileJson;
     std::vector<Compiler> compilersDetected;
-    compilersDetected.push_back(Compiler{CompilerFamily::GCC, fs::path("/usr/bin/g++")});
+    compilersDetected.push_back(Compiler{CompilerFamily::GCC, "/usr/bin/g++"});
     std::vector<Linker> linkersDetected;
-    linkersDetected.push_back(Linker{LinkerFamily::GCC, fs::path("/usr/bin/g++")});
+    linkersDetected.push_back(Linker{LinkerFamily::GCC, "/usr/bin/g++"});
     cacheFileJson["SOURCE_DIRECTORY"] = sourceDirectory.path.string();
     cacheFileJson["BUILD_DIRECTORY"] = buildDirectory.path.string();
     cacheFileJson["CONFIGURATION"] = projectConfigurationType;
@@ -725,7 +710,7 @@ void SubDirectory::configure() {
     cacheFileJson["LINKER_SELECTED_ARRAY_INDEX"] = selectedLinkerArrayIndex;
     cacheFileJson["LIBRARY_TYPE"] = libraryType;
     cacheFileJson["HAS_PARENT"] = true;
-    cacheFileJson["PARENT_PATH"] = Project::configureDirectory.path.string();
+    cacheFileJson["PARENT_PATH"] = Cache::configureDirectory.path.string();
     cacheFileJson["USER_DEFINED"] = cacheVariablesJson;
     std::ofstream(cacheFilePath) << cacheFileJson.dump(4);
     //TODO: Here we will call the compilation command somehow.

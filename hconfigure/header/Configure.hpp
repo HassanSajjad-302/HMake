@@ -100,27 +100,28 @@ struct Flags {
   std::map<std::tuple<LinkerFamily, ConfigType>, std::string> linkerFlags;
 
   //bool and enum helpers for using Flags class with some operator overload magic
-  bool compileHelper = false;
-  bool linkHelper = false;
-  bool configHelper = false;
+  mutable bool compileHelper = false;
+  mutable bool linkHelper = false;
+  mutable bool configHelper = false;
 
-  CompilerFamily compilerCurrent;
-  LinkerFamily linkerCurrent;
-  ConfigType configCurrent;
+  mutable CompilerFamily compilerCurrent;
+  mutable LinkerFamily linkerCurrent;
+  mutable ConfigType configCurrent;
 
 public:
-  Flags &operator[](CompilerFamily compilerFamily);
-  Flags &operator[](LinkerFamily linkerFamily);
-  Flags &operator[](ConfigType configType);
+  Flags &operator[](CompilerFamily compilerFamily) const;
+  Flags &operator[](LinkerFamily linkerFamily) const;
+  Flags &operator[](ConfigType configType) const;
 
   void operator=(const std::string &flags);
-
-  operator std::string();
+  static Flags defaultFlags();
+  operator std::string() const;
 };
+inline Flags flags;
 
 struct Cache {
-  static inline Directory SOURCE_DIRECTORY;
-  static inline Directory CONFIGURE_DIRECTORY;
+  static inline Directory sourceDirectory;
+  static inline Directory configureDirectory;
   static inline ConfigType projectConfigurationType;
   static inline std::vector<Compiler> compilerArray;
   static inline int selectedCompilerArrayIndex;
@@ -155,29 +156,30 @@ enum class PCCategory {
 class Executable;
 class Library;
 struct Project {
-  static inline std::string name;
-  static inline Version version;
-  static inline Directory sourceDirectory;
-  static inline Directory configureDirectory;
-  static inline ConfigType projectConfigurationType;
-  static inline Compiler compiler;
-  static inline Linker linker;
-  static inline std::vector<Executable> executables;
-  static inline std::vector<Library> libraries;
-  static inline Flags flags;
-  static inline LibraryType libraryType;
-  static inline bool hasParent;
-  static inline fs::path parentPath;
+  std::string name;
+  Version version;
+  Directory configureDirectory;
+  ConfigType projectConfigurationType;
+  Compiler compiler;
+  Linker linker;
+  std::vector<Executable> executables;
+  std::vector<Library> libraries;
+  Flags flags;
+  LibraryType libraryType;
+  bool hasParent;
+  fs::path parentPath;
+
+  explicit Project(std::string name_, Version version = Version{});
+  Json convertToJson();
+  void configure();
 };
 
-void to_json(Json &j, const Project &p);
+void to_json(Json &j, const Project &project);
 void to_json(Json &j, const Version &p);
 
 void initializeCache(int argc, const char **argv);
-void initializeProject(const std::string &projectName, Version projectVersion);
+Project initializeProject(const std::string &projectName, Version projectVersion);
 void initializeCacheAndInitializeProject(int argc, char const **argv, const std::string &projectName, Version projectVersion = Version{0, 0, 0});
-
-void configure();
 
 class PackageVariant {
 public:
@@ -199,6 +201,7 @@ public:
 class Package;
 class Target {
 public:
+  Project project;
   std::vector<IDD> includeDirectoryDependencies;
   std::vector<LibraryDependency> libraryDependencies;
   std::vector<CompilerFlagsDependency> compilerFlagsDependencies;
@@ -206,12 +209,8 @@ public:
   std::vector<CompileDefinitionDependency> compileDefinitionDependencies;
   std::vector<File> sourceFiles;
   std::string targetName;
-  Directory configureDirectory;
-  Directory buildOutputDirectory;
-
-  //Where should this be built for packaging. Path is relative to packageVariant because a packageVaraint may have
-  //different path depending on it's number. Default value is targetName.
-  fs::path configureDirectoryPathRelativeToPV;
+  std::string outputName;
+  Directory outputDirectory;
 
   std::vector<const LibraryDependency *> getDependencies() const;
   //Json getVariantJson(const std::vector<const LibraryDependency *> &dependencies, const Package &package,
@@ -220,14 +219,12 @@ public:
   Json convertToJson() const;
   void configure(const Package &package, const PackageVariant &variant, int count) const;
   Json convertToJson(const Package &package, const PackageVariant &variant, int count) const;
+  fs::path getTargetConfigureDirectoryPath() const;
+  fs::path getTargetVariantDirectoryPath(int variantCount) const;
 
 protected:
-  //configureDirectory will be same as project::SOURCE_DIRECTORY. And the target's build directory will be
-  //same as configureDirectory. To specify a different build directory, set the buildDirectoryPath variable.
-  explicit Target(std::string targetName_);
+  explicit Target(std::string targetName_, Project project_);
 
-  //This will create a configure directory under the project::BUILD_DIRECTORY.
-  Target(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath);
   virtual ~Target() = default;
   Target(const Target & /* other */) = default;
   Target &operator=(const Target & /* other */) = default;
@@ -239,15 +236,13 @@ protected:
 
 //TODO: Throw in configure stage if there are no source files for Executable.
 struct Executable : public Target {
-  explicit Executable(std::string targetName_);
-  Executable(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath);
+  explicit Executable(std::string targetName_, Project project_);
   std::string getFileName() const override;
 };
 
 struct Library : public Target {
   LibraryType libraryType;
-  explicit Library(std::string targetName_);
-  Library(std::string targetName_, const fs::path &configureDirectoryPathRelativeToProjectBuildPath);
+  explicit Library(std::string targetName_, Project project_);
   std::string getFileName() const override;
 };
 
@@ -258,11 +253,10 @@ struct LibraryDependency {
 
 class Package {
 public:
-  Directory packageConfigureDirectory;
   Directory packageInstallDirectory;
   std::vector<PackageVariant> packageVariants;
 
-  explicit Package(const fs::path &packageConfigureDirectoryPathRelativeToConfigureDirectory);
+  explicit Package();
   void configure();
 
 private:
