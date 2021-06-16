@@ -1,9 +1,9 @@
 
 #include "Configure.hpp"
-int main(int argc, const char **argv) {
+int main() {
   ::flags = Flags::defaultFlags();
-  initializeCache(argc, argv);
-  Project project("Animal");
+  Cache::initializeCache();
+  ProjectVariant project{};
 
   Executable animalExe{"Animal", project};
 

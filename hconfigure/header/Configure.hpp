@@ -113,7 +113,7 @@ public:
   Flags &operator[](LinkerFamily linkerFamily) const;
   Flags &operator[](ConfigType configType) const;
 
-  void operator=(const std::string &flags);
+  void operator=(const std::string &flags1);
   static Flags defaultFlags();
   operator std::string() const;
 };
@@ -128,9 +128,9 @@ struct Cache {
   static inline std::vector<Linker> linkerArray;
   static inline int selectedLinkerArrayIndex;
   static inline LibraryType libraryType;
-  static inline Json cacheJson;
   static inline bool hasParent;
   static inline fs::path parentPath;
+  static void initializeCache();
 };
 
 struct Version {
@@ -155,42 +155,29 @@ enum class PCCategory {
 
 class Executable;
 class Library;
-struct Project {
-  std::string name;
-  Version version;
+
+struct Variant {
   Directory configureDirectory;
-  ConfigType projectConfigurationType;
+  ConfigType configurationType;
   Compiler compiler;
   Linker linker;
   std::vector<Executable> executables;
   std::vector<Library> libraries;
   Flags flags;
   LibraryType libraryType;
-  bool hasParent;
-  fs::path parentPath;
+};
 
-  explicit Project(std::string name_, Version version = Version{});
+struct ProjectVariant : public Variant {
+  explicit ProjectVariant();
   Json convertToJson();
   void configure();
 };
 
-void to_json(Json &j, const Project &project);
+void to_json(Json &j, const ProjectVariant &project);
 void to_json(Json &j, const Version &p);
 
-void initializeCache(int argc, const char **argv);
-Project initializeProject(const std::string &projectName, Version projectVersion);
-void initializeCacheAndInitializeProject(int argc, char const **argv, const std::string &projectName, Version projectVersion = Version{0, 0, 0});
-
-class PackageVariant {
+class PackageVariant : public Variant {
 public:
-  ConfigType configurationType;
-  Compiler compiler;
-  Linker linker;
-  Flags flags;
-  LibraryType libraryType;
-  std::vector<Executable> executables;
-  std::vector<Library> libraries;
-
   decltype(Json::object()) json;
   PackageVariant();
   //TODO: This should be friend of Project and method should not be public because it is called by configure
@@ -198,10 +185,19 @@ public:
   Json convertToJson(const Directory &packageConfigureDirectory, int count);
 };
 
+class Project {
+public:
+  std::string name;
+  Version version;
+};
+
 class Package;
 class Target {
 public:
-  Project project;
+  ConfigType configurationType;
+  Compiler compiler;
+  Linker linker;
+
   std::vector<IDD> includeDirectoryDependencies;
   std::vector<LibraryDependency> libraryDependencies;
   std::vector<CompilerFlagsDependency> compilerFlagsDependencies;
@@ -221,9 +217,10 @@ public:
   Json convertToJson(const Package &package, const PackageVariant &variant, int count) const;
   fs::path getTargetConfigureDirectoryPath() const;
   fs::path getTargetVariantDirectoryPath(int variantCount) const;
+  void assignDifferentVariant(const Variant &variant);
 
 protected:
-  explicit Target(std::string targetName_, Project project_);
+  explicit Target(std::string targetName_, const Variant &variant);
 
   virtual ~Target() = default;
   Target(const Target & /* other */) = default;
@@ -232,18 +229,21 @@ protected:
   Target &operator=(Target && /* other */) = default;
 
   virtual std::string getFileName() const = 0;
+  virtual void assignLibraryTypeFromDifferentVariant(const Variant &variant) = 0;
 };
 
 //TODO: Throw in configure stage if there are no source files for Executable.
 struct Executable : public Target {
-  explicit Executable(std::string targetName_, Project project_);
+  explicit Executable(std::string targetName_, const Variant &variant);
   std::string getFileName() const override;
+  void assignLibraryTypeFromDifferentVariant(const Variant &variant) override;
 };
 
 struct Library : public Target {
   LibraryType libraryType;
-  explicit Library(std::string targetName_, Project project_);
+  explicit Library(std::string targetName_, const Variant &variant);
   std::string getFileName() const override;
+  void assignLibraryTypeFromDifferentVariant(const Variant &variant) override;
 };
 
 struct LibraryDependency {
