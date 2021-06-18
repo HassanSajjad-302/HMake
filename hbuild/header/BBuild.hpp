@@ -3,22 +3,15 @@
 #ifndef HMAKE_HBUILD_SRC_BBUILD_HPP
 #define HMAKE_HBUILD_SRC_BBUILD_HPP
 
-#include "Configure.hpp"
+#include "filesystem"
+#include "nlohmann/json.hpp"
+#include "string"
+#include "vector"
 
-class BProject {
-public:
-  fs::path projectFilePath;
-  fs::path compilerPath;
-  fs::path linkerPath;
-  std::string compilerFlags;
-  std::string linkerFlags;
-  LibraryType libraryType;
-  std::vector<fs::path> targetFilePaths;
-  BProject() = default;
-  explicit BProject(const fs::path &projectFilePath);
-  static fs::path getProjectFilePathFromTargetFilePath(const fs::path &targetFilePath);
-  void build();
-};
+namespace fs = std::filesystem;
+using Json = nlohmann::ordered_json;
+using JObject = decltype(Json::object());
+using JArray = decltype(Json::array());
 
 enum BTargetType {
   EXECUTABLE,
@@ -26,30 +19,54 @@ enum BTargetType {
   SHARED
 };
 
-struct BTargetBuilder {
-  std::string includeDirectoriesFlags;
-  std::string libraryDependenciesFlags;
-  fs::path buildCacheFilesDirPath;
-
-  void build();
-
-public:
-  std::string targetName;
-  std::string targetNameBuildConvention;
-  BTargetType targetType;
-
-  //Following are assigned in parse funcion.
-  fs::path targetBuildDirectory;
-  std::vector<fs::path> sourceFiles;
-  std::vector<fs::path> libraryDependencies;
-  std::vector<fs::path> includeDirectories;
-  std::string compilerTransitiveFlags;
-  std::string linkerTransitiveFlags;
-
-  BProject project;
-  explicit BTargetBuilder(BProject project);
-  void initializeTargetTypeAndParseJsonAndBuild(const fs::path &targetFilePath);
-  void compileAFilePath(const fs::path &compileFileName) const;
+struct BCopyableDependency {
+  std::string path;
+  bool copy;
 };
 
+class BTarget {
+public:
+  std::string targetName;
+  std::string outputName;
+  std::string outputDirectory;
+  std::string compilerPath;
+  std::string linkerPath;
+  std::string compilerFlags;
+  std::string linkerFlags;
+  std::vector<std::string> sourceFiles;
+  std::vector<BCopyableDependency> libraryDependencies;
+  std::vector<BCopyableDependency> includeDirectories;
+  std::string compilerTransitiveFlags;
+  std::string linkerTransitiveFlags;
+  std::string buildCacheFilesDirPath;
+
+  BTargetType targetType;
+
+  explicit BTarget(const std::string &targetFilePath);
+  void build(const fs::path &copyPath = fs::path(), bool copyTarget = false);
+
+private:
+  void copy(const fs::path &copyPath);
+  static void assignSpecialBCopyableDependencyVector(const std::string &jString, const Json &json,
+                                                     std::vector<BCopyableDependency> &container);
+};
+
+struct BVariant {
+  std::vector<std::string> targetFilePaths;
+  explicit BVariant(const fs::path &variantFilePath);
+  void build();
+};
+struct BProjectVariant : BVariant {
+  explicit BProjectVariant(const fs::path &projectFilePath);
+};
+
+struct BPackageVariant : BVariant {
+  explicit BPackageVariant(const fs::path &packageVariantFilePath);
+  void buildAndCopy(const fs::path &copyPath);
+  static bool shouldVariantBeCopied();
+};
+
+struct BPackage {
+  explicit BPackage(const fs::path &packageFilePath);
+};
 #endif//HMAKE_HBUILD_SRC_BBUILD_HPP

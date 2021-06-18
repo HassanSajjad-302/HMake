@@ -17,7 +17,7 @@ target_include_directories(hconfigure
         PUBLIC cxxopts/include
         )
 
-add_library(hbuild
+add_executable(hbuild
         hbuild/src/BBuild.cpp
         hbuild/src/main.cpp)
 target_include_directories(hbuild PUBLIC hbuild/header)
@@ -25,7 +25,6 @@ target_include_directories(hbuild PRIVATE hconfigure/header)
 
 add_executable(HMake main.cpp)
 target_link_libraries(HMake PRIVATE hconfigure)
-target_link_libraries(HMake PRIVATE hbuild)
 target_include_directories(HMake PRIVATE cxxopts/include)
 
 add_executable(UnBuiltTarget TestingProject/hmake.cpp)

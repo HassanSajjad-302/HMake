@@ -6,7 +6,7 @@ int main() {
   ProjectVariant project{};
 
   Executable animalExe{"Animal", project};
-
+  animalExe.sourceFiles.emplace_back("main.cpp");
   Library cat("Cat", project);
   IDD catIncludeDependency{Directory("Cat/header"), DependencyType::PUBLIC};
   cat.includeDirectoryDependencies.push_back(catIncludeDependency);
@@ -17,25 +17,27 @@ int main() {
   kitten.includeDirectoryDependencies.push_back(kittenIncludeDependency);
   kitten.sourceFiles.emplace_back(File("Kitten/src/Kitten.cpp"));
 
-  cat.libraryDependencies.emplace_back(LibraryDependency{kitten, DependencyType::PRIVATE});
+  cat.libraryDependencies.emplace_back(LibraryDependency{kitten, DependencyType::PUBLIC});
   animalExe.libraryDependencies.emplace_back(LibraryDependency{cat, DependencyType::PRIVATE});
   project.executables.push_back(animalExe);
   project.configure();
 
-  Package package;
+  Package package("Animal");
   PackageVariant variantRelease;
   variantRelease.configurationType = ConfigType::RELEASE;
+  animalExe.assignDifferentVariant(variantRelease);
   Json vJson;
   vJson["CONFIGURATION"] = "RELEASE";
-  variantRelease.libraries.push_back(cat);
+  variantRelease.executables.push_back(animalExe);
   variantRelease.json = vJson;
   package.packageVariants.push_back(variantRelease);
 
   PackageVariant variantDebug;
   variantDebug.configurationType = ConfigType::DEBUG;
+  animalExe.assignDifferentVariant(variantDebug);
   Json vJsonDebug;
   vJsonDebug["CONFIGURATION"] = "DEBUG";
-  variantDebug.libraries.push_back(cat);
+  variantDebug.executables.push_back(animalExe);
   variantDebug.json = vJsonDebug;
   package.packageVariants.push_back(variantDebug);
   package.configure();

@@ -1,6 +1,13 @@
 
 #include "BBuild.hpp"
 
+enum class BuildMode {
+  TARGET,
+  PROJECT_VARIANT,
+  PACKAGE_VARIANT,
+  PACKAGE,
+  NILL
+};
 int main(int argc, char **argv) {
   if (argc == 2) {
     std::string filePath = argv[1];
@@ -15,34 +22,50 @@ int main(int argc, char **argv) {
     }
 
   } else {
-    fs::path projectFile;
-    fs::path targetFile;
-    int count = 0;
+    fs::path file;
+    BuildMode mode = BuildMode::NILL;
     for (auto &i : fs::directory_iterator(fs::current_path())) {
       if (i.is_regular_file()) {
         std::string fileName = i.path().filename();
-        if (fileName == "Project.hmake") {
-          projectFile = i;
-          count = 0;
-          break;
-        }
         if (fileName.ends_with(".executable.hmake") || fileName.ends_with(".static.hmake")
             || fileName.ends_with(".shared.hmake")) {
-          targetFile = i;
-          ++count;
+          file = i;
+          mode = BuildMode::TARGET;
+        }
+        if (fileName == "projectVariant.hmake") {
+          file = i;
+          mode = BuildMode::PROJECT_VARIANT;
+          break;
+        }
+        if (fileName == "packageVariant.hmake") {
+          file = i;
+          mode = BuildMode::PACKAGE_VARIANT;
+        }
+        if (fileName == "package.hmake") {
+          file = i;
+          mode = BuildMode::PACKAGE;
         }
       }
     }
-    if (count == 2) {
-      throw std::runtime_error("Could not find or determine the target or project file which is to be built.");
+    if (mode == BuildMode::NILL) {
+      throw std::runtime_error("Could not find or determine the target or projectVariant or packageVariant "
+                               "or package file which is to be built.");
     }
-    if (count == 0) {
-      BProject project(projectFile);
-      project.build();
-    } else if (count == 1) {
-      BProject project(BProject::getProjectFilePathFromTargetFilePath(targetFile));
-      BTargetBuilder builder(project);
-      builder.initializeTargetTypeAndParseJsonAndBuild(targetFile);
+    if (mode == BuildMode::TARGET) {
+      BTarget builder(file);
+      builder.build();
+    } else if (mode == BuildMode::PROJECT_VARIANT) {
+      BProjectVariant projectVariant(file);
+      projectVariant.build();
+    } else if (mode == BuildMode::PACKAGE_VARIANT) {
+      bool copyVariant = BPackageVariant::shouldVariantBeCopied();
+      BPackageVariant variant(file);
+      if (copyVariant) {
+        variant.build();
+      } else {
+      }
+    } else {
+      BPackage package(file);
     }
   }
 }

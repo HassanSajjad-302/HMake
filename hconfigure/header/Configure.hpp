@@ -122,6 +122,8 @@ inline Flags flags;
 struct Cache {
   static inline Directory sourceDirectory;
   static inline Directory configureDirectory;
+  static inline std::string packageCopyPath;
+  static inline bool copyPackage;
   static inline ConfigType projectConfigurationType;
   static inline std::vector<Compiler> compilerArray;
   static inline int selectedCompilerArrayIndex;
@@ -229,21 +231,20 @@ protected:
   Target &operator=(Target && /* other */) = default;
 
   virtual std::string getFileName() const = 0;
-  virtual void assignLibraryTypeFromDifferentVariant(const Variant &variant) = 0;
 };
 
 //TODO: Throw in configure stage if there are no source files for Executable.
 struct Executable : public Target {
   explicit Executable(std::string targetName_, const Variant &variant);
   std::string getFileName() const override;
-  void assignLibraryTypeFromDifferentVariant(const Variant &variant) override;
+  void assignDifferentVariant(const Variant &variant);
 };
 
 struct Library : public Target {
   LibraryType libraryType;
   explicit Library(std::string targetName_, const Variant &variant);
   std::string getFileName() const override;
-  void assignLibraryTypeFromDifferentVariant(const Variant &variant) override;
+  void assignDifferentVariant(const Variant &variant);
 };
 
 struct LibraryDependency {
@@ -253,10 +254,12 @@ struct LibraryDependency {
 
 class Package {
 public:
+  std::string name;
+  Version version;
   Directory packageInstallDirectory;
   std::vector<PackageVariant> packageVariants;
 
-  explicit Package();
+  explicit Package(std::string name_);
   void configure();
 
 private:

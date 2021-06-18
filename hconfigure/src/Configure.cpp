@@ -66,7 +66,7 @@ void to_json(Json &j, const ConfigType configType) {
   }
 }
 
-static void jsonAssignSpecialist(const std::string &jstr, Json &j, auto &container) {
+static void jsonAssignSpecialist(const std::string &jstr, Json &j, const auto &container) {
   j[jstr] = container;
   /*
   if (container.empty()) {
@@ -103,7 +103,6 @@ void Target::assignDifferentVariant(const Variant &variant) {
   compiler = variant.compiler;
   linker = variant.linker;
   flags = variant.flags;
-  assignLibraryTypeFromDifferentVariant(variant);
   for (auto &i : libraryDependencies) {
     i.library.assignDifferentVariant(variant);
   }
@@ -129,23 +128,26 @@ std::vector<const LibraryDependency *> Target::getDependencies() const {
   return dependencies;
 }
 
-//todo: don't give property values if they are not different from project property values.
-//todo: improve property values in compile definitions.
 Json Target::convertToJson() const {
   Json targetFileJson;
 
   std::vector<std::string> sourceFilesArray;
-  std::vector<std::string> includeDirectories;
+  JArray includeDirectoriesArray;
   std::string compilerFlags;
   std::string linkerFlags;
   Json compileDefinitionsArray;
-  std::vector<std::string> dependenciesString;
+  JArray dependenciesArray;
 
   for (const auto &e : sourceFiles) {
     sourceFilesArray.push_back(e.path.string());
   }
   for (const auto &e : includeDirectoryDependencies) {
-    includeDirectories.push_back(e.includeDirectory.path.string());
+    JObject JIDDObject;
+    JIDDObject["PATH"] = e.includeDirectory.path.string();
+    if (e.dependencyType == DependencyType::PUBLIC) {
+      JIDDObject["COPY"] = true;
+    }
+    includeDirectoriesArray.push_back(JIDDObject);
   }
   for (const auto &e : compilerFlagsDependencies) {
     compilerFlags.append(" " + e.compilerFlags + " ");
@@ -165,7 +167,12 @@ Json Target::convertToJson() const {
     for (const auto &e : library.includeDirectoryDependencies) {
       if (e.dependencyType == DependencyType::PUBLIC) {
         std::string str = e.includeDirectory.path.string();
-        includeDirectories.push_back(str);
+        JObject JIDDObject;
+        JIDDObject["PATH"] = e.includeDirectory.path.string();
+        if (e.dependencyType == DependencyType::PUBLIC) {
+          JIDDObject["COPY"] = true;
+        }
+        includeDirectoriesArray.push_back(JIDDObject);
       }
     }
 
@@ -187,17 +194,23 @@ Json Target::convertToJson() const {
         compileDefinitionsArray.push_back(compileDefinitionObject);
       }
     }
-    dependenciesString.emplace_back((library.getTargetConfigureDirectoryPath() / library.getFileName()).string());
+    JObject libDepObject;
+    libDepObject["PATH"] = (library.getTargetConfigureDirectoryPath()
+                            / library.getFileName())
+                               .string();
+    dependenciesArray.push_back(libDepObject);
   }
 
+  jsonAssignSpecialist("OUTPUT_NAME", targetFileJson, outputName);
+  jsonAssignSpecialist("OUTPUT_DIRECTORY", targetFileJson, outputDirectory.path.string());
   jsonAssignSpecialist("CONFIGURATION", targetFileJson, configurationType);
   jsonAssignSpecialist("COMPILER", targetFileJson, compiler);
   jsonAssignSpecialist("LINKER", targetFileJson, linker);
-  jsonAssignSpecialist("COMPILER_FLAGS", targetFileJson, flags[CompilerFamily::GCC][ConfigType::DEBUG]);
-  jsonAssignSpecialist("LINKER_FLAGS", targetFileJson, flags[CompilerFamily::GCC][ConfigType::RELEASE]);
+  jsonAssignSpecialist("COMPILER_FLAGS", targetFileJson, flags[compiler.compilerFamily][configurationType]);
+  jsonAssignSpecialist("LINKER_FLAGS", targetFileJson, flags[linker.linkerFamily][configurationType]);
   jsonAssignSpecialist("SOURCE_FILES", targetFileJson, sourceFilesArray);
-  jsonAssignSpecialist("LIBRARY_DEPENDENCIES", targetFileJson, dependenciesString);
-  jsonAssignSpecialist("INCLUDE_DIRECTORIES", targetFileJson, includeDirectories);
+  jsonAssignSpecialist("LIBRARY_DEPENDENCIES", targetFileJson, dependenciesArray);
+  jsonAssignSpecialist("INCLUDE_DIRECTORIES", targetFileJson, includeDirectoriesArray);
   jsonAssignSpecialist("COMPILER_TRANSITIVE_FLAGS", targetFileJson, compilerFlags);
   jsonAssignSpecialist("LINKER_TRANSITIVE_FLAGS", targetFileJson, linkerFlags);
   jsonAssignSpecialist("COMPILE_DEFINITIONS", targetFileJson, compileDefinitionsArray);
@@ -214,8 +227,6 @@ void Target::configure() const {
   }
 }
 
-//todo: don't give property values if they are not different from project property values.
-//todo: improve property values in compile definitions.
 Json Target::convertToJson(const Package &package, const PackageVariant &variant, int count) const {
   Json targetFileJson;
 
@@ -301,15 +312,17 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
 
     JObject libDepObject;
     consumerDependenciesArray.push_back("../" + library.targetName + "/" + library.getFileName());
-    libDepObject["PATH"] = (getTargetVariantDirectoryPath(count) / getFileName()).string();
+    libDepObject["PATH"] = (library.getTargetVariantDirectoryPath(count) / library.getFileName()).string();
     dependenciesArray.push_back(libDepObject);
   }
 
+  jsonAssignSpecialist("OUTPUT_NAME", targetFileJson, outputName);
+  jsonAssignSpecialist("OUTPUT_DIRECTORY", targetFileJson, getTargetVariantDirectoryPath(count));
   jsonAssignSpecialist("CONFIGURATION", targetFileJson, configurationType);
   jsonAssignSpecialist("COMPILER", targetFileJson, compiler);
   jsonAssignSpecialist("LINKER", targetFileJson, linker);
-  jsonAssignSpecialist("COMPILER_FLAGS", targetFileJson, flags[CompilerFamily::GCC][ConfigType::DEBUG]);
-  jsonAssignSpecialist("LINKER_FLAGS", targetFileJson, flags[CompilerFamily::GCC][ConfigType::RELEASE]);
+  jsonAssignSpecialist("COMPILER_FLAGS", targetFileJson, flags[compiler.compilerFamily][configurationType]);
+  jsonAssignSpecialist("LINKER_FLAGS", targetFileJson, flags[linker.linkerFamily][configurationType]);
   jsonAssignSpecialist("SOURCE_FILES", targetFileJson, sourceFilesArray);
   jsonAssignSpecialist("LIBRARY_DEPENDENCIES", targetFileJson, dependenciesArray);
   jsonAssignSpecialist("INCLUDE_DIRECTORIES", targetFileJson, includeDirectoriesArray);
@@ -347,7 +360,8 @@ std::string Executable::getFileName() const {
   return targetName + ".executable.hmake";
 }
 
-void Executable::assignLibraryTypeFromDifferentVariant(const Variant &variant) {
+void Executable::assignDifferentVariant(const Variant &variant) {
+  Target::assignDifferentVariant(variant);
 }
 
 Library::Library(std::string targetName_, const Variant &variant)
@@ -361,7 +375,8 @@ std::string Library::getFileName() const {
   return targetName + ".shared.hmake";
 }
 
-void Library::assignLibraryTypeFromDifferentVariant(const Variant &variant) {
+void Library::assignDifferentVariant(const Variant &variant) {
+  Target::assignDifferentVariant(variant);
   libraryType = variant.libraryType;
 }
 
@@ -476,6 +491,10 @@ void Cache::initializeCache() {
   Cache::sourceDirectory = Directory(cacheJson.at("SOURCE_DIRECTORY").get<std::string>());
   Cache::configureDirectory = Directory(fs::current_path());
 
+  Cache::copyPackage = cacheJson.at("PACKAGE_COPY").get<bool>();
+  if (copyPackage) {
+    packageCopyPath = cacheJson.at("PACKAGE_COPY_PATH").get<std::string>();
+  }
   std::string configTypeString = cacheJson.at("CONFIGURATION").get<std::string>();
   ConfigType configType;
   if (configTypeString == "DEBUG") {
@@ -569,29 +588,22 @@ Json ProjectVariant::convertToJson() {
   projectJson["LINKER_FLAGS"] = linkerFlags;
   projectJson["LIBRARY_TYPE"] = libraryType;
 
-  JArray exeArray;
+  JArray targetArray;
   for (const auto &exe : executables) {
-    Json exeObject;
-    exeObject["NAME"] = exe.targetName;
-    exeObject["PATH"] = exe.getTargetConfigureDirectoryPath().string();
-    exeArray.push_back(exeObject);
+    std::string path = (exe.getTargetConfigureDirectoryPath() / exe.getFileName()).string();
+    targetArray.push_back(path);
   }
-  jsonAssignSpecialist("EXECUTABLES", projectJson, exeArray);
-
-  JArray libArray;
   for (const auto &lib : libraries) {
-    Json libObject;
-    libObject["NAME"] = lib.targetName;
-    libObject["PATH"] = lib.getTargetConfigureDirectoryPath().string();
-    libArray.push_back(libObject);
+    std::string path = (lib.getTargetConfigureDirectoryPath() / lib.getFileName()).string();
+    targetArray.push_back(path);
   }
-  jsonAssignSpecialist("LIBRARIES", projectJson, libArray);
+  jsonAssignSpecialist("TARGETS", projectJson, targetArray);
   return projectJson;
 }
 
 void ProjectVariant::configure() {
   Json json = convertToJson();
-  fs::path projectFilePath = configureDirectory.path / "Project.hmake";
+  fs::path projectFilePath = configureDirectory.path / "projectVariant.hmake";
   std::ofstream(projectFilePath) << json.dump(4);
   for (auto &exe : executables) {
     exe.configure();
@@ -620,43 +632,41 @@ Json PackageVariant::convertToJson(const Directory &packageConfigureDirectory, i
   variantFileJson["COMPILER_FLAGS"] = compilerFlags;
   variantFileJson["LINKER_FLAGS"] = linkerFlags;
   variantFileJson["LIBRARY_TYPE"] = libraryType;
-  JArray exeArray;
+  std::vector<std::string> targets;
   for (const auto &exe : executables) {
-    Json exeObject;
-    //TODO: Maybe Not Required
-    exeObject["NAME"] = exe.targetName;
-    exeObject["LOCATION"] = (exe.getTargetVariantDirectoryPath(count) / exe.getFileName()).string();
-    exeArray.push_back(exeObject);
+    std::string path = (exe.getTargetVariantDirectoryPath(count) / exe.getFileName()).string();
+    targets.push_back(path);
   }
-  jsonAssignSpecialist("EXECUTABLES", variantFileJson, exeArray);
-
-  JArray libArray;
   for (const auto &lib : libraries) {
-    Json libObject;
-    libObject["NAME"] = lib.targetName;
-    libObject["LOCATION"] = (lib.getTargetVariantDirectoryPath(count) / lib.getFileName()).string();
-    libArray.push_back(libObject);
+    std::string path = (lib.getTargetVariantDirectoryPath(count) / lib.getFileName()).string();
+    targets.push_back(path);
   }
-  jsonAssignSpecialist("LIBRARIES", variantFileJson, libArray);
+  jsonAssignSpecialist("TARGETS", variantFileJson, targets);
   return variantFileJson;
 }
 
-Package::Package() {
+Package::Package(std::string name_) : name(std::move(name_)), version{0, 0, 0} {
 }
 
 void Package::configure() {
   checkForSimilarJsonsInPackageVariants();
 
-  Json packageFileJson;
+  JObject packageFileJson;
+  JArray packageVariantJson;
   int count = 0;
   for (auto &i : packageVariants) {
     if (i.json.contains("INDEX")) {
       throw std::runtime_error("Package Variant Json can not have COUNT in it's Json.");
     }
     i.json["INDEX"] = std::to_string(count);
-    packageFileJson.emplace_back(i.json);
+    packageVariantJson.emplace_back(i.json);
     ++count;
   }
+  packageFileJson["NAME"] = name;
+  packageFileJson["VERSION"] = version;
+  packageFileJson["PACKAGE_COPY"] = Cache::copyPackage;
+  packageFileJson["PACKAGE_COPY_PATH"] = Cache::packageCopyPath;
+  packageFileJson["VARIANTS"] = packageVariantJson;
   fs::path packageDirectorypath = Cache::configureDirectory.path / "Package";
   fs::create_directory(packageDirectorypath);
   Directory packageDirectory(packageDirectorypath);
@@ -668,7 +678,7 @@ void Package::configure() {
     Json variantJsonFile = variant.convertToJson(packageDirectory, count);
     fs::path variantFileDir = packageDirectory.path / std::to_string(count);
     fs::create_directory(variantFileDir);
-    fs::path variantFilePath = variantFileDir / "variant.hmake";
+    fs::path variantFilePath = variantFileDir / "packageVariant.hmake";
     std::ofstream(variantFilePath) << variantJsonFile.dump(4);
     for (const auto &exe : variant.executables) {
       exe.configure(*this, variant, count);
