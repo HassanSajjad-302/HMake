@@ -101,7 +101,7 @@ int main(){
     j["LINKER_SELECTED_ARRAY_INDEX"] = 0;
     j["LIBRARY_TYPE"] = "STATIC";
     j["HAS_PARENT"] = false;
-    j["USER_DEFINED"] = "";
+    j["CACHE_VARIABLES"] = Json::object();
 
     std::ofstream("cache.hmake") << j.dump(4);
   }else{

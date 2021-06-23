@@ -2,6 +2,8 @@
 #ifndef HMAKE_CONFIGURE_HPP
 #define HMAKE_CONFIGURE_HPP
 
+#include <utility>
+
 #include "filesystem"
 #include "nlohmann/json.hpp"
 
@@ -132,7 +134,9 @@ struct Cache {
   static inline LibraryType libraryType;
   static inline bool hasParent;
   static inline fs::path parentPath;
+  static inline JObject cacheVariables;
   static void initializeCache();
+  static void registerCacheVariables();
 };
 
 struct Version {
@@ -193,6 +197,7 @@ public:
   Version version;
 };
 
+//TODO: If no target is added in targets of variant, building that variant will be an error.
 class Package;
 class Target {
 public:
@@ -267,6 +272,7 @@ private:
 };
 
 class SubDirectory {
+  std::string name;
   Directory sourceDirectory;
   Directory buildDirectory;
   ConfigType projectConfigurationType;
@@ -281,4 +287,22 @@ class SubDirectory {
   SubDirectory(Directory sourceDirectory_, Directory buildDirectory_);
   void configure();
 };
+
+template<typename T>
+struct CacheVariable {
+  T value;
+  std::string jsonString;
+  CacheVariable(std::string cacheVariableString_, T defaultValue);
+};
+
+template<typename T>
+CacheVariable<T>::CacheVariable(std::string cacheVariableString_, T defaultValue) : jsonString(std::move(cacheVariableString_)) {
+  JObject &cacheVariablesJson = Cache::cacheVariables;
+  if (cacheVariablesJson.template contains(jsonString)) {
+    value = cacheVariablesJson.at(jsonString).template get<T>();
+  } else {
+    cacheVariablesJson["FILE1"] = defaultValue;
+  }
+}
+
 #endif//HMAKE_CONFIGURE_HPP

@@ -485,17 +485,17 @@ void Cache::initializeCache() {
   if (!exists(filePath) || !is_regular_file(filePath)) {
     throw std::runtime_error(filePath.string() + " does not exists or is not a regular file");
   }
-  Json cacheJson;
-  std::ifstream(filePath) >> cacheJson;
+  Json cacheFileJson;
+  std::ifstream(filePath) >> cacheFileJson;
 
-  Cache::sourceDirectory = Directory(cacheJson.at("SOURCE_DIRECTORY").get<std::string>());
+  Cache::sourceDirectory = Directory(cacheFileJson.at("SOURCE_DIRECTORY").get<std::string>());
   Cache::configureDirectory = Directory(fs::current_path());
 
-  Cache::copyPackage = cacheJson.at("PACKAGE_COPY").get<bool>();
+  Cache::copyPackage = cacheFileJson.at("PACKAGE_COPY").get<bool>();
   if (copyPackage) {
-    packageCopyPath = cacheJson.at("PACKAGE_COPY_PATH").get<std::string>();
+    packageCopyPath = cacheFileJson.at("PACKAGE_COPY_PATH").get<std::string>();
   }
-  std::string configTypeString = cacheJson.at("CONFIGURATION").get<std::string>();
+  std::string configTypeString = cacheFileJson.at("CONFIGURATION").get<std::string>();
   ConfigType configType;
   if (configTypeString == "DEBUG") {
     configType = ConfigType::DEBUG;
@@ -506,7 +506,7 @@ void Cache::initializeCache() {
   }
   Cache::projectConfigurationType = configType;
 
-  JArray compilerArrayJson = cacheJson.at("COMPILER_ARRAY").get<JArray>();
+  JArray compilerArrayJson = cacheFileJson.at("COMPILER_ARRAY").get<JArray>();
   std::vector<Compiler> compilersArray;
   for (auto i : compilerArrayJson) {
     Compiler compiler;
@@ -525,9 +525,9 @@ void Cache::initializeCache() {
     compiler.compilerFamily = compilerFamily;
     Cache::compilerArray.push_back(compiler);
   }
-  Cache::selectedCompilerArrayIndex = cacheJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
+  Cache::selectedCompilerArrayIndex = cacheFileJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
 
-  JArray linkerArrayJson = cacheJson.at("LINKER_ARRAY").get<JArray>();
+  JArray linkerArrayJson = cacheFileJson.at("LINKER_ARRAY").get<JArray>();
   std::vector<Linker> linkersArray;
   for (auto i : linkerArrayJson) {
     Linker linker;
@@ -546,9 +546,9 @@ void Cache::initializeCache() {
     linker.linkerFamily = linkerFamily;
     Cache::linkerArray.push_back(linker);
   }
-  Cache::selectedLinkerArrayIndex = cacheJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
+  Cache::selectedLinkerArrayIndex = cacheFileJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
 
-  std::string libraryTypeString = cacheJson.at("LIBRARY_TYPE").get<std::string>();
+  std::string libraryTypeString = cacheFileJson.at("LIBRARY_TYPE").get<std::string>();
   LibraryType type;
   if (libraryTypeString == "STATIC") {
     type = LibraryType::STATIC;
@@ -558,10 +558,19 @@ void Cache::initializeCache() {
     throw std::runtime_error("Unknown LIBRARY_TYPE " + libraryTypeString);
   }
   Cache::libraryType = type;
-  Cache::hasParent = cacheJson.at("HAS_PARENT").get<bool>();
+  Cache::hasParent = cacheFileJson.at("HAS_PARENT").get<bool>();
   if (Cache::hasParent) {
-    Cache::parentPath = cacheJson.at("PARENT_PATH").get<std::string>();
+    Cache::parentPath = cacheFileJson.at("PARENT_PATH").get<std::string>();
   }
+  Cache::cacheVariables = cacheFileJson.at("CACHE_VARIABLES").get<JObject>();
+}
+
+void Cache::registerCacheVariables() {
+  fs::path filePath = fs::current_path() / "cache.hmake";
+  Json cacheFileJson;
+  std::ifstream(filePath) >> cacheFileJson;
+  cacheFileJson["CACHE_VARIABLES"] = Cache::cacheVariables;
+  std::ofstream(filePath) << cacheFileJson.dump(2);
 }
 
 void to_json(Json &j, const Version &p) {
