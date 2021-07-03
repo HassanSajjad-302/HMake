@@ -23,14 +23,9 @@ add_executable(hbuild
 target_include_directories(hbuild PUBLIC hbuild/header)
 target_include_directories(hbuild PRIVATE hconfigure/header)
 
-add_executable(HMake main.cpp)
-target_link_libraries(HMake PRIVATE hconfigure)
-target_include_directories(HMake PRIVATE cxxopts/include)
-
-add_executable(UnBuiltTarget TestingProject/hmake.cpp)
+add_executable(UnBuiltTarget TestingProject/2Consumer/hmake.cpp)
 target_include_directories(UnBuiltTarget PRIVATE hconfigure/header)
 add_subdirectory(json)
-target_link_libraries(HMake PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(hconfigure PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(hbuild PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(hhelper PRIVATE nlohmann_json::nlohmann_json)

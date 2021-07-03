@@ -10,8 +10,6 @@
 
 namespace fs = std::filesystem;
 using Json = nlohmann::ordered_json;
-using JObject = decltype(Json::object());
-using JArray = decltype(Json::array());
 
 enum BTargetType {
   EXECUTABLE,
@@ -19,10 +17,26 @@ enum BTargetType {
   SHARED
 };
 
-struct BCopyableDependency {
+struct BIDD {
   std::string path;
   bool copy;
 };
+void from_json(const Json &j, BIDD &bCompileDefinition);
+
+struct BLibraryDependency {
+  std::string path;
+  std::string hmakeFilePath;
+  bool copy;
+  bool preBuilt;
+  bool imported;
+};
+void from_json(const Json &j, BLibraryDependency &bCompileDefinition);
+
+struct BCompileDefinition {
+  std::string name;
+  std::string value;
+};
+void from_json(const Json &j, BCompileDefinition &bCompileDefinition);
 
 class BTarget {
 public:
@@ -34,21 +48,50 @@ public:
   std::string compilerFlags;
   std::string linkerFlags;
   std::vector<std::string> sourceFiles;
-  std::vector<BCopyableDependency> libraryDependencies;
-  std::vector<BCopyableDependency> includeDirectories;
+  std::vector<BLibraryDependency> libraryDependencies;
+  std::vector<BIDD> includeDirectories;
   std::string compilerTransitiveFlags;
   std::string linkerTransitiveFlags;
+  std::vector<BCompileDefinition> compileDefinitions;
   std::string buildCacheFilesDirPath;
-
   BTargetType targetType;
-
+  std::string targetFileName;
+  Json consumerDependenciesJson;
+  fs::path packageTargetPath;
+  bool isInPackage;
+  bool copyPackage;
+  std::string packageName;
+  std::string packageCopyPath;
+  int packageVariantIndex;
   explicit BTarget(const std::string &targetFilePath);
-  void build(const fs::path &copyPath = fs::path(), bool copyTarget = false);
+  void build();
 
 private:
-  void copy(const fs::path &copyPath);
-  static void assignSpecialBCopyableDependencyVector(const std::string &jString, const Json &json,
-                                                     std::vector<BCopyableDependency> &container);
+  void copy();
+};
+
+//BuildPreBuiltTarget
+class BPTarget {
+public:
+  std::string targetName;
+  std::string compilerFlags;
+  std::vector<BLibraryDependency> libraryDependencies;
+  std::vector<BIDD> includeDirectories;
+  std::vector<BCompileDefinition> compileDefinitions;
+  BTargetType targetType;
+  std::string targetFileName;
+  Json consumerDependenciesJson;
+  fs::path packageTargetPath;
+  bool isInPackage;
+  bool copyPackage;
+  std::string packageName;
+  std::string packageCopyPath;
+  int packageVariantIndex;
+  explicit BPTarget(const std::string &targetFilePath);
+  void build(const fs::path &copyFrom);
+
+private:
+  void copy(fs::path copyFrom);
 };
 
 struct BVariant {
@@ -62,8 +105,6 @@ struct BProjectVariant : BVariant {
 
 struct BPackageVariant : BVariant {
   explicit BPackageVariant(const fs::path &packageVariantFilePath);
-  void buildAndCopy(const fs::path &copyPath);
-  static bool shouldVariantBeCopied();
 };
 
 struct BPackage {

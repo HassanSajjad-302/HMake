@@ -58,12 +58,8 @@ int main(int argc, char **argv) {
       BProjectVariant projectVariant(file);
       projectVariant.build();
     } else if (mode == BuildMode::PACKAGE_VARIANT) {
-      bool copyVariant = BPackageVariant::shouldVariantBeCopied();
-      BPackageVariant variant(file);
-      if (copyVariant) {
-        variant.build();
-      } else {
-      }
+      BPackageVariant packageVariant(file);
+      packageVariant.build();
     } else {
       BPackage package(file);
     }

@@ -3,8 +3,35 @@
 #include "fstream"
 #include "iostream"
 
-BTarget::BTarget(const std::string &targetFilePath) {
+void from_json(const Json &j, BIDD &p) {
+  p.copy = j.at("COPY").get<bool>();
+  p.path = j.at("PATH").get<std::string>();
+}
 
+void from_json(const Json &j, BLibraryDependency &p) {
+  p.preBuilt = j.at("PREBUILT").get<bool>();
+  p.path = j.at("PATH").get<std::string>();
+  if (p.preBuilt) {
+    if (j.contains("IMPORTED")) {
+      p.imported = j.at("IMPORTED").get<bool>();
+      if (!p.imported) {
+        p.hmakeFilePath = j.at("HMAKE_FILE_PATH").get<std::string>();
+      }
+    } else {
+      //hbuild was ran in project variant mode.
+      p.imported = true;
+    }
+  }
+  p.copy = true;
+}
+
+void from_json(const Json &j, BCompileDefinition &p) {
+  p.name = j.at("NAME").get<std::string>();
+  p.value = j.at("VALUE").get<std::string>();
+}
+
+BTarget::BTarget(const std::string &targetFilePath) {
+  targetFileName = fs::path(targetFilePath).filename();
   if (targetFilePath.ends_with(".executable.hmake")) {
     targetType = BTargetType::EXECUTABLE;
   } else if (targetFilePath.ends_with(".static.hmake")) {
@@ -24,36 +51,80 @@ BTarget::BTarget(const std::string &targetFilePath) {
   Json targetFileJson;
   std::ifstream(targetFilePath) >> targetFileJson;
 
+  isInPackage = targetFileJson.at("IS_IN_PACKAGE").get<bool>();
+  if (isInPackage) {
+    copyPackage = targetFileJson.at("PACKAGE_COPY").get<bool>();
+    if (copyPackage) {
+      packageName = targetFileJson.at("PACKAGE_NAME").get<std::string>();
+      packageCopyPath = targetFileJson.at("PACKAGE_COPY_PATH").get<std::string>();
+      packageVariantIndex = targetFileJson.at("PACKAGE_VARIANT_INDEX").get<int>();
+      packageTargetPath = packageCopyPath / fs::path(packageName)
+          / fs::path(std::to_string(packageVariantIndex)) / targetName;
+    }
+  } else {
+    copyPackage = false;
+  }
   outputName = targetFileJson.at("OUTPUT_NAME").get<std::string>();
   outputDirectory = targetFileJson.at("OUTPUT_DIRECTORY").get<fs::path>();
-  compilerPath = targetFileJson.at("COMPILER").get<JObject>().at("PATH").get<std::string>();
-  linkerPath = targetFileJson.at("LINKER").get<JObject>().at("PATH").get<std::string>();
+  compilerPath = targetFileJson.at("COMPILER").get<Json>().at("PATH").get<std::string>();
+  linkerPath = targetFileJson.at("LINKER").get<Json>().at("PATH").get<std::string>();
   compilerFlags = targetFileJson.at("COMPILER_FLAGS").get<std::string>();
   linkerFlags = targetFileJson.at("LINKER_FLAGS").get<std::string>();
   sourceFiles = targetFileJson.at("SOURCE_FILES").get<std::vector<std::string>>();
-  assignSpecialBCopyableDependencyVector("LIBRARY_DEPENDENCIES", targetFileJson, libraryDependencies);
-  assignSpecialBCopyableDependencyVector("INCLUDE_DIRECTORIES", targetFileJson, includeDirectories);
+
+  libraryDependencies = targetFileJson.at("LIBRARY_DEPENDENCIES").get<std::vector<BLibraryDependency>>();
+  if (isInPackage) {
+    includeDirectories = targetFileJson.at("INCLUDE_DIRECTORIES").get<std::vector<BIDD>>();
+  } else {
+    std::vector<std::string> includeDirs = targetFileJson.at("INCLUDE_DIRECTORIES").get<std::vector<std::string>>();
+    for (auto &i : includeDirs) {
+      includeDirectories.push_back(BIDD{i, true});
+    }
+  }
   compilerTransitiveFlags = targetFileJson.at("COMPILER_TRANSITIVE_FLAGS").get<std::string>();
   linkerTransitiveFlags = targetFileJson.at("LINKER_TRANSITIVE_FLAGS").get<std::string>();
+  if (!targetFileJson.at("COMPILE_DEFINITIONS").empty()) {
+    compileDefinitions = targetFileJson.at("COMPILE_DEFINITIONS").get<std::vector<BCompileDefinition>>();
+  }
   buildCacheFilesDirPath = fs::path(targetFilePath).parent_path() / ("Cache_Build_Files");
+  if (copyPackage) {
+    consumerDependenciesJson = targetFileJson.at("CONSUMER_DEPENDENCIES").get<Json>();
+  }
 }
 
-void BTarget::build(const fs::path &copyPath, bool copyTarget) {
+void BTarget::build() {
 
   std::string includeDirectoriesFlags;
   std::string libraryDependenciesFlags;
+  std::string compileDefinitionsString;
 
   for (const auto &i : includeDirectories) {
     includeDirectoriesFlags.append("-I " + i.path + " ");
   }
 
   for (const auto &i : libraryDependencies) {
+    if (!i.preBuilt) {
+      BTarget buildTarget(i.path);
+      buildTarget.build();
+      libraryDependenciesFlags.append("-L" + buildTarget.outputDirectory + " -l" + buildTarget.outputName + " ");
+    } else {
+      std::string dir = fs::path(i.path).parent_path();
+      std::string libName = fs::path(i.path).filename();
+      libName.erase(0, 3);
+      libName.erase(libName.find('.'), 2);
+      std::string str = "-L " + dir + " -l";
+      libraryDependenciesFlags.append(str + libName + " ");
 
-    BTarget buildTarget(i.path);
-    buildTarget.build(copyPath, copyTarget);
-    libraryDependenciesFlags.append("-L" + buildTarget.outputDirectory + " -l" + buildTarget.outputName + " ");
+      if (!i.imported) {
+        BPTarget target(i.hmakeFilePath);
+        target.build(i.path);
+      }
+    }
   }
 
+  for (const auto &i : compileDefinitions) {
+    compileDefinitionsString += "-D" + i.name + "=" + i.value + " ";
+  }
   //Build process starts
   std::cout << "Starting Building" << std::endl;
   std::cout << "Building From Start. Does Not Cache Builds Yet." << std::endl;
@@ -62,11 +133,16 @@ void BTarget::build(const fs::path &copyPath, bool copyTarget) {
   for (const auto &i : sourceFiles) {
     std::string compileCommand = compilerPath + " ";
     compileCommand += compilerFlags + " ";
-    compileCommand += compilerTransitiveFlags + " " + includeDirectoriesFlags;
+    compileCommand += compilerTransitiveFlags + " ";
+    compileCommand += compileDefinitionsString + " ";
+    compileCommand += includeDirectoriesFlags;
     compileCommand += " -c " + i
         + " -o " + (fs::path(buildCacheFilesDirPath) / fs::path(i).filename()).string() + ".o";
     std::cout << compileCommand << std::endl;
-    system(compileCommand.c_str());
+    int code = std::system(compileCommand.c_str());
+    if (code != EXIT_SUCCESS) {
+      exit(code);
+    }
   }
 
   std::string linkerCommand;
@@ -84,19 +160,25 @@ void BTarget::build(const fs::path &copyPath, bool copyTarget) {
   }
 
   std::cout << linkerCommand << std::endl;
-  system(linkerCommand.c_str());
+  int code = std::system(linkerCommand.c_str());
+  if (code != EXIT_SUCCESS) {
+    exit(code);
+  }
   std::cout << "Built Complete" << std::endl;
 
-  if (copyTarget) {
+  if (copyPackage) {
     std::cout << "Copying Started" << std::endl;
-    copy(copyPath);
+    copy();
+    std::string consumerTargetFileName;
+    fs::path consumerTargetFile = packageTargetPath / targetFileName;
+    std::ofstream(consumerTargetFile) << consumerDependenciesJson.dump(4);
     std::cout << "Copying Completed" << std::endl;
   }
 }
 
-void BTarget::copy(const fs::path &copyPath) {
+void BTarget::copy() {
   fs::path copyFrom;
-  fs::path copyTo = copyPath / targetName / "";
+  fs::path copyTo = packageTargetPath / "";
   if (targetType == BTargetType::EXECUTABLE) {
     copyFrom = fs::path(outputDirectory) / outputName;
   } else if (targetType == BTargetType::STATIC) {
@@ -116,7 +198,7 @@ void BTarget::copy(const fs::path &copyPath) {
   for (auto &i : includeDirectories) {
     if (i.copy) {
       fs::path includeDirectoryCopyFrom = i.path;
-      fs::path includeDirectoryCopyTo = copyPath / targetName / "include";
+      fs::path includeDirectoryCopyTo = packageTargetPath / "include";
       includeDirectoryCopyFrom = includeDirectoryCopyFrom.lexically_normal();
       includeDirectoryCopyTo = includeDirectoryCopyTo.lexically_normal();
       std::cout << "Copying IncludeDirectory From " << includeDirectoryCopyFrom << std::endl;
@@ -129,18 +211,98 @@ void BTarget::copy(const fs::path &copyPath) {
   }
 }
 
-void BTarget::assignSpecialBCopyableDependencyVector(const std::string &jString, const Json &json,
-                                                     std::vector<BCopyableDependency> &container) {
-  JArray tmpVector = json.at(jString).get<JArray>();
-  for (auto &i : tmpVector) {
-    BCopyableDependency dependency;
-    dependency.path = i.at("PATH").get<std::string>();
-    if (i.contains("COPY")) {
-      dependency.copy = i.at("COPY").get<bool>();
-    } else {
-      dependency.copy = false;
+BPTarget::BPTarget(const std::string &targetFilePath) {
+
+  targetFileName = fs::path(targetFilePath).filename();
+  if (targetFilePath.ends_with(".executable.hmake")) {
+    targetType = BTargetType::EXECUTABLE;
+  } else if (targetFilePath.ends_with(".static.hmake")) {
+    targetType = BTargetType::STATIC;
+  } else {
+    targetType = BTargetType::SHARED;
+  }
+
+  if (std::string fileName = fs::path(targetFilePath).filename();
+      targetType == BTargetType::EXECUTABLE) {
+    targetName = fileName.substr(0, fileName.size() - std::string(".executable.hmake").size());
+  } else if (targetType == BTargetType::SHARED) {
+    targetName = fileName.substr(0, fileName.size() - std::string(".shared.hmake").size());
+  } else {
+    targetName = fileName.substr(0, fileName.size() - std::string(".static.hmake").size());
+  }
+  Json targetFileJson;
+  std::ifstream(targetFilePath) >> targetFileJson;
+
+  isInPackage = targetFileJson.at("IS_IN_PACKAGE").get<bool>();
+  if (isInPackage) {
+    copyPackage = targetFileJson.at("PACKAGE_COPY").get<bool>();
+    if (copyPackage) {
+      packageName = targetFileJson.at("PACKAGE_NAME").get<std::string>();
+      packageCopyPath = targetFileJson.at("PACKAGE_COPY_PATH").get<std::string>();
+      packageVariantIndex = targetFileJson.at("PACKAGE_VARIANT_INDEX").get<int>();
+      packageTargetPath = packageCopyPath / fs::path(packageName)
+          / fs::path(std::to_string(packageVariantIndex)) / targetName;
     }
-    container.push_back(dependency);
+  } else {
+    copyPackage = false;
+  }
+
+  libraryDependencies = targetFileJson.at("LIBRARY_DEPENDENCIES").get<std::vector<BLibraryDependency>>();
+  if (isInPackage) {
+    includeDirectories = targetFileJson.at("INCLUDE_DIRECTORIES").get<std::vector<BIDD>>();
+  }
+
+  if (copyPackage) {
+    consumerDependenciesJson = targetFileJson.at("CONSUMER_DEPENDENCIES").get<Json>();
+  }
+}
+
+void BPTarget::build(const fs::path &copyFrom) {
+  for (const auto &i : libraryDependencies) {
+    if (!i.preBuilt) {
+      BTarget buildTarget(i.path);
+      buildTarget.build();
+    } else {
+      if (!i.imported) {
+        BPTarget target(i.hmakeFilePath);
+        target.build(copyFrom);
+      }
+    }
+  }
+  if (copyPackage) {
+    std::cout << "Copying Started" << std::endl;
+    copy(copyFrom);
+    std::string consumerTargetFileName;
+    fs::path consumerTargetFile = packageTargetPath / targetFileName;
+    std::ofstream(consumerTargetFile) << consumerDependenciesJson.dump(4);
+    std::cout << "Copying Completed" << std::endl;
+  }
+}
+
+void BPTarget::copy(fs::path copyFrom) {
+  fs::path copyTo = packageTargetPath / "";
+  copyFrom = copyFrom.lexically_normal();
+  copyTo = copyTo.lexically_normal();
+  std::cout << "Copying Target" << std::endl;
+  std::cout << "Copying Target From " << copyFrom.string() << std::endl;
+  std::cout << "Copying Target To " << copyTo.string() << std::endl;
+  fs::create_directories(copyTo);
+  fs::copy(copyFrom, copyTo, fs::copy_options::update_existing);
+  std::cout << "Target Copying Done" << std::endl;
+  std::cout << "Copying Include Directories" << std::endl;
+  for (auto &i : includeDirectories) {
+    if (i.copy) {
+      fs::path includeDirectoryCopyFrom = i.path;
+      fs::path includeDirectoryCopyTo = packageTargetPath / "include";
+      includeDirectoryCopyFrom = includeDirectoryCopyFrom.lexically_normal();
+      includeDirectoryCopyTo = includeDirectoryCopyTo.lexically_normal();
+      std::cout << "Copying IncludeDirectory From " << includeDirectoryCopyFrom << std::endl;
+      std::cout << "Copying IncludeDirectory To " << includeDirectoryCopyTo << std::endl;
+      fs::create_directories(includeDirectoryCopyTo);
+      fs::copy(includeDirectoryCopyFrom, includeDirectoryCopyTo,
+               fs::copy_options::update_existing | fs::copy_options::recursive);
+      std::cout << "IncludeDirectory Copying Done" << std::endl;
+    }
   }
 }
 
@@ -163,30 +325,24 @@ BProjectVariant::BProjectVariant(const fs::path &projectFilePath) : BVariant(pro
 BPackageVariant::BPackageVariant(const fs::path &packageVariantFilePath) : BVariant(packageVariantFilePath) {
 }
 
-void BPackageVariant::buildAndCopy(const fs::path &copyPath) {
-  for (const auto &t : targetFilePaths) {
-    BTarget builder(t);
-    builder.build(copyPath, true);
-  }
-}
-
-bool BPackageVariant::shouldVariantBeCopied() {
-  fs::path packagePath = fs::current_path().parent_path() / "package.hmake";
-  Json packageJson;
-  std::ifstream(packagePath) >> packageJson;
-  return packageJson.at("PACKAGE_COPY").get<bool>();
-}
-
 BPackage::BPackage(const fs::path &packageFilePath) {
   Json packageFileJson;
   std::ifstream(packageFilePath) >> packageFileJson;
-  JArray variants = packageFileJson.at("VARIANTS").get<JArray>();
+  Json variants = packageFileJson.at("VARIANTS").get<Json>();
   fs::path packageCopyPath;
   bool packageCopy = packageFileJson.at("PACKAGE_COPY").get<bool>();
   if (packageCopy) {
     std::string packageName = packageFileJson.at("NAME").get<std::string>();
+    std::string version = packageFileJson.at("VERSION").get<std::string>();
     packageCopyPath = packageFileJson.at("PACKAGE_COPY_PATH").get<std::string>();
     packageCopyPath /= packageName;
+    fs::path consumePackageFilePath = packageCopyPath / "cpackage.hmake";
+    Json consumePackageFilePathJson;
+    consumePackageFilePathJson["NAME"] = packageName;
+    consumePackageFilePathJson["VERSION"] = version;
+    consumePackageFilePathJson["VARIANTS"] = variants;
+    fs::create_directories(packageCopyPath);
+    std::ofstream(consumePackageFilePath) << consumePackageFilePathJson.dump(4);
   }
   for (auto &variant : variants) {
     std::string integerIndex = variant.at("INDEX").get<std::string>();
@@ -195,10 +351,6 @@ BPackage::BPackage(const fs::path &packageFilePath) {
       throw std::runtime_error(packageVariantFilePath.string() + " is not a regular file");
     }
     BPackageVariant packageVariant(packageVariantFilePath);
-    if (packageCopy) {
-      packageVariant.buildAndCopy(packageCopyPath / integerIndex);
-    } else {
-      packageVariant.build();
-    }
+    packageVariant.build();
   }
 }

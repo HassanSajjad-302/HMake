@@ -2,10 +2,10 @@
 #ifndef HMAKE_CONFIGURE_HPP
 #define HMAKE_CONFIGURE_HPP
 
-#include <utility>
-
 #include "filesystem"
 #include "nlohmann/json.hpp"
+#include "stack"
+#include "utility"
 
 namespace fs = std::filesystem;
 
@@ -17,13 +17,13 @@ struct File {
 //TODO: Implement CMake glob like structure which will allow to define a FileArray during configure stage in one line.
 struct Directory {
   fs::path path;
+  bool isCommon = false;
+  int commonDirectoryNumber;
   Directory();
   explicit Directory(fs::path path);
 };
 
 using Json = nlohmann::ordered_json;
-using JObject = decltype(Json::object());
-using JArray = decltype(Json::array());
 
 enum class DependencyType {
   PUBLIC,
@@ -54,17 +54,16 @@ struct CompileDefinitionDependency {
   CompileDefinition compileDefinition;
   DependencyType dependencyType = DependencyType::PRIVATE;
 };
-void to_json(Json &j, const CompileDefinitionDependency &cdd);
+void to_json(Json &j, const CompileDefinition &cd);
+void from_json(const Json &j, CompileDefinition &cd);
 
 enum class CompilerFamily {
-  ANY,
   GCC,
   MSVC,
   CLANG
 };
 
 enum class LinkerFamily {
-  ANY,
   GCC,
   MSVC,
   CLANG
@@ -82,7 +81,7 @@ struct Linker {
 
 enum class LibraryType {
   STATIC,
-  SHARED,
+  SHARED
 };
 
 enum class ConfigType {
@@ -132,9 +131,7 @@ struct Cache {
   static inline std::vector<Linker> linkerArray;
   static inline int selectedLinkerArrayIndex;
   static inline LibraryType libraryType;
-  static inline bool hasParent;
-  static inline fs::path parentPath;
-  static inline JObject cacheVariables;
+  static inline Json cacheVariables;
   static void initializeCache();
   static void registerCacheVariables();
 };
@@ -179,8 +176,8 @@ struct ProjectVariant : public Variant {
   void configure();
 };
 
-void to_json(Json &j, const ProjectVariant &project);
 void to_json(Json &j, const Version &p);
+void from_json(const Json &j, Version &v);
 
 class PackageVariant : public Variant {
 public:
@@ -215,7 +212,6 @@ public:
   std::string outputName;
   Directory outputDirectory;
 
-  std::vector<const LibraryDependency *> getDependencies() const;
   //Json getVariantJson(const std::vector<const LibraryDependency *> &dependencies, const Package &package,
   //                  const PackageVariant &variant, int count) const;
   void configure() const;
@@ -227,6 +223,7 @@ public:
   void assignDifferentVariant(const Variant &variant);
 
 protected:
+  Target() = default;
   explicit Target(std::string targetName_, const Variant &variant);
 
   virtual ~Target() = default;
@@ -235,7 +232,7 @@ protected:
   Target(Target && /* other */) = default;
   Target &operator=(Target && /* other */) = default;
 
-  virtual std::string getFileName() const = 0;
+  virtual std::string getFileName() const;
 };
 
 //TODO: Throw in configure stage if there are no source files for Executable.
@@ -245,16 +242,118 @@ struct Executable : public Target {
   void assignDifferentVariant(const Variant &variant);
 };
 
-struct Library : public Target {
+class LibraryDependency;
+class Library : public Target {
+  Library() = default;
+  friend class LibraryDependency;
+
+public:
   LibraryType libraryType;
   explicit Library(std::string targetName_, const Variant &variant);
   std::string getFileName() const override;
   void assignDifferentVariant(const Variant &variant);
 };
 
+//PreBuilt-Library
+class PLibrary {
+  PLibrary() = default;
+  friend class LibraryDependency;
+  friend class PPLibrary;
+
+public:
+  std::string libraryName;
+  LibraryType libraryType;
+  std::vector<Directory> includeDirectoryDependencies;
+  std::vector<LibraryDependency> libraryDependencies;
+  std::string compilerFlagsDependencies;
+  std::string linkerFlagsDependencies;
+  std::vector<CompileDefinition> compileDefinitionDependencies;
+  fs::path libraryPath;
+  PLibrary(fs::path libraryPath_, LibraryType libraryType_);
+  fs::path getTargetVariantDirectoryPath(int variantCount) const;
+  std::string getFileName() const;
+  Json convertToJson(const Package &package, const PackageVariant &variant, int count) const;
+  void configure(const Package &package, const PackageVariant &variant, int count) const;
+};
+
+//ConsumePackageVariant
+struct CPVariant {
+  fs::path variantPath;
+  Json variantJson;
+  int index;
+  CPVariant(fs::path variantPath_, Json variantJson_, int index_);
+};
+
+class CPackage;
+class PPLibrary : public PLibrary {
+private:
+  friend class LibraryDependency;
+  PPLibrary() = default;
+
+public:
+  std::string packageName;
+  Version packageVersion;
+  fs::path packagePath;
+  Json packageVariantJson;
+  bool useIndex = false;
+  int index;
+  bool imported = true;
+  PPLibrary(std::string libraryName_, const CPackage &cPackage, const CPVariant &cpVariant);
+};
+
+enum class LDLT {//LibraryDependencyLibraryType
+  LIBRARY,
+  PLIBRARY,
+  PPLIBRARY
+};
+
+#include "concepts"
+template<typename T>
+concept HasLibraryDependencies = requires(T a) { std::same_as<decltype(a.libraryDependencies), std::vector<LibraryDependency>>; };
+
 struct LibraryDependency {
   Library library;
+  PLibrary pLibrary;
+  PPLibrary ppLibrary;
+
+  LDLT ldlt;
   DependencyType dependencyType = DependencyType::PRIVATE;
+  LibraryDependency(Library library_, DependencyType dependencyType_);
+  LibraryDependency(PLibrary pLibrary_, DependencyType dependencyType_);
+  LibraryDependency(PPLibrary ppLibrary_, DependencyType dependencyType_);
+
+  template<HasLibraryDependencies Entity>
+  static std::vector<const LibraryDependency *> getDependencies(const Entity &entity) {
+    std::vector<const LibraryDependency *> dependencies;
+    //This adds first layer of dependencies as is but next layers are added only if they are public.
+    for (const auto &l : entity.libraryDependencies) {
+      std::stack<const LibraryDependency *> st;
+      st.push(&(l));
+      while (!st.empty()) {
+        auto obj = st.top();
+        st.pop();
+        dependencies.push_back(obj);
+        if (obj->ldlt == LDLT::LIBRARY) {
+          for (const auto &i : obj->library.libraryDependencies) {
+            if (i.dependencyType == DependencyType::PUBLIC) {
+              st.push(&(i));
+            }
+          }
+        } else {
+          const PLibrary *pLib;
+          if (obj->ldlt == LDLT::PLIBRARY) {
+            pLib = &(obj->pLibrary);
+          } else {
+            pLib = &(obj->ppLibrary);
+          }
+          for (const auto &i : pLib->libraryDependencies) {
+            st.push(&(i));
+          }
+        }
+      }
+    }
+    return dependencies;
+  }
 };
 
 class Package {
@@ -265,27 +364,22 @@ public:
   std::vector<PackageVariant> packageVariants;
 
   explicit Package(std::string name_);
+  void configureCommonAmongVariants();
   void configure();
 
 private:
   void checkForSimilarJsonsInPackageVariants();
 };
 
-class SubDirectory {
+//Consume Package
+struct CPackage {
+  fs::path path;
   std::string name;
-  Directory sourceDirectory;
-  Directory buildDirectory;
-  ConfigType projectConfigurationType;
-  std::vector<Compiler> compilerArray;
-  int selectedCompilerArrayIndex;
-  std::vector<Linker> linkerArray;
-  int selectedLinkerArrayIndex;
-  LibraryType libraryType;
-  Json cacheVariablesJson;
-
-  explicit SubDirectory(const fs::path &subDirectorySourcePathRelativeToParentSourcePath);
-  SubDirectory(Directory sourceDirectory_, Directory buildDirectory_);
-  void configure();
+  Version version;
+  Json variantsJson;
+  explicit CPackage(fs::path packagePath_);
+  CPVariant getVariant(const Json &variantJson);
+  CPVariant getVariant(const int index);
 };
 
 template<typename T>
@@ -297,7 +391,7 @@ struct CacheVariable {
 
 template<typename T>
 CacheVariable<T>::CacheVariable(std::string cacheVariableString_, T defaultValue) : jsonString(std::move(cacheVariableString_)) {
-  JObject &cacheVariablesJson = Cache::cacheVariables;
+  Json &cacheVariablesJson = Cache::cacheVariables;
   if (cacheVariablesJson.template contains(jsonString)) {
     value = cacheVariablesJson.at(jsonString).template get<T>();
   } else {

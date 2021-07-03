@@ -69,20 +69,20 @@ void to_json(Json &j, const Linker &p) {
   j["PATH"] = p.path.string();
 }
 
-int main(){
+int main() {
   int count = 0;
   fs::path cacheFilePath;
   fs::path cp = fs::current_path();
-  for(const auto& i: fs::directory_iterator(cp)){
-    if(i.is_regular_file() && i.path().filename() == "cache.hmake"){
+  for (const auto &i : fs::directory_iterator(cp)) {
+    if (i.is_regular_file() && i.path().filename() == "cache.hmake") {
       cacheFilePath = i.path();
       ++count;
     }
   }
-  if(count > 1){
+  if (count > 1) {
     throw std::runtime_error("More than one file with cache.hmake name present");
   }
-  if(count == 0) {
+  if (count == 0) {
     //todo:
     //Here we will have the code that will detect the system we are on and compilers we do have installed.
     //And the location of those compilers.
@@ -102,30 +102,37 @@ int main(){
     j["LIBRARY_TYPE"] = "STATIC";
     j["HAS_PARENT"] = false;
     j["CACHE_VARIABLES"] = Json::object();
-
+    j["COMPILE_COMMAND"] = "g++ -std=c++20 "
+                           "-I /home/hassan/Projects/HMake/hconfigure/header/ "
+                           "-I /home/hassan/Projects/HMake/json/include/ "
+        + std::string("{SOURCE_DIRECTORY}/hmake.cpp")
+        + std::string(" -L /home/hassan/Projects/HMake/cmake-build-debug/ -l hconfigure ")
+        + " -o " + "{CONFIGURE_DIRECTORY}/configure";
     std::ofstream("cache.hmake") << j.dump(4);
-  }else{
 
-    Json j;
-    std::ifstream("cache.hmake") >> j;
-    fs::path sourceDirPath = fs::path(std::string(j["SOURCE_DIRECTORY"]));
-    fs::path filePath = sourceDirPath/fs::path("hmake.cpp");
-    if (!is_regular_file(filePath)) {
-      throw std::runtime_error("hmake.cpp not found. This path is  not regular file " + filePath.string());
+  } else {
+
+    Json cacheJson;
+    std::ifstream("cache.hmake") >> cacheJson;
+    fs::path sourceDirPath = cacheJson.at("SOURCE_DIRECTORY").get<std::string>();
+    if (sourceDirPath.is_relative()) {
+      sourceDirPath = fs::absolute(sourceDirPath);
     }
-
-    std::string compileCommand = "g++ -std=c++20 "
-                                 "-I /home/hassan/Projects/HMake/hconfigure/header/ "
-                                 "-I /home/hassan/Projects/HMake/json/include/ "
-        + filePath.string() + std::string(" -L /home/hassan/Projects/HMake/cmake-build-debug/ -l hconfigure ")
-        + " -o " + (fs::current_path() / "configure").string();
+    sourceDirPath = sourceDirPath.lexically_normal();
+    sourceDirPath = fs::canonical(sourceDirPath);
+    std::string compileCommand = cacheJson.at("COMPILE_COMMAND").get<std::string>();
+    std::string srcDirString = "{SOURCE_DIRECTORY}";
+    //removes the trailing slash
+    std::string confDirString = "{CONFIGURE_DIRECTORY}";
+    compileCommand.replace(compileCommand.find(srcDirString), srcDirString.size(), sourceDirPath);
+    compileCommand.replace(compileCommand.find(confDirString), confDirString.size(), fs::current_path());
     std::cout << compileCommand << std::endl;
-    int code = system(compileCommand.c_str());
+    int code = std::system(compileCommand.c_str());
     if (code != EXIT_SUCCESS) {
       exit(code);
     }
     std::string configureCommand = (fs::current_path() / "configure").string();
-    code = system(configureCommand.c_str());
+    code = std::system(configureCommand.c_str());
     if (code != EXIT_SUCCESS) {
       exit(code);
     }
