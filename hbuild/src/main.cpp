@@ -1,13 +1,7 @@
 
 #include "BBuild.hpp"
+#include "fstream"
 
-enum class BuildMode {
-  TARGET,
-  PROJECT_VARIANT,
-  PACKAGE_VARIANT,
-  PACKAGE,
-  NILL
-};
 int main(int argc, char **argv) {
   if (argc == 2) {
     std::string filePath = argv[1];
@@ -22,46 +16,27 @@ int main(int argc, char **argv) {
     }
 
   } else {
-    fs::path file;
-    BuildMode mode = BuildMode::NILL;
-    for (auto &i : fs::directory_iterator(fs::current_path())) {
-      if (i.is_regular_file()) {
-        std::string fileName = i.path().filename();
-        if (fileName.ends_with(".executable.hmake") || fileName.ends_with(".static.hmake")
-            || fileName.ends_with(".shared.hmake")) {
-          file = i;
-          mode = BuildMode::TARGET;
+    for (auto &file : fs::directory_iterator(fs::current_path())) {
+      if (file.is_regular_file()) {
+        std::string fileName = file.path().filename();
+        if (fileName == "projectVariant.hmake" || fileName == "packageVariant.hmake") {
+          BVariant{file.path()};
+        } else if (fileName == "project.hmake") {
+          BProject{file.path()};
+        } else if (fileName == "cache.hmake") {
+          BProject{fs::canonical(file.path()).parent_path() / "project.hmake"};
+        } else if (fileName == "package.hmake") {
+          BPackage{file.path()};
+        } else if (fileName == "Common.hmake") {
+          BPackage{fs::canonical(file.path()).parent_path() / "package.hmake"};
+        } else if (fileName.ends_with(".hmake")) {
+          BTarget{file.path()};
+        } else {
+          throw std::runtime_error("Could not find or determine the target or projectVariant or packageVariant "
+                                   "or package file which is to be built.");
         }
-        if (fileName == "projectVariant.hmake") {
-          file = i;
-          mode = BuildMode::PROJECT_VARIANT;
-          break;
-        }
-        if (fileName == "packageVariant.hmake") {
-          file = i;
-          mode = BuildMode::PACKAGE_VARIANT;
-        }
-        if (fileName == "package.hmake") {
-          file = i;
-          mode = BuildMode::PACKAGE;
-        }
+        break;
       }
-    }
-    if (mode == BuildMode::NILL) {
-      throw std::runtime_error("Could not find or determine the target or projectVariant or packageVariant "
-                               "or package file which is to be built.");
-    }
-    if (mode == BuildMode::TARGET) {
-      BTarget builder(file);
-      builder.build();
-    } else if (mode == BuildMode::PROJECT_VARIANT) {
-      BProjectVariant projectVariant(file);
-      projectVariant.build();
-    } else if (mode == BuildMode::PACKAGE_VARIANT) {
-      BPackageVariant packageVariant(file);
-      packageVariant.build();
-    } else {
-      BPackage package(file);
     }
   }
 }

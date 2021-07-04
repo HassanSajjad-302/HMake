@@ -19,7 +19,7 @@ struct Directory {
   fs::path path;
   bool isCommon = false;
   int commonDirectoryNumber;
-  Directory();
+  Directory() = default;
   explicit Directory(fs::path path);
 };
 
@@ -159,8 +159,19 @@ enum class PCCategory {
 class Executable;
 class Library;
 
+enum class VariantMode {
+  PROJECT,
+  PACKAGE,
+  BOTH
+};
+
+struct CustomTarget {
+  std::string command;
+  VariantMode mode = VariantMode::PROJECT;
+};
+void convertCustomTargetsToJson(Json &j, const CustomTarget &customTargets);
+
 struct Variant {
-  Directory configureDirectory;
   ConfigType configurationType;
   Compiler compiler;
   Linker linker;
@@ -168,11 +179,18 @@ struct Variant {
   std::vector<Library> libraries;
   Flags flags;
   LibraryType libraryType;
+  Json convertToJson(VariantMode mode, int variantCount);
 };
 
 struct ProjectVariant : public Variant {
   explicit ProjectVariant();
-  Json convertToJson();
+};
+
+class Project {
+public:
+  std::string name;
+  Version version;
+  std::vector<ProjectVariant> projectVariants;
   void configure();
 };
 
@@ -183,16 +201,21 @@ class PackageVariant : public Variant {
 public:
   decltype(Json::object()) json;
   PackageVariant();
-  //TODO: This should be friend of Project and method should not be public because it is called by configure
-  //method while PackageVariant don't have configure method.
-  Json convertToJson(const Directory &packageConfigureDirectory, int count);
 };
 
-class Project {
-public:
-  std::string name;
-  Version version;
+struct SourceDirectory {
+  Directory sourceDirectory;
+  std::string regex;
 };
+
+enum class TargetType {
+  EXECUTABLE,
+  STATIC,
+  SHARED,
+  PLIBRARY_STATIC,
+  PLIBRARY_SHARED,
+};
+void to_json(Json &j, const TargetType &p);
 
 //TODO: If no target is added in targets of variant, building that variant will be an error.
 class Package;
@@ -208,14 +231,19 @@ public:
   std::vector<LinkerFlagsDependency> linkerFlagsDependencies;
   std::vector<CompileDefinitionDependency> compileDefinitionDependencies;
   std::vector<File> sourceFiles;
+  std::vector<SourceDirectory> sourceDirectories;
+  std::vector<CustomTarget> preBuild;
+  std::vector<CustomTarget> postBuild;
   std::string targetName;
   std::string outputName;
   Directory outputDirectory;
+  mutable TargetType targetType;
 
   //Json getVariantJson(const std::vector<const LibraryDependency *> &dependencies, const Package &package,
   //                  const PackageVariant &variant, int count) const;
-  void configure() const;
-  Json convertToJson() const;
+  void configure(int variantIndex) const;
+  static std::vector<std::string> convertCustomTargetsToJson(const std::vector<CustomTarget> &customTargets, VariantMode mode);
+  Json convertToJson(int variantIndex) const;
   void configure(const Package &package, const PackageVariant &variant, int count) const;
   Json convertToJson(const Package &package, const PackageVariant &variant, int count) const;
   fs::path getTargetConfigureDirectoryPath() const;
@@ -231,14 +259,11 @@ protected:
   Target &operator=(const Target & /* other */) = default;
   Target(Target && /* other */) = default;
   Target &operator=(Target && /* other */) = default;
-
-  virtual std::string getFileName() const;
 };
 
 //TODO: Throw in configure stage if there are no source files for Executable.
 struct Executable : public Target {
   explicit Executable(std::string targetName_, const Variant &variant);
-  std::string getFileName() const override;
   void assignDifferentVariant(const Variant &variant);
 };
 
@@ -250,8 +275,8 @@ class Library : public Target {
 public:
   LibraryType libraryType;
   explicit Library(std::string targetName_, const Variant &variant);
-  std::string getFileName() const override;
   void assignDifferentVariant(const Variant &variant);
+  void setTargetType() const;
 };
 
 //PreBuilt-Library
@@ -269,9 +294,10 @@ public:
   std::string linkerFlagsDependencies;
   std::vector<CompileDefinition> compileDefinitionDependencies;
   fs::path libraryPath;
-  PLibrary(fs::path libraryPath_, LibraryType libraryType_);
+  mutable TargetType targetType;
+  PLibrary(const fs::path &libraryPath_, LibraryType libraryType_);
   fs::path getTargetVariantDirectoryPath(int variantCount) const;
-  std::string getFileName() const;
+  void setTargetType() const;
   Json convertToJson(const Package &package, const PackageVariant &variant, int count) const;
   void configure(const Package &package, const PackageVariant &variant, int count) const;
 };
@@ -360,8 +386,9 @@ class Package {
 public:
   std::string name;
   Version version;
-  Directory packageInstallDirectory;
+  bool cacheCommonIncludeDirs = true;
   std::vector<PackageVariant> packageVariants;
+  std::vector<std::string> afterCopyingPackage;
 
   explicit Package(std::string name_);
   void configureCommonAmongVariants();
