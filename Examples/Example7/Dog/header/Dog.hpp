@@ -1,0 +1,4 @@
+
+namespace Dog {
+void print();
+}

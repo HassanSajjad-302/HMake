@@ -7,6 +7,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(hhelper hhelper/src/main.cpp)
 target_include_directories(hhelper PRIVATE hhelper/src)
+target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
+target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/json/include/")
+target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="${CMAKE_BINARY_DIR}/")
+
 
 add_library(hconfigure
         hconfigure/src/Configure.cpp
@@ -23,7 +27,7 @@ add_executable(hbuild
 target_include_directories(hbuild PUBLIC hbuild/header)
 target_include_directories(hbuild PRIVATE hconfigure/header)
 
-add_executable(UnBuiltTarget TestingProject/2Consumer/hmake.cpp)
+add_executable(UnBuiltTarget Examples/Example8/hmake.cpp)
 target_include_directories(UnBuiltTarget PRIVATE hconfigure/header)
 add_subdirectory(json)
 target_link_libraries(hconfigure PRIVATE nlohmann_json::nlohmann_json)

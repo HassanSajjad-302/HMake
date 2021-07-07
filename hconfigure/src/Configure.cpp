@@ -29,7 +29,7 @@ Directory::Directory(fs::path path_) {
   path /= "";
 }
 
-void to_json(Json &j, const DependencyType p) {
+void to_json(Json &j, const DependencyType &p) {
   if (p == DependencyType::PUBLIC) {
     j = "PUBLIC";
   } else if (p == DependencyType::PRIVATE) {
@@ -49,7 +49,39 @@ void from_json(const Json &j, CompileDefinition &cd) {
   j.at("VALUE").get_to(cd.value);
 }
 
-void to_json(Json &j, const LibraryType libraryType) {
+void from_json(const Json &json, CompilerFamily &compilerFamily) {
+  if (json == "GCC") {
+    compilerFamily = CompilerFamily::GCC;
+  } else if (json == "MSVC") {
+    compilerFamily = CompilerFamily::MSVC;
+  } else if (json == "CLANG") {
+    compilerFamily = CompilerFamily::CLANG;
+  }
+}
+
+void from_json(const Json &json, LinkerFamily &linkerFamily) {
+  if (json == "GCC") {
+    linkerFamily = LinkerFamily::GCC;
+  } else if (json == "MSVC") {
+    linkerFamily = LinkerFamily::MSVC;
+  } else if (json == "CLANG") {
+    linkerFamily = LinkerFamily::CLANG;
+  }
+}
+
+void from_json(const Json &json, Compiler &compiler) {
+  compiler.path = json.at("PATH").get<std::string>();
+  compiler.compilerFamily = json.at("FAMILY").get<CompilerFamily>();
+  compiler.compilerVersion = json.at("VERSION").get<Version>();
+}
+
+void from_json(const Json &json, Linker &linker) {
+  linker.path = json.at("PATH").get<std::string>();
+  linker.linkerFamily = json.at("FAMILY").get<LinkerFamily>();
+  linker.linkerVersion = json.at("VERSION").get<Version>();
+}
+
+void to_json(Json &j, const LibraryType &libraryType) {
   if (libraryType == LibraryType::STATIC) {
     j = "STATIC";
   } else {
@@ -57,11 +89,27 @@ void to_json(Json &j, const LibraryType libraryType) {
   }
 }
 
-void to_json(Json &j, const ConfigType configType) {
+void from_json(const Json &json, LibraryType &libraryType) {
+  if (json == "STATIC") {
+    libraryType = LibraryType::STATIC;
+  } else if (json == "SHARED") {
+    libraryType = LibraryType::SHARED;
+  }
+}
+
+void to_json(Json &j, const ConfigType &configType) {
   if (configType == ConfigType::DEBUG) {
     j = "DEBUG";
   } else {
     j = "RELEASE";
+  }
+}
+
+void from_json(const Json &json, ConfigType &configType) {
+  if (json == "DEBUG") {
+    configType = ConfigType::DEBUG;
+  } else if (json == "RELEASE") {
+    configType = ConfigType::RELEASE;
   }
 }
 
@@ -71,10 +119,6 @@ Target::Target(std::string targetName_, const Variant &variant)
   compiler = variant.compiler;
   linker = variant.linker;
   flags = variant.flags;
-}
-
-fs::path Target::getTargetConfigureDirectoryPath() const {
-  return Cache::configureDirectory.path / targetName;
 }
 
 fs::path Target::getTargetVariantDirectoryPath(int variantCount) const {
@@ -205,8 +249,8 @@ Json Target::convertToJson(int variantIndex) const {
   targetFileJson["CONFIGURATION"] = configurationType;
   targetFileJson["COMPILER"] = compiler;
   targetFileJson["LINKER"] = linker;
-  targetFileJson["COMPILER_FLAGS"] = flags[compiler.compilerFamily][configurationType];
-  targetFileJson["LINKER_FLAGS"] = flags[linker.linkerFamily][configurationType];
+  targetFileJson["COMPILER_FLAGS"] = flags.compilerFlags[compiler.compilerFamily][configurationType];
+  targetFileJson["LINKER_FLAGS"] = flags.linkerFlags[linker.linkerFamily][configurationType];
   targetFileJson["SOURCE_FILES"] = sourceFilesArray;
   targetFileJson["SOURCE_DIRECTORIES"] = sourceDirectoriesArray;
   targetFileJson["LIBRARY_DEPENDENCIES"] = dependenciesArray;
@@ -294,6 +338,8 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
         consumerIncludeDirectories.emplace_back("include/");
         JIDDObject["COPY"] = true;
       }
+    } else {
+      JIDDObject["COPY"] = false;
     }
     includeDirectoriesArray.push_back(JIDDObject);
   }
@@ -426,8 +472,8 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
   targetFileJson["CONFIGURATION"] = configurationType;
   targetFileJson["COMPILER"] = compiler;
   targetFileJson["LINKER"] = linker;
-  targetFileJson["COMPILER_FLAGS"] = flags[compiler.compilerFamily][configurationType];
-  targetFileJson["LINKER_FLAGS"] = flags[linker.linkerFamily][configurationType];
+  targetFileJson["COMPILER_FLAGS"] = flags.compilerFlags[compiler.compilerFamily][configurationType];
+  targetFileJson["LINKER_FLAGS"] = flags.linkerFlags[linker.linkerFamily][configurationType];
   targetFileJson["SOURCE_FILES"] = sourceFilesArray;
   targetFileJson["SOURCE_DIRECTORIES"] = sourceDirectoriesArray;
   targetFileJson["LIBRARY_DEPENDENCIES"] = dependenciesArray;
@@ -527,89 +573,242 @@ void to_json(Json &j, const Linker &linker) {
   j["PATH"] = linker.path.string();
 }
 
-Flags &Flags::operator[](CompilerFamily compilerFamily) const {
-  if (compileHelper || linkHelper || configHelper) {
-    throw std::logic_error("Wrong Usage Of Flag Class.");
+//So that the type becomes compatible for usage  in key of map
+bool operator<(const Version &lhs, const Version &rhs) {
+  if (lhs.majorVersion < rhs.majorVersion) {
+    return true;
+  } else if (lhs.majorVersion == rhs.majorVersion) {
+    if (lhs.minorVersion < rhs.minorVersion) {
+      return true;
+    } else if (lhs.minorVersion == rhs.minorVersion) {
+      if (lhs.patchVersion < rhs.patchVersion) {
+        return true;
+      }
+    }
   }
-  compileHelper = true;
+  return false;
+}
+
+bool operator==(const Version &lhs, const Version &rhs) {
+  return lhs.majorVersion == rhs.majorVersion && lhs.minorVersion == rhs.minorVersion && lhs.patchVersion == rhs.patchVersion;
+}
+
+CompilerFlags &CompilerFlags::operator[](CompilerFamily compilerFamily) const {
+  compilerHelper = true;
   compilerCurrent = compilerFamily;
-  return const_cast<Flags &>(*this);
+  return const_cast<CompilerFlags &>(*this);
 }
-Flags &Flags::operator[](LinkerFamily linkerFamily) const {
-  if (compileHelper || linkHelper || configHelper) {
-    throw std::logic_error("Wrong Usage Of Flag Class.");
+
+CompilerFlags &CompilerFlags::operator[](CompilerVersion compilerVersion) const {
+  if (!compilerHelper) {
+    throw std::runtime_error("Wrong Usage Of CompilerFlags class");
   }
-  linkHelper = true;
-  linkerCurrent = linkerFamily;
-  return const_cast<Flags &>(*this);
+  compilerVersionHelper = true;
+  compilerVersionCurrent = compilerVersion;
+  return const_cast<CompilerFlags &>(*this);
 }
-Flags &Flags::operator[](ConfigType configType) const {
-  if (!compileHelper && !linkHelper) {
-    throw std::logic_error("Wrong Usage Of Flag Class. First use operator[] with COMPILER_FAMILY or LINKER_FAMILY");
-  }
+
+CompilerFlags &CompilerFlags::operator[](ConfigType configType) const {
   configHelper = true;
   configCurrent = configType;
-  return const_cast<Flags &>(*this);
+  return const_cast<CompilerFlags &>(*this);
 }
 
-void Flags::operator=(const std::string &flags1) {
-  if ((!compileHelper && !linkHelper) && !configHelper) {
-    throw std::logic_error("Wrong Usage Of Flag Class.");
-  }
-  configHelper = false;
-  if (compileHelper) {
-    auto t = std::make_tuple(compilerCurrent, configCurrent);
-    if (auto [pos, ok] = compilerFlags.emplace(t, flags1); !ok) {
-      std::cout << "Rewriting the flags in compilerFlags for this configuration";
-      compilerFlags[t] = flags1;
-    }
-    compileHelper = false;
+void CompilerFlags::operator=(const std::string &flags1) {
+
+  std::set<CompilerFamily> compilerFamilies1;
+  CompilerVersion compilerVersions1;
+  std::set<ConfigType> configurationTypes1;
+
+  if (compilerHelper) {
+    compilerFamilies1.emplace(compilerCurrent);
   } else {
-    auto t = std::make_tuple(linkerCurrent, configCurrent);
-    if (auto [pos, ok] = linkerFlags.emplace(t, flags1); !ok) {
-      std::cout << "Rewriting the flags in linkerFlags for this configuration";
-      linkerFlags[t] = flags1;
-    }
-    linkHelper = false;
+    compilerFamilies1 = compilerFamilies;
   }
-}
 
-Flags Flags::defaultFlags() {
-  Flags flags1;
-  flags1[CompilerFamily::GCC][ConfigType::DEBUG] = "-g";
-  flags1[CompilerFamily::GCC][ConfigType::RELEASE] = "-O3 -DNDEBUG";
-  return flags1;
-}
-
-Flags::operator std::string() const {
-  if ((!compileHelper && !linkHelper) && !configHelper) {
-    throw std::logic_error("Wrong Usage Of Flag Class.");
-  }
-  configHelper = false;
-  if (compileHelper) {
-    auto t = std::make_tuple(compilerCurrent, configCurrent);
-    compileHelper = false;
-    if (compilerFlags.find(t) == compilerFlags.end() || compilerFlags.at(t).empty()) {
-      std::cout << "No Compiler Flags Defined For This Configuration." << std::endl;
-      return "";
-    }
-    return compilerFlags.at(t);
+  if (compilerVersionHelper) {
+    compilerVersions1 = compilerVersionCurrent;
   } else {
-    auto t = std::make_tuple(linkerCurrent, configCurrent);
-    linkHelper = false;
-    if (linkerFlags.find(t) == linkerFlags.end() || linkerFlags.at(t).empty()) {
-      std::cout << "No Linker Flags Defined For This Configuration." << std::endl;
-      return "";
-    }
-    return linkerFlags.at(t);
+    CompilerVersion compilerVersion;
+    compilerVersion.majorVersion = compilerVersion.minorVersion = compilerVersion.patchVersion = 0;
+    compilerVersion.comparison = Comparison::GREATER_THAN_OR_EQUAL_TO;
+    compilerVersions1 = compilerVersion;
   }
+
+  if (configHelper) {
+    configurationTypes1.emplace(configCurrent);
+  } else {
+    configurationTypes1 = configurationTypes;
+  }
+
+  for (auto &compiler : compilerFamilies1) {
+    for (auto &configuration : configurationTypes1) {
+      auto t = std::make_tuple(compiler, compilerVersions1, configuration);
+      if (auto [pos, ok] = compilerFlags.emplace(t, flags1); !ok) {
+        std::cout << "Rewriting the flags in compilerFlags for this configuration";
+        compilerFlags[t] = flags1;
+      }
+    }
+  }
+
+  compilerHelper = false;
+  compilerVersionHelper = false;
+  configHelper = false;
+}
+
+CompilerFlags CompilerFlags::defaultFlags() {
+  CompilerFlags compilerFlags;
+  compilerFlags.compilerFamilies.emplace(CompilerFamily::GCC);
+  compilerFlags[CompilerFamily::GCC][CompilerVersion{10, 2, 0}][ConfigType::DEBUG] = "-g";
+  compilerFlags[ConfigType::RELEASE] = "-O3 -DNDEBUG";
+  return compilerFlags;
+}
+
+CompilerFlags::operator std::string() const {
+  std::set<std::string> flagsSet;
+  for (const auto &[key, value] : compilerFlags) {
+    if (compilerHelper) {
+      if (std::get<0>(key) != compilerCurrent) {
+        continue;
+      }
+      if (compilerVersionHelper) {
+        const auto &compilerVersion = std::get<1>(key);
+        if (compilerVersion.comparison == Comparison::EQUAL && compilerVersion == compilerVersionCurrent) {
+
+        } else if (compilerVersion.comparison == Comparison::GREATER_THAN && compilerVersion > compilerVersionCurrent) {
+
+        } else if (compilerVersion.comparison == Comparison::LESSER_THAN && compilerVersion < compilerVersionCurrent) {
+
+        } else if (compilerVersion.comparison == Comparison::GREATER_THAN_OR_EQUAL_TO && compilerVersion >= compilerVersionCurrent) {
+
+        } else if (compilerVersion.comparison == Comparison::LESSER_THAN_OR_EQUAL_TO && compilerVersion <= compilerVersionCurrent) {
+
+        } else {
+          continue;
+        }
+      }
+    }
+    if (configHelper && std::get<2>(key) != configCurrent) {
+      continue;
+    }
+    flagsSet.emplace(value);
+  }
+
+  std::string flagsStr;
+  for (const auto &i : flagsSet) {
+    flagsStr += i;
+    flagsStr += " ";
+  }
+  return flagsStr;
+}
+
+LinkerFlags &LinkerFlags::operator[](LinkerFamily linkerFamily) const {
+  linkerHelper = true;
+  linkerCurrent = linkerFamily;
+  return const_cast<LinkerFlags &>(*this);
+}
+
+LinkerFlags &LinkerFlags::operator[](LinkerVersion linkerVersion) const {
+  if (!linkerHelper) {
+    throw std::runtime_error("Wrong Usage Of LinkerFlags class");
+  }
+  linkerVersionHelper = true;
+  linkerVersionCurrent = linkerVersion;
+  return const_cast<LinkerFlags &>(*this);
+}
+
+LinkerFlags &LinkerFlags::operator[](ConfigType configType) const {
+  configHelper = true;
+  configCurrent = configType;
+  return const_cast<LinkerFlags &>(*this);
+}
+
+void LinkerFlags::operator=(const std::string &flags1) {
+
+  std::set<LinkerFamily> linkerFamilies1;
+  LinkerVersion linkerVersions1;
+  std::set<ConfigType> configurationTypes1;
+
+  if (linkerHelper) {
+    linkerFamilies1.emplace(linkerCurrent);
+  } else {
+    linkerFamilies1 = linkerFamilies;
+  }
+
+  if (linkerVersionHelper) {
+    linkerVersions1 = linkerVersionCurrent;
+  } else {
+    LinkerVersion linkerVersion;
+    linkerVersion.minorVersion = linkerVersion.minorVersion = linkerVersion.patchVersion = 0;
+    linkerVersion.comparison = Comparison::GREATER_THAN_OR_EQUAL_TO;
+    linkerVersions1 = linkerVersion;
+  }
+
+  if (configHelper) {
+    configurationTypes1.emplace(configCurrent);
+  } else {
+    configurationTypes1 = configurationTypes;
+  }
+
+  for (auto &linker : linkerFamilies1) {
+    for (auto &configuration : configurationTypes1) {
+      auto t = std::make_tuple(linker, linkerVersions1, configuration);
+      if (auto [pos, ok] = linkerFlags.emplace(t, flags1); !ok) {
+        std::cout << "Rewriting the flags in compilerFlags for this configuration";
+        linkerFlags[t] = flags1;
+      }
+    }
+  }
+
+  linkerHelper = false;
+  linkerVersionHelper = false;
+  configHelper = false;
+}
+
+LinkerFlags LinkerFlags::defaultFlags() {
+  return LinkerFlags{};
+}
+
+LinkerFlags::operator std::string() const {
+  std::set<std::string> flagsSet;
+  for (const auto &[key, value] : linkerFlags) {
+    if (linkerHelper) {
+      if (std::get<0>(key) != linkerCurrent) {
+        continue;
+      }
+      if (linkerVersionHelper) {
+        const auto &linkerVersion = std::get<1>(key);
+        if (linkerVersion.comparison == Comparison::EQUAL && linkerVersion == linkerVersionCurrent) {
+
+        } else if (linkerVersion.comparison == Comparison::GREATER_THAN && linkerVersion > linkerVersionCurrent) {
+
+        } else if (linkerVersion.comparison == Comparison::LESSER_THAN && linkerVersion < linkerVersionCurrent) {
+
+        } else if (linkerVersion.comparison == Comparison::GREATER_THAN_OR_EQUAL_TO && linkerVersion >= linkerVersionCurrent) {
+
+        } else if (linkerVersion.comparison == Comparison::LESSER_THAN_OR_EQUAL_TO && linkerVersion <= linkerVersionCurrent) {
+
+        } else {
+          continue;
+        }
+      }
+    }
+    if (configHelper && std::get<2>(key) != configCurrent) {
+      continue;
+    }
+    flagsSet.emplace(value);
+  }
+
+  std::string flagsStr;
+  for (const auto &i : flagsStr) {
+    flagsStr += i;
+    flagsStr += " ";
+  }
+  return flagsStr;
 }
 
 void Cache::initializeCache() {
   fs::path filePath = fs::current_path() / "cache.hmake";
-  if (!exists(filePath) || !is_regular_file(filePath)) {
-    throw std::runtime_error(filePath.string() + " does not exists or is not a regular file");
-  }
   Json cacheFileJson;
   std::ifstream(filePath) >> cacheFileJson;
 
@@ -624,69 +823,13 @@ void Cache::initializeCache() {
   if (copyPackage) {
     packageCopyPath = cacheFileJson.at("PACKAGE_COPY_PATH").get<std::string>();
   }
-  std::string configTypeString = cacheFileJson.at("CONFIGURATION").get<std::string>();
-  ConfigType configType;
-  if (configTypeString == "DEBUG") {
-    configType = ConfigType::DEBUG;
-  } else if (configTypeString == "RELEASE") {
-    configType = ConfigType::RELEASE;
-  } else {
-    throw std::runtime_error("Unknown CONFIG_TYPE " + configTypeString);
-  }
-  Cache::projectConfigurationType = configType;
 
-  Json compilerArrayJson = cacheFileJson.at("COMPILER_ARRAY").get<Json>();
-  std::vector<Compiler> compilersArray;
-  for (auto i : compilerArrayJson) {
-    Compiler compiler;
-    compiler.path = fs::path(i.at("PATH"));
-    std::string compilerFamilyString = i.at("FAMILY").get<std::string>();
-    CompilerFamily compilerFamily;
-    if (compilerFamilyString == "GCC") {
-      compilerFamily = CompilerFamily::GCC;
-    } else if (compilerFamilyString == "MSVC") {
-      compilerFamily = CompilerFamily::MSVC;
-    } else if (compilerFamilyString == "CLANG") {
-      compilerFamily = CompilerFamily::CLANG;
-    } else {
-      throw std::runtime_error("Unknown COMPILER::FAMILY " + compilerFamilyString);
-    }
-    compiler.compilerFamily = compilerFamily;
-    Cache::compilerArray.push_back(compiler);
-  }
+  Cache::projectConfigurationType = cacheFileJson.at("CONFIGURATION").get<ConfigType>();
+  Cache::compilerArray = cacheFileJson.at("COMPILER_ARRAY").get<std::vector<Compiler>>();
   Cache::selectedCompilerArrayIndex = cacheFileJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
-
-  Json linkerArrayJson = cacheFileJson.at("LINKER_ARRAY").get<Json>();
-  std::vector<Linker> linkersArray;
-  for (auto i : linkerArrayJson) {
-    Linker linker;
-    linker.path = fs::path(i.at("PATH"));
-    std::string linkerFamilyString = i.at("FAMILY").get<std::string>();
-    LinkerFamily linkerFamily;
-    if (linkerFamilyString == "GCC") {
-      linkerFamily = LinkerFamily::GCC;
-    } else if (linkerFamilyString == "MSVC") {
-      linkerFamily = LinkerFamily::MSVC;
-    } else if (linkerFamilyString == "CLANG") {
-      linkerFamily = LinkerFamily::CLANG;
-    } else {
-      throw std::runtime_error("Unknown LINKER::FAMILY " + linkerFamilyString);
-    }
-    linker.linkerFamily = linkerFamily;
-    Cache::linkerArray.push_back(linker);
-  }
+  Cache::linkerArray = cacheFileJson.at("LINKER_ARRAY").get<std::vector<Linker>>();
   Cache::selectedLinkerArrayIndex = cacheFileJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
-
-  std::string libraryTypeString = cacheFileJson.at("LIBRARY_TYPE").get<std::string>();
-  LibraryType type;
-  if (libraryTypeString == "STATIC") {
-    type = LibraryType::STATIC;
-  } else if (libraryTypeString == "SHARED") {
-    type = LibraryType::SHARED;
-  } else {
-    throw std::runtime_error("Unknown LIBRARY_TYPE " + libraryTypeString);
-  }
-  Cache::libraryType = type;
+  Cache::libraryType = cacheFileJson.at("LIBRARY_TYPE").get<LibraryType>();
   Cache::cacheVariables = cacheFileJson.at("CACHE_VARIABLES").get<Json>();
 }
 
@@ -698,14 +841,22 @@ void Cache::registerCacheVariables() {
   std::ofstream(filePath) << cacheFileJson.dump(2);
 }
 
+Variant::Variant() {
+  configurationType = Cache::projectConfigurationType;
+  compiler = Cache::compilerArray[Cache::selectedCompilerArrayIndex];
+  linker = Cache::linkerArray[Cache::selectedLinkerArrayIndex];
+  libraryType = Cache::libraryType;
+  flags = ::flags;
+}
+
 Json Variant::convertToJson(VariantMode mode, int variantCount) {
   Json projectJson;
   projectJson["CONFIGURATION"] = configurationType;
   projectJson["COMPILER"] = compiler;
   projectJson["LINKER"] = linker;
-  std::string compilerFlags = flags[compiler.compilerFamily][configurationType];
+  std::string compilerFlags = flags.compilerFlags[compiler.compilerFamily][configurationType];
   projectJson["COMPILER_FLAGS"] = compilerFlags;
-  std::string linkerFlags = flags[linker.linkerFamily][configurationType];
+  std::string linkerFlags = flags.linkerFlags[linker.linkerFamily][configurationType];
   projectJson["LINKER_FLAGS"] = linkerFlags;
   projectJson["LIBRARY_TYPE"] = libraryType;
 
@@ -756,14 +907,6 @@ void from_json(const Json &j, Version &v) {
   }
 }
 
-ProjectVariant::ProjectVariant() {
-  configurationType = Cache::projectConfigurationType;
-  compiler = Cache::compilerArray[Cache::selectedCompilerArrayIndex];
-  linker = Cache::linkerArray[Cache::selectedLinkerArrayIndex];
-  libraryType = Cache::libraryType;
-  flags = ::flags;
-}
-
 void Project::configure() {
   for (int i = 0; i < projectVariants.size(); ++i) {
     Json json = projectVariants[i].convertToJson(VariantMode::PROJECT, i);
@@ -787,14 +930,6 @@ void Project::configure() {
   }
   projectFileJson["VARIANTS"] = projectVariantsInt;
   std::ofstream(Cache::configureDirectory.path / "project.hmake") << projectFileJson.dump(4);
-}
-
-PackageVariant::PackageVariant() {
-  configurationType = Cache::projectConfigurationType;
-  compiler = Cache::compilerArray[Cache::selectedCompilerArrayIndex];
-  linker = Cache::linkerArray[Cache::selectedLinkerArrayIndex];
-  flags = ::flags;
-  libraryType = Cache::libraryType;
 }
 
 Package::Package(std::string name_) : name(std::move(name_)), version{0, 0, 0} {

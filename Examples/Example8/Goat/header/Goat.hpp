@@ -1,0 +1,3 @@
+namespace Goat {
+void print();
+}

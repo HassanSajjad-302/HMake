@@ -6,6 +6,7 @@
 #include "nlohmann/json.hpp"
 #include "stack"
 #include "utility"
+#include <set>
 
 namespace fs = std::filesystem;
 
@@ -25,6 +26,8 @@ struct Directory {
 
 using Json = nlohmann::ordered_json;
 
+//TODO: Consider something more easy like Trickle, TrickleIfLibraryTrickles, Trickle
+//Public and Private are sometimes hard to reason.
 enum class DependencyType {
   PUBLIC,
   PRIVATE
@@ -62,22 +65,43 @@ enum class CompilerFamily {
   MSVC,
   CLANG
 };
+void from_json(const Json &json, CompilerFamily &compilerFamily);
 
 enum class LinkerFamily {
   GCC,
   MSVC,
   CLANG
 };
+void from_json(const Json &json, LinkerFamily &linkerFamily);
+
+enum class Comparison {
+  EQUAL,
+  GREATER_THAN,
+  LESSER_THAN,
+  GREATER_THAN_OR_EQUAL_TO,
+  LESSER_THAN_OR_EQUAL_TO
+};
+
+struct Version {
+  int majorVersion;
+  int minorVersion;
+  int patchVersion;
+  Comparison comparison;//Used in flags
+};
 
 struct Compiler {
   CompilerFamily compilerFamily;
+  Version compilerVersion;
   fs::path path;
 };
+void from_json(const Json &json, Compiler &compiler);
 
 struct Linker {
   LinkerFamily linkerFamily;
+  Version linkerVersion;
   fs::path path;
 };
+void from_json(const Json &json, Linker &linker);
 
 enum class LibraryType {
   STATIC,
@@ -91,32 +115,80 @@ enum class ConfigType {
 
 void to_json(Json &j, const Compiler &compiler);
 void to_json(Json &j, const Linker &linker);
-void to_json(Json &j, LibraryType libraryType);
-void to_json(Json &j, ConfigType configType);
+void to_json(Json &j, const LibraryType &libraryType);
+void from_json(const Json &json, LibraryType &libraryType);
+void to_json(Json &j, const ConfigType &configType);
+void from_json(const Json &json, ConfigType &configType);
 
-//TODO: Improve the console message and documentation.
-struct Flags {
+bool operator<(const Version &lhs, const Version &rhs);
+bool operator==(const Version &lhs, const Version &rhs);
+inline bool operator>(const Version &lhs, const Version &rhs) { return operator<(rhs, lhs); }
+inline bool operator<=(const Version &lhs, const Version &rhs) { return !operator>(lhs, rhs); }
+inline bool operator>=(const Version &lhs, const Version &rhs) { return !operator<(lhs, rhs); }
 
-  std::map<std::tuple<CompilerFamily, ConfigType>, std::string> compilerFlags;
-  std::map<std::tuple<LinkerFamily, ConfigType>, std::string> linkerFlags;
+struct CompilerVersion : public Version {
+};
+
+//TODO: Look in templatizing that. Same code is repeated in CompilerFlags and LinkerFlags
+struct CompilerFlags {
+  std::map<std::tuple<CompilerFamily, CompilerVersion, ConfigType>, std::string> compilerFlags;
+
+  std::set<CompilerFamily> compilerFamilies;
+  CompilerVersion compilerVersions;
+  std::set<ConfigType> configurationTypes;
 
   //bool and enum helpers for using Flags class with some operator overload magic
-  mutable bool compileHelper = false;
-  mutable bool linkHelper = false;
+  mutable bool compilerHelper = false;
+  mutable bool compilerVersionHelper = false;
   mutable bool configHelper = false;
 
   mutable CompilerFamily compilerCurrent;
-  mutable LinkerFamily linkerCurrent;
+  mutable CompilerVersion compilerVersionCurrent;
   mutable ConfigType configCurrent;
 
 public:
-  Flags &operator[](CompilerFamily compilerFamily) const;
-  Flags &operator[](LinkerFamily linkerFamily) const;
-  Flags &operator[](ConfigType configType) const;
+  CompilerFlags &operator[](CompilerFamily compilerFamily) const;
+  CompilerFlags &operator[](CompilerVersion compilerVersion) const;
+  CompilerFlags &operator[](ConfigType configType) const;
 
   void operator=(const std::string &flags1);
-  static Flags defaultFlags();
+  static CompilerFlags defaultFlags();
   operator std::string() const;
+};
+
+struct LinkerVersion : public Version {
+};
+
+struct LinkerFlags {
+  std::map<std::tuple<LinkerFamily, LinkerVersion, ConfigType>, std::string> linkerFlags;
+
+  std::set<LinkerFamily> linkerFamilies;
+  LinkerVersion linkerVersions;
+  std::set<ConfigType> configurationTypes;
+
+  //bool and enum helpers for using Flags class with some operator overload magic
+  mutable bool linkerHelper = false;
+  mutable bool linkerVersionHelper = false;
+  mutable bool configHelper = false;
+
+  mutable LinkerFamily linkerCurrent;
+  mutable LinkerVersion linkerVersionCurrent;
+  mutable ConfigType configCurrent;
+
+public:
+  LinkerFlags &operator[](LinkerFamily linkerFamily) const;
+  LinkerFlags &operator[](LinkerVersion linkerVersion) const;
+  LinkerFlags &operator[](ConfigType configType) const;
+
+  void operator=(const std::string &flags1);
+  static LinkerFlags defaultFlags();
+  operator std::string() const;
+};
+
+//TODO: Improve the console message.
+struct Flags {
+  CompilerFlags compilerFlags = CompilerFlags::defaultFlags();
+  LinkerFlags linkerFlags;
 };
 inline Flags flags;
 
@@ -136,24 +208,10 @@ struct Cache {
   static void registerCacheVariables();
 };
 
-struct Version {
-  int majorVersion{};
-  int minorVersion{};
-  int patchVersion{};
-};
-
 enum class Platform {
   LINUX,
   MSVC,
   CLANG
-};
-
-//Package Copy Category
-enum class PCCategory {
-  EXECUTABLE,
-  STATIC,
-  SHARED,
-  INCLUDE
 };
 
 class Executable;
@@ -169,7 +227,6 @@ struct CustomTarget {
   std::string command;
   VariantMode mode = VariantMode::PROJECT;
 };
-void convertCustomTargetsToJson(Json &j, const CustomTarget &customTargets);
 
 struct Variant {
   ConfigType configurationType;
@@ -179,11 +236,11 @@ struct Variant {
   std::vector<Library> libraries;
   Flags flags;
   LibraryType libraryType;
+  Variant();
   Json convertToJson(VariantMode mode, int variantCount);
 };
 
 struct ProjectVariant : public Variant {
-  explicit ProjectVariant();
 };
 
 class Project {
@@ -200,7 +257,6 @@ void from_json(const Json &j, Version &v);
 class PackageVariant : public Variant {
 public:
   decltype(Json::object()) json;
-  PackageVariant();
 };
 
 struct SourceDirectory {
@@ -246,7 +302,6 @@ public:
   Json convertToJson(int variantIndex) const;
   void configure(const Package &package, const PackageVariant &variant, int count) const;
   Json convertToJson(const Package &package, const PackageVariant &variant, int count) const;
-  fs::path getTargetConfigureDirectoryPath() const;
   fs::path getTargetVariantDirectoryPath(int variantCount) const;
   void assignDifferentVariant(const Variant &variant);
 

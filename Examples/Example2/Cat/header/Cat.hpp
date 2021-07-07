@@ -1,0 +1,3 @@
+namespace Cat {
+void print();
+}

@@ -32,20 +32,30 @@ enum class LinkerFamily {
   CLANG
 };
 
+struct Version {
+  int majorVersion = 0;
+  int minorVersion = 0;
+  int patchVersion = 0;
+};
+
 namespace fs = std::filesystem;
 struct Compiler {
   CompilerFamily compilerFamily;
   fs::path path;
+  Version version;
 };
 
 struct Linker {
   LinkerFamily linkerFamily;
   fs::path path;
+  Version version;
 };
 
 typedef nlohmann::ordered_json Json;
-void to_json(Json &j, const Compiler &compiler);
-void to_json(Json &j, const Linker &linker);
+void to_json(Json &j, const Version &version) {
+  j = std::to_string(version.majorVersion) + "." + std::to_string(version.minorVersion) + "."
+      + std::to_string(version.patchVersion);
+}
 
 void to_json(Json &j, const Compiler &compiler) {
   if (compiler.compilerFamily == CompilerFamily::GCC) {
@@ -56,6 +66,7 @@ void to_json(Json &j, const Compiler &compiler) {
     j["FAMILY"] = "CLANG";
   }
   j["PATH"] = compiler.path.string();
+  j["VERSION"] = compiler.version;
 }
 
 void to_json(Json &j, const Linker &p) {
@@ -67,9 +78,24 @@ void to_json(Json &j, const Linker &p) {
     j["FAMILY"] = "CLANG";
   }
   j["PATH"] = p.path.string();
+  j["VERSION"] = p.version;
 }
 
+#define THROW false
+#ifndef HCONFIGURE_HEADER
+#define THROW true
+#endif
+#ifndef JSON_HEADER
+#define THROW true
+#endif
+#ifndef HCONFIGURE_STATIC_LIB_PATH
+#define THROW true
+#endif
+
 int main() {
+  if (THROW) {
+    throw std::runtime_error("Macroh Required for hhelper are not provided.");
+  }
   int count = 0;
   fs::path cacheFilePath;
   fs::path cp = fs::current_path();
@@ -85,12 +111,13 @@ int main() {
   if (count == 0) {
     //todo:
     //Here we will have the code that will detect the system we are on and compilers we do have installed.
-    //And the location of those compilers.
+    //And the location of those compilers. And their versions.
     Json j;
     std::vector<Compiler> compilersDetected;
-    compilersDetected.push_back(Compiler{CompilerFamily::GCC, fs::path("/usr/bin/g++")});
+    Version ver{10, 2, 0};
+    compilersDetected.push_back(Compiler{CompilerFamily::GCC, fs::path("/usr/bin/g++"), ver});
     std::vector<Linker> linkersDetected;
-    linkersDetected.push_back(Linker{LinkerFamily::GCC, fs::path("/usr/bin/g++")});
+    linkersDetected.push_back(Linker{LinkerFamily::GCC, fs::path("/usr/bin/g++"), ver});
     j["SOURCE_DIRECTORY"] = "../";
     j["PACKAGE_COPY"] = true;
     j["PACKAGE_COPY_PATH"] = fs::current_path() / "install" / "";
@@ -100,14 +127,15 @@ int main() {
     j["LINKER_ARRAY"] = linkersDetected;
     j["LINKER_SELECTED_ARRAY_INDEX"] = 0;
     j["LIBRARY_TYPE"] = "STATIC";
-    j["HAS_PARENT"] = false;
     j["CACHE_VARIABLES"] = Json::object();
     j["COMPILE_COMMAND"] = "g++ -std=c++20 "
-                           "-I /home/hassan/Projects/HMake/hconfigure/header/ "
-                           "-I /home/hassan/Projects/HMake/json/include/ "
-        + std::string("{SOURCE_DIRECTORY}/hmake.cpp")
-        + std::string(" -L /home/hassan/Projects/HMake/cmake-build-debug/ -l hconfigure ")
-        + " -o " + "{CONFIGURE_DIRECTORY}/configure";
+                           "-I " HCONFIGURE_HEADER
+                           " -I " JSON_HEADER
+                           " {SOURCE_DIRECTORY}/hmake.cpp"
+                           " -L " HCONFIGURE_STATIC_LIB_PATH
+                           " -l hconfigure "
+                           " -o "
+                           "{CONFIGURE_DIRECTORY}/configure";
     std::ofstream("cache.hmake") << j.dump(4);
 
   } else {
