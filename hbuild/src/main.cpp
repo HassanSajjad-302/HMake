@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
   } else {
     for (auto &file : fs::directory_iterator(fs::current_path())) {
       if (file.is_regular_file()) {
-        std::string fileName = file.path().filename();
+        std::string fileName = file.path().filename().string();
         if (fileName == "projectVariant.hmake" || fileName == "packageVariant.hmake") {
           BVariant{file.path()};
         } else if (fileName == "project.hmake") {
@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
         } else if (fileName == "Common.hmake") {
           BPackage{fs::canonical(file.path()).parent_path() / "package.hmake"};
         } else if (fileName.ends_with(".hmake")) {
-          BTarget{file.path()};
+          BTarget{file.path().string()};
         } else {
           throw std::runtime_error("Could not find or determine the target or projectVariant or packageVariant "
                                    "or package file which is to be built.");

@@ -214,7 +214,6 @@ enum class Platform {
   CLANG
 };
 
-class Executable;
 class Library;
 
 enum class VariantMode {
@@ -232,7 +231,7 @@ struct Variant {
   ConfigType configurationType;
   Compiler compiler;
   Linker linker;
-  std::vector<Executable> executables;
+  std::vector<struct Executable> executables;
   std::vector<Library> libraries;
   Flags flags;
   LibraryType libraryType;
@@ -322,10 +321,9 @@ struct Executable : public Target {
   void assignDifferentVariant(const Variant &variant);
 };
 
-class LibraryDependency;
 class Library : public Target {
   Library() = default;
-  friend class LibraryDependency;
+  friend struct LibraryDependency;
 
 public:
   LibraryType libraryType;
@@ -337,7 +335,7 @@ public:
 //PreBuilt-Library
 class PLibrary {
   PLibrary() = default;
-  friend class LibraryDependency;
+  friend struct LibraryDependency;
   friend class PPLibrary;
 
 public:
@@ -365,10 +363,10 @@ struct CPVariant {
   CPVariant(fs::path variantPath_, Json variantJson_, int index_);
 };
 
-class CPackage;
+struct CPackage;
 class PPLibrary : public PLibrary {
 private:
-  friend class LibraryDependency;
+  friend struct LibraryDependency;
   PPLibrary() = default;
 
 public:

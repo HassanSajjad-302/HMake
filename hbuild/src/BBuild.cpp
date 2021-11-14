@@ -76,7 +76,7 @@ BTarget::BTarget(const std::string &targetFilePath) {
   std::string packageCopyPath;
   int packageVariantIndex;
 
-  std::string fileName = fs::path(targetFilePath).filename();
+  std::string fileName = fs::path(targetFilePath).filename().string();
   targetName = fileName.substr(0, fileName.size() - std::string(".hmake").size());
   Json targetFileJson;
   std::ifstream(targetFilePath) >> targetFileJson;
@@ -104,7 +104,7 @@ BTarget::BTarget(const std::string &targetFilePath) {
     copyPackage = false;
   }
   outputName = targetFileJson.at("OUTPUT_NAME").get<std::string>();
-  outputDirectory = targetFileJson.at("OUTPUT_DIRECTORY").get<fs::path>();
+  outputDirectory = targetFileJson.at("OUTPUT_DIRECTORY").get<fs::path>().string();
   compilerPath = targetFileJson.at("COMPILER").get<Json>().at("PATH").get<std::string>();
   linkerPath = targetFileJson.at("LINKER").get<Json>().at("PATH").get<std::string>();
   compilerFlags = targetFileJson.at("COMPILER_FLAGS").get<std::string>();
@@ -127,7 +127,7 @@ BTarget::BTarget(const std::string &targetFilePath) {
   preBuildCustomCommands = targetFileJson.at("PRE_BUILD_CUSTOM_COMMANDS").get<std::vector<std::string>>();
   postBuildCustomCommands = targetFileJson.at("POST_BUILD_CUSTOM_COMMANDS").get<std::vector<std::string>>();
 
-  buildCacheFilesDirPath = fs::path(targetFilePath).parent_path() / ("Cache_Build_Files");
+  buildCacheFilesDirPath = (fs::path(targetFilePath).parent_path() / ("Cache_Build_Files")).string();
   if (copyPackage) {
     consumerDependenciesJson = targetFileJson.at("CONSUMER_DEPENDENCIES").get<Json>();
   }
@@ -156,8 +156,8 @@ BTarget::BTarget(const std::string &targetFilePath) {
       BTarget buildTarget(i.path);
       libraryDependenciesFlags.append("-L" + buildTarget.outputDirectory + " -l" + buildTarget.outputName + " ");
     } else {
-      std::string dir = fs::path(i.path).parent_path();
-      std::string libName = fs::path(i.path).filename();
+      std::string dir = fs::path(i.path).parent_path().string();
+      std::string libName = fs::path(i.path).filename().string();
       libName.erase(0, 3);
       libName.erase(libName.find('.'), 2);
       std::string str = "-L " + dir + " -l";
@@ -287,7 +287,7 @@ BPTarget::BPTarget(const std::string &targetFilePath, const fs::path &copyFrom) 
   std::string packageCopyPath;
   int packageVariantIndex;
 
-  std::string fileName = fs::path(targetFilePath).filename();
+  std::string fileName = fs::path(targetFilePath).filename().string();
   targetName = fileName.substr(0, fileName.size() - std::string(".hmake").size());
   Json targetFileJson;
   std::ifstream(targetFilePath) >> targetFileJson;

@@ -2,19 +2,19 @@ cmake_minimum_required(VERSION 3.0.0)
 
 project(HMake LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 23)
 
 add_executable(hhelper hhelper/src/main.cpp)
-target_include_directories(hhelper PRIVATE hhelper/src)
+target_include_directories(hhelper PRIVATE hhelper/src rang/include)
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
 target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/json/include/")
-target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="${CMAKE_BINARY_DIR}/")
+target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY="${CMAKE_BINARY_DIR}/")
 
 
-add_library(hconfigure
+add_library(hconfigure STATIC
         hconfigure/src/Configure.cpp
         )
+target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure>")
 
 target_include_directories(hconfigure
         PUBLIC hconfigure/header
@@ -24,8 +24,7 @@ target_include_directories(hconfigure
 add_executable(hbuild
         hbuild/src/BBuild.cpp
         hbuild/src/main.cpp)
-target_include_directories(hbuild PUBLIC hbuild/header)
-target_include_directories(hbuild PRIVATE hconfigure/header)
+target_include_directories(hbuild PRIVATE hbuild/header hconfigure/header rang/include)
 
 add_executable(UnBuiltTarget Examples/Example8/hmake.cpp)
 target_include_directories(UnBuiltTarget PRIVATE hconfigure/header)

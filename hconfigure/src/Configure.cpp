@@ -5,7 +5,7 @@
 #include "iostream"
 #include "set"
 
-File::File(std::filesystem::__cxx11::path path_) {
+File::File(fs::path path_) {
   if (path_.is_relative()) {
     path_ = Cache::sourceDirectory.path / path_;
   }
@@ -168,7 +168,7 @@ Json Target::convertToJson(int variantIndex) const {
     sourceDirectoriesArray.push_back(sourceDirectory);
   }
   for (const auto &e : includeDirectoryDependencies) {
-    includeDirectories.push_back(e.includeDirectory.path);
+    includeDirectories.push_back(e.includeDirectory.path.string());
   }
   for (const auto &e : compilerFlagsDependencies) {
     compilerFlags.append(" " + e.compilerFlags + " ");
@@ -188,7 +188,7 @@ Json Target::convertToJson(int variantIndex) const {
       const Library &library = libraryDependency->library;
       for (const auto &e : library.includeDirectoryDependencies) {
         if (e.dependencyType == DependencyType::PUBLIC) {
-          includeDirectories.push_back(e.includeDirectory.path);
+          includeDirectories.push_back(e.includeDirectory.path.string());
         }
       }
 
@@ -219,7 +219,7 @@ Json Target::convertToJson(int variantIndex) const {
     } else {
       auto populateDependencies = [&](const PLibrary &pLibrary) {
         for (const auto &e : pLibrary.includeDirectoryDependencies) {
-          includeDirectories.push_back(e.path);
+          includeDirectories.push_back(e.path.string());
         }
         compilerFlags.append(" " + pLibrary.compilerFlagsDependencies + " ");
         linkerFlags.append(" " + pLibrary.linkerFlagsDependencies + " ");
@@ -864,8 +864,8 @@ Json Variant::convertToJson(VariantMode mode, int variantCount) {
   for (const auto &exe : executables) {
     std::string path;
     if (mode == VariantMode::PROJECT) {
-      path = Cache::configureDirectory.path / std::to_string(variantCount)
-          / fs::path(exe.targetName) / (exe.targetName + ".hmake");
+      path = (Cache::configureDirectory.path / std::to_string(variantCount)
+          / fs::path(exe.targetName) / (exe.targetName + ".hmake")).string();
     } else {
       path = (exe.getTargetVariantDirectoryPath(variantCount) / (exe.targetName + ".hmake")).string();
     }
@@ -874,10 +874,10 @@ Json Variant::convertToJson(VariantMode mode, int variantCount) {
   for (const auto &lib : libraries) {
     std::string path;
     if (mode == VariantMode::PROJECT) {
-      path = Cache::configureDirectory.path / std::to_string(variantCount)
-          / fs::path(lib.targetName) / (lib.targetName + ".hmake");
+      path = (Cache::configureDirectory.path / std::to_string(variantCount)
+          / fs::path(lib.targetName) / (lib.targetName + ".hmake")).string();
     } else {
-      path = lib.getTargetVariantDirectoryPath(variantCount) / (lib.targetName + ".hmake");
+      path = (lib.getTargetVariantDirectoryPath(variantCount) / (lib.targetName + ".hmake")).string();
     }
     targetArray.emplace_back(path);
   }
@@ -1099,7 +1099,7 @@ PLibrary::PLibrary(const fs::path &libraryPath_, LibraryType libraryType_)
     libraryPath = libraryPath.lexically_normal();
   }
   if (libraryType == LibraryType::STATIC) {
-    libraryName = libraryPath.filename();
+    libraryName = libraryPath.filename().string();
     libraryName.erase(0, 3);
     libraryName.erase(libraryName.find('.'), 2);
   }
