@@ -2,6 +2,7 @@
 extern void func();
 extern void func();
 
-int main() {
-  func();
+int main()
+{
+    func();
 }

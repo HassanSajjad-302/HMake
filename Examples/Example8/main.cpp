@@ -1,5 +1,6 @@
 #include "Goat.hpp"
 
-int main() {
-  Goat::print();
+int main()
+{
+    Goat::print();
 }

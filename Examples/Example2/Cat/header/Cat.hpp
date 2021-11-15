@@ -1,3 +1,4 @@
-namespace Cat {
+namespace Cat
+{
 void print();
 }

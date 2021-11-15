@@ -1,4 +1,5 @@
 
-namespace Dog {
+namespace Dog
+{
 void print();
 }

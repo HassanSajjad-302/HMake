@@ -1,3 +1,4 @@
-namespace Goat {
+namespace Goat
+{
 void print();
 }

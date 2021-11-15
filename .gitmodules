@@ -1,9 +1,9 @@
 [submodule "json"]
-	path = json
+	directoryPath = json
 	url = https://github.com/nlohmann/json
 [submodule "cxxopts"]
-	path = cxxopts
+	directoryPath = cxxopts
 	url = https://github.com/jarro2783/cxxopts
 [submodule "rang"]
-	path = rang
+	directoryPath = rang
 	url = https://github.com/agauniyal/rang
