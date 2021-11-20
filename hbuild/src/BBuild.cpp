@@ -1,5 +1,6 @@
 
 #include "BBuild.hpp"
+#include "Configure.hpp"
 #include "fstream"
 #include "iostream"
 #include "regex"
@@ -34,7 +35,7 @@ void from_json(const Json &j, BTargetType &targetType)
 
 void from_json(const Json &j, SourceDirectory &sourceDirectory)
 {
-    sourceDirectory.sourceDirectory = j.at("PATH").get<string>();
+    sourceDirectory.sourceDirectory = Directory(j.at("PATH").get<string>());
     sourceDirectory.regex = j.at("REGEX_STRING").get<string>();
 }
 
@@ -76,14 +77,19 @@ void from_json(const Json &j, BCompileDefinition &p)
 BTarget::BTarget(const string &targetFilePath)
 {
     string targetName;
-    string compilerPath;
-    string linkerPath;
+    Compiler compiler;
+    Linker linker;
+    Archiver staticLibraryTool;
+    vector<string> environmentIncludeDirectories;
+    vector<string> environmentLibraryDirectories;
+    string environmentCompilerFlags;
     string compilerFlags;
     string linkerFlags;
     vector<string> sourceFiles;
     vector<SourceDirectory> sourceDirectories;
     vector<BLibraryDependency> libraryDependencies;
     vector<BIDD> includeDirectories;
+    vector<string> libraryDirectories;
     string compilerTransitiveFlags;
     string linkerTransitiveFlags;
     vector<BCompileDefinition> compileDefinitions;
@@ -136,8 +142,16 @@ BTarget::BTarget(const string &targetFilePath)
     }
     outputName = targetFileJson.at("OUTPUT_NAME").get<string>();
     outputDirectory = targetFileJson.at("OUTPUT_DIRECTORY").get<path>().string();
-    compilerPath = targetFileJson.at("COMPILER").get<Json>().at("PATH").get<string>();
-    linkerPath = targetFileJson.at("LINKER").get<Json>().at("PATH").get<string>();
+    compiler = targetFileJson.at("COMPILER").get<Compiler>();
+    linker = targetFileJson.at("LINKER").get<Linker>();
+    if (targetType == BTargetType::STATIC)
+    {
+        staticLibraryTool = targetFileJson.at("ARCHIVER").get<Archiver>();
+    }
+    Json environmentJson = targetFileJson.at("ENVIRONMENT").get<Json>();
+    environmentIncludeDirectories = environmentJson.at("INCLUDE_DIRECTORIES").get<vector<string>>();
+    environmentLibraryDirectories = environmentJson.at("LIBRARY_DIRECTORIES").get<vector<string>>();
+    environmentCompilerFlags = environmentJson.at("COMPILER_FLAGS").get<string>();
     compilerFlags = targetFileJson.at("COMPILER_FLAGS").get<string>();
     linkerFlags = targetFileJson.at("LINKER_FLAGS").get<string>();
     sourceFiles = targetFileJson.at("SOURCE_FILES").get<vector<string>>();
@@ -182,21 +196,74 @@ BTarget::BTarget(const string &targetFilePath)
         }
     }
 
-    string includeDirectoriesFlags;
+    string projectIncludeDirectoriesFlags;
+    string totalIncludeDirectoriesFlags;
     string libraryDependenciesFlags;
     string compileDefinitionsString;
+    string libraryDirectoriesString;
+
+    auto getIncludeFlag = [&compiler]() {
+        if (compiler.bTFamily == BTFamily::MSVC)
+        {
+            return "/I ";
+        }
+        else
+        {
+            return "-I ";
+        }
+    };
 
     for (const auto &i : includeDirectories)
     {
-        includeDirectoriesFlags.append("-I " + i.path + " ");
+        projectIncludeDirectoriesFlags.append(getIncludeFlag() + addQuotes(i.path) + " ");
     }
+    totalIncludeDirectoriesFlags = projectIncludeDirectoriesFlags;
+    for (const auto &i : environmentIncludeDirectories)
+    {
+        totalIncludeDirectoriesFlags.append(getIncludeFlag() + addQuotes(i) + " ");
+    }
+
+    string projectLibraryDirectoriesFlags;
+    string totalLibraryDirectoriesFlags;
+
+    auto getLibraryDirectoryFlag = [&compiler]() {
+        if (compiler.bTFamily == BTFamily::MSVC)
+        {
+            return "/LIBPATH:";
+        }
+        else
+        {
+            return "-L";
+        }
+    };
+
+    for (const auto &i : libraryDirectories)
+    {
+        projectLibraryDirectoriesFlags.append(getLibraryDirectoryFlag() + addQuotes(i) + " ");
+    }
+    totalLibraryDirectoriesFlags = projectLibraryDirectoriesFlags;
+    for (const auto &i : environmentLibraryDirectories)
+    {
+        totalLibraryDirectoriesFlags.append(getLibraryDirectoryFlag() + addQuotes(i) + " ");
+    }
+
+    auto getLinkFlag = [&linker](const std::string &libraryPath, const std::string &libraryName) {
+        if (linker.bTFamily == BTFamily::MSVC)
+        {
+            return addQuotes((path(libraryPath) / path(libraryName)).string() + " ");
+        }
+        else
+        {
+            return "-L" + addQuotes(libraryPath) + " -l" + addQuotes(libraryName) + " ";
+        }
+    };
 
     for (const auto &i : libraryDependencies)
     {
         if (!i.preBuilt)
         {
             BTarget buildTarget(i.path);
-            libraryDependenciesFlags.append("-L" + buildTarget.outputDirectory + " -l" + buildTarget.outputName + " ");
+            libraryDependenciesFlags.append(getLinkFlag(buildTarget.outputDirectory, buildTarget.outputName));
         }
         else
         {
@@ -204,8 +271,7 @@ BTarget::BTarget(const string &targetFilePath)
             string libName = path(i.path).filename().string();
             libName.erase(0, 3);
             libName.erase(libName.find('.'), 2);
-            string str = "-L " + dir + " -l";
-            libraryDependenciesFlags.append(str + libName + " ");
+            libraryDependenciesFlags.append(getLinkFlag(dir, libName));
 
             if (!i.imported)
             {
@@ -216,8 +282,9 @@ BTarget::BTarget(const string &targetFilePath)
 
     for (const auto &i : compileDefinitions)
     {
-        compileDefinitionsString += "-D" + i.name + "=" + i.value + " ";
+        compileDefinitionsString += (compiler.bTFamily == BTFamily::MSVC ? "/D" : "-D") + i.name + "=" + i.value + " ";
     }
+
     // Build process starts
     cout << "Starting Building" << endl;
     cout << "Building From Start. Does Not Cache Builds Yet." << endl;
@@ -225,22 +292,28 @@ BTarget::BTarget(const string &targetFilePath)
     create_directory(buildCacheFilesDirPath);
     for (const auto &i : sourceDirectories)
     {
-        for (const auto &j : directory_iterator(i.sourceDirectory))
+        for (const auto &j : directory_iterator(i.sourceDirectory.directoryPath))
         {
-            if (regex_match(j.path().string(), regex(i.regex)))
+            if (regex_match(j.path().filename().string(), regex(i.regex)))
             {
                 sourceFiles.push_back(j.path().string());
             }
         }
     }
+
+    string totalCompilerFlags = environmentCompilerFlags + " " + compilerFlags + " " + compilerTransitiveFlags;
     for (const auto &i : sourceFiles)
     {
-        string compileCommand = compilerPath + " ";
-        compileCommand += compilerFlags + " ";
-        compileCommand += compilerTransitiveFlags + " ";
+        string compileCommand;
+        compileCommand += "\"" + addQuotes(compiler.bTPath.make_preferred().string()) + " ";
+        compileCommand += totalCompilerFlags + " ";
         compileCommand += compileDefinitionsString + " ";
-        compileCommand += includeDirectoriesFlags;
-        compileCommand += " -c " + i + " -o " + (path(buildCacheFilesDirPath) / path(i).filename()).string() + ".o";
+        compileCommand += totalIncludeDirectoriesFlags;
+        compileCommand += compiler.bTFamily == BTFamily::MSVC ? " /c /nologo " : " -c ";
+        compileCommand += i;
+        compileCommand += compiler.bTFamily == BTFamily::MSVC ? " /Fo" : " -o ";
+        compileCommand += addQuotes((path(buildCacheFilesDirPath) / path(i).filename()).string()) + ".o" + "\"";
+
         cout << compileCommand << endl;
         int code = system(compileCommand.c_str());
         if (code != EXIT_SUCCESS)
@@ -249,30 +322,57 @@ BTarget::BTarget(const string &targetFilePath)
         }
     }
 
-    string linkerCommand;
-    if (targetType == BTargetType::EXECUTABLE)
+    if (targetType == BTargetType::STATIC)
     {
-        cout << "Linking" << endl;
-        linkerCommand = linkerPath + " " + linkerFlags + " " + linkerTransitiveFlags + " " +
-                        path(buildCacheFilesDirPath / path("")).string() + "*.o " + " " + libraryDependenciesFlags +
-                        " -o " + (path(outputDirectory) / outputName).string();
-    }
-    else if (targetType == BTargetType::STATIC)
-    {
-        linkerCommand = "/usr/bin/ar rcs " + (path(outputDirectory) / ("lib" + outputName + ".a")).string() + " " +
-                        path(buildCacheFilesDirPath / path("")).string() + "*.o ";
+        cout << "Archiving" << endl;
+        string archiveCommand = "\"";
+        if (staticLibraryTool.bTFamily == BTFamily::MSVC)
+        {
+            archiveCommand += staticLibraryTool.bTPath.make_preferred().string() +
+                              " /OUT:" + addQuotes((path(outputDirectory) / (outputName + ".lib")).string()) + " " +
+                              addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ");
+        }
+        else if (staticLibraryTool.bTFamily == BTFamily::GCC)
+        {
+            archiveCommand = staticLibraryTool.bTPath.make_preferred().string() + " rcs " +
+                             addQuotes((path(outputDirectory) / ("lib" + outputName + ".a")).string()) + " " +
+                             addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ");
+        }
+
+        archiveCommand += "\"";
+        cout << archiveCommand << endl;
+        int code = system(archiveCommand.c_str());
+        if (code != EXIT_SUCCESS)
+        {
+            exit(code);
+        }
     }
     else
     {
+        cout << "Linking" << endl;
+        string linkerCommand;
+        if (targetType == BTargetType::EXECUTABLE)
+        {
+            linkerCommand = "\"" + addQuotes(linker.bTPath.make_preferred().string()) + " " + linkerFlags + " " +
+                            linkerTransitiveFlags + " " +
+                            addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ") + " " +
+                            libraryDependenciesFlags + totalLibraryDirectoriesFlags;
+            linkerCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
+            linkerCommand += addQuotes((path(outputDirectory) / outputName).string()) + "\"";
+        }
+        else
+        {
+        }
+
+        cout << linkerCommand << endl;
+        int code = system(linkerCommand.c_str());
+        if (code != EXIT_SUCCESS)
+        {
+            exit(code);
+        }
     }
 
-    cout << linkerCommand << endl;
-    int code = system(linkerCommand.c_str());
-    if (code != EXIT_SUCCESS)
-    {
-        exit(code);
-    }
-    cout << "Built Complete" << endl;
+    cout << "Build Complete" << endl;
 
     if (copyPackage)
     {

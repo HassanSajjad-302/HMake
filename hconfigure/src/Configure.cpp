@@ -6,8 +6,20 @@
 #include "set"
 
 using std::to_string, std::runtime_error, std::filesystem::directory_entry, std::filesystem::file_type,
-    std::logic_error, std::ifstream, std::ofstream, std::move, std::filesystem::current_path, std::cout,
-    std::stringstream, std::make_tuple, std::filesystem::directory_iterator;
+    std::logic_error, std::ifstream, std::ofstream, std::move, std::filesystem::current_path, std::cout, std::endl,
+    std::stringstream, std::make_tuple, std::filesystem::directory_iterator, std::size_t, std::filesystem::remove;
+
+std::string writePath(const path &writePath)
+{
+    string str = writePath.string();
+    std::replace(str.begin(), str.end(), '\\', '/');
+    return str;
+}
+
+string addQuotes(const string &pathString)
+{
+    return "\"" + pathString + "\"";
+}
 File::File(path filePath_)
 {
     if (filePath_.is_relative())
@@ -19,7 +31,7 @@ File::File(path filePath_)
         filePath = filePath_.lexically_normal();
         return;
     }
-    throw runtime_error(filePath_.string() + " Is Not a Regular File");
+    throw runtime_error(writePath(filePath_) + " Is Not a Regular File");
 }
 
 Directory::Directory(path directoryPath_)
@@ -35,7 +47,7 @@ Directory::Directory(path directoryPath_)
     }
     else
     {
-        throw logic_error(directoryPath_.string() + " Is Not a directory file");
+        throw logic_error(writePath(directoryPath_) + " Is Not a directory file");
     }
     directoryPath /= "";
 }
@@ -68,61 +80,61 @@ void from_json(const Json &j, CompileDefinition &cd)
     j.at("VALUE").get_to(cd.value);
 }
 
-void from_json(const Json &json, CompilerFamily &compilerFamily)
+void to_json(Json &json, const BTFamily &bTFamily)
 {
-    if (json == "GCC")
+    if (bTFamily == BTFamily::GCC)
     {
-        compilerFamily = CompilerFamily::GCC;
+        json = "GCC";
     }
-    else if (json == "MSVC")
+    else if (bTFamily == BTFamily::MSVC)
     {
-        compilerFamily = CompilerFamily::MSVC;
-    }
-    else if (json == "CLANG")
-    {
-        compilerFamily = CompilerFamily::CLANG;
-    }
-}
-
-void from_json(const Json &json, LinkerFamily &linkerFamily)
-{
-    if (json == "GCC")
-    {
-        linkerFamily = LinkerFamily::GCC;
-    }
-    else if (json == "MSVC")
-    {
-        linkerFamily = LinkerFamily::MSVC;
-    }
-    else if (json == "CLANG")
-    {
-        linkerFamily = LinkerFamily::CLANG;
-    }
-}
-
-void from_json(const Json &json, Compiler &compiler)
-{
-    compiler.path = json.at("PATH").get<string>();
-    compiler.compilerFamily = json.at("FAMILY").get<CompilerFamily>();
-    compiler.compilerVersion = json.at("VERSION").get<Version>();
-}
-
-void from_json(const Json &json, Linker &linker)
-{
-    linker.path = json.at("PATH").get<string>();
-    linker.linkerFamily = json.at("FAMILY").get<LinkerFamily>();
-    linker.linkerVersion = json.at("VERSION").get<Version>();
-}
-
-void to_json(Json &j, const LibraryType &libraryType)
-{
-    if (libraryType == LibraryType::STATIC)
-    {
-        j = "STATIC";
+        json = "MSVC";
     }
     else
     {
-        j = "SHARED";
+        json = "CLANG";
+    }
+}
+
+void from_json(const Json &json, BTFamily &bTFamily)
+{
+    if (json == "GCC")
+    {
+        bTFamily = BTFamily::GCC;
+    }
+    else if (json == "MSVC")
+    {
+        bTFamily = BTFamily::MSVC;
+    }
+    else if (json == "CLANG")
+    {
+        bTFamily = BTFamily::CLANG;
+    }
+}
+
+void to_json(Json &json, const BuildTool &buildTool)
+{
+    json["FAMILY"] = buildTool.bTFamily;
+    json["PATH"] = writePath(buildTool.bTPath);
+    json["VERSION"] = buildTool.bTVersion;
+}
+
+void from_json(const Json &json, BuildTool &buildTool)
+{
+    buildTool.bTPath = json.at("PATH").get<string>();
+    buildTool.bTFamily = json.at("FAMILY").get<BTFamily>();
+    buildTool.bTVersion = json.at("VERSION").get<Version>();
+}
+
+void to_json(Json &json, const LibraryType &libraryType)
+{
+    if (libraryType == LibraryType::STATIC)
+    {
+        json = "STATIC";
+    }
+    else
+    {
+        json = "SHARED";
     }
 }
 
@@ -138,15 +150,15 @@ void from_json(const Json &json, LibraryType &libraryType)
     }
 }
 
-void to_json(Json &j, const ConfigType &configType)
+void to_json(Json &json, const ConfigType &configType)
 {
     if (configType == ConfigType::DEBUG)
     {
-        j = "DEBUG";
+        json = "DEBUG";
     }
     else
     {
-        j = "RELEASE";
+        json = "RELEASE";
     }
 }
 
@@ -167,7 +179,9 @@ Target::Target(string targetName_, const Variant &variant) : targetName(move(tar
     configurationType = variant.configurationType;
     compiler = variant.compiler;
     linker = variant.linker;
+    archiver = variant.archiver;
     flags = variant.flags;
+    environment = variant.environment;
 }
 
 path Target::getTargetVariantDirectoryPath(int variantCount) const
@@ -217,7 +231,7 @@ Json Target::convertToJson(int variantIndex) const
 
     for (const auto &e : sourceFiles)
     {
-        sourceFilesArray.push_back(e.filePath.string());
+        sourceFilesArray.push_back(writePath(e.filePath));
     }
     for (const auto &e : sourceDirectories)
     {
@@ -228,7 +242,7 @@ Json Target::convertToJson(int variantIndex) const
     }
     for (const auto &e : includeDirectoryDependencies)
     {
-        includeDirectories.push_back(e.includeDirectory.directoryPath.string());
+        includeDirectories.push_back(writePath(e.includeDirectory.directoryPath));
     }
     for (const auto &e : compilerFlagsDependencies)
     {
@@ -255,7 +269,7 @@ Json Target::convertToJson(int variantIndex) const
             {
                 if (e.dependencyType == DependencyType::PUBLIC)
                 {
-                    includeDirectories.push_back(e.includeDirectory.directoryPath.string());
+                    includeDirectories.push_back(writePath(e.includeDirectory.directoryPath));
                 }
             }
 
@@ -295,7 +309,7 @@ Json Target::convertToJson(int variantIndex) const
             auto populateDependencies = [&](const PLibrary &pLibrary) {
                 for (const auto &e : pLibrary.includeDirectoryDependencies)
                 {
-                    includeDirectories.push_back(e.directoryPath.string());
+                    includeDirectories.push_back(writePath(e.directoryPath));
                 }
                 compilerFlags.append(" " + pLibrary.compilerFlagsDependencies + " ");
                 linkerFlags.append(" " + pLibrary.linkerFlagsDependencies + " ");
@@ -325,12 +339,14 @@ Json Target::convertToJson(int variantIndex) const
 
     targetFileJson["TARGET_TYPE"] = targetType;
     targetFileJson["OUTPUT_NAME"] = outputName;
-    targetFileJson["OUTPUT_DIRECTORY"] = outputDirectory.directoryPath.string();
+    targetFileJson["OUTPUT_DIRECTORY"] = writePath(outputDirectory.directoryPath);
     targetFileJson["CONFIGURATION"] = configurationType;
     targetFileJson["COMPILER"] = compiler;
     targetFileJson["LINKER"] = linker;
-    targetFileJson["COMPILER_FLAGS"] = flags.compilerFlags[compiler.compilerFamily][configurationType];
-    targetFileJson["LINKER_FLAGS"] = flags.linkerFlags[linker.linkerFamily][configurationType];
+    targetFileJson["ARCHIVER"] = archiver;
+    targetFileJson["ENVIRONMENT"] = environment;
+    targetFileJson["COMPILER_FLAGS"] = flags.compilerFlags[compiler.bTFamily][configurationType];
+    targetFileJson["LINKER_FLAGS"] = flags.linkerFlags[linker.bTFamily][configurationType];
     targetFileJson["SOURCE_FILES"] = sourceFilesArray;
     targetFileJson["SOURCE_DIRECTORIES"] = sourceDirectoriesArray;
     targetFileJson["LIBRARY_DEPENDENCIES"] = dependenciesArray;
@@ -413,7 +429,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
 
     for (const auto &e : sourceFiles)
     {
-        sourceFilesArray.push_back(e.filePath.string());
+        sourceFilesArray.push_back(writePath(e.filePath));
     }
     for (const auto &e : sourceDirectories)
     {
@@ -425,7 +441,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
     for (const auto &e : includeDirectoryDependencies)
     {
         Json JIDDObject;
-        JIDDObject["PATH"] = e.includeDirectory.directoryPath.string();
+        JIDDObject["PATH"] = writePath(e.includeDirectory.directoryPath);
         if (e.dependencyType == DependencyType::PUBLIC)
         {
             if (package.cacheCommonIncludeDirs && e.includeDirectory.isCommon)
@@ -484,7 +500,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
                 if (e.dependencyType == DependencyType::PUBLIC)
                 {
                     Json JIDDObject;
-                    JIDDObject["PATH"] = e.includeDirectory.directoryPath.string();
+                    JIDDObject["PATH"] = writePath(e.includeDirectory.directoryPath);
                     JIDDObject["COPY"] = false;
                     includeDirectoriesArray.push_back(JIDDObject);
                 }
@@ -604,8 +620,10 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
     targetFileJson["CONFIGURATION"] = configurationType;
     targetFileJson["COMPILER"] = compiler;
     targetFileJson["LINKER"] = linker;
-    targetFileJson["COMPILER_FLAGS"] = flags.compilerFlags[compiler.compilerFamily][configurationType];
-    targetFileJson["LINKER_FLAGS"] = flags.linkerFlags[linker.linkerFamily][configurationType];
+    targetFileJson["ARCHIVER"] = archiver;
+    targetFileJson["ENVIRONMENT"] = environment;
+    targetFileJson["COMPILER_FLAGS"] = flags.compilerFlags[compiler.bTFamily][configurationType];
+    targetFileJson["LINKER_FLAGS"] = flags.linkerFlags[linker.bTFamily][configurationType];
     targetFileJson["SOURCE_FILES"] = sourceFilesArray;
     targetFileJson["SOURCE_DIRECTORIES"] = sourceDirectoriesArray;
     targetFileJson["LIBRARY_DEPENDENCIES"] = dependenciesArray;
@@ -699,40 +717,6 @@ void Library::setTargetType() const
     }
 }
 
-void to_json(Json &j, const Compiler &p)
-{
-    if (p.compilerFamily == CompilerFamily::GCC)
-    {
-        j["FAMILY"] = "GCC";
-    }
-    else if (p.compilerFamily == CompilerFamily::MSVC)
-    {
-        j["FAMILY"] = "MSVC";
-    }
-    else
-    {
-        j["FAMILY"] = "CLANG";
-    }
-    j["PATH"] = p.path.string();
-}
-
-void to_json(Json &j, const Linker &linker)
-{
-    if (linker.linkerFamily == LinkerFamily::GCC)
-    {
-        j["FAMILY"] = "GCC";
-    }
-    else if (linker.linkerFamily == LinkerFamily::MSVC)
-    {
-        j["FAMILY"] = "MSVC";
-    }
-    else
-    {
-        j["FAMILY"] = "CLANG";
-    }
-    j["PATH"] = linker.path.string();
-}
-
 // So that the type becomes compatible for usage  in key of map
 bool operator<(const Version &lhs, const Version &rhs)
 {
@@ -763,7 +747,7 @@ bool operator==(const Version &lhs, const Version &rhs)
            lhs.patchVersion == rhs.patchVersion;
 }
 
-CompilerFlags &CompilerFlags::operator[](CompilerFamily compilerFamily) const
+CompilerFlags &CompilerFlags::operator[](BTFamily compilerFamily) const
 {
     compilerHelper = true;
     compilerCurrent = compilerFamily;
@@ -791,7 +775,7 @@ CompilerFlags &CompilerFlags::operator[](ConfigType configType) const
 void CompilerFlags::operator=(const string &flags1)
 {
 
-    set<CompilerFamily> compilerFamilies1;
+    set<BTFamily> compilerFamilies1;
     CompilerVersion compilerVersions1;
     set<ConfigType> configurationTypes1;
 
@@ -846,8 +830,8 @@ void CompilerFlags::operator=(const string &flags1)
 CompilerFlags CompilerFlags::defaultFlags()
 {
     CompilerFlags compilerFlags;
-    compilerFlags.compilerFamilies.emplace(CompilerFamily::GCC);
-    compilerFlags[CompilerFamily::GCC][CompilerVersion{10, 2, 0}][ConfigType::DEBUG] = "-g";
+    compilerFlags.compilerFamilies.emplace(BTFamily::GCC);
+    compilerFlags[BTFamily::GCC][CompilerVersion{10, 2, 0}][ConfigType::DEBUG] = "-g";
     compilerFlags[ConfigType::RELEASE] = "-O3 -DNDEBUG";
     return compilerFlags;
 }
@@ -907,7 +891,7 @@ CompilerFlags::operator string() const
     return flagsStr;
 }
 
-LinkerFlags &LinkerFlags::operator[](LinkerFamily linkerFamily) const
+LinkerFlags &LinkerFlags::operator[](BTFamily linkerFamily) const
 {
     linkerHelper = true;
     linkerCurrent = linkerFamily;
@@ -935,7 +919,7 @@ LinkerFlags &LinkerFlags::operator[](ConfigType configType) const
 void LinkerFlags::operator=(const string &flags1)
 {
 
-    set<LinkerFamily> linkerFamilies1;
+    set<BTFamily> linkerFamilies1;
     LinkerVersion linkerVersions1;
     set<ConfigType> configurationTypes1;
 
@@ -1070,8 +1054,14 @@ void Cache::initializeCache()
     Cache::selectedCompilerArrayIndex = cacheFileJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
     Cache::linkerArray = cacheFileJson.at("LINKER_ARRAY").get<vector<Linker>>();
     Cache::selectedLinkerArrayIndex = cacheFileJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
+    Cache::archiverArray = cacheFileJson.at("ARCHIVER_ARRAY").get<vector<Archiver>>();
+    Cache::selectedArchiverArrayIndex = cacheFileJson.at("ARCHIVER_SELECTED_ARRAY_INDEX").get<int>();
     Cache::libraryType = cacheFileJson.at("LIBRARY_TYPE").get<LibraryType>();
     Cache::cacheVariables = cacheFileJson.at("CACHE_VARIABLES").get<Json>();
+    Cache::environment = Environment::initializeEnvironmentFromVSBatchCommand(
+        "\"C:\\Program Files\\Microsoft Visual "
+        "Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat\" amd64");
+    Cache::environment.compilerFlags = " /EHsc /MD ";
 }
 
 void Cache::registerCacheVariables()
@@ -1088,7 +1078,9 @@ Variant::Variant()
     configurationType = Cache::projectConfigurationType;
     compiler = Cache::compilerArray[Cache::selectedCompilerArrayIndex];
     linker = Cache::linkerArray[Cache::selectedLinkerArrayIndex];
+    archiver = Cache::archiverArray[Cache::selectedArchiverArrayIndex];
     libraryType = Cache::libraryType;
+    environment = Cache::environment;
     flags = ::flags;
 }
 
@@ -1098,11 +1090,13 @@ Json Variant::convertToJson(VariantMode mode, int variantCount)
     projectJson["CONFIGURATION"] = configurationType;
     projectJson["COMPILER"] = compiler;
     projectJson["LINKER"] = linker;
-    string compilerFlags = flags.compilerFlags[compiler.compilerFamily][configurationType];
+    projectJson["ARCHIVER"] = archiver;
+    string compilerFlags = flags.compilerFlags[compiler.bTFamily][configurationType];
     projectJson["COMPILER_FLAGS"] = compilerFlags;
-    string linkerFlags = flags.linkerFlags[linker.linkerFamily][configurationType];
+    string linkerFlags = flags.linkerFlags[linker.bTFamily][configurationType];
     projectJson["LINKER_FLAGS"] = linkerFlags;
     projectJson["LIBRARY_TYPE"] = libraryType;
+    projectJson["ENVIRONMENT"] = environment;
 
     vector<Json> targetArray;
     for (const auto &exe : executables)
@@ -1110,13 +1104,12 @@ Json Variant::convertToJson(VariantMode mode, int variantCount)
         string path;
         if (mode == VariantMode::PROJECT)
         {
-            path = (Cache::configureDirectory.directoryPath / to_string(variantCount) /
-                    std::filesystem::path(exe.targetName) / (exe.targetName + ".hmake"))
-                       .string();
+            path = writePath((Cache::configureDirectory.directoryPath / to_string(variantCount) /
+                              std::filesystem::path(exe.targetName) / (exe.targetName + ".hmake")));
         }
         else
         {
-            path = (exe.getTargetVariantDirectoryPath(variantCount) / (exe.targetName + ".hmake")).string();
+            path = writePath((exe.getTargetVariantDirectoryPath(variantCount) / (exe.targetName + ".hmake")));
         }
         targetArray.emplace_back(path);
     }
@@ -1125,13 +1118,12 @@ Json Variant::convertToJson(VariantMode mode, int variantCount)
         string path;
         if (mode == VariantMode::PROJECT)
         {
-            path = (Cache::configureDirectory.directoryPath / to_string(variantCount) /
-                    std::filesystem::path(lib.targetName) / (lib.targetName + ".hmake"))
-                       .string();
+            path = writePath((Cache::configureDirectory.directoryPath / to_string(variantCount) /
+                              std::filesystem::path(lib.targetName) / (lib.targetName + ".hmake")));
         }
         else
         {
-            path = (lib.getTargetVariantDirectoryPath(variantCount) / (lib.targetName + ".hmake")).string();
+            path = writePath((lib.getTargetVariantDirectoryPath(variantCount) / (lib.targetName + ".hmake")));
         }
         targetArray.emplace_back(path);
     }
@@ -1169,9 +1161,68 @@ void from_json(const Json &j, Version &v)
     }
 }
 
+Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &command)
+{
+    string temporaryIncludeFilename = "temporaryInclude.txt";
+    string temporaryLibFilename = "temporaryLib.txt";
+    string temporaryBatchFilename = "temporaryBatch.bat";
+    ofstream(temporaryBatchFilename) << "call " + command + "\n" + "echo %INCLUDE% > " + temporaryIncludeFilename +
+                                            "\n" + "echo %LIB%;%LIBPATH% > " + temporaryLibFilename;
+
+    if (int code = system(temporaryBatchFilename.c_str()); code == EXIT_FAILURE)
+    {
+        cout << "Error in Executing Batch File" << endl;
+        exit(-1);
+    }
+    remove(temporaryBatchFilename);
+
+    auto splitPathsAndAssignToVector = [](string &accumulatedPaths, vector<Directory> &separatePaths) {
+        size_t pos;
+        while ((pos = accumulatedPaths.find(';')) != std::string::npos)
+        {
+            std::string token = accumulatedPaths.substr(0, pos);
+            separatePaths.emplace_back(token);
+            accumulatedPaths.erase(0, pos + 1);
+        }
+    };
+
+    auto slurp = [](const std::ifstream &in) -> string {
+        std::ostringstream str;
+        str << in.rdbuf();
+        return str.str();
+    };
+
+    Environment environment;
+    std::string accumulatedPaths = slurp(ifstream(temporaryIncludeFilename));
+    remove(temporaryIncludeFilename);
+    splitPathsAndAssignToVector(accumulatedPaths, environment.includeDirectories);
+    accumulatedPaths = slurp(ifstream(temporaryLibFilename));
+    remove(temporaryLibFilename);
+    splitPathsAndAssignToVector(accumulatedPaths, environment.libraryDirectories);
+
+    return environment;
+}
+
+void to_json(Json &j, const Environment &p)
+{
+    vector<string> temp;
+    auto directoriesPathsToVector = [&temp](const vector<Directory> &outDirectoriesVector) {
+        for (const auto &dir : outDirectoriesVector)
+        {
+            temp.emplace_back(writePath(dir.directoryPath));
+        }
+    };
+    directoriesPathsToVector(p.includeDirectories);
+    j["INCLUDE_DIRECTORIES"] = temp;
+    temp.clear();
+    directoriesPathsToVector(p.libraryDirectories);
+    j["LIBRARY_DIRECTORIES"] = temp;
+    j["COMPILER_FLAGS"] = p.compilerFlags;
+}
+
 void Project::configure()
 {
-    for (int i = 0; i < projectVariants.size(); ++i)
+    for (size_t i = 0; i < projectVariants.size(); ++i)
     {
         Json json = projectVariants[i].convertToJson(VariantMode::PROJECT, i);
         path variantFileDir = Cache::configureDirectory.directoryPath / to_string(i);
@@ -1191,7 +1242,7 @@ void Project::configure()
     Json projectFileJson;
     vector<string> projectVariantsInt;
     projectVariantsInt.reserve(projectVariants.size());
-    for (int i = 0; i < projectVariants.size(); ++i)
+    for (size_t i = 0; i < projectVariants.size(); ++i)
     {
         projectVariantsInt.push_back(to_string(i));
     }
@@ -1289,7 +1340,7 @@ void Package::configureCommonAmongVariants()
         }
     };
 
-    for (int i = 0; i < packageVariants.size(); ++i)
+    for (size_t i = 0; i < packageVariants.size(); ++i)
     {
         for (const auto &exe : packageVariants[i].executables)
         {
@@ -1302,7 +1353,7 @@ void Package::configureCommonAmongVariants()
     }
 
     Json commonDirsJson;
-    for (int i = 0; i < packageCommonIncludeDirs.size(); ++i)
+    for (size_t i = 0; i < packageCommonIncludeDirs.size(); ++i)
     {
         for (auto j : packageCommonIncludeDirs[i].directories)
         {
@@ -1440,7 +1491,7 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
     for (const auto &e : includeDirectoryDependencies)
     {
         Json JIDDObject;
-        JIDDObject["PATH"] = e.directoryPath.string();
+        JIDDObject["PATH"] = writePath(e.directoryPath);
         JIDDObject["COPY"] = true;
         if (package.cacheCommonIncludeDirs && e.isCommon)
         {
@@ -1476,7 +1527,7 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
                 if (e.dependencyType == DependencyType::PUBLIC)
                 {
                     Json JIDDObject;
-                    JIDDObject["PATH"] = e.includeDirectory.directoryPath.string();
+                    JIDDObject["PATH"] = writePath(e.includeDirectory.directoryPath);
                     JIDDObject["COPY"] = false;
                     includeDirectoriesArray.push_back(JIDDObject);
                 }
@@ -1644,7 +1695,7 @@ PPLibrary::PPLibrary(string libraryName_, const CPackage &cPackage, const CPVari
     if (!exists(libraryFilePath))
     {
         throw runtime_error("Library " + libraryName + " Does Not Exists. Searched For File " +
-                            libraryFilePath.string());
+                            writePath(libraryFilePath));
     }
 
     Json libraryFileJson;
@@ -1728,7 +1779,7 @@ CPVariant CPackage::getVariant(const Json &variantJson_)
 {
     int numberOfMatches = 0;
     int matchIndex;
-    for (int i = 0; i < variantsJson.size(); ++i)
+    for (size_t i = 0; i < variantsJson.size(); ++i)
     {
         bool matched = true;
         for (const auto &keyValuePair : variantJson_.items())
@@ -1753,11 +1804,11 @@ CPVariant CPackage::getVariant(const Json &variantJson_)
     }
     else if (numberOfMatches == 0)
     {
-        throw runtime_error("No Json in package " + packagePath.string() + " matches \n" + variantJson_.dump(2));
+        throw runtime_error("No Json in package " + writePath(packagePath) + " matches \n" + variantJson_.dump(2));
     }
     else if (numberOfMatches > 1)
     {
-        throw runtime_error("More than 1 Jsons in package " + packagePath.string() + " matches \n" +
+        throw runtime_error("More than 1 Jsons in package " + writePath(packagePath) + " matches \n" +
                             variantJson_.dump(2));
     }
 }
@@ -1765,7 +1816,6 @@ CPVariant CPackage::getVariant(const Json &variantJson_)
 CPVariant CPackage::getVariant(const int index)
 {
     int numberOfMatches = 0;
-    int matchIndex;
     for (const auto &i : variantsJson)
     {
         if (i.at("INDEX").get<string>() == to_string(index))
@@ -1773,5 +1823,5 @@ CPVariant CPackage::getVariant(const int index)
             return CPVariant(packagePath / to_string(index), i, index);
         }
     }
-    throw runtime_error("No Json in package " + packagePath.string() + " has index " + to_string(index));
+    throw runtime_error("No Json in package " + writePath(packagePath) + " has index " + to_string(index));
 }

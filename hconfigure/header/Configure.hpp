@@ -9,6 +9,10 @@
 #include <set>
 
 using std::filesystem::path, std::string, std::vector, std::tuple, std::map, std::set, std::same_as, std::stack;
+using Json = nlohmann::ordered_json;
+
+std::string writePath(const path &writePath);
+string addQuotes(const string &pathString);
 
 struct File
 {
@@ -26,10 +30,7 @@ struct Directory
     explicit Directory(path directoryPath_);
 };
 
-using Json = nlohmann::ordered_json;
-
-// TODO: Consider something more easy like Trickle, TrickleIfLibraryTrickles, Trickle
-// Public and Private are sometimes hard to reason.
+// TODO: Thinking about changing it to PROPOGATE and NOPROPOGATE
 enum class DependencyType
 {
     PUBLIC,
@@ -49,11 +50,13 @@ struct CompilerFlagsDependency
     string compilerFlags;
     DependencyType dependencyType;
 };
+
 struct LinkerFlagsDependency
 {
     string linkerFlags;
     DependencyType dependencyType;
 };
+
 struct CompileDefinition
 {
     string name;
@@ -67,22 +70,6 @@ struct CompileDefinitionDependency
 };
 void to_json(Json &j, const CompileDefinition &cd);
 void from_json(const Json &j, CompileDefinition &cd);
-
-enum class CompilerFamily
-{
-    GCC,
-    MSVC,
-    CLANG
-};
-void from_json(const Json &json, CompilerFamily &compilerFamily);
-
-enum class LinkerFamily
-{
-    GCC,
-    MSVC,
-    CLANG
-};
-void from_json(const Json &json, LinkerFamily &linkerFamily);
 
 enum class Comparison
 {
@@ -100,40 +87,53 @@ struct Version
     int patchVersion;
     Comparison comparison; // Used in flags
 };
+void to_json(Json &j, const Version &p);
+void from_json(const Json &j, Version &v);
 
-struct Compiler
+enum class BTFamily
 {
-    CompilerFamily compilerFamily;
-    Version compilerVersion;
-    path path;
+    GCC,
+    MSVC,
+    CLANG
 };
-void from_json(const Json &json, Compiler &compiler);
+void to_json(Json &json, const BTFamily &bTFamily);
+void from_json(const Json &json, BTFamily &bTFamily);
 
-struct Linker
+struct BuildTool
 {
-    LinkerFamily linkerFamily;
-    Version linkerVersion;
-    path path;
+    BTFamily bTFamily;
+    Version bTVersion;
+    path bTPath;
 };
-void from_json(const Json &json, Linker &linker);
+void to_json(Json &json, const BuildTool &buildTool);
+void from_json(const Json &json, BuildTool &buildTool);
+
+struct Compiler : BuildTool
+{
+};
+
+struct Linker : BuildTool
+{
+};
+
+struct Archiver : BuildTool
+{
+};
 
 enum class LibraryType
 {
     STATIC,
     SHARED
 };
+void to_json(Json &json, const LibraryType &libraryType);
+void from_json(const Json &json, LibraryType &libraryType);
 
 enum class ConfigType
 {
     DEBUG,
     RELEASE
 };
-
-void to_json(Json &j, const Compiler &compiler);
-void to_json(Json &j, const Linker &linker);
-void to_json(Json &j, const LibraryType &libraryType);
-void from_json(const Json &json, LibraryType &libraryType);
-void to_json(Json &j, const ConfigType &configType);
+void to_json(Json &json, const ConfigType &configType);
 void from_json(const Json &json, ConfigType &configType);
 
 bool operator<(const Version &lhs, const Version &rhs);
@@ -158,9 +158,9 @@ struct CompilerVersion : public Version
 // TODO: Look in templatizing that. Same code is repeated in CompilerFlags and LinkerFlags
 struct CompilerFlags
 {
-    map<tuple<CompilerFamily, CompilerVersion, ConfigType>, string> compilerFlags;
+    map<tuple<BTFamily, CompilerVersion, ConfigType>, string> compilerFlags;
 
-    set<CompilerFamily> compilerFamilies;
+    set<BTFamily> compilerFamilies;
     CompilerVersion compilerVersions;
     set<ConfigType> configurationTypes;
 
@@ -169,12 +169,12 @@ struct CompilerFlags
     mutable bool compilerVersionHelper = false;
     mutable bool configHelper = false;
 
-    mutable CompilerFamily compilerCurrent;
+    mutable BTFamily compilerCurrent;
     mutable CompilerVersion compilerVersionCurrent;
     mutable ConfigType configCurrent;
 
   public:
-    CompilerFlags &operator[](CompilerFamily compilerFamily) const;
+    CompilerFlags &operator[](BTFamily compilerFamily) const;
     CompilerFlags &operator[](CompilerVersion compilerVersion) const;
     CompilerFlags &operator[](ConfigType configType) const;
 
@@ -189,9 +189,9 @@ struct LinkerVersion : public Version
 
 struct LinkerFlags
 {
-    map<tuple<LinkerFamily, LinkerVersion, ConfigType>, string> linkerFlags;
+    map<tuple<BTFamily, LinkerVersion, ConfigType>, string> linkerFlags;
 
-    set<LinkerFamily> linkerFamilies;
+    set<BTFamily> linkerFamilies;
     LinkerVersion linkerVersions;
     set<ConfigType> configurationTypes;
 
@@ -200,12 +200,12 @@ struct LinkerFlags
     mutable bool linkerVersionHelper = false;
     mutable bool configHelper = false;
 
-    mutable LinkerFamily linkerCurrent;
+    mutable BTFamily linkerCurrent;
     mutable LinkerVersion linkerVersionCurrent;
     mutable ConfigType configCurrent;
 
   public:
-    LinkerFlags &operator[](LinkerFamily linkerFamily) const;
+    LinkerFlags &operator[](BTFamily linkerFamily) const;
     LinkerFlags &operator[](LinkerVersion linkerVersion) const;
     LinkerFlags &operator[](ConfigType configType) const;
 
@@ -222,6 +222,15 @@ struct Flags
 };
 inline Flags flags;
 
+struct Environment
+{
+    vector<Directory> includeDirectories;
+    vector<Directory> libraryDirectories;
+    string compilerFlags;
+    static Environment initializeEnvironmentFromVSBatchCommand(const string &command);
+};
+void to_json(Json &j, const Environment &p);
+
 struct Cache
 {
     static inline Directory sourceDirectory;
@@ -233,8 +242,11 @@ struct Cache
     static inline int selectedCompilerArrayIndex;
     static inline vector<Linker> linkerArray;
     static inline int selectedLinkerArrayIndex;
+    static inline vector<Archiver> archiverArray;
+    static inline int selectedArchiverArrayIndex;
     static inline LibraryType libraryType;
     static inline Json cacheVariables;
+    static inline Environment environment;
     static void initializeCache();
     static void registerCacheVariables();
 };
@@ -242,8 +254,7 @@ struct Cache
 enum class Platform
 {
     LINUX,
-    MSVC,
-    CLANG
+    WINDOWS
 };
 
 class Library;
@@ -266,10 +277,12 @@ struct Variant
     ConfigType configurationType;
     Compiler compiler;
     Linker linker;
+    Archiver archiver;
     vector<struct Executable> executables;
     vector<Library> libraries;
     Flags flags;
     LibraryType libraryType;
+    Environment environment;
     Variant();
     Json convertToJson(VariantMode mode, int variantCount);
 };
@@ -286,9 +299,6 @@ class Project
     vector<ProjectVariant> projectVariants;
     void configure();
 };
-
-void to_json(Json &j, const Version &p);
-void from_json(const Json &j, Version &v);
 
 class PackageVariant : public Variant
 {
@@ -320,7 +330,7 @@ class Target
     ConfigType configurationType;
     Compiler compiler;
     Linker linker;
-
+    Archiver archiver;
     vector<IDD> includeDirectoryDependencies;
     vector<LibraryDependency> libraryDependencies;
     vector<CompilerFlagsDependency> compilerFlagsDependencies;
@@ -333,6 +343,7 @@ class Target
     string targetName;
     string outputName;
     Directory outputDirectory;
+    Environment environment;
     mutable TargetType targetType;
 
     // Json getVariantJson(const vector<const LibraryDependency *> &dependencies, const Package &package,
@@ -524,7 +535,7 @@ struct CPackage
     Json variantsJson;
     explicit CPackage(path packagePath_);
     CPVariant getVariant(const Json &variantJson);
-    CPVariant getVariant(const int index);
+    CPVariant getVariant(int index);
 };
 
 template <typename T> struct CacheVariable

@@ -20,18 +20,18 @@ target_include_directories(hconfigure
         PUBLIC hconfigure/header
         PUBLIC cxxopts/include
         )
+target_link_libraries(hhelper PRIVATE hconfigure)
 
 add_executable(hbuild
         hbuild/src/BBuild.cpp
         hbuild/src/main.cpp)
 target_include_directories(hbuild PRIVATE hbuild/header hconfigure/header rang/include)
 
-add_executable(UnBuiltTarget Examples/Example8/hmake.cpp)
+add_executable(UnBuiltTarget Examples/Example1/hmake.cpp)
 target_include_directories(UnBuiltTarget PRIVATE hconfigure/header)
 add_subdirectory(json)
 target_link_libraries(hconfigure PRIVATE nlohmann_json::nlohmann_json)
-target_link_libraries(hbuild PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(hbuild PRIVATE nlohmann_json::nlohmann_json hconfigure)
 target_link_libraries(hhelper PRIVATE nlohmann_json::nlohmann_json)
-target_link_libraries(UnBuiltTarget PRIVATE nlohmann_json::nlohmann_json)
-target_link_libraries(UnBuiltTarget PRIVATE hconfigure)
+target_link_libraries(UnBuiltTarget PRIVATE nlohmann_json::nlohmann_json hconfigure)
 add_dependencies(UnBuiltTarget hconfigure)

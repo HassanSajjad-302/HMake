@@ -132,7 +132,7 @@ is passed while flag member variable of variant is initialized with global flag 
 CompilerFlags class has a mechanism for specifying flags which allows either to be fully specific about flags or be less
 specific. e.g.
 
-`flags.compilerFlags[CompilerFamily::GCC][Version{10,2,0}][ConfigType::DEBUG] = "-g"`
+`flags.compilerFlags[BTFamily::GCC][Version{10,2,0}][ConfigType::DEBUG] = "-g"`
 
 Or you can be less specific e.g.
 

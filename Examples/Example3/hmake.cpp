@@ -9,7 +9,7 @@ int main()
     Executable animal("Animal", variantRelease);
     // Just the files matching the regex in second argument will be used for compilation. i.e. hmake.cpp will
     // be ignored.
-    animal.sourceDirectories.emplace_back(Directory("."), ".*i.*cpp");
+    animal.sourceDirectories.emplace_back(Directory("."), "file[1-4]\\.cpp|main\\.cpp");
 
     variantRelease.executables.push_back(animal);
     project.projectVariants.push_back(variantRelease);

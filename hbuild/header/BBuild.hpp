@@ -20,13 +20,6 @@ enum BTargetType
 };
 void from_json(const Json &j, BTargetType &targetType);
 
-struct SourceDirectory
-{
-    path sourceDirectory;
-    string regex;
-};
-void from_json(const Json &j, SourceDirectory &sourceDirectory);
-
 struct BIDD
 {
     string path;

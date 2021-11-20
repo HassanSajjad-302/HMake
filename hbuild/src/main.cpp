@@ -1,7 +1,7 @@
 
 #include "BBuild.hpp"
 #include "fstream"
-
+#include "set"
 using std::filesystem::current_path, std::filesystem::directory_iterator;
 int main(int argc, char **argv)
 {
@@ -53,13 +53,6 @@ int main(int argc, char **argv)
                 {
                     BTarget{file.path().string()};
                 }
-                else
-                {
-                    throw std::runtime_error(
-                        "Could not find or determine the target or projectVariant or packageVariant "
-                        "or package file which is to be built.");
-                }
-                break;
             }
         }
     }

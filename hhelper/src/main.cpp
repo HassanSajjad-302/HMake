@@ -1,13 +1,13 @@
 
+#include "Configure.hpp"
 #include "filesystem"
 #include "fstream"
-#include "nlohmann/json.hpp"
 #include "rang.hpp"
-#include <Windows.h>
 #include <iostream>
 
 using std::string, std::vector, std::ifstream, std::ofstream, std::cout, std::endl, std::filesystem::path,
-    std::filesystem::current_path, std::filesystem::directory_iterator, std::to_string, std::runtime_error;
+    std::filesystem::current_path, std::filesystem::directory_iterator, std::to_string, std::runtime_error,
+    std::filesystem::canonical;
 using Json = nlohmann::ordered_json;
 
 void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
@@ -24,85 +24,6 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
     j[jstr] = container;
 }
 
-enum class CompilerFamily
-{
-    ANY,
-    GCC,
-    MSVC,
-    CLANG
-};
-
-enum class LinkerFamily
-{
-    ANY,
-    GCC,
-    MSVC,
-    CLANG
-};
-
-struct Version
-{
-    int majorVersion = 0;
-    int minorVersion = 0;
-    int patchVersion = 0;
-};
-
-struct Compiler
-{
-    CompilerFamily compilerFamily;
-    path path;
-    Version version;
-};
-
-struct Linker
-{
-    LinkerFamily linkerFamily;
-    path path;
-    Version version;
-};
-
-typedef nlohmann::ordered_json Json;
-void to_json(Json &j, const Version &version)
-{
-    j = to_string(version.majorVersion) + "." + to_string(version.minorVersion) + "." + to_string(version.patchVersion);
-}
-
-void to_json(Json &j, const Compiler &compiler)
-{
-    if (compiler.compilerFamily == CompilerFamily::GCC)
-    {
-        j["FAMILY"] = "GCC";
-    }
-    else if (compiler.compilerFamily == CompilerFamily::MSVC)
-    {
-        j["FAMILY"] = "MSVC";
-    }
-    else
-    {
-        j["FAMILY"] = "CLANG";
-    }
-    j["PATH"] = compiler.path.string();
-    j["VERSION"] = compiler.version;
-}
-
-void to_json(Json &j, const Linker &p)
-{
-    if (p.linkerFamily == LinkerFamily::GCC)
-    {
-        j["FAMILY"] = "GCC";
-    }
-    else if (p.linkerFamily == LinkerFamily::MSVC)
-    {
-        j["FAMILY"] = "MSVC";
-    }
-    else
-    {
-        j["FAMILY"] = "CLANG";
-    }
-    j["PATH"] = p.path.string();
-    j["VERSION"] = p.version;
-}
-
 #define THROW false
 #ifndef HCONFIGURE_HEADER
 #define THROW true
@@ -114,12 +35,7 @@ void to_json(Json &j, const Linker &p)
 #define THROW true
 #endif
 
-enum class Platform
-{
-    WINDOWS,
-    LINUX
-};
-
+#define _WIN64
 #ifdef _WIN64 || _WIN32
 constexpr Platform platform = Platform::WINDOWS;
 #elif defined __linux
@@ -159,21 +75,31 @@ int main()
         Json j;
         vector<Compiler> compilersDetected;
         vector<Linker> linkersDetected;
+        vector<Archiver> archiversDetected;
 
-        if constexpr (platform == Platform::WINDOWS)
+        if constexpr (platform == Platform::LINUX)
         {
             Version ver{10, 2, 0};
-            compilersDetected.push_back(Compiler{CompilerFamily::GCC, path("/usr/bin/g++"), ver});
-            linkersDetected.push_back(Linker{LinkerFamily::GCC, path("/usr/bin/g++"), ver});
+            compilersDetected.push_back(Compiler{BTFamily::GCC, ver, path("/usr/bin/g++")});
+            linkersDetected.push_back(Linker{
+                BTFamily::GCC,
+                ver,
+                path("/usr/bin/g++"),
+            });
+            archiversDetected.push_back(Archiver{BTFamily::GCC, ver, "/usr/bin/ar"});
         }
         else
         {
             Version ver{19, 30, 30705};
-            compilersDetected.push_back(
-                Compiler{CompilerFamily::MSVC,
-                         path("\"C:\\Program Files\\Microsoft Visual "
-                              "Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.30.30705\\bin\\Hostx64\\x64\\cl.exe\""),
-                         ver});
+            compilersDetected.push_back(Compiler{
+                BTFamily::MSVC, ver,
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.30.30705\bin\Hostx64\x64\cl.exe)"});
+            linkersDetected.push_back(Linker{
+                BTFamily::MSVC, ver,
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.30.30705\bin\Hostx64\x64\link.exe)"});
+            archiversDetected.push_back(Archiver{
+                BTFamily::MSVC, ver,
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.30.30705\bin\Hostx64\x64\lib.exe)"});
         }
 
         j["SOURCE_DIRECTORY"] = "../";
@@ -184,12 +110,18 @@ int main()
         j["COMPILER_SELECTED_ARRAY_INDEX"] = 0;
         j["LINKER_ARRAY"] = linkersDetected;
         j["LINKER_SELECTED_ARRAY_INDEX"] = 0;
+        j["ARCHIVER_ARRAY"] = archiversDetected;
+        j["ARCHIVER_SELECTED_ARRAY_INDEX"] = 0;
         j["LIBRARY_TYPE"] = "STATIC";
+
         j["CACHE_VARIABLES"] = Json::object();
 
-        vector<string> compileCommands;
-        vector<string> linkCommands;
+        vector<string> compileConfigureCommands;
 
+        path hconfigureHeaderPath = path(HCONFIGURE_HEADER);
+        path jsonHeaderPath = path(JSON_HEADER);
+        path hconfigureStaticLibDirectoryPath = path(HCONFIGURE_STATIC_LIB_DIRECTORY);
+        path hconfigureStaticLibPath = path(HCONFIGURE_STATIC_LIB_PATH);
         if constexpr (platform == Platform::LINUX)
         {
             string compileCommand = "g++ -std=c++20"
@@ -197,22 +129,36 @@ int main()
                                     " -L " HCONFIGURE_STATIC_LIB_DIRECTORY " -l hconfigure "
                                     " -o "
                                     "{CONFIGURE_DIRECTORY}/configure";
-            compileCommands.push_back(compileCommand);
+            compileConfigureCommands.push_back(compileCommand);
         }
         else
         {
-            compileCommands.push_back(
-                R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" x86_amd64)");
-            string compileCommand = "\"C:\\Program Files\\Microsoft Visual "
-                                    "Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.30.30705\\bin\\Hostx64\\x64\\cl.exe\""
-                                    " /I " HCONFIGURE_HEADER " /I " JSON_HEADER " /std:c++latest"
-                                    " /EHs /MD {SOURCE_DIRECTORY}/hmake.cpp"
-                                    " /link " HCONFIGURE_STATIC_LIB_PATH " /OUT:{CONFIGURE_DIRECTORY}/configure.exe";
-            compileCommands.push_back(compileCommand);
+            Environment environment = Environment::initializeEnvironmentFromVSBatchCommand(
+                "\"C:\\Program Files\\Microsoft Visual "
+                "Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat\" amd64");
+
+            string compileCommand =
+                "\"C:\\Program Files\\Microsoft Visual "
+                "Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.30.30705\\bin\\Hostx64\\x64\\cl.exe\"";
+
+            for (const auto &dir : environment.includeDirectories)
+            {
+                compileCommand += " /I \"" + dir.directoryPath.generic_string() + "\"";
+            }
+            compileCommand += " /I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() +
+                              " /std:c++latest"
+                              " /EHsc /MD {SOURCE_DIRECTORY}/hmake.cpp"
+                              " /link";
+            for (const auto &dir : environment.libraryDirectories)
+            {
+                compileCommand += " /LIBPATH:\"" + dir.directoryPath.generic_string() + "\"";
+            }
+            compileCommand += " " + hconfigureStaticLibPath.string() + " /OUT:{CONFIGURE_DIRECTORY}/configure.exe";
+            compileCommand = "\"" + compileCommand + "\"";
+            compileConfigureCommands.push_back(compileCommand);
         }
 
-        j["COMPILE_COMMANDS"] = compileCommands;
-        j["LINK_COMMANDS"] = linkCommands;
+        j["COMPILE_CONFIGURE_COMMANDS"] = compileConfigureCommands;
         ofstream("cache.hmake") << j.dump(4);
     }
     else
@@ -231,47 +177,26 @@ int main()
         string srcDirString = "{SOURCE_DIRECTORY}";
         string confDirString = "{CONFIGURE_DIRECTORY}";
 
-        auto replaceSourceAndConfigureDirectoryPlaceholders = [&](string &command) {
-            if (const int position = command.find(srcDirString); position != string::npos)
-            {
-                command.replace(position, srcDirString.size(), sourceDirPath.string());
-            }
-            if (const int position = command.find(confDirString); position != string::npos)
-            {
-                command.replace(position, confDirString.size(), current_path().string());
-            }
-        };
+        cout << rang::fg::red;
+        vector<string> compileConfigureCommands = cacheJson.at("COMPILE_CONFIGURE_COMMANDS").get<vector<string>>();
 
-        vector<string> compileCommands = cacheJson.at("COMPILE_COMMANDS").get<vector<string>>();
-        vector<string> linkCommands = cacheJson.at("LINK_COMMANDS").get<vector<string>>();
-
-        if (!compileCommands.empty())
+        if (!compileConfigureCommands.empty())
         {
-            cout << "Executing compile commands as specified in cache.hmake to produce configure executable" << endl;
+            cout << "Executing commands as specified in cache.hmake to produce configure executable" << endl;
         }
 
-        for (string &compileCommand : compileCommands)
+        for (string &compileConfigureCommand : compileConfigureCommands)
         {
-            replaceSourceAndConfigureDirectoryPlaceholders(compileCommand);
-            cout << compileCommand << endl << rang::style::reset;
-            int code = system(compileCommand.c_str());
-            if (code != EXIT_SUCCESS)
+            if (const size_t position = compileConfigureCommand.find(srcDirString); position != string::npos)
             {
-                exit(code);
+                compileConfigureCommand.replace(position, srcDirString.size(), sourceDirPath.string());
             }
-            cout << rang::fg::red;
-        }
-
-        if (!linkCommands.empty())
-        {
-            cout << "Executing link commands as specified in cache.hmake to produce configure executable" << endl;
-        }
-
-        for (string &linkCommand : linkCommands)
-        {
-            replaceSourceAndConfigureDirectoryPlaceholders(linkCommand);
-            cout << linkCommand << endl << rang::style::reset;
-            int code = system(linkCommand.c_str());
+            if (const size_t position = compileConfigureCommand.find(confDirString); position != string::npos)
+            {
+                compileConfigureCommand.replace(position, confDirString.size(), current_path().string());
+            }
+            cout << compileConfigureCommand << endl << rang::style::reset;
+            int code = system(compileConfigureCommand.c_str());
             if (code != EXIT_SUCCESS)
             {
                 exit(code);
