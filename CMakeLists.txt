@@ -35,3 +35,16 @@ target_link_libraries(hbuild PRIVATE nlohmann_json::nlohmann_json hconfigure)
 target_link_libraries(hhelper PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(UnBuiltTarget PRIVATE nlohmann_json::nlohmann_json hconfigure)
 add_dependencies(UnBuiltTarget hconfigure)
+
+
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+add_subdirectory(googletest)
+
+add_executable(Test_Correctness Tests/main.cpp Tests/TestPaths.cpp)
+target_include_directories(Test_Correctness PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
+target_link_libraries(Test_Correctness PRIVATE gtest gtest_main)
+target_compile_definitions(Test_Correctness PRIVATE TESTDIRECTORY="${CMAKE_SOURCE_DIR}/Tests")
+
+add_dependencies(Test_Correctness hhelper)
+add_dependencies(Test_Correctness hconfigure)
+add_dependencies(Test_Correctness hbuild)

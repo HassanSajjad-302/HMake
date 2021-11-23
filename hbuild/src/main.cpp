@@ -1,6 +1,7 @@
 
 #include "BBuild.hpp"
 #include "fstream"
+#include "iostream"
 #include "set"
 using std::filesystem::current_path, std::filesystem::directory_iterator;
 int main(int argc, char **argv)
@@ -19,7 +20,8 @@ int main(int argc, char **argv)
         }
         if (!is_regular_file(buildFilePath))
         {
-            throw std::logic_error(buildFilePath.string() + " is not regular file");
+            std::cerr << buildFilePath.string() << " is not regular file";
+            exit(EXIT_FAILURE);
         }
     }
     else
@@ -39,7 +41,6 @@ int main(int argc, char **argv)
                 }
                 else if (fileName == "cache.hmake")
                 {
-                    BProject{canonical(file.path()).parent_path() / "project.hmake"};
                 }
                 else if (fileName == "package.hmake")
                 {

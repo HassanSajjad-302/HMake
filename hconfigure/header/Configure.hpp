@@ -137,7 +137,7 @@ void to_json(Json &json, const ConfigType &configType);
 void from_json(const Json &json, ConfigType &configType);
 
 bool operator<(const Version &lhs, const Version &rhs);
-bool operator==(const Version &lhs, const Version &rhs);
+bool operator==(Directory lhs, const Version &rhs);
 inline bool operator>(const Version &lhs, const Version &rhs)
 {
     return operator<(rhs, lhs);
@@ -227,6 +227,7 @@ struct Environment
     vector<Directory> includeDirectories;
     vector<Directory> libraryDirectories;
     string compilerFlags;
+    string linkerFlags;
     static Environment initializeEnvironmentFromVSBatchCommand(const string &command);
 };
 void to_json(Json &j, const Environment &p);

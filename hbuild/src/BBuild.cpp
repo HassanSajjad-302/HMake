@@ -7,7 +7,7 @@
 
 using std::ifstream, std::ofstream, std::filesystem::copy_options, std::runtime_error, std::cout, std::endl,
     std::to_string, std::filesystem::create_directory, std::filesystem::directory_iterator, std::regex,
-    std::filesystem::current_path;
+    std::filesystem::current_path, std::cerr;
 
 void from_json(const Json &j, BTargetType &targetType)
 {
@@ -83,6 +83,7 @@ BTarget::BTarget(const string &targetFilePath)
     vector<string> environmentIncludeDirectories;
     vector<string> environmentLibraryDirectories;
     string environmentCompilerFlags;
+    string environmentLinkerFlags;
     string compilerFlags;
     string linkerFlags;
     vector<string> sourceFiles;
@@ -114,7 +115,8 @@ BTarget::BTarget(const string &targetFilePath)
     targetType = targetFileJson.at("TARGET_TYPE").get<BTargetType>();
     if (targetType != BTargetType::EXECUTABLE && targetType != BTargetType::STATIC && targetType != BTargetType::SHARED)
     {
-        throw runtime_error("BTargetType value in the targetFile is not correct.");
+        cerr << "BTargetType value in the targetFile is not correct.";
+        exit(EXIT_FAILURE);
     }
 
     if (targetFileJson.at("VARIANT").get<string>() == "PACKAGE")
@@ -152,6 +154,7 @@ BTarget::BTarget(const string &targetFilePath)
     environmentIncludeDirectories = environmentJson.at("INCLUDE_DIRECTORIES").get<vector<string>>();
     environmentLibraryDirectories = environmentJson.at("LIBRARY_DIRECTORIES").get<vector<string>>();
     environmentCompilerFlags = environmentJson.at("COMPILER_FLAGS").get<string>();
+    environmentLinkerFlags = environmentJson.at("LINKER_FLAGS").get<string>();
     compilerFlags = targetFileJson.at("COMPILER_FLAGS").get<string>();
     linkerFlags = targetFileJson.at("LINKER_FLAGS").get<string>();
     sourceFiles = targetFileJson.at("SOURCE_FILES").get<vector<string>>();
@@ -302,6 +305,8 @@ BTarget::BTarget(const string &targetFilePath)
     }
 
     string totalCompilerFlags = environmentCompilerFlags + " " + compilerFlags + " " + compilerTransitiveFlags;
+    string totalLinkerFlags = environmentLinkerFlags + " " + linkerFlags + " " + linkerTransitiveFlags;
+
     for (const auto &i : sourceFiles)
     {
         string compileCommand;
@@ -309,7 +314,7 @@ BTarget::BTarget(const string &targetFilePath)
         compileCommand += totalCompilerFlags + " ";
         compileCommand += compileDefinitionsString + " ";
         compileCommand += totalIncludeDirectoriesFlags;
-        compileCommand += compiler.bTFamily == BTFamily::MSVC ? " /c /nologo " : " -c ";
+        compileCommand += compiler.bTFamily == BTFamily::MSVC ? " /c " : " -c ";
         compileCommand += i;
         compileCommand += compiler.bTFamily == BTFamily::MSVC ? " /Fo" : " -o ";
         compileCommand += addQuotes((path(buildCacheFilesDirPath) / path(i).filename()).string()) + ".o" + "\"";
@@ -353,12 +358,11 @@ BTarget::BTarget(const string &targetFilePath)
         string linkerCommand;
         if (targetType == BTargetType::EXECUTABLE)
         {
-            linkerCommand = "\"" + addQuotes(linker.bTPath.make_preferred().string()) + " " + linkerFlags + " " +
-                            linkerTransitiveFlags + " " +
+            linkerCommand = "\"" + addQuotes(linker.bTPath.make_preferred().string()) + " " + totalLinkerFlags + " " +
                             addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ") + " " +
                             libraryDependenciesFlags + totalLibraryDirectoriesFlags;
             linkerCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
-            linkerCommand += addQuotes((path(outputDirectory) / outputName).string()) + "\"";
+            linkerCommand += addQuotes((path(outputDirectory) / (outputName + ".exe")).string()) + "\"";
         }
         else
         {
@@ -609,7 +613,7 @@ BPackage::BPackage(const path &packageFilePath)
         path packageVariantFilePath = current_path() / integerIndex / "packageVariant.hmake";
         if (!is_regular_file(packageVariantFilePath))
         {
-            throw runtime_error(packageVariantFilePath.string() + " is not a regular file");
+            cerr << packageVariantFilePath.string() << " is not a regular file";
         }
         BVariant{packageVariantFilePath};
     }

@@ -5,7 +5,7 @@
 #include "rang.hpp"
 #include <iostream>
 
-using std::string, std::vector, std::ifstream, std::ofstream, std::cout, std::endl, std::filesystem::path,
+using std::string, std::vector, std::ifstream, std::ofstream, std::cout, std::endl, std::cerr, std::filesystem::path,
     std::filesystem::current_path, std::filesystem::directory_iterator, std::to_string, std::runtime_error,
     std::filesystem::canonical;
 using Json = nlohmann::ordered_json;
@@ -50,7 +50,8 @@ int main()
     cout << rang::fg::red;
     if (THROW)
     {
-        throw runtime_error("Macroh Required for hhelper are not provided.");
+        cerr << "Macros Required for hhelper are not provided.";
+        exit(EXIT_FAILURE);
     }
     int count = 0;
     path cacheFilePath;
@@ -65,7 +66,8 @@ int main()
     }
     if (count > 1)
     {
-        throw runtime_error("More than one file with cache.hmake name present");
+        cerr << "More than one file with cache.hmake name present";
+        exit(EXIT_FAILURE);
     }
     if (count == 0)
     {
@@ -146,9 +148,10 @@ int main()
                 compileCommand += " /I \"" + dir.directoryPath.generic_string() + "\"";
             }
             compileCommand += " /I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() +
-                              " /std:c++latest"
-                              " /EHsc /MD {SOURCE_DIRECTORY}/hmake.cpp"
-                              " /link";
+                              " /std:c++latest" + environment.compilerFlags +
+                              " {SOURCE_DIRECTORY}/hmake.cpp"
+                              " /link " +
+                              environment.linkerFlags;
             for (const auto &dir : environment.libraryDirectories)
             {
                 compileCommand += " /LIBPATH:\"" + dir.directoryPath.generic_string() + "\"";

@@ -1,13 +1,14 @@
 
 #include "Configure.hpp"
 
+#include "algorithm"
 #include "fstream"
 #include "iostream"
 #include "set"
 
-using std::to_string, std::runtime_error, std::filesystem::directory_entry, std::filesystem::file_type,
-    std::logic_error, std::ifstream, std::ofstream, std::move, std::filesystem::current_path, std::cout, std::endl,
-    std::stringstream, std::make_tuple, std::filesystem::directory_iterator, std::size_t, std::filesystem::remove;
+using std::to_string, std::filesystem::directory_entry, std::filesystem::file_type, std::logic_error, std::ifstream,
+    std::ofstream, std::move, std::filesystem::current_path, std::cout, std::endl, std::cerr, std::stringstream,
+    std::make_tuple, std::filesystem::directory_iterator, std::size_t, std::filesystem::remove;
 
 std::string writePath(const path &writePath)
 {
@@ -31,7 +32,8 @@ File::File(path filePath_)
         filePath = filePath_.lexically_normal();
         return;
     }
-    throw runtime_error(writePath(filePath_) + " Is Not a Regular File");
+    cerr << writePath(filePath_) << " Is Not a Regular File" << endl;
+    exit(EXIT_FAILURE);
 }
 
 Directory::Directory(path directoryPath_)
@@ -47,7 +49,8 @@ Directory::Directory(path directoryPath_)
     }
     else
     {
-        throw logic_error(writePath(directoryPath_) + " Is Not a directory file");
+        cerr << writePath(directoryPath_) << " Is Not a directory file";
+        exit(EXIT_FAILURE);
     }
     directoryPath /= "";
 }
@@ -758,7 +761,8 @@ CompilerFlags &CompilerFlags::operator[](CompilerVersion compilerVersion) const
 {
     if (!compilerHelper)
     {
-        throw runtime_error("Wrong Usage Of CompilerFlags class");
+        cerr << "Wrong Usage Of CompilerFlags class" << endl;
+        exit(EXIT_FAILURE);
     }
     compilerVersionHelper = true;
     compilerVersionCurrent = compilerVersion;
@@ -902,7 +906,8 @@ LinkerFlags &LinkerFlags::operator[](LinkerVersion linkerVersion) const
 {
     if (!linkerHelper)
     {
-        throw runtime_error("Wrong Usage Of LinkerFlags class");
+        cerr << "Wrong Usage Of LinkerFlags class" << endl;
+        exit(EXIT_FAILURE);
     }
     linkerVersionHelper = true;
     linkerVersionCurrent = linkerVersion;
@@ -1061,7 +1066,6 @@ void Cache::initializeCache()
     Cache::environment = Environment::initializeEnvironmentFromVSBatchCommand(
         "\"C:\\Program Files\\Microsoft Visual "
         "Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat\" amd64");
-    Cache::environment.compilerFlags = " /EHsc /MD ";
 }
 
 void Cache::registerCacheVariables()
@@ -1181,7 +1185,19 @@ Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &c
         while ((pos = accumulatedPaths.find(';')) != std::string::npos)
         {
             std::string token = accumulatedPaths.substr(0, pos);
-            separatePaths.emplace_back(token);
+            bool contains = false;
+            for (const auto &i : separatePaths)
+            {
+                if (i.directoryPath == Directory(token).directoryPath)
+                {
+                    contains = true;
+                    break;
+                }
+            }
+            if (!contains)
+            {
+                separatePaths.emplace_back(token);
+            }
             accumulatedPaths.erase(0, pos + 1);
         }
     };
@@ -1199,7 +1215,8 @@ Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &c
     accumulatedPaths = slurp(ifstream(temporaryLibFilename));
     remove(temporaryLibFilename);
     splitPathsAndAssignToVector(accumulatedPaths, environment.libraryDirectories);
-
+    environment.compilerFlags = " /EHsc /MD /nologo";
+    environment.linkerFlags = " /SUBSYSTEM:CONSOLE /NOLOGO";
     return environment;
 }
 
@@ -1218,6 +1235,7 @@ void to_json(Json &j, const Environment &p)
     directoriesPathsToVector(p.libraryDirectories);
     j["LIBRARY_DIRECTORIES"] = temp;
     j["COMPILER_FLAGS"] = p.compilerFlags;
+    j["LINKER_FLAGS"] = p.linkerFlags;
 }
 
 void Project::configure()
@@ -1382,7 +1400,8 @@ void Package::configure()
     {
         if (i.json.contains("INDEX"))
         {
-            throw runtime_error("Package Variant Json can not have COUNT in it's Json.");
+            cerr << "Package Variant Json can not have COUNT in it's Json." << endl;
+            exit(EXIT_FAILURE);
         }
         i.json["INDEX"] = to_string(count);
         packageVariantJson.emplace_back(i.json);
@@ -1688,14 +1707,16 @@ PPLibrary::PPLibrary(string libraryName_, const CPackage &cPackage, const CPVari
     }
     if (!found)
     {
-        throw runtime_error("Library " + libraryName + " Not Present In Package Variant");
+        cerr << "Library " << libraryName << " Not Present In Package Variant" << endl;
+        exit(EXIT_FAILURE);
     }
 
     path libraryFilePath = libraryDirectoryPath / (libraryName + ".hmake");
     if (!exists(libraryFilePath))
     {
-        throw runtime_error("Library " + libraryName + " Does Not Exists. Searched For File " +
-                            writePath(libraryFilePath));
+        cerr << "Library " << libraryName << " Does Not Exists. Searched For File " << endl
+             << writePath(libraryFilePath);
+        exit(EXIT_FAILURE);
     }
 
     Json libraryFileJson;
@@ -1804,12 +1825,15 @@ CPVariant CPackage::getVariant(const Json &variantJson_)
     }
     else if (numberOfMatches == 0)
     {
-        throw runtime_error("No Json in package " + writePath(packagePath) + " matches \n" + variantJson_.dump(2));
+        cerr << "No Json in package " << writePath(packagePath) << " matches \n" << variantJson_.dump(2) << endl;
+        exit(EXIT_FAILURE);
     }
     else if (numberOfMatches > 1)
     {
-        throw runtime_error("More than 1 Jsons in package " + writePath(packagePath) + " matches \n" +
-                            variantJson_.dump(2));
+        cerr << "More than 1 Jsons in package " + writePath(packagePath) + " matches \n"
+             << endl
+             << to_string(variantJson_);
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -1823,5 +1847,6 @@ CPVariant CPackage::getVariant(const int index)
             return CPVariant(packagePath / to_string(index), i, index);
         }
     }
-    throw runtime_error("No Json in package " + writePath(packagePath) + " has index " + to_string(index));
+    cerr << "No Json in package " << writePath(packagePath) << " has index " << to_string(index) << endl;
+    exit(EXIT_FAILURE);
 }
