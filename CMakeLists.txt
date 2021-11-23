@@ -40,7 +40,7 @@ add_dependencies(UnBuiltTarget hconfigure)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 add_subdirectory(googletest)
 
-add_executable(Test_Correctness Tests/main.cpp Tests/TestPaths.cpp)
+add_executable(Test_Correctness Tests/main.cpp Tests/TestHelper.cpp)
 target_include_directories(Test_Correctness PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 target_link_libraries(Test_Correctness PRIVATE gtest gtest_main)
 target_compile_definitions(Test_Correctness PRIVATE TESTDIRECTORY="${CMAKE_SOURCE_DIR}/Tests")
@@ -48,3 +48,8 @@ target_compile_definitions(Test_Correctness PRIVATE TESTDIRECTORY="${CMAKE_SOURC
 add_dependencies(Test_Correctness hhelper)
 add_dependencies(Test_Correctness hconfigure)
 add_dependencies(Test_Correctness hbuild)
+
+add_subdirectory(fmt)
+
+target_link_libraries(Test_Correctness PRIVATE fmt::fmt)
+target_link_libraries(hbuild PRIVATE fmt::fmt)

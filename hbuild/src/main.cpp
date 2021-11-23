@@ -3,9 +3,16 @@
 #include "fstream"
 #include "iostream"
 #include "set"
+#include <fmt/core.h>
 using std::filesystem::current_path, std::filesystem::directory_iterator;
 int main(int argc, char **argv)
 {
+
+    string a;
+    std::cin >> a;
+    fmt::runtime(a);
+    std::cout << a << std::endl;
+    exit(EXIT_FAILURE);
     if (argc == 2)
     {
         std::string filePath = argv[1];
