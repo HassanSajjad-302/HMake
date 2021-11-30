@@ -29,6 +29,8 @@ struct Directory
     Directory() = default;
     explicit Directory(path directoryPath_);
 };
+void to_json(Json &json, const Directory &directory);
+void from_json(const Json &json, Directory &directory);
 
 // TODO: Thinking about changing it to PROPOGATE and NOPROPOGATE
 enum class DependencyType
@@ -231,6 +233,7 @@ struct Environment
     static Environment initializeEnvironmentFromVSBatchCommand(const string &command);
 };
 void to_json(Json &j, const Environment &p);
+void from_json(const Json &j, Environment &environment); // Used in hbuild
 
 struct Cache
 {
@@ -560,4 +563,5 @@ CacheVariable<T>::CacheVariable(string cacheVariableString_, T defaultValue) : j
     }
 }
 
+string slurp(const std::ifstream &in);
 #endif // HMAKE_CONFIGURE_HPP

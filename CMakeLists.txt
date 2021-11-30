@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0.0)
+cmake_minimum_required(VERSION 3.18.0)
 
 project(HMake LANGUAGES CXX)
 
@@ -27,7 +27,7 @@ add_executable(hbuild
         hbuild/src/main.cpp)
 target_include_directories(hbuild PRIVATE hbuild/header hconfigure/header rang/include)
 
-add_executable(UnBuiltTarget Examples/Example1/hmake.cpp)
+add_executable(UnBuiltTarget Tests/Source/hmake.cpp)
 target_include_directories(UnBuiltTarget PRIVATE hconfigure/header)
 add_subdirectory(json)
 target_link_libraries(hconfigure PRIVATE nlohmann_json::nlohmann_json)
@@ -53,3 +53,10 @@ add_subdirectory(fmt)
 
 target_link_libraries(Test_Correctness PRIVATE fmt::fmt)
 target_link_libraries(hbuild PRIVATE fmt::fmt)
+
+set(REPROC_DEVELOP OFF)
+set(REPROC++ ON)
+
+add_subdirectory(reproc)
+
+target_link_libraries(hbuild PRIVATE reproc++)

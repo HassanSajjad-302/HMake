@@ -26,6 +26,7 @@ int main(int argc, char **argv)
     }
     else
     {
+        mutex m;
         for (auto &file : directory_iterator(current_path()))
         {
             if (file.is_regular_file())
@@ -33,7 +34,7 @@ int main(int argc, char **argv)
                 std::string fileName = file.path().filename().string();
                 if (fileName == "projectVariant.hmake" || fileName == "packageVariant.hmake")
                 {
-                    BVariant{file.path()};
+                    BVariant{file.path(), m};
                 }
                 else if (fileName == "project.hmake")
                 {
@@ -41,6 +42,23 @@ int main(int argc, char **argv)
                 }
                 else if (fileName == "cache.hmake")
                 {
+                    for (auto &cacheDirectoryIterator : directory_iterator(current_path()))
+                    {
+                        if (cacheDirectoryIterator.is_directory())
+                        {
+                            for (auto &maybeVariantFile : directory_iterator(cacheDirectoryIterator))
+                            {
+                                if (maybeVariantFile.is_regular_file())
+                                {
+                                    std::string fileName = maybeVariantFile.path().filename().string();
+                                    if (fileName == "projectVariant.hmake" || fileName == "packageVariant.hmake")
+                                    {
+                                        BVariant{maybeVariantFile.path(), m};
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 else if (fileName == "package.hmake")
                 {
@@ -52,7 +70,8 @@ int main(int argc, char **argv)
                 }
                 else if (fileName.ends_with(".hmake"))
                 {
-                    BTarget{file.path().string()};
+                    BTarget target{file.path().string(), m};
+                    target.build();
                 }
             }
         }

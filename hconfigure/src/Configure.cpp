@@ -27,21 +27,45 @@ File::File(path filePath_)
     {
         filePath_ = Cache::sourceDirectory.directoryPath / filePath_;
     }
-    if (directory_entry(filePath_).status().type() == file_type::regular)
+    std::error_code ec;
+    filePath = canonical(filePath_, ec);
+    if (!ec)
     {
-        filePath = filePath_.lexically_normal();
-        return;
+        // I don't check whether it is a directory or not.
     }
-    cerr << writePath(filePath_) << " Is Not a Regular File" << endl;
-    exit(EXIT_FAILURE);
+    else if (ec == std::errc::no_such_file_or_directory)
+    {
+        cerr << writePath(filePath_) << " Does Not Exist." << endl;
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        cerr << writePath(filePath_) << " Some Error Occurred." << endl;
+        exit(EXIT_FAILURE);
+    }
 }
 
 Directory::Directory(path directoryPath_)
 {
-    directoryPath = directoryPath_.lexically_normal();
     if (directoryPath_.is_relative())
     {
         directoryPath_ = Cache::sourceDirectory.directoryPath / directoryPath_;
+    }
+    std::error_code ec;
+    directoryPath_ = canonical(directoryPath_, ec);
+    if (!ec)
+    {
+        // I don't check whether it is a directory or not.
+    }
+    else if (ec == std::errc::no_such_file_or_directory)
+    {
+        cerr << writePath(directoryPath_) << " Does Not Exist." << endl;
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        cerr << writePath(directoryPath_) << " Some Error Occurred." << endl;
+        exit(EXIT_FAILURE);
     }
     if (directory_entry(directoryPath_).status().type() == file_type::directory)
     {
@@ -53,6 +77,16 @@ Directory::Directory(path directoryPath_)
         exit(EXIT_FAILURE);
     }
     directoryPath /= "";
+}
+
+void to_json(Json &json, const Directory &directory)
+{
+    json = directory.directoryPath.string();
+}
+
+void from_json(const Json &json, Directory &directory)
+{
+    directory = Directory(path(json.get<string>()));
 }
 
 void to_json(Json &j, const DependencyType &p)
@@ -79,8 +113,8 @@ void to_json(Json &j, const CompileDefinition &cd)
 
 void from_json(const Json &j, CompileDefinition &cd)
 {
-    j.at("NAME").get_to(cd.name);
-    j.at("VALUE").get_to(cd.value);
+    cd.name = j.at("NAME").get<string>();
+    cd.value = j.at("VALUE").get<string>();
 }
 
 void to_json(Json &json, const BTFamily &bTFamily)
@@ -1202,12 +1236,6 @@ Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &c
         }
     };
 
-    auto slurp = [](const std::ifstream &in) -> string {
-        std::ostringstream str;
-        str << in.rdbuf();
-        return str.str();
-    };
-
     Environment environment;
     std::string accumulatedPaths = slurp(ifstream(temporaryIncludeFilename));
     remove(temporaryIncludeFilename);
@@ -1236,6 +1264,14 @@ void to_json(Json &j, const Environment &p)
     j["LIBRARY_DIRECTORIES"] = temp;
     j["COMPILER_FLAGS"] = p.compilerFlags;
     j["LINKER_FLAGS"] = p.linkerFlags;
+}
+
+void from_json(const Json &j, Environment &environment)
+{
+    environment.includeDirectories = j.at("INCLUDE_DIRECTORIES").get<vector<Directory>>();
+    environment.libraryDirectories = j.at("LIBRARY_DIRECTORIES").get<vector<Directory>>();
+    environment.compilerFlags = j.at("COMPILER_FLAGS").get<string>();
+    environment.linkerFlags = j.at("LINKER_FLAGS").get<string>();
 }
 
 void Project::configure()
@@ -1850,3 +1886,10 @@ CPVariant CPackage::getVariant(const int index)
     cerr << "No Json in package " << writePath(packagePath) << " has index " << to_string(index) << endl;
     exit(EXIT_FAILURE);
 }
+
+string slurp(const std::ifstream &in)
+{
+    std::ostringstream str;
+    str << in.rdbuf();
+    return str.str();
+};
