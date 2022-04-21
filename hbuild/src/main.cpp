@@ -70,8 +70,8 @@ int main(int argc, char **argv)
                 }
                 else if (fileName.ends_with(".hmake"))
                 {
-                    BTarget target{file.path().string(), m};
-                    target.build();
+                    vector<string> target{file.path().string()};
+                    Builder{target, m};
                 }
             }
         }

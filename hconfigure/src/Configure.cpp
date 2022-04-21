@@ -1098,8 +1098,7 @@ void Cache::initializeCache()
     Cache::libraryType = cacheFileJson.at("LIBRARY_TYPE").get<LibraryType>();
     Cache::cacheVariables = cacheFileJson.at("CACHE_VARIABLES").get<Json>();
     Cache::environment = Environment::initializeEnvironmentFromVSBatchCommand(
-        "\"C:\\Program Files\\Microsoft Visual "
-        "Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat\" amd64");
+        R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64)");
 }
 
 void Cache::registerCacheVariables()

@@ -73,7 +73,7 @@ void from_json(const Json &j, BCompileDefinition &p)
     p.value = j.at("VALUE").get<string>();
 }
 
-BTarget::BTarget(const string &targetFilePath, mutex &m, vector<string> dependents) : oneAndOnlyMutex{m}
+ParsedTarget::ParsedTarget(const string &targetFilePath, vector<string> dependents)
 {
     string fileName = path(targetFilePath).filename().string();
     targetName = fileName.substr(0, fileName.size() - string(".hmake").size());
@@ -157,11 +157,11 @@ BTarget::BTarget(const string &targetFilePath, mutex &m, vector<string> dependen
     // Big todo: Currently totally ignoring prebuild libraries
     for (const auto &i : libraryDependencies)
     {
-        libraryDependenciesBTargets.emplace_back(i.path, m, dependents);
+        libraryDependenciesBTargets.emplace_back(i.path, dependents);
     }
 }
 
-void BTarget::checkForCircularDependencies(const vector<string> &dependents)
+void ParsedTarget::checkForCircularDependencies(const vector<string> &dependents)
 {
     if (find(dependents.begin(), dependents.end(), actualOutputName) != end(dependents))
     {
@@ -170,7 +170,7 @@ void BTarget::checkForCircularDependencies(const vector<string> &dependents)
     }
 }
 
-void BTarget::setActualOutputName()
+void ParsedTarget::setActualOutputName()
 {
     assert(targetType != BTargetType::PLIBRARY_SHARED);
     assert(targetType != BTargetType::PLIBRARY_STATIC);
@@ -193,7 +193,7 @@ void BTarget::setActualOutputName()
     }
 }
 
-void BTarget::executePreBuildCommands()
+void ParsedTarget::executePreBuildCommands()
 {
     // Execute the prebuild commands serially of this target and its dependencies.
     if (!preBuildCustomCommands.empty())
@@ -235,10 +235,9 @@ void BTarget::executePreBuildCommands()
             }
         }
     }*/
-    havePreBuildCommandsExecuted = true;
 }
 
-bool BTarget::checkIfAlreadyBuiltAndCreatNecessaryDirectories()
+bool ParsedTarget::checkIfAlreadyBuiltAndCreatNecessaryDirectories()
 {
     if (exists(path(buildCacheFilesDirPath) / (targetName + ".cache")) &&
         exists(path(outputDirectory) / actualOutputName))
@@ -255,7 +254,7 @@ bool BTarget::checkIfAlreadyBuiltAndCreatNecessaryDirectories()
     }
 }
 
-void BTarget::setCompileCommand()
+void ParsedTarget::setCompileCommand()
 {
     auto getIncludeFlag = [this]() {
         if (compiler.bTFamily == BTFamily::MSVC)
@@ -276,7 +275,6 @@ void BTarget::setCompileCommand()
     string totalIncludeDirectoriesFlags = projectIncludeDirectoriesFlags;
     for (const auto &i : environment.includeDirectories)
     {
-        // Using generic_string() because using string() caused problems on Windows.
         totalIncludeDirectoriesFlags.append(getIncludeFlag() + addQuotes(i.directoryPath.generic_string()) + " ");
     }
 
@@ -288,13 +286,13 @@ void BTarget::setCompileCommand()
 
     string totalCompilerFlags = environment.compilerFlags + " " + compilerFlags + " " + compilerTransitiveFlags;
 
-    compileCommand += addQuotes(compiler.bTPath.make_preferred().string()) + " ";
+    compileCommand = addQuotes(compiler.bTPath.make_preferred().string()) + " ";
     compileCommand += totalCompilerFlags + " ";
     compileCommand += compileDefinitionsString + " ";
     compileCommand += totalIncludeDirectoriesFlags;
 }
 
-void BTarget::parseSourceDirectoriesAndFinalizeSourceFiles()
+void ParsedTarget::parseSourceDirectoriesAndFinalizeSourceFiles()
 {
     for (const auto &i : sourceDirectories)
     {
@@ -308,17 +306,107 @@ void BTarget::parseSourceDirectoriesAndFinalizeSourceFiles()
     }
 }
 
+void to_json(Json &j, const Node *node)
+{
+    j = node->filePath;
+}
+
+void from_json(const Json &j, Node *node)
+{
+    node = Node::getNodeFromString(j);
+}
+
+void to_json(Json &j, const SourceNode &sourceNode)
+{
+    j["SRC_FILE"] = sourceNode.node;
+    j["HEADER_DEPENDENCIES"] = sourceNode.headerDependencies;
+}
+
+void from_json(const Json &j, SourceNode &sourceNode)
+{
+    /* from_json function of Node* did not work correctly, so not using it.*/
+    // sourceNode.node = j.at("SRC_FILE").get<Node*>();
+    // sourceNode.headerDependencies = j.at("HEADER_DEPENDENCIES").get<set<Node *>>();
+
+    sourceNode.node = Node::getNodeFromString(j.at("SRC_FILE").get<string>());
+    vector<string> headerDeps;
+    headerDeps = j.at("HEADER_DEPENDENCIES").get<vector<string>>();
+    for (const auto &h : headerDeps)
+    {
+        sourceNode.headerDependencies.insert(Node::getNodeFromString(h));
+    }
+}
+
+SourceNode &BTargetCache::addNodeInSourceFileDependencies(const string &str)
+{
+    SourceNode sourceNode{.node = Node::getNodeFromString(str)};
+    auto [pos, ok] = sourceFileDependencies.insert(sourceNode);
+    return const_cast<SourceNode &>(*pos);
+}
+
+bool BTargetCache::areFilesLeftToCompile() const
+{
+    for (const auto &sourceNode : sourceFileDependencies)
+    {
+        if (sourceNode.compilationStatus == FileStatus::NEEDS_RECOMPILE)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool BTargetCache::areAllFilesCompiled() const
+{
+    for (const auto &sourceNode : sourceFileDependencies)
+    {
+        if (sourceNode.compilationStatus != FileStatus::UPDATED)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+int BTargetCache::maximumThreadsNeeded() const
+{
+    int numberOfOutdatedFiles = 0;
+    for (const auto &sourceNode : sourceFileDependencies)
+    {
+        if (sourceNode.compilationStatus == FileStatus::NEEDS_RECOMPILE)
+        {
+            ++numberOfOutdatedFiles;
+        }
+    }
+    return numberOfOutdatedFiles;
+}
+
+SourceNode &BTargetCache::getNextNodeForCompilation()
+{
+    for (auto &sourceNode : sourceFileDependencies)
+    {
+        if (sourceNode.compilationStatus == FileStatus::NEEDS_RECOMPILE)
+        {
+            return const_cast<SourceNode &>(sourceNode);
+        }
+    }
+    cerr << "Internal Error: " << endl;
+    cerr << "Should Not had reached here as when this function is called, we should have a sourcefile yet to be "
+            "compiled."
+         << endl;
+    exit(-1);
+}
+
 void to_json(Json &j, const BTargetCache &bTargetCache)
 {
     j["COMPILE_COMMAND"] = bTargetCache.compileCommand;
-    // j["DEPENDENCIES"] = bTargetCache.sourceFileDependencies;
+    j["DEPENDENCIES"] = bTargetCache.sourceFileDependencies;
 }
 
 void from_json(const Json &j, BTargetCache &bTargetCache)
 {
     bTargetCache.compileCommand = j["COMPILE_COMMAND"];
-    // When we read dependencies, we have to mark for all the file fileExists = true;
-    //  bTargetCache.sourceFileDependencies = j["DEPENDENCIES"];
+    bTargetCache.sourceFileDependencies = j.at("DEPENDENCIES").get<set<SourceNode>>();
 }
 
 void Node::checkIfNotUpdatedAndUpdate()
@@ -340,7 +428,7 @@ bool std::less<SourceNode>::operator()(const SourceNode &lhs, const SourceNode &
     return std::less<Node *>{}(lhs.node, rhs.node);
 }
 
-Node *BTarget::getNodeFromString(const string &str)
+Node *Node::getNodeFromString(const string &str)
 {
     Node *tempNode = new Node{.filePath = str};
 
@@ -356,32 +444,16 @@ Node *BTarget::getNodeFromString(const string &str)
     }
 }
 
-SourceNode *BTarget::getSourceNodeFromString(const string &str)
-{
-    SourceNode *tempSourceNode = new SourceNode{.node = getNodeFromString(str)};
-
-    if (auto [pos, ok] = targetCache.sourceFileDependencies.insert({tempSourceNode, set<Node *>{}}); !ok)
-    {
-        // Means it already exists
-        const auto &[key, val] = *pos;
-        delete tempSourceNode;
-        return key;
-    }
-    else
-    {
-        return tempSourceNode;
-    }
-}
-
-void BTarget::addAllSourceFilesInBuildNode(BuildNode &buildNode)
+void ParsedTarget::addAllSourceFilesInBuildNode(BTargetCache &bTargetCache)
 {
     for (const auto &i : sourceFiles)
     {
-        buildNode.nodes.emplace(getSourceNodeFromString(i));
+        SourceNode &node = bTargetCache.addNodeInSourceFileDependencies(i);
+        node.compilationStatus = FileStatus::NEEDS_RECOMPILE;
     }
 }
 
-void BTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
+void ParsedTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
 {
     for (auto it = localBuildTree.begin(); it != localBuildTree.end(); ++it)
     {
@@ -398,57 +470,57 @@ void BTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
     parseSourceDirectoriesAndFinalizeSourceFiles();
     bool isAlreadyBuilt = checkIfAlreadyBuiltAndCreatNecessaryDirectories();
 
-    BuildNode buildNode;
-    buildNode.target = this;
+    BTargetCache bTargetCache;
 
     if (isAlreadyBuilt)
     {
         lastOutputTouchTime = last_write_time((path(outputDirectory) / actualOutputName));
         Json targetCacheJson;
         ifstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) >> targetCacheJson;
-        BTargetCache bTargetCache = targetCacheJson;
+        bTargetCache = targetCacheJson;
 
         if (bTargetCache.compileCommand != compileCommand)
         {
-            addAllSourceFilesInBuildNode(buildNode);
+            addAllSourceFilesInBuildNode(bTargetCache);
         }
         else
         {
-            map<SourceNode *, set<Node *>> &srcDepsRef = bTargetCache.sourceFileDependencies;
             for (const auto &sourceFile : sourceFiles)
             {
-                SourceNode *permSourceNode = getSourceNodeFromString(sourceFile);
-                permSourceNode->node->checkIfNotUpdatedAndUpdate();
-                if (permSourceNode->node->lastUpdateTime > lastOutputTouchTime)
+                SourceNode &permSourceNode = bTargetCache.addNodeInSourceFileDependencies(sourceFile);
+                permSourceNode.compilationStatus = FileStatus::UPDATED;
+                permSourceNode.node->checkIfNotUpdatedAndUpdate();
+                if (permSourceNode.node->lastUpdateTime > lastOutputTouchTime)
                 {
-                    permSourceNode->needsRecompile = true;
+                    permSourceNode.compilationStatus = FileStatus::NEEDS_RECOMPILE;
                 }
                 else
                 {
-                    for (auto &d : bTargetCache.sourceFileDependencies.at(permSourceNode))
+                    for (auto &d : permSourceNode.headerDependencies)
                     {
                         d->checkIfNotUpdatedAndUpdate();
                         if (d->lastUpdateTime > lastOutputTouchTime)
                         {
-                            permSourceNode->needsRecompile = true;
+                            permSourceNode.compilationStatus = FileStatus::NEEDS_RECOMPILE;
                             break;
                         }
                     }
-                }
-                permSourceNode->fileExists = true;
-                if (permSourceNode->needsRecompile)
-                {
-                    buildNode.nodes.emplace(permSourceNode);
                 }
             }
         }
     }
     else
     {
-        addAllSourceFilesInBuildNode(buildNode);
+        addAllSourceFilesInBuildNode(bTargetCache);
     }
-    buildNode.sourceNodesStackSize = buildNode.nodes.size();
-    localBuildTree.emplace_back(buildNode);
+    if (bTargetCache.maximumThreadsNeeded() > 0)
+    {
+        bTargetCache.compileCommand = compileCommand;
+        BuildNode buildNode;
+        buildNode.target = this;
+        buildNode.targetCache = bTargetCache;
+        localBuildTree.emplace_back(buildNode);
+    }
 
     // TODO
     /*for (auto &i : libraryDependenciesBTargets)
@@ -457,7 +529,7 @@ void BTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
     }*/
 }
 
-bool BTarget::checkIfFileIsInEnvironmentIncludes(const string &str)
+bool ParsedTarget::checkIfFileIsInEnvironmentIncludes(const string &str)
 {
     // If a file is in environment includes, it is not marked as dependency as an optimization.
     // If a file is in subdirectory of environment include, it is still marked as dependency.
@@ -474,7 +546,7 @@ bool BTarget::checkIfFileIsInEnvironmentIncludes(const string &str)
     return false;
 }
 
-string BTarget::parseDepsFromMSVCTextOutput(SourceNode *sourceNode, const string &output)
+string ParsedTarget::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, const string &output)
 {
     std::istringstream f(output);
     string line;
@@ -494,18 +566,8 @@ string BTarget::parseDepsFromMSVCTextOutput(SourceNode *sourceNode, const string
             iter->erase(iter->begin(), iter->begin() + (int)pos);
             if (!checkIfFileIsInEnvironmentIncludes(*iter))
             {
-                try
-                {
-                    Node *node = getNodeFromString(*iter);
-                    targetCache.sourceFileDependencies.at(sourceNode).emplace(node);
-                }
-                catch (const std::out_of_range &e)
-                {
-                    cerr << "Program Bug. Compiling a SourceNode that does not exist in targetCache. Breaks the "
-                            "invariant"
-                         << endl;
-                    exit(EXIT_FAILURE);
-                }
+                Node *node = Node::getNodeFromString(*iter);
+                sourceNode.headerDependencies.emplace(node);
             }
             iter = outputLines.erase(iter);
         }
@@ -524,28 +586,53 @@ string BTarget::parseDepsFromMSVCTextOutput(SourceNode *sourceNode, const string
     return treatedOutput;
 }
 
-void BTarget::Compile(SourceNode *soureNode)
+void ParsedTarget::Compile(SourceNode &soureNode)
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        string compileFileName = path(soureNode->node->filePath).filename().string();
-        string finalCommandOutputFileName = (path(buildCacheFilesDirPath) / (compileFileName + "_output")).string();
-        string finalCommandErrorFileName = (path(buildCacheFilesDirPath) / (compileFileName + "_error")).string();
-        string compileCommandWithSourceFile = compileCommand + " " + soureNode->node->filePath + " ";
-        string finalCompileCommand = compileCommandWithSourceFile + " /showIncludes";
+        string compileFileName = path(soureNode.node->filePath).filename().string();
+        string finalCommandOutputFileName =
+            addQuotes((path(buildCacheFilesDirPath) / (compileFileName + "_output")).generic_string());
+        string finalCommandErrorFileName =
+            addQuotes((path(buildCacheFilesDirPath) / (compileFileName + "_error")).generic_string());
+
+        string compileCommandWithSourceFile =
+            compileCommand + " " + addQuotes(path(soureNode.node->filePath).generic_string());
+        compileCommandWithSourceFile +=
+            " /Fo" + addQuotes(path(buildCacheFilesDirPath).generic_string() + "/" + compileFileName + ".o");
+        string finalCompileCommand = compileCommandWithSourceFile + " /showIncludes /c";
+        // finalCompileCommand = "\"" + finalCompileCommand + "\"";
         string finalCommand =
             finalCompileCommand + " > " + finalCommandOutputFileName + " 2>" + finalCommandErrorFileName;
-        ifstream outputFileStream(finalCommandOutputFileName);
-        ifstream errorFileStream(finalCommandErrorFileName);
-        string compileTextOutput = slurp(outputFileStream);
-        string compileErrorOutput = slurp(errorFileStream);
-        if (system(finalCommand.c_str()) == EXIT_SUCCESS)
+        finalCommand = "\"" + finalCommand + "\"";
+        try
         {
-            string output = parseDepsFromMSVCTextOutput(soureNode, compileTextOutput);
-            cout << output << endl;
+            cout << finalCommand << endl;
+            if (system(finalCommand.c_str()) == EXIT_SUCCESS)
+            {
+                ifstream outputFileStream(finalCommandOutputFileName);
+                string compileTextOutput = slurp(outputFileStream);
+                string output = parseDepsFromMSVCTextOutput(soureNode, compileTextOutput);
+                cout << output << endl;
+            }
+            else
+            {
+                ifstream outputFileStream(finalCommandOutputFileName);
+                string compileSuccessOutput = slurp(outputFileStream);
+                ifstream errorFileStream(finalCommandErrorFileName);
+                string compileErrorOutput = slurp(errorFileStream);
+                cerr << "\nError Command To Compiler Failed!\n\n";
+                cerr << "Command:\n" << finalCommand << endl << endl;
+                cerr << "Success Ouput:\n" << compileSuccessOutput << endl << endl;
+                cerr << "Error Output:\n" << compileErrorOutput << endl << endl;
+            }
         }
-        else
+        catch (std::exception &exception)
         {
+            cerr << exception.what();
+            ifstream errorFileStream(finalCommandErrorFileName);
+            string compileErrorOutput = slurp(errorFileStream);
+            cerr << compileErrorOutput << endl;
         }
     }
     else
@@ -553,7 +640,7 @@ void BTarget::Compile(SourceNode *soureNode)
     }
 }
 
-void BTarget::Link()
+void ParsedTarget::Link()
 {
     auto getLibraryDirectoryFlag = [this]() {
         if (compiler.bTFamily == BTFamily::MSVC)
@@ -573,7 +660,8 @@ void BTarget::Link()
     string totalLibraryDirectoriesFlags = projectLibraryDirectoriesFlags;
     for (const auto &i : environment.libraryDirectories)
     {
-        totalLibraryDirectoriesFlags.append(getLibraryDirectoryFlag() + addQuotes(i.directoryPath.string()) + " ");
+        totalLibraryDirectoriesFlags.append(getLibraryDirectoryFlag() + addQuotes(i.directoryPath.generic_string()) +
+                                            " ");
     }
 
     auto getLinkFlag = [this](const std::string &libraryPath, const std::string &libraryName) {
@@ -592,6 +680,7 @@ void BTarget::Link()
     {
         libraryDependenciesFlags.append(getLinkFlag(i.outputDirectory, i.outputName));
     }
+
     /* for (const auto &i : libraryDependencies)
      {
          if (!i.preBuilt)
@@ -614,100 +703,7 @@ void BTarget::Link()
          }
      }*/
     string totalLinkerFlags = environment.linkerFlags + " " + linkerFlags + " " + linkerTransitiveFlags;
-}
-
-void BTarget::actuallyBuild()
-{
-    oneAndOnlyMutex.lock();
-
-    if (linkIterator == buildTree.rend())
-    {
-        // We are done and dusted with all targets.
-        oneAndOnlyMutex.unlock();
-        return;
-    }
-
-    if (linkIterator->filesCompiled == linkIterator->nodes.size() && !linkIterator->startedLinking)
-    {
-        // This here needs linking. And no other thread started linking it.
-        linkIterator->startedLinking = true;
-        oneAndOnlyMutex.unlock();
-        linkIterator->target->Link();
-        oneAndOnlyMutex.lock();
-        ++linkIterator;
-        oneAndOnlyMutex.unlock();
-    }
-    else
-    {
-        if (compileIterator == buildTree.rend())
-        {
-            // I am a thread, and I compiled file/files
-            // if (AmITheLastThread?)
-            // { I compiled the last file and so also had the honour of linking. }
-            // The time has come on me. It comes on everyone. Now, I will be resting in peace.
-            oneAndOnlyMutex.unlock();
-            return;
-        }
-
-        // This here needs compiling. Once compiled, we will add 1 to the filesCompiled.
-        SourceNode *tempSourceNode = compileIterator->nodes.top();
-        compileIterator->nodes.pop();
-        oneAndOnlyMutex.unlock();
-        compileIterator->target->Compile(tempSourceNode);
-        oneAndOnlyMutex.lock();
-        compileIterator->filesCompiled += 1;
-        if (compileIterator->filesCompiled == compileIterator->sourceNodesStackSize)
-        {
-            ++compileIterator;
-        }
-        oneAndOnlyMutex.unlock();
-    }
-    actuallyBuild();
-}
-
-void BTarget::build()
-{
-    if (!havePreBuildCommandsExecuted)
-    {
-        executePreBuildCommands();
-    }
-    popularizeBuildTree(buildTree);
-
-    compileIterator = buildTree.rbegin();
-    linkIterator = buildTree.rbegin();
-
-    vector<thread *> buildThreads;
-
-    while (launchmoreThreads && buildThreads.size() != buildThreadsAllowed)
-    {
-        thread thr{&BTarget::actuallyBuild, this};
-        buildThreads.push_back(&thr);
-    }
-
-    for (auto t : buildThreads)
-    {
-        t->join();
-    }
-
-    // Build has been finished. Now we can copy stuff.
-
-    // This is the actual build part. I am not doing it here.
-
-    for (const auto &i : sourceFiles)
-    {
-        compileCommand += compiler.bTFamily == BTFamily::MSVC ? " /c " : " -c ";
-        compileCommand += i;
-        compileCommand += compiler.bTFamily == BTFamily::MSVC ? " /Fo" : " -o ";
-        compileCommand += addQuotes((path(buildCacheFilesDirPath) / path(i).filename()).string()) + ".o" + "\"";
-
-        cout << compileCommand << endl;
-        int code = system(compileCommand.c_str());
-        if (code != EXIT_SUCCESS)
-        {
-            exit(code);
-        }
-    }
-
+    cout << "Linking Called" << endl;
     if (targetType == BTargetType::STATIC)
     {
         cout << "Archiving" << endl;
@@ -715,13 +711,13 @@ void BTarget::build()
         if (archiver.bTFamily == BTFamily::MSVC)
         {
             archiveCommand += archiver.bTPath.make_preferred().string() +
-                              " /OUT:" + addQuotes((path(outputDirectory) / actualOutputName).string()) + " " +
+                              " /OUT:" + addQuotes((path(outputDirectory) / (outputName + ".lib")).string()) + " " +
                               addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ");
         }
         else if (archiver.bTFamily == BTFamily::GCC)
         {
             archiveCommand = archiver.bTPath.make_preferred().string() + " rcs " +
-                             addQuotes((path(outputDirectory) / actualOutputName).string()) + " " +
+                             addQuotes((path(outputDirectory) / ("lib" + outputName + ".a")).string()) + " " +
                              addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ");
         }
 
@@ -735,12 +731,12 @@ void BTarget::build()
     }
     else
     {
-        /*
         cout << "Linking" << endl;
         string linkerCommand;
         if (targetType == BTargetType::EXECUTABLE)
         {
-            linkerCommand = "\"" + addQuotes(linker.bTPath.make_preferred().string()) + " " + totalLinkerFlags + " " +
+            linkerCommand = "\"" + addQuotes(linker.bTPath.generic_string()) + " " + linkerFlags + " " +
+                            linkerTransitiveFlags + " " +
                             addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ") + " " +
                             libraryDependenciesFlags + totalLibraryDirectoriesFlags;
             linkerCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
@@ -756,8 +752,169 @@ void BTarget::build()
         {
             exit(code);
         }
-         */
     }
+    cout << "Build Complete" << endl;
+}
+
+void ParsedTarget::saveBuildCache(const BTargetCache &bTargetCache)
+{
+    Json cacheFileJson = bTargetCache;
+    ofstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) << cacheFileJson.dump(4);
+}
+using std::this_thread::get_id;
+void Builder::actuallyBuild()
+{
+    oneAndOnlyMutex.lock();
+    if (linkIterator->targetCache.areAllFilesCompiled() && !linkIterator->isLinking)
+    {
+        linkIterator->isLinking = true;
+        oneAndOnlyMutex.unlock();
+        linkIterator->target->Link();
+        linkIterator->target->saveBuildCache(linkIterator->targetCache);
+        oneAndOnlyMutex.lock();
+        ++linkIterator;
+        if (linkIterator == buildTree.rend())
+        {
+            oneAndOnlyMutex.unlock();
+            return;
+        }
+        oneAndOnlyMutex.unlock();
+    }
+    else
+    {
+        if (compileIterator == buildTree.rend())
+        {
+            oneAndOnlyMutex.unlock();
+            return;
+        }
+        if (compileIterator->targetCache.areFilesLeftToCompile())
+        {
+            SourceNode &tempSourceNode = compileIterator->targetCache.getNextNodeForCompilation();
+            tempSourceNode.compilationStatus = FileStatus::COMPILING;
+            ParsedTarget *target = compileIterator->target;
+            oneAndOnlyMutex.unlock();
+            target->Compile(tempSourceNode);
+            oneAndOnlyMutex.lock();
+            tempSourceNode.compilationStatus = FileStatus::UPDATED;
+            oneAndOnlyMutex.unlock();
+        }
+        else
+        {
+            ++compileIterator;
+            oneAndOnlyMutex.unlock();
+        }
+    }
+    actuallyBuild();
+}
+
+Builder::Builder(vector<string> &targetFilePaths, mutex &oneAndOnlyMutex) : oneAndOnlyMutex(oneAndOnlyMutex)
+{
+    vector<ParsedTarget> ParsedTargets;
+    for (auto &t : targetFilePaths)
+    {
+        ParsedTargets.emplace_back(t);
+    }
+    for (auto &t : ParsedTargets)
+    {
+        t.executePreBuildCommands();
+    }
+
+    for (auto &t : ParsedTargets)
+    {
+        t.popularizeBuildTree(buildTree);
+    }
+
+    compileIterator = buildTree.rbegin();
+    linkIterator = buildTree.rbegin();
+
+    std::size_t actionsNeeded = 0;
+    for (const auto &buildNode : buildTree)
+    {
+        actionsNeeded += buildNode.targetCache.maximumThreadsNeeded() + 1;
+    }
+    int numberOfBuildThreads;
+    actionsNeeded > buildThreadsAllowed ? numberOfBuildThreads = buildThreadsAllowed
+                                        : numberOfBuildThreads = actionsNeeded;
+    vector<thread *> buildThreads;
+
+    // numberOfBuildThreads = 12;
+    while (buildThreads.size() != numberOfBuildThreads)
+    {
+        buildThreads.emplace_back(new thread{&Builder::actuallyBuild, this});
+    }
+
+    for (auto t : buildThreads)
+    {
+        t->join();
+        delete t;
+    }
+    // Build has been finished. Now we can copy stuff.
+
+    // This is the actual build part. I am not doing it here.
+    /*
+        for (const auto &i : sourceFiles)
+        {
+            compileCommand += compiler.bTFamily == BTFamily::MSVC ? " /c " : " -c ";
+            compileCommand += i;
+            compileCommand += compiler.bTFamily == BTFamily::MSVC ? " /Fo" : " -o ";
+            compileCommand += addQuotes((path(buildCacheFilesDirPath) / path(i).filename()).string()) + ".o" + "\"";
+
+            cout << compileCommand << endl;
+            int code = system(compileCommand.c_str());
+            if (code != EXIT_SUCCESS)
+            {
+                exit(code);
+            }
+        }
+
+        if (targetType == BTargetType::STATIC)
+        {
+            cout << "Archiving" << endl;
+            string archiveCommand = "\"";
+            if (archiver.bTFamily == BTFamily::MSVC)
+            {
+                archiveCommand += archiver.bTPath.make_preferred().string() +
+                                  " /OUT:" + addQuotes((path(outputDirectory) / actualOutputName).string()) + " " +
+                                  addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ");
+            }
+            else if (archiver.bTFamily == BTFamily::GCC)
+            {
+                archiveCommand = archiver.bTPath.make_preferred().string() + " rcs " +
+                                 addQuotes((path(outputDirectory) / actualOutputName).string()) + " " +
+                                 addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ");
+            }
+
+            archiveCommand += "\"";
+            cout << archiveCommand << endl;
+            int code = system(archiveCommand.c_str());
+            if (code != EXIT_SUCCESS)
+            {
+                exit(code);
+            }
+        }
+        else
+        {
+            cout << "Linking" << endl;
+            string linkerCommand;
+            if (targetType == BTargetType::EXECUTABLE)
+            {
+                linkerCommand = "\"" + addQuotes(linker.bTPath.make_preferred().string()) + " " + totalLinkerFlags + " "
+       + addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ") + " " + libraryDependenciesFlags +
+       totalLibraryDirectoriesFlags; linkerCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
+                linkerCommand += addQuotes((path(outputDirectory) / actualOutputName).string()) + "\"";
+            }
+            else
+            {
+            }
+
+            cout << linkerCommand << endl;
+            int code = system(linkerCommand.c_str());
+            if (code != EXIT_SUCCESS)
+            {
+                exit(code);
+            }
+
+        }*/
 
     // cout << "Build Complete" << endl;
 
@@ -930,11 +1087,7 @@ BVariant::BVariant(const path &variantFilePath, mutex &m)
     Json variantFileJson;
     ifstream(variantFilePath) >> variantFileJson;
     vector<string> targetFilePaths = variantFileJson.at("TARGETS").get<vector<string>>();
-    for (const auto &t : targetFilePaths)
-    {
-        BTarget target{t, m};
-        target.build();
-    }
+    Builder{targetFilePaths, m};
 }
 
 BProject::BProject(const path &projectFilePath)

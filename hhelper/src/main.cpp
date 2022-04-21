@@ -95,13 +95,13 @@ int main()
             Version ver{19, 30, 30705};
             compilersDetected.push_back(Compiler{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.30.30705\bin\Hostx64\x64\cl.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.31.31103\bin\Hostx64\x64\cl.exe)"});
             linkersDetected.push_back(Linker{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.30.30705\bin\Hostx64\x64\link.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.31.31103\bin\Hostx64\x64\link.exe)"});
             archiversDetected.push_back(Archiver{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.30.30705\bin\Hostx64\x64\lib.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.31.31103\bin\Hostx64\x64\lib.exe)"});
         }
 
         j["SOURCE_DIRECTORY"] = "../";
@@ -136,12 +136,11 @@ int main()
         else
         {
             Environment environment = Environment::initializeEnvironmentFromVSBatchCommand(
-                "\"C:\\Program Files\\Microsoft Visual "
-                "Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat\" amd64");
+                R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64)");
 
             string compileCommand =
                 "\"C:\\Program Files\\Microsoft Visual "
-                "Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.30.30705\\bin\\Hostx64\\x64\\cl.exe\"";
+                "Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.31.31103\\bin\\Hostx64\\x64\\cl.exe\"";
 
             for (const auto &dir : environment.includeDirectories)
             {

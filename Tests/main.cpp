@@ -58,7 +58,7 @@ int main(){
 TEST(CompilationTest, MultipleFilesCompilationTest)
 {
     TestHelper::recreateSourceAndBuildDir();
-    const int fileCount = 6;
+    const int fileCount = 9;
 
     string hmakeFileContents = format(R"(
 #include "Configure.hpp"
@@ -110,7 +110,7 @@ std::cout << {} << std::endl;
 func{}();
 }}
 )",
-                                        i + 1, i + 2, i + 1, i + 1, i + 2);
+                                        i + 2, i + 1, i + 1, i + 2);
         }
         else
         {

@@ -52,27 +52,45 @@ struct BCompileDefinition
 };
 void from_json(const Json &j, BCompileDefinition &bCompileDefinition);
 
-class Node
-{
-  public:
-    string filePath;
-    // Because checking for lastUpdateTime is expensive, we do it only once even if file is used in multiple targets.
-    bool isUpdated = false;
-    std::filesystem::file_time_type lastUpdateTime;
-    void checkIfNotUpdatedAndUpdate();
-};
-
+class Node;
 template <> struct std::less<Node *>
 {
     bool operator()(const Node *lhs, const Node *rhs) const;
 };
 
+class Node
+{
+  public:
+    // This keeps info if a file is touched. If it's touched, it's not touched again.
+    inline static set<Node *> allFiles{};
+    string filePath;
+    // Because checking for lastUpdateTime is expensive, we do it only once even if file is used in multiple targets.
+    bool isUpdated = false;
+    std::filesystem::file_time_type lastUpdateTime;
+    void checkIfNotUpdatedAndUpdate();
+    // Create a node and inserts it into the allFiles if it is not already there
+    static Node *getNodeFromString(const string &str);
+};
+void to_json(Json &j, const Node *node);
+void from_json(const Json &j, Node *node); // Was to be used in from_json of SourceNode but is not used because
+// this does not return the modified pointer for some reason but instead returns the unmodified pointer.
+
+enum class FileStatus
+{
+    UPDATED,
+    NEEDS_RECOMPILE,
+    COMPILING,
+    DOES_NOT_EXIST,
+};
+
 struct SourceNode
 {
-    Node *node;
-    bool fileExists = false;
-    bool needsRecompile = false;
+    Node *node = nullptr;
+    set<Node *> headerDependencies;
+    FileStatus compilationStatus;
 };
+void to_json(Json &j, const SourceNode &sourceNode);
+void from_json(const Json &j, SourceNode &sourceNode);
 
 template <> struct std::less<SourceNode>
 {
@@ -83,22 +101,24 @@ template <> struct std::less<SourceNode>
 struct BTargetCache
 {
     string compileCommand;
-    // This maps source files with their header dependencies.
-    map<SourceNode *, set<Node *>> sourceFileDependencies;
+    set<SourceNode> sourceFileDependencies;
+    SourceNode &addNodeInSourceFileDependencies(const string &str);
+    bool areFilesLeftToCompile() const;
+    bool areAllFilesCompiled() const;
+    int maximumThreadsNeeded() const;
+    SourceNode &getNextNodeForCompilation();
 };
 void to_json(Json &j, const BTargetCache &bTargetCache);
 void from_json(const Json &j, BTargetCache &bTargetCache);
 
 struct BuildNode
 {
-    class BTarget *target;
-    stack<SourceNode *> nodes;
-    size_t filesCompiled = 0;
-    size_t sourceNodesStackSize = 0;
-    bool startedLinking = false;
+    class ParsedTarget *target = nullptr;
+    BTargetCache targetCache;
+    bool isLinking = false;
 };
 
-class BTarget
+class ParsedTarget
 {
     // Parsed info
     string targetName;
@@ -131,48 +151,43 @@ class BTarget
     string outputName;
     string outputDirectory;
 
-    // Others
-    vector<BTarget> libraryDependenciesBTargets;
-    bool havePreBuildCommandsExecuted = false;
+    // Some State Variables
+    vector<ParsedTarget> libraryDependenciesBTargets;
     string actualOutputName;
     string compileCommand;
     std::filesystem::file_time_type lastOutputTouchTime;
 
-    // This keeps info if a file is touched. If it's touched, it's not touched again.
-    inline static set<Node *> allFiles{};
-    // This info is used in conjunction with source files to decide which files need a recompile.
-    BTargetCache targetCache;
-
-    // Following acts like the build tree
-    vector<BuildNode> buildTree;
-    decltype(buildTree)::reverse_iterator compileIterator;
-    decltype(compileIterator) linkIterator;
-    int buildThreadsAllowed = 4;
-    bool launchmoreThreads = true;
-    mutex &oneAndOnlyMutex;
-
   public:
-    explicit BTarget(const string &targetFilePath, mutex &m, vector<string> dependents = {});
+    explicit ParsedTarget(const string &targetFilePath, vector<string> dependents = {});
     void checkForCircularDependencies(const vector<string> &dependents);
     void setActualOutputName();
     void executePreBuildCommands();
     bool checkIfAlreadyBuiltAndCreatNecessaryDirectories();
     void setCompileCommand();
     void parseSourceDirectoriesAndFinalizeSourceFiles();
-    // Create a node and inserts it into the allFiles if it is not already there
-    static Node *getNodeFromString(const string &str);
     // Create a new SourceNode and insert it into the targetCache.sourceFileDependencies if it is not already there. So
     // that it is written to the cache on disk for faster compilation next time
-    SourceNode *getSourceNodeFromString(const string &str);
-    void addAllSourceFilesInBuildNode(BuildNode &buildNode);
+    void addAllSourceFilesInBuildNode(BTargetCache &bTargetCache);
     void popularizeBuildTree(vector<BuildNode> &localBuildTree);
     bool checkIfFileIsInEnvironmentIncludes(const string &str);
-    string parseDepsFromMSVCTextOutput(SourceNode *sourceNode, const string &output);
-    void Compile(SourceNode *soureNode);
+    string parseDepsFromMSVCTextOutput(SourceNode &sourceNode, const string &output);
+    void Compile(SourceNode &soureNode);
     void Link();
+    void saveBuildCache(const BTargetCache &bTargetCache);
+};
+
+class Builder
+{
+    vector<BuildNode> buildTree;
+    decltype(buildTree)::reverse_iterator compileIterator;
+    decltype(compileIterator) linkIterator;
+    int buildThreadsAllowed = 4;
+    mutex &oneAndOnlyMutex;
+
+  public:
+    Builder(vector<string> &targetFilePaths, mutex &oneAndOnlyMutex);
     // This function is executed by multiple threads and is executed recursively until build is finished.
     void actuallyBuild();
-    void build();
 };
 
 // BuildPreBuiltTarget
