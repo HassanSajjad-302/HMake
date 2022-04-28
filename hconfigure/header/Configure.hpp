@@ -563,5 +563,5 @@ CacheVariable<T>::CacheVariable(string cacheVariableString_, T defaultValue) : j
     }
 }
 
-string slurp(const std::ifstream &in);
+string file_to_string(const string &file_name);
 #endif // HMAKE_CONFIGURE_HPP

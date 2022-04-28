@@ -1236,10 +1236,10 @@ Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &c
     };
 
     Environment environment;
-    std::string accumulatedPaths = slurp(ifstream(temporaryIncludeFilename));
+    string accumulatedPaths = file_to_string(temporaryIncludeFilename);
     remove(temporaryIncludeFilename);
     splitPathsAndAssignToVector(accumulatedPaths, environment.includeDirectories);
-    accumulatedPaths = slurp(ifstream(temporaryLibFilename));
+    accumulatedPaths = file_to_string(temporaryLibFilename);
     remove(temporaryLibFilename);
     splitPathsAndAssignToVector(accumulatedPaths, environment.libraryDirectories);
     environment.compilerFlags = " /EHsc /MD /nologo";
@@ -1886,9 +1886,26 @@ CPVariant CPackage::getVariant(const int index)
     exit(EXIT_FAILURE);
 }
 
-string slurp(const std::ifstream &in)
+string file_to_string(const string &file_name)
 {
-    std::ostringstream str;
-    str << in.rdbuf();
-    return str.str();
-};
+    ifstream file_stream{file_name};
+
+    if (file_stream.fail())
+    {
+        // Error opening file.
+        cerr << "Error opening file in file_to_string function " << file_name << endl;
+        exit(-1);
+    }
+
+    std::ostringstream str_stream{};
+    file_stream >> str_stream.rdbuf(); // NOT str_stream << file_stream.rdbuf()
+
+    if (file_stream.fail() && !file_stream.eof())
+    {
+        // Error reading file.
+        cerr << "Error reading file in file_to_string function " << file_name << endl;
+        exit(-1);
+    }
+
+    return str_stream.str();
+}

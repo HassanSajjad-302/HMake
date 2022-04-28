@@ -592,9 +592,9 @@ void ParsedTarget::Compile(SourceNode &soureNode)
     {
         string compileFileName = path(soureNode.node->filePath).filename().string();
         string finalCommandOutputFileName =
-            addQuotes((path(buildCacheFilesDirPath) / (compileFileName + "_output")).generic_string());
+            (path(buildCacheFilesDirPath) / (compileFileName + "_output")).generic_string();
         string finalCommandErrorFileName =
-            addQuotes((path(buildCacheFilesDirPath) / (compileFileName + "_error")).generic_string());
+            (path(buildCacheFilesDirPath) / (compileFileName + "_error")).generic_string();
 
         string compileCommandWithSourceFile =
             compileCommand + " " + addQuotes(path(soureNode.node->filePath).generic_string());
@@ -602,25 +602,22 @@ void ParsedTarget::Compile(SourceNode &soureNode)
             " /Fo" + addQuotes(path(buildCacheFilesDirPath).generic_string() + "/" + compileFileName + ".o");
         string finalCompileCommand = compileCommandWithSourceFile + " /showIncludes /c";
         // finalCompileCommand = "\"" + finalCompileCommand + "\"";
-        string finalCommand =
-            finalCompileCommand + " > " + finalCommandOutputFileName + " 2>" + finalCommandErrorFileName;
+        string finalCommand = finalCompileCommand + " > " + addQuotes(finalCommandOutputFileName) + " 2>" +
+                              addQuotes(finalCommandErrorFileName);
         finalCommand = "\"" + finalCommand + "\"";
         try
         {
             cout << finalCommand << endl;
             if (system(finalCommand.c_str()) == EXIT_SUCCESS)
             {
-                ifstream outputFileStream(finalCommandOutputFileName);
-                string compileTextOutput = slurp(outputFileStream);
+                string compileTextOutput = file_to_string(finalCommandOutputFileName);
                 string output = parseDepsFromMSVCTextOutput(soureNode, compileTextOutput);
                 cout << output << endl;
             }
             else
             {
-                ifstream outputFileStream(finalCommandOutputFileName);
-                string compileSuccessOutput = slurp(outputFileStream);
-                ifstream errorFileStream(finalCommandErrorFileName);
-                string compileErrorOutput = slurp(errorFileStream);
+                string compileSuccessOutput = file_to_string(finalCommandOutputFileName);
+                string compileErrorOutput = file_to_string(finalCommandErrorFileName);
                 cerr << "\nError Command To Compiler Failed!\n\n";
                 cerr << "Command:\n" << finalCommand << endl << endl;
                 cerr << "Success Ouput:\n" << compileSuccessOutput << endl << endl;
@@ -630,8 +627,7 @@ void ParsedTarget::Compile(SourceNode &soureNode)
         catch (std::exception &exception)
         {
             cerr << exception.what();
-            ifstream errorFileStream(finalCommandErrorFileName);
-            string compileErrorOutput = slurp(errorFileStream);
+            string compileErrorOutput = file_to_string(finalCommandErrorFileName);
             cerr << compileErrorOutput << endl;
         }
     }
