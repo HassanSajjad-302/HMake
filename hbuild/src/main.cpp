@@ -2,7 +2,7 @@
 #include "BBuild.hpp"
 #include "fstream"
 #include "iostream"
-using std::filesystem::current_path, std::filesystem::directory_iterator;
+using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream;
 int main(int argc, char **argv)
 {
 
@@ -27,53 +27,98 @@ int main(int argc, char **argv)
     else
     {
         mutex m;
+        vector<string> directoryFiles;
         for (auto &file : directory_iterator(current_path()))
         {
             if (file.is_regular_file())
             {
-                std::string fileName = file.path().filename().string();
-                if (fileName == "projectVariant.hmake" || fileName == "packageVariant.hmake")
+                directoryFiles.emplace_back(file.path().filename().string());
+            }
+        }
+        auto directoryFilesContains = [&](const string &str) -> bool {
+            return find(directoryFiles.begin(), directoryFiles.end(), str) != directoryFiles.end();
+        };
+
+        auto initializeJsons = [&](const Json &outputSettingsJson) {
+            ccpSettings = outputSettingsJson["COMPILE_PRINT_SETTINGS"];
+            acpSettings = outputSettingsJson["ARCHIVE_PRINT_SETTINGS"];
+            lcpSettings = outputSettingsJson["LINK_PRINT_SETTINGS"];
+        };
+        if (directoryFilesContains("project.hmake"))
+        {
+            Json outputSettingsJson;
+            ifstream("settings.hmake") >> outputSettingsJson;
+            initializeJsons(outputSettingsJson);
+            Builder{Builder::getTargetFilePathsFromProjectFile("project.hmake"), m};
+        }
+        else if (directoryFilesContains("projectVariant.hmake"))
+        {
+            Json outputSettingsJson;
+            ifstream("../settings.hmake") >> outputSettingsJson;
+            initializeJsons(outputSettingsJson);
+            Builder{Builder::getTargetFilePathsFromVariantFile("projectVariant.hmake"), m};
+        }
+        else
+        {
+            for (const auto &i : directoryFiles)
+            {
+                if (i.ends_with(".hmake"))
                 {
-                    BVariant{file.path(), m};
+                    Json outputSettingsJson;
+                    ifstream("../../settings.hmake") >> outputSettingsJson;
+                    initializeJsons(outputSettingsJson);
+                    vector<string> vec;
+                    vec.emplace_back(i);
+                    Builder{vec, m};
+                    break;
                 }
-                else if (fileName == "project.hmake")
+            }
+        }
+
+        /*if (file.is_regular_file())
+        {
+            std::string fileName = file.path().filename().string();
+            if (fileName == "projectVariant.hmake" || fileName == "packageVariant.hmake")
+            {
+                BVariant{file.path(), m};
+            }
+            else if (fileName == "project.hmake")
+            {
+                BProject{file.path()};
+            }
+            else if (fileName == "cache.hmake")
+            {
+                for (auto &cacheDirectoryIterator : directory_iterator(current_path()))
                 {
-                    BProject{file.path()};
-                }
-                else if (fileName == "cache.hmake")
-                {
-                    for (auto &cacheDirectoryIterator : directory_iterator(current_path()))
+                    if (cacheDirectoryIterator.is_directory())
                     {
-                        if (cacheDirectoryIterator.is_directory())
+                        for (auto &maybeVariantFile : directory_iterator(cacheDirectoryIterator))
                         {
-                            for (auto &maybeVariantFile : directory_iterator(cacheDirectoryIterator))
+                            if (maybeVariantFile.is_regular_file())
                             {
-                                if (maybeVariantFile.is_regular_file())
+                                std::string fileName = maybeVariantFile.path().filename().string();
+                                if (fileName == "projectVariant.hmake" || fileName == "packageVariant.hmake")
                                 {
-                                    std::string fileName = maybeVariantFile.path().filename().string();
-                                    if (fileName == "projectVariant.hmake" || fileName == "packageVariant.hmake")
-                                    {
-                                        BVariant{maybeVariantFile.path(), m};
-                                    }
+                                    BVariant{maybeVariantFile.path(), m};
                                 }
                             }
                         }
                     }
                 }
-                else if (fileName == "package.hmake")
-                {
-                    BPackage{file.path()};
-                }
-                else if (fileName == "Common.hmake")
-                {
-                    BPackage{canonical(file.path()).parent_path() / "package.hmake"};
-                }
-                else if (fileName.ends_with(".hmake"))
-                {
-                    vector<string> target{file.path().string()};
-                    Builder{target, m};
-                }
             }
-        }
+            else if (fileName == "package.hmake")
+            {
+                BPackage{file.path()};
+            }
+            else if (fileName == "Common.hmake")
+            {
+                BPackage{canonical(file.path()).parent_path() / "package.hmake"};
+            }
+            else if (fileName.ends_with(".hmake"))
+            {
+                vector<string> target{file.path().string()};
+                Builder{target, m};
+            }
+        }*/
     }
 }

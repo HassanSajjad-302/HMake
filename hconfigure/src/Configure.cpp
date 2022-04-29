@@ -444,6 +444,18 @@ void Target::configure(int variantIndex) const
             libDep.library.configure(variantIndex);
         }
     }
+    if (!exists(path("settings.hmake")))
+    {
+        CompileCommandPrintSettings compileCommandPrintSettings;
+        ArchiveCommandPrintSettings archiveCommandPrintSettings;
+        LinkCommandPrintSettings linkCommandPrintSettings;
+
+        Json settingsJson;
+        settingsJson["COMPILE_PRINT_SETTINGS"] = compileCommandPrintSettings;
+        settingsJson["ARCHIVE_PRINT_SETTINGS"] = archiveCommandPrintSettings;
+        settingsJson["LINK_PRINT_SETTINGS"] = linkCommandPrintSettings;
+        ofstream("settings.hmake") << settingsJson.dump(4);
+    }
 }
 
 Json Target::convertToJson(const Package &package, const PackageVariant &variant, int count) const
@@ -1107,7 +1119,7 @@ void Cache::registerCacheVariables()
     Json cacheFileJson;
     ifstream(filePath) >> cacheFileJson;
     cacheFileJson["CACHE_VARIABLES"] = Cache::cacheVariables;
-    ofstream(filePath) << cacheFileJson.dump(2);
+    ofstream(filePath) << cacheFileJson.dump(4);
 }
 
 Variant::Variant()
@@ -1860,7 +1872,7 @@ CPVariant CPackage::getVariant(const Json &variantJson_)
     }
     else if (numberOfMatches == 0)
     {
-        cerr << "No Json in package " << writePath(packagePath) << " matches \n" << variantJson_.dump(2) << endl;
+        cerr << "No Json in package " << writePath(packagePath) << " matches \n" << variantJson_.dump(4) << endl;
         exit(EXIT_FAILURE);
     }
     else if (numberOfMatches > 1)
@@ -1884,6 +1896,105 @@ CPVariant CPackage::getVariant(const int index)
     }
     cerr << "No Json in package " << writePath(packagePath) << " has index " << to_string(index) << endl;
     exit(EXIT_FAILURE);
+}
+void to_json(Json &json, const PathPrint &pathPrint)
+{
+    json["PATH_PRINT_LEVEL"] = pathPrint.printLevel;
+    json["DEPTH"] = pathPrint.depth;
+    json["ADD_QUOTES"] = pathPrint.addQuotes;
+}
+void from_json(const Json &json, PathPrint &pathPrint)
+{
+    uint8_t level = json.at("PATH_PRINT_LEVEL").get<uint8_t>();
+    if (level < 0 || level > 2)
+    {
+        cerr << "Level should be in range 0-2" << endl;
+        exit(EXIT_FAILURE);
+    }
+    pathPrint.printLevel = (PathPrintLevel)level;
+    pathPrint.depth = json.at("DEPTH").get<int>();
+    pathPrint.addQuotes = json.at("ADD_QUOTES").get<bool>();
+}
+void to_json(Json &json, const CompileCommandPrintSettings &ccpSettings)
+{
+    json["TOOL"] = ccpSettings.tool;
+    json["ENVIRONMENT_COMPILER_FLAGS"] = ccpSettings.environmentCompilerFlags;
+    json["COMPILER_FLAGS"] = ccpSettings.compilerFlags;
+    json["COMPILER_TRANSITIVE_FLAGS"] = ccpSettings.compilerTransitiveFlags;
+    json["COMPILE_DEFINITIONS"] = ccpSettings.compileDefinitions;
+    json["PROJECT_INCLUDE_DIRECTORIES"] = ccpSettings.projectIncludeDirectories;
+    json["ENVIRONMENT_INCLUDE_DIRECTORIES"] = ccpSettings.environmentIncludeDirectories;
+    json["SOURCE_FILE"] = ccpSettings.sourceFile;
+    json["INFRASTRUCTURE_FLAGS"] = ccpSettings.infrastructureFlags;
+    json["OBJECT_FILE"] = ccpSettings.objectFile;
+    json["OUTPUT_AND_ERROR_FILES"] = ccpSettings.outputAndErrorFiles;
+    json["PRUNE_HEADER_DEPENDENCIES_FROM_MSVC_OUTPUT"] = ccpSettings.pruneHeaderDepsFromMSVCOutput;
+    json["PRUNE_COMPILED_SOURCE_FILE_NAME_FROM_MSVC_OUTPUT"] = ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput;
+    json["RATIO_FOR_HMAKE_TIME"] = ccpSettings.ratioForHMakeTime;
+    json["SHOW_PERCENTAGE"] = ccpSettings.showPercentage;
+}
+
+void from_json(const Json &json, CompileCommandPrintSettings &ccpSettings)
+{
+    ccpSettings.tool = json.at("TOOL").get<PathPrint>();
+    ccpSettings.tool.isTool = true;
+    ccpSettings.environmentCompilerFlags = json.at("ENVIRONMENT_COMPILER_FLAGS").get<bool>();
+    ccpSettings.compilerFlags = json.at("COMPILER_FLAGS").get<bool>();
+    ccpSettings.compilerTransitiveFlags = json.at("COMPILER_TRANSITIVE_FLAGS").get<bool>();
+    ccpSettings.compileDefinitions = json.at("COMPILE_DEFINITIONS").get<bool>();
+    ccpSettings.projectIncludeDirectories = json.at("PROJECT_INCLUDE_DIRECTORIES").get<PathPrint>();
+    ccpSettings.environmentIncludeDirectories = json.at("ENVIRONMENT_INCLUDE_DIRECTORIES").get<PathPrint>();
+    ccpSettings.sourceFile = json.at("SOURCE_FILE").get<PathPrint>();
+    ccpSettings.infrastructureFlags = json.at("INFRASTRUCTURE_FLAGS").get<bool>();
+    ccpSettings.objectFile = json.at("OBJECT_FILE").get<PathPrint>();
+    ccpSettings.outputAndErrorFiles = json.at("OUTPUT_AND_ERROR_FILES").get<PathPrint>();
+    ccpSettings.pruneHeaderDepsFromMSVCOutput = json.at("PRUNE_HEADER_DEPENDENCIES_FROM_MSVC_OUTPUT").get<bool>();
+    ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput =
+        json.at("PRUNE_COMPILED_SOURCE_FILE_NAME_FROM_MSVC_OUTPUT").get<bool>();
+    ccpSettings.ratioForHMakeTime = json.at("RATIO_FOR_HMAKE_TIME").get<bool>();
+    ccpSettings.showPercentage = json.at("SHOW_PERCENTAGE").get<bool>();
+}
+
+void to_json(Json &json, const ArchiveCommandPrintSettings &acpSettings)
+{
+    json["TOOL"] = acpSettings.tool;
+    json["INFRASTRUCTURE_FLAGS"] = acpSettings.infrastructureFlags;
+    json["OBJECT_FILES"] = acpSettings.objectFiles;
+    json["ARCHIVE"] = acpSettings.archive;
+    json["OUTPUT_AND_ERROR_FILES"] = acpSettings.outputAndErrorFiles;
+}
+
+void from_json(const Json &json, ArchiveCommandPrintSettings &acpSettings)
+{
+    acpSettings.tool = json.at("TOOL").get<PathPrint>();
+    acpSettings.tool.isTool = true;
+    acpSettings.infrastructureFlags = json.at("INFRASTRUCTURE_FLAGS").get<bool>();
+    acpSettings.objectFiles = json.at("OBJECT_FILES").get<PathPrint>();
+    acpSettings.archive = json.at("ARCHIVE").get<PathPrint>();
+    acpSettings.outputAndErrorFiles = json.at("OUTPUT_AND_ERROR_FILES").get<PathPrint>();
+}
+
+void to_json(Json &json, const LinkCommandPrintSettings &lcpSettings)
+{
+    json["TOOL"] = lcpSettings.tool;
+    json["INFRASTRUCTURE_FLAGS"] = lcpSettings.infrastructureFlags;
+    json["OBJECT_FILES"] = lcpSettings.objectFiles;
+    json["LIBRARY_DEPENDENCIES"] = lcpSettings.libraryDependencies;
+    json["LIBRARY_DIRECTORIES"] = lcpSettings.libraryDirectories;
+    json["ENVIRONMENT_LIBRARY_DIRECTORIES"] = lcpSettings.environmentLibraryDirectories;
+    json["BINARY"] = lcpSettings.binary;
+}
+
+void from_json(const Json &json, LinkCommandPrintSettings &lcpSettings)
+{
+    lcpSettings.tool = json.at("TOOL").get<PathPrint>();
+    lcpSettings.tool.isTool = true;
+    lcpSettings.infrastructureFlags = json.at("INFRASTRUCTURE_FLAGS").get<bool>();
+    lcpSettings.objectFiles = json.at("OBJECT_FILES").get<PathPrint>();
+    lcpSettings.libraryDependencies = json.at("LIBRARY_DEPENDENCIES").get<PathPrint>();
+    lcpSettings.libraryDirectories = json.at("LIBRARY_DIRECTORIES").get<PathPrint>();
+    lcpSettings.environmentLibraryDirectories = json.at("ENVIRONMENT_LIBRARY_DIRECTORIES").get<PathPrint>();
+    lcpSettings.binary = json.at("OBJECT_FILES").get<PathPrint>();
 }
 
 string file_to_string(const string &file_name)

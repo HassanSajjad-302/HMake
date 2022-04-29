@@ -118,8 +118,38 @@ struct BuildNode
     bool isLinking = false;
 };
 
+struct PostLinkOrArchive
+{
+    string printCommand;
+    string commandSuccessOutput;
+    string commandErrorOutput;
+    bool successfullyCompleted;
+
+    /* Could be a target or a file. For target (link and archive), we add extra _t at the end of the target name.*/
+    bool isTarget;
+
+    explicit PostLinkOrArchive(string commandFirstHalf, string printCommandFirstHalf,
+                               const string &buildCacheFilesDirPath, const string &fileName, const PathPrint &pathPrint,
+                               bool isTarget_);
+    void executePrintRoutine();
+};
+
+class ParsedTarget;
+struct PostCompile : PostLinkOrArchive
+{
+    ParsedTarget &parsedTarget;
+
+    explicit PostCompile(const ParsedTarget &parsedTarget_, string commandFirstHalf, string printCommandFirstHalf,
+                         const string &buildCacheFilesDirPath, const string &fileName, const PathPrint &pathPrint);
+    bool checkIfFileIsInEnvironmentIncludes(const string &str);
+    void parseDepsFromMSVCTextOutput(SourceNode &sourceNode);
+    void executePostCompileRoutineWithoutMutex(SourceNode &sourceNode);
+};
+
+class Builder;
 class ParsedTarget
 {
+    friend struct PostCompile;
     // Parsed info
     string targetName;
     Compiler compiler;
@@ -155,7 +185,9 @@ class ParsedTarget
     vector<ParsedTarget> libraryDependenciesBTargets;
     string actualOutputName;
     string compileCommand;
+    string compileCommandFirstHalf;
     std::filesystem::file_time_type lastOutputTouchTime;
+    bool relink = false;
 
   public:
     explicit ParsedTarget(const string &targetFilePath, vector<string> dependents = {});
@@ -169,11 +201,14 @@ class ParsedTarget
     // that it is written to the cache on disk for faster compilation next time
     void addAllSourceFilesInBuildNode(BTargetCache &bTargetCache);
     void popularizeBuildTree(vector<BuildNode> &localBuildTree);
-    bool checkIfFileIsInEnvironmentIncludes(const string &str);
-    string parseDepsFromMSVCTextOutput(SourceNode &sourceNode, const string &output);
-    void Compile(SourceNode &soureNode);
-    void Link();
+    string getInfrastructureFlags();
+    string getCompileCommandPrintSecondPart(const SourceNode &sourceNode);
+    PostCompile Compile(SourceNode &sourceNode);
+    PostLinkOrArchive Archive();
+    PostLinkOrArchive Link();
+    BTargetType getTargetType();
     void saveBuildCache(const BTargetCache &bTargetCache);
+    bool needsRelink() const;
 };
 
 class Builder
@@ -183,9 +218,13 @@ class Builder
     decltype(compileIterator) linkIterator;
     int buildThreadsAllowed = 4;
     mutex &oneAndOnlyMutex;
+    CompileCommandPrintSettings settings;
 
   public:
-    Builder(vector<string> &targetFilePaths, mutex &oneAndOnlyMutex);
+    Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex);
+    static void removeRedundantNodes(vector<BuildNode> &buildTree);
+    static vector<string> getTargetFilePathsFromVariantFile(const string &fileName);
+    static vector<string> getTargetFilePathsFromProjectFile(const string &fileName);
     // This function is executed by multiple threads and is executed recursively until build is finished.
     void actuallyBuild();
 };
@@ -196,18 +235,13 @@ struct BPTarget
     explicit BPTarget(const string &targetFilePath, const path &copyFrom);
 };
 
-struct BVariant
-{
-    explicit BVariant(const path &variantFilePath, mutex &m);
-};
-
-struct BProject
-{
-    explicit BProject(const path &projectFilePath);
-};
-
 struct BPackage
 {
     explicit BPackage(const path &packageFilePath);
 };
+
+inline CompileCommandPrintSettings ccpSettings;
+inline ArchiveCommandPrintSettings acpSettings;
+inline LinkCommandPrintSettings lcpSettings;
+string getReducedPath(const string &subjectPath, const PathPrint &pathPrint);
 #endif // HMAKE_HBUILD_SRC_BBUILD_HPP

@@ -563,5 +563,88 @@ CacheVariable<T>::CacheVariable(string cacheVariableString_, T defaultValue) : j
     }
 }
 
+enum class PathPrintLevel
+{
+    NO = 0,
+    HALF = 1,
+    FULL = 2,
+};
+
+struct PathPrint
+{
+    PathPrintLevel printLevel;
+    int depth;
+    bool addQuotes;
+    bool isDirectory;
+    bool isTool;
+};
+void to_json(Json &json, const PathPrint &outputSettings);
+void from_json(const Json &json, PathPrint &outputSettings);
+
+struct CompileCommandPrintSettings
+{
+    PathPrint tool{
+        .printLevel = PathPrintLevel::HALF, .depth = 0, .addQuotes = false, .isDirectory = false, .isTool = true};
+    bool environmentCompilerFlags = false;
+    bool compilerFlags = true;
+    bool compilerTransitiveFlags = true;
+    bool compileDefinitions = true;
+
+    PathPrint projectIncludeDirectories{
+        .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
+    PathPrint environmentIncludeDirectories{
+        .printLevel = PathPrintLevel::NO, .depth = 1, .addQuotes = false, .isDirectory = true, .isTool = false};
+    PathPrint sourceFile{
+        .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
+    bool infrastructureFlags = false;
+    PathPrint objectFile{
+        .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
+    PathPrint outputAndErrorFiles{
+        .printLevel = PathPrintLevel::NO, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
+    bool pruneHeaderDepsFromMSVCOutput = true;
+    bool pruneCompiledSourceFileNameFromMSVCOutput = true;
+    bool ratioForHMakeTime = false;
+    bool showPercentage = false;
+};
+void to_json(Json &json, const CompileCommandPrintSettings &ccpSettings);
+void from_json(const Json &json, CompileCommandPrintSettings &ccpSettings);
+
+struct ArchiveCommandPrintSettings
+{
+    PathPrint tool{
+        .printLevel = PathPrintLevel::HALF, .depth = 0, .addQuotes = false, .isDirectory = false, .isTool = true};
+    bool infrastructureFlags;
+    PathPrint objectFiles{
+        .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
+    PathPrint archive{
+        .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
+    PathPrint outputAndErrorFiles{
+        .printLevel = PathPrintLevel::NO, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
+};
+void to_json(Json &json, const ArchiveCommandPrintSettings &acpSettings);
+void from_json(const Json &json, ArchiveCommandPrintSettings &acpSettings);
+
+struct LinkCommandPrintSettings
+{
+    PathPrint tool{
+        .printLevel = PathPrintLevel::HALF, .depth = 0, .addQuotes = false, .isDirectory = false, .isTool = true};
+    bool infrastructureFlags = false;
+    bool linkerFlags = true;
+    bool linkerTransitiveFlags = true;
+    PathPrint objectFiles{
+        .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
+    PathPrint libraryDependencies{
+        .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
+    PathPrint libraryDirectories{
+        .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
+    PathPrint environmentLibraryDirectories{
+        .printLevel = PathPrintLevel::NO, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
+    PathPrint binary{
+        .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
+    PathPrint outputAndErrorFiles{
+        .printLevel = PathPrintLevel::NO, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
+};
+void to_json(Json &json, const LinkCommandPrintSettings &lcpSettings);
+void from_json(const Json &json, LinkCommandPrintSettings &lcpSettings);
 string file_to_string(const string &file_name);
 #endif // HMAKE_CONFIGURE_HPP
