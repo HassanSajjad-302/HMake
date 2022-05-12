@@ -2,7 +2,7 @@
 #include "Configure.hpp"
 #include "filesystem"
 #include "fstream"
-#include "rang.hpp"
+#include "fmt/format.h"
 #include <iostream>
 
 using std::string, std::vector, std::ifstream, std::ofstream, std::cout, std::endl, std::cerr, std::filesystem::path,
@@ -46,8 +46,6 @@ constexpr Platform platform = Platform::LINUX;
 
 int main()
 {
-
-    cout << rang::fg::red;
     if (THROW)
     {
         cerr << "Macros Required for hhelper are not provided.";
@@ -95,13 +93,13 @@ int main()
             Version ver{19, 30, 30705};
             compilersDetected.push_back(Compiler{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.31.31103\bin\Hostx64\x64\cl.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.32.31326\bin\Hostx64\x64\cl.exe)"});
             linkersDetected.push_back(Linker{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.31.31103\bin\Hostx64\x64\link.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.32.31326\bin\Hostx64\x64\link.exe)"});
             archiversDetected.push_back(Archiver{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.31.31103\bin\Hostx64\x64\lib.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.32.31326\bin\Hostx64\x64\lib.exe)"});
         }
 
         j["SOURCE_DIRECTORY"] = "../";
@@ -122,12 +120,13 @@ int main()
 
         path hconfigureHeaderPath = path(HCONFIGURE_HEADER);
         path jsonHeaderPath = path(JSON_HEADER);
+        path fmtHeaderPath = path(FMT_HEADER);
         path hconfigureStaticLibDirectoryPath = path(HCONFIGURE_STATIC_LIB_DIRECTORY);
         path hconfigureStaticLibPath = path(HCONFIGURE_STATIC_LIB_PATH);
         if constexpr (platform == Platform::LINUX)
         {
             string compileCommand = "g++ -std=c++20"
-                                    " -I " HCONFIGURE_HEADER " -I " JSON_HEADER " {SOURCE_DIRECTORY}/hmake.cpp"
+                                    " -I " HCONFIGURE_HEADER " -I " JSON_HEADER "  -I " FMT_HEADER "{SOURCE_DIRECTORY}/hmake.cpp"
                                     " -L " HCONFIGURE_STATIC_LIB_DIRECTORY " -l hconfigure "
                                     " -o "
                                     "{CONFIGURE_DIRECTORY}/configure";
@@ -140,13 +139,13 @@ int main()
 
             string compileCommand =
                 "\"C:\\Program Files\\Microsoft Visual "
-                "Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.31.31103\\bin\\Hostx64\\x64\\cl.exe\"";
+                "Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.32.31326\\bin\\Hostx64\\x64\\cl.exe\"";
 
             for (const auto &dir : environment.includeDirectories)
             {
                 compileCommand += " /I \"" + dir.directoryPath.generic_string() + "\"";
             }
-            compileCommand += " /I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() +
+            compileCommand += " /I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() +  " /I " + fmtHeaderPath.string() +
                               " /std:c++latest" + environment.compilerFlags +
                               " {SOURCE_DIRECTORY}/hmake.cpp"
                               " /link " +
@@ -179,7 +178,6 @@ int main()
         string srcDirString = "{SOURCE_DIRECTORY}";
         string confDirString = "{CONFIGURE_DIRECTORY}";
 
-        cout << rang::fg::red;
         vector<string> compileConfigureCommands = cacheJson.at("COMPILE_CONFIGURE_COMMANDS").get<vector<string>>();
 
         if (!compileConfigureCommands.empty())
@@ -197,13 +195,12 @@ int main()
             {
                 compileConfigureCommand.replace(position, confDirString.size(), current_path().string());
             }
-            cout << compileConfigureCommand << endl << rang::style::reset;
+            cout << compileConfigureCommand << endl;
             int code = system(compileConfigureCommand.c_str());
             if (code != EXIT_SUCCESS)
             {
                 exit(code);
             }
-            cout << rang::fg::red;
         }
 
         string configureCommand = (current_path() / "configure").string();
@@ -213,5 +210,4 @@ int main()
             exit(code);
         }
     }
-    cout << rang::fg::reset;
 }

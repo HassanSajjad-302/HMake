@@ -39,23 +39,18 @@ int main(int argc, char **argv)
             return find(directoryFiles.begin(), directoryFiles.end(), str) != directoryFiles.end();
         };
 
-        auto initializeJsons = [&](const Json &outputSettingsJson) {
-            ccpSettings = outputSettingsJson["COMPILE_PRINT_SETTINGS"];
-            acpSettings = outputSettingsJson["ARCHIVE_PRINT_SETTINGS"];
-            lcpSettings = outputSettingsJson["LINK_PRINT_SETTINGS"];
-        };
         if (directoryFilesContains("project.hmake"))
         {
             Json outputSettingsJson;
             ifstream("settings.hmake") >> outputSettingsJson;
-            initializeJsons(outputSettingsJson);
+            settings = outputSettingsJson;
             Builder{Builder::getTargetFilePathsFromProjectFile("project.hmake"), m};
         }
         else if (directoryFilesContains("projectVariant.hmake"))
         {
             Json outputSettingsJson;
             ifstream("../settings.hmake") >> outputSettingsJson;
-            initializeJsons(outputSettingsJson);
+            settings = outputSettingsJson;
             Builder{Builder::getTargetFilePathsFromVariantFile("projectVariant.hmake"), m};
         }
         else
@@ -66,7 +61,7 @@ int main(int argc, char **argv)
                 {
                     Json outputSettingsJson;
                     ifstream("../../settings.hmake") >> outputSettingsJson;
-                    initializeJsons(outputSettingsJson);
+                    settings = outputSettingsJson;
                     vector<string> vec;
                     vec.emplace_back(i);
                     Builder{vec, m};

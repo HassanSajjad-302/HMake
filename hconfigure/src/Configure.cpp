@@ -446,15 +446,8 @@ void Target::configure(int variantIndex) const
     }
     if (!exists(path("settings.hmake")))
     {
-        CompileCommandPrintSettings compileCommandPrintSettings;
-        ArchiveCommandPrintSettings archiveCommandPrintSettings;
-        LinkCommandPrintSettings linkCommandPrintSettings;
-
-        Json settingsJson;
-        settingsJson["COMPILE_PRINT_SETTINGS"] = compileCommandPrintSettings;
-        settingsJson["ARCHIVE_PRINT_SETTINGS"] = archiveCommandPrintSettings;
-        settingsJson["LINK_PRINT_SETTINGS"] = linkCommandPrintSettings;
-        ofstream("settings.hmake") << settingsJson.dump(4);
+        Json settings = Settings{};
+        ofstream("settings.hmake") << settings.dump(4);
     }
 }
 
@@ -1995,6 +1988,40 @@ void from_json(const Json &json, LinkCommandPrintSettings &lcpSettings)
     lcpSettings.libraryDirectories = json.at("LIBRARY_DIRECTORIES").get<PathPrint>();
     lcpSettings.environmentLibraryDirectories = json.at("ENVIRONMENT_LIBRARY_DIRECTORIES").get<PathPrint>();
     lcpSettings.binary = json.at("OBJECT_FILES").get<PathPrint>();
+}
+
+void to_json(Json &json, const PrintColorSettings &printColorSettings)
+{
+    json["COMPILE_COMMAND_COLOR"] = printColorSettings.compileCommandColor;
+    json["ARCHIVE_COMMAND_COLOR"] = printColorSettings.archiveCommandColor;
+    json["LINK_COMMAND_COLOR"] = printColorSettings.linkCommandColor;
+    json["TOOL_ERROR_OUTPUT"] = printColorSettings.toolErrorOutput;
+    json["HBUILD_OUTPUT"] = printColorSettings.hbuildOutput;
+}
+
+void from_json(const Json &json, PrintColorSettings &printColorSettings)
+{
+    printColorSettings.compileCommandColor = json.at("COMPILE_COMMAND_COLOR").get<int>();
+    printColorSettings.archiveCommandColor = json.at("ARCHIVE_COMMAND_COLOR").get<int>();
+    printColorSettings.linkCommandColor = json.at("LINK_COMMAND_COLOR").get<int>();
+    printColorSettings.toolErrorOutput = json.at("TOOL_ERROR_OUTPUT").get<int>();
+    printColorSettings.hbuildOutput = json.at("HBUILD_OUTPUT").get<int>();
+}
+
+void to_json(Json &json, const Settings &settings)
+{
+    json["COMPILE_PRINT_SETTINGS"] = settings.ccpSettings;
+    json["ARCHIVE_PRINT_SETTINGS"] = settings.acpSettings;
+    json["LINK_PRINT_SETTINGS"] = settings.lcpSettings;
+    json["PRINT_COLOR_SETTINGS"] = settings.pcSettings;
+}
+
+void from_json(const Json &json, Settings &settings)
+{
+    settings.ccpSettings = json.at("COMPILE_PRINT_SETTINGS").get<CompileCommandPrintSettings>();
+    settings.acpSettings = json.at("ARCHIVE_PRINT_SETTINGS").get<ArchiveCommandPrintSettings>();
+    settings.lcpSettings = json.at("LINK_PRINT_SETTINGS").get<LinkCommandPrintSettings>();
+    settings.pcSettings = json.at("PRINT_COLOR_SETTINGS").get<PrintColorSettings>();
 }
 
 string file_to_string(const string &file_name)

@@ -5,9 +5,9 @@ project(HMake LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 
 add_executable(hhelper hhelper/src/main.cpp)
-target_include_directories(hhelper PRIVATE hhelper/src rang/include)
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
 target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/json/include/")
+target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/fmt/include/")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY="${CMAKE_BINARY_DIR}/")
 
 
@@ -19,15 +19,16 @@ target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="$<TARGET_
 target_include_directories(hconfigure
         PUBLIC hconfigure/header
         PUBLIC cxxopts/include
+        PUBLIC fmt/include/
         )
 target_link_libraries(hhelper PRIVATE hconfigure)
 
 add_executable(hbuild
         hbuild/src/BBuild.cpp
         hbuild/src/main.cpp)
-target_include_directories(hbuild PRIVATE hbuild/header hconfigure/header rang/include)
+target_include_directories(hbuild PRIVATE hbuild/header hconfigure/header)
 
-add_executable(UnBuiltTarget Tests/Source/hmake.cpp)
+add_executable(UnBuiltTarget Examples/Example1/hmake.cpp)
 target_include_directories(UnBuiltTarget PRIVATE hconfigure/header)
 add_subdirectory(json)
 target_link_libraries(hconfigure PRIVATE nlohmann_json::nlohmann_json)
@@ -53,10 +54,11 @@ add_subdirectory(fmt)
 
 target_link_libraries(Test_Correctness PRIVATE fmt::fmt)
 target_link_libraries(hbuild PRIVATE fmt::fmt)
-
+target_link_libraries(hhelper PRIVATE fmt::fmt)
 set(REPROC_DEVELOP OFF)
 set(REPROC++ ON)
 
-add_subdirectory(reproc)
+# Just For Quick Testing Purposes.
+add_executable(Testing Testing/main.cpp)
+target_link_libraries(Testing PRIVATE fmt::fmt)
 
-target_link_libraries(hbuild PRIVATE reproc++)

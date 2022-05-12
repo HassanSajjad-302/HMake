@@ -131,7 +131,7 @@ struct PostLinkOrArchive
     explicit PostLinkOrArchive(string commandFirstHalf, string printCommandFirstHalf,
                                const string &buildCacheFilesDirPath, const string &fileName, const PathPrint &pathPrint,
                                bool isTarget_);
-    void executePrintRoutine();
+    void executePrintRoutine(uint32_t color) const;
 };
 
 class ParsedTarget;
@@ -218,7 +218,6 @@ class Builder
     decltype(compileIterator) linkIterator;
     int buildThreadsAllowed = 4;
     mutex &oneAndOnlyMutex;
-    CompileCommandPrintSettings settings;
 
   public:
     Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex);
@@ -240,8 +239,7 @@ struct BPackage
     explicit BPackage(const path &packageFilePath);
 };
 
-inline CompileCommandPrintSettings ccpSettings;
-inline ArchiveCommandPrintSettings acpSettings;
-inline LinkCommandPrintSettings lcpSettings;
+inline Settings settings;
+
 string getReducedPath(const string &subjectPath, const PathPrint &pathPrint);
 #endif // HMAKE_HBUILD_SRC_BBUILD_HPP

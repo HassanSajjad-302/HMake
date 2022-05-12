@@ -7,6 +7,7 @@
 #include "stack"
 #include "utility"
 #include <set>
+#include "fmt/color.h"
 
 using std::filesystem::path, std::string, std::vector, std::tuple, std::map, std::set, std::same_as, std::stack;
 using Json = nlohmann::ordered_json;
@@ -646,5 +647,26 @@ struct LinkCommandPrintSettings
 };
 void to_json(Json &json, const LinkCommandPrintSettings &lcpSettings);
 void from_json(const Json &json, LinkCommandPrintSettings &lcpSettings);
+
+struct PrintColorSettings
+{
+    int compileCommandColor = static_cast<int>(fmt::color::light_green);
+    int archiveCommandColor = static_cast<int>(fmt::color::brown);
+    int linkCommandColor = static_cast<int>(fmt::color::pink);
+    int toolErrorOutput = static_cast<int>(fmt::color::red);
+    int hbuildOutput = static_cast<int>(fmt::color::orange);
+};
+void to_json(Json &json, const PrintColorSettings &printColorSettings);
+void from_json(const Json &json, PrintColorSettings &printColorSettings);
+
+struct Settings
+{
+    CompileCommandPrintSettings ccpSettings;
+    ArchiveCommandPrintSettings acpSettings;
+    LinkCommandPrintSettings lcpSettings;
+    PrintColorSettings pcSettings;
+};
+void to_json(Json &json, const Settings &settings);
+void from_json(const Json &json, Settings &settings);
 string file_to_string(const string &file_name);
 #endif // HMAKE_CONFIGURE_HPP

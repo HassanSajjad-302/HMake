@@ -1,6 +1,8 @@
 
 #include "BBuild.hpp"
 
+#include "fmt/color.h"
+#include "fmt/format.h"
 #include "fstream"
 #include "iostream"
 #include "regex"
@@ -9,7 +11,7 @@
 using std::ifstream, std::ofstream, std::filesystem::exists, std::filesystem::copy_options, std::runtime_error,
     std::cout, std::endl, std::to_string, std::filesystem::create_directory, std::filesystem::directory_iterator,
     std::regex, std::filesystem::current_path, std::cerr, std::make_shared, std::make_pair, std::lock_guard,
-    std::unique_ptr, std::make_unique;
+    std::unique_ptr, std::make_unique, fmt::print;
 
 void from_json(const Json &j, BTargetType &targetType)
 {
@@ -260,6 +262,7 @@ bool ParsedTarget::checkIfAlreadyBuiltAndCreatNecessaryDirectories()
 
 void ParsedTarget::setCompileCommand()
 {
+    CompileCommandPrintSettings ccpSettings = settings.ccpSettings;
     auto getIncludeFlag = [this]() {
         if (compiler.bTFamily == BTFamily::MSVC)
         {
@@ -449,6 +452,8 @@ PostLinkOrArchive::PostLinkOrArchive(string commandFirstHalf, string printComman
 
     string str = isTarget ? "_t" : "";
 
+    CompileCommandPrintSettings ccpSettings = settings.ccpSettings;
+
     string outputFileName = (path(buildCacheFilesDirPath) / (fileName + "_output" + str)).generic_string();
     string errorFileName = (path(buildCacheFilesDirPath) / (fileName + "_error" + str)).generic_string();
 
@@ -476,16 +481,19 @@ PostLinkOrArchive::PostLinkOrArchive(string commandFirstHalf, string printComman
     }
 }
 
-void PostLinkOrArchive::executePrintRoutine()
+void PostLinkOrArchive::executePrintRoutine(uint32_t color) const
 {
-    cout << printCommand << endl;
+    print(fg(static_cast<fmt::color>(color)), printCommand);
+    print("\n");
     if (!commandSuccessOutput.empty())
     {
-        cout << endl << commandSuccessOutput;
+        print(fg(static_cast<fmt::color>(color)), commandSuccessOutput);
+        print("\n");
     }
     if (!commandErrorOutput.empty())
     {
-        cout << endl << commandErrorOutput;
+        print(fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)), commandErrorOutput);
+        print("\n");
     }
 }
 
@@ -538,14 +546,14 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode)
                 Node *node = Node::getNodeFromString(*iter);
                 sourceNode.headerDependencies.emplace(node);
             }
-            if (ccpSettings.pruneHeaderDepsFromMSVCOutput)
+            if (settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
             {
                 iter = outputLines.erase(iter);
             }
         }
         else if (*iter == path(sourceNode.node->filePath).filename().string())
         {
-            if (ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput)
+            if (settings.ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput)
             {
                 iter = outputLines.erase(iter);
             }
@@ -718,6 +726,7 @@ string ParsedTarget::getInfrastructureFlags()
 
 string ParsedTarget::getCompileCommandPrintSecondPart(const SourceNode &sourceNode)
 {
+    CompileCommandPrintSettings ccpSettings = settings.ccpSettings;
     string compileFileName = path(sourceNode.node->filePath).filename().string();
 
     string command;
@@ -763,13 +772,13 @@ PostCompile ParsedTarget::Compile(SourceNode &sourceNode)
                             compileCommandFirstHalf + getCompileCommandPrintSecondPart(sourceNode),
                             buildCacheFilesDirPath,
                             compileFileName,
-                            ccpSettings.outputAndErrorFiles};
+                            settings.ccpSettings.outputAndErrorFiles};
     return postCompile;
 }
 
 PostLinkOrArchive ParsedTarget::Archive()
 {
-
+    ArchiveCommandPrintSettings acpSettings = settings.acpSettings;
     auto getLibraryPath = [&]() -> string {
         if (archiver.bTFamily == BTFamily::MSVC)
         {
@@ -833,6 +842,7 @@ PostLinkOrArchive ParsedTarget::Archive()
 
 PostLinkOrArchive ParsedTarget::Link()
 {
+    LinkCommandPrintSettings lcpSettings = settings.lcpSettings;
     string linkCommand = addQuotes(linker.bTPath.make_preferred().string()) + " ";
 
     string linkPrintCommand;
@@ -1018,7 +1028,14 @@ void Builder::actuallyBuild()
         }
         linkIterator->target->saveBuildCache(linkIterator->targetCache);
         oneAndOnlyMutex.lock();
-            postLinkOrArchive->executePrintRoutine();
+        if (linkIterator->target->getTargetType() == BTargetType::STATIC)
+        {
+            postLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor);
+        }
+        else if (linkIterator->target->getTargetType() == BTargetType::EXECUTABLE)
+        {
+            postLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor);
+        }
 
         ++linkIterator;
         if (linkIterator == buildTree.rend())
@@ -1044,7 +1061,7 @@ void Builder::actuallyBuild()
             PostCompile postCompile = target->Compile(tempSourceNode);
             postCompile.executePostCompileRoutineWithoutMutex(tempSourceNode);
             oneAndOnlyMutex.lock();
-            postCompile.executePrintRoutine();
+            postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor);
             tempSourceNode.compilationStatus = FileStatus::UPDATED;
             oneAndOnlyMutex.unlock();
         }
