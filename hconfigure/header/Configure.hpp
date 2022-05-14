@@ -554,9 +554,9 @@ template <typename T>
 CacheVariable<T>::CacheVariable(string cacheVariableString_, T defaultValue) : jsonString(move(cacheVariableString_))
 {
     Json &cacheVariablesJson = Cache::cacheVariables;
-    if (cacheVariablesJson.template contains(jsonString))
+    if (cacheVariablesJson.contains(jsonString))
     {
-        value = cacheVariablesJson.at(jsonString).template get<T>();
+        value = cacheVariablesJson.at(jsonString).get<T>();
     }
     else
     {

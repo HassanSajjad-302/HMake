@@ -11,7 +11,7 @@
 using std::ifstream, std::ofstream, std::filesystem::exists, std::filesystem::copy_options, std::runtime_error,
     std::cout, std::endl, std::to_string, std::filesystem::create_directory, std::filesystem::directory_iterator,
     std::regex, std::filesystem::current_path, std::cerr, std::make_shared, std::make_pair, std::lock_guard,
-    std::unique_ptr, std::make_unique, fmt::print;
+    std::unique_ptr, std::make_unique, fmt::print, std::filesystem::file_time_type;
 
 void from_json(const Json &j, BTargetType &targetType)
 {
@@ -371,12 +371,22 @@ void from_json(const Json &j, SourceNode &sourceNode)
     {
         sourceNode.headerDependencies.insert(Node::getNodeFromString(h));
     }
+    sourceNode.presentInCache = true;
 }
 
 SourceNode &BTargetCache::addNodeInSourceFileDependencies(const string &str)
 {
     SourceNode sourceNode{.node = Node::getNodeFromString(str)};
     auto [pos, ok] = sourceFileDependencies.insert(sourceNode);
+    if (ok)
+    {
+        pos->presentInCache = false;
+    }
+    else
+    {
+        pos->presentInCache = true;
+    }
+    pos->presentInSource = true;
     return const_cast<SourceNode &>(*pos);
 }
 
@@ -633,7 +643,6 @@ void ParsedTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
 {
     for (auto it = localBuildTree.begin(); it != localBuildTree.end(); ++it)
     {
-
         if (it->target->outputDirectory == outputDirectory && it->target->actualOutputName == actualOutputName)
         {
             // If it exists before in the graph, move it to the end
@@ -644,51 +653,84 @@ void ParsedTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
 
     setCompileCommand();
     parseSourceDirectoriesAndFinalizeSourceFiles();
-    bool isAlreadyBuilt = checkIfAlreadyBuiltAndCreatNecessaryDirectories();
 
     BTargetCache bTargetCache;
-
-    if (isAlreadyBuilt)
+    if (exists(path(buildCacheFilesDirPath) / (targetName + ".cache")))
     {
-        lastOutputTouchTime = last_write_time((path(outputDirectory) / actualOutputName));
         Json targetCacheJson;
         ifstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) >> targetCacheJson;
         bTargetCache = targetCacheJson;
+    }
 
-        if (bTargetCache.compileCommand != compileCommand)
+    if (!exists(path(buildCacheFilesDirPath)))
+    {
+        create_directory(buildCacheFilesDirPath);
+        addAllSourceFilesInBuildNode(bTargetCache);
+    }
+    else if (bTargetCache.compileCommand != compileCommand)
+    {
+        addAllSourceFilesInBuildNode(bTargetCache);
+    }
+    else
+    {
+        for (const auto &sourceFile : sourceFiles)
         {
-            addAllSourceFilesInBuildNode(bTargetCache);
-        }
-        else
-        {
-            for (const auto &sourceFile : sourceFiles)
+            SourceNode &permSourceNode = bTargetCache.addNodeInSourceFileDependencies(sourceFile);
+            permSourceNode.compilationStatus = FileStatus::UPDATED;
+
+            path objectFilePath =
+                path(buildCacheFilesDirPath + path(permSourceNode.node->filePath).filename().string() + ".o");
+
+            if (!exists(objectFilePath))
             {
-                SourceNode &permSourceNode = bTargetCache.addNodeInSourceFileDependencies(sourceFile);
-                permSourceNode.compilationStatus = FileStatus::UPDATED;
-                permSourceNode.node->checkIfNotUpdatedAndUpdate();
-                if (permSourceNode.node->lastUpdateTime > lastOutputTouchTime)
+                permSourceNode.compilationStatus = FileStatus::NEEDS_RECOMPILE;
+                continue;
+            }
+            file_time_type objectFileLastEditTime = last_write_time(objectFilePath);
+            permSourceNode.node->checkIfNotUpdatedAndUpdate();
+            if (permSourceNode.node->lastUpdateTime > objectFileLastEditTime)
+            {
+                permSourceNode.compilationStatus = FileStatus::NEEDS_RECOMPILE;
+            }
+            else
+            {
+                for (auto &d : permSourceNode.headerDependencies)
                 {
-                    permSourceNode.compilationStatus = FileStatus::NEEDS_RECOMPILE;
-                }
-                else
-                {
-                    for (auto &d : permSourceNode.headerDependencies)
+                    d->checkIfNotUpdatedAndUpdate();
+                    if (d->lastUpdateTime > objectFileLastEditTime)
                     {
-                        d->checkIfNotUpdatedAndUpdate();
-                        if (d->lastUpdateTime > lastOutputTouchTime)
-                        {
-                            permSourceNode.compilationStatus = FileStatus::NEEDS_RECOMPILE;
-                            break;
-                        }
+                        permSourceNode.compilationStatus = FileStatus::NEEDS_RECOMPILE;
+                        break;
                     }
                 }
             }
         }
     }
-    else
+
+
+    // Removing unused object-files from buildCacheFilesDirPath as they later affect linker command with *.o option.
+    set<string> tmpObjectFiles;
+    for (const auto &src : bTargetCache.sourceFileDependencies)
     {
-        addAllSourceFilesInBuildNode(bTargetCache);
+        if (src.presentInSource == src.presentInCache)
+        {
+            tmpObjectFiles.insert(path(src.node->filePath).filename().string() + ".o");
+        }
     }
+
+    for (const auto &j : directory_iterator(path(buildCacheFilesDirPath)))
+    {
+        if (!j.path().filename().string().ends_with(".o"))
+        {
+            continue;
+        }
+        if (!tmpObjectFiles.contains(j.path().filename().string()))
+        {
+            std::filesystem::remove(j.path());
+        }
+    }
+
+
     if (bTargetCache.maximumThreadsNeeded() > 0)
     {
         bTargetCache.compileCommand = compileCommand;
@@ -701,8 +743,20 @@ void ParsedTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
     else
     {
         relink = false;
+        for (const auto &src : bTargetCache.sourceFileDependencies)
+        {
+            if (src.presentInSource != src.presentInCache)
+            {
+                relink = true;
+            }
+        }
+        if(!relink && !exists(path(outputDirectory) / actualOutputName))
+        {
+            relink = true;
+        }
         BuildNode buildNode;
         buildNode.target = this;
+        buildNode.targetCache = bTargetCache;
         localBuildTree.emplace_back(buildNode);
     }
     // buildNode.target above is pointing to this. this is either a ParsedTarget in Builder::Builder() ParsedTargets or
@@ -985,8 +1039,13 @@ BTargetType ParsedTarget::getTargetType()
     return targetType;
 }
 
-void ParsedTarget::saveBuildCache(const BTargetCache &bTargetCache)
+void ParsedTarget::pruneAndSaveBuildCache(BTargetCache &bTargetCache)
 {
+    // Prune the src_deps which were read from the older cache but are no longer the src_deps.
+    const auto count = std::erase_if(bTargetCache.sourceFileDependencies, [](const auto &item) {
+        // auto const& [key, value] = item;
+        return !item.presentInSource;
+    });
     Json cacheFileJson = bTargetCache;
     ofstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) << cacheFileJson.dump(4);
 }
@@ -1026,7 +1085,7 @@ void Builder::actuallyBuild()
             PostLinkOrArchive postLinkOrArchive1 = linkIterator->target->Link();
             postLinkOrArchive = make_unique<PostLinkOrArchive>(postLinkOrArchive1);
         }
-        linkIterator->target->saveBuildCache(linkIterator->targetCache);
+        linkIterator->target->pruneAndSaveBuildCache(linkIterator->targetCache);
         oneAndOnlyMutex.lock();
         if (linkIterator->target->getTargetType() == BTargetType::STATIC)
         {
@@ -1166,7 +1225,8 @@ Builder::Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex) 
             string linkerCommand;
             if (targetType == BTargetType::EXECUTABLE)
             {
-                linkerCommand = "\"" + addQuotes(linker.bTPath.make_preferred().string()) + " " + totalLinkerFlags + " "
+                linkerCommand = "\"" + addQuotes(linker.bTPath.make_preferred().string()) + " " + totalLinkerFlags +
+       " "
        + addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ") + " " + libraryDependenciesFlags +
        totalLibraryDirectoriesFlags; linkerCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
                 linkerCommand += addQuotes((path(outputDirectory) / actualOutputName).string()) + "\"";
@@ -1284,7 +1344,6 @@ void Builder::removeRedundantNodes(vector<BuildNode> &buildTree)
 
 BPTarget::BPTarget(const string &targetFilePath, const path &copyFrom)
 {
-
     string targetName;
     string compilerFlags;
     vector<BLibraryDependency> libraryDependencies;

@@ -88,6 +88,8 @@ struct SourceNode
     Node *node = nullptr;
     set<Node *> headerDependencies;
     FileStatus compilationStatus;
+    mutable bool presentInCache;
+    mutable bool presentInSource;
 };
 void to_json(Json &j, const SourceNode &sourceNode);
 void from_json(const Json &j, SourceNode &sourceNode);
@@ -186,7 +188,7 @@ class ParsedTarget
     string actualOutputName;
     string compileCommand;
     string compileCommandFirstHalf;
-    std::filesystem::file_time_type lastOutputTouchTime;
+    //std::filesystem::file_time_type lastOutputTouchTime;
     bool relink = false;
 
   public:
@@ -207,7 +209,7 @@ class ParsedTarget
     PostLinkOrArchive Archive();
     PostLinkOrArchive Link();
     BTargetType getTargetType();
-    void saveBuildCache(const BTargetCache &bTargetCache);
+    void pruneAndSaveBuildCache(BTargetCache &bTargetCache);
     bool needsRelink() const;
 };
 
