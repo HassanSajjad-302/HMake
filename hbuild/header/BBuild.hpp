@@ -117,7 +117,12 @@ struct BuildNode
 {
     class ParsedTarget *target = nullptr;
     BTargetCache targetCache;
-    bool isLinking = false;
+
+    bool isCompiled = false;
+    bool isLinked = false;
+    vector<BuildNode *> linkDependents;
+    size_t linkDependenciesSize = 0;
+    uint32_t dependenciesLinked = 0;
 };
 
 struct PostLinkOrArchive
@@ -153,6 +158,7 @@ class ParsedTarget
 {
     friend struct PostCompile;
     // Parsed info
+    string targetFilePath;
     string targetName;
     Compiler compiler;
     Linker linker;
@@ -163,6 +169,7 @@ class ParsedTarget
     vector<string> sourceFiles;
     vector<SourceDirectory> sourceDirectories;
     vector<BLibraryDependency> libraryDependencies;
+    vector<string> preBuiltLibraryDependencies;
     vector<BIDD> includeDirectories;
     vector<string> libraryDirectories;
     string compilerTransitiveFlags;
@@ -192,10 +199,11 @@ class ParsedTarget
     bool relink = false;
 
   public:
-    explicit ParsedTarget(const string &targetFilePath, vector<string> dependents = {});
+    explicit ParsedTarget(const string &targetFilePath_, vector<string> dependents = {});
     void checkForCircularDependencies(const vector<string> &dependents);
     void setActualOutputName();
     void executePreBuildCommands();
+    void executePostBuildCommands();
     bool checkIfAlreadyBuiltAndCreatNecessaryDirectories();
     void setCompileCommand();
     void parseSourceDirectoriesAndFinalizeSourceFiles();
@@ -211,21 +219,28 @@ class ParsedTarget
     BTargetType getTargetType();
     void pruneAndSaveBuildCache(BTargetCache &bTargetCache);
     bool needsRelink() const;
+    bool hasDependency(ParsedTarget *parsedTarget);
+    inline size_t parsedTargetDependenciesSize()
+    {
+        return libraryDependenciesBTargets.size();
+    }
 };
 
 class Builder
 {
     vector<BuildNode> buildTree;
     decltype(buildTree)::reverse_iterator compileIterator;
-    decltype(compileIterator) linkIterator;
+    // decltype(compileIterator) linkIterator;
     int buildThreadsAllowed = 4;
     mutex &oneAndOnlyMutex;
+    bool newTargetCompiled = false;
 
   public:
     Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex);
     static void removeRedundantNodes(vector<BuildNode> &buildTree);
     static vector<string> getTargetFilePathsFromVariantFile(const string &fileName);
     static vector<string> getTargetFilePathsFromProjectFile(const string &fileName);
+    void populateBuildNodeDependents();
     // This function is executed by multiple threads and is executed recursively until build is finished.
     void actuallyBuild();
 };

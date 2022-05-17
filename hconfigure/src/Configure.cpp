@@ -358,19 +358,12 @@ Json Target::convertToJson(int variantIndex) const
                 }
                 Json libDepObject;
                 libDepObject["PREBUILT"] = true;
-                libDepObject["PATH"] = pLibrary.libraryPath;
+                libDepObject["PATH"] = pLibrary.libraryPath.generic_string();
                 dependenciesArray.push_back(libDepObject);
             };
-            if (libraryDependency->ldlt == LDLT::PLIBRARY)
-            {
-                const PLibrary &pLibrary = libraryDependency->pLibrary;
-                populateDependencies(pLibrary);
-            }
-            else
-            {
-                const PLibrary &ppLibrary = libraryDependency->ppLibrary;
-                populateDependencies(ppLibrary);
-            }
+            const PLibrary &pLibrary =
+                libraryDependency->ldlt == LDLT::PLIBRARY ? libraryDependency->pLibrary : libraryDependency->ppLibrary;
+            populateDependencies(pLibrary);
         }
     }
 
@@ -1996,7 +1989,9 @@ void to_json(Json &json, const PrintColorSettings &printColorSettings)
     json["ARCHIVE_COMMAND_COLOR"] = printColorSettings.archiveCommandColor;
     json["LINK_COMMAND_COLOR"] = printColorSettings.linkCommandColor;
     json["TOOL_ERROR_OUTPUT"] = printColorSettings.toolErrorOutput;
-    json["HBUILD_OUTPUT"] = printColorSettings.hbuildOutput;
+    json["HBUILD_STATEMENT_OUTPUT"] = printColorSettings.hbuildStatementOutput;
+    json["HBUILD_SEQUENCE_OUTPUT"] = printColorSettings.hbuildSequenceOutput;
+    json["HBUILD_ERROR_OUTPUT"] = printColorSettings.hbuildErrorOutput;
 }
 
 void from_json(const Json &json, PrintColorSettings &printColorSettings)
@@ -2005,7 +2000,25 @@ void from_json(const Json &json, PrintColorSettings &printColorSettings)
     printColorSettings.archiveCommandColor = json.at("ARCHIVE_COMMAND_COLOR").get<int>();
     printColorSettings.linkCommandColor = json.at("LINK_COMMAND_COLOR").get<int>();
     printColorSettings.toolErrorOutput = json.at("TOOL_ERROR_OUTPUT").get<int>();
-    printColorSettings.hbuildOutput = json.at("HBUILD_OUTPUT").get<int>();
+    printColorSettings.hbuildStatementOutput = json.at("HBUILD_STATEMENT_OUTPUT").get<int>();
+    printColorSettings.hbuildSequenceOutput = json.at("HBUILD_SEQUENCE_OUTPUT").get<int>();
+    printColorSettings.hbuildErrorOutput = json.at("HBUILD_ERROR_OUTPUT").get<int>();
+}
+
+void to_json(Json &json, const GeneralPrintSettings &generalPrintSettings)
+{
+    json["PRE_BUILD_COMMANDS_STATEMENT"] = generalPrintSettings.preBuildCommandsStatement;
+    json["PRE_BUILD_COMMANDS"] = generalPrintSettings.preBuildCommands;
+    json["POST_BUILD_COMMANDS_STATEMENT"] = generalPrintSettings.postBuildCommandsStatement;
+    json["POST_BUILD_COMMANDS"] = generalPrintSettings.postBuildCommands;
+}
+
+void from_json(const Json &json, GeneralPrintSettings &generalPrintSettings)
+{
+    generalPrintSettings.preBuildCommandsStatement = json.at("PRE_BUILD_COMMANDS_STATEMENT").get<bool>();
+    generalPrintSettings.preBuildCommands = json.at("PRE_BUILD_COMMANDS").get<bool>();
+    generalPrintSettings.postBuildCommandsStatement = json.at("POST_BUILD_COMMANDS_STATEMENT").get<bool>();
+    generalPrintSettings.postBuildCommands = json.at("POST_BUILD_COMMANDS").get<bool>();
 }
 
 void to_json(Json &json, const Settings &settings)
@@ -2014,6 +2027,7 @@ void to_json(Json &json, const Settings &settings)
     json["ARCHIVE_PRINT_SETTINGS"] = settings.acpSettings;
     json["LINK_PRINT_SETTINGS"] = settings.lcpSettings;
     json["PRINT_COLOR_SETTINGS"] = settings.pcSettings;
+    json["GENERAL_PRINT_SETTINGS"] = settings.gpcSettings;
 }
 
 void from_json(const Json &json, Settings &settings)
@@ -2022,6 +2036,7 @@ void from_json(const Json &json, Settings &settings)
     settings.acpSettings = json.at("ARCHIVE_PRINT_SETTINGS").get<ArchiveCommandPrintSettings>();
     settings.lcpSettings = json.at("LINK_PRINT_SETTINGS").get<LinkCommandPrintSettings>();
     settings.pcSettings = json.at("PRINT_COLOR_SETTINGS").get<PrintColorSettings>();
+    settings.gpcSettings = json.at("GENERAL_PRINT_SETTINGS").get<GeneralPrintSettings>();
 }
 
 string file_to_string(const string &file_name)

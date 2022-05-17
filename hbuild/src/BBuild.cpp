@@ -11,7 +11,7 @@
 using std::ifstream, std::ofstream, std::filesystem::exists, std::filesystem::copy_options, std::runtime_error,
     std::cout, std::endl, std::to_string, std::filesystem::create_directory, std::filesystem::directory_iterator,
     std::regex, std::filesystem::current_path, std::cerr, std::make_shared, std::make_pair, std::lock_guard,
-    std::unique_ptr, std::make_unique, fmt::print, std::filesystem::file_time_type;
+    std::unique_ptr, std::make_unique, fmt::print, std::filesystem::file_time_type, std::filesystem::last_write_time;
 
 void from_json(const Json &j, BTargetType &targetType)
 {
@@ -78,8 +78,9 @@ void from_json(const Json &j, BCompileDefinition &p)
     p.value = j.at("VALUE").get<string>();
 }
 
-ParsedTarget::ParsedTarget(const string &targetFilePath, vector<string> dependents)
+ParsedTarget::ParsedTarget(const string &targetFilePath_, vector<string> dependents)
 {
+    targetFilePath = targetFilePath_;
     string fileName = path(targetFilePath).filename().string();
     targetName = fileName.substr(0, fileName.size() - string(".hmake").size());
     Json targetFileJson;
@@ -163,7 +164,17 @@ ParsedTarget::ParsedTarget(const string &targetFilePath, vector<string> dependen
     // Big todo: Currently totally ignoring prebuild libraries
     for (const auto &i : libraryDependencies)
     {
-        libraryDependenciesBTargets.emplace_back(i.path, dependents);
+        if (!i.preBuilt)
+        {
+            libraryDependenciesBTargets.emplace_back(i.path, dependents);
+        }
+        else
+        {
+            preBuiltLibraryDependencies.push_back(i.path);
+            /*if (!i.imported) {
+                BPTarget(i.hmakeFilePath, i.path);
+            }*/
+        }
     }
 }
 
@@ -201,14 +212,17 @@ void ParsedTarget::setActualOutputName()
 
 void ParsedTarget::executePreBuildCommands()
 {
-    // Execute the prebuild commands serially of this target and its dependencies.
-    if (!preBuildCustomCommands.empty())
+    if (!preBuildCustomCommands.empty() && settings.gpcSettings.preBuildCommandsStatement)
     {
-        cout << "Executing PRE_BUILD_CUSTOM_COMMANDS" << endl;
+        print(fg(static_cast<fmt::color>(settings.pcSettings.hbuildStatementOutput)),
+              "Executing PRE_BUILD_CUSTOM_COMMANDS\n");
     }
     for (auto &i : preBuildCustomCommands)
     {
-        cout << i << endl;
+        if (settings.gpcSettings.preBuildCommands)
+        {
+            print(fg(static_cast<fmt::color>(settings.pcSettings.hbuildSequenceOutput)), i + "\n");
+        }
         if (int a = system(i.c_str()); a != EXIT_SUCCESS)
         {
             exit(a);
@@ -241,6 +255,53 @@ void ParsedTarget::executePreBuildCommands()
             }
         }
     }*/
+}
+
+void ParsedTarget::executePostBuildCommands()
+{
+    if (!postBuildCustomCommands.empty() && settings.gpcSettings.postBuildCommandsStatement)
+    {
+        print(fg(static_cast<fmt::color>(settings.pcSettings.hbuildStatementOutput)),
+              "Executing POST_BUILD_CUSTOM_COMMANDS\n");
+    }
+    for (auto &i : postBuildCustomCommands)
+    {
+        if (settings.gpcSettings.postBuildCommands)
+        {
+            print(fg(static_cast<fmt::color>(settings.pcSettings.hbuildSequenceOutput)), i + "\n");
+        }
+        if (int a = system(i.c_str()); a != EXIT_SUCCESS)
+        {
+            exit(a);
+        }
+    }
+    // TODO
+    for (auto &i : libraryDependenciesBTargets)
+    {
+        i.executePreBuildCommands();
+    }
+    /*for (const auto &i : libraryDependencies)
+    {
+        if (!i.preBuilt)
+        {
+            BTarget buildTarget(i.path);
+            buildTarget.executePreBuildCommands();
+        }
+        else
+        {
+            // TODO
+            // Currently ignore prebuilt libs for time being
+            string dir = path(i.path).parent_path().string();
+            string libName = path(i.path).filename().string();
+            libName.erase(0, 3);
+            libName.erase(libName.find('.'), 2);
+
+    if (!i.imported)
+    {
+        BPTarget(i.hmakeFilePath, i.path);
+    }
+}
+}*/
 }
 
 bool ParsedTarget::checkIfAlreadyBuiltAndCreatNecessaryDirectories()
@@ -707,7 +768,6 @@ void ParsedTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
         }
     }
 
-
     // Removing unused object-files from buildCacheFilesDirPath as they later affect linker command with *.o option.
     set<string> tmpObjectFiles;
     for (const auto &src : bTargetCache.sourceFileDependencies)
@@ -730,7 +790,6 @@ void ParsedTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
         }
     }
 
-
     if (bTargetCache.maximumThreadsNeeded() > 0)
     {
         bTargetCache.compileCommand = compileCommand;
@@ -742,18 +801,35 @@ void ParsedTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
     }
     else
     {
-        relink = false;
-        for (const auto &src : bTargetCache.sourceFileDependencies)
-        {
-            if (src.presentInSource != src.presentInCache)
+        auto needsRelinkBeforePopularizingBuildTree = [&]() -> bool {
+            for (const auto &src : bTargetCache.sourceFileDependencies)
             {
-                relink = true;
+                if (src.presentInSource != src.presentInCache)
+                {
+                    return true;
+                }
             }
-        }
-        if(!relink && !exists(path(outputDirectory) / actualOutputName))
-        {
-            relink = true;
-        }
+            path outputPath = path(outputDirectory) / actualOutputName;
+            if (!exists(outputPath))
+            {
+                return true;
+            }
+            for (const auto &i : preBuiltLibraryDependencies)
+            {
+                if (!exists(path(i)))
+                {
+                    cerr << "Prebuilt Library " << i << " Does Not Exist" << endl;
+                    exit(EXIT_FAILURE);
+                }
+                if (last_write_time(i) > last_write_time(outputPath))
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        relink = needsRelinkBeforePopularizingBuildTree();
         BuildNode buildNode;
         buildNode.target = this;
         buildNode.targetCache = bTargetCache;
@@ -940,11 +1016,6 @@ PostLinkOrArchive ParsedTarget::Link()
         }
     };
 
-    for (auto &i : libraryDependenciesBTargets)
-    {
-        linkCommand.append(getLinkFlag(i.outputDirectory, i.outputName));
-    }
-
     auto getLinkFlagPrint = [this](const std::string &libraryPath, const std::string &libraryName,
                                    const PathPrint &pathPrint) {
         if (linker.bTFamily == BTFamily::MSVC)
@@ -959,7 +1030,27 @@ PostLinkOrArchive ParsedTarget::Link()
 
     for (auto &i : libraryDependenciesBTargets)
     {
+        linkCommand.append(getLinkFlag(i.outputDirectory, i.outputName));
         linkPrintCommand.append(getLinkFlagPrint(i.outputDirectory, i.outputName, lcpSettings.libraryDependencies));
+    }
+
+    for (auto &i : preBuiltLibraryDependencies)
+    {
+        if (linker.bTFamily == BTFamily::MSVC)
+        {
+            auto b = lcpSettings.libraryDependencies;
+            linkCommand.append(i + " ");
+            linkPrintCommand.append(getReducedPath(i + " ", b));
+        }
+        else
+        {
+            string dir = path(i).parent_path().string();
+            string libName = path(i).filename().string();
+            libName.erase(0, 3);
+            libName.erase(libName.find('.'), 2);
+            linkCommand.append(getLinkFlag(dir, libName));
+            linkPrintCommand.append(getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies));
+        }
     }
 
     auto getLibraryDirectoryFlag = [this]() {
@@ -1065,72 +1156,115 @@ bool ParsedTarget::needsRelink() const
     }
     return false;
 }
+bool ParsedTarget::hasDependency(ParsedTarget *parsedTarget)
+{
+    for (const auto &dep : libraryDependenciesBTargets)
+    {
+        if (dep.targetFilePath == parsedTarget->targetFilePath)
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
 using std::this_thread::get_id;
 void Builder::actuallyBuild()
 {
     oneAndOnlyMutex.lock();
-    if (linkIterator->targetCache.areAllFilesCompiled() && !linkIterator->isLinking)
+    if (newTargetCompiled)
     {
-        linkIterator->isLinking = true;
-        oneAndOnlyMutex.unlock();
-        unique_ptr<PostLinkOrArchive> postLinkOrArchive;
-        if (linkIterator->target->getTargetType() == BTargetType::STATIC)
+        for (auto it = buildTree.crbegin(); it != buildTree.crend(); ++it)
         {
-            PostLinkOrArchive postLinkOrArchive1 = linkIterator->target->Archive();
-            postLinkOrArchive = make_unique<PostLinkOrArchive>(postLinkOrArchive1);
-        }
-        else if (linkIterator->target->getTargetType() == BTargetType::EXECUTABLE)
-        {
-            PostLinkOrArchive postLinkOrArchive1 = linkIterator->target->Link();
-            postLinkOrArchive = make_unique<PostLinkOrArchive>(postLinkOrArchive1);
-        }
-        linkIterator->target->pruneAndSaveBuildCache(linkIterator->targetCache);
-        oneAndOnlyMutex.lock();
-        if (linkIterator->target->getTargetType() == BTargetType::STATIC)
-        {
-            postLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor);
-        }
-        else if (linkIterator->target->getTargetType() == BTargetType::EXECUTABLE)
-        {
-            postLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor);
-        }
+            auto &buildNode = const_cast<BuildNode &>(*it);
+            if (newTargetCompiled && !buildNode.isLinked && buildNode.isCompiled &&
+                buildNode.linkDependenciesSize == buildNode.dependenciesLinked)
+            {
+                buildNode.isLinked = true;
 
-        ++linkIterator;
-        if (linkIterator == buildTree.rend())
-        {
-            oneAndOnlyMutex.unlock();
-            return;
+                oneAndOnlyMutex.unlock();
+                unique_ptr<PostLinkOrArchive> postLinkOrArchive;
+                ParsedTarget *target = buildNode.target;
+                if (target->getTargetType() == BTargetType::STATIC)
+                {
+                    PostLinkOrArchive postLinkOrArchive1 = target->Archive();
+                    postLinkOrArchive = make_unique<PostLinkOrArchive>(postLinkOrArchive1);
+                }
+                else if (target->getTargetType() == BTargetType::EXECUTABLE)
+                {
+                    PostLinkOrArchive postLinkOrArchive1 = target->Link();
+                    postLinkOrArchive = make_unique<PostLinkOrArchive>(postLinkOrArchive1);
+                }
+                target->pruneAndSaveBuildCache(buildNode.targetCache);
+                oneAndOnlyMutex.lock();
+                if (target->getTargetType() == BTargetType::STATIC)
+                {
+                    postLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor);
+                }
+                else if (target->getTargetType() == BTargetType::EXECUTABLE)
+                {
+                    postLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor);
+                }
+                for (auto dependents : buildNode.linkDependents)
+                {
+                    ++dependents->dependenciesLinked;
+                }
+            }
         }
+        newTargetCompiled = false;
+    }
+
+    if (compileIterator == buildTree.rend())
+    {
+        oneAndOnlyMutex.unlock();
+        return;
+    }
+    auto oldCompileIterator = compileIterator;
+    if (compileIterator->targetCache.areFilesLeftToCompile())
+    {
+        SourceNode &tempSourceNode = compileIterator->targetCache.getNextNodeForCompilation();
+        tempSourceNode.compilationStatus = FileStatus::COMPILING;
+        ParsedTarget *target = compileIterator->target;
+        oneAndOnlyMutex.unlock();
+        PostCompile postCompile = target->Compile(tempSourceNode);
+        postCompile.executePostCompileRoutineWithoutMutex(tempSourceNode);
+        oneAndOnlyMutex.lock();
+        postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor);
+        tempSourceNode.compilationStatus = FileStatus::UPDATED;
         oneAndOnlyMutex.unlock();
     }
     else
     {
-        if (compileIterator == buildTree.rend())
+        ++compileIterator;
+        oneAndOnlyMutex.unlock();
+    }
+    if (oldCompileIterator != compileIterator)
+    {
+        if (oldCompileIterator->targetCache.areAllFilesCompiled())
         {
-            oneAndOnlyMutex.unlock();
-            return;
-        }
-        if (compileIterator->targetCache.areFilesLeftToCompile())
-        {
-            SourceNode &tempSourceNode = compileIterator->targetCache.getNextNodeForCompilation();
-            tempSourceNode.compilationStatus = FileStatus::COMPILING;
-            ParsedTarget *target = compileIterator->target;
-            oneAndOnlyMutex.unlock();
-            PostCompile postCompile = target->Compile(tempSourceNode);
-            postCompile.executePostCompileRoutineWithoutMutex(tempSourceNode);
-            oneAndOnlyMutex.lock();
-            postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor);
-            tempSourceNode.compilationStatus = FileStatus::UPDATED;
-            oneAndOnlyMutex.unlock();
-        }
-        else
-        {
-            ++compileIterator;
-            oneAndOnlyMutex.unlock();
+            oldCompileIterator->isCompiled = true;
+            newTargetCompiled = true;
         }
     }
     actuallyBuild();
+}
+
+void Builder::populateBuildNodeDependents()
+{
+    if (!buildTree.empty())
+    {
+        for (size_t i = 0; i < buildTree.size() - 1; ++i)
+        {
+            for (size_t j = i + 1; j < buildTree.size(); ++j)
+            {
+                if (buildTree[i].target->hasDependency(buildTree[j].target))
+                {
+                    buildTree[j].linkDependents.emplace_back(&buildTree[i]);
+                }
+            }
+            buildTree[i].linkDependenciesSize = buildTree[i].target->parsedTargetDependenciesSize();
+        }
+    }
 }
 
 Builder::Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex) : oneAndOnlyMutex(oneAndOnlyMutex)
@@ -1150,9 +1284,10 @@ Builder::Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex) 
         t.popularizeBuildTree(buildTree);
     }
     removeRedundantNodes(buildTree);
+    populateBuildNodeDependents();
 
     compileIterator = buildTree.rbegin();
-    linkIterator = buildTree.rbegin();
+    // linkIterator = buildTree.rbegin();
 
     std::size_t actionsNeeded = 0;
     for (const auto &buildNode : buildTree)
@@ -1175,6 +1310,12 @@ Builder::Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex) 
         t->join();
         delete t;
     }
+
+    for (auto &t : ParsedTargets)
+    {
+        t.executePostBuildCommands();
+    }
+
     // Build has been finished. Now we can copy stuff.
 
     // This is the actual build part. I am not doing it here.

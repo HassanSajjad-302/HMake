@@ -654,10 +654,22 @@ struct PrintColorSettings
     int archiveCommandColor = static_cast<int>(fmt::color::brown);
     int linkCommandColor = static_cast<int>(fmt::color::pink);
     int toolErrorOutput = static_cast<int>(fmt::color::red);
-    int hbuildOutput = static_cast<int>(fmt::color::orange);
+    int hbuildStatementOutput = static_cast<int>(fmt::color::yellow);
+    int hbuildSequenceOutput = static_cast<int>(fmt::color::cyan);
+    int hbuildErrorOutput = static_cast<int>(fmt::color::orange);
 };
 void to_json(Json &json, const PrintColorSettings &printColorSettings);
 void from_json(const Json &json, PrintColorSettings &printColorSettings);
+
+struct GeneralPrintSettings
+{
+    bool preBuildCommandsStatement = true;
+    bool preBuildCommands = true;
+    bool postBuildCommandsStatement = true;
+    bool postBuildCommands = true;
+};
+void to_json(Json &json, const GeneralPrintSettings &generalPrintSettings);
+void from_json(const Json &json, GeneralPrintSettings &generalPrintSettings);
 
 struct Settings
 {
@@ -665,6 +677,7 @@ struct Settings
     ArchiveCommandPrintSettings acpSettings;
     LinkCommandPrintSettings lcpSettings;
     PrintColorSettings pcSettings;
+    GeneralPrintSettings gpcSettings;
 };
 void to_json(Json &json, const Settings &settings);
 void from_json(const Json &json, Settings &settings);
