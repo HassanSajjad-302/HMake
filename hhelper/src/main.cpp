@@ -104,7 +104,7 @@ int main()
 
         j["SOURCE_DIRECTORY"] = "../";
         j["PACKAGE_COPY"] = true;
-        j["PACKAGE_COPY_PATH"] = current_path() / "install" / "";
+        j["PACKAGE_COPY_PATH"] = current_path().lexically_normal().generic_string() + "/install/";
         j["CONFIGURATION"] = "RELEASE";
         j["COMPILER_ARRAY"] = compilersDetected;
         j["COMPILER_SELECTED_ARRAY_INDEX"] = 0;

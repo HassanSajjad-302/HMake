@@ -11,6 +11,7 @@
 
 using std::filesystem::path, std::string, std::vector, std::tuple, std::map, std::set, std::same_as, std::stack;
 using Json = nlohmann::ordered_json;
+namespace fs = std::filesystem;
 
 std::string writePath(const path &writePath);
 string addQuotes(const string &pathString);
@@ -18,7 +19,7 @@ string addQuotes(const string &pathString);
 struct File
 {
     path filePath;
-    explicit File(path filePath_);
+    explicit File(const path &filePath_);
 };
 
 // TODO: Implement CMake glob like structure which will allow to define a FileArray during configure stage in one line.
@@ -28,7 +29,7 @@ struct Directory
     bool isCommon = false;
     int commonDirectoryNumber;
     Directory() = default;
-    explicit Directory(path directoryPath_);
+    explicit Directory(const path &directoryPath_);
 };
 void to_json(Json &json, const Directory &directory);
 void from_json(const Json &json, Directory &directory);
@@ -92,6 +93,14 @@ struct Version
 };
 void to_json(Json &j, const Version &p);
 void from_json(const Json &j, Version &v);
+
+enum class OSFamily
+{
+    WINDOWS,
+    LINUX_UNIX
+};
+void to_json(Json &json, const OSFamily &bTFamily);
+void from_json(const Json &json, OSFamily &bTFamily);
 
 enum class BTFamily
 {
@@ -252,6 +261,7 @@ struct Cache
     static inline LibraryType libraryType;
     static inline Json cacheVariables;
     static inline Environment environment;
+    static inline OSFamily osFamily; // Not part of Cache yet
     static void initializeCache();
     static void registerCacheVariables();
 };
@@ -308,7 +318,7 @@ class Project
 class PackageVariant : public Variant
 {
   public:
-    decltype(Json::object()) json;
+    decltype(Json::object()) uniqueJson;
 };
 
 struct SourceDirectory
@@ -325,8 +335,11 @@ enum class TargetType
     PLIBRARY_STATIC,
     PLIBRARY_SHARED,
 };
-void to_json(Json &j, const TargetType &p);
+void to_json(Json &j, const TargetType &targetType);
+void from_json(const Json &j, TargetType &targetType);
 
+string getActualNameFromTargetName(TargetType targetType, const OSFamily &osFamily, const string &targetName);
+string getTargetNameFromActualName(TargetType targetType, const OSFamily &osFamily, const string &actualName);
 // TODO: If no target is added in targets of variant, building that variant will be an error.
 class Package;
 class Target
@@ -358,7 +371,7 @@ class Target
     Json convertToJson(int variantIndex) const;
     void configure(const Package &package, const PackageVariant &variant, int count) const;
     Json convertToJson(const Package &package, const PackageVariant &variant, int count) const;
-    path getTargetVariantDirectoryPath(int variantCount) const;
+    string getTargetVariantDirectoryPath(int variantCount) const;
     void assignDifferentVariant(const Variant &variant);
 
   protected:
@@ -438,7 +451,7 @@ class PPLibrary : public PLibrary
     Json packageVariantJson;
     bool useIndex = false;
     int index;
-    bool imported = true;
+    bool importedFromOtherHMakePackage = true;
     PPLibrary(string libraryName_, const CPackage &cPackage, const CPVariant &cpVariant);
 };
 
@@ -667,6 +680,9 @@ struct GeneralPrintSettings
     bool preBuildCommands = true;
     bool postBuildCommandsStatement = true;
     bool postBuildCommands = true;
+    bool copyingPackage = true;
+    bool copyingTarget = true;
+    bool threadId = true;
 };
 void to_json(Json &json, const GeneralPrintSettings &generalPrintSettings);
 void from_json(const Json &json, GeneralPrintSettings &generalPrintSettings);

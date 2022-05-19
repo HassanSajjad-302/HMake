@@ -13,30 +13,6 @@ using std::ifstream, std::ofstream, std::filesystem::exists, std::filesystem::co
     std::regex, std::filesystem::current_path, std::cerr, std::make_shared, std::make_pair, std::lock_guard,
     std::unique_ptr, std::make_unique, fmt::print, std::filesystem::file_time_type, std::filesystem::last_write_time;
 
-void from_json(const Json &j, BTargetType &targetType)
-{
-    if (j == "EXECUTABLE")
-    {
-        targetType = BTargetType::EXECUTABLE;
-    }
-    else if (j == "STATIC")
-    {
-        targetType = BTargetType::STATIC;
-    }
-    else if (j == "SHARED")
-    {
-        targetType = BTargetType::SHARED;
-    }
-    else if (j == "PLIBRARY_STATIC")
-    {
-        targetType = BTargetType::PLIBRARY_STATIC;
-    }
-    else
-    {
-        targetType = BTargetType::PLIBRARY_SHARED;
-    }
-}
-
 void from_json(const Json &j, SourceDirectory &sourceDirectory)
 {
     sourceDirectory.sourceDirectory = Directory(j.at("PATH").get<string>());
@@ -55,9 +31,9 @@ void from_json(const Json &j, BLibraryDependency &p)
     p.path = j.at("PATH").get<string>();
     if (p.preBuilt)
     {
-        if (j.contains("IMPORTED"))
+        if (j.contains("IMPORTED_FROM_OTHER_HMAKE_PACKAGE"))
         {
-            p.imported = j.at("IMPORTED").get<bool>();
+            p.imported = j.at("IMPORTED_FROM_OTHER_HMAKE_PACKAGE").get<bool>();
             if (!p.imported)
             {
                 p.hmakeFilePath = j.at("HMAKE_FILE_PATH").get<string>();
@@ -86,8 +62,8 @@ ParsedTarget::ParsedTarget(const string &targetFilePath_, vector<string> depende
     Json targetFileJson;
     ifstream(targetFilePath) >> targetFileJson;
 
-    targetType = targetFileJson.at("TARGET_TYPE").get<BTargetType>();
-    if (targetType != BTargetType::EXECUTABLE && targetType != BTargetType::STATIC && targetType != BTargetType::SHARED)
+    targetType = targetFileJson.at("TARGET_TYPE").get<TargetType>();
+    if (targetType != TargetType::EXECUTABLE && targetType != TargetType::STATIC && targetType != TargetType::SHARED)
     {
         cerr << "BTargetType value in the targetFile is not correct.";
         exit(EXIT_FAILURE);
@@ -109,7 +85,8 @@ ParsedTarget::ParsedTarget(const string &targetFilePath_, vector<string> depende
             packageName = targetFileJson.at("PACKAGE_NAME").get<string>();
             packageCopyPath = targetFileJson.at("PACKAGE_COPY_PATH").get<string>();
             packageVariantIndex = targetFileJson.at("PACKAGE_VARIANT_INDEX").get<int>();
-            packageTargetPath = packageCopyPath / path(packageName) / path(to_string(packageVariantIndex)) / targetName;
+            packageTargetPath =
+                packageCopyPath + packageName + "/" + to_string(packageVariantIndex) + "/" + targetName + "/";
         }
     }
     else
@@ -120,7 +97,7 @@ ParsedTarget::ParsedTarget(const string &targetFilePath_, vector<string> depende
     outputDirectory = targetFileJson.at("OUTPUT_DIRECTORY").get<path>().string();
     compiler = targetFileJson.at("COMPILER").get<Compiler>();
     linker = targetFileJson.at("LINKER").get<Linker>();
-    if (targetType == BTargetType::STATIC)
+    if (targetType == TargetType::STATIC)
     {
         archiver = targetFileJson.at("ARCHIVER").get<Archiver>();
     }
@@ -156,7 +133,7 @@ ParsedTarget::ParsedTarget(const string &targetFilePath_, vector<string> depende
     }
     // Parsing finished
 
-    setActualOutputName();
+    actualOutputName = getActualNameFromTargetName(targetType, Cache::osFamily, targetName);
     checkForCircularDependencies(dependents);
     dependents.emplace_back(actualOutputName);
 
@@ -168,13 +145,6 @@ ParsedTarget::ParsedTarget(const string &targetFilePath_, vector<string> depende
         {
             libraryDependenciesBTargets.emplace_back(i.path, dependents);
         }
-        else
-        {
-            preBuiltLibraryDependencies.push_back(i.path);
-            /*if (!i.imported) {
-                BPTarget(i.hmakeFilePath, i.path);
-            }*/
-        }
     }
 }
 
@@ -184,29 +154,6 @@ void ParsedTarget::checkForCircularDependencies(const vector<string> &dependents
     {
         cerr << "Circular Dependency Detected" << endl;
         exit(EXIT_FAILURE);
-    }
-}
-
-void ParsedTarget::setActualOutputName()
-{
-    assert(targetType != BTargetType::PLIBRARY_SHARED);
-    assert(targetType != BTargetType::PLIBRARY_STATIC);
-
-    // TODO
-    // This should be OS dependent instead of tools dependent or should it be not?
-    // Add target OS target property
-    if (targetType == BTargetType::EXECUTABLE)
-    {
-        actualOutputName = outputName + (compiler.bTFamily == BTFamily::MSVC ? ".exe" : "");
-    }
-    else if (targetType == BTargetType::STATIC)
-    {
-        actualOutputName = compiler.bTFamily == BTFamily::MSVC ? "" : "lib";
-        actualOutputName += outputName;
-        actualOutputName += compiler.bTFamily == BTFamily::MSVC ? ".lib" : ".a";
-    }
-    else
-    {
     }
 }
 
@@ -554,7 +501,15 @@ PostLinkOrArchive::PostLinkOrArchive(string commandFirstHalf, string printComman
 
 void PostLinkOrArchive::executePrintRoutine(uint32_t color) const
 {
-    print(fg(static_cast<fmt::color>(color)), printCommand);
+    string threadId;
+    if (settings.gpcSettings.threadId)
+    {
+        auto myid = std::this_thread::get_id();
+        std::stringstream ss;
+        ss << myid;
+        threadId = ss.str();
+    }
+    print(fg(static_cast<fmt::color>(color)), printCommand + " " + threadId);
     print("\n");
     if (!commandSuccessOutput.empty())
     {
@@ -814,16 +769,19 @@ void ParsedTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
             {
                 return true;
             }
-            for (const auto &i : preBuiltLibraryDependencies)
+            for (const auto &i : libraryDependencies)
             {
-                if (!exists(path(i)))
+                if (i.preBuilt)
                 {
-                    cerr << "Prebuilt Library " << i << " Does Not Exist" << endl;
-                    exit(EXIT_FAILURE);
-                }
-                if (last_write_time(i) > last_write_time(outputPath))
-                {
-                    return true;
+                    if (!exists(path(i.path)))
+                    {
+                        cerr << "Prebuilt Library " << i.path << " Does Not Exist" << endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    if (last_write_time(i.path) > last_write_time(outputPath))
+                    {
+                        return true;
+                    }
                 }
             }
             return false;
@@ -1034,22 +992,25 @@ PostLinkOrArchive ParsedTarget::Link()
         linkPrintCommand.append(getLinkFlagPrint(i.outputDirectory, i.outputName, lcpSettings.libraryDependencies));
     }
 
-    for (auto &i : preBuiltLibraryDependencies)
+    for (auto &i : libraryDependencies)
     {
-        if (linker.bTFamily == BTFamily::MSVC)
+        if (i.preBuilt)
         {
-            auto b = lcpSettings.libraryDependencies;
-            linkCommand.append(i + " ");
-            linkPrintCommand.append(getReducedPath(i + " ", b));
-        }
-        else
-        {
-            string dir = path(i).parent_path().string();
-            string libName = path(i).filename().string();
-            libName.erase(0, 3);
-            libName.erase(libName.find('.'), 2);
-            linkCommand.append(getLinkFlag(dir, libName));
-            linkPrintCommand.append(getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies));
+            if (linker.bTFamily == BTFamily::MSVC)
+            {
+                auto b = lcpSettings.libraryDependencies;
+                linkCommand.append(i.path + " ");
+                linkPrintCommand.append(getReducedPath(i.path + " ", b));
+            }
+            else
+            {
+                string dir = path(i.path).parent_path().string();
+                string libName = path(i.path).filename().string();
+                libName.erase(0, 3);
+                libName.erase(libName.find('.'), 2);
+                linkCommand.append(getLinkFlag(dir, libName));
+                linkPrintCommand.append(getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies));
+            }
         }
     }
 
@@ -1125,7 +1086,7 @@ PostLinkOrArchive ParsedTarget::Link()
     return postLinkOrArchive;
 }
 
-BTargetType ParsedTarget::getTargetType()
+TargetType ParsedTarget::getTargetType()
 {
     return targetType;
 }
@@ -1168,6 +1129,71 @@ bool ParsedTarget::hasDependency(ParsedTarget *parsedTarget)
     return false;
 }
 
+void ParsedTarget::copyParsedTarget() const
+{
+    if (packageMode && copyPackage)
+    {
+        if (settings.gpcSettings.copyingPackage)
+        {
+            print(fg(static_cast<fmt::color>(settings.pcSettings.hbuildStatementOutput)), "Copying Package\n");
+        }
+        string copyFrom;
+        if (targetType != TargetType::SHARED)
+        {
+            copyFrom = outputDirectory + actualOutputName;
+        }
+        else
+        {
+            // Shared Libraries Not Supported Yet.
+        }
+        if (settings.gpcSettings.copyingTarget)
+        {
+            print(fg(static_cast<fmt::color>(settings.pcSettings.hbuildSequenceOutput)),
+                  "Copying Target {} From {} To {}\n", targetName, copyFrom, packageTargetPath);
+        }
+        create_directories(path(packageTargetPath));
+        copy(path(copyFrom), path(packageTargetPath), copy_options::update_existing);
+        for (auto &i : includeDirectories)
+        {
+            if (i.copy)
+            {
+                string includeDirectoryCopyFrom = i.path;
+                string includeDirectoryCopyTo = packageTargetPath + "include/";
+                if (settings.gpcSettings.copyingTarget)
+                {
+                    print(fg(static_cast<fmt::color>(settings.pcSettings.hbuildStatementOutput)),
+                          "Copying IncludeDirectory From {} To {}\n", targetName, includeDirectoryCopyFrom,
+                          includeDirectoryCopyTo);
+                }
+                create_directories(path(includeDirectoryCopyTo));
+                copy(path(includeDirectoryCopyFrom), path(includeDirectoryCopyTo),
+                     copy_options::update_existing | copy_options::recursive);
+            }
+        }
+        string consumerTargetFileName;
+        string consumerTargetFile = packageTargetPath + (targetName + ".hmake");
+        ofstream(consumerTargetFile) << consumerDependenciesJson.dump(4);
+
+        for (const auto &target : libraryDependencies)
+        {
+            if (target.preBuilt && !target.imported) // A prebuilt target is being packaged.
+            {
+                Json preBuiltTarget;
+                ifstream(target.hmakeFilePath) >> preBuiltTarget;
+                string preBuiltTargetName = preBuiltTarget["NAME"];
+                copyFrom = preBuiltTarget["PATH"];
+                string preBuiltPackageCopyPath = preBuiltTarget["PACKAGE_COPY_PATH"];
+                string targetInstallPath = packageCopyPath + packageName + "/" + to_string(packageVariantIndex) + "/" +
+                                           preBuiltTargetName + "/";
+                create_directories(path(targetInstallPath));
+                copy(path(copyFrom), path(targetInstallPath), copy_options::update_existing);
+                ofstream(targetInstallPath + preBuiltTargetName + ".hmake")
+                    << preBuiltTarget["CONSUMER_DEPENDENCIES"].dump(4);
+            }
+        }
+    }
+}
+
 using std::this_thread::get_id;
 void Builder::actuallyBuild()
 {
@@ -1185,23 +1211,23 @@ void Builder::actuallyBuild()
                 oneAndOnlyMutex.unlock();
                 unique_ptr<PostLinkOrArchive> postLinkOrArchive;
                 ParsedTarget *target = buildNode.target;
-                if (target->getTargetType() == BTargetType::STATIC)
+                if (target->getTargetType() == TargetType::STATIC)
                 {
                     PostLinkOrArchive postLinkOrArchive1 = target->Archive();
                     postLinkOrArchive = make_unique<PostLinkOrArchive>(postLinkOrArchive1);
                 }
-                else if (target->getTargetType() == BTargetType::EXECUTABLE)
+                else if (target->getTargetType() == TargetType::EXECUTABLE)
                 {
                     PostLinkOrArchive postLinkOrArchive1 = target->Link();
                     postLinkOrArchive = make_unique<PostLinkOrArchive>(postLinkOrArchive1);
                 }
                 target->pruneAndSaveBuildCache(buildNode.targetCache);
                 oneAndOnlyMutex.lock();
-                if (target->getTargetType() == BTargetType::STATIC)
+                if (target->getTargetType() == TargetType::STATIC)
                 {
                     postLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor);
                 }
-                else if (target->getTargetType() == BTargetType::EXECUTABLE)
+                else if (target->getTargetType() == TargetType::EXECUTABLE)
                 {
                     postLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor);
                 }
@@ -1269,17 +1295,17 @@ void Builder::populateBuildNodeDependents()
 
 Builder::Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex) : oneAndOnlyMutex(oneAndOnlyMutex)
 {
-    vector<ParsedTarget> ParsedTargets;
+    vector<ParsedTarget> parsedTargets;
     for (auto &t : targetFilePaths)
     {
-        ParsedTargets.emplace_back(t);
+        parsedTargets.emplace_back(t);
     }
-    for (auto &t : ParsedTargets)
+    for (auto &t : parsedTargets)
     {
         t.executePreBuildCommands();
     }
 
-    for (auto &t : ParsedTargets)
+    for (auto &t : parsedTargets)
     {
         t.popularizeBuildTree(buildTree);
     }
@@ -1311,11 +1337,15 @@ Builder::Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex) 
         delete t;
     }
 
-    for (auto &t : ParsedTargets)
+    for (auto &t : parsedTargets)
     {
         t.executePostBuildCommands();
     }
 
+    for (auto &p : parsedTargets)
+    {
+        p.copyParsedTarget();
+    }
     // Build has been finished. Now we can copy stuff.
 
     // This is the actual build part. I am not doing it here.
@@ -1452,15 +1482,28 @@ vector<string> Builder::getTargetFilePathsFromVariantFile(const string &fileName
     return variantFileJson.at("TARGETS").get<vector<string>>();
 }
 
-vector<string> Builder::getTargetFilePathsFromProjectFile(const string &fileName)
+vector<string> Builder::getTargetFilePathsFromProjectOrPackageFile(const string &fileName, bool isPackage)
 {
     Json projectFileJson;
     ifstream(fileName) >> projectFileJson;
-    vector<string> vec = projectFileJson.at("VARIANTS").get<vector<string>>();
+    vector<string> vec;
+    if (isPackage)
+    {
+        vector<Json> pVariantJson = projectFileJson.at("VARIANTS").get<vector<Json>>();
+        for (const auto &i : pVariantJson)
+        {
+            vec.emplace_back(i.at("INDEX").get<string>());
+        }
+    }
+    else
+    {
+        vec = projectFileJson.at("VARIANTS").get<vector<string>>();
+    }
     vector<string> targetFilePaths;
     for (auto &i : vec)
     {
-        vector<string> variantTargets = getTargetFilePathsFromVariantFile(i + "/projectVariant.hmake");
+        vector<string> variantTargets =
+            getTargetFilePathsFromVariantFile(i + (isPackage ? "/packageVariant.hmake" : "/projectVariant.hmake"));
         targetFilePaths.insert(targetFilePaths.end(), variantTargets.begin(), variantTargets.end());
     }
     return targetFilePaths;
@@ -1482,7 +1525,48 @@ void Builder::removeRedundantNodes(vector<BuildNode> &buildTree)
             ++it;
     }
 }
+void Builder::copyPackage(const path &packageFilePath)
+{
+    Json packageFileJson;
+    ifstream(packageFilePath) >> packageFileJson;
+    Json variants = packageFileJson.at("VARIANTS").get<Json>();
+    path packageCopyPath;
+    bool packageCopy = packageFileJson.at("PACKAGE_COPY").get<bool>();
+    if (packageCopy)
+    {
+        string packageName = packageFileJson.at("NAME").get<string>();
+        string version = packageFileJson.at("VERSION").get<string>();
+        packageCopyPath = packageFileJson.at("PACKAGE_COPY_PATH").get<string>();
+        packageCopyPath /= packageName;
+        if (packageFileJson.at("CACHE_INCLUDES").get<bool>())
+        {
+            Json commonFileJson;
+            ifstream(current_path() / "Common.hmake") >> commonFileJson;
+            Json commonJson;
+            for (auto &i : commonFileJson)
+            {
+                Json commonJsonObject;
+                int commonIndex = i.at("INDEX").get<int>();
+                commonJsonObject["INDEX"] = commonIndex;
+                commonJsonObject["VARIANTS_INDICES"] = i.at("VARIANTS_INDICES").get<Json>();
+                commonJson.emplace_back(commonJsonObject);
+                path commonIncludePath = packageCopyPath / "Common" / path(to_string(commonIndex)) / "include";
+                create_directories(commonIncludePath);
+                path dirCopyFrom = i.at("PATH").get<string>();
+                copy(dirCopyFrom, commonIncludePath, copy_options::update_existing | copy_options::recursive);
+            }
+        }
+        path consumePackageFilePath = packageCopyPath / "cpackage.hmake";
+        Json consumePackageFilePathJson;
+        consumePackageFilePathJson["NAME"] = packageName;
+        consumePackageFilePathJson["VERSION"] = version;
+        consumePackageFilePathJson["VARIANTS"] = variants;
+        create_directories(packageCopyPath);
+        ofstream(consumePackageFilePath) << consumePackageFilePathJson.dump(4);
+    }
+}
 
+/*
 BPTarget::BPTarget(const string &targetFilePath, const path &copyFrom)
 {
     string targetName;
@@ -1637,7 +1721,7 @@ BPackage::BPackage(const path &packageFilePath)
         }
         // BVariant{packageVariantFilePath};
     }
-}
+}*/
 
 string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
 {

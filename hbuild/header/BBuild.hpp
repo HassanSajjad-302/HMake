@@ -18,16 +18,6 @@ using std::string, std::vector, std::filesystem::path, std::map, std::set, std::
     std::stack, std::mutex;
 using Json = nlohmann::ordered_json;
 
-enum BTargetType
-{
-    EXECUTABLE,
-    STATIC,
-    SHARED,
-    PLIBRARY_STATIC,
-    PLIBRARY_SHARED
-};
-void from_json(const Json &j, BTargetType &targetType);
-
 struct BIDD
 {
     string path;
@@ -169,7 +159,7 @@ class ParsedTarget
     vector<string> sourceFiles;
     vector<SourceDirectory> sourceDirectories;
     vector<BLibraryDependency> libraryDependencies;
-    vector<string> preBuiltLibraryDependencies;
+    // vector<string> preBuiltLibraryDependencies;
     vector<BIDD> includeDirectories;
     vector<string> libraryDirectories;
     string compilerTransitiveFlags;
@@ -178,10 +168,10 @@ class ParsedTarget
     vector<string> preBuildCustomCommands;
     vector<string> postBuildCustomCommands;
     string buildCacheFilesDirPath;
-    BTargetType targetType;
+    TargetType targetType;
     string targetFileName;
     Json consumerDependenciesJson;
-    path packageTargetPath;
+    string packageTargetPath;
     bool packageMode;
     bool copyPackage;
     string packageName;
@@ -201,7 +191,7 @@ class ParsedTarget
   public:
     explicit ParsedTarget(const string &targetFilePath_, vector<string> dependents = {});
     void checkForCircularDependencies(const vector<string> &dependents);
-    void setActualOutputName();
+    // void setActualOutputName();
     void executePreBuildCommands();
     void executePostBuildCommands();
     bool checkIfAlreadyBuiltAndCreatNecessaryDirectories();
@@ -216,7 +206,7 @@ class ParsedTarget
     PostCompile Compile(SourceNode &sourceNode);
     PostLinkOrArchive Archive();
     PostLinkOrArchive Link();
-    BTargetType getTargetType();
+    TargetType getTargetType();
     void pruneAndSaveBuildCache(BTargetCache &bTargetCache);
     bool needsRelink() const;
     bool hasDependency(ParsedTarget *parsedTarget);
@@ -224,6 +214,7 @@ class ParsedTarget
     {
         return libraryDependenciesBTargets.size();
     }
+    void copyParsedTarget() const;
 };
 
 class Builder
@@ -239,10 +230,11 @@ class Builder
     Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex);
     static void removeRedundantNodes(vector<BuildNode> &buildTree);
     static vector<string> getTargetFilePathsFromVariantFile(const string &fileName);
-    static vector<string> getTargetFilePathsFromProjectFile(const string &fileName);
+    static vector<string> getTargetFilePathsFromProjectOrPackageFile(const string &fileName, bool isPackage);
     void populateBuildNodeDependents();
     // This function is executed by multiple threads and is executed recursively until build is finished.
     void actuallyBuild();
+    static void copyPackage(const path &packageFilePath);
 };
 
 // BuildPreBuiltTarget

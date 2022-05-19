@@ -10,13 +10,17 @@ int main()
     dog.sourceFiles.emplace_back("Dog/src/Dog.cpp");
     dog.includeDirectoryDependencies.push_back(
         IDD{.includeDirectory = Directory("Dog/header"), .dependencyType = DependencyType::PUBLIC});
-
+#ifdef _WIN32
+    PLibrary catRelease("../Example2/Build/0/Cat/Cat.lib", LibraryType::STATIC);
+    PLibrary catDebug("../Example2/Build/1/Cat/Cat.lib", LibraryType::STATIC);
+#elif
     PLibrary catRelease("../Example2/Build/0/Cat/libCat.a", LibraryType::STATIC);
+    PLibrary catDebug("../Example2/Build/1/Cat/libCat.a", LibraryType::STATIC);
+#endif
     catRelease.includeDirectoryDependencies.emplace_back("../Example2/Cat/header/");
     dog.libraryDependencies.emplace_back(catRelease, DependencyType::PUBLIC);
     variantRelease.libraries.push_back(dog);
 
-    PLibrary catDebug("../Example2/Build/1/Cat/libCat.a", LibraryType::STATIC);
     catDebug.includeDirectoryDependencies.emplace_back("../Example2/Cat/header/");
 
     dog.libraryDependencies.clear();
@@ -26,16 +30,16 @@ int main()
     // every variant. That json should be unique. Consumer will select a target that is in some variant. That
     // target will also have a hmake file associated with it. Which will describe what other include directories,
     // compiler flags, linker flags, compile options and library dependencies, the consumer of that target
-    // will be built with. All of the library dependencies should be present in the same variant. When a library is
-    //  added in a variant, it's public dependencies are also added in that variant. If a library is PLibrary then it
-    // is added just like a normal library. However if it is PPLibrary(Packaged Prebuilt Library(Introduced later),
+    // will be built with. All the library dependencies should be present in the same variant. When a library is
+    //  added in a variant, its public dependencies are also added in that variant. If a library is PLibrary then it
+    // is added just like a normal library. However, if it is PPLibrary(Packaged Prebuilt Library(Introduced later),
     // then you have the option to either just refer it(i.e. the package name, the variant of the package and the target
     // name is added as dependency(library is not copied) in the package or include that library just like
     // other libraries in the variant(library is copied in package).
 
     // Consumption of packages is shown in next example. This json mechanism provides the consumer to produce
     // different binaries having different consumption requirements. While the consumer can select the one it
-    // needs from many different variants of the package.
+    // needs from many variants of the package.
     // e.g. For this package following will be present in hmake package on it's installed location in cpackage.hmake.
     /*
     "VARIANTS": [
@@ -76,8 +80,8 @@ int main()
     variatDebug.libraries.push_back(dog);
 
     Package package("Pets");
-    variatDebug.json["CONFIGURATION"] = "DEBUG";
-    variantRelease.json["CONFIGURATION"] = "RELEASE";
+    variatDebug.uniqueJson["CONFIGURATION"] = "DEBUG";
+    variantRelease.uniqueJson["CONFIGURATION"] = "RELEASE";
     package.packageVariants.push_back(variatDebug);
     package.packageVariants.push_back(variantRelease);
 

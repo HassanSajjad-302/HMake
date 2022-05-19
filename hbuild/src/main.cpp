@@ -5,7 +5,6 @@
 using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream;
 int main(int argc, char **argv)
 {
-
     if (argc == 2)
     {
         std::string filePath = argv[1];
@@ -44,7 +43,7 @@ int main(int argc, char **argv)
             Json outputSettingsJson;
             ifstream("settings.hmake") >> outputSettingsJson;
             settings = outputSettingsJson;
-            Builder{Builder::getTargetFilePathsFromProjectFile("project.hmake"), m};
+            Builder{Builder::getTargetFilePathsFromProjectOrPackageFile("project.hmake", false), m};
         }
         else if (directoryFilesContains("projectVariant.hmake"))
         {
@@ -52,6 +51,21 @@ int main(int argc, char **argv)
             ifstream("../settings.hmake") >> outputSettingsJson;
             settings = outputSettingsJson;
             Builder{Builder::getTargetFilePathsFromVariantFile("projectVariant.hmake"), m};
+        }
+        else if (directoryFilesContains("package.hmake"))
+        {
+            Json outputSettingsJson;
+            ifstream("../settings.hmake") >> outputSettingsJson;
+            settings = outputSettingsJson;
+            Builder{Builder::getTargetFilePathsFromProjectOrPackageFile("package.hmake", true), m};
+            Builder::copyPackage("package.hmake");
+        }
+        else if (directoryFilesContains("packageVariant.hmake"))
+        {
+            Json outputSettingsJson;
+            ifstream("../../settings.hmake") >> outputSettingsJson;
+            settings = outputSettingsJson;
+            Builder{Builder::getTargetFilePathsFromVariantFile("packageVariant.hmake"), m};
         }
         else
         {
