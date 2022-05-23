@@ -140,6 +140,7 @@ struct PostCompile : PostLinkOrArchive
                          const string &buildCacheFilesDirPath, const string &fileName, const PathPrint &pathPrint);
     bool checkIfFileIsInEnvironmentIncludes(const string &str);
     void parseDepsFromMSVCTextOutput(SourceNode &sourceNode);
+    void parseDepsFromGCCDepsOutput(SourceNode &sourceNode);
     void executePostCompileRoutineWithoutMutex(SourceNode &sourceNode);
 };
 
@@ -169,7 +170,6 @@ class ParsedTarget
     vector<string> postBuildCustomCommands;
     string buildCacheFilesDirPath;
     TargetType targetType;
-    string targetFileName;
     Json consumerDependenciesJson;
     string packageTargetPath;
     bool packageMode;
@@ -194,14 +194,13 @@ class ParsedTarget
     // void setActualOutputName();
     void executePreBuildCommands();
     void executePostBuildCommands();
-    bool checkIfAlreadyBuiltAndCreatNecessaryDirectories();
     void setCompileCommand();
     void parseSourceDirectoriesAndFinalizeSourceFiles();
     // Create a new SourceNode and insert it into the targetCache.sourceFileDependencies if it is not already there. So
     // that it is written to the cache on disk for faster compilation next time
     void addAllSourceFilesInBuildNode(BTargetCache &bTargetCache);
-    void popularizeBuildTree(vector<BuildNode> &localBuildTree);
-    string getInfrastructureFlags();
+    void populateBuildTree(vector<BuildNode> &localBuildTree);
+    string getInfrastructureFlags(const SourceNode &sourceNode);
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode);
     PostCompile Compile(SourceNode &sourceNode);
     PostLinkOrArchive Archive();
@@ -235,17 +234,6 @@ class Builder
     // This function is executed by multiple threads and is executed recursively until build is finished.
     void actuallyBuild();
     static void copyPackage(const path &packageFilePath);
-};
-
-// BuildPreBuiltTarget
-struct BPTarget
-{
-    explicit BPTarget(const string &targetFilePath, const path &copyFrom);
-};
-
-struct BPackage
-{
-    explicit BPackage(const path &packageFilePath);
 };
 
 inline Settings settings;

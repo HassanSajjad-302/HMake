@@ -13,6 +13,7 @@ using std::filesystem::path, std::string, std::vector, std::tuple, std::map, std
 using Json = nlohmann::ordered_json;
 namespace fs = std::filesystem;
 
+inline const string pes = "{}"; // paranthesis-escape-sequence, meant to be used in fmt::print.
 std::string writePath(const path &writePath);
 string addQuotes(const string &pathString);
 
@@ -241,6 +242,7 @@ struct Environment
     string compilerFlags;
     string linkerFlags;
     static Environment initializeEnvironmentFromVSBatchCommand(const string &command);
+    static Environment initializeEnvironmentOnLinux();
 };
 void to_json(Json &j, const Environment &p);
 void from_json(const Json &j, Environment &environment); // Used in hbuild
@@ -261,7 +263,12 @@ struct Cache
     static inline LibraryType libraryType;
     static inline Json cacheVariables;
     static inline Environment environment;
-    static inline OSFamily osFamily; // Not part of Cache yet
+    // Not Part Of Cache Yet
+#ifdef _WIN32
+    static inline OSFamily osFamily = OSFamily::WINDOWS;
+#else
+    static inline OSFamily osFamily = OSFamily::LINUX_UNIX;
+#endif
     static void initializeCache();
     static void registerCacheVariables();
 };
@@ -698,4 +705,19 @@ struct Settings
 void to_json(Json &json, const Settings &settings);
 void from_json(const Json &json, Settings &settings);
 string file_to_string(const string &file_name);
+vector<string> split(string str, const string &token);
+
+void ADD_PUBLIC_IDD_TO_TARGET(Target &target, const string &includeDirectory);
+void ADD_PRIVATE_IDD_TO_TARGET(Target &target, const string &includeDirectory);
+void ADD_PUBLIC_LIB_DEP_TO_TARGET(Target &target, const Target &libraryDependency);
+void ADD_PRIVATE_LIB_DEP_TO_TARGET(Target &target, const Target &libraryDependency);
+void ADD_PUBLIC_CFD_TO_TARGET(Target &target, const string &compilerFlags);
+void ADD_PRIVATE_CFD_TO_TARGET(Target &target, const string &compilerFlags);
+void ADD_PUBLIC_LFD_TO_TARGET(Target &target, const string &linkerFlags);
+void ADD_PRIVATE_LFD_TO_TARGET(Target &target, const string &linkerFlags);
+void ADD_PUBLIC_CDD_TO_TARGET(Target &target, const string &compileDefinitionDependency, const string &cddValue);
+void ADD_PRIVATE_CDD_TO_TARGET(Target &target, const string &compileDefinitionDependency, const string &cddValue);
+void ADD_SRC_FILES_TO_TARGET(Target &target, const string &sourceFilePath);
+void ADD_SRC_DIR_TO_TARGET(Target &target, const string &sourceDirectory);
+
 #endif // HMAKE_CONFIGURE_HPP

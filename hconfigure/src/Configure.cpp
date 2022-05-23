@@ -1205,12 +1205,11 @@ void Cache::initializeCache()
     Cache::selectedArchiverArrayIndex = cacheFileJson.at("ARCHIVER_SELECTED_ARRAY_INDEX").get<int>();
     Cache::libraryType = cacheFileJson.at("LIBRARY_TYPE").get<LibraryType>();
     Cache::cacheVariables = cacheFileJson.at("CACHE_VARIABLES").get<Json>();
+#ifdef _WIN32
     Cache::environment = Environment::initializeEnvironmentFromVSBatchCommand(
         R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64)");
-#ifdef _WIN32
-    Cache::osFamily = OSFamily::WINDOWS;
-#elif
-    Cache::osFamily = OSFamily::LINUX_UNIX;
+#else
+
 #endif
     if (!exists(path("settings.hmake")))
     {
@@ -1365,6 +1364,13 @@ Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &c
     environment.compilerFlags = " /EHsc /MD /nologo";
     environment.linkerFlags = " /SUBSYSTEM:CONSOLE /NOLOGO";
     return environment;
+}
+
+Environment Environment::initializeEnvironmentOnLinux()
+{
+    // Maybe run cpp -v and then parse the output.
+    // https://stackoverflow.com/questions/28688484/actual-default-linker-script-and-settings-gcc-uses
+    return {};
 }
 
 void to_json(Json &j, const Environment &p)
@@ -2196,4 +2202,28 @@ string file_to_string(const string &file_name)
     }
 
     return str_stream.str();
+}
+
+vector<string> split(string str, const string &token)
+{
+    vector<string> result;
+    while (!str.empty())
+    {
+        int index = str.find(token);
+        if (index != string::npos)
+        {
+            result.push_back(str.substr(0, index));
+            str = str.substr(index + token.size());
+            if (str.empty())
+            {
+                result.push_back(str);
+            }
+        }
+        else
+        {
+            result.push_back(str);
+            str = "";
+        }
+    }
+    return result;
 }

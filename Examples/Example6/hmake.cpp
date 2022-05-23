@@ -14,7 +14,7 @@ int main()
     // library. Generating a hmake packaged library is shown in next example.
 #ifdef _WIN32
     PLibrary cat("../Example2/Build/0/Cat/Cat.lib", LibraryType::STATIC);
-#elif
+#else
     PLibrary cat("../Example2/Build/0/Cat/libCat.a", LibraryType::STATIC);
 #endif
     cat.includeDirectoryDependencies.emplace_back("../Example2/Cat/header/");

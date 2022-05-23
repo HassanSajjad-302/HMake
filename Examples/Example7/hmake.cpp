@@ -13,7 +13,7 @@ int main()
 #ifdef _WIN32
     PLibrary catRelease("../Example2/Build/0/Cat/Cat.lib", LibraryType::STATIC);
     PLibrary catDebug("../Example2/Build/1/Cat/Cat.lib", LibraryType::STATIC);
-#elif
+#else
     PLibrary catRelease("../Example2/Build/0/Cat/libCat.a", LibraryType::STATIC);
     PLibrary catDebug("../Example2/Build/1/Cat/libCat.a", LibraryType::STATIC);
 #endif

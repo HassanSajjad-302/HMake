@@ -22,16 +22,16 @@ int main()
     fun.postBuild.emplace_back("ping 127.0.0.1 -n 3 > nul");
     fun.postBuild.emplace_back(
         "del " + addQuotes((Cache::configureDirectory.directoryPath / "file.txt").make_preferred().string()));
-#elif
+#else
     fun.preBuild.emplace_back("touch " +
                               addQuotes((Cache::sourceDirectory.directoryPath / "file.txt").make_preferred().string()));
     fun.preBuild.emplace_back("sleep 2");
     fun.postBuild.emplace_back(
-        "mv " + addQuotes((Cache::sourceDirectory.directoryPath / "file.txt").make_preferred().string()) +
-        addQuotes((Cache::sourceDirectory.directoryPath / "file.txt").make_preferred().string()));
+        "mv " + addQuotes((Cache::sourceDirectory.directoryPath / "file.txt").make_preferred().string()) + " " +
+        addQuotes((Cache::configureDirectory.directoryPath / "file.txt").make_preferred().string()));
     fun.postBuild.emplace_back("sleep 3");
     fun.postBuild.emplace_back(
-        "rm " + addQuotes((Cache::sourceDirectory.directoryPath / "file.txt").make_preferred().string()));
+        "rm " + addQuotes((Cache::configureDirectory.directoryPath / "file.txt").make_preferred().string()));
 #endif
     variantRelease.executables.push_back(fun);
     project.projectVariants.push_back(variantRelease);

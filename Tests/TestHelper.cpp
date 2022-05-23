@@ -19,7 +19,11 @@ string TestHelper::runHMakeProject()
     system("hhelper.exe");
     system("hbuild.exe");
     current_path("0/app/");
+#ifdef _WIN32
     system("app.exe > file");
+#else
+    system("./app > file");
+#endif
     stringstream output;
     output << ifstream("file").rdbuf();
     return output.str();

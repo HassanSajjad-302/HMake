@@ -35,8 +35,7 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
 #define THROW true
 #endif
 
-#define _WIN64
-#ifdef _WIN64 || _WIN32
+#ifdef _WIN32
 constexpr Platform platform = Platform::WINDOWS;
 #elif defined __linux
 constexpr Platform platform = Platform::LINUX;
@@ -125,11 +124,12 @@ int main()
         path hconfigureStaticLibPath = path(HCONFIGURE_STATIC_LIB_PATH);
         if constexpr (platform == Platform::LINUX)
         {
-            string compileCommand = "g++ -std=c++20"
-                                    " -I " HCONFIGURE_HEADER " -I " JSON_HEADER "  -I " FMT_HEADER "{SOURCE_DIRECTORY}/hmake.cpp"
-                                    " -L " HCONFIGURE_STATIC_LIB_DIRECTORY " -l hconfigure "
-                                    " -o "
-                                    "{CONFIGURE_DIRECTORY}/configure";
+            string compileCommand =
+                "g++ -std=c++20"
+                " -I " HCONFIGURE_HEADER " -I " JSON_HEADER "  -I " FMT_HEADER " {SOURCE_DIRECTORY}/hmake.cpp"
+                " -L " HCONFIGURE_STATIC_LIB_DIRECTORY " -l hconfigure "
+                " -o "
+                "{CONFIGURE_DIRECTORY}/configure";
             compileConfigureCommands.push_back(compileCommand);
         }
         else

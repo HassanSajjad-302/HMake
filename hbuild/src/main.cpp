@@ -25,6 +25,12 @@ int main(int argc, char **argv)
     }
     else
     {
+        auto initializeSettings = [](const path &settingsFilePath) {
+            Json outputSettingsJson;
+            ifstream(settingsFilePath) >> outputSettingsJson;
+            settings = outputSettingsJson;
+        };
+
         mutex m;
         vector<string> directoryFiles;
         for (auto &file : directory_iterator(current_path()))
@@ -40,31 +46,23 @@ int main(int argc, char **argv)
 
         if (directoryFilesContains("project.hmake"))
         {
-            Json outputSettingsJson;
-            ifstream("settings.hmake") >> outputSettingsJson;
-            settings = outputSettingsJson;
+            initializeSettings("settings.hmake");
             Builder{Builder::getTargetFilePathsFromProjectOrPackageFile("project.hmake", false), m};
         }
         else if (directoryFilesContains("projectVariant.hmake"))
         {
-            Json outputSettingsJson;
-            ifstream("../settings.hmake") >> outputSettingsJson;
-            settings = outputSettingsJson;
+            initializeSettings("../settings.hmake");
             Builder{Builder::getTargetFilePathsFromVariantFile("projectVariant.hmake"), m};
         }
         else if (directoryFilesContains("package.hmake"))
         {
-            Json outputSettingsJson;
-            ifstream("../settings.hmake") >> outputSettingsJson;
-            settings = outputSettingsJson;
+            initializeSettings("../settings.hmake");
             Builder{Builder::getTargetFilePathsFromProjectOrPackageFile("package.hmake", true), m};
             Builder::copyPackage("package.hmake");
         }
         else if (directoryFilesContains("packageVariant.hmake"))
         {
-            Json outputSettingsJson;
-            ifstream("../../settings.hmake") >> outputSettingsJson;
-            settings = outputSettingsJson;
+            initializeSettings("../../settings.hmake");
             Builder{Builder::getTargetFilePathsFromVariantFile("packageVariant.hmake"), m};
         }
         else

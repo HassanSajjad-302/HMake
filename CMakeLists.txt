@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18.0)
+cmake_minimum_required(VERSION 3.21.0)
 
 project(HMake LANGUAGES CXX)
 
@@ -35,7 +35,6 @@ target_link_libraries(hconfigure PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(hbuild PRIVATE nlohmann_json::nlohmann_json hconfigure)
 target_link_libraries(hhelper PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(UnBuiltTarget PRIVATE nlohmann_json::nlohmann_json hconfigure)
-add_dependencies(UnBuiltTarget hconfigure)
 
 
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -55,10 +54,3 @@ add_subdirectory(fmt)
 target_link_libraries(Test_Correctness PRIVATE fmt::fmt)
 target_link_libraries(hbuild PRIVATE fmt::fmt)
 target_link_libraries(hhelper PRIVATE fmt::fmt)
-set(REPROC_DEVELOP OFF)
-set(REPROC++ ON)
-
-# Just For Quick Testing Purposes.
-add_executable(Testing Testing/main.cpp)
-target_link_libraries(Testing PRIVATE fmt::fmt)
-

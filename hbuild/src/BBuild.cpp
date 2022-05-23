@@ -168,7 +168,7 @@ void ParsedTarget::executePreBuildCommands()
     {
         if (settings.gpcSettings.preBuildCommands)
         {
-            print(fg(static_cast<fmt::color>(settings.pcSettings.hbuildSequenceOutput)), i + "\n");
+            print(fg(static_cast<fmt::color>(settings.pcSettings.hbuildSequenceOutput)), pes, i + "\n");
         }
         if (int a = system(i.c_str()); a != EXIT_SUCCESS)
         {
@@ -180,28 +180,6 @@ void ParsedTarget::executePreBuildCommands()
     {
         i.executePreBuildCommands();
     }
-    /*for (const auto &i : libraryDependencies)
-    {
-        if (!i.preBuilt)
-        {
-            BTarget buildTarget(i.path);
-            buildTarget.executePreBuildCommands();
-        }
-        else
-        {
-            // TODO
-            // Currently ignore prebuilt libs for time being
-            string dir = path(i.path).parent_path().string();
-            string libName = path(i.path).filename().string();
-            libName.erase(0, 3);
-            libName.erase(libName.find('.'), 2);
-
-            if (!i.imported)
-            {
-                BPTarget(i.hmakeFilePath, i.path);
-            }
-        }
-    }*/
 }
 
 void ParsedTarget::executePostBuildCommands()
@@ -215,56 +193,16 @@ void ParsedTarget::executePostBuildCommands()
     {
         if (settings.gpcSettings.postBuildCommands)
         {
-            print(fg(static_cast<fmt::color>(settings.pcSettings.hbuildSequenceOutput)), i + "\n");
+            print(fg(static_cast<fmt::color>(settings.pcSettings.hbuildSequenceOutput)), pes, i + "\n");
         }
         if (int a = system(i.c_str()); a != EXIT_SUCCESS)
         {
             exit(a);
         }
     }
-    // TODO
     for (auto &i : libraryDependenciesBTargets)
     {
         i.executePreBuildCommands();
-    }
-    /*for (const auto &i : libraryDependencies)
-    {
-        if (!i.preBuilt)
-        {
-            BTarget buildTarget(i.path);
-            buildTarget.executePreBuildCommands();
-        }
-        else
-        {
-            // TODO
-            // Currently ignore prebuilt libs for time being
-            string dir = path(i.path).parent_path().string();
-            string libName = path(i.path).filename().string();
-            libName.erase(0, 3);
-            libName.erase(libName.find('.'), 2);
-
-    if (!i.imported)
-    {
-        BPTarget(i.hmakeFilePath, i.path);
-    }
-}
-}*/
-}
-
-bool ParsedTarget::checkIfAlreadyBuiltAndCreatNecessaryDirectories()
-{
-    if (exists(path(buildCacheFilesDirPath) / (targetName + ".cache")) &&
-        exists(path(outputDirectory) / actualOutputName))
-    {
-        return true;
-    }
-    else
-    {
-        if (!exists(buildCacheFilesDirPath))
-        {
-            create_directory(buildCacheFilesDirPath);
-        }
-        return false;
     }
 }
 
@@ -368,7 +306,7 @@ void to_json(Json &j, const SourceNode &sourceNode)
 
 void from_json(const Json &j, SourceNode &sourceNode)
 {
-    /* from_json function of Node* did not work correctly, so not using it.*/
+    // from_json function of Node* did not work correctly, so not using it.*/
     // sourceNode.node = j.at("SRC_FILE").get<Node*>();
     // sourceNode.headerDependencies = j.at("HEADER_DEPENDENCIES").get<set<Node *>>();
 
@@ -472,8 +410,8 @@ PostLinkOrArchive::PostLinkOrArchive(string commandFirstHalf, string printComman
 
     CompileCommandPrintSettings ccpSettings = settings.ccpSettings;
 
-    string outputFileName = (path(buildCacheFilesDirPath) / (fileName + "_output" + str)).generic_string();
-    string errorFileName = (path(buildCacheFilesDirPath) / (fileName + "_error" + str)).generic_string();
+    string outputFileName = buildCacheFilesDirPath + fileName + "_output" + str;
+    string errorFileName = buildCacheFilesDirPath + fileName + "_error" + str;
 
     commandFirstHalf += "> " + addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
 
@@ -485,7 +423,9 @@ PostLinkOrArchive::PostLinkOrArchive(string commandFirstHalf, string printComman
 
     printCommand = std::move(printCommandFirstHalf);
 
+#ifdef _WIN32
     commandFirstHalf = addQuotes(commandFirstHalf);
+#endif
     if (system(commandFirstHalf.c_str()) == EXIT_SUCCESS)
     {
         successfullyCompleted = true;
@@ -509,16 +449,16 @@ void PostLinkOrArchive::executePrintRoutine(uint32_t color) const
         ss << myid;
         threadId = ss.str();
     }
-    print(fg(static_cast<fmt::color>(color)), printCommand + " " + threadId);
+    print(fg(static_cast<fmt::color>(color)), pes, printCommand + " " + threadId);
     print("\n");
     if (!commandSuccessOutput.empty())
     {
-        print(fg(static_cast<fmt::color>(color)), commandSuccessOutput);
+        print(fg(static_cast<fmt::color>(color)), pes, commandSuccessOutput);
         print("\n");
     }
     if (!commandErrorOutput.empty())
     {
-        print(fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)), commandErrorOutput);
+        print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)), pes, commandErrorOutput);
         print("\n");
     }
 }
@@ -529,7 +469,6 @@ PostCompile::PostCompile(const ParsedTarget &parsedTarget_, string commandFirstH
       PostLinkOrArchive(std::move(commandFirstHalf), std::move(printCommandFirstHalf), buildCacheFilesDirPath, fileName,
                         pathPrint, false)
 {
-    isTarget = false;
 }
 
 bool PostCompile::checkIfFileIsInEnvironmentIncludes(const string &str)
@@ -551,13 +490,7 @@ bool PostCompile::checkIfFileIsInEnvironmentIncludes(const string &str)
 
 void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode)
 {
-    std::istringstream f(commandSuccessOutput);
-    string line;
-    vector<string> outputLines;
-    while (std::getline(f, line))
-    {
-        outputLines.emplace_back(line);
-    }
+    vector<string> outputLines = split(commandSuccessOutput, "\n");
     string includeFileNote = "Note: including file:";
 
     for (auto iter = outputLines.begin(); iter != outputLines.end();)
@@ -599,15 +532,41 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode)
     commandSuccessOutput = treatedOutput;
 }
 
+void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
+{
+
+    string headerDepFilecontents = file_to_string(parsedTarget.buildCacheFilesDirPath +
+                                                  path(sourceNode.node->filePath).filename().string() + ".d");
+    vector<string> headerDeps = split(headerDepFilecontents, "\n");
+
+    // First 2 lines are skipped as these are .o and .cpp file. While last line is an empty line
+    for (auto iter = headerDeps.begin() + 2; iter != headerDeps.end() - 1; ++iter)
+    {
+        size_t pos = iter->find_first_not_of(" ");
+        string headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
+        if (!checkIfFileIsInEnvironmentIncludes(headerDep))
+        {
+            Node *node = Node::getNodeFromString(headerDep);
+            sourceNode.headerDependencies.emplace(node);
+        }
+    }
+}
+
 void PostCompile::executePostCompileRoutineWithoutMutex(SourceNode &sourceNode)
 {
     if (!successfullyCompleted)
     {
         return;
     }
+    // Clearing old header-deps and adding the new ones.
+    sourceNode.headerDependencies.clear();
     if (parsedTarget.compiler.bTFamily == BTFamily::MSVC)
     {
         parseDepsFromMSVCTextOutput(sourceNode);
+    }
+    else if (parsedTarget.compiler.bTFamily == BTFamily::GCC)
+    {
+        parseDepsFromGCCDepsOutput(sourceNode);
     }
 }
 
@@ -655,7 +614,7 @@ void ParsedTarget::addAllSourceFilesInBuildNode(BTargetCache &bTargetCache)
     }
 }
 
-void ParsedTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
+void ParsedTarget::populateBuildTree(vector<BuildNode> &localBuildTree)
 {
     for (auto it = localBuildTree.begin(); it != localBuildTree.end(); ++it)
     {
@@ -800,16 +759,24 @@ void ParsedTarget::popularizeBuildTree(vector<BuildNode> &localBuildTree)
 
     for (auto &i : libraryDependenciesBTargets)
     {
-        i.popularizeBuildTree(localBuildTree);
+        i.populateBuildTree(localBuildTree);
     }
 }
 
-string ParsedTarget::getInfrastructureFlags()
+string ParsedTarget::getInfrastructureFlags(const SourceNode &sourceNode)
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {
         return "/showIncludes /c ";
     }
+    else if (compiler.bTFamily == BTFamily::GCC)
+    {
+        // Will like to use -MD but not using it currently because sometimes it prints 2 header deps in one line and
+        // no space in them so no way of knowing whether this is a space in path or 2 different headers. Which then
+        // breaks when last_write_time is checked for that path.
+        return "-c -MMD ";
+    }
+    return "";
 }
 
 string ParsedTarget::getCompileCommandPrintSecondPart(const SourceNode &sourceNode)
@@ -820,21 +787,19 @@ string ParsedTarget::getCompileCommandPrintSecondPart(const SourceNode &sourceNo
     string command;
     if (ccpSettings.sourceFile.printLevel != PathPrintLevel::NO)
     {
-        command += getReducedPath(path(sourceNode.node->filePath).generic_string(), ccpSettings.sourceFile) + " ";
+        command += getReducedPath(sourceNode.node->filePath, ccpSettings.sourceFile) + " ";
     }
     if (ccpSettings.infrastructureFlags)
     {
-        command += getInfrastructureFlags();
+        command += getInfrastructureFlags(sourceNode);
     }
     if (ccpSettings.infrastructureFlags)
     {
-        command += compiler.bTFamily == BTFamily::MSVC ? "/Fo" : "";
+        command += compiler.bTFamily == BTFamily::MSVC ? "/Fo" : "-o ";
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
-        command += getReducedPath(path(buildCacheFilesDirPath).generic_string() + compileFileName + ".o",
-                                  ccpSettings.objectFile) +
-                   " ";
+        command += getReducedPath(buildCacheFilesDirPath + compileFileName + ".o", ccpSettings.objectFile) + " ";
     }
     return command;
 }
@@ -843,18 +808,19 @@ PostCompile ParsedTarget::Compile(SourceNode &sourceNode)
 {
     string compileFileName = path(sourceNode.node->filePath).filename().string();
 
-    string finalCompileCommand = compileCommand + addQuotes(path(sourceNode.node->filePath).generic_string()) + " ";
+    string finalCompileCommand = compileCommand + addQuotes(sourceNode.node->filePath) + " ";
 
-    finalCompileCommand += getInfrastructureFlags();
+    finalCompileCommand += getInfrastructureFlags(sourceNode);
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        finalCompileCommand +=
-            "/Fo" + addQuotes(path(buildCacheFilesDirPath).generic_string() + compileFileName + ".o") + " ";
+        finalCompileCommand += "/Fo" + addQuotes(buildCacheFilesDirPath + compileFileName + ".o") + " ";
     }
     else
     {
+        finalCompileCommand += "-o " + addQuotes(buildCacheFilesDirPath + compileFileName + ".o") + " ";
     }
 
+    cout << finalCompileCommand << endl;
     PostCompile postCompile{*this,
                             finalCompileCommand,
                             compileCommandFirstHalf + getCompileCommandPrintSecondPart(sourceNode),
@@ -892,14 +858,6 @@ PostLinkOrArchive ParsedTarget::Archive()
     {
         archivePrintCommand += archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
     }
-
-    archiveCommand += addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o") + " ";
-    if (acpSettings.objectFiles.printLevel != PathPrintLevel::NO)
-    {
-        archivePrintCommand +=
-            getReducedPath(path(buildCacheFilesDirPath / path("")).string() + "*.o", acpSettings.objectFiles) + " ";
-    }
-
     auto getArchiveOutputFlag = [&]() -> string {
         if (archiver.bTFamily == BTFamily::MSVC)
         {
@@ -923,6 +881,24 @@ PostLinkOrArchive ParsedTarget::Archive()
         archivePrintCommand += getReducedPath(getLibraryPath(), acpSettings.archive) + " ";
     }
 
+    // Wildcard expansion works inside quotes in batch however does not work in bash.
+#ifdef _WIN32
+    archiveCommand += addQuotes(buildCacheFilesDirPath + "*.o") + " ";
+    if (acpSettings.objectFiles.printLevel != PathPrintLevel::NO)
+    {
+        archivePrintCommand += getReducedPath(buildCacheFilesDirPath + "*.o", acpSettings.objectFiles) + " ";
+    }
+
+#else
+    archiveCommand += addQuotes(buildCacheFilesDirPath) + "*.o ";
+    if (acpSettings.objectFiles.printLevel != PathPrintLevel::NO)
+    {
+        string str = getReducedPath(buildCacheFilesDirPath, acpSettings.objectFiles);
+        archivePrintCommand += str + "*.o ";
+    }
+
+#endif
+    cout << archiveCommand << endl;
     PostLinkOrArchive postLinkOrArchive(archiveCommand, archivePrintCommand, buildCacheFilesDirPath, targetName,
                                         acpSettings.outputAndErrorFiles, true);
     return postLinkOrArchive;
@@ -957,11 +933,24 @@ PostLinkOrArchive ParsedTarget::Link()
         linkPrintCommand += linkerTransitiveFlags + " ";
     }
 
+    // Wildcard expansion works inside quotes in batch however does not work in bash.
+#ifdef _WIN32
     linkCommand += addQuotes(buildCacheFilesDirPath + "*.o") + " ";
     if (lcpSettings.objectFiles.printLevel != PathPrintLevel::NO)
     {
         linkPrintCommand += getReducedPath(buildCacheFilesDirPath + "*.o", lcpSettings.objectFiles) + " ";
     }
+#else
+    linkCommand += addQuotes(buildCacheFilesDirPath) + "*.o ";
+    if (lcpSettings.objectFiles.printLevel != PathPrintLevel::NO)
+    {
+        string str = getReducedPath(buildCacheFilesDirPath, lcpSettings.objectFiles);
+        if (!str.empty())
+        {
+            linkPrintCommand += str + "*.o ";
+        }
+    }
+#endif
 
     auto getLinkFlag = [this](const std::string &libraryPath, const std::string &libraryName) {
         if (linker.bTFamily == BTFamily::MSVC)
@@ -1058,29 +1047,7 @@ PostLinkOrArchive ParsedTarget::Link()
         linkPrintCommand += getReducedPath((path(outputDirectory) / actualOutputName).string(), lcpSettings.binary);
     }
 
-    /* for (const auto &i : libraryDependencies)
-     {
-         if (!i.preBuilt)
-         {
-             BTarget buildTarget(i.path);
-             libraryDependenciesFlags.append(getLinkFlag(buildTarget.outputDirectory, buildTarget.outputName));
-         }
-         else
-         {
-             string dir = path(i.path).parent_path().string();
-             string libName = path(i.path).filename().string();
-             libName.erase(0, 3);
-             libName.erase(libName.find('.'), 2);
-             libraryDependenciesFlags.append(getLinkFlag(dir, libName));
-
-             if (!i.imported)
-             {
-                 BPTarget(i.hmakeFilePath, i.path);
-             }
-         }
-     }*/
-    // string totalLinkerFlags = environment.linkerFlags + " " + linkerFlags + " " + linkerTransitiveFlags;
-
+    cout << linkCommand << endl;
     PostLinkOrArchive postLinkOrArchive(linkCommand, linkPrintCommand, buildCacheFilesDirPath, targetName,
                                         lcpSettings.outputAndErrorFiles, true);
     return postLinkOrArchive;
@@ -1307,7 +1274,7 @@ Builder::Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex) 
 
     for (auto &t : parsedTargets)
     {
-        t.popularizeBuildTree(buildTree);
+        t.populateBuildTree(buildTree);
     }
     removeRedundantNodes(buildTree);
     populateBuildNodeDependents();
@@ -1346,133 +1313,6 @@ Builder::Builder(const vector<string> &targetFilePaths, mutex &oneAndOnlyMutex) 
     {
         p.copyParsedTarget();
     }
-    // Build has been finished. Now we can copy stuff.
-
-    // This is the actual build part. I am not doing it here.
-    /*
-        for (const auto &i : sourceFiles)
-        {
-            compileCommand += compiler.bTFamily == BTFamily::MSVC ? " /c " : " -c ";
-            compileCommand += i;
-            compileCommand += compiler.bTFamily == BTFamily::MSVC ? " /Fo" : " -o ";
-            compileCommand += addQuotes((path(buildCacheFilesDirPath) / path(i).filename()).string()) + ".o" + "\"";
-
-            cout << compileCommand << endl;
-            int code = system(compileCommand.c_str());
-            if (code != EXIT_SUCCESS)
-            {
-                exit(code);
-            }
-        }
-
-        if (targetType == BTargetType::STATIC)
-        {
-            cout << "Archiving" << endl;
-            string archiveCommand = "\"";
-            if (archiver.bTFamily == BTFamily::MSVC)
-            {
-                archiveCommand += archiver.bTPath.make_preferred().string() +
-                                  " /OUT:" + addQuotes((path(outputDirectory) / actualOutputName).string()) + " " +
-                                  addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ");
-            }
-            else if (archiver.bTFamily == BTFamily::GCC)
-            {
-                archiveCommand = archiver.bTPath.make_preferred().string() + " rcs " +
-                                 addQuotes((path(outputDirectory) / actualOutputName).string()) + " " +
-                                 addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ");
-            }
-
-            archiveCommand += "\"";
-            cout << archiveCommand << endl;
-            int code = system(archiveCommand.c_str());
-            if (code != EXIT_SUCCESS)
-            {
-                exit(code);
-            }
-        }
-        else
-        {
-            cout << "Linking" << endl;
-            string linkerCommand;
-            if (targetType == BTargetType::EXECUTABLE)
-            {
-                linkerCommand = "\"" + addQuotes(linker.bTPath.make_preferred().string()) + " " + totalLinkerFlags +
-       " "
-       + addQuotes(path(buildCacheFilesDirPath / path("")).string() + "*.o ") + " " + libraryDependenciesFlags +
-       totalLibraryDirectoriesFlags; linkerCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
-                linkerCommand += addQuotes((path(outputDirectory) / actualOutputName).string()) + "\"";
-            }
-            else
-            {
-            }
-
-            cout << linkerCommand << endl;
-            int code = system(linkerCommand.c_str());
-            if (code != EXIT_SUCCESS)
-            {
-                exit(code);
-            }
-
-        }*/
-
-    // cout << "Build Complete" << endl;
-
-    /* if (copyPackage)
-     {
-         cout << "Copying Started" << endl;
-         path copyFrom;
-         path copyTo = packageTargetPath / "";
-         if (targetType != BTargetType::SHARED)
-         {
-             copyFrom = path(outputDirectory) / actualOutputName;
-         }
-         else
-         {
-             // Shared Libraries Not Supported Yet.
-         }
-         copyFrom = copyFrom.lexically_normal();
-         copyTo = copyTo.lexically_normal();
-         cout << "Copying Target" << endl;
-         cout << "Copying Target From " << copyFrom.string() << endl;
-         cout << "Copying Target To " << copyTo.string() << endl;
-         create_directories(copyTo);
-         copy(copyFrom, copyTo, copy_options::update_existing);
-         cout << "Target Copying Done" << endl;
-         cout << "Copying Include Directories" << endl;
-         for (auto &i : includeDirectories)
-         {
-             if (i.copy)
-             {
-                 path includeDirectoryCopyFrom = i.path;
-                 path includeDirectoryCopyTo = packageTargetPath / "include";
-                 includeDirectoryCopyFrom = includeDirectoryCopyFrom.lexically_normal();
-                 includeDirectoryCopyTo = includeDirectoryCopyTo.lexically_normal();
-                 cout << "Copying IncludeDirectory From " << includeDirectoryCopyFrom << endl;
-                 cout << "Copying IncludeDirectory To " << includeDirectoryCopyTo << endl;
-                 create_directories(includeDirectoryCopyTo);
-                 copy(includeDirectoryCopyFrom, includeDirectoryCopyTo,
-                      copy_options::update_existing | copy_options::recursive);
-                 cout << "IncludeDirectory Copying Done" << endl;
-             }
-         }
-         string consumerTargetFileName;
-         path consumerTargetFile = packageTargetPath / (targetName + ".hmake");
-         ofstream(consumerTargetFile) << consumerDependenciesJson.dump(4);
-         cout << "Copying Completed" << endl;
-     }
-
-     if (!postBuildCustomCommands.empty())
-     {
-         cout << "Executing POST_BUILD_CUSTOM_COMMANDS" << endl;
-     }
-     for (auto &i : postBuildCustomCommands)
-     {
-         cout << i << endl;
-         if (int a = system(i.c_str()); a != EXIT_SUCCESS)
-         {
-             exit(a);
-         }
-     }*/
 }
 
 vector<string> Builder::getTargetFilePathsFromVariantFile(const string &fileName)
@@ -1566,163 +1406,6 @@ void Builder::copyPackage(const path &packageFilePath)
     }
 }
 
-/*
-BPTarget::BPTarget(const string &targetFilePath, const path &copyFrom)
-{
-    string targetName;
-    string compilerFlags;
-    vector<BLibraryDependency> libraryDependencies;
-    vector<BIDD> includeDirectories;
-    vector<BCompileDefinition> compileDefinitions;
-    string targetFileName;
-    Json consumerDependenciesJson;
-    path packageTargetPath;
-    bool packageMode;
-    bool copyPackage;
-    string packageName;
-    string packageCopyPath;
-    int packageVariantIndex;
-
-    string fileName = path(targetFilePath).filename().string();
-    targetName = fileName.substr(0, fileName.size() - string(".hmake").size());
-    Json targetFileJson;
-    ifstream(targetFilePath) >> targetFileJson;
-
-    if (targetFileJson.at("VARIANT").get<string>() == "PACKAGE")
-    {
-        packageMode = true;
-    }
-    else
-    {
-        packageMode = false;
-    }
-    if (packageMode)
-    {
-        copyPackage = targetFileJson.at("PACKAGE_COPY").get<bool>();
-        if (copyPackage)
-        {
-            packageName = targetFileJson.at("PACKAGE_NAME").get<string>();
-            packageCopyPath = targetFileJson.at("PACKAGE_COPY_PATH").get<string>();
-            packageVariantIndex = targetFileJson.at("PACKAGE_VARIANT_INDEX").get<int>();
-            packageTargetPath = packageCopyPath / path(packageName) / path(to_string(packageVariantIndex)) / targetName;
-        }
-    }
-    else
-    {
-        copyPackage = false;
-    }
-
-    libraryDependencies = targetFileJson.at("LIBRARY_DEPENDENCIES").get<vector<BLibraryDependency>>();
-    if (packageMode)
-    {
-        includeDirectories = targetFileJson.at("INCLUDE_DIRECTORIES").get<vector<BIDD>>();
-    }
-
-    if (copyPackage)
-    {
-        consumerDependenciesJson = targetFileJson.at("CONSUMER_DEPENDENCIES").get<Json>();
-    }
-
-    for (const auto &i : libraryDependencies)
-    {
-        if (!i.preBuilt)
-        {
-            //  BTarget buildTarget(i.path);
-        }
-        else
-        {
-            if (!i.imported)
-            {
-                BPTarget(i.hmakeFilePath, copyFrom);
-            }
-        }
-    }
-    if (copyPackage)
-    {
-        cout << "Copying Started" << endl;
-        path copyTo = packageTargetPath / "";
-        copyTo = copyTo.lexically_normal();
-        cout << "Copying Target" << endl;
-        cout << "Copying Target From " << copyFrom.string() << endl;
-        cout << "Copying Target To " << copyTo.string() << endl;
-        create_directories(copyTo);
-        copy(copyFrom, copyTo, copy_options::update_existing);
-        cout << "Target Copying Done" << endl;
-        cout << "Copying Include Directories" << endl;
-        for (auto &i : includeDirectories)
-        {
-            if (i.copy)
-            {
-                path includeDirectoryCopyFrom = i.path;
-                path includeDirectoryCopyTo = packageTargetPath / "include";
-                includeDirectoryCopyFrom = includeDirectoryCopyFrom.lexically_normal();
-                includeDirectoryCopyTo = includeDirectoryCopyTo.lexically_normal();
-                cout << "Copying IncludeDirectory From " << includeDirectoryCopyFrom << endl;
-                cout << "Copying IncludeDirectory To " << includeDirectoryCopyTo << endl;
-                create_directories(includeDirectoryCopyTo);
-                copy(includeDirectoryCopyFrom, includeDirectoryCopyTo,
-                     copy_options::update_existing | copy_options::recursive);
-                cout << "IncludeDirectory Copying Done" << endl;
-            }
-        }
-        string consumerTargetFileName;
-        path consumerTargetFile = packageTargetPath / (targetName + ".hmake");
-        ofstream(consumerTargetFile) << consumerDependenciesJson.dump(4);
-        cout << "Copying Completed" << endl;
-    }
-}
-
-BPackage::BPackage(const path &packageFilePath)
-{
-    Json packageFileJson;
-    ifstream(packageFilePath) >> packageFileJson;
-    Json variants = packageFileJson.at("VARIANTS").get<Json>();
-    path packageCopyPath;
-    bool packageCopy = packageFileJson.at("PACKAGE_COPY").get<bool>();
-    if (packageCopy)
-    {
-        string packageName = packageFileJson.at("NAME").get<string>();
-        string version = packageFileJson.at("VERSION").get<string>();
-        packageCopyPath = packageFileJson.at("PACKAGE_COPY_PATH").get<string>();
-        packageCopyPath /= packageName;
-        if (packageFileJson.at("CACHE_INCLUDES").get<bool>())
-        {
-            Json commonFileJson;
-            ifstream(current_path() / "Common.hmake") >> commonFileJson;
-            Json commonJson;
-            for (auto &i : commonFileJson)
-            {
-                Json commonJsonObject;
-                int commonIndex = i.at("INDEX").get<int>();
-                commonJsonObject["INDEX"] = commonIndex;
-                commonJsonObject["VARIANTS_INDICES"] = i.at("VARIANTS_INDICES").get<Json>();
-                commonJson.emplace_back(commonJsonObject);
-                path commonIncludePath = packageCopyPath / "Common" / path(to_string(commonIndex)) / "include";
-                create_directories(commonIncludePath);
-                path dirCopyFrom = i.at("PATH").get<string>();
-                copy(dirCopyFrom, commonIncludePath, copy_options::update_existing | copy_options::recursive);
-            }
-        }
-        path consumePackageFilePath = packageCopyPath / "cpackage.hmake";
-        Json consumePackageFilePathJson;
-        consumePackageFilePathJson["NAME"] = packageName;
-        consumePackageFilePathJson["VERSION"] = version;
-        consumePackageFilePathJson["VARIANTS"] = variants;
-        create_directories(packageCopyPath);
-        ofstream(consumePackageFilePath) << consumePackageFilePathJson.dump(4);
-    }
-    for (auto &variant : variants)
-    {
-        string integerIndex = variant.at("INDEX").get<string>();
-        path packageVariantFilePath = current_path() / integerIndex / "packageVariant.hmake";
-        if (!is_regular_file(packageVariantFilePath))
-        {
-            cerr << packageVariantFilePath.string() << " is not a regular file";
-        }
-        // BVariant{packageVariantFilePath};
-    }
-}*/
-
 string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
 {
     assert(pathPrint.printLevel != PathPrintLevel::NO &&
@@ -1735,17 +1418,36 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
 
     auto nthOccurrence = [](const std::string &str, const std::string &findMe, size_t nth) -> size_t {
         size_t pos = 0;
-        int cnt = 0;
+        int count = 0;
 
-        while (cnt != nth)
+        for (int i = 0; i < str.size(); ++i)
         {
-            pos += 1;
-            pos = str.find(findMe, pos);
-            if (pos == std::string::npos)
-                return -1;
-            cnt++;
+            if (str.size() > i + findMe.size())
+            {
+                bool found = true;
+                for (int j = 0; j < findMe.size(); ++j)
+                {
+                    if (str[i + j] != findMe[j])
+                    {
+                        found = false;
+                        break;
+                    }
+                }
+                if (found)
+                {
+                    ++count;
+                    if (count == nth)
+                    {
+                        return i;
+                    }
+                }
+            }
+            else
+            {
+                break;
+            }
         }
-        return pos;
+        return -1;
     };
 
     auto countSubstring = [](const std::string &str, const std::string &sub) -> int {
