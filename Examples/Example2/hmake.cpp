@@ -7,10 +7,10 @@ int main()
     ProjectVariant variantRelease;
 
     Executable animal("Animal", variantRelease);
-    animal.sourceFiles.emplace_back("main.cpp");
+    animal.sourceFiles.emplace("main.cpp");
 
     Library cat("Cat", variantRelease);
-    cat.sourceFiles.emplace_back("Cat/src/Cat.cpp");
+    cat.sourceFiles.emplace("Cat/src/Cat.cpp");
     IDD idd;
     idd.includeDirectory = Directory("Cat/header");
     idd.dependencyType = DependencyType::PUBLIC;

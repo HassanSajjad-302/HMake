@@ -1,5 +1,8 @@
 
 
+#include "gtest/gtest.h"
+#include <iostream>
+using std::cout, std::endl;
 #include "TestHelper.hpp"
 #include "filesystem"
 #include "fstream"
@@ -7,7 +10,7 @@
 using std::filesystem::create_directory, std::filesystem::current_path, std::ofstream, std::ifstream, std::stringstream,
     std::filesystem::path;
 
-string TestHelper::runHMakeProject()
+void TestHelper::runHMakeProjectWithExpectedOutput(const string &expectedOutput)
 {
     if (exists(path("Build")))
     {
@@ -15,9 +18,9 @@ string TestHelper::runHMakeProject()
     }
     create_directory("Build");
     current_path("Build");
-    system("hhelper.exe");
-    system("hhelper.exe");
-    system("hbuild.exe");
+    ASSERT_EQ(system("hhelper.exe"), 0) << "First hhelper.exe command failed.";
+    ASSERT_EQ(system("hhelper.exe"), 0) << "Second hhelper.exe command failed.";
+    ASSERT_EQ(system("hbuild.exe"), 0) << "hbuild.exe command failed.";
     current_path("0/app/");
 #ifdef _WIN32
     system("app.exe > file");
@@ -26,7 +29,8 @@ string TestHelper::runHMakeProject()
 #endif
     stringstream output;
     output << ifstream("file").rdbuf();
-    return output.str();
+    ASSERT_EQ(output.str(), expectedOutput)
+        << "hmake build succeeded, however running the application did not produce expected output";
 }
 
 void TestHelper::recreateSourceAndBuildDir()

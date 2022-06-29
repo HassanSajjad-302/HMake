@@ -52,7 +52,7 @@ int main()
 
     // If you don't provide full path then relative path is converted into full path like following
     // Cache::sourceDirectory.path/path i.e. your path is taken relative to sourceDirectory.
-    app.sourceFiles.emplace_back("main.cpp");
+    app.sourceFiles.emplace("main.cpp");
 
     variant.executables.push_back(app);
     project.projectVariants.push_back(variant);

@@ -3,11 +3,11 @@
 #define HMAKE_CONFIGURE_HPP
 
 #include "filesystem"
+#include "fmt/color.h"
 #include "nlohmann/json.hpp"
 #include "stack"
 #include "utility"
 #include <set>
-#include "fmt/color.h"
 
 using std::filesystem::path, std::string, std::vector, std::tuple, std::map, std::set, std::same_as, std::stack;
 using Json = nlohmann::ordered_json;
@@ -20,20 +20,24 @@ string addQuotes(const string &pathString);
 struct File
 {
     path filePath;
+    File() = default;
     explicit File(const path &filePath_);
 };
-
+void to_json(Json &json, const File &file);
+void from_json(const Json &json, File &file);
+bool operator<(const File &lhs, const File &rhs);
 // TODO: Implement CMake glob like structure which will allow to define a FileArray during configure stage in one line.
 struct Directory
 {
     path directoryPath;
     bool isCommon = false;
-    int commonDirectoryNumber;
+    unsigned long commonDirectoryNumber;
     Directory() = default;
     explicit Directory(const path &directoryPath_);
 };
 void to_json(Json &json, const Directory &directory);
 void from_json(const Json &json, Directory &directory);
+bool operator<(const Directory &lhs, const Directory &rhs);
 
 // TODO: Thinking about changing it to PROPOGATE and NOPROPOGATE
 enum class DependencyType
@@ -87,9 +91,9 @@ enum class Comparison
 
 struct Version
 {
-    int majorVersion;
-    int minorVersion;
-    int patchVersion;
+    unsigned majorVersion;
+    unsigned minorVersion;
+    unsigned patchVersion;
     Comparison comparison; // Used in flags
 };
 void to_json(Json &j, const Version &p);
@@ -168,6 +172,8 @@ struct CompilerVersion : public Version
 {
 };
 
+// TODO: Need to Review this and do some design modifications. Idea is to have hmake load flags from a json file. This
+// may be a better approach as this CompilerFlags is a bit difficult to look at
 // TODO: Look in templatizing that. Same code is repeated in CompilerFlags and LinkerFlags
 struct CompilerFlags
 {
@@ -237,14 +243,14 @@ inline Flags flags;
 
 struct Environment
 {
-    vector<Directory> includeDirectories;
-    vector<Directory> libraryDirectories;
+    set<Directory> includeDirectories;
+    set<Directory> libraryDirectories;
     string compilerFlags;
     string linkerFlags;
     static Environment initializeEnvironmentFromVSBatchCommand(const string &command);
     static Environment initializeEnvironmentOnLinux();
 };
-void to_json(Json &j, const Environment &p);
+void to_json(Json &j, const Environment &environment);
 void from_json(const Json &j, Environment &environment); // Used in hbuild
 
 struct Cache
@@ -255,11 +261,11 @@ struct Cache
     static inline bool copyPackage;
     static inline ConfigType projectConfigurationType;
     static inline vector<Compiler> compilerArray;
-    static inline int selectedCompilerArrayIndex;
+    static inline unsigned selectedCompilerArrayIndex;
     static inline vector<Linker> linkerArray;
-    static inline int selectedLinkerArrayIndex;
+    static inline unsigned selectedLinkerArrayIndex;
     static inline vector<Archiver> archiverArray;
-    static inline int selectedArchiverArrayIndex;
+    static inline unsigned selectedArchiverArrayIndex;
     static inline LibraryType libraryType;
     static inline Json cacheVariables;
     static inline Environment environment;
@@ -306,7 +312,7 @@ struct Variant
     LibraryType libraryType;
     Environment environment;
     Variant();
-    Json convertToJson(VariantMode mode, int variantCount);
+    void configure(VariantMode mode, unsigned long variantCount);
 };
 
 struct ProjectVariant : public Variant
@@ -332,6 +338,26 @@ struct SourceDirectory
 {
     Directory sourceDirectory;
     string regex;
+};
+void to_json(Json &j, const SourceDirectory &sourceDirectory);
+void from_json(const Json &j, SourceDirectory &sourceDirectory);
+bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs);
+
+struct SourceAggregate // Source Directory Aggregate
+{
+    // User should provide the underscore at the end of the string
+    string Identifier;
+    set<SourceDirectory> directories;
+    set<File> files;
+
+    static inline const string sourceFilesString = "FILES";
+    static inline const string sourceDirectoriesString = "DIRECTORIES";
+
+    // If I write a to_json like other occasions and do targetFileJson = sourceAggregate; it will reinitialize the
+    // object deleting the previous state.
+    void convertToJson(Json &j) const;
+    static set<string> convertFromJsonAndGetAllSourceFiles(const Json &j, const string &Identifier = "");
+    bool empty() const;
 };
 
 enum class TargetType
@@ -361,8 +387,13 @@ class Target
     vector<CompilerFlagsDependency> compilerFlagsDependencies;
     vector<LinkerFlagsDependency> linkerFlagsDependencies;
     vector<CompileDefinitionDependency> compileDefinitionDependencies;
-    vector<File> sourceFiles;
-    vector<SourceDirectory> sourceDirectories;
+    SourceAggregate sourceAggregate{.Identifier = "SOURCE_"};
+    // These two are provided so the user does not have to write sourceAggregate.sourceFiles; As Macros-Like-Functions
+    // are added, I will remove these.
+    set<File> &sourceFiles = sourceAggregate.files;
+    set<SourceDirectory> &sourceDirectories = sourceAggregate.directories;
+    // SourceAggregate for Modules
+    SourceAggregate moduleAggregate{.Identifier = "MODULES_"};
     vector<CustomTarget> preBuild;
     vector<CustomTarget> postBuild;
     string targetName;
@@ -372,13 +403,14 @@ class Target
     mutable TargetType targetType;
 
     // Json getVariantJson(const vector<const LibraryDependency *> &dependencies, const Package &package,
-    //                   const PackageVariant &variant, int count) const;
-    void configure(int variantIndex) const;
+    //                   const PackageVariant &variant, unsigned count) const;
+    void configure(unsigned long variantIndex) const;
     static vector<string> convertCustomTargetsToJson(const vector<CustomTarget> &customTargets, VariantMode mode);
-    Json convertToJson(int variantIndex) const;
-    void configure(const Package &package, const PackageVariant &variant, int count) const;
-    Json convertToJson(const Package &package, const PackageVariant &variant, int count) const;
-    string getTargetVariantDirectoryPath(int variantCount) const;
+    Json convertToJson(unsigned long variantIndex) const;
+    void configure(const Package &package, const PackageVariant &variant, unsigned count) const;
+    Json convertToJson(const Package &package, const PackageVariant &variant, unsigned count) const;
+    string getTargetFilePath(unsigned long variantCount) const;
+    string getTargetFilePathPackage(unsigned long variantCount) const;
     void assignDifferentVariant(const Variant &variant);
 
   protected:
@@ -431,8 +463,8 @@ class PLibrary
     PLibrary(const path &libraryPath_, LibraryType libraryType_);
     path getTargetVariantDirectoryPath(int variantCount) const;
     void setTargetType() const;
-    Json convertToJson(const Package &package, const PackageVariant &variant, int count) const;
-    void configure(const Package &package, const PackageVariant &variant, int count) const;
+    Json convertToJson(const Package &package, const PackageVariant &variant, unsigned count) const;
+    void configure(const Package &package, const PackageVariant &variant, unsigned count) const;
 };
 
 // ConsumePackageVariant
@@ -440,8 +472,8 @@ struct CPVariant
 {
     path variantPath;
     Json variantJson;
-    int index;
-    CPVariant(path variantPath_, Json variantJson_, int index_);
+    unsigned index;
+    CPVariant(path variantPath_, Json variantJson_, unsigned index_);
 };
 
 struct CPackage;
@@ -457,7 +489,7 @@ class PPLibrary : public PLibrary
     path packagePath;
     Json packageVariantJson;
     bool useIndex = false;
-    int index;
+    unsigned index;
     bool importedFromOtherHMakePackage = true;
     PPLibrary(string libraryName_, const CPackage &cPackage, const CPVariant &cpVariant);
 };
@@ -594,7 +626,7 @@ enum class PathPrintLevel
 struct PathPrint
 {
     PathPrintLevel printLevel;
-    int depth;
+    unsigned depth;
     bool addQuotes;
     bool isDirectory;
     bool isTool;
@@ -634,7 +666,7 @@ struct ArchiveCommandPrintSettings
 {
     PathPrint tool{
         .printLevel = PathPrintLevel::HALF, .depth = 0, .addQuotes = false, .isDirectory = false, .isTool = true};
-    bool infrastructureFlags;
+    bool infrastructureFlags = true;
     PathPrint objectFiles{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
     PathPrint archive{
@@ -670,13 +702,13 @@ void from_json(const Json &json, LinkCommandPrintSettings &lcpSettings);
 
 struct PrintColorSettings
 {
-    int compileCommandColor = static_cast<int>(fmt::color::light_green);
-    int archiveCommandColor = static_cast<int>(fmt::color::brown);
-    int linkCommandColor = static_cast<int>(fmt::color::pink);
-    int toolErrorOutput = static_cast<int>(fmt::color::red);
-    int hbuildStatementOutput = static_cast<int>(fmt::color::yellow);
-    int hbuildSequenceOutput = static_cast<int>(fmt::color::cyan);
-    int hbuildErrorOutput = static_cast<int>(fmt::color::orange);
+    unsigned compileCommandColor = static_cast<int>(fmt::color::light_green);
+    unsigned archiveCommandColor = static_cast<int>(fmt::color::brown);
+    unsigned linkCommandColor = static_cast<int>(fmt::color::pink);
+    unsigned toolErrorOutput = static_cast<int>(fmt::color::red);
+    unsigned hbuildStatementOutput = static_cast<int>(fmt::color::yellow);
+    unsigned hbuildSequenceOutput = static_cast<int>(fmt::color::cyan);
+    unsigned hbuildErrorOutput = static_cast<int>(fmt::color::orange);
 };
 void to_json(Json &json, const PrintColorSettings &printColorSettings);
 void from_json(const Json &json, PrintColorSettings &printColorSettings);

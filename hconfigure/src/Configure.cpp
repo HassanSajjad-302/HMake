@@ -4,11 +4,13 @@
 #include "algorithm"
 #include "fstream"
 #include "iostream"
+#include "regex"
 #include "set"
 
 using std::to_string, std::filesystem::directory_entry, std::filesystem::file_type, std::logic_error, std::ifstream,
     std::ofstream, std::move, std::filesystem::current_path, std::cout, std::endl, std::cerr, std::stringstream,
-    std::make_tuple, std::filesystem::directory_iterator, std::size_t, std::filesystem::remove;
+    std::make_tuple, std::filesystem::directory_iterator, std::filesystem::recursive_directory_iterator,
+    std::filesystem::remove;
 
 std::string writePath(const path &writePath)
 {
@@ -85,6 +87,21 @@ File::File(const path &filePath_)
     }
 }
 
+void to_json(Json &json, const File &file)
+{
+    json = file.filePath.generic_string();
+}
+
+void from_json(const Json &json, File &file)
+{
+    file.filePath = path(json.get<string>());
+}
+
+bool operator<(const File &lhs, const File &rhs)
+{
+    return lhs.filePath < rhs.filePath;
+}
+
 Directory::Directory(const path &directoryPath_)
 {
     if (directoryPath_.is_relative())
@@ -116,6 +133,11 @@ void to_json(Json &json, const Directory &directory)
 void from_json(const Json &json, Directory &directory)
 {
     directory = Directory(path(json.get<string>()));
+}
+
+bool operator<(const Directory &lhs, const Directory &rhs)
+{
+    return lhs.directoryPath < rhs.directoryPath;
 }
 
 void to_json(Json &j, const DependencyType &p)
@@ -274,10 +296,16 @@ Target::Target(string targetName_, const Variant &variant) : targetName(move(tar
     environment = variant.environment;
 }
 
-string Target::getTargetVariantDirectoryPath(int variantCount) const
+string Target::getTargetFilePath(unsigned long variantCount) const
+{
+    return Cache::configureDirectory.directoryPath.generic_string() + to_string(variantCount) + "/" + targetName + "/" +
+           targetName + ".hmake";
+}
+
+string Target::getTargetFilePathPackage(unsigned long variantCount) const
 {
     return Cache::configureDirectory.directoryPath.generic_string() + "/Package/" + to_string(variantCount) + "/" +
-           targetName + "/";
+           targetName + "/" + targetName + ".hmake";
 }
 
 void Target::assignDifferentVariant(const Variant &variant)
@@ -308,29 +336,18 @@ vector<string> Target::convertCustomTargetsToJson(const vector<CustomTarget> &cu
     return commands;
 }
 
-Json Target::convertToJson(int variantIndex) const
+// I think I can use std::move for Target members here as this is the last function called.
+Json Target::convertToJson(unsigned long variantIndex) const
 {
     Json targetFileJson;
 
-    vector<string> sourceFilesArray;
-    vector<Json> sourceDirectoriesArray;
     vector<Directory> includeDirectories;
     string compilerFlags;
     string linkerFlags;
     vector<Json> compileDefinitionsArray;
     vector<Json> dependenciesArray;
+    SourceAggregate finalModuleAggregate;
 
-    for (const auto &e : sourceFiles)
-    {
-        sourceFilesArray.push_back(writePath(e.filePath));
-    }
-    for (const auto &e : sourceDirectories)
-    {
-        Json sourceDirectory;
-        sourceDirectory["PATH"] = e.sourceDirectory;
-        sourceDirectory["REGEX_STRING"] = e.regex;
-        sourceDirectoriesArray.push_back(sourceDirectory);
-    }
     for (const auto &e : includeDirectoryDependencies)
     {
         includeDirectories.emplace_back(e.includeDirectory);
@@ -348,6 +365,7 @@ Json Target::convertToJson(int variantIndex) const
         Json compileDefinitionObject = e.compileDefinition;
         compileDefinitionsArray.push_back(compileDefinitionObject);
     }
+    finalModuleAggregate = moduleAggregate;
 
     vector<const LibraryDependency *> dependencies;
     dependencies = LibraryDependency::getDependencies(*this);
@@ -390,18 +408,18 @@ Json Target::convertToJson(int variantIndex) const
             }
             Json libDepObject;
             libDepObject["PREBUILT"] = false;
-            libDepObject["PATH"] = Cache::configureDirectory.directoryPath / to_string(variantIndex) /
-                                   library.targetName / path(library.targetName + ".hmake");
+            libDepObject["PATH"] = (Cache::configureDirectory.directoryPath / to_string(variantIndex) /
+                                    library.targetName / path(library.targetName + ".hmake"))
+                                       .generic_string();
 
             dependenciesArray.push_back(libDepObject);
         }
         else
         {
+            vector<int> v;
             auto populateDependencies = [&](const PLibrary &pLibrary) {
-                for (const auto &e : pLibrary.includeDirectoryDependencies)
-                {
-                    includeDirectories.push_back(e);
-                }
+                includeDirectories.insert(includeDirectories.end(), pLibrary.includeDirectoryDependencies.begin(),
+                                          pLibrary.includeDirectoryDependencies.end());
                 compilerFlags.append(" " + pLibrary.compilerFlagsDependencies + " ");
                 linkerFlags.append(" " + pLibrary.linkerFlagsDependencies + " ");
 
@@ -431,8 +449,8 @@ Json Target::convertToJson(int variantIndex) const
     targetFileJson["ENVIRONMENT"] = environment;
     targetFileJson["COMPILER_FLAGS"] = flags.compilerFlags[compiler.bTFamily][configurationType];
     targetFileJson["LINKER_FLAGS"] = flags.linkerFlags[linker.bTFamily][configurationType];
-    targetFileJson["SOURCE_FILES"] = sourceFilesArray;
-    targetFileJson["SOURCE_DIRECTORIES"] = sourceDirectoriesArray;
+    sourceAggregate.convertToJson(targetFileJson);
+    moduleAggregate.convertToJson(targetFileJson);
     targetFileJson["LIBRARY_DEPENDENCIES"] = dependenciesArray;
     targetFileJson["INCLUDE_DIRECTORIES"] = includeDirectories;
     targetFileJson["COMPILER_TRANSITIVE_FLAGS"] = compilerFlags;
@@ -442,6 +460,51 @@ Json Target::convertToJson(int variantIndex) const
     targetFileJson["POST_BUILD_CUSTOM_COMMANDS"] = convertCustomTargetsToJson(postBuild, VariantMode::PROJECT);
     targetFileJson["VARIANT"] = "PROJECT";
     return targetFileJson;
+}
+
+void to_json(Json &j, const SourceDirectory &sourceDirectory)
+{
+    j["PATH"] = sourceDirectory.sourceDirectory;
+    j["REGEX_STRING"] = sourceDirectory.regex;
+}
+
+void from_json(const Json &j, SourceDirectory &sourceDirectory)
+{
+    sourceDirectory.sourceDirectory = Directory(j.at("PATH").get<string>());
+    sourceDirectory.regex = j.at("REGEX_STRING").get<string>();
+}
+
+bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs)
+{
+    return lhs.sourceDirectory.directoryPath < rhs.sourceDirectory.directoryPath || lhs.regex < rhs.regex;
+}
+
+void SourceAggregate::convertToJson(Json &j) const
+{
+    j[Identifier + sourceFilesString] = files;
+    j[Identifier + sourceDirectoriesString] = directories;
+}
+
+set<string> SourceAggregate::convertFromJsonAndGetAllSourceFiles(const Json &j, const string &Identifier)
+{
+    set<string> sourceFiles = j.at(Identifier + sourceFilesString).get<set<string>>();
+    set<SourceDirectory> sourceDirectories = j.at(Identifier + sourceDirectoriesString).get<set<SourceDirectory>>();
+    for (const auto &i : sourceDirectories)
+    {
+        for (const auto &k : recursive_directory_iterator(i.sourceDirectory.directoryPath))
+        {
+            if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(i.regex)))
+            {
+                sourceFiles.emplace(k.path().generic_string());
+            }
+        }
+    }
+    return sourceFiles;
+}
+
+bool SourceAggregate::empty() const
+{
+    return files.empty() && directories.empty();
 }
 
 void to_json(Json &j, const TargetType &targetType)
@@ -529,10 +592,10 @@ string getTargetNameFromActualName(TargetType targetType, const OSFamily &osFami
     exit(EXIT_FAILURE);
 }
 
-void Target::configure(int variantIndex) const
+void Target::configure(unsigned long variantIndex) const
 {
     path targetFileDir = Cache::configureDirectory.directoryPath / to_string(variantIndex) / targetName;
-    create_directory(targetFileDir);
+    create_directories(targetFileDir);
     if (outputDirectory.directoryPath.empty())
     {
         const_cast<Directory &>(outputDirectory) = Directory(targetFileDir);
@@ -543,23 +606,12 @@ void Target::configure(int variantIndex) const
 
     path targetFilePath = targetFileDir / (targetName + ".hmake");
     ofstream(targetFilePath) << targetFileJson.dump(4);
-
-    for (const auto &libDep : libraryDependencies)
-    {
-        if (libDep.ldlt == LDLT::LIBRARY)
-        {
-            libDep.library.setTargetType();
-            libDep.library.configure(variantIndex);
-        }
-    }
 }
 
-Json Target::convertToJson(const Package &package, const PackageVariant &variant, int count) const
+Json Target::convertToJson(const Package &package, const PackageVariant &variant, unsigned count) const
 {
     Json targetFileJson;
 
-    vector<string> sourceFilesArray;
-    vector<Json> sourceDirectoriesArray;
     Json includeDirectoriesArray;
     string compilerFlags;
     string linkerFlags;
@@ -572,17 +624,6 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
     vector<Json> consumerCompileDefinitionsArray;
     vector<Json> consumerDependenciesArray;
 
-    for (const auto &e : sourceFiles)
-    {
-        sourceFilesArray.push_back(writePath(e.filePath.generic_string()));
-    }
-    for (const auto &e : sourceDirectories)
-    {
-        Json sourceDirectory;
-        sourceDirectory["PATH"] = e.sourceDirectory;
-        sourceDirectory["REGEX_STRING"] = e.regex;
-        sourceDirectoriesArray.push_back(sourceDirectory);
-    }
     for (const auto &e : includeDirectoryDependencies)
     {
         Json JIDDObject;
@@ -682,7 +723,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
             consumeLibDepOject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE_FROM_OTHER_HMAKE_PACKAGE"] = false;
             consumeLibDepOject["NAME"] = library.targetName;
             consumerDependenciesArray.push_back(consumeLibDepOject);
-            libDepObject["PATH"] = library.getTargetVariantDirectoryPath(count) + library.targetName + ".hmake";
+            libDepObject["PATH"] = library.getTargetFilePathPackage(count);
             dependenciesArray.push_back(libDepObject);
         }
         else
@@ -761,7 +802,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
 
     targetFileJson["TARGET_TYPE"] = targetType;
     targetFileJson["OUTPUT_NAME"] = outputName;
-    targetFileJson["OUTPUT_DIRECTORY"] = getTargetVariantDirectoryPath(count);
+    targetFileJson["OUTPUT_DIRECTORY"] = getTargetFilePathPackage(count);
     targetFileJson["CONFIGURATION"] = configurationType;
     targetFileJson["COMPILER"] = compiler;
     targetFileJson["LINKER"] = linker;
@@ -769,8 +810,8 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
     targetFileJson["ENVIRONMENT"] = environment;
     targetFileJson["COMPILER_FLAGS"] = flags.compilerFlags[compiler.bTFamily][configurationType];
     targetFileJson["LINKER_FLAGS"] = flags.linkerFlags[linker.bTFamily][configurationType];
-    targetFileJson["SOURCE_FILES"] = sourceFilesArray;
-    targetFileJson["SOURCE_DIRECTORIES"] = sourceDirectoriesArray;
+    sourceAggregate.convertToJson(targetFileJson);
+    moduleAggregate.convertToJson(targetFileJson);
     targetFileJson["LIBRARY_DEPENDENCIES"] = dependenciesArray;
     targetFileJson["INCLUDE_DIRECTORIES"] = includeDirectoriesArray;
     targetFileJson["COMPILER_TRANSITIVE_FLAGS"] = compilerFlags;
@@ -801,11 +842,11 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
     return targetFileJson;
 }
 
-void Target::configure(const Package &package, const PackageVariant &variant, int count) const
+void Target::configure(const Package &package, const PackageVariant &variant, unsigned count) const
 {
     Json targetFileJson;
     targetFileJson = convertToJson(package, variant, count);
-    string targetFileBuildDir = getTargetVariantDirectoryPath(count);
+    string targetFileBuildDir = getTargetFilePathPackage(count);
     create_directory(path(targetFileBuildDir));
     string filePath = targetFileBuildDir + targetName + ".hmake";
     ofstream(filePath) << targetFileJson.dump(4);
@@ -1238,53 +1279,137 @@ Variant::Variant()
     flags = ::flags;
 }
 
-Json Variant::convertToJson(VariantMode mode, int variantCount)
+#include "variant"
+void Variant::configure(VariantMode mode, unsigned long variantCount)
 {
-    Json projectJson;
-    projectJson["CONFIGURATION"] = configurationType;
-    projectJson["COMPILER"] = compiler;
-    projectJson["LINKER"] = linker;
-    projectJson["ARCHIVER"] = archiver;
-    string compilerFlags = flags.compilerFlags[compiler.bTFamily][configurationType];
-    projectJson["COMPILER_FLAGS"] = compilerFlags;
-    string linkerFlags = flags.linkerFlags[linker.bTFamily][configurationType];
-    projectJson["LINKER_FLAGS"] = linkerFlags;
-    projectJson["LIBRARY_TYPE"] = libraryType;
-    projectJson["ENVIRONMENT"] = environment;
+    std::variant<Target *, PLibrary *> pointers;
 
-    vector<Json> targetArray;
-    for (const auto &exe : executables)
+    stack<decltype(pointers)> targets;
+    set<decltype(pointers)> targetsConfigured;
+
+    for (auto &exe : executables)
     {
-        string exeTargetJson;
-        if (mode == VariantMode::PROJECT)
+        targets.push(&exe);
+    }
+    for (auto &lib : libraries)
+    {
+        targets.push(&lib);
+    }
+
+    vector<Target *> targetsWithModules;
+    while (!targets.empty())
+    {
+        auto target = targets.top();
+        targets.pop();
+        if (targetsConfigured.contains(target))
         {
-            exeTargetJson = (Cache::configureDirectory.directoryPath / to_string(variantCount) / path(exe.targetName) /
-                             (exe.targetName + ".hmake"))
-                                .generic_string();
+            continue;
         }
         else
         {
-            exeTargetJson = exe.getTargetVariantDirectoryPath(variantCount) + exe.targetName + ".hmake";
+            targetsConfigured.emplace(target);
         }
-        targetArray.emplace_back(exeTargetJson);
-    }
-    for (const auto &lib : libraries)
-    {
-        string libJson;
-        if (mode == VariantMode::PROJECT)
+        if (!target.index())
         {
-            libJson = (Cache::configureDirectory.directoryPath / to_string(variantCount) / path(lib.targetName) /
-                       (lib.targetName + ".hmake"))
-                          .generic_string();
+            Target *t = std::get<Target *>(target);
+
+            if (t->targetType != TargetType::EXECUTABLE)
+            {
+                auto *l = static_cast<Library *>(t);
+                l->setTargetType();
+                l->configure(variantCount);
+            }
+            else
+            {
+                t->configure(variantCount);
+            }
+            if (!t->moduleAggregate.empty())
+            {
+                targetsWithModules.emplace_back(t);
+            }
+
+            for (auto &libDep : t->libraryDependencies)
+            {
+                if (libDep.ldlt == LDLT::LIBRARY)
+                {
+                    targets.push(&libDep.library);
+                }
+                else if (libDep.ldlt == LDLT::PLIBRARY)
+                {
+                    targets.push(&libDep.pLibrary);
+                }
+                else if (libDep.ldlt == LDLT::PPLIBRARY)
+                {
+                    targets.push(&libDep.ppLibrary);
+                }
+            }
         }
         else
         {
-            libJson = lib.getTargetVariantDirectoryPath(variantCount) + lib.targetName + ".hmake";
+            PLibrary *l = std::get<PLibrary *>(target);
+            for (auto &libDep : l->libraryDependencies)
+            {
+                if (libDep.ldlt == LDLT::LIBRARY)
+                {
+                    targets.push(&libDep.library);
+                }
+                else if (libDep.ldlt == LDLT::PLIBRARY)
+                {
+                    targets.push(&libDep.pLibrary);
+                }
+                else if (libDep.ldlt == LDLT::PPLIBRARY)
+                {
+                    targets.push(&libDep.ppLibrary);
+                }
+            }
         }
-        targetArray.emplace_back(libJson);
     }
-    projectJson["TARGETS"] = targetArray;
-    return projectJson;
+
+    Json variantJson;
+    variantJson["CONFIGURATION"] = configurationType;
+    variantJson["COMPILER"] = compiler;
+    variantJson["LINKER"] = linker;
+    variantJson["ARCHIVER"] = archiver;
+    string compilerFlags = flags.compilerFlags[compiler.bTFamily][configurationType];
+    variantJson["COMPILER_FLAGS"] = compilerFlags;
+    string linkerFlags = flags.linkerFlags[linker.bTFamily][configurationType];
+    variantJson["LINKER_FLAGS"] = linkerFlags;
+    variantJson["LIBRARY_TYPE"] = libraryType;
+    variantJson["ENVIRONMENT"] = environment;
+
+    vector<string> targetArray;
+    vector<string> targetsWithModulesVector;
+
+    auto parseExesAndLibs = [&](string (Target::*func)(unsigned long count) const) {
+        for (const auto &exe : executables)
+        {
+            targetArray.emplace_back((exe.*func)(variantCount));
+            if (!exe.moduleAggregate.empty())
+            {
+                targetsWithModulesVector.emplace_back((exe.*func)(variantCount));
+            }
+        }
+        for (const auto &lib : libraries)
+        {
+            targetArray.emplace_back((lib.*func)(variantCount));
+            if (!lib.moduleAggregate.empty())
+            {
+                targetsWithModulesVector.emplace_back((lib.*func)(variantCount));
+            }
+        }
+    };
+
+    mode == VariantMode::PROJECT ? parseExesAndLibs(&Target::getTargetFilePath)
+                                 : parseExesAndLibs(&Target::getTargetFilePathPackage);
+    variantJson["TARGETS"] = targetArray;
+    variantJson["TARGETS_WITH_MODULES"] = targetsWithModulesVector;
+
+    // Here, I have to write
+    // variantJson["TARGETS_WITH_MODULES"] = targetsArrary
+    path variantFileDir = Cache::configureDirectory.directoryPath / to_string(variantCount);
+    create_directory(variantFileDir);
+    path projectFilePath = variantFileDir / "projectVariant.hmake";
+    ofstream(projectFilePath) << variantJson.dump(4);
 }
 
 void to_json(Json &j, const Version &p)
@@ -1322,8 +1447,9 @@ Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &c
     string temporaryIncludeFilename = "temporaryInclude.txt";
     string temporaryLibFilename = "temporaryLib.txt";
     string temporaryBatchFilename = "temporaryBatch.bat";
-    ofstream(temporaryBatchFilename) << "call " + command + "\n" + "echo %INCLUDE% > " + temporaryIncludeFilename +
-                                            "\n" + "echo %LIB%;%LIBPATH% > " + temporaryLibFilename;
+    ofstream(temporaryBatchFilename) << "call " + command << endl
+                                     << "echo %INCLUDE% > " + temporaryIncludeFilename << endl
+                                     << "echo %LIB%;%LIBPATH% > " + temporaryLibFilename;
 
     if (int code = system(temporaryBatchFilename.c_str()); code == EXIT_FAILURE)
     {
@@ -1332,33 +1458,38 @@ Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &c
     }
     remove(temporaryBatchFilename);
 
-    auto splitPathsAndAssignToVector = [](string &accumulatedPaths, vector<Directory> &separatePaths) {
-        size_t pos;
-        while ((pos = accumulatedPaths.find(';')) != std::string::npos)
+    auto splitPathsAndAssignToVector = [](string &accumulatedPaths, set<Directory> &separatePaths) {
+        unsigned long pos = accumulatedPaths.find(';');
+        while (pos != std::string::npos)
         {
             std::string token = accumulatedPaths.substr(0, pos);
-            bool contains = false;
-            for (const auto &i : separatePaths)
+            if (token.empty())
             {
-                if (i.directoryPath == Directory(token).directoryPath)
-                {
-                    contains = true;
-                    break;
-                }
+                break; // Only In Release Configuration in Visual Studio, for some reason the while loop also run with
+                       // empty string. Not investigating further for now
             }
-            if (!contains)
+            token = path(token).lexically_normal().string();
+            Directory dir(token);
+            if (!separatePaths.contains(dir))
             {
-                separatePaths.emplace_back(token);
+                separatePaths.emplace(dir);
             }
             accumulatedPaths.erase(0, pos + 1);
+            pos = accumulatedPaths.find(';');
         }
     };
 
     Environment environment;
     string accumulatedPaths = file_to_string(temporaryIncludeFilename);
+    accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
+    accumulatedPaths.pop_back();
+    accumulatedPaths.append(";");
     remove(temporaryIncludeFilename);
     splitPathsAndAssignToVector(accumulatedPaths, environment.includeDirectories);
     accumulatedPaths = file_to_string(temporaryLibFilename);
+    accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
+    accumulatedPaths.pop_back();
+    accumulatedPaths.append(";");
     remove(temporaryLibFilename);
     splitPathsAndAssignToVector(accumulatedPaths, environment.libraryDirectories);
     environment.compilerFlags = " /EHsc /MD /nologo";
@@ -1373,55 +1504,31 @@ Environment Environment::initializeEnvironmentOnLinux()
     return {};
 }
 
-void to_json(Json &j, const Environment &p)
+void to_json(Json &j, const Environment &environment)
 {
-    vector<string> temp;
-    auto directoriesPathsToVector = [&temp](const vector<Directory> &outDirectoriesVector) {
-        for (const auto &dir : outDirectoriesVector)
-        {
-            temp.emplace_back(writePath(dir.directoryPath.generic_string()));
-        }
-    };
-    directoriesPathsToVector(p.includeDirectories);
-    j["INCLUDE_DIRECTORIES"] = temp;
-    temp.clear();
-    directoriesPathsToVector(p.libraryDirectories);
-    j["LIBRARY_DIRECTORIES"] = temp;
-    j["COMPILER_FLAGS"] = p.compilerFlags;
-    j["LINKER_FLAGS"] = p.linkerFlags;
+    j["INCLUDE_DIRECTORIES"] = environment.includeDirectories;
+    j["LIBRARY_DIRECTORIES"] = environment.libraryDirectories;
+    j["COMPILER_FLAGS"] = environment.compilerFlags;
+    j["LINKER_FLAGS"] = environment.linkerFlags;
 }
 
 void from_json(const Json &j, Environment &environment)
 {
-    environment.includeDirectories = j.at("INCLUDE_DIRECTORIES").get<vector<Directory>>();
-    environment.libraryDirectories = j.at("LIBRARY_DIRECTORIES").get<vector<Directory>>();
+    environment.includeDirectories = j.at("INCLUDE_DIRECTORIES").get<set<Directory>>();
+    environment.libraryDirectories = j.at("LIBRARY_DIRECTORIES").get<set<Directory>>();
     environment.compilerFlags = j.at("COMPILER_FLAGS").get<string>();
     environment.linkerFlags = j.at("LINKER_FLAGS").get<string>();
 }
 
 void Project::configure()
 {
-    for (size_t i = 0; i < projectVariants.size(); ++i)
+    for (unsigned long i = 0; i < projectVariants.size(); ++i)
     {
-        Json json = projectVariants[i].convertToJson(VariantMode::PROJECT, i);
-        path variantFileDir = Cache::configureDirectory.directoryPath / to_string(i);
-        create_directory(variantFileDir);
-        path projectFilePath = variantFileDir / "projectVariant.hmake";
-        ofstream(projectFilePath) << json.dump(4);
-        for (auto &exe : projectVariants[i].executables)
-        {
-            exe.configure(i);
-        }
-        for (auto &lib : projectVariants[i].libraries)
-        {
-            lib.setTargetType();
-            lib.configure(i);
-        }
+        projectVariants[i].configure(VariantMode::PROJECT, i);
     }
     Json projectFileJson;
     vector<string> projectVariantsInt;
-    projectVariantsInt.reserve(projectVariants.size());
-    for (size_t i = 0; i < projectVariants.size(); ++i)
+    for (unsigned long i = 0; i < projectVariants.size(); ++i)
     {
         projectVariantsInt.push_back(to_string(i));
     }
@@ -1440,17 +1547,17 @@ void Package::configureCommonAmongVariants()
         const Directory *directory;
         bool isCommon = false;
         int variantIndex;
-        int indexInPackageCommonTargetsVector;
+        unsigned long indexInPackageCommonTargetsVector;
     };
     struct CommonIncludeDir
     {
-        vector<int> variantsIndices;
+        vector<unsigned long> variantsIndices;
         vector<Directory *> directories;
     };
     vector<NonCommonIncludeDir> packageNonCommonIncludeDirs;
     vector<CommonIncludeDir> packageCommonIncludeDirs;
 
-    auto isDirectoryCommonOrNonCommon = [&](Directory *includeDirectory, int index) {
+    auto isDirectoryCommonOrNonCommon = [&](Directory *includeDirectory, unsigned long index) {
         bool matched = false;
         for (auto &i : packageNonCommonIncludeDirs)
         {
@@ -1484,7 +1591,7 @@ void Package::configureCommonAmongVariants()
         }
     };
 
-    auto assignPackageCommonAndNonCommonIncludeDirsForSingleTarget = [&](Target *target, int index) {
+    auto assignPackageCommonAndNonCommonIncludeDirsForSingleTarget = [&](Target *target, unsigned long index) {
         for (auto &idd : target->includeDirectoryDependencies)
         {
             if (idd.dependencyType == DependencyType::PUBLIC)
@@ -1494,14 +1601,14 @@ void Package::configureCommonAmongVariants()
         }
     };
 
-    auto assignPackageCommonAndNonCommonIncludeDirsForSinglePLibrary = [&](PLibrary *pLibrary, int index) {
+    auto assignPackageCommonAndNonCommonIncludeDirsForSinglePLibrary = [&](PLibrary *pLibrary, unsigned long index) {
         for (auto &id : pLibrary->includeDirectoryDependencies)
         {
             isDirectoryCommonOrNonCommon(&id, index);
         }
     };
 
-    auto assignPackageCommonAndNonCommonIncludeDirs = [&](const Target *target, int index) {
+    auto assignPackageCommonAndNonCommonIncludeDirs = [&](const Target *target, unsigned long index) {
         assignPackageCommonAndNonCommonIncludeDirsForSingleTarget(const_cast<Target *>(target), index);
         auto dependencies = LibraryDependency::getDependencies(*target);
         for (const auto &libraryDependency : dependencies)
@@ -1519,7 +1626,7 @@ void Package::configureCommonAmongVariants()
         }
     };
 
-    for (size_t i = 0; i < packageVariants.size(); ++i)
+    for (unsigned long i = 0; i < packageVariants.size(); ++i)
     {
         for (const auto &exe : packageVariants[i].executables)
         {
@@ -1532,7 +1639,7 @@ void Package::configureCommonAmongVariants()
     }
 
     Json commonDirsJson;
-    for (size_t i = 0; i < packageCommonIncludeDirs.size(); ++i)
+    for (unsigned long i = 0; i < packageCommonIncludeDirs.size(); ++i)
     {
         for (auto j : packageCommonIncludeDirs[i].directories)
         {
@@ -1587,11 +1694,11 @@ void Package::configure()
     count = 0;
     for (auto &variant : packageVariants)
     {
-        Json variantJsonFile = variant.convertToJson(VariantMode::PACKAGE, count);
+        // Json variantJsonFile = variant.configure(VariantMode::PACKAGE, count);
         path variantFileDir = packageDirectory.directoryPath / to_string(count);
         create_directory(variantFileDir);
-        path variantFilePath = variantFileDir / "packageVariant.hmake";
-        ofstream(variantFilePath) << variantJsonFile.dump(4);
+        // path variantFilePath = variantFileDir / "packageVariant.hmake";
+        // ofstream(variantFilePath) << variantJsonFile.dump(4);
         for (const auto &exe : variant.executables)
         {
             exe.configure(*this, variant, count);
@@ -1651,7 +1758,7 @@ void PLibrary::setTargetType() const
     }
 }
 
-Json PLibrary::convertToJson(const Package &package, const PackageVariant &variant, int count) const
+Json PLibrary::convertToJson(const Package &package, const PackageVariant &variant, unsigned count) const
 {
 
     Json targetFileJson;
@@ -1716,7 +1823,7 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
             consumeLibDepOject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = false;
             consumeLibDepOject["NAME"] = library.targetName;
             consumerDependenciesArray.push_back(consumeLibDepOject);
-            libDepObject["PATH"] = library.getTargetVariantDirectoryPath(count) + library.targetName + ".hmake";
+            libDepObject["PATH"] = library.getTargetFilePathPackage(count);
             dependenciesArray.push_back(libDepObject);
         }
         else
@@ -1806,7 +1913,7 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
     return targetFileJson;
 }
 
-void PLibrary::configure(const Package &package, const PackageVariant &variant, int count) const
+void PLibrary::configure(const Package &package, const PackageVariant &variant, unsigned count) const
 {
     Json targetFileJson;
     targetFileJson = convertToJson(package, variant, count);
@@ -1939,7 +2046,7 @@ PPLibrary::PPLibrary(string libraryName_, const CPackage &cPackage, const CPVari
     index = cpVariant.index;
 }
 
-CPVariant::CPVariant(path variantPath_, Json variantJson_, int index_)
+CPVariant::CPVariant(path variantPath_, Json variantJson_, unsigned index_)
     : variantPath(move(variantPath_)), variantJson(move(variantJson_)), index(index_)
 {
 }
@@ -1968,7 +2075,7 @@ CPVariant CPackage::getVariant(const Json &variantJson_)
 {
     int numberOfMatches = 0;
     int matchIndex;
-    for (size_t i = 0; i < variantsJson.size(); ++i)
+    for (unsigned long i = 0; i < variantsJson.size(); ++i)
     {
         bool matched = true;
         for (const auto &keyValuePair : variantJson_.items())
@@ -2209,7 +2316,7 @@ vector<string> split(string str, const string &token)
     vector<string> result;
     while (!str.empty())
     {
-        int index = str.find(token);
+        unsigned long index = str.find(token);
         if (index != string::npos)
         {
             result.push_back(str.substr(0, index));

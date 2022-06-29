@@ -74,8 +74,8 @@ int main(int argc, char **argv)
                     Json outputSettingsJson;
                     ifstream("../../settings.hmake") >> outputSettingsJson;
                     settings = outputSettingsJson;
-                    vector<string> vec;
-                    vec.emplace_back(i);
+                    set<string> vec;
+                    vec.emplace(i);
                     Builder{vec, m};
                     break;
                 }

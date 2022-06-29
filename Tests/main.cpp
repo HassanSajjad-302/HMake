@@ -33,7 +33,7 @@ int main() {
     ProjectVariant variant{};
 
     Executable app("app", variant);
-    app.sourceFiles.emplace_back("main.cpp");
+    app.sourceFiles.emplace("main.cpp");
 
     variant.executables.push_back(app);
     project.projectVariants.push_back(variant);
@@ -52,7 +52,7 @@ int main(){
     ofstream("hmake.cpp") << hmakeFileContents;
     ofstream("main.cpp") << mainSrcFileContents;
 
-    ASSERT_EQ(TestHelper::runHMakeProject(), "Hello World\n") << "Hell World Output Is Expected From Simple Compile";
+    TestHelper::runHMakeProjectWithExpectedOutput("Hello World\n");
 }
 
 TEST(CompilationTest, MultipleFilesCompilationTest)
@@ -69,7 +69,7 @@ TEST(CompilationTest, MultipleFilesCompilationTest)
     ProjectVariant variant{{}};
 
     Executable app("app", variant);
-    app.sourceDirectories.emplace_back(Directory("."), "file[1-{}]\\.cpp|main\\.cpp"); //fileCount assigned here
+    app.sourceDirectories.emplace(Directory("."), "file[1-{}]\\.cpp|main\\.cpp"); //fileCount assigned here
 
     variant.executables.push_back(app);
     project.projectVariants.push_back(variant);
@@ -135,7 +135,7 @@ std::cout << {} << std::endl;
     {
         expected += std::to_string(i) + "\n";
     }
-    ASSERT_EQ(TestHelper::runHMakeProject(), expected);
+    TestHelper::runHMakeProjectWithExpectedOutput(expected);
 }
 
 int main(int argc, char *argv[])

@@ -9,7 +9,7 @@ using std::string;
 struct TestHelper
 {
 
-    static string runHMakeProject();
+    static void runHMakeProjectWithExpectedOutput(const string &expectedOutput);
     static void recreateSourceAndBuildDir();
 };
 
