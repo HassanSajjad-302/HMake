@@ -31,7 +31,6 @@ int main(int argc, char **argv)
             settings = outputSettingsJson;
         };
 
-        mutex m;
         vector<string> directoryFiles;
         for (auto &file : directory_iterator(current_path()))
         {
@@ -47,23 +46,23 @@ int main(int argc, char **argv)
         if (directoryFilesContains("project.hmake"))
         {
             initializeSettings("settings.hmake");
-            Builder{Builder::getTargetFilePathsFromProjectOrPackageFile("project.hmake", false), m};
+            Builder{Builder::getTargetFilePathsFromProjectOrPackageFile("project.hmake", false)};
         }
         else if (directoryFilesContains("projectVariant.hmake"))
         {
             initializeSettings("../settings.hmake");
-            Builder{Builder::getTargetFilePathsFromVariantFile("projectVariant.hmake"), m};
+            Builder{Builder::getTargetFilePathsFromVariantFile("projectVariant.hmake")};
         }
         else if (directoryFilesContains("package.hmake"))
         {
             initializeSettings("../settings.hmake");
-            Builder{Builder::getTargetFilePathsFromProjectOrPackageFile("package.hmake", true), m};
+            Builder{Builder::getTargetFilePathsFromProjectOrPackageFile("package.hmake", true)};
             Builder::copyPackage("package.hmake");
         }
         else if (directoryFilesContains("packageVariant.hmake"))
         {
             initializeSettings("../../settings.hmake");
-            Builder{Builder::getTargetFilePathsFromVariantFile("packageVariant.hmake"), m};
+            Builder{Builder::getTargetFilePathsFromVariantFile("packageVariant.hmake")};
         }
         else
         {
@@ -76,56 +75,10 @@ int main(int argc, char **argv)
                     settings = outputSettingsJson;
                     set<string> vec;
                     vec.emplace(i);
-                    Builder{vec, m};
+                    Builder{vec};
                     break;
                 }
             }
         }
-
-        /*if (file.is_regular_file())
-        {
-            std::string fileName = file.path().filename().string();
-            if (fileName == "projectVariant.hmake" || fileName == "packageVariant.hmake")
-            {
-                BVariant{file.path(), m};
-            }
-            else if (fileName == "project.hmake")
-            {
-                BProject{file.path()};
-            }
-            else if (fileName == "cache.hmake")
-            {
-                for (auto &cacheDirectoryIterator : directory_iterator(current_path()))
-                {
-                    if (cacheDirectoryIterator.is_directory())
-                    {
-                        for (auto &maybeVariantFile : directory_iterator(cacheDirectoryIterator))
-                        {
-                            if (maybeVariantFile.is_regular_file())
-                            {
-                                std::string fileName = maybeVariantFile.path().filename().string();
-                                if (fileName == "projectVariant.hmake" || fileName == "packageVariant.hmake")
-                                {
-                                    BVariant{maybeVariantFile.path(), m};
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            else if (fileName == "package.hmake")
-            {
-                BPackage{file.path()};
-            }
-            else if (fileName == "Common.hmake")
-            {
-                BPackage{canonical(file.path()).parent_path() / "package.hmake"};
-            }
-            else if (fileName.ends_with(".hmake"))
-            {
-                vector<string> target{file.path().string()};
-                Builder{target, m};
-            }
-        }*/
     }
 }

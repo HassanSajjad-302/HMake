@@ -14,6 +14,16 @@ using std::ifstream, std::ofstream, std::filesystem::exists, std::filesystem::co
     std::unique_ptr, std::make_unique, fmt::print, std::filesystem::file_time_type, std::filesystem::last_write_time,
     std::get, std::make_tuple;
 
+string getThreadId()
+{
+    string threadId;
+    auto myId = std::this_thread::get_id();
+    std::stringstream ss;
+    ss << myId;
+    threadId = ss.str();
+    return threadId;
+};
+
 void from_json(const Json &j, BIDD &p)
 {
     p.copy = j.at("COPY").get<bool>();
@@ -103,6 +113,9 @@ void ParsedTarget::parseTarget()
     environment = targetFileJson.at("ENVIRONMENT").get<Environment>();
     compilerFlags = targetFileJson.at("COMPILER_FLAGS").get<string>();
     linkerFlags = targetFileJson.at("LINKER_FLAGS").get<string>();
+    // TODO: An Optimization
+    //  If source for a target is collected from a sourceDirectory with some regex, then similar source should not be
+    //  collected again.
     sourceFiles = SourceAggregate::convertFromJsonAndGetAllSourceFiles(targetFileJson, "SOURCE_");
     modulesSourceFiles = SourceAggregate::convertFromJsonAndGetAllSourceFiles(targetFileJson, "MODULES_");
 
@@ -192,7 +205,7 @@ void ParsedTarget::executePostBuildCommands() const
 
 void ParsedTarget::setCompileCommand()
 {
-    CompileCommandPrintSettings ccpSettings = settings.ccpSettings;
+    const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
     auto getIncludeFlag = [this]() {
         if (compiler.bTFamily == BTFamily::MSVC)
         {
@@ -204,59 +217,113 @@ void ParsedTarget::setCompileCommand()
         }
     };
 
-    // compileCommand = addQuotes(compiler.bTPath.make_preferred().string()) + " ";
-    if (ccpSettings.tool.printLevel != PathPrintLevel::NO)
-    {
-        compileCommandPrintFirstHalf +=
-            getReducedPath(compiler.bTPath.make_preferred().string(), ccpSettings.tool) + " ";
-    }
-
-    compileCommand += environment.compilerFlags + " ";
-    if (ccpSettings.environmentCompilerFlags)
-    {
-        compileCommandPrintFirstHalf += environment.compilerFlags + " ";
-    }
+    compileCommand = environment.compilerFlags + " ";
     compileCommand += compilerFlags + " ";
-    if (ccpSettings.compilerFlags)
-    {
-        compileCommandPrintFirstHalf += compilerFlags + " ";
-    }
     compileCommand += compilerTransitiveFlags + " ";
-    if (ccpSettings.compilerTransitiveFlags)
-    {
-        compileCommandPrintFirstHalf += compilerTransitiveFlags + " ";
-    }
 
     for (const auto &i : compileDefinitions)
     {
         compileCommand += (compiler.bTFamily == BTFamily::MSVC ? "/D" : "-D") + i.name + "=" + i.value + " ";
+    }
+
+    for (const auto &i : includeDirectories)
+    {
+        compileCommand.append(getIncludeFlag() + addQuotes(i.path) + " ");
+    }
+
+    for (const auto &i : environment.includeDirectories)
+    {
+        compileCommand.append(getIncludeFlag() + addQuotes(i.directoryPath.generic_string()) + " ");
+    }
+}
+
+string &ParsedTarget::getCompileCommand()
+{
+    if (compileCommand.empty())
+    {
+        setCompileCommand();
+    }
+    return compileCommand;
+}
+
+void ParsedTarget::setSourceCompileCommandPrintFirstHalf()
+{
+    const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
+    auto getIncludeFlag = [this]() {
+        if (compiler.bTFamily == BTFamily::MSVC)
+        {
+            return "/I ";
+        }
+        else
+        {
+            return "-I ";
+        }
+    };
+
+    if (ccpSettings.tool.printLevel != PathPrintLevel::NO)
+    {
+        sourceCompileCommandPrintFirstHalf +=
+            getReducedPath(compiler.bTPath.make_preferred().string(), ccpSettings.tool) + " ";
+    }
+
+    if (ccpSettings.environmentCompilerFlags)
+    {
+        sourceCompileCommandPrintFirstHalf += environment.compilerFlags + " ";
+    }
+    if (ccpSettings.compilerFlags)
+    {
+        sourceCompileCommandPrintFirstHalf += compilerFlags + " ";
+    }
+    if (ccpSettings.compilerTransitiveFlags)
+    {
+        sourceCompileCommandPrintFirstHalf += compilerTransitiveFlags + " ";
+    }
+
+    for (const auto &i : compileDefinitions)
+    {
         if (ccpSettings.compileDefinitions)
         {
-            compileCommandPrintFirstHalf +=
+            sourceCompileCommandPrintFirstHalf +=
                 (compiler.bTFamily == BTFamily::MSVC ? "/D" : "-D") + i.name + "=" + i.value + " ";
         }
     }
 
     for (const auto &i : includeDirectories)
     {
-        compileCommand.append(getIncludeFlag() + addQuotes(i.path) + " ");
         if (ccpSettings.projectIncludeDirectories.printLevel != PathPrintLevel::NO)
         {
-            compileCommandPrintFirstHalf.append(getIncludeFlag() +
-                                                getReducedPath(i.path, ccpSettings.projectIncludeDirectories) + " ");
+            sourceCompileCommandPrintFirstHalf +=
+                getIncludeFlag() + getReducedPath(i.path, ccpSettings.projectIncludeDirectories) + " ";
         }
     }
 
     for (const auto &i : environment.includeDirectories)
     {
-        compileCommand.append(getIncludeFlag() + addQuotes(i.directoryPath.generic_string()) + " ");
         if (ccpSettings.environmentIncludeDirectories.printLevel != PathPrintLevel::NO)
         {
-            compileCommandPrintFirstHalf.append(
+            sourceCompileCommandPrintFirstHalf +=
                 getIncludeFlag() +
-                getReducedPath(i.directoryPath.generic_string(), ccpSettings.environmentIncludeDirectories) + " ");
+                getReducedPath(i.directoryPath.generic_string(), ccpSettings.environmentIncludeDirectories) + " ";
         }
     }
+}
+
+string &ParsedTarget::getSourceCompileCommandPrintFirstHalf()
+{
+    if (sourceCompileCommandPrintFirstHalf.empty())
+    {
+        setSourceCompileCommandPrintFirstHalf();
+    }
+    return sourceCompileCommandPrintFirstHalf;
+}
+
+string &Node::getFileName()
+{
+    if (fileName.empty())
+    {
+        fileName = path(filePath).filename().string();
+    }
+    return fileName;
 }
 
 void to_json(Json &j, const Node *node)
@@ -305,59 +372,6 @@ SourceNode &BTargetCache::addNodeInSourceFileDependencies(const string &str)
     return const_cast<SourceNode &>(*pos);
 }
 
-bool BTargetCache::areFilesLeftToCompile() const
-{
-    for (const auto &sourceNode : sourceFileDependencies)
-    {
-        if (sourceNode.compilationStatus == FileStatus::NEEDS_RECOMPILE)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool BTargetCache::areAllFilesCompiled() const
-{
-    for (const auto &sourceNode : sourceFileDependencies)
-    {
-        if (sourceNode.compilationStatus != FileStatus::UPDATED)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-unsigned long BTargetCache::maximumThreadsNeeded() const
-{
-    unsigned long numberOfOutdatedFiles = 0;
-    for (const auto &sourceNode : sourceFileDependencies)
-    {
-        if (sourceNode.compilationStatus == FileStatus::NEEDS_RECOMPILE)
-        {
-            ++numberOfOutdatedFiles;
-        }
-    }
-    return numberOfOutdatedFiles;
-}
-
-SourceNode &BTargetCache::getNextNodeForCompilation()
-{
-    for (auto &sourceNode : sourceFileDependencies)
-    {
-        if (sourceNode.compilationStatus == FileStatus::NEEDS_RECOMPILE)
-        {
-            return const_cast<SourceNode &>(sourceNode);
-        }
-    }
-    cerr << "Internal Error: " << endl;
-    cerr << "Should Not had reached here as when this function is called, we should have a sourcefile yet to be "
-            "compiled."
-         << endl;
-    exit(-1);
-}
-
 void to_json(Json &j, const BTargetCache &bTargetCache)
 {
     j["COMPILE_COMMAND"] = bTargetCache.compileCommand;
@@ -369,32 +383,41 @@ void from_json(const Json &j, BTargetCache &bTargetCache)
     bTargetCache.compileCommand = j["COMPILE_COMMAND"];
     bTargetCache.sourceFileDependencies = j.at("DEPENDENCIES").get<set<SourceNode>>();
 }
-PostBasic::PostBasic(string commandFirstHalf, string printCommandFirstHalf, const string &buildCacheFilesDirPath,
-                     const string &fileName, const PathPrint &pathPrint, bool isTarget_)
+
+PostBasic::PostBasic(const BuildTool &buildTool, const string &commandFirstHalf, string printCommandFirstHalf,
+                     const string &buildCacheFilesDirPath, const string &fileName, const PathPrint &pathPrint,
+                     bool isTarget_)
     : isTarget{isTarget_}
 {
 
     string str = isTarget ? "_t" : "";
 
-    CompileCommandPrintSettings ccpSettings = settings.ccpSettings;
-
     string outputFileName = buildCacheFilesDirPath + fileName + "_output" + str;
     string errorFileName = buildCacheFilesDirPath + fileName + "_error" + str;
-
-    commandFirstHalf += "> " + addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
+    // string responseFileName = buildCacheFilesDirPath + fileName + "_response" + str;
 
     if (pathPrint.printLevel != PathPrintLevel::NO)
     {
-        printCommandFirstHalf += "> " + getReducedPath(outputFileName, ccpSettings.outputAndErrorFiles) + " 2>" +
-                                 getReducedPath(errorFileName, ccpSettings.outputAndErrorFiles);
+        printCommandFirstHalf +=
+            "> " + getReducedPath(outputFileName, pathPrint) + " 2>" + getReducedPath(errorFileName, pathPrint);
     }
 
-    printCommand = std::move(printCommandFirstHalf);
+    printCommand = move(printCommandFirstHalf);
 
 #ifdef _WIN32
-    commandFirstHalf = addQuotes(commandFirstHalf);
+    path responseFile = path(buildCacheFilesDirPath + fileName + ".response");
+    ofstream(responseFile) << commandFirstHalf;
+
+    path toolPath = buildTool.bTPath;
+    string cmdCharLimitMitigateCommand = addQuotes(toolPath.make_preferred().string()) + " @" +
+                                         addQuotes(responseFile.generic_string()) + "> " + addQuotes(outputFileName) +
+                                         " 2>" + addQuotes(errorFileName);
+    bool success = system(addQuotes(cmdCharLimitMitigateCommand).c_str());
+#else
+    commandFirstHalf += "> " + addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
+    bool success = system(commandFirstHalf.c_str());
 #endif
-    if (system(commandFirstHalf.c_str()) == EXIT_SUCCESS)
+    if (success == EXIT_SUCCESS)
     {
         successfullyCompleted = true;
         commandSuccessOutput = file_to_string(outputFileName);
@@ -409,15 +432,7 @@ PostBasic::PostBasic(string commandFirstHalf, string printCommandFirstHalf, cons
 
 void PostBasic::executePrintRoutine(uint32_t color) const
 {
-    string threadId;
-    if (settings.gpcSettings.threadId)
-    {
-        auto myid = std::this_thread::get_id();
-        std::stringstream ss;
-        ss << myid;
-        threadId = ss.str();
-    }
-    print(fg(static_cast<fmt::color>(color)), pes, printCommand + " " + threadId);
+    print(fg(static_cast<fmt::color>(color)), pes, printCommand + " " + getThreadId());
     print("\n");
     if (!commandSuccessOutput.empty())
     {
@@ -431,11 +446,12 @@ void PostBasic::executePrintRoutine(uint32_t color) const
     }
 }
 
-PostCompile::PostCompile(const ParsedTarget &parsedTarget_, string commandFirstHalf, string printCommandFirstHalf,
-                         const string &buildCacheFilesDirPath, const string &fileName, const PathPrint &pathPrint)
+PostCompile::PostCompile(const ParsedTarget &parsedTarget_, const BuildTool &buildTool, const string &commandFirstHalf,
+                         string printCommandFirstHalf, const string &buildCacheFilesDirPath, const string &fileName,
+                         const PathPrint &pathPrint)
     : parsedTarget{const_cast<ParsedTarget &>(parsedTarget_)},
-      PostBasic(std::move(commandFirstHalf), std::move(printCommandFirstHalf), buildCacheFilesDirPath, fileName,
-                pathPrint, false)
+      PostBasic(buildTool, commandFirstHalf, move(printCommandFirstHalf), buildCacheFilesDirPath, fileName, pathPrint,
+                false)
 {
 }
 
@@ -478,7 +494,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode)
                 iter = outputLines.erase(iter);
             }
         }
-        else if (*iter == path(sourceNode.node->filePath).filename().string())
+        else if (*iter == sourceNode.node->getFileName())
         {
             if (settings.ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput)
             {
@@ -494,8 +510,8 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode)
     string treatedOutput; // Output With All information of include files removed.
     for (const auto &i : outputLines)
     {
-        treatedOutput.append(i);
-        treatedOutput.append("\n");
+        treatedOutput += i;
+        treatedOutput += "\n";
     }
     commandSuccessOutput = treatedOutput;
 }
@@ -503,8 +519,8 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode)
 void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
 {
 
-    string headerFileContents = file_to_string(parsedTarget.buildCacheFilesDirPath +
-                                               path(sourceNode.node->filePath).filename().string() + ".d");
+    string headerFileContents =
+        file_to_string(parsedTarget.buildCacheFilesDirPath + sourceNode.node->getFileName() + ".d");
     vector<string> headerDeps = split(headerFileContents, "\n");
 
     // First 2 lines are skipped as these are .o and .cpp file. While last line is an empty line
@@ -604,11 +620,11 @@ void SMFile::populateFromJson(const Json &j)
         {
             hasRequires = false;
         }
-        dependencies.resize(requireJsons.size());
+        requireDependencies.resize(requireJsons.size());
         for (unsigned long i = 0; i < requireJsons.size(); ++i)
         {
-            dependencies[i].populateFromJson(requireJsons[i], sourceNode.node->filePath);
-            if (dependencies[i].type == SM_REQUIRE_TYPE::PARTITION_EXPORT)
+            requireDependencies[i].populateFromJson(requireJsons[i], sourceNode.node->filePath);
+            if (requireDependencies[i].type == SM_REQUIRE_TYPE::PARTITION_EXPORT)
             {
                 type = SM_FILE_TYPE::PARTITION_IMPLEMENTATION;
             }
@@ -664,6 +680,50 @@ string SMFile::getFlag(const string &outputFilesWithoutExtension) const
     }
 }
 
+string SMFile::getFlagPrint(const string &outputFilesWithoutExtension) const
+{
+    const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
+    bool infra = ccpSettings.infrastructureFlags;
+
+    string str = infra ? "/ifcOutput" : "";
+    if (ccpSettings.ifcOutputFile.printLevel != PathPrintLevel::NO)
+    {
+        str += getReducedPath(outputFilesWithoutExtension + ".ifc", ccpSettings.ifcOutputFile) + " ";
+    }
+    str += infra ? "/Fo" : "";
+    if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
+    {
+        str += getReducedPath(outputFilesWithoutExtension + ".o", ccpSettings.objectFile);
+    }
+
+    if (type == SM_FILE_TYPE::NOT_ASSIGNED)
+    {
+        print(stderr, "Error! In getRequireFlag() type is NOT_ASSIGNED");
+        exit(EXIT_FAILURE);
+    }
+    else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
+    {
+        return infra ? "/interface " : "" + str;
+    }
+    else if (type == SM_FILE_TYPE::HEADER_UNIT)
+    {
+        string angleStr = angle ? "angle " : "quote ";
+        return infra ? "/exportHeader /headerName:" + angleStr : "" + str;
+    }
+    else
+    {
+        str = infra ? "/Fo" : "" + getReducedPath(outputFilesWithoutExtension + ".o", ccpSettings.objectFile);
+        if (type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
+        {
+            return infra ? "/internalPartition " : "" + str;
+        }
+        else
+        {
+            return str;
+        }
+    }
+}
+
 string SMFile::getRequireFlag(const string &ifcFilePath) const
 {
     if (type == SM_FILE_TYPE ::NOT_ASSIGNED)
@@ -682,6 +742,50 @@ string SMFile::getRequireFlag(const string &ifcFilePath) const
     }
     print(stderr, "Error! In getRequireFlag() unknown type");
     exit(EXIT_FAILURE);
+}
+
+string SMFile::getRequireFlagPrint(const string &ifcFilePath) const
+{
+    const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
+    if (type == SM_FILE_TYPE ::NOT_ASSIGNED)
+    {
+        print(stderr, "Error! In getRequireFlag() type is NOT_ASSIGNED");
+        exit(EXIT_FAILURE);
+    }
+    else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
+    {
+        return ccpSettings.infrastructureFlags
+                   ? "/reference "
+                   : "" + logicalName + "=" + getReducedPath(ifcFilePath, ccpSettings.requireIFCs);
+    }
+    else if (type == SM_FILE_TYPE::HEADER_UNIT)
+    {
+        string str = angle ? "angle" : "quote";
+        return ccpSettings.infrastructureFlags
+                   ? "/headerUnit:" + str + " "
+                   : "" + logicalName + "=" + getReducedPath(ifcFilePath, ccpSettings.requireIFCs);
+    }
+    print(stderr, "Error! In getRequireFlag() unknown type");
+    exit(EXIT_FAILURE);
+}
+
+string SMFile::getModuleCompileCommandPrintLastHalf() const
+{
+    CompileCommandPrintSettings ccpSettings = settings.ccpSettings;
+    string moduleCompileCommandPrintLastHalf;
+    if (ccpSettings.requireIFCs.printLevel != PathPrintLevel::NO)
+    {
+        for (const SMFile *linkDependency : commandLineFileDependencies)
+        {
+            string ifcFilePath =
+                addQuotes(linkDependency->parsedTarget.buildCacheFilesDirPath + linkDependency->fileName + ".ifc");
+            moduleCompileCommandPrintLastHalf += linkDependency->getRequireFlagPrint(ifcFilePath) + " ";
+        }
+    }
+    moduleCompileCommandPrintLastHalf += parsedTarget.getInfrastructureFlags();
+
+    moduleCompileCommandPrintLastHalf += getFlagPrint(parsedTarget.buildCacheFilesDirPath + fileName);
+    return moduleCompileCommandPrintLastHalf;
 }
 
 bool SMFileCompareWithHeaderUnits::operator()(const SMFile &lhs, const SMFile &rhs) const
@@ -730,27 +834,16 @@ Node *Node::getNodeFromString(const string &str)
     }
 }
 
-void ParsedTarget::addAllSourceFilesInBuildNode(BTargetCache &bTargetCache)
-{
-    for (const auto &i : sourceFiles)
-    {
-        SourceNode &node = bTargetCache.addNodeInSourceFileDependencies(i);
-        node.compilationStatus = FileStatus::NEEDS_RECOMPILE;
-    }
-}
-
 void ParsedTarget::setSourceNodeCompilationStatus(SourceNode &sourceNode, bool checkSMFileExists,
                                                   const string &extension) const
 {
     sourceNode.compilationStatus = FileStatus::UPDATED;
 
-    path objectFilePath =
-        path(buildCacheFilesDirPath + path(sourceNode.node->filePath).filename().string() + extension + ".o");
+    path objectFilePath = path(buildCacheFilesDirPath + sourceNode.node->getFileName() + extension + ".o");
 
     if (checkSMFileExists)
     {
-        path smrulesFilePath =
-            path(buildCacheFilesDirPath + path(sourceNode.node->filePath).filename().string() + ".smrules");
+        path smrulesFilePath = path(buildCacheFilesDirPath + sourceNode.node->getFileName() + ".smrules");
 
         if (!exists(objectFilePath) || !exists(smrulesFilePath))
         {
@@ -786,31 +879,74 @@ void ParsedTarget::setSourceNodeCompilationStatus(SourceNode &sourceNode, bool c
     }
 }
 
-void ParsedTarget::populateBuildTree()
+void ParsedTarget::checkForRelinkPrebuiltDependencies()
 {
-    setCompileCommand();
-    if (exists(path(buildCacheFilesDirPath) / (targetName + ".cache")))
+    path outputPath = path(outputDirectory) / actualOutputName;
+    if (!exists(outputPath))
     {
-        Json targetCacheJson;
-        ifstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) >> targetCacheJson;
-        buildNode.targetCache = targetCacheJson;
+        buildNode.needsLinking = true;
     }
+    for (const auto &i : libraryDependencies)
+    {
+        if (i.preBuilt)
+        {
+            if (!exists(path(i.path)))
+            {
+                cerr << "Prebuilt Library " << i.path << " Does Not Exist" << endl;
+                exit(EXIT_FAILURE);
+            }
+            if (!buildNode.needsLinking)
+            {
+                if (last_write_time(i.path) > last_write_time(outputPath))
+                {
+                    buildNode.needsLinking = true;
+                }
+            }
+        }
+    }
+}
 
-    if (!exists(path(buildCacheFilesDirPath)))
+void ParsedTarget::populateSourceTree()
+{
+    checkForRelinkPrebuiltDependencies();
+    bool rebuildAll = false;
+    if (exists(path(buildCacheFilesDirPath)))
     {
-        create_directory(buildCacheFilesDirPath);
-        addAllSourceFilesInBuildNode(buildNode.targetCache);
-    }
-    else if (buildNode.targetCache.compileCommand != compileCommand)
-    {
-        addAllSourceFilesInBuildNode(buildNode.targetCache);
+        if (exists(path(buildCacheFilesDirPath) / (targetName + ".cache")))
+        {
+            Json targetCacheJson;
+            ifstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) >> targetCacheJson;
+            buildNode.targetCache = targetCacheJson;
+            if (buildNode.targetCache.compileCommand != getCompileCommand())
+            {
+                rebuildAll = true;
+            }
+        }
+        else
+        {
+            rebuildAll = true;
+        }
     }
     else
     {
-        for (const auto &sourceFile : sourceFiles)
+        create_directory(buildCacheFilesDirPath);
+        rebuildAll = true;
+    }
+
+    for (const auto &sourceFile : sourceFiles)
+    {
+        SourceNode &sourceNode = buildNode.targetCache.addNodeInSourceFileDependencies(sourceFile);
+        if (rebuildAll)
         {
-            SourceNode &sourceNode = buildNode.targetCache.addNodeInSourceFileDependencies(sourceFile);
+            sourceNode.compilationStatus = FileStatus::NEEDS_RECOMPILE;
+        }
+        else
+        {
             setSourceNodeCompilationStatus(sourceNode, false);
+        }
+        if (sourceNode.compilationStatus == FileStatus::NEEDS_RECOMPILE)
+        {
+            buildNode.outdatedFiles.emplace_back(&sourceNode);
         }
     }
 
@@ -820,7 +956,7 @@ void ParsedTarget::populateBuildTree()
     {
         if (src.presentInSource == src.presentInCache)
         {
-            tmpObjectFiles.insert(path(src.node->filePath).filename().string() + ".o");
+            tmpObjectFiles.insert(src.node->getFileName() + ".o");
         }
     }
 
@@ -836,75 +972,61 @@ void ParsedTarget::populateBuildTree()
         }
     }
 
-    if (buildNode.targetCache.maximumThreadsNeeded() > 0)
+    buildNode.outdatedFilesSizeIndex = buildNode.outdatedFiles.size();
+    if (buildNode.outdatedFilesSizeIndex)
     {
-        buildNode.targetCache.compileCommand = compileCommand;
-        buildNode.relink = true;
+        buildNode.needsLinking = true;
     }
-    else
-    {
-        auto needsRelinkBeforePopularizingBuildTree = [&]() -> bool {
-            for (const auto &src : buildNode.targetCache.sourceFileDependencies)
-            {
-                if (src.presentInSource != src.presentInCache)
-                {
-                    return true;
-                }
-            }
-            path outputPath = path(outputDirectory) / actualOutputName;
-            if (!exists(outputPath))
-            {
-                return true;
-            }
-            for (const auto &i : libraryDependencies)
-            {
-                if (i.preBuilt)
-                {
-                    if (!exists(path(i.path)))
-                    {
-                        cerr << "Prebuilt Library " << i.path << " Does Not Exist" << endl;
-                        exit(EXIT_FAILURE);
-                    }
-                    if (last_write_time(i.path) > last_write_time(outputPath))
-                    {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        };
 
-        buildNode.relink = needsRelinkBeforePopularizingBuildTree();
-    }
-    if (buildNode.relink)
+    buildNode.targetCache.compileCommand = getCompileCommand();
+    if (!buildNode.needsLinking)
     {
-        for (BuildNode *dependentBuildNode : buildNode.linkDependents)
+        path outputPath = path(outputDirectory) / actualOutputName;
+        for (const auto &src : buildNode.targetCache.sourceFileDependencies)
         {
-            dependentBuildNode->relink = true;
+            if (src.presentInSource != src.presentInCache)
+            {
+                buildNode.needsLinking = true;
+                break;
+            }
+        }
+    }
+
+    if (buildNode.needsLinking)
+    {
+        for (ParsedTarget *parsedTarget : buildNode.linkDependents)
+        {
+            parsedTarget->buildNode.needsLinking = true;
+            ++(parsedTarget->buildNode.needsLinkDependenciesSize);
         }
     }
 }
 
-void ParsedTarget::populateModuleBuildTree(Builder &builder, map<string, SourceNode *> &requirePaths,
-                                           set<TarjanNode<SMFile>> &tarjanNodesSMFiles)
+void ParsedTarget::populateModuleTree(Builder &builder, map<string, SourceNode *> &requirePaths,
+                                      set<TarjanNode<SMFile>> &tarjanNodesSMFiles)
 {
-    setCompileCommand();
-
-    if (exists(path(buildCacheFilesDirPath) / (targetName + ".cache")))
-    {
-        Json targetCacheJson;
-        ifstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) >> targetCacheJson;
-        buildNode.targetCache = targetCacheJson;
-    }
-
+    checkForRelinkPrebuiltDependencies();
     bool rebuildAll = false;
-    if (!exists(path(buildCacheFilesDirPath)))
+    if (exists(path(buildCacheFilesDirPath)))
+    {
+        if (exists(path(buildCacheFilesDirPath) / (targetName + ".cache")))
+        {
+            Json targetCacheJson;
+            ifstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) >> targetCacheJson;
+            buildNode.targetCache = targetCacheJson;
+            if (buildNode.targetCache.compileCommand != getCompileCommand())
+            {
+                rebuildAll = true;
+            }
+        }
+        else
+        {
+            rebuildAll = true;
+        }
+    }
+    else
     {
         create_directory(buildCacheFilesDirPath);
-        rebuildAll = true;
-    }
-    else if (buildNode.targetCache.compileCommand != compileCommand)
-    {
         rebuildAll = true;
     }
 
@@ -915,7 +1037,6 @@ void ParsedTarget::populateModuleBuildTree(Builder &builder, map<string, SourceN
         {
             if (rebuildAll)
             {
-                ++Builder::modulesActionsNeeded;
                 sourceNode.compilationStatus = FileStatus::NEEDS_RECOMPILE;
             }
             else
@@ -928,10 +1049,10 @@ void ParsedTarget::populateModuleBuildTree(Builder &builder, map<string, SourceN
             if (sourceNode.compilationStatus == FileStatus::NEEDS_RECOMPILE)
             {
                 GenerateSMRulesFile(sourceNode);
+                buildNode.needsLinking = true;
             }
 
-            string smFileName = path(sourceNode.node->filePath).filename().string();
-            string smFilePath = buildCacheFilesDirPath + smFileName + ".smrules";
+            string smFilePath = buildCacheFilesDirPath + sourceNode.node->getFileName() + ".smrules";
 
             Json smFileJson;
             ifstream(smFilePath) >> smFileJson;
@@ -952,7 +1073,6 @@ void ParsedTarget::populateModuleBuildTree(Builder &builder, map<string, SourceN
             }
             if (smFile.type == SM_FILE_TYPE::HEADER_UNIT)
             {
-                smFile.sourceNode.compilationStatus = FileStatus::UPDATED;
                 smFile.materialize = false;
                 smFile.angle = true;
                 auto [smFile1, OkSMFile1] = builder.smFilesWithHeaderUnits.insert(smFile);
@@ -992,8 +1112,19 @@ void ParsedTarget::populateModuleBuildTree(Builder &builder, map<string, SourceN
         }
     }
 
-    buildNode.targetCache.compileCommand = compileCommand;
-    buildNode.relink = true;
+    buildNode.targetCache.compileCommand = getCompileCommand();
+    if (!buildNode.needsLinking)
+    {
+        path outputPath = path(outputDirectory) / actualOutputName;
+        for (const auto &src : buildNode.targetCache.sourceFileDependencies)
+        {
+            if (src.presentInSource != src.presentInCache)
+            {
+                buildNode.needsLinking = true;
+                break;
+            }
+        }
+    }
 }
 
 string ParsedTarget::getInfrastructureFlags()
@@ -1014,8 +1145,7 @@ string ParsedTarget::getInfrastructureFlags()
 
 string ParsedTarget::getCompileCommandPrintSecondPart(const SourceNode &sourceNode)
 {
-    CompileCommandPrintSettings ccpSettings = settings.ccpSettings;
-    string compileFileName = path(sourceNode.node->filePath).filename().string();
+    const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
 
     string command;
     if (ccpSettings.infrastructureFlags)
@@ -1032,16 +1162,42 @@ string ParsedTarget::getCompileCommandPrintSecondPart(const SourceNode &sourceNo
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
-        command += getReducedPath(buildCacheFilesDirPath + compileFileName + ".o", ccpSettings.objectFile) + " ";
+        command +=
+            getReducedPath(buildCacheFilesDirPath + sourceNode.node->getFileName() + ".o", ccpSettings.objectFile) +
+            " ";
     }
     return command;
 }
 
+PostCompile ParsedTarget::CompileSMFile(SMFile *smFile)
+{
+    string finalCompileCommand = getCompileCommand() + " ";
+
+    for (const SMFile *linkDependency : smFile->commandLineFileDependencies)
+    {
+        string ifcFilePath =
+            addQuotes(linkDependency->parsedTarget.buildCacheFilesDirPath + linkDependency->fileName + ".ifc");
+        finalCompileCommand += linkDependency->getRequireFlag(ifcFilePath) + " ";
+    }
+    finalCompileCommand += "/c " + addQuotes(smFile->sourceNode.node->filePath) + " ";
+
+    finalCompileCommand += smFile->getFlag(buildCacheFilesDirPath + smFile->fileName);
+
+    PostCompile postCompile{*this,
+                            compiler,
+                            finalCompileCommand,
+                            getSourceCompileCommandPrintFirstHalf() + smFile->getModuleCompileCommandPrintLastHalf(),
+                            buildCacheFilesDirPath,
+                            smFile->fileName,
+                            settings.ccpSettings.outputAndErrorFiles};
+    return postCompile;
+}
+
 PostCompile ParsedTarget::Compile(SourceNode &sourceNode)
 {
-    string compileFileName = path(sourceNode.node->filePath).filename().string();
+    string compileFileName = sourceNode.node->getFileName();
 
-    string finalCompileCommand = compileCommand + " ";
+    string finalCompileCommand = getCompileCommand() + " ";
 
     finalCompileCommand += getInfrastructureFlags() + " " + addQuotes(sourceNode.node->filePath) + " ";
     if (compiler.bTFamily == BTFamily::MSVC)
@@ -1054,17 +1210,82 @@ PostCompile ParsedTarget::Compile(SourceNode &sourceNode)
     }
 
     PostCompile postCompile{*this,
-                            addQuotes(compiler.bTPath.make_preferred().string()) + " " + finalCompileCommand,
-                            compileCommandPrintFirstHalf + getCompileCommandPrintSecondPart(sourceNode),
+                            compiler,
+                            finalCompileCommand,
+                            getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPart(sourceNode),
                             buildCacheFilesDirPath,
                             compileFileName,
                             settings.ccpSettings.outputAndErrorFiles};
     return postCompile;
 }
 
+void ParsedTarget::populateCommandAndPrintCommandWithObjectFiles(string &command, string &printCommand,
+                                                                 const PathPrint &objectFilesPathPrint)
+{
+    if (isModule)
+    {
+        stack<SMFile *> smFilesStack;
+
+        for (SMFile *smFile : smFiles)
+        {
+            smFilesStack.emplace(smFile);
+        }
+
+        vector<SMFile *> objectFiles;
+        while (!smFilesStack.empty())
+        {
+            SMFile *smFile = smFilesStack.top();
+            smFilesStack.pop();
+            for (SMFile *smFileDep : smFile->fileDependencies)
+            {
+                smFilesStack.emplace(smFileDep);
+            }
+            if (auto it = find(objectFiles.begin(), objectFiles.end(), smFile); it == objectFiles.end())
+            {
+                objectFiles.emplace_back(smFile);
+            }
+            else
+            {
+                rotate(it, it + 1, objectFiles.end());
+            }
+        }
+
+        for (SMFile *smFile : objectFiles)
+        {
+            command += addQuotes(smFile->parsedTarget.buildCacheFilesDirPath + smFile->fileName + ".o") + " ";
+            if (objectFilesPathPrint.printLevel != PathPrintLevel::NO)
+            {
+                printCommand += getReducedPath(smFile->parsedTarget.buildCacheFilesDirPath + smFile->fileName + ".o",
+                                               objectFilesPathPrint) +
+                                " ";
+            }
+        }
+    }
+    else
+    {
+#ifdef _WIN32
+        command += addQuotes(buildCacheFilesDirPath + "*.o") + " ";
+        if (objectFilesPathPrint.printLevel != PathPrintLevel::NO)
+        {
+            printCommand += getReducedPath(buildCacheFilesDirPath + "*.o", objectFilesPathPrint) + " ";
+        }
+#else
+        command += addQuotes(buildCacheFilesDirPath) + "*.o ";
+        if (objectFilesPathPrint.printLevel != PathPrintLevel::NO)
+        {
+            string str = getReducedPath(buildCacheFilesDirPath, objectFilesPathPrint);
+            if (!str.empty())
+            {
+                printCommand += str + "*.o ";
+            }
+        }
+#endif
+    }
+}
+
 PostBasic ParsedTarget::Archive()
 {
-    ArchiveCommandPrintSettings acpSettings = settings.acpSettings;
+    const ArchiveCommandPrintSettings &acpSettings = settings.acpSettings;
     auto getLibraryPath = [&]() -> string {
         if (archiver.bTFamily == BTFamily::MSVC)
         {
@@ -1077,15 +1298,13 @@ PostBasic ParsedTarget::Archive()
         return "";
     };
 
-    string archiveCommand = addQuotes(archiver.bTPath.make_preferred().string()) + " ";
-
     string archivePrintCommand;
     if (acpSettings.tool.printLevel != PathPrintLevel::NO)
     {
         archivePrintCommand += getReducedPath(archiver.bTPath.make_preferred().string(), acpSettings.tool) + " ";
     }
 
-    archiveCommand += archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
+    string archiveCommand = archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
     if (acpSettings.infrastructureFlags)
     {
         archivePrintCommand += archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
@@ -1113,33 +1332,16 @@ PostBasic ParsedTarget::Archive()
         archivePrintCommand += getReducedPath(getLibraryPath(), acpSettings.archive) + " ";
     }
 
-    // Wildcard expansion works inside quotes in batch however does not work in bash.
-#ifdef _WIN32
-    archiveCommand += addQuotes(buildCacheFilesDirPath + "*.o") + " ";
-    if (acpSettings.objectFiles.printLevel != PathPrintLevel::NO)
-    {
-        archivePrintCommand += getReducedPath(buildCacheFilesDirPath + "*.o", acpSettings.objectFiles) + " ";
-    }
+    populateCommandAndPrintCommandWithObjectFiles(archiveCommand, archivePrintCommand, acpSettings.objectFiles);
 
-#else
-    archiveCommand += addQuotes(buildCacheFilesDirPath) + "*.o ";
-    if (acpSettings.objectFiles.printLevel != PathPrintLevel::NO)
-    {
-        string str = getReducedPath(buildCacheFilesDirPath, acpSettings.objectFiles);
-        archivePrintCommand += str + "*.o ";
-    }
-
-#endif
-    PostBasic postArchive(addQuotes(archiver.bTPath.make_preferred().string()) + " " + archiveCommand,
-                          archivePrintCommand, buildCacheFilesDirPath, targetName, acpSettings.outputAndErrorFiles,
-                          true);
+    PostBasic postArchive(archiver, archiveCommand, archivePrintCommand, buildCacheFilesDirPath, targetName,
+                          acpSettings.outputAndErrorFiles, true);
     return postArchive;
 }
 
 PostBasic ParsedTarget::Link()
 {
-    LinkCommandPrintSettings lcpSettings = settings.lcpSettings;
-    string linkCommand = addQuotes(linker.bTPath.make_preferred().string()) + " ";
+    const LinkCommandPrintSettings &lcpSettings = settings.lcpSettings;
 
     string linkPrintCommand;
     if (lcpSettings.tool.printLevel != PathPrintLevel::NO)
@@ -1147,7 +1349,7 @@ PostBasic ParsedTarget::Link()
         linkPrintCommand += getReducedPath(linker.bTPath.make_preferred().string(), lcpSettings.tool) + " ";
     }
 
-    linkCommand += linker.bTFamily == BTFamily::MSVC ? "/NOLOGO " : "";
+    string linkCommand = linker.bTFamily == BTFamily::MSVC ? "/NOLOGO " : "";
     if (lcpSettings.infrastructureFlags)
     {
         linkPrintCommand += linker.bTFamily == BTFamily::MSVC ? "/NOLOGO " : "";
@@ -1165,26 +1367,9 @@ PostBasic ParsedTarget::Link()
         linkPrintCommand += linkerTransitiveFlags + " ";
     }
 
-    // Wildcard expansion works inside quotes in batch however does not work in bash.
-#ifdef _WIN32
-    linkCommand += addQuotes(buildCacheFilesDirPath + "*.o") + " ";
-    if (lcpSettings.objectFiles.printLevel != PathPrintLevel::NO)
-    {
-        linkPrintCommand += getReducedPath(buildCacheFilesDirPath + "*.o", lcpSettings.objectFiles) + " ";
-    }
-#else
-    linkCommand += addQuotes(buildCacheFilesDirPath) + "*.o ";
-    if (lcpSettings.objectFiles.printLevel != PathPrintLevel::NO)
-    {
-        string str = getReducedPath(buildCacheFilesDirPath, lcpSettings.objectFiles);
-        if (!str.empty())
-        {
-            linkPrintCommand += str + "*.o ";
-        }
-    }
-#endif
+    populateCommandAndPrintCommandWithObjectFiles(linkCommand, linkPrintCommand, lcpSettings.objectFiles);
 
-    auto getLinkFlag = [this](const std::string &libraryPath, const std::string &libraryName) {
+    auto getLinkFlag = [this](const string &libraryPath, const string &libraryName) {
         if (linker.bTFamily == BTFamily::MSVC)
         {
             return addQuotes(libraryPath + libraryName + ".lib") + " ";
@@ -1195,8 +1380,7 @@ PostBasic ParsedTarget::Link()
         }
     };
 
-    auto getLinkFlagPrint = [this](const std::string &libraryPath, const std::string &libraryName,
-                                   const PathPrint &pathPrint) {
+    auto getLinkFlagPrint = [this](const string &libraryPath, const string &libraryName, const PathPrint &pathPrint) {
         if (linker.bTFamily == BTFamily::MSVC)
         {
             return getReducedPath(libraryPath + libraryName + ".lib", pathPrint) + " ";
@@ -1209,9 +1393,9 @@ PostBasic ParsedTarget::Link()
 
     for (const ParsedTarget *parsedTargetDep : libraryParsedTargetDependencies)
     {
-        linkCommand.append(getLinkFlag(parsedTargetDep->outputDirectory, parsedTargetDep->outputName));
-        linkPrintCommand.append(getLinkFlagPrint(parsedTargetDep->outputDirectory, parsedTargetDep->outputName,
-                                                 lcpSettings.libraryDependencies));
+        linkCommand += getLinkFlag(parsedTargetDep->outputDirectory, parsedTargetDep->outputName);
+        linkPrintCommand += getLinkFlagPrint(parsedTargetDep->outputDirectory, parsedTargetDep->outputName,
+                                             lcpSettings.libraryDependencies);
     }
 
     for (auto &i : libraryDependencies)
@@ -1221,8 +1405,8 @@ PostBasic ParsedTarget::Link()
             if (linker.bTFamily == BTFamily::MSVC)
             {
                 auto b = lcpSettings.libraryDependencies;
-                linkCommand.append(i.path + " ");
-                linkPrintCommand.append(getReducedPath(i.path + " ", b));
+                linkCommand += i.path + " ";
+                linkPrintCommand += getReducedPath(i.path + " ", b);
             }
             else
             {
@@ -1230,8 +1414,8 @@ PostBasic ParsedTarget::Link()
                 string libName = path(i.path).filename().string();
                 libName.erase(0, 3);
                 libName.erase(libName.find('.'), 2);
-                linkCommand.append(getLinkFlag(dir, libName));
-                linkPrintCommand.append(getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies));
+                linkCommand += getLinkFlag(dir, libName);
+                linkPrintCommand += getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies);
             }
         }
     }
@@ -1249,22 +1433,21 @@ PostBasic ParsedTarget::Link()
 
     for (const auto &i : libraryDirectories)
     {
-        linkCommand.append(getLibraryDirectoryFlag() + addQuotes(i) + " ");
+        linkCommand += getLibraryDirectoryFlag() + addQuotes(i) + " ";
         if (lcpSettings.libraryDirectories.printLevel != PathPrintLevel::NO)
         {
-            linkPrintCommand.append(getLibraryDirectoryFlag() + getReducedPath(i, lcpSettings.libraryDirectories) +
-                                    " ");
+            linkPrintCommand += getLibraryDirectoryFlag() + getReducedPath(i, lcpSettings.libraryDirectories) + " ";
         }
     }
 
     for (const auto &i : environment.libraryDirectories)
     {
-        linkCommand.append(getLibraryDirectoryFlag() + addQuotes(i.directoryPath.generic_string()) + " ");
+        linkCommand += getLibraryDirectoryFlag() + addQuotes(i.directoryPath.generic_string()) + " ";
         if (lcpSettings.environmentLibraryDirectories.printLevel != PathPrintLevel::NO)
         {
-            linkPrintCommand.append(
+            linkPrintCommand +=
                 getLibraryDirectoryFlag() +
-                getReducedPath(i.directoryPath.generic_string(), lcpSettings.environmentLibraryDirectories) + " ");
+                getReducedPath(i.directoryPath.generic_string(), lcpSettings.environmentLibraryDirectories) + " ";
         }
     }
 
@@ -1280,30 +1463,28 @@ PostBasic ParsedTarget::Link()
         linkPrintCommand += getReducedPath((path(outputDirectory) / actualOutputName).string(), lcpSettings.binary);
     }
 
-    PostBasic postLink(addQuotes(linker.bTPath.make_preferred().string()) + " " + linkCommand, linkPrintCommand,
-                       buildCacheFilesDirPath, targetName, lcpSettings.outputAndErrorFiles, true);
+    PostBasic postLink(linker, linkCommand, linkPrintCommand, buildCacheFilesDirPath, targetName,
+                       lcpSettings.outputAndErrorFiles, true);
     return postLink;
 }
 
 PostBasic ParsedTarget::GenerateSMRulesFile(const SourceNode &sourceNode)
 {
-    string compileFileName = path(sourceNode.node->filePath).filename().string();
+    string finalCompileCommand = getCompileCommand() + addQuotes(sourceNode.node->filePath) + " ";
 
-    string finalCompileCommand = compileCommand + addQuotes(sourceNode.node->filePath) + " ";
-
-    // finalCompileCommand += getInfrastructureFlags(sourceNode);
     if (compiler.bTFamily == BTFamily::MSVC)
     {
         finalCompileCommand +=
-            "/scanDependencies" + addQuotes(buildCacheFilesDirPath + compileFileName + ".smrules") + " ";
+            "/scanDependencies" + addQuotes(buildCacheFilesDirPath + sourceNode.node->getFileName() + ".smrules") + " ";
     }
     else
     {
         print(stderr, "Modules supported only on MSVC");
     }
 
-    PostBasic postGenerateSMRules(addQuotes(compiler.bTPath.make_preferred().string()) + " " + finalCompileCommand,
-                                  compileCommandPrintFirstHalf + getCompileCommandPrintSecondPart(sourceNode),
+    PostBasic postGenerateSMRules(compiler, finalCompileCommand,
+                                  getSourceCompileCommandPrintFirstHalf() +
+                                      getCompileCommandPrintSecondPart(sourceNode),
                                   buildCacheFilesDirPath, targetName, settings.ccpSettings.outputAndErrorFiles, true);
     return postGenerateSMRules;
 }
@@ -1313,9 +1494,9 @@ TargetType ParsedTarget::getTargetType() const
     return targetType;
 }
 
-void ParsedTarget::pruneAndSaveBuildCache(BTargetCache &bTargetCache) const
+void ParsedTarget::pruneAndSaveBuildCache() const
 {
-    Json cacheFileJson = bTargetCache;
+    Json cacheFileJson = buildNode.targetCache;
     ofstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) << cacheFileJson.dump(4);
 }
 
@@ -1389,93 +1570,82 @@ bool operator<(const ParsedTarget &lhs, const ParsedTarget &rhs)
     return lhs.targetFilePath < rhs.targetFilePath;
 }
 
-Builder::Builder(const set<string> &targetFilePaths, mutex &oneAndOnlyMutex) : oneAndOnlyMutex(oneAndOnlyMutex)
+Builder::Builder(const set<string> &targetFilePaths)
 {
     // This will only have targets with parsedTarget() called before and libraryDependenciesParsedTargets populated if
     // any.
-    vector<ParsedTarget *> moduleTargets;
-    populateParsedTargetSetAndModuleTargets(targetFilePaths, moduleTargets);
-    for (ParsedTarget *t : buildTreeFinal)
+    vector<ParsedTarget *> dirtyTargets;
+    unsigned short threadLaunchCount;
     {
-        t->populateBuildTree();
-    }
-    removeRedundantNodes();
-
-    getFinalSMFilesFromModuleParsedTargets(moduleTargets);
-
-    for (auto it = finalSMFiles.begin(); it != finalSMFiles.end(); ++it)
-    {
-        SMFile &smFile = **it;
-        string fileName = path(smFile.sourceNode.node->filePath).filename().string();
-        if (smFile.type == SM_FILE_TYPE::HEADER_UNIT)
+        // This will not be used later, Builder::SMFiles will be used.
+        vector<ParsedTarget *> moduleTargets;
+        populateParsedTargetSetAndModuleTargets(targetFilePaths, moduleTargets);
+        for (ParsedTarget *t : sourceTargets)
         {
-            fileName += smFile.angle ? "_angle" : "_quote";
+            t->populateSourceTree();
         }
-        string finalCompileCommand = smFile.parsedTarget.compileCommand + " ";
+        removeRedundantNodesFromSourceTree();
+        sourceTargetsIndex = sourceTargets.size();
+        unsigned short moduleThreadsNeeded = populateCanBeCompiledAndReturnModuleThreadsNeeded(moduleTargets);
+        unsigned short sourceThreadsNeeded = 0;
 
-        for (const SMFile *linkDependency : smFile.commandLineDependencies)
+        // This can happen when the target is deleted or one source files is removed in new configuration or a
+        // prebuilt-library dependency is touched
         {
-            string linkFileName = path(linkDependency->sourceNode.node->filePath).filename().string();
-            if (linkDependency->type == SM_FILE_TYPE::HEADER_UNIT)
+            for (ParsedTarget *sourceTarget : sourceTargets)
             {
-                linkFileName += linkDependency->angle ? "_angle" : "_quote";
+                dirtyTargets.emplace_back(sourceTarget);
+                unsigned short sourceThreadsTarget = sourceTarget->buildNode.outdatedFiles.size();
+                sourceThreadsNeeded += sourceThreadsTarget;
+                if (sourceTarget->buildNode.needsLinking && !sourceThreadsTarget &&
+                    !sourceTarget->buildNode.needsLinkDependenciesSize)
+                {
+                    canBeLinked.emplace_back(sourceTarget);
+                }
             }
-            string ifcFilePath = addQuotes(linkDependency->parsedTarget.buildCacheFilesDirPath + linkFileName + ".ifc");
-            finalCompileCommand += linkDependency->getRequireFlag(ifcFilePath) + " ";
+            for (ParsedTarget *moduleTarget : moduleTargets)
+            {
+                if (moduleTarget->buildNode.needsLinking)
+                {
+                    dirtyTargets.emplace_back(moduleTarget);
+                    if (!moduleTarget->smFilesToBeCompiledSize && moduleTarget->buildNode.needsLinkDependenciesSize)
+                    {
+                        canBeLinked.emplace_back(moduleTarget);
+                    }
+                }
+            }
         }
-        finalCompileCommand += "/c " + addQuotes(smFile.sourceNode.node->filePath) + " ";
 
-        finalCompileCommand += smFile.getFlag(smFile.parsedTarget.buildCacheFilesDirPath + fileName);
-        cout << finalCompileCommand << endl << endl;
-
-        path responseFile = path(smFile.parsedTarget.buildCacheFilesDirPath + fileName + ".response");
-        ofstream(responseFile) << finalCompileCommand;
-
-        // compileCommand = addQuotes(compiler.bTPath.make_preferred().string()) + " ";
-        string cmdCharLimitMitigateCommand = addQuotes(smFile.parsedTarget.compiler.bTPath.make_preferred().string()) +
-                                             " @" + addQuotes(responseFile.generic_string());
-        if (system(addQuotes(cmdCharLimitMitigateCommand).c_str()) == EXIT_FAILURE)
-        {
-            cout << "Command Failed. Exiting" << endl << endl;
-            exit(EXIT_FAILURE);
-        }
+        // TODO
+        // linkThreadsNeeded and moduleThreadsNeeded are not accurate. Will use this later.
+        // https://cs.stackexchange.com/a/16829
+        unsigned short totalThreadsNeeded = sourceThreadsNeeded + moduleThreadsNeeded + dirtyTargets.size();
+        threadLaunchCount = totalThreadsNeeded > buildThreadsAllowed ? buildThreadsAllowed : totalThreadsNeeded;
     }
 
-    for (const ParsedTarget *target : buildTreeFinal)
+    for (const ParsedTarget *target : dirtyTargets)
     {
         target->executePreBuildCommands();
     }
 
-    compileIterator = buildTreeFinal.rbegin();
-
-    unsigned long actionsNeeded = 0;
-    for (const ParsedTarget *parsedTarget : buildTreeFinal)
+    vector<thread *> threads;
+    while (threads.size() != threadLaunchCount)
     {
-        actionsNeeded += parsedTarget->buildNode.targetCache.maximumThreadsNeeded() + 1;
-    }
-    unsigned int numberOfBuildThreads;
-    actionsNeeded > buildThreadsAllowed ? numberOfBuildThreads = buildThreadsAllowed
-                                        : numberOfBuildThreads = actionsNeeded;
-    vector<thread *> buildThreads;
-
-    // numberOfBuildThreads = 12;
-    while (buildThreads.size() != numberOfBuildThreads)
-    {
-        buildThreads.emplace_back(new thread{&Builder::buildSourceFiles, this});
+        threads.emplace_back(new thread{&Builder::buildSourceFiles, this});
     }
 
-    for (auto t : buildThreads)
+    for (thread *t : threads)
     {
         t->join();
         delete t;
     }
 
-    for (const ParsedTarget *parsedTarget : buildTreeFinal)
+    for (const ParsedTarget *parsedTarget : dirtyTargets)
     {
         parsedTarget->executePostBuildCommands();
     }
 
-    for (ParsedTarget *parsedTarget : buildTreeFinal)
+    for (ParsedTarget *parsedTarget : dirtyTargets)
     {
         parsedTarget->copyParsedTarget();
     }
@@ -1541,7 +1711,7 @@ void Builder::populateParsedTargetSetAndModuleTargets(const set<string> &targetF
             {
                 auto [ptrDep, unused] = getParsedTargetPointer(dep.path);
                 ptr->libraryParsedTargetDependencies.emplace(ptrDep);
-                ptrDep->buildNode.linkDependents.emplace_back(&(ptr->buildNode));
+                ptrDep->buildNode.linkDependents.emplace_back(ptr);
                 if (ptrDep->isModule)
                 {
                     cerr << ptr->targetFilePath << " Has Dependency " << ptrDep->targetFilePath
@@ -1563,7 +1733,6 @@ void Builder::populateParsedTargetSetAndModuleTargets(const set<string> &targetF
                     auto &a = *posDep;
                     tarjanNode.deps.emplace_back(const_cast<TarjanNode<ParsedTarget> *>(&a));
                 }
-                ptr->buildNode.linkDependenciesSize = ptr->libraryDependencies.size();
             }
         }
     }
@@ -1579,15 +1748,11 @@ void Builder::populateParsedTargetSetAndModuleTargets(const set<string> &targetF
     }
     else
     {
-        for (auto it = TarjanNode<ParsedTarget>::topologicalSort.rbegin();
-             it != TarjanNode<ParsedTarget>::topologicalSort.rend(); ++it)
-        {
-            buildTreeFinal.emplace_back(*it);
-        }
+        sourceTargets = TarjanNode<ParsedTarget>::topologicalSort;
     }
 }
 
-void Builder::getFinalSMFilesFromModuleParsedTargets(const vector<ParsedTarget *> &moduleTargets)
+int Builder::populateCanBeCompiledAndReturnModuleThreadsNeeded(const vector<ParsedTarget *> &moduleTargets)
 {
     // We now know all the nodes that need relink. Based on that we can know what if some modules need relink
 
@@ -1596,17 +1761,15 @@ void Builder::getFinalSMFilesFromModuleParsedTargets(const vector<ParsedTarget *
 
     for (ParsedTarget *moduleTarget : moduleTargets)
     {
-        moduleTarget->populateModuleBuildTree(*this, requirePaths, tarjanNodesSMFiles);
+        moduleTarget->populateModuleTree(*this, requirePaths, tarjanNodesSMFiles);
     }
 
-    for (auto &smFile : smFilesWithHeaderUnits)
+    for (auto &smFileConst : smFilesWithHeaderUnits)
     {
-        cout << "Source File " << smFile.sourceNode.node->filePath << endl;
-        cout << "Deps: " << endl;
-
+        auto &smFile = const_cast<SMFile &>(smFileConst);
         auto smFileTarjanNodeIt = tarjanNodesSMFiles.find(TarjanNode(&smFile));
 
-        for (auto &dep : smFile.dependencies)
+        for (auto &dep : smFile.requireDependencies)
         {
             if (dep.type == SM_REQUIRE_TYPE::HEADER_UNIT)
             {
@@ -1621,7 +1784,8 @@ void Builder::getFinalSMFilesFromModuleParsedTargets(const vector<ParsedTarget *
                     auto &smFileDep = const_cast<SMFile &>(*smFileDepIt);
                     smFileDep.materialize = true;
                     smFileDep.logicalName = dep.logicalName;
-                    smFileDep.dependents.emplace_back(const_cast<SMFile *>(&smFile));
+                    smFile.fileDependencies.emplace_back(&smFileDep);
+                    smFileDep.fileDependents.emplace_back(&smFile);
                     auto smFileTarjanNodeDepIt = tarjanNodesSMFiles.find(TarjanNode(&smFileDep));
                     smFileTarjanNodeIt->deps.emplace_back(const_cast<TarjanNode<SMFile> *>(&(*smFileTarjanNodeDepIt)));
                 }
@@ -1645,12 +1809,14 @@ void Builder::getFinalSMFilesFromModuleParsedTargets(const vector<ParsedTarget *
                     SourceNode &depSMFileSourceNode = *(const_cast<SourceNode *>(it->second));
                     auto smFileDepIt = smFilesWithHeaderUnits.find(SMFile(depSMFileSourceNode, smFile.parsedTarget));
                     auto &smFileDep = const_cast<SMFile &>(*smFileDepIt);
-                    smFileDep.dependents.emplace_back(const_cast<SMFile *>(&smFile));
+                    smFile.fileDependencies.emplace_back(&smFileDep);
+                    smFileDep.fileDependents.emplace_back(&smFile);
                     auto smFileTarjanNodeDepIt = tarjanNodesSMFiles.find(TarjanNode(&smFileDep));
                     smFileTarjanNodeIt->deps.emplace_back(const_cast<TarjanNode<SMFile> *>(&(*smFileTarjanNodeDepIt)));
                 }
             }
         }
+        smFile.parsedTarget.smFiles.emplace_back(&smFile);
     }
 
     TarjanNode<SMFile>::tarjanNodes = &tarjanNodesSMFiles;
@@ -1662,15 +1828,18 @@ void Builder::getFinalSMFilesFromModuleParsedTargets(const vector<ParsedTarget *
         exit(EXIT_FAILURE);
     }
 
-    finalSMFiles = TarjanNode<SMFile>::topologicalSort;
+    vector<SMFile *> finalSMFiles = TarjanNode<SMFile>::topologicalSort;
 
     for (SMFile *smFile : finalSMFiles)
     {
+
+        smFile->fileName = smFile->sourceNode.node->fileName;
+        // Can Be Used For Linking
         if (smFile->type == SM_FILE_TYPE::HEADER_UNIT)
         {
-            smFile->parsedTarget.setSourceNodeCompilationStatus(smFile->sourceNode, false,
-                                                                smFile->angle ? "_angle" : "_quote");
+            smFile->fileName += smFile->angle ? "_angle" : "_quote";
         }
+        smFile->parsedTarget.setSourceNodeCompilationStatus(smFile->sourceNode, false, smFile->fileName);
     }
 
     for (auto it = finalSMFiles.begin(); it != finalSMFiles.end(); ++it)
@@ -1681,45 +1850,58 @@ void Builder::getFinalSMFilesFromModuleParsedTargets(const vector<ParsedTarget *
         }
         if ((*it)->sourceNode.compilationStatus == FileStatus::NEEDS_RECOMPILE)
         {
-            for (SMFile *dependent : (*it)->dependents)
+            for (SMFile *dependent : (*it)->fileDependents)
             {
                 dependent->sourceNode.compilationStatus = FileStatus::NEEDS_RECOMPILE;
             }
         }
-        for (SMFile *dependent : (*it)->dependents)
+        for (SMFile *dependent : (*it)->fileDependents)
         {
-            dependent->commandLineDependencies.emplace(*it);
-            for (SMFile *dependency : (*it)->commandLineDependencies)
+            dependent->commandLineFileDependencies.emplace(*it);
+            for (SMFile *dependency : (*it)->commandLineFileDependencies)
             {
                 if (dependency->type != SM_FILE_TYPE::PRIMARY_IMPLEMENTATION &&
                     dependency->type != SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
                 {
-                    dependent->commandLineDependencies.emplace(dependency);
+                    dependent->commandLineFileDependencies.emplace(dependency);
                 }
             }
         }
     }
 
+    unsigned short moduleThreadsNeeded = 0;
+    canBeCompiledModule.reserve(finalSMFiles.size());
     for (auto it = finalSMFiles.cbegin(); it != finalSMFiles.cend();)
     {
-        if ((*it)->sourceNode.compilationStatus != FileStatus::NEEDS_RECOMPILE || !it.operator*()->materialize)
+        SMFile *smFile = *it;
+        if (smFile->sourceNode.compilationStatus != FileStatus::NEEDS_RECOMPILE || !smFile->materialize)
         {
             it = finalSMFiles.erase(it);
         }
         else
         {
+            ++moduleThreadsNeeded;
+            smFile->parsedTarget.buildNode.needsLinking = true;
+            ++smFile->parsedTarget.smFilesToBeCompiledSize;
+            smFile->numberOfDependencies = smFile->requireDependencies.size();
+            if (smFile->requireDependencies.empty())
+            {
+                canBeCompiledModule.emplace_back(const_cast<SMFile *>(smFile));
+            }
             ++it;
         }
     }
+    finalSMFilesSize = finalSMFiles.size();
+    return moduleThreadsNeeded;
 }
 
-void Builder::removeRedundantNodes()
+void Builder::removeRedundantNodesFromSourceTree()
 {
-    auto it = buildTreeFinal.begin();
+    auto it = sourceTargets.begin();
 
-    while (it != buildTreeFinal.end())
+    while (it != sourceTargets.end())
     {
-        (*it)->buildNode.relink ? ++it : it = buildTreeFinal.erase(it);
+        (*it)->buildNode.needsLinking ? ++it : it = sourceTargets.erase(it);
     }
 }
 
@@ -1759,88 +1941,58 @@ set<string> Builder::getTargetFilePathsFromProjectOrPackageFile(const string &fi
     return targetFilePaths;
 }
 
+mutex oneAndOnlyMutex;
+mutex printMutex;
+
 void Builder::buildSourceFiles()
 {
-    bool loop = true;
-    while (loop)
+    oneAndOnlyMutex.lock();
+    linkTargets();
+    while (sourceTargetsIndex)
     {
-        oneAndOnlyMutex.lock();
-        if (newTargetCompiled)
+        ParsedTarget *parsedTarget = sourceTargets[sourceTargetsIndex - 1];
+        BuildNode &buildNode = parsedTarget->buildNode;
+        while (buildNode.outdatedFilesSizeIndex)
         {
-            for (auto it = buildTreeFinal.rbegin(); it != buildTreeFinal.rend(); ++it)
-            {
-                BuildNode &buildNode = (*it)->buildNode;
-                if (newTargetCompiled && !buildNode.linkingStarted && buildNode.isCompiled &&
-                    buildNode.linkDependenciesSize == buildNode.dependenciesLinked)
-                {
-                    ParsedTarget &target = **it;
-                    buildNode.linkingStarted = true;
-
-                    oneAndOnlyMutex.unlock();
-                    unique_ptr<PostBasic> postLinkOrArchive;
-                    if (target.getTargetType() == TargetType::STATIC)
-                    {
-                        PostBasic postLinkOrArchive1 = target.Archive();
-                        postLinkOrArchive = make_unique<PostBasic>(postLinkOrArchive1);
-                    }
-                    else if (target.getTargetType() == TargetType::EXECUTABLE)
-                    {
-                        PostBasic postLinkOrArchive1 = target.Link();
-                        postLinkOrArchive = make_unique<PostBasic>(postLinkOrArchive1);
-                    }
-                    target.pruneAndSaveBuildCache(buildNode.targetCache);
-                    oneAndOnlyMutex.lock();
-                    if (target.getTargetType() == TargetType::STATIC)
-                    {
-                        postLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor);
-                    }
-                    else if (target.getTargetType() == TargetType::EXECUTABLE)
-                    {
-                        postLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor);
-                    }
-                    for (auto dependents : buildNode.linkDependents)
-                    {
-                        ++dependents->dependenciesLinked;
-                    }
-                }
-            }
-            newTargetCompiled = false;
-        }
-
-        if (compileIterator == buildTreeFinal.rend())
-        {
+            SourceNode *tempSourceNode = buildNode.outdatedFiles[buildNode.outdatedFilesSizeIndex - 1];
+            --buildNode.outdatedFilesSizeIndex;
             oneAndOnlyMutex.unlock();
-            loop = false;
-            continue;
-        }
-        auto oldCompileIterator = compileIterator;
-        BuildNode &buildNode = (*compileIterator)->buildNode;
-        if (buildNode.targetCache.areFilesLeftToCompile())
-        {
-            SourceNode &tempSourceNode = buildNode.targetCache.getNextNodeForCompilation();
-            tempSourceNode.compilationStatus = FileStatus::COMPILING;
-            oneAndOnlyMutex.unlock();
-            PostCompile postCompile = (*compileIterator)->Compile(tempSourceNode);
-            postCompile.executePostCompileRoutineWithoutMutex(tempSourceNode);
-            oneAndOnlyMutex.lock();
+            PostCompile postCompile = parsedTarget->Compile(*tempSourceNode);
+            postCompile.executePostCompileRoutineWithoutMutex(*tempSourceNode);
+            printMutex.lock();
             postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor);
-            tempSourceNode.compilationStatus = FileStatus::UPDATED;
-            oneAndOnlyMutex.unlock();
-        }
-        else
-        {
-            ++compileIterator;
-            oneAndOnlyMutex.unlock();
-        }
-        if (oldCompileIterator != compileIterator)
-        {
-            BuildNode &oldBuildNode = (*oldCompileIterator)->buildNode;
-            if (oldBuildNode.targetCache.areAllFilesCompiled())
+            printMutex.unlock();
+            oneAndOnlyMutex.lock();
+            ++buildNode.filesUpdated;
+            if (buildNode.filesUpdated == buildNode.outdatedFiles.size() &&
+                !parsedTarget->buildNode.needsLinkDependenciesSize)
             {
-                oldBuildNode.isCompiled = true;
-                newTargetCompiled = true;
+                canBeLinked.emplace_back(parsedTarget);
+                linkTargets();
             }
         }
+        if (sourceTargetsIndex)
+        {
+            --sourceTargetsIndex;
+        }
+    }
+
+    // All files are compiled however some targets may not be linked yet(Rare). So, if there are modules
+    // involved I release the thread for that otherwise I hold it unless all targets are completely built.
+    if (finalSMFilesSize)
+    {
+        oneAndOnlyMutex.unlock();
+        buildModuleFiles();
+    }
+    else
+    {
+        while (canBeLinkedIndex < canBeLinked.size())
+        {
+            linkTargets();
+            oneAndOnlyMutex.unlock();
+            oneAndOnlyMutex.lock();
+        }
+        oneAndOnlyMutex.unlock();
     }
 }
 
@@ -1850,83 +2002,136 @@ void Builder::buildModuleFiles()
     while (loop)
     {
         oneAndOnlyMutex.lock();
-        if (newTargetCompiled)
+        while (canBeCompiledModuleIndex < canBeCompiledModule.size())
         {
-            for (auto it = buildTreeFinal.rbegin(); it != buildTreeFinal.rend(); ++it)
+            SMFile *smFile = canBeCompiledModule[canBeCompiledModuleIndex];
+            ParsedTarget &parsedTarget = smFile->parsedTarget;
+            ++canBeCompiledModuleIndex;
+            oneAndOnlyMutex.unlock();
+            PostCompile postCompile = smFile->parsedTarget.CompileSMFile(smFile);
+            postCompile.executePostCompileRoutineWithoutMutex(smFile->sourceNode);
+            printMutex.lock();
+            postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor);
+            printMutex.unlock();
+            oneAndOnlyMutex.lock();
+            for (SMFile *dependent : smFile->fileDependents)
             {
-                BuildNode &buildNode = (*it)->buildNode;
-                if (newTargetCompiled && !buildNode.linkingStarted && buildNode.isCompiled &&
-                    buildNode.linkDependenciesSize == buildNode.dependenciesLinked)
+                --(dependent->numberOfDependencies);
+                if (!dependent->numberOfDependencies)
                 {
-                    ParsedTarget &target = **it;
-                    buildNode.linkingStarted = true;
-
-                    oneAndOnlyMutex.unlock();
-                    unique_ptr<PostBasic> postLinkOrArchive;
-                    if (target.getTargetType() == TargetType::STATIC)
-                    {
-                        PostBasic postLinkOrArchive1 = target.Archive();
-                        postLinkOrArchive = make_unique<PostBasic>(postLinkOrArchive1);
-                    }
-                    else if (target.getTargetType() == TargetType::EXECUTABLE)
-                    {
-                        PostBasic postLinkOrArchive1 = target.Link();
-                        postLinkOrArchive = make_unique<PostBasic>(postLinkOrArchive1);
-                    }
-                    target.pruneAndSaveBuildCache(buildNode.targetCache);
-                    oneAndOnlyMutex.lock();
-                    if (target.getTargetType() == TargetType::STATIC)
-                    {
-                        postLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor);
-                    }
-                    else if (target.getTargetType() == TargetType::EXECUTABLE)
-                    {
-                        postLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor);
-                    }
-                    for (auto dependents : buildNode.linkDependents)
-                    {
-                        ++dependents->dependenciesLinked;
-                    }
+                    canBeCompiledModule.emplace_back(dependent);
                 }
             }
-            newTargetCompiled = false;
+            --parsedTarget.smFilesToBeCompiledSize;
+            if (!parsedTarget.smFilesToBeCompiledSize && !parsedTarget.buildNode.needsLinkDependenciesSize)
+            {
+                canBeLinked.emplace_back(&parsedTarget);
+                linkTargets();
+            }
         }
-
-        if (compileIterator == buildTreeFinal.rend())
+        if (canBeCompiledModuleIndex == finalSMFilesSize)
         {
-            oneAndOnlyMutex.unlock();
             loop = false;
         }
-        auto oldCompileIterator = compileIterator;
-        BuildNode &buildNode = (*compileIterator)->buildNode;
-        if (buildNode.targetCache.areFilesLeftToCompile())
+        oneAndOnlyMutex.unlock();
+    }
+}
+
+void Builder::linkTargets()
+{
+    bool loop = true;
+
+    while (canBeLinkedIndex < canBeLinked.size())
+    {
+        ParsedTarget *parsedTarget = canBeLinked[canBeLinkedIndex];
+        ++canBeLinkedIndex;
+        oneAndOnlyMutex.unlock();
+
+        unique_ptr<PostBasic> postLinkOrArchive;
+        if (parsedTarget->getTargetType() == TargetType::STATIC)
         {
-            SourceNode &tempSourceNode = buildNode.targetCache.getNextNodeForCompilation();
-            tempSourceNode.compilationStatus = FileStatus::COMPILING;
-            oneAndOnlyMutex.unlock();
-            PostCompile postCompile = (*compileIterator)->Compile(tempSourceNode);
-            postCompile.executePostCompileRoutineWithoutMutex(tempSourceNode);
-            oneAndOnlyMutex.lock();
-            postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor);
-            tempSourceNode.compilationStatus = FileStatus::UPDATED;
-            oneAndOnlyMutex.unlock();
+            PostBasic postLinkOrArchive1 = parsedTarget->Archive();
+            postLinkOrArchive = make_unique<PostBasic>(postLinkOrArchive1);
         }
-        else
+        else if (parsedTarget->getTargetType() == TargetType::EXECUTABLE)
         {
-            ++compileIterator;
-            oneAndOnlyMutex.unlock();
+            PostBasic postLinkOrArchive1 = parsedTarget->Link();
+            postLinkOrArchive = make_unique<PostBasic>(postLinkOrArchive1);
         }
-        if (oldCompileIterator != compileIterator)
+
+        parsedTarget->pruneAndSaveBuildCache();
+
+        printMutex.lock();
+        if (parsedTarget->getTargetType() == TargetType::STATIC)
         {
-            BuildNode &oldBuildNode = (*oldCompileIterator)->buildNode;
-            if (oldBuildNode.targetCache.areAllFilesCompiled())
+            postLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor);
+        }
+        else if (parsedTarget->getTargetType() == TargetType::EXECUTABLE)
+        {
+            postLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor);
+        }
+        printMutex.unlock();
+
+        oneAndOnlyMutex.lock();
+        for (ParsedTarget *dependent : parsedTarget->buildNode.linkDependents)
+        {
+            if (dependent->buildNode.needsLinking)
             {
-                oldBuildNode.isCompiled = true;
-                newTargetCompiled = true;
+                --(dependent->buildNode.needsLinkDependenciesSize);
+                if (!dependent->buildNode.needsLinkDependenciesSize)
+                {
+                    if (dependent->isModule)
+                    {
+                        if (!dependent->smFilesToBeCompiledSize)
+                        {
+                            canBeLinked.emplace_back(dependent);
+                        }
+                    }
+                    else
+                    {
+                        if (!dependent->buildNode.outdatedFilesSizeIndex)
+                        {
+                            canBeLinked.emplace_back(dependent);
+                        }
+                    }
+                }
             }
         }
     }
 }
+
+// Lockless version. Will try it sometimes later. canBeCompiledIndex is made atomic. that's it.
+/*void Builder::buildModuleFiles()
+{
+    bool loop = true;
+    while (loop)
+    {
+        unsigned long temp = canBeCompiledIndex.load(std::memory_order_acquire);
+        while (temp < canBeCompiled.size())
+        {
+            SMFile *smFile = canBeCompiled[temp];
+            bool imp = canBeCompiledIndex.compare_exchange_strong(temp, temp + 1, std::memory_order_release,
+                                                                  std::memory_order_relaxed);
+            if (!imp)
+            {
+                break;
+            }
+            smFile->parsedTarget.CompileSMFile(smFile);
+            for (SMFile *dependent : smFile->dependents)
+            {
+                ++(dependent->numberOfDependenciesCompiled);
+                if (dependent->numberOfDependenciesCompiled == dependent->numberOfDependencies)
+                {
+                    canBeCompiled.emplace_back(dependent);
+                }
+            }
+        }
+        if (canBeCompiledIndex.load(std::memory_order_relaxed) == finalSMFilesSize)
+        {
+            loop = false;
+        }
+    }
+}*/
 
 void Builder::copyPackage(const path &packageFilePath)
 {
@@ -1979,7 +2184,7 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
         return subjectPath;
     }
 
-    auto nthOccurrence = [](const std::string &str, const std::string &findMe, unsigned int nth) -> int {
+    auto nthOccurrence = [](const string &str, const string &findMe, unsigned int nth) -> int {
         unsigned long count = 0;
 
         for (int i = 0; i < str.size(); ++i)
@@ -2016,7 +2221,7 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
         if (sub.length() == 0)
             return 0;
         int count = 0;
-        for (int offset = (int)str.find(sub); offset != std::string::npos;
+        for (int offset = (int)str.find(sub); offset != string::npos;
              offset = (int)str.find(sub, offset + sub.length()))
         {
             ++count;

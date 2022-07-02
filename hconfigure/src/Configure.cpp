@@ -2152,8 +2152,10 @@ void to_json(Json &json, const CompileCommandPrintSettings &ccpSettings)
     json["COMPILE_DEFINITIONS"] = ccpSettings.compileDefinitions;
     json["PROJECT_INCLUDE_DIRECTORIES"] = ccpSettings.projectIncludeDirectories;
     json["ENVIRONMENT_INCLUDE_DIRECTORIES"] = ccpSettings.environmentIncludeDirectories;
+    json["REQUIRE_IFCS"] = ccpSettings.requireIFCs;
     json["SOURCE_FILE"] = ccpSettings.sourceFile;
     json["INFRASTRUCTURE_FLAGS"] = ccpSettings.infrastructureFlags;
+    json["IFC_OUTPUT_FILE"] = ccpSettings.ifcOutputFile;
     json["OBJECT_FILE"] = ccpSettings.objectFile;
     json["OUTPUT_AND_ERROR_FILES"] = ccpSettings.outputAndErrorFiles;
     json["PRUNE_HEADER_DEPENDENCIES_FROM_MSVC_OUTPUT"] = ccpSettings.pruneHeaderDepsFromMSVCOutput;
@@ -2172,8 +2174,10 @@ void from_json(const Json &json, CompileCommandPrintSettings &ccpSettings)
     ccpSettings.compileDefinitions = json.at("COMPILE_DEFINITIONS").get<bool>();
     ccpSettings.projectIncludeDirectories = json.at("PROJECT_INCLUDE_DIRECTORIES").get<PathPrint>();
     ccpSettings.environmentIncludeDirectories = json.at("ENVIRONMENT_INCLUDE_DIRECTORIES").get<PathPrint>();
+    ccpSettings.requireIFCs = json.at("REQUIRE_IFCS").get<PathPrint>();
     ccpSettings.sourceFile = json.at("SOURCE_FILE").get<PathPrint>();
     ccpSettings.infrastructureFlags = json.at("INFRASTRUCTURE_FLAGS").get<bool>();
+    ccpSettings.ifcOutputFile = json.at("IFC_OUTPUT_FILE").get<PathPrint>();
     ccpSettings.objectFile = json.at("OBJECT_FILE").get<PathPrint>();
     ccpSettings.outputAndErrorFiles = json.at("OUTPUT_AND_ERROR_FILES").get<PathPrint>();
     ccpSettings.pruneHeaderDepsFromMSVCOutput = json.at("PRUNE_HEADER_DEPENDENCIES_FROM_MSVC_OUTPUT").get<bool>();

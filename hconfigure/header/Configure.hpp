@@ -503,10 +503,7 @@ enum class LDLT
 
 #include "concepts"
 template <typename T>
-concept HasLibraryDependencies = requires(T a)
-{
-    same_as<decltype(a.libraryDependencies), vector<LibraryDependency>>;
-};
+concept HasLibraryDependencies = requires(T a) { same_as<decltype(a.libraryDependencies), vector<LibraryDependency>>; };
 
 struct LibraryDependency
 {
@@ -647,9 +644,14 @@ struct CompileCommandPrintSettings
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
     PathPrint environmentIncludeDirectories{
         .printLevel = PathPrintLevel::NO, .depth = 1, .addQuotes = false, .isDirectory = true, .isTool = false};
+    PathPrint requireIFCs{
+        .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
     PathPrint sourceFile{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
+    // Includes flags like /showIncludes /Fo /reference /ifcOutput /interface /internalPartition
     bool infrastructureFlags = false;
+    PathPrint ifcOutputFile{
+        .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
     PathPrint objectFile{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
     PathPrint outputAndErrorFiles{
