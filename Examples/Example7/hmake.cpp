@@ -7,9 +7,8 @@ int main()
     PackageVariant variantRelease;
 
     Library dog("Dog", variantRelease);
-    dog.sourceFiles.emplace_back("Dog/src/Dog.cpp");
-    dog.includeDirectoryDependencies.push_back(
-        IDD{.includeDirectory = Directory("Dog/header"), .dependencyType = DependencyType::PUBLIC});
+    ADD_SRC_FILES_TO_TARGET(dog, "Dog/src/Dog.cpp");
+    ADD_PUBLIC_IDDS_TO_TARGET(dog, "Dog/header");
 #ifdef _WIN32
     PLibrary catRelease("../Example2/Build/0/Cat/Cat.lib", LibraryType::STATIC);
     PLibrary catDebug("../Example2/Build/1/Cat/Cat.lib", LibraryType::STATIC);
@@ -19,7 +18,7 @@ int main()
 #endif
     catRelease.includeDirectoryDependencies.emplace_back("../Example2/Cat/header/");
     dog.libraryDependencies.emplace_back(catRelease, DependencyType::PUBLIC);
-    variantRelease.libraries.push_back(dog);
+    ADD_LIBRARIES_TO_VARIANT(variantRelease, dog);
 
     catDebug.includeDirectoryDependencies.emplace_back("../Example2/Cat/header/");
 
@@ -77,7 +76,7 @@ int main()
     dog.assignDifferentVariant(variatDebug);
     dog.libraryDependencies.emplace_back(catDebug, DependencyType::PUBLIC);
 
-    variatDebug.libraries.push_back(dog);
+    ADD_LIBRARIES_TO_VARIANT(variatDebug, dog);
 
     Package package("Pets");
     variatDebug.uniqueJson["CONFIGURATION"] = "DEBUG";

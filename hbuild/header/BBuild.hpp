@@ -23,6 +23,8 @@ struct BIDD
 {
     string path;
     bool copy;
+    BIDD() = default;
+    BIDD(const string &path_, bool copy_);
 };
 void from_json(const Json &j, BIDD &bCompileDefinition);
 
@@ -109,8 +111,8 @@ struct BuildNode
     BTargetCache targetCache;
     bool needsLinking = false;
     vector<SourceNode *> outdatedFiles;
-    unsigned short outdatedFilesSizeIndex = 0;
-    unsigned short filesUpdated = 0;
+    unsigned short compilationNotStartedSize;
+    unsigned short compilationNotCompletedSize;
     vector<struct ParsedTarget *> linkDependents;
     unsigned short needsLinkDependenciesSize = 0;
 };
@@ -175,6 +177,10 @@ struct SMRuleRequires
     inline static set<SMRuleRequires> *smRuleRequiresSet;
     void populateFromJson(const Json &j, const string &smFilePath);
 };
+
+namespace fmt
+{
+
 template <> struct formatter<SM_REQUIRE_TYPE> : formatter<std::string>
 {
     auto format(SM_REQUIRE_TYPE smRequireType, format_context &ctx)
@@ -218,6 +224,8 @@ template <> struct formatter<SMRuleRequires> : formatter<std::string>
         }
     }
 };
+
+} // namespace fmt
 
 struct SMFile // Scanned Module Rule
 {
@@ -315,7 +323,7 @@ template <typename T> void TarjanNode<T>::strongConnect()
     nodeIndex = TarjanNode<T>::index;
     lowLink = TarjanNode<T>::index;
     ++TarjanNode<T>::index;
-    stack.push_back(this);
+    stack.emplace_back(this);
     onStack = true;
 
     for (TarjanNode<T> *tarjandep : deps)
@@ -466,7 +474,7 @@ class Builder
     unsigned int finalSMFilesSize;
 
     unsigned long canBeLinkedIndex = 0;
-    unsigned int finalCanBeLinkedSize;
+    unsigned int totalTargetsNeedingLinking;
 
   public:
     // inline static int modulesActionsNeeded = 0;

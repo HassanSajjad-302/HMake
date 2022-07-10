@@ -33,9 +33,9 @@ int main() {
     ProjectVariant variant{};
 
     Executable app("app", variant);
-    app.sourceFiles.emplace("main.cpp");
+    ADD_SRC_FILES_TO_TARGET(app, "main.cpp");
 
-    variant.executables.push_back(app);
+    ADD_EXECUTABLES_TO_VARIANT(variant, app);
     project.projectVariants.push_back(variant);
     project.configure();
 }
@@ -69,9 +69,9 @@ TEST(CompilationTest, MultipleFilesCompilationTest)
     ProjectVariant variant{{}};
 
     Executable app("app", variant);
-    app.sourceDirectories.emplace(Directory("."), "file[1-{}]\\.cpp|main\\.cpp"); //fileCount assigned here
+    ADD_SRC_DIR_TO_TARGET(app, ".", "file[1-{}]\\.cpp|main\\.cpp"); //fileCount assigned here
 
-    variant.executables.push_back(app);
+    ADD_EXECUTABLES_TO_VARIANT(variant, app);
     project.projectVariants.push_back(variant);
     project.configure();
     }}

@@ -7,7 +7,7 @@ int main()
     ProjectVariant variantRelease;
 
     Executable fun("Fun", variantRelease);
-    fun.sourceFiles.emplace_back("main.cpp");
+    ADD_SRC_FILES_TO_TARGET(fun, "main.cpp");
 
     // Change the value of "FILE1" in cache.hmake to false and then run configure again.
     // Then run hbuild. Now file2.cpp will be used.
@@ -15,11 +15,11 @@ int main()
     // exist for that type. See nlohmann/json for details. I guess mostly bool will be used.
     if (CacheVariable("FILE1", true).value)
     {
-        fun.sourceFiles.emplace_back("file1.cpp");
+        ADD_SRC_FILES_TO_TARGET(fun, "file1.cpp");
     }
     else
     {
-        fun.sourceFiles.emplace_back("file2.cpp");
+        ADD_SRC_FILES_TO_TARGET(fun, "file2.cpp");
     }
 
     variantRelease.executables.push_back(fun);

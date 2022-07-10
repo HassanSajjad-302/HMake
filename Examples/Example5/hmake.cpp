@@ -7,14 +7,13 @@ int main()
     ProjectVariant variantRelease;
 
     Executable fun("Fun", variantRelease);
-    fun.sourceFiles.emplace_back("main.cpp");
+    ADD_SRC_FILES_TO_TARGET(fun, "main.cpp");
 
     // PreBuild commands are executed before the build starts while the PostBuild  commands are executed after
     // the build of the target is finished. Cache::sourceDirectory.path and Cache::configureDirectory.path can be
     //  provided here. Open both srcDir and buildDir in one frame and then run hbuild in terminal to see it.
 #ifdef _WIN32
-    fun.preBuild.emplace_back("echo > " +
-                              addQuotes((Cache::sourceDirectory.directoryPath / "file.txt").make_preferred().string()));
+    fun.preBuild.emplace_back("echo > " + addQuotes(path((srcDir + "file.txt")).make_preferred().string()));
     fun.preBuild.emplace_back("ping 127.0.0.1 -n 2 > nul"); // sleep command windows alternative
     fun.postBuild.emplace_back(
         "move " + addQuotes((Cache::sourceDirectory.directoryPath / "file.txt").make_preferred().string()) + " " +
@@ -33,7 +32,7 @@ int main()
     fun.postBuild.emplace_back(
         "rm " + addQuotes((Cache::configureDirectory.directoryPath / "file.txt").make_preferred().string()));
 #endif
-    variantRelease.executables.push_back(fun);
+    ADD_EXECUTABLES_TO_VARIANT(variantRelease, fun);
     project.projectVariants.push_back(variantRelease);
     project.configure();
     Cache::registerCacheVariables();

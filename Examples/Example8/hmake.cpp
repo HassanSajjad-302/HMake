@@ -7,12 +7,11 @@ int main()
     ProjectVariant variantRelease;
 
     Executable pets("Pets", variantRelease);
-    pets.sourceFiles.emplace_back("main.cpp");
+    ADD_SRC_FILES_TO_TARGET(pets, "main.cpp");
 
     Library goat("Goat", variantRelease);
-    goat.sourceFiles.emplace_back("Goat/src/Goat.cpp");
-    goat.includeDirectoryDependencies.push_back(
-        IDD{.includeDirectory = Directory("Goat/header"), .dependencyType = DependencyType::PUBLIC});
+    ADD_SRC_FILES_TO_TARGET(goat, "Goat/src/Goat.cpp");
+    ADD_PUBLIC_IDDS_TO_TARGET(goat, "Goat/header");
 
     // argument is packagePath
     // ConsumePackage
@@ -33,19 +32,19 @@ int main()
     // false, it will be copied like normal library.
 
     goat.libraryDependencies.emplace_back(dogRelease, DependencyType::PUBLIC);
-    pets.libraryDependencies.emplace_back(goat, DependencyType::PUBLIC);
+    ADD_PUBLIC_LIB_DEPS_TO_TARGET(pets, goat);
 
-    variantRelease.executables.emplace_back(pets);
+    ADD_EXECUTABLES_TO_VARIANT(variantRelease, pets);
 
     goat.libraryDependencies.clear();
     goat.configurationType = ConfigType::DEBUG;
     goat.libraryDependencies.emplace_back(dogDebug, DependencyType::PUBLIC);
     pets.libraryDependencies.clear();
     pets.configurationType = ConfigType::DEBUG;
-    pets.libraryDependencies.emplace_back(goat, DependencyType::PUBLIC);
+    ADD_PUBLIC_LIB_DEPS_TO_TARGET(pets, goat);
 
     ProjectVariant variantDebug;
-    variantDebug.executables.emplace_back(pets);
+    ADD_EXECUTABLES_TO_VARIANT(variantDebug, pets);
 
     Project project;
     project.projectVariants.push_back(variantDebug);

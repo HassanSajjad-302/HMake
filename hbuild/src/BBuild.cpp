@@ -24,6 +24,10 @@ string getThreadId()
     return threadId;
 };
 
+BIDD::BIDD(const string &path_, bool copy_) : path{path_}, copy{copy_}
+{
+}
+
 void from_json(const Json &j, BIDD &p)
 {
     p.copy = j.at("COPY").get<bool>();
@@ -129,7 +133,7 @@ void ParsedTarget::parseTarget()
         vector<string> includeDirs = targetFileJson.at("INCLUDE_DIRECTORIES").get<vector<string>>();
         for (auto &i : includeDirs)
         {
-            includeDirectories.push_back(BIDD{i, true});
+            includeDirectories.emplace_back(i, true);
         }
     }
     compilerTransitiveFlags = targetFileJson.at("COMPILER_TRANSITIVE_FLAGS").get<string>();
@@ -223,7 +227,14 @@ void ParsedTarget::setCompileCommand()
 
     for (const auto &i : compileDefinitions)
     {
-        compileCommand += (compiler.bTFamily == BTFamily::MSVC ? "/D" : "-D") + i.name + "=" + i.value + " ";
+        if (compiler.bTFamily == BTFamily::MSVC)
+        {
+            compileCommand += "/D" + i.name + "=" + i.value + " ";
+        }
+        else
+        {
+            compileCommand += "-D" + i.name + "=" + i.value + " ";
+        }
     }
 
     for (const auto &i : includeDirectories)
@@ -283,8 +294,14 @@ void ParsedTarget::setSourceCompileCommandPrintFirstHalf()
     {
         if (ccpSettings.compileDefinitions)
         {
-            sourceCompileCommandPrintFirstHalf +=
-                (compiler.bTFamily == BTFamily::MSVC ? "/D" : "-D") + i.name + "=" + i.value + " ";
+            if (compiler.bTFamily == BTFamily::MSVC)
+            {
+                sourceCompileCommandPrintFirstHalf += "/D " + addQuotes(i.name + "=" + addQuotes(i.value)) + " ";
+            }
+            else
+            {
+                sourceCompileCommandPrintFirstHalf += "-D" + i.name + "=" + i.value + " ";
+            }
         }
     }
 
@@ -414,8 +431,9 @@ PostBasic::PostBasic(const BuildTool &buildTool, const string &commandFirstHalf,
                                          " 2>" + addQuotes(errorFileName);
     bool success = system(addQuotes(cmdCharLimitMitigateCommand).c_str());
 #else
-    commandFirstHalf += "> " + addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
-    bool success = system(commandFirstHalf.c_str());
+    string finalCompileCommand = buildTool.bTPath.generic_string() + " " + commandFirstHalf + "> " +
+                                 addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
+    bool success = system(finalCompileCommand.c_str());
 #endif
     if (success == EXIT_SUCCESS)
     {
@@ -972,8 +990,9 @@ void ParsedTarget::populateSourceTree()
         }
     }
 
-    buildNode.outdatedFilesSizeIndex = buildNode.outdatedFiles.size();
-    if (buildNode.outdatedFilesSizeIndex)
+    buildNode.compilationNotStartedSize = buildNode.outdatedFiles.size();
+    buildNode.compilationNotCompletedSize = buildNode.compilationNotStartedSize;
+    if (buildNode.compilationNotStartedSize)
     {
         buildNode.needsLinking = true;
     }
@@ -1622,6 +1641,7 @@ Builder::Builder(const set<string> &targetFilePaths)
         unsigned short totalThreadsNeeded = sourceThreadsNeeded + moduleThreadsNeeded + dirtyTargets.size();
         threadLaunchCount = totalThreadsNeeded > buildThreadsAllowed ? buildThreadsAllowed : totalThreadsNeeded;
     }
+    totalTargetsNeedingLinking = dirtyTargets.size();
 
     for (const ParsedTarget *target : dirtyTargets)
     {
@@ -1680,7 +1700,7 @@ void Builder::populateParsedTargetSetAndModuleTargets(const set<string> &targetF
             {
                 auto [ptr, Ok] = getParsedTargetPointer(targetFilePath);
                 // We push on Stack so Regular Target Dependencies of this Module Target are also added
-                parsedTargetsStack.push(ptr);
+                parsedTargetsStack.emplace(ptr);
                 moduleTargets.emplace_back(ptr);
             }
         }
@@ -1696,7 +1716,7 @@ void Builder::populateParsedTargetSetAndModuleTargets(const set<string> &targetF
                 checkVariantOfTargetForModules(*(ptr->variantFilePath));
             }
             // The pointer may have already been pushed in checkVariantOfTargetForModules but may have not.
-            parsedTargetsStack.push(ptr);
+            parsedTargetsStack.emplace(ptr);
         }
     }
 
@@ -1709,6 +1729,10 @@ void Builder::populateParsedTargetSetAndModuleTargets(const set<string> &targetF
         {
             for (auto &dep : ptr->libraryDependencies)
             {
+                if (dep.preBuilt)
+                {
+                    continue;
+                }
                 auto [ptrDep, unused] = getParsedTargetPointer(dep.path);
                 ptr->libraryParsedTargetDependencies.emplace(ptrDep);
                 ptrDep->buildNode.linkDependents.emplace_back(ptr);
@@ -1719,7 +1743,7 @@ void Builder::populateParsedTargetSetAndModuleTargets(const set<string> &targetF
                             "Other Target"
                          << endl;
                 }
-                parsedTargetsStack.push(ptrDep);
+                parsedTargetsStack.emplace(ptrDep);
             }
             ptr->libsParsed = true;
             if (!ptr->isModule)
@@ -1952,10 +1976,10 @@ void Builder::buildSourceFiles()
     {
         ParsedTarget *parsedTarget = sourceTargets[sourceTargetsIndex - 1];
         BuildNode &buildNode = parsedTarget->buildNode;
-        while (buildNode.outdatedFilesSizeIndex)
+        while (buildNode.compilationNotStartedSize)
         {
-            SourceNode *tempSourceNode = buildNode.outdatedFiles[buildNode.outdatedFilesSizeIndex - 1];
-            --buildNode.outdatedFilesSizeIndex;
+            SourceNode *tempSourceNode = buildNode.outdatedFiles[buildNode.compilationNotStartedSize - 1];
+            --buildNode.compilationNotStartedSize;
             oneAndOnlyMutex.unlock();
             PostCompile postCompile = parsedTarget->Compile(*tempSourceNode);
             postCompile.executePostCompileRoutineWithoutMutex(*tempSourceNode);
@@ -1963,9 +1987,8 @@ void Builder::buildSourceFiles()
             postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor);
             printMutex.unlock();
             oneAndOnlyMutex.lock();
-            ++buildNode.filesUpdated;
-            if (buildNode.filesUpdated == buildNode.outdatedFiles.size() &&
-                !parsedTarget->buildNode.needsLinkDependenciesSize)
+            --buildNode.compilationNotCompletedSize;
+            if (!buildNode.compilationNotCompletedSize && !parsedTarget->buildNode.needsLinkDependenciesSize)
             {
                 canBeLinked.emplace_back(parsedTarget);
                 linkTargets();
@@ -1986,7 +2009,7 @@ void Builder::buildSourceFiles()
     }
     else
     {
-        while (canBeLinkedIndex < canBeLinked.size())
+        while (canBeLinkedIndex < totalTargetsNeedingLinking)
         {
             linkTargets();
             oneAndOnlyMutex.unlock();
@@ -2089,7 +2112,7 @@ void Builder::linkTargets()
                     }
                     else
                     {
-                        if (!dependent->buildNode.outdatedFilesSizeIndex)
+                        if (!dependent->buildNode.compilationNotCompletedSize)
                         {
                             canBeLinked.emplace_back(dependent);
                         }

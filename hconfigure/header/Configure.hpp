@@ -9,13 +9,18 @@
 #include "utility"
 #include <set>
 
-using std::filesystem::path, std::string, std::vector, std::tuple, std::map, std::set, std::same_as, std::stack;
+using std::filesystem::path, std::string, std::vector, std::tuple, std::map, std::set, std::same_as, std::stack,
+    std::same_as;
 using Json = nlohmann::ordered_json;
 namespace fs = std::filesystem;
+
+inline string srcDir;
+inline string configureDir;
 
 inline const string pes = "{}"; // paranthesis-escape-sequence, meant to be used in fmt::print.
 std::string writePath(const path &writePath);
 string addQuotes(const string &pathString);
+string addEscapedQuotes(const string &pathString);
 
 struct File
 {
@@ -30,6 +35,7 @@ bool operator<(const File &lhs, const File &rhs);
 struct Directory
 {
     path directoryPath;
+    // TODO: Will reconsider this and may delete this and provide a better API also covering resources.
     bool isCommon = false;
     unsigned long commonDirectoryNumber;
     Directory() = default;
@@ -50,7 +56,8 @@ void to_json(Json &j, const DependencyType &p);
 struct IDD
 {
     Directory includeDirectory;
-    DependencyType dependencyType = DependencyType::PRIVATE;
+    DependencyType dependencyType;
+    IDD(const Directory &includeDirectory_, const DependencyType &dependencyType_);
 };
 
 struct LibraryDependency;
@@ -58,6 +65,7 @@ struct CompilerFlagsDependency
 {
     string compilerFlags;
     DependencyType dependencyType;
+    CompilerFlagsDependency(const string &compilerFlags_, DependencyType dependencyType_);
 };
 
 struct LinkerFlagsDependency
@@ -70,12 +78,15 @@ struct CompileDefinition
 {
     string name;
     string value;
+    CompileDefinition() = default;
+    CompileDefinition(const string &name_, const string &value_);
 };
 
 struct CompileDefinitionDependency
 {
     CompileDefinition compileDefinition;
-    DependencyType dependencyType = DependencyType::PRIVATE;
+    DependencyType dependencyType;
+    CompileDefinitionDependency(const CompileDefinition &compileDefinition_, DependencyType dependencyType_);
 };
 void to_json(Json &j, const CompileDefinition &cd);
 void from_json(const Json &j, CompileDefinition &cd);
@@ -172,11 +183,13 @@ struct CompilerVersion : public Version
 {
 };
 
-// TODO: Need to Review this and do some design modifications. Idea is to have hmake load flags from a json file. This
-// may be a better approach as this CompilerFlags is a bit difficult to look at
+// TODO: Use a JSON based approach instead. That would be more simpler, transparent and easy-to-use. Basic goal is to
+// reduce the if-else for flags in configuration-files.
 // TODO: Look in templatizing that. Same code is repeated in CompilerFlags and LinkerFlags
 struct CompilerFlags
 {
+    // TODO
+    //  Use variant instead of tuple
     map<tuple<BTFamily, CompilerVersion, ConfigType>, string> compilerFlags;
 
     set<BTFamily> compilerFamilies;
@@ -269,6 +282,8 @@ struct Cache
     static inline LibraryType libraryType;
     static inline Json cacheVariables;
     static inline Environment environment;
+    // TODO
+    // Add New Keys "OSFamily" and "TargetOSFamily" in cache.hmake
     // Not Part Of Cache Yet
 #ifdef _WIN32
     static inline OSFamily osFamily = OSFamily::WINDOWS;
@@ -312,7 +327,7 @@ struct Variant
     LibraryType libraryType;
     Environment environment;
     Variant();
-    void configure(VariantMode mode, unsigned long variantCount);
+    void configure(VariantMode mode, unsigned long variantCount, const class Package &package);
 };
 
 struct ProjectVariant : public Variant
@@ -338,6 +353,8 @@ struct SourceDirectory
 {
     Directory sourceDirectory;
     string regex;
+    SourceDirectory() = default;
+    SourceDirectory(const Directory &sourceDirectory_, const string &regex_);
 };
 void to_json(Json &j, const SourceDirectory &sourceDirectory);
 void from_json(const Json &j, SourceDirectory &sourceDirectory);
@@ -388,10 +405,6 @@ class Target
     vector<LinkerFlagsDependency> linkerFlagsDependencies;
     vector<CompileDefinitionDependency> compileDefinitionDependencies;
     SourceAggregate sourceAggregate{.Identifier = "SOURCE_"};
-    // These two are provided so the user does not have to write sourceAggregate.sourceFiles; As Macros-Like-Functions
-    // are added, I will remove these.
-    set<File> &sourceFiles = sourceAggregate.files;
-    set<SourceDirectory> &sourceDirectories = sourceAggregate.directories;
     // SourceAggregate for Modules
     SourceAggregate moduleAggregate{.Identifier = "MODULES_"};
     vector<CustomTarget> preBuild;
@@ -407,8 +420,8 @@ class Target
     void configure(unsigned long variantIndex) const;
     static vector<string> convertCustomTargetsToJson(const vector<CustomTarget> &customTargets, VariantMode mode);
     Json convertToJson(unsigned long variantIndex) const;
-    void configure(const Package &package, const PackageVariant &variant, unsigned count) const;
-    Json convertToJson(const Package &package, const PackageVariant &variant, unsigned count) const;
+    void configure(const Package &package, unsigned count) const;
+    Json convertToJson(const Package &package, unsigned count) const;
     string getTargetFilePath(unsigned long variantCount) const;
     string getTargetFilePathPackage(unsigned long variantCount) const;
     void assignDifferentVariant(const Variant &variant);
@@ -424,7 +437,6 @@ class Target
     Target &operator=(Target && /* other */) = default;
 };
 
-// TODO: Throw in configure stage if there are no source files for Executable.
 struct Executable : public Target
 {
     explicit Executable(string targetName_, const Variant &variant);
@@ -436,11 +448,12 @@ class Library : public Target
     Library() = default;
     friend struct LibraryDependency;
 
-  public:
     LibraryType libraryType;
+
+  public:
     explicit Library(string targetName_, const Variant &variant);
     void assignDifferentVariant(const Variant &variant);
-    void setTargetType() const;
+    void setLibraryType(LibraryType libraryType_);
 };
 
 // PreBuilt-Library
@@ -450,9 +463,10 @@ class PLibrary
     friend struct LibraryDependency;
     friend class PPLibrary;
 
+    LibraryType libraryType;
+
   public:
     string libraryName;
-    LibraryType libraryType;
     vector<Directory> includeDirectoryDependencies;
     vector<LibraryDependency> libraryDependencies;
     string compilerFlagsDependencies;
@@ -462,9 +476,9 @@ class PLibrary
     mutable TargetType targetType;
     PLibrary(const path &libraryPath_, LibraryType libraryType_);
     path getTargetVariantDirectoryPath(int variantCount) const;
-    void setTargetType() const;
-    Json convertToJson(const Package &package, const PackageVariant &variant, unsigned count) const;
-    void configure(const Package &package, const PackageVariant &variant, unsigned count) const;
+    void setLibraryType(LibraryType libraryType_);
+    Json convertToJson(const Package &package, unsigned count) const;
+    void configure(const Package &package, unsigned count) const;
 };
 
 // ConsumePackageVariant
@@ -507,6 +521,7 @@ concept HasLibraryDependencies = requires(T a) { same_as<decltype(a.libraryDepen
 
 struct LibraryDependency
 {
+    // TODO: Use Variant
     Library library;
     PLibrary pLibrary;
     PPLibrary ppLibrary;
@@ -525,19 +540,19 @@ struct LibraryDependency
         for (const auto &l : entity.libraryDependencies)
         {
             stack<const LibraryDependency *> st;
-            st.push(&(l));
+            st.emplace(&(l));
             while (!st.empty())
             {
                 auto obj = st.top();
                 st.pop();
-                dependencies.push_back(obj);
+                dependencies.emplace_back(obj);
                 if (obj->ldlt == LDLT::LIBRARY)
                 {
                     for (const auto &i : obj->library.libraryDependencies)
                     {
                         if (i.dependencyType == DependencyType::PUBLIC)
                         {
-                            st.push(&(i));
+                            st.emplace(&(i));
                         }
                     }
                 }
@@ -554,7 +569,7 @@ struct LibraryDependency
                     }
                     for (const auto &i : pLib->libraryDependencies)
                     {
-                        st.push(&(i));
+                        st.emplace(&(i));
                     }
                 }
             }
@@ -741,17 +756,71 @@ void from_json(const Json &json, Settings &settings);
 string file_to_string(const string &file_name);
 vector<string> split(string str, const string &token);
 
-void ADD_PUBLIC_IDD_TO_TARGET(Target &target, const string &includeDirectory);
-void ADD_PRIVATE_IDD_TO_TARGET(Target &target, const string &includeDirectory);
-void ADD_PUBLIC_LIB_DEP_TO_TARGET(Target &target, const Target &libraryDependency);
-void ADD_PRIVATE_LIB_DEP_TO_TARGET(Target &target, const Target &libraryDependency);
-void ADD_PUBLIC_CFD_TO_TARGET(Target &target, const string &compilerFlags);
-void ADD_PRIVATE_CFD_TO_TARGET(Target &target, const string &compilerFlags);
-void ADD_PUBLIC_LFD_TO_TARGET(Target &target, const string &linkerFlags);
-void ADD_PRIVATE_LFD_TO_TARGET(Target &target, const string &linkerFlags);
-void ADD_PUBLIC_CDD_TO_TARGET(Target &target, const string &compileDefinitionDependency, const string &cddValue);
-void ADD_PRIVATE_CDD_TO_TARGET(Target &target, const string &compileDefinitionDependency, const string &cddValue);
-void ADD_SRC_FILES_TO_TARGET(Target &target, const string &sourceFilePath);
-void ADD_SRC_DIR_TO_TARGET(Target &target, const string &sourceDirectory);
+template <same_as<char const *>... U> void ADD_PUBLIC_IDDS_TO_TARGET(Target &target, U... includeDirectoryString)
+{
+    (target.includeDirectoryDependencies.emplace_back(Directory{includeDirectoryString}, DependencyType::PUBLIC), ...);
+}
+
+template <same_as<char const *>... U> void ADD_PRIVATE_IDDS_TO_TARGET(Target &target, U... includeDirectoryString)
+{
+    (target.includeDirectoryDependencies.emplace_back(Directory{includeDirectoryString}, DependencyType::PRIVATE), ...);
+}
+
+template <same_as<Library>... U> void ADD_PUBLIC_LIB_DEPS_TO_TARGET(Target &target, const U &...libraryDependencyTarget)
+{
+    (target.libraryDependencies.emplace_back(libraryDependencyTarget, DependencyType::PUBLIC), ...);
+}
+
+template <same_as<Library>... U>
+void ADD_PRIVATE_LIB_DEPS_TO_TARGET(Target &target, const U &...libraryDependencyTarget)
+{
+    (target.libraryDependencies.emplace_back(libraryDependencyTarget, DependencyType::PRIVATE), ...);
+}
+
+template <same_as<char const *> T> void ADD_PUBLIC_CFD_TO_TARGET(Target &target, T compilerFlags)
+{
+    target.compilerFlagsDependencies.emplace_back(compilerFlags, DependencyType::PUBLIC);
+}
+
+template <same_as<char const *> T> void ADD_PRIVATE_CFD_TO_TARGET(Target &target, T compilerFlags)
+{
+    target.compilerFlagsDependencies.emplace_back(compilerFlags, DependencyType::PRIVATE);
+}
+
+template <same_as<char const *> T> void ADD_PUBLIC_LFD_TO_TARGET(Target &target, T linkerFlags)
+{
+    target.linkerFlagsDependencies.emplace_back(linkerFlags, DependencyType::PUBLIC);
+}
+
+template <same_as<char const *> T> void ADD_PRIVATE_LFD_TO_TARGET(Target &target, T linkerFlags)
+{
+    target.linkerFlagsDependencies.emplace_back(linkerFlags, DependencyType::PRIVATE);
+}
+
+void ADD_PUBLIC_CDD_TO_TARGET(Target &target, const string &cddName, const string &cddValue);
+void ADD_PRIVATE_CDD_TO_TARGET(Target &target, const string &cddName, const string &cddValue);
+
+template <same_as<char const *>... U> void ADD_SRC_FILES_TO_TARGET(Target &target, U... sourceFileString)
+{
+    (target.sourceAggregate.files.emplace(sourceFileString), ...);
+}
+
+template <same_as<char const *>... U> void ADD_MODULE_FILES_TO_TARGET(Target &target, U... moduleFileString)
+{
+    (target.moduleAggregate.files.emplace(moduleFileString), ...);
+}
+
+void ADD_SRC_DIR_TO_TARGET(Target &target, const string &sourceDirectory, const string &regex);
+void ADD_MODULE_DIR_TO_TARGET(Target &target, const string &moduleDirectory, const string &regex);
+
+template <same_as<Executable>... U> void ADD_EXECUTABLES_TO_VARIANT(Variant &variant, U &...executable)
+{
+    (variant.executables.emplace_back(executable), ...);
+}
+
+template <same_as<Library>... U> void ADD_LIBRARIES_TO_VARIANT(Variant &variant, U &...library)
+{
+    (variant.libraries.emplace_back(library), ...);
+}
 
 #endif // HMAKE_CONFIGURE_HPP

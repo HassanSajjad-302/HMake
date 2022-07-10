@@ -10,7 +10,7 @@
 using std::to_string, std::filesystem::directory_entry, std::filesystem::file_type, std::logic_error, std::ifstream,
     std::ofstream, std::move, std::filesystem::current_path, std::cout, std::endl, std::cerr, std::stringstream,
     std::make_tuple, std::filesystem::directory_iterator, std::filesystem::recursive_directory_iterator,
-    std::filesystem::remove;
+    std::filesystem::remove, std::filesystem::create_directories;
 
 std::string writePath(const path &writePath)
 {
@@ -22,6 +22,12 @@ std::string writePath(const path &writePath)
 string addQuotes(const string &pathString)
 {
     return "\"" + pathString + "\"";
+}
+
+string addEscapedQuotes(const string &pathString)
+{
+    const string str = R"(\")";
+    return str + pathString + str;
 }
 
 void demo_status(const fs::path &p, fs::file_status s)
@@ -154,6 +160,26 @@ void to_json(Json &j, const DependencyType &p)
     {
         j = "INTERFACE";
     }
+}
+
+IDD::IDD(const Directory &includeDirectory_, const DependencyType &dependencyType_)
+    : includeDirectory{includeDirectory_}, dependencyType{dependencyType_}
+{
+}
+
+CompilerFlagsDependency::CompilerFlagsDependency(const string &compilerFlags_, DependencyType dependencyType_)
+    : compilerFlags{compilerFlags_}, dependencyType{dependencyType_}
+{
+}
+
+CompileDefinition::CompileDefinition(const string &name_, const string &value_) : name{name_}, value{value_}
+{
+}
+
+CompileDefinitionDependency::CompileDefinitionDependency(const CompileDefinition &compileDefinition_,
+                                                         DependencyType dependencyType_)
+    : compileDefinition(compileDefinition_), dependencyType(dependencyType_)
+{
 }
 
 void to_json(Json &j, const CompileDefinition &cd)
@@ -330,7 +356,7 @@ vector<string> Target::convertCustomTargetsToJson(const vector<CustomTarget> &cu
     {
         if (i.mode == mode)
         {
-            commands.push_back(i.command);
+            commands.emplace_back(i.command);
         }
     }
     return commands;
@@ -363,7 +389,7 @@ Json Target::convertToJson(unsigned long variantIndex) const
     for (const auto &e : compileDefinitionDependencies)
     {
         Json compileDefinitionObject = e.compileDefinition;
-        compileDefinitionsArray.push_back(compileDefinitionObject);
+        compileDefinitionsArray.emplace_back(compileDefinitionObject);
     }
     finalModuleAggregate = moduleAggregate;
 
@@ -403,7 +429,7 @@ Json Target::convertToJson(unsigned long variantIndex) const
                 if (e.dependencyType == DependencyType::PUBLIC)
                 {
                     Json compileDefinitionObject = e.compileDefinition;
-                    compileDefinitionsArray.push_back(compileDefinitionObject);
+                    compileDefinitionsArray.emplace_back(compileDefinitionObject);
                 }
             }
             Json libDepObject;
@@ -412,7 +438,7 @@ Json Target::convertToJson(unsigned long variantIndex) const
                                     library.targetName / path(library.targetName + ".hmake"))
                                        .generic_string();
 
-            dependenciesArray.push_back(libDepObject);
+            dependenciesArray.emplace_back(libDepObject);
         }
         else
         {
@@ -426,12 +452,12 @@ Json Target::convertToJson(unsigned long variantIndex) const
                 for (const auto &e : pLibrary.compileDefinitionDependencies)
                 {
                     Json compileDefinitionObject = e;
-                    compileDefinitionsArray.push_back(compileDefinitionObject);
+                    compileDefinitionsArray.emplace_back(compileDefinitionObject);
                 }
                 Json libDepObject;
                 libDepObject["PREBUILT"] = true;
                 libDepObject["PATH"] = pLibrary.libraryPath.generic_string();
-                dependenciesArray.push_back(libDepObject);
+                dependenciesArray.emplace_back(libDepObject);
             };
             const PLibrary &pLibrary =
                 libraryDependency->ldlt == LDLT::PLIBRARY ? libraryDependency->pLibrary : libraryDependency->ppLibrary;
@@ -460,6 +486,11 @@ Json Target::convertToJson(unsigned long variantIndex) const
     targetFileJson["POST_BUILD_CUSTOM_COMMANDS"] = convertCustomTargetsToJson(postBuild, VariantMode::PROJECT);
     targetFileJson["VARIANT"] = "PROJECT";
     return targetFileJson;
+}
+
+SourceDirectory::SourceDirectory(const Directory &sourceDirectory_, const string &regex_)
+    : sourceDirectory{sourceDirectory_}, regex{regex_}
+{
 }
 
 void to_json(Json &j, const SourceDirectory &sourceDirectory)
@@ -608,7 +639,7 @@ void Target::configure(unsigned long variantIndex) const
     ofstream(targetFilePath) << targetFileJson.dump(4);
 }
 
-Json Target::convertToJson(const Package &package, const PackageVariant &variant, unsigned count) const
+Json Target::convertToJson(const Package &package, unsigned count) const
 {
     Json targetFileJson;
 
@@ -646,7 +677,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
         {
             JIDDObject["COPY"] = false;
         }
-        includeDirectoriesArray.push_back(JIDDObject);
+        includeDirectoriesArray.emplace_back(JIDDObject);
     }
     for (const auto &e : compilerFlagsDependencies)
     {
@@ -667,10 +698,10 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
     for (const auto &e : compileDefinitionDependencies)
     {
         Json compileDefinitionObject = e.compileDefinition;
-        compileDefinitionsArray.push_back(compileDefinitionObject);
+        compileDefinitionsArray.emplace_back(compileDefinitionObject);
         if (e.dependencyType == DependencyType::PUBLIC)
         {
-            consumerCompileDefinitionsArray.push_back(compileDefinitionObject);
+            consumerCompileDefinitionsArray.emplace_back(compileDefinitionObject);
         }
     }
 
@@ -688,7 +719,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
                     Json JIDDObject;
                     JIDDObject["PATH"] = e.includeDirectory;
                     JIDDObject["COPY"] = false;
-                    includeDirectoriesArray.push_back(JIDDObject);
+                    includeDirectoriesArray.emplace_back(JIDDObject);
                 }
             }
 
@@ -713,7 +744,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
                 if (e.dependencyType == DependencyType::PUBLIC)
                 {
                     Json compileDefinitionObject = e.compileDefinition;
-                    compileDefinitionsArray.push_back(compileDefinitionObject);
+                    compileDefinitionsArray.emplace_back(compileDefinitionObject);
                 }
             }
 
@@ -722,9 +753,9 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
             Json consumeLibDepOject;
             consumeLibDepOject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE_FROM_OTHER_HMAKE_PACKAGE"] = false;
             consumeLibDepOject["NAME"] = library.targetName;
-            consumerDependenciesArray.push_back(consumeLibDepOject);
+            consumerDependenciesArray.emplace_back(consumeLibDepOject);
             libDepObject["PATH"] = library.getTargetFilePathPackage(count);
-            dependenciesArray.push_back(libDepObject);
+            dependenciesArray.emplace_back(libDepObject);
         }
         else
         {
@@ -740,7 +771,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
                     JIDDObject["PATH"] = e;
                     JIDDObject["COPY"] = false;
 
-                    includeDirectoriesArray.push_back(JIDDObject);
+                    includeDirectoriesArray.emplace_back(JIDDObject);
                 }
                 compilerFlags.append(" " + pLibrary.compilerFlagsDependencies + " ");
                 linkerFlags.append(" " + pLibrary.linkerFlagsDependencies + " ");
@@ -748,7 +779,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
                 for (const auto &e : pLibrary.compileDefinitionDependencies)
                 {
                     Json compileDefinitionObject = e;
-                    compileDefinitionsArray.push_back(compileDefinitionObject);
+                    compileDefinitionsArray.emplace_back(compileDefinitionObject);
                 }
                 libDepObject["PATH"] = pLibrary.libraryPath.generic_string();
                 libDepObject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = false;
@@ -765,7 +796,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
                     Json JIDDObject;
                     JIDDObject["PATH"] = e;
                     JIDDObject["COPY"] = false;
-                    includeDirectoriesArray.push_back(JIDDObject);
+                    includeDirectoriesArray.emplace_back(JIDDObject);
                 }
                 compilerFlags.append(" " + ppLibrary.compilerFlagsDependencies + " ");
                 linkerFlags.append(" " + ppLibrary.linkerFlagsDependencies + " ");
@@ -773,7 +804,7 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
                 for (const auto &e : ppLibrary.compileDefinitionDependencies)
                 {
                     Json compileDefinitionObject = e;
-                    compileDefinitionsArray.push_back(compileDefinitionObject);
+                    compileDefinitionsArray.emplace_back(compileDefinitionObject);
                 }
                 libDepObject["PATH"] = ppLibrary.libraryPath.generic_string();
                 libDepObject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = ppLibrary.importedFromOtherHMakePackage;
@@ -795,14 +826,14 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
                     consumeLibDepOject["PACKAGE_VARIANT_JSON"] = ppLibrary.packageVariantJson;
                 }
             }
-            consumerDependenciesArray.push_back(consumeLibDepOject);
-            dependenciesArray.push_back(libDepObject);
+            consumerDependenciesArray.emplace_back(consumeLibDepOject);
+            dependenciesArray.emplace_back(libDepObject);
         }
     }
 
     targetFileJson["TARGET_TYPE"] = targetType;
     targetFileJson["OUTPUT_NAME"] = outputName;
-    targetFileJson["OUTPUT_DIRECTORY"] = getTargetFilePathPackage(count);
+    targetFileJson["OUTPUT_DIRECTORY"] = (path(getTargetFilePathPackage(count)).parent_path() / "").generic_string();
     targetFileJson["CONFIGURATION"] = configurationType;
     targetFileJson["COMPILER"] = compiler;
     targetFileJson["LINKER"] = linker;
@@ -842,30 +873,26 @@ Json Target::convertToJson(const Package &package, const PackageVariant &variant
     return targetFileJson;
 }
 
-void Target::configure(const Package &package, const PackageVariant &variant, unsigned count) const
+void Target::configure(const Package &package, unsigned count) const
 {
     Json targetFileJson;
-    targetFileJson = convertToJson(package, variant, count);
-    string targetFileBuildDir = getTargetFilePathPackage(count);
-    create_directory(path(targetFileBuildDir));
-    string filePath = targetFileBuildDir + targetName + ".hmake";
-    ofstream(filePath) << targetFileJson.dump(4);
+    targetFileJson = convertToJson(package, count);
+    string str = getTargetFilePathPackage(count);
+    create_directories(path(str).parent_path());
+    ofstream(str) << targetFileJson.dump(4);
     for (const auto &libDep : libraryDependencies)
     {
         if (libDep.ldlt == LDLT::LIBRARY)
         {
-            libDep.library.setTargetType();
-            libDep.library.configure(package, variant, count);
+            libDep.library.configure(package, count);
         }
         else if (libDep.ldlt == LDLT::PLIBRARY)
         {
-            libDep.pLibrary.setTargetType();
-            libDep.pLibrary.configure(package, variant, count);
+            libDep.pLibrary.configure(package, count);
         }
         else if (!libDep.ppLibrary.importedFromOtherHMakePackage)
         {
-            libDep.ppLibrary.setTargetType();
-            libDep.ppLibrary.configure(package, variant, count);
+            libDep.ppLibrary.configure(package, count);
         }
     }
 }
@@ -880,9 +907,9 @@ void Executable::assignDifferentVariant(const Variant &variant)
     Target::assignDifferentVariant(variant);
 }
 
-Library::Library(string targetName_, const Variant &variant)
-    : libraryType(variant.libraryType), Target(move(targetName_), variant)
+Library::Library(string targetName_, const Variant &variant) : Target(move(targetName_), variant)
 {
+    setLibraryType(variant.libraryType);
 }
 
 void Library::assignDifferentVariant(const Variant &variant)
@@ -891,8 +918,9 @@ void Library::assignDifferentVariant(const Variant &variant)
     libraryType = variant.libraryType;
 }
 
-void Library::setTargetType() const
+void Library::setLibraryType(LibraryType libraryType_)
 {
+    libraryType = libraryType_;
     if (libraryType == LibraryType::STATIC)
     {
         targetType = TargetType::STATIC;
@@ -1018,8 +1046,11 @@ CompilerFlags CompilerFlags::defaultFlags()
 {
     CompilerFlags compilerFlags;
     compilerFlags.compilerFamilies.emplace(BTFamily::GCC);
+    compilerFlags.compilerFamilies.emplace(BTFamily::MSVC);
     compilerFlags[BTFamily::GCC][CompilerVersion{10, 2, 0}][ConfigType::DEBUG] = "-g";
-    compilerFlags[ConfigType::RELEASE] = "-O3 -DNDEBUG";
+    compilerFlags[BTFamily::GCC][ConfigType::RELEASE] = "-O3 -DNDEBUG";
+    compilerFlags.configurationTypes.emplace(ConfigType::DEBUG);
+    compilerFlags.configurationTypes.emplace(ConfigType::RELEASE);
     return compilerFlags;
 }
 
@@ -1228,8 +1259,12 @@ void Cache::initializeCache()
     {
         srcDirPath = (current_path() / srcDirPath).lexically_normal();
     }
+
     Cache::sourceDirectory = Directory(srcDirPath);
     Cache::configureDirectory = Directory(current_path());
+
+    srcDir = srcDirPath.generic_string();
+    configureDir = configureDirectory.directoryPath.generic_string();
 
     Cache::copyPackage = cacheFileJson.at("PACKAGE_COPY").get<bool>();
     if (copyPackage)
@@ -1280,86 +1315,199 @@ Variant::Variant()
 }
 
 #include "variant"
-void Variant::configure(VariantMode mode, unsigned long variantCount)
+void Variant::configure(VariantMode mode, unsigned long variantCount, const class Package &package)
 {
-    std::variant<Target *, PLibrary *> pointers;
+    std::variant<Target *, PLibrary *, PPLibrary *> pointers;
 
-    stack<decltype(pointers)> targets;
-    set<decltype(pointers)> targetsConfigured;
+    auto getStringFromVariant = [&](decltype(pointers) pointer) -> string {
+        if (!pointer.index())
+        {
+            return mode == VariantMode::PROJECT ? std::get<0>(pointer)->getTargetFilePath(variantCount)
+                                                : std::get<0>(pointer)->getTargetFilePathPackage(variantCount);
+        }
+        else if (pointer.index() == 1)
+        {
+            return std::get<1>(pointer)->getTargetVariantDirectoryPath(variantCount).generic_string();
+        }
+        else
+        {
+            return std::get<2>(pointer)->getTargetVariantDirectoryPath(variantCount).generic_string();
+        }
+    };
+    stack<decltype(pointers)> allTargets;
+    set<string> targetsConfigured;
 
     for (auto &exe : executables)
     {
-        targets.push(&exe);
+        allTargets.emplace(&exe);
     }
     for (auto &lib : libraries)
     {
-        targets.push(&lib);
+        allTargets.emplace(&lib);
     }
 
     vector<Target *> targetsWithModules;
-    while (!targets.empty())
+    while (!allTargets.empty())
     {
-        auto target = targets.top();
-        targets.pop();
-        if (targetsConfigured.contains(target))
+        auto target = allTargets.top();
+        allTargets.pop();
+        if (targetsConfigured.contains(getStringFromVariant(target)))
         {
             continue;
         }
         else
         {
-            targetsConfigured.emplace(target);
+            targetsConfigured.emplace(getStringFromVariant(target));
         }
-        if (!target.index())
+        if (mode == VariantMode::PROJECT)
         {
-            Target *t = std::get<Target *>(target);
-
-            if (t->targetType != TargetType::EXECUTABLE)
+            if (!target.index())
             {
-                auto *l = static_cast<Library *>(t);
-                l->setTargetType();
-                l->configure(variantCount);
+                Target *simpleTarget = std::get<0>(target);
+
+                if (simpleTarget->targetType == TargetType::EXECUTABLE)
+                {
+                    simpleTarget->configure(variantCount);
+                }
+                else
+                {
+                    auto *l = static_cast<Library *>(simpleTarget);
+                    l->configure(variantCount);
+                }
+                if (!simpleTarget->moduleAggregate.empty())
+                {
+                    targetsWithModules.emplace_back(simpleTarget);
+                }
+
+                for (auto &libDep : simpleTarget->libraryDependencies)
+                {
+                    if (libDep.ldlt == LDLT::LIBRARY)
+                    {
+                        allTargets.emplace(&libDep.library);
+                    }
+                    else if (libDep.ldlt == LDLT::PLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.pLibrary);
+                    }
+                    else if (libDep.ldlt == LDLT::PPLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.ppLibrary);
+                    }
+                }
+            }
+            else if (target.index() == 1)
+            {
+                PLibrary *prebuiltLibrary = std::get<1>(target);
+                for (auto &libDep : prebuiltLibrary->libraryDependencies)
+                {
+                    if (libDep.ldlt == LDLT::LIBRARY)
+                    {
+                        allTargets.emplace(&libDep.library);
+                    }
+                    else if (libDep.ldlt == LDLT::PLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.pLibrary);
+                    }
+                    else if (libDep.ldlt == LDLT::PPLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.ppLibrary);
+                    }
+                }
             }
             else
             {
-                t->configure(variantCount);
-            }
-            if (!t->moduleAggregate.empty())
-            {
-                targetsWithModules.emplace_back(t);
-            }
-
-            for (auto &libDep : t->libraryDependencies)
-            {
-                if (libDep.ldlt == LDLT::LIBRARY)
+                PPLibrary *packagedLibrary = std::get<2>(target);
+                for (auto &libDep : packagedLibrary->libraryDependencies)
                 {
-                    targets.push(&libDep.library);
-                }
-                else if (libDep.ldlt == LDLT::PLIBRARY)
-                {
-                    targets.push(&libDep.pLibrary);
-                }
-                else if (libDep.ldlt == LDLT::PPLIBRARY)
-                {
-                    targets.push(&libDep.ppLibrary);
+                    if (libDep.ldlt == LDLT::LIBRARY)
+                    {
+                        allTargets.emplace(&libDep.library);
+                    }
+                    else if (libDep.ldlt == LDLT::PLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.pLibrary);
+                    }
+                    else if (libDep.ldlt == LDLT::PPLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.ppLibrary);
+                    }
                 }
             }
         }
         else
         {
-            PLibrary *l = std::get<PLibrary *>(target);
-            for (auto &libDep : l->libraryDependencies)
+            if (!target.index())
             {
-                if (libDep.ldlt == LDLT::LIBRARY)
+                Target *simpleTarget = std::get<0>(target);
+
+                if (simpleTarget->targetType == TargetType::EXECUTABLE)
                 {
-                    targets.push(&libDep.library);
+                    simpleTarget->configure(package, variantCount);
                 }
-                else if (libDep.ldlt == LDLT::PLIBRARY)
+                else
                 {
-                    targets.push(&libDep.pLibrary);
+                    auto *l = static_cast<Library *>(simpleTarget);
+                    l->configure(package, variantCount);
                 }
-                else if (libDep.ldlt == LDLT::PPLIBRARY)
+                /*                if (!t->moduleAggregate.empty())
+                                {
+                                    targetsWithModules.emplace_back(t);
+                                }*/
+
+                for (auto &libDep : simpleTarget->libraryDependencies)
                 {
-                    targets.push(&libDep.ppLibrary);
+                    if (libDep.ldlt == LDLT::LIBRARY)
+                    {
+                        allTargets.emplace(&libDep.library);
+                    }
+                    else if (libDep.ldlt == LDLT::PLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.pLibrary);
+                    }
+                    else if (libDep.ldlt == LDLT::PPLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.ppLibrary);
+                    }
+                }
+            }
+            else if (target.index() == 1)
+            {
+                PLibrary *prebuiltLibrary = std::get<1>(target);
+                prebuiltLibrary->configure(package, variantCount);
+                for (auto &libDep : prebuiltLibrary->libraryDependencies)
+                {
+                    if (libDep.ldlt == LDLT::LIBRARY)
+                    {
+                        allTargets.emplace(&libDep.library);
+                    }
+                    else if (libDep.ldlt == LDLT::PLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.pLibrary);
+                    }
+                    else if (libDep.ldlt == LDLT::PPLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.ppLibrary);
+                    }
+                }
+            }
+            else
+            {
+                PPLibrary *packagedLibrary = std::get<2>(target);
+                packagedLibrary->configure(package, variantCount);
+                for (auto &libDep : packagedLibrary->libraryDependencies)
+                {
+                    if (libDep.ldlt == LDLT::LIBRARY)
+                    {
+                        allTargets.emplace(&libDep.library);
+                    }
+                    else if (libDep.ldlt == LDLT::PLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.pLibrary);
+                    }
+                    else if (libDep.ldlt == LDLT::PPLIBRARY)
+                    {
+                        allTargets.emplace(&libDep.ppLibrary);
+                    }
                 }
             }
         }
@@ -1378,38 +1526,41 @@ void Variant::configure(VariantMode mode, unsigned long variantCount)
     variantJson["ENVIRONMENT"] = environment;
 
     vector<string> targetArray;
-    vector<string> targetsWithModulesVector;
 
     auto parseExesAndLibs = [&](string (Target::*func)(unsigned long count) const) {
         for (const auto &exe : executables)
         {
             targetArray.emplace_back((exe.*func)(variantCount));
-            if (!exe.moduleAggregate.empty())
-            {
-                targetsWithModulesVector.emplace_back((exe.*func)(variantCount));
-            }
         }
         for (const auto &lib : libraries)
         {
             targetArray.emplace_back((lib.*func)(variantCount));
-            if (!lib.moduleAggregate.empty())
-            {
-                targetsWithModulesVector.emplace_back((lib.*func)(variantCount));
-            }
         }
     };
 
     mode == VariantMode::PROJECT ? parseExesAndLibs(&Target::getTargetFilePath)
                                  : parseExesAndLibs(&Target::getTargetFilePathPackage);
-    variantJson["TARGETS"] = targetArray;
-    variantJson["TARGETS_WITH_MODULES"] = targetsWithModulesVector;
 
-    // Here, I have to write
-    // variantJson["TARGETS_WITH_MODULES"] = targetsArrary
-    path variantFileDir = Cache::configureDirectory.directoryPath / to_string(variantCount);
-    create_directory(variantFileDir);
-    path projectFilePath = variantFileDir / "projectVariant.hmake";
-    ofstream(projectFilePath) << variantJson.dump(4);
+    vector<string> targetsWithModulesStringVector;
+    for (Target *target : targetsWithModules)
+    {
+        targetsWithModulesStringVector.emplace_back(target->getTargetFilePath(variantCount));
+    }
+    variantJson["TARGETS"] = targetArray;
+    variantJson["TARGETS_WITH_MODULES"] = targetsWithModulesStringVector;
+
+    path variantFilePath;
+    if (mode == VariantMode::PROJECT)
+    {
+        variantFilePath = Cache::configureDirectory.directoryPath / to_string(variantCount) / "projectVariant.hmake";
+    }
+    else
+    {
+        variantFilePath =
+            Cache::configureDirectory.directoryPath / "Package" / to_string(variantCount) / "packageVariant.hmake";
+    }
+
+    ofstream(variantFilePath) << variantJson.dump(4);
 }
 
 void to_json(Json &j, const Version &p)
@@ -1524,13 +1675,13 @@ void Project::configure()
 {
     for (unsigned long i = 0; i < projectVariants.size(); ++i)
     {
-        projectVariants[i].configure(VariantMode::PROJECT, i);
+        projectVariants[i].configure(VariantMode::PROJECT, i, Package(""));
     }
     Json projectFileJson;
     vector<string> projectVariantsInt;
     for (unsigned long i = 0; i < projectVariants.size(); ++i)
     {
-        projectVariantsInt.push_back(to_string(i));
+        projectVariantsInt.emplace_back(to_string(i));
     }
     projectFileJson["VARIANTS"] = projectVariantsInt;
     ofstream(Cache::configureDirectory.directoryPath / "project.hmake") << projectFileJson.dump(4);
@@ -1565,16 +1716,16 @@ void Package::configureCommonAmongVariants()
             {
                 if (i.isCommon)
                 {
-                    packageCommonIncludeDirs[i.indexInPackageCommonTargetsVector].variantsIndices.push_back(index);
+                    packageCommonIncludeDirs[i.indexInPackageCommonTargetsVector].variantsIndices.emplace_back(index);
                 }
                 else
                 {
                     CommonIncludeDir includeDir;
-                    includeDir.directories.push_back(const_cast<Directory *>(i.directory));
-                    includeDir.directories.push_back(includeDirectory);
-                    includeDir.variantsIndices.push_back(i.variantIndex);
-                    includeDir.variantsIndices.push_back(index);
-                    packageCommonIncludeDirs.push_back(includeDir);
+                    includeDir.directories.emplace_back(const_cast<Directory *>(i.directory));
+                    includeDir.directories.emplace_back(includeDirectory);
+                    includeDir.variantsIndices.emplace_back(i.variantIndex);
+                    includeDir.variantsIndices.emplace_back(index);
+                    packageCommonIncludeDirs.emplace_back(includeDir);
                     i.isCommon = true;
                     i.indexInPackageCommonTargetsVector = packageCommonIncludeDirs.size() - 1;
                 }
@@ -1587,7 +1738,7 @@ void Package::configureCommonAmongVariants()
             NonCommonIncludeDir includeDir;
             includeDir.directory = includeDirectory;
             includeDir.variantIndex = index;
-            packageNonCommonIncludeDirs.push_back(includeDir);
+            packageNonCommonIncludeDirs.emplace_back(includeDir);
         }
     };
 
@@ -1694,20 +1845,7 @@ void Package::configure()
     count = 0;
     for (auto &variant : packageVariants)
     {
-        // Json variantJsonFile = variant.configure(VariantMode::PACKAGE, count);
-        path variantFileDir = packageDirectory.directoryPath / to_string(count);
-        create_directory(variantFileDir);
-        // path variantFilePath = variantFileDir / "packageVariant.hmake";
-        // ofstream(variantFilePath) << variantJsonFile.dump(4);
-        for (const auto &exe : variant.executables)
-        {
-            exe.configure(*this, variant, count);
-        }
-        for (const auto &lib : variant.libraries)
-        {
-            lib.setTargetType();
-            lib.configure(*this, variant, count);
-        }
+        variant.configure(VariantMode::PACKAGE, count, *this);
         ++count;
     }
 }
@@ -1729,8 +1867,9 @@ void Package::checkForSimilarJsonsInPackageVariants()
     }
 }
 
-PLibrary::PLibrary(const path &libraryPath_, LibraryType libraryType_) : libraryType(libraryType_)
+PLibrary::PLibrary(const path &libraryPath_, LibraryType libraryType_)
 {
+    setLibraryType(libraryType_);
     if (libraryPath_.is_relative())
     {
         libraryPath = Cache::sourceDirectory.directoryPath / libraryPath_;
@@ -1746,8 +1885,9 @@ path PLibrary::getTargetVariantDirectoryPath(int variantCount) const
     return Cache::configureDirectory.directoryPath / "Package" / to_string(variantCount) / libraryName;
 }
 
-void PLibrary::setTargetType() const
+void PLibrary::setLibraryType(LibraryType libraryType_)
 {
+    libraryType = libraryType_;
     if (libraryType == LibraryType::STATIC)
     {
         targetType = TargetType::PLIBRARY_STATIC;
@@ -1758,7 +1898,7 @@ void PLibrary::setTargetType() const
     }
 }
 
-Json PLibrary::convertToJson(const Package &package, const PackageVariant &variant, unsigned count) const
+Json PLibrary::convertToJson(const Package &package, unsigned count) const
 {
 
     Json targetFileJson;
@@ -1787,7 +1927,7 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
             consumerIncludeDirectories.emplace_back("include/");
             JIDDObject["COPY"] = true;
         }
-        includeDirectoriesArray.push_back(JIDDObject);
+        includeDirectoriesArray.emplace_back(JIDDObject);
     }
 
     consumerCompilerFlags.append(" " + compilerFlagsDependencies + " ");
@@ -1796,7 +1936,7 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
     for (const auto &e : compileDefinitionDependencies)
     {
         Json compileDefinitionObject = e;
-        consumerCompileDefinitionsArray.push_back(compileDefinitionObject);
+        consumerCompileDefinitionsArray.emplace_back(compileDefinitionObject);
     }
 
     vector<const LibraryDependency *> dependencies;
@@ -1813,7 +1953,7 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
                     Json JIDDObject;
                     JIDDObject["PATH"] = e.includeDirectory;
                     JIDDObject["COPY"] = false;
-                    includeDirectoriesArray.push_back(JIDDObject);
+                    includeDirectoriesArray.emplace_back(JIDDObject);
                 }
             }
 
@@ -1822,9 +1962,9 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
             Json consumeLibDepOject;
             consumeLibDepOject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = false;
             consumeLibDepOject["NAME"] = library.targetName;
-            consumerDependenciesArray.push_back(consumeLibDepOject);
+            consumerDependenciesArray.emplace_back(consumeLibDepOject);
             libDepObject["PATH"] = library.getTargetFilePathPackage(count);
-            dependenciesArray.push_back(libDepObject);
+            dependenciesArray.emplace_back(libDepObject);
         }
         else
         {
@@ -1840,7 +1980,7 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
                     JIDDObject["PATH"] = e;
                     JIDDObject["COPY"] = false;
 
-                    includeDirectoriesArray.push_back(JIDDObject);
+                    includeDirectoriesArray.emplace_back(JIDDObject);
                 }
 
                 libDepObject["PATH"] = pLibrary.libraryPath.generic_string();
@@ -1858,7 +1998,7 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
                     Json JIDDObject;
                     JIDDObject["PATH"] = e;
                     JIDDObject["COPY"] = false;
-                    includeDirectoriesArray.push_back(JIDDObject);
+                    includeDirectoriesArray.emplace_back(JIDDObject);
                 }
 
                 libDepObject["PATH"] = ppLibrary.libraryPath.generic_string();
@@ -1881,8 +2021,8 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
                     consumeLibDepOject["PACKAGE_VARIANT_JSON"] = ppLibrary.packageVariantJson;
                 }
             }
-            consumerDependenciesArray.push_back(consumeLibDepOject);
-            dependenciesArray.push_back(libDepObject);
+            consumerDependenciesArray.emplace_back(consumeLibDepOject);
+            dependenciesArray.emplace_back(libDepObject);
         }
     }
 
@@ -1913,31 +2053,27 @@ Json PLibrary::convertToJson(const Package &package, const PackageVariant &varia
     return targetFileJson;
 }
 
-void PLibrary::configure(const Package &package, const PackageVariant &variant, unsigned count) const
+void PLibrary::configure(const Package &package, unsigned count) const
 {
     Json targetFileJson;
-    targetFileJson = convertToJson(package, variant, count);
+    targetFileJson = convertToJson(package, count);
     path targetFileBuildDir = Cache::configureDirectory.directoryPath / "Package" / to_string(count) / libraryName;
-    create_directory(targetFileBuildDir);
-    string fileExt;
     path filePath = targetFileBuildDir / (libraryName + ".hmake");
+    create_directories(filePath.parent_path());
     ofstream(filePath.string()) << targetFileJson.dump(4);
     for (const auto &libDep : libraryDependencies)
     {
         if (libDep.ldlt == LDLT::LIBRARY)
         {
-            libDep.library.setTargetType();
-            libDep.library.configure(package, variant, count);
+            libDep.library.configure(package, count);
         }
         else if (libDep.ldlt == LDLT::PLIBRARY)
         {
-            libDep.pLibrary.setTargetType();
-            libDep.pLibrary.configure(package, variant, count);
+            libDep.pLibrary.configure(package, count);
         }
         else if (!libDep.ppLibrary.importedFromOtherHMakePackage)
         {
-            libDep.ppLibrary.setTargetType();
-            libDep.ppLibrary.configure(package, variant, count);
+            libDep.ppLibrary.configure(package, count);
         }
     }
 }
@@ -2027,7 +2163,7 @@ PPLibrary::PPLibrary(string libraryName_, const CPackage &cPackage, const CPVari
     for (auto &i : includeDirs)
     {
         Directory dir(libraryDirectoryPath / i);
-        includeDirectoryDependencies.push_back(dir);
+        includeDirectoryDependencies.emplace_back(dir);
     }
     compilerFlagsDependencies = libraryFileJson.at("COMPILER_TRANSITIVE_FLAGS").get<string>();
     linkerFlagsDependencies = libraryFileJson.at("LINKER_TRANSITIVE_FLAGS").get<string>();
@@ -2059,7 +2195,7 @@ CPackage::CPackage(path packagePath_) : packagePath(move(packagePath_))
     }
     packagePath = packagePath.lexically_normal();
     path packageFilePath = packagePath / "cpackage.hmake";
-    if (!exists(packageFilePath))
+    if (!std::filesystem::exists(packageFilePath))
     {
         cerr << "Package File Path " << packageFilePath.generic_string() << " Does Not Exists " << endl;
         exit(-1);
@@ -2101,15 +2237,14 @@ CPVariant CPackage::getVariant(const Json &variantJson_)
     else if (numberOfMatches == 0)
     {
         cerr << "No Json in package " << writePath(packagePath) << " matches \n" << variantJson_.dump(4) << endl;
-        exit(EXIT_FAILURE);
     }
     else if (numberOfMatches > 1)
     {
         cerr << "More than 1 Jsons in package " + writePath(packagePath) + " matches \n"
              << endl
              << to_string(variantJson_);
-        exit(EXIT_FAILURE);
     }
+    exit(EXIT_FAILURE);
 }
 
 CPVariant CPackage::getVariant(const int index)
@@ -2323,18 +2458,37 @@ vector<string> split(string str, const string &token)
         unsigned long index = str.find(token);
         if (index != string::npos)
         {
-            result.push_back(str.substr(0, index));
+            result.emplace_back(str.substr(0, index));
             str = str.substr(index + token.size());
             if (str.empty())
             {
-                result.push_back(str);
+                result.emplace_back(str);
             }
         }
         else
         {
-            result.push_back(str);
+            result.emplace_back(str);
             str = "";
         }
     }
     return result;
+}
+
+void ADD_PUBLIC_CDD_TO_TARGET(Target &target, const string &cddName, const string &cddValue)
+{
+    target.compileDefinitionDependencies.emplace_back(CompileDefinition(cddName, cddValue), DependencyType::PUBLIC);
+}
+
+void ADD_PRIVATE_CDD_TO_TARGET(Target &target, const string &cddName, const string &cddValue)
+{
+    target.compileDefinitionDependencies.emplace_back(CompileDefinition(cddName, cddValue), DependencyType::PRIVATE);
+}
+
+void ADD_SRC_DIR_TO_TARGET(Target &target, const string &sourceDirectory, const string &regex)
+{
+    target.sourceAggregate.directories.emplace(Directory{sourceDirectory}, regex);
+}
+void ADD_MODULE_DIR_TO_TARGET(Target &target, const string &moduleDirectory, const string &regex)
+{
+    target.moduleAggregate.directories.emplace(Directory{moduleDirectory}, regex);
 }

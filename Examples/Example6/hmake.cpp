@@ -7,7 +7,7 @@ int main()
     ProjectVariant variantRelease;
 
     Executable animal("Animal", variantRelease);
-    animal.sourceFiles.emplace_back("main.cpp");
+    ADD_SRC_FILES_TO_TARGET(animal, "main.cpp");
 
     // PLibrary means prebuilt library. if you want to use a prebuilt library, you can use it this way.
     // Note that the library had to specify the includeDirectoryDependency explicitly. An easy was to use a packaged

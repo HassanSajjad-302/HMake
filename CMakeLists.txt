@@ -26,7 +26,7 @@ target_link_libraries(hhelper PRIVATE hconfigure)
 add_executable(hbuild
         hbuild/src/BBuild.cpp
         hbuild/src/main.cpp)
-target_include_directories(hbuild PRIVATE hbuild/header hconfigure/header)
+target_include_directories(hbuild PRIVATE hbuild/header)
 
 add_executable(UnBuiltTarget Examples/Example4/hmake.cpp)
 target_include_directories(UnBuiltTarget PRIVATE hconfigure/header)
