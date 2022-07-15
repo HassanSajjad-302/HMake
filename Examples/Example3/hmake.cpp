@@ -6,19 +6,20 @@ int main()
     Project project;
     ProjectVariant variantRelease;
 
-    Executable animal("Animal", variantRelease);
+    Executable app("app", variantRelease);
     // Just the files matching the regex in second argument will be used for compilation. i.e. hmake.cpp will
-    // be ignored.
-    ADD_SRC_DIR_TO_TARGET(animal, ".", "file[1-4]\\.cpp|main\\.cpp");
+    // be ignored. Please not it also checks the subdirectories. More control over this is planned.
+    ADD_SRC_DIR_TO_TARGET(app, ".", "file[1-4]\\.cpp|main\\.cpp");
+    // ADD_SRC_DIR_TO_TARGET(animal, ".", "\\w+\\b(?<!\\bhmake)");
 
-    ADD_EXECUTABLES_TO_VARIANT(variantRelease, animal);
+    ADD_EXECUTABLES_TO_VARIANT(variantRelease, app);
     project.projectVariants.push_back(variantRelease);
 
     ProjectVariant variantDebug;
     variantDebug.configurationType = ConfigType::DEBUG;
 
-    animal.assignDifferentVariant(variantDebug);
-    ADD_EXECUTABLES_TO_VARIANT(variantDebug, animal);
+    app.assignDifferentVariant(variantDebug);
+    ADD_EXECUTABLES_TO_VARIANT(variantDebug, app);
     project.projectVariants.push_back(variantDebug);
     project.configure();
 

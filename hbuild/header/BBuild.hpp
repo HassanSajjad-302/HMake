@@ -14,9 +14,10 @@
 #include "string"
 #include "thread"
 #include "tuple"
+#include "variant"
 
 using std::string, std::vector, std::filesystem::path, std::map, std::set, std::shared_ptr, std::tuple, std::thread,
-    std::stack, std::mutex, std::enable_shared_from_this, fmt::formatter, std::atomic;
+    std::stack, std::mutex, std::enable_shared_from_this, fmt::formatter, std::atomic, std::variant;
 using Json = nlohmann::ordered_json;
 
 struct BIDD
@@ -74,9 +75,7 @@ enum class FileStatus
 {
     NOT_ASSIGNED,
     UPDATED,
-    NEEDS_RECOMPILE,
-    COMPILING,
-    DOES_NOT_EXIST,
+    NEEDS_RECOMPILE
 };
 
 struct SourceNode
@@ -87,16 +86,19 @@ struct SourceNode
     mutable bool targetCacheSearched = false;
     mutable bool presentInCache;
     mutable bool presentInSource;
+    bool headerUnit = false;
+    bool materialize; // Used For Header-Units
 };
 void to_json(Json &j, const SourceNode &sourceNode);
 void from_json(const Json &j, SourceNode &sourceNode);
-
+bool operator==(const SourceNode &lhs, const SourceNode &rhs);
 bool operator<(const SourceNode &lhs, const SourceNode &rhs);
 
 // Used to cache the dependencies on the disk for faster compilation next time
 struct BTargetCache
 {
     string compileCommand;
+    string linkCommand;
     set<SourceNode> sourceFileDependencies;
     SourceNode &addNodeInSourceFileDependencies(const string &str);
 };
@@ -132,7 +134,7 @@ struct PostBasic
     explicit PostBasic(const BuildTool &buildTool, const string &commandFirstHalf, string printCommandFirstHalf,
                        const string &buildCacheFilesDirPath, const string &fileName, const PathPrint &pathPrint,
                        bool isTarget_);
-    void executePrintRoutine(uint32_t color) const;
+    void executePrintRoutine(uint32_t color, bool printOnlyOnError) const;
 };
 
 struct ParsedTarget;
@@ -167,87 +169,50 @@ enum class SM_FILE_TYPE : unsigned short
     PARTITION_IMPLEMENTATION = 5,
 };
 
-bool operator<(const struct SMRuleRequires &lhs, const struct SMRuleRequires &rhs);
+struct LogicalNameComparator
+{
+    bool operator()(const struct SMRuleRequires &lhs, const struct SMRuleRequires &rhs) const;
+};
+
+struct HeaderUnitComparator
+{
+    bool operator()(const struct SMRuleRequires &lhs, const struct SMRuleRequires &rhs) const;
+};
+
 struct SMRuleRequires
 {
     SM_REQUIRE_TYPE type = SM_REQUIRE_TYPE::NOT_ASSIGNED;
     string logicalName;
     bool angle;
     string sourcePath;
-    inline static set<SMRuleRequires> *smRuleRequiresSet;
-    void populateFromJson(const Json &j, const string &smFilePath);
+    inline static set<SMRuleRequires, HeaderUnitComparator> *setHeaderUnits;
+    inline static set<SMRuleRequires, LogicalNameComparator> *setLogicalName;
+    void populateFromJson(const Json &j, const string &smFilePath, const string &provideLogicalName);
 };
-
-namespace fmt
-{
-
-template <> struct formatter<SM_REQUIRE_TYPE> : formatter<std::string>
-{
-    auto format(SM_REQUIRE_TYPE smRequireType, format_context &ctx)
-    {
-        string s;
-        if (smRequireType == SM_REQUIRE_TYPE::NOT_ASSIGNED)
-        {
-            s = "NOT_ASSIGNED";
-        }
-        else if (smRequireType == SM_REQUIRE_TYPE::PRIMARY_EXPORT)
-        {
-            s = "PRIMARY_EXPORT";
-        }
-        else if (smRequireType == SM_REQUIRE_TYPE::PARTITION_EXPORT)
-        {
-            s = "PARTITION_EXPORT";
-        }
-        else
-        {
-            s = "HEADER_UNIT";
-        }
-        return formatter<string>::format(fmt::format("{}", s), ctx);
-    }
-};
-template <> struct formatter<SMRuleRequires> : formatter<std::string>
-{
-    auto format(SMRuleRequires smRuleRequires, format_context &ctx)
-    {
-        if (smRuleRequires.type == SM_REQUIRE_TYPE::HEADER_UNIT)
-        {
-            return formatter<string>::format(
-                fmt::format("LogicalName:\t{}\nType:\t{}\nIncludeAngle\t{}\nSourcePath\t{}\n",
-                            smRuleRequires.logicalName, smRuleRequires.type, smRuleRequires.angle,
-                            smRuleRequires.sourcePath),
-                ctx);
-        }
-        else
-        {
-            return formatter<string>::format(
-                fmt::format("LogicalName:\t{}\nType:\t{}\n", smRuleRequires.logicalName, smRuleRequires.type), ctx);
-        }
-    }
-};
-
-} // namespace fmt
 
 struct SMFile // Scanned Module Rule
 {
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
     SourceNode &sourceNode;
     string logicalName;
-    bool angle = false;
+    bool angle;
     vector<SMRuleRequires> requireDependencies;
 
     SMFile(SourceNode &sourceNode_, ParsedTarget &parsedTarget_);
     SMFile(SourceNode &sourceNode_, ParsedTarget &parsedTarget_, bool angle_);
     // Only used in-case of Header-Unit
-    bool materialize = false;
+    bool materialize;
 
     // State Variables
     string fileName;
     vector<SMFile *> fileDependencies;
     vector<SMFile *> fileDependents;
     set<SMFile *> commandLineFileDependencies;
+    unsigned short needsCompileDependenciesSize = 0;
+
     ParsedTarget &parsedTarget;
     bool hasProvide = false;
-    unsigned int numberOfDependencies;
+    // unsigned int numberOfNeedsCompileDependencies;
     void populateFromJson(const Json &j);
     string getFlag(const string &outputFilesWithoutExtension) const;
     string getFlagPrint(const string &outputFilesWithoutExtension) const;
@@ -291,6 +256,7 @@ template <typename T> struct TarjanNode
     // Find Strongly Connected Components
     static void findSCCS();
     void strongConnect();
+    static void checkForCycle(string (*getStringFromTarjanNodeType)(T *t));
 };
 template <typename T> bool operator<(const TarjanNode<T> &lhs, const TarjanNode<T> &rhs);
 
@@ -353,7 +319,7 @@ template <typename T> void TarjanNode<T>::strongConnect()
                 break;
             }
         }
-        if (cycle.size() > 1)
+        if (tempCycle.size() > 1)
         {
             for (TarjanNode<T> *c : tempCycle)
             {
@@ -366,6 +332,32 @@ template <typename T> void TarjanNode<T>::strongConnect()
         }
     }
     topologicalSort.emplace_back(const_cast<T *>(id));
+}
+
+template <typename T> void TarjanNode<T>::checkForCycle(string (*getStringFromTarjanNodeType)(T *t))
+{
+    if (cycleExists)
+    {
+        fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                   "There is a Cyclic-Dependency.\n");
+        unsigned int cycleSize = cycle.size();
+        for (unsigned int i = 0; i < cycleSize; ++i)
+        {
+            if (cycleSize == i + 1)
+            {
+                fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                           "{} Depends On {}.\n", getStringFromTarjanNodeType(cycle[i]),
+                           getStringFromTarjanNodeType(cycle[0]));
+            }
+            else
+            {
+                fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                           "{} Depends On {}.\n", getStringFromTarjanNodeType(cycle[0]),
+                           getStringFromTarjanNodeType(cycle[0]));
+            }
+        }
+        exit(EXIT_SUCCESS);
+    }
 }
 
 template <typename T> bool operator<(const TarjanNode<T> &lhs, const TarjanNode<T> &rhs)
@@ -414,6 +406,8 @@ struct ParsedTarget : public enable_shared_from_this<ParsedTarget>
     string actualOutputName;
     string compileCommand;
     string sourceCompileCommandPrintFirstHalf;
+    string linkOrArchiveCommand;
+    string linkOrArchiveCommandPrintFirstHalf;
 
     bool isModule = false;
     bool libsParsed = false;
@@ -423,25 +417,24 @@ struct ParsedTarget : public enable_shared_from_this<ParsedTarget>
     vector<SMFile *> smFiles;
 
     explicit ParsedTarget(const string &targetFilePath_);
-    void parseTarget();
-    // void setActualOutputName();
     void executePreBuildCommands() const;
     void executePostBuildCommands() const;
     void setCompileCommand();
     inline string &getCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
     inline string &getSourceCompileCommandPrintFirstHalf();
-
+    void setLinkOrArchiveCommandAndPrint();
+    string &getLinkOrArchiveCommand();
+    string &getLinkOrArchiveCommandPrintFirstHalf();
     // void parseSourceDirectoriesAndFinalizeSourceFiles();
     //  Create a new SourceNode and insert it into the targetCache.sourceFileDependencies if it is not already there. So
     //  that it is written to the cache on disk for faster compilation next time
-    void setSourceNodeCompilationStatus(SourceNode &sourceNode, bool checkSMFileExists,
-                                        const string &extension = "") const;
+    void setSourceNodeCompilationStatus(SourceNode &sourceNode, bool angle) const;
     // This must be called to confirm that all Prebuilt Libraries Exists. Also checks if any of them is recently
     // touched.
     void checkForRelinkPrebuiltDependencies();
     void populateSourceTree();
-    void populateModuleTree(Builder &builder, map<string, SourceNode *> &requirePaths,
+    void populateModuleTree(Builder &builder, map<string *, map<string, SourceNode *>> &requirePaths,
                             set<TarjanNode<SMFile>> &tarjanNodesSMFiles);
     string getInfrastructureFlags();
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode);
@@ -451,22 +444,24 @@ struct ParsedTarget : public enable_shared_from_this<ParsedTarget>
                                                        const PathPrint &objectFilesPathPrint);
     PostBasic Archive();
     PostBasic Link();
-    PostBasic GenerateSMRulesFile(const SourceNode &sourceNode);
+    PostBasic GenerateSMRulesFile(const SourceNode &sourceNode, bool printOnlyOnError);
 
     TargetType getTargetType() const;
-    void pruneAndSaveBuildCache() const;
+    void pruneAndSaveBuildCache(bool successful);
     void copyParsedTarget() const;
 };
 bool operator<(const ParsedTarget &lhs, const ParsedTarget &rhs);
 
+using VariantParsedTargetString = variant<ParsedTarget, string>;
+struct VariantParsedTargetStringComparator
+{
+    bool operator()(const VariantParsedTargetString &lhs, const VariantParsedTargetString &rhs) const;
+};
 class Builder
 {
-    set<ParsedTarget> parsedTargetSet;
+    set<VariantParsedTargetString, VariantParsedTargetStringComparator> parsedTargetSet;
 
-    unsigned short buildThreadsAllowed = 12;
-    unsigned short maximumLinkThreadsAllowed = 1;
-    unsigned short currentLinkingThreads = 0;
-
+    unsigned short linkThreadsCount = 0;
     vector<ParsedTarget *> sourceTargets;
     unsigned short sourceTargetsIndex;
 
@@ -478,8 +473,8 @@ class Builder
 
   public:
     // inline static int modulesActionsNeeded = 0;
-    set<SMFile, SMFileCompareWithoutHeaderUnits> smFilesWithoutHeaderUnits;
-    set<SMFile, SMFileCompareWithHeaderUnits> smFilesWithHeaderUnits;
+    map<string *, set<SMFile, SMFileCompareWithoutHeaderUnits>> smFilesWithoutHeaderUnits;
+    map<string *, set<SMFile, SMFileCompareWithHeaderUnits>> smFilesWithHeaderUnits;
     vector<SMFile *> canBeCompiledModule;
     vector<ParsedTarget *> canBeLinked;
 
@@ -497,8 +492,6 @@ class Builder
 
     static void copyPackage(const path &packageFilePath);
 };
-
-inline Settings settings;
 
 string getReducedPath(const string &subjectPath, const PathPrint &pathPrint);
 #endif // HMAKE_HBUILD_SRC_BBUILD_HPP

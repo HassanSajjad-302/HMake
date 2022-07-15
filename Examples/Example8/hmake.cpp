@@ -28,7 +28,7 @@ int main()
     PPLibrary dogDebug("Dog", catAndDog, catAndDog.getVariant(consumeVariantJson));
 
     // PPLibrary has a variable named imported which is defaulted to true. If this library is included in a
-    // package in this hmake file, it will be referred in the package but not copied. However if it is set to
+    // package in this hmake file, it will be referred in the package but not copied. However, if it is set to
     // false, it will be copied like normal library.
 
     goat.libraryDependencies.emplace_back(dogRelease, DependencyType::PUBLIC);
@@ -52,6 +52,5 @@ int main()
     project.configure();
 
     // Note: hmake only support one file. So, if you want to include other source code. Either include it using hmake
-    // packages or just add it directly in the file. This, IMHO, is a very good and very simple option. Even if size
-    // becomes too large it is still manageable IMHO.
+    // packages or just add it directly in the file.
 }

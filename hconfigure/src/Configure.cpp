@@ -516,7 +516,8 @@ void SourceAggregate::convertToJson(Json &j) const
     j[Identifier + sourceDirectoriesString] = directories;
 }
 
-set<string> SourceAggregate::convertFromJsonAndGetAllSourceFiles(const Json &j, const string &Identifier)
+set<string> SourceAggregate::convertFromJsonAndGetAllSourceFiles(const Json &j, const string &targetFilePath,
+                                                                 const string &Identifier)
 {
     set<string> sourceFiles = j.at(Identifier + sourceFilesString).get<set<string>>();
     set<SourceDirectory> sourceDirectories = j.at(Identifier + sourceDirectoriesString).get<set<SourceDirectory>>();
@@ -524,9 +525,19 @@ set<string> SourceAggregate::convertFromJsonAndGetAllSourceFiles(const Json &j, 
     {
         for (const auto &k : recursive_directory_iterator(i.sourceDirectory.directoryPath))
         {
-            if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(i.regex)))
+            try
             {
-                sourceFiles.emplace(k.path().generic_string());
+                if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(i.regex)))
+                {
+                    sourceFiles.emplace(k.path().generic_string());
+                }
+            }
+            catch (const std::regex_error &e)
+            {
+                cerr << "regex_error caught: " << e.what() << '\n';
+                cerr << "Regular Expressions error happened while parsing regex " << i.regex << " of the target "
+                     << targetFilePath << endl;
+                exit(EXIT_FAILURE);
             }
         }
     }
@@ -1287,7 +1298,7 @@ void Cache::initializeCache()
 #else
 
 #endif
-    if (!exists(path("settings.hmake")))
+    if (!std::filesystem::exists(path("settings.hmake")))
     {
         Json settings = Settings{};
         ofstream("settings.hmake") << settings.dump(4);
@@ -2115,7 +2126,7 @@ PPLibrary::PPLibrary(string libraryName_, const CPackage &cPackage, const CPVari
     }
 
     path libraryFilePath = libraryDirectoryPath / (libraryName + ".hmake");
-    if (!exists(libraryFilePath))
+    if (!std::filesystem::exists(libraryFilePath))
     {
         cerr << "Library " << libraryName << " Does Not Exists. Searched For File " << endl
              << writePath(libraryFilePath);
@@ -2287,6 +2298,7 @@ void to_json(Json &json, const CompileCommandPrintSettings &ccpSettings)
     json["COMPILE_DEFINITIONS"] = ccpSettings.compileDefinitions;
     json["PROJECT_INCLUDE_DIRECTORIES"] = ccpSettings.projectIncludeDirectories;
     json["ENVIRONMENT_INCLUDE_DIRECTORIES"] = ccpSettings.environmentIncludeDirectories;
+    json["ONLY_LOGICAL_NAME_OF_REQUIRE_IFC"] = ccpSettings.onlyLogicalNameOfRequireIFC;
     json["REQUIRE_IFCS"] = ccpSettings.requireIFCs;
     json["SOURCE_FILE"] = ccpSettings.sourceFile;
     json["INFRASTRUCTURE_FLAGS"] = ccpSettings.infrastructureFlags;
@@ -2309,6 +2321,7 @@ void from_json(const Json &json, CompileCommandPrintSettings &ccpSettings)
     ccpSettings.compileDefinitions = json.at("COMPILE_DEFINITIONS").get<bool>();
     ccpSettings.projectIncludeDirectories = json.at("PROJECT_INCLUDE_DIRECTORIES").get<PathPrint>();
     ccpSettings.environmentIncludeDirectories = json.at("ENVIRONMENT_INCLUDE_DIRECTORIES").get<PathPrint>();
+    ccpSettings.onlyLogicalNameOfRequireIFC = json.at("ONLY_LOGICAL_NAME_OF_REQUIRE_IFC").get<bool>();
     ccpSettings.requireIFCs = json.at("REQUIRE_IFCS").get<PathPrint>();
     ccpSettings.sourceFile = json.at("SOURCE_FILE").get<PathPrint>();
     ccpSettings.infrastructureFlags = json.at("INFRASTRUCTURE_FLAGS").get<bool>();
@@ -2408,22 +2421,26 @@ void from_json(const Json &json, GeneralPrintSettings &generalPrintSettings)
     generalPrintSettings.threadId = json.at("THREAD_ID").get<bool>();
 }
 
-void to_json(Json &json, const Settings &settings)
+void to_json(Json &json, const Settings &settings_)
 {
-    json["COMPILE_PRINT_SETTINGS"] = settings.ccpSettings;
-    json["ARCHIVE_PRINT_SETTINGS"] = settings.acpSettings;
-    json["LINK_PRINT_SETTINGS"] = settings.lcpSettings;
-    json["PRINT_COLOR_SETTINGS"] = settings.pcSettings;
-    json["GENERAL_PRINT_SETTINGS"] = settings.gpcSettings;
+    json["MAXIMUM_BUILD_THREADS"] = settings_.maximumBuildThreads;
+    json["MAXIMUM_LINK_THREADS"] = settings_.maximumLinkThreads;
+    json["COMPILE_PRINT_SETTINGS"] = settings_.ccpSettings;
+    json["ARCHIVE_PRINT_SETTINGS"] = settings_.acpSettings;
+    json["LINK_PRINT_SETTINGS"] = settings_.lcpSettings;
+    json["PRINT_COLOR_SETTINGS"] = settings_.pcSettings;
+    json["GENERAL_PRINT_SETTINGS"] = settings_.gpcSettings;
 }
 
-void from_json(const Json &json, Settings &settings)
+void from_json(const Json &json, Settings &settings_)
 {
-    settings.ccpSettings = json.at("COMPILE_PRINT_SETTINGS").get<CompileCommandPrintSettings>();
-    settings.acpSettings = json.at("ARCHIVE_PRINT_SETTINGS").get<ArchiveCommandPrintSettings>();
-    settings.lcpSettings = json.at("LINK_PRINT_SETTINGS").get<LinkCommandPrintSettings>();
-    settings.pcSettings = json.at("PRINT_COLOR_SETTINGS").get<PrintColorSettings>();
-    settings.gpcSettings = json.at("GENERAL_PRINT_SETTINGS").get<GeneralPrintSettings>();
+    settings_.maximumBuildThreads = json.at("MAXIMUM_BUILD_THREADS").get<unsigned int>();
+    settings_.maximumLinkThreads = json.at("MAXIMUM_LINK_THREADS").get<unsigned int>();
+    settings_.ccpSettings = json.at("COMPILE_PRINT_SETTINGS").get<CompileCommandPrintSettings>();
+    settings_.acpSettings = json.at("ARCHIVE_PRINT_SETTINGS").get<ArchiveCommandPrintSettings>();
+    settings_.lcpSettings = json.at("LINK_PRINT_SETTINGS").get<LinkCommandPrintSettings>();
+    settings_.pcSettings = json.at("PRINT_COLOR_SETTINGS").get<PrintColorSettings>();
+    settings_.gpcSettings = json.at("GENERAL_PRINT_SETTINGS").get<GeneralPrintSettings>();
 }
 
 string file_to_string(const string &file_name)
@@ -2491,4 +2508,35 @@ void ADD_SRC_DIR_TO_TARGET(Target &target, const string &sourceDirectory, const 
 void ADD_MODULE_DIR_TO_TARGET(Target &target, const string &moduleDirectory, const string &regex)
 {
     target.moduleAggregate.directories.emplace(Directory{moduleDirectory}, regex);
+}
+
+void ADD_ENV_INCLUDES_TO_TARGET_MODULE_SRC(Target &moduleTarget)
+{
+    for (const Directory &directory : moduleTarget.environment.includeDirectories)
+    {
+        ADD_MODULE_DIR_TO_TARGET(moduleTarget, directory.directoryPath.generic_string(), ".*");
+    }
+}
+
+void privateFunctions::SEARCH_AND_ADD_FILE_FROM_ENV_INCL_TO_TARGET_MODULE_SRC(Target &moduleTarget,
+                                                                              const string &moduleFileName)
+{
+    bool found = false;
+    for (const Directory &directory : moduleTarget.environment.includeDirectories)
+    {
+        for (auto &f : directory_iterator(directory.directoryPath))
+        {
+            if (f.is_regular_file() && f.path().filename() == moduleFileName)
+            {
+                ADD_MODULE_FILES_TO_TARGET(moduleTarget, f.path().generic_string().c_str());
+                found = true;
+            }
+        }
+    }
+    if (!found)
+    {
+        cerr << stderr, "{} could not be found in Environment include directories of Target {}\n", moduleFileName,
+            moduleTarget.targetName;
+        exit(EXIT_FAILURE);
+    }
 }

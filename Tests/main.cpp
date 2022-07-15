@@ -4,139 +4,112 @@
 #include "fmt/format.h"
 #include "fstream"
 #include "iostream"
+#include "nlohmann/json.hpp"
 #include "string"
 #include "gtest/gtest.h"
+
 using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::path,
-    std::filesystem::current_path, std::cout, fmt::format, std::filesystem::exists, std::filesystem::remove_all;
+    std::filesystem::current_path, std::cout, fmt::format, std::filesystem::remove_all, std::ifstream, std::ofstream;
 
-namespace readall
+using Json = nlohmann::ordered_json;
+
+TEST(CompilationTest, Example1)
 {
+    current_path(path(EXAMPLES_DIRECTORY) / path("Example1"));
+    TestHelper::recreateBuildDirAndBuildHMakeProject();
+    current_path("0/app/");
+    TestHelper::runAppWithExpectedOutput(getExeName("app"), "Hello World\n");
+}
 
-string slurp(const std::ifstream &in)
+TEST(CompilationTest, Example2)
 {
-    std::ostringstream str;
-    str << in.rdbuf();
-    return str.str();
-};
-} // namespace readall
+    current_path(path(EXAMPLES_DIRECTORY) / path("Example2"));
+    TestHelper::recreateBuildDirAndBuildHMakeProject();
+    current_path("0/Animal/");
+    TestHelper::runAppWithExpectedOutput(getExeName("Animal"), "Cat says Meow..\n");
+    current_path("../../1/Animal/");
+    TestHelper::runAppWithExpectedOutput(getExeName("Animal"), "Cat says Meow..\n");
+}
 
-TEST(CompilationTest, BasicCompilationTest)
+TEST(CompilationTest, Example3)
 {
-
-    TestHelper::recreateSourceAndBuildDir();
-    string hmakeFileContents = R"(
-#include "Configure.hpp"
-
-int main() {
-    Cache::initializeCache();
-    Project project;
-    ProjectVariant variant{};
-
-    Executable app("app", variant);
-    ADD_SRC_FILES_TO_TARGET(app, "main.cpp");
-
-    ADD_EXECUTABLES_TO_VARIANT(variant, app);
-    project.projectVariants.push_back(variant);
-    project.configure();
-}
-)";
-    string mainSrcFileContents = R"(
-#include "iostream"
-
-int main(){
-    std::cout << "Hello World" << std::endl;
-}
-)";
-
-    current_path("Source");
-    ofstream("hmake.cpp") << hmakeFileContents;
-    ofstream("main.cpp") << mainSrcFileContents;
-
-    TestHelper::runHMakeProjectWithExpectedOutput("Hello World\n");
+    current_path(path(EXAMPLES_DIRECTORY) / path("Example3"));
+    TestHelper::recreateBuildDirAndBuildHMakeProject();
+    current_path("0/app");
+    TestHelper::runAppWithExpectedOutput(getExeName("app"), "func1 called\nfunc2 called\nfunc3 called\nfunc4 called\n");
+    current_path("../../1/app/");
+    TestHelper::runAppWithExpectedOutput(getExeName("app"), "func1 called\nfunc2 called\nfunc3 called\nfunc4 called\n");
 }
 
-TEST(CompilationTest, MultipleFilesCompilationTest)
+TEST(CompilationTest, Example4)
 {
-    TestHelper::recreateSourceAndBuildDir();
-    const int fileCount = 9;
+    current_path(path(EXAMPLES_DIRECTORY) / path("Example4"));
+    TestHelper::recreateBuildDirAndBuildHMakeProject();
+    current_path("0/app");
+    TestHelper::runAppWithExpectedOutput(getExeName("app"), "func() from file1.cpp called.\n");
 
-    string hmakeFileContents = format(R"(
-#include "Configure.hpp"
+    Json cacheFileJson;
+    current_path("../../");
+    ifstream("cache.hmake") >> cacheFileJson;
+    bool file1 = cacheFileJson.at("CACHE_VARIABLES").get<Json>().at("FILE1").get<bool>();
+    ASSERT_EQ(file1, true) << "Cache does not has the Cache-Variable or this variable is not of right value";
+    cacheFileJson["CACHE_VARIABLES"]["FILE1"] = false;
+    ofstream("cache.hmake") << cacheFileJson.dump(4);
 
-    int main() {{
-    Cache::initializeCache();
-    Project project;
-    ProjectVariant variant{{}};
+    ASSERT_EQ(system(getSlashedExeName("configure").c_str()), 0) << getExeName("configure") + " command failed.";
+    ASSERT_EQ(system(getExeName("hbuild").c_str()), 0) << getExeName("hbuild") + " command failed.";
 
-    Executable app("app", variant);
-    ADD_SRC_DIR_TO_TARGET(app, ".", "file[1-{}]\\.cpp|main\\.cpp"); //fileCount assigned here
-
-    ADD_EXECUTABLES_TO_VARIANT(variant, app);
-    project.projectVariants.push_back(variant);
-    project.configure();
-    }}
-)",
-                                      fileCount);
-
-    string mainSrcFileContents = R"(
-#include "file1.hpp"
-#include "iostream"
-int main(){
-std::cout << "0" << std::endl;
-func1();
+    current_path("0/app");
+    TestHelper::runAppWithExpectedOutput(getExeName("app"), "func() from file2.cpp called.\n");
 }
-)";
 
-    current_path("Source");
-    ofstream("hmake.cpp") << hmakeFileContents;
-    ofstream("main.cpp") << mainSrcFileContents;
-
-    for (int i = 0; i < fileCount; ++i)
-    {
-        string headerFileContents = format(R"(
-extern void func{}();
-)",
-                                           i + 1, i + 1);
-
-        string sourceFileContents;
-        if (i != fileCount - 1)
-        {
-            sourceFileContents = format(R"(
-#include "file{}.hpp"
-#include "iostream"
-void func{}(){{
-
-std::cout << {} << std::endl;
-func{}();
-}}
-)",
-                                        i + 2, i + 1, i + 1, i + 2);
-        }
-        else
-        {
-            // Last Source File
-            sourceFileContents = format(R"(
-#include "file{}.hpp"
-#include "iostream"
-void func{}(){{
-
-std::cout << {} << std::endl;
-}}
-)",
-                                        i + 1, i + 1, i + 1);
-        }
-
-        ofstream(format("file{}.hpp", i + 1)) << headerFileContents;
-        ofstream(format("file{}.cpp", i + 1)) << sourceFileContents;
-    }
-
-    string expected;
-    for (int i = 0; i < fileCount + 1; ++i)
-    {
-        expected += std::to_string(i) + "\n";
-    }
-    TestHelper::runHMakeProjectWithExpectedOutput(expected);
+TEST(CompilationTest, Example5)
+{
+    current_path(path(EXAMPLES_DIRECTORY) / path("Example5"));
+    TestHelper::recreateBuildDirAndBuildHMakeProject();
+    current_path("0/app/");
+    TestHelper::runAppWithExpectedOutput(getExeName("app"), "");
 }
+
+TEST(CompilationTest, Example6)
+{
+    current_path(path(EXAMPLES_DIRECTORY) / path("Example6"));
+    TestHelper::recreateBuildDirAndBuildHMakeProject();
+    current_path("0/Animal/");
+    TestHelper::runAppWithExpectedOutput(getExeName("Animal"), "Cat says Meow..\n");
+}
+
+TEST(CompilationTest, Example7)
+{
+    current_path(path(EXAMPLES_DIRECTORY) / path("Example7"));
+    TestHelper::recreateBuildDirAndBuildHMakeProject(true);
+}
+
+TEST(CompilationTest, Example8)
+{
+    current_path(path(EXAMPLES_DIRECTORY) / path("Example8"));
+    TestHelper::recreateBuildDirAndBuildHMakeProject();
+    current_path("0/Pets/");
+    TestHelper::runAppWithExpectedOutput(getExeName("Pets"), "Dog says woof\nCat says Meow..\nGoat says baa\n");
+    current_path("../../1/Pets/");
+    TestHelper::runAppWithExpectedOutput(getExeName("Pets"), "Dog says woof\nCat says Meow..\nGoat says baa\n");
+}
+
+#ifdef _WIN32
+TEST(CompilationTest, Example9)
+{
+    current_path(path(EXAMPLES_DIRECTORY) / path("Example9"));
+    TestHelper::recreateBuildDirAndBuildHMakeProject();
+    current_path("0/app/");
+    TestHelper::runAppWithExpectedOutput(getExeName("app"), "Hello World\n");
+}
+
+TEST(CompilationTest, Example10)
+{
+    current_path(path(EXAMPLES_DIRECTORY) / path("Example10/ball_pit"));
+    TestHelper::recreateBuildDirAndBuildHMakeProject();
+}
+#endif
 
 int main(int argc, char *argv[])
 {

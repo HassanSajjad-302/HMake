@@ -17,7 +17,7 @@ int main()
 
     ProjectVariant variantDebug;
     variantDebug.configurationType = ConfigType::DEBUG;
-    // Once this function is called then animal and it's library dependencies will have properties of
+    // Once this function is called then animal, and it's library dependencies will have properties of
     // variantDebug i.e. their configurationType will be ConfigType::DEBUG.
     animal.assignDifferentVariant(variantDebug);
     ADD_EXECUTABLES_TO_VARIANT(variantDebug, animal);

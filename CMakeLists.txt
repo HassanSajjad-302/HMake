@@ -19,7 +19,8 @@ target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="$<TARGET_
 target_include_directories(hconfigure
         PUBLIC hconfigure/header
         PUBLIC cxxopts/include
-        PUBLIC fmt/include/
+        PUBLIC fmt/include
+        PUBLIC json/include
         )
 target_link_libraries(hhelper PRIVATE hconfigure)
 
@@ -31,26 +32,23 @@ target_include_directories(hbuild PRIVATE hbuild/header)
 add_executable(UnBuiltTarget Examples/Example4/hmake.cpp)
 target_include_directories(UnBuiltTarget PRIVATE hconfigure/header)
 add_subdirectory(json)
-target_link_libraries(hconfigure PRIVATE nlohmann_json::nlohmann_json)
-target_link_libraries(hbuild PRIVATE nlohmann_json::nlohmann_json hconfigure)
-target_link_libraries(hhelper PRIVATE nlohmann_json::nlohmann_json)
-target_link_libraries(UnBuiltTarget PRIVATE nlohmann_json::nlohmann_json hconfigure)
+target_link_libraries(hbuild PRIVATE hconfigure)
+target_link_libraries(UnBuiltTarget PRIVATE hconfigure)
 
 
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 add_subdirectory(googletest)
 
-add_executable(Test_Correctness Tests/main.cpp Tests/TestHelper.cpp)
-target_include_directories(Test_Correctness PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
-target_link_libraries(Test_Correctness PRIVATE gtest gtest_main)
-target_compile_definitions(Test_Correctness PRIVATE TESTDIRECTORY="${CMAKE_SOURCE_DIR}/Tests")
+add_executable(Test_Examples Tests/main.cpp Tests/TestHelper.cpp)
+target_include_directories(Test_Examples PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
+target_link_libraries(Test_Examples PRIVATE gtest gtest_main nlohmann_json::nlohmann_json)
+target_compile_definitions(Test_Examples PRIVATE EXAMPLES_DIRECTORY="${CMAKE_SOURCE_DIR}/Examples/")
 
-add_dependencies(Test_Correctness hhelper)
-add_dependencies(Test_Correctness hconfigure)
-add_dependencies(Test_Correctness hbuild)
+add_dependencies(Test_Examples hhelper)
+add_dependencies(Test_Examples hbuild)
 
 add_subdirectory(fmt)
 
-target_link_libraries(Test_Correctness PRIVATE fmt::fmt)
+target_link_libraries(Test_Examples PRIVATE fmt::fmt)
 target_link_libraries(hbuild PRIVATE fmt::fmt)
 target_link_libraries(hhelper PRIVATE fmt::fmt)

@@ -6,33 +6,33 @@ int main()
     Project project;
     ProjectVariant variantRelease;
 
-    Executable fun("Fun", variantRelease);
-    ADD_SRC_FILES_TO_TARGET(fun, "main.cpp");
+    Executable app("app", variantRelease);
+    ADD_SRC_FILES_TO_TARGET(app, "main.cpp");
 
     // PreBuild commands are executed before the build starts while the PostBuild  commands are executed after
     // the build of the target is finished. Cache::sourceDirectory.path and Cache::configureDirectory.path can be
     //  provided here. Open both srcDir and buildDir in one frame and then run hbuild in terminal to see it.
 #ifdef _WIN32
-    fun.preBuild.emplace_back("echo > " + addQuotes(path((srcDir + "file.txt")).make_preferred().string()));
-    fun.preBuild.emplace_back("ping 127.0.0.1 -n 2 > nul"); // sleep command windows alternative
-    fun.postBuild.emplace_back(
+    app.preBuild.emplace_back("echo > " + addQuotes(path((srcDir + "file.txt")).make_preferred().string()));
+    app.preBuild.emplace_back("ping 127.0.0.1 -n 2 > nul"); // sleep command windows alternative
+    app.postBuild.emplace_back(
         "move " + addQuotes((Cache::sourceDirectory.directoryPath / "file.txt").make_preferred().string()) + " " +
         addQuotes((Cache::configureDirectory.directoryPath / "file.txt").make_preferred().string()));
-    fun.postBuild.emplace_back("ping 127.0.0.1 -n 3 > nul");
-    fun.postBuild.emplace_back(
+    app.postBuild.emplace_back("ping 127.0.0.1 -n 3 > nul");
+    app.postBuild.emplace_back(
         "del " + addQuotes((Cache::configureDirectory.directoryPath / "file.txt").make_preferred().string()));
 #else
-    fun.preBuild.emplace_back("touch " +
+    app.preBuild.emplace_back("touch " +
                               addQuotes((Cache::sourceDirectory.directoryPath / "file.txt").make_preferred().string()));
-    fun.preBuild.emplace_back("sleep 2");
-    fun.postBuild.emplace_back(
+    app.preBuild.emplace_back("sleep 2");
+    app.postBuild.emplace_back(
         "mv " + addQuotes((Cache::sourceDirectory.directoryPath / "file.txt").make_preferred().string()) + " " +
         addQuotes((Cache::configureDirectory.directoryPath / "file.txt").make_preferred().string()));
-    fun.postBuild.emplace_back("sleep 3");
-    fun.postBuild.emplace_back(
+    app.postBuild.emplace_back("sleep 3");
+    app.postBuild.emplace_back(
         "rm " + addQuotes((Cache::configureDirectory.directoryPath / "file.txt").make_preferred().string()));
 #endif
-    ADD_EXECUTABLES_TO_VARIANT(variantRelease, fun);
+    ADD_EXECUTABLES_TO_VARIANT(variantRelease, app);
     project.projectVariants.push_back(variantRelease);
     project.configure();
     Cache::registerCacheVariables();

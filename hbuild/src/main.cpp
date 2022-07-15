@@ -1,7 +1,8 @@
 
 #include "BBuild.hpp"
+#include "fmt/format.h"
 #include "fstream"
-#include "iostream"
+
 using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream;
 int main(int argc, char **argv)
 {
@@ -19,7 +20,7 @@ int main(int argc, char **argv)
         }
         if (!is_regular_file(buildFilePath))
         {
-            std::cerr << buildFilePath.string() << " is not regular file";
+            fmt::print("{} is not regular file.\n", buildFilePath.string());
             exit(EXIT_FAILURE);
         }
     }

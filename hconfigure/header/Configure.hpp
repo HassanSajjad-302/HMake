@@ -6,6 +6,7 @@
 #include "fmt/color.h"
 #include "nlohmann/json.hpp"
 #include "stack"
+#include "thread"
 #include "utility"
 #include <set>
 
@@ -373,7 +374,8 @@ struct SourceAggregate // Source Directory Aggregate
     // If I write a to_json like other occasions and do targetFileJson = sourceAggregate; it will reinitialize the
     // object deleting the previous state.
     void convertToJson(Json &j) const;
-    static set<string> convertFromJsonAndGetAllSourceFiles(const Json &j, const string &Identifier = "");
+    static set<string> convertFromJsonAndGetAllSourceFiles(const Json &j, const string &targetFilePath,
+                                                           const string &Identifier = "");
     bool empty() const;
 };
 
@@ -659,6 +661,7 @@ struct CompileCommandPrintSettings
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
     PathPrint environmentIncludeDirectories{
         .printLevel = PathPrintLevel::NO, .depth = 1, .addQuotes = false, .isDirectory = true, .isTool = false};
+    bool onlyLogicalNameOfRequireIFC = true;
     PathPrint requireIFCs{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
     PathPrint sourceFile{
@@ -745,14 +748,18 @@ void from_json(const Json &json, GeneralPrintSettings &generalPrintSettings);
 
 struct Settings
 {
+    unsigned int maximumBuildThreads = std::thread::hardware_concurrency();
+    unsigned int maximumLinkThreads = std::thread::hardware_concurrency();
+
     CompileCommandPrintSettings ccpSettings;
     ArchiveCommandPrintSettings acpSettings;
     LinkCommandPrintSettings lcpSettings;
     PrintColorSettings pcSettings;
     GeneralPrintSettings gpcSettings;
 };
-void to_json(Json &json, const Settings &settings);
-void from_json(const Json &json, Settings &settings);
+inline Settings settings;
+void to_json(Json &json, const Settings &settings_);
+void from_json(const Json &json, Settings &settings_);
 string file_to_string(const string &file_name);
 vector<string> split(string str, const string &token);
 
@@ -821,6 +828,18 @@ template <same_as<Executable>... U> void ADD_EXECUTABLES_TO_VARIANT(Variant &var
 template <same_as<Library>... U> void ADD_LIBRARIES_TO_VARIANT(Variant &variant, U &...library)
 {
     (variant.libraries.emplace_back(library), ...);
+}
+
+void ADD_ENV_INCLUDES_TO_TARGET_MODULE_SRC(Target &moduleTarget);
+
+namespace privateFunctions
+{
+void SEARCH_AND_ADD_FILE_FROM_ENV_INCL_TO_TARGET_MODULE_SRC(Target &moduleTarget, const string &moduleFileName);
+}
+template <same_as<char const *>... U>
+void SEARCH_AND_ADD_FILES_FROM_ENV_INCL_TO_TARGET_MODULE_SRC(Target &moduleTarget, U... moduleFileString)
+{
+    (privateFunctions::SEARCH_AND_ADD_FILE_FROM_ENV_INCL_TO_TARGET_MODULE_SRC(moduleTarget, moduleFileString), ...);
 }
 
 #endif // HMAKE_CONFIGURE_HPP
