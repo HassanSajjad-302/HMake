@@ -92,28 +92,28 @@ int main()
             Version ver{19, 30, 30705};
             compilersDetected.push_back(Compiler{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.32.31326\bin\Hostx64\x64\cl.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.33.31629\bin\Hostx64\x64\cl.exe)"});
             linkersDetected.push_back(Linker{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.32.31326\bin\Hostx64\x64\link.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.33.31629\bin\Hostx64\x64\link.exe)"});
             archiversDetected.push_back(Archiver{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.32.31326\bin\Hostx64\x64\lib.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.33.31629\bin\Hostx64\x64\lib.exe)"});
         }
 
-        j["SOURCE_DIRECTORY"] = "../";
-        j["PACKAGE_COPY"] = true;
-        j["PACKAGE_COPY_PATH"] = current_path().lexically_normal().generic_string() + "/install/";
-        j["CONFIGURATION"] = "RELEASE";
-        j["COMPILER_ARRAY"] = compilersDetected;
-        j["COMPILER_SELECTED_ARRAY_INDEX"] = 0;
-        j["LINKER_ARRAY"] = linkersDetected;
-        j["LINKER_SELECTED_ARRAY_INDEX"] = 0;
-        j["ARCHIVER_ARRAY"] = archiversDetected;
-        j["ARCHIVER_SELECTED_ARRAY_INDEX"] = 0;
-        j["LIBRARY_TYPE"] = "STATIC";
+        j[JConsts::sourceDirectory] = "../";
+        j[JConsts::packageCopy] = true;
+        j[JConsts::packageCopyPath] = current_path().lexically_normal().generic_string() + "/install/";
+        j[JConsts::configuration] = JConsts::release;
+        j[JConsts::compilerArray] = compilersDetected;
+        j[JConsts::compilerSelectedArrayIndex] = 0;
+        j[JConsts::linkerArray] = linkersDetected;
+        j[JConsts::linkerSelectedArrayIndex] = 0;
+        j[JConsts::archiverArray] = archiversDetected;
+        j[JConsts::archiverSelectedArrayIndex] = 0;
+        j[JConsts::libraryType] = JConsts::static_;
 
-        j["CACHE_VARIABLES"] = Json::object();
+        j[JConsts::cacheVariables] = Json::object();
 
         vector<string> compileConfigureCommands;
 
@@ -139,7 +139,7 @@ int main()
 
             string compileCommand =
                 "\"C:\\Program Files\\Microsoft Visual "
-                "Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.32.31326\\bin\\Hostx64\\x64\\cl.exe\"";
+                "Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.33.31629\\bin\\Hostx64\\x64\\cl.exe\"";
 
             for (const auto &dir : environment.includeDirectories)
             {
@@ -159,7 +159,7 @@ int main()
             compileConfigureCommands.push_back(compileCommand);
         }
 
-        j["COMPILE_CONFIGURE_COMMANDS"] = compileConfigureCommands;
+        j[JConsts::compileConfigureCommands] = compileConfigureCommands;
         ofstream("cache.hmake") << j.dump(4);
     }
     else
@@ -167,7 +167,7 @@ int main()
 
         Json cacheJson;
         ifstream("cache.hmake") >> cacheJson;
-        path sourceDirPath = cacheJson.at("SOURCE_DIRECTORY").get<string>();
+        path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
         if (sourceDirPath.is_relative())
         {
             sourceDirPath = absolute(sourceDirPath);
@@ -178,7 +178,7 @@ int main()
         string srcDirString = "{SOURCE_DIRECTORY}";
         string confDirString = "{CONFIGURE_DIRECTORY}";
 
-        vector<string> compileConfigureCommands = cacheJson.at("COMPILE_CONFIGURE_COMMANDS").get<vector<string>>();
+        vector<string> compileConfigureCommands = cacheJson.at(JConsts::compileConfigureCommands).get<vector<string>>();
 
         if (!compileConfigureCommands.empty())
         {

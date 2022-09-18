@@ -150,15 +150,15 @@ void to_json(Json &j, const DependencyType &p)
 {
     if (p == DependencyType::PUBLIC)
     {
-        j = "PUBLIC";
+        j = JConsts::public_;
     }
     else if (p == DependencyType::PRIVATE)
     {
-        j = "PRIVATE";
+        j = JConsts::private_;
     }
     else
     {
-        j = "INTERFACE";
+        j = JConsts::interface;
     }
 }
 
@@ -184,35 +184,35 @@ CompileDefinitionDependency::CompileDefinitionDependency(const CompileDefinition
 
 void to_json(Json &j, const CompileDefinition &cd)
 {
-    j["NAME"] = cd.name;
-    j["VALUE"] = cd.value;
+    j[JConsts::name] = cd.name;
+    j[JConsts::value] = cd.value;
 }
 
 void from_json(const Json &j, CompileDefinition &cd)
 {
-    cd.name = j.at("NAME").get<string>();
-    cd.value = j.at("VALUE").get<string>();
+    cd.name = j.at(JConsts::name).get<string>();
+    cd.value = j.at(JConsts::value).get<string>();
 }
 
 void to_json(Json &json, const OSFamily &bTFamily)
 {
     if (bTFamily == OSFamily::WINDOWS)
     {
-        json = "WINDOWS";
+        json = JConsts::windows;
     }
     else if (bTFamily == OSFamily::LINUX_UNIX)
     {
-        json = "LINUX_UNIX";
+        json = JConsts::linuxUnix;
     }
 }
 
 void from_json(const Json &json, OSFamily &bTFamily)
 {
-    if (json == "WINDOWS")
+    if (json == JConsts::windows)
     {
         bTFamily = OSFamily::WINDOWS;
     }
-    else if (json == "LINUX_UNIX")
+    else if (json == JConsts::linuxUnix)
     {
         bTFamily = OSFamily::LINUX_UNIX;
     }
@@ -222,29 +222,29 @@ void to_json(Json &json, const BTFamily &bTFamily)
 {
     if (bTFamily == BTFamily::GCC)
     {
-        json = "GCC";
+        json = JConsts::gcc;
     }
     else if (bTFamily == BTFamily::MSVC)
     {
-        json = "MSVC";
+        json = JConsts::msvc;
     }
     else
     {
-        json = "CLANG";
+        json = JConsts::clang;
     }
 }
 
 void from_json(const Json &json, BTFamily &bTFamily)
 {
-    if (json == "GCC")
+    if (json == JConsts::gcc)
     {
         bTFamily = BTFamily::GCC;
     }
-    else if (json == "MSVC")
+    else if (json == JConsts::msvc)
     {
         bTFamily = BTFamily::MSVC;
     }
-    else if (json == "CLANG")
+    else if (json == JConsts::clang)
     {
         bTFamily = BTFamily::CLANG;
     }
@@ -252,37 +252,37 @@ void from_json(const Json &json, BTFamily &bTFamily)
 
 void to_json(Json &json, const BuildTool &buildTool)
 {
-    json["FAMILY"] = buildTool.bTFamily;
-    json["PATH"] = buildTool.bTPath.generic_string();
-    json["VERSION"] = buildTool.bTVersion;
+    json[JConsts::family] = buildTool.bTFamily;
+    json[JConsts::path] = buildTool.bTPath.generic_string();
+    json[JConsts::version] = buildTool.bTVersion;
 }
 
 void from_json(const Json &json, BuildTool &buildTool)
 {
-    buildTool.bTPath = json.at("PATH").get<string>();
-    buildTool.bTFamily = json.at("FAMILY").get<BTFamily>();
-    buildTool.bTVersion = json.at("VERSION").get<Version>();
+    buildTool.bTPath = json.at(JConsts::path).get<string>();
+    buildTool.bTFamily = json.at(JConsts::family).get<BTFamily>();
+    buildTool.bTVersion = json.at(JConsts::version).get<Version>();
 }
 
 void to_json(Json &json, const LibraryType &libraryType)
 {
     if (libraryType == LibraryType::STATIC)
     {
-        json = "STATIC";
+        json = JConsts::static_;
     }
     else
     {
-        json = "SHARED";
+        json = JConsts::shared;
     }
 }
 
 void from_json(const Json &json, LibraryType &libraryType)
 {
-    if (json == "STATIC")
+    if (json == JConsts::static_)
     {
         libraryType = LibraryType::STATIC;
     }
-    else if (json == "SHARED")
+    else if (json == JConsts::shared)
     {
         libraryType = LibraryType::SHARED;
     }
@@ -292,21 +292,21 @@ void to_json(Json &json, const ConfigType &configType)
 {
     if (configType == ConfigType::DEBUG)
     {
-        json = "DEBUG";
+        json = JConsts::debug;
     }
     else
     {
-        json = "RELEASE";
+        json = JConsts::release;
     }
 }
 
 void from_json(const Json &json, ConfigType &configType)
 {
-    if (json == "DEBUG")
+    if (json == JConsts::debug)
     {
         configType = ConfigType::DEBUG;
     }
-    else if (json == "RELEASE")
+    else if (json == JConsts::release)
     {
         configType = ConfigType::RELEASE;
     }
@@ -433,8 +433,8 @@ Json Target::convertToJson(unsigned long variantIndex) const
                 }
             }
             Json libDepObject;
-            libDepObject["PREBUILT"] = false;
-            libDepObject["PATH"] = (Cache::configureDirectory.directoryPath / to_string(variantIndex) /
+            libDepObject[JConsts::prebuilt] = false;
+            libDepObject[JConsts::path] = (Cache::configureDirectory.directoryPath / to_string(variantIndex) /
                                     library.targetName / path(library.targetName + ".hmake"))
                                        .generic_string();
 
@@ -455,8 +455,8 @@ Json Target::convertToJson(unsigned long variantIndex) const
                     compileDefinitionsArray.emplace_back(compileDefinitionObject);
                 }
                 Json libDepObject;
-                libDepObject["PREBUILT"] = true;
-                libDepObject["PATH"] = pLibrary.libraryPath.generic_string();
+                libDepObject[JConsts::prebuilt] = true;
+                libDepObject[JConsts::path] = pLibrary.libraryPath.generic_string();
                 dependenciesArray.emplace_back(libDepObject);
             };
             const PLibrary &pLibrary =
@@ -465,26 +465,26 @@ Json Target::convertToJson(unsigned long variantIndex) const
         }
     }
 
-    targetFileJson["TARGET_TYPE"] = targetType;
-    targetFileJson["OUTPUT_NAME"] = outputName;
-    targetFileJson["OUTPUT_DIRECTORY"] = outputDirectory;
-    targetFileJson["CONFIGURATION"] = configurationType;
-    targetFileJson["COMPILER"] = compiler;
-    targetFileJson["LINKER"] = linker;
-    targetFileJson["ARCHIVER"] = archiver;
-    targetFileJson["ENVIRONMENT"] = environment;
-    targetFileJson["COMPILER_FLAGS"] = flags.compilerFlags[compiler.bTFamily][configurationType];
-    targetFileJson["LINKER_FLAGS"] = flags.linkerFlags[linker.bTFamily][configurationType];
+    targetFileJson[JConsts::targetType] = targetType;
+    targetFileJson[JConsts::outputName] = outputName;
+    targetFileJson[JConsts::outputDirectory] = outputDirectory;
+    targetFileJson[JConsts::configuration] = configurationType;
+    targetFileJson[JConsts::compiler] = compiler;
+    targetFileJson[JConsts::linker] = linker;
+    targetFileJson[JConsts::archiver] = archiver;
+    targetFileJson[JConsts::environment] = environment;
+    targetFileJson[JConsts::compilerFlags] = flags.compilerFlags[compiler.bTFamily][configurationType];
+    targetFileJson[JConsts::linkerFlags] = flags.linkerFlags[linker.bTFamily][configurationType];
     sourceAggregate.convertToJson(targetFileJson);
     moduleAggregate.convertToJson(targetFileJson);
-    targetFileJson["LIBRARY_DEPENDENCIES"] = dependenciesArray;
-    targetFileJson["INCLUDE_DIRECTORIES"] = includeDirectories;
-    targetFileJson["COMPILER_TRANSITIVE_FLAGS"] = compilerFlags;
-    targetFileJson["LINKER_TRANSITIVE_FLAGS"] = linkerFlags;
-    targetFileJson["COMPILE_DEFINITIONS"] = compileDefinitionsArray;
-    targetFileJson["PRE_BUILD_CUSTOM_COMMANDS"] = convertCustomTargetsToJson(preBuild, VariantMode::PROJECT);
-    targetFileJson["POST_BUILD_CUSTOM_COMMANDS"] = convertCustomTargetsToJson(postBuild, VariantMode::PROJECT);
-    targetFileJson["VARIANT"] = "PROJECT";
+    targetFileJson[JConsts::libraryDependencies] = dependenciesArray;
+    targetFileJson[JConsts::includeDirectories] = includeDirectories;
+    targetFileJson[JConsts::compilerTransitiveFlags] = compilerFlags;
+    targetFileJson[JConsts::linkerTransitiveFlags] = linkerFlags;
+    targetFileJson[JConsts::compileDefinitions] = compileDefinitionsArray;
+    targetFileJson[JConsts::preBuildCustomCommands] = convertCustomTargetsToJson(preBuild, VariantMode::PROJECT);
+    targetFileJson[JConsts::postBuildCustomCommands] = convertCustomTargetsToJson(postBuild, VariantMode::PROJECT);
+    targetFileJson[JConsts::variant] = JConsts::project;
     return targetFileJson;
 }
 
@@ -495,14 +495,14 @@ SourceDirectory::SourceDirectory(const Directory &sourceDirectory_, const string
 
 void to_json(Json &j, const SourceDirectory &sourceDirectory)
 {
-    j["PATH"] = sourceDirectory.sourceDirectory;
-    j["REGEX_STRING"] = sourceDirectory.regex;
+    j[JConsts::path] = sourceDirectory.sourceDirectory;
+    j[JConsts::regexString] = sourceDirectory.regex;
 }
 
 void from_json(const Json &j, SourceDirectory &sourceDirectory)
 {
-    sourceDirectory.sourceDirectory = Directory(j.at("PATH").get<string>());
-    sourceDirectory.regex = j.at("REGEX_STRING").get<string>();
+    sourceDirectory.sourceDirectory = Directory(j.at(JConsts::path).get<string>());
+    sourceDirectory.regex = j.at(JConsts::regexString).get<string>();
 }
 
 bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs)
@@ -553,41 +553,41 @@ void to_json(Json &j, const TargetType &targetType)
 {
     if (targetType == TargetType::EXECUTABLE)
     {
-        j = "EXECUTABLE";
+        j = JConsts::executable;
     }
     else if (targetType == TargetType::STATIC)
     {
-        j = "STATIC";
+        j = JConsts::static_;
     }
     else if (targetType == TargetType::SHARED)
     {
-        j = "SHARED";
+        j = JConsts::shared;
     }
     else if (targetType == TargetType::PLIBRARY_SHARED)
     {
-        j = "PLIBRARY_STATIC";
+        j = JConsts::plibraryStatic;
     }
     else
     {
-        j = "PLIBRARY_SHARED";
+        j = JConsts::plibraryShared;
     }
 }
 
 void from_json(const Json &j, TargetType &targetType)
 {
-    if (j == "EXECUTABLE")
+    if (j == JConsts::executable)
     {
         targetType = TargetType::EXECUTABLE;
     }
-    else if (j == "STATIC")
+    else if (j == JConsts::static_)
     {
         targetType = TargetType::STATIC;
     }
-    else if (j == "SHARED")
+    else if (j == JConsts::shared)
     {
         targetType = TargetType::SHARED;
     }
-    else if (j == "PLIBRARY_STATIC")
+    else if (j == JConsts::plibraryStatic)
     {
         targetType = TargetType::PLIBRARY_STATIC;
     }
@@ -669,24 +669,24 @@ Json Target::convertToJson(const Package &package, unsigned count) const
     for (const auto &e : includeDirectoryDependencies)
     {
         Json JIDDObject;
-        JIDDObject["PATH"] = e.includeDirectory;
+        JIDDObject[JConsts::path] = e.includeDirectory;
         if (e.dependencyType == DependencyType::PUBLIC)
         {
             if (package.cacheCommonIncludeDirs && e.includeDirectory.isCommon)
             {
                 consumerIncludeDirectories.emplace_back(
                     "../../Common/" + to_string(e.includeDirectory.commonDirectoryNumber) + "/include/");
-                JIDDObject["COPY"] = false;
+                JIDDObject[JConsts::copy] = false;
             }
             else
             {
                 consumerIncludeDirectories.emplace_back("include/");
-                JIDDObject["COPY"] = true;
+                JIDDObject[JConsts::copy] = true;
             }
         }
         else
         {
-            JIDDObject["COPY"] = false;
+            JIDDObject[JConsts::copy] = false;
         }
         includeDirectoriesArray.emplace_back(JIDDObject);
     }
@@ -728,8 +728,8 @@ Json Target::convertToJson(const Package &package, unsigned count) const
                 if (e.dependencyType == DependencyType::PUBLIC)
                 {
                     Json JIDDObject;
-                    JIDDObject["PATH"] = e.includeDirectory;
-                    JIDDObject["COPY"] = false;
+                    JIDDObject[JConsts::path] = e.includeDirectory;
+                    JIDDObject[JConsts::copy] = false;
                     includeDirectoriesArray.emplace_back(JIDDObject);
                 }
             }
@@ -760,18 +760,18 @@ Json Target::convertToJson(const Package &package, unsigned count) const
             }
 
             Json libDepObject;
-            libDepObject["PREBUILT"] = false;
+            libDepObject[JConsts::prebuilt] = false;
             Json consumeLibDepOject;
-            consumeLibDepOject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE_FROM_OTHER_HMAKE_PACKAGE"] = false;
-            consumeLibDepOject["NAME"] = library.targetName;
+            consumeLibDepOject[JConsts::importedFromOtherHmakePackageFromOtherHmakePackage] = false;
+            consumeLibDepOject[JConsts::name] = library.targetName;
             consumerDependenciesArray.emplace_back(consumeLibDepOject);
-            libDepObject["PATH"] = library.getTargetFilePathPackage(count);
+            libDepObject[JConsts::path] = library.getTargetFilePathPackage(count);
             dependenciesArray.emplace_back(libDepObject);
         }
         else
         {
             Json libDepObject;
-            libDepObject["PREBUILT"] = true;
+            libDepObject[JConsts::prebuilt] = true;
             Json consumeLibDepOject;
             if (libraryDependency->ldlt == LDLT::PLIBRARY)
             {
@@ -779,8 +779,8 @@ Json Target::convertToJson(const Package &package, unsigned count) const
                 for (const auto &e : pLibrary.includeDirectoryDependencies)
                 {
                     Json JIDDObject;
-                    JIDDObject["PATH"] = e;
-                    JIDDObject["COPY"] = false;
+                    JIDDObject[JConsts::path] = e;
+                    JIDDObject[JConsts::copy] = false;
 
                     includeDirectoriesArray.emplace_back(JIDDObject);
                 }
@@ -792,12 +792,12 @@ Json Target::convertToJson(const Package &package, unsigned count) const
                     Json compileDefinitionObject = e;
                     compileDefinitionsArray.emplace_back(compileDefinitionObject);
                 }
-                libDepObject["PATH"] = pLibrary.libraryPath.generic_string();
-                libDepObject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = false;
-                libDepObject["HMAKE_FILE_PATH"] =
+                libDepObject[JConsts::path] = pLibrary.libraryPath.generic_string();
+                libDepObject[JConsts::importedFromOtherHmakePackage] = false;
+                libDepObject[JConsts::hmakeFilePath] =
                     pLibrary.getTargetVariantDirectoryPath(count) / (pLibrary.libraryName + ".hmake");
-                consumeLibDepOject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = false;
-                consumeLibDepOject["NAME"] = pLibrary.libraryName;
+                consumeLibDepOject[JConsts::importedFromOtherHmakePackage] = false;
+                consumeLibDepOject[JConsts::name] = pLibrary.libraryName;
             }
             else
             {
@@ -805,8 +805,8 @@ Json Target::convertToJson(const Package &package, unsigned count) const
                 for (const auto &e : ppLibrary.includeDirectoryDependencies)
                 {
                     Json JIDDObject;
-                    JIDDObject["PATH"] = e;
-                    JIDDObject["COPY"] = false;
+                    JIDDObject[JConsts::path] = e;
+                    JIDDObject[JConsts::copy] = false;
                     includeDirectoriesArray.emplace_back(JIDDObject);
                 }
                 compilerFlags.append(" " + ppLibrary.compilerFlagsDependencies + " ");
@@ -817,24 +817,24 @@ Json Target::convertToJson(const Package &package, unsigned count) const
                     Json compileDefinitionObject = e;
                     compileDefinitionsArray.emplace_back(compileDefinitionObject);
                 }
-                libDepObject["PATH"] = ppLibrary.libraryPath.generic_string();
-                libDepObject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = ppLibrary.importedFromOtherHMakePackage;
+                libDepObject[JConsts::path] = ppLibrary.libraryPath.generic_string();
+                libDepObject[JConsts::importedFromOtherHmakePackage] = ppLibrary.importedFromOtherHMakePackage;
                 if (!ppLibrary.importedFromOtherHMakePackage)
                 {
-                    libDepObject["HMAKE_FILE_PATH"] =
+                    libDepObject[JConsts::hmakeFilePath] =
                         ppLibrary.getTargetVariantDirectoryPath(count) / (ppLibrary.libraryName + ".hmake");
                 }
 
-                consumeLibDepOject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = ppLibrary.importedFromOtherHMakePackage;
-                consumeLibDepOject["NAME"] = ppLibrary.libraryName;
+                consumeLibDepOject[JConsts::importedFromOtherHmakePackage] = ppLibrary.importedFromOtherHMakePackage;
+                consumeLibDepOject[JConsts::name] = ppLibrary.libraryName;
                 if (ppLibrary.importedFromOtherHMakePackage)
                 {
-                    consumeLibDepOject["PACKAGE_NAME"] = ppLibrary.packageName;
-                    consumeLibDepOject["PACKAGE_VERSION"] = ppLibrary.packageVersion;
-                    consumeLibDepOject["PACKAGE_PATH"] = ppLibrary.packagePath.generic_string();
-                    consumeLibDepOject["USE_INDEX"] = ppLibrary.useIndex;
-                    consumeLibDepOject["INDEX"] = ppLibrary.index;
-                    consumeLibDepOject["PACKAGE_VARIANT_JSON"] = ppLibrary.packageVariantJson;
+                    consumeLibDepOject[JConsts::packageName] = ppLibrary.packageName;
+                    consumeLibDepOject[JConsts::packageVersion] = ppLibrary.packageVersion;
+                    consumeLibDepOject[JConsts::packagePath] = ppLibrary.packagePath.generic_string();
+                    consumeLibDepOject[JConsts::useIndex] = ppLibrary.useIndex;
+                    consumeLibDepOject[JConsts::index] = ppLibrary.index;
+                    consumeLibDepOject[JConsts::packageVariantJson] = ppLibrary.packageVariantJson;
                 }
             }
             consumerDependenciesArray.emplace_back(consumeLibDepOject);
@@ -842,44 +842,44 @@ Json Target::convertToJson(const Package &package, unsigned count) const
         }
     }
 
-    targetFileJson["TARGET_TYPE"] = targetType;
-    targetFileJson["OUTPUT_NAME"] = outputName;
-    targetFileJson["OUTPUT_DIRECTORY"] = (path(getTargetFilePathPackage(count)).parent_path() / "").generic_string();
-    targetFileJson["CONFIGURATION"] = configurationType;
-    targetFileJson["COMPILER"] = compiler;
-    targetFileJson["LINKER"] = linker;
-    targetFileJson["ARCHIVER"] = archiver;
-    targetFileJson["ENVIRONMENT"] = environment;
-    targetFileJson["COMPILER_FLAGS"] = flags.compilerFlags[compiler.bTFamily][configurationType];
-    targetFileJson["LINKER_FLAGS"] = flags.linkerFlags[linker.bTFamily][configurationType];
+    targetFileJson[JConsts::targetType] = targetType;
+    targetFileJson[JConsts::outputName] = outputName;
+    targetFileJson[JConsts::outputDirectory] = (path(getTargetFilePathPackage(count)).parent_path() / "").generic_string();
+    targetFileJson[JConsts::configuration] = configurationType;
+    targetFileJson[JConsts::compiler] = compiler;
+    targetFileJson[JConsts::linker] = linker;
+    targetFileJson[JConsts::archiver] = archiver;
+    targetFileJson[JConsts::environment] = environment;
+    targetFileJson[JConsts::compilerFlags] = flags.compilerFlags[compiler.bTFamily][configurationType];
+    targetFileJson[JConsts::linkerFlags] = flags.linkerFlags[linker.bTFamily][configurationType];
     sourceAggregate.convertToJson(targetFileJson);
     moduleAggregate.convertToJson(targetFileJson);
-    targetFileJson["LIBRARY_DEPENDENCIES"] = dependenciesArray;
-    targetFileJson["INCLUDE_DIRECTORIES"] = includeDirectoriesArray;
-    targetFileJson["COMPILER_TRANSITIVE_FLAGS"] = compilerFlags;
-    targetFileJson["LINKER_TRANSITIVE_FLAGS"] = linkerFlags;
-    targetFileJson["COMPILE_DEFINITIONS"] = compileDefinitionsArray;
-    targetFileJson["PRE_BUILD_CUSTOM_COMMANDS"] = convertCustomTargetsToJson(preBuild, VariantMode::PACKAGE);
-    targetFileJson["POST_BUILD_CUSTOM_COMMANDS"] = convertCustomTargetsToJson(postBuild, VariantMode::PACKAGE);
+    targetFileJson[JConsts::libraryDependencies] = dependenciesArray;
+    targetFileJson[JConsts::includeDirectories] = includeDirectoriesArray;
+    targetFileJson[JConsts::compilerTransitiveFlags] = compilerFlags;
+    targetFileJson[JConsts::linkerTransitiveFlags] = linkerFlags;
+    targetFileJson[JConsts::compileDefinitions] = compileDefinitionsArray;
+    targetFileJson[JConsts::preBuildCustomCommands] = convertCustomTargetsToJson(preBuild, VariantMode::PACKAGE);
+    targetFileJson[JConsts::postBuildCustomCommands] = convertCustomTargetsToJson(postBuild, VariantMode::PACKAGE);
 
     Json consumerDependenciesJson;
 
-    consumerDependenciesJson["LIBRARY_TYPE"] = targetType;
-    consumerDependenciesJson["LIBRARY_DEPENDENCIES"] = consumerDependenciesArray;
-    consumerDependenciesJson["INCLUDE_DIRECTORIES"] = consumerIncludeDirectories;
-    consumerDependenciesJson["COMPILER_TRANSITIVE_FLAGS"] = consumerCompilerFlags;
-    consumerDependenciesJson["LINKER_TRANSITIVE_FLAGS"] = consumerLinkerFlags;
-    consumerDependenciesJson["COMPILE_DEFINITIONS"] = consumerCompileDefinitionsArray;
+    consumerDependenciesJson[JConsts::libraryType] = targetType;
+    consumerDependenciesJson[JConsts::libraryDependencies] = consumerDependenciesArray;
+    consumerDependenciesJson[JConsts::includeDirectories] = consumerIncludeDirectories;
+    consumerDependenciesJson[JConsts::compilerTransitiveFlags] = consumerCompilerFlags;
+    consumerDependenciesJson[JConsts::linkerTransitiveFlags] = consumerLinkerFlags;
+    consumerDependenciesJson[JConsts::compileDefinitions] = consumerCompileDefinitionsArray;
 
-    targetFileJson["CONSUMER_DEPENDENCIES"] = consumerDependenciesJson;
-    targetFileJson["VARIANT"] = "PACKAGE";
-    targetFileJson["PACKAGE_COPY"] = Cache::copyPackage;
+    targetFileJson[JConsts::consumerDependencies] = consumerDependenciesJson;
+    targetFileJson[JConsts::variant] = JConsts::package;
+    targetFileJson[JConsts::packageCopy] = Cache::copyPackage;
     if (Cache::copyPackage)
     {
-        targetFileJson["PACKAGE_NAME"] = package.name;
-        targetFileJson["PACKAGE_VERSION"] = package.version;
-        targetFileJson["PACKAGE_COPY_PATH"] = Cache::packageCopyPath;
-        targetFileJson["PACKAGE_VARIANT_INDEX"] = count;
+        targetFileJson[JConsts::packageName] = package.name;
+        targetFileJson[JConsts::packageVersion] = package.version;
+        targetFileJson[JConsts::packageCopyPath] = Cache::packageCopyPath;
+        targetFileJson[JConsts::packageVariantIndex] = count;
     }
     return targetFileJson;
 }
@@ -1265,7 +1265,7 @@ void Cache::initializeCache()
     Json cacheFileJson;
     ifstream(filePath) >> cacheFileJson;
 
-    path srcDirPath = cacheFileJson.at("SOURCE_DIRECTORY").get<string>();
+    path srcDirPath = cacheFileJson.at(JConsts::sourceDirectory).get<string>();
     if (srcDirPath.is_relative())
     {
         srcDirPath = (current_path() / srcDirPath).lexically_normal();
@@ -1277,21 +1277,21 @@ void Cache::initializeCache()
     srcDir = srcDirPath.generic_string();
     configureDir = configureDirectory.directoryPath.generic_string();
 
-    Cache::copyPackage = cacheFileJson.at("PACKAGE_COPY").get<bool>();
+    Cache::copyPackage = cacheFileJson.at(JConsts::packageCopy).get<bool>();
     if (copyPackage)
     {
-        packageCopyPath = cacheFileJson.at("PACKAGE_COPY_PATH").get<string>();
+        packageCopyPath = cacheFileJson.at(JConsts::packageCopyPath).get<string>();
     }
 
-    Cache::projectConfigurationType = cacheFileJson.at("CONFIGURATION").get<ConfigType>();
-    Cache::compilerArray = cacheFileJson.at("COMPILER_ARRAY").get<vector<Compiler>>();
-    Cache::selectedCompilerArrayIndex = cacheFileJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
-    Cache::linkerArray = cacheFileJson.at("LINKER_ARRAY").get<vector<Linker>>();
-    Cache::selectedLinkerArrayIndex = cacheFileJson.at("COMPILER_SELECTED_ARRAY_INDEX").get<int>();
-    Cache::archiverArray = cacheFileJson.at("ARCHIVER_ARRAY").get<vector<Archiver>>();
-    Cache::selectedArchiverArrayIndex = cacheFileJson.at("ARCHIVER_SELECTED_ARRAY_INDEX").get<int>();
-    Cache::libraryType = cacheFileJson.at("LIBRARY_TYPE").get<LibraryType>();
-    Cache::cacheVariables = cacheFileJson.at("CACHE_VARIABLES").get<Json>();
+    Cache::projectConfigurationType = cacheFileJson.at(JConsts::configuration).get<ConfigType>();
+    Cache::compilerArray = cacheFileJson.at(JConsts::compilerArray).get<vector<Compiler>>();
+    Cache::selectedCompilerArrayIndex = cacheFileJson.at(JConsts::compilerSelectedArrayIndex).get<int>();
+    Cache::linkerArray = cacheFileJson.at(JConsts::linkerArray).get<vector<Linker>>();
+    Cache::selectedLinkerArrayIndex = cacheFileJson.at(JConsts::compilerSelectedArrayIndex).get<int>();
+    Cache::archiverArray = cacheFileJson.at(JConsts::archiverArray).get<vector<Archiver>>();
+    Cache::selectedArchiverArrayIndex = cacheFileJson.at(JConsts::archiverSelectedArrayIndex).get<int>();
+    Cache::libraryType = cacheFileJson.at(JConsts::libraryType).get<LibraryType>();
+    Cache::cacheVariables = cacheFileJson.at(JConsts::cacheVariables).get<Json>();
 #ifdef _WIN32
     Cache::environment = Environment::initializeEnvironmentFromVSBatchCommand(
         R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64)");
@@ -1310,7 +1310,7 @@ void Cache::registerCacheVariables()
     path filePath = current_path() / "cache.hmake";
     Json cacheFileJson;
     ifstream(filePath) >> cacheFileJson;
-    cacheFileJson["CACHE_VARIABLES"] = Cache::cacheVariables;
+    cacheFileJson[JConsts::cacheVariables] = Cache::cacheVariables;
     ofstream(filePath) << cacheFileJson.dump(4);
 }
 
@@ -1525,16 +1525,16 @@ void Variant::configure(VariantMode mode, unsigned long variantCount, const clas
     }
 
     Json variantJson;
-    variantJson["CONFIGURATION"] = configurationType;
-    variantJson["COMPILER"] = compiler;
-    variantJson["LINKER"] = linker;
-    variantJson["ARCHIVER"] = archiver;
+    variantJson[JConsts::configuration] = configurationType;
+    variantJson[JConsts::compiler] = compiler;
+    variantJson[JConsts::linker] = linker;
+    variantJson[JConsts::archiver] = archiver;
     string compilerFlags = flags.compilerFlags[compiler.bTFamily][configurationType];
-    variantJson["COMPILER_FLAGS"] = compilerFlags;
+    variantJson[JConsts::compilerFlags] = compilerFlags;
     string linkerFlags = flags.linkerFlags[linker.bTFamily][configurationType];
-    variantJson["LINKER_FLAGS"] = linkerFlags;
-    variantJson["LIBRARY_TYPE"] = libraryType;
-    variantJson["ENVIRONMENT"] = environment;
+    variantJson[JConsts::linkerFlags] = linkerFlags;
+    variantJson[JConsts::libraryType] = libraryType;
+    variantJson[JConsts::environment] = environment;
 
     vector<string> targetArray;
 
@@ -1557,8 +1557,8 @@ void Variant::configure(VariantMode mode, unsigned long variantCount, const clas
     {
         targetsWithModulesStringVector.emplace_back(target->getTargetFilePath(variantCount));
     }
-    variantJson["TARGETS"] = targetArray;
-    variantJson["TARGETS_WITH_MODULES"] = targetsWithModulesStringVector;
+    variantJson[JConsts::targets] = targetArray;
+    variantJson[JConsts::targetsWithModules] = targetsWithModulesStringVector;
 
     path variantFilePath;
     if (mode == VariantMode::PROJECT)
@@ -1668,18 +1668,18 @@ Environment Environment::initializeEnvironmentOnLinux()
 
 void to_json(Json &j, const Environment &environment)
 {
-    j["INCLUDE_DIRECTORIES"] = environment.includeDirectories;
-    j["LIBRARY_DIRECTORIES"] = environment.libraryDirectories;
-    j["COMPILER_FLAGS"] = environment.compilerFlags;
-    j["LINKER_FLAGS"] = environment.linkerFlags;
+    j[JConsts::includeDirectories] = environment.includeDirectories;
+    j[JConsts::libraryDirectories] = environment.libraryDirectories;
+    j[JConsts::compilerFlags] = environment.compilerFlags;
+    j[JConsts::linkerFlags] = environment.linkerFlags;
 }
 
 void from_json(const Json &j, Environment &environment)
 {
-    environment.includeDirectories = j.at("INCLUDE_DIRECTORIES").get<set<Directory>>();
-    environment.libraryDirectories = j.at("LIBRARY_DIRECTORIES").get<set<Directory>>();
-    environment.compilerFlags = j.at("COMPILER_FLAGS").get<string>();
-    environment.linkerFlags = j.at("LINKER_FLAGS").get<string>();
+    environment.includeDirectories = j.at(JConsts::includeDirectories).get<set<Directory>>();
+    environment.libraryDirectories = j.at(JConsts::libraryDirectories).get<set<Directory>>();
+    environment.compilerFlags = j.at(JConsts::compilerFlags).get<string>();
+    environment.linkerFlags = j.at(JConsts::linkerFlags).get<string>();
 }
 
 void Project::configure()
@@ -1694,7 +1694,7 @@ void Project::configure()
     {
         projectVariantsInt.emplace_back(to_string(i));
     }
-    projectFileJson["VARIANTS"] = projectVariantsInt;
+    projectFileJson[JConsts::variants] = projectVariantsInt;
     ofstream(Cache::configureDirectory.directoryPath / "project.hmake") << projectFileJson.dump(4);
 }
 
@@ -1810,9 +1810,9 @@ void Package::configureCommonAmongVariants()
         }
 
         Json commonDirJsonObject;
-        commonDirJsonObject["INDEX"] = i;
-        commonDirJsonObject["PATH"] = *packageCommonIncludeDirs[i].directories[0];
-        commonDirJsonObject["VARIANTS_INDICES"] = packageCommonIncludeDirs[i].variantsIndices;
+        commonDirJsonObject[JConsts::index] = i;
+        commonDirJsonObject[JConsts::path] = *packageCommonIncludeDirs[i].directories[0];
+        commonDirJsonObject[JConsts::variantsIndices] = packageCommonIncludeDirs[i].variantsIndices;
         commonDirsJson.emplace_back(commonDirJsonObject);
     }
     create_directory(Cache::configureDirectory.directoryPath / "Package");
@@ -1828,21 +1828,21 @@ void Package::configure()
     int count = 0;
     for (auto &i : packageVariants)
     {
-        if (i.uniqueJson.contains("INDEX"))
+        if (i.uniqueJson.contains(JConsts::index))
         {
             cerr << "Package Variant Json can not have COUNT in it's Json." << endl;
             exit(EXIT_FAILURE);
         }
-        i.uniqueJson["INDEX"] = to_string(count);
+        i.uniqueJson[JConsts::index] = to_string(count);
         packageVariantJson.emplace_back(i.uniqueJson);
         ++count;
     }
-    packageFileJson["NAME"] = name;
-    packageFileJson["VERSION"] = version;
-    packageFileJson["CACHE_INCLUDES"] = cacheCommonIncludeDirs;
-    packageFileJson["PACKAGE_COPY"] = Cache::copyPackage;
-    packageFileJson["PACKAGE_COPY_PATH"] = Cache::packageCopyPath;
-    packageFileJson["VARIANTS"] = packageVariantJson;
+    packageFileJson[JConsts::name] = name;
+    packageFileJson[JConsts::version] = version;
+    packageFileJson[JConsts::cacheIncludes] = cacheCommonIncludeDirs;
+    packageFileJson[JConsts::packageCopy] = Cache::copyPackage;
+    packageFileJson[JConsts::packageCopyPath] = Cache::packageCopyPath;
+    packageFileJson[JConsts::variants] = packageVariantJson;
     path packageDirectorypath = Cache::configureDirectory.directoryPath / "Package";
     create_directory(packageDirectorypath);
     Directory packageDirectory(packageDirectorypath);
@@ -1926,17 +1926,17 @@ Json PLibrary::convertToJson(const Package &package, unsigned count) const
     for (const auto &e : includeDirectoryDependencies)
     {
         Json JIDDObject;
-        JIDDObject["PATH"] = e;
-        JIDDObject["COPY"] = true;
+        JIDDObject[JConsts::path] = e;
+        JIDDObject[JConsts::copy] = true;
         if (package.cacheCommonIncludeDirs && e.isCommon)
         {
             consumerIncludeDirectories.emplace_back("../../Common/" + to_string(e.commonDirectoryNumber) + "/include/");
-            JIDDObject["COPY"] = false;
+            JIDDObject[JConsts::copy] = false;
         }
         else
         {
             consumerIncludeDirectories.emplace_back("include/");
-            JIDDObject["COPY"] = true;
+            JIDDObject[JConsts::copy] = true;
         }
         includeDirectoriesArray.emplace_back(JIDDObject);
     }
@@ -1962,25 +1962,25 @@ Json PLibrary::convertToJson(const Package &package, unsigned count) const
                 if (e.dependencyType == DependencyType::PUBLIC)
                 {
                     Json JIDDObject;
-                    JIDDObject["PATH"] = e.includeDirectory;
-                    JIDDObject["COPY"] = false;
+                    JIDDObject[JConsts::path] = e.includeDirectory;
+                    JIDDObject[JConsts::copy] = false;
                     includeDirectoriesArray.emplace_back(JIDDObject);
                 }
             }
 
             Json libDepObject;
-            libDepObject["PREBUILT"] = false;
+            libDepObject[JConsts::prebuilt] = false;
             Json consumeLibDepOject;
-            consumeLibDepOject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = false;
-            consumeLibDepOject["NAME"] = library.targetName;
+            consumeLibDepOject[JConsts::importedFromOtherHmakePackage] = false;
+            consumeLibDepOject[JConsts::name] = library.targetName;
             consumerDependenciesArray.emplace_back(consumeLibDepOject);
-            libDepObject["PATH"] = library.getTargetFilePathPackage(count);
+            libDepObject[JConsts::path] = library.getTargetFilePathPackage(count);
             dependenciesArray.emplace_back(libDepObject);
         }
         else
         {
             Json libDepObject;
-            libDepObject["PREBUILT"] = true;
+            libDepObject[JConsts::prebuilt] = true;
             Json consumeLibDepOject;
             if (libraryDependency->ldlt == LDLT::PLIBRARY)
             {
@@ -1988,18 +1988,18 @@ Json PLibrary::convertToJson(const Package &package, unsigned count) const
                 for (const auto &e : pLibrary.includeDirectoryDependencies)
                 {
                     Json JIDDObject;
-                    JIDDObject["PATH"] = e;
-                    JIDDObject["COPY"] = false;
+                    JIDDObject[JConsts::path] = e;
+                    JIDDObject[JConsts::copy] = false;
 
                     includeDirectoriesArray.emplace_back(JIDDObject);
                 }
 
-                libDepObject["PATH"] = pLibrary.libraryPath.generic_string();
-                libDepObject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = false;
-                libDepObject["HMAKE_FILE_PATH"] =
+                libDepObject[JConsts::path] = pLibrary.libraryPath.generic_string();
+                libDepObject[JConsts::importedFromOtherHmakePackage] = false;
+                libDepObject[JConsts::hmakeFilePath] =
                     pLibrary.getTargetVariantDirectoryPath(count) / (pLibrary.libraryName + ".hmake");
-                consumeLibDepOject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = false;
-                consumeLibDepOject["NAME"] = pLibrary.libraryName;
+                consumeLibDepOject[JConsts::importedFromOtherHmakePackage] = false;
+                consumeLibDepOject[JConsts::name] = pLibrary.libraryName;
             }
             else
             {
@@ -2007,29 +2007,29 @@ Json PLibrary::convertToJson(const Package &package, unsigned count) const
                 for (const auto &e : ppLibrary.includeDirectoryDependencies)
                 {
                     Json JIDDObject;
-                    JIDDObject["PATH"] = e;
-                    JIDDObject["COPY"] = false;
+                    JIDDObject[JConsts::path] = e;
+                    JIDDObject[JConsts::copy] = false;
                     includeDirectoriesArray.emplace_back(JIDDObject);
                 }
 
-                libDepObject["PATH"] = ppLibrary.libraryPath.generic_string();
-                libDepObject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = ppLibrary.importedFromOtherHMakePackage;
+                libDepObject[JConsts::path] = ppLibrary.libraryPath.generic_string();
+                libDepObject[JConsts::importedFromOtherHmakePackage] = ppLibrary.importedFromOtherHMakePackage;
                 if (!ppLibrary.importedFromOtherHMakePackage)
                 {
-                    libDepObject["HMAKE_FILE_PATH"] =
+                    libDepObject[JConsts::hmakeFilePath] =
                         ppLibrary.getTargetVariantDirectoryPath(count) / (ppLibrary.libraryName + ".hmake");
                 }
 
-                consumeLibDepOject["IMPORTED_FROM_OTHER_HMAKE_PACKAGE"] = ppLibrary.importedFromOtherHMakePackage;
-                consumeLibDepOject["NAME"] = ppLibrary.libraryName;
+                consumeLibDepOject[JConsts::importedFromOtherHmakePackage] = ppLibrary.importedFromOtherHMakePackage;
+                consumeLibDepOject[JConsts::name] = ppLibrary.libraryName;
                 if (ppLibrary.importedFromOtherHMakePackage)
                 {
-                    consumeLibDepOject["PACKAGE_NAME"] = ppLibrary.packageName;
-                    consumeLibDepOject["PACKAGE_VERSION"] = ppLibrary.packageVersion;
-                    consumeLibDepOject["PACKAGE_PATH"] = ppLibrary.packagePath.generic_string();
-                    consumeLibDepOject["USE_INDEX"] = ppLibrary.useIndex;
-                    consumeLibDepOject["INDEX"] = ppLibrary.index;
-                    consumeLibDepOject["PACKAGE_VARIANT_JSON"] = ppLibrary.packageVariantJson;
+                    consumeLibDepOject[JConsts::packageName] = ppLibrary.packageName;
+                    consumeLibDepOject[JConsts::packageVersion] = ppLibrary.packageVersion;
+                    consumeLibDepOject[JConsts::packagePath] = ppLibrary.packagePath.generic_string();
+                    consumeLibDepOject[JConsts::useIndex] = ppLibrary.useIndex;
+                    consumeLibDepOject[JConsts::index] = ppLibrary.index;
+                    consumeLibDepOject[JConsts::packageVariantJson] = ppLibrary.packageVariantJson;
                 }
             }
             consumerDependenciesArray.emplace_back(consumeLibDepOject);
@@ -2037,29 +2037,29 @@ Json PLibrary::convertToJson(const Package &package, unsigned count) const
         }
     }
 
-    targetFileJson["TARGET_TYPE"] = targetType;
-    targetFileJson["NAME"] = libraryName;
-    targetFileJson["PATH"] = libraryPath.generic_string();
-    targetFileJson["LIBRARY_DEPENDENCIES"] = dependenciesArray;
-    targetFileJson["INCLUDE_DIRECTORIES"] = includeDirectoriesArray;
+    targetFileJson[JConsts::targetType] = targetType;
+    targetFileJson[JConsts::name] = libraryName;
+    targetFileJson[JConsts::path] = libraryPath.generic_string();
+    targetFileJson[JConsts::libraryDependencies] = dependenciesArray;
+    targetFileJson[JConsts::includeDirectories] = includeDirectoriesArray;
 
     Json consumerDependenciesJson;
-    consumerDependenciesJson["LIBRARY_TYPE"] = libraryType;
-    consumerDependenciesJson["LIBRARY_DEPENDENCIES"] = consumerDependenciesArray;
-    consumerDependenciesJson["INCLUDE_DIRECTORIES"] = consumerIncludeDirectories;
-    consumerDependenciesJson["COMPILER_TRANSITIVE_FLAGS"] = consumerCompilerFlags;
-    consumerDependenciesJson["LINKER_TRANSITIVE_FLAGS"] = consumerLinkerFlags;
-    consumerDependenciesJson["COMPILE_DEFINITIONS"] = consumerCompileDefinitionsArray;
+    consumerDependenciesJson[JConsts::libraryType] = libraryType;
+    consumerDependenciesJson[JConsts::libraryDependencies] = consumerDependenciesArray;
+    consumerDependenciesJson[JConsts::includeDirectories] = consumerIncludeDirectories;
+    consumerDependenciesJson[JConsts::compilerTransitiveFlags] = consumerCompilerFlags;
+    consumerDependenciesJson[JConsts::linkerTransitiveFlags] = consumerLinkerFlags;
+    consumerDependenciesJson[JConsts::compileDefinitions] = consumerCompileDefinitionsArray;
 
-    targetFileJson["CONSUMER_DEPENDENCIES"] = consumerDependenciesJson;
-    targetFileJson["VARIANT"] = "PACKAGE";
-    targetFileJson["PACKAGE_COPY"] = Cache::copyPackage;
+    targetFileJson[JConsts::consumerDependencies] = consumerDependenciesJson;
+    targetFileJson[JConsts::variant] = JConsts::package;
+    targetFileJson[JConsts::packageCopy] = Cache::copyPackage;
     if (Cache::copyPackage)
     {
-        targetFileJson["PACKAGE_NAME"] = package.name;
-        targetFileJson["PACKAGE_VERSION"] = package.version;
-        targetFileJson["PACKAGE_COPY_PATH"] = Cache::packageCopyPath;
-        targetFileJson["PACKAGE_VARIANT_INDEX"] = count;
+        targetFileJson[JConsts::packageName] = package.name;
+        targetFileJson[JConsts::packageVersion] = package.version;
+        targetFileJson[JConsts::packageCopyPath] = Cache::packageCopyPath;
+        targetFileJson[JConsts::packageVariantIndex] = count;
     }
     return targetFileJson;
 }
@@ -2136,7 +2136,7 @@ PPLibrary::PPLibrary(string libraryName_, const CPackage &cPackage, const CPVari
     Json libraryFileJson;
     ifstream(libraryFilePath) >> libraryFileJson;
 
-    if (libraryFileJson.at("LIBRARY_TYPE").get<string>() == "STATIC")
+    if (libraryFileJson.at(JConsts::libraryType).get<string>() == JConsts::static_)
     {
         libraryType = LibraryType::STATIC;
     }
@@ -2144,43 +2144,43 @@ PPLibrary::PPLibrary(string libraryName_, const CPackage &cPackage, const CPVari
     {
         libraryType = LibraryType::SHARED;
     }
-    Json libDependencies = libraryFileJson.at("LIBRARY_DEPENDENCIES").get<Json>();
+    Json libDependencies = libraryFileJson.at(JConsts::libraryDependencies).get<Json>();
     for (auto &i : libDependencies)
     {
-        bool isImported = i.at("IMPORTED_FROM_OTHER_HMAKE_PACKAGE").get<bool>();
+        bool isImported = i.at(JConsts::importedFromOtherHmakePackage).get<bool>();
         if (!isImported)
         {
-            string dependencyLibraryName = i.at("NAME").get<string>();
+            string dependencyLibraryName = i.at(JConsts::name).get<string>();
             PPLibrary ppLibrary(dependencyLibraryName, cPackage, cpVariant);
             libraryDependencies.emplace_back(ppLibrary, DependencyType::PUBLIC);
         }
         else
         {
-            CPackage pack(i.at("PACKAGE_PATH").get<string>());
-            string libName = i.at("NAME").get<string>();
-            if (i.at("USE_INDEX").get<bool>())
+            CPackage pack(i.at(JConsts::packagePath).get<string>());
+            string libName = i.at(JConsts::name).get<string>();
+            if (i.at(JConsts::useIndex).get<bool>())
             {
-                PPLibrary ppLibrary(libName, pack, pack.getVariant(i.at("INDEX").get<int>()));
+                PPLibrary ppLibrary(libName, pack, pack.getVariant(i.at(JConsts::index).get<int>()));
                 libraryDependencies.emplace_back(ppLibrary, DependencyType::PUBLIC);
             }
             else
             {
-                PPLibrary ppLibrary(libName, pack, pack.getVariant(i.at("PACKAGE_VARIANT_JSON").get<Json>()));
+                PPLibrary ppLibrary(libName, pack, pack.getVariant(i.at(JConsts::packageVariantJson).get<Json>()));
                 libraryDependencies.emplace_back(ppLibrary, DependencyType::PUBLIC);
             }
         }
     }
-    vector<string> includeDirs = libraryFileJson.at("INCLUDE_DIRECTORIES").get<vector<string>>();
+    vector<string> includeDirs = libraryFileJson.at(JConsts::includeDirectories).get<vector<string>>();
     for (auto &i : includeDirs)
     {
         Directory dir(libraryDirectoryPath / i);
         includeDirectoryDependencies.emplace_back(dir);
     }
-    compilerFlagsDependencies = libraryFileJson.at("COMPILER_TRANSITIVE_FLAGS").get<string>();
-    linkerFlagsDependencies = libraryFileJson.at("LINKER_TRANSITIVE_FLAGS").get<string>();
-    if (!libraryFileJson.at("COMPILE_DEFINITIONS").empty())
+    compilerFlagsDependencies = libraryFileJson.at(JConsts::compilerTransitiveFlags).get<string>();
+    linkerFlagsDependencies = libraryFileJson.at(JConsts::linkerTransitiveFlags).get<string>();
+    if (!libraryFileJson.at(JConsts::compileDefinitions).empty())
     {
-        compileDefinitionDependencies = libraryFileJson.at("COMPILE_DEFINITIONS").get<vector<CompileDefinition>>();
+        compileDefinitionDependencies = libraryFileJson.at(JConsts::compileDefinitions).get<vector<CompileDefinition>>();
     }
     libraryPath = libraryDirectoryPath /
                   path(getActualNameFromTargetName(libraryType == LibraryType::STATIC ? TargetType::PLIBRARY_STATIC
@@ -2213,9 +2213,9 @@ CPackage::CPackage(path packagePath_) : packagePath(move(packagePath_))
     }
     Json packageFileJson;
     ifstream(packageFilePath) >> packageFileJson;
-    name = packageFileJson["NAME"];
-    version = packageFileJson["VERSION"];
-    variantsJson = packageFileJson["VARIANTS"];
+    name = packageFileJson[JConsts::name];
+    version = packageFileJson[JConsts::version];
+    variantsJson = packageFileJson[JConsts::variants];
 }
 
 CPVariant CPackage::getVariant(const Json &variantJson_)
@@ -2242,7 +2242,7 @@ CPVariant CPackage::getVariant(const Json &variantJson_)
     }
     if (numberOfMatches == 1)
     {
-        string index = variantsJson[matchIndex].at("INDEX").get<string>();
+        string index = variantsJson[matchIndex].at(JConsts::index).get<string>();
         return CPVariant(packagePath / index, variantJson_, stoi(index));
     }
     else if (numberOfMatches == 0)
@@ -2263,7 +2263,7 @@ CPVariant CPackage::getVariant(const int index)
     int numberOfMatches = 0;
     for (const auto &i : variantsJson)
     {
-        if (i.at("INDEX").get<string>() == to_string(index))
+        if (i.at(JConsts::index).get<string>() == to_string(index))
         {
             return CPVariant(packagePath / to_string(index), i, index);
         }
@@ -2273,174 +2273,174 @@ CPVariant CPackage::getVariant(const int index)
 }
 void to_json(Json &json, const PathPrint &pathPrint)
 {
-    json["PATH_PRINT_LEVEL"] = pathPrint.printLevel;
-    json["DEPTH"] = pathPrint.depth;
-    json["ADD_QUOTES"] = pathPrint.addQuotes;
+    json[JConsts::pathPrintLevel] = pathPrint.printLevel;
+    json[JConsts::depth] = pathPrint.depth;
+    json[JConsts::addQuotes] = pathPrint.addQuotes;
 }
 void from_json(const Json &json, PathPrint &pathPrint)
 {
-    uint8_t level = json.at("PATH_PRINT_LEVEL").get<uint8_t>();
+    uint8_t level = json.at(JConsts::pathPrintLevel).get<uint8_t>();
     if (level < 0 || level > 2)
     {
         cerr << "Level should be in range 0-2" << endl;
         exit(EXIT_FAILURE);
     }
     pathPrint.printLevel = (PathPrintLevel)level;
-    pathPrint.depth = json.at("DEPTH").get<int>();
-    pathPrint.addQuotes = json.at("ADD_QUOTES").get<bool>();
+    pathPrint.depth = json.at(JConsts::depth).get<int>();
+    pathPrint.addQuotes = json.at(JConsts::addQuotes).get<bool>();
 }
 void to_json(Json &json, const CompileCommandPrintSettings &ccpSettings)
 {
-    json["TOOL"] = ccpSettings.tool;
-    json["ENVIRONMENT_COMPILER_FLAGS"] = ccpSettings.environmentCompilerFlags;
-    json["COMPILER_FLAGS"] = ccpSettings.compilerFlags;
-    json["COMPILER_TRANSITIVE_FLAGS"] = ccpSettings.compilerTransitiveFlags;
-    json["COMPILE_DEFINITIONS"] = ccpSettings.compileDefinitions;
-    json["PROJECT_INCLUDE_DIRECTORIES"] = ccpSettings.projectIncludeDirectories;
-    json["ENVIRONMENT_INCLUDE_DIRECTORIES"] = ccpSettings.environmentIncludeDirectories;
-    json["ONLY_LOGICAL_NAME_OF_REQUIRE_IFC"] = ccpSettings.onlyLogicalNameOfRequireIFC;
-    json["REQUIRE_IFCS"] = ccpSettings.requireIFCs;
-    json["SOURCE_FILE"] = ccpSettings.sourceFile;
-    json["INFRASTRUCTURE_FLAGS"] = ccpSettings.infrastructureFlags;
-    json["IFC_OUTPUT_FILE"] = ccpSettings.ifcOutputFile;
-    json["OBJECT_FILE"] = ccpSettings.objectFile;
-    json["OUTPUT_AND_ERROR_FILES"] = ccpSettings.outputAndErrorFiles;
-    json["PRUNE_HEADER_DEPENDENCIES_FROM_MSVC_OUTPUT"] = ccpSettings.pruneHeaderDepsFromMSVCOutput;
-    json["PRUNE_COMPILED_SOURCE_FILE_NAME_FROM_MSVC_OUTPUT"] = ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput;
-    json["RATIO_FOR_HMAKE_TIME"] = ccpSettings.ratioForHMakeTime;
-    json["SHOW_PERCENTAGE"] = ccpSettings.showPercentage;
+    json[JConsts::tool] = ccpSettings.tool;
+    json[JConsts::environmentCompilerFlags] = ccpSettings.environmentCompilerFlags;
+    json[JConsts::compilerFlags] = ccpSettings.compilerFlags;
+    json[JConsts::compilerTransitiveFlags] = ccpSettings.compilerTransitiveFlags;
+    json[JConsts::compileDefinitions] = ccpSettings.compileDefinitions;
+    json[JConsts::projectIncludeDirectories] = ccpSettings.projectIncludeDirectories;
+    json[JConsts::environmentIncludeDirectories] = ccpSettings.environmentIncludeDirectories;
+    json[JConsts::onlyLogicalNameOfRequireIfc] = ccpSettings.onlyLogicalNameOfRequireIFC;
+    json[JConsts::requireIfcs] = ccpSettings.requireIFCs;
+    json[JConsts::sourceFile] = ccpSettings.sourceFile;
+    json[JConsts::infrastructureFlags] = ccpSettings.infrastructureFlags;
+    json[JConsts::ifcOutputFile] = ccpSettings.ifcOutputFile;
+    json[JConsts::objectFile] = ccpSettings.objectFile;
+    json[JConsts::outputAndErrorFiles] = ccpSettings.outputAndErrorFiles;
+    json[JConsts::pruneHeaderDependenciesFromMsvcOutput] = ccpSettings.pruneHeaderDepsFromMSVCOutput;
+    json[JConsts::pruneCompiledSourceFileNameFromMsvcOutput] = ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput;
+    json[JConsts::ratioForHmakeTime] = ccpSettings.ratioForHMakeTime;
+    json[JConsts::showPercentage] = ccpSettings.showPercentage;
 }
 
 void from_json(const Json &json, CompileCommandPrintSettings &ccpSettings)
 {
-    ccpSettings.tool = json.at("TOOL").get<PathPrint>();
+    ccpSettings.tool = json.at(JConsts::tool).get<PathPrint>();
     ccpSettings.tool.isTool = true;
-    ccpSettings.environmentCompilerFlags = json.at("ENVIRONMENT_COMPILER_FLAGS").get<bool>();
-    ccpSettings.compilerFlags = json.at("COMPILER_FLAGS").get<bool>();
-    ccpSettings.compilerTransitiveFlags = json.at("COMPILER_TRANSITIVE_FLAGS").get<bool>();
-    ccpSettings.compileDefinitions = json.at("COMPILE_DEFINITIONS").get<bool>();
-    ccpSettings.projectIncludeDirectories = json.at("PROJECT_INCLUDE_DIRECTORIES").get<PathPrint>();
-    ccpSettings.environmentIncludeDirectories = json.at("ENVIRONMENT_INCLUDE_DIRECTORIES").get<PathPrint>();
-    ccpSettings.onlyLogicalNameOfRequireIFC = json.at("ONLY_LOGICAL_NAME_OF_REQUIRE_IFC").get<bool>();
-    ccpSettings.requireIFCs = json.at("REQUIRE_IFCS").get<PathPrint>();
-    ccpSettings.sourceFile = json.at("SOURCE_FILE").get<PathPrint>();
-    ccpSettings.infrastructureFlags = json.at("INFRASTRUCTURE_FLAGS").get<bool>();
-    ccpSettings.ifcOutputFile = json.at("IFC_OUTPUT_FILE").get<PathPrint>();
-    ccpSettings.objectFile = json.at("OBJECT_FILE").get<PathPrint>();
-    ccpSettings.outputAndErrorFiles = json.at("OUTPUT_AND_ERROR_FILES").get<PathPrint>();
-    ccpSettings.pruneHeaderDepsFromMSVCOutput = json.at("PRUNE_HEADER_DEPENDENCIES_FROM_MSVC_OUTPUT").get<bool>();
+    ccpSettings.environmentCompilerFlags = json.at(JConsts::environmentCompilerFlags).get<bool>();
+    ccpSettings.compilerFlags = json.at(JConsts::compilerFlags).get<bool>();
+    ccpSettings.compilerTransitiveFlags = json.at(JConsts::compilerTransitiveFlags).get<bool>();
+    ccpSettings.compileDefinitions = json.at(JConsts::compileDefinitions).get<bool>();
+    ccpSettings.projectIncludeDirectories = json.at(JConsts::projectIncludeDirectories).get<PathPrint>();
+    ccpSettings.environmentIncludeDirectories = json.at(JConsts::environmentIncludeDirectories).get<PathPrint>();
+    ccpSettings.onlyLogicalNameOfRequireIFC = json.at(JConsts::onlyLogicalNameOfRequireIfc).get<bool>();
+    ccpSettings.requireIFCs = json.at(JConsts::requireIfcs).get<PathPrint>();
+    ccpSettings.sourceFile = json.at(JConsts::sourceFile).get<PathPrint>();
+    ccpSettings.infrastructureFlags = json.at(JConsts::infrastructureFlags).get<bool>();
+    ccpSettings.ifcOutputFile = json.at(JConsts::ifcOutputFile).get<PathPrint>();
+    ccpSettings.objectFile = json.at(JConsts::objectFile).get<PathPrint>();
+    ccpSettings.outputAndErrorFiles = json.at(JConsts::outputAndErrorFiles).get<PathPrint>();
+    ccpSettings.pruneHeaderDepsFromMSVCOutput = json.at(JConsts::pruneHeaderDependenciesFromMsvcOutput).get<bool>();
     ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput =
-        json.at("PRUNE_COMPILED_SOURCE_FILE_NAME_FROM_MSVC_OUTPUT").get<bool>();
-    ccpSettings.ratioForHMakeTime = json.at("RATIO_FOR_HMAKE_TIME").get<bool>();
-    ccpSettings.showPercentage = json.at("SHOW_PERCENTAGE").get<bool>();
+        json.at(JConsts::pruneCompiledSourceFileNameFromMsvcOutput).get<bool>();
+    ccpSettings.ratioForHMakeTime = json.at(JConsts::ratioForHmakeTime).get<bool>();
+    ccpSettings.showPercentage = json.at(JConsts::showPercentage).get<bool>();
 }
 
 void to_json(Json &json, const ArchiveCommandPrintSettings &acpSettings)
 {
-    json["TOOL"] = acpSettings.tool;
-    json["INFRASTRUCTURE_FLAGS"] = acpSettings.infrastructureFlags;
-    json["OBJECT_FILES"] = acpSettings.objectFiles;
-    json["ARCHIVE"] = acpSettings.archive;
-    json["OUTPUT_AND_ERROR_FILES"] = acpSettings.outputAndErrorFiles;
+    json[JConsts::tool] = acpSettings.tool;
+    json[JConsts::infrastructureFlags] = acpSettings.infrastructureFlags;
+    json[JConsts::objectFiles] = acpSettings.objectFiles;
+    json[JConsts::archive] = acpSettings.archive;
+    json[JConsts::outputAndErrorFiles] = acpSettings.outputAndErrorFiles;
 }
 
 void from_json(const Json &json, ArchiveCommandPrintSettings &acpSettings)
 {
-    acpSettings.tool = json.at("TOOL").get<PathPrint>();
+    acpSettings.tool = json.at(JConsts::tool).get<PathPrint>();
     acpSettings.tool.isTool = true;
-    acpSettings.infrastructureFlags = json.at("INFRASTRUCTURE_FLAGS").get<bool>();
-    acpSettings.objectFiles = json.at("OBJECT_FILES").get<PathPrint>();
-    acpSettings.archive = json.at("ARCHIVE").get<PathPrint>();
-    acpSettings.outputAndErrorFiles = json.at("OUTPUT_AND_ERROR_FILES").get<PathPrint>();
+    acpSettings.infrastructureFlags = json.at(JConsts::infrastructureFlags).get<bool>();
+    acpSettings.objectFiles = json.at(JConsts::objectFiles).get<PathPrint>();
+    acpSettings.archive = json.at(JConsts::archive).get<PathPrint>();
+    acpSettings.outputAndErrorFiles = json.at(JConsts::outputAndErrorFiles).get<PathPrint>();
 }
 
 void to_json(Json &json, const LinkCommandPrintSettings &lcpSettings)
 {
-    json["TOOL"] = lcpSettings.tool;
-    json["INFRASTRUCTURE_FLAGS"] = lcpSettings.infrastructureFlags;
-    json["OBJECT_FILES"] = lcpSettings.objectFiles;
-    json["LIBRARY_DEPENDENCIES"] = lcpSettings.libraryDependencies;
-    json["LIBRARY_DIRECTORIES"] = lcpSettings.libraryDirectories;
-    json["ENVIRONMENT_LIBRARY_DIRECTORIES"] = lcpSettings.environmentLibraryDirectories;
-    json["BINARY"] = lcpSettings.binary;
+    json[JConsts::tool] = lcpSettings.tool;
+    json[JConsts::infrastructureFlags] = lcpSettings.infrastructureFlags;
+    json[JConsts::objectFiles] = lcpSettings.objectFiles;
+    json[JConsts::libraryDependencies] = lcpSettings.libraryDependencies;
+    json[JConsts::libraryDirectories] = lcpSettings.libraryDirectories;
+    json[JConsts::environmentLibraryDirectories] = lcpSettings.environmentLibraryDirectories;
+    json[JConsts::binary] = lcpSettings.binary;
 }
 
 void from_json(const Json &json, LinkCommandPrintSettings &lcpSettings)
 {
-    lcpSettings.tool = json.at("TOOL").get<PathPrint>();
+    lcpSettings.tool = json.at(JConsts::tool).get<PathPrint>();
     lcpSettings.tool.isTool = true;
-    lcpSettings.infrastructureFlags = json.at("INFRASTRUCTURE_FLAGS").get<bool>();
-    lcpSettings.objectFiles = json.at("OBJECT_FILES").get<PathPrint>();
-    lcpSettings.libraryDependencies = json.at("LIBRARY_DEPENDENCIES").get<PathPrint>();
-    lcpSettings.libraryDirectories = json.at("LIBRARY_DIRECTORIES").get<PathPrint>();
-    lcpSettings.environmentLibraryDirectories = json.at("ENVIRONMENT_LIBRARY_DIRECTORIES").get<PathPrint>();
-    lcpSettings.binary = json.at("OBJECT_FILES").get<PathPrint>();
+    lcpSettings.infrastructureFlags = json.at(JConsts::infrastructureFlags).get<bool>();
+    lcpSettings.objectFiles = json.at(JConsts::objectFiles).get<PathPrint>();
+    lcpSettings.libraryDependencies = json.at(JConsts::libraryDependencies).get<PathPrint>();
+    lcpSettings.libraryDirectories = json.at(JConsts::libraryDirectories).get<PathPrint>();
+    lcpSettings.environmentLibraryDirectories = json.at(JConsts::environmentLibraryDirectories).get<PathPrint>();
+    lcpSettings.binary = json.at(JConsts::objectFiles).get<PathPrint>();
 }
 
 void to_json(Json &json, const PrintColorSettings &printColorSettings)
 {
-    json["COMPILE_COMMAND_COLOR"] = printColorSettings.compileCommandColor;
-    json["ARCHIVE_COMMAND_COLOR"] = printColorSettings.archiveCommandColor;
-    json["LINK_COMMAND_COLOR"] = printColorSettings.linkCommandColor;
-    json["TOOL_ERROR_OUTPUT"] = printColorSettings.toolErrorOutput;
-    json["HBUILD_STATEMENT_OUTPUT"] = printColorSettings.hbuildStatementOutput;
-    json["HBUILD_SEQUENCE_OUTPUT"] = printColorSettings.hbuildSequenceOutput;
-    json["HBUILD_ERROR_OUTPUT"] = printColorSettings.hbuildErrorOutput;
+    json[JConsts::compileCommandColor] = printColorSettings.compileCommandColor;
+    json[JConsts::archiveCommandColor] = printColorSettings.archiveCommandColor;
+    json[JConsts::linkCommandColor] = printColorSettings.linkCommandColor;
+    json[JConsts::toolErrorOutput] = printColorSettings.toolErrorOutput;
+    json[JConsts::hbuildStatementOutput] = printColorSettings.hbuildStatementOutput;
+    json[JConsts::hbuildSequenceOutput] = printColorSettings.hbuildSequenceOutput;
+    json[JConsts::hbuildErrorOutput] = printColorSettings.hbuildErrorOutput;
 }
 
 void from_json(const Json &json, PrintColorSettings &printColorSettings)
 {
-    printColorSettings.compileCommandColor = json.at("COMPILE_COMMAND_COLOR").get<int>();
-    printColorSettings.archiveCommandColor = json.at("ARCHIVE_COMMAND_COLOR").get<int>();
-    printColorSettings.linkCommandColor = json.at("LINK_COMMAND_COLOR").get<int>();
-    printColorSettings.toolErrorOutput = json.at("TOOL_ERROR_OUTPUT").get<int>();
-    printColorSettings.hbuildStatementOutput = json.at("HBUILD_STATEMENT_OUTPUT").get<int>();
-    printColorSettings.hbuildSequenceOutput = json.at("HBUILD_SEQUENCE_OUTPUT").get<int>();
-    printColorSettings.hbuildErrorOutput = json.at("HBUILD_ERROR_OUTPUT").get<int>();
+    printColorSettings.compileCommandColor = json.at(JConsts::compileCommandColor).get<int>();
+    printColorSettings.archiveCommandColor = json.at(JConsts::archiveCommandColor).get<int>();
+    printColorSettings.linkCommandColor = json.at(JConsts::linkCommandColor).get<int>();
+    printColorSettings.toolErrorOutput = json.at(JConsts::toolErrorOutput).get<int>();
+    printColorSettings.hbuildStatementOutput = json.at(JConsts::hbuildStatementOutput).get<int>();
+    printColorSettings.hbuildSequenceOutput = json.at(JConsts::hbuildSequenceOutput).get<int>();
+    printColorSettings.hbuildErrorOutput = json.at(JConsts::hbuildErrorOutput).get<int>();
 }
 
 void to_json(Json &json, const GeneralPrintSettings &generalPrintSettings)
 {
-    json["PRE_BUILD_COMMANDS_STATEMENT"] = generalPrintSettings.preBuildCommandsStatement;
-    json["PRE_BUILD_COMMANDS"] = generalPrintSettings.preBuildCommands;
-    json["POST_BUILD_COMMANDS_STATEMENT"] = generalPrintSettings.postBuildCommandsStatement;
-    json["POST_BUILD_COMMANDS"] = generalPrintSettings.postBuildCommands;
-    json["COPYING_PACKAGE"] = generalPrintSettings.copyingPackage;
-    json["COPYING_TARGET"] = generalPrintSettings.copyingTarget;
-    json["THREAD_ID"] = generalPrintSettings.threadId;
+    json[JConsts::preBuildCommandsStatement] = generalPrintSettings.preBuildCommandsStatement;
+    json[JConsts::preBuildCommands] = generalPrintSettings.preBuildCommands;
+    json[JConsts::postBuildCommandsStatement] = generalPrintSettings.postBuildCommandsStatement;
+    json[JConsts::postBuildCommands] = generalPrintSettings.postBuildCommands;
+    json[JConsts::copyingPackage] = generalPrintSettings.copyingPackage;
+    json[JConsts::copyingTarget] = generalPrintSettings.copyingTarget;
+    json[JConsts::threadId] = generalPrintSettings.threadId;
 }
 
 void from_json(const Json &json, GeneralPrintSettings &generalPrintSettings)
 {
-    generalPrintSettings.preBuildCommandsStatement = json.at("PRE_BUILD_COMMANDS_STATEMENT").get<bool>();
-    generalPrintSettings.preBuildCommands = json.at("PRE_BUILD_COMMANDS").get<bool>();
-    generalPrintSettings.postBuildCommandsStatement = json.at("POST_BUILD_COMMANDS_STATEMENT").get<bool>();
-    generalPrintSettings.postBuildCommands = json.at("POST_BUILD_COMMANDS").get<bool>();
-    generalPrintSettings.copyingPackage = json.at("COPYING_PACKAGE").get<bool>();
-    generalPrintSettings.copyingTarget = json.at("COPYING_TARGET").get<bool>();
-    generalPrintSettings.threadId = json.at("THREAD_ID").get<bool>();
+    generalPrintSettings.preBuildCommandsStatement = json.at(JConsts::preBuildCommandsStatement).get<bool>();
+    generalPrintSettings.preBuildCommands = json.at(JConsts::preBuildCommands).get<bool>();
+    generalPrintSettings.postBuildCommandsStatement = json.at(JConsts::postBuildCommandsStatement).get<bool>();
+    generalPrintSettings.postBuildCommands = json.at(JConsts::postBuildCommands).get<bool>();
+    generalPrintSettings.copyingPackage = json.at(JConsts::copyingPackage).get<bool>();
+    generalPrintSettings.copyingTarget = json.at(JConsts::copyingTarget).get<bool>();
+    generalPrintSettings.threadId = json.at(JConsts::threadId).get<bool>();
 }
 
 void to_json(Json &json, const Settings &settings_)
 {
-    json["MAXIMUM_BUILD_THREADS"] = settings_.maximumBuildThreads;
-    json["MAXIMUM_LINK_THREADS"] = settings_.maximumLinkThreads;
-    json["COMPILE_PRINT_SETTINGS"] = settings_.ccpSettings;
-    json["ARCHIVE_PRINT_SETTINGS"] = settings_.acpSettings;
-    json["LINK_PRINT_SETTINGS"] = settings_.lcpSettings;
-    json["PRINT_COLOR_SETTINGS"] = settings_.pcSettings;
-    json["GENERAL_PRINT_SETTINGS"] = settings_.gpcSettings;
+    json[JConsts::maximumBuildThreads] = settings_.maximumBuildThreads;
+    json[JConsts::maximumLinkThreads] = settings_.maximumLinkThreads;
+    json[JConsts::compilePrintSettings] = settings_.ccpSettings;
+    json[JConsts::archivePrintSettings] = settings_.acpSettings;
+    json[JConsts::linkPrintSettings] = settings_.lcpSettings;
+    json[JConsts::printColorSettings] = settings_.pcSettings;
+    json[JConsts::generalPrintSettings] = settings_.gpcSettings;
 }
 
 void from_json(const Json &json, Settings &settings_)
 {
-    settings_.maximumBuildThreads = json.at("MAXIMUM_BUILD_THREADS").get<unsigned int>();
-    settings_.maximumLinkThreads = json.at("MAXIMUM_LINK_THREADS").get<unsigned int>();
-    settings_.ccpSettings = json.at("COMPILE_PRINT_SETTINGS").get<CompileCommandPrintSettings>();
-    settings_.acpSettings = json.at("ARCHIVE_PRINT_SETTINGS").get<ArchiveCommandPrintSettings>();
-    settings_.lcpSettings = json.at("LINK_PRINT_SETTINGS").get<LinkCommandPrintSettings>();
-    settings_.pcSettings = json.at("PRINT_COLOR_SETTINGS").get<PrintColorSettings>();
-    settings_.gpcSettings = json.at("GENERAL_PRINT_SETTINGS").get<GeneralPrintSettings>();
+    settings_.maximumBuildThreads = json.at(JConsts::maximumBuildThreads).get<unsigned int>();
+    settings_.maximumLinkThreads = json.at(JConsts::maximumLinkThreads).get<unsigned int>();
+    settings_.ccpSettings = json.at(JConsts::compilePrintSettings).get<CompileCommandPrintSettings>();
+    settings_.acpSettings = json.at(JConsts::archivePrintSettings).get<ArchiveCommandPrintSettings>();
+    settings_.lcpSettings = json.at(JConsts::linkPrintSettings).get<LinkCommandPrintSettings>();
+    settings_.pcSettings = json.at(JConsts::printColorSettings).get<PrintColorSettings>();
+    settings_.gpcSettings = json.at(JConsts::generalPrintSettings).get<GeneralPrintSettings>();
 }
 
 string file_to_string(const string &file_name)

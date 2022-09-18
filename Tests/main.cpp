@@ -51,9 +51,9 @@ TEST(CompilationTest, Example4)
     Json cacheFileJson;
     current_path("../../");
     ifstream("cache.hmake") >> cacheFileJson;
-    bool file1 = cacheFileJson.at("CACHE_VARIABLES").get<Json>().at("FILE1").get<bool>();
+    bool file1 = cacheFileJson.at("cache-variables").get<Json>().at("FILE1").get<bool>();
     ASSERT_EQ(file1, true) << "Cache does not has the Cache-Variable or this variable is not of right value";
-    cacheFileJson["CACHE_VARIABLES"]["FILE1"] = false;
+    cacheFileJson["cache-variables"]["FILE1"] = false;
     ofstream("cache.hmake") << cacheFileJson.dump(4);
 
     ASSERT_EQ(system(getSlashedExeName("configure").c_str()), 0) << getExeName("configure") + " command failed.";

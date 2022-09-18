@@ -28,22 +28,22 @@ BIDD::BIDD(const string &path_, bool copy_) : path{path_}, copy{copy_}
 
 void from_json(const Json &j, BIDD &p)
 {
-    p.copy = j.at("COPY").get<bool>();
-    p.path = j.at("PATH").get<string>();
+    p.copy = j.at(JConsts::copy).get<bool>();
+    p.path = j.at(JConsts::path).get<string>();
 }
 
 void from_json(const Json &j, BLibraryDependency &p)
 {
-    p.preBuilt = j.at("PREBUILT").get<bool>();
-    p.path = j.at("PATH").get<string>();
+    p.preBuilt = j.at(JConsts::prebuilt).get<bool>();
+    p.path = j.at(JConsts::path).get<string>();
     if (p.preBuilt)
     {
-        if (j.contains("IMPORTED_FROM_OTHER_HMAKE_PACKAGE"))
+        if (j.contains(JConsts::importedFromOtherHmakePackage))
         {
-            p.imported = j.at("IMPORTED_FROM_OTHER_HMAKE_PACKAGE").get<bool>();
+            p.imported = j.at(JConsts::importedFromOtherHmakePackage).get<bool>();
             if (!p.imported)
             {
-                p.hmakeFilePath = j.at("HMAKE_FILE_PATH").get<string>();
+                p.hmakeFilePath = j.at(JConsts::hmakeFilePath).get<string>();
             }
         }
         else
@@ -57,8 +57,8 @@ void from_json(const Json &j, BLibraryDependency &p)
 
 void from_json(const Json &j, BCompileDefinition &p)
 {
-    p.name = j.at("NAME").get<string>();
-    p.value = j.at("VALUE").get<string>();
+    p.name = j.at(JConsts::name).get<string>();
+    p.value = j.at(JConsts::value).get<string>();
 }
 
 ParsedTarget::ParsedTarget(const string &targetFilePath_)
@@ -69,7 +69,7 @@ ParsedTarget::ParsedTarget(const string &targetFilePath_)
     Json targetFileJson;
     ifstream(targetFilePath) >> targetFileJson;
 
-    targetType = targetFileJson.at("TARGET_TYPE").get<TargetType>();
+    targetType = targetFileJson.at(JConsts::targetType).get<TargetType>();
     if (targetType != TargetType::EXECUTABLE && targetType != TargetType::STATIC && targetType != TargetType::SHARED)
     {
         print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
@@ -77,7 +77,7 @@ ParsedTarget::ParsedTarget(const string &targetFilePath_)
         exit(EXIT_FAILURE);
     }
 
-    if (targetFileJson.at("VARIANT").get<string>() == "PACKAGE")
+    if (targetFileJson.at(JConsts::variant).get<string>() == JConsts::package)
     {
         packageMode = true;
     }
@@ -87,12 +87,12 @@ ParsedTarget::ParsedTarget(const string &targetFilePath_)
     }
     if (packageMode)
     {
-        copyPackage = targetFileJson.at("PACKAGE_COPY").get<bool>();
+        copyPackage = targetFileJson.at(JConsts::packageCopy).get<bool>();
         if (copyPackage)
         {
-            packageName = targetFileJson.at("PACKAGE_NAME").get<string>();
-            packageCopyPath = targetFileJson.at("PACKAGE_COPY_PATH").get<string>();
-            packageVariantIndex = targetFileJson.at("PACKAGE_VARIANT_INDEX").get<int>();
+            packageName = targetFileJson.at(JConsts::packageName).get<string>();
+            packageCopyPath = targetFileJson.at(JConsts::packageCopyPath).get<string>();
+            packageVariantIndex = targetFileJson.at(JConsts::packageVariantIndex).get<int>();
             packageTargetPath =
                 packageCopyPath + packageName + "/" + to_string(packageVariantIndex) + "/" + targetName + "/";
         }
@@ -101,17 +101,17 @@ ParsedTarget::ParsedTarget(const string &targetFilePath_)
     {
         copyPackage = false;
     }
-    outputName = targetFileJson.at("OUTPUT_NAME").get<string>();
-    outputDirectory = targetFileJson.at("OUTPUT_DIRECTORY").get<path>().string();
-    compiler = targetFileJson.at("COMPILER").get<Compiler>();
-    linker = targetFileJson.at("LINKER").get<Linker>();
+    outputName = targetFileJson.at(JConsts::outputName).get<string>();
+    outputDirectory = targetFileJson.at(JConsts::outputDirectory).get<path>().string();
+    compiler = targetFileJson.at(JConsts::compiler).get<Compiler>();
+    linker = targetFileJson.at(JConsts::linker).get<Linker>();
     if (targetType == TargetType::STATIC)
     {
-        archiver = targetFileJson.at("ARCHIVER").get<Archiver>();
+        archiver = targetFileJson.at(JConsts::archiver).get<Archiver>();
     }
-    environment = targetFileJson.at("ENVIRONMENT").get<Environment>();
-    compilerFlags = targetFileJson.at("COMPILER_FLAGS").get<string>();
-    linkerFlags = targetFileJson.at("LINKER_FLAGS").get<string>();
+    environment = targetFileJson.at(JConsts::environment).get<Environment>();
+    compilerFlags = targetFileJson.at(JConsts::compilerFlags).get<string>();
+    linkerFlags = targetFileJson.at(JConsts::linkerFlags).get<string>();
     // TODO: An Optimization
     //  If source for a target is collected from a sourceDirectory with some regex, then similar source should not be
     //  collected again.
@@ -119,29 +119,29 @@ ParsedTarget::ParsedTarget(const string &targetFilePath_)
     modulesSourceFiles =
         SourceAggregate::convertFromJsonAndGetAllSourceFiles(targetFileJson, targetFilePath, "MODULES_");
 
-    libraryDependencies = targetFileJson.at("LIBRARY_DEPENDENCIES").get<vector<BLibraryDependency>>();
+    libraryDependencies = targetFileJson.at(JConsts::libraryDependencies).get<vector<BLibraryDependency>>();
     if (packageMode)
     {
-        includeDirectories = targetFileJson.at("INCLUDE_DIRECTORIES").get<vector<BIDD>>();
+        includeDirectories = targetFileJson.at(JConsts::includeDirectories).get<vector<BIDD>>();
     }
     else
     {
-        vector<string> includeDirs = targetFileJson.at("INCLUDE_DIRECTORIES").get<vector<string>>();
+        vector<string> includeDirs = targetFileJson.at(JConsts::includeDirectories).get<vector<string>>();
         for (auto &i : includeDirs)
         {
             includeDirectories.emplace_back(i, true);
         }
     }
-    compilerTransitiveFlags = targetFileJson.at("COMPILER_TRANSITIVE_FLAGS").get<string>();
-    linkerTransitiveFlags = targetFileJson.at("LINKER_TRANSITIVE_FLAGS").get<string>();
-    compileDefinitions = targetFileJson.at("COMPILE_DEFINITIONS").get<vector<BCompileDefinition>>();
-    preBuildCustomCommands = targetFileJson.at("PRE_BUILD_CUSTOM_COMMANDS").get<vector<string>>();
-    postBuildCustomCommands = targetFileJson.at("POST_BUILD_CUSTOM_COMMANDS").get<vector<string>>();
+    compilerTransitiveFlags = targetFileJson.at(JConsts::compilerTransitiveFlags).get<string>();
+    linkerTransitiveFlags = targetFileJson.at(JConsts::linkerTransitiveFlags).get<string>();
+    compileDefinitions = targetFileJson.at(JConsts::compileDefinitions).get<vector<BCompileDefinition>>();
+    preBuildCustomCommands = targetFileJson.at(JConsts::preBuildCustomCommands).get<vector<string>>();
+    postBuildCustomCommands = targetFileJson.at(JConsts::postBuildCustomCommands).get<vector<string>>();
 
     buildCacheFilesDirPath = (path(targetFilePath).parent_path() / ("Cache_Build_Files/")).generic_string();
     if (copyPackage)
     {
-        consumerDependenciesJson = targetFileJson.at("CONSUMER_DEPENDENCIES").get<Json>();
+        consumerDependenciesJson = targetFileJson.at(JConsts::consumerDependencies).get<Json>();
     }
     // Parsing finished
 
@@ -556,19 +556,19 @@ void from_json(const Json &j, Node *node)
 
 void to_json(Json &j, const SourceNode &sourceNode)
 {
-    j["SRC_FILE"] = sourceNode.node;
-    j["HEADER_DEPENDENCIES"] = sourceNode.headerDependencies;
+    j[JConsts::srcFile] = sourceNode.node;
+    j[JConsts::headerDependencies] = sourceNode.headerDependencies;
 }
 
 void from_json(const Json &j, SourceNode &sourceNode)
 {
     // from_json function of Node* did not work correctly, so not using it.*/
-    // sourceNode.node = j.at("SRC_FILE").get<Node*>();
-    // sourceNode.headerDependencies = j.at("HEADER_DEPENDENCIES").get<set<Node *>>();
+    // sourceNode.node = j.at(JConsts::srcFile).get<Node*>();
+    // sourceNode.headerDependencies = j.at(JConsts::headerDependencies).get<set<Node *>>();
 
-    sourceNode.node = Node::getNodeFromString(j.at("SRC_FILE").get<string>());
+    sourceNode.node = Node::getNodeFromString(j.at(JConsts::srcFile).get<string>());
     vector<string> headerDeps;
-    headerDeps = j.at("HEADER_DEPENDENCIES").get<vector<string>>();
+    headerDeps = j.at(JConsts::headerDependencies).get<vector<string>>();
     for (const auto &h : headerDeps)
     {
         sourceNode.headerDependencies.emplace(Node::getNodeFromString(h));
@@ -592,16 +592,16 @@ SourceNode &BTargetCache::addNodeInSourceFileDependencies(const string &str)
 
 void to_json(Json &j, const BTargetCache &bTargetCache)
 {
-    j["COMPILE_COMMAND"] = bTargetCache.compileCommand;
-    j["LINK_COMMAND"] = bTargetCache.linkCommand;
-    j["DEPENDENCIES"] = bTargetCache.sourceFileDependencies;
+    j[JConsts::compileCommand] = bTargetCache.compileCommand;
+    j[JConsts::linkCommand] = bTargetCache.linkCommand;
+    j[JConsts::dependencies] = bTargetCache.sourceFileDependencies;
 }
 
 void from_json(const Json &j, BTargetCache &bTargetCache)
 {
-    bTargetCache.compileCommand = j["COMPILE_COMMAND"];
-    bTargetCache.linkCommand = j["LINK_COMMAND"];
-    bTargetCache.sourceFileDependencies = j.at("DEPENDENCIES").get<set<SourceNode>>();
+    bTargetCache.compileCommand = j[JConsts::compileCommand];
+    bTargetCache.linkCommand = j[JConsts::linkCommand];
+    bTargetCache.sourceFileDependencies = j.at(JConsts::dependencies).get<set<SourceNode>>();
 }
 
 PostBasic::PostBasic(const BuildTool &buildTool, const string &commandFirstHalf, string printCommandFirstHalf,
@@ -1645,15 +1645,15 @@ void ParsedTarget::copyParsedTarget() const
             {
                 Json preBuiltTarget;
                 ifstream(target.hmakeFilePath) >> preBuiltTarget;
-                string preBuiltTargetName = preBuiltTarget["NAME"];
-                copyFrom = preBuiltTarget["PATH"];
-                string preBuiltPackageCopyPath = preBuiltTarget["PACKAGE_COPY_PATH"];
+                string preBuiltTargetName = preBuiltTarget[JConsts::name];
+                copyFrom = preBuiltTarget[JConsts::path];
+                string preBuiltPackageCopyPath = preBuiltTarget[JConsts::packageCopyPath];
                 string targetInstallPath = packageCopyPath + packageName + "/" + to_string(packageVariantIndex) + "/" +
                                            preBuiltTargetName + "/";
                 create_directories(path(targetInstallPath));
                 copy(path(copyFrom), path(targetInstallPath), copy_options::update_existing);
                 ofstream(targetInstallPath + preBuiltTargetName + ".hmake")
-                    << preBuiltTarget["CONSUMER_DEPENDENCIES"].dump(4);
+                    << preBuiltTarget[JConsts::consumerDependencies].dump(4);
             }
         }
     }
@@ -1801,7 +1801,7 @@ void Builder::populateParsedTargetSetAndModuleTargets(const set<string> &targetF
             parsedVariantsForModules.emplace(variantFilePath);
             Json variantJson;
             ifstream(variantFilePath) >> variantJson;
-            for (const string &targetFilePath : variantJson.at("TARGETS_WITH_MODULES").get<vector<string>>())
+            for (const string &targetFilePath : variantJson.at(JConsts::targetsWithModules).get<vector<string>>())
             {
                 auto [ptr, Ok] = getParsedTargetPointer(targetFilePath);
                 // We push on Stack so Regular Target Dependencies of this Module Target are also added
@@ -2040,7 +2040,7 @@ set<string> Builder::getTargetFilePathsFromVariantFile(const string &fileName)
 {
     Json variantFileJson;
     ifstream(fileName) >> variantFileJson;
-    return variantFileJson.at("TARGETS").get<set<string>>();
+    return variantFileJson.at(JConsts::targets).get<set<string>>();
 }
 
 set<string> Builder::getTargetFilePathsFromProjectOrPackageFile(const string &fileName, bool isPackage)
@@ -2050,15 +2050,15 @@ set<string> Builder::getTargetFilePathsFromProjectOrPackageFile(const string &fi
     vector<string> vec;
     if (isPackage)
     {
-        vector<Json> pVariantJson = projectFileJson.at("VARIANTS").get<vector<Json>>();
+        vector<Json> pVariantJson = projectFileJson.at(JConsts::variants).get<vector<Json>>();
         for (const auto &i : pVariantJson)
         {
-            vec.emplace_back(i.at("INDEX").get<string>());
+            vec.emplace_back(i.at(JConsts::index).get<string>());
         }
     }
     else
     {
-        vec = projectFileJson.at("VARIANTS").get<vector<string>>();
+        vec = projectFileJson.at(JConsts::variants).get<vector<string>>();
     }
     set<string> targetFilePaths;
     for (auto &i : vec)
@@ -2288,16 +2288,16 @@ void Builder::copyPackage(const path &packageFilePath)
 {
     Json packageFileJson;
     ifstream(packageFilePath) >> packageFileJson;
-    Json variants = packageFileJson.at("VARIANTS").get<Json>();
+    Json variants = packageFileJson.at(JConsts::variants).get<Json>();
     path packageCopyPath;
-    bool packageCopy = packageFileJson.at("PACKAGE_COPY").get<bool>();
+    bool packageCopy = packageFileJson.at(JConsts::packageCopy).get<bool>();
     if (packageCopy)
     {
-        string packageName = packageFileJson.at("NAME").get<string>();
-        string version = packageFileJson.at("VERSION").get<string>();
-        packageCopyPath = packageFileJson.at("PACKAGE_COPY_PATH").get<string>();
+        string packageName = packageFileJson.at(JConsts::name).get<string>();
+        string version = packageFileJson.at(JConsts::version).get<string>();
+        packageCopyPath = packageFileJson.at(JConsts::packageCopyPath).get<string>();
         packageCopyPath /= packageName;
-        if (packageFileJson.at("CACHE_INCLUDES").get<bool>())
+        if (packageFileJson.at(JConsts::cacheIncludes).get<bool>())
         {
             Json commonFileJson;
             ifstream(current_path() / "Common.hmake") >> commonFileJson;
@@ -2305,21 +2305,21 @@ void Builder::copyPackage(const path &packageFilePath)
             for (auto &i : commonFileJson)
             {
                 Json commonJsonObject;
-                int commonIndex = i.at("INDEX").get<int>();
-                commonJsonObject["INDEX"] = commonIndex;
-                commonJsonObject["VARIANTS_INDICES"] = i.at("VARIANTS_INDICES").get<Json>();
+                int commonIndex = i.at(JConsts::index).get<int>();
+                commonJsonObject[JConsts::index] = commonIndex;
+                commonJsonObject[JConsts::variantsIndices] = i.at(JConsts::variantsIndices).get<Json>();
                 commonJson.emplace_back(commonJsonObject);
                 path commonIncludePath = packageCopyPath / "Common" / path(to_string(commonIndex)) / "include";
                 create_directories(commonIncludePath);
-                path dirCopyFrom = i.at("PATH").get<string>();
+                path dirCopyFrom = i.at(JConsts::path).get<string>();
                 copy(dirCopyFrom, commonIncludePath, copy_options::update_existing | copy_options::recursive);
             }
         }
         path consumePackageFilePath = packageCopyPath / "cpackage.hmake";
         Json consumePackageFilePathJson;
-        consumePackageFilePathJson["NAME"] = packageName;
-        consumePackageFilePathJson["VERSION"] = version;
-        consumePackageFilePathJson["VARIANTS"] = variants;
+        consumePackageFilePathJson[JConsts::name] = packageName;
+        consumePackageFilePathJson[JConsts::version] = version;
+        consumePackageFilePathJson[JConsts::variants] = variants;
         create_directories(packageCopyPath);
         ofstream(consumePackageFilePath) << consumePackageFilePathJson.dump(4);
     }
