@@ -1,6 +1,6 @@
 
 
-#include "TestHelper.hpp"
+#include "ExamplesTestHelper.hpp"
 #include "filesystem"
 #include "fstream"
 #include "gtest/gtest.h"
@@ -9,7 +9,7 @@
 using std::cout, std::endl, std::filesystem::create_directory, std::filesystem::current_path, std::ofstream,
     std::ifstream, std::stringstream, std::filesystem::path;
 
-void TestHelper::recreateBuildDirAndBuildHMakeProject(bool onlyPackageNoProject)
+void ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject(bool onlyPackageNoProject)
 {
     if (std::filesystem::exists(path("Build")))
     {
@@ -31,7 +31,7 @@ void TestHelper::recreateBuildDirAndBuildHMakeProject(bool onlyPackageNoProject)
     }
 }
 
-void TestHelper::runAppWithExpectedOutput(const string &appName, const string &expectedOutput)
+void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const string &expectedOutput)
 {
     const string command = getSlashedExeName(appName) + " > file";
     ASSERT_EQ(system(command.c_str()), 0) << "Could Not Run " << appName;
@@ -41,7 +41,7 @@ void TestHelper::runAppWithExpectedOutput(const string &appName, const string &e
         << "hmake build succeeded, however running the application did not produce expected output";
 }
 
-void TestHelper::recreateBuildDir()
+void ExamplesTestHelper::recreateBuildDir()
 {
     if (std::filesystem::exists(path("Build")))
     {

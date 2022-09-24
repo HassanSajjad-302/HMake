@@ -127,7 +127,7 @@ int main()
             string compileCommand =
                 "g++ -std=c++20"
                 " -I " HCONFIGURE_HEADER " -I " JSON_HEADER "  -I " FMT_HEADER " {SOURCE_DIRECTORY}/hmake.cpp"
-                " -L " HCONFIGURE_STATIC_LIB_DIRECTORY " -l hconfigure "
+                " -L " HCONFIGURE_STATIC_LIB_DIRECTORY " -l hconfigure -L " FMT_STATIC_LIB_DIRECTORY " -l fmt "
                 " -o "
                 "{CONFIGURE_DIRECTORY}/configure";
             compileConfigureCommands.push_back(compileCommand);

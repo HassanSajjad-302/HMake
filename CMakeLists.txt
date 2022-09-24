@@ -8,7 +8,8 @@ add_executable(hhelper hhelper/src/main.cpp)
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
 target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/json/include/")
 target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/fmt/include/")
-target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY="${CMAKE_BINARY_DIR}/")
+target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure>")
+target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:fmt>")
 
 
 add_library(hconfigure STATIC
@@ -29,26 +30,28 @@ add_executable(hbuild
         hbuild/src/main.cpp)
 target_include_directories(hbuild PRIVATE hbuild/header)
 
-add_executable(UnBuiltTarget Examples/Example4/hmake.cpp)
-target_include_directories(UnBuiltTarget PRIVATE hconfigure/header)
+#Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
+add_executable(HMakeCppHelper hmake.cpp)
+target_include_directories(HMakeCppHelper PRIVATE hconfigure/header)
 add_subdirectory(json)
 target_link_libraries(hbuild PRIVATE hconfigure)
-target_link_libraries(UnBuiltTarget PRIVATE hconfigure)
+target_link_libraries(HMakeCppHelper PRIVATE hconfigure)
 
 
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 add_subdirectory(googletest)
 
-add_executable(Test_Examples Tests/main.cpp Tests/TestHelper.cpp)
-target_include_directories(Test_Examples PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
-target_link_libraries(Test_Examples PRIVATE gtest gtest_main nlohmann_json::nlohmann_json)
-target_compile_definitions(Test_Examples PRIVATE EXAMPLES_DIRECTORY="${CMAKE_SOURCE_DIR}/Examples/")
+add_executable(Tests Tests/main.cpp Tests/ExamplesTestHelper.cpp Tests/Test_Examples.cpp Tests/Test_hconfigure.cpp)
+target_include_directories(Tests PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
+target_link_libraries(Tests PRIVATE gtest gtest_main nlohmann_json::nlohmann_json)
+target_compile_definitions(Tests PRIVATE SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}/")
 
-add_dependencies(Test_Examples hhelper)
-add_dependencies(Test_Examples hbuild)
+add_dependencies(Tests hhelper)
+add_dependencies(Tests hbuild)
 
 add_subdirectory(fmt)
 
-target_link_libraries(Test_Examples PRIVATE fmt::fmt)
+target_link_libraries(Tests PRIVATE fmt::fmt)
 target_link_libraries(hbuild PRIVATE fmt::fmt)
 target_link_libraries(hhelper PRIVATE fmt::fmt)
+target_link_libraries(HMakeCppHelper PRIVATE fmt::fmt)

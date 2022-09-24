@@ -1,17 +1,20 @@
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "cert-err58-cpp"
 
 #ifndef HMAKE_CONFIGURE_HPP
 #define HMAKE_CONFIGURE_HPP
 
 #include "filesystem"
 #include "fmt/color.h"
+#include "memory"
 #include "nlohmann/json.hpp"
+#include "set"
 #include "stack"
 #include "thread"
 #include "utility"
-#include <set>
 
 using std::filesystem::path, std::string, std::vector, std::tuple, std::map, std::set, std::same_as, std::stack,
-    std::same_as;
+    std::shared_ptr, std::make_shared, std::same_as;
 using Json = nlohmann::ordered_json;
 namespace fs = std::filesystem;
 
@@ -150,6 +153,7 @@ struct JConsts
     inline static const string version = "version";
     inline static const string windows = "windows";
 };
+
 struct File
 {
     path filePath;
@@ -173,35 +177,27 @@ void to_json(Json &json, const Directory &directory);
 void from_json(const Json &json, Directory &directory);
 bool operator<(const Directory &lhs, const Directory &rhs);
 
-// TODO: Thinking about changing it to PROPOGATE and NOPROPOGATE
+/*// TODO: Thinking about changing it to PROPOGATE and NOPROPOGATE
 enum class DependencyType
 {
     PUBLIC,
     PRIVATE
 };
-void to_json(Json &j, const DependencyType &p);
+void to_json(Json &j, const DependencyType &p);*/
 
-struct IDD
+/*struct IDD
 {
     Directory includeDirectory;
-    DependencyType dependencyType;
-    IDD(const Directory &includeDirectory_, const DependencyType &dependencyType_);
-};
-
-struct LibraryDependency;
-struct CompilerFlagsDependency
-{
-    string compilerFlags;
-    DependencyType dependencyType;
-    CompilerFlagsDependency(const string &compilerFlags_, DependencyType dependencyType_);
-};
+    IDD(const Directory &includeDirectory_);
+};*/
 
 struct LinkerFlagsDependency
 {
     string linkerFlags;
-    DependencyType dependencyType;
 };
 
+// TODO
+//  try std::tuple
 struct CompileDefinition
 {
     string name;
@@ -210,12 +206,6 @@ struct CompileDefinition
     CompileDefinition(const string &name_, const string &value_);
 };
 
-struct CompileDefinitionDependency
-{
-    CompileDefinition compileDefinition;
-    DependencyType dependencyType;
-    CompileDefinitionDependency(const CompileDefinition &compileDefinition_, DependencyType dependencyType_);
-};
 void to_json(Json &j, const CompileDefinition &cd);
 void from_json(const Json &j, CompileDefinition &cd);
 
@@ -443,23 +433,33 @@ struct CustomTarget
     VariantMode mode = VariantMode::PROJECT;
 };
 
-struct Variant
+class Variant
 {
+    vector<shared_ptr<class Executable>> executablesContainer;
+    vector<shared_ptr<Library>> librariesContainer;
+
+  public:
     ConfigType configurationType;
     Compiler compiler;
     Linker linker;
     Archiver archiver;
-    vector<struct Executable> executables;
-    vector<Library> libraries;
+    set<class Executable *> executables;
+    set<Library *> libraries;
+    set<class PLibrary *> preBuiltLibraries;
+    set<class PPLibrary *> packagedLibraries;
     Flags flags;
     LibraryType libraryType;
     Environment environment;
     Variant();
+    void copyAllTargetsFromOtherVariant(Variant &variantFrom);
     void configure(VariantMode mode, unsigned long variantCount, const class Package &package);
+    Executable *findExecutable(const string &name);
+    Library *findLibrary(const string &name);
 };
 
 struct ProjectVariant : public Variant
 {
+    explicit ProjectVariant(class Project &project);
 };
 
 class Project
@@ -467,13 +467,14 @@ class Project
   public:
     string name;
     Version version;
-    vector<ProjectVariant> projectVariants;
+    vector<ProjectVariant *> projectVariants;
     void configure();
 };
 
 class PackageVariant : public Variant
 {
   public:
+    explicit PackageVariant(class Package &package);
     decltype(Json::object()) uniqueJson;
 };
 
@@ -519,26 +520,46 @@ void from_json(const Json &j, TargetType &targetType);
 
 string getActualNameFromTargetName(TargetType targetType, const OSFamily &osFamily, const string &targetName);
 string getTargetNameFromActualName(TargetType targetType, const OSFamily &osFamily, const string &actualName);
-// TODO: If no target is added in targets of variant, building that variant will be an error.
+class PLibrary;
+class PPLibrary;
+
+struct Dependent
+{
+    bool isTarget = false;
+};
+
 class Package;
-class Target
+class Target : public Dependent
 {
   public:
     ConfigType configurationType;
     Compiler compiler;
     Linker linker;
     Archiver archiver;
-    vector<IDD> includeDirectoryDependencies;
-    vector<LibraryDependency> libraryDependencies;
-    vector<CompilerFlagsDependency> compilerFlagsDependencies;
-    vector<LinkerFlagsDependency> linkerFlagsDependencies;
-    vector<CompileDefinitionDependency> compileDefinitionDependencies;
+
+    set<Library *> publicLibs;
+    set<Library *> privateLibs;
+    set<PLibrary *> publicPrebuilts;
+    set<PLibrary *> privatePrebuilts;
+    set<PPLibrary *> publicPackagedLibs;
+    set<PPLibrary *> privatePackagedLibs;
+
+    bool targetChecked = false;
+
+    vector<Directory> publicIncludes;
+    vector<Directory> privateIncludes;
+    vector<string> publicCompilerFlags;
+    vector<string> privateCompilerFlags;
+    vector<string> publicLinkerFlags;
+    vector<string> privateLinkerFlags;
+    vector<CompileDefinition> publicCompileDefinitions;
+    vector<CompileDefinition> privateCompileDefinitions;
     SourceAggregate sourceAggregate{.Identifier = "SOURCE_"};
     // SourceAggregate for Modules
     SourceAggregate moduleAggregate{.Identifier = "MODULES_"};
     vector<CustomTarget> preBuild;
     vector<CustomTarget> postBuild;
-    string targetName;
+    const string targetName;
     string outputName;
     Directory outputDirectory;
     Environment environment;
@@ -550,65 +571,135 @@ class Target
     static vector<string> convertCustomTargetsToJson(const vector<CustomTarget> &customTargets, VariantMode mode);
     Json convertToJson(unsigned long variantIndex) const;
     void configure(const Package &package, unsigned count) const;
-    Json convertToJson(const Package &package, unsigned count) const;
+    Json convertToJson(const Package &package, unsigned variantIndex) const;
     string getTargetFilePath(unsigned long variantCount) const;
     string getTargetFilePathPackage(unsigned long variantCount) const;
-    void assignDifferentVariant(const Variant &variant);
+
+  private:
+    void assignConfigurationFromVariant(const Variant &variant);
+    set<Library *> getAllDependencies();
 
   protected:
     Target() = default;
-    explicit Target(string targetName_, const Variant &variant);
-
+    Target(string targetName_);
+    Target(string targetName_, const Variant &variant);
+    Target(string targetName_, Variant &variantFrom, Variant &variantTo, bool copyDependencies);
     virtual ~Target() = default;
     Target(const Target & /* other */) = default;
     Target &operator=(const Target & /* other */) = default;
     Target(Target && /* other */) = default;
     Target &operator=(Target && /* other */) = default;
+
+  public:
+    //
+
+    template <same_as<char const *>... U> Target &PUBLIC_INCLUDES(U... includeDirectoryString);
+    template <same_as<char const *>... U> Target &PRIVATE_INCLUDES(U... includeDirectoryString);
+    template <same_as<Library *>... U> Target &PUBLIC_LIBRARIES(const U... libraries);
+    template <same_as<Library *>... U> Target &PRIVATE_LIBRARIES(const U... libraries);
+    Target &PUBLIC_COMPILER_FLAGS(const string &compilerFlags);
+    Target &PRIVATE_COMPILER_FLAGS(const string &compilerFlags);
+    Target &PUBLIC_LINKER_FLAGS(const string &linkerFlags);
+    Target &PRIVATE_LINKER_FLAGS(const string &linkerFlags);
+    Target &PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
+    Target &PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
+    template <same_as<char const *>... U> Target &SOURCE_FILES(U... sourceFileString);
+    template <same_as<char const *>... U> Target &MODULE_FILES(U... moduleFileString);
+
+    Target &SOURCE_DIRECTORIES(const string &sourceDirectory, const string &regex);
+    Target &MODULE_DIRECTORIES(const string &moduleDirectory, const string &regex);
 };
 
-struct Executable : public Target
+template <same_as<char const *>... U> Target &Target::PUBLIC_INCLUDES(U... includeDirectoryString)
 {
-    explicit Executable(string targetName_, const Variant &variant);
-    void assignDifferentVariant(const Variant &variant);
+    (publicIncludes.emplace_back(Directory{includeDirectoryString}), ...);
+    return *this;
+}
+
+template <same_as<char const *>... U> Target &Target::PRIVATE_INCLUDES(U... includeDirectoryString)
+{
+    (privateIncludes.emplace_back(Directory{includeDirectoryString}...));
+    return *this;
+}
+
+template <same_as<Library *>... U> Target &Target::PUBLIC_LIBRARIES(const U... libraries)
+{
+    (publicLibs.emplace(libraries...));
+    return *this;
+}
+
+template <same_as<Library *>... U> Target &Target::PRIVATE_LIBRARIES(const U... libraries)
+{
+    (privateLibs.emplace(libraries...));
+    return *this;
+}
+
+template <same_as<char const *>... U> Target &Target::SOURCE_FILES(U... sourceFileString)
+{
+    (sourceAggregate.files.emplace(sourceFileString), ...);
+    return *this;
+}
+
+template <same_as<char const *>... U> Target &Target::MODULE_FILES(U... moduleFileString)
+{
+    (moduleAggregate.files.emplace(moduleFileString), ...);
+    return *this;
+}
+
+template <> struct std::less<Target *>
+{
+    bool operator()(const Target *lhs, const Target *rhs) const;
+};
+
+class Executable : public Target
+{
+    friend class Variant;
+    explicit Executable(string targetName_);
+
+  public:
+    explicit Executable(string targetName_, Variant &variant);
+    Executable(string targetName_, Variant &variantFrom, Variant &variantTo, bool copyDependencies = true);
 };
 
 class Library : public Target
 {
+    friend class Variant;
+    explicit Library(string targetName_);
     Library() = default;
-    friend struct LibraryDependency;
-
     LibraryType libraryType;
 
   public:
-    explicit Library(string targetName_, const Variant &variant);
-    void assignDifferentVariant(const Variant &variant);
+    explicit Library(string targetName_, Variant &variant);
+    Library(string targetName_, Variant &variantFrom, Variant &variantTo, bool copyDependencies = true);
     void setLibraryType(LibraryType libraryType_);
 };
 
 // PreBuilt-Library
-class PLibrary
+class PLibrary : public Dependent
 {
     PLibrary() = default;
-    friend struct LibraryDependency;
     friend class PPLibrary;
 
     LibraryType libraryType;
 
+  private:
+    vector<PLibrary *> prebuilts;
+
   public:
     string libraryName;
-    vector<Directory> includeDirectoryDependencies;
-    vector<LibraryDependency> libraryDependencies;
-    string compilerFlagsDependencies;
-    string linkerFlagsDependencies;
-    vector<CompileDefinition> compileDefinitionDependencies;
+    vector<Directory> includes;
+    string compilerFlags;
+    string linkerFlags;
+    vector<CompileDefinition> compileDefinitions;
     path libraryPath;
     mutable TargetType targetType;
-    PLibrary(const path &libraryPath_, LibraryType libraryType_);
+    PLibrary(Variant &variant, const path &libraryPath_, LibraryType libraryType_);
     path getTargetVariantDirectoryPath(int variantCount) const;
     void setLibraryType(LibraryType libraryType_);
     Json convertToJson(const Package &package, unsigned count) const;
     void configure(const Package &package, unsigned count) const;
 };
+bool operator<(const PLibrary &lhs, const PLibrary &rhs);
 
 // ConsumePackageVariant
 struct CPVariant
@@ -623,8 +714,8 @@ struct CPackage;
 class PPLibrary : public PLibrary
 {
   private:
-    friend struct LibraryDependency;
     PPLibrary() = default;
+    set<PPLibrary> ppLibraries;
 
   public:
     string packageName;
@@ -634,7 +725,7 @@ class PPLibrary : public PLibrary
     bool useIndex = false;
     unsigned index;
     bool importedFromOtherHMakePackage = true;
-    PPLibrary(string libraryName_, const CPackage &cPackage, const CPVariant &cpVariant);
+    PPLibrary(Variant &variant, string libraryName_, const CPackage &cPackage, const CPVariant &cpVariant);
 };
 
 enum class LDLT
@@ -644,76 +735,13 @@ enum class LDLT
     PPLIBRARY
 };
 
-#include "concepts"
-template <typename T>
-concept HasLibraryDependencies = requires(T a) { same_as<decltype(a.libraryDependencies), vector<LibraryDependency>>; };
-
-struct LibraryDependency
-{
-    // TODO: Use Variant
-    Library library;
-    PLibrary pLibrary;
-    PPLibrary ppLibrary;
-
-    LDLT ldlt;
-    DependencyType dependencyType = DependencyType::PRIVATE;
-    LibraryDependency(Library library_, DependencyType dependencyType_);
-    LibraryDependency(PLibrary pLibrary_, DependencyType dependencyType_);
-    LibraryDependency(PPLibrary ppLibrary_, DependencyType dependencyType_);
-
-    template <HasLibraryDependencies Entity>
-    static vector<const LibraryDependency *> getDependencies(const Entity &entity)
-    {
-        vector<const LibraryDependency *> dependencies;
-        // This adds first layer of dependencies as is but next layers are added only if they are public.
-        for (const auto &l : entity.libraryDependencies)
-        {
-            stack<const LibraryDependency *> st;
-            st.emplace(&(l));
-            while (!st.empty())
-            {
-                auto obj = st.top();
-                st.pop();
-                dependencies.emplace_back(obj);
-                if (obj->ldlt == LDLT::LIBRARY)
-                {
-                    for (const auto &i : obj->library.libraryDependencies)
-                    {
-                        if (i.dependencyType == DependencyType::PUBLIC)
-                        {
-                            st.emplace(&(i));
-                        }
-                    }
-                }
-                else
-                {
-                    const PLibrary *pLib;
-                    if (obj->ldlt == LDLT::PLIBRARY)
-                    {
-                        pLib = &(obj->pLibrary);
-                    }
-                    else
-                    {
-                        pLib = &(obj->ppLibrary);
-                    }
-                    for (const auto &i : pLib->libraryDependencies)
-                    {
-                        st.emplace(&(i));
-                    }
-                }
-            }
-        }
-        return dependencies;
-    }
-};
-
 class Package
 {
   public:
     string name;
     Version version;
     bool cacheCommonIncludeDirs = true;
-    vector<PackageVariant> packageVariants;
+    vector<PackageVariant *> packageVariants;
     vector<string> afterCopyingPackage;
 
     explicit Package(string name_);
@@ -890,71 +918,151 @@ void from_json(const Json &json, Settings &settings_);
 string file_to_string(const string &file_name);
 vector<string> split(string str, const string &token);
 
-template <same_as<char const *>... U> void ADD_PUBLIC_IDDS_TO_TARGET(Target &target, U... includeDirectoryString)
+template <typename T> class TarjanNode
 {
-    (target.includeDirectoryDependencies.emplace_back(Directory{includeDirectoryString}, DependencyType::PUBLIC), ...);
+    // Following 4 are reset in findSCCS();
+    inline static int index = 0;
+    inline static vector<TarjanNode *> stack;
+
+    // Output
+    inline static vector<T *> cycle;
+    inline static bool cycleExists;
+
+  public:
+    inline static vector<T *> topologicalSort;
+
+    // Input
+    inline static set<TarjanNode> *tarjanNodes;
+
+    mutable vector<TarjanNode *> deps;
+
+    explicit TarjanNode(const T *id_);
+    // Find Strongly Connected Components
+    static void findSCCS();
+    static void checkForCycle(string (*getStringFromTarjanNodeType)(T *t));
+
+    const T *const id;
+
+  private:
+    void strongConnect();
+    bool initialized = false;
+    bool onStack;
+    int nodeIndex;
+    int lowLink;
+};
+template <typename T> bool operator<(const TarjanNode<T> &lhs, const TarjanNode<T> &rhs);
+
+template <typename T> TarjanNode<T>::TarjanNode(const T *const id_) : id{id_}
+{
 }
 
-template <same_as<char const *>... U> void ADD_PRIVATE_IDDS_TO_TARGET(Target &target, U... includeDirectoryString)
+template <typename T> void TarjanNode<T>::findSCCS()
 {
-    (target.includeDirectoryDependencies.emplace_back(Directory{includeDirectoryString}, DependencyType::PRIVATE), ...);
+    index = 0;
+    cycleExists = false;
+    cycle.clear();
+    stack.clear();
+    topologicalSort.clear();
+    // reverseDeps.clear();
+    for (auto it = tarjanNodes->begin(); it != tarjanNodes->end(); ++it)
+    {
+        auto &b = *it;
+        auto &tarjanNode = const_cast<TarjanNode<T> &>(b);
+        if (!tarjanNode.initialized)
+        {
+            tarjanNode.strongConnect();
+        }
+    }
 }
 
-template <same_as<Library>... U> void ADD_PUBLIC_LIB_DEPS_TO_TARGET(Target &target, const U &...libraryDependencyTarget)
+template <typename T> void TarjanNode<T>::strongConnect()
 {
-    (target.libraryDependencies.emplace_back(libraryDependencyTarget, DependencyType::PUBLIC), ...);
+    initialized = true;
+    nodeIndex = TarjanNode<T>::index;
+    lowLink = TarjanNode<T>::index;
+    ++TarjanNode<T>::index;
+    stack.emplace_back(this);
+    onStack = true;
+
+    for (TarjanNode<T> *tarjandep : deps)
+    {
+        if (!tarjandep->initialized)
+        {
+            tarjandep->strongConnect();
+            lowLink = std::min(lowLink, tarjandep->lowLink);
+        }
+        else if (tarjandep->onStack)
+        {
+            lowLink = std::min(lowLink, tarjandep->nodeIndex);
+        }
+    }
+
+    vector<TarjanNode<T> *> tempCycle;
+    if (lowLink == nodeIndex)
+    {
+        while (true)
+        {
+            TarjanNode<T> *tarjanTemp = stack.back();
+            stack.pop_back();
+            tarjanTemp->onStack = false;
+            tempCycle.emplace_back(tarjanTemp);
+            if (tarjanTemp->id == this->id)
+            {
+                break;
+            }
+        }
+        if (tempCycle.size() > 1)
+        {
+            for (TarjanNode<T> *c : tempCycle)
+            {
+                cycle.emplace_back(const_cast<T *>(c->id));
+            }
+            cycleExists = true;
+            return;
+        }
+    }
+    topologicalSort.emplace_back(const_cast<T *>(id));
 }
 
-template <same_as<Library>... U>
-void ADD_PRIVATE_LIB_DEPS_TO_TARGET(Target &target, const U &...libraryDependencyTarget)
+template <typename T> void TarjanNode<T>::checkForCycle(string (*getStringFromTarjanNodeType)(T *t))
 {
-    (target.libraryDependencies.emplace_back(libraryDependencyTarget, DependencyType::PRIVATE), ...);
+    if (cycleExists)
+    {
+        fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                   "There is a Cyclic-Dependency.\n");
+        unsigned int cycleSize = cycle.size();
+        for (unsigned int i = 0; i < cycleSize; ++i)
+        {
+            if (cycleSize == i + 1)
+            {
+                fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                           "{} Depends On {}.\n", getStringFromTarjanNodeType(cycle[i]),
+                           getStringFromTarjanNodeType(cycle[0]));
+            }
+            else
+            {
+                fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                           "{} Depends On {}.\n", getStringFromTarjanNodeType(cycle[0]),
+                           getStringFromTarjanNodeType(cycle[0]));
+            }
+        }
+        exit(EXIT_SUCCESS);
+    }
 }
 
-template <same_as<char const *> T> void ADD_PUBLIC_CFD_TO_TARGET(Target &target, T compilerFlags)
+template <typename T> bool operator<(const TarjanNode<T> &lhs, const TarjanNode<T> &rhs)
 {
-    target.compilerFlagsDependencies.emplace_back(compilerFlags, DependencyType::PUBLIC);
+    return lhs.id < rhs.id;
 }
-
-template <same_as<char const *> T> void ADD_PRIVATE_CFD_TO_TARGET(Target &target, T compilerFlags)
-{
-    target.compilerFlagsDependencies.emplace_back(compilerFlags, DependencyType::PRIVATE);
-}
-
-template <same_as<char const *> T> void ADD_PUBLIC_LFD_TO_TARGET(Target &target, T linkerFlags)
-{
-    target.linkerFlagsDependencies.emplace_back(linkerFlags, DependencyType::PUBLIC);
-}
-
-template <same_as<char const *> T> void ADD_PRIVATE_LFD_TO_TARGET(Target &target, T linkerFlags)
-{
-    target.linkerFlagsDependencies.emplace_back(linkerFlags, DependencyType::PRIVATE);
-}
-
-void ADD_PUBLIC_CDD_TO_TARGET(Target &target, const string &cddName, const string &cddValue);
-void ADD_PRIVATE_CDD_TO_TARGET(Target &target, const string &cddName, const string &cddValue);
-
-template <same_as<char const *>... U> void ADD_SRC_FILES_TO_TARGET(Target &target, U... sourceFileString)
-{
-    (target.sourceAggregate.files.emplace(sourceFileString), ...);
-}
-
-template <same_as<char const *>... U> void ADD_MODULE_FILES_TO_TARGET(Target &target, U... moduleFileString)
-{
-    (target.moduleAggregate.files.emplace(moduleFileString), ...);
-}
-
-void ADD_SRC_DIR_TO_TARGET(Target &target, const string &sourceDirectory, const string &regex);
-void ADD_MODULE_DIR_TO_TARGET(Target &target, const string &moduleDirectory, const string &regex);
 
 template <same_as<Executable>... U> void ADD_EXECUTABLES_TO_VARIANT(Variant &variant, U &...executable)
 {
-    (variant.executables.emplace_back(executable), ...);
+    (variant.executables.emplace(executable), ...);
 }
 
 template <same_as<Library>... U> void ADD_LIBRARIES_TO_VARIANT(Variant &variant, U &...library)
 {
-    (variant.libraries.emplace_back(library), ...);
+    (variant.libraries.emplace(library), ...);
 }
 
 void ADD_ENV_INCLUDES_TO_TARGET_MODULE_SRC(Target &moduleTarget);
@@ -970,3 +1078,5 @@ void SEARCH_AND_ADD_FILES_FROM_ENV_INCL_TO_TARGET_MODULE_SRC(Target &moduleTarge
 }
 
 #endif // HMAKE_CONFIGURE_HPP
+
+#pragma clang diagnostic pop

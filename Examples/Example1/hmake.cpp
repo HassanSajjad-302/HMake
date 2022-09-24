@@ -42,8 +42,7 @@ int main()
     // and configure the project. Now, you will have project with two different variants with different
     // configurationType. In order to do this in cmake, you need to configure the project twice. Here there is native
     // support. More about variants in Example.
-    ProjectVariant variant{};
-
+    ProjectVariant variant{project};
     // Note that we passed it the above variant object. So that it will initialize its defaults from that variant
     // object which will initialize its defaults from Cache class static members. Executable and Library are derived
     // from Target class. First argument is targetName. targetName for every target should be different in every
@@ -53,10 +52,9 @@ int main()
 
     // If you don't provide full path then relative path is converted into full path like following
     // Cache::sourceDirectory.path/path i.e. your path is taken relative to sourceDirectory.
-    ADD_SRC_FILES_TO_TARGET(app, "main.cpp");
+    app.SOURCE_FILES("main.cpp");
 
-    ADD_EXECUTABLES_TO_VARIANT(variant, app);
-    project.projectVariants.push_back(variant);
+    variant.executables.emplace(&app);
 
     // This will be your last line. If you are doing packaging, then package.configure may be your last, where package
     // is object of Package.

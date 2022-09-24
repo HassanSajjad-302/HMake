@@ -1,7 +1,7 @@
 
 
-#ifndef HMAKE_TESTHELPER_HPP
-#define HMAKE_TESTHELPER_HPP
+#ifndef HMAKE_EXAMPLESTESTHELPER_HPP
+#define HMAKE_EXAMPLESTESTHELPER_HPP
 
 #include "string"
 using std::string;
@@ -33,11 +33,11 @@ inline string getArchiveName(const string &libName)
 #endif
 }
 
-struct TestHelper
+struct ExamplesTestHelper
 {
     static void recreateBuildDirAndBuildHMakeProject(bool onlyPackageNoProject = false);
     static void runAppWithExpectedOutput(const string &appName, const string &expectedOutput);
     static void recreateBuildDir();
 };
 
-#endif // HMAKE_TESTHELPER_HPP
+#endif // HMAKE_EXAMPLESTESTHELPER_HPP
