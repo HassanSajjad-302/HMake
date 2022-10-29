@@ -177,19 +177,12 @@ void to_json(Json &json, const Directory &directory);
 void from_json(const Json &json, Directory &directory);
 bool operator<(const Directory &lhs, const Directory &rhs);
 
-/*// TODO: Thinking about changing it to PROPOGATE and NOPROPOGATE
-enum class DependencyType
+enum class Dependency
 {
     PUBLIC,
-    PRIVATE
+    PRIVATE,
+    INTERFACE
 };
-void to_json(Json &j, const DependencyType &p);*/
-
-/*struct IDD
-{
-    Directory includeDirectory;
-    IDD(const Directory &includeDirectory_);
-};*/
 
 struct LinkerFlagsDependency
 {
@@ -198,16 +191,16 @@ struct LinkerFlagsDependency
 
 // TODO
 //  try std::tuple
-struct CompileDefinition
+struct define
 {
     string name;
     string value;
-    CompileDefinition() = default;
-    CompileDefinition(const string &name_, const string &value_);
+    define() = default;
+    explicit define(const string &name_, const string &value_ = "");
 };
 
-void to_json(Json &j, const CompileDefinition &cd);
-void from_json(const Json &j, CompileDefinition &cd);
+void to_json(Json &j, const define &cd);
+void from_json(const Json &j, define &cd);
 
 enum class Comparison
 {
@@ -433,18 +426,125 @@ struct CustomTarget
     VariantMode mode = VariantMode::PROJECT;
 };
 
-class Variant
+struct cxxflags : string
 {
-    vector<shared_ptr<class Executable>> executablesContainer;
-    vector<shared_ptr<Library>> librariesContainer;
+};
+
+struct linkflags : string
+{
+};
+
+enum class Link
+{
+    STATIC,
+    SHARED,
+};
+
+enum class Threading
+{
+    SINGLE,
+    MULTI
+};
+
+enum class Warnings
+{
+    ON,
+    ALL,
+    EXTRA,
+    PEDANTIC,
+    OFF,
+};
+
+enum class TargetOS
+{
+    AIX,
+    ANDROID,
+    APPLETV,
+    BSD,
+    CYGWIN,
+    DARWIN,
+    FREEBSD,
+    HAIKU,
+    HPUX,
+    IPHONE,
+    LINUX_,
+    NETBSD,
+    OPENBSD,
+    OSF,
+    QNX,
+    QNXNTO,
+    SGI,
+    SOLARIS,
+    UNIX_,
+    UNIXWARE,
+    WINDOWS,
+    VMS,
+    VXWORKS,
+    FREERTOS
+};
+
+enum class TS
+{
+    GCC,
+    MSVC,
+    CLANG,
+    DARWIN,
+    PGI,
+    SUN,
+    GCC_3_4_4,
+    GCC_4,
+    GCC_4_3_4,
+    GCC_4_4_0,
+    GCC_4_5_0,
+    GCC_4_6_0,
+    GCC_4_6_3,
+    GCC_4_7_0,
+    GCC_4_8_0,
+    GCC_5,
+    DARWIN_4,
+    DARWIN_5,
+    PATHSCALE,
+    INTEL,
+    VACPP,
+};
+struct ToolSet
+{
+    string name;
+    Version version;
+    TS ts;
 
   public:
+    explicit ToolSet(TS ts_ = TS::GCC);
+};
+
+struct CommonProperties
+{
+    Warnings warnings;
+    ToolSet toolSet;
+    TargetOS targetOs;
     ConfigType configurationType;
     Compiler compiler;
     Linker linker;
     Archiver archiver;
-    set<class Executable *> executables;
-    set<Library *> libraries;
+    vector<Directory> privateIncludes;
+    vector<string> privateCompilerFlags;
+    vector<string> privateLinkerFlags;
+    vector<define> privateCompileDefinitions;
+};
+
+class Variant : public CommonProperties
+{
+    vector<shared_ptr<class Executable>> executablesContainer;
+    vector<shared_ptr<Library>> librariesContainer;
+
+    struct TargetComparator
+    {
+        bool operator()(const class Target *lhs, const class Target *rhs) const;
+    };
+
+  public:
+    set<class Executable *, TargetComparator> executables;
+    set<Library *, TargetComparator> libraries;
     set<class PLibrary *> preBuiltLibraries;
     set<class PPLibrary *> packagedLibraries;
     Flags flags;
@@ -453,8 +553,12 @@ class Variant
     Variant();
     void copyAllTargetsFromOtherVariant(Variant &variantFrom);
     void configure(VariantMode mode, unsigned long variantCount, const class Package &package);
-    Executable *findExecutable(const string &name);
-    Library *findLibrary(const string &name);
+    Executable &findExecutable(const string &name);
+    Library &findLibrary(const string &name);
+    Executable &addExecutable(const string &exeName);
+    Library &addLibrary(const string &libName);
+    // TODO: Variant should also have functions like Target which modify the property and return the Target&.
+    // These functions will return the Variant&.
 };
 
 struct ProjectVariant : public Variant
@@ -528,15 +632,13 @@ struct Dependent
     bool isTarget = false;
 };
 
+inline Target *targetForAndOr;
+// TODO
+//  Target and Executable and Library constructors should do more initializations like warnings.
 class Package;
-class Target : public Dependent
+class Target : public Dependent, public CommonProperties
 {
   public:
-    ConfigType configurationType;
-    Compiler compiler;
-    Linker linker;
-    Archiver archiver;
-
     set<Library *> publicLibs;
     set<Library *> privateLibs;
     set<PLibrary *> publicPrebuilts;
@@ -547,13 +649,9 @@ class Target : public Dependent
     bool targetChecked = false;
 
     vector<Directory> publicIncludes;
-    vector<Directory> privateIncludes;
     vector<string> publicCompilerFlags;
-    vector<string> privateCompilerFlags;
     vector<string> publicLinkerFlags;
-    vector<string> privateLinkerFlags;
-    vector<CompileDefinition> publicCompileDefinitions;
-    vector<CompileDefinition> privateCompileDefinitions;
+    vector<define> publicCompileDefinitions;
     SourceAggregate sourceAggregate{.Identifier = "SOURCE_"};
     // SourceAggregate for Modules
     SourceAggregate moduleAggregate{.Identifier = "MODULES_"};
@@ -608,6 +706,53 @@ class Target : public Dependent
 
     Target &SOURCE_DIRECTORIES(const string &sourceDirectory, const string &regex);
     Target &MODULE_DIRECTORIES(const string &moduleDirectory, const string &regex);
+
+    inline Target &setTargetForAndOr()
+    {
+        targetForAndOr = this;
+        return *this;
+    }
+    // All properties are assigned.
+    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
+    Target &ASSIGN(T property, Condition... conditions);
+
+    // Properties are assigned if assign bool is true. To Be Used With functions ADD and OR.
+    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
+    Target &ASSIGN(bool assign, T property, Condition... conditions);
+#define ASSIGN_I ASSIGN<Dependency::INTERFACE>
+    template <typename T> bool EVALUATE(T property);
+
+    // Eight functions are being used to manipulate properties. The two are AND and OR in global namespace.
+    // AND and OR functions also have an overload that takes a target pointer and sets the global variable.
+    // Remaining six include the last 4 and the 2 ASSIGN functions.
+
+  private:
+    // var left = right;
+    // Only last property will be assigned. Others aren't considered.
+    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
+    void RIGHT_MOST(T condition, Condition... conditions);
+
+  public:
+    // Multiple properties on left which are anded and after that right's assignment occurs.
+    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
+    Target &M_LEFT_AND(T condition, Condition... conditions);
+#define M_LEFT_AND_I M_LEFT_AND<Dependency::INTERFACE>
+
+    // Single Condition and Property. M_LEFT_AND or M_LEFT_OR could be used too, but, that's more clear
+    template <Dependency dependency = Dependency::PRIVATE, typename T, typename P>
+    Target &SINGLE(T condition, P property);
+#define SINGLE_I SINGLE<Dependency::INTERFACE>
+
+    // Multiple properties on left which are orred and after that right's assignment occurs.
+    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
+    Target &M_LEFT_OR(T condition, Condition... conditions);
+#define M_LEFT_OR_I M_LEFT_OR<Dependency::INTERFACE>
+
+    // Incomplete
+    // If first left succeeds then, Multiple properties of the right are assigned to the target.
+    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
+    Target &M_RIGHT(T condition, Condition... conditions);
+#define M_RIGHT_I M_RIGHT<Dependency::INTERFACE>
 };
 
 template <same_as<char const *>... U> Target &Target::PUBLIC_INCLUDES(U... includeDirectoryString)
@@ -644,6 +789,206 @@ template <same_as<char const *>... U> Target &Target::MODULE_FILES(U... moduleFi
 {
     (moduleAggregate.files.emplace(moduleFileString), ...);
     return *this;
+}
+
+template <Dependency dependency, typename T, typename... Condition>
+Target &Target::ASSIGN(T property, Condition... conditions)
+{
+    if constexpr (std::is_same_v<decltype(property), TargetOS>)
+    {
+        targetOs = property;
+        // TODO
+        //  Ensure that toolset version supports it.
+    }
+    else if constexpr (std::is_same_v<decltype(property), ToolSet>)
+    {
+        toolSet = property;
+        // TODO
+        //  Here toolset is being assigned. It is ensured that the respective ToolSet exists in the
+        //  Target's Variant. And the compiler and linker
+    }
+    else if constexpr (std::is_same_v<decltype(property), Warnings>)
+    {
+        // Beside assigning to warnings, add the respective flags for respective compilers to the
+        // cxxflags.
+        warnings = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), cxxflags>)
+    {
+        privateCompilerFlags.template emplace_back(property);
+    }
+    else if constexpr (std::is_same_v<decltype(property), linkflags>)
+    {
+        privateLinkerFlags.template emplace_back(property);
+    }
+    else if constexpr (std::is_same_v<decltype(property), define>)
+    {
+        privateCompileDefinitions.template emplace_back(property);
+    }
+    else
+    {
+        warnings = property; // Just to fail the compilation. Ensures that all properties are handled.
+    }
+    if constexpr (sizeof...(conditions))
+    {
+        return ASSIGN(conditions...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <Dependency dependency, typename T, typename... Condition>
+Target &Target::ASSIGN(bool assign, T property, Condition... conditions)
+{
+    return assign ? ASSIGN(property, conditions...) : *this;
+}
+
+template <typename T> bool Target::EVALUATE(T property)
+{
+    if constexpr (std::is_same_v<decltype(property), ToolSet>)
+    {
+        return toolSet.ts == property.ts;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TargetOS>)
+    {
+        return targetOs == property;
+    }
+    else
+    {
+        toolSet = property; // Just to fail the compilation. Ensures that all properties are handled.
+    }
+}
+
+template <Dependency dependency, typename T, typename... Condition>
+void Target::RIGHT_MOST(T condition, Condition... conditions)
+{
+    if constexpr (sizeof...(conditions))
+    {
+        RIGHT_MOST(conditions...);
+    }
+    else
+    {
+        ASSIGN(condition);
+    }
+}
+
+template <Dependency dependency, typename T, typename... Condition>
+Target &Target::M_LEFT_AND(T condition, Condition... conditions)
+{
+    if constexpr (sizeof...(conditions))
+    {
+        return EVALUATE(condition) ? M_LEFT_AND(conditions...) : *this;
+    }
+    else
+    {
+        ASSIGN(condition);
+        return *this;
+    }
+}
+
+template <Dependency dependency, typename T, typename P> Target &Target::SINGLE(T condition, P property)
+{
+    if (EVALUATE(condition))
+    {
+        ASSIGN(property);
+    }
+    return *this;
+}
+
+template <Dependency dependency, typename T, typename... Condition>
+Target &Target::M_LEFT_OR(T condition, Condition... conditions)
+{
+    if constexpr (sizeof...(conditions))
+    {
+        if (EVALUATE(condition))
+        {
+            RIGHT_MOST(conditions...);
+            return *this;
+        }
+        return M_LEFT_OR(conditions...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <Dependency dependency, typename T, typename... Condition>
+Target &Target::M_RIGHT(T condition, Condition... conditions)
+{
+    if (EVALUATE(condition))
+    {
+        ASSIGN(conditions...);
+    }
+    return *this;
+}
+
+template <typename T, typename... Condition> bool AND(T condition, Condition... conditions)
+{
+    if (!targetForAndOr->template EVALUATE(condition))
+    {
+        return false;
+    }
+    if constexpr (sizeof...(conditions))
+    {
+        return AND(conditions...);
+    }
+    else
+    {
+        return true;
+    }
+}
+
+template <typename T, typename... Condition> bool OR(T condition, Condition... conditions)
+{
+    if (targetForAndOr->template EVALUATE(condition))
+    {
+        return true;
+    }
+    if constexpr (sizeof...(conditions))
+    {
+        return OR(conditions...);
+    }
+    else
+    {
+        return false;
+    }
+}
+
+template <typename T, typename... Condition> bool AND(Target *target, T condition, Condition... conditions)
+{
+    targetForAndOr = target;
+    if (!targetForAndOr->template EVALUATE(condition))
+    {
+        return false;
+    }
+    if constexpr (sizeof...(conditions))
+    {
+        return AND(conditions...);
+    }
+    else
+    {
+        return true;
+    }
+}
+
+template <typename T, typename... Condition> bool OR(Target *target, T condition, Condition... conditions)
+{
+    targetForAndOr = target;
+    if (targetForAndOr->template EVALUATE(condition))
+    {
+        return true;
+    }
+    if constexpr (sizeof...(conditions))
+    {
+        return OR(conditions...);
+    }
+    else
+    {
+        return false;
+    }
 }
 
 template <> struct std::less<Target *>
@@ -690,7 +1035,7 @@ class PLibrary : public Dependent
     vector<Directory> includes;
     string compilerFlags;
     string linkerFlags;
-    vector<CompileDefinition> compileDefinitions;
+    vector<define> compileDefinitions;
     path libraryPath;
     mutable TargetType targetType;
     PLibrary(Variant &variant, const path &libraryPath_, LibraryType libraryType_);

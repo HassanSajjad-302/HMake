@@ -150,17 +150,17 @@ bool operator<(const Directory &lhs, const Directory &rhs)
     return lhs.directoryPath < rhs.directoryPath;
 }
 
-CompileDefinition::CompileDefinition(const string &name_, const string &value_) : name{name_}, value{value_}
+define::define(const string &name_, const string &value_) : name{name_}, value{value_}
 {
 }
 
-void to_json(Json &j, const CompileDefinition &cd)
+void to_json(Json &j, const define &cd)
 {
     j[JConsts::name] = cd.name;
     j[JConsts::value] = cd.value;
 }
 
-void from_json(const Json &j, CompileDefinition &cd)
+void from_json(const Json &j, define &cd)
 {
     cd.name = j.at(JConsts::name).get<string>();
     cd.value = j.at(JConsts::value).get<string>();
@@ -317,13 +317,7 @@ string Target::getTargetFilePathPackage(unsigned long variantCount) const
 
 void Target::assignConfigurationFromVariant(const Variant &variant)
 {
-    configurationType = variant.configurationType;
-    compiler = variant.compiler;
-    linker = variant.linker;
-    archiver = variant.archiver;
-    // TODO This flags is global assignment instead of class assignment
-    flags = variant.flags;
-    environment = variant.environment;
+    static_cast<CommonProperties &>(*this) = static_cast<const CommonProperties &>(variant);
 }
 
 // TODO Not Copying the dependencies of dependencies
@@ -494,11 +488,13 @@ Target &Target::PRIVATE_LINKER_FLAGS(const string &linkerFlags)
 
 Target &Target::PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
 {
-    publicCompileDefinitions.emplace_back(CompileDefinition(cddName, cddValue));
+    publicCompileDefinitions.emplace_back(cddName, cddValue);
+    return *this;
 }
 Target &Target::PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
 {
-    publicCompileDefinitions.emplace_back(CompileDefinition(cddName, cddValue));
+    publicCompileDefinitions.emplace_back(cddName, cddValue);
+    return *this;
 }
 
 Target &Target::SOURCE_DIRECTORIES(const string &sourceDirectory, const string &regex)
@@ -874,7 +870,11 @@ Executable::Executable(string targetName_) : Target(move(targetName_))
 Executable::Executable(string targetName_, Variant &variant) : Target(move(targetName_), variant)
 {
     targetType = TargetType::EXECUTABLE;
-    variant.executables.emplace(this);
+    if (auto [pos, Ok] = variant.executables.emplace(this); !Ok)
+    {
+        fmt::print(stderr, "Executable {} already added to variant.", targetName_);
+        exit(EXIT_FAILURE);
+    }
 }
 
 Executable::Executable(string targetName_, Variant &variantFrom, Variant &variantTo, bool copyDependencies)
@@ -889,7 +889,11 @@ Library::Library(string targetName_) : Target(move(targetName_))
 Library::Library(string targetName_, Variant &variant) : Target(move(targetName_), variant)
 {
     setLibraryType(variant.libraryType);
-    variant.libraries.emplace(this);
+    if (auto [pos, Ok] = variant.libraries.emplace(this); !Ok)
+    {
+        fmt::print(stderr, "Library {} already added to variant.", targetName_);
+        exit(EXIT_FAILURE);
+    }
 }
 
 Library::Library(string targetName_, Variant &variantFrom, Variant &variantTo, bool copyDependencies)
@@ -1282,6 +1286,16 @@ void Cache::registerCacheVariables()
     ofstream(filePath) << cacheFileJson.dump(4);
 }
 
+ToolSet::ToolSet(TS ts_) : ts{ts_}
+{
+    // Initialize Name And Version
+}
+
+bool Variant::TargetComparator::operator()(const class Target *lhs, const class Target *rhs) const
+{
+    return lhs->targetName < rhs->targetName;
+}
+
 Variant::Variant()
 {
     configurationType = Cache::projectConfigurationType;
@@ -1476,18 +1490,36 @@ void Variant::configure(VariantMode mode, unsigned long variantCount, const clas
     ofstream(variantFilePath) << variantJson.dump(4);
 }
 
-Executable *Variant::findExecutable(const string &name)
+Executable &Variant::findExecutable(const string &name)
 {
     Executable executable(name);
     auto it = executables.find(&executable);
-    return it == executables.end() ? nullptr : *it;
+    if (it == executables.end())
+    {
+        fmt::print(stderr, "Could Not find the Executable");
+    }
+    return **it;
 }
 
-Library *Variant::findLibrary(const string &name)
+Library &Variant::findLibrary(const string &name)
 {
     Library library(name);
     auto it = libraries.find(&library);
-    return it == libraries.end() ? nullptr : *it;
+    if (it == libraries.end())
+    {
+        fmt::print(stderr, "Could Not find the library");
+    }
+    return **it;
+}
+
+Executable &Variant::addExecutable(const string &exeName)
+{
+    return *executablesContainer.emplace_back(make_shared<Executable>(exeName, *this)).get();
+}
+
+Library &Variant::addLibrary(const string &libName)
+{
+    return *librariesContainer.emplace_back(make_shared<Library>(libName, *this)).get();
 }
 
 ProjectVariant::ProjectVariant(struct Project &project)
@@ -2006,7 +2038,7 @@ bool operator<(const PLibrary &lhs, const PLibrary &rhs)
     vector<Directory> includes;
     string compilerFlags;
     string linkerFlags;
-    vector<CompileDefinition>
+    vector<Define>
         compileDefinitions; path libraryPath;*/
 
     vector<tuple<string, string>> b;
@@ -2099,7 +2131,7 @@ PPLibrary::PPLibrary(Variant &variant, string libraryName_, const CPackage &cPac
     linkerFlags = libraryFileJson.at(JConsts::linkerTransitiveFlags).get<string>();
     if (!libraryFileJson.at(JConsts::compileDefinitions).empty())
     {
-        compileDefinitions = libraryFileJson.at(JConsts::compileDefinitions).get<vector<CompileDefinition>>();
+        compileDefinitions = libraryFileJson.at(JConsts::compileDefinitions).get<vector<define>>();
     }
     libraryPath = libraryDirectoryPath /
                   path(getActualNameFromTargetName(libraryType == LibraryType::STATIC ? TargetType::PLIBRARY_STATIC
