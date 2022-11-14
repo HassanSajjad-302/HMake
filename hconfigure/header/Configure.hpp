@@ -152,6 +152,7 @@ struct JConsts
     inline static const string variantsIndices = "variants-indices";
     inline static const string version = "version";
     inline static const string windows = "windows";
+    inline static const string x86 = "X86";
 };
 
 struct File
@@ -191,16 +192,16 @@ struct LinkerFlagsDependency
 
 // TODO
 //  try std::tuple
-struct define
+struct Define
 {
     string name;
     string value;
-    define() = default;
-    explicit define(const string &name_, const string &value_ = "");
+    Define() = default;
+    explicit Define(const string &name_, const string &value_ = "");
 };
 
-void to_json(Json &j, const define &cd);
-void from_json(const Json &j, define &cd);
+void to_json(Json &j, const Define &cd);
+void from_json(const Json &j, Define &cd);
 
 enum class Comparison
 {
@@ -426,11 +427,39 @@ struct CustomTarget
     VariantMode mode = VariantMode::PROJECT;
 };
 
-struct cxxflags : string
+enum class Arch // Architecture
+{
+    X86,
+    IA64,
+    SPARC,
+    POWER,
+    MIPS,
+    MIPS1,
+    MIPS2,
+    MIPS3,
+    MIPS4,
+    MIPS32,
+    MIPS32R2,
+    MIPS64,
+    PARISC,
+    ARM,
+    S390X,
+    LOONGARCH,
+};
+void to_json(Json &j, const Arch &arch);
+void from_json(const Json &j, Arch &arch); // Used in hbuild
+
+enum class AM // AddressModel
+{
+    A_32,
+    A_64,
+};
+
+struct CxxFlags : string
 {
 };
 
-struct linkflags : string
+struct LinkFlags : string
 {
 };
 
@@ -503,6 +532,9 @@ enum class TS
     GCC_5,
     DARWIN_4,
     DARWIN_5,
+    DARWIN_4_6_2,
+    DARWIN_4_7_0,
+    CLANG_3_0,
     PATHSCALE,
     INTEL,
     VACPP,
@@ -526,10 +558,12 @@ struct CommonProperties
     Compiler compiler;
     Linker linker;
     Archiver archiver;
+    Threading threading;
+    Link link;
     vector<Directory> privateIncludes;
     vector<string> privateCompilerFlags;
     vector<string> privateLinkerFlags;
-    vector<define> privateCompileDefinitions;
+    vector<Define> privateCompileDefinitions;
 };
 
 class Variant : public CommonProperties
@@ -651,7 +685,7 @@ class Target : public Dependent, public CommonProperties
     vector<Directory> publicIncludes;
     vector<string> publicCompilerFlags;
     vector<string> publicLinkerFlags;
-    vector<define> publicCompileDefinitions;
+    vector<Define> publicCompileDefinitions;
     SourceAggregate sourceAggregate{.Identifier = "SOURCE_"};
     // SourceAggregate for Modules
     SourceAggregate moduleAggregate{.Identifier = "MODULES_"};
@@ -813,17 +847,21 @@ Target &Target::ASSIGN(T property, Condition... conditions)
         // cxxflags.
         warnings = property;
     }
-    else if constexpr (std::is_same_v<decltype(property), cxxflags>)
+    else if constexpr (std::is_same_v<decltype(property), CxxFlags>)
     {
         privateCompilerFlags.template emplace_back(property);
     }
-    else if constexpr (std::is_same_v<decltype(property), linkflags>)
+    else if constexpr (std::is_same_v<decltype(property), LinkFlags>)
     {
         privateLinkerFlags.template emplace_back(property);
     }
-    else if constexpr (std::is_same_v<decltype(property), define>)
+    else if constexpr (std::is_same_v<decltype(property), Define>)
     {
         privateCompileDefinitions.template emplace_back(property);
+    }
+    else if constexpr (std::is_same_v<decltype(property), Threading>)
+    {
+        threading = property;
     }
     else
     {
@@ -847,13 +885,21 @@ Target &Target::ASSIGN(bool assign, T property, Condition... conditions)
 
 template <typename T> bool Target::EVALUATE(T property)
 {
-    if constexpr (std::is_same_v<decltype(property), ToolSet>)
+    if constexpr (std::is_same_v<decltype(property), TS>)
     {
-        return toolSet.ts == property.ts;
+        return toolSet.ts == property;
     }
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {
         return targetOs == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Threading>)
+    {
+        return threading == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Link>)
+    {
+        return link == property;
     }
     else
     {
@@ -1035,7 +1081,7 @@ class PLibrary : public Dependent
     vector<Directory> includes;
     string compilerFlags;
     string linkerFlags;
-    vector<define> compileDefinitions;
+    vector<Define> compileDefinitions;
     path libraryPath;
     mutable TargetType targetType;
     PLibrary(Variant &variant, const path &libraryPath_, LibraryType libraryType_);

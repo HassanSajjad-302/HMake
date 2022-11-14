@@ -150,17 +150,17 @@ bool operator<(const Directory &lhs, const Directory &rhs)
     return lhs.directoryPath < rhs.directoryPath;
 }
 
-define::define(const string &name_, const string &value_) : name{name_}, value{value_}
+Define::Define(const string &name_, const string &value_) : name{name_}, value{value_}
 {
 }
 
-void to_json(Json &j, const define &cd)
+void to_json(Json &j, const Define &cd)
 {
     j[JConsts::name] = cd.name;
     j[JConsts::value] = cd.value;
 }
 
-void from_json(const Json &j, define &cd)
+void from_json(const Json &j, Define &cd)
 {
     cd.name = j.at(JConsts::name).get<string>();
     cd.value = j.at(JConsts::value).get<string>();
@@ -1286,6 +1286,14 @@ void Cache::registerCacheVariables()
     ofstream(filePath) << cacheFileJson.dump(4);
 }
 
+void to_json(Json &j, const Arch &arch)
+{
+}
+
+void from_json(const Json &j, Arch &arch)
+{
+}
+
 ToolSet::ToolSet(TS ts_) : ts{ts_}
 {
     // Initialize Name And Version
@@ -2131,7 +2139,7 @@ PPLibrary::PPLibrary(Variant &variant, string libraryName_, const CPackage &cPac
     linkerFlags = libraryFileJson.at(JConsts::linkerTransitiveFlags).get<string>();
     if (!libraryFileJson.at(JConsts::compileDefinitions).empty())
     {
-        compileDefinitions = libraryFileJson.at(JConsts::compileDefinitions).get<vector<define>>();
+        compileDefinitions = libraryFileJson.at(JConsts::compileDefinitions).get<vector<Define>>();
     }
     libraryPath = libraryDirectoryPath /
                   path(getActualNameFromTargetName(libraryType == LibraryType::STATIC ? TargetType::PLIBRARY_STATIC

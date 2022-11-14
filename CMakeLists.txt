@@ -31,7 +31,7 @@ add_executable(hbuild
 target_include_directories(hbuild PRIVATE hbuild/header)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeCppHelper hmake.cpp)
+add_executable(HMakeCppHelper Projects/Boost/hmake.cpp)
 target_include_directories(HMakeCppHelper PRIVATE hconfigure/header)
 add_subdirectory(json)
 target_link_libraries(hbuild PRIVATE hconfigure)
