@@ -315,6 +315,277 @@ string Target::getTargetFilePathPackage(unsigned long variantCount) const
            targetName + "/" + targetName + ".hmake";
 }
 
+void Target::setPropertiesFlags() const
+{
+    // TODO: setTargetForAndOr is not being called as this target is marked const
+    // Notes
+    //  For Windows NT, we use a different JAMSHELL
+    //  Currently, I ain't caring for the propagated properties. These properties are only being
+    //  assigned to the parent.
+    //  TODO s
+    //  262 Be caustious of this rc-type. It has something to do with Windows resource compiler
+    //  which I don't know
+    //  TODO: flavor is being assigned based on the -dumpmachine argument to the gcc command. But this
+    //   is not yet catered here.
+    //
+
+    // Calls to toolset.flags are being copied.
+    // OPTIONS variable is being updated for rule gcc.compile and gcc.link action.
+    string compilerFlags;
+    string linkerFlags;
+    string compilerAndLinkerFlags;
+    // FINDLIBS-SA variable is being updated gcc.link rule.
+    string findLibsSA;
+    // OPTIONS variable is being updated for gcc.compile.c++ rule actions.
+    string cppCompilerFlags;
+    // DEFINES variable is being updated for gcc.compile.c++ rule actions.
+    string cppDefineFlags;
+    // OPTIONS variable is being updated for rule gcc.compile.c++ and gcc.link action.
+    string cppCompilerAndLinkerFlags;
+    // .IMPLIB-COMMAND variable is being updated for rule gcc.link.DLL action.
+    string implibCommand;
+
+    auto isTargetBSD = [&]() { return OR(TargetOS::BSD, TargetOS::FREEBSD, TargetOS::NETBSD, TargetOS::NETBSD); };
+    {
+        // -fPIC
+        if (targetType == TargetType::STATIC || targetType == TargetType::SHARED)
+        {
+            if (targetOs != TargetOS::WINDOWS || targetOs != TargetOS::CYGWIN)
+            {
+            }
+        }
+    }
+    {
+        // Handle address-model
+        if (targetOs == TargetOS::AIX && addModel == AddressModel::A_32)
+        {
+            compilerAndLinkerFlags += "-maix32";
+        }
+        if (targetOs == TargetOS::AIX && addModel == AddressModel::A_64)
+        {
+            compilerAndLinkerFlags += "-maix64";
+        }
+        if (targetOs == TargetOS::HPUX && addModel == AddressModel::A_32)
+        {
+            compilerAndLinkerFlags += "-milp32";
+        }
+        if (targetOs == TargetOS::HPUX && addModel == AddressModel::A_64)
+        {
+            compilerAndLinkerFlags += "-milp64";
+        }
+    }
+    {
+        // Handle threading
+        if (EVALUATE(Threading::MULTI))
+        {
+            if (OR(TargetOS::WINDOWS, TargetOS::CYGWIN, TargetOS::SOLARIS))
+            {
+                compilerAndLinkerFlags += "-mthreads";
+            }
+            else if (targetOs == TargetOS::QNX || isTargetBSD())
+            {
+                compilerAndLinkerFlags += "-pthread";
+            }
+            else if (targetOs == TargetOS::SOLARIS)
+            {
+                compilerAndLinkerFlags += "-pthreads";
+                findLibsSA += "rt";
+            }
+            else if (!OR(TargetOS::ANDROID, TargetOS::HAIKU, TargetOS::SGI, TargetOS::DARWIN, TargetOS::VXWORKS,
+                         TargetOS::IPHONE, TargetOS::APPLETV))
+            {
+                compilerAndLinkerFlags += "-pthread";
+                findLibsSA += "rt";
+            }
+        }
+    }
+    {
+        CxxSTDDialect dCxxStdDialects = CxxSTDDialect::MS;
+        auto setCppStdAndDialectCompilerAndLinkerFlags = [&](CxxSTD cxxStdLocal) {
+            cppCompilerAndLinkerFlags += cxxStdDialect == CxxSTDDialect::GNU ? "-std=gnu++" : "-std=c++";
+            CxxSTD temp = cxxStd;
+            const_cast<CxxSTD &>(cxxStd) = cxxStdLocal;
+            cppCompilerAndLinkerFlags += GET_FLAG_EVALUATE(
+                CxxSTD::V_98, "98", CxxSTD::V_03, "03", CxxSTD::V_0x, "0x", CxxSTD::V_11, "11", CxxSTD::V_1y, "1y",
+                CxxSTD::V_14, "14", CxxSTD::V_1z, "1z", CxxSTD::V_17, "17", CxxSTD::V_2a, "2a", CxxSTD::V_20, "20",
+                CxxSTD::V_2b, "2b", CxxSTD::V_23, "23", CxxSTD::V_2c, "2c", CxxSTD::V_26, "26");
+            const_cast<CxxSTD &>(cxxStd) = temp;
+        };
+
+        if (EVALUATE(CxxSTD::V_LATEST))
+        {
+            // Rule at Line 429
+            /*            if (toolSet.version >= Version{10})
+                        {
+                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_20);
+                        }
+                        else if (toolSet.version >= Version{8})
+                        {
+                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_2a);
+                        }
+                        else if (toolSet.version >= Version{6})
+                        {
+                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_17);
+                        }
+                        else if (toolSet.version >= Version{5})
+                        {
+                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_1z);
+                        }
+                        else if (toolSet.version >= Version{4, 9})
+                        {
+                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_14);
+                        }
+                        else if (toolSet.version >= Version{4, 8})
+                        {
+                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_1y);
+                        }
+                        else if (toolSet.version >= Version{4, 7})
+                        {
+                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_11);
+                        }
+                        else if (toolSet.version >= Version{3, 3})
+                        {
+                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_98);
+                        }*/
+        }
+        else
+        {
+            setCppStdAndDialectCompilerAndLinkerFlags(cxxStd);
+        }
+    }
+    // From line 423 to line 625 as no library is using pch or obj
+
+    // General options, link optimizations
+
+    compilerFlags += GET_FLAG_EVALUATE(Optimization::OFF, "-O0", Optimization::SPEED, "-O3", Optimization::SPACE, "-Os",
+                                       Optimization::MINIMAL, "-O1", Optimization::DEBUG, "-Og");
+
+    compilerFlags += GET_FLAG_EVALUATE(Inlining::OFF, "-fno-inline", Inlining::ON, "-Wno-inline", Inlining::FULL,
+                                       "-finline-functions -Wno-inline");
+
+    compilerFlags += GET_FLAG_EVALUATE(Warnings::OFF, "-w", Warnings::ON, "-Wall", Warnings::ALL, "-Wall",
+                                       Warnings::EXTRA, "-Wall -Wextra", Warnings::PEDANTIC, "-Wall -Wextra -pedantic");
+    compilerFlags += GET_FLAG_EVALUATE(WarningsAsErrors::ON, "-Werror");
+
+    compilerFlags += GET_FLAG_EVALUATE(DebugSymbols::ON, "-g");
+    compilerFlags += GET_FLAG_EVALUATE(Profiling::ON, "-pg");
+
+    compilerFlags += GET_FLAG_EVALUATE(LocalVisibility::HIDDEN, "-fvisibility=hidden");
+    cppCompilerFlags += GET_FLAG_EVALUATE(LocalVisibility::HIDDEN, "-fvisibility-inlines-hidden");
+    if (!EVALUATE(TargetOS::DARWIN))
+    {
+        compilerFlags += GET_FLAG_EVALUATE(LocalVisibility::PROTECTED, "-fvisibility=protected");
+    }
+    compilerFlags += GET_FLAG_EVALUATE(LocalVisibility::GLOBAL, "-fvisibility=default");
+
+    cppCompilerFlags += GET_FLAG_EVALUATE(ExceptionHandling::OFF, "-fno-exceptions");
+    cppCompilerFlags += GET_FLAG_EVALUATE(RTTI::OFF, "-fno-rtti");
+
+    // Sanitizers
+    string sanitizerFlags;
+    sanitizerFlags += GET_FLAG_EVALUATE(AddressSanitizer::ON, "-fsanitize=address -fno-omit-frame-pointer",
+                                        AddressSanitizer::NORECOVER,
+                                        "-fsanitize=address -fno-sanitize-recover=address -fno-omit-frame-pointer");
+    sanitizerFlags +=
+        GET_FLAG_EVALUATE(LeakSanitizer::ON, "-fsanitize=leak -fno-omit-frame-pointer", LeakSanitizer::NORECOVER,
+                          "-fsanitize=leak -fno-sanitize-recover=leak -fno-omit-frame-pointer");
+    sanitizerFlags +=
+        GET_FLAG_EVALUATE(ThreadSanitizer::ON, "-fsanitize=thread -fno-omit-frame-pointer", ThreadSanitizer::NORECOVER,
+                          "-fsanitize=thread -fno-sanitize-recover=thread -fno-omit-frame-pointer");
+    sanitizerFlags += GET_FLAG_EVALUATE(UndefinedSanitizer::ON, "-fsanitize=undefined -fno-omit-frame-pointer",
+                                        UndefinedSanitizer::NORECOVER,
+                                        "-fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer");
+    sanitizerFlags += GET_FLAG_EVALUATE(Coverage::ON, "--coverage");
+
+    cppCompilerFlags += sanitizerFlags;
+    // I don't understand the following comment at line 667:
+    // # configure Dinkum STL to match compiler options
+    if (EVALUATE(TargetOS::VXWORKS))
+    {
+        cppDefineFlags += GET_FLAG_EVALUATE(RTTI::OFF, "_NO_RTTI");
+        cppDefineFlags += GET_FLAG_EVALUATE(ExceptionHandling::OFF, "_NO_EX=1");
+    }
+
+    // LTO
+    // compilerAndLinkerFlags += GET_FLAG_EVALUATE()
+    if (EVALUATE(LTO::ON))
+    {
+        compilerAndLinkerFlags += GET_FLAG_EVALUATE(LTOMode::FULL, "-flto");
+        compilerFlags += GET_FLAG_EVALUATE(LTOMode::FAT, "-flto -ffat-lto-objects");
+        linkerFlags += GET_FLAG_EVALUATE(LTOMode::FAT, "-flto");
+    }
+
+    // ABI selection
+    cppDefineFlags +=
+        GET_FLAG_EVALUATE(StdLib::GNU, "_GLIBCXX_USE_CXX11_ABI=0", StdLib::GNU11, "_GLIBCXX_USE_CXX11_ABI=1");
+
+    {
+        bool noStaticLink = true;
+        if (OR(TargetOS::WINDOWS, TargetOS::VMS))
+        {
+            noStaticLink = false;
+        }
+        if (noStaticLink && EVALUATE(RuntimeLink::STATIC))
+        {
+            if (EVALUATE(Link::SHARED))
+            {
+                cout << "WARNING: On gcc, DLLs can not be built with <runtime-link>static" << endl;
+            }
+            else
+            {
+                // TODO:  Line 718
+                //  Implement the remaining rule
+            }
+        }
+    }
+
+    // Linker Flags
+
+    linkerFlags += GET_FLAG_EVALUATE(DebugSymbols::ON, "-g");
+    linkerFlags += GET_FLAG_EVALUATE(Profiling::ON, "-pg");
+
+    linkerFlags += GET_FLAG_EVALUATE(LocalVisibility::HIDDEN, "-fvisibility=hidden -fvisibility-inlines-hidden",
+                                     LocalVisibility::GLOBAL, "-fvisibility=default");
+    if (!EVALUATE(TargetOS::DARWIN))
+    {
+        linkerFlags += GET_FLAG_EVALUATE(LocalVisibility::PROTECTED, "-fvisibility=protected");
+    }
+
+    // Sanitizers
+    // Though sanitizer flags for compiler are assigned at different location, and are for c++, but are exact same
+    linkerFlags += sanitizerFlags;
+    linkerFlags += GET_FLAG_EVALUATE(Coverage::ON, "--coverage");
+
+    // Target Specific Flags
+    // AIX
+    /* On AIX we *have* to use the native linker.
+
+   The -bnoipath strips the prepending (relative) path of libraries from
+   the loader section in the target library or executable. Hence, during
+   load-time LIBPATH (identical to LD_LIBRARY_PATH) or a hard-coded
+   -blibpath (*similar* to -lrpath/-lrpath-link) is searched. Without
+   this option, the prepending (relative) path + library name is
+   hard-coded in the loader section, causing *only* this path to be
+   searched during load-time. Note that the AIX linker does not have an
+   -soname equivalent, this is as close as it gets.
+
+   The -bbigtoc option instrcuts the linker to create a TOC bigger than 64k.
+   This is necessary for some submodules such as math, but it does make running
+   the tests a tad slower.
+
+   The above options are definitely for AIX 5.x, and most likely also for
+   AIX 4.x and AIX 6.x. For details about the AIX linker see:
+   http://download.boulder.ibm.com/ibmdl/pub/software/dw/aix/es-aix_ll.pdf
+   */
+    linkerFlags += GET_FLAG_EVALUATE(TargetOS::AIX, "-Wl -bnoipath -Wl -bbigtoc");
+    linkerFlags += AND(TargetOS::AIX, RuntimeLink::STATIC) ? "-static" : "";
+    //  On Darwin, the -s option to ld does not work unless we pass -static,
+    // and passing -static unconditionally is a bad idea. So, do not pass -s
+    // at all and darwin.jam will use a separate 'strip' invocation.
+
+    // 866
+}
+
 void Target::assignConfigurationFromVariant(const Variant &variant)
 {
     static_cast<CommonProperties &>(*this) = static_cast<const CommonProperties &>(variant);
@@ -914,30 +1185,6 @@ void Library::setLibraryType(LibraryType libraryType_)
     }
 }
 
-// So that the type becomes compatible for usage  in key of map
-bool operator<(const Version &lhs, const Version &rhs)
-{
-    if (lhs.majorVersion < rhs.majorVersion)
-    {
-        return true;
-    }
-    else if (lhs.majorVersion == rhs.majorVersion)
-    {
-        if (lhs.minorVersion < rhs.minorVersion)
-        {
-            return true;
-        }
-        else if (lhs.minorVersion == rhs.minorVersion)
-        {
-            if (lhs.patchVersion < rhs.patchVersion)
-            {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
 bool operator==(const Version &lhs, const Version &rhs)
 {
     return lhs.majorVersion == rhs.majorVersion && lhs.minorVersion == rhs.minorVersion &&
@@ -1030,7 +1277,8 @@ CompilerFlags CompilerFlags::defaultFlags()
     CompilerFlags compilerFlags;
     compilerFlags.compilerFamilies.emplace(BTFamily::GCC);
     compilerFlags.compilerFamilies.emplace(BTFamily::MSVC);
-    compilerFlags[BTFamily::GCC][CompilerVersion{10, 2, 0}][ConfigType::DEBUG] = "-g";
+    // TODO:
+    // compilerFlags[BTFamily::GCC][CompilerVersion{10, 2, 0}][ConfigType::DEBUG] = "-g";
     compilerFlags[BTFamily::GCC][ConfigType::RELEASE] = "-O3 -DNDEBUG";
     compilerFlags.configurationTypes.emplace(ConfigType::DEBUG);
     compilerFlags.configurationTypes.emplace(ConfigType::RELEASE);
@@ -1535,6 +1783,11 @@ ProjectVariant::ProjectVariant(struct Project &project)
     project.projectVariants.emplace_back(this);
 }
 
+Version::Version(unsigned int majorVersion_, unsigned int minorVersion_, unsigned int patchVersion_)
+    : majorVersion{majorVersion_}, minorVersion{minorVersion_}, patchVersion{patchVersion_}
+{
+}
+
 void to_json(Json &j, const Version &p)
 {
     j = to_string(p.majorVersion) + "." + to_string(p.minorVersion) + "." + to_string(p.patchVersion);
@@ -1563,6 +1816,44 @@ void from_json(const Json &j, Version &v)
         }
         ++count;
     }
+}
+
+bool operator<(const Version &lhs, const Version &rhs)
+{
+    if (lhs.majorVersion < rhs.majorVersion)
+    {
+        return true;
+    }
+    else if (lhs.majorVersion == rhs.majorVersion)
+    {
+        if (lhs.minorVersion < rhs.minorVersion)
+        {
+            return true;
+        }
+        else if (lhs.minorVersion == rhs.minorVersion)
+        {
+            if (lhs.patchVersion < rhs.patchVersion)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool operator>(const Version &lhs, const Version &rhs)
+{
+    return rhs < lhs;
+}
+
+bool operator<=(const Version &lhs, const Version &rhs)
+{
+    return !(lhs > rhs);
+}
+
+bool operator>=(const Version &lhs, const Version &rhs)
+{
+    return !(lhs < rhs);
 }
 
 Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &command)

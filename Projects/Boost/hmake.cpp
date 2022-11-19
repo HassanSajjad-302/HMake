@@ -9,6 +9,9 @@ class cxxflag : string
 {
 };
 
+// In Boost, except Math no library is using pch
+// And except math, regex and json no library is using obj either.
+
 int main()
 {
     // Very Important Variables

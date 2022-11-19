@@ -217,10 +217,15 @@ struct Version
     unsigned majorVersion;
     unsigned minorVersion;
     unsigned patchVersion;
+    Version(unsigned majorVersion_ = 0, unsigned minorVersion_ = 0, unsigned patchVersion_ = 0);
     Comparison comparison; // Used in flags
 };
 void to_json(Json &j, const Version &p);
 void from_json(const Json &j, Version &v);
+bool operator<(const Version &lhs, const Version &rhs);
+bool operator>(const Version &lhs, const Version &rhs);
+bool operator<=(const Version &lhs, const Version &rhs);
+bool operator>=(const Version &lhs, const Version &rhs);
 
 enum class OSFamily
 {
@@ -276,20 +281,11 @@ enum class ConfigType
 void to_json(Json &json, const ConfigType &configType);
 void from_json(const Json &json, ConfigType &configType);
 
-bool operator<(const Version &lhs, const Version &rhs);
 bool operator==(Directory lhs, const Version &rhs);
-inline bool operator>(const Version &lhs, const Version &rhs)
-{
-    return operator<(rhs, lhs);
-}
-inline bool operator<=(const Version &lhs, const Version &rhs)
-{
-    return !operator>(lhs, rhs);
-}
-inline bool operator>=(const Version &lhs, const Version &rhs)
-{
-    return !operator<(lhs, rhs);
-}
+bool operator<(const Version &lhs, const Version &rhs);
+bool operator>(const Version &lhs, const Version &rhs);
+bool operator<=(const Version &lhs, const Version &rhs);
+bool operator>=(const Version &lhs, const Version &rhs);
 
 struct CompilerVersion : public Version
 {
@@ -484,6 +480,156 @@ enum class Warnings
     OFF,
 };
 
+enum class WarningsAsErrors
+{
+    OFF,
+    ON,
+};
+
+enum class ExceptionHandling
+{
+    OFF,
+    ON,
+};
+
+enum class AsyncExceptions
+{
+    OFF,
+    ON,
+};
+
+enum class ExternCNoThrow
+{
+    OFF,
+    ON,
+};
+
+enum class RTTI
+{
+    OFF,
+    ON,
+};
+
+enum class DebugSymbols
+{
+    OFF,
+    ON,
+};
+
+enum class Profiling
+{
+    OFF,
+    ON,
+};
+
+enum class LocalVisibility
+{
+    GLOBAL,
+    HIDDEN,
+    PROTECTED,
+};
+
+enum class AddressSanitizer
+{
+    NORECOVER,
+    ON,
+};
+
+enum class LeakSanitizer
+{
+    NORECOVER,
+    ON,
+};
+
+enum class ThreadSanitizer
+{
+    NORECOVER,
+    ON,
+};
+
+enum class UndefinedSanitizer
+{
+    NORECOVER,
+    ON,
+};
+
+enum class LTO
+{
+    OFF,
+    ON,
+};
+
+enum class LTOMode
+{
+    FAT,
+    FULL,
+    THIN,
+};
+
+enum class StdLib
+{
+    NATIVE,
+    GNU,
+    GNU11,
+    LIBCPP, // libc++
+    SUN_STLPORT,
+    APACHE,
+};
+
+enum class Coverage
+{
+    OFF,
+    ON,
+};
+
+enum class RuntimeLink
+{
+    SHARED,
+    STATIC,
+};
+
+enum class RuntimeDebugging
+{
+    OFF,
+    ON
+};
+
+enum class OS
+{
+    AIX,
+    CYGWIN,
+    LINUX,
+    MACOSX,
+    NT,
+    VMS,
+};
+
+enum class CxxSTD
+{
+    V_98,
+    V_03,
+    V_0x,
+    V_11,
+    V_1y,
+    V_14,
+    V_1z,
+    V_17,
+    V_2a,
+    V_20,
+    V_2b,
+    V_23,
+    V_2c,
+    V_26,
+    V_LATEST,
+};
+
+enum class CxxSTDDialect
+{
+    ISO,
+    GNU,
+    MS,
+};
+
 enum class TargetOS
 {
     AIX,
@@ -493,6 +639,7 @@ enum class TargetOS
     CYGWIN,
     DARWIN,
     FREEBSD,
+    FREERTOS,
     HAIKU,
     HPUX,
     IPHONE,
@@ -506,10 +653,17 @@ enum class TargetOS
     SOLARIS,
     UNIX_,
     UNIXWARE,
-    WINDOWS,
     VMS,
     VXWORKS,
-    FREERTOS
+    WINDOWS,
+};
+
+enum class Language
+{
+    C,
+    CPP,
+    OBJECTIVE_C,
+    OBJECTIVE_CPP,
 };
 
 enum class TS
@@ -549,12 +703,91 @@ struct ToolSet
     explicit ToolSet(TS ts_ = TS::GCC);
 };
 
+enum class AddressModel
+{
+    A_32,
+    A_64,
+};
+
+struct PossibleValues
+{
+    Warnings warnings = static_cast<Warnings>(-10);
+    TargetOS targetOs = static_cast<TargetOS>(-10);
+    AddressModel addModel = static_cast<AddressModel>(-10);
+    ConfigType configurationType = static_cast<ConfigType>(-10);
+    CxxSTD cxxStd;
+    CxxSTDDialect cxxStdDialect;
+    Compiler compiler;
+    Linker linker;
+    Archiver archiver;
+    Threading threading;
+    Link link;
+    vector<Directory> privateIncludes;
+    vector<string> privateCompilerFlags;
+    vector<string> privateLinkerFlags;
+    vector<Define> privateCompileDefinitions;
+};
+
+enum class Optimization
+{
+    OFF,
+    SPEED,
+    SPACE,
+    MINIMAL,
+    DEBUG,
+};
+
+enum class Inlining
+{
+    OFF,
+    ON,
+    FULL,
+};
+
+enum class Vectorize
+{
+    OFF,
+    ON,
+    FULL,
+};
+
 struct CommonProperties
 {
+    // Sanitizers
+    AddressSanitizer addressSanitizer;
+    LeakSanitizer leakSanitizer;
+    ThreadSanitizer threadSanitizer;
+    UndefinedSanitizer undefinedSanitizer;
+    Coverage coverage;
+
+    // LTO
+    LTO lto;
+    LTOMode ltoMode;
+
+    // stdlib
+    StdLib stdLib;
+
+    RuntimeLink runtimeLink;
+    RuntimeDebugging runtimeDebugging;
+
+    Optimization optimization;
+    Inlining inlining;
+    Vectorize vectorize;
     Warnings warnings;
+    WarningsAsErrors warningsAsErrors;
+    ExceptionHandling exceptionHandling;
+    AsyncExceptions asyncExceptions;
+    RTTI rtti;
+    ExternCNoThrow externCNoThrow;
+    DebugSymbols debugSymbols;
+    Profiling profiling;
+    LocalVisibility localVisibility;
     ToolSet toolSet;
     TargetOS targetOs;
+    AddressModel addModel;
     ConfigType configurationType;
+    CxxSTD cxxStd;
+    CxxSTDDialect cxxStdDialect;
     Compiler compiler;
     Linker linker;
     Archiver archiver;
@@ -706,10 +939,19 @@ class Target : public Dependent, public CommonProperties
     Json convertToJson(const Package &package, unsigned variantIndex) const;
     string getTargetFilePath(unsigned long variantCount) const;
     string getTargetFilePathPackage(unsigned long variantCount) const;
+    void setPropertiesFlags() const;
 
   private:
     void assignConfigurationFromVariant(const Variant &variant);
     set<Library *> getAllDependencies();
+
+    // returns on first positive condition. space is added.
+    template <typename T, typename... Argument>
+    string GET_FLAG_EVALUATE(T condition, const string &flags, Argument... arguments) const;
+
+    // returns cumulated string for trued conditions. spaces are added
+    template <typename T, typename... Argument>
+    string GET_CUMULATED_FLAG_EVALUATE(T condition, const string &flags, Argument... arguments) const;
 
   protected:
     Target() = default;
@@ -748,13 +990,16 @@ class Target : public Dependent, public CommonProperties
     }
     // All properties are assigned.
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
-    Target &ASSIGN(T property, Condition... conditions);
+    Target &ASSIGN(T property, Condition... properties);
 
     // Properties are assigned if assign bool is true. To Be Used With functions ADD and OR.
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
     Target &ASSIGN(bool assign, T property, Condition... conditions);
 #define ASSIGN_I ASSIGN<Dependency::INTERFACE>
-    template <typename T> bool EVALUATE(T property);
+
+    // Evaluates a property. NEGATE is meant to be used where ! would had been used.
+    template <typename T> bool EVALUATE(T property) const;
+    template <typename T> T NEGATE(T propterty) const;
 
     // Eight functions are being used to manipulate properties. The two are AND and OR in global namespace.
     // AND and OR functions also have an overload that takes a target pointer and sets the global variable.
@@ -787,7 +1032,36 @@ class Target : public Dependent, public CommonProperties
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
     Target &M_RIGHT(T condition, Condition... conditions);
 #define M_RIGHT_I M_RIGHT<Dependency::INTERFACE>
-};
+}; // class Target
+
+template <typename T, typename... Argument>
+string Target::GET_FLAG_EVALUATE(T condition, const string &flags, Argument... arguments) const
+{
+    if (EVALUATE(condition))
+    {
+        return flags;
+    }
+    if constexpr (sizeof...(arguments))
+    {
+        return GET_FLAG_EVALUATE(arguments...);
+    }
+    return "";
+}
+
+template <typename T, typename... Argument>
+string Target::GET_CUMULATED_FLAG_EVALUATE(T condition, const std::string &flags, Argument... arguments) const
+{
+    string str{};
+    if (EVALUATE(condition))
+    {
+        str = flags;
+    }
+    if constexpr (sizeof...(arguments))
+    {
+        str += GET_FLAG_EVALUATE(arguments...);
+    }
+    return str;
+}
 
 template <same_as<char const *>... U> Target &Target::PUBLIC_INCLUDES(U... includeDirectoryString)
 {
@@ -825,8 +1099,8 @@ template <same_as<char const *>... U> Target &Target::MODULE_FILES(U... moduleFi
     return *this;
 }
 
-template <Dependency dependency, typename T, typename... Condition>
-Target &Target::ASSIGN(T property, Condition... conditions)
+template <Dependency dependency, typename T, typename... Property>
+Target &Target::ASSIGN(T property, Property... properties)
 {
     if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {
@@ -867,9 +1141,9 @@ Target &Target::ASSIGN(T property, Condition... conditions)
     {
         warnings = property; // Just to fail the compilation. Ensures that all properties are handled.
     }
-    if constexpr (sizeof...(conditions))
+    if constexpr (sizeof...(properties))
     {
-        return ASSIGN(conditions...);
+        return ASSIGN(properties...);
     }
     else
     {
@@ -883,7 +1157,7 @@ Target &Target::ASSIGN(bool assign, T property, Condition... conditions)
     return assign ? ASSIGN(property, conditions...) : *this;
 }
 
-template <typename T> bool Target::EVALUATE(T property)
+template <typename T> bool Target::EVALUATE(T property) const
 {
     if constexpr (std::is_same_v<decltype(property), TS>)
     {
@@ -901,9 +1175,113 @@ template <typename T> bool Target::EVALUATE(T property)
     {
         return link == property;
     }
+    else if constexpr (std::is_same_v<decltype(property), CxxSTD>)
+    {
+        return cxxStd == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CxxSTDDialect>)
+    {
+        return cxxStdDialect == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Optimization>)
+    {
+        return optimization == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Inlining>)
+    {
+        return inlining == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Warnings>)
+    {
+        return warnings == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), WarningsAsErrors>)
+    {
+        return warningsAsErrors == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), ExceptionHandling>)
+    {
+        return exceptionHandling == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AsyncExceptions>)
+    {
+        return asyncExceptions == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RTTI>)
+    {
+        return rtti == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), ExternCNoThrow>)
+    {
+        return externCNoThrow == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DebugSymbols>)
+    {
+        return debugSymbols == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Profiling>)
+    {
+        return profiling == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LocalVisibility>)
+    {
+        return localVisibility == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
+    {
+        return addressSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LeakSanitizer>)
+    {
+        return leakSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), ThreadSanitizer>)
+    {
+        return threadSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UndefinedSanitizer>)
+    {
+        return undefinedSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Coverage>)
+    {
+        return coverage == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LTO>)
+    {
+        return lto == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LTOMode>)
+    {
+        return ltoMode == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), StdLib>)
+    {
+        return stdLib == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RuntimeLink>)
+    {
+        return runtimeLink == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RuntimeDebugging>)
+    {
+        return runtimeDebugging == property;
+    }
     else
     {
         toolSet = property; // Just to fail the compilation. Ensures that all properties are handled.
+    }
+}
+
+template <typename T> T Target::NEGATE(T property) const
+{
+    if (EVALUATE(property))
+    {
+        return static_cast<T>(static_cast<int>(property) + 1);
+    }
+    else
+    {
+        return property;
     }
 }
 
