@@ -1,5 +1,7 @@
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "cppcoreguidelines-pro-type-static-cast-downcast"
+#endif
 
 #include "Configure.hpp"
 
@@ -147,7 +149,7 @@ void from_json(const Json &json, Directory &directory)
 
 bool operator<(const Directory &lhs, const Directory &rhs)
 {
-    return lhs.directoryPath < rhs.directoryPath;
+    return lhs.directoryPath.generic_string() < rhs.directoryPath.generic_string();
 }
 
 Define::Define(const string &name_, const string &value_) : name{name_}, value{value_}
@@ -291,6 +293,7 @@ Target::Target(string targetName_) : targetName(move(targetName_))
 Target::Target(string targetName_, const Variant &variant) : targetName(move(targetName_)), outputName(targetName)
 {
     assignConfigurationFromVariant(variant);
+    isTarget = true;
 }
 
 Target::Target(string targetName_, Variant &variantFrom, Variant &variantTo, bool copyDependencies)
@@ -589,6 +592,7 @@ void Target::setPropertiesFlags() const
 void Target::assignConfigurationFromVariant(const Variant &variant)
 {
     static_cast<CommonProperties &>(*this) = static_cast<const CommonProperties &>(variant);
+    environment = variant.environment;
 }
 
 // TODO Not Copying the dependencies of dependencies
@@ -718,8 +722,8 @@ Json Target::convertToJson(unsigned long variantIndex) const
     targetFileJson[JConsts::linker] = linker;
     targetFileJson[JConsts::archiver] = archiver;
     targetFileJson[JConsts::environment] = environment;
-    targetFileJson[JConsts::compilerFlags] = flags.compilerFlags[compiler.bTFamily][configurationType];
-    targetFileJson[JConsts::linkerFlags] = flags.linkerFlags[linker.bTFamily][configurationType];
+    targetFileJson[JConsts::compilerFlags] = "";
+    targetFileJson[JConsts::linkerFlags] = "";
     sourceAggregate.convertToJson(targetFileJson);
     moduleAggregate.convertToJson(targetFileJson);
     targetFileJson[JConsts::libraryDependencies] = dependenciesArray;
@@ -762,6 +766,7 @@ Target &Target::PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &c
     publicCompileDefinitions.emplace_back(cddName, cddValue);
     return *this;
 }
+
 Target &Target::PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
 {
     publicCompileDefinitions.emplace_back(cddName, cddValue);
@@ -848,25 +853,33 @@ bool SourceAggregate::empty() const
 
 void to_json(Json &j, const TargetType &targetType)
 {
-    if (targetType == TargetType::EXECUTABLE)
+    switch (targetType)
     {
+
+    case TargetType::EXECUTABLE:
         j = JConsts::executable;
-    }
-    else if (targetType == TargetType::STATIC)
-    {
+        break;
+    case TargetType::STATIC:
         j = JConsts::static_;
-    }
-    else if (targetType == TargetType::SHARED)
-    {
+        break;
+    case TargetType::SHARED:
         j = JConsts::shared;
-    }
-    else if (targetType == TargetType::PLIBRARY_SHARED)
-    {
+        break;
+    case TargetType::COMPILE:
+        j = JConsts::compile;
+        break;
+    case TargetType::PREPROCESS:
+        j = JConsts::preprocess;
+        break;
+    case TargetType::RUN:
+        j = JConsts::run;
+        break;
+    case TargetType::PLIBRARY_STATIC:
         j = JConsts::plibraryStatic;
-    }
-    else
-    {
+        break;
+    case TargetType::PLIBRARY_SHARED:
         j = JConsts::plibraryShared;
+        break;
     }
 }
 
@@ -883,6 +896,18 @@ void from_json(const Json &j, TargetType &targetType)
     else if (j == JConsts::shared)
     {
         targetType = TargetType::SHARED;
+    }
+    else if (j == JConsts::compile)
+    {
+        targetType = TargetType::COMPILE;
+    }
+    else if (j == JConsts::preprocess)
+    {
+        targetType = TargetType::PREPROCESS;
+    }
+    else if (j == JConsts::run)
+    {
+        targetType = TargetType::RUN;
     }
     else if (j == JConsts::plibraryStatic)
     {
@@ -1085,8 +1110,8 @@ Json Target::convertToJson(const Package &package, unsigned variantIndex) const
     targetFileJson[JConsts::linker] = linker;
     targetFileJson[JConsts::archiver] = archiver;
     targetFileJson[JConsts::environment] = environment;
-    targetFileJson[JConsts::compilerFlags] = flags.compilerFlags[compiler.bTFamily][configurationType];
-    targetFileJson[JConsts::linkerFlags] = flags.linkerFlags[linker.bTFamily][configurationType];
+    targetFileJson[JConsts::compilerFlags] = "";
+    targetFileJson[JConsts::linkerFlags] = "";
     sourceAggregate.convertToJson(targetFileJson);
     moduleAggregate.convertToJson(targetFileJson);
     targetFileJson[JConsts::libraryDependencies] = dependenciesArray;
@@ -1191,294 +1216,6 @@ bool operator==(const Version &lhs, const Version &rhs)
            lhs.patchVersion == rhs.patchVersion;
 }
 
-CompilerFlags &CompilerFlags::operator[](BTFamily compilerFamily) const
-{
-    compilerHelper = true;
-    compilerCurrent = compilerFamily;
-    return const_cast<CompilerFlags &>(*this);
-}
-
-CompilerFlags &CompilerFlags::operator[](CompilerVersion compilerVersion) const
-{
-    if (!compilerHelper)
-    {
-        cerr << "Wrong Usage Of CompilerFlags class" << endl;
-        exit(EXIT_FAILURE);
-    }
-    compilerVersionHelper = true;
-    compilerVersionCurrent = compilerVersion;
-    return const_cast<CompilerFlags &>(*this);
-}
-
-CompilerFlags &CompilerFlags::operator[](ConfigType configType) const
-{
-    configHelper = true;
-    configCurrent = configType;
-    return const_cast<CompilerFlags &>(*this);
-}
-
-void CompilerFlags::operator=(const string &flags1)
-{
-
-    set<BTFamily> compilerFamilies1;
-    CompilerVersion compilerVersions1;
-    set<ConfigType> configurationTypes1;
-
-    if (compilerHelper)
-    {
-        compilerFamilies1.emplace(compilerCurrent);
-    }
-    else
-    {
-        compilerFamilies1 = compilerFamilies;
-    }
-
-    if (compilerVersionHelper)
-    {
-        compilerVersions1 = compilerVersionCurrent;
-    }
-    else
-    {
-        CompilerVersion compilerVersion;
-        compilerVersion.majorVersion = compilerVersion.minorVersion = compilerVersion.patchVersion = 0;
-        compilerVersion.comparison = Comparison::GREATER_THAN_OR_EQUAL_TO;
-        compilerVersions1 = compilerVersion;
-    }
-
-    if (configHelper)
-    {
-        configurationTypes1.emplace(configCurrent);
-    }
-    else
-    {
-        configurationTypes1 = configurationTypes;
-    }
-
-    for (auto &compiler : compilerFamilies1)
-    {
-        for (auto &configuration : configurationTypes1)
-        {
-            auto t = make_tuple(compiler, compilerVersions1, configuration);
-            if (auto [pos, ok] = compilerFlags.emplace(t, flags1); !ok)
-            {
-                cout << "Rewriting the flags in compilerFlags for this configuration";
-                compilerFlags[t] = flags1;
-            }
-        }
-    }
-
-    compilerHelper = false;
-    compilerVersionHelper = false;
-    configHelper = false;
-}
-
-CompilerFlags CompilerFlags::defaultFlags()
-{
-    CompilerFlags compilerFlags;
-    compilerFlags.compilerFamilies.emplace(BTFamily::GCC);
-    compilerFlags.compilerFamilies.emplace(BTFamily::MSVC);
-    // TODO:
-    // compilerFlags[BTFamily::GCC][CompilerVersion{10, 2, 0}][ConfigType::DEBUG] = "-g";
-    compilerFlags[BTFamily::GCC][ConfigType::RELEASE] = "-O3 -DNDEBUG";
-    compilerFlags.configurationTypes.emplace(ConfigType::DEBUG);
-    compilerFlags.configurationTypes.emplace(ConfigType::RELEASE);
-    return compilerFlags;
-}
-
-CompilerFlags::operator string() const
-{
-    set<string> flagsSet;
-    for (const auto &[key, value] : compilerFlags)
-    {
-        if (compilerHelper)
-        {
-            if (get<0>(key) != compilerCurrent)
-            {
-                continue;
-            }
-            if (compilerVersionHelper)
-            {
-                const auto &compilerVersion = get<1>(key);
-                if (compilerVersion.comparison == Comparison::EQUAL && compilerVersion == compilerVersionCurrent)
-                {
-                }
-                else if (compilerVersion.comparison == Comparison::GREATER_THAN &&
-                         compilerVersion > compilerVersionCurrent)
-                {
-                }
-                else if (compilerVersion.comparison == Comparison::LESSER_THAN &&
-                         compilerVersion < compilerVersionCurrent)
-                {
-                }
-                else if (compilerVersion.comparison == Comparison::GREATER_THAN_OR_EQUAL_TO &&
-                         compilerVersion >= compilerVersionCurrent)
-                {
-                }
-                else if (compilerVersion.comparison == Comparison::LESSER_THAN_OR_EQUAL_TO &&
-                         compilerVersion <= compilerVersionCurrent)
-                {
-                }
-                else
-                {
-                    continue;
-                }
-            }
-        }
-        if (configHelper && get<2>(key) != configCurrent)
-        {
-            continue;
-        }
-        flagsSet.emplace(value);
-    }
-
-    string flagsStr;
-    for (const auto &i : flagsSet)
-    {
-        flagsStr += i;
-        flagsStr += " ";
-    }
-    return flagsStr;
-}
-
-LinkerFlags &LinkerFlags::operator[](BTFamily linkerFamily) const
-{
-    linkerHelper = true;
-    linkerCurrent = linkerFamily;
-    return const_cast<LinkerFlags &>(*this);
-}
-
-LinkerFlags &LinkerFlags::operator[](LinkerVersion linkerVersion) const
-{
-    if (!linkerHelper)
-    {
-        cerr << "Wrong Usage Of LinkerFlags class" << endl;
-        exit(EXIT_FAILURE);
-    }
-    linkerVersionHelper = true;
-    linkerVersionCurrent = linkerVersion;
-    return const_cast<LinkerFlags &>(*this);
-}
-
-LinkerFlags &LinkerFlags::operator[](ConfigType configType) const
-{
-    configHelper = true;
-    configCurrent = configType;
-    return const_cast<LinkerFlags &>(*this);
-}
-
-void LinkerFlags::operator=(const string &flags1)
-{
-
-    set<BTFamily> linkerFamilies1;
-    LinkerVersion linkerVersions1;
-    set<ConfigType> configurationTypes1;
-
-    if (linkerHelper)
-    {
-        linkerFamilies1.emplace(linkerCurrent);
-    }
-    else
-    {
-        linkerFamilies1 = linkerFamilies;
-    }
-
-    if (linkerVersionHelper)
-    {
-        linkerVersions1 = linkerVersionCurrent;
-    }
-    else
-    {
-        LinkerVersion linkerVersion;
-        linkerVersion.minorVersion = linkerVersion.minorVersion = linkerVersion.patchVersion = 0;
-        linkerVersion.comparison = Comparison::GREATER_THAN_OR_EQUAL_TO;
-        linkerVersions1 = linkerVersion;
-    }
-
-    if (configHelper)
-    {
-        configurationTypes1.emplace(configCurrent);
-    }
-    else
-    {
-        configurationTypes1 = configurationTypes;
-    }
-
-    for (auto &linker : linkerFamilies1)
-    {
-        for (auto &configuration : configurationTypes1)
-        {
-            auto t = make_tuple(linker, linkerVersions1, configuration);
-            if (auto [pos, ok] = linkerFlags.emplace(t, flags1); !ok)
-            {
-                cout << "Rewriting the flags in compilerFlags for this configuration";
-                linkerFlags[t] = flags1;
-            }
-        }
-    }
-
-    linkerHelper = false;
-    linkerVersionHelper = false;
-    configHelper = false;
-}
-
-LinkerFlags LinkerFlags::defaultFlags()
-{
-    return LinkerFlags{};
-}
-
-LinkerFlags::operator string() const
-{
-    set<string> flagsSet;
-    for (const auto &[key, value] : linkerFlags)
-    {
-        if (linkerHelper)
-        {
-            if (get<0>(key) != linkerCurrent)
-            {
-                continue;
-            }
-            if (linkerVersionHelper)
-            {
-                const auto &linkerVersion = get<1>(key);
-                if (linkerVersion.comparison == Comparison::EQUAL && linkerVersion == linkerVersionCurrent)
-                {
-                }
-                else if (linkerVersion.comparison == Comparison::GREATER_THAN && linkerVersion > linkerVersionCurrent)
-                {
-                }
-                else if (linkerVersion.comparison == Comparison::LESSER_THAN && linkerVersion < linkerVersionCurrent)
-                {
-                }
-                else if (linkerVersion.comparison == Comparison::GREATER_THAN_OR_EQUAL_TO &&
-                         linkerVersion >= linkerVersionCurrent)
-                {
-                }
-                else if (linkerVersion.comparison == Comparison::LESSER_THAN_OR_EQUAL_TO &&
-                         linkerVersion <= linkerVersionCurrent)
-                {
-                }
-                else
-                {
-                    continue;
-                }
-            }
-        }
-        if (configHelper && get<2>(key) != configCurrent)
-        {
-            continue;
-        }
-        flagsSet.emplace(value);
-    }
-
-    string flagsStr;
-    for (const auto &i : flagsStr)
-    {
-        flagsStr += i;
-        flagsStr += " ";
-    }
-    return flagsStr;
-}
-
 void Cache::initializeCache()
 {
     path filePath = current_path() / "cache.hmake";
@@ -1560,19 +1297,20 @@ Variant::Variant()
     archiver = Cache::archiverArray[Cache::selectedArchiverArrayIndex];
     libraryType = Cache::libraryType;
     environment = Cache::environment;
-    flags = ::flags;
 }
 
 // TODO: Will Not be copying prebuilts and packagedLibs for Now.
 void Variant::copyAllTargetsFromOtherVariant(Variant &variantFrom)
 {
-    for (Executable *executable : executables)
+    for (Executable *executable : variantFrom.executables)
     {
-        executablesContainer.emplace_back(make_shared<Executable>(executable->targetName, variantFrom, *this, false));
+        executablesContainer.emplace_back(make_shared<Executable>(*executable));
+        executables.emplace(executablesContainer.back().get());
     }
-    for (Library *library : libraries)
+    for (Library *library : variantFrom.libraries)
     {
-        librariesContainer.emplace_back(make_shared<Library>(library->targetName, variantFrom, *this, false));
+        librariesContainer.emplace_back(make_shared<Library>(*library));
+        libraries.emplace(librariesContainer.back().get());
     }
 }
 
@@ -1636,7 +1374,7 @@ void Variant::configure(VariantMode mode, unsigned long variantCount, const clas
         // TODO
         // Not confirm on the order of the topologicallySorted. Assuming that next ones are dependencies of previous
         // ones
-        for (auto it = topologicallySorted.rbegin(); it != topologicallySorted.rend(); ++it)
+        for (auto it = topologicallySorted.begin(); it != topologicallySorted.end(); ++it)
         {
             Dependent *dependent = it.operator*();
             if (dependent->isTarget)
@@ -1644,25 +1382,21 @@ void Variant::configure(VariantMode mode, unsigned long variantCount, const clas
                 auto *target = static_cast<Target *>(dependent);
                 for (Library *library : target->publicLibs)
                 {
-                    for (Library *trickleLib : library->publicLibs)
-                    {
-                        target->publicLibs.emplace(trickleLib);
-                    }
+                    target->publicLibs.insert(library->publicLibs.begin(), library->publicLibs.end());
+                    target->publicPrebuilts.insert(library->publicPrebuilts.begin(), library->publicPrebuilts.end());
+                    target->publicPackagedLibs.insert(library->publicPackagedLibs.begin(),
+                                                      library->publicPackagedLibs.end());
                 }
-                for (Library *library : target->publicLibs)
-                {
-                    for (PLibrary *pLibrary : target->publicPrebuilts)
-                    {
-                        target->publicPrebuilts.emplace(pLibrary);
-                    }
-                    for (PPLibrary *ppLibrary : target->publicPackagedLibs)
-                    {
-                        target->publicPackagedLibs.emplace(ppLibrary);
-                    }
 
-                    // TODO
-                    //  publicIncludes not added to other public dependents.
-                    // Modify PLibrary to be dependent of Dependency, thus having publicIncludes and privateIncludes
+                // TODO: Following is added to compile the examples. However, the code should also add other public
+                // properties from public dependencies
+                // Modify PLibrary to be dependent of Dependency, thus having public properties.
+                for (Library *lib : target->publicLibs)
+                {
+                    for (Directory &idd : lib->publicIncludes)
+                    {
+                        target->publicIncludes.emplace_back(idd);
+                    }
                 }
             }
         }
@@ -1673,10 +1407,8 @@ void Variant::configure(VariantMode mode, unsigned long variantCount, const clas
     variantJson[JConsts::compiler] = compiler;
     variantJson[JConsts::linker] = linker;
     variantJson[JConsts::archiver] = archiver;
-    string compilerFlags = flags.compilerFlags[compiler.bTFamily][configurationType];
-    variantJson[JConsts::compilerFlags] = compilerFlags;
-    string linkerFlags = flags.linkerFlags[linker.bTFamily][configurationType];
-    variantJson[JConsts::linkerFlags] = linkerFlags;
+    variantJson[JConsts::compilerFlags] = "";
+    variantJson[JConsts::linkerFlags] = "";
     variantJson[JConsts::libraryType] = libraryType;
     variantJson[JConsts::environment] = environment;
 
@@ -1698,12 +1430,15 @@ void Variant::configure(VariantMode mode, unsigned long variantCount, const clas
 
     vector<string> targetsWithModulesStringVector;
 
-    // TODO
-    //
-    /*    for (Target *target : targetsWithModules)
-        {
-            targetsWithModulesStringVector.emplace_back(target->getTargetFilePath(variantCount));
-        }*/
+    for (Executable *exe : executables)
+    {
+        targetsWithModulesStringVector.emplace_back(exe->getTargetFilePath(variantCount));
+    }
+    for (Library *lib : libraries)
+    {
+        targetsWithModulesStringVector.emplace_back(lib->getTargetFilePath(variantCount));
+    }
+
     variantJson[JConsts::targets] = targetArray;
     variantJson[JConsts::targetsWithModules] = targetsWithModulesStringVector;
 
@@ -1872,7 +1607,8 @@ Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &c
     }
     remove(temporaryBatchFilename);
 
-    auto splitPathsAndAssignToVector = [](string &accumulatedPaths, set<Directory> &separatePaths) {
+    auto splitPathsAndAssignToVector = [](string &accumulatedPaths) -> set<Directory> {
+        set<Directory> separatedPaths{};
         unsigned long pos = accumulatedPaths.find(';');
         while (pos != std::string::npos)
         {
@@ -1880,17 +1616,13 @@ Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &c
             if (token.empty())
             {
                 break; // Only In Release Configuration in Visual Studio, for some reason the while loop also run with
-                       // empty string. Not investigating further for now
+                // empty string. Not investigating further for now
             }
-            token = path(token).lexically_normal().string();
-            Directory dir(token);
-            if (!separatePaths.contains(dir))
-            {
-                separatePaths.emplace(dir);
-            }
+            separatedPaths.emplace(path(token));
             accumulatedPaths.erase(0, pos + 1);
             pos = accumulatedPaths.find(';');
         }
+        return separatedPaths;
     };
 
     Environment environment;
@@ -1899,16 +1631,17 @@ Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &c
     accumulatedPaths.pop_back();
     accumulatedPaths.append(";");
     remove(temporaryIncludeFilename);
-    splitPathsAndAssignToVector(accumulatedPaths, environment.includeDirectories);
+    environment.includeDirectories = splitPathsAndAssignToVector(accumulatedPaths);
     accumulatedPaths = file_to_string(temporaryLibFilename);
     accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
     accumulatedPaths.pop_back();
     accumulatedPaths.append(";");
     remove(temporaryLibFilename);
-    splitPathsAndAssignToVector(accumulatedPaths, environment.libraryDirectories);
+    environment.libraryDirectories = splitPathsAndAssignToVector(accumulatedPaths);
     environment.compilerFlags = " /EHsc /MD /nologo";
     environment.linkerFlags = " /SUBSYSTEM:CONSOLE /NOLOGO";
     return environment;
+    // return Environment{};
 }
 
 Environment Environment::initializeEnvironmentOnLinux()
@@ -2521,12 +2254,14 @@ CPVariant CPackage::getVariant(const int index)
     cerr << "No Json in package " << writePath(packagePath) << " has index " << to_string(index) << endl;
     exit(EXIT_FAILURE);
 }
+
 void to_json(Json &json, const PathPrint &pathPrint)
 {
     json[JConsts::pathPrintLevel] = pathPrint.printLevel;
     json[JConsts::depth] = pathPrint.depth;
     json[JConsts::addQuotes] = pathPrint.addQuotes;
 }
+
 void from_json(const Json &json, PathPrint &pathPrint)
 {
     uint8_t level = json.at(JConsts::pathPrintLevel).get<uint8_t>();
@@ -2539,6 +2274,7 @@ void from_json(const Json &json, PathPrint &pathPrint)
     pathPrint.depth = json.at(JConsts::depth).get<int>();
     pathPrint.addQuotes = json.at(JConsts::addQuotes).get<bool>();
 }
+
 void to_json(Json &json, const CompileCommandPrintSettings &ccpSettings)
 {
     json[JConsts::tool] = ccpSettings.tool;
@@ -2771,4 +2507,7 @@ void privateFunctions::SEARCH_AND_ADD_FILE_FROM_ENV_INCL_TO_TARGET_MODULE_SRC(Ta
         exit(EXIT_FAILURE);
     }
 }
+
+#if defined(__clang__)
 #pragma clang diagnostic pop
+#endif

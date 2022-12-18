@@ -4,10 +4,10 @@ int main()
 {
     Cache::initializeCache();
     Project project;
-    ProjectVariant variantRelease;
+    ProjectVariant variantRelease(project);
 
     Executable app("app", variantRelease);
-    ADD_SRC_FILES_TO_TARGET(app, "main.cpp");
+    app.SOURCE_FILES("main.cpp");
 
     // PreBuild commands are executed before the build starts while the PostBuild  commands are executed after
     // the build of the target is finished. Cache::sourceDirectory.path and Cache::configureDirectory.path can be
@@ -32,8 +32,6 @@ int main()
     app.postBuild.emplace_back(
         "rm " + addQuotes((Cache::configureDirectory.directoryPath / "file.txt").make_preferred().string()));
 #endif
-    ADD_EXECUTABLES_TO_VARIANT(variantRelease, app);
-    project.projectVariants.push_back(variantRelease);
     project.configure();
     Cache::registerCacheVariables();
 }

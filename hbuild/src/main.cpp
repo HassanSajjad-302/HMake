@@ -44,6 +44,9 @@ int main(int argc, char **argv)
             return find(directoryFiles.begin(), directoryFiles.end(), str) != directoryFiles.end();
         };
 
+        // TODO:
+        //  There should be a cmd option which changes the current-directory for hmake, so another target or variant
+        //  could be specified instead of explicitly invoking hbuild in that respective directory.
         if (directoryFilesContains("project.hmake"))
         {
             initializeSettings("settings.hmake");

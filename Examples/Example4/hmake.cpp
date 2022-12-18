@@ -4,10 +4,10 @@ int main()
 {
     Cache::initializeCache();
     Project project;
-    ProjectVariant variantRelease;
+    ProjectVariant variantRelease(project);
 
     Executable app("app", variantRelease);
-    ADD_SRC_FILES_TO_TARGET(app, "main.cpp");
+    app.SOURCE_FILES("main.cpp");
 
     // Change the value of "FILE1" in cache.hmake to false and then run configure again.
     // Then run hbuild. Now file2.cpp will be used.
@@ -15,15 +15,13 @@ int main()
     // exist for that type. See nlohmann/json for details. I guess mostly bool will be used.
     if (CacheVariable("FILE1", true).value)
     {
-        ADD_SRC_FILES_TO_TARGET(app, "file1.cpp");
+        app.SOURCE_FILES("file1.cpp");
     }
     else
     {
-        ADD_SRC_FILES_TO_TARGET(app, "file2.cpp");
+        app.SOURCE_FILES("file2.cpp");
     }
 
-    variantRelease.executables.push_back(app);
-    project.projectVariants.push_back(variantRelease);
     project.configure();
     Cache::registerCacheVariables();
 }

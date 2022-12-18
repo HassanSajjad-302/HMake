@@ -4,18 +4,22 @@ project(HMake LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 
+set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 0)
+
 add_executable(hhelper hhelper/src/main.cpp)
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
 target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/json/include/")
 target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/fmt/include/")
-target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure>")
-target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:fmt>")
+target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY= "$<TARGET_FILE_DIR:hconfigure>")
+target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY= "$<TARGET_FILE_DIR:fmt::fmt>")
 
 
 add_library(hconfigure STATIC
         hconfigure/src/Configure.cpp
         )
-target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure>")
+target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH= "$<TARGET_FILE:hconfigure>")
+target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_PATH= "$<TARGET_FILE:fmt>")
+
 
 target_include_directories(hconfigure
         PUBLIC hconfigure/header
@@ -31,7 +35,7 @@ add_executable(hbuild
 target_include_directories(hbuild PRIVATE hbuild/header)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeCppHelper Projects/Boost/hmake.cpp)
+add_executable(HMakeCppHelper hmake.cpp)
 target_include_directories(HMakeCppHelper PRIVATE hconfigure/header)
 add_subdirectory(json)
 target_link_libraries(hbuild PRIVATE hconfigure)

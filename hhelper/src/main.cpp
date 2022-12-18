@@ -1,8 +1,8 @@
 
 #include "Configure.hpp"
 #include "filesystem"
-#include "fstream"
 #include "fmt/format.h"
+#include "fstream"
 #include <iostream>
 
 using std::string, std::vector, std::ifstream, std::ofstream, std::cout, std::endl, std::cerr, std::filesystem::path,
@@ -92,13 +92,13 @@ int main()
             Version ver{19, 30, 30705};
             compilersDetected.push_back(Compiler{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.33.31629\bin\Hostx64\x64\cl.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\bin\Hostx64\x64\cl.exe)"});
             linkersDetected.push_back(Linker{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.33.31629\bin\Hostx64\x64\link.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\bin\Hostx64\x64\link.exe)"});
             archiversDetected.push_back(Archiver{
                 BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.33.31629\bin\Hostx64\x64\lib.exe)"});
+                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\bin\Hostx64\x64\lib.exe)"});
         }
 
         j[JConsts::sourceDirectory] = "../";
@@ -121,7 +121,9 @@ int main()
         path jsonHeaderPath = path(JSON_HEADER);
         path fmtHeaderPath = path(FMT_HEADER);
         path hconfigureStaticLibDirectoryPath = path(HCONFIGURE_STATIC_LIB_DIRECTORY);
+        path fmtStaticLibDirectoryPath = path(FMT_STATIC_LIB_DIRECTORY);
         path hconfigureStaticLibPath = path(HCONFIGURE_STATIC_LIB_PATH);
+        path fmtStaticLibPath = path(FMT_STATIC_LIB_PATH);
         if constexpr (platform == Platform::LINUX)
         {
             string compileCommand =
@@ -138,24 +140,24 @@ int main()
                 R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64)");
 
             string compileCommand =
-                "\"C:\\Program Files\\Microsoft Visual "
-                "Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.33.31629\\bin\\Hostx64\\x64\\cl.exe\"";
+                R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\bin\Hostx64\x64\cl.exe")";
 
             for (const auto &dir : environment.includeDirectories)
             {
-                compileCommand += " /I \"" + dir.directoryPath.generic_string() + "\"";
+                compileCommand += " /I " + addQuotes(dir.directoryPath.generic_string());
             }
-            compileCommand += " /I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() +  " /I " + fmtHeaderPath.string() +
-                              " /std:c++latest" + environment.compilerFlags +
+            compileCommand += " /I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() + " /I " +
+                              fmtHeaderPath.string() + " /std:c++latest" + environment.compilerFlags +
                               " {SOURCE_DIRECTORY}/hmake.cpp"
                               " /link " +
                               environment.linkerFlags;
             for (const auto &dir : environment.libraryDirectories)
             {
-                compileCommand += " /LIBPATH:\"" + dir.directoryPath.generic_string() + "\"";
+                compileCommand += "/LIBPATH:" + addQuotes(dir.directoryPath.generic_string()) + " ";
             }
-            compileCommand += " " + hconfigureStaticLibPath.string() + " /OUT:{CONFIGURE_DIRECTORY}/configure.exe";
-            compileCommand = "\"" + compileCommand + "\"";
+            compileCommand += addQuotes(hconfigureStaticLibPath.string()) + " " + addQuotes(fmtStaticLibPath.string()) +
+                              " /OUT:{CONFIGURE_DIRECTORY}/configure.exe";
+            compileCommand = addQuotes(compileCommand);
             compileConfigureCommands.push_back(compileCommand);
         }
 

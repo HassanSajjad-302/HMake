@@ -106,6 +106,7 @@ int main()
     // TODO: thread
     // TODO: executable hasAtomicFlagLockFree sources not supplied.
     // TODO: Libraries naming not handled yet. These use <tag> property
+    libThread.SINGLE(Link::SHARED, W_NO_LONG_LONG);
     libThread.setTargetForAndOr()
         .ASSIGN(Threading::MULTI)
         .SINGLE(Link::STATIC, BOOST_THREAD_BUILD_LIB)

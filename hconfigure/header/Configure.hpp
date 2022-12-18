@@ -39,6 +39,7 @@ struct JConsts
     inline static const string cacheIncludes = "cache-includes";
     inline static const string cacheVariables = "cache-variables";
     inline static const string clang = "clang";
+    inline static const string compile = "compile";
     inline static const string compileCommand = "compile-command";
     inline static const string compileCommandColor = "compile-command-color";
     inline static const string compileConfigureCommands = "compile-configure-commands";
@@ -94,6 +95,7 @@ struct JConsts
     inline static const string linuxUnix = "linux-unix";
     inline static const string maximumBuildThreads = "maximum-build-threads";
     inline static const string maximumLinkThreads = "maximum-link-threads";
+    inline static const string moduleDependencies = "module-dependencies";
     inline static const string msvc = "msvc";
     inline static const string name = "name";
     inline static const string objectFile = "object-file";
@@ -121,6 +123,7 @@ struct JConsts
     inline static const string preBuildCommandsStatement = "pre-build-commands-statement";
     inline static const string preBuildCustomCommands = "pre-build-custom-commands";
     inline static const string prebuilt = "prebuilt";
+    inline static const string preprocess = "preprocess";
     inline static const string printColorSettings = "print-color-settings";
     inline static const string private_ = "private";
     inline static const string project = "project";
@@ -133,8 +136,10 @@ struct JConsts
     inline static const string regexString = "regex-string";
     inline static const string release = "release";
     inline static const string requireIfcs = "require-ifcs";
+    inline static const string run = "run";
     inline static const string shared = "shared";
     inline static const string showPercentage = "show-percentage";
+    inline static const string sourceDependencies = "source-dependencies";
     inline static const string sourceDirectory = "source-directory";
     inline static const string sourceFile = "source-file";
     inline static const string srcFile = "src-file";
@@ -291,76 +296,9 @@ struct CompilerVersion : public Version
 {
 };
 
-// TODO: Use a JSON based approach instead. That would be more simpler, transparent and easy-to-use. Basic goal is to
-// reduce the if-else for flags in configuration-files.
-// TODO: Look in templatizing that. Same code is repeated in CompilerFlags and LinkerFlags
-struct CompilerFlags
-{
-    // TODO
-    //  Use variant instead of tuple
-    map<tuple<BTFamily, CompilerVersion, ConfigType>, string> compilerFlags;
-
-    set<BTFamily> compilerFamilies;
-    CompilerVersion compilerVersions;
-    set<ConfigType> configurationTypes;
-
-    // bool and enum helpers for using Flags class with some operator overload magic
-    mutable bool compilerHelper = false;
-    mutable bool compilerVersionHelper = false;
-    mutable bool configHelper = false;
-
-    mutable BTFamily compilerCurrent;
-    mutable CompilerVersion compilerVersionCurrent;
-    mutable ConfigType configCurrent;
-
-  public:
-    CompilerFlags &operator[](BTFamily compilerFamily) const;
-    CompilerFlags &operator[](CompilerVersion compilerVersion) const;
-    CompilerFlags &operator[](ConfigType configType) const;
-
-    void operator=(const string &flags1);
-    static CompilerFlags defaultFlags();
-    operator string() const;
-};
-
 struct LinkerVersion : public Version
 {
 };
-
-struct LinkerFlags
-{
-    map<tuple<BTFamily, LinkerVersion, ConfigType>, string> linkerFlags;
-
-    set<BTFamily> linkerFamilies;
-    LinkerVersion linkerVersions;
-    set<ConfigType> configurationTypes;
-
-    // bool and enum helpers for using Flags class with some operator overload magic
-    mutable bool linkerHelper = false;
-    mutable bool linkerVersionHelper = false;
-    mutable bool configHelper = false;
-
-    mutable BTFamily linkerCurrent;
-    mutable LinkerVersion linkerVersionCurrent;
-    mutable ConfigType configCurrent;
-
-  public:
-    LinkerFlags &operator[](BTFamily linkerFamily) const;
-    LinkerFlags &operator[](LinkerVersion linkerVersion) const;
-    LinkerFlags &operator[](ConfigType configType) const;
-
-    void operator=(const string &flags1);
-    static LinkerFlags defaultFlags();
-    operator string() const;
-};
-
-// TODO: Improve the console message.
-struct Flags
-{
-    CompilerFlags compilerFlags = CompilerFlags::defaultFlags();
-    LinkerFlags linkerFlags;
-};
-inline Flags flags;
 
 struct Environment
 {
@@ -814,7 +752,6 @@ class Variant : public CommonProperties
     set<Library *, TargetComparator> libraries;
     set<class PLibrary *> preBuiltLibraries;
     set<class PPLibrary *> packagedLibraries;
-    Flags flags;
     LibraryType libraryType;
     Environment environment;
     Variant();
@@ -883,6 +820,9 @@ enum class TargetType
     EXECUTABLE,
     STATIC,
     SHARED,
+    COMPILE,
+    PREPROCESS,
+    RUN,
     PLIBRARY_STATIC,
     PLIBRARY_SHARED,
 };
@@ -1123,15 +1063,15 @@ Target &Target::ASSIGN(T property, Property... properties)
     }
     else if constexpr (std::is_same_v<decltype(property), CxxFlags>)
     {
-        privateCompilerFlags.template emplace_back(property);
+        privateCompilerFlags.emplace_back(property);
     }
     else if constexpr (std::is_same_v<decltype(property), LinkFlags>)
     {
-        privateLinkerFlags.template emplace_back(property);
+        privateLinkerFlags.emplace_back(property);
     }
     else if constexpr (std::is_same_v<decltype(property), Define>)
     {
-        privateCompileDefinitions.template emplace_back(property);
+        privateCompileDefinitions.emplace_back(property);
     }
     else if constexpr (std::is_same_v<decltype(property), Threading>)
     {
@@ -1351,7 +1291,7 @@ Target &Target::M_RIGHT(T condition, Condition... conditions)
 
 template <typename T, typename... Condition> bool AND(T condition, Condition... conditions)
 {
-    if (!targetForAndOr->template EVALUATE(condition))
+    if (!targetForAndOr->EVALUATE(condition))
     {
         return false;
     }
@@ -1367,7 +1307,7 @@ template <typename T, typename... Condition> bool AND(T condition, Condition... 
 
 template <typename T, typename... Condition> bool OR(T condition, Condition... conditions)
 {
-    if (targetForAndOr->template EVALUATE(condition))
+    if (targetForAndOr->EVALUATE(condition))
     {
         return true;
     }
@@ -1384,7 +1324,7 @@ template <typename T, typename... Condition> bool OR(T condition, Condition... c
 template <typename T, typename... Condition> bool AND(Target *target, T condition, Condition... conditions)
 {
     targetForAndOr = target;
-    if (!targetForAndOr->template EVALUATE(condition))
+    if (!targetForAndOr->EVALUATE(condition))
     {
         return false;
     }
@@ -1401,7 +1341,7 @@ template <typename T, typename... Condition> bool AND(Target *target, T conditio
 template <typename T, typename... Condition> bool OR(Target *target, T condition, Condition... conditions)
 {
     targetForAndOr = target;
-    if (targetForAndOr->template EVALUATE(condition))
+    if (targetForAndOr->EVALUATE(condition))
     {
         return true;
     }
@@ -1646,9 +1586,9 @@ void from_json(const Json &json, LinkCommandPrintSettings &lcpSettings);
 
 struct PrintColorSettings
 {
-    unsigned compileCommandColor = static_cast<int>(fmt::color::light_green);
+    unsigned compileCommandColor = static_cast<int>(fmt::color::dark_green);
     unsigned archiveCommandColor = static_cast<int>(fmt::color::brown);
-    unsigned linkCommandColor = static_cast<int>(fmt::color::pink);
+    unsigned linkCommandColor = static_cast<int>(fmt::color::dark_red);
     unsigned toolErrorOutput = static_cast<int>(fmt::color::red);
     unsigned hbuildStatementOutput = static_cast<int>(fmt::color::yellow);
     unsigned hbuildSequenceOutput = static_cast<int>(fmt::color::cyan);
@@ -1714,10 +1654,10 @@ template <typename T> class TarjanNode
 
   private:
     void strongConnect();
-    bool initialized = false;
-    bool onStack;
     int nodeIndex;
     int lowLink;
+    bool initialized = false;
+    bool onStack;
 };
 template <typename T> bool operator<(const TarjanNode<T> &lhs, const TarjanNode<T> &rhs);
 
@@ -1732,7 +1672,6 @@ template <typename T> void TarjanNode<T>::findSCCS()
     cycle.clear();
     stack.clear();
     topologicalSort.clear();
-    // reverseDeps.clear();
     for (auto it = tarjanNodes->begin(); it != tarjanNodes->end(); ++it)
     {
         auto &b = *it;

@@ -24,9 +24,12 @@ struct BIDD
 {
     string path;
     bool copy;
+
     BIDD() = default;
+
     BIDD(const string &path_, bool copy_);
 };
+
 void from_json(const Json &j, BIDD &bCompileDefinition);
 
 struct BLibraryDependency
@@ -37,6 +40,7 @@ struct BLibraryDependency
     bool preBuilt;
     bool imported;
 };
+
 void from_json(const Json &j, BLibraryDependency &bCompileDefinition);
 
 struct BCompileDefinition
@@ -44,9 +48,11 @@ struct BCompileDefinition
     string name;
     string value;
 };
+
 void from_json(const Json &j, BCompileDefinition &bCompileDefinition);
 
 class Node;
+
 template <> struct std::less<Node *>
 {
     bool operator()(const Node *lhs, const Node *rhs) const;
@@ -58,16 +64,18 @@ class Node
     // This keeps info if a file is touched. If it's touched, it's not touched again.
     inline static set<Node *> allFiles{};
     string filePath;
+    string fileName;
+    std::filesystem::file_time_type lastUpdateTime;
+    explicit Node(string filePath_);
     // Because checking for lastUpdateTime is expensive, we do it only once even if file is used in multiple targets.
     bool isUpdated = false;
-    std::filesystem::file_time_type lastUpdateTime;
     void checkIfNotUpdatedAndUpdate();
     // Create a node and inserts it into the allFiles if it is not already there
     static Node *getNodeFromString(const string &str);
-    string fileName;
-    inline string &getFileName();
 };
+
 void to_json(Json &j, const Node *node);
+
 void from_json(const Json &j, Node *node); // Was to be used in from_json of SourceNode but is not used because
 // this does not return the modified pointer for some reason but instead returns the unmodified pointer.
 
@@ -75,49 +83,73 @@ enum class FileStatus
 {
     NOT_ASSIGNED,
     UPDATED,
-    NEEDS_RECOMPILE
+    NEEDS_UPDATE
 };
 
-struct SourceNode
+struct ReportResultTo
+{
+};
+
+enum class ResultType
+{
+    LINK,
+    SOURCENODE,
+    CPP_SMFILE,
+    CPP_MODULE,
+    ACTIONTARGET,
+};
+
+TarjanNode(const struct BTarget *) -> TarjanNode<BTarget>;
+using TBT = TarjanNode<BTarget>;
+inline set<TBT> tarjanNodesBTargets;
+
+struct IndexInTopologicalSortComparator
+{
+    bool operator()(const BTarget *lhs, const BTarget *rhs) const;
+};
+
+struct BTarget
+{
+    vector<BTarget *> sameTypeDependents;
+    set<BTarget *> dependents;
+    set<BTarget *> dependencies;
+    // This includes dependencies and their dependencies arranged on basis of indexInTopologicalSort.
+    set<BTarget *, IndexInTopologicalSortComparator> allDependencies;
+    inline static unsigned long total = 0;
+    unsigned long id = 0; // unique for every BTarget
+    unsigned long topologicallySortedId = 0;
+    ReportResultTo *const reportResultTo;
+    unsigned int dependenciesSize = 0;
+    ResultType resultType;
+    FileStatus fileStatus = FileStatus::UPDATED;
+    // This points to the tarjanNodeBTargets vector element in Builder where set could had been used. But, this is for
+    // optimization, as except SMFile Generation, all BTargets are topologically sorted.
+    TBT *tarjanNode = nullptr;
+    // Value is assigned on basis of TBT::topologicalSort index. Targets in allDependencies vector are arranged by this
+    // value.
+    unsigned long indexInTopologicalSort = 0;
+    explicit BTarget(ReportResultTo *reportResultTo_, ResultType resultType_);
+    void addDependency(BTarget &dependency);
+};
+
+bool operator<(const BTarget &lhs, const BTarget &rhs);
+
+struct CachedFile
 {
     Node *node = nullptr;
+    bool presentInCache = false;
+    bool presentInSource = false;
+    explicit CachedFile(const string &filePath);
+};
+
+struct SourceNode : public CachedFile, public BTarget
+{
     set<Node *> headerDependencies;
-    FileStatus compilationStatus = FileStatus::NOT_ASSIGNED;
-    mutable bool targetCacheSearched = false;
-    mutable bool presentInCache;
-    mutable bool presentInSource;
-    bool headerUnit = false;
-    bool materialize; // Used For Header-Units
+    SourceNode(const string &filePath, ReportResultTo *reportResultTo_, ResultType resultType_);
 };
+
 void to_json(Json &j, const SourceNode &sourceNode);
-void from_json(const Json &j, SourceNode &sourceNode);
-bool operator==(const SourceNode &lhs, const SourceNode &rhs);
 bool operator<(const SourceNode &lhs, const SourceNode &rhs);
-
-// Used to cache the dependencies on the disk for faster compilation next time
-struct BTargetCache
-{
-    string compileCommand;
-    string linkCommand;
-    set<SourceNode> sourceFileDependencies;
-    SourceNode &addNodeInSourceFileDependencies(const string &str);
-};
-void to_json(Json &j, const BTargetCache &bTargetCache);
-void from_json(const Json &j, BTargetCache &bTargetCache);
-
-// TODO: I think I should add all of the variables of this struct in ParsedTarget and then totally remove this. This
-// will make ParsedTarget class bigger but I have never used BuildNode alone e.g. set<BuildNode> or vector<BuildNode> is
-// never used.
-struct BuildNode
-{
-    BTargetCache targetCache;
-    bool needsLinking = false;
-    vector<SourceNode *> outdatedFiles;
-    unsigned short compilationNotStartedSize;
-    unsigned short compilationNotCompletedSize;
-    vector<struct ParsedTarget *> linkDependents;
-    unsigned short needsLinkDependenciesSize = 0;
-};
 
 struct PostBasic
 {
@@ -134,10 +166,12 @@ struct PostBasic
     explicit PostBasic(const BuildTool &buildTool, const string &commandFirstHalf, string printCommandFirstHalf,
                        const string &buildCacheFilesDirPath, const string &fileName, const PathPrint &pathPrint,
                        bool isTarget_);
+
     void executePrintRoutine(uint32_t color, bool printOnlyOnError) const;
 };
 
 struct ParsedTarget;
+
 struct PostCompile : PostBasic
 {
     ParsedTarget &parsedTarget;
@@ -145,9 +179,13 @@ struct PostCompile : PostBasic
     explicit PostCompile(const ParsedTarget &parsedTarget_, const BuildTool &buildTool, const string &commandFirstHalf,
                          string printCommandFirstHalf, const string &buildCacheFilesDirPath, const string &fileName,
                          const PathPrint &pathPrint);
+
     bool checkIfFileIsInEnvironmentIncludes(const string &str);
+
     void parseDepsFromMSVCTextOutput(SourceNode &sourceNode);
+
     void parseDepsFromGCCDepsOutput(SourceNode &sourceNode);
+
     void executePostCompileRoutineWithoutMutex(SourceNode &sourceNode);
 };
 
@@ -167,6 +205,7 @@ enum class SM_FILE_TYPE : unsigned short
     HEADER_UNIT = 3,
     PRIMARY_IMPLEMENTATION = 4,
     PARTITION_IMPLEMENTATION = 5,
+    GLOBAL_MODULE_FRAGMENT = 6,
 };
 
 struct LogicalNameComparator
@@ -187,52 +226,69 @@ struct SMRuleRequires
     string sourcePath;
     inline static set<SMRuleRequires, HeaderUnitComparator> *setHeaderUnits;
     inline static set<SMRuleRequires, LogicalNameComparator> *setLogicalName;
-    void populateFromJson(const Json &j, const string &smFilePath, const string &provideLogicalName);
+
+    bool populateFromJson(const Json &j, const string &smFilePath, const string &provideLogicalName);
 };
 
-struct SMFile // Scanned Module Rule
+struct HeaderUnitConsumer
+{
+    bool angle;
+    string logicalName;
+    HeaderUnitConsumer(bool angle_, const string &logicalName_);
+};
+bool operator<(const HeaderUnitConsumer &lhs, const HeaderUnitConsumer &rhs);
+
+struct SMFile : public SourceNode // Scanned Module Rule
 {
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
-    SourceNode &sourceNode;
     string logicalName;
     bool angle;
     vector<SMRuleRequires> requireDependencies;
 
-    SMFile(SourceNode &sourceNode_, ParsedTarget &parsedTarget_);
-    SMFile(SourceNode &sourceNode_, ParsedTarget &parsedTarget_, bool angle_);
-    // Only used in-case of Header-Unit
-    bool materialize;
+    SMFile(const string &srcPath, ParsedTarget *parsedTarget_);
 
     // State Variables
-    string fileName;
+    map<SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
     vector<SMFile *> fileDependencies;
-    vector<SMFile *> fileDependents;
     set<SMFile *> commandLineFileDependencies;
-    unsigned short needsCompileDependenciesSize = 0;
 
     ParsedTarget &parsedTarget;
     bool hasProvide = false;
-    // unsigned int numberOfNeedsCompileDependencies;
-    void populateFromJson(const Json &j);
+    bool standardHeaderUnit = false;
+
+    void populateFromJson(const Json &j, struct Builder &builder);
     string getFlag(const string &outputFilesWithoutExtension) const;
     string getFlagPrint(const string &outputFilesWithoutExtension) const;
-    string getRequireFlag(const string &outputFilesWithoutExtension) const;
-    string getRequireFlagPrint(const string &outputFilesWithoutExtension) const;
+    string getRequireFlag(const SMFile &dependentSMFile) const;
+    string getRequireFlagPrint(const SMFile &logicalName_) const;
     string getModuleCompileCommandPrintLastHalf() const;
 };
 
-struct SMFileCompareWithHeaderUnits
+struct SMFileVariantPathAndLogicalName
+{
+    const string &logicalName;
+    const string &variantFilePath;
+    SMFileVariantPathAndLogicalName(const string &logicalName_, const string &variantFilePath_);
+};
+
+struct SMFilePointerComparator
+{
+    bool operator()(const SMFile *lhs, const SMFile *rhs) const;
+};
+
+struct SMFilePathAndVariantPathComparator
 {
     bool operator()(const SMFile &lhs, const SMFile &rhs) const;
 };
 
-struct SMFileCompareWithoutHeaderUnits
+struct SMFileCompareLogicalName
 {
-    bool operator()(const SMFile &lhs, const SMFile &rhs) const;
+    bool operator()(SMFileVariantPathAndLogicalName lhs, SMFileVariantPathAndLogicalName rhs) const;
 };
 
 class Builder;
-struct ParsedTarget : public enable_shared_from_this<ParsedTarget>
+
+struct ParsedTarget : public ReportResultTo, public BTarget
 {
     friend struct PostCompile;
     // Parsed Info Not Changed Once Read
@@ -268,96 +324,125 @@ struct ParsedTarget : public enable_shared_from_this<ParsedTarget>
     string outputDirectory;
 
     // Some State Variables
-    set<ParsedTarget *> libraryParsedTargetDependencies;
     string actualOutputName;
+    // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
     string compileCommand;
     string sourceCompileCommandPrintFirstHalf;
+    // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     string linkOrArchiveCommand;
     string linkOrArchiveCommandPrintFirstHalf;
 
-    bool isModule = false;
+    // bool isModule = false;
     bool libsParsed = false;
-    BuildNode buildNode;
+    // This will hold set of sourceNodes or smFiles depending on the isModule bool
+    // Used to cache the dependencies on the disk for faster compilation next time
+
+    // TargetCache related Variables
+    //  Decides if the set<SourceNode> will actually hold the SMFile
+    string linkCommand;
+    set<SourceNode> sourceFileDependencies;
+    // Comparator used is same as for SourceNode
+    set<SMFile> moduleSourceFileDependencies;
+    SourceNode &addNodeInSourceFileDependencies(const string &str);
+    SMFile &addNodeInModuleSourceFileDependencies(const std::string &str, bool angle);
+
     inline static set<string> variantFilePaths;
-    unsigned int smFilesToBeCompiledSize = 0;
     vector<SMFile *> smFiles;
 
     explicit ParsedTarget(const string &targetFilePath_);
+
     void executePreBuildCommands() const;
     void executePostBuildCommands() const;
+    string &getCompileCommand();
     void setCompileCommand();
-    inline string &getCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
     inline string &getSourceCompileCommandPrintFirstHalf();
     void setLinkOrArchiveCommandAndPrint();
     string &getLinkOrArchiveCommand();
     string &getLinkOrArchiveCommandPrintFirstHalf();
-    // void parseSourceDirectoriesAndFinalizeSourceFiles();
+
     //  Create a new SourceNode and insert it into the targetCache.sourceFileDependencies if it is not already there. So
     //  that it is written to the cache on disk for faster compilation next time
-    void setSourceNodeCompilationStatus(SourceNode &sourceNode, bool angle) const;
+    void setSourceNodeFileStatus(SourceNode &sourceNode, bool angle) const;
+
     // This must be called to confirm that all Prebuilt Libraries Exists. Also checks if any of them is recently
     // touched.
     void checkForRelinkPrebuiltDependencies();
-    void populateSourceTree();
-    void populateModuleTree(Builder &builder, map<string *, map<string, SourceNode *>> &requirePaths,
-                            set<TarjanNode<SMFile>> &tarjanNodesSMFiles);
+    void checkForPreBuiltAndCacheDir();
+    void populateSetTarjanNodesSourceNodes(Builder &builder);
+    void populateRequirePathsAndSMFilesWithHeaderUnitsMap(
+        Builder &builder, map<SMFileVariantPathAndLogicalName, SMFile *, SMFileCompareLogicalName> &requirePaths);
+    void populateParsedTargetModuleSourceFileDependenciesAndBuilderSMFiles(Builder &builder);
     string getInfrastructureFlags();
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode);
     PostCompile CompileSMFile(SMFile *smFile);
     PostCompile Compile(SourceNode &sourceNode);
-    void populateCommandAndPrintCommandWithObjectFiles(string &command, string &printCommand,
-                                                       const PathPrint &objectFilesPathPrint);
+    /* void populateCommandAndPrintCommandWithObjectFiles(string &command, string &printCommand,
+                                                        const PathPrint &objectFilesPathPrint);*/
     PostBasic Archive();
     PostBasic Link();
     PostBasic GenerateSMRulesFile(const SourceNode &sourceNode, bool printOnlyOnError);
-
     TargetType getTargetType() const;
     void pruneAndSaveBuildCache(bool successful);
     void copyParsedTarget() const;
+    void execute(unsigned long fileTargetId);
+    void executePrintRoutine(unsigned long fileTargetId);
 };
+
 bool operator<(const ParsedTarget &lhs, const ParsedTarget &rhs);
 
-using VariantParsedTargetString = variant<ParsedTarget, string>;
-struct VariantParsedTargetStringComparator
+struct SystemHeaderUnit
 {
-    bool operator()(const VariantParsedTargetString &lhs, const VariantParsedTargetString &rhs) const;
+    ParsedTarget *parsedTarget;
+    string filePath;
+    SystemHeaderUnit(ParsedTarget &parsedTarget_, const string &filePath_);
 };
+bool operator<(const SystemHeaderUnit &lhs, const SystemHeaderUnit &rhs);
+
+struct ApplicationHeaderUnit : CachedFile
+{
+    ParsedTarget *parsedTarget;
+    ApplicationHeaderUnit(ParsedTarget &parsedTarget_, const string &cachedFilePath_);
+};
+bool operator<(const ApplicationHeaderUnit &lhs, const ApplicationHeaderUnit &rhs);
+
+struct HeaderUnits
+{
+    set<SystemHeaderUnit> systemHeaderUnits;
+    set<ApplicationHeaderUnit> applicationHeaderUnits;
+};
+
 class Builder
 {
-    set<VariantParsedTargetString, VariantParsedTargetStringComparator> parsedTargetSet;
-
-    unsigned short linkThreadsCount = 0;
+    set<ParsedTarget> parsedTargetSet;
     vector<ParsedTarget *> sourceTargets;
-    unsigned short sourceTargetsIndex;
-
-    unsigned long canBeCompiledModuleIndex = 0;
-    unsigned int finalSMFilesSize;
-
-    unsigned long canBeLinkedIndex = 0;
-    unsigned int totalTargetsNeedingLinking;
+    unsigned long finalBTargetsIndex = 0;
+    unsigned int finalBTargetsSizeGoal;
 
   public:
-    // inline static int modulesActionsNeeded = 0;
-    map<string *, set<SMFile, SMFileCompareWithoutHeaderUnits>> smFilesWithoutHeaderUnits;
-    map<string *, set<SMFile, SMFileCompareWithHeaderUnits>> smFilesWithHeaderUnits;
+    vector<BTarget *> filteredBTargets;
+    vector<BTarget *> finalBTargets;
+
+    set<SMFile *, SMFilePointerComparator> smFiles;
+    set<SMFile, SMFilePathAndVariantPathComparator> headerUnits;
     vector<SMFile *> canBeCompiledModule;
     vector<ParsedTarget *> canBeLinked;
-
-    Builder(const set<string> &variantFilePath);
-    void populateParsedTargetSetAndModuleTargets(const set<string> &targetFilePaths,
-                                                 vector<ParsedTarget *> &moduleTargets);
-    int populateCanBeCompiledAndReturnModuleThreadsNeeded(const vector<ParsedTarget *> &moduleTargets);
-    void removeRedundantNodesFromSourceTree();
+    explicit Builder(const set<string> &variantFilePath);
+    void populateParsedTargetsSetAndSetTarjanNodesParsedTargets(const set<string> &targetFilePaths);
+    void checkForHeaderUnitsCache();
+    void populateSetTarjanNodesBTargetsSMFiles(
+        const map<SMFileVariantPathAndLogicalName, SMFile *, SMFileCompareLogicalName> &requirePaths);
+    void populateFinalBTargets();
     static set<string> getTargetFilePathsFromVariantFile(const string &fileName);
     static set<string> getTargetFilePathsFromProjectOrPackageFile(const string &fileName, bool isPackage);
-    // This function is executed by multiple threads and is executed recursively until build is finished.
-    void buildSourceFiles();
-    void buildModuleFiles();
-    void linkTargets();
 
+    // This function is executed by multiple threads and is executed recursively until build is finished.
+    void launchThreadsAndUpdateBTargets();
+    void updateBTargets();
     static void copyPackage(const path &packageFilePath);
+    void createHeaderUnits();
 };
 
 string getReducedPath(const string &subjectPath, const PathPrint &pathPrint);
+
 #endif // HMAKE_HBUILD_SRC_BBUILD_HPP

@@ -4,12 +4,12 @@
 int main()
 {
     Cache::initializeCache();
-    flags.compilerFlags[BTFamily::MSVC] = " /std:c++latest";
-    flags.compilerFlags[BTFamily::GCC] = " -std=c++2b";
 
     Project project;
     ProjectVariant variant{project};
 
+    variant.privateCompilerFlags.emplace_back(" /std:c++latest ");
+    variant.privateCompileDefinitions.emplace_back("HMAKE_TRANSLATE_INCLUDE", "1");
     Library fmt("fmt", variant);
     fmt.SOURCE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_INCLUDES("fmt/include");
 
@@ -26,12 +26,14 @@ int main()
         .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_STATIC_LIB_DIRECTORY", addEscapedQuotes(configureDir + "0/hconfigure/"))
         .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_STATIC_LIB_PATH",
                                     addEscapedQuotes(configureDir + "0/hconfigure/hconfigure.lib"))
-        .PRIVATE_LIBRARIES(&hconfigure);
+        .PRIVATE_COMPILE_DEFINITION("FMT_STATIC_LIB_DIRECTORY", addEscapedQuotes(configureDir + "0/fmt/"))
+        .PRIVATE_COMPILE_DEFINITION("FMT_STATIC_LIB_PATH", addEscapedQuotes(configureDir + "0/fmt/fmt.lib"))
+        .PUBLIC_LIBRARIES(&hconfigure);
 
     Executable hbuild("hbuild", variant);
     hbuild.SOURCE_FILES("hbuild/src/BBuild.cpp", "hbuild/src/main.cpp")
         .PRIVATE_INCLUDES("hbuild/header/")
-        .PRIVATE_LIBRARIES(&hconfigure);
+        .PUBLIC_LIBRARIES(&hconfigure);
 
     project.configure();
 }
