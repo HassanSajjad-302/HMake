@@ -4,14 +4,26 @@
 #ifndef HMAKE_CONFIGURE_HPP
 #define HMAKE_CONFIGURE_HPP
 
-#include "filesystem"
+#ifdef USE_HEADER_UNITS
 #include "fmt/color.h"
-#include "memory"
 #include "nlohmann/json.hpp"
-#include "set"
-#include "stack"
-#include "thread"
-#include "utility"
+#include <filesystem>
+#include <memory>
+#include <set>
+#include <stack>
+#include <thread>
+#include <utility>
+
+#else
+#include "fmt/color.h"
+#include "nlohmann/json.hpp"
+#include <filesystem>
+#include <memory>
+#include <set>
+#include <stack>
+#include <thread>
+#include <utility>
+#endif
 
 using std::filesystem::path, std::string, std::vector, std::tuple, std::map, std::set, std::same_as, std::stack,
     std::shared_ptr, std::make_shared, std::same_as;
@@ -51,6 +63,7 @@ struct JConsts
     inline static const string compilerSelectedArrayIndex = "compiler-selected-array-index";
     inline static const string compilerTransitiveFlags = "compiler-transitive-flags";
     inline static const string configuration = "configuration";
+    inline static const string configurationScope = "configuration-scope";
     inline static const string consumerDependencies = "consumer-dependencies";
     inline static const string copy = "copy";
     inline static const string copyingPackage = "copying-package";
@@ -73,6 +86,7 @@ struct JConsts
     inline static const string hbuildStatementOutput = "hbuild-statement-output";
     inline static const string headerDependencies = "header-dependencies";
     inline static const string hmakeFilePath = "hmake-file-path";
+    inline static const string huIncludeDirectories = "header-unit-include-directories";
     inline static const string ifcOutputFile = "ifc-output-file";
     inline static const string importedFromOtherHmakePackage = "imported-from-other-hmake-package";
     inline static const string importedFromOtherHmakePackageFromOtherHmakePackage =
@@ -96,6 +110,7 @@ struct JConsts
     inline static const string maximumBuildThreads = "maximum-build-threads";
     inline static const string maximumLinkThreads = "maximum-link-threads";
     inline static const string moduleDependencies = "module-dependencies";
+    inline static const string moduleScope = "module-scope";
     inline static const string msvc = "msvc";
     inline static const string name = "name";
     inline static const string objectFile = "object-file";
@@ -202,7 +217,7 @@ struct Define
     string name;
     string value;
     Define() = default;
-    explicit Define(const string &name_, const string &value_ = "");
+    explicit Define(string name_, string value_ = "");
 };
 
 void to_json(Json &j, const Define &cd);
@@ -732,6 +747,7 @@ struct CommonProperties
     Threading threading;
     Link link;
     vector<Directory> privateIncludes;
+    vector<Directory> privateHUIncludes;
     vector<string> privateCompilerFlags;
     vector<string> privateLinkerFlags;
     vector<Define> privateCompileDefinitions;
@@ -791,7 +807,7 @@ struct SourceDirectory
     Directory sourceDirectory;
     string regex;
     SourceDirectory() = default;
-    SourceDirectory(const Directory &sourceDirectory_, const string &regex_);
+    SourceDirectory(Directory sourceDirectory_, string regex_);
 };
 void to_json(Json &j, const SourceDirectory &sourceDirectory);
 void from_json(const Json &j, SourceDirectory &sourceDirectory);
@@ -856,6 +872,8 @@ class Target : public Dependent, public CommonProperties
     bool targetChecked = false;
 
     vector<Directory> publicIncludes;
+    // In module scope, two different targets should not have a directory in hu-public-includes
+    vector<Directory> publicHUIncludes;
     vector<string> publicCompilerFlags;
     vector<string> publicLinkerFlags;
     vector<Define> publicCompileDefinitions;
@@ -909,6 +927,8 @@ class Target : public Dependent, public CommonProperties
 
     template <same_as<char const *>... U> Target &PUBLIC_INCLUDES(U... includeDirectoryString);
     template <same_as<char const *>... U> Target &PRIVATE_INCLUDES(U... includeDirectoryString);
+    template <same_as<char const *>... U> Target &PUBLIC_HU_INCLUDES(U... includeDirectoryString);
+    template <same_as<char const *>... U> Target &PRIVATE_HU_INCLUDES(U... includeDirectoryString);
     template <same_as<Library *>... U> Target &PUBLIC_LIBRARIES(const U... libraries);
     template <same_as<Library *>... U> Target &PRIVATE_LIBRARIES(const U... libraries);
     Target &PUBLIC_COMPILER_FLAGS(const string &compilerFlags);
@@ -1011,7 +1031,19 @@ template <same_as<char const *>... U> Target &Target::PUBLIC_INCLUDES(U... inclu
 
 template <same_as<char const *>... U> Target &Target::PRIVATE_INCLUDES(U... includeDirectoryString)
 {
-    (privateIncludes.emplace_back(Directory{includeDirectoryString}...));
+    (privateIncludes.emplace_back(Directory{includeDirectoryString}), ...);
+    return *this;
+}
+
+template <same_as<char const *>... U> Target &Target::PUBLIC_HU_INCLUDES(U... includeDirectoryString)
+{
+    (publicHUIncludes.emplace_back(Directory{includeDirectoryString}), ...);
+    return *this;
+}
+
+template <same_as<char const *>... U> Target &Target::PRIVATE_HU_INCLUDES(U... includeDirectoryString)
+{
+    (privateHUIncludes.emplace_back(Directory{includeDirectoryString}), ...);
     return *this;
 }
 
@@ -1643,7 +1675,7 @@ template <typename T> class TarjanNode
     // Input
     inline static set<TarjanNode> *tarjanNodes;
 
-    mutable vector<TarjanNode *> deps;
+    mutable set<TarjanNode *> deps;
 
     explicit TarjanNode(const T *id_);
     // Find Strongly Connected Components

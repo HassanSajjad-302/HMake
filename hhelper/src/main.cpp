@@ -1,11 +1,10 @@
 
 #include "Configure.hpp"
-#include "filesystem"
 #include "fmt/format.h"
-#include "fstream"
-#include <iostream>
+#include <filesystem>
+#include <fstream>
 
-using std::string, std::vector, std::ifstream, std::ofstream, std::cout, std::endl, std::cerr, std::filesystem::path,
+using std::string, std::vector, std::ifstream, std::ofstream, fmt::print, std::endl, std::filesystem::path,
     std::filesystem::current_path, std::filesystem::directory_iterator, std::to_string, std::runtime_error,
     std::filesystem::canonical;
 using Json = nlohmann::ordered_json;
@@ -47,7 +46,7 @@ int main()
 {
     if (THROW)
     {
-        cerr << "Macros Required for hhelper are not provided.";
+        print(stderr, "Macros Required for hhelper are not provided.\n");
         exit(EXIT_FAILURE);
     }
     int count = 0;
@@ -63,7 +62,7 @@ int main()
     }
     if (count > 1)
     {
-        cerr << "More than one file with cache.hmake name present";
+        print(stderr, "More than one file with cache.hmake name present\n");
         exit(EXIT_FAILURE);
     }
     if (count == 0)
@@ -184,7 +183,7 @@ int main()
 
         if (!compileConfigureCommands.empty())
         {
-            cout << "Executing commands as specified in cache.hmake to produce configure executable" << endl;
+            print("Executing commands as specified in cache.hmake to produce configure executable\n");
         }
 
         for (string &compileConfigureCommand : compileConfigureCommands)
@@ -197,7 +196,7 @@ int main()
             {
                 compileConfigureCommand.replace(position, confDirString.size(), current_path().string());
             }
-            cout << compileConfigureCommand << endl;
+            print("{}\n", compileConfigureCommand);
             int code = system(compileConfigureCommand.c_str());
             if (code != EXIT_SUCCESS)
             {

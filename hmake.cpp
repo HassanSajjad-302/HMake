@@ -8,8 +8,8 @@ int main()
     Project project;
     ProjectVariant variant{project};
 
-    variant.privateCompilerFlags.emplace_back(" /std:c++latest ");
-    variant.privateCompileDefinitions.emplace_back("HMAKE_TRANSLATE_INCLUDE", "1");
+    variant.privateCompilerFlags.emplace_back(" /std:c++latest /translateInclude");
+    // variant.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
     Library fmt("fmt", variant);
     fmt.SOURCE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_INCLUDES("fmt/include");
 

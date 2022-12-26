@@ -3,20 +3,30 @@
 #pragma ide diagnostic ignored "cppcoreguidelines-pro-type-static-cast-downcast"
 #endif
 
+#ifdef USE_HEADER_UNITS
 #include "Configure.hpp"
 
+#include <algorithm>
+#include <fstream>
+#include <regex>
+#include <set>
 #include <utility>
 
-#include "algorithm"
-#include "fstream"
-#include "iostream"
-#include "regex"
-#include "set"
+#else
+#include "Configure.hpp"
+
+#include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <regex>
+#include <set>
+#include <utility>
+#endif
 
 using std::to_string, std::filesystem::directory_entry, std::filesystem::file_type, std::logic_error, std::ifstream,
-    std::ofstream, std::move, std::filesystem::current_path, std::cout, std::endl, std::cerr, std::stringstream,
-    std::make_tuple, std::filesystem::directory_iterator, std::filesystem::recursive_directory_iterator,
-    std::filesystem::remove, std::filesystem::create_directories;
+    std::ofstream, std::move, std::filesystem::current_path, fmt::print, std::stringstream, std::make_tuple,
+    std::filesystem::directory_iterator, std::filesystem::recursive_directory_iterator, std::filesystem::remove,
+    std::filesystem::create_directories;
 
 std::string writePath(const path &writePath)
 {
@@ -36,46 +46,33 @@ string addEscapedQuotes(const string &pathString)
     return str + pathString + str;
 }
 
-void demo_status(const fs::path &p, fs::file_status s)
+string getStatusString(const fs::path &p)
 {
-    std::cout << p;
-    switch (s.type())
+    switch (status(p).type())
     {
     case fs::file_type::none:
-        std::cout << " has `not-evaluated-yet` type";
-        break;
+        return " has `not-evaluated-yet` type";
     case fs::file_type::not_found:
-        std::cout << " does not exist";
-        break;
+        return " does not exist";
     case fs::file_type::regular:
-        std::cout << " is a regular file";
-        break;
+        return " is a regular file";
     case fs::file_type::directory:
-        std::cout << " is a directory";
-        break;
+        return " is a directory";
     case fs::file_type::symlink:
-        std::cout << " is a symlink";
-        break;
+        return " is a symlink";
     case fs::file_type::block:
-        std::cout << " is a block device";
-        break;
+        return " is a block device";
     case fs::file_type::character:
-        std::cout << " is a character device";
-        break;
+        return " is a character device";
     case fs::file_type::fifo:
-        std::cout << " is a named IPC pipe";
-        break;
+        return " is a named IPC pipe";
     case fs::file_type::socket:
-        std::cout << " is a named IPC socket";
-        break;
+        return " is a named IPC socket";
     case fs::file_type::unknown:
-        std::cout << " has `unknown` type";
-        break;
+        return " has `unknown` type";
     default:
-        std::cout << " has `implementation-defined` type";
-        break;
+        return " has `implementation-defined` type";
     }
-    std::cout << '\n';
 }
 
 File::File(const path &filePath_)
@@ -94,7 +91,8 @@ File::File(const path &filePath_)
     }
     else
     {
-        cerr << filePath_ << " Is Not a regular file";
+        print(stderr, "{} is not a regular file. File Type is {}\n", filePath_.generic_string(),
+              getStatusString(filePath_));
         exit(EXIT_FAILURE);
     }
 }
@@ -131,8 +129,8 @@ Directory::Directory(const path &directoryPath_)
     }
     else
     {
-        cerr << directoryPath_ << " Is Not a directory file. File type is ";
-        demo_status(directoryPath, fs::status(directoryPath));
+        print(stderr, "{} is not a directory file. File type is {}", directoryPath_.generic_string(),
+              getStatusString(directoryPath_));
         exit(EXIT_FAILURE);
     }
 }
@@ -152,7 +150,7 @@ bool operator<(const Directory &lhs, const Directory &rhs)
     return lhs.directoryPath.generic_string() < rhs.directoryPath.generic_string();
 }
 
-Define::Define(const string &name_, const string &value_) : name{name_}, value{value_}
+Define::Define(string name_, string value_) : name{std::move(name_)}, value{std::move(value_)}
 {
 }
 
@@ -532,7 +530,7 @@ void Target::setPropertiesFlags() const
         {
             if (EVALUATE(Link::SHARED))
             {
-                cout << "WARNING: On gcc, DLLs can not be built with <runtime-link>static" << endl;
+                print("WARNING: On gcc, DLLs can not be built with <runtime-link>static\n");
             }
             else
             {
@@ -626,12 +624,12 @@ vector<string> Target::convertCustomTargetsToJson(const vector<CustomTarget> &cu
     return commands;
 }
 
-// I think I can use std::move for Target members here as this is the last function called.
 Json Target::convertToJson(unsigned long variantIndex) const
 {
     Json targetFileJson;
 
     vector<Directory> includeDirectories;
+    vector<Directory> huIncludeDirectories;
     string compilerFlags;
     string linkerFlags;
     vector<Json> compileDefinitionsArray;
@@ -645,6 +643,14 @@ Json Target::convertToJson(unsigned long variantIndex) const
     for (const auto &e : privateIncludes)
     {
         includeDirectories.emplace_back(e);
+    }
+    for (const auto &e : publicHUIncludes)
+    {
+        huIncludeDirectories.emplace_back(e);
+    }
+    for (const auto &e : privateHUIncludes)
+    {
+        huIncludeDirectories.emplace_back(e);
     }
     for (const auto &e : publicCompilerFlags)
     {
@@ -722,12 +728,13 @@ Json Target::convertToJson(unsigned long variantIndex) const
     targetFileJson[JConsts::linker] = linker;
     targetFileJson[JConsts::archiver] = archiver;
     targetFileJson[JConsts::environment] = environment;
-    targetFileJson[JConsts::compilerFlags] = "";
-    targetFileJson[JConsts::linkerFlags] = "";
+    targetFileJson[JConsts::compilerFlags] = compilerFlags;
+    targetFileJson[JConsts::linkerFlags] = linkerFlags;
     sourceAggregate.convertToJson(targetFileJson);
     moduleAggregate.convertToJson(targetFileJson);
     targetFileJson[JConsts::libraryDependencies] = dependenciesArray;
     targetFileJson[JConsts::includeDirectories] = includeDirectories;
+    targetFileJson[JConsts::huIncludeDirectories] = huIncludeDirectories;
     targetFileJson[JConsts::compilerTransitiveFlags] = compilerFlags;
     targetFileJson[JConsts::linkerTransitiveFlags] = linkerFlags;
     targetFileJson[JConsts::compileDefinitions] = compileDefinitionsArray;
@@ -790,8 +797,8 @@ PackageVariant::PackageVariant(struct Package &package)
     package.packageVariants.emplace_back(this);
 }
 
-SourceDirectory::SourceDirectory(const Directory &sourceDirectory_, const string &regex_)
-    : sourceDirectory{sourceDirectory_}, regex{regex_}
+SourceDirectory::SourceDirectory(Directory sourceDirectory_, string regex_)
+    : sourceDirectory{std::move(sourceDirectory_)}, regex{std::move(regex_)}
 {
 }
 
@@ -836,9 +843,8 @@ set<string> SourceAggregate::convertFromJsonAndGetAllSourceFiles(const Json &j, 
             }
             catch (const std::regex_error &e)
             {
-                cerr << "regex_error caught: " << e.what() << '\n';
-                cerr << "Regular Expressions error happened while parsing regex " << i.regex << " of the target "
-                     << targetFilePath << endl;
+                print(stderr, "regex_error : {}\nError happened while parsing regex {} of target{}\n", e.what(),
+                      i.regex, targetFilePath);
                 exit(EXIT_FAILURE);
             }
         }
@@ -936,7 +942,7 @@ string getActualNameFromTargetName(TargetType targetType, const OSFamily &osFami
     else
     {
     }
-    cerr << "Other Targets Not Supported Yet." << endl;
+    print(stderr, "Other Targets Are Not Supported Yet.\n");
     exit(EXIT_FAILURE);
 }
 
@@ -952,7 +958,7 @@ string getTargetNameFromActualName(TargetType targetType, const OSFamily &osFami
         libName = libName.erase(libName.find('.'), eraseCount);
         return libName;
     }
-    cerr << "Other Targets Not Supported Yet." << endl;
+    print(stderr, "Other Targets Are Not Supported Yet.\n");
     exit(EXIT_FAILURE);
 }
 
@@ -987,7 +993,7 @@ Json Target::convertToJson(const Package &package, unsigned variantIndex) const
     string consumerLinkerFlags;
     vector<Json> consumerCompileDefinitionsArray;
     vector<Json> consumerDependenciesArray;
-
+    // TODO: Header-Unit Includes not addressed
     for (const auto &e : publicIncludes)
     {
         Json incDirJson;
@@ -1156,7 +1162,7 @@ void Target::configure(const Package &package, unsigned count) const
 bool std::less<Target *>::operator()(const Target *lhs, const Target *rhs) const
 {
     return lhs->targetName < rhs->targetName;
-    cout << "Comparator Called" << endl;
+    print("Comparator Called\n");
 }
 
 Executable::Executable(string targetName_) : Target(move(targetName_))
@@ -1168,7 +1174,7 @@ Executable::Executable(string targetName_, Variant &variant) : Target(move(targe
     targetType = TargetType::EXECUTABLE;
     if (auto [pos, Ok] = variant.executables.emplace(this); !Ok)
     {
-        fmt::print(stderr, "Executable {} already added to variant.", targetName_);
+        print(stderr, "Executable {} already added to variant.", targetName_);
         exit(EXIT_FAILURE);
     }
 }
@@ -1187,7 +1193,7 @@ Library::Library(string targetName_, Variant &variant) : Target(move(targetName_
     setLibraryType(variant.libraryType);
     if (auto [pos, Ok] = variant.libraries.emplace(this); !Ok)
     {
-        fmt::print(stderr, "Library {} already added to variant.", targetName_);
+        print(stderr, "Library {} already added to variant.", targetName_);
         exit(EXIT_FAILURE);
     }
 }
@@ -1249,6 +1255,8 @@ void Cache::initializeCache()
     Cache::selectedArchiverArrayIndex = cacheFileJson.at(JConsts::archiverSelectedArrayIndex).get<int>();
     Cache::libraryType = cacheFileJson.at(JConsts::libraryType).get<LibraryType>();
     Cache::cacheVariables = cacheFileJson.at(JConsts::cacheVariables).get<Json>();
+    // TODO
+    //  Environment is initialized only for amd64
 #ifdef _WIN32
     Cache::environment = Environment::initializeEnvironmentFromVSBatchCommand(
         R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64)");
@@ -1345,7 +1353,7 @@ void Variant::configure(VariantMode mode, unsigned long variantCount, const clas
                     for (Dependent *dependent : dependentVector)
                     {
                         auto [posDep, Ok1] = tarjanNodesLibraryPointers.emplace(dependent);
-                        b->deps.emplace_back(const_cast<TarjanNode<Dependent> *>(&(*posDep)));
+                        b->deps.emplace(const_cast<TarjanNode<Dependent> *>(&(*posDep)));
                     }
                 };
 
@@ -1394,6 +1402,13 @@ void Variant::configure(VariantMode mode, unsigned long variantCount, const clas
                 for (Library *lib : target->publicLibs)
                 {
                     for (Directory &idd : lib->publicIncludes)
+                    {
+                        target->publicIncludes.emplace_back(idd);
+                    }
+                }
+                for (Library *lib : target->publicLibs)
+                {
+                    for (Directory &idd : lib->publicHUIncludes)
                     {
                         target->publicIncludes.emplace_back(idd);
                     }
@@ -1487,7 +1502,7 @@ Executable &Variant::findExecutable(const string &name)
     auto it = executables.find(&executable);
     if (it == executables.end())
     {
-        fmt::print(stderr, "Could Not find the Executable");
+        print(stderr, "Could Not find the Executable");
     }
     return **it;
 }
@@ -1498,7 +1513,7 @@ Library &Variant::findLibrary(const string &name)
     auto it = libraries.find(&library);
     if (it == libraries.end())
     {
-        fmt::print(stderr, "Could Not find the library");
+        print(stderr, "Could Not find the library");
     }
     return **it;
 }
@@ -1596,14 +1611,13 @@ Environment Environment::initializeEnvironmentFromVSBatchCommand(const string &c
     string temporaryIncludeFilename = "temporaryInclude.txt";
     string temporaryLibFilename = "temporaryLib.txt";
     string temporaryBatchFilename = "temporaryBatch.bat";
-    ofstream(temporaryBatchFilename) << "call " + command << endl
-                                     << "echo %INCLUDE% > " + temporaryIncludeFilename << endl
-                                     << "echo %LIB%;%LIBPATH% > " + temporaryLibFilename;
+    ofstream(temporaryBatchFilename) << "call " + command << "\necho %INCLUDE% > " + temporaryIncludeFilename
+                                     << "\necho %LIB%;%LIBPATH% > " + temporaryLibFilename;
 
     if (int code = system(temporaryBatchFilename.c_str()); code == EXIT_FAILURE)
     {
-        cout << "Error in Executing Batch File" << endl;
-        exit(-1);
+        print(stderr, "Error in Initializing Environment\n");
+        exit(EXIT_FAILURE);
     }
     remove(temporaryBatchFilename);
 
@@ -1738,6 +1752,7 @@ void Package::configureCommonAmongVariants()
         }
     };
 
+    // TODO: Does not address hu-includes
     auto assignPackageCommonAndNonCommonIncludeDirsForSingleTarget = [&](Target *target, unsigned long index) {
         for (auto &idd : target->publicIncludes)
         {
@@ -1814,7 +1829,7 @@ void Package::configure()
     {
         if (i->uniqueJson.contains(JConsts::index))
         {
-            cerr << "Package Variant Json can not have COUNT in it's Json." << endl;
+            print(stderr, "Package Variant Json can not have COUNT in it's Json.\n");
             exit(EXIT_FAILURE);
         }
         i->uniqueJson[JConsts::index] = to_string(count);
@@ -2097,15 +2112,14 @@ PPLibrary::PPLibrary(Variant &variant, string libraryName_, const CPackage &cPac
     }
     if (!found)
     {
-        cerr << "Library " << libraryName << " Not Present In Package Variant" << endl;
+        print(stderr, "Library {} not present in Package Variant\n", libraryName);
         exit(EXIT_FAILURE);
     }
 
     path libraryFilePath = libraryDirectoryPath / (libraryName + ".hmake");
     if (!std::filesystem::exists(libraryFilePath))
     {
-        cerr << "Library " << libraryName << " Does Not Exists. Searched For File " << endl
-             << writePath(libraryFilePath);
+        print(stderr, "Library {} does not exists. Searched for file {}\n", libraryName, writePath(libraryFilePath));
         exit(EXIT_FAILURE);
     }
 
@@ -2191,8 +2205,8 @@ CPackage::CPackage(path packagePath_) : packagePath(move(packagePath_))
     path packageFilePath = packagePath / "cpackage.hmake";
     if (!std::filesystem::exists(packageFilePath))
     {
-        cerr << "Package File Path " << packageFilePath.generic_string() << " Does Not Exists " << endl;
-        exit(-1);
+        print(stderr, "Package {} does not exists.\n", packageFilePath.generic_string());
+        exit(EXIT_FAILURE);
     }
     Json packageFileJson;
     ifstream(packageFilePath) >> packageFileJson;
@@ -2230,13 +2244,11 @@ CPVariant CPackage::getVariant(const Json &variantJson_)
     }
     else if (numberOfMatches == 0)
     {
-        cerr << "No Json in package " << writePath(packagePath) << " matches \n" << variantJson_.dump(4) << endl;
+        print(stderr, "No Json in Package {} matches {}\n", writePath(packagePath), variantJson_.dump(4));
     }
     else if (numberOfMatches > 1)
     {
-        cerr << "More than 1 Jsons in package " + writePath(packagePath) + " matches \n"
-             << endl
-             << to_string(variantJson_);
+        print(stderr, "More than 1 Jsons in Package {} matches {}.\n", writePath(packagePath), to_string(variantJson_));
     }
     exit(EXIT_FAILURE);
 }
@@ -2251,7 +2263,7 @@ CPVariant CPackage::getVariant(const int index)
             return CPVariant(packagePath / to_string(index), i, index);
         }
     }
-    cerr << "No Json in package " << writePath(packagePath) << " has index " << to_string(index) << endl;
+    print(stderr, "No Json in Pacakge {} has index {}\n", writePath(packagePath), to_string(index));
     exit(EXIT_FAILURE);
 }
 
@@ -2267,7 +2279,7 @@ void from_json(const Json &json, PathPrint &pathPrint)
     uint8_t level = json.at(JConsts::pathPrintLevel).get<uint8_t>();
     if (level < 0 || level > 2)
     {
-        cerr << "Level should be in range 0-2" << endl;
+        print(stderr, "Level should be in range 0-2\n");
         exit(EXIT_FAILURE);
     }
     pathPrint.printLevel = (PathPrintLevel)level;
@@ -2436,8 +2448,8 @@ string file_to_string(const string &file_name)
     if (file_stream.fail())
     {
         // Error opening file.
-        cerr << "Error opening file in file_to_string function " << file_name << endl;
-        exit(-1);
+        print(stderr, "Error opening file {}\n", file_name);
+        exit(EXIT_FAILURE);
     }
 
     std::ostringstream str_stream{};
@@ -2446,8 +2458,8 @@ string file_to_string(const string &file_name)
     if (file_stream.fail() && !file_stream.eof())
     {
         // Error reading file.
-        cerr << "Error reading file in file_to_string function " << file_name << endl;
-        exit(-1);
+        print(stderr, "Error reading file {}\n", file_name);
+        exit(EXIT_FAILURE);
     }
 
     return str_stream.str();
@@ -2502,8 +2514,8 @@ void privateFunctions::SEARCH_AND_ADD_FILE_FROM_ENV_INCL_TO_TARGET_MODULE_SRC(Ta
     }
     if (!found)
     {
-        cerr << stderr, "{} could not be found in Environment include directories of Target {}\n", moduleFileName,
-            moduleTarget.targetName;
+        print(stderr, "{} could not be found in Environment include directories of Target {}\n", moduleFileName,
+              moduleTarget.targetName);
         exit(EXIT_FAILURE);
     }
 }

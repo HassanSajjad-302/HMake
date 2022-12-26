@@ -3,21 +3,36 @@
 #ifndef HMAKE_HBUILD_SRC_BBUILD_HPP
 #define HMAKE_HBUILD_SRC_BBUILD_HPP
 
+#ifdef USE_HEADER_UNITS
 #include "Configure.hpp"
-#include "atomic"
-#include "filesystem"
-#include "map"
-#include "memory"
-#include "mutex"
-#include "nlohmann/json.hpp"
-#include "stack"
-#include "string"
-#include "thread"
-#include "tuple"
-#include "variant"
+#include <atomic>
+#include <filesystem>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <stack>
+#include <string>
+#include <thread>
+#include <tuple>
+#include <variant>
+#else
+
+#include "Configure.hpp"
+#include <atomic>
+#include <filesystem>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <stack>
+#include <string>
+#include <thread>
+#include <tuple>
+#include <variant>
+
+#endif
 
 using std::string, std::vector, std::filesystem::path, std::map, std::set, std::shared_ptr, std::tuple, std::thread,
-    std::stack, std::mutex, std::enable_shared_from_this, fmt::formatter, std::atomic, std::variant;
+    std::stack, std::mutex, std::enable_shared_from_this, fmt::formatter, std::atomic, std::variant, std::pair;
 using Json = nlohmann::ordered_json;
 
 struct BIDD
@@ -60,24 +75,21 @@ template <> struct std::less<Node *>
 
 class Node
 {
+    std::filesystem::file_time_type lastUpdateTime;
+    // Because checking for lastUpdateTime is expensive, it is done only once even if file is used in multiple targets.
+    bool isUpdated = false;
+    explicit Node() = default;
+
   public:
     // This keeps info if a file is touched. If it's touched, it's not touched again.
-    inline static set<Node *> allFiles{};
+    inline static map<path, Node> allFiles;
     string filePath;
     string fileName;
-    std::filesystem::file_time_type lastUpdateTime;
-    explicit Node(string filePath_);
-    // Because checking for lastUpdateTime is expensive, we do it only once even if file is used in multiple targets.
-    bool isUpdated = false;
-    void checkIfNotUpdatedAndUpdate();
+    static std::filesystem::file_time_type getLastUpdateTime(pair<const path, Node> &pathNodePair);
     // Create a node and inserts it into the allFiles if it is not already there
-    static Node *getNodeFromString(const string &str);
+    static pair<const path, Node> &getNodeFromString(const string &str);
 };
-
-void to_json(Json &j, const Node *node);
-
-void from_json(const Json &j, Node *node); // Was to be used in from_json of SourceNode but is not used because
-// this does not return the modified pointer for some reason but instead returns the unmodified pointer.
+void to_json(Json &j, const pair<const path, Node> *node);
 
 enum class FileStatus
 {
@@ -136,7 +148,7 @@ bool operator<(const BTarget &lhs, const BTarget &rhs);
 
 struct CachedFile
 {
-    Node *node = nullptr;
+    pair<const path, Node> &node;
     bool presentInCache = false;
     bool presentInSource = false;
     explicit CachedFile(const string &filePath);
@@ -144,7 +156,7 @@ struct CachedFile
 
 struct SourceNode : public CachedFile, public BTarget
 {
-    set<Node *> headerDependencies;
+    set<pair<const path, Node> *> headerDependencies;
     SourceNode(const string &filePath, ReportResultTo *reportResultTo_, ResultType resultType_);
 };
 
@@ -208,28 +220,6 @@ enum class SM_FILE_TYPE : unsigned short
     GLOBAL_MODULE_FRAGMENT = 6,
 };
 
-struct LogicalNameComparator
-{
-    bool operator()(const struct SMRuleRequires &lhs, const struct SMRuleRequires &rhs) const;
-};
-
-struct HeaderUnitComparator
-{
-    bool operator()(const struct SMRuleRequires &lhs, const struct SMRuleRequires &rhs) const;
-};
-
-struct SMRuleRequires
-{
-    SM_REQUIRE_TYPE type = SM_REQUIRE_TYPE::NOT_ASSIGNED;
-    string logicalName;
-    bool angle;
-    string sourcePath;
-    inline static set<SMRuleRequires, HeaderUnitComparator> *setHeaderUnits;
-    inline static set<SMRuleRequires, LogicalNameComparator> *setLogicalName;
-
-    bool populateFromJson(const Json &j, const string &smFilePath, const string &provideLogicalName);
-};
-
 struct HeaderUnitConsumer
 {
     bool angle;
@@ -243,20 +233,21 @@ struct SMFile : public SourceNode // Scanned Module Rule
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
     string logicalName;
     bool angle;
-    vector<SMRuleRequires> requireDependencies;
+    Json requiresJson;
 
     SMFile(const string &srcPath, ParsedTarget *parsedTarget_);
 
     // State Variables
-    map<SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
+    map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
     vector<SMFile *> fileDependencies;
     set<SMFile *> commandLineFileDependencies;
 
     ParsedTarget &parsedTarget;
+    // If this SMFile is HeaderUnit, then following is the ParsedTarget whose hu-include-directory this is present in.
+    ParsedTarget *ahuTarget;
     bool hasProvide = false;
     bool standardHeaderUnit = false;
 
-    void populateFromJson(const Json &j, struct Builder &builder);
     string getFlag(const string &outputFilesWithoutExtension) const;
     string getFlagPrint(const string &outputFilesWithoutExtension) const;
     string getRequireFlag(const SMFile &dependentSMFile) const;
@@ -305,6 +296,7 @@ struct ParsedTarget : public ReportResultTo, public BTarget
     set<string> modulesSourceFiles;
     vector<BLibraryDependency> libraryDependencies;
     vector<BIDD> includeDirectories;
+    vector<BIDD> huIncludeDirectories;
     vector<string> libraryDirectories;
     string compilerTransitiveFlags;
     string linkerTransitiveFlags;
@@ -370,12 +362,10 @@ struct ParsedTarget : public ReportResultTo, public BTarget
     void checkForRelinkPrebuiltDependencies();
     void checkForPreBuiltAndCacheDir();
     void populateSetTarjanNodesSourceNodes(Builder &builder);
-    void populateRequirePathsAndSMFilesWithHeaderUnitsMap(
-        Builder &builder, map<SMFileVariantPathAndLogicalName, SMFile *, SMFileCompareLogicalName> &requirePaths);
-    void populateParsedTargetModuleSourceFileDependenciesAndBuilderSMFiles(Builder &builder);
+    void parseModuleSourceFiles(Builder &builder);
     string getInfrastructureFlags();
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode);
-    PostCompile CompileSMFile(SMFile *smFile);
+    PostCompile CompileSMFile(SMFile &smFile, Builder &builder);
     PostCompile Compile(SourceNode &sourceNode);
     /* void populateCommandAndPrintCommandWithObjectFiles(string &command, string &printCommand,
                                                         const PathPrint &objectFilesPathPrint);*/
@@ -391,27 +381,13 @@ struct ParsedTarget : public ReportResultTo, public BTarget
 
 bool operator<(const ParsedTarget &lhs, const ParsedTarget &rhs);
 
-struct SystemHeaderUnit
+// Information relating per module scope
+struct ModuleScope
 {
-    ParsedTarget *parsedTarget;
-    string filePath;
-    SystemHeaderUnit(ParsedTarget &parsedTarget_, const string &filePath_);
+    set<SMFile *, SMFilePointerComparator> smFiles;
+    set<SMFile, SMFilePathAndVariantPathComparator> headerUnits;
+    map<BIDD *, ParsedTarget *> appHUDirTarget; // application-header-unit directories
 };
-bool operator<(const SystemHeaderUnit &lhs, const SystemHeaderUnit &rhs);
-
-struct ApplicationHeaderUnit : CachedFile
-{
-    ParsedTarget *parsedTarget;
-    ApplicationHeaderUnit(ParsedTarget &parsedTarget_, const string &cachedFilePath_);
-};
-bool operator<(const ApplicationHeaderUnit &lhs, const ApplicationHeaderUnit &rhs);
-
-struct HeaderUnits
-{
-    set<SystemHeaderUnit> systemHeaderUnits;
-    set<ApplicationHeaderUnit> applicationHeaderUnits;
-};
-
 class Builder
 {
     set<ParsedTarget> parsedTargetSet;
@@ -422,13 +398,12 @@ class Builder
   public:
     vector<BTarget *> filteredBTargets;
     vector<BTarget *> finalBTargets;
-
-    set<SMFile *, SMFilePointerComparator> smFiles;
-    set<SMFile, SMFilePathAndVariantPathComparator> headerUnits;
+    map<const string *, ModuleScope> moduleScopes;
     vector<SMFile *> canBeCompiledModule;
     vector<ParsedTarget *> canBeLinked;
     explicit Builder(const set<string> &variantFilePath);
     void populateParsedTargetsSetAndSetTarjanNodesParsedTargets(const set<string> &targetFilePaths);
+    void populateRequirePaths(map<SMFileVariantPathAndLogicalName, SMFile *, SMFileCompareLogicalName> &requirePaths);
     void checkForHeaderUnitsCache();
     void populateSetTarjanNodesBTargetsSMFiles(
         const map<SMFileVariantPathAndLogicalName, SMFile *, SMFileCompareLogicalName> &requirePaths);
@@ -438,9 +413,12 @@ class Builder
 
     // This function is executed by multiple threads and is executed recursively until build is finished.
     void launchThreadsAndUpdateBTargets();
+    void printDebugFinalBTargets();
     void updateBTargets();
     static void copyPackage(const path &packageFilePath);
     void createHeaderUnits();
+    static bool isSubDirPathStandard(const path &headerUnitPath, set<Directory> &environmentIncludes);
+    static bool isSubDirPathApplication(const path &headerUnitPath, map<BIDD *, ParsedTarget *> &applicationIncludes);
 };
 
 string getReducedPath(const string &subjectPath, const PathPrint &pathPrint);

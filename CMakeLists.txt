@@ -10,15 +10,15 @@ add_executable(hhelper hhelper/src/main.cpp)
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
 target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/json/include/")
 target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/fmt/include/")
-target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY= "$<TARGET_FILE_DIR:hconfigure>")
-target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY= "$<TARGET_FILE_DIR:fmt::fmt>")
+target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure>")
+target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:fmt::fmt>")
 
 
 add_library(hconfigure STATIC
         hconfigure/src/Configure.cpp
         )
-target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH= "$<TARGET_FILE:hconfigure>")
-target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_PATH= "$<TARGET_FILE:fmt>")
+target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure>")
+target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_PATH="$<TARGET_FILE:fmt>")
 
 
 target_include_directories(hconfigure
