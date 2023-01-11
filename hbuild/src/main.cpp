@@ -1,9 +1,12 @@
 
-#include "BBuild.hpp"
+#include "BuildSystemFunctions.hpp"
 #include "fmt/format.h"
-#include "fstream"
+#include <filesystem>
+#include <fstream>
+#include <string>
 
-using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream;
+using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, fmt::print,
+    std::filesystem::path, std::filesystem::exists, std::string;
 int main(int argc, char **argv)
 {
     if (argc == 2)
@@ -26,63 +29,27 @@ int main(int argc, char **argv)
     }
     else
     {
-        auto initializeSettings = [](const path &settingsFilePath) {
-            Json outputSettingsJson;
-            ifstream(settingsFilePath) >> outputSettingsJson;
-            settings = outputSettingsJson;
-        };
-
-        vector<string> directoryFiles;
-        for (auto &file : directory_iterator(current_path()))
+        path configureFilePath;
+        bool configureAppExists = false;
+        string configureName = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
+        for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
         {
-            if (file.is_regular_file())
+            configureFilePath = p / configureName;
+            if (exists(configureFilePath))
             {
-                directoryFiles.emplace_back(file.path().filename().string());
+                configureAppExists = true;
+                break;
             }
         }
-        auto directoryFilesContains = [&](const string &str) -> bool {
-            return find(directoryFiles.begin(), directoryFiles.end(), str) != directoryFiles.end();
-        };
-
-        // TODO:
-        //  There should be a cmd option which changes the current-directory for hmake, so another target or variant
-        //  could be specified instead of explicitly invoking hbuild in that respective directory.
-        if (directoryFilesContains("project.hmake"))
+        if (configureAppExists)
         {
-            initializeSettings("settings.hmake");
-            Builder{Builder::getTargetFilePathsFromProjectOrPackageFile("project.hmake", false)};
-        }
-        else if (directoryFilesContains("projectVariant.hmake"))
-        {
-            initializeSettings("../settings.hmake");
-            Builder{Builder::getTargetFilePathsFromVariantFile("projectVariant.hmake")};
-        }
-        else if (directoryFilesContains("package.hmake"))
-        {
-            initializeSettings("../settings.hmake");
-            Builder{Builder::getTargetFilePathsFromProjectOrPackageFile("package.hmake", true)};
-            Builder::copyPackage("package.hmake");
-        }
-        else if (directoryFilesContains("packageVariant.hmake"))
-        {
-            initializeSettings("../../settings.hmake");
-            Builder{Builder::getTargetFilePathsFromVariantFile("packageVariant.hmake")};
+            string str = configureFilePath.string() + " --build";
+            return system(str.c_str());
         }
         else
         {
-            for (const auto &i : directoryFiles)
-            {
-                if (i.ends_with(".hmake"))
-                {
-                    Json outputSettingsJson;
-                    ifstream("../../settings.hmake") >> outputSettingsJson;
-                    settings = outputSettingsJson;
-                    set<string> vec;
-                    vec.emplace(i);
-                    Builder{vec};
-                    break;
-                }
-            }
+            print(stderr, "{} File could not be found in current directory and directories above\n", configureName);
+            exit(EXIT_FAILURE);
         }
     }
 }

@@ -1,20 +1,16 @@
 #include "Configure.hpp"
-#include "iostream"
 
-int main()
+int main(int argc, char **argv)
 {
-    Cache::initializeCache();
-
-    Project project;
-    ProjectVariant variant{project};
-
-    variant.privateCompilerFlags.emplace_back(" /std:c++latest /translateInclude");
+    setBoolsAndSetRunDir(argc, argv);
+    Variant variant{"Release"};
+    variant.privateCompilerFlags += " /std:c++latest /translateInclude";
     // variant.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
     Library fmt("fmt", variant);
     fmt.SOURCE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_INCLUDES("fmt/include");
 
     Library hconfigure("hconfigure", variant);
-    hconfigure.SOURCE_FILES("hconfigure/src/Configure.cpp")
+    hconfigure.SOURCE_DIRECTORIES("hconfigure/src/", ".*")
         .PUBLIC_INCLUDES("hconfigure/header", "cxxopts/include", "json/include")
         .PUBLIC_LIBRARIES(&fmt);
 
@@ -31,9 +27,7 @@ int main()
         .PUBLIC_LIBRARIES(&hconfigure);
 
     Executable hbuild("hbuild", variant);
-    hbuild.SOURCE_FILES("hbuild/src/BBuild.cpp", "hbuild/src/main.cpp")
-        .PRIVATE_INCLUDES("hbuild/header/")
-        .PUBLIC_LIBRARIES(&hconfigure);
+    hbuild.SOURCE_FILES("hbuild/src/main.cpp").PRIVATE_LIBRARIES(&hconfigure);
 
-    project.configure();
+    configureOrBuild();
 }

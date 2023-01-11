@@ -1,6 +1,6 @@
 #include "Configure.hpp"
 
-int main()
+int main(int argc, char **argv)
 {
     // Following line will initialize the Cache class static members from cache.hmake. That's why if cache file does not
     // exist library does not work properly. When you run hhelper for first time cache.hmake file is created. This file
@@ -28,12 +28,11 @@ int main()
       cerr << "Compiler Not detected" << endl;
       exit(EXIT_FAILURE);
     }*/
-    Cache::initializeCache();
+    setBoolsAndSetRunDir(argc, argv);
 
     // There should be only one project variable. Project class has name and version members but because those are not
     // used currently, constructor does not require them. Later, I will show example of Package. There should also be
     // only one Package if you are using it.
-    Project project;
 
     // ProjectVariant and PackageVariant are derived from Variant Class. A project can have as many as needed. Variant
     // is needed when your use case is such that e.g. you want your library compiled with debug and release flags to
@@ -42,23 +41,19 @@ int main()
     // and configure the project. Now, you will have project with two different variants with different
     // configurationType. In order to do this in cmake, you need to configure the project twice. Here there is native
     // support. More about variants in Example.
-    ProjectVariant variant{project};
     // Note that we passed it the above variant object. So that it will initialize its defaults from that variant
     // object which will initialize its defaults from Cache class static members. Executable and Library are derived
     // from Target class. First argument is targetName. targetName for every target should be different in every
     // variant. Note that it is different from outputName which is the name of output compiled. outputName can be
     // assigned for the following Target as: app.outputName = "HelloApp";
-    Executable app("app", variant);
+    Executable app("app");
 
     // If you don't provide full path then relative path is converted into full path like following
     // Cache::sourceDirectory.path/path i.e. your path is taken relative to sourceDirectory.
-    app.SOURCE_FILES("main.cpp");
-
-    variant.executables.emplace(&app);
-
+    app.SOURCE_FILES("main.cpp").configure();
+    build();
     // This will be your last line. If you are doing packaging, then package.configure may be your last, where package
     // is object of Package.
-    project.configure();
 
     // Here is what you buildDir will look like
     // In buildDir, for every variant that you add in project, there is a directory created which has all the

@@ -1,5 +1,8 @@
 
-#include "Configure.hpp"
+#include "BuildTools.hpp"
+#include "Environment.hpp"
+#include "JConsts.hpp"
+#include "Utilities.hpp"
 #include "fmt/format.h"
 #include <filesystem>
 #include <fstream>
@@ -141,18 +144,18 @@ int main()
             string compileCommand =
                 R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\bin\Hostx64\x64\cl.exe")";
 
-            for (const auto &dir : environment.includeDirectories)
+            for (const string &str : environment.includeDirectories)
             {
-                compileCommand += " /I " + addQuotes(dir.directoryPath.generic_string());
+                compileCommand += " /I " + addQuotes(str);
             }
             compileCommand += " /I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() + " /I " +
                               fmtHeaderPath.string() + " /std:c++latest" + environment.compilerFlags +
                               " {SOURCE_DIRECTORY}/hmake.cpp"
                               " /link " +
                               environment.linkerFlags;
-            for (const auto &dir : environment.libraryDirectories)
+            for (const string &str : environment.libraryDirectories)
             {
-                compileCommand += "/LIBPATH:" + addQuotes(dir.directoryPath.generic_string()) + " ";
+                compileCommand += "/LIBPATH:" + addQuotes(str) + " ";
             }
             compileCommand += addQuotes(hconfigureStaticLibPath.string()) + " " + addQuotes(fmtStaticLibPath.string()) +
                               " /OUT:{CONFIGURE_DIRECTORY}/configure.exe";
@@ -165,16 +168,14 @@ int main()
     }
     else
     {
-
         Json cacheJson;
         ifstream("cache.hmake") >> cacheJson;
         path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
         if (sourceDirPath.is_relative())
         {
-            sourceDirPath = absolute(sourceDirPath);
+            sourceDirPath = (current_path() / sourceDirPath).lexically_normal();
         }
-        sourceDirPath = sourceDirPath.lexically_normal();
-        sourceDirPath = canonical(sourceDirPath);
+        sourceDirPath = sourceDirPath.generic_string();
 
         string srcDirString = "{SOURCE_DIRECTORY}";
         string confDirString = "{CONFIGURE_DIRECTORY}";

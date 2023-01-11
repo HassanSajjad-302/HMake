@@ -58,7 +58,8 @@ TEST(ExamplesTest, Example4)
     cacheFileJson["cache-variables"]["FILE1"] = false;
     ofstream("cache.hmake") << cacheFileJson.dump(4);
 
-    ASSERT_EQ(system(getSlashedExeName("configure").c_str()), 0) << getExeName("configure") + " command failed.";
+    ASSERT_EQ(system(getSlashedExeName("configureDerived").c_str()), 0)
+        << getExeName("configureDerived") + " command failed.";
     ASSERT_EQ(system(getExeName("hbuild").c_str()), 0) << getExeName("hbuild") + " command failed.";
 
     current_path("0/app");

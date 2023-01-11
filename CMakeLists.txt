@@ -13,10 +13,20 @@ target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/fmt/i
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure>")
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:fmt::fmt>")
 
-
 add_library(hconfigure STATIC
-        hconfigure/src/Configure.cpp
-        )
+        hconfigure/src/Settings.cpp
+        hconfigure/src/Features.cpp
+        hconfigure/src/TargetType.cpp
+        hconfigure/src/BasicTargets.cpp
+        hconfigure/src/Builder.cpp
+        hconfigure/src/BuildSystemFunctions.cpp
+        hconfigure/src/Cache.cpp
+        hconfigure/src/SMFile.cpp
+        hconfigure/src/Variant.cpp
+        hconfigure/src/Target.cpp
+        hconfigure/src/BuildTools.cpp
+        hconfigure/src/Environment.cpp
+        hconfigure/src/Utilities.cpp)
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure>")
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_PATH="$<TARGET_FILE:fmt>")
 
@@ -27,18 +37,19 @@ target_include_directories(hconfigure
         PUBLIC fmt/include
         PUBLIC json/include
         )
+target_include_directories(hhelper
+        PRIVATE cxxopts/include
+        PRIVATE fmt/include
+        PRIVATE json/include)
 target_link_libraries(hhelper PRIVATE hconfigure)
 
 add_executable(hbuild
-        hbuild/src/BBuild.cpp
         hbuild/src/main.cpp)
-target_include_directories(hbuild PRIVATE hbuild/header)
+target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
 add_executable(HMakeCppHelper hmake.cpp)
-target_include_directories(HMakeCppHelper PRIVATE hconfigure/header)
 add_subdirectory(json)
-target_link_libraries(hbuild PRIVATE hconfigure)
 target_link_libraries(HMakeCppHelper PRIVATE hconfigure)
 
 
