@@ -14,13 +14,9 @@ class cxxflag : string
 
 int main()
 {
-    // Very Important Variables
-    // Uarget_OS targetOs;
-    Cache::initializeCache();
-    Project project;
-    ProjectVariant variant{project};
+    Variant variant("Checking");
 
-    variant.privateIncludes.emplace_back(".");
+    variant.privateIncludes.emplace_back(Node::getNodeFromString(".", false));
     variant.privateCompileDefinitions.emplace_back("BOOST_ALL_NO_LIB", "1");
 
     for (const auto &it : directory_iterator(srcDir / path("libs")))

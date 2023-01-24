@@ -11,11 +11,14 @@ struct JConsts
     inline static const string archivePrintSettings = "archive-print-settings";
     inline static const string archiver = "archiver";
     inline static const string archiverArray = "archiver-array";
+    inline static const string archivers = "archivers";
     inline static const string archiverSelectedArrayIndex = "archiver-selected-array-index";
     inline static const string binary = "binary";
     inline static const string cacheIncludes = "cache-includes";
     inline static const string cacheVariables = "cache-variables";
     inline static const string clang = "clang";
+    inline static const string command = "command";
+    inline static const string commandArguments = "commandArguments";
     inline static const string compile = "compile";
     inline static const string compileCommand = "compile-command";
     inline static const string compileCommandColor = "compile-command-color";
@@ -25,6 +28,7 @@ struct JConsts
     inline static const string compiler = "compiler";
     inline static const string compilerArray = "compiler-array";
     inline static const string compilerFlags = "compiler-flags";
+    inline static const string compilers = "compilers";
     inline static const string compilerSelectedArrayIndex = "compiler-selected-array-index";
     inline static const string compilerTransitiveFlags = "compiler-transitive-flags";
     inline static const string configuration = "configuration";
@@ -32,11 +36,11 @@ struct JConsts
     inline static const string consumerDependencies = "consumer-dependencies";
     inline static const string copy = "copy";
     inline static const string copyingTarget = "copying-target";
+    inline static const string cppSourceTargets = "cpp-source-targets";
     inline static const string debug = "debug";
     inline static const string dependencies = "dependencies";
     inline static const string depth = "depth";
     inline static const string directories = "directories";
-    inline static const string environment = "environment";
     inline static const string environmentCompilerFlags = "environment-compiler-flags";
     inline static const string environmentIncludeDirectories = "environment-include-directories";
     inline static const string environmentLibraryDirectories = "environment-library-directories";
@@ -50,12 +54,17 @@ struct JConsts
     inline static const string hbuildStatementOutput = "hbuild-statement-output";
     inline static const string headerDependencies = "header-dependencies";
     inline static const string hmakeFilePath = "hmake-file-path";
+    inline static const string hostArchitecture = "host-architecture";
+    inline static const string hostArddressModel = "host-address-model";
     inline static const string huIncludeDirectories = "header-unit-include-directories";
     inline static const string ifcOutputFile = "ifc-output-file";
     inline static const string includeDirectories = "include-directories";
     inline static const string index = "index";
     inline static const string infrastructureFlags = "infrastructure-flags";
     inline static const string interface = "interface";
+    inline static const string isCompilerInVSToolsArray = "is-compiler-in-vstools-array";
+    inline static const string isLinkerInVSToolsArray = "is-linker-in-vstools-array";
+    inline static const string isArchiverInVSToolsArray = "is-archiver-in-vstools-array";
     inline static const string libraryDependencies = "library-dependencies";
     inline static const string libraryDirectories = "library-directories";
     inline static const string libraryType = "library-type";
@@ -64,6 +73,7 @@ struct JConsts
     inline static const string linker = "linker";
     inline static const string linkerArray = "linker-array";
     inline static const string linkerFlags = "linker-flags";
+    inline static const string linkers = "linkers";
     inline static const string linkerSelectedArrayIndex = "linker-selected-array-index";
     inline static const string linkerTransitiveFlags = "linker-transitive-flags";
     inline static const string linkPrintSettings = "link-print-settings";
@@ -80,9 +90,6 @@ struct JConsts
     inline static const string outputAndErrorFiles = "output-and-error-files";
     inline static const string outputDirectory = "output-directory";
     inline static const string outputName = "output-name";
-    inline static const string package = "package";
-    inline static const string packageCopy = "package-copy";
-    inline static const string packageCopyPath = "package-copy-path";
     inline static const string packageName = "package-name";
     inline static const string packagePath = "package-path";
     inline static const string packageVariantIndex = "package-variant-index";
@@ -120,6 +127,8 @@ struct JConsts
     inline static const string sourceFile = "source-file";
     inline static const string srcFile = "src-file";
     inline static const string static_ = "static";
+    inline static const string targetAddressModel = "target-address-model";
+    inline static const string targetArchitecture = "target-architecture";
     inline static const string targets = "targets";
     inline static const string targetsWithModules = "targets-with-modules";
     inline static const string targetType = "target-type";
@@ -132,6 +141,7 @@ struct JConsts
     inline static const string variants = "variants";
     inline static const string variantsIndices = "variants-indices";
     inline static const string version = "version";
+    inline static const string vsTools = "vs-tools";
     inline static const string windows = "windows";
     inline static const string x86 = "X86";
 };

@@ -1,4 +1,4 @@
 namespace Cat
 {
-void print();
+CAT_EXPORT void print();
 }

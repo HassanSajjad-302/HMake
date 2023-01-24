@@ -27,6 +27,9 @@ struct PathPrint
 void to_json(Json &json, const PathPrint &outputSettings);
 void from_json(const Json &json, PathPrint &outputSettings);
 
+// TODO
+//  Replace environment with standard
+
 struct CompileCommandPrintSettings
 {
     PathPrint tool{

@@ -4,7 +4,7 @@ int main(int argc, char **argv)
 {
     setBoolsAndSetRunDir(argc, argv);
     Variant variant{"Release"};
-    variant.privateCompilerFlags += " /std:c++latest /translateInclude";
+    variant.privateCompilerFlags += " -std=c++2b";
     // variant.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
     Library fmt("fmt", variant);
     fmt.SOURCE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_INCLUDES("fmt/include");

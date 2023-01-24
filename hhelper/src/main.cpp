@@ -1,7 +1,9 @@
 
+#include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
-#include "Environment.hpp"
+#include "Cache.hpp"
 #include "JConsts.hpp"
+#include "ToolsCache.hpp"
 #include "Utilities.hpp"
 #include "fmt/format.h"
 #include <filesystem>
@@ -37,14 +39,6 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
 #define THROW true
 #endif
 
-#ifdef _WIN32
-constexpr Platform platform = Platform::WINDOWS;
-#elif defined __linux
-constexpr Platform platform = Platform::LINUX;
-#else
-#define THROW 1
-#endif
-
 int main()
 {
     if (THROW)
@@ -70,54 +64,18 @@ int main()
     }
     if (count == 0)
     {
-        // todo:
-        // Here we will have the code that will detect the system we are on and compilers we do have installed.
-        // And the location of those compilers. And their versions.
-        Json j;
-        vector<Compiler> compilersDetected;
-        vector<Linker> linkersDetected;
-        vector<Archiver> archiversDetected;
-
-        if constexpr (platform == Platform::LINUX)
+        if constexpr (os == OS::LINUX)
         {
             Version ver{10, 2, 0};
-            compilersDetected.push_back(Compiler{BTFamily::GCC, ver, path("/usr/bin/g++")});
-            linkersDetected.push_back(Linker{
-                BTFamily::GCC,
-                ver,
-                path("/usr/bin/g++"),
-            });
-            archiversDetected.push_back(Archiver{BTFamily::GCC, ver, "/usr/bin/ar"});
+            // TODO
+            /* compilersDetected.push_back(Compiler{BTFamily::GCC, ver, path("/usr/bin/g++")});
+             linkersDetected.push_back(Linker{
+                 BTFamily::GCC,
+                 ver,
+                 path("/usr/bin/g++"),
+             });
+             archiversDetected.push_back(Archiver{BTFamily::GCC, ver, "/usr/bin/ar"});*/
         }
-        else
-        {
-            Version ver{19, 30, 30705};
-            compilersDetected.push_back(Compiler{
-                BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\bin\Hostx64\x64\cl.exe)"});
-            linkersDetected.push_back(Linker{
-                BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\bin\Hostx64\x64\link.exe)"});
-            archiversDetected.push_back(Archiver{
-                BTFamily::MSVC, ver,
-                R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\bin\Hostx64\x64\lib.exe)"});
-        }
-
-        j[JConsts::sourceDirectory] = "../";
-        j[JConsts::packageCopy] = true;
-        j[JConsts::packageCopyPath] = current_path().lexically_normal().generic_string() + "/install/";
-        j[JConsts::configuration] = JConsts::release;
-        j[JConsts::compilerArray] = compilersDetected;
-        j[JConsts::compilerSelectedArrayIndex] = 0;
-        j[JConsts::linkerArray] = linkersDetected;
-        j[JConsts::linkerSelectedArrayIndex] = 0;
-        j[JConsts::archiverArray] = archiversDetected;
-        j[JConsts::archiverSelectedArrayIndex] = 0;
-        j[JConsts::libraryType] = JConsts::static_;
-
-        j[JConsts::cacheVariables] = Json::object();
-
-        vector<string> compileConfigureCommands;
 
         path hconfigureHeaderPath = path(HCONFIGURE_HEADER);
         path jsonHeaderPath = path(JSON_HEADER);
@@ -126,7 +84,7 @@ int main()
         path fmtStaticLibDirectoryPath = path(FMT_STATIC_LIB_DIRECTORY);
         path hconfigureStaticLibPath = path(HCONFIGURE_STATIC_LIB_PATH);
         path fmtStaticLibPath = path(FMT_STATIC_LIB_PATH);
-        if constexpr (platform == Platform::LINUX)
+        if constexpr (os == OS::LINUX)
         {
             string compileCommand =
                 "g++ -std=c++20"
@@ -134,42 +92,48 @@ int main()
                 " -L " HCONFIGURE_STATIC_LIB_DIRECTORY " -l hconfigure -L " FMT_STATIC_LIB_DIRECTORY " -l fmt "
                 " -o "
                 "{CONFIGURE_DIRECTORY}/configure";
-            compileConfigureCommands.push_back(compileCommand);
+            cache.compileConfigureCommands.push_back(compileCommand);
         }
         else
         {
-            Environment environment = Environment::initializeEnvironmentFromVSBatchCommand(
-                R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64)");
+            toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
+            if (toolsCache.vsTools.empty() && toolsCache.compilers.empty())
+            {
+                print(
+                    stderr,
+                    "No compiler found from ToolsCache variable. Please ensure htools has been run as admin before\n");
+                exit(EXIT_FAILURE);
+            }
 
-            string compileCommand =
-                R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\bin\Hostx64\x64\cl.exe")";
+            // hhelper currently only works with MSVC compiler expected in toolsCache vsTools[0]
+            string compileCommand = addQuotes(toolsCache.vsTools[0].compiler.bTPath.make_preferred().string());
 
-            for (const string &str : environment.includeDirectories)
+            for (const string &str : toolsCache.vsTools[0].includeDirectories)
             {
                 compileCommand += " /I " + addQuotes(str);
             }
             compileCommand += " /I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() + " /I " +
-                              fmtHeaderPath.string() + " /std:c++latest" + environment.compilerFlags +
+                              fmtHeaderPath.string() + " /std:c++latest /EHsc /MD /nologo" +
                               " {SOURCE_DIRECTORY}/hmake.cpp"
-                              " /link " +
-                              environment.linkerFlags;
-            for (const string &str : environment.libraryDirectories)
+                              " /link /SUBSYSTEM:CONSOLE /NOLOGO ";
+            for (const string &str : toolsCache.vsTools[0].libraryDirectories)
             {
                 compileCommand += "/LIBPATH:" + addQuotes(str) + " ";
             }
             compileCommand += addQuotes(hconfigureStaticLibPath.string()) + " " + addQuotes(fmtStaticLibPath.string()) +
                               " /OUT:{CONFIGURE_DIRECTORY}/configure.exe";
             compileCommand = addQuotes(compileCommand);
-            compileConfigureCommands.push_back(compileCommand);
+            cache.compileConfigureCommands.push_back(compileCommand);
         }
 
-        j[JConsts::compileConfigureCommands] = compileConfigureCommands;
-        ofstream("cache.hmake") << j.dump(4);
+        Json cacheJson = cache;
+        ofstream("cache.hmake") << cacheJson.dump(4);
     }
     else
     {
         Json cacheJson;
         ifstream("cache.hmake") >> cacheJson;
+        Cache cacheLocal = cacheJson;
         path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
         if (sourceDirPath.is_relative())
         {
@@ -180,14 +144,12 @@ int main()
         string srcDirString = "{SOURCE_DIRECTORY}";
         string confDirString = "{CONFIGURE_DIRECTORY}";
 
-        vector<string> compileConfigureCommands = cacheJson.at(JConsts::compileConfigureCommands).get<vector<string>>();
-
-        if (!compileConfigureCommands.empty())
+        if (!cacheLocal.compileConfigureCommands.empty())
         {
             print("Executing commands as specified in cache.hmake to produce configure executable\n");
         }
 
-        for (string &compileConfigureCommand : compileConfigureCommands)
+        for (string &compileConfigureCommand : cacheLocal.compileConfigureCommands)
         {
             if (const size_t position = compileConfigureCommand.find(srcDirString); position != string::npos)
             {

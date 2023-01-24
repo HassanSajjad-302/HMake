@@ -1,13 +1,14 @@
-#ifndef HMAKE_TARGET_HPP
-#define HMAKE_TARGET_HPP
+#ifndef HMAKE_CPPSOURCETARGET_HPP
+#define HMAKE_CPPSOURCETARGET_HPP
 
 #include "BasicTargets.hpp"
 #include "BuildTools.hpp"
 #include "Builder.hpp"
-#include "Environment.hpp"
 #include "Features.hpp"
 #include "JConsts.hpp"
+#include "LinkOrArchiveTarget.hpp"
 #include "SMFile.hpp"
+#include "ToolsCache.hpp"
 #include "Variant.hpp"
 #include <concepts>
 #include <set>
@@ -31,55 +32,39 @@ struct SourceDirectory
     string regex;
     SourceDirectory() = default;
     SourceDirectory(string sourceDirectory_, string regex_);
-    void populateSourceOrSMFiles(class Target &target, bool sourceFiles);
+    void populateSourceOrSMFiles(class CppSourceTarget &target, bool sourceFiles);
 };
 void to_json(Json &j, const SourceDirectory &sourceDirectory);
 bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs);
 
 class PLibrary;
 
-inline Target *targetForAndOr;
-// TODO
-//  Target and Executable and Library constructors should do more initializations like warnings.
-class Target : public Dependent, public Features, public CTarget, public BTarget, public ReportResultTo
-{
-    /*    friend void build();
-        static set<Target *> buildTargetsSet;
-        static void buildTargetsSetFunc();*/
+inline CppSourceTarget *targetForAndOr;
 
+class CppSourceTarget : public Features, public CTarget, public BTarget
+{
   public:
+    class LinkOrArchiveTarget *linkOrArchiveTarget = nullptr;
     friend struct PostCompile;
     // Parsed Info Not Changed Once Read
     string targetFilePath;
     const string *variantFilePath;
-    set<Node *> libraryDirectories;
     string compilerTransitiveFlags;
-    string linkerTransitiveFlags;
     string buildCacheFilesDirPath;
 
     // Some State Variables
-    string actualOutputName;
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
     string compileCommand;
     string sourceCompileCommandPrintFirstHalf;
-    // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
-    string linkOrArchiveCommand;
-    string linkOrArchiveCommandPrintFirstHalf;
 
-    // bool isModule = false;
-    bool libsParsed = false;
-    // This will hold set of sourceNodes or smFiles depending on the isModule bool
-    // Used to cache the dependencies on the disk for faster compilation next time
-
-    // TargetCache related Variables
-    //  Decides if the set<SourceNode> will actually hold the SMFile
-    string linkCommand;
     set<SourceNode> sourceFileDependencies;
     // Comparator used is same as for SourceNode
     set<SMFile> moduleSourceFileDependencies;
-    SourceNode &addNodeInSourceFileDependencies(const string &str);
-    SMFile &addNodeInModuleSourceFileDependencies(const std::string &str, bool angle);
-    void addPrivatePropertiesToPublicProperties();
+    void addNodeInSourceFileDependencies(const string &str);
+    void addNodeInModuleSourceFileDependencies(const std::string &str, bool angle);
+    void setCpuType();
+    bool isCpuTypeG7();
+
     inline static set<string> variantFilePaths;
     vector<SMFile *> smFiles;
 
@@ -87,59 +72,45 @@ class Target : public Dependent, public Features, public CTarget, public BTarget
     void setCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
     inline string &getSourceCompileCommandPrintFirstHalf();
-    void setLinkOrArchiveCommandAndPrint();
-    string &getLinkOrArchiveCommand();
-    string &getLinkOrArchiveCommandPrintFirstHalf();
 
     //  Create a new SourceNode and insert it into the targetCache.sourceFileDependencies if it is not already there. So
     //  that it is written to the cache on disk for faster compilation next time
     void setSourceNodeFileStatus(SourceNode &sourceNode, bool angle) const;
 
-    // This must be called to confirm that all Prebuilt Libraries Exists. Also checks if any of them is recently
-    // touched.
-    void checkForRelinkPrebuiltDependencies();
-    void checkForPreBuiltAndCacheDir();
-    void populateSetTarjanNodesSourceNodes(Builder &builder);
-    void parseModuleSourceFiles(Builder &builder);
+    void checkForPreBuiltAndCacheDir() override;
+    void checkForPreBuiltAndCacheDir(const Json &cacheJson);
+    void populateSetTarjanNodesSourceNodes(Builder &builder) override;
+    void parseModuleSourceFiles(Builder &builder) override;
     string getInfrastructureFlags();
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode);
-    PostCompile CompileSMFile(SMFile &smFile, Builder &builder);
+    PostCompile CompileSMFile(SMFile &smFile);
     PostCompile Compile(SourceNode &sourceNode);
     /* void populateCommandAndPrintCommandWithObjectFiles(string &command, string &printCommand,
                                                         const PathPrint &objectFilesPathPrint);*/
-    PostBasic Archive();
-    PostBasic Link();
+
     PostBasic GenerateSMRulesFile(const SourceNode &sourceNode, bool printOnlyOnError);
     TargetType getTargetType() const;
     void pruneAndSaveBuildCache(bool successful);
-    void execute(unsigned long fileTargetId);
-    void executePrintRoutine(unsigned long fileTargetId);
+    Json getBuildCache(bool successful);
 
-    set<Library *> publicLibs;
-    set<Library *> privateLibs;
-    set<PLibrary *> publicPrebuilts;
-    set<PLibrary *> privatePrebuilts;
-
-    Target *moduleScope = nullptr;
-    Target *configurationScope = nullptr;
+    CppSourceTarget *moduleScope = nullptr;
+    CppSourceTarget *configurationScope = nullptr;
     vector<const Node *> publicIncludes;
     // In module scope, two different targets should not have a directory in hu-public-includes
     vector<const Node *> publicHUIncludes;
     string publicCompilerFlags;
-    string publicLinkerFlags;
     vector<Define> publicCompileDefinitions;
     set<SourceDirectory> regexSourceDirs;
     set<SourceDirectory> regexModuleDirs;
-    // SourceAggregate sourceAggregate{.moduleSource = false};
-    //  SourceAggregate for Modules
-    // SourceAggregate moduleAggregate{.Identifier = "MODULES_"};
-    string targetName;
-    string outputName;
-    string outputDirectory;
 
-    void initializeForBuild();
-    void setJsonDerived();
-    void setPropertiesFlags() const;
+    void initializeForBuild() override;
+    void setJson() override;
+    void writeJsonFile() override;
+    BTarget *getBTarget() override;
+    void checkForHeaderUnitsCache() override;
+    void createHeaderUnits() override;
+    void setPropertiesFlagsMSVC();
+    void setPropertiesFlagsGCC();
 
   private:
     // returns on first positive condition. space is added.
@@ -151,44 +122,47 @@ class Target : public Dependent, public Features, public CTarget, public BTarget
     string GET_CUMULATED_FLAG_EVALUATE(T condition, const string &flags, Argument... arguments) const;
 
     // TODO
-  protected:
-    Target() = default;
-    Target(string targetName_, bool initializeFromCache = true);
-    Target(string targetName_, Variant &variant);
+  public:
+    CppSourceTarget() = default;
+    CppSourceTarget(string name_, bool initializeFromCache = true);
+    CppSourceTarget(string name_, LinkOrArchiveTarget &linkOrArchiveTarget, bool initializeFromCache = true);
+    CppSourceTarget(string name_, Variant &variant);
 
   public:
+    void updateBTarget() override;
+    void printMutexLockRoutine() override;
     //
 
-    template <same_as<char const *>... U> Target &PUBLIC_INCLUDES(U... includeDirectoryString);
-    template <same_as<char const *>... U> Target &PRIVATE_INCLUDES(U... includeDirectoryString);
-    template <same_as<char const *>... U> Target &PUBLIC_HU_INCLUDES(U... includeDirectoryString);
-    template <same_as<char const *>... U> Target &PRIVATE_HU_INCLUDES(U... includeDirectoryString);
-    template <same_as<Library *>... U> Target &PUBLIC_LIBRARIES(const U... libraries);
-    template <same_as<Library *>... U> Target &PRIVATE_LIBRARIES(const U... libraries);
-    Target &PUBLIC_COMPILER_FLAGS(const string &compilerFlags);
-    Target &PRIVATE_COMPILER_FLAGS(const string &compilerFlags);
-    Target &PUBLIC_LINKER_FLAGS(const string &linkerFlags);
-    Target &PRIVATE_LINKER_FLAGS(const string &linkerFlags);
-    Target &PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
-    Target &PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
-    template <same_as<char const *>... U> Target &SOURCE_FILES(U... sourceFileString);
-    template <same_as<char const *>... U> Target &MODULE_FILES(U... moduleFileString);
+    template <same_as<char const *>... U> CppSourceTarget &PUBLIC_INCLUDES(U... includeDirectoryString);
+    template <same_as<char const *>... U> CppSourceTarget &PRIVATE_INCLUDES(U... includeDirectoryString);
+    template <same_as<char const *>... U> CppSourceTarget &PUBLIC_HU_INCLUDES(U... includeDirectoryString);
+    template <same_as<char const *>... U> CppSourceTarget &PRIVATE_HU_INCLUDES(U... includeDirectoryString);
+    /*    template <same_as<Library *>... U> CppSourceTarget &PUBLIC_LIBRARIES(const U... libraries);
+        template <same_as<Library *>... U> CppSourceTarget &PRIVATE_LIBRARIES(const U... libraries);*/
+    CppSourceTarget &PUBLIC_COMPILER_FLAGS(const string &compilerFlags);
+    CppSourceTarget &PRIVATE_COMPILER_FLAGS(const string &compilerFlags);
+    CppSourceTarget &PUBLIC_LINKER_FLAGS(const string &linkerFlags);
+    CppSourceTarget &PRIVATE_LINKER_FLAGS(const string &linkerFlags);
+    CppSourceTarget &PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
+    CppSourceTarget &PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
+    template <same_as<char const *>... U> CppSourceTarget &SOURCE_FILES(U... sourceFileString);
+    template <same_as<char const *>... U> CppSourceTarget &MODULE_FILES(U... moduleFileString);
 
-    Target &SOURCE_DIRECTORIES(const string &sourceDirectory, const string &regex);
-    Target &MODULE_DIRECTORIES(const string &moduleDirectory, const string &regex);
+    CppSourceTarget &SOURCE_DIRECTORIES(const string &sourceDirectory, const string &regex);
+    CppSourceTarget &MODULE_DIRECTORIES(const string &moduleDirectory, const string &regex);
 
-    inline Target &setTargetForAndOr()
+    inline CppSourceTarget &setTargetForAndOr()
     {
         targetForAndOr = this;
         return *this;
     }
     // All properties are assigned.
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
-    Target &ASSIGN(T property, Condition... properties);
+    CppSourceTarget &ASSIGN(T property, Condition... properties);
 
     // Properties are assigned if assign bool is true. To Be Used With functions ADD and OR.
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
-    Target &ASSIGN(bool assign, T property, Condition... conditions);
+    CppSourceTarget &ASSIGN(bool assign, T property, Condition... conditions);
 #define ASSIGN_I ASSIGN<Dependency::INTERFACE>
 
     // Evaluates a property. NEGATE is meant to be used where ! would have been used.
@@ -208,28 +182,28 @@ class Target : public Dependent, public Features, public CTarget, public BTarget
   public:
     // Multiple properties on left which are anded and after that right's assignment occurs.
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
-    Target &M_LEFT_AND(T condition, Condition... conditions);
+    CppSourceTarget &M_LEFT_AND(T condition, Condition... conditions);
 #define M_LEFT_AND_I M_LEFT_AND<Dependency::INTERFACE>
 
     // Single Condition and Property. M_LEFT_AND or M_LEFT_OR could be used too, but, that's more clear
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename P>
-    Target &SINGLE(T condition, P property);
+    CppSourceTarget &SINGLE(T condition, P property);
 #define SINGLE_I SINGLE<Dependency::INTERFACE>
 
     // Multiple properties on left which are orred and after that right's assignment occurs.
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
-    Target &M_LEFT_OR(T condition, Condition... conditions);
+    CppSourceTarget &M_LEFT_OR(T condition, Condition... conditions);
 #define M_LEFT_OR_I M_LEFT_OR<Dependency::INTERFACE>
 
     // Incomplete
     // If first left succeeds then, Multiple properties of the right are assigned to the target.
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
-    Target &M_RIGHT(T condition, Condition... conditions);
+    CppSourceTarget &M_RIGHT(T condition, Condition... conditions);
 #define M_RIGHT_I M_RIGHT<Dependency::INTERFACE>
 }; // class Target
 
 template <typename T, typename... Argument>
-string Target::GET_FLAG_EVALUATE(T condition, const string &flags, Argument... arguments) const
+string CppSourceTarget::GET_FLAG_EVALUATE(T condition, const string &flags, Argument... arguments) const
 {
     if (EVALUATE(condition))
     {
@@ -243,7 +217,7 @@ string Target::GET_FLAG_EVALUATE(T condition, const string &flags, Argument... a
 }
 
 template <typename T, typename... Argument>
-string Target::GET_CUMULATED_FLAG_EVALUATE(T condition, const std::string &flags, Argument... arguments) const
+string CppSourceTarget::GET_CUMULATED_FLAG_EVALUATE(T condition, const std::string &flags, Argument... arguments) const
 {
     string str{};
     if (EVALUATE(condition))
@@ -257,56 +231,56 @@ string Target::GET_CUMULATED_FLAG_EVALUATE(T condition, const std::string &flags
     return str;
 }
 
-template <same_as<char const *>... U> Target &Target::PUBLIC_INCLUDES(U... includeDirectoryString)
+template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(U... includeDirectoryString)
 {
     (publicIncludes.emplace_back(Node::getNodeFromString(includeDirectoryString, false)), ...);
     return *this;
 }
 
-template <same_as<char const *>... U> Target &Target::PRIVATE_INCLUDES(U... includeDirectoryString)
+template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PRIVATE_INCLUDES(U... includeDirectoryString)
 {
     (privateIncludes.emplace_back(Node::getNodeFromString(includeDirectoryString, false)), ...);
     return *this;
 }
 
-template <same_as<char const *>... U> Target &Target::PUBLIC_HU_INCLUDES(U... includeDirectoryString)
+template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(U... includeDirectoryString)
 {
     (publicHUIncludes.emplace_back(Node::getNodeFromString(includeDirectoryString, false)), ...);
     return *this;
 }
 
-template <same_as<char const *>... U> Target &Target::PRIVATE_HU_INCLUDES(U... includeDirectoryString)
+template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(U... includeDirectoryString)
 {
     (privateHUIncludes.emplace_back(Node::getNodeFromString(includeDirectoryString, false)), ...);
     return *this;
 }
 
-template <same_as<Library *>... U> Target &Target::PUBLIC_LIBRARIES(const U... libraries)
+/*template <same_as<Library *>... U> CppSourceTarget &CppSourceTarget::PUBLIC_LIBRARIES(const U... libraries)
 {
     (publicLibs.emplace(libraries...));
     return *this;
 }
 
-template <same_as<Library *>... U> Target &Target::PRIVATE_LIBRARIES(const U... libraries)
+template <same_as<Library *>... U> CppSourceTarget &CppSourceTarget::PRIVATE_LIBRARIES(const U... libraries)
 {
     (privateLibs.emplace(libraries...));
     return *this;
-}
+}*/
 
-template <same_as<char const *>... U> Target &Target::SOURCE_FILES(U... sourceFileString)
+template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::SOURCE_FILES(U... sourceFileString)
 {
-    (sourceFileDependencies.emplace(sourceFileString, this, ResultType::SOURCENODE), ...);
+    (addNodeInSourceFileDependencies(sourceFileString), ...);
     return *this;
 }
 
-template <same_as<char const *>... U> Target &Target::MODULE_FILES(U... moduleFileString)
+template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(U... moduleFileString)
 {
-    (moduleSourceFileDependencies.emplace(moduleFileString, this), ...);
+    (addNodeInModuleSourceFileDependencies(moduleFileString), ...);
     return *this;
 }
 
 template <Dependency dependency, typename T, typename... Property>
-Target &Target::ASSIGN(T property, Property... properties)
+CppSourceTarget &CppSourceTarget::ASSIGN(T property, Property... properties)
 {
     if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {
@@ -358,12 +332,12 @@ Target &Target::ASSIGN(T property, Property... properties)
 }
 
 template <Dependency dependency, typename T, typename... Condition>
-Target &Target::ASSIGN(bool assign, T property, Condition... conditions)
+CppSourceTarget &CppSourceTarget::ASSIGN(bool assign, T property, Condition... conditions)
 {
     return assign ? ASSIGN(property, conditions...) : *this;
 }
 
-template <typename T> bool Target::EVALUATE(T property) const
+template <typename T> bool CppSourceTarget::EVALUATE(T property) const
 {
     if constexpr (std::is_same_v<decltype(property), TS>)
     {
@@ -473,13 +447,49 @@ template <typename T> bool Target::EVALUATE(T property) const
     {
         return runtimeDebugging == property;
     }
+    else if constexpr (std::is_same_v<decltype(property), Arch>)
+    {
+        return arch == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddressModel>)
+    {
+        return addModel == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TargetType>)
+    {
+        if (bTargetType != cTargetType)
+        {
+            // TODO
+        }
+        return cTargetType == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DebugStore>)
+    {
+        return debugStore == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UserInterface>)
+    {
+        return userInterface == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), InstructionSet>)
+    {
+        return instructionSet == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CpuType>)
+    {
+        return cpuType == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), bool>)
+    {
+        return property;
+    }
     else
     {
         toolSet = property; // Just to fail the compilation. Ensures that all properties are handled.
     }
 }
 
-template <typename T> T Target::NEGATE(T property) const
+template <typename T> T CppSourceTarget::NEGATE(T property) const
 {
     if (EVALUATE(property))
     {
@@ -492,7 +502,7 @@ template <typename T> T Target::NEGATE(T property) const
 }
 
 template <Dependency dependency, typename T, typename... Condition>
-void Target::RIGHT_MOST(T condition, Condition... conditions)
+void CppSourceTarget::RIGHT_MOST(T condition, Condition... conditions)
 {
     if constexpr (sizeof...(conditions))
     {
@@ -505,7 +515,7 @@ void Target::RIGHT_MOST(T condition, Condition... conditions)
 }
 
 template <Dependency dependency, typename T, typename... Condition>
-Target &Target::M_LEFT_AND(T condition, Condition... conditions)
+CppSourceTarget &CppSourceTarget::M_LEFT_AND(T condition, Condition... conditions)
 {
     if constexpr (sizeof...(conditions))
     {
@@ -518,7 +528,8 @@ Target &Target::M_LEFT_AND(T condition, Condition... conditions)
     }
 }
 
-template <Dependency dependency, typename T, typename P> Target &Target::SINGLE(T condition, P property)
+template <Dependency dependency, typename T, typename P>
+CppSourceTarget &CppSourceTarget::SINGLE(T condition, P property)
 {
     if (EVALUATE(condition))
     {
@@ -528,7 +539,7 @@ template <Dependency dependency, typename T, typename P> Target &Target::SINGLE(
 }
 
 template <Dependency dependency, typename T, typename... Condition>
-Target &Target::M_LEFT_OR(T condition, Condition... conditions)
+CppSourceTarget &CppSourceTarget::M_LEFT_OR(T condition, Condition... conditions)
 {
     if constexpr (sizeof...(conditions))
     {
@@ -546,7 +557,7 @@ Target &Target::M_LEFT_OR(T condition, Condition... conditions)
 }
 
 template <Dependency dependency, typename T, typename... Condition>
-Target &Target::M_RIGHT(T condition, Condition... conditions)
+CppSourceTarget &CppSourceTarget::M_RIGHT(T condition, Condition... conditions)
 {
     if (EVALUATE(condition))
     {
@@ -587,7 +598,7 @@ template <typename T, typename... Condition> bool OR(T condition, Condition... c
     }
 }
 
-template <typename T, typename... Condition> bool AND(Target *target, T condition, Condition... conditions)
+template <typename T, typename... Condition> bool AND(CppSourceTarget *target, T condition, Condition... conditions)
 {
     targetForAndOr = target;
     if (!targetForAndOr->EVALUATE(condition))
@@ -604,7 +615,7 @@ template <typename T, typename... Condition> bool AND(Target *target, T conditio
     }
 }
 
-template <typename T, typename... Condition> bool OR(Target *target, T condition, Condition... conditions)
+template <typename T, typename... Condition> bool OR(CppSourceTarget *target, T condition, Condition... conditions)
 {
     targetForAndOr = target;
     if (targetForAndOr->EVALUATE(condition))
@@ -621,13 +632,13 @@ template <typename T, typename... Condition> bool OR(Target *target, T condition
     }
 }
 
-struct Executable : public Target
+struct Executable : public CppSourceTarget
 {
     explicit Executable(string targetName_, bool initializeFromCache = true);
     Executable(string targetName_, Variant &variant);
 };
 
-struct Library : public Target
+struct Library : public CppSourceTarget
 {
     explicit Library(string targetName_, bool initializeFromCache = true);
     Library(string targetName_, Variant &variant);
@@ -635,7 +646,7 @@ struct Library : public Target
 void to_json(Json &j, const Library *library);
 
 // PreBuilt-Library
-class PLibrary : public Dependent
+class PLibrary
 {
     PLibrary() = default;
     friend class PPLibrary;
@@ -657,4 +668,4 @@ class PLibrary : public Dependent
 };
 bool operator<(const PLibrary &lhs, const PLibrary &rhs);
 void to_json(Json &j, const PLibrary *pLibrary);
-#endif // HMAKE_TARGET_HPP
+#endif // HMAKE_CPPSOURCETARGET_HPP

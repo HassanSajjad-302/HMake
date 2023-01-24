@@ -46,12 +46,11 @@ int main(int argc, char **argv)
     // from Target class. First argument is targetName. targetName for every target should be different in every
     // variant. Note that it is different from outputName which is the name of output compiled. outputName can be
     // assigned for the following Target as: app.outputName = "HelloApp";
-    Executable app("app");
 
     // If you don't provide full path then relative path is converted into full path like following
     // Cache::sourceDirectory.path/path i.e. your path is taken relative to sourceDirectory.
-    app.SOURCE_FILES("main.cpp").configure();
-    build();
+    GetCppExe("app").cppSourceTarget->SOURCE_FILES("main.cpp");
+    configureOrBuild();
     // This will be your last line. If you are doing packaging, then package.configure may be your last, where package
     // is object of Package.
 

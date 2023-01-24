@@ -21,10 +21,6 @@ struct IndexInTopologicalSortComparator
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
 };
 
-struct ReportResultTo
-{
-};
-
 enum class ResultType
 {
     LINK,
@@ -51,7 +47,6 @@ struct BTarget // BTarget
     inline static unsigned long total = 0;
     unsigned long id = 0; // unique for every BTarget
     unsigned long topologicallySortedId = 0;
-    ReportResultTo *const reportResultTo;
     unsigned int dependenciesSize = 0;
     ResultType resultType;
     TargetType bTargetType;
@@ -61,8 +56,16 @@ struct BTarget // BTarget
     // Value is assigned on basis of TBT::topologicalSort index. Targets in allDependencies vector are arranged by this
     // value.
     unsigned long indexInTopologicalSort = 0;
-    explicit BTarget(ReportResultTo *reportResultTo_, ResultType resultType_);
+    explicit BTarget(ResultType resultType_);
     void addDependency(BTarget &dependency);
+    virtual void updateBTarget();
+    virtual void printMutexLockRoutine();
+    virtual void initializeForBuild();
+    virtual void checkForPreBuiltAndCacheDir();
+    virtual void parseModuleSourceFiles(class Builder &builder);
+    virtual void checkForHeaderUnitsCache();
+    virtual void createHeaderUnits();
+    virtual void populateSetTarjanNodesSourceNodes(class Builder &builder);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
@@ -79,8 +82,17 @@ concept SetOrVectorOfCTargetPointer =
         std::derived_from<std::remove_pointer<typename decltype(a)::value_type>, CTarget>;
     };
 
-struct CTarget // Configure Target
+struct CTargetPointerComparator
 {
+    bool operator()(const CTarget *lhs, const CTarget *rhs) const;
+};
+
+class CTarget // Configure Target
+{
+    inline static set<CTarget *, CTargetPointerComparator> containerCTargets;
+    void initializeCTarget();
+
+  public:
     string name;
     Json json;
     set<CTarget *, TarPointerComparator> elements;
@@ -100,27 +112,23 @@ struct CTarget // Configure Target
     explicit CTarget(string name_);
     string getTargetPointer() const;
     path getTargetFilePath() const;
-    void addCTargetInTarjanNode();
     template <SetOrVectorOfCTargetPointer T> void addCTargetDependency(T &cTarget);
-    void setJson();
-    void writeJsonFile();
-    void configure();
-    BTarget *getBTarget();
+    virtual void setJson();
+    virtual void writeJsonFile();
+    virtual void configure();
+    virtual BTarget *getBTarget();
+    // Following provides configure-time checks for dependency cycle between CTargets.  This is different from
+    // container-element dependency. Container-Element dependency-cycle is only checked in configure mode while
+    // this is also checked in build mode. This is used to check for cyclic dependencies between libraries.
+    virtual void populateCTargetDependencies();
+    virtual void addPrivatePropertiesToPublicProperties();
 };
 void to_json(Json &j, const CTarget *tar);
 
 template <SetOrVectorOfCTargetPointer T> void CTarget::addCTargetDependency(T &containerOfPointers)
 {
-    if (!cTarjanNode)
-    {
-        cTarjanNode = const_cast<TCT *>(tarjanNodesCTargets.emplace(this).first.operator->());
-    }
     for (CTarget *cTarget : containerOfPointers)
     {
-        if (!cTarget->cTarjanNode)
-        {
-            cTarget->cTarjanNode = const_cast<TCT *>(tarjanNodesCTargets.emplace(this).first.operator->());
-        }
         cTarjanNode->deps.emplace(cTarget->cTarjanNode);
     }
 }

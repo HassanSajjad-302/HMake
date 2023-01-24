@@ -1,6 +1,7 @@
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
-#include "Target.hpp"
+#include "CppSourceTarget.hpp"
+#include "LinkOrArchiveTarget.hpp"
 #include "fmt/format.h"
 #include <filesystem>
 #include <fstream>
@@ -52,10 +53,10 @@ void setBoolsAndSetRunDir(int argc, char **argv)
     else
     {
         configureDir = current_path().generic_string();
-        cache.saveCache = true;
     }
 
     cache.initializeCacheVariableFromCacheFile();
+    toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
 
     if (bsMode == BSMode::BUILD)
     {
@@ -99,15 +100,7 @@ inline void topologicallySortAndAddPrivateLibsToPublicLibs()
 {
     for (auto &[first, cTarget] : cTargets)
     {
-        // TODO
-        //  Prebuilt Targets might have circular dependencies as well. But, that is not checked.
-        if (cTarget->cTargetType == TargetType::LIBRARY_STATIC || cTarget->cTargetType == TargetType::LIBRARY_SHARED ||
-            cTarget->cTargetType == TargetType::EXECUTABLE)
-        {
-            auto *target = static_cast<Target *>(cTarget);
-            target->addCTargetDependency(target->publicLibs);
-            target->addCTargetDependency(target->privateLibs);
-        }
+        cTarget->populateCTargetDependencies();
     }
 
     TCT::tarjanNodes = &tarjanNodesCTargets;
@@ -116,8 +109,7 @@ inline void topologicallySortAndAddPrivateLibsToPublicLibs()
 
     for (CTarget *cTarget : TCT::topologicalSort)
     {
-        auto *target = static_cast<Target *>(cTarget);
-        target->addPrivatePropertiesToPublicProperties();
+        cTarget->addPrivatePropertiesToPublicProperties();
     }
 }
 
@@ -133,8 +125,7 @@ void configureOrBuild()
         tarjanNodesCTargets.clear();
         for (CTarget *cTarget : cTargetsSortedForConfigure)
         {
-            // Following pointed to the element of tarjanNodesCTargets which is cleared above
-            cTarget->cTarjanNode = nullptr;
+            cTarget->cTarjanNode = const_cast<TCT *>(tarjanNodesCTargets.emplace(cTarget).first.operator->());
         }
     }
 
@@ -148,6 +139,7 @@ void configureOrBuild()
         {
             it.operator*()->configure();
         }
+        cache.registerCacheVariables();
     }
     else
     {

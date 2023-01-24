@@ -2,6 +2,7 @@
 #define HMAKE_SMFILE_HPP
 
 #include "BasicTargets.hpp"
+#include "PostBasic.hpp"
 #include "nlohmann/json.hpp"
 #include <filesystem>
 #include <set>
@@ -40,8 +41,13 @@ struct CachedFile
 
 struct SourceNode : public CachedFile, public BTarget
 {
+    CppSourceTarget *target;
+    std::shared_ptr<PostCompile> postCompile;
     set<const Node *> headerDependencies;
-    SourceNode(const string &filePath, ReportResultTo *reportResultTo_, ResultType resultType_);
+    SourceNode(CppSourceTarget *target_, const string &filePath, ResultType resultType_);
+    virtual string getOutputFilePath();
+    void updateBTarget() override;
+    void printMutexLockRoutine() override;
 };
 
 void to_json(Json &j, const SourceNode &sourceNode);
@@ -76,21 +82,23 @@ bool operator<(const HeaderUnitConsumer &lhs, const HeaderUnitConsumer &rhs);
 
 struct SMFile : public SourceNode // Scanned Module Rule
 {
+    std::shared_ptr<PostBasic> postBasic;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
     string logicalName;
     bool angle;
     Json requiresJson;
 
-    SMFile(const string &srcPath, class Target *target_);
-
+    SMFile(CppSourceTarget *target_, const string &srcPath);
+    void updateBTarget() override;
+    void printMutexLockRoutine() override;
+    string getOutputFilePath() override;
     // State Variables
     map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
     vector<SMFile *> fileDependencies;
     set<SMFile *> commandLineFileDependencies;
 
-    Target &target;
     // If this SMFile is HeaderUnit, then following is the Target whose hu-include-directory this is present in.
-    Target *ahuTarget;
+    CppSourceTarget *ahuTarget;
     bool hasProvide = false;
     bool standardHeaderUnit = false;
 

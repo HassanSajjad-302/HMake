@@ -19,12 +19,16 @@ int main(int argc, char **argv)
             variant->configure();
         }*/
 
-    Variant variantRelase("Release");
-    Library cat("Cat", variantRelase);
-    cat.SOURCE_FILES("Cat/src/Cat.cpp").PUBLIC_INCLUDES("Cat/header");
-
-    Executable animal("Animal", variantRelase);
-    animal.SOURCE_FILES("main.cpp").PUBLIC_LIBRARIES(&cat);
+    cache.libraryType = TargetType::LIBRARY_SHARED;
+    LinkOrArchiveTarget *target = GetCppLib("Cat")
+                                      .cppSourceTarget->SOURCE_FILES("Cat/src/Cat.cpp")
+                                      .PUBLIC_INCLUDES("Cat/header")
+                                      .PRIVATE_COMPILE_DEFINITION("CAT_EXPORT", "__declspec(dllexport)")
+                                      .linkOrArchiveTarget;
+    GetCppExe("Animal")
+        .cppSourceTarget->SOURCE_FILES("main.cpp")
+        .PRIVATE_COMPILE_DEFINITION("CAT_EXPORT", "__declspec(dllimport)")
+        .linkOrArchiveTarget->publicLibs.emplace(target);
     configureOrBuild();
     // I suggest you see the directory structure of your buildDir.
 }

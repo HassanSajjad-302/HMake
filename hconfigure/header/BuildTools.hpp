@@ -24,47 +24,54 @@ enum class Comparison
 
 struct Version
 {
-    unsigned majorVersion;
-    unsigned minorVersion;
-    unsigned patchVersion;
+    unsigned majorVersion = 0;
+    unsigned minorVersion = 0;
+    unsigned patchVersion = 0;
     Version(unsigned majorVersion_ = 0, unsigned minorVersion_ = 0, unsigned patchVersion_ = 0);
     Comparison comparison; // Used in flags
 };
 void to_json(Json &j, const Version &p);
 void from_json(const Json &j, Version &v);
 bool operator<(const Version &lhs, const Version &rhs);
-bool operator>(const Version &lhs, const Version &rhs);
-bool operator<=(const Version &lhs, const Version &rhs);
-bool operator>=(const Version &lhs, const Version &rhs);
 
 enum class BTFamily
 {
+    NOT_ASSIGNED,
     GCC,
     MSVC,
-    CLANG
+    CLANG,
 };
 void to_json(Json &json, const BTFamily &bTFamily);
 void from_json(const Json &json, BTFamily &bTFamily);
 
 struct BuildTool
 {
-    BTFamily bTFamily;
+    BTFamily bTFamily = BTFamily::NOT_ASSIGNED;
     Version bTVersion;
     path bTPath;
+    BuildTool(BTFamily btFamily_, Version btVersion_, path btPath_);
+    BuildTool() = default;
 };
 void to_json(Json &json, const BuildTool &buildTool);
 void from_json(const Json &json, BuildTool &buildTool);
 
+// templates could had been used here but to avoid extra typing of < and >, this is preferred.
 struct Compiler : BuildTool
 {
+    Compiler(BTFamily btFamily_, Version btVersion_, path btPath_);
+    Compiler() = default;
 };
 
 struct Linker : BuildTool
 {
+    Linker(BTFamily btFamily_, Version btVersion_, path btPath_);
+    Linker() = default;
 };
 
 struct Archiver : BuildTool
 {
+    Archiver(BTFamily btFamily_, Version btVersion_, path btPath_);
+    Archiver() = default;
 };
 
 #endif // HMAKE_BUILDTOOLS_HPP

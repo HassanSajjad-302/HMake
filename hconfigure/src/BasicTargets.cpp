@@ -1,6 +1,6 @@
 #include "BasicTargets.hpp"
 #include "BuildSystemFunctions.hpp"
-#include "Target.hpp"
+#include "CppSourceTarget.hpp"
 #include <filesystem>
 #include <fstream>
 
@@ -11,8 +11,7 @@ bool IndexInTopologicalSortComparator::operator()(const BTarget *lhs, const BTar
     return lhs->indexInTopologicalSort < rhs->indexInTopologicalSort;
 }
 
-BTarget::BTarget(ReportResultTo *reportResultTo_, const ResultType resultType_)
-    : reportResultTo{reportResultTo_}, resultType{resultType_}
+BTarget::BTarget(const ResultType resultType_) : resultType{resultType_}
 {
     id = total++;
 }
@@ -35,6 +34,37 @@ void BTarget::addDependency(BTarget &dependency)
     }
 }
 
+void BTarget::updateBTarget()
+{
+    fileStatus = FileStatus::UPDATED;
+}
+
+void BTarget::printMutexLockRoutine()
+{
+}
+
+void BTarget::initializeForBuild()
+{
+}
+
+void BTarget::checkForPreBuiltAndCacheDir()
+{
+}
+
+void BTarget::parseModuleSourceFiles(Builder &builder)
+{
+}
+
+void BTarget::checkForHeaderUnitsCache()
+{
+}
+void BTarget::createHeaderUnits()
+{
+}
+void BTarget::populateSetTarjanNodesSourceNodes(Builder &builder)
+{
+}
+
 bool operator<(const BTarget &lhs, const BTarget &rhs)
 {
     return lhs.id < rhs.id;
@@ -45,11 +75,30 @@ bool TarPointerComparator::operator()(const struct CTarget *lhs, const struct CT
     return lhs->name < rhs->name;
 }
 
-CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
-    : name{std::move(name_)}, hasFile{hasFile_}, other(&container)
+bool CTargetPointerComparator::operator()(const CTarget *lhs, const CTarget *rhs) const
+{
+    return (lhs->targetFileDir + lhs->name) < (rhs->targetFileDir + rhs->name);
+}
+
+void CTarget::initializeCTarget()
 {
     id = total++;
     cTargets.emplace(id, this);
+    cTarjanNode = const_cast<TCT *>(tarjanNodesCTargets.emplace(this).first.operator->());
+    if (hasFile)
+    {
+        const auto &[pos, Ok] = containerCTargets.emplace(this);
+        if (!Ok)
+        {
+            print(stderr, "There exists two targets with name {} and targetFileDir {}", name, targetFileDir);
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
+    : name{std::move(name_)}, hasFile{hasFile_}, other(&container)
+{
     if (!container.hasFile)
     {
         print(stderr, "Target {} in file {} has no file. It can't have element target\n", container.name,
@@ -58,19 +107,18 @@ CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
     }
     if (hasFile)
     {
-        targetFileDir = container.targetFileDir + "/" + name;
+        targetFileDir = container.targetFileDir + "/" + name + "/";
     }
     else
     {
         targetFileDir = container.targetFileDir;
     }
     targetFilePaths[targetFileDir].emplace(this);
+    initializeCTarget();
     if (bsMode == BSMode::CONFIGURE)
     {
         if (container.elements.emplace(this).second)
         {
-            addCTargetInTarjanNode();
-            container.addCTargetInTarjanNode();
             cTarjanNode->deps.emplace(container.cTarjanNode);
         }
         else
@@ -82,11 +130,11 @@ CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
     }
 }
 
-CTarget::CTarget(string name_) : name(std::move(name_)), targetFileDir((path(configureDir) / name).string())
+CTarget::CTarget(string name_)
+    : name(std::move(name_)), targetFileDir(path(configureDir).generic_string() + "/" + name + "/")
 {
-    id = total++;
-    cTargets.emplace(id, this);
     targetFilePaths[targetFileDir].emplace(this);
+    initializeCTarget();
 }
 
 string CTarget::getTargetPointer() const
@@ -99,25 +147,8 @@ path CTarget::getTargetFilePath() const
     return path(targetFileDir) / path("target.json");
 }
 
-void CTarget::addCTargetInTarjanNode()
-{
-    if (!cTarjanNode)
-    {
-        cTarjanNode = const_cast<TCT *>(tarjanNodesCTargets.emplace(this).first.operator->());
-    }
-}
-
 void CTarget::setJson()
 {
-    if (cTargetType == TargetType::EXECUTABLE || cTargetType == TargetType::LIBRARY_STATIC ||
-        cTargetType == TargetType::LIBRARY_SHARED)
-    {
-        static_cast<Target *>(this)->setJsonDerived();
-    }
-    else if (cTargetType == TargetType::VARIANT)
-    {
-        static_cast<Variant *>(this)->setJsonDerived();
-    }
 }
 
 void CTarget::writeJsonFile()
@@ -142,32 +173,15 @@ void CTarget::configure()
 
 BTarget *CTarget::getBTarget()
 {
-    // TODO
-    switch (cTargetType)
-    {
-    case TargetType::NOT_ASSIGNED:
-        break;
-    case TargetType::EXECUTABLE:
-        break;
-    case TargetType::LIBRARY_STATIC:
-        break;
-    case TargetType::LIBRARY_SHARED:
-        break;
-    case TargetType::VARIANT:
-        break;
-    case TargetType::COMPILE:
-        break;
-    case TargetType::PREPROCESS:
-        break;
-    case TargetType::RUN:
-        break;
-    case TargetType::PLIBRARY_STATIC:
-        break;
-    case TargetType::PLIBRARY_SHARED:
-        break;
-    }
-    BTarget *target;
-    return target;
+    return nullptr;
+}
+
+void CTarget::populateCTargetDependencies()
+{
+}
+
+void CTarget::addPrivatePropertiesToPublicProperties()
+{
 }
 
 void to_json(Json &j, const CTarget *tar)

@@ -1,10 +1,11 @@
-#include "Target.hpp"
+#include "CppSourceTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
 #include <fstream>
 #include <regex>
+#include <utility>
 
 using std::filesystem::create_directory, std::filesystem::file_time_type, std::filesystem::recursive_directory_iterator,
     std::ifstream, std::ofstream, std::regex, std::regex_error;
@@ -14,7 +15,7 @@ SourceDirectory::SourceDirectory(string sourceDirectory_, string regex_)
 {
 }
 
-void SourceDirectory::populateSourceOrSMFiles(class Target &target, bool sourceFiles)
+void SourceDirectory::populateSourceOrSMFiles(class CppSourceTarget &target, bool sourceFiles)
 {
 }
 
@@ -26,19 +27,85 @@ void to_json(Json &j, const SourceDirectory &sourceDirectory)
 
 bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs)
 {
-    return lhs.sourceDirectory < rhs.sourceDirectory || lhs.regex < rhs.regex;
+    return std::tie(lhs.sourceDirectory, lhs.regex) < std::tie(rhs.sourceDirectory, rhs.regex);
 }
 
-SourceNode &Target::addNodeInSourceFileDependencies(const string &str)
+void CppSourceTarget::addNodeInSourceFileDependencies(const string &str)
 {
-    auto [pos, ok] = sourceFileDependencies.emplace(str, this, ResultType::SOURCENODE);
+    auto [pos, ok] = sourceFileDependencies.emplace(this, str, ResultType::SOURCENODE);
     auto &sourceNode = const_cast<SourceNode &>(*pos);
     sourceNode.presentInSource = true;
-    return sourceNode;
 }
 
-Target::Target(string targetName_, const bool initializeFromCache)
-    : targetName(std::move(targetName_)), CTarget{targetName_}, BTarget(this, ResultType::LINK)
+void CppSourceTarget::addNodeInModuleSourceFileDependencies(const std::string &str, bool angle)
+{
+    auto [pos, ok] = moduleSourceFileDependencies.emplace(this, str);
+    auto &smFile = const_cast<SMFile &>(*pos);
+    smFile.presentInSource = true;
+}
+
+void CppSourceTarget::setCpuType()
+{
+    // Based on msvc.jam Line 2141
+    if (OR(InstructionSet::i586, InstructionSet::pentium, InstructionSet::pentium_mmx))
+    {
+        cpuType = CpuType::G5;
+    }
+    else if (OR(InstructionSet::i686, InstructionSet::pentiumpro, InstructionSet::pentium2, InstructionSet::pentium3,
+                InstructionSet::pentium3m, InstructionSet::pentium_m, InstructionSet::k6, InstructionSet::k6_2,
+                InstructionSet::k6_3, InstructionSet::winchip_c6, InstructionSet::winchip2, InstructionSet::c3,
+                InstructionSet::c3_2, InstructionSet::c7))
+    {
+        cpuType = CpuType::G6;
+    }
+    else if (OR(InstructionSet::prescott, InstructionSet::nocona, InstructionSet::core2, InstructionSet::corei7,
+                InstructionSet::corei7_avx, InstructionSet::core_avx_i, InstructionSet::conroe,
+                InstructionSet::conroe_xe, InstructionSet::conroe_l, InstructionSet::allendale, InstructionSet::merom,
+                InstructionSet::merom_xe, InstructionSet::kentsfield, InstructionSet::kentsfield_xe,
+                InstructionSet::penryn, InstructionSet::wolfdale, InstructionSet::yorksfield, InstructionSet::nehalem,
+                InstructionSet::sandy_bridge, InstructionSet::ivy_bridge, InstructionSet::haswell,
+                InstructionSet::broadwell, InstructionSet::skylake, InstructionSet::skylake_avx512,
+                InstructionSet::cannonlake, InstructionSet::icelake_client, InstructionSet::icelake_server,
+                InstructionSet::cascadelake, InstructionSet::cooperlake, InstructionSet::tigerlake,
+                InstructionSet::rocketlake, InstructionSet::alderlake, InstructionSet::sapphirerapids))
+    {
+        cpuType = CpuType::EM64T;
+    }
+    else if (OR(InstructionSet::k8, InstructionSet::opteron, InstructionSet::athlon64, InstructionSet::athlon_fx,
+                InstructionSet::k8_sse3, InstructionSet::opteron_sse3, InstructionSet::athlon64_sse3,
+                InstructionSet::amdfam10, InstructionSet::barcelona, InstructionSet::bdver1, InstructionSet::bdver2,
+                InstructionSet::bdver3, InstructionSet::bdver4, InstructionSet::btver1, InstructionSet::btver2,
+                InstructionSet::znver1, InstructionSet::znver2, InstructionSet::znver3))
+    {
+        cpuType = CpuType::AMD64;
+    }
+    else if (OR(InstructionSet::itanium, InstructionSet::itanium2, InstructionSet::merced))
+    {
+        cpuType = CpuType::ITANIUM;
+    }
+    else if (OR(InstructionSet::itanium2, InstructionSet::mckinley))
+    {
+        cpuType = CpuType::ITANIUM2;
+    }
+    else if (OR(InstructionSet::armv2, InstructionSet::armv2a, InstructionSet::armv3, InstructionSet::armv3m,
+                InstructionSet::armv4, InstructionSet::armv4t, InstructionSet::armv5, InstructionSet::armv5t,
+                InstructionSet::armv5te, InstructionSet::armv6, InstructionSet::armv6j, InstructionSet::iwmmxt,
+                InstructionSet::ep9312, InstructionSet::armv7, InstructionSet::armv7s))
+    {
+        cpuType = CpuType::ARM;
+    }
+    // cpuType G7 is not being assigned. Line 2158. Function isTypeG7 will return true if the values are equivalent.
+}
+
+bool CppSourceTarget::isCpuTypeG7()
+{
+    return OR(InstructionSet::pentium4, InstructionSet::pentium4m, InstructionSet::athlon, InstructionSet::athlon_tbird,
+              InstructionSet::athlon_4, InstructionSet::athlon_xp, InstructionSet::athlon_mp, CpuType::EM64T,
+              CpuType::AMD64);
+}
+
+CppSourceTarget::CppSourceTarget(string name_, const bool initializeFromCache)
+    : CTarget{std::move(name_)}, BTarget(ResultType::LINK)
 {
     if (initializeFromCache)
     {
@@ -46,20 +113,323 @@ Target::Target(string targetName_, const bool initializeFromCache)
     }
 }
 
-Target::Target(string targetName_, Variant &variant)
-    : targetName(std::move(targetName_)), outputName(targetName), CTarget{targetName_, variant},
-      BTarget(this, ResultType::LINK)
+CppSourceTarget::CppSourceTarget(string name_, LinkOrArchiveTarget &linkOrArchiveTarget, const bool initializeFromCache)
+    : CTarget{std::move(name_), linkOrArchiveTarget, false}, BTarget(ResultType::LINK),
+      linkOrArchiveTarget(&linkOrArchiveTarget)
 {
-    static_cast<Features &>(*this) = static_cast<const Features &>(variant);
-    isTarget = true;
+    if (initializeFromCache)
+    {
+        initializeFromCacheFunc();
+    }
 }
 
-void Target::setPropertiesFlags() const
+CppSourceTarget::CppSourceTarget(string name_, Variant &variant)
+    : CTarget{std::move(name_), variant}, BTarget(ResultType::LINK)
 {
+    static_cast<Features &>(*this) = static_cast<const Features &>(variant);
+}
+
+void CppSourceTarget::updateBTarget()
+{
+    pruneAndSaveBuildCache(true);
+}
+
+void CppSourceTarget::printMutexLockRoutine()
+{
+    // TODO
+    //  This function not needed.
+}
+
+void CppSourceTarget::checkForHeaderUnitsCache()
+{
+    // TODO:
+    //  Currently using targetSet instead of variantFilePaths. With
+    //  scoped-modules feature, it should use module scope, be it variantFilePaths
+    //  or any module-scope
+
+    set<const string *> addressed;
+    // TODO:
+    // Should be iterating over headerUnits scope instead.
+    const auto [pos, Ok] = addressed.emplace(variantFilePath);
+    if (!Ok)
+    {
+        return;
+    }
+    // SHU system header units     AHU application header units
+    path shuCachePath = path(**pos).parent_path() / "shus/headerUnits.cache";
+    path ahuCachePath = path(**pos).parent_path() / "ahus/headerUnits.cache";
+    if (exists(shuCachePath))
+    {
+        Json shuCacheJson;
+        ifstream(shuCachePath) >> shuCacheJson;
+        for (const Json &shu : shuCacheJson)
+        {
+            moduleSourceFileDependencies.emplace(this, shu);
+        }
+    }
+    else
+    {
+        create_directory(shuCachePath.parent_path());
+    }
+    if (exists(ahuCachePath))
+    {
+        Json ahuCacheJson;
+        ifstream(shuCachePath) >> ahuCacheJson;
+        for (auto &ahu : ahuCacheJson)
+        {
+            const auto &[pos1, Ok1] = moduleSourceFileDependencies.emplace(this, ahu);
+            const_cast<SMFile &>(*pos1).presentInCache = true;
+        }
+    }
+    else
+    {
+        create_directory(ahuCachePath.parent_path());
+    }
+}
+
+void CppSourceTarget::createHeaderUnits()
+{
+    // TODO:
+    //  Currently using targetSet instead of variantFilePaths. With
+    //  scoped-modules feature, it should use module scope, be it variantFilePaths
+    //  or any module-scope
+
+    set<const string *> addressed;
+    const auto [pos, Ok] = addressed.emplace(variantFilePath);
+    if (!Ok)
+    {
+        return;
+    }
+    // SHU system header units     AHU application header units
+    path shuCachePath = path(**pos) / "shus/headerUnits.cache";
+    path ahuCachePath = path(**pos) / "ahus/headerUnits.cache";
+    if (exists(shuCachePath))
+    {
+        Json shuCacheJson;
+        ifstream(shuCachePath) >> shuCacheJson;
+        for (auto &shu : shuCacheJson)
+        {
+            moduleSourceFileDependencies.emplace(this, shu);
+        }
+    }
+    if (exists(ahuCachePath))
+    {
+        Json ahuCacheJson;
+        ifstream(shuCachePath) >> ahuCacheJson;
+        for (auto &ahu : ahuCacheJson)
+        {
+            const auto &[pos1, Ok1] = moduleSourceFileDependencies.emplace(this, ahu);
+            const_cast<SMFile &>(*pos1).presentInCache = true;
+        }
+    }
+}
+
+void CppSourceTarget::setPropertiesFlagsMSVC()
+{
+    // msvc.jam supports multiple tools such as assembler, compiler, mc-compiler(message-catalogue-compiler),
+    // idl-compiler(interface-definition-compiler) and manifest-tool. HMake does not support these and  only supports
+    // link.exe, lib.exe and cl.exe. While the msvc.jam also supports older VS and store and phone Windows API, HMake
+    // only supports the recent Visual Studio version and the Desktop API. Besides these limitation, msvc.jam is tried
+    // to be imitated here.
+
+    // Hassan Sajjad
+    // I don't have complete confidence about correctness of following info.
+
+    // On Line 2220, auto-detect-toolset-versions calls register-configuration. This call version.set with the version
+    // and compiler path(obtained from default-path rule). After that, register toolset registers all generators. And
+    // once msvc toolset is init, configure-relly is called that sets the setup script of previously set
+    // .version/configuration. setup-script captures all of environment-variables set when vcvarsall.bat for a
+    // configuration is run in file "msvc-setup.bat" file. This batch file run before the generator actions. This is
+    // .SETUP variable in actions.
+
+    // all variables in actions are in CAPITALS
+
+    // Line 1560
+    string defaultAssembler = EVALUATE(Arch::IA64) ? "ias" : "";
+    if (EVALUATE(Arch::X86))
+    {
+        defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "ml64", AddressModel::A_32, "ml -coff");
+    }
+    else if (EVALUATE(Arch::ARM))
+    {
+        defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "armasm64", AddressModel::A_32, "armasm");
+    }
+    string assemblerFlags = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx");
+    string assemblerOutputFlag = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-Fo", Arch::ARM, "-o");
+    // Line 1618
+
+    // Line 1650
+    string DOT_CC_COMPILE = "/Zm800 -nologo";
+    string DOT_ASM_COMPILE = defaultAssembler + assemblerFlags + "-nologo";
+    string DOT_ASM_OUTPUT_COMPILE = assemblerOutputFlag;
+    string DOT_LD_LINK = "/NOLOGO /INCREMENTAL:NO";
+    string DOT_LD_ARCHIVE = "lib /NOLOGO";
+
+    // Line 1670
+    string OPTIONS_COMPILE = GET_FLAG_EVALUATE(LTO::ON, "/GL");
+    string LINKFLAGS_LINK = GET_FLAG_EVALUATE(LTO::ON, "/LTCG");
+    // End-Line 1682
+
+    // Function completed. Jumping to rule configure-version-specific.
+    // Line 444
+    // Only flags effecting latest MSVC tools (14.3) are supported.
+
+    OPTIONS_COMPILE += "/Zc:forScope /Zc:wchar_t";
+    string CPP_FLAGS_COMPILE_CPP = "/wd4675";
+    OPTIONS_COMPILE += GET_FLAG_EVALUATE(Warnings::OFF, "/wd4996");
+    OPTIONS_COMPILE += "/Zc:inline";
+    OPTIONS_COMPILE += GET_FLAG_EVALUATE(OR(Optimization::SPEED, Optimization::SPACE), "/Gw");
+    CPP_FLAGS_COMPILE_CPP += "/Zc:throwingNew";
+
+    // Line 492
+    OPTIONS_COMPILE += GET_FLAG_EVALUATE(AddressSanitizer::ON, "/fsanitize=address /FS");
+    LINKFLAGS_LINK += GET_FLAG_EVALUATE(AddressSanitizer::ON, "-incremental\\:no");
+
+    if (EVALUATE(AddressModel::A_64))
+    {
+        // The various 64 bit runtime asan support libraries and related flags.
+        string FINDLIBS_SA_LINK =
+            GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                              "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64");
+        LINKFLAGS_LINK += GET_FLAG_EVALUATE(
+            AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+            R"(/wholearchive\:"clang_rt.asan_dynamic-x86_64.lib /wholearchive\:"clang_rt.asan_dynamic_runtime_thunk-x86_64.lib)");
+        FINDLIBS_SA_LINK += GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                                              "clang_rt.asan-x86_64 clang_rt.asan_cxx-x86_64 ");
+        LINKFLAGS_LINK += GET_FLAG_EVALUATE(
+            AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+            R"(/wholearchive\:"clang_rt.asan-x86_64.lib /wholearchive\:"clang_rt.asan_cxx-x86_64.lib")");
+        string FINDLIBS_SA_LINK_DLL =
+            GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-x86_64");
+        string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+                                                      R"(/wholearchive\:"clang_rt.asan_dll_thunk-x86_64.lib")");
+    }
+    else if (EVALUATE(AddressModel::A_32))
+    {
+        // The various 32 bit runtime asan support libraries and related flags.
+
+        string FINDLIBS_SA_LINK =
+            GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                              "clang_rt.asan_dynamic-i386 clang_rt.asan_dynamic_runtime_thunk-i386");
+        LINKFLAGS_LINK += GET_FLAG_EVALUATE(
+            AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+            R"(/wholearchive\:"clang_rt.asan_dynamic-i386.lib /wholearchive\:"clang_rt.asan_dynamic_runtime_thunk-i386.lib)");
+        FINDLIBS_SA_LINK += GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                                              "clang_rt.asan-i386 clang_rt.asan_cxx-i386 ");
+        LINKFLAGS_LINK +=
+            GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                              R"(/wholearchive\:"clang_rt.asan-i386.lib /wholearchive\:"clang_rt.asan_cxx-i386.lib")");
+        string FINDLIBS_SA_LINK_DLL =
+            GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386");
+        string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+                                                      R"(/wholearchive\:"clang_rt.asan_dll_thunk-i386.lib")");
+    }
+
+    // Line 586
+    if (AND(Arch::X86, AddressModel::A_32))
+    {
+        OPTIONS_COMPILE += "/favor:blend";
+        OPTIONS_COMPILE += GET_FLAG_EVALUATE(CpuType::EM64T, "/favor:EM64T", CpuType::AMD64, "/favor:AMD64");
+    }
+    if (AND(Threading::SINGLE, RuntimeLink::STATIC))
+    {
+        OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MT", RuntimeDebugging::ON, "/MTd");
+    }
+    LINKFLAGS_LINK += GET_FLAG_EVALUATE(Arch::IA64, "/MACHINE:IA64");
+    if (EVALUATE(Arch::X86))
+    {
+        LINKFLAGS_LINK += GET_FLAG_EVALUATE(AddressModel::A_64, "/MACHINE:X64", AddressModel::A_32, "/MACHINE:X86");
+    }
+    else if (EVALUATE(Arch::ARM))
+    {
+        LINKFLAGS_LINK += GET_FLAG_EVALUATE(AddressModel::A_64, "/MACHINE:ARM64", AddressModel::A_32, "/MACHINE:ARM");
+    }
+
+    // Rule register-toolset-really on Line 1852
+    SINGLE(RuntimeLink::SHARED, Threading::MULTI);
+    // TODO
+    // debug-store and pch-source features are being added. don't know where it will be used so holding back
+
+    // TODO Line 1916 PCH Related Variables are not being set
+    string PCH_FILE_COMPILE;
+    string PCH_SOURCE_COMPILE;
+    string PCH_HEADER_COMPILE;
+
+    OPTIONS_COMPILE += GET_FLAG_EVALUATE(Optimization::SPEED, "/O2", Optimization::SPACE, "O1");
+    // TODO:
+    // Line 1927 - 1930 skipped because of cpu-type
+    if (EVALUATE(Arch::IA64))
+    {
+        OPTIONS_COMPILE += GET_FLAG_EVALUATE(CpuType::ITANIUM, "/G1", CpuType::ITANIUM2, "/G2");
+    }
+
+    // Line 1930
+    if (EVALUATE(DebugSymbols::ON))
+    {
+        OPTIONS_COMPILE += GET_FLAG_EVALUATE(DebugStore::OBJECT, "/Z7", DebugStore::DATABASE, "/Zi");
+    }
+    OPTIONS_COMPILE +=
+        GET_FLAG_EVALUATE(Optimization::OFF, "/Od", Inlining::OFF, "/Ob0", Inlining::ON, "/Ob1", Inlining::FULL, "Ob2");
+    OPTIONS_COMPILE +=
+        GET_FLAG_EVALUATE(Warnings::ON, "/W3", Warnings::OFF, "/W0",
+                          OR(Warnings::ALL, Warnings::EXTRA, Warnings::PEDANTIC), "/W4", WarningsAsErrors::ON, "/WX");
+    string CPP_FLAGS_COMPILE;
+    if (EVALUATE(ExceptionHandling::ON))
+    {
+        if (EVALUATE(AsyncExceptions::OFF))
+        {
+            CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(ExternCNoThrow::OFF, "/EHs", ExternCNoThrow::ON, "/EHsc");
+        }
+        else if (EVALUATE(AsyncExceptions::ON))
+        {
+            CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(ExternCNoThrow::OFF, "/EHa", ExternCNoThrow::ON, "EHac");
+        }
+    }
+    CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(CxxSTD::V_14, "/std:c++14", CxxSTD::V_17, "/std:c++17", CxxSTD::V_20,
+                                           "/std:c++20", CxxSTD::V_LATEST, "/std:c++latest");
+    CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(RTTI::ON, "/GR", RTTI::OFF, "/GR-");
+    if (EVALUATE(RuntimeLink::SHARED))
+    {
+        OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MD", RuntimeDebugging::ON, "/MDd");
+    }
+    else if (AND(RuntimeLink::STATIC, Threading::MULTI))
+    {
+        OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MT", RuntimeDebugging::ON, "/MTd");
+    }
+    string PDB_CFLAG = GET_FLAG_EVALUATE(AND(DebugSymbols::ON, DebugStore::DATABASE), "/Fd");
+
+    // TODO// Line 1971
+    //  There are variables UNDEFS and FORCE_INCLUDES
+
+    string ASMFLAGS_ASM;
+    if (EVALUATE(Arch::X86))
+    {
+        ASMFLAGS_ASM = GET_FLAG_EVALUATE(Warnings::ON, "/W3", Warnings::OFF, "/W0", Warnings::ALL, "/W4",
+                                         WarningsAsErrors::ON, "/WX");
+    }
+
+    string PDB_LINKFLAG;
+    string LINKFLAGS_MSVC;
+    if (EVALUATE(DebugSymbols::ON))
+    {
+        PDB_LINKFLAG += GET_FLAG_EVALUATE(DebugStore::DATABASE, "/PDB:");
+        LINKFLAGS_LINK += "/DEBUG ";
+        LINKFLAGS_MSVC += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/OPT:REF,ICF ");
+    }
+    LINKFLAGS_MSVC += GET_FLAG_EVALUATE(
+        UserInterface::CONSOLE, "/subsystem:console", UserInterface::GUI, "/subsystem:windows", UserInterface::WINCE,
+        "/subsystem:windowsce", UserInterface::NATIVE, "/subsystem:native", UserInterface::AUTO, "/subsystem:posix");
+
+    // Line 1988
+    //  Declare Flags for linking.
+}
+
+void CppSourceTarget::setPropertiesFlagsGCC()
+{
+    setTargetForAndOr();
     // TODO:
     //-Wl and --start-group options are needed because gcc command-line is used. But the HMake approach has been to
     // differentiate in compiler and linker
-    //  TODO: setTargetForAndOr is not being called as this target is marked const
     //  Notes
     //   For Windows NT, we use a different JAMSHELL
     //   Currently, I ain't caring for the propagated properties. These properties are only being
@@ -328,24 +698,10 @@ void Target::setPropertiesFlags() const
     // 866
 }
 
-void Target::initializeForBuild()
+void CppSourceTarget::initializeForBuild()
 {
-
-    if (outputDirectory.empty())
-    {
-        outputDirectory = targetFileDir;
-    }
-    targetFilePath = (path(targetFileDir) / name).generic_string();
-    string fileName = path(targetFilePath).filename().string();
-    targetName = name;
+    // string fileName = path(getTargetPointer()).filename().string();
     bTargetType = cTargetType;
-    if (bTargetType != TargetType::EXECUTABLE && bTargetType != TargetType::LIBRARY_STATIC &&
-        bTargetType != TargetType::LIBRARY_SHARED)
-    {
-        print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)), "Unsupported BTarget {}.",
-              getTargetPointer());
-        exit(EXIT_FAILURE);
-    }
 
     auto parseRegexSourceDirs = [target = this](bool assignToSourceNodes) {
         for (const SourceDirectory &srcDir : assignToSourceNodes ? target->regexSourceDirs : target->regexModuleDirs)
@@ -358,12 +714,12 @@ void Target::initializeForBuild()
                     {
                         if (assignToSourceNodes)
                         {
-                            target->sourceFileDependencies.emplace(k.path().generic_string(), target,
+                            target->sourceFileDependencies.emplace(target, k.path().generic_string(),
                                                                    ResultType::SOURCENODE);
                         }
                         else
                         {
-                            target->moduleSourceFileDependencies.emplace(k.path().generic_string(), target);
+                            target->moduleSourceFileDependencies.emplace(target, k.path().generic_string());
                         }
                     }
                 }
@@ -378,13 +734,13 @@ void Target::initializeForBuild()
     };
     parseRegexSourceDirs(true);
     parseRegexSourceDirs(false);
-    buildCacheFilesDirPath = (path(targetFilePath).parent_path() / ("Cache_Build_Files/")).generic_string();
+    buildCacheFilesDirPath = (path(targetFileDir) / ("Cache_Build_Files/")).generic_string();
     // Parsing finished
 
-    actualOutputName = getActualNameFromTargetName(bTargetType, os, targetName);
-    auto [pos, Ok] = variantFilePaths.emplace(path(targetFilePath).parent_path().parent_path().string() + "/" +
+    auto [pos, Ok] = variantFilePaths.emplace(path(getTargetPointer()).parent_path().parent_path().string() + "/" +
                                               "projectVariant.hmake");
     variantFilePath = &(*pos);
+
     // TODO
     /*    if (!sourceFiles.empty() && !modulesSourceFiles.empty())
         {
@@ -392,64 +748,31 @@ void Target::initializeForBuild()
                   "A Target can not have both module-source and regular-source. You "
                   "can make regular-source dependency "
                   "of module source.\nTarget: {}.\n",
-                  targetFilePath);
+                  getTargetPointer());
             exit(EXIT_FAILURE);
         }*/
 }
 
-void Target::setJsonDerived()
+void CppSourceTarget::setJson()
 {
-    vector<Json> dependenciesArray;
-
-    // TODO
-    auto iterateOverLibraries = [&dependenciesArray](const set<Library *> &libraries) {
-        for (Library *library : libraries)
-        {
-            Json libDepObject;
-            libDepObject[JConsts::prebuilt] = false;
-            libDepObject[JConsts::path] = library->getTargetPointer();
-
-            dependenciesArray.emplace_back(libDepObject);
-        }
-    };
-
-    auto iterateOverPrebuiltLibs = [&dependenciesArray](const set<PLibrary *> &prebuiltLibs) {
-        for (PLibrary *pLibrary : prebuiltLibs)
-        {
-            Json libDepObject;
-            libDepObject[JConsts::prebuilt] = true;
-            libDepObject[JConsts::path] = pLibrary->libraryPath.generic_string();
-            dependenciesArray.emplace_back(libDepObject);
-        }
-    };
-
-    iterateOverLibraries(publicLibs);
-    iterateOverLibraries(privateLibs);
-    iterateOverPrebuiltLibs(publicPrebuilts);
-    iterateOverPrebuiltLibs(privatePrebuilts);
-
     json[JConsts::targetType] = cTargetType;
-    json[JConsts::outputName] = outputName;
-    json[JConsts::outputDirectory] = outputDirectory;
     json[JConsts::configuration] = configurationType;
     json[JConsts::compiler] = compiler;
     json[JConsts::linker] = linker;
     json[JConsts::archiver] = archiver;
-    json[JConsts::environment] = environment;
     json[JConsts::compilerFlags] = publicCompilerFlags;
-    json[JConsts::linkerFlags] = publicLinkerFlags;
+    // json[JConsts::linkerFlags] = publicLinkerFlags;
     string str = "SOURCE_";
     json[str + JConsts::files] = sourceFileDependencies;
     json[str + JConsts::directories] = regexSourceDirs;
     str = "MODULE_";
     json[str + JConsts::files] = moduleSourceFileDependencies;
     json[str + JConsts::directories] = regexModuleDirs;
-    json[JConsts::libraryDependencies] = dependenciesArray;
     json[JConsts::includeDirectories] = publicIncludes;
     json[JConsts::huIncludeDirectories] = publicHUIncludes;
     // TODO
     json[JConsts::compilerTransitiveFlags] = publicCompilerFlags;
-    json[JConsts::linkerTransitiveFlags] = publicLinkerFlags;
+    // json[JConsts::linkerTransitiveFlags] = publicLinkerFlags;
     json[JConsts::compileDefinitions] = publicCompileDefinitions;
     json[JConsts::variant] = JConsts::project;
     /*    if (moduleScope)
@@ -470,93 +793,74 @@ void Target::setJsonDerived()
             }*/
 }
 
-Target &Target::PUBLIC_COMPILER_FLAGS(const string &compilerFlags)
+void CppSourceTarget::writeJsonFile()
+{
+    // In case of other being LinkOrArchiveTarget and this not having file, this does not emplace the Json at end
+    // because setJson of LinkOrArchiveTarget adds the Json
+    if (auto *target = dynamic_cast<LinkOrArchiveTarget *>(other); target)
+    {
+        if (!hasFile)
+        {
+            return;
+        }
+    }
+    CTarget::writeJsonFile();
+}
+
+BTarget *CppSourceTarget::getBTarget()
+{
+    return this;
+}
+
+CppSourceTarget &CppSourceTarget::PUBLIC_COMPILER_FLAGS(const string &compilerFlags)
 {
     publicCompilerFlags += compilerFlags;
     return *this;
 }
 
-Target &Target::PRIVATE_COMPILER_FLAGS(const string &compilerFlags)
+CppSourceTarget &CppSourceTarget::PRIVATE_COMPILER_FLAGS(const string &compilerFlags)
 {
     privateCompilerFlags += compilerFlags;
     return *this;
 }
 
-Target &Target::PUBLIC_LINKER_FLAGS(const string &linkerFlags)
+CppSourceTarget &CppSourceTarget::PUBLIC_LINKER_FLAGS(const string &linkerFlags)
 {
-    publicLinkerFlags += linkerFlags;
+    // publicLinkerFlags += linkerFlags;
     return *this;
 }
 
-Target &Target::PRIVATE_LINKER_FLAGS(const string &linkerFlags)
+CppSourceTarget &CppSourceTarget::PRIVATE_LINKER_FLAGS(const string &linkerFlags)
 {
     privateLinkerFlags += linkerFlags;
     return *this;
 }
 
-Target &Target::PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
+CppSourceTarget &CppSourceTarget::PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
 {
     publicCompileDefinitions.emplace_back(cddName, cddValue);
     return *this;
 }
 
-Target &Target::PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
+CppSourceTarget &CppSourceTarget::PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
 {
     publicCompileDefinitions.emplace_back(cddName, cddValue);
     return *this;
 }
 
-Target &Target::SOURCE_DIRECTORIES(const string &sourceDirectory, const string &regex)
+CppSourceTarget &CppSourceTarget::SOURCE_DIRECTORIES(const string &sourceDirectory, const string &regex)
 {
     regexSourceDirs.emplace(sourceDirectory, regex);
     return *this;
 }
 
-Target &Target::MODULE_DIRECTORIES(const string &moduleDirectory, const string &regex)
+CppSourceTarget &CppSourceTarget::MODULE_DIRECTORIES(const string &moduleDirectory, const string &regex)
 {
     regexModuleDirs.emplace(moduleDirectory, regex);
     return *this;
 }
 
-SMFile &Target::addNodeInModuleSourceFileDependencies(const std::string &str, bool angle)
-{
-    auto [pos, ok] = moduleSourceFileDependencies.emplace(str, this);
-    auto &smFile = const_cast<SMFile &>(*pos);
-    smFile.presentInSource = true;
-    return smFile;
-}
-
-void Target::addPrivatePropertiesToPublicProperties()
-{
-    for (Library *library : publicLibs)
-    {
-        publicLibs.insert(library->publicLibs.begin(), library->publicLibs.end());
-        publicPrebuilts.insert(library->publicPrebuilts.begin(), library->publicPrebuilts.end());
-    }
-    publicLibs.insert(privateLibs.begin(), privateLibs.end());
-    publicCompilerFlags += privateCompilerFlags;
-
-    // TODO: Following is added to compile the examples. However, the code should also add other public
-    // properties from public dependencies
-    // Modify PLibrary to be dependent of Dependency, thus having public properties.
-    for (Library *lib : publicLibs)
-    {
-        for (const Node *idd : lib->publicIncludes)
-        {
-            publicIncludes.emplace_back(idd);
-        }
-        publicCompilerFlags += lib->publicCompilerFlags;
-    }
-    for (Library *lib : publicLibs)
-    {
-        for (const Node *idd : lib->publicHUIncludes)
-        {
-            publicIncludes.emplace_back(idd);
-        }
-    }
-}
-
-string &Target::getCompileCommand()
+string &CppSourceTarget::getCompileCommand()
 {
     if (compileCommand.empty())
     {
@@ -565,7 +869,7 @@ string &Target::getCompileCommand()
     return compileCommand;
 }
 
-void Target::setCompileCommand()
+void CppSourceTarget::setCompileCommand()
 {
     auto getIncludeFlag = [this]() {
         if (compiler.bTFamily == BTFamily::MSVC)
@@ -578,7 +882,6 @@ void Target::setCompileCommand()
         }
     };
 
-    compileCommand = environment.compilerFlags + " ";
     compileCommand += publicCompilerFlags + " ";
     compileCommand += compilerTransitiveFlags + " ";
 
@@ -603,13 +906,13 @@ void Target::setCompileCommand()
         compileCommand.append(getIncludeFlag() + addQuotes(idd->filePath) + " ");
     }
 
-    for (const string &str : environment.includeDirectories)
+    for (const string &str : includeDirectories)
     {
         compileCommand.append(getIncludeFlag() + addQuotes(str) + " ");
     }
 }
 
-void Target::setSourceCompileCommandPrintFirstHalf()
+void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
 {
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
     auto getIncludeFlag = [this]() {
@@ -629,10 +932,6 @@ void Target::setSourceCompileCommandPrintFirstHalf()
             getReducedPath(compiler.bTPath.make_preferred().string(), ccpSettings.tool) + " ";
     }
 
-    if (ccpSettings.environmentCompilerFlags)
-    {
-        sourceCompileCommandPrintFirstHalf += environment.compilerFlags + " ";
-    }
     if (ccpSettings.compilerFlags)
     {
         sourceCompileCommandPrintFirstHalf += publicCompilerFlags + " ";
@@ -674,7 +973,7 @@ void Target::setSourceCompileCommandPrintFirstHalf()
         }
     }
 
-    for (const string &str : environment.includeDirectories)
+    for (const string &str : includeDirectories)
     {
         if (ccpSettings.environmentIncludeDirectories.printLevel != PathPrintLevel::NO)
         {
@@ -684,7 +983,7 @@ void Target::setSourceCompileCommandPrintFirstHalf()
     }
 }
 
-string &Target::getSourceCompileCommandPrintFirstHalf()
+string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
 {
     if (sourceCompileCommandPrintFirstHalf.empty())
     {
@@ -693,271 +992,7 @@ string &Target::getSourceCompileCommandPrintFirstHalf()
     return sourceCompileCommandPrintFirstHalf;
 }
 
-void Target::setLinkOrArchiveCommandAndPrint()
-{
-    const ArchiveCommandPrintSettings &acpSettings = settings.acpSettings;
-    const LinkCommandPrintSettings &lcpSettings = settings.lcpSettings;
-
-    if (bTargetType == TargetType::LIBRARY_STATIC)
-    {
-        auto getLibraryPath = [&]() -> string {
-            if (archiver.bTFamily == BTFamily::MSVC)
-            {
-                return (path(outputDirectory) / (outputName + ".lib")).string();
-            }
-            else if (archiver.bTFamily == BTFamily::GCC)
-            {
-                return (path(outputDirectory) / ("lib" + outputName + ".a")).string();
-            }
-            return "";
-        };
-
-        if (acpSettings.tool.printLevel != PathPrintLevel::NO)
-        {
-            linkOrArchiveCommandPrintFirstHalf +=
-                getReducedPath(archiver.bTPath.make_preferred().string(), acpSettings.tool) + " ";
-        }
-
-        linkOrArchiveCommand = archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
-        if (acpSettings.infrastructureFlags)
-        {
-            linkOrArchiveCommandPrintFirstHalf += archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
-        }
-        auto getArchiveOutputFlag = [&]() -> string {
-            if (archiver.bTFamily == BTFamily::MSVC)
-            {
-                return "/OUT:";
-            }
-            else if (archiver.bTFamily == BTFamily::GCC)
-            {
-                return " rcs ";
-            }
-            return "";
-        };
-        linkOrArchiveCommand += getArchiveOutputFlag();
-        if (acpSettings.infrastructureFlags)
-        {
-            linkOrArchiveCommandPrintFirstHalf += getArchiveOutputFlag();
-        }
-
-        linkOrArchiveCommand += addQuotes(getLibraryPath()) + " ";
-        if (acpSettings.archive.printLevel != PathPrintLevel::NO)
-        {
-            linkOrArchiveCommandPrintFirstHalf += getReducedPath(getLibraryPath(), acpSettings.archive) + " ";
-        }
-    }
-    else
-    {
-        if (lcpSettings.tool.printLevel != PathPrintLevel::NO)
-        {
-            linkOrArchiveCommandPrintFirstHalf +=
-                getReducedPath(linker.bTPath.make_preferred().string(), lcpSettings.tool) + " ";
-        }
-
-        linkOrArchiveCommand = linker.bTFamily == BTFamily::MSVC ? " /NOLOGO " : "";
-        if (lcpSettings.infrastructureFlags)
-        {
-            linkOrArchiveCommandPrintFirstHalf += linker.bTFamily == BTFamily::MSVC ? " /NOLOGO " : "";
-        }
-
-        linkOrArchiveCommand += publicLinkerFlags + " ";
-        if (lcpSettings.linkerFlags)
-        {
-            linkOrArchiveCommandPrintFirstHalf += publicLinkerFlags + " ";
-        }
-
-        linkOrArchiveCommand += linkerTransitiveFlags + " ";
-        if (lcpSettings.linkerTransitiveFlags)
-        {
-            linkOrArchiveCommandPrintFirstHalf += linkerTransitiveFlags + " ";
-        }
-    }
-
-    auto getLinkFlag = [this](const string &libraryPath, const string &libraryName) {
-        if (linker.bTFamily == BTFamily::MSVC)
-        {
-            return addQuotes(libraryPath + libraryName + ".lib") + " ";
-        }
-        else
-        {
-            return "-L" + addQuotes(libraryPath) + " -l" + addQuotes(libraryName) + " ";
-        }
-    };
-
-    auto getLinkFlagPrint = [this](const string &libraryPath, const string &libraryName, const PathPrint &pathPrint) {
-        if (linker.bTFamily == BTFamily::MSVC)
-        {
-            return getReducedPath(libraryPath + libraryName + ".lib", pathPrint) + " ";
-        }
-        else
-        {
-            return "-L" + getReducedPath(libraryPath, pathPrint) + " -l" + getReducedPath(libraryName, pathPrint) + " ";
-        }
-    };
-
-    // TODO
-    //  GCC linker gives error if object files come after the library
-    for (BTarget *dependency : allDependencies)
-    {
-        if (dependency->resultType == ResultType::LINK)
-        {
-            if (bTargetType != TargetType::LIBRARY_STATIC)
-            {
-                const auto *targetDependency = static_cast<const Target *>(dependency);
-                linkOrArchiveCommand += getLinkFlag(targetDependency->outputDirectory, targetDependency->outputName);
-                linkOrArchiveCommandPrintFirstHalf += getLinkFlagPrint(
-                    targetDependency->outputDirectory, targetDependency->outputName, lcpSettings.libraryDependencies);
-            }
-        }
-        else
-        {
-            Target *target;
-            SMFile *smFile;
-            if (dependency->resultType == ResultType::SOURCENODE)
-            {
-                target = this;
-                if (!sourceFileDependencies.contains(static_cast<SourceNode &>(*dependency)))
-                {
-                    continue;
-                }
-            }
-            else
-            {
-                smFile = static_cast<SMFile *>(dependency);
-                target = &(smFile->target);
-                assert(dependency->resultType == ResultType::CPP_MODULE &&
-                       "ResultType must be either ResultType::SourceNode or ResultType::CPP_MODULE");
-                if (!moduleSourceFileDependencies.contains(static_cast<SMFile &>(*dependency)))
-                {
-                    continue;
-                }
-            }
-            const PathPrint *pathPrint;
-            if (bTargetType == TargetType::LIBRARY_STATIC)
-            {
-                pathPrint = &(acpSettings.objectFiles);
-            }
-            else
-            {
-                pathPrint = &(lcpSettings.objectFiles);
-            }
-            string outputFilePath;
-            if (dependency->resultType == ResultType::CPP_MODULE && smFile->standardHeaderUnit)
-            {
-                outputFilePath =
-                    addQuotes((path(*(smFile->target.variantFilePath)).parent_path() / "shus/").generic_string() +
-                              path(smFile->node->filePath).filename().string() + ".o");
-            }
-            else
-            {
-                const auto *sourceNodeDependency = static_cast<const SourceNode *>(dependency);
-                outputFilePath = target->buildCacheFilesDirPath +
-                                 path(sourceNodeDependency->node->filePath).filename().string() + ".o";
-            }
-            linkOrArchiveCommand += addQuotes(outputFilePath) + " ";
-            if (pathPrint->printLevel != PathPrintLevel::NO)
-            {
-                linkOrArchiveCommandPrintFirstHalf += getReducedPath(outputFilePath, *pathPrint) + " ";
-            }
-        }
-    }
-
-    // HMake does not link any dependency to static library
-    if (bTargetType != TargetType::LIBRARY_STATIC)
-    {
-        // TODO
-        // Not doing prebuilt libraries yet
-
-        /*        for (auto &i : libraryDependencies)
-                {
-                    if (i.preBuilt)
-                    {
-                        if (linker.bTFamily == BTFamily::MSVC)
-                        {
-                            auto b = lcpSettings.libraryDependencies;
-                            linkOrArchiveCommand += i.path + " ";
-                            linkOrArchiveCommandPrintFirstHalf += getReducedPath(i.path + " ", b);
-                        }
-                        else
-                        {
-                            string dir = path(i.path).parent_path().string();
-                            string libName = path(i.path).filename().string();
-                            libName.erase(0, 3);
-                            libName.erase(libName.find('.'), 2);
-                            linkOrArchiveCommand += getLinkFlag(dir, libName);
-                            linkOrArchiveCommandPrintFirstHalf +=
-                                getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies);
-                        }
-                    }
-                }*/
-
-        auto getLibraryDirectoryFlag = [this]() {
-            if (compiler.bTFamily == BTFamily::MSVC)
-            {
-                return "/LIBPATH:";
-            }
-            else
-            {
-                return "-L";
-            }
-        };
-
-        for (const Node *includeDir : libraryDirectories)
-        {
-            linkOrArchiveCommand += getLibraryDirectoryFlag() + addQuotes(includeDir->filePath) + " ";
-            if (lcpSettings.libraryDirectories.printLevel != PathPrintLevel::NO)
-            {
-                linkOrArchiveCommandPrintFirstHalf +=
-                    getLibraryDirectoryFlag() + getReducedPath(includeDir->filePath, lcpSettings.libraryDirectories) +
-                    " ";
-            }
-        }
-
-        for (const string &str : environment.libraryDirectories)
-        {
-            linkOrArchiveCommand += getLibraryDirectoryFlag() + addQuotes(str) + " ";
-            if (lcpSettings.environmentLibraryDirectories.printLevel != PathPrintLevel::NO)
-            {
-                linkOrArchiveCommandPrintFirstHalf +=
-                    getLibraryDirectoryFlag() + getReducedPath(str, lcpSettings.environmentLibraryDirectories) + " ";
-            }
-        }
-
-        linkOrArchiveCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
-        if (lcpSettings.infrastructureFlags)
-        {
-            linkOrArchiveCommandPrintFirstHalf += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
-        }
-
-        linkOrArchiveCommand += addQuotes((path(outputDirectory) / actualOutputName).string());
-        if (lcpSettings.binary.printLevel != PathPrintLevel::NO)
-        {
-            linkOrArchiveCommandPrintFirstHalf +=
-                getReducedPath((path(outputDirectory) / actualOutputName).string(), lcpSettings.binary);
-        }
-    }
-}
-
-string &Target::getLinkOrArchiveCommand()
-{
-    if (linkOrArchiveCommand.empty())
-    {
-        setLinkOrArchiveCommandAndPrint();
-    }
-    return linkOrArchiveCommand;
-}
-
-string &Target::getLinkOrArchiveCommandPrintFirstHalf()
-{
-    if (linkOrArchiveCommandPrintFirstHalf.empty())
-    {
-        setLinkOrArchiveCommandAndPrint();
-    }
-
-    return linkOrArchiveCommandPrintFirstHalf;
-}
-
-void Target::setSourceNodeFileStatus(SourceNode &sourceNode, bool angle = false) const
+void CppSourceTarget::setSourceNodeFileStatus(SourceNode &sourceNode, bool angle = false) const
 {
     sourceNode.fileStatus = FileStatus::UPDATED;
 
@@ -986,82 +1021,48 @@ void Target::setSourceNodeFileStatus(SourceNode &sourceNode, bool angle = false)
     }
 }
 
-void Target::checkForRelinkPrebuiltDependencies()
+void CppSourceTarget::checkForPreBuiltAndCacheDir()
 {
-    path outputPath = path(outputDirectory) / actualOutputName;
-    if (!std::filesystem::exists(outputPath))
+    if (!linkOrArchiveTarget)
     {
-        fileStatus = FileStatus::NEEDS_UPDATE;
+        // TODO
     }
-    // TODO
-    // Not doing prebuilt libraries yet
-
-    /*    for (const auto &i : libraryDependencies)
-        {
-            if (i.preBuilt)
-            {
-                if (!std::filesystem::exists(path(i.path)))
-                {
-                    print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                          "Prebuilt Library {} Does Not Exist.\n", i.path);
-                    exit(EXIT_FAILURE);
-                }
-                if (fileStatus != FileStatus::NEEDS_UPDATE)
-                {
-                    if (last_write_time(i.path) > last_write_time(outputPath))
-                    {
-                        fileStatus = FileStatus::NEEDS_UPDATE;
-                    }
-                }
-            }
-        }*/
 }
 
-void Target::checkForPreBuiltAndCacheDir()
+void CppSourceTarget::checkForPreBuiltAndCacheDir(const Json &sourceCacheJson)
 {
-    checkForRelinkPrebuiltDependencies();
-    if (!std::filesystem::exists(path(buildCacheFilesDirPath)))
-    {
-        create_directory(buildCacheFilesDirPath);
-    }
-
     setCompileCommand();
-    if (std::filesystem::exists(path(buildCacheFilesDirPath) / (targetName + ".cache")))
-    {
-        Json targetCacheJson;
-        ifstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) >> targetCacheJson;
-        string str = targetCacheJson.at(JConsts::compileCommand).get<string>();
-        linkCommand = targetCacheJson.at(JConsts::linkCommand).get<string>();
-        auto initializeSourceNodePointer = [](SourceNode *sourceNode, const Json &j) {
-            for (const Json &headerFile : j.at(JConsts::headerDependencies))
-            {
-                sourceNode->headerDependencies.emplace(Node::getNodeFromString(headerFile, true));
-            }
-            sourceNode->presentInCache = true;
-        };
-        if (str == compileCommand)
+    string str = sourceCacheJson.at(JConsts::compileCommand).get<string>();
+    // linkCommand = targetCacheJson.at(JConsts::linkCommand).get<string>();
+    auto initializeSourceNodePointer = [](SourceNode *sourceNode, const Json &j) {
+        for (const Json &headerFile : j.at(JConsts::headerDependencies))
         {
-            for (const Json &j : targetCacheJson.at(JConsts::sourceDependencies))
-            {
-                initializeSourceNodePointer(
-                    const_cast<SourceNode *>(
-                        sourceFileDependencies.emplace(j.at(JConsts::srcFile), this, ResultType::SOURCENODE)
-                            .first.
-                            operator->()),
-                    j);
-            }
-            for (const Json &j : targetCacheJson.at(JConsts::moduleDependencies))
-            {
-                initializeSourceNodePointer(
-                    const_cast<SMFile *>(
-                        moduleSourceFileDependencies.emplace(j.at(JConsts::srcFile), this).first.operator->()),
-                    j);
-            }
+            sourceNode->headerDependencies.emplace(Node::getNodeFromString(headerFile, true));
+        }
+        sourceNode->presentInCache = true;
+    };
+    if (str == compileCommand)
+    {
+        for (const Json &j : sourceCacheJson.at(JConsts::sourceDependencies))
+        {
+            initializeSourceNodePointer(
+                const_cast<SourceNode *>(
+                    sourceFileDependencies.emplace(this, j.at(JConsts::srcFile), ResultType::SOURCENODE)
+                        .first.
+                        operator->()),
+                j);
+        }
+        for (const Json &j : sourceCacheJson.at(JConsts::moduleDependencies))
+        {
+            initializeSourceNodePointer(
+                const_cast<SMFile *>(
+                    moduleSourceFileDependencies.emplace(this, j.at(JConsts::srcFile)).first.operator->()),
+                j);
         }
     }
 }
 
-void Target::populateSetTarjanNodesSourceNodes(Builder &builder)
+void CppSourceTarget::populateSetTarjanNodesSourceNodes(Builder &builder)
 {
     for (const SourceNode &sourceNodeConst : sourceFileDependencies)
     {
@@ -1074,7 +1075,14 @@ void Target::populateSetTarjanNodesSourceNodes(Builder &builder)
         {
             setSourceNodeFileStatus(sourceNode);
         }
-        addDependency(sourceNode);
+        if (linkOrArchiveTarget)
+        {
+            linkOrArchiveTarget->addDependency(sourceNode);
+        }
+        else
+        {
+            addDependency(sourceNode);
+        }
     }
 }
 
@@ -1091,7 +1099,7 @@ pair<T *, bool> insert(set<T, U> &containerSet, V &&...elements)
     return make_pair(const_cast<T *>(&(*pos)), Ok);
 }
 
-void Target::parseModuleSourceFiles(Builder &builder)
+void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
 {
     ModuleScope &moduleScope = builder.moduleScopes.emplace(variantFilePath, ModuleScope{}).first->second;
     for (const Node *idd : publicHUIncludes)
@@ -1103,7 +1111,7 @@ void Target::parseModuleSourceFiles(Builder &builder)
             print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
                   "hu-include-directory\n{}\n is being provided by two different targets\n{}\n{}\nThis is not allowed "
                   "because HMake can't determine which Header Unit to attach to which target.",
-                  idd->filePath, targetFilePath, pos->second->targetFilePath);
+                  idd->filePath, getTargetPointer(), pos->second->getTargetPointer());
             exit(EXIT_FAILURE);
         }
     }
@@ -1135,13 +1143,13 @@ void Target::parseModuleSourceFiles(Builder &builder)
         {
             print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
                   "In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n", *variantFilePath,
-                  smFile.node->filePath, targetFilePath, (**pos).target.targetFilePath);
+                  smFile.node->filePath, getTargetPointer(), (**pos).target->getTargetPointer());
             exit(EXIT_FAILURE);
         }
     }
 }
 
-string Target::getInfrastructureFlags()
+string CppSourceTarget::getInfrastructureFlags()
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {
@@ -1158,7 +1166,7 @@ string Target::getInfrastructureFlags()
     return "";
 }
 
-string Target::getCompileCommandPrintSecondPart(const SourceNode &sourceNode)
+string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourceNode)
 {
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
 
@@ -1184,7 +1192,7 @@ string Target::getCompileCommandPrintSecondPart(const SourceNode &sourceNode)
     return command;
 }
 
-PostCompile Target::CompileSMFile(SMFile &smFile, Builder &builder)
+PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
 {
     // TODO: Add Compiler error handling for this operation.
     // TODO: A temporary hack to support modules
@@ -1206,7 +1214,7 @@ PostCompile Target::CompileSMFile(SMFile &smFile, Builder &builder)
     {
         if (smFile.standardHeaderUnit)
         {
-            string cacheFilePath = (path(*(smFile.target.variantFilePath)).parent_path() / "shus/").generic_string();
+            string cacheFilePath = (path(*(smFile.target->variantFilePath)).parent_path() / "shus/").generic_string();
             finalCompileCommand += smFile.getFlag(cacheFilePath + path(smFile.node->filePath).filename().string());
         }
         else
@@ -1229,11 +1237,11 @@ PostCompile Target::CompileSMFile(SMFile &smFile, Builder &builder)
                        settings.ccpSettings.outputAndErrorFiles};
 }
 
-PostCompile Target::Compile(SourceNode &sourceNode)
+PostCompile CppSourceTarget::Compile(SourceNode &sourceNode)
 {
     string compileFileName = path(sourceNode.node->filePath).filename().string();
 
-    string finalCompileCommand = compileCommand + " ";
+    string finalCompileCommand = getCompileCommand() + " ";
 
     finalCompileCommand += getInfrastructureFlags() + " " + addQuotes(sourceNode.node->filePath) + " ";
     if (compiler.bTFamily == BTFamily::MSVC)
@@ -1254,19 +1262,7 @@ PostCompile Target::Compile(SourceNode &sourceNode)
                        settings.ccpSettings.outputAndErrorFiles};
 }
 
-PostBasic Target::Archive()
-{
-    return PostBasic(archiver, getLinkOrArchiveCommand(), getLinkOrArchiveCommandPrintFirstHalf(),
-                     buildCacheFilesDirPath, targetName, settings.acpSettings.outputAndErrorFiles, true);
-}
-
-PostBasic Target::Link()
-{
-    return PostBasic(linker, getLinkOrArchiveCommand(), getLinkOrArchiveCommandPrintFirstHalf(), buildCacheFilesDirPath,
-                     targetName, settings.lcpSettings.outputAndErrorFiles, true);
-}
-
-PostBasic Target::GenerateSMRulesFile(const SourceNode &sourceNode, bool printOnlyOnError)
+PostBasic CppSourceTarget::GenerateSMRulesFile(const SourceNode &sourceNode, bool printOnlyOnError)
 {
     string finalCompileCommand = getCompileCommand() + addQuotes(sourceNode.node->filePath) + " ";
 
@@ -1292,12 +1288,17 @@ PostBasic Target::GenerateSMRulesFile(const SourceNode &sourceNode, bool printOn
                            settings.ccpSettings.outputAndErrorFiles, true);
 }
 
-TargetType Target::getTargetType() const
+TargetType CppSourceTarget::getTargetType() const
 {
     return bTargetType;
 }
 
-void Target::pruneAndSaveBuildCache(const bool successful)
+void CppSourceTarget::pruneAndSaveBuildCache(const bool successful)
+{
+    ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << getBuildCache(successful).dump(4);
+}
+
+Json CppSourceTarget::getBuildCache(const bool successful)
 {
     // TODO:
     // Not dealing with module source
@@ -1312,116 +1313,31 @@ void Target::pruneAndSaveBuildCache(const bool successful)
             it->fileStatus == FileStatus::NEEDS_UPDATE ? it = sourceFileDependencies.erase(it) : ++it;
         }
     }
-    Json cacheFileJson;
-    cacheFileJson[JConsts::compileCommand] = compileCommand;
-    cacheFileJson[JConsts::linkCommand] = linkCommand;
-    cacheFileJson[JConsts::sourceDependencies] = sourceFileDependencies;
-    cacheFileJson[JConsts::moduleDependencies] = moduleSourceFileDependencies;
-    ofstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) << cacheFileJson.dump(4);
+    Json buildCache;
+    buildCache[JConsts::compileCommand] = compileCommand;
+    buildCache[JConsts::sourceDependencies] = sourceFileDependencies;
+    buildCache[JConsts::moduleDependencies] = moduleSourceFileDependencies;
+    return buildCache;
 }
-
-void Target::execute(unsigned long fileTargetId)
-{
-}
-
-void Target::executePrintRoutine(unsigned long fileTargetId)
-{
-}
-
-/*
-void Target::buildTargetsSetFunc()
-{
-    for (const Target *target_ : buildTargetsSet)
-    {
-        auto *target = const_cast<Target *>(target_);
-        target->checkForPreBuiltAndCacheDir();
-        target->parseModuleSourceFiles(*this);
-    }
-}
-
-
-void Target::checkForRelinkPrebuiltDependencies()
-{
-    path outputPath = outputDirectory.directoryPath / actualOutputName;
-    if (!std::filesystem::exists(outputPath))
-    {
-        fileStatus = FileStatus::NEEDS_UPDATE;
-    }
-    else
-    {
-        for (PLibrary *pLibrary : publicPrebuilts)
-        {
-            if (last_write_time(pLibrary->libraryPath) > last_write_time(outputPath))
-            {
-                fileStatus = FileStatus::NEEDS_UPDATE;
-            }
-        }
-    }
-}
-
-void Target::checkForPreBuiltAndCacheDir()
-{
-    checkForRelinkPrebuiltDependencies();
-    if (!std::filesystem::exists(path(buildCacheFilesDirPath)))
-    {
-        create_directory(buildCacheFilesDirPath);
-    }
-
-    setCompileCommand();
-    if (std::filesystem::exists(path(buildCacheFilesDirPath) / (targetName + ".cache")))
-    {
-        Json targetCacheJson;
-        ifstream(path(buildCacheFilesDirPath) / (targetName + ".cache")) >> targetCacheJson;
-        string str = targetCacheJson.at(JConsts::compileCommand).get<string>();
-        linkCommand = targetCacheJson.at(JConsts::linkCommand).get<string>();
-        auto initializeSourceNodePointer = [](SourceNode *sourceNode, const Json &j) {
-            for (const Json &headerFile : j.at(JConsts::headerDependencies))
-            {
-                sourceNode->headerDependencies.emplace(&(Node::getNodeFromString(headerFile)));
-            }
-            sourceNode->presentInCache = true;
-        };
-        if (str == compileCommand)
-        {
-            for (const Json &j : targetCacheJson.at(JConsts::sourceDependencies))
-            {
-                initializeSourceNodePointer(
-                    const_cast<SourceNode *>(
-                        sourceFileDependencies.emplace(j.at(JConsts::srcFile), this, ResultType::SOURCENODE)
-                            .first.
-                            operator->()),
-                    j);
-            }
-            for (const Json &j : targetCacheJson.at(JConsts::moduleDependencies))
-            {
-                initializeSourceNodePointer(
-                    const_cast<SMFile *>(
-                        moduleSourceFileDependencies.emplace(j.at(JConsts::srcFile), this).first.operator->()),
-                    j);
-            }
-        }
-    }
-}
-*/
 
 Executable::Executable(string targetName_, const bool initializeFromCache)
-    : Target(std::move(targetName_), initializeFromCache)
+    : CppSourceTarget(std::move(targetName_), initializeFromCache)
 {
     cTargetType = TargetType::EXECUTABLE;
 }
 
-Executable::Executable(string targetName_, Variant &variant) : Target(std::move(targetName_), variant)
+Executable::Executable(string targetName_, Variant &variant) : CppSourceTarget(std::move(targetName_), variant)
 {
     cTargetType = TargetType::EXECUTABLE;
 }
 
 Library::Library(string targetName_, const bool initializeFromCache)
-    : Target(std::move(targetName_), initializeFromCache)
+    : CppSourceTarget(std::move(targetName_), initializeFromCache)
 {
     cTargetType = libraryType;
 }
 
-Library::Library(string targetName_, Variant &variant) : Target(std::move(targetName_), variant)
+Library::Library(string targetName_, Variant &variant) : CppSourceTarget(std::move(targetName_), variant)
 {
     cTargetType = libraryType;
 }

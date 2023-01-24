@@ -20,13 +20,13 @@ enum class BSMode // Build System Mode
 inline BSMode bsMode = BSMode::CONFIGURE;
 inline set<string> buildTargetFilePaths;
 // Used for determining the CTarget to build in BSMode::BUILD. The string is of buildTargetFilePaths.
-inline map<string, set<struct CTarget *>> targetFilePaths;
+inline map<string, set<class CTarget *>> targetFilePaths;
 // Pointers of all CTarget declared in hmake.cpp file.
 inline map<int, CTarget *> cTargets;
 #ifdef _WIN32
-inline OS os = OS::NT;
+inline constexpr OS os = OS::NT;
 #else
-inline OS os = OS::LINUX;
+inline constexpr OS os = OS::LINUX;
 #endif
 void setBoolsAndSetRunDir(int argc, char **argv);
 inline const string pes = "{}"; // paranthesis-escape-sequence, meant to be used in fmt::print.

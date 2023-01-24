@@ -10,27 +10,22 @@ using std::shared_ptr;
 class Executable;
 struct Library;
 
-struct Dependent
-{
-    bool isTarget = false;
-};
-
 class Variant : public Features, public CTarget
 {
     friend class Target;
-    vector<class Target *> moduleTargets;
+    vector<class CppSourceTarget *> moduleTargets;
     vector<shared_ptr<CTarget>> targetsContainer;
 
     struct TargetComparator
     {
-        bool operator()(const class Target *lhs, const class Target *rhs) const;
+        bool operator()(const class CppSourceTarget *lhs, const class CppSourceTarget *rhs) const;
     };
 
   public:
     set<class PLibrary *> preBuiltLibraries;
     Variant(const string &name_, bool initializeFromCache = true);
     void copyAllTargetsFromOtherVariant(Variant &variantFrom);
-    void setJsonDerived();
+    void setJson() override;
     Executable &findExecutable(const string &exeName);
     Library &findLibrary(const string &libName);
     Executable &addExecutable(const string &exeName);

@@ -45,7 +45,7 @@ vector<string> split(string str, const string &token)
     vector<string> result;
     while (!str.empty())
     {
-        unsigned long index = str.find(token);
+        std::string::size_type index = str.find(token);
         if (index != string::npos)
         {
             result.emplace_back(str.substr(0, index));

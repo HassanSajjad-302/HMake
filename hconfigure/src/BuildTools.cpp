@@ -1,6 +1,7 @@
 #include "BuildTools.hpp"
 #include "JConsts.hpp"
 #include <string>
+#include <utility>
 
 using std::to_string, std::stringstream;
 
@@ -41,40 +42,8 @@ void from_json(const Json &j, Version &v)
 
 bool operator<(const Version &lhs, const Version &rhs)
 {
-    if (lhs.majorVersion < rhs.majorVersion)
-    {
-        return true;
-    }
-    else if (lhs.majorVersion == rhs.majorVersion)
-    {
-        if (lhs.minorVersion < rhs.minorVersion)
-        {
-            return true;
-        }
-        else if (lhs.minorVersion == rhs.minorVersion)
-        {
-            if (lhs.patchVersion < rhs.patchVersion)
-            {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-bool operator>(const Version &lhs, const Version &rhs)
-{
-    return rhs < lhs;
-}
-
-bool operator<=(const Version &lhs, const Version &rhs)
-{
-    return !(lhs > rhs);
-}
-
-bool operator>=(const Version &lhs, const Version &rhs)
-{
-    return !(lhs < rhs);
+    return std::tie(lhs.majorVersion, lhs.minorVersion, lhs.patchVersion) <
+           std::tie(rhs.minorVersion, rhs.minorVersion, rhs.patchVersion);
 }
 
 void to_json(Json &json, const BTFamily &bTFamily)
@@ -109,6 +78,11 @@ void from_json(const Json &json, BTFamily &bTFamily)
     }
 }
 
+BuildTool::BuildTool(BTFamily btFamily_, Version btVersion_, path btPath_)
+    : bTFamily(btFamily_), bTVersion(btVersion_), bTPath(std::move(btPath_))
+{
+}
+
 void to_json(Json &json, const BuildTool &buildTool)
 {
     json[JConsts::family] = buildTool.bTFamily;
@@ -121,4 +95,19 @@ void from_json(const Json &json, BuildTool &buildTool)
     buildTool.bTPath = json.at(JConsts::path).get<string>();
     buildTool.bTFamily = json.at(JConsts::family).get<BTFamily>();
     buildTool.bTVersion = json.at(JConsts::version).get<Version>();
+}
+
+Compiler::Compiler(BTFamily btFamily_, Version btVersion_, path btPath_)
+    : BuildTool(btFamily_, btVersion_, std::move(btPath_))
+{
+}
+
+Linker::Linker(BTFamily btFamily_, Version btVersion_, path btPath_)
+    : BuildTool(btFamily_, btVersion_, std::move(btPath_))
+{
+}
+
+Archiver::Archiver(BTFamily btFamily_, Version btVersion_, path btPath_)
+    : BuildTool(btFamily_, btVersion_, std::move(btPath_))
+{
 }

@@ -1,9 +1,9 @@
 #include "SMFile.hpp"
 
 #include "BuildSystemFunctions.hpp"
+#include "CppSourceTarget.hpp"
 #include "JConsts.hpp"
 #include "Settings.hpp"
-#include "Target.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
 #include <utility>
@@ -71,7 +71,7 @@ const Node *Node::getNodeFromString(const string &str, bool isFile)
     {
         filePath = path(srcDir) / filePath;
     }
-    filePath.lexically_normal();
+    filePath = filePath.lexically_normal();
 
     // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
     // performed only once.
@@ -92,9 +92,26 @@ CachedFile::CachedFile(const string &filePath) : node{Node::getNodeFromString(fi
 {
 }
 
-SourceNode::SourceNode(const string &filePath, ReportResultTo *reportResultTo_, const ResultType resultType_)
-    : CachedFile(filePath), BTarget(reportResultTo_, resultType_)
+SourceNode::SourceNode(CppSourceTarget *target_, const string &filePath, const ResultType resultType_)
+    : target(target_), CachedFile(filePath), BTarget(resultType_)
 {
+}
+
+string SourceNode::getOutputFilePath()
+{
+    return addQuotes(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o");
+}
+
+void SourceNode::updateBTarget()
+{
+    postCompile = std::make_shared<PostCompile>(target->Compile(*this));
+    postCompile->executePostCompileRoutineWithoutMutex(*this);
+    fileStatus = FileStatus::UPDATED;
+}
+
+void SourceNode::printMutexLockRoutine()
+{
+    postCompile->executePrintRoutine(settings.pcSettings.compileCommandColor, false);
 }
 
 void to_json(Json &j, const SourceNode &sourceNode)
@@ -105,7 +122,7 @@ void to_json(Json &j, const SourceNode &sourceNode)
 
 bool operator<(const SourceNode &lhs, const SourceNode &rhs)
 {
-    return &(lhs.node) < &(rhs.node);
+    return lhs.node < rhs.node;
 }
 
 HeaderUnitConsumer::HeaderUnitConsumer(bool angle_, string logicalName_)
@@ -118,9 +135,40 @@ bool operator<(const HeaderUnitConsumer &lhs, const HeaderUnitConsumer &rhs)
     return std::tie(lhs.angle, lhs.logicalName) < std::tie(rhs.angle, rhs.logicalName);
 }
 
-SMFile::SMFile(const string &srcPath, Target *target_)
-    : SourceNode(srcPath, target_, ResultType::CPP_SMFILE), target{*target_}
+SMFile::SMFile(CppSourceTarget *target_, const string &srcPath) : SourceNode(target_, srcPath, ResultType::CPP_SMFILE)
 {
+}
+
+void SMFile::updateBTarget()
+{
+    if (resultType == ResultType::CPP_SMFILE)
+    {
+        postBasic = std::make_shared<PostBasic>(target->GenerateSMRulesFile(*this, true));
+    }
+    else
+    {
+        postCompile = std::make_shared<PostCompile>(target->CompileSMFile(*this));
+        postCompile->executePostCompileRoutineWithoutMutex(*this);
+    }
+    BTarget::updateBTarget();
+}
+
+void SMFile::printMutexLockRoutine()
+{
+    if (resultType == ResultType::CPP_SMFILE)
+    {
+        postBasic->executePrintRoutine(settings.pcSettings.compileCommandColor, true);
+    }
+    else
+    {
+        postCompile->executePrintRoutine(settings.pcSettings.compileCommandColor, false);
+    }
+}
+
+string SMFile::getOutputFilePath()
+{
+    return addQuotes((path(*(target->variantFilePath)).parent_path() / "shus/").generic_string() +
+                     path(node->filePath).filename().string() + ".o");
 }
 
 string SMFile::getFlag(const string &outputFilesWithoutExtension) const
@@ -206,12 +254,12 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
     string ifcFilePath;
     if (standardHeaderUnit)
     {
-        ifcFilePath = addQuotes((path(*(target.variantFilePath)).parent_path() / "shus/").generic_string() +
+        ifcFilePath = addQuotes((path(*(target->variantFilePath)).parent_path() / "shus/").generic_string() +
                                 path(node->filePath).filename().string() + ".ifc");
     }
     else
     {
-        ifcFilePath = addQuotes(target.buildCacheFilesDirPath + path(node->filePath).filename().string() + ".ifc");
+        ifcFilePath = addQuotes(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".ifc");
     }
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
@@ -243,7 +291,7 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
 
 string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
 {
-    string ifcFilePath = target.buildCacheFilesDirPath + path(node->filePath).filename().string() + ".ifc";
+    string ifcFilePath = target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".ifc";
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
     auto getRequireIFCPathOrLogicalName = [&](const string &logicalName_) {
         return ccpSettings.onlyLogicalNameOfRequireIFC
@@ -296,10 +344,10 @@ string SMFile::getModuleCompileCommandPrintLastHalf() const
         }
     }
 
-    moduleCompileCommandPrintLastHalf += ccpSettings.infrastructureFlags ? target.getInfrastructureFlags() : "";
+    moduleCompileCommandPrintLastHalf += ccpSettings.infrastructureFlags ? target->getInfrastructureFlags() : "";
     moduleCompileCommandPrintLastHalf += getReducedPath(node->filePath, ccpSettings.sourceFile) + " ";
     moduleCompileCommandPrintLastHalf +=
-        getFlagPrint(target.buildCacheFilesDirPath + path(node->filePath).filename().string());
+        getFlagPrint(target->buildCacheFilesDirPath + path(node->filePath).filename().string());
     return moduleCompileCommandPrintLastHalf;
 }
 
@@ -320,7 +368,7 @@ bool SMFilePathAndVariantPathComparator::operator()(const SMFile &lhs, const SMF
     {
         return &(lhs.node) < &(rhs.node);
     }
-    return lhs.target.variantFilePath < rhs.target.variantFilePath;
+    return lhs.target->variantFilePath < rhs.target->variantFilePath;
 }
 
 bool SMFileCompareLogicalName::operator()(const SMFileVariantPathAndLogicalName lhs,
