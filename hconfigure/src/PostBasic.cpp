@@ -177,9 +177,10 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
         file_to_string(target.buildCacheFilesDirPath + path(sourceNode.node->filePath).filename().string() + ".d");
     vector<string> headerDeps = split(headerFileContents, "\n");
 
-    // First 2 lines are skipped as these are .o and .cpp file. While last line is
-    // an empty line
-    for (auto iter = headerDeps.begin() + 2; iter != headerDeps.end() - 1; ++iter)
+    // First 2 lines are skipped as these are .o and .cpp file.
+    // If the file is preprocessed, it does not generate the extra line
+    auto endIt = headerDeps.end() - (sourceNode.target->compileTargetType == TargetType::COMPILE ? 1 : 0);
+    for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
     {
         unsigned long pos = iter->find_first_not_of(" ");
         string headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);

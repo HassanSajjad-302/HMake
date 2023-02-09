@@ -11,7 +11,7 @@ bool IndexInTopologicalSortComparator::operator()(const BTarget *lhs, const BTar
     return lhs->indexInTopologicalSort < rhs->indexInTopologicalSort;
 }
 
-BTarget::BTarget(const ResultType resultType_) : resultType{resultType_}
+BTarget::BTarget()
 {
     id = total++;
 }
@@ -34,12 +34,12 @@ void BTarget::addDependency(BTarget &dependency)
     }
 }
 
-void BTarget::updateBTarget()
+void BTarget::updateBTarget(unsigned short round)
 {
     fileStatus = FileStatus::UPDATED;
 }
 
-void BTarget::printMutexLockRoutine()
+void BTarget::printMutexLockRoutine(unsigned short round)
 {
 }
 

@@ -15,24 +15,24 @@ Variant::Variant(const string &name_, const bool initializeFromCache) : CTarget{
 {
     if (initializeFromCache)
     {
-        initializeFromCacheFunc();
+        CompilerFeatures::initializeFromCacheFunc();
+        LinkerFeatures::initializeFromCacheFunc();
     }
-    cTargetType = TargetType::VARIANT;
 }
 
 // TODO: Will Not be copying prebuilts and packagedLibs for Now.
 void Variant::copyAllTargetsFromOtherVariant(Variant &variantFrom)
 {
-    for (CTarget *element : variantFrom.elements)
-    {
-        if (element->cTargetType == TargetType::EXECUTABLE)
+    /*    for (CTarget *element : variantFrom.elements)
         {
-            auto *exe = static_cast<Executable *>(element);
-            targetsContainer.emplace_back(make_shared<Executable>(*exe));
-        }
-        // TODO
-        //  Not doing for libraries
-    }
+            if (element->cTargetType == TargetType::EXECUTABLE)
+            {
+                auto *exe = static_cast<Executable *>(element);
+                targetsContainer.emplace_back(make_shared<Executable>(*exe));
+            }
+            // TODO
+            //  Not doing for libraries
+        }*/
 }
 
 void Variant::setJson()
@@ -49,6 +49,7 @@ void Variant::setJson()
     variantJson[JConsts::targetsWithModules] = moduleTargets;
     json = variantJson;
 }
+/*
 
 Executable &Variant::findExecutable(const string &exeName)
 {
@@ -85,3 +86,4 @@ Library &Variant::addLibrary(const string &libName)
 {
     return static_cast<Library &>(targetsContainer.emplace_back(make_shared<Library>(libName, *this)).operator*());
 }
+*/

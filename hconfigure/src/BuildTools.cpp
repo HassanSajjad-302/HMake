@@ -40,12 +40,6 @@ void from_json(const Json &j, Version &v)
     }
 }
 
-bool operator<(const Version &lhs, const Version &rhs)
-{
-    return std::tie(lhs.majorVersion, lhs.minorVersion, lhs.patchVersion) <
-           std::tie(rhs.minorVersion, rhs.minorVersion, rhs.patchVersion);
-}
-
 void to_json(Json &json, const BTFamily &bTFamily)
 {
     if (bTFamily == BTFamily::GCC)

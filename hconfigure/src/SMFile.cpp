@@ -8,8 +8,7 @@
 #include <filesystem>
 #include <utility>
 
-using std::filesystem::directory_entry;
-using std::filesystem::file_type;
+using std::filesystem::directory_entry, std::filesystem::file_type, std::tie;
 
 string getStatusString(const path &p)
 {
@@ -92,8 +91,7 @@ CachedFile::CachedFile(const string &filePath) : node{Node::getNodeFromString(fi
 {
 }
 
-SourceNode::SourceNode(CppSourceTarget *target_, const string &filePath, const ResultType resultType_)
-    : target(target_), CachedFile(filePath), BTarget(resultType_)
+SourceNode::SourceNode(CppSourceTarget *target_, const string &filePath) : target(target_), CachedFile(filePath)
 {
 }
 
@@ -102,14 +100,14 @@ string SourceNode::getOutputFilePath()
     return addQuotes(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o");
 }
 
-void SourceNode::updateBTarget()
+void SourceNode::updateBTarget(unsigned short round)
 {
-    postCompile = std::make_shared<PostCompile>(target->Compile(*this));
+    postCompile = std::make_shared<PostCompile>(target->updateSourceNodeBTarget(*this));
     postCompile->executePostCompileRoutineWithoutMutex(*this);
     fileStatus = FileStatus::UPDATED;
 }
 
-void SourceNode::printMutexLockRoutine()
+void SourceNode::printMutexLockRoutine(unsigned short round)
 {
     postCompile->executePrintRoutine(settings.pcSettings.compileCommandColor, false);
 }
@@ -135,31 +133,31 @@ bool operator<(const HeaderUnitConsumer &lhs, const HeaderUnitConsumer &rhs)
     return std::tie(lhs.angle, lhs.logicalName) < std::tie(rhs.angle, rhs.logicalName);
 }
 
-SMFile::SMFile(CppSourceTarget *target_, const string &srcPath) : SourceNode(target_, srcPath, ResultType::CPP_SMFILE)
+SMFile::SMFile(CppSourceTarget *target_, const string &srcPath) : SourceNode(target_, srcPath)
 {
 }
 
-void SMFile::updateBTarget()
+void SMFile::updateBTarget(unsigned short round)
 {
-    if (resultType == ResultType::CPP_SMFILE)
+    if (round == 1)
     {
         postBasic = std::make_shared<PostBasic>(target->GenerateSMRulesFile(*this, true));
     }
-    else
+    else if (!round)
     {
         postCompile = std::make_shared<PostCompile>(target->CompileSMFile(*this));
         postCompile->executePostCompileRoutineWithoutMutex(*this);
     }
-    BTarget::updateBTarget();
+    BTarget::updateBTarget(round);
 }
 
-void SMFile::printMutexLockRoutine()
+void SMFile::printMutexLockRoutine(unsigned short round)
 {
-    if (resultType == ResultType::CPP_SMFILE)
+    if (round == 1)
     {
         postBasic->executePrintRoutine(settings.pcSettings.compileCommandColor, true);
     }
-    else
+    else if (!round)
     {
         postCompile->executePrintRoutine(settings.pcSettings.compileCommandColor, false);
     }
@@ -167,8 +165,7 @@ void SMFile::printMutexLockRoutine()
 
 string SMFile::getOutputFilePath()
 {
-    return addQuotes((path(*(target->variantFilePath)).parent_path() / "shus/").generic_string() +
-                     path(node->filePath).filename().string() + ".o");
+    return addQuotes(target->targetFileDir + "/shus/" + path(node->filePath).filename().string() + ".o");
 }
 
 string SMFile::getFlag(const string &outputFilesWithoutExtension) const
@@ -254,8 +251,7 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
     string ifcFilePath;
     if (standardHeaderUnit)
     {
-        ifcFilePath = addQuotes((path(*(target->variantFilePath)).parent_path() / "shus/").generic_string() +
-                                path(node->filePath).filename().string() + ".ifc");
+        ifcFilePath = addQuotes(target->targetFileDir + "/shus/" + path(node->filePath).filename().string() + ".ifc");
     }
     else
     {
@@ -336,9 +332,8 @@ string SMFile::getModuleCompileCommandPrintLastHalf() const
     {
         for (const BTarget *bTarget : allDependencies)
         {
-            if (bTarget->resultType == ResultType::CPP_MODULE)
+            if (auto smFileDependency = static_cast<const SMFile *>(bTarget); smFileDependency)
             {
-                auto smFileDependency = static_cast<const SMFile *>(bTarget);
                 moduleCompileCommandPrintLastHalf += smFileDependency->getRequireFlagPrint(*this);
             }
         }
@@ -349,34 +344,4 @@ string SMFile::getModuleCompileCommandPrintLastHalf() const
     moduleCompileCommandPrintLastHalf +=
         getFlagPrint(target->buildCacheFilesDirPath + path(node->filePath).filename().string());
     return moduleCompileCommandPrintLastHalf;
-}
-
-SMFileVariantPathAndLogicalName::SMFileVariantPathAndLogicalName(const string &logicalName_,
-                                                                 const string &variantFilePath_)
-    : logicalName(logicalName_), variantFilePath(variantFilePath_)
-{
-}
-
-bool SMFilePointerComparator::operator()(const SMFile *lhs, const SMFile *rhs) const
-{
-    return SMFilePathAndVariantPathComparator().operator()(*lhs, *rhs);
-}
-
-bool SMFilePathAndVariantPathComparator::operator()(const SMFile &lhs, const SMFile &rhs) const
-{
-    if (&(lhs.node) != &(rhs.node))
-    {
-        return &(lhs.node) < &(rhs.node);
-    }
-    return lhs.target->variantFilePath < rhs.target->variantFilePath;
-}
-
-bool SMFileCompareLogicalName::operator()(const SMFileVariantPathAndLogicalName lhs,
-                                          const SMFileVariantPathAndLogicalName rhs) const
-{
-    if (&(lhs.variantFilePath) != &(rhs.variantFilePath))
-    {
-        return (&(lhs.variantFilePath) < &(rhs.variantFilePath));
-    }
-    return (lhs.logicalName < rhs.logicalName);
 }

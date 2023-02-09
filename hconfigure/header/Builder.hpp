@@ -2,22 +2,26 @@
 #define HMAKE_BUILDER_HPP
 
 #include "BuildTools.hpp"
+#include "ModuleScope.hpp"
 #include "SMFile.hpp"
 #include "Settings.hpp"
 #include <string>
 
 using std::string;
 
-struct ModuleScope
+struct ModuleScopeData
 {
-    set<SMFile *, SMFilePointerComparator> smFiles;
-    set<SMFile, SMFilePathAndVariantPathComparator> headerUnits;
+    set<CppSourceTarget *> cppTargets;
+    set<SMFile *> smFiles;
+    set<SMFile> headerUnits;
     // Which application header unit directory come from which target
     map<const Node *, CppSourceTarget *> appHUDirTarget;
+    map<string, SMFile *> requirePaths;
 };
 
 class Builder
 {
+    unsigned short round = 0;
     vector<CppSourceTarget *> sourceTargets;
     unsigned long finalBTargetsIndex = 0;
     unsigned int finalBTargetsSizeGoal;
@@ -25,13 +29,12 @@ class Builder
   public:
     vector<BTarget *> filteredBTargets;
     vector<BTarget *> finalBTargets;
-    map<const string *, ModuleScope> moduleScopes;
+    map<const ModuleScope *, ModuleScopeData> moduleScopes;
     vector<SMFile *> canBeCompiledModule;
     vector<CppSourceTarget *> canBeLinked;
     explicit Builder();
-    void populateRequirePaths(map<SMFileVariantPathAndLogicalName, SMFile *, SMFileCompareLogicalName> &requirePaths);
-    void populateSetTarjanNodesBTargetsSMFiles(
-        const map<SMFileVariantPathAndLogicalName, SMFile *, SMFileCompareLogicalName> &requirePaths);
+    void populateRequirePaths();
+    void populateSetTarjanNodesBTargetsSMFiles();
     void populateFinalBTargets();
     static set<string> getTargetFilePathsFromVariantFile(const string &fileName);
     static set<string> getTargetFilePathsFromProjectOrPackageFile(const string &fileName, bool isPackage);

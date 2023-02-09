@@ -173,6 +173,10 @@ void from_json(const Json &j, AddressModel &am)
     }
 }
 
+TemplateDepth::TemplateDepth(unsigned long long templateDepth_) : templateDepth(templateDepth_)
+{
+}
+
 Define::Define(string name_, string value_) : name{std::move(name_)}, value{std::move(value_)}
 {
 }
@@ -269,11 +273,6 @@ string getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, con
     exit(EXIT_FAILURE);
 }
 
-ToolSet::ToolSet(TS ts_) : ts{ts_}
-{
-    // Initialize Name And Version
-}
-
 void to_json(Json &json, const ConfigType &configType)
 {
     if (configType == ConfigType::DEBUG)
@@ -298,7 +297,7 @@ void from_json(const Json &json, ConfigType &configType)
     }
 }
 
-Features::Features()
+CommonFeatures::CommonFeatures()
 {
     // TODO
     addModel = AddressModel::A_64;
@@ -313,22 +312,40 @@ Features::Features()
     }
 }
 
-void Features::initializeFromCacheFunc()
+void CommonFeatures::initializeFromCacheFunc()
+{
+}
+
+void CommonFeatures::setConfigType(ConfigType configType)
+{
+    // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
+    // variant is set runtime-debugging is not set though. Here it is set, however.
+    if (configType == ConfigType::DEBUG)
+    {
+        debugSymbols = DebugSymbols::ON;
+        runtimeDebugging = RuntimeDebugging::ON;
+    }
+    else if (configType == ConfigType::RELEASE)
+    {
+        runtimeDebugging = RuntimeDebugging::OFF;
+    }
+    else if (configType == ConfigType::PROFILE)
+    {
+        debugSymbols = DebugSymbols::ON;
+        profiling = Profiling::ON;
+    }
+}
+
+LinkerFeatures::LinkerFeatures()
+{
+}
+
+void LinkerFeatures::initializeFromCacheFunc()
 {
     configurationType = cache.configurationType;
-    if (cache.isCompilerInVSToolsArray)
-    {
-        compiler = toolsCache.vsTools[cache.selectedCompilerArrayIndex].compiler;
-        includeDirectories = toolsCache.vsTools[cache.selectedArchiverArrayIndex].includeDirectories;
-    }
-    else
-    {
-        compiler = toolsCache.compilers[cache.selectedCompilerArrayIndex];
-    }
     if (cache.isLinkerInVSToolsArray)
     {
         linker = toolsCache.vsTools[cache.selectedLinkerArrayIndex].linker;
-        libraryDirectoriesStandard = toolsCache.vsTools[cache.selectedLinkerArrayIndex].libraryDirectories;
     }
     else
     {
@@ -345,26 +362,43 @@ void Features::initializeFromCacheFunc()
     libraryType = cache.libraryType;
 }
 
-void Features::setConfigType(ConfigType configType)
+void LinkerFeatures::setConfigType(ConfigType configType)
+{
+}
+
+CompilerFeatures::CompilerFeatures()
+{
+}
+
+void CompilerFeatures::initializeFromCacheFunc()
+{
+    if (cache.isCompilerInVSToolsArray)
+    {
+        compiler = toolsCache.vsTools[cache.selectedCompilerArrayIndex].compiler;
+        includeDirectories = toolsCache.vsTools[cache.selectedArchiverArrayIndex].includeDirectories;
+    }
+    else
+    {
+        compiler = toolsCache.compilers[cache.selectedCompilerArrayIndex];
+    }
+    if (cache.isLinkerInVSToolsArray)
+    {
+        libraryDirectoriesStandard = toolsCache.vsTools[cache.selectedLinkerArrayIndex].libraryDirectories;
+    }
+}
+
+void CompilerFeatures::setConfigType(ConfigType configType)
 {
     // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
     // variant is set runtime-debugging is not set though. Here it is set, however.
     if (configType == ConfigType::DEBUG)
     {
         optimization = Optimization::OFF;
-        debugSymbols = DebugSymbols::ON;
         inlining = Inlining::OFF;
-        runtimeDebugging = RuntimeDebugging::ON;
     }
     else if (configType == ConfigType::RELEASE)
     {
         optimization = Optimization::SPEED;
         inlining = Inlining::FULL;
-        runtimeDebugging = RuntimeDebugging::OFF;
-    }
-    else if (configType == ConfigType::PROFILE)
-    {
-        profiling = Profiling::ON;
-        debugSymbols = DebugSymbols::ON;
     }
 }

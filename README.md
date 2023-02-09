@@ -10,7 +10,7 @@ steps/initializations.
 
 Use git clone --recursive to download HMake.
 
-Compile the project using CMake and Make(Please Note HMake can self-compile itself but
+updateSourceNodeBTarget the project using CMake and Make(Please Note HMake can self-compile itself but
 binaries and installers are currently not provided).
 It will produce three binaries hhelper, hbuild, UnbuiltTarget, and one static
 library hconfigure. You will use hhelper, hbuild, and hconfigure to configure
@@ -24,7 +24,7 @@ Note: If you want to use IntelliSense while writing hmake.cpp,
 either you can use UnbuiltTarget. Modify the definition of UnbuiltTarget
 in CMakeLists.txt and point towards your hmake.cpp.
 
-Compile this hmake.cpp with hconfigure library and produce the binary named configure in your buildDir.
+updateSourceNodeBTarget this hmake.cpp with hconfigure library and produce the binary named configure in your buildDir.
 
 Create cache.hmake file in your buildDir. This provides basic information such as compilerPath and linkerPath to build
 system. This file also holds cache variables(Described Later). Certain variables with the right values should be defined
@@ -169,8 +169,8 @@ So, when cross-compilation and cross-platform support will be added, this techni
    atm as it does not detect circular dependencies(circular dependencies are detected
    by hbuild though), will not configure a dependency
    of dependency, will reconfigure a target if it is a dependency of 2 targets. Another
-   shortcoming is that to specify IDD(Include Directory Dependency), CFD(Compile
-   Flag Dependency) or CDD(Compile Definition Dependency) for a module target the
+   shortcoming is that to specify IDD(Include Directory Dependency), CFD(updateSourceNodeBTarget
+   Flag Dependency) or CDD(updateSourceNodeBTarget Definition Dependency) for a module target the
    interface is similar to a source target which means you have to specify an
    extra PUBLIC or PRIVATE while defining these which is unnecessary in the case of modules
    as they can't be a dependency of another target

@@ -49,7 +49,7 @@ struct CompileCommandPrintSettings
     PathPrint sourceFile{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
     // Includes flags like /showIncludes /Fo /reference /ifcOutput /interface /internalPartition
-    bool infrastructureFlags = false;
+    bool infrastructureFlags = true;
     PathPrint ifcOutputFile{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
     PathPrint objectFile{
@@ -83,7 +83,7 @@ struct LinkCommandPrintSettings
 {
     PathPrint tool{
         .printLevel = PathPrintLevel::HALF, .depth = 0, .addQuotes = false, .isDirectory = false, .isTool = true};
-    bool infrastructureFlags = false;
+    bool infrastructureFlags = true;
     bool linkerFlags = true;
     bool linkerTransitiveFlags = true;
     PathPrint objectFiles{

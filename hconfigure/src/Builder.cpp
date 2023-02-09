@@ -12,8 +12,6 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 
 Builder::Builder()
 {
-    map<SMFileVariantPathAndLogicalName, SMFile *, SMFileCompareLogicalName> requirePaths;
-
     vector<BTarget *> bTargets;
     for (auto &[first, cTarget] : cTargets)
     {
@@ -30,7 +28,10 @@ Builder::Builder()
         bTarget->parseModuleSourceFiles(*this);
     }
     finalBTargetsSizeGoal = finalBTargets.size();
+    round = 1;
     launchThreadsAndUpdateBTargets();
+    populateRequirePaths();
+
     for (BTarget *bTarget : bTargets)
     {
         bTarget->checkForHeaderUnitsCache();
@@ -39,22 +40,21 @@ Builder::Builder()
     {
         bTarget->populateSetTarjanNodesSourceNodes(*this);
     }
-    populateRequirePaths(requirePaths);
     for (BTarget *bTarget : bTargets)
     {
         bTarget->createHeaderUnits();
     }
-    populateSetTarjanNodesBTargetsSMFiles(requirePaths);
+    populateSetTarjanNodesBTargetsSMFiles();
     populateFinalBTargets();
+    round = 0;
     launchThreadsAndUpdateBTargets();
 }
 
-void Builder::populateRequirePaths(
-    map<SMFileVariantPathAndLogicalName, SMFile *, SMFileCompareLogicalName> &requirePaths)
+void Builder::populateRequirePaths()
 {
-    for (const auto &it : moduleScopes)
+    for (auto &[moduleScope, moduleScopeData] : moduleScopes)
     {
-        for (const auto &smFileConst : it.second.smFiles)
+        for (const SMFile *smFileConst : moduleScopeData.smFiles)
         {
             auto &smFile = const_cast<SMFile &>(*smFileConst);
 
@@ -69,10 +69,7 @@ void Builder::populateRequirePaths(
                 smFile.hasProvide = true;
                 // There can be only one provides but can be multiple requires.
                 smFile.logicalName = rule.at("provides").get<Json>()[0].at("logical-name").get<string>();
-                if (auto [pos, ok] = requirePaths.emplace(
-                        SMFileVariantPathAndLogicalName(smFile.logicalName, *(smFile.target->variantFilePath)),
-                        &smFile);
-                    !ok)
+                if (auto [pos, ok] = moduleScopeData.requirePaths.emplace(smFile.logicalName, &smFile); !ok)
                 {
                     const auto &[key, val] = *pos;
                     // TODO
@@ -88,8 +85,7 @@ void Builder::populateRequirePaths(
     }
 }
 
-void Builder::populateSetTarjanNodesBTargetsSMFiles(
-    const map<SMFileVariantPathAndLogicalName, SMFile *, SMFileCompareLogicalName> &requirePaths)
+void Builder::populateSetTarjanNodesBTargetsSMFiles()
 {
     for (auto &[scopeStrPtr, moduleScope] : moduleScopes)
     {
@@ -153,7 +149,7 @@ void Builder::populateSetTarjanNodesBTargetsSMFiles(
                         print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
                               "Module Header Unit\n{}\n is neither a Standard Header Unit nor belongs to any Target "
                               "Header Unit Includes of Module Scope\n{}\n",
-                              headerUnitPath, *scopeStrPtr);
+                              headerUnitPath, scopeStrPtr->getTargetPointer());
                         exit(EXIT_FAILURE);
                     }
                     const auto &[pos1, Ok1] = moduleScope.headerUnits.emplace(ahuDirTarget, headerUnitPath);
@@ -165,7 +161,6 @@ void Builder::populateSetTarjanNodesBTargetsSMFiles(
                     if (Ok1)
                     {
                         smFileHeaderUnit.type = SM_FILE_TYPE::HEADER_UNIT;
-                        smFileHeaderUnit.resultType = ResultType::CPP_MODULE;
                         smFileHeaderUnit.standardHeaderUnit = isStandardHeaderUnit;
                         if (isApplicationHeaderUnit)
                         {
@@ -183,9 +178,8 @@ void Builder::populateSetTarjanNodesBTargetsSMFiles(
                     {
                         hasPartitionExportDependency = true;
                     }
-                    if (auto it = requirePaths.find(
-                            SMFileVariantPathAndLogicalName(requireLogicalName, *(smFile.target->variantFilePath)));
-                        it == requirePaths.end())
+                    if (auto it = moduleScope.requirePaths.find(requireLogicalName);
+                        it == moduleScope.requirePaths.end())
                     {
                         print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
                               "No File Provides This {}.\n", requireLogicalName);
@@ -218,7 +212,6 @@ void Builder::populateSetTarjanNodesBTargetsSMFiles(
             }
             smFile.target->addDependency(smFile);
             smFile.target->smFiles.emplace_back(&smFile);
-            smFile.resultType = ResultType::CPP_MODULE;
         }
     }
 }
@@ -233,11 +226,9 @@ void Builder::populateFinalBTargets()
     {
         BTarget *bTarget = TBT::topologicalSort[i];
         bTarget->indexInTopologicalSort = i;
-        if (bTarget->resultType == ResultType::LINK)
+        if (auto *target = dynamic_cast<CppSourceTarget *>(bTarget); target)
         {
-            auto &target = static_cast<CppSourceTarget &>(*bTarget);
-            auto b = target.bTargetType;
-            if (target.fileStatus != FileStatus::NEEDS_UPDATE)
+            if (target->fileStatus != FileStatus::NEEDS_UPDATE)
             {
                 int a;
                 // TODO
@@ -365,9 +356,9 @@ void Builder::updateBTargets()
             BTarget *bTarget = finalBTargets[finalBTargetsIndex];
             ++finalBTargetsIndex;
             oneAndOnlyMutex.unlock();
-            bTarget->updateBTarget();
+            bTarget->updateBTarget(round);
             printMutex.lock();
-            bTarget->printMutexLockRoutine();
+            bTarget->printMutexLockRoutine(round);
             printMutex.unlock();
             oneAndOnlyMutex.lock();
             for (BTarget *dependent : bTarget->dependents)

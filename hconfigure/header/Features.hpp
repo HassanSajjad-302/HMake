@@ -8,7 +8,8 @@
 using std::vector;
 
 // In b2 features every non-optional, non-free feature must have a value. Because hmake does not have optional features,
-// all optional features have extra enum value OFF declared here.
+// all optional features have extra enum value OFF declared here. A feature default value is given by the first value
+// listed in the feature declaration which is imitated in CompilerFeautres and LinkerFeatures.
 
 enum class Arch // Architecture
 {
@@ -49,6 +50,12 @@ struct CxxFlags : string
 
 struct LinkFlags : string
 {
+};
+
+struct TemplateDepth
+{
+    unsigned long long templateDepth;
+    TemplateDepth(unsigned long long templateDepth_);
 };
 
 struct Define
@@ -279,44 +286,6 @@ enum class Language
     OBJECTIVE_CPP,
 };
 
-// This feature value will be populated as more values are observed while converting boost libraries from b2 to hmake.
-enum class TS
-{
-    GCC,
-    MSVC,
-    CLANG,
-    DARWIN,
-    PGI,
-    SUN,
-    GCC_3_4_4,
-    GCC_4,
-    GCC_4_3_4,
-    GCC_4_4_0,
-    GCC_4_5_0,
-    GCC_4_6_0,
-    GCC_4_6_3,
-    GCC_4_7_0,
-    GCC_4_8_0,
-    GCC_5,
-    DARWIN_4,
-    DARWIN_5,
-    DARWIN_4_6_2,
-    DARWIN_4_7_0,
-    CLANG_3_0,
-    PATHSCALE,
-    INTEL,
-    VACPP,
-};
-struct ToolSet
-{
-    string name;
-    Version version;
-    TS ts;
-
-  public:
-    explicit ToolSet(TS ts_ = TS::GCC);
-};
-
 enum class ConfigType
 {
     DEBUG,
@@ -358,9 +327,16 @@ enum class UserInterface
     AUTO,
 };
 
+enum class Strip
+{
+    OFF,
+    ON,
+};
+
 enum class InstructionSet
 {
     // x86 and x86-64
+    OFF,
     native,
     i486,
     i586,
@@ -647,27 +623,71 @@ enum class DebugStore
     DATABASE,
 };
 
-struct Features
+struct CommonFeatures
 {
-    // TODO
-    //  Should be converted to node and there should be standard include directories for which timestamp is not checked.
-    set<string> includeDirectories;
-    set<string> libraryDirectoriesStandard;
-
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
     ThreadSanitizer threadSanitizer = ThreadSanitizer::OFF;
     UndefinedSanitizer undefinedSanitizer = UndefinedSanitizer::OFF;
 
     Coverage coverage = Coverage::OFF;
-
     LTO lto = LTO::OFF;
-    LTOMode ltoMode = LTOMode::FAT;
-
-    StdLib stdLib = StdLib::NATIVE;
-
     RuntimeLink runtimeLink = RuntimeLink::SHARED;
     RuntimeDebugging runtimeDebugging = RuntimeDebugging::ON;
+    TargetOS targetOs;
+    DebugSymbols debugSymbols = DebugSymbols::ON;
+    Profiling profiling = Profiling::OFF;
+    LocalVisibility localVisibility = LocalVisibility::OFF;
+
+    // Following two are initialized in constructor
+    // AddressModel and Architecture to target for.
+    Arch arch;
+    AddressModel addModel;
+
+    // Windows Specifc
+    DebugStore debugStore = DebugStore::OBJECT;
+
+    CommonFeatures();
+    void initializeFromCacheFunc();
+    void setConfigType(ConfigType configType);
+};
+
+struct LinkerFeatures
+{
+    LTOMode ltoMode = LTOMode::FAT;
+    Strip strip = Strip::OFF;
+
+    // Windows specific
+    UserInterface userInterface = UserInterface::CONSOLE;
+    InstructionSet instructionSet = InstructionSet::OFF;
+    CpuType cpuType;
+
+    ConfigType configurationType;
+    CxxSTD cxxStd = CxxSTD::V_LATEST;
+    CxxSTDDialect cxxStdDialect = CxxSTDDialect::ISO;
+    Linker linker;
+    Archiver archiver;
+    // In threading-feature.jam the default value is single, but author here prefers multi
+    Threading threading = Threading::MULTI;
+    Link link;
+    vector<const Node *> privateIncludes;
+    vector<const Node *> privateHUIncludes;
+    string privateLinkerFlags;
+    vector<Define> privateCompileDefinitions;
+    TargetType libraryType;
+    LinkerFeatures();
+    void initializeFromCacheFunc();
+    void setConfigType(ConfigType configType);
+};
+
+struct CompilerFeatures
+{
+    // TODO
+    //  Should be converted to node and there should be standard include directories for which timestamp is not checked.
+    set<string> includeDirectories;
+    set<string> libraryDirectoriesStandard;
+
+    StdLib stdLib = StdLib::NATIVE;
 
     Optimization optimization = Optimization::OFF;
     Inlining inlining = Inlining::OFF;
@@ -679,40 +699,27 @@ struct Features
     ExternCNoThrow externCNoThrow = ExternCNoThrow::OFF;
     RTTI rtti = RTTI::ON;
 
-    DebugSymbols debugSymbols = DebugSymbols::ON;
-    Profiling profiling = Profiling::OFF;
-    LocalVisibility localVisibility = LocalVisibility::OFF;
-
-    // Following two are Windows specific
-    DebugStore debugStore = DebugStore::OBJECT;
-    UserInterface userInterface = UserInterface::CONSOLE;
+    // Used only for GCC
+    TemplateDepth templateDepth{1024};
 
     // Following two are initialized in constructor
     // AddressModel and Architecture to target for.
-    Arch arch;
-    AddressModel addModel;
-    TargetOS targetOs;
-    InstructionSet instructionSet;
+    // TODO
+    // Maybe these be placed in LinkerFeatures
+    InstructionSet instructionSet = InstructionSet::OFF;
     CpuType cpuType;
 
-    ToolSet toolSet;
-
-    ConfigType configurationType;
-    CxxSTD cxxStd;
-    CxxSTDDialect cxxStdDialect;
+    CxxSTD cxxStd = CxxSTD::V_LATEST;
+    CxxSTDDialect cxxStdDialect = CxxSTDDialect::ISO;
     Compiler compiler;
-    Linker linker;
-    Archiver archiver;
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
     Link link;
     vector<const Node *> privateIncludes;
     vector<const Node *> privateHUIncludes;
     string privateCompilerFlags;
-    string privateLinkerFlags;
     vector<Define> privateCompileDefinitions;
-    TargetType libraryType;
-    Features();
+    CompilerFeatures();
     void initializeFromCacheFunc();
     void setConfigType(ConfigType configType);
 };

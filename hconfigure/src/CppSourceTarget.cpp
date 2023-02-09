@@ -7,8 +7,8 @@
 #include <regex>
 #include <utility>
 
-using std::filesystem::create_directory, std::filesystem::file_time_type, std::filesystem::recursive_directory_iterator,
-    std::ifstream, std::ofstream, std::regex, std::regex_error;
+using std::filesystem::create_directories, std::filesystem::file_time_type,
+    std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
 
 SourceDirectory::SourceDirectory(string sourceDirectory_, string regex_)
     : sourceDirectory{Node::getNodeFromString(sourceDirectory_, false)}, regex{std::move(regex_)}
@@ -32,12 +32,12 @@ bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs)
 
 void CppSourceTarget::addNodeInSourceFileDependencies(const string &str)
 {
-    auto [pos, ok] = sourceFileDependencies.emplace(this, str, ResultType::SOURCENODE);
+    auto [pos, ok] = sourceFileDependencies.emplace(this, str);
     auto &sourceNode = const_cast<SourceNode &>(*pos);
     sourceNode.presentInSource = true;
 }
 
-void CppSourceTarget::addNodeInModuleSourceFileDependencies(const std::string &str, bool angle)
+void CppSourceTarget::addNodeInModuleSourceFileDependencies(const std::string &str)
 {
     auto [pos, ok] = moduleSourceFileDependencies.emplace(this, str);
     auto &smFile = const_cast<SMFile &>(*pos);
@@ -104,40 +104,53 @@ bool CppSourceTarget::isCpuTypeG7()
               CpuType::AMD64);
 }
 
-CppSourceTarget::CppSourceTarget(string name_, const bool initializeFromCache)
-    : CTarget{std::move(name_)}, BTarget(ResultType::LINK)
+CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, const bool initializeFromCache)
+    : ModuleScope{std::move(name_)}
 {
+    compileTargetType = targetType;
     if (initializeFromCache)
     {
-        initializeFromCacheFunc();
+        CommonFeatures::initializeFromCacheFunc();
+        CompilerFeatures::initializeFromCacheFunc();
     }
 }
 
-CppSourceTarget::CppSourceTarget(string name_, LinkOrArchiveTarget &linkOrArchiveTarget, const bool initializeFromCache)
-    : CTarget{std::move(name_), linkOrArchiveTarget, false}, BTarget(ResultType::LINK),
-      linkOrArchiveTarget(&linkOrArchiveTarget)
+CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, LinkOrArchiveTarget &linkOrArchiveTarget,
+                                 const bool initializeFromCache)
+    : ModuleScope{std::move(name_), linkOrArchiveTarget, false}, linkOrArchiveTarget(&linkOrArchiveTarget)
 {
+    compileTargetType = targetType;
     if (initializeFromCache)
     {
-        initializeFromCacheFunc();
+        CommonFeatures::initializeFromCacheFunc();
+        CompilerFeatures::initializeFromCacheFunc();
     }
 }
 
-CppSourceTarget::CppSourceTarget(string name_, Variant &variant)
-    : CTarget{std::move(name_), variant}, BTarget(ResultType::LINK)
+CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, Variant &variant)
+    : ModuleScope{std::move(name_), variant}
 {
-    static_cast<Features &>(*this) = static_cast<const Features &>(variant);
+    compileTargetType = targetType;
+    static_cast<CompilerFeatures &>(*this) = static_cast<const CompilerFeatures &>(variant);
 }
 
-void CppSourceTarget::updateBTarget()
+void CppSourceTarget::updateBTarget(unsigned short round)
 {
-    pruneAndSaveBuildCache(true);
+    if (!round)
+    {
+        pruneAndSaveBuildCache(true);
+    }
 }
 
-void CppSourceTarget::printMutexLockRoutine()
+void CppSourceTarget::printMutexLockRoutine(unsigned short round)
 {
     // TODO
     //  This function not needed.
+}
+
+void CppSourceTarget::setModuleScope(ModuleScope *moduleScope_)
+{
+    moduleScope = moduleScope_;
 }
 
 void CppSourceTarget::checkForHeaderUnitsCache()
@@ -147,17 +160,17 @@ void CppSourceTarget::checkForHeaderUnitsCache()
     //  scoped-modules feature, it should use module scope, be it variantFilePaths
     //  or any module-scope
 
-    set<const string *> addressed;
+    set<const ModuleScope *> addressed;
     // TODO:
     // Should be iterating over headerUnits scope instead.
-    const auto [pos, Ok] = addressed.emplace(variantFilePath);
+    const auto [pos, Ok] = addressed.emplace(this);
     if (!Ok)
     {
         return;
     }
     // SHU system header units     AHU application header units
-    path shuCachePath = path(**pos).parent_path() / "shus/headerUnits.cache";
-    path ahuCachePath = path(**pos).parent_path() / "ahus/headerUnits.cache";
+    path shuCachePath = path(pos.operator*()->targetFileDir).parent_path() / "shus/headerUnits.cache";
+    path ahuCachePath = path(pos.operator*()->targetFileDir).parent_path() / "ahus/headerUnits.cache";
     if (exists(shuCachePath))
     {
         Json shuCacheJson;
@@ -189,20 +202,15 @@ void CppSourceTarget::checkForHeaderUnitsCache()
 
 void CppSourceTarget::createHeaderUnits()
 {
-    // TODO:
-    //  Currently using targetSet instead of variantFilePaths. With
-    //  scoped-modules feature, it should use module scope, be it variantFilePaths
-    //  or any module-scope
-
-    set<const string *> addressed;
-    const auto [pos, Ok] = addressed.emplace(variantFilePath);
+    set<const ModuleScope *> addressed;
+    const auto [pos, Ok] = addressed.emplace(moduleScope);
     if (!Ok)
     {
         return;
     }
     // SHU system header units     AHU application header units
-    path shuCachePath = path(**pos) / "shus/headerUnits.cache";
-    path ahuCachePath = path(**pos) / "ahus/headerUnits.cache";
+    path shuCachePath = moduleScope->targetFileDir + "/shus/headerUnits.cache";
+    path ahuCachePath = moduleScope->targetFileDir + "/ahus/headerUnits.cache";
     if (exists(shuCachePath))
     {
         Json shuCacheJson;
@@ -224,484 +232,501 @@ void CppSourceTarget::createHeaderUnits()
     }
 }
 
-void CppSourceTarget::setPropertiesFlagsMSVC()
+CompilerFlags CppSourceTarget::getCompilerFlags()
 {
-    // msvc.jam supports multiple tools such as assembler, compiler, mc-compiler(message-catalogue-compiler),
-    // idl-compiler(interface-definition-compiler) and manifest-tool. HMake does not support these and  only supports
-    // link.exe, lib.exe and cl.exe. While the msvc.jam also supports older VS and store and phone Windows API, HMake
-    // only supports the recent Visual Studio version and the Desktop API. Besides these limitation, msvc.jam is tried
-    // to be imitated here.
-
-    // Hassan Sajjad
-    // I don't have complete confidence about correctness of following info.
-
-    // On Line 2220, auto-detect-toolset-versions calls register-configuration. This call version.set with the version
-    // and compiler path(obtained from default-path rule). After that, register toolset registers all generators. And
-    // once msvc toolset is init, configure-relly is called that sets the setup script of previously set
-    // .version/configuration. setup-script captures all of environment-variables set when vcvarsall.bat for a
-    // configuration is run in file "msvc-setup.bat" file. This batch file run before the generator actions. This is
-    // .SETUP variable in actions.
-
-    // all variables in actions are in CAPITALS
-
-    // Line 1560
-    string defaultAssembler = EVALUATE(Arch::IA64) ? "ias" : "";
-    if (EVALUATE(Arch::X86))
+    CompilerFlags flags;
+    if (compiler.bTFamily == BTFamily::MSVC)
     {
-        defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "ml64", AddressModel::A_32, "ml -coff");
-    }
-    else if (EVALUATE(Arch::ARM))
-    {
-        defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "armasm64", AddressModel::A_32, "armasm");
-    }
-    string assemblerFlags = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx");
-    string assemblerOutputFlag = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-Fo", Arch::ARM, "-o");
-    // Line 1618
 
-    // Line 1650
-    string DOT_CC_COMPILE = "/Zm800 -nologo";
-    string DOT_ASM_COMPILE = defaultAssembler + assemblerFlags + "-nologo";
-    string DOT_ASM_OUTPUT_COMPILE = assemblerOutputFlag;
-    string DOT_LD_LINK = "/NOLOGO /INCREMENTAL:NO";
-    string DOT_LD_ARCHIVE = "lib /NOLOGO";
+        // msvc.jam supports multiple tools such as assembler, compiler, mc-compiler(message-catalogue-compiler),
+        // idl-compiler(interface-definition-compiler) and manifest-tool. HMake does not support these and  only
+        // supports link.exe, lib.exe and cl.exe. While the msvc.jam also supports older VS and store and phone Windows
+        // API, HMake only supports the recent Visual Studio version and the Desktop API. Besides these limitation,
+        // msvc.jam is tried to be imitated here.
 
-    // Line 1670
-    string OPTIONS_COMPILE = GET_FLAG_EVALUATE(LTO::ON, "/GL");
-    string LINKFLAGS_LINK = GET_FLAG_EVALUATE(LTO::ON, "/LTCG");
-    // End-Line 1682
+        // Hassan Sajjad
+        // I don't have complete confidence about correctness of following info.
 
-    // Function completed. Jumping to rule configure-version-specific.
-    // Line 444
-    // Only flags effecting latest MSVC tools (14.3) are supported.
+        // On Line 2220, auto-detect-toolset-versions calls register-configuration. This call version.set with the
+        // version and compiler path(obtained from default-path rule). After that, register toolset registers all
+        // generators. And once msvc toolset is init, configure-relly is called that sets the setup script of previously
+        // set .version/configuration. setup-script captures all of environment-variables set when vcvarsall.bat for a
+        // configuration is run in file "msvc-setup.bat" file. This batch file run before the generator actions. This is
+        // .SETUP variable in actions.
 
-    OPTIONS_COMPILE += "/Zc:forScope /Zc:wchar_t";
-    string CPP_FLAGS_COMPILE_CPP = "/wd4675";
-    OPTIONS_COMPILE += GET_FLAG_EVALUATE(Warnings::OFF, "/wd4996");
-    OPTIONS_COMPILE += "/Zc:inline";
-    OPTIONS_COMPILE += GET_FLAG_EVALUATE(OR(Optimization::SPEED, Optimization::SPACE), "/Gw");
-    CPP_FLAGS_COMPILE_CPP += "/Zc:throwingNew";
+        // all variables in actions are in CAPITALS
 
-    // Line 492
-    OPTIONS_COMPILE += GET_FLAG_EVALUATE(AddressSanitizer::ON, "/fsanitize=address /FS");
-    LINKFLAGS_LINK += GET_FLAG_EVALUATE(AddressSanitizer::ON, "-incremental\\:no");
-
-    if (EVALUATE(AddressModel::A_64))
-    {
-        // The various 64 bit runtime asan support libraries and related flags.
-        string FINDLIBS_SA_LINK =
-            GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
-                              "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64");
-        LINKFLAGS_LINK += GET_FLAG_EVALUATE(
-            AND(AddressSanitizer::ON, RuntimeLink::SHARED),
-            R"(/wholearchive\:"clang_rt.asan_dynamic-x86_64.lib /wholearchive\:"clang_rt.asan_dynamic_runtime_thunk-x86_64.lib)");
-        FINDLIBS_SA_LINK += GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
-                                              "clang_rt.asan-x86_64 clang_rt.asan_cxx-x86_64 ");
-        LINKFLAGS_LINK += GET_FLAG_EVALUATE(
-            AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
-            R"(/wholearchive\:"clang_rt.asan-x86_64.lib /wholearchive\:"clang_rt.asan_cxx-x86_64.lib")");
-        string FINDLIBS_SA_LINK_DLL =
-            GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-x86_64");
-        string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
-                                                      R"(/wholearchive\:"clang_rt.asan_dll_thunk-x86_64.lib")");
-    }
-    else if (EVALUATE(AddressModel::A_32))
-    {
-        // The various 32 bit runtime asan support libraries and related flags.
-
-        string FINDLIBS_SA_LINK =
-            GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
-                              "clang_rt.asan_dynamic-i386 clang_rt.asan_dynamic_runtime_thunk-i386");
-        LINKFLAGS_LINK += GET_FLAG_EVALUATE(
-            AND(AddressSanitizer::ON, RuntimeLink::SHARED),
-            R"(/wholearchive\:"clang_rt.asan_dynamic-i386.lib /wholearchive\:"clang_rt.asan_dynamic_runtime_thunk-i386.lib)");
-        FINDLIBS_SA_LINK += GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
-                                              "clang_rt.asan-i386 clang_rt.asan_cxx-i386 ");
-        LINKFLAGS_LINK +=
-            GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
-                              R"(/wholearchive\:"clang_rt.asan-i386.lib /wholearchive\:"clang_rt.asan_cxx-i386.lib")");
-        string FINDLIBS_SA_LINK_DLL =
-            GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386");
-        string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
-                                                      R"(/wholearchive\:"clang_rt.asan_dll_thunk-i386.lib")");
-    }
-
-    // Line 586
-    if (AND(Arch::X86, AddressModel::A_32))
-    {
-        OPTIONS_COMPILE += "/favor:blend";
-        OPTIONS_COMPILE += GET_FLAG_EVALUATE(CpuType::EM64T, "/favor:EM64T", CpuType::AMD64, "/favor:AMD64");
-    }
-    if (AND(Threading::SINGLE, RuntimeLink::STATIC))
-    {
-        OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MT", RuntimeDebugging::ON, "/MTd");
-    }
-    LINKFLAGS_LINK += GET_FLAG_EVALUATE(Arch::IA64, "/MACHINE:IA64");
-    if (EVALUATE(Arch::X86))
-    {
-        LINKFLAGS_LINK += GET_FLAG_EVALUATE(AddressModel::A_64, "/MACHINE:X64", AddressModel::A_32, "/MACHINE:X86");
-    }
-    else if (EVALUATE(Arch::ARM))
-    {
-        LINKFLAGS_LINK += GET_FLAG_EVALUATE(AddressModel::A_64, "/MACHINE:ARM64", AddressModel::A_32, "/MACHINE:ARM");
-    }
-
-    // Rule register-toolset-really on Line 1852
-    SINGLE(RuntimeLink::SHARED, Threading::MULTI);
-    // TODO
-    // debug-store and pch-source features are being added. don't know where it will be used so holding back
-
-    // TODO Line 1916 PCH Related Variables are not being set
-    string PCH_FILE_COMPILE;
-    string PCH_SOURCE_COMPILE;
-    string PCH_HEADER_COMPILE;
-
-    OPTIONS_COMPILE += GET_FLAG_EVALUATE(Optimization::SPEED, "/O2", Optimization::SPACE, "O1");
-    // TODO:
-    // Line 1927 - 1930 skipped because of cpu-type
-    if (EVALUATE(Arch::IA64))
-    {
-        OPTIONS_COMPILE += GET_FLAG_EVALUATE(CpuType::ITANIUM, "/G1", CpuType::ITANIUM2, "/G2");
-    }
-
-    // Line 1930
-    if (EVALUATE(DebugSymbols::ON))
-    {
-        OPTIONS_COMPILE += GET_FLAG_EVALUATE(DebugStore::OBJECT, "/Z7", DebugStore::DATABASE, "/Zi");
-    }
-    OPTIONS_COMPILE +=
-        GET_FLAG_EVALUATE(Optimization::OFF, "/Od", Inlining::OFF, "/Ob0", Inlining::ON, "/Ob1", Inlining::FULL, "Ob2");
-    OPTIONS_COMPILE +=
-        GET_FLAG_EVALUATE(Warnings::ON, "/W3", Warnings::OFF, "/W0",
-                          OR(Warnings::ALL, Warnings::EXTRA, Warnings::PEDANTIC), "/W4", WarningsAsErrors::ON, "/WX");
-    string CPP_FLAGS_COMPILE;
-    if (EVALUATE(ExceptionHandling::ON))
-    {
-        if (EVALUATE(AsyncExceptions::OFF))
+        // Line 1560
+        string defaultAssembler = EVALUATE(Arch::IA64) ? "ias " : "";
+        if (EVALUATE(Arch::X86))
         {
-            CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(ExternCNoThrow::OFF, "/EHs", ExternCNoThrow::ON, "/EHsc");
+            defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "ml64 ", AddressModel::A_32, "ml -coff ");
         }
-        else if (EVALUATE(AsyncExceptions::ON))
+        else if (EVALUATE(Arch::ARM))
         {
-            CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(ExternCNoThrow::OFF, "/EHa", ExternCNoThrow::ON, "EHac");
+            defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "armasm64 ", AddressModel::A_32, "armasm ");
         }
-    }
-    CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(CxxSTD::V_14, "/std:c++14", CxxSTD::V_17, "/std:c++17", CxxSTD::V_20,
-                                           "/std:c++20", CxxSTD::V_LATEST, "/std:c++latest");
-    CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(RTTI::ON, "/GR", RTTI::OFF, "/GR-");
-    if (EVALUATE(RuntimeLink::SHARED))
-    {
-        OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MD", RuntimeDebugging::ON, "/MDd");
-    }
-    else if (AND(RuntimeLink::STATIC, Threading::MULTI))
-    {
-        OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MT", RuntimeDebugging::ON, "/MTd");
-    }
-    string PDB_CFLAG = GET_FLAG_EVALUATE(AND(DebugSymbols::ON, DebugStore::DATABASE), "/Fd");
+        string assemblerFlags = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
+        string assemblerOutputFlag = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
+        // Line 1618
 
-    // TODO// Line 1971
-    //  There are variables UNDEFS and FORCE_INCLUDES
+        // Line 1650
+        flags.DOT_CC_COMPILE += "/Zm800 -nologo ";
+        flags.DOT_ASM_COMPILE += defaultAssembler + assemblerFlags + "-nologo ";
+        flags.DOT_ASM_OUTPUT_COMPILE += assemblerOutputFlag;
+        flags.DOT_LD_ARCHIVE += "lib /NOLOGO ";
 
-    string ASMFLAGS_ASM;
-    if (EVALUATE(Arch::X86))
-    {
-        ASMFLAGS_ASM = GET_FLAG_EVALUATE(Warnings::ON, "/W3", Warnings::OFF, "/W0", Warnings::ALL, "/W4",
-                                         WarningsAsErrors::ON, "/WX");
-    }
+        // Line 1670
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(LTO::ON, "/GL ");
+        // End-Line 1682
 
-    string PDB_LINKFLAG;
-    string LINKFLAGS_MSVC;
-    if (EVALUATE(DebugSymbols::ON))
-    {
-        PDB_LINKFLAG += GET_FLAG_EVALUATE(DebugStore::DATABASE, "/PDB:");
-        LINKFLAGS_LINK += "/DEBUG ";
-        LINKFLAGS_MSVC += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/OPT:REF,ICF ");
-    }
-    LINKFLAGS_MSVC += GET_FLAG_EVALUATE(
-        UserInterface::CONSOLE, "/subsystem:console", UserInterface::GUI, "/subsystem:windows", UserInterface::WINCE,
-        "/subsystem:windowsce", UserInterface::NATIVE, "/subsystem:native", UserInterface::AUTO, "/subsystem:posix");
+        // Function completed. Jumping to rule configure-version-specific.
+        // Line 444
+        // Only flags effecting latest MSVC tools (14.3) are supported.
 
-    // Line 1988
-    //  Declare Flags for linking.
-}
+        flags.OPTIONS_COMPILE += "/Zc:forScope /Zc:wchar_t ";
+        flags.CPP_FLAGS_COMPILE_CPP = "/wd4675 ";
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Warnings::OFF, "/wd4996 ");
+        flags.OPTIONS_COMPILE += "/Zc:inline ";
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(OR(Optimization::SPEED, Optimization::SPACE), "/Gw ");
+        flags.CPP_FLAGS_COMPILE_CPP += "/Zc:throwingNew ";
 
-void CppSourceTarget::setPropertiesFlagsGCC()
-{
-    setTargetForAndOr();
-    // TODO:
-    //-Wl and --start-group options are needed because gcc command-line is used. But the HMake approach has been to
-    // differentiate in compiler and linker
-    //  Notes
-    //   For Windows NT, we use a different JAMSHELL
-    //   Currently, I ain't caring for the propagated properties. These properties are only being
-    //   assigned to the parent.
-    //   TODO s
-    //   262 Be caustious of this rc-type. It has something to do with Windows resource compiler
-    //   which I don't know
-    //   TODO: flavor is being assigned based on the -dumpmachine argument to the gcc command. But this
-    //    is not yet catered here.
-    //
+        // Line 492
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(AddressSanitizer::ON, "/fsanitize=address /FS ");
 
-    // Calls to toolset.flags are being copied.
-    // OPTIONS variable is being updated for rule gcc.compile and gcc.link action.
-    string compilerFlags;
-    string linkerFlags;
-    string compilerAndLinkerFlags;
-    // FINDLIBS-SA variable is being updated gcc.link rule.
-    string findLibsSA;
-    // OPTIONS variable is being updated for gcc.compile.c++ rule actions.
-    string cppCompilerFlags;
-    // DEFINES variable is being updated for gcc.compile.c++ rule actions.
-    string cppDefineFlags;
-    // OPTIONS variable is being updated for rule gcc.compile.c++ and gcc.link action.
-    string cppCompilerAndLinkerFlags;
-    // .IMPLIB-COMMAND variable is being updated for rule gcc.link.DLL action.
-    string implibCommand;
-
-    auto isTargetBSD = [&]() { return OR(TargetOS::BSD, TargetOS::FREEBSD, TargetOS::NETBSD, TargetOS::NETBSD); };
-    {
-        // -fPIC
-        if (cTargetType == TargetType::LIBRARY_STATIC || cTargetType == TargetType::LIBRARY_SHARED)
+        if (EVALUATE(AddressModel::A_64))
         {
-            if (targetOs != TargetOS::WINDOWS || targetOs != TargetOS::CYGWIN)
+            // The various 64 bit runtime asan support libraries and related flags.
+            string FINDLIBS_SA_LINK =
+                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                                  "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64 ");
+            FINDLIBS_SA_LINK +=
+                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                                  "clang_rt.asan-x86_64 clang_rt.asan_cxx-x86_64 ");
+            string FINDLIBS_SA_LINK_DLL =
+                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-x86_64 ");
+            string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+                                                          R"(/wholearchive\:"clang_rt.asan_dll_thunk-x86_64.lib ")");
+        }
+        else if (EVALUATE(AddressModel::A_32))
+        {
+            // The various 32 bit runtime asan support libraries and related flags.
+
+            string FINDLIBS_SA_LINK =
+                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                                  "clang_rt.asan_dynamic-i386 clang_rt.asan_dynamic_runtime_thunk-i386 ");
+            FINDLIBS_SA_LINK +=
+                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                                  "clang_rt.asan-i386 clang_rt.asan_cxx-i386 ");
+            string FINDLIBS_SA_LINK_DLL =
+                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386 ");
+            string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+                                                          R"(/wholearchive\:"clang_rt.asan_dll_thunk-i386.lib ")");
+        }
+
+        // Line 586
+        if (AND(Arch::X86, AddressModel::A_32))
+        {
+            flags.OPTIONS_COMPILE += "/favor:blend ";
+            flags.OPTIONS_COMPILE +=
+                GET_FLAG_EVALUATE(CpuType::EM64T, "/favor:EM64T ", CpuType::AMD64, "/favor:AMD64 ");
+        }
+        if (AND(Threading::SINGLE, RuntimeLink::STATIC))
+        {
+            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MT ", RuntimeDebugging::ON, "/MTd ");
+        }
+
+        // Rule register-toolset-really on Line 1852
+        SINGLE(RuntimeLink::SHARED, Threading::MULTI);
+        // TODO
+        // debug-store and pch-source features are being added. don't know where it will be used so holding back
+
+        // TODO Line 1916 PCH Related Variables are not being set
+
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Optimization::SPEED, "/O2 ", Optimization::SPACE, "O1 ");
+        // TODO:
+        // Line 1927 - 1930 skipped because of cpu-type
+        if (EVALUATE(Arch::IA64))
+        {
+            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(CpuType::ITANIUM, "/G1 ", CpuType::ITANIUM2, "/G2 ");
+        }
+
+        // Line 1930
+        if (EVALUATE(DebugSymbols::ON))
+        {
+            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(DebugStore::OBJECT, "/Z7 ", DebugStore::DATABASE, "/Zi ");
+        }
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Optimization::OFF, "/Od ", Inlining::OFF, "/Ob0 ", Inlining::ON,
+                                                   "/Ob1 ", Inlining::FULL, "Ob2 ");
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Warnings::ON, "/W3 ", Warnings::OFF, "/W0 ",
+                                                   OR(Warnings::ALL, Warnings::EXTRA, Warnings::PEDANTIC), "/W4 ",
+                                                   WarningsAsErrors::ON, "/WX ");
+        if (EVALUATE(ExceptionHandling::ON))
+        {
+            if (EVALUATE(AsyncExceptions::OFF))
             {
+                flags.CPP_FLAGS_COMPILE +=
+                    GET_FLAG_EVALUATE(ExternCNoThrow::OFF, "/EHs ", ExternCNoThrow::ON, "/EHsc ");
+            }
+            else if (EVALUATE(AsyncExceptions::ON))
+            {
+                flags.CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(ExternCNoThrow::OFF, "/EHa ", ExternCNoThrow::ON, "EHac ");
             }
         }
-    }
-    {
-        // Handle address-model
-        if (targetOs == TargetOS::AIX && addModel == AddressModel::A_32)
+        flags.CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(CxxSTD::V_14, "/std:c++14 ", CxxSTD::V_17, "/std:c++17 ",
+                                                     CxxSTD::V_20, "/std:c++20 ", CxxSTD::V_LATEST, "/std:c++latest ");
+        flags.CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(RTTI::ON, "/GR ", RTTI::OFF, "/GR- ");
+        if (EVALUATE(RuntimeLink::SHARED))
         {
-            compilerAndLinkerFlags += "-maix32";
+            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MD ", RuntimeDebugging::ON, "/MDd ");
         }
-        if (targetOs == TargetOS::AIX && addModel == AddressModel::A_64)
+        else if (AND(RuntimeLink::STATIC, Threading::MULTI))
         {
-            compilerAndLinkerFlags += "-maix64";
+            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MT ", RuntimeDebugging::ON, "/MTd ");
         }
-        if (targetOs == TargetOS::HPUX && addModel == AddressModel::A_32)
+
+        flags.PDB_CFLAG += GET_FLAG_EVALUATE(AND(DebugSymbols::ON, DebugStore::DATABASE), "/Fd ");
+
+        // TODO// Line 1971
+        //  There are variables UNDEFS and FORCE_INCLUDES
+
+        if (EVALUATE(Arch::X86))
         {
-            compilerAndLinkerFlags += "-milp32";
-        }
-        if (targetOs == TargetOS::HPUX && addModel == AddressModel::A_64)
-        {
-            compilerAndLinkerFlags += "-milp64";
-        }
-    }
-    {
-        // Handle threading
-        if (EVALUATE(Threading::MULTI))
-        {
-            if (OR(TargetOS::WINDOWS, TargetOS::CYGWIN, TargetOS::SOLARIS))
-            {
-                compilerAndLinkerFlags += "-mthreads";
-            }
-            else if (targetOs == TargetOS::QNX || isTargetBSD())
-            {
-                compilerAndLinkerFlags += "-pthread";
-            }
-            else if (targetOs == TargetOS::SOLARIS)
-            {
-                compilerAndLinkerFlags += "-pthreads";
-                findLibsSA += "rt";
-            }
-            else if (!OR(TargetOS::ANDROID, TargetOS::HAIKU, TargetOS::SGI, TargetOS::DARWIN, TargetOS::VXWORKS,
-                         TargetOS::IPHONE, TargetOS::APPLETV))
-            {
-                compilerAndLinkerFlags += "-pthread";
-                findLibsSA += "rt";
-            }
+            flags.ASMFLAGS_ASM = GET_FLAG_EVALUATE(Warnings::ON, "/W3 ", Warnings::OFF, "/W0 ", Warnings::ALL, "/W4 ",
+                                                   WarningsAsErrors::ON, "/WX ");
         }
     }
+    else if (compiler.bTFamily == BTFamily::GCC)
     {
-        CxxSTDDialect dCxxStdDialects = CxxSTDDialect::MS;
-        auto setCppStdAndDialectCompilerAndLinkerFlags = [&](CxxSTD cxxStdLocal) {
-            cppCompilerAndLinkerFlags += cxxStdDialect == CxxSTDDialect::GNU ? "-std=gnu++" : "-std=c++";
-            CxxSTD temp = cxxStd;
-            const_cast<CxxSTD &>(cxxStd) = cxxStdLocal;
-            cppCompilerAndLinkerFlags += GET_FLAG_EVALUATE(
-                CxxSTD::V_98, "98", CxxSTD::V_03, "03", CxxSTD::V_0x, "0x", CxxSTD::V_11, "11", CxxSTD::V_1y, "1y",
-                CxxSTD::V_14, "14", CxxSTD::V_1z, "1z", CxxSTD::V_17, "17", CxxSTD::V_2a, "2a", CxxSTD::V_20, "20",
-                CxxSTD::V_2b, "2b", CxxSTD::V_23, "23", CxxSTD::V_2c, "2c", CxxSTD::V_26, "26");
-            const_cast<CxxSTD &>(cxxStd) = temp;
+        // TODO:
+        //-Wl and --start-group options are needed because gcc command-line is used. But the HMake approach has been to
+        // differentiate in compiler and linker
+        //  Notes
+        //   For Windows NT, we use a different JAMSHELL
+        //   Currently, I ain't caring for the propagated properties. These properties are only being
+        //   assigned to the parent.
+        //   TODO s
+        //   262 Be caustious of this rc-type. It has something to do with Windows resource compiler
+        //   which I don't know
+        //   TODO: flavor is being assigned based on the -dumpmachine argument to the gcc command. But this
+        //    is not yet catered here.
+        //
+
+        auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const string &str) { flags.OPTIONS_COMPILE += str; };
+        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const string &str) {
+            flags.OPTIONS_COMPILE_CPP += str;
         };
 
-        if (EVALUATE(CxxSTD::V_LATEST))
+        // FINDLIBS-SA variable is being updated gcc.link rule.
+        string findLibsSA;
+
+        auto isTargetBSD = [&]() { return OR(TargetOS::BSD, TargetOS::FREEBSD, TargetOS::NETBSD, TargetOS::NETBSD); };
         {
-            // Rule at Line 429
-            /*            if (toolSet.version >= Version{10})
-                        {
-                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_20);
-                        }
-                        else if (toolSet.version >= Version{8})
-                        {
-                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_2a);
-                        }
-                        else if (toolSet.version >= Version{6})
-                        {
-                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_17);
-                        }
-                        else if (toolSet.version >= Version{5})
-                        {
-                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_1z);
-                        }
-                        else if (toolSet.version >= Version{4, 9})
-                        {
-                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_14);
-                        }
-                        else if (toolSet.version >= Version{4, 8})
-                        {
-                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_1y);
-                        }
-                        else if (toolSet.version >= Version{4, 7})
-                        {
-                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_11);
-                        }
-                        else if (toolSet.version >= Version{3, 3})
-                        {
-                            setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_98);
-                        }*/
-        }
-        else
-        {
-            setCppStdAndDialectCompilerAndLinkerFlags(cxxStd);
-        }
-    }
-    // From line 423 to line 625 as no library is using pch or obj
-
-    // General options, link optimizations
-
-    compilerFlags += GET_FLAG_EVALUATE(Optimization::OFF, "-O0", Optimization::SPEED, "-O3", Optimization::SPACE, "-Os",
-                                       Optimization::MINIMAL, "-O1", Optimization::DEBUG, "-Og");
-
-    compilerFlags += GET_FLAG_EVALUATE(Inlining::OFF, "-fno-inline", Inlining::ON, "-Wno-inline", Inlining::FULL,
-                                       "-finline-functions -Wno-inline");
-
-    compilerFlags += GET_FLAG_EVALUATE(Warnings::OFF, "-w", Warnings::ON, "-Wall", Warnings::ALL, "-Wall",
-                                       Warnings::EXTRA, "-Wall -Wextra", Warnings::PEDANTIC, "-Wall -Wextra -pedantic");
-    compilerFlags += GET_FLAG_EVALUATE(WarningsAsErrors::ON, "-Werror");
-
-    compilerFlags += GET_FLAG_EVALUATE(DebugSymbols::ON, "-g");
-    compilerFlags += GET_FLAG_EVALUATE(Profiling::ON, "-pg");
-
-    compilerFlags += GET_FLAG_EVALUATE(LocalVisibility::HIDDEN, "-fvisibility=hidden");
-    cppCompilerFlags += GET_FLAG_EVALUATE(LocalVisibility::HIDDEN, "-fvisibility-inlines-hidden");
-    if (!EVALUATE(TargetOS::DARWIN))
-    {
-        compilerFlags += GET_FLAG_EVALUATE(LocalVisibility::PROTECTED, "-fvisibility=protected");
-    }
-    compilerFlags += GET_FLAG_EVALUATE(LocalVisibility::GLOBAL, "-fvisibility=default");
-
-    cppCompilerFlags += GET_FLAG_EVALUATE(ExceptionHandling::OFF, "-fno-exceptions");
-    cppCompilerFlags += GET_FLAG_EVALUATE(RTTI::OFF, "-fno-rtti");
-
-    // Sanitizers
-    string sanitizerFlags;
-    sanitizerFlags += GET_FLAG_EVALUATE(AddressSanitizer::ON, "-fsanitize=address -fno-omit-frame-pointer",
-                                        AddressSanitizer::NORECOVER,
-                                        "-fsanitize=address -fno-sanitize-recover=address -fno-omit-frame-pointer");
-    sanitizerFlags +=
-        GET_FLAG_EVALUATE(LeakSanitizer::ON, "-fsanitize=leak -fno-omit-frame-pointer", LeakSanitizer::NORECOVER,
-                          "-fsanitize=leak -fno-sanitize-recover=leak -fno-omit-frame-pointer");
-    sanitizerFlags +=
-        GET_FLAG_EVALUATE(ThreadSanitizer::ON, "-fsanitize=thread -fno-omit-frame-pointer", ThreadSanitizer::NORECOVER,
-                          "-fsanitize=thread -fno-sanitize-recover=thread -fno-omit-frame-pointer");
-    sanitizerFlags += GET_FLAG_EVALUATE(UndefinedSanitizer::ON, "-fsanitize=undefined -fno-omit-frame-pointer",
-                                        UndefinedSanitizer::NORECOVER,
-                                        "-fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer");
-    sanitizerFlags += GET_FLAG_EVALUATE(Coverage::ON, "--coverage");
-
-    cppCompilerFlags += sanitizerFlags;
-    // I don't understand the following comment at line 667:
-    // # configure Dinkum STL to match compiler options
-    if (EVALUATE(TargetOS::VXWORKS))
-    {
-        cppDefineFlags += GET_FLAG_EVALUATE(RTTI::OFF, "_NO_RTTI");
-        cppDefineFlags += GET_FLAG_EVALUATE(ExceptionHandling::OFF, "_NO_EX=1");
-    }
-
-    // LTO
-    // compilerAndLinkerFlags += GET_FLAG_EVALUATE()
-    if (EVALUATE(LTO::ON))
-    {
-        compilerAndLinkerFlags += GET_FLAG_EVALUATE(LTOMode::FULL, "-flto");
-        compilerFlags += GET_FLAG_EVALUATE(LTOMode::FAT, "-flto -ffat-lto-objects");
-        linkerFlags += GET_FLAG_EVALUATE(LTOMode::FAT, "-flto");
-    }
-
-    // ABI selection
-    cppDefineFlags +=
-        GET_FLAG_EVALUATE(StdLib::GNU, "_GLIBCXX_USE_CXX11_ABI=0", StdLib::GNU11, "_GLIBCXX_USE_CXX11_ABI=1");
-
-    {
-        bool noStaticLink = true;
-        if (OR(TargetOS::WINDOWS, TargetOS::VMS))
-        {
-            noStaticLink = false;
-        }
-        if (noStaticLink && EVALUATE(RuntimeLink::STATIC))
-        {
-            if (EVALUATE(Link::SHARED))
+            // -fPIC
+            if (compileTargetType == TargetType::LIBRARY_STATIC || compileTargetType == TargetType::LIBRARY_SHARED)
             {
-                print("WARNING: On gcc, DLLs can not be built with <runtime-link>static\n");
+                if (OR(TargetOS::WINDOWS, TargetOS::CYGWIN))
+                {
+                }
+            }
+        }
+        {
+            // Handle address-model
+            if (AND(TargetOS::AIX, AddressModel::A_32))
+            {
+                addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-maix32 ");
+            }
+            if (AND(TargetOS::AIX, AddressModel::A_64))
+            {
+                addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-maix64 ");
+            }
+            if (AND(TargetOS::HPUX, AddressModel::A_32))
+            {
+                addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-milp32 ");
+            }
+            if (AND(TargetOS::HPUX, AddressModel::A_64))
+            {
+                addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-milp64 ");
+            }
+        }
+        {
+            // Handle threading
+            if (EVALUATE(Threading::MULTI))
+            {
+                if (OR(TargetOS::WINDOWS, TargetOS::CYGWIN, TargetOS::SOLARIS))
+                {
+                    addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-mthreads ");
+                }
+                else if (OR(TargetOS::QNX, isTargetBSD()))
+                {
+                    addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-pthread ");
+                }
+                else if (EVALUATE(TargetOS::SOLARIS))
+                {
+                    addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-pthreads ");
+                    findLibsSA += "rt";
+                }
+                else if (!OR(TargetOS::ANDROID, TargetOS::HAIKU, TargetOS::SGI, TargetOS::DARWIN, TargetOS::VXWORKS,
+                             TargetOS::IPHONE, TargetOS::APPLETV))
+                {
+                    addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-pthread ");
+                    findLibsSA += "rt";
+                }
+            }
+        }
+        {
+            auto setCppStdAndDialectCompilerAndLinkerFlags = [&](CxxSTD cxxStdLocal) {
+                addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(cxxStdDialect == CxxSTDDialect::GNU ? "-std=gnu++"
+                                                                                                  : "-std=c++");
+                CxxSTD temp = cxxStd;
+                const_cast<CxxSTD &>(cxxStd) = cxxStdLocal;
+                addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(
+                    GET_FLAG_EVALUATE(CxxSTD::V_98, "98 ", CxxSTD::V_03, "03 ", CxxSTD::V_0x, "0x ", CxxSTD::V_11,
+                                      "11 ", CxxSTD::V_1y, "1y ", CxxSTD::V_14, "14 ", CxxSTD::V_1z, "1z ",
+                                      CxxSTD::V_17, "17 ", CxxSTD::V_2a, "2a ", CxxSTD::V_20, "20 ", CxxSTD::V_2b,
+                                      "2b ", CxxSTD::V_23, "23 ", CxxSTD::V_2c, "2c ", CxxSTD::V_26, "26 "));
+                const_cast<CxxSTD &>(cxxStd) = temp;
+            };
+
+            if (EVALUATE(CxxSTD::V_LATEST))
+            {
+                // Rule at Line 429
+                if (compiler.bTVersion >= Version{10})
+                {
+                    setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_20);
+                }
+                else if (compiler.bTVersion >= Version{8})
+                {
+                    setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_2a);
+                }
+                else if (compiler.bTVersion >= Version{6})
+                {
+                    setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_17);
+                }
+                else if (compiler.bTVersion >= Version{5})
+                {
+                    setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_1z);
+                }
+                else if (compiler.bTVersion >= Version{4, 9})
+                {
+                    setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_14);
+                }
+                else if (compiler.bTVersion >= Version{4, 8})
+                {
+                    setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_1y);
+                }
+                else if (compiler.bTVersion >= Version{4, 7})
+                {
+                    setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_11);
+                }
+                else if (compiler.bTVersion >= Version{3, 3})
+                {
+                    setCppStdAndDialectCompilerAndLinkerFlags(CxxSTD::V_98);
+                }
             }
             else
             {
-                // TODO:  Line 718
-                //  Implement the remaining rule
+                setCppStdAndDialectCompilerAndLinkerFlags(cxxStd);
             }
         }
+
+        flags.LANG += "-x c++ ";
+        // From line 512 to line 625 as no library is using pch or obj
+
+        // General options, link optimizations
+
+        flags.OPTIONS_COMPILE +=
+            GET_FLAG_EVALUATE(Optimization::OFF, "-O0 ", Optimization::SPEED, "-O3 ", Optimization::SPACE, "-Os ",
+                              Optimization::MINIMAL, "-O1 ", Optimization::DEBUG, "-Og ");
+
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Inlining::OFF, "-fno-inline ", Inlining::ON, "-Wno-inline ",
+                                                   Inlining::FULL, "-finline-functions -Wno-inline ");
+
+        flags.OPTIONS_COMPILE +=
+            GET_FLAG_EVALUATE(Warnings::OFF, "-w ", Warnings::ON, "-Wall ", Warnings::ALL, "-Wall ", Warnings::EXTRA,
+                              "-Wall -Wextra ", Warnings::PEDANTIC, "-Wall -Wextra -pedantic ");
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(WarningsAsErrors::ON, "-Werror ");
+
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(DebugSymbols::ON, "-g ");
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Profiling::ON, "-pg ");
+
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(LocalVisibility::HIDDEN, "-fvisibility=hidden ");
+        flags.OPTIONS_COMPILE_CPP += GET_FLAG_EVALUATE(LocalVisibility::HIDDEN, "-fvisibility-inlines-hidden ");
+        if (!EVALUATE(TargetOS::DARWIN))
+        {
+            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(LocalVisibility::PROTECTED, "-fvisibility=protected ");
+        }
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(LocalVisibility::GLOBAL, "-fvisibility=default ");
+
+        flags.OPTIONS_COMPILE_CPP += GET_FLAG_EVALUATE(ExceptionHandling::OFF, "-fno-exceptions ");
+        flags.OPTIONS_COMPILE_CPP += GET_FLAG_EVALUATE(RTTI::OFF, "-fno-rtti ");
+
+        // Sanitizers
+        string sanitizerFlags;
+        sanitizerFlags += GET_FLAG_EVALUATE(
+            AddressSanitizer::ON, "-fsanitize=address -fno-omit-frame-pointer ", AddressSanitizer::NORECOVER,
+            "-fsanitize=address -fno-sanitize-recover=address -fno-omit-frame-pointer ");
+        sanitizerFlags +=
+            GET_FLAG_EVALUATE(LeakSanitizer::ON, "-fsanitize=leak -fno-omit-frame-pointer ", LeakSanitizer::NORECOVER,
+                              "-fsanitize=leak -fno-sanitize-recover=leak -fno-omit-frame-pointer ");
+        sanitizerFlags += GET_FLAG_EVALUATE(ThreadSanitizer::ON, "-fsanitize=thread -fno-omit-frame-pointer ",
+                                            ThreadSanitizer::NORECOVER,
+                                            "-fsanitize=thread -fno-sanitize-recover=thread -fno-omit-frame-pointer ");
+        sanitizerFlags += GET_FLAG_EVALUATE(
+            UndefinedSanitizer::ON, "-fsanitize=undefined -fno-omit-frame-pointer ", UndefinedSanitizer::NORECOVER,
+            "-fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer ");
+        sanitizerFlags += GET_FLAG_EVALUATE(Coverage::ON, "--coverage ");
+
+        flags.OPTIONS_COMPILE_CPP += sanitizerFlags;
+
+        if (EVALUATE(TargetOS::VXWORKS))
+        {
+            flags.DEFINES_COMPILE_CPP += GET_FLAG_EVALUATE(RTTI::OFF, "_NO_RTTI ");
+            flags.DEFINES_COMPILE_CPP += GET_FLAG_EVALUATE(ExceptionHandling::OFF, "_NO_EX=1 ");
+        }
+
+        // LTO
+        if (EVALUATE(LTO::ON))
+        {
+            flags.OPTIONS_COMPILE +=
+                GET_FLAG_EVALUATE(LTOMode::FULL, "-flto ", LTOMode::FAT, "-flto -ffat-lto-objects ");
+        }
+
+        // ABI selection
+        flags.DEFINES_COMPILE_CPP +=
+            GET_FLAG_EVALUATE(StdLib::GNU, "_GLIBCXX_USE_CXX11_ABI=0 ", StdLib::GNU11, "_GLIBCXX_USE_CXX11_ABI=1 ");
+
+        {
+            bool noStaticLink = true;
+            if (OR(TargetOS::WINDOWS, TargetOS::VMS))
+            {
+                noStaticLink = false;
+            }
+            if (noStaticLink && EVALUATE(RuntimeLink::STATIC))
+            {
+                if (EVALUATE(Link::SHARED))
+                {
+                    print("WARNING: On gcc, DLLs can not be built with <runtime-link>static\n ");
+                }
+                else
+                {
+                    // TODO:  Line 718
+                    //  Implement the remaining rule
+                }
+            }
+        }
+
+        string str = GET_FLAG_EVALUATE(
+            AND(Arch::X86, InstructionSet::native), "-march=native ", AND(Arch::X86, InstructionSet::i486),
+            "-march=i486 ", AND(Arch::X86, InstructionSet::i586), "-march=i586 ", AND(Arch::X86, InstructionSet::i686),
+            "-march=i686 ", AND(Arch::X86, InstructionSet::pentium), "-march=pentium ",
+            AND(Arch::X86, InstructionSet::pentium_mmx), "-march=pentium-mmx ",
+            AND(Arch::X86, InstructionSet::pentiumpro), "-march=pentiumpro ", AND(Arch::X86, InstructionSet::pentium2),
+            "-march=pentium2 ", AND(Arch::X86, InstructionSet::pentium3), "-march=pentium3 ",
+            AND(Arch::X86, InstructionSet::pentium3m), "-march=pentium3m ", AND(Arch::X86, InstructionSet::pentium_m),
+            "-march=pentium-m ", AND(Arch::X86, InstructionSet::pentium4), "-march=pentium4 ",
+            AND(Arch::X86, InstructionSet::pentium4m), "-march=pentium4m ", AND(Arch::X86, InstructionSet::prescott),
+            "-march=prescott ", AND(Arch::X86, InstructionSet::nocona), "-march=nocona ",
+            AND(Arch::X86, InstructionSet::core2), "-march=core2 ", AND(Arch::X86, InstructionSet::conroe),
+            "-march=core2 ", AND(Arch::X86, InstructionSet::conroe_xe), "-march=core2 ",
+            AND(Arch::X86, InstructionSet::conroe_l), "-march=core2 ", AND(Arch::X86, InstructionSet::allendale),
+            "-march=core2 ", AND(Arch::X86, InstructionSet::wolfdale), "-march=core2 -msse4.1 ",
+            AND(Arch::X86, InstructionSet::merom), "-march=core2 ", AND(Arch::X86, InstructionSet::merom_xe),
+            "-march=core2 ", AND(Arch::X86, InstructionSet::kentsfield), "-march=core2 ",
+            AND(Arch::X86, InstructionSet::kentsfield_xe), "-march=core2 ", AND(Arch::X86, InstructionSet::yorksfield),
+            "-march=core2 ", AND(Arch::X86, InstructionSet::penryn), "-march=core2 ",
+            AND(Arch::X86, InstructionSet::corei7), "-march=corei7 ", AND(Arch::X86, InstructionSet::nehalem),
+            "-march=corei7 ", AND(Arch::X86, InstructionSet::corei7_avx), "-march=corei7-avx ",
+            AND(Arch::X86, InstructionSet::sandy_bridge), "-march=corei7-avx ",
+            AND(Arch::X86, InstructionSet::core_avx_i), "-march=core-avx-i ",
+            AND(Arch::X86, InstructionSet::ivy_bridge), "-march=core-avx-i ", AND(Arch::X86, InstructionSet::haswell),
+            "-march=core-avx-i -mavx2 -mfma -mbmi -mbmi2 -mlzcnt ", AND(Arch::X86, InstructionSet::broadwell),
+            "-march=broadwell ", AND(Arch::X86, InstructionSet::skylake), "-march=skylake ",
+            AND(Arch::X86, InstructionSet::skylake_avx512), "-march=skylake-avx512 ",
+            AND(Arch::X86, InstructionSet::cannonlake), "-march=skylake-avx512 -mavx512vbmi -mavx512ifma -msha ",
+            AND(Arch::X86, InstructionSet::icelake_client), "-march=icelake-client ",
+            AND(Arch::X86, InstructionSet::icelake_server), "-march=icelake-server ",
+            AND(Arch::X86, InstructionSet::cascadelake), "-march=skylake-avx512 -mavx512vnni ",
+            AND(Arch::X86, InstructionSet::cooperlake), "-march=cooperlake ", AND(Arch::X86, InstructionSet::tigerlake),
+            "-march=tigerlake ", AND(Arch::X86, InstructionSet::rocketlake), "-march=rocketlake ",
+            AND(Arch::X86, InstructionSet::alderlake), "-march=alderlake ",
+            AND(Arch::X86, InstructionSet::sapphirerapids), "-march=sapphirerapids ",
+            AND(Arch::X86, InstructionSet::k6), "-march=k6 ", AND(Arch::X86, InstructionSet::k6_2), "-march=k6-2 ",
+            AND(Arch::X86, InstructionSet::k6_3), "-march=k6-3 ", AND(Arch::X86, InstructionSet::athlon),
+            "-march=athlon ", AND(Arch::X86, InstructionSet::athlon_tbird), "-march=athlon-tbird ",
+            AND(Arch::X86, InstructionSet::athlon_4), "-march=athlon-4 ", AND(Arch::X86, InstructionSet::athlon_xp),
+            "-march=athlon-xp ", AND(Arch::X86, InstructionSet::athlon_mp), "-march=athlon-mp ",
+            AND(Arch::X86, InstructionSet::k8), "-march=k8 ", AND(Arch::X86, InstructionSet::opteron),
+            "-march=opteron ", AND(Arch::X86, InstructionSet::athlon64), "-march=athlon64 ",
+            AND(Arch::X86, InstructionSet::athlon_fx), "-march=athlon-fx ", AND(Arch::X86, InstructionSet::k8_sse3),
+            "-march=k8-sse3 ", AND(Arch::X86, InstructionSet::opteron_sse3), "-march=opteron-sse3 ",
+            AND(Arch::X86, InstructionSet::athlon64_sse3), "-march=athlon64-sse3 ",
+            AND(Arch::X86, InstructionSet::amdfam10), "-march=amdfam10 ", AND(Arch::X86, InstructionSet::barcelona),
+            "-march=barcelona ", AND(Arch::X86, InstructionSet::bdver1), "-march=bdver1 ",
+            AND(Arch::X86, InstructionSet::bdver2), "-march=bdver2 ", AND(Arch::X86, InstructionSet::bdver3),
+            "-march=bdver3 ", AND(Arch::X86, InstructionSet::bdver4), "-march=bdver4 ",
+            AND(Arch::X86, InstructionSet::btver1), "-march=btver1 ", AND(Arch::X86, InstructionSet::btver2),
+            "-march=btver2 ", AND(Arch::X86, InstructionSet::znver1), "-march=znver1 ",
+            AND(Arch::X86, InstructionSet::znver2), "-march=znver2 ", AND(Arch::X86, InstructionSet::znver3),
+            "-march=znver3 ", AND(Arch::X86, InstructionSet::winchip_c6), "-march=winchip-c6 ",
+            AND(Arch::X86, InstructionSet::winchip2), "-march=winchip2 ", AND(Arch::X86, InstructionSet::c3),
+            "-march=c3 ", AND(Arch::X86, InstructionSet::c3_2), "-march=c3-2 ", AND(Arch::X86, InstructionSet::c7),
+            "-march=c7 ", AND(Arch::X86, InstructionSet::atom), "-march=atom ",
+            AND(Arch::SPARC, InstructionSet::cypress), "-mcpu=cypress ", AND(Arch::SPARC, InstructionSet::v8),
+            "-mcpu=v8 ", AND(Arch::SPARC, InstructionSet::supersparc), "-mcpu=supersparc ",
+            AND(Arch::SPARC, InstructionSet::sparclite), "-mcpu=sparclite ",
+            AND(Arch::SPARC, InstructionSet::hypersparc), "-mcpu=hypersparc ",
+            AND(Arch::SPARC, InstructionSet::sparclite86x), "-mcpu=sparclite86x ",
+            AND(Arch::SPARC, InstructionSet::f930), "-mcpu=f930 ", AND(Arch::SPARC, InstructionSet::f934),
+            "-mcpu=f934 ", AND(Arch::SPARC, InstructionSet::sparclet), "-mcpu=sparclet ",
+            AND(Arch::SPARC, InstructionSet::tsc701), "-mcpu=tsc701 ", AND(Arch::SPARC, InstructionSet::v9),
+            "-mcpu=v9 ", AND(Arch::SPARC, InstructionSet::ultrasparc), "-mcpu=ultrasparc ",
+            AND(Arch::SPARC, InstructionSet::ultrasparc3), "-mcpu=ultrasparc3 ",
+            AND(Arch::POWER, InstructionSet::V_403), "-mcpu=403 ", AND(Arch::POWER, InstructionSet::V_505),
+            "-mcpu=505 ", AND(Arch::POWER, InstructionSet::V_601), "-mcpu=601 ",
+            AND(Arch::POWER, InstructionSet::V_602), "-mcpu=602 ", AND(Arch::POWER, InstructionSet::V_603),
+            "-mcpu=603 ", AND(Arch::POWER, InstructionSet::V_603e), "-mcpu=603e ",
+            AND(Arch::POWER, InstructionSet::V_604), "-mcpu=604 ", AND(Arch::POWER, InstructionSet::V_604e),
+            "-mcpu=604e ", AND(Arch::POWER, InstructionSet::V_620), "-mcpu=620 ",
+            AND(Arch::POWER, InstructionSet::V_630), "-mcpu=630 ", AND(Arch::POWER, InstructionSet::V_740),
+            "-mcpu=740 ", AND(Arch::POWER, InstructionSet::V_7400), "-mcpu=7400 ",
+            AND(Arch::POWER, InstructionSet::V_7450), "-mcpu=7450 ", AND(Arch::POWER, InstructionSet::V_750),
+            "-mcpu=750 ", AND(Arch::POWER, InstructionSet::V_801), "-mcpu=801 ",
+            AND(Arch::POWER, InstructionSet::V_821), "-mcpu=821 ", AND(Arch::POWER, InstructionSet::V_823),
+            "-mcpu=823 ", AND(Arch::POWER, InstructionSet::V_860), "-mcpu=860 ",
+            AND(Arch::POWER, InstructionSet::V_970), "-mcpu=970 ", AND(Arch::POWER, InstructionSet::V_8540),
+            "-mcpu=8540 ", AND(Arch::POWER, InstructionSet::power), "-mcpu=power ",
+            AND(Arch::POWER, InstructionSet::power2), "-mcpu=power2 ", AND(Arch::POWER, InstructionSet::power3),
+            "-mcpu=power3 ", AND(Arch::POWER, InstructionSet::power4), "-mcpu=power4 ",
+            AND(Arch::POWER, InstructionSet::power5), "-mcpu=power5 ", AND(Arch::POWER, InstructionSet::powerpc),
+            "-mcpu=powerpc ", AND(Arch::POWER, InstructionSet::powerpc64), "-mcpu=powerpc64 ",
+            AND(Arch::POWER, InstructionSet::rios), "-mcpu=rios ", AND(Arch::POWER, InstructionSet::rios1),
+            "-mcpu=rios1 ", AND(Arch::POWER, InstructionSet::rios2), "-mcpu=rios2 ",
+            AND(Arch::POWER, InstructionSet::rsc), "-mcpu=rsc ", AND(Arch::POWER, InstructionSet::rs64a), "-mcpu=rs64 ",
+            AND(Arch::S390X, InstructionSet::z196), "-march=z196 ", AND(Arch::S390X, InstructionSet::zEC12),
+            "-march=zEC12 ", AND(Arch::S390X, InstructionSet::z13), "-march=z13 ",
+            AND(Arch::S390X, InstructionSet::z14), "-march=z14 ", AND(Arch::S390X, InstructionSet::z15), "-march=z15 ",
+            AND(Arch::ARM, InstructionSet::cortex_a9_p_vfpv3), "-mcpu=cortex-a9 -mfpu=vfpv3 -mfloat-abi=hard ",
+            AND(Arch::ARM, InstructionSet::cortex_a53), "-mcpu=cortex-a53 ", AND(Arch::ARM, InstructionSet::cortex_r5),
+            "-mcpu=cortex-r5 ", AND(Arch::ARM, InstructionSet::cortex_r5_p_vfpv3_d16),
+            "-mcpu=cortex-r5 -mfpu=vfpv3-d16 -mfloat-abi=hard ");
+
+        flags.OPTIONS += str;
+        if (AND(Arch::SPARC, InstructionSet::OFF))
+        {
+            flags.OPTIONS += "-mcpu=v7 ";
+        }
+        // 1115
     }
-
-    // Linker Flags
-
-    linkerFlags += GET_FLAG_EVALUATE(DebugSymbols::ON, "-g");
-    linkerFlags += GET_FLAG_EVALUATE(Profiling::ON, "-pg");
-
-    linkerFlags += GET_FLAG_EVALUATE(LocalVisibility::HIDDEN, "-fvisibility=hidden -fvisibility-inlines-hidden",
-                                     LocalVisibility::GLOBAL, "-fvisibility=default");
-    if (!EVALUATE(TargetOS::DARWIN))
-    {
-        linkerFlags += GET_FLAG_EVALUATE(LocalVisibility::PROTECTED, "-fvisibility=protected");
-    }
-
-    // Sanitizers
-    // Though sanitizer flags for compiler are assigned at different location, and are for c++, but are exact same
-    linkerFlags += sanitizerFlags;
-    linkerFlags += GET_FLAG_EVALUATE(Coverage::ON, "--coverage");
-
-    // Target Specific Flags
-    // AIX
-    /* On AIX we *have* to use the native linker.
-
-   The -bnoipath strips the prepending (relative) path of libraries from
-   the loader section in the target library or executable. Hence, during
-   load-time LIBPATH (identical to LD_LIBRARY_PATH) or a hard-coded
-   -blibpath (*similar* to -lrpath/-lrpath-link) is searched. Without
-   this option, the prepending (relative) path + library name is
-   hard-coded in the loader section, causing *only* this path to be
-   searched during load-time. Note that the AIX linker does not have an
-   -soname equivalent, this is as close as it gets.
-
-   The -bbigtoc option instrcuts the linker to create a TOC bigger than 64k.
-   This is necessary for some submodules such as math, but it does make running
-   the tests a tad slower.
-
-   The above options are definitely for AIX 5.x, and most likely also for
-   AIX 4.x and AIX 6.x. For details about the AIX linker see:
-   http://download.boulder.ibm.com/ibmdl/pub/software/dw/aix/es-aix_ll.pdf
-   */
-    linkerFlags += GET_FLAG_EVALUATE(TargetOS::AIX, "-Wl -bnoipath -Wl -bbigtoc");
-    linkerFlags += AND(TargetOS::AIX, RuntimeLink::STATIC) ? "-static" : "";
-    //  On Darwin, the -s option to ld does not work unless we pass -static,
-    // and passing -static unconditionally is a bad idea. So, do not pass -s
-    // at all and darwin.jam will use a separate 'strip' invocation.
-
-    // 866
+    return flags;
 }
 
 void CppSourceTarget::initializeForBuild()
 {
-    // string fileName = path(getTargetPointer()).filename().string();
-    bTargetType = cTargetType;
+    if (!moduleScope)
+    {
+        moduleScope = this;
+    }
 
     auto parseRegexSourceDirs = [target = this](bool assignToSourceNodes) {
         for (const SourceDirectory &srcDir : assignToSourceNodes ? target->regexSourceDirs : target->regexModuleDirs)
@@ -714,11 +739,12 @@ void CppSourceTarget::initializeForBuild()
                     {
                         if (assignToSourceNodes)
                         {
-                            target->sourceFileDependencies.emplace(target, k.path().generic_string(),
-                                                                   ResultType::SOURCENODE);
+                            target->addNodeInSourceFileDependencies(k.path().generic_string());
+                            target->sourceFileDependencies.emplace(target, k.path().generic_string());
                         }
                         else
                         {
+                            target->addNodeInModuleSourceFileDependencies(k.path().generic_string());
                             target->moduleSourceFileDependencies.emplace(target, k.path().generic_string());
                         }
                     }
@@ -737,10 +763,6 @@ void CppSourceTarget::initializeForBuild()
     buildCacheFilesDirPath = (path(targetFileDir) / ("Cache_Build_Files/")).generic_string();
     // Parsing finished
 
-    auto [pos, Ok] = variantFilePaths.emplace(path(getTargetPointer()).parent_path().parent_path().string() + "/" +
-                                              "projectVariant.hmake");
-    variantFilePath = &(*pos);
-
     // TODO
     /*    if (!sourceFiles.empty() && !modulesSourceFiles.empty())
         {
@@ -755,11 +777,14 @@ void CppSourceTarget::initializeForBuild()
 
 void CppSourceTarget::setJson()
 {
-    json[JConsts::targetType] = cTargetType;
-    json[JConsts::configuration] = configurationType;
+    json[JConsts::targetType] = compileTargetType;
+    // TODO
+    // What if there is no configuration type.
+    if (linkOrArchiveTarget)
+    {
+        json[JConsts::configuration] = linkOrArchiveTarget->configurationType;
+    }
     json[JConsts::compiler] = compiler;
-    json[JConsts::linker] = linker;
-    json[JConsts::archiver] = archiver;
     json[JConsts::compilerFlags] = publicCompilerFlags;
     // json[JConsts::linkerFlags] = publicLinkerFlags;
     string str = "SOURCE_";
@@ -826,13 +851,13 @@ CppSourceTarget &CppSourceTarget::PRIVATE_COMPILER_FLAGS(const string &compilerF
 
 CppSourceTarget &CppSourceTarget::PUBLIC_LINKER_FLAGS(const string &linkerFlags)
 {
-    // publicLinkerFlags += linkerFlags;
+    linkOrArchiveTarget->publicLinkerFlags += linkerFlags;
     return *this;
 }
 
 CppSourceTarget &CppSourceTarget::PRIVATE_LINKER_FLAGS(const string &linkerFlags)
 {
-    privateLinkerFlags += linkerFlags;
+    linkOrArchiveTarget->privateLinkerFlags += linkerFlags;
     return *this;
 }
 
@@ -871,6 +896,20 @@ string &CppSourceTarget::getCompileCommand()
 
 void CppSourceTarget::setCompileCommand()
 {
+
+    CompilerFlags flags = getCompilerFlags();
+
+    if (compiler.bTFamily == BTFamily::GCC)
+    {
+        compileCommand +=
+            flags.LANG + flags.OPTIONS + flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP + flags.DEFINES_COMPILE_CPP;
+    }
+    else if (compiler.bTFamily == BTFamily::MSVC)
+    {
+        compileCommand += "-TP " + flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE + flags.OPTIONS_COMPILE +
+                          flags.OPTIONS_COMPILE_CPP;
+    }
+
     auto getIncludeFlag = [this]() {
         if (compiler.bTFamily == BTFamily::MSVC)
         {
@@ -882,8 +921,8 @@ void CppSourceTarget::setCompileCommand()
         }
     };
 
-    compileCommand += publicCompilerFlags + " ";
-    compileCommand += compilerTransitiveFlags + " ";
+    compileCommand += publicCompilerFlags;
+    compileCommand += compilerTransitiveFlags;
 
     for (const auto &i : publicCompileDefinitions)
     {
@@ -915,16 +954,6 @@ void CppSourceTarget::setCompileCommand()
 void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
 {
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
-    auto getIncludeFlag = [this]() {
-        if (compiler.bTFamily == BTFamily::MSVC)
-        {
-            return "/I ";
-        }
-        else
-        {
-            return "-I ";
-        }
-    };
 
     if (ccpSettings.tool.printLevel != PathPrintLevel::NO)
     {
@@ -932,13 +961,28 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
             getReducedPath(compiler.bTPath.make_preferred().string(), ccpSettings.tool) + " ";
     }
 
+    if (ccpSettings.infrastructureFlags)
+    {
+        CompilerFlags flags = getCompilerFlags();
+        if (compiler.bTFamily == BTFamily::GCC)
+        {
+            sourceCompileCommandPrintFirstHalf += flags.LANG + flags.OPTIONS + flags.OPTIONS_COMPILE +
+                                                  flags.OPTIONS_COMPILE_CPP + flags.DEFINES_COMPILE_CPP;
+        }
+        else if (compiler.bTFamily == BTFamily::MSVC)
+        {
+            sourceCompileCommandPrintFirstHalf += "-TP " + flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE +
+                                                  flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP;
+        }
+    }
+
     if (ccpSettings.compilerFlags)
     {
-        sourceCompileCommandPrintFirstHalf += publicCompilerFlags + " ";
+        sourceCompileCommandPrintFirstHalf += publicCompilerFlags;
     }
     if (ccpSettings.compilerTransitiveFlags)
     {
-        sourceCompileCommandPrintFirstHalf += compilerTransitiveFlags + " ";
+        sourceCompileCommandPrintFirstHalf += compilerTransitiveFlags;
     }
 
     for (const auto &i : publicCompileDefinitions)
@@ -955,6 +999,17 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
             }
         }
     }
+
+    auto getIncludeFlag = [this]() {
+        if (compiler.bTFamily == BTFamily::MSVC)
+        {
+            return "/I ";
+        }
+        else
+        {
+            return "-I ";
+        }
+    };
 
     for (const Node *idd : publicIncludes)
     {
@@ -1023,9 +1078,16 @@ void CppSourceTarget::setSourceNodeFileStatus(SourceNode &sourceNode, bool angle
 
 void CppSourceTarget::checkForPreBuiltAndCacheDir()
 {
-    if (!linkOrArchiveTarget)
+    if (!std::filesystem::exists(path(buildCacheFilesDirPath)))
     {
-        // TODO
+        create_directories(buildCacheFilesDirPath);
+    }
+
+    if (std::filesystem::exists(path(buildCacheFilesDirPath) / (name + ".cache")))
+    {
+        Json targetCacheJson;
+        ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> targetCacheJson;
+        checkForPreBuiltAndCacheDir(targetCacheJson);
     }
 }
 
@@ -1047,9 +1109,7 @@ void CppSourceTarget::checkForPreBuiltAndCacheDir(const Json &sourceCacheJson)
         {
             initializeSourceNodePointer(
                 const_cast<SourceNode *>(
-                    sourceFileDependencies.emplace(this, j.at(JConsts::srcFile), ResultType::SOURCENODE)
-                        .first.
-                        operator->()),
+                    sourceFileDependencies.emplace(this, j.at(JConsts::srcFile)).first.operator->()),
                 j);
         }
         for (const Json &j : sourceCacheJson.at(JConsts::moduleDependencies))
@@ -1086,25 +1146,12 @@ void CppSourceTarget::populateSetTarjanNodesSourceNodes(Builder &builder)
     }
 }
 
-template <typename T, typename U = std::less<T>> pair<T *, bool> insert(set<T *, U> &containerSet, T *element)
-{
-    auto [pos, Ok] = containerSet.emplace(element);
-    return make_pair(const_cast<T *>(*pos), Ok);
-}
-
-template <typename T, typename U = std::less<T>, typename... V>
-pair<T *, bool> insert(set<T, U> &containerSet, V &&...elements)
-{
-    auto [pos, Ok] = containerSet.emplace(std::forward<V>(elements)...);
-    return make_pair(const_cast<T *>(&(*pos)), Ok);
-}
-
 void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
 {
-    ModuleScope &moduleScope = builder.moduleScopes.emplace(variantFilePath, ModuleScope{}).first->second;
+    ModuleScopeData &moduleScopeData = builder.moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second;
     for (const Node *idd : publicHUIncludes)
     {
-        if (const auto &[pos, Ok] = moduleScope.appHUDirTarget.emplace(idd, this); !Ok)
+        if (const auto &[pos, Ok] = moduleScopeData.appHUDirTarget.emplace(idd, this); !Ok)
         {
             // TODO:
             //  Improve Message
@@ -1117,9 +1164,8 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
     }
     for (const SMFile &smFileConst : moduleSourceFileDependencies)
     {
-        auto smFile = const_cast<SMFile &>(smFileConst);
-
-        if (auto [pos, Ok] = moduleScope.smFiles.emplace(&smFile); Ok)
+        auto &smFile = const_cast<SMFile &>(smFileConst);
+        if (auto [pos, Ok] = moduleScopeData.smFiles.emplace(&smFile); Ok)
         {
             if (smFile.presentInSource != smFile.presentInCache)
             {
@@ -1135,15 +1181,15 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
             }
             if (smFile.fileStatus == FileStatus::NEEDS_UPDATE)
             {
-                smFile.resultType = ResultType::CPP_SMFILE;
                 builder.finalBTargets.emplace_back(&smFile);
             }
         }
         else
         {
             print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                  "In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n", *variantFilePath,
-                  smFile.node->filePath, getTargetPointer(), (**pos).target->getTargetPointer());
+                  "In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
+                  moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
+                  (**pos).target->getTargetPointer());
             exit(EXIT_FAILURE);
         }
     }
@@ -1153,7 +1199,7 @@ string CppSourceTarget::getInfrastructureFlags()
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        return "/showIncludes /c /Tp";
+        return GET_FLAG_EVALUATE(TargetType::COMPILE, "-c", TargetType::PREPROCESS, "-P") + " /showIncludes ";
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
@@ -1161,7 +1207,7 @@ string CppSourceTarget::getInfrastructureFlags()
         // prints 2 header deps in one line and no space in them so no way of
         // knowing whether this is a space in path or 2 different headers. Which
         // then breaks when last_write_time is checked for that path.
-        return "-c -MMD";
+        return GET_FLAG_EVALUATE(TargetType::COMPILE, "-c", TargetType::PREPROCESS, "-E") + " -MMD";
     }
     return "";
 }
@@ -1181,7 +1227,7 @@ string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourc
     }
     if (ccpSettings.infrastructureFlags)
     {
-        command += compiler.bTFamily == BTFamily::MSVC ? "/Fo" : "-o ";
+        command += compiler.bTFamily == BTFamily::MSVC ? EVALUATE(TargetType::COMPILE) ? "/Fo" : "/Fi" : "-o ";
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
@@ -1200,9 +1246,8 @@ PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
 
     for (const BTarget *bTarget : smFile.allDependencies)
     {
-        if (bTarget->resultType == ResultType::CPP_MODULE)
+        if (const auto *smFileDependency = dynamic_cast<const SMFile *>(bTarget); smFileDependency)
         {
-            const auto *smFileDependency = static_cast<const SMFile *>(bTarget);
             finalCompileCommand += smFileDependency->getRequireFlag(smFile) + " ";
         }
     }
@@ -1214,7 +1259,7 @@ PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
     {
         if (smFile.standardHeaderUnit)
         {
-            string cacheFilePath = (path(*(smFile.target->variantFilePath)).parent_path() / "shus/").generic_string();
+            string cacheFilePath = smFile.target->targetFileDir + "/shus/";
             finalCompileCommand += smFile.getFlag(cacheFilePath + path(smFile.node->filePath).filename().string());
         }
         else
@@ -1237,7 +1282,12 @@ PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
                        settings.ccpSettings.outputAndErrorFiles};
 }
 
-PostCompile CppSourceTarget::Compile(SourceNode &sourceNode)
+string CppSourceTarget::getExtension()
+{
+    return GET_FLAG_EVALUATE(TargetType::PREPROCESS, ".ii", TargetType::COMPILE, ".o");
+}
+
+PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 {
     string compileFileName = path(sourceNode.node->filePath).filename().string();
 
@@ -1246,11 +1296,12 @@ PostCompile CppSourceTarget::Compile(SourceNode &sourceNode)
     finalCompileCommand += getInfrastructureFlags() + " " + addQuotes(sourceNode.node->filePath) + " ";
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        finalCompileCommand += "/Fo" + addQuotes(buildCacheFilesDirPath + compileFileName + ".o") + " ";
+        finalCompileCommand += (EVALUATE(TargetType::COMPILE) ? "/Fo" : "/Fi") +
+                               addQuotes(buildCacheFilesDirPath + compileFileName + getExtension()) + " ";
     }
-    else
+    else if (compiler.bTFamily == BTFamily::GCC)
     {
-        finalCompileCommand += "-o " + addQuotes(buildCacheFilesDirPath + compileFileName + ".o") + " ";
+        finalCompileCommand += "-o " + addQuotes(buildCacheFilesDirPath + compileFileName + getExtension()) + " ";
     }
 
     return PostCompile{*this,
@@ -1288,20 +1339,8 @@ PostBasic CppSourceTarget::GenerateSMRulesFile(const SourceNode &sourceNode, boo
                            settings.ccpSettings.outputAndErrorFiles, true);
 }
 
-TargetType CppSourceTarget::getTargetType() const
-{
-    return bTargetType;
-}
-
 void CppSourceTarget::pruneAndSaveBuildCache(const bool successful)
 {
-    ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << getBuildCache(successful).dump(4);
-}
-
-Json CppSourceTarget::getBuildCache(const bool successful)
-{
-    // TODO:
-    // Not dealing with module source
     for (auto it = sourceFileDependencies.begin(); it != sourceFileDependencies.end();)
     {
         !it->presentInSource ? it = sourceFileDependencies.erase(it) : ++it;
@@ -1317,41 +1356,7 @@ Json CppSourceTarget::getBuildCache(const bool successful)
     buildCache[JConsts::compileCommand] = compileCommand;
     buildCache[JConsts::sourceDependencies] = sourceFileDependencies;
     buildCache[JConsts::moduleDependencies] = moduleSourceFileDependencies;
-    return buildCache;
-}
-
-Executable::Executable(string targetName_, const bool initializeFromCache)
-    : CppSourceTarget(std::move(targetName_), initializeFromCache)
-{
-    cTargetType = TargetType::EXECUTABLE;
-}
-
-Executable::Executable(string targetName_, Variant &variant) : CppSourceTarget(std::move(targetName_), variant)
-{
-    cTargetType = TargetType::EXECUTABLE;
-}
-
-Library::Library(string targetName_, const bool initializeFromCache)
-    : CppSourceTarget(std::move(targetName_), initializeFromCache)
-{
-    cTargetType = libraryType;
-}
-
-Library::Library(string targetName_, Variant &variant) : CppSourceTarget(std::move(targetName_), variant)
-{
-    cTargetType = libraryType;
-}
-
-void to_json(Json &j, const Library *library)
-{
-    j[JConsts::prebuilt] = false;
-    j[JConsts::path] = library->getTargetPointer();
-}
-
-bool operator==(const Version &lhs, const Version &rhs)
-{
-    return lhs.majorVersion == rhs.majorVersion && lhs.minorVersion == rhs.minorVersion &&
-           lhs.patchVersion == rhs.patchVersion;
+    ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCache.dump(4);
 }
 
 PLibrary::PLibrary(Variant &variant, const path &libraryPath_, TargetType libraryType_)

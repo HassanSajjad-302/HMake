@@ -25,7 +25,9 @@ add_library(hconfigure STATIC
         hconfigure/src/BuildTools.cpp
         hconfigure/src/ToolsCache.cpp
         hconfigure/src/PostBasic.cpp
-        hconfigure/src/Utilities.cpp)
+        hconfigure/src/Utilities.cpp
+        hconfigure/src/GetTarget.cpp
+        hconfigure/src/ModuleScope.cpp)
 
 target_link_libraries(hconfigure PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
 target_include_directories(hconfigure
@@ -50,7 +52,7 @@ add_executable(hbuild
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeCppHelper Examples/Example2/hmake.cpp)
+add_executable(HMakeCppHelper hmake.cpp)
 target_link_libraries(HMakeCppHelper PRIVATE hconfigure)
 
 

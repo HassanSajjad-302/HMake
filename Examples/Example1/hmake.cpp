@@ -49,7 +49,14 @@ int main(int argc, char **argv)
 
     // If you don't provide full path then relative path is converted into full path like following
     // Cache::sourceDirectory.path/path i.e. your path is taken relative to sourceDirectory.
-    GetCppExe("app").cppSourceTarget->SOURCE_FILES("main.cpp");
+    /*    CppSourceTarget *linkOrArchiveTarget = GetCppExe("app").cppSourceTarget;
+        linkOrArchiveTarget->setConfigType(ConfigType::RELEASE);
+        linkOrArchiveTarget->SOURCE_FILES("main.cpp").setConfigType(ConfigType::DEBUG);
+        linkOrArchiveTarget->ASSIGN(Arch::X86, Warnings::ALL, WarningsAsErrors::ON, InstructionSet::alderlake,
+                                    LeakSanitizer::ON, UndefinedSanitizer::ON, ExceptionHandling::OFF, RTTI::OFF,
+       LTO::ON, LTOMode::FULL, DebugSymbols::OFF, RuntimeDebugging::OFF, Optimization::SPEED, RuntimeLink::STATIC);*/
+    GetPreProcessCpp("app").SOURCE_FILES("main.cpp").ASSIGN(ExceptionHandling::OFF, ExternCNoThrow::ON);
+
     configureOrBuild();
     // This will be your last line. If you are doing packaging, then package.configure may be your last, where package
     // is object of Package.

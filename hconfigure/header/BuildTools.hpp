@@ -13,26 +13,16 @@ enum class Platform
     WINDOWS
 };
 
-enum class Comparison
-{
-    EQUAL,
-    GREATER_THAN,
-    LESSER_THAN,
-    GREATER_THAN_OR_EQUAL_TO,
-    LESSER_THAN_OR_EQUAL_TO
-};
-
 struct Version
 {
     unsigned majorVersion = 0;
     unsigned minorVersion = 0;
     unsigned patchVersion = 0;
+    auto operator<=>(const Version &) const = default;
     Version(unsigned majorVersion_ = 0, unsigned minorVersion_ = 0, unsigned patchVersion_ = 0);
-    Comparison comparison; // Used in flags
 };
 void to_json(Json &j, const Version &p);
 void from_json(const Json &j, Version &v);
-bool operator<(const Version &lhs, const Version &rhs);
 
 enum class BTFamily
 {

@@ -21,15 +21,6 @@ struct IndexInTopologicalSortComparator
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
 };
 
-enum class ResultType
-{
-    LINK,
-    SOURCENODE,
-    CPP_SMFILE,
-    CPP_MODULE,
-    ACTIONTARGET,
-};
-
 enum class FileStatus
 {
     NOT_ASSIGNED,
@@ -48,18 +39,16 @@ struct BTarget // BTarget
     unsigned long id = 0; // unique for every BTarget
     unsigned long topologicallySortedId = 0;
     unsigned int dependenciesSize = 0;
-    ResultType resultType;
-    TargetType bTargetType;
     FileStatus fileStatus = FileStatus::UPDATED;
     // This points to the tarjanNodeBTargets set element
     TBT *bTarjanNode = nullptr;
     // Value is assigned on basis of TBT::topologicalSort index. Targets in allDependencies vector are arranged by this
     // value.
     unsigned long indexInTopologicalSort = 0;
-    explicit BTarget(ResultType resultType_);
+    explicit BTarget();
     void addDependency(BTarget &dependency);
-    virtual void updateBTarget();
-    virtual void printMutexLockRoutine();
+    virtual void updateBTarget(unsigned short round);
+    virtual void printMutexLockRoutine(unsigned short round);
     virtual void initializeForBuild();
     virtual void checkForPreBuiltAndCacheDir();
     virtual void parseModuleSourceFiles(class Builder &builder);
@@ -104,7 +93,6 @@ class CTarget // Configure Target
     CTarget *other = nullptr;
     // This points to the tarjanNodeCTargets set element
     TCT *cTarjanNode = nullptr;
-    TargetType cTargetType = TargetType::NOT_ASSIGNED;
     const bool hasFile = true;
     // addNodeInTarjanNodeTargets might be called more than once in BSMode::BUILD
     bool addNodeInTarjanNodeTargetsCalled = false;

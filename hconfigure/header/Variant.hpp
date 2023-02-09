@@ -7,10 +7,7 @@
 
 using std::shared_ptr;
 
-class Executable;
-struct Library;
-
-class Variant : public Features, public CTarget
+class Variant : public CompilerFeatures, public LinkerFeatures, public CTarget
 {
     friend class Target;
     vector<class CppSourceTarget *> moduleTargets;
@@ -26,10 +23,10 @@ class Variant : public Features, public CTarget
     Variant(const string &name_, bool initializeFromCache = true);
     void copyAllTargetsFromOtherVariant(Variant &variantFrom);
     void setJson() override;
-    Executable &findExecutable(const string &exeName);
-    Library &findLibrary(const string &libName);
-    Executable &addExecutable(const string &exeName);
-    Library &addLibrary(const string &libName);
+    /*    Executable &findExecutable(const string &exeName);
+        Library &findLibrary(const string &libName);
+        Executable &addExecutable(const string &exeName);
+        Library &addLibrary(const string &libName);*/
     // TODO: Variant should also have functions like Target which modify the property and return the Target&.
     // These functions will return the Variant&.
 };

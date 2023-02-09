@@ -44,10 +44,10 @@ struct SourceNode : public CachedFile, public BTarget
     CppSourceTarget *target;
     std::shared_ptr<PostCompile> postCompile;
     set<const Node *> headerDependencies;
-    SourceNode(CppSourceTarget *target_, const string &filePath, ResultType resultType_);
+    SourceNode(CppSourceTarget *target_, const string &filePath);
     virtual string getOutputFilePath();
-    void updateBTarget() override;
-    void printMutexLockRoutine() override;
+    void updateBTarget(unsigned short round) override;
+    void printMutexLockRoutine(unsigned short round) override;
 };
 
 void to_json(Json &j, const SourceNode &sourceNode);
@@ -89,8 +89,8 @@ struct SMFile : public SourceNode // Scanned Module Rule
     Json requiresJson;
 
     SMFile(CppSourceTarget *target_, const string &srcPath);
-    void updateBTarget() override;
-    void printMutexLockRoutine() override;
+    void updateBTarget(unsigned short round) override;
+    void printMutexLockRoutine(unsigned short round) override;
     string getOutputFilePath() override;
     // State Variables
     map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
@@ -109,26 +109,8 @@ struct SMFile : public SourceNode // Scanned Module Rule
     string getModuleCompileCommandPrintLastHalf() const;
 };
 
-struct SMFileVariantPathAndLogicalName
-{
-    const string &logicalName;
-    const string &variantFilePath;
-    SMFileVariantPathAndLogicalName(const string &logicalName_, const string &variantFilePath_);
-};
-
-struct SMFilePointerComparator
-{
-    bool operator()(const SMFile *lhs, const SMFile *rhs) const;
-};
-
-struct SMFilePathAndVariantPathComparator
+struct SMFilePathAndModuleScopeComparator
 {
     bool operator()(const SMFile &lhs, const SMFile &rhs) const;
 };
-
-struct SMFileCompareLogicalName
-{
-    bool operator()(SMFileVariantPathAndLogicalName lhs, SMFileVariantPathAndLogicalName rhs) const;
-};
-
 #endif // HMAKE_SMFILE_HPP

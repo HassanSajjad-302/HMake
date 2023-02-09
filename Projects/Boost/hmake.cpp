@@ -58,6 +58,9 @@ int main()
     // TODO: default-build properties of are not handled yet.
     // TODO: sources not supplied
 
+    // TODO
+    // AND and OR funcitons removed. Will define GAND, GOR in global namespace with mutex locked mechanism for setting
+    // the global targets that work for both CppSourceTarget and LinkAndArchiveTarget
     libChrono.setTargetForAndOr()
         .M_LEFT_OR(TargetOS::FREEBSD, TS::PGI, LinkFlags{"-lrt"})
         .SINGLE(TargetOS::LINUX_, LinkFlags{"-lrt -lpthread"})
