@@ -26,6 +26,7 @@
 #include "BuildTools.hpp"
 #include "Builder.hpp"
 #include "Cache.hpp"
+#include "Configuration.hpp"
 #include "CppSourceTarget.hpp"
 #include "Features.hpp"
 #include "GetTarget.hpp"
@@ -35,7 +36,6 @@
 #include "TarjanNode.hpp"
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"
-#include "Variant.hpp"
 #include "fmt/color.h"
 #include "nlohmann/json.hpp"
 #include <filesystem>

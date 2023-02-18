@@ -16,8 +16,6 @@ using std::string, std::map, std::set, std::vector, std::filesystem::path, std::
 class Node
 {
     std::filesystem::file_time_type lastUpdateTime;
-    // Because checking for lastUpdateTime is expensive, it is done only once even if file is used in multiple targets.
-    bool isUpdated = false;
 
   public:
     Node(const path &filePath_, bool isFile);
@@ -27,6 +25,15 @@ class Node
     std::filesystem::file_time_type getLastUpdateTime() const;
     // Create a node and inserts it into the allFiles if it is not already there
     static const Node *getNodeFromString(const string &str, bool isFile);
+
+  private:
+    // Because checking for lastUpdateTime is expensive, it is done only once even if file is used in multiple targets.
+    bool isUpdated = false;
+
+  public:
+    // Used with includeDirectories to specify whether to ignore include-files from these directories from being stored
+    // in target-cache file
+    bool ignoreIncludes = false;
 };
 bool operator<(const Node &lhs, const Node &rhs);
 void to_json(Json &j, const Node *node);
@@ -46,8 +53,9 @@ struct SourceNode : public CachedFile, public BTarget
     set<const Node *> headerDependencies;
     SourceNode(CppSourceTarget *target_, const string &filePath);
     virtual string getOutputFilePath();
-    void updateBTarget(unsigned short round) override;
+    void updateBTarget(unsigned short round, Builder &builder) override;
     void printMutexLockRoutine(unsigned short round) override;
+    void setSourceNodeFileStatus(const string &ex, unsigned short round);
 };
 
 void to_json(Json &j, const SourceNode &sourceNode);
@@ -77,8 +85,8 @@ struct HeaderUnitConsumer
     bool angle;
     string logicalName;
     HeaderUnitConsumer(bool angle_, string logicalName_);
+    auto operator<=>(const HeaderUnitConsumer &headerUnitConsumer) const = default;
 };
-bool operator<(const HeaderUnitConsumer &lhs, const HeaderUnitConsumer &rhs);
 
 struct SMFile : public SourceNode // Scanned Module Rule
 {
@@ -89,28 +97,33 @@ struct SMFile : public SourceNode // Scanned Module Rule
     Json requiresJson;
 
     SMFile(CppSourceTarget *target_, const string &srcPath);
-    void updateBTarget(unsigned short round) override;
+    void updateBTarget(unsigned short round, class Builder &builder) override;
     void printMutexLockRoutine(unsigned short round) override;
     string getOutputFilePath() override;
-    // State Variables
+    void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder);
+    void initializeNewHeaderUnit(const Json &requireJson, struct ModuleScopeData &moduleScopeData, Builder &builder);
+    void iterateRequiresJsonToInitializeNewHeaderUnits(ModuleScopeData &moduleScopeData, Builder &builder);
+    static bool isSubDirPathStandard(const path &headerUnitPath, set<const Node *> &standardIncludes);
+    void setSMFileStatusRoundZero();
+
+    // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
+    // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
+    // is depending on is consuming it another way.
     map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
     vector<SMFile *> fileDependencies;
     set<SMFile *> commandLineFileDependencies;
 
-    // If this SMFile is HeaderUnit, then following is the Target whose hu-include-directory this is present in.
-    CppSourceTarget *ahuTarget;
     bool hasProvide = false;
     bool standardHeaderUnit = false;
+    // Used to determine whether the file is present in cache and whether it needs an updated SMRules file.
+    bool generateSMFileInRoundOne = false;
 
+    void duringSort(Builder &builder, unsigned short round) override;
     string getFlag(const string &outputFilesWithoutExtension) const;
     string getFlagPrint(const string &outputFilesWithoutExtension) const;
     string getRequireFlag(const SMFile &dependentSMFile) const;
     string getRequireFlagPrint(const SMFile &logicalName_) const;
-    string getModuleCompileCommandPrintLastHalf() const;
+    string getModuleCompileCommandPrintLastHalf();
 };
-
-struct SMFilePathAndModuleScopeComparator
-{
-    bool operator()(const SMFile &lhs, const SMFile &rhs) const;
-};
+void to_json(Json &j, const SMFile *smFile);
 #endif // HMAKE_SMFILE_HPP

@@ -1,18 +1,16 @@
 #ifndef HMAKE_TARGETTYPE_HPP
 #define HMAKE_TARGETTYPE_HPP
 #include "nlohmann/json.hpp"
-#include "string"
+#include <string>
 
 using Json = nlohmann::ordered_json;
 using std::string;
 
 enum class TargetType
 {
-    NOT_ASSIGNED,
     EXECUTABLE,
     LIBRARY_STATIC,
     LIBRARY_SHARED,
-    VARIANT,
     PREPROCESS,
     COMPILE,
     RUN,

@@ -1,17 +1,11 @@
 #ifndef HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
 #define HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
 
+#include "ConfigType.hpp"
 #include <concepts>
 #include <string>
 
 using std::string;
-
-enum class Dependency
-{
-    PUBLIC,
-    PRIVATE,
-    INTERFACE
-};
 
 // TODO
 // Write a concept that checks for the presence of EVALUATE() and ASSIGN() functions.
@@ -75,7 +69,10 @@ string FeatureConvenienceFunctions<U>::GET_FLAG_EVALUATE(T condition, const stri
     {
         return GET_FLAG_EVALUATE(arguments...);
     }
-    return "";
+    else
+    {
+        return "";
+    }
 }
 
 template <typename U>

@@ -117,15 +117,20 @@ bool PostCompile::checkIfFileIsInEnvironmentIncludes(const string &str)
     // includes is related(equivalent, subdirectory) with any of normal includes
     // or vice-versa.
 
-    // TODO
-    //  Use this with standard include directories
-    /*    for (const string &dir : target.environment.includeDirectories)
+    for (const Node *node : target.standardIncludes)
+    {
+        if (node->ignoreIncludes && equivalent(node->filePath, path(str).parent_path()))
         {
-            if (equivalent(dir, path(str).parent_path()))
-            {
-                return true;
-            }
-        }*/
+            return true;
+        }
+    }
+    for (const Node *node : target.publicIncludes)
+    {
+        if (node->ignoreIncludes && equivalent(node->filePath, path(str).parent_path()))
+        {
+            return true;
+        }
+    }
     return false;
 }
 
@@ -138,7 +143,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode)
     {
         if (iter->contains(includeFileNote))
         {
-            unsigned long pos = iter->find_first_not_of(includeFileNote);
+            size_t pos = iter->find_first_not_of(includeFileNote);
             pos = iter->find_first_not_of(" ", pos);
             iter->erase(iter->begin(), iter->begin() + (int)pos);
             if (!checkIfFileIsInEnvironmentIncludes(*iter))
@@ -150,25 +155,27 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode)
                 iter = outputLines.erase(iter);
             }
         }
-        else if (*iter == path(sourceNode.node->filePath).filename().string())
-        {
-            if (settings.ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput)
-            {
-                iter = outputLines.erase(iter);
-            }
-        }
         else
         {
             ++iter;
         }
     }
 
+    if (settings.ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput)
+    {
+        outputLines.erase(outputLines.begin());
+    }
+
     string treatedOutput; // Output With All information of include files removed.
     for (const auto &i : outputLines)
     {
-        treatedOutput += i;
+        treatedOutput += i + "\n";
     }
-    commandSuccessOutput = treatedOutput;
+    if (!treatedOutput.empty())
+    {
+        treatedOutput.pop_back();
+    }
+    commandSuccessOutput = std::move(treatedOutput);
 }
 
 void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
@@ -182,7 +189,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
     auto endIt = headerDeps.end() - (sourceNode.target->compileTargetType == TargetType::COMPILE ? 1 : 0);
     for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
     {
-        unsigned long pos = iter->find_first_not_of(" ");
+        size_t pos = iter->find_first_not_of(" ");
         string headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
         if (!checkIfFileIsInEnvironmentIncludes(headerDep))
         {

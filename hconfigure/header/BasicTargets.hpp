@@ -4,21 +4,25 @@
 #include "TargetType.hpp"
 #include "TarjanNode.hpp"
 #include <filesystem>
+#include <map>
 
-using std::filesystem::path;
+using std::filesystem::path, std::size_t, std::map;
 
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
 TarjanNode(const struct BTarget *) -> TarjanNode<BTarget>;
 using TBT = TarjanNode<BTarget>;
 inline set<TBT> tarjanNodesBTargets;
 
-TarjanNode(const struct CTarget *) -> TarjanNode<CTarget>;
+TarjanNode(const class CTarget *) -> TarjanNode<CTarget>;
 using TCT = TarjanNode<CTarget>;
 inline set<TCT> tarjanNodesCTargets;
 
+struct RealBTarget;
 struct IndexInTopologicalSortComparator
 {
+    explicit IndexInTopologicalSortComparator(unsigned short round_);
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
+    unsigned short round;
 };
 
 enum class FileStatus
@@ -28,39 +32,58 @@ enum class FileStatus
     NEEDS_UPDATE
 };
 
-struct BTarget // BTarget
+struct RealBTarget
 {
-    vector<BTarget *> sameTypeDependents;
     set<BTarget *> dependents;
     set<BTarget *> dependencies;
     // This includes dependencies and their dependencies arranged on basis of indexInTopologicalSort.
     set<BTarget *, IndexInTopologicalSortComparator> allDependencies;
-    inline static unsigned long total = 0;
-    unsigned long id = 0; // unique for every BTarget
-    unsigned long topologicallySortedId = 0;
     unsigned int dependenciesSize = 0;
     FileStatus fileStatus = FileStatus::UPDATED;
     // This points to the tarjanNodeBTargets set element
     TBT *bTarjanNode = nullptr;
     // Value is assigned on basis of TBT::topologicalSort index. Targets in allDependencies vector are arranged by this
     // value.
-    unsigned long indexInTopologicalSort = 0;
+    size_t indexInTopologicalSort = 0;
+    unsigned short round;
+    explicit RealBTarget(unsigned short round_);
+};
+
+struct CompareRealBTargetId
+{
+    using is_transparent = void; // for example with void,
+                                 // but could be int or struct CanSearchOnId;
+    bool operator()(RealBTarget const &lhs, RealBTarget const &rhs) const;
+    bool operator()(unsigned short round, RealBTarget const &rhs) const;
+    bool operator()(RealBTarget const &lhs, unsigned short round) const;
+};
+bool operator<(const RealBTarget &lhs, const RealBTarget &rhs);
+
+struct BTarget // BTarget
+{
+    inline static size_t total = 0;
+    size_t id = 0; // unique for every BTarget
+    bool selectiveBuild = false;
+
+    set<RealBTarget, CompareRealBTargetId> realBTargets;
     explicit BTarget();
-    void addDependency(BTarget &dependency);
-    virtual void updateBTarget(unsigned short round);
+
+    virtual string getTarjanNodeName();
+
+    void addDependency(BTarget &dependency, unsigned short round);
+    void setFileStatus(FileStatus fileStatus, unsigned short round);
+    RealBTarget &getRealBTarget(unsigned short round);
+    virtual void updateBTarget(unsigned short round, class Builder &builder);
     virtual void printMutexLockRoutine(unsigned short round);
-    virtual void initializeForBuild();
-    virtual void checkForPreBuiltAndCacheDir();
-    virtual void parseModuleSourceFiles(class Builder &builder);
-    virtual void checkForHeaderUnitsCache();
-    virtual void createHeaderUnits();
-    virtual void populateSetTarjanNodesSourceNodes(class Builder &builder);
+    virtual void initializeForBuild(class Builder &builder);
+    virtual void populateSourceNodesAndRemoveUnReferencedHeaderUnits();
+    virtual void duringSort(Builder &builder, unsigned short round);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
 struct TarPointerComparator
 {
-    bool operator()(const struct CTarget *lhs, const struct CTarget *rhs) const;
+    bool operator()(const CTarget *lhs, const CTarget *rhs) const;
 };
 
 template <typename T>
@@ -78,15 +101,15 @@ struct CTargetPointerComparator
 
 class CTarget // Configure Target
 {
-    inline static set<CTarget *, CTargetPointerComparator> containerCTargets;
+    inline static set<CTarget *, CTargetPointerComparator> cTargetsSameFileAndNameCheck;
     void initializeCTarget();
 
   public:
     string name;
     Json json;
     set<CTarget *, TarPointerComparator> elements;
-    inline static unsigned long total = 0;
-    unsigned long id = 0; // unique for every BTarget
+    inline static size_t total = 0;
+    size_t id = 0; // unique for every BTarget
     // If target has file, this is that file directory. Else, it is the directory of container it is present in.
     string targetFileDir;
     // If constructor with other target is used, the pointer to the other target
@@ -100,7 +123,12 @@ class CTarget // Configure Target
     explicit CTarget(string name_);
     string getTargetPointer() const;
     path getTargetFilePath() const;
+    string getSubDirForTarget() const;
+
     template <SetOrVectorOfCTargetPointer T> void addCTargetDependency(T &cTarget);
+
+    virtual string getTarjanNodeName();
+
     virtual void setJson();
     virtual void writeJsonFile();
     virtual void configure();

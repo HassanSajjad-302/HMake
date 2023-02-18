@@ -1,7 +1,7 @@
 #ifndef HMAKE_JCONSTS_H
 #define HMAKE_JCONSTS_H
 
-#include "string"
+#include <string>
 using std::string;
 struct JConsts
 {
@@ -41,6 +41,7 @@ struct JConsts
     inline static const string dependencies = "dependencies";
     inline static const string depth = "depth";
     inline static const string directories = "directories";
+    inline static const string elements = "elements";
     inline static const string environmentCompilerFlags = "environment-compiler-flags";
     inline static const string environmentIncludeDirectories = "environment-include-directories";
     inline static const string environmentLibraryDirectories = "environment-library-directories";
@@ -53,6 +54,7 @@ struct JConsts
     inline static const string hbuildSequenceOutput = "hbuild-sequence-output";
     inline static const string hbuildStatementOutput = "hbuild-statement-output";
     inline static const string headerDependencies = "header-dependencies";
+    inline static const string headerUnits = "header-units";
     inline static const string hmakeFilePath = "hmake-file-path";
     inline static const string hostArchitecture = "host-architecture";
     inline static const string hostArddressModel = "host-address-model";
@@ -130,7 +132,6 @@ struct JConsts
     inline static const string targetAddressModel = "target-address-model";
     inline static const string targetArchitecture = "target-architecture";
     inline static const string targets = "targets";
-    inline static const string targetsWithModules = "targets-with-modules";
     inline static const string targetType = "target-type";
     inline static const string threadId = "thread-id";
     inline static const string tool = "tool";

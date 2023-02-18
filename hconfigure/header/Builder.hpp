@@ -2,12 +2,12 @@
 #define HMAKE_BUILDER_HPP
 
 #include "BuildTools.hpp"
-#include "ModuleScope.hpp"
 #include "SMFile.hpp"
 #include "Settings.hpp"
+#include <list>
 #include <string>
 
-using std::string;
+using std::string, std::list;
 
 struct ModuleScopeData
 {
@@ -23,17 +23,18 @@ class Builder
 {
     unsigned short round = 0;
     vector<CppSourceTarget *> sourceTargets;
-    unsigned long finalBTargetsIndex = 0;
-    unsigned int finalBTargetsSizeGoal;
+    list<BTarget *>::iterator finalBTargetsIterator;
+    size_t finalBTargetsSizeGoal;
+
+    static bool isCTargetInSelectedSubDirectory(const CTarget &cTarget);
 
   public:
     vector<BTarget *> filteredBTargets;
-    vector<BTarget *> finalBTargets;
-    map<const ModuleScope *, ModuleScopeData> moduleScopes;
+    list<BTarget *> finalBTargets;
+    map<const CppSourceTarget *, ModuleScopeData> moduleScopes;
     vector<SMFile *> canBeCompiledModule;
     vector<CppSourceTarget *> canBeLinked;
     explicit Builder();
-    void populateRequirePaths();
     void populateSetTarjanNodesBTargetsSMFiles();
     void populateFinalBTargets();
     static set<string> getTargetFilePathsFromVariantFile(const string &fileName);
@@ -41,11 +42,8 @@ class Builder
 
     // This function is executed by multiple threads and is executed recursively until build is finished.
     void launchThreadsAndUpdateBTargets();
-    void printDebugFinalBTargets();
+    void addNewBTargetInFinalBTargets(BTarget *bTarget);
     void updateBTargets();
-    static bool isSubDirPathStandard(const path &headerUnitPath, set<string> &environmentIncludes);
-    static bool isSubDirPathApplication(const path &headerUnitPath,
-                                        map<string *, CppSourceTarget *> &applicationIncludes);
 };
 
 #endif // HMAKE_BUILDER_HPP

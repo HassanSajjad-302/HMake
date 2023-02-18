@@ -49,6 +49,7 @@ void to_json(Json &j, const Arch &arch)
         case Arch::ARM_P_X86:
             return "ARM_P_X86";
         }
+        return "";
     };
     j = getStringFromArchitectureEnum(arch);
 }
@@ -144,6 +145,7 @@ void to_json(Json &j, const AddressModel &am)
         case AddressModel::A_32_64:
             return "A_32_64";
         }
+        return "";
     };
     j = getStringFromArchitectureEnum(am);
 }
@@ -193,27 +195,27 @@ void from_json(const Json &j, Define &cd)
     cd.value = j.at(JConsts::value).get<string>();
 }
 
-void to_json(Json &json, const OS &os)
+void to_json(Json &json, const OS &osLocal)
 {
-    if (os == OS::NT)
+    if (osLocal == OS::NT)
     {
         json = JConsts::windows;
     }
-    else if (os == OS::LINUX)
+    else if (osLocal == OS::LINUX)
     {
         json = JConsts::linuxUnix;
     }
 }
 
-void from_json(const Json &json, OS &os)
+void from_json(const Json &json, OS &osLocal)
 {
     if (json == JConsts::windows)
     {
-        os = OS::NT;
+        osLocal = OS::NT;
     }
     else if (json == JConsts::linuxUnix)
     {
-        os = OS::LINUX;
+        osLocal = OS::LINUX;
     }
 }
 
@@ -273,47 +275,20 @@ string getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, con
     exit(EXIT_FAILURE);
 }
 
-void to_json(Json &json, const ConfigType &configType)
-{
-    if (configType == ConfigType::DEBUG)
-    {
-        json = JConsts::debug;
-    }
-    else
-    {
-        json = JConsts::release;
-    }
-}
-
-void from_json(const Json &json, ConfigType &configType)
-{
-    if (json == JConsts::debug)
-    {
-        configType = ConfigType::DEBUG;
-    }
-    else if (json == JConsts::release)
-    {
-        configType = ConfigType::RELEASE;
-    }
-}
-
 CommonFeatures::CommonFeatures()
 {
     // TODO
     addModel = AddressModel::A_64;
     arch = Arch::X86;
-    if (os == OS::NT)
+    if constexpr (os == OS::NT)
     {
         targetOs = TargetOS::WINDOWS;
     }
-    else if (os == OS::LINUX)
+    else if constexpr (os == OS::LINUX)
     {
         targetOs = TargetOS::LINUX_;
     }
-}
-
-void CommonFeatures::initializeFromCacheFunc()
-{
+    configurationType = cache.configurationType;
 }
 
 void CommonFeatures::setConfigType(ConfigType configType)
@@ -328,6 +303,7 @@ void CommonFeatures::setConfigType(ConfigType configType)
     else if (configType == ConfigType::RELEASE)
     {
         runtimeDebugging = RuntimeDebugging::OFF;
+        debugSymbols = DebugSymbols::OFF;
     }
     else if (configType == ConfigType::PROFILE)
     {
@@ -338,14 +314,9 @@ void CommonFeatures::setConfigType(ConfigType configType)
 
 LinkerFeatures::LinkerFeatures()
 {
-}
-
-void LinkerFeatures::initializeFromCacheFunc()
-{
-    configurationType = cache.configurationType;
     if (cache.isLinkerInVSToolsArray)
     {
-        linker = toolsCache.vsTools[cache.selectedLinkerArrayIndex].linker;
+        setLinkerFromVSTools(toolsCache.vsTools[cache.selectedLinkerArrayIndex]);
     }
     else
     {
@@ -362,41 +333,50 @@ void LinkerFeatures::initializeFromCacheFunc()
     libraryType = cache.libraryType;
 }
 
-void LinkerFeatures::setConfigType(ConfigType configType)
+void LinkerFeatures::setLinkerFromVSTools(struct VSTools &vsTools)
 {
+    linker = vsTools.linker;
+    standardLibraryDirectories.clear();
+    for (const string &str : vsTools.libraryDirectories)
+    {
+        standardLibraryDirectories.emplace(Node::getNodeFromString(str, false));
+    }
 }
 
 CompilerFeatures::CompilerFeatures()
 {
-}
-
-void CompilerFeatures::initializeFromCacheFunc()
-{
     if (cache.isCompilerInVSToolsArray)
     {
-        compiler = toolsCache.vsTools[cache.selectedCompilerArrayIndex].compiler;
-        includeDirectories = toolsCache.vsTools[cache.selectedArchiverArrayIndex].includeDirectories;
+        setCompilerFromVSTools(toolsCache.vsTools[cache.selectedCompilerArrayIndex]);
     }
     else
     {
         compiler = toolsCache.compilers[cache.selectedCompilerArrayIndex];
     }
-    if (cache.isLinkerInVSToolsArray)
+}
+
+void CompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
+{
+    compiler = vsTools.compiler;
+    standardIncludes.clear();
+    for (const string &str : vsTools.includeDirectories)
     {
-        libraryDirectoriesStandard = toolsCache.vsTools[cache.selectedLinkerArrayIndex].libraryDirectories;
+        Node *node =
+            const_cast<Node *>(standardIncludes.emplace(Node::getNodeFromString(str, false)).first.operator*());
+        node->ignoreIncludes = true;
     }
 }
 
-void CompilerFeatures::setConfigType(ConfigType configType)
+void CompilerFeatures::setConfigType(ConfigType configurationType)
 {
     // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
     // variant is set runtime-debugging is not set though. Here it is set, however.
-    if (configType == ConfigType::DEBUG)
+    if (configurationType == ConfigType::DEBUG)
     {
         optimization = Optimization::OFF;
         inlining = Inlining::OFF;
     }
-    else if (configType == ConfigType::RELEASE)
+    else if (configurationType == ConfigType::RELEASE)
     {
         optimization = Optimization::SPEED;
         inlining = Inlining::FULL;

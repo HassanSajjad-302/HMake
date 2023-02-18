@@ -186,15 +186,15 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
         return subjectPath;
     }
 
-    auto nthOccurrence = [](const string &str, const string &findMe, unsigned int nth) -> int {
-        unsigned long count = 0;
+    auto nthOccurrence = [](const string &str, const string &findMe, size_t nth) -> size_t {
+        size_t count = 0;
 
-        for (int i = 0; i < str.size(); ++i)
+        for (size_t i = 0; i < str.size(); ++i)
         {
             if (str.size() > i + findMe.size())
             {
                 bool found = true;
-                for (unsigned long j = 0; j < findMe.size(); ++j)
+                for (size_t j = 0; j < findMe.size(); ++j)
                 {
                     if (str[i + j] != findMe[j])
                     {
@@ -207,7 +207,7 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
                     ++count;
                     if (count == nth)
                     {
-                        return i;
+                        return (int)i;
                     }
                 }
             }
@@ -216,15 +216,14 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
                 break;
             }
         }
-        return -1;
+        return 0;
     };
 
-    auto countSubstring = [](const string &str, const string &sub) -> unsigned long {
+    auto countSubstring = [](const string &str, const string &sub) -> size_t {
         if (sub.length() == 0)
             return 0;
-        int count = 0;
-        for (int offset = (int)str.find(sub); offset != string::npos;
-             offset = (int)str.find(sub, offset + sub.length()))
+        size_t count = 0;
+        for (size_t offset = str.find(sub); offset != string::npos; offset = str.find(sub, offset + sub.length()))
         {
             ++count;
         }
@@ -244,11 +243,18 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
         toolOnWindows = true;
     }
 #endif
-    unsigned long count = countSubstring(str, toolOnWindows ? "\\" : "/");
+    size_t count = countSubstring(str, toolOnWindows ? "\\" : "/");
     if (finalDepth >= count)
     {
         return str;
     }
     size_t index = nthOccurrence(str, toolOnWindows ? "\\" : "/", count - finalDepth);
-    return str.substr(index + 1, str.size() - 1);
+    if (!index)
+    {
+        return str;
+    }
+    else
+    {
+        return str.substr(index + 1, str.size() - 1);
+    }
 }

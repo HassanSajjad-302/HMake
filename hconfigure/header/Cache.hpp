@@ -1,7 +1,7 @@
 #ifndef HMAKE_CACHE_HPP
 #define HMAKE_CACHE_HPP
 
-#include "Features.hpp"
+#include "ConfigType.hpp"
 #include "TargetType.hpp"
 #include "nlohmann/json.hpp"
 #include <filesystem>
@@ -47,7 +47,8 @@ template <typename T> struct CacheVariable
 };
 
 template <typename T>
-CacheVariable<T>::CacheVariable(string cacheVariableString_, T defaultValue) : jsonString(move(cacheVariableString_))
+CacheVariable<T>::CacheVariable(string cacheVariableString_, T defaultValue)
+    : jsonString(std::move(cacheVariableString_))
 {
     Json &cacheVariablesJson = cache.cacheVariables;
     if (cacheVariablesJson.contains(jsonString))

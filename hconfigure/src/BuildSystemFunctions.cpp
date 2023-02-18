@@ -1,7 +1,6 @@
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
 #include "CppSourceTarget.hpp"
-#include "LinkOrArchiveTarget.hpp"
 #include "fmt/format.h"
 #include <filesystem>
 #include <fstream>
@@ -68,44 +67,19 @@ void setBoolsAndSetRunDir(int argc, char **argv)
         };
 
         initializeSettings(path(configureDir) / "settings.hmake");
-
-        // If current-directory has a target, it is added, else its subdirectories are checked for targets.
-        if (exists("target.json"))
-        {
-            buildTargetFilePaths.emplace((current_path() / "target.json").string());
-        }
-        else
-        {
-            for (const auto &dir : directory_iterator(current_path()))
-            {
-                std::error_code ec;
-                if (dir.is_directory(ec))
-                {
-                    path p = dir.path() / "target.json";
-                    if (exists(p))
-                    {
-                        buildTargetFilePaths.emplace(p.generic_string());
-                    }
-                }
-                if (ec)
-                {
-                    exit(EXIT_FAILURE);
-                }
-            }
-        }
     }
 }
 
 inline void topologicallySortAndAddPrivateLibsToPublicLibs()
 {
-    for (auto &[first, cTarget] : cTargets)
+    for (CTarget *cTarget : targetPointers<CTarget>)
     {
         cTarget->populateCTargetDependencies();
     }
 
     TCT::tarjanNodes = &tarjanNodesCTargets;
     TCT::findSCCS();
-    TCT::checkForCycle([](CTarget *target) -> string { return "cycle check function not implemented"; }); // TODO
+    TCT::checkForCycle(); // TODO
 
     for (CTarget *cTarget : TCT::topologicalSort)
     {
@@ -120,7 +94,7 @@ void configureOrBuild()
     {
         TCT::tarjanNodes = &tarjanNodesCTargets;
         TCT::findSCCS();
-        TCT::checkForCycle([](CTarget *target) -> string { return "cycle check function not implemented"; });
+        TCT::checkForCycle();
         cTargetsSortedForConfigure = std::move(TCT::topologicalSort);
         tarjanNodesCTargets.clear();
         for (CTarget *cTarget : cTargetsSortedForConfigure)
@@ -137,7 +111,11 @@ void configureOrBuild()
     {
         for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
         {
-            it.operator*()->configure();
+            it.operator*()->setJson();
+        }
+        for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
+        {
+            it.operator*()->writeJsonFile();
         }
         cache.registerCacheVariables();
     }

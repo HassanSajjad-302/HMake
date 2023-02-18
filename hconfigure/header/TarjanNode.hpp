@@ -1,6 +1,8 @@
 #ifndef HMAKE_TARJANNODE_HPP
 #define HMAKE_TARJANNODE_HPP
 
+#include "Settings.hpp"
+#include "fmt/color.h"
 #include "fmt/format.h"
 #include <set>
 #include <string>
@@ -26,9 +28,11 @@ template <typename T> class TarjanNode
     mutable set<TarjanNode *> deps;
 
     explicit TarjanNode(const T *id_);
+
     // Find Strongly Connected Components
     static void findSCCS();
-    static void checkForCycle(string (*getStringFromTarjanNodeType)(T *t));
+
+    static void checkForCycle();
 
     const T *const id;
 
@@ -112,31 +116,28 @@ template <typename T> void TarjanNode<T>::strongConnect()
     topologicalSort.emplace_back(const_cast<T *>(id));
 }
 
-template <typename T> void TarjanNode<T>::checkForCycle(string (*getStringFromTarjanNodeType)(T *t))
+template <typename T> void TarjanNode<T>::checkForCycle()
 {
-    // TODO
-    /*    if (cycleExists)
+    if (cycleExists)
+    {
+        fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                   "There is a Cyclic-Dependency.\n");
+        size_t cycleSize = cycle.size();
+        for (unsigned int i = 0; i < cycleSize; ++i)
         {
-            fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                       "There is a Cyclic-Dependency.\n");
-            unsigned int cycleSize = cycle.size();
-            for (unsigned int i = 0; i < cycleSize; ++i)
+            if (cycleSize == i + 1)
             {
-                if (cycleSize == i + 1)
-                {
-                    fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                               "{} Depends On {}.\n", getStringFromTarjanNodeType(cycle[i]),
-                               getStringFromTarjanNodeType(cycle[0]));
-                }
-                else
-                {
-                    fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                               "{} Depends On {}.\n", getStringFromTarjanNodeType(cycle[0]),
-                               getStringFromTarjanNodeType(cycle[0]));
-                }
+                fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                           "{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[0]->getTarjanNodeName());
             }
-            exit(EXIT_SUCCESS);
-        }*/
+            else
+            {
+                fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                           "{} Depends On {}.\n", cycle[0]->getTarjanNodeName(), cycle[0]->getTarjanNodeName());
+            }
+        }
+        exit(EXIT_SUCCESS);
+    }
 }
 
 template <typename T> bool operator<(const TarjanNode<T> &lhs, const TarjanNode<T> &rhs)

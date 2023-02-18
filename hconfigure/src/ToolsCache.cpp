@@ -9,7 +9,7 @@
 using std::ofstream, fmt::print, std::filesystem::remove;
 
 VSTools::VSTools(string batchFile, path toolBinDir, Arch hostArch_, AddressModel hostAM_, Arch targetArch_,
-                 AddressModel targetAM_)
+                 AddressModel targetAM_, bool executingFromWSL)
     : command(std::move(batchFile)), hostArch(hostArch_), hostAM(hostAM_), targetArch(targetArch_), targetAM(targetAM_)
 {
     bool hostSupported = false;
@@ -58,23 +58,25 @@ VSTools::VSTools(string batchFile, path toolBinDir, Arch hostArch_, AddressModel
     compiler.bTPath = toolBinDir / "cl.exe";
     linker.bTPath = toolBinDir / "link.exe";
     archiver.bTPath = toolBinDir / "lib.exe";
-    initializeFromVSToolBatchCommand();
+    initializeFromVSToolBatchCommand(executingFromWSL);
 }
 
-void VSTools::initializeFromVSToolBatchCommand()
+void VSTools::initializeFromVSToolBatchCommand(bool executingFromWSL)
 {
-    initializeFromVSToolBatchCommand(command + " " + commandArguments);
+    initializeFromVSToolBatchCommand(command + " " + commandArguments, executingFromWSL);
 }
 
-void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand)
+void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool executingFromWSL)
 {
     string temporaryIncludeFilename = "temporaryInclude.txt";
     string temporaryLibFilename = "temporaryLib.txt";
     string temporaryBatchFilename = "temporaryBatch.bat";
-    ofstream(temporaryBatchFilename) << "call " + finalCommand << "\necho %INCLUDE% > " + temporaryIncludeFilename
-                                     << "\necho %LIB%;%LIBPATH% > " + temporaryLibFilename;
+    string cmdExe = executingFromWSL ? "cmd.exe /c " : "";
+    string batchCommand = "call " + finalCommand + "\n" + cmdExe + "echo %INCLUDE% > " + temporaryIncludeFilename +
+                          "\n" + cmdExe + "echo %LIB%;%LIBPATH% > " + temporaryLibFilename;
+    ofstream(temporaryBatchFilename) << batchCommand;
 
-    if (int code = system(temporaryBatchFilename.c_str()); code == EXIT_FAILURE)
+    if (int code = system((cmdExe + temporaryBatchFilename).c_str()); code == EXIT_FAILURE)
     {
         print(stderr, "Error in Initializing Environment\n");
         exit(EXIT_FAILURE);
@@ -83,7 +85,7 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand)
 
     auto splitPathsAndAssignToVector = [](string &accumulatedPaths) -> set<string> {
         set<string> separatedPaths{};
-        unsigned long pos = accumulatedPaths.find(';');
+        size_t pos = accumulatedPaths.find(';');
         while (pos != std::string::npos)
         {
             std::string token = accumulatedPaths.substr(0, pos);
@@ -98,18 +100,44 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand)
         return separatedPaths;
     };
 
+    auto convertPathsToWSLPaths = [executingFromWSL](set<string> &vec) {
+        if (executingFromWSL)
+        {
+            const std::string s = "\\";
+            const std::string t = "/";
+
+            set<string> vec2 = std::move(vec);
+            vec.clear();
+            for (const string &str : vec2)
+            {
+                string str2 = str;
+                std::string::size_type n = 0;
+                while ((n = str2.find(s, n)) != std::string::npos)
+                {
+                    str2.replace(n, s.size(), t);
+                    n += t.size();
+                }
+                str2.erase(0, 2);
+                string str3 = "/mnt/c" + str2;
+                vec.emplace(std::move(str3));
+            }
+        }
+    };
+
     string accumulatedPaths = file_to_string(temporaryIncludeFilename);
     remove(temporaryIncludeFilename);
     accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
     accumulatedPaths.pop_back();
     accumulatedPaths.append(";");
     includeDirectories = splitPathsAndAssignToVector(accumulatedPaths);
+    convertPathsToWSLPaths(includeDirectories);
     accumulatedPaths = file_to_string(temporaryLibFilename);
     remove(temporaryLibFilename);
     accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
     accumulatedPaths.pop_back();
     accumulatedPaths.append(";");
     libraryDirectories = splitPathsAndAssignToVector(accumulatedPaths);
+    convertPathsToWSLPaths(libraryDirectories);
 }
 
 void to_json(Json &j, const VSTools &vsTool)

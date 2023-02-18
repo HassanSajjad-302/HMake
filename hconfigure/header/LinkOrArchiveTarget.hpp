@@ -36,16 +36,13 @@ class LinkOrArchiveTarget : public CommonFeatures,
                             public FeatureConvenienceFunctions<LinkOrArchiveTarget>
 {
   public:
-    class CppSourceTarget *cppSourceTarget;
+    class CppSourceTarget *cppSourceTarget = nullptr;
     TargetType linkTargetType;
     shared_ptr<PostBasic> postBasicLinkOrArchive;
-    Linker linker;
-    Archiver archiver;
     string linkerTransitiveFlags;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     string linkOrArchiveCommand;
-    string linkOrArchiveCommandPrintFirstHalf;
-    set<string> libraryDirectoriesStandard;
+    string linkOrArchiveCommandPrint;
     set<Node *> libraryDirectories;
 
     set<LinkOrArchiveTarget *> publicLibs;
@@ -53,26 +50,27 @@ class LinkOrArchiveTarget : public CommonFeatures,
     set<LinkOrArchiveTarget *> publicPrebuilts;
     set<LinkOrArchiveTarget *> privatePrebuilts;
 
-    string linkCommand;
     string buildCacheFilesDirPath;
     string actualOutputName;
 
     LinkOrArchiveTarget(string name, TargetType targetType);
-    void initializeForBuild() override;
+    LinkOrArchiveTarget(string name, TargetType targetType, class CTarget &other, bool hasFile = true);
+    void initializeForBuild(Builder &builder) override;
     LinkerFlags getLinkerFlags();
-    void updateBTarget(unsigned short round) override;
+    void updateBTarget(unsigned short round, Builder &builder) override;
     void printMutexLockRoutine(unsigned short round) override;
     void setJson() override;
     BTarget *getBTarget() override;
     PostBasic Archive();
     PostBasic Link();
+    bool linkFunctionCalled = false;
     void populateCTargetDependencies() override;
     void addPrivatePropertiesToPublicProperties() override;
-    void setLinkOrArchiveCommandAndPrint();
-    string &getLinkOrArchiveCommand();
-    string &getLinkOrArchiveCommandPrintFirstHalf();
-    void checkForPreBuiltAndCacheDir() override;
-    void checkForRelinkPrebuiltDependencies();
+    void duringSort(Builder &builder, unsigned short round) override;
+    void setLinkOrArchiveCommandPrint();
+    string getLinkOrArchiveCommand(bool ignoreTargets);
+    string &getLinkOrArchiveCommandPrint();
+    void checkForPreBuiltAndCacheDir(Builder &builder);
     string outputName;
     string outputDirectory;
     string publicLinkerFlags;

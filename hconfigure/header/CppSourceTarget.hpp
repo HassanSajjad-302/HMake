@@ -3,14 +3,13 @@
 
 #include "BuildTools.hpp"
 #include "Builder.hpp"
+#include "Configuration.hpp"
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "JConsts.hpp"
 #include "LinkOrArchiveTarget.hpp"
-#include "ModuleScope.hpp"
 #include "SMFile.hpp"
 #include "ToolsCache.hpp"
-#include "Variant.hpp"
 #include <concepts>
 #include <set>
 #include <string>
@@ -22,13 +21,10 @@ struct SourceDirectory
     const Node *sourceDirectory;
     string regex;
     SourceDirectory() = default;
-    SourceDirectory(string sourceDirectory_, string regex_);
-    void populateSourceOrSMFiles(class CppSourceTarget &target, bool sourceFiles);
+    SourceDirectory(const string &sourceDirectory_, string regex_);
 };
 void to_json(Json &j, const SourceDirectory &sourceDirectory);
 bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs);
-
-class PLibrary;
 
 struct CompilerFlags
 {
@@ -39,6 +35,7 @@ struct CompilerFlags
     string DEFINES_COMPILE_CPP;
     string LANG;
 
+    string TRANSLATE_INCLUDE;
     // MSVC
     string DOT_CC_COMPILE;
     string DOT_ASM_COMPILE;
@@ -55,13 +52,13 @@ struct CompilerFlags
 
 class CppSourceTarget : public CommonFeatures,
                         public CompilerFeatures,
+                        public CTarget,
                         public BTarget,
-                        public FeatureConvenienceFunctions<CppSourceTarget>,
-                        public ModuleScope
+                        public FeatureConvenienceFunctions<CppSourceTarget>
 {
   public:
     TargetType compileTargetType;
-    ModuleScope *moduleScope = nullptr;
+    CppSourceTarget *moduleScope = nullptr;
     class LinkOrArchiveTarget *linkOrArchiveTarget = nullptr;
     friend struct PostCompile;
     // Parsed Info Not Changed Once Read
@@ -82,61 +79,54 @@ class CppSourceTarget : public CommonFeatures,
     void setCpuType();
     bool isCpuTypeG7();
 
-    vector<SMFile *> smFiles;
+    set<const SMFile *> applicationHeaderUnits;
 
     string &getCompileCommand();
     void setCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
     inline string &getSourceCompileCommandPrintFirstHalf();
 
-    //  Create a new SourceNode and insert it into the targetCache.sourceFileDependencies if it is not already there. So
-    //  that it is written to the cache on disk for faster compilation next time
-    void setSourceNodeFileStatus(SourceNode &sourceNode, bool angle) const;
-
-    void checkForPreBuiltAndCacheDir() override;
-    void checkForPreBuiltAndCacheDir(const Json &cacheJson);
-    void populateSetTarjanNodesSourceNodes(Builder &builder) override;
-    void parseModuleSourceFiles(Builder &builder) override;
+    void checkForPreBuiltAndCacheDir(Builder &builder);
+    void populateSourceNodesAndRemoveUnReferencedHeaderUnits() override;
+    void parseModuleSourceFiles(Builder &builder);
     string getInfrastructureFlags();
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode);
     PostCompile CompileSMFile(SMFile &smFile);
+    string getSHUSPath() const;
     string getExtension();
     PostCompile updateSourceNodeBTarget(SourceNode &sourceNode);
     /* void populateCommandAndPrintCommandWithObjectFiles(string &command, string &printCommand,
                                                         const PathPrint &objectFilesPathPrint);*/
 
-    PostBasic GenerateSMRulesFile(const SourceNode &sourceNode, bool printOnlyOnError);
+    PostBasic GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void pruneAndSaveBuildCache(bool successful);
 
-    vector<const Node *> publicIncludes;
+    set<const Node *> publicIncludes;
     // In module scope, two different targets should not have a directory in hu-public-includes
-    vector<const Node *> publicHUIncludes;
+    set<const Node *> publicHUIncludes;
     string publicCompilerFlags;
-    vector<Define> publicCompileDefinitions;
+    set<Define> publicCompileDefinitions;
     set<SourceDirectory> regexSourceDirs;
     set<SourceDirectory> regexModuleDirs;
 
-    void initializeForBuild() override;
+    void initializeForBuild(Builder &builder) override;
     void setJson() override;
     void writeJsonFile() override;
     BTarget *getBTarget() override;
-    void checkForHeaderUnitsCache() override;
-    void createHeaderUnits() override;
     CompilerFlags getCompilerFlags();
     // TODO
   public:
-    CppSourceTarget() = default;
-    CppSourceTarget(string name_, TargetType targetType, bool initializeFromCache = true);
-    CppSourceTarget(string name_, TargetType targetType, LinkOrArchiveTarget &linkOrArchiveTarget,
-                    bool initializeFromCache = true);
-    CppSourceTarget(string name_, TargetType targetType, Variant &variant);
+    CppSourceTarget(string name_, TargetType targetType);
+    CppSourceTarget(string name_, TargetType targetType, LinkOrArchiveTarget &linkOrArchiveTarget_);
+    CppSourceTarget(string name_, TargetType targetType, CTarget &other, bool hasFile = true);
+    CppSourceTarget(string name_, TargetType targetType, LinkOrArchiveTarget &linkOrArchiveTarget_, CTarget &other,
+                    bool hasFile = true);
 
   public:
-    void updateBTarget(unsigned short round) override;
-    void printMutexLockRoutine(unsigned short round) override;
+    void updateBTarget(unsigned short round, Builder &builder) override;
     //
 
-    void setModuleScope(ModuleScope *moduleScope_);
+    CppSourceTarget &setModuleScope(CppSourceTarget *moduleScope_);
     template <same_as<char const *>... U> CppSourceTarget &PUBLIC_INCLUDES(U... includeDirectoryString);
     template <same_as<char const *>... U> CppSourceTarget &PRIVATE_INCLUDES(U... includeDirectoryString);
     template <same_as<char const *>... U> CppSourceTarget &PUBLIC_HU_INCLUDES(U... includeDirectoryString);
@@ -160,13 +150,12 @@ class CppSourceTarget : public CommonFeatures,
     CppSourceTarget &ASSIGN(T property, Property... properties);
     template <typename T> bool EVALUATE(T property) const;
     template <Dependency dependency = Dependency::PRIVATE, typename T> void assignCommonFeature(T property);
-    template <typename T> bool evaluateCommonFeatures(T property) const;
 
 }; // class Target
 
 template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(U... includeDirectoryString)
 {
-    (publicIncludes.emplace_back(Node::getNodeFromString(includeDirectoryString, false)), ...);
+    (publicIncludes.emplace(Node::getNodeFromString(includeDirectoryString, false)), ...);
     return *this;
 }
 
@@ -178,14 +167,28 @@ template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PRIVATE_
 
 template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(U... includeDirectoryString)
 {
-    (publicHUIncludes.emplace_back(Node::getNodeFromString(includeDirectoryString, false)), ...);
-    return *this;
+    if (EVALUATE(TreatModuleAsSource::YES))
+    {
+        return PUBLIC_INCLUDES(includeDirectoryString...);
+    }
+    else
+    {
+        (publicHUIncludes.emplace(Node::getNodeFromString(includeDirectoryString, false)), ...);
+        return *this;
+    }
 }
 
 template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(U... includeDirectoryString)
 {
-    (privateHUIncludes.emplace_back(Node::getNodeFromString(includeDirectoryString, false)), ...);
-    return *this;
+    if (EVALUATE(TreatModuleAsSource::YES))
+    {
+        return PRIVATE_INCLUDES(includeDirectoryString...);
+    }
+    else
+    {
+        (privateHUIncludes.emplace_back(Node::getNodeFromString(includeDirectoryString, false)), ...);
+        return *this;
+    }
 }
 
 template <same_as<LinkOrArchiveTarget *>... U> CppSourceTarget &CppSourceTarget::PUBLIC_LIBRARIES(const U... libraries)
@@ -214,19 +217,15 @@ template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::SOURCE_F
 
 template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(U... moduleFileString)
 {
-    (addNodeInModuleSourceFileDependencies(moduleFileString), ...);
-    return *this;
-}
-
-template <typename T, typename U, typename... V> void func(T property, U &u)
-{
-    if constexpr (std::is_same_v<decltype(property), U>)
+    if (EVALUATE(TreatModuleAsSource::YES))
     {
+        return SOURCE_FILES(moduleFileString...);
     }
-}
-
-template <typename T, typename... P> void funcMultiple(T property, P... args)
-{
+    else
+    {
+        (addNodeInModuleSourceFileDependencies(moduleFileString), ...);
+        return *this;
+    }
 }
 
 template <Dependency dependency, typename T, typename... Property>
@@ -311,6 +310,14 @@ CppSourceTarget &CppSourceTarget::ASSIGN(T property, Property... properties)
     else if constexpr (std::is_same_v<decltype(property), Strip>)
     {
         linkOrArchiveTarget->strip = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TranslateInclude>)
+    {
+        translateInclude = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
+    {
+        treatModuleAsSource = property;
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
@@ -412,13 +419,82 @@ template <typename T> bool CppSourceTarget::EVALUATE(T property) const
     {
         return linkOrArchiveTarget->strip == property;
     }
+    // CommonFeature properties
+    else if constexpr (std::is_same_v<decltype(property), TargetOS>)
+    {
+        return targetOs == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DebugSymbols>)
+    {
+        return debugSymbols == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Profiling>)
+    {
+        return profiling == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LocalVisibility>)
+    {
+        return localVisibility == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
+    {
+        return addressSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LeakSanitizer>)
+    {
+        return leakSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), ThreadSanitizer>)
+    {
+        return threadSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UndefinedSanitizer>)
+    {
+        return undefinedSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Coverage>)
+    {
+        return coverage == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LTO>)
+    {
+        return lto == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RuntimeLink>)
+    {
+        return runtimeLink == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Arch>)
+    {
+        return arch == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddressModel>)
+    {
+        return addModel == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DebugStore>)
+    {
+        return debugStore == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RuntimeDebugging>)
+    {
+        return runtimeDebugging == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TranslateInclude>)
+    {
+        return translateInclude == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
+    {
+        return treatModuleAsSource == property;
+    }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
         return property;
     }
     else
     {
-        return evaluateCommonFeatures(property);
+        compiler = property; // Just to fail the compilation. Ensures that all properties are handled.
     }
 }
 
@@ -494,78 +570,6 @@ template <Dependency dependency, typename T> void CppSourceTarget::assignCommonF
     }
 }
 
-template <typename T> bool CppSourceTarget::evaluateCommonFeatures(T property) const
-{
-    if constexpr (std::is_same_v<decltype(property), TargetOS>)
-    {
-        return targetOs == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), DebugSymbols>)
-    {
-        return debugSymbols == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Profiling>)
-    {
-        return profiling == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), LocalVisibility>)
-    {
-        return localVisibility == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
-    {
-        return addressSanitizer == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), LeakSanitizer>)
-    {
-        return leakSanitizer == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ThreadSanitizer>)
-    {
-        return threadSanitizer == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), UndefinedSanitizer>)
-    {
-        return undefinedSanitizer == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Coverage>)
-    {
-        return coverage == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), LTO>)
-    {
-        return lto == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), RuntimeLink>)
-    {
-        return runtimeLink == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Arch>)
-    {
-        return arch == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AddressModel>)
-    {
-        return addModel == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), DebugStore>)
-    {
-        return debugStore == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), RuntimeDebugging>)
-    {
-        return runtimeDebugging == property;
-    }
-    else
-    {
-        compiler = property; // Just to fail the compilation. Ensures that all properties are handled.
-    }
-    if (linkOrArchiveTarget)
-    {
-        return linkOrArchiveTarget->EVALUATE(property);
-    }
-}
-
 // PreBuilt-Library
 class PLibrary
 {
@@ -585,7 +589,7 @@ class PLibrary
     vector<Define> compileDefinitions;
     path libraryPath;
     mutable TargetType targetType;
-    PLibrary(Variant &variant, const path &libraryPath_, TargetType libraryType_);
+    PLibrary(Configuration &variant, const path &libraryPath_, TargetType libraryType_);
 };
 bool operator<(const PLibrary &lhs, const PLibrary &rhs);
 void to_json(Json &j, const PLibrary *pLibrary);

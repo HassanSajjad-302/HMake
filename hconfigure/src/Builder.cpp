@@ -3,215 +3,102 @@
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
 #include "Utilities.hpp"
+#include <condition_variable>
 #include <fstream>
 #include <mutex>
 #include <stack>
 #include <thread>
 
-using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream, std::ofstream, std::stack;
+using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream, std::ofstream, std::stack,
+    std::filesystem::current_path;
+
+bool Builder::isCTargetInSelectedSubDirectory(const CTarget &cTarget)
+{
+    path targetPath = cTarget.getSubDirForTarget();
+    for (; targetPath.root_path() != targetPath; targetPath = (targetPath / "..").lexically_normal())
+    {
+        std::error_code ec;
+        if (equivalent(targetPath, current_path(), ec))
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
 Builder::Builder()
 {
     vector<BTarget *> bTargets;
-    for (auto &[first, cTarget] : cTargets)
+    for (CTarget *cTarget : targetPointers<CTarget>)
     {
         if (BTarget *bTarget = cTarget->getBTarget(); bTarget)
         {
             bTargets.emplace_back(bTarget);
+            if (isCTargetInSelectedSubDirectory(*cTarget))
+            {
+                bTarget->selectiveBuild = true;
+            }
         }
     }
 
     for (BTarget *bTarget : bTargets)
     {
-        bTarget->initializeForBuild();
-        bTarget->checkForPreBuiltAndCacheDir();
-        bTarget->parseModuleSourceFiles(*this);
+        bTarget->initializeForBuild(*this);
     }
-    finalBTargetsSizeGoal = finalBTargets.size();
     round = 1;
+    finalBTargetsSizeGoal = finalBTargets.size();
     launchThreadsAndUpdateBTargets();
-    populateRequirePaths();
 
     for (BTarget *bTarget : bTargets)
     {
-        bTarget->checkForHeaderUnitsCache();
-    }
-    for (BTarget *bTarget : bTargets)
-    {
-        bTarget->populateSetTarjanNodesSourceNodes(*this);
-    }
-    for (BTarget *bTarget : bTargets)
-    {
-        bTarget->createHeaderUnits();
+        bTarget->populateSourceNodesAndRemoveUnReferencedHeaderUnits();
     }
     populateSetTarjanNodesBTargetsSMFiles();
-    populateFinalBTargets();
     round = 0;
+    populateFinalBTargets();
     launchThreadsAndUpdateBTargets();
-}
-
-void Builder::populateRequirePaths()
-{
-    for (auto &[moduleScope, moduleScopeData] : moduleScopes)
-    {
-        for (const SMFile *smFileConst : moduleScopeData.smFiles)
-        {
-            auto &smFile = const_cast<SMFile &>(*smFileConst);
-
-            string smFilePath =
-                smFile.target->buildCacheFilesDirPath + path(smFile.node->filePath).filename().string() + ".smrules";
-            Json smFileJson;
-            ifstream(smFilePath) >> smFileJson;
-            bool hasRequires = false;
-            Json rule = smFileJson.at("rules").get<Json>()[0];
-            if (rule.contains("provides"))
-            {
-                smFile.hasProvide = true;
-                // There can be only one provides but can be multiple requires.
-                smFile.logicalName = rule.at("provides").get<Json>()[0].at("logical-name").get<string>();
-                if (auto [pos, ok] = moduleScopeData.requirePaths.emplace(smFile.logicalName, &smFile); !ok)
-                {
-                    const auto &[key, val] = *pos;
-                    // TODO
-                    // Mention the module scope too.
-                    print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                          "Module {} Is Being Provided By 2 different files:\n1){}\n2){}\n", smFile.logicalName,
-                          smFile.node->filePath, val->node->filePath);
-                    exit(EXIT_FAILURE);
-                }
-            }
-            smFile.requiresJson = std::move(rule.at("requires"));
-        }
-    }
 }
 
 void Builder::populateSetTarjanNodesBTargetsSMFiles()
 {
-    for (auto &[scopeStrPtr, moduleScope] : moduleScopes)
+    for (auto &[moduleScope, moduleScopeData] : moduleScopes)
     {
-        for (SMFile *smFileConst : moduleScope.smFiles)
+        for (SMFile *smFileConst : moduleScopeData.smFiles)
         {
             auto &smFile = const_cast<SMFile &>(*smFileConst);
-            // If following remains false then source is GlobalModuleFragment.
-            bool hasLogicalNameRequireDependency = false;
-            // If following is true then smFile is PartitionImplementation.
-            bool hasPartitionExportDependency = false;
-            for (const Json &json : smFileConst->requiresJson)
+            CppSourceTarget *cppSourceTarget = smFile.target;
+            for (const Json &requireJson : smFileConst->requiresJson)
             {
-                string requireLogicalName = json.at("logical-name").get<string>();
+                string requireLogicalName = requireJson.at("logical-name").get<string>();
                 if (requireLogicalName == smFile.logicalName)
                 {
                     print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
                           "In Scope\n{}\nModule\n{}\n can not depend on itself.\n", smFile.node->filePath);
                     exit(EXIT_FAILURE);
                 }
-                if (json.contains("lookup-method"))
+                if (requireJson.contains("lookup-method"))
                 {
-                    string headerUnitPath =
-                        path(json.at("source-path").get<string>()).lexically_normal().generic_string();
-                    bool isStandardHeaderUnit = false;
-                    bool isApplicationHeaderUnit = false;
-                    CppSourceTarget *ahuDirTarget;
-                    auto isSubDir = [](path p, const path &root) {
-                        while (p != p.root_path())
-                        {
-                            if (p == root.parent_path())
-                            {
-                                return true;
-                            }
-                            p = p.parent_path();
-                        }
-                        return false;
-                    };
-                    // TODO
-                    /*                    if (isSubDirPathStandard(headerUnitPath,
-                       smFile.target.environment.includeDirectories))
-                                        {
-                                            isStandardHeaderUnit = true;
-                                            ahuDirTarget = &(smFile.target);
-                                        }*/
-                    if (!isStandardHeaderUnit)
-                    {
-                        for (auto &dir : moduleScope.appHUDirTarget)
-                        {
-                            // TODO;
-                            const Node *dirNode = dir.first;
-                            path result = path(headerUnitPath).lexically_relative(dirNode->filePath).generic_string();
-                            if (!result.empty() && !result.generic_string().starts_with(".."))
-                            {
-                                isApplicationHeaderUnit = true;
-                                ahuDirTarget = dir.second;
-                            }
-                        }
-                    }
-                    if (!isStandardHeaderUnit && !isApplicationHeaderUnit)
-                    {
-                        print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                              "Module Header Unit\n{}\n is neither a Standard Header Unit nor belongs to any Target "
-                              "Header Unit Includes of Module Scope\n{}\n",
-                              headerUnitPath, scopeStrPtr->getTargetPointer());
-                        exit(EXIT_FAILURE);
-                    }
-                    const auto &[pos1, Ok1] = moduleScope.headerUnits.emplace(ahuDirTarget, headerUnitPath);
-                    auto &smFileHeaderUnit = const_cast<SMFile &>(*pos1);
-                    smFile.headerUnitsConsumptionMethods[&smFileHeaderUnit].emplace(
-                        json.at("lookup-method").get<string>() == "include-angle", requireLogicalName);
-                    smFile.addDependency(smFileHeaderUnit);
-
-                    if (Ok1)
-                    {
-                        smFileHeaderUnit.type = SM_FILE_TYPE::HEADER_UNIT;
-                        smFileHeaderUnit.standardHeaderUnit = isStandardHeaderUnit;
-                        if (isApplicationHeaderUnit)
-                        {
-                            smFileHeaderUnit.ahuTarget = ahuDirTarget;
-                        }
-                        // TODO:
-                        // Check for update
-                        smFileHeaderUnit.fileStatus = FileStatus::NEEDS_UPDATE;
-                    }
+                    continue;
+                }
+                if (auto it = moduleScopeData.requirePaths.find(requireLogicalName);
+                    it == moduleScopeData.requirePaths.end())
+                {
+                    print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                          "No File Provides This {}.\n", requireLogicalName);
+                    exit(EXIT_FAILURE);
                 }
                 else
                 {
-                    hasLogicalNameRequireDependency = true;
-                    if (requireLogicalName.contains(':'))
-                    {
-                        hasPartitionExportDependency = true;
-                    }
-                    if (auto it = moduleScope.requirePaths.find(requireLogicalName);
-                        it == moduleScope.requirePaths.end())
-                    {
-                        print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                              "No File Provides This {}.\n", requireLogicalName);
-                        exit(EXIT_FAILURE);
-                    }
-                    else
-                    {
-                        SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
-                        smFile.addDependency(smFileDep);
-                    }
+                    SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
+                    smFile.addDependency(smFileDep, 0);
                 }
             }
 
-            if (smFile.hasProvide)
+            if (smFile.target->linkOrArchiveTarget)
             {
-                smFile.type =
-                    smFile.logicalName.contains(':') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
+                smFile.target->linkOrArchiveTarget->addDependency(smFile, 0);
             }
-            else
-            {
-                if (hasLogicalNameRequireDependency)
-                {
-                    smFile.type = hasPartitionExportDependency ? SM_FILE_TYPE::PARTITION_IMPLEMENTATION
-                                                               : SM_FILE_TYPE::PRIMARY_IMPLEMENTATION;
-                }
-                else
-                {
-                    smFile.type = SM_FILE_TYPE::GLOBAL_MODULE_FRAGMENT;
-                }
-            }
-            smFile.target->addDependency(smFile);
-            smFile.target->smFiles.emplace_back(&smFile);
+            cppSourceTarget->addDependency(smFile, 0);
         }
     }
 }
@@ -220,52 +107,55 @@ void Builder::populateFinalBTargets()
 {
     TBT::tarjanNodes = &tarjanNodesBTargets;
     TBT::findSCCS();
-    TBT::checkForCycle([](BTarget *target) -> string { return "cycle check function not implemented"; }); // TODO
-    unsigned long needsUpdate = 0;
-    for (unsigned long i = 0; i < TBT::topologicalSort.size(); ++i)
+    tarjanNodesBTargets.clear();
+    TBT::checkForCycle();
+    size_t needsUpdate = 0;
+
+    vector<BTarget *> sortedBTargets = std::move(TBT::topologicalSort);
+    for (auto it = sortedBTargets.rbegin(); it != sortedBTargets.rend(); ++it)
     {
-        BTarget *bTarget = TBT::topologicalSort[i];
-        bTarget->indexInTopologicalSort = i;
-        if (auto *target = dynamic_cast<CppSourceTarget *>(bTarget); target)
+        BTarget *bTarget = *it;
+        if (bTarget->selectiveBuild)
         {
-            if (target->fileStatus != FileStatus::NEEDS_UPDATE)
+            for (BTarget *dependency : bTarget->getRealBTarget(round).dependencies)
             {
-                int a;
-                // TODO
-                /*                if (target.getLinkOrArchiveCommand() != target.linkCommand)
-                                {
-                                    target.fileStatus = FileStatus::NEEDS_UPDATE;
-                                }*/
+                dependency->selectiveBuild = true;
             }
         }
-        for (BTarget *dependent : bTarget->dependents)
+    }
+    // for(auto it = )
+    for (unsigned i = 0; i < sortedBTargets.size(); ++i)
+    {
+        BTarget *bTarget = sortedBTargets[i];
+        RealBTarget &realBTarget = bTarget->getRealBTarget(round);
+        realBTarget.indexInTopologicalSort = i;
+        for (BTarget *dependency : realBTarget.dependencies)
         {
-            if (bTarget->fileStatus == FileStatus::UPDATED)
+            realBTarget.allDependencies.emplace(dependency);
+            for (BTarget *dep : dependency->getRealBTarget(round).allDependencies)
             {
-                --(dependent->dependenciesSize);
-            }
-            else if (bTarget->fileStatus == FileStatus::NEEDS_UPDATE)
-            {
-                auto &dependentTarget = static_cast<CppSourceTarget &>(*dependent);
-                dependentTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                realBTarget.allDependencies.emplace(dep);
             }
         }
-        if (bTarget->fileStatus == FileStatus::NEEDS_UPDATE)
+        bTarget->duringSort(*this, round);
+        for (BTarget *dependent : realBTarget.dependents)
+        {
+            RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
+            if (realBTarget.fileStatus == FileStatus::UPDATED)
+            {
+                --(dependentRealBTarget.dependenciesSize);
+            }
+            else if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+            {
+                dependentRealBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+            }
+        }
+        if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
         {
             ++needsUpdate;
-            if (!bTarget->dependenciesSize)
+            if (!realBTarget.dependenciesSize)
             {
                 finalBTargets.emplace_back(bTarget);
-            }
-        }
-        for (BTarget *dependency : bTarget->dependencies)
-        {
-            bTarget->allDependencies.emplace(dependency);
-            // Following assign all dependencies of the dependency to all dependencies of the bTarget. Because of
-            // iteration in topologicalSort, indexInTopologicalSort for all dependencies would already be set.
-            for (BTarget *dep : dependency->allDependencies)
-            {
-                bTarget->allDependencies.emplace(dep);
             }
         }
     }
@@ -308,9 +198,6 @@ set<string> Builder::getTargetFilePathsFromProjectOrPackageFile(const string &fi
     return targetFilePaths;
 }
 
-mutex oneAndOnlyMutex;
-mutex printMutex;
-
 void Builder::launchThreadsAndUpdateBTargets()
 {
     vector<thread *> threads;
@@ -319,7 +206,8 @@ void Builder::launchThreadsAndUpdateBTargets()
     // Instead of launching all threads, only the required amount should be
     // launched. Following should be helpful for this calculation in DSL.
     // https://cs.stackexchange.com/a/16829
-    unsigned short launchThreads = 1;
+    finalBTargetsIterator = finalBTargets.begin();
+    unsigned short launchThreads = 12;
     if (launchThreads)
     {
         while (threads.size() != launchThreads - 1)
@@ -334,75 +222,95 @@ void Builder::launchThreadsAndUpdateBTargets()
         delete t;
     }
     finalBTargets.clear();
-    finalBTargetsIndex = 0;
 }
 
-void Builder::printDebugFinalBTargets()
+static mutex updateMutex;
+static mutex printMutex;
+
+std::condition_variable cond;
+
+void Builder::addNewBTargetInFinalBTargets(BTarget *bTarget)
 {
-    for (BTarget *bTarget : finalBTargets)
+    std::lock_guard<std::mutex> lk(updateMutex);
+    finalBTargets.emplace_back(bTarget);
+    ++finalBTargetsSizeGoal;
+    if (finalBTargetsIterator == finalBTargets.end())
     {
+        --finalBTargetsIterator;
     }
+    cond.notify_all();
 }
 
 void Builder::updateBTargets()
 {
-    bool loop = true;
-    while (loop)
+    std::unique_lock<std::mutex> lk(updateMutex);
+    BTarget *bTarget;
+    if (finalBTargets.size() == finalBTargetsSizeGoal && finalBTargetsIterator == finalBTargets.end())
     {
-        oneAndOnlyMutex.lock();
-        while (finalBTargetsIndex < finalBTargets.size())
+        return;
+    }
+    bool shouldWait;
+    if (finalBTargetsIterator == finalBTargets.end())
+    {
+        shouldWait = true;
+    }
+    else
+    {
+        bTarget = *finalBTargetsIterator;
+        ++finalBTargetsIterator;
+        shouldWait = false;
+        updateMutex.unlock();
+    }
+    while (true)
+    {
+        if (shouldWait)
         {
-            printDebugFinalBTargets();
-            BTarget *bTarget = finalBTargets[finalBTargetsIndex];
-            ++finalBTargetsIndex;
-            oneAndOnlyMutex.unlock();
-            bTarget->updateBTarget(round);
-            printMutex.lock();
-            bTarget->printMutexLockRoutine(round);
-            printMutex.unlock();
-            oneAndOnlyMutex.lock();
-            for (BTarget *dependent : bTarget->dependents)
+            cond.wait(lk, [&]() {
+                return finalBTargetsIterator != finalBTargets.end() || finalBTargets.size() == finalBTargetsSizeGoal;
+            });
+            if (finalBTargets.size() == finalBTargetsSizeGoal)
             {
-                --(dependent->dependenciesSize);
-                if (!dependent->dependenciesSize && dependent->fileStatus == FileStatus::NEEDS_UPDATE)
+                return;
+            }
+            else
+            {
+                bTarget = *finalBTargetsIterator;
+                ++finalBTargetsIterator;
+            }
+            updateMutex.unlock();
+        }
+
+        bTarget->updateBTarget(round, *this);
+
+        printMutex.lock();
+        bTarget->printMutexLockRoutine(round);
+        printMutex.unlock();
+
+        updateMutex.lock();
+        for (BTarget *dependent : bTarget->getRealBTarget(round).dependents)
+        {
+            RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
+            --(dependentRealBTarget.dependenciesSize);
+            if (!dependentRealBTarget.dependenciesSize && dependentRealBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+            {
+                finalBTargets.emplace_back(dependent);
+                if (finalBTargetsIterator == finalBTargets.end())
                 {
-                    finalBTargets.emplace_back(dependent);
+                    --finalBTargetsIterator;
                 }
+                cond.notify_all();
             }
         }
-        if (finalBTargetsIndex == finalBTargetsSizeGoal)
+        if (finalBTargetsIterator == finalBTargets.end())
         {
-            loop = false;
+            shouldWait = true;
         }
-        oneAndOnlyMutex.unlock();
-    }
-}
-
-bool Builder::isSubDirPathStandard(const path &headerUnitPath, set<string> &environmentIncludes)
-{
-    string headerUnitPathSMallCase = headerUnitPath.generic_string();
-    for (auto &c : headerUnitPathSMallCase)
-    {
-        c = (char)::tolower(c);
-    }
-    for (const string &str : environmentIncludes)
-    {
-        string directoryPathSmallCase = str;
-        for (auto &c : directoryPathSmallCase)
+        else
         {
-            c = (char)::tolower(c);
-        }
-        path result = path(headerUnitPathSMallCase).lexically_relative(directoryPathSmallCase).generic_string();
-        if (!result.empty() && !result.generic_string().starts_with(".."))
-        {
-            return true;
+            bTarget = *finalBTargetsIterator;
+            ++finalBTargetsIterator;
+            shouldWait = false;
+            updateMutex.unlock();
         }
     }
-    return false;
-}
-
-bool Builder::isSubDirPathApplication(const path &headerUnitPath, map<string *, CppSourceTarget *> &applicationIncludes)
-{
-
-    return false;
 }

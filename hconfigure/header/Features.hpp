@@ -1,11 +1,25 @@
 #ifndef HMAKE_FEATURES_HPP
 #define HMAKE_FEATURES_HPP
+
 #include "BuildTools.hpp"
+#include "Cache.hpp"
 #include "SMFile.hpp"
 #include "TargetType.hpp"
 #include <vector>
 
 using std::vector;
+
+enum class TranslateInclude
+{
+    NO,
+    YES,
+};
+
+enum class TreatModuleAsSource
+{
+    NO,
+    YES
+};
 
 // In b2 features every non-optional, non-free feature must have a value. Because hmake does not have optional features,
 // all optional features have extra enum value OFF declared here. A feature default value is given by the first value
@@ -55,7 +69,7 @@ struct LinkFlags : string
 struct TemplateDepth
 {
     unsigned long long templateDepth;
-    TemplateDepth(unsigned long long templateDepth_);
+    explicit TemplateDepth(unsigned long long templateDepth_);
 };
 
 struct Define
@@ -63,6 +77,7 @@ struct Define
     string name;
     string value;
     Define() = default;
+    auto operator<=>(const Define &) const = default;
     explicit Define(string name_, string value_ = "");
 };
 
@@ -218,11 +233,11 @@ enum class OS
     NT,
     VMS,
 };
-void to_json(Json &json, const OS &os);
-void from_json(const Json &json, OS &os);
+void to_json(Json &json, const OS &osLocal);
+void from_json(const Json &json, OS &osLocal);
 
-string getActualNameFromTargetName(TargetType targetType, const enum OS osLocal, const string &targetName);
-string getTargetNameFromActualName(TargetType targetType, const enum OS osLocal, const string &actualName);
+string getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const string &targetName);
+string getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const string &actualName);
 
 enum class CxxSTD
 {
@@ -285,15 +300,6 @@ enum class Language
     OBJECTIVE_C,
     OBJECTIVE_CPP,
 };
-
-enum class ConfigType
-{
-    DEBUG,
-    RELEASE,
-    PROFILE,
-};
-void to_json(Json &json, const ConfigType &configType);
-void from_json(const Json &json, ConfigType &configType);
 
 enum class Optimization
 {
@@ -623,6 +629,16 @@ enum class DebugStore
     DATABASE,
 };
 
+// While LinkerFeatures and CompilerFeatures affect only linkerFlags and compilerFlags respectively, CommonFeatures
+// impact both. So, CppSourceTarget and LinkOrAchiveTarget both also inherit from CommonFeatures besides inheriting one
+// of CompilerFeatures or LinkerFeatures.
+
+// ASSIGN function of LinkOrAchiveTarget can be used to assign these properties conveniently. ASSIGN function of
+// CppSourceTarget, for common features will also assign the linkOrAchiveTarget properties, so two calls aren't needed.
+// LinkerFeatures of CppSourceTarget::linkOrArchiveTarget can also be assigned through CppSourceTarget::ASSIGN()
+// ASSIGN of CppSourceTarget and LinkOrArchiveTarget also assign the targetType property which is respective to those
+// classes.
+
 struct CommonFeatures
 {
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
@@ -639,6 +655,8 @@ struct CommonFeatures
     Profiling profiling = Profiling::OFF;
     LocalVisibility localVisibility = LocalVisibility::OFF;
 
+    ConfigType configurationType;
+
     // Following two are initialized in constructor
     // AddressModel and Architecture to target for.
     Arch arch;
@@ -648,12 +666,12 @@ struct CommonFeatures
     DebugStore debugStore = DebugStore::OBJECT;
 
     CommonFeatures();
-    void initializeFromCacheFunc();
     void setConfigType(ConfigType configType);
 };
 
 struct LinkerFeatures
 {
+    set<const Node *> standardLibraryDirectories;
     LTOMode ltoMode = LTOMode::FAT;
     Strip strip = Strip::OFF;
 
@@ -662,7 +680,6 @@ struct LinkerFeatures
     InstructionSet instructionSet = InstructionSet::OFF;
     CpuType cpuType;
 
-    ConfigType configurationType;
     CxxSTD cxxStd = CxxSTD::V_LATEST;
     CxxSTDDialect cxxStdDialect = CxxSTDDialect::ISO;
     Linker linker;
@@ -676,17 +693,12 @@ struct LinkerFeatures
     vector<Define> privateCompileDefinitions;
     TargetType libraryType;
     LinkerFeatures();
-    void initializeFromCacheFunc();
-    void setConfigType(ConfigType configType);
+    void setLinkerFromVSTools(struct VSTools &vsTools);
 };
 
 struct CompilerFeatures
 {
-    // TODO
-    //  Should be converted to node and there should be standard include directories for which timestamp is not checked.
-    set<string> includeDirectories;
-    set<string> libraryDirectoriesStandard;
-
+    set<const Node *> standardIncludes;
     StdLib stdLib = StdLib::NATIVE;
 
     Optimization optimization = Optimization::OFF;
@@ -698,6 +710,8 @@ struct CompilerFeatures
     AsyncExceptions asyncExceptions = AsyncExceptions::OFF;
     ExternCNoThrow externCNoThrow = ExternCNoThrow::OFF;
     RTTI rtti = RTTI::ON;
+    TranslateInclude translateInclude = TranslateInclude::NO;
+    TreatModuleAsSource treatModuleAsSource = TreatModuleAsSource::NO;
 
     // Used only for GCC
     TemplateDepth templateDepth{1024};
@@ -720,8 +734,8 @@ struct CompilerFeatures
     string privateCompilerFlags;
     vector<Define> privateCompileDefinitions;
     CompilerFeatures();
-    void initializeFromCacheFunc();
-    void setConfigType(ConfigType configType);
+    void setCompilerFromVSTools(VSTools &vsTools);
+    void setConfigType(ConfigType configurationType = cache.configurationType);
 };
 
 #endif // HMAKE_FEATURES_HPP

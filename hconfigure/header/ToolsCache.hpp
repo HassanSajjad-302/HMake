@@ -28,10 +28,10 @@ struct VSTools
     set<string> includeDirectories;
     set<string> libraryDirectories;
     VSTools(string batchFile, path toolBinDir, Arch hostArch_, AddressModel hostAM_, Arch targetArch_,
-            AddressModel targetAM_);
+            AddressModel targetAM_, bool executingFromWSL = false);
     VSTools() = default;
-    void initializeFromVSToolBatchCommand();
-    void initializeFromVSToolBatchCommand(const string &command);
+    void initializeFromVSToolBatchCommand(bool executingFromWSL = false);
+    void initializeFromVSToolBatchCommand(const string &command, bool executingFromWSL = false);
 };
 void to_json(Json &j, const VSTools &vsTool);
 void from_json(const Json &j, VSTools &vsTool);
