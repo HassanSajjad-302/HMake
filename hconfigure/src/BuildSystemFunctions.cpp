@@ -23,7 +23,6 @@ void setBoolsAndSetRunDir(int argc, char **argv)
             exit(EXIT_FAILURE);
         }
     }
-    print("buildModeConfigure {}\n", bsMode == BSMode::CONFIGURE);
 
     if (bsMode == BSMode::BUILD)
     {
@@ -70,45 +69,46 @@ void setBoolsAndSetRunDir(int argc, char **argv)
     }
 }
 
-inline void topologicallySortAndAddPrivateLibsToPublicLibs()
-{
-    for (CTarget *cTarget : targetPointers<CTarget>)
-    {
-        cTarget->populateCTargetDependencies();
-    }
-
-    TCT::tarjanNodes = &tarjanNodesCTargets;
-    TCT::findSCCS();
-    TCT::checkForCycle(); // TODO
-
-    for (CTarget *cTarget : TCT::topologicalSort)
-    {
-        cTarget->addPrivatePropertiesToPublicProperties();
-    }
-}
-
 void configureOrBuild()
 {
-    vector<CTarget *> cTargetsSortedForConfigure;
     if (bsMode == BSMode::CONFIGURE)
     {
         TCT::tarjanNodes = &tarjanNodesCTargets;
         TCT::findSCCS();
         TCT::checkForCycle();
-        cTargetsSortedForConfigure = std::move(TCT::topologicalSort);
-        tarjanNodesCTargets.clear();
-        for (CTarget *cTarget : cTargetsSortedForConfigure)
-        {
-            cTarget->cTarjanNode = const_cast<TCT *>(tarjanNodesCTargets.emplace(cTarget).first.operator->());
-        }
     }
 
-    // All CTargets declared in the hmake.cpp have been topologically sorted based on container-elements and later
-    // on will be configured. But, before that cyclic dependencies is checked for in libraries and public properties
-    // need to be propagated above.
-    topologicallySortAndAddPrivateLibsToPublicLibs();
+    auto isCTargetInSelectedSubDirectory = [](const CTarget &cTarget) {
+        path targetPath = cTarget.getSubDirForTarget();
+        for (; targetPath.root_path() != targetPath; targetPath = (targetPath / "..").lexically_normal())
+        {
+            std::error_code ec;
+            if (equivalent(targetPath, current_path(), ec))
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    list<BTarget *> preSortBTargets;
+    for (CTarget *cTarget : targetPointers<CTarget>)
+    {
+        if (BTarget *bTarget = cTarget->getBTarget(); bTarget)
+        {
+            preSortBTargets.emplace_back(bTarget);
+            if (bsMode == BSMode::BUILD && isCTargetInSelectedSubDirectory(*cTarget))
+            {
+                bTarget->selectiveBuild = true;
+            }
+        }
+    }
+    {
+        Builder{3, 2, preSortBTargets};
+    }
     if (bsMode == BSMode::CONFIGURE)
     {
+        vector<CTarget *> &cTargetsSortedForConfigure = TCT::topologicalSort;
         for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
         {
             it.operator*()->setJson();
@@ -121,6 +121,6 @@ void configureOrBuild()
     }
     else
     {
-        Builder{};
+        Builder{1, 0, preSortBTargets};
     }
 }

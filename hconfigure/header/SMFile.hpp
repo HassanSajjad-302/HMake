@@ -1,7 +1,7 @@
 #ifndef HMAKE_SMFILE_HPP
 #define HMAKE_SMFILE_HPP
 
-#include "BasicTargets.hpp"
+#include "ObjectFileProducer.hpp"
 #include "PostBasic.hpp"
 #include "nlohmann/json.hpp"
 #include <filesystem>
@@ -38,27 +38,24 @@ class Node
 bool operator<(const Node &lhs, const Node &rhs);
 void to_json(Json &j, const Node *node);
 
-struct CachedFile
+struct SourceNode : public ObjectFile
 {
     const Node *node;
     bool presentInCache = false;
     bool presentInSource = false;
-    explicit CachedFile(const string &filePath);
-};
-
-struct SourceNode : public CachedFile, public BTarget
-{
     CppSourceTarget *target;
     std::shared_ptr<PostCompile> postCompile;
     set<const Node *> headerDependencies;
     SourceNode(CppSourceTarget *target_, const string &filePath);
-    virtual string getOutputFilePath();
+    string getObjectFileOutputFilePath() override;
+    string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) override;
     void updateBTarget(unsigned short round, Builder &builder) override;
     void printMutexLockRoutine(unsigned short round) override;
     void setSourceNodeFileStatus(const string &ex, unsigned short round);
 };
 
 void to_json(Json &j, const SourceNode &sourceNode);
+void to_json(Json &j, const SourceNode *smFile);
 bool operator<(const SourceNode &lhs, const SourceNode &rhs);
 
 enum class SM_REQUIRE_TYPE : unsigned short
@@ -99,7 +96,8 @@ struct SMFile : public SourceNode // Scanned Module Rule
     SMFile(CppSourceTarget *target_, const string &srcPath);
     void updateBTarget(unsigned short round, class Builder &builder) override;
     void printMutexLockRoutine(unsigned short round) override;
-    string getOutputFilePath() override;
+    string getObjectFileOutputFilePath() override;
+    string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) override;
     void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder);
     void initializeNewHeaderUnit(const Json &requireJson, struct ModuleScopeData &moduleScopeData, Builder &builder);
     void iterateRequiresJsonToInitializeNewHeaderUnits(ModuleScopeData &moduleScopeData, Builder &builder);
@@ -125,5 +123,4 @@ struct SMFile : public SourceNode // Scanned Module Rule
     string getRequireFlagPrint(const SMFile &logicalName_) const;
     string getModuleCompileCommandPrintLastHalf();
 };
-void to_json(Json &j, const SMFile *smFile);
 #endif // HMAKE_SMFILE_HPP

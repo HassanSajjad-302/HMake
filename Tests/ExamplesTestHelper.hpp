@@ -3,7 +3,7 @@
 #ifndef HMAKE_EXAMPLESTESTHELPER_HPP
 #define HMAKE_EXAMPLESTESTHELPER_HPP
 
-#include "string"
+#include <string>
 using std::string;
 
 inline string getExeName(const string &exeName)

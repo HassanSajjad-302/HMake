@@ -92,32 +92,44 @@ void to_json(Json &j, const Node *node)
     j = node->filePath;
 }
 
-CachedFile::CachedFile(const string &filePath) : node{Node::getNodeFromString(filePath, true)}
+SourceNode::SourceNode(CppSourceTarget *target_, const string &filePath)
+    : target(target_), node{Node::getNodeFromString(filePath, true)}
 {
 }
 
-SourceNode::SourceNode(CppSourceTarget *target_, const string &filePath) : target(target_), CachedFile(filePath)
-{
-}
-
-string SourceNode::getOutputFilePath()
+string SourceNode::getObjectFileOutputFilePath()
 {
     return addQuotes(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o");
+}
+
+string SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
+{
+    return getReducedPath(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o", pathPrint);
 }
 
 void SourceNode::updateBTarget(unsigned short round, Builder &)
 {
     if (!round && selectiveBuild)
     {
-        postCompile = std::make_shared<PostCompile>(target->updateSourceNodeBTarget(*this));
-        postCompile->executePostCompileRoutineWithoutMutex(*this);
-        getRealBTarget(round).fileStatus = FileStatus::UPDATED;
+        RealBTarget &realBTarget = getRealBTarget(round);
+        if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
+        {
+            postCompile = std::make_shared<PostCompile>(target->updateSourceNodeBTarget(*this));
+            postCompile->executePostCompileRoutineWithoutMutex(*this);
+            realBTarget.exitStatus = postCompile->exitStatus;
+            realBTarget.fileStatus = FileStatus::UPDATED;
+        }
+        else
+        {
+            realBTarget.exitStatus = EXIT_FAILURE;
+        }
     }
 }
 
 void SourceNode::printMutexLockRoutine(unsigned short)
 {
-    if (selectiveBuild)
+    RealBTarget &realBTarget = getRealBTarget(0);
+    if (selectiveBuild && realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
     {
         postCompile->executePrintRoutine(settings.pcSettings.compileCommandColor, false);
     }
@@ -159,6 +171,11 @@ void to_json(Json &j, const SourceNode &sourceNode)
     j[JConsts::headerDependencies] = sourceNode.headerDependencies;
 }
 
+void to_json(Json &j, const SourceNode *smFile)
+{
+    j = *smFile;
+}
+
 bool operator<(const SourceNode &lhs, const SourceNode &rhs)
 {
     return lhs.node < rhs.node;
@@ -177,6 +194,7 @@ static std::mutex smFilesInternalMutex;
 void SMFile::updateBTarget(unsigned short round, Builder &builder)
 {
     // Danger Following is executed concurrently
+    RealBTarget &realBTarget = getRealBTarget(round);
     if (round == 1)
     {
         if (generateSMFileInRoundOne)
@@ -193,9 +211,18 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
     }
     else if (!round && selectiveBuild)
     {
-        postCompile = std::make_shared<PostCompile>(target->CompileSMFile(*this));
-        postCompile->executePostCompileRoutineWithoutMutex(*this);
+        if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
+        {
+            postCompile = std::make_shared<PostCompile>(target->CompileSMFile(*this));
+            realBTarget.exitStatus = postCompile->exitStatus;
+            postCompile->executePostCompileRoutineWithoutMutex(*this);
+        }
+        else
+        {
+            realBTarget.exitStatus = EXIT_FAILURE;
+        }
     }
+    realBTarget.fileStatus = FileStatus::UPDATED;
 }
 
 void SMFile::printMutexLockRoutine(unsigned short round)
@@ -204,16 +231,23 @@ void SMFile::printMutexLockRoutine(unsigned short round)
     {
         postBasic->executePrintRoutine(settings.pcSettings.compileCommandColor, true);
     }
-    else if (!round && selectiveBuild)
+    else if (!round && selectiveBuild && getRealBTarget(0).dependenciesExitStatus == EXIT_SUCCESS)
     {
         postCompile->executePrintRoutine(settings.pcSettings.compileCommandColor, false);
     }
 }
 
-string SMFile::getOutputFilePath()
+string SMFile::getObjectFileOutputFilePath()
 {
     return standardHeaderUnit ? addQuotes(target->getSHUSPath() + path(node->filePath).filename().string() + ".o")
-                              : SourceNode::getOutputFilePath();
+                              : SourceNode::getObjectFileOutputFilePath();
+}
+
+string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
+{
+    return standardHeaderUnit
+               ? getReducedPath(target->getSHUSPath() + path(node->filePath).filename().string() + ".o", pathPrint)
+               : SourceNode::getObjectFileOutputFilePathPrint(pathPrint);
 }
 
 void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
@@ -222,7 +256,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     Json smFileJson;
     ifstream(smFilePath) >> smFileJson;
     Json rule = smFileJson.at("rules").get<Json>()[0];
-    ModuleScopeData &moduleScopeData = builder.moduleScopes.find(target->moduleScope)->second;
+    ModuleScopeData &moduleScopeData = CppSourceTarget::moduleScopes.find(target->moduleScope)->second;
     if (rule.contains("provides"))
     {
         hasProvide = true;
@@ -314,7 +348,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, ModuleScopeData &m
         {
             smFileHeaderUnit.generateSMFileInRoundOne = true;
         }
-        addDependency(smFileHeaderUnit, 0);
+        getRealBTarget(0).addDependency(smFileHeaderUnit);
         builder.addNewBTargetInFinalBTargets(&smFileHeaderUnit);
     }
 }
@@ -441,8 +475,12 @@ bool SMFile::isSubDirPathStandard(const path &headerUnitPath, set<const Node *> 
     return false;
 }
 
-void SMFile::duringSort(Builder &builder, unsigned short round)
+void SMFile::duringSort(Builder &, unsigned short round)
 {
+    if (round)
+    {
+        return;
+    }
     for (BTarget *bTarget : getRealBTarget(0).allDependencies)
     {
         if (auto *smFile = dynamic_cast<SMFile *>(bTarget); smFile)
@@ -634,9 +672,4 @@ string SMFile::getModuleCompileCommandPrintLastHalf()
     moduleCompileCommandPrintLastHalf +=
         getFlagPrint(target->buildCacheFilesDirPath + path(node->filePath).filename().string());
     return moduleCompileCommandPrintLastHalf;
-}
-
-void to_json(Json &j, const SMFile *smFile)
-{
-    j = *smFile;
 }

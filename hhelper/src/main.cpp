@@ -87,7 +87,7 @@ int main()
         if constexpr (os == OS::LINUX)
         {
             string compileCommand =
-                "g++ -std=c++20"
+                "c++ -std=c++2b -fsanitize=thread -fno-omit-frame-pointer "
                 " -I " HCONFIGURE_HEADER " -I " JSON_HEADER "  -I " FMT_HEADER " {SOURCE_DIRECTORY}/hmake.cpp"
                 " -L " HCONFIGURE_STATIC_LIB_DIRECTORY " -l hconfigure -L " FMT_STATIC_LIB_DIRECTORY " -l fmt "
                 " -o "

@@ -29,8 +29,8 @@ inline set<string> targetSubDirectories;
 // functions
 template <typename T> inline set<T> targets;
 
-// Following can be used to hold pointers for all targets in the build system. It is used by CTarget constructor by
-// emplacing this
+// Following can be used to hold pointers for all targets in the build system. It is used by CTarget and BTarget
+// constructor by emplacing this
 template <typename T> inline set<T *> targetPointers;
 
 #ifdef _WIN32
@@ -41,5 +41,7 @@ inline constexpr OS os = OS::LINUX;
 
 void setBoolsAndSetRunDir(int argc, char **argv);
 inline const string pes = "{}"; // paranthesis-escape-sequence, meant to be used in fmt::print.
+inline const string dashCpp = "-cpp";
+inline const string dashLink = "-link";
 void configureOrBuild();
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

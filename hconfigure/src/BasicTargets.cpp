@@ -16,9 +16,34 @@ bool IndexInTopologicalSortComparator::operator()(const BTarget *lhs, const BTar
            rhs->realBTargets.find(round)->indexInTopologicalSort;
 }
 
-RealBTarget::RealBTarget(unsigned short round_)
-    : round(round_), allDependencies(IndexInTopologicalSortComparator(round_))
+RealBTarget::RealBTarget(unsigned short round_, BTarget *bTarget_)
+    : round(round_), bTarget(bTarget_), allDependencies(IndexInTopologicalSortComparator(round_))
 {
+}
+
+void RealBTarget::addTarjanNodeBTarget()
+{
+    bTarjanNode = const_cast<TBT *>(
+        tarjanNodesBTargets.emplace(round, set<TBT>()).first->second.emplace(bTarget).first.operator->());
+}
+
+void RealBTarget::addDependency(BTarget &dependency)
+{
+    if (dependencies.emplace(&dependency).second)
+    {
+        RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
+        dependencyRealBTarget.dependents.emplace(bTarget);
+        ++dependenciesSize;
+        if (!bTarjanNode)
+        {
+            addTarjanNodeBTarget();
+        }
+        if (!dependencyRealBTarget.bTarjanNode)
+        {
+            dependencyRealBTarget.addTarjanNodeBTarget();
+        }
+        bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
+    }
 }
 
 bool CompareRealBTargetId::operator()(RealBTarget const &lhs, RealBTarget const &rhs) const
@@ -46,34 +71,9 @@ string BTarget::getTarjanNodeName()
     return "BTarget " + std::to_string(id);
 }
 
-void BTarget::addDependency(BTarget &dependency, unsigned short round)
-{
-    RealBTarget &realBTarget = getRealBTarget(round);
-    if (realBTarget.dependencies.emplace(&dependency).second)
-    {
-        RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
-        dependencyRealBTarget.dependents.emplace(this);
-        ++realBTarget.dependenciesSize;
-        if (!realBTarget.bTarjanNode)
-        {
-            realBTarget.bTarjanNode = const_cast<TBT *>(tarjanNodesBTargets.emplace(this).first.operator->());
-        }
-        if (!dependencyRealBTarget.bTarjanNode)
-        {
-            dependencyRealBTarget.bTarjanNode =
-                const_cast<TBT *>(tarjanNodesBTargets.emplace(&dependency).first.operator->());
-        }
-        realBTarget.bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
-    }
-}
-
-void BTarget::setFileStatus(FileStatus fileStatus, unsigned short round)
-{
-}
-
 RealBTarget &BTarget::getRealBTarget(unsigned short round)
 {
-    auto it = realBTargets.emplace(round).first;
+    auto it = realBTargets.emplace(round, this).first;
     return const_cast<RealBTarget &>(*it);
 }
 
@@ -85,15 +85,11 @@ void BTarget::printMutexLockRoutine(unsigned short)
 {
 }
 
-void BTarget::initializeForBuild(Builder &)
+void BTarget::preSort(Builder &, unsigned short)
 {
 }
 
-void BTarget::populateSourceNodesAndRemoveUnReferencedHeaderUnits()
-{
-}
-
-void BTarget::duringSort(Builder &builder, unsigned short)
+void BTarget::duringSort(Builder &, unsigned short)
 {
 }
 
@@ -223,14 +219,6 @@ void CTarget::configure()
 BTarget *CTarget::getBTarget()
 {
     return nullptr;
-}
-
-void CTarget::populateCTargetDependencies()
-{
-}
-
-void CTarget::addPrivatePropertiesToPublicProperties()
-{
 }
 
 void to_json(Json &j, const CTarget *tar)

@@ -2,34 +2,34 @@
 #include "GetTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
+#include "CppSourceTarget.hpp"
 
 // TODO
 //  Why _CPP_SOURCE is embedded with name?
 
-CppSourceTarget &GetPreProcessCpp(const string &name)
+CppSourceTarget &GetCppPreprocess(const string &name)
 {
 
     return const_cast<CppSourceTarget &>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::PREPROCESS).first.operator*());
+        targets<CppSourceTarget>.emplace(name, TargetType::PREPROCESS).first.operator*());
 }
 
-CppSourceTarget &GetPreProcessCpp(const string &name, CTarget &other, bool hasFile)
+CppSourceTarget &GetCppPreprocess(const string &name, CTarget &other, bool hasFile)
 {
 
     return const_cast<CppSourceTarget &>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::PREPROCESS, other, hasFile).first.operator*());
+        targets<CppSourceTarget>.emplace(name, TargetType::PREPROCESS, other, hasFile).first.operator*());
 }
 
-CppSourceTarget &GetCompileCpp(const string &name)
+CppSourceTarget &GetCppObject(const string &name)
 {
-    return const_cast<CppSourceTarget &>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::COMPILE).first.operator*());
+    return const_cast<CppSourceTarget &>(targets<CppSourceTarget>.emplace(name, TargetType::OBJECT).first.operator*());
 }
 
-CppSourceTarget &GetCompileCpp(const string &name, CTarget &other, bool hasFile)
+CppSourceTarget &GetCppObject(const string &name, CTarget &other, bool hasFile)
 {
     return const_cast<CppSourceTarget &>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::COMPILE, other, hasFile).first.operator*());
+        targets<CppSourceTarget>.emplace(name, TargetType::OBJECT, other, hasFile).first.operator*());
 }
 
 LinkOrArchiveTarget &GetExe(const string &name)
@@ -44,86 +44,124 @@ LinkOrArchiveTarget &GetExe(const string &name, CTarget &other, bool hasFile)
         targets<LinkOrArchiveTarget>.emplace(name, TargetType::EXECUTABLE, other, hasFile).first.operator*());
 }
 
-LinkOrArchiveTarget &GetLib(const string &name)
+LinkOrArchiveTarget &GetStatic(const string &name)
 {
     return const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(name, cache.libraryType).first.operator*());
+        targets<LinkOrArchiveTarget>.emplace(name, TargetType::LIBRARY_STATIC).first.operator*());
 }
 
-LinkOrArchiveTarget &GetLib(const string &name, CTarget &other, bool hasFile)
+LinkOrArchiveTarget &GetStatic(const string &name, CTarget &other, bool hasFile)
 {
     return const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(name, cache.libraryType, other, hasFile).first.operator*());
+        targets<LinkOrArchiveTarget>.emplace(name, TargetType::LIBRARY_STATIC, other, hasFile).first.operator*());
 }
 
-CppSourceTarget &GetExeCpp(const string &name)
+LinkOrArchiveTarget &GetShared(const string &name)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetExe(name);
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget).first.operator->());
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
-    return *cppSourceTarget;
+    return const_cast<LinkOrArchiveTarget &>(
+        targets<LinkOrArchiveTarget>.emplace(name, TargetType::LIBRARY_SHARED).first.operator*());
 }
 
-CppSourceTarget &GetExeCpp(const string &name, CTarget &other, bool hasFile)
+LinkOrArchiveTarget &GetShared(const string &name, CTarget &other, bool hasFile)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetExe(name, other, hasFile);
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget, hasFile).first.operator->());
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
-    return *cppSourceTarget;
+    return const_cast<LinkOrArchiveTarget &>(
+        targets<LinkOrArchiveTarget>.emplace(name, TargetType::LIBRARY_SHARED, other, hasFile).first.operator*());
 }
 
-LinkOrArchiveTarget &GetCppExe(const string &name)
+DSC<CppSourceTarget> &GetCppExeDSC(const string &name)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetExe(name);
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget).first.operator->());
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
-    return linkOrArchiveTarget;
+    DSC<CppSourceTarget> dsc;
+    dsc.linkOrArchiveTarget = &(GetExe(name + dashLink));
+    dsc.objectFileProducer = &(GetCppObject(name + dashCpp));
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace().first.operator*());
 }
 
-LinkOrArchiveTarget &GetCppExe(const string &name, CTarget &other, bool hasFile)
+DSC<CppSourceTarget> &GetCppExeDSC(const string &name, CTarget &other, bool hasFile)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetExe(name, other, hasFile);
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget, hasFile).first.operator->());
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
-    return linkOrArchiveTarget;
+    DSC<CppSourceTarget> dsc;
+    dsc.linkOrArchiveTarget = &(GetExe(name + dashLink, other, hasFile));
+    dsc.objectFileProducer = &(GetCppObject(name + dashCpp, other, hasFile));
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace().first.operator*());
 }
 
-CppSourceTarget &GetLibCpp(const string &name)
+DSC<CppSourceTarget> &GetCppDSC(const string &name)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetLib(name);
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget).first.operator->());
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
-    return *cppSourceTarget;
+    DSC<CppSourceTarget> dsc;
+    dsc.objectFileProducer = &(GetCppObject(name + dashCpp));
+    if (cache.libraryType == TargetType::LIBRARY_STATIC)
+    {
+        dsc.linkOrArchiveTarget = &(GetStatic(name + dashLink));
+    }
+    else if (cache.libraryType == TargetType::LIBRARY_SHARED)
+    {
+        dsc.linkOrArchiveTarget = &(GetShared(name + dashLink));
+    }
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
-CppSourceTarget &GetLibCpp(const string &name, CTarget &other, bool hasFile)
+DSC<CppSourceTarget> &GetCppDSC(const string &name, CTarget &other, bool hasFile)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetLib(name, other, hasFile);
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget, hasFile).first.operator->());
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
-    return *cppSourceTarget;
+    DSC<CppSourceTarget> dsc;
+    dsc.objectFileProducer = &(GetCppObject(name + dashCpp, other, hasFile));
+    if (cache.libraryType == TargetType::LIBRARY_STATIC)
+    {
+        dsc.linkOrArchiveTarget = &(GetStatic(name + dashLink, other, hasFile));
+    }
+    else if (cache.libraryType == TargetType::LIBRARY_SHARED)
+    {
+        dsc.linkOrArchiveTarget = &(GetShared(name + dashLink, other, hasFile));
+    }
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
-LinkOrArchiveTarget &GetCppLib(const string &name)
+DSC<CppSourceTarget> &GetCppStaticDSC(const string &name)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetLib(name);
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget).first.operator->());
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
-    return linkOrArchiveTarget;
+    DSC<CppSourceTarget> dsc;
+    dsc.linkOrArchiveTarget = &(GetStatic(name + dashLink));
+    dsc.objectFileProducer = &(GetCppObject(name + dashCpp));
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
-LinkOrArchiveTarget &GetCppLib(const string &name, CTarget &other, bool hasFile)
+DSC<CppSourceTarget> &GetCppStaticDSC(const string &name, CTarget &other, bool hasFile)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetLib(name, other, hasFile);
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        targets<CppSourceTarget>.emplace(name + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget, hasFile).first.operator->());
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
-    return linkOrArchiveTarget;
+    DSC<CppSourceTarget> dsc;
+    dsc.linkOrArchiveTarget = &(GetStatic(name + dashLink, other, hasFile));
+    dsc.objectFileProducer = &(GetCppObject(name + dashCpp, other, hasFile));
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
+}
+
+DSC<CppSourceTarget> &GetCppSharedDSC(const string &name)
+{
+    DSC<CppSourceTarget> dsc;
+    dsc.linkOrArchiveTarget = &(GetShared(name + dashLink));
+    dsc.objectFileProducer = &(GetCppObject(name + dashCpp));
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
+}
+
+DSC<CppSourceTarget> &GetCppSharedDSC(const string &name, CTarget &other, bool hasFile)
+{
+    DSC<CppSourceTarget> dsc;
+    dsc.linkOrArchiveTarget = &(GetShared(name + dashLink, other, hasFile));
+    dsc.objectFileProducer = &(GetCppObject(name + dashCpp, other, hasFile));
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
+}
+
+DSC<CppSourceTarget> &GetCppObjectDSC(const string &name)
+{
+    DSC<CppSourceTarget> dsc;
+    dsc.objectFileProducer = &(GetCppObject(name + dashCpp));
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace().first.operator*());
+}
+
+DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, CTarget &other, bool hasFile)
+{
+    DSC<CppSourceTarget> dsc;
+    dsc.objectFileProducer = &(GetCppObject(name + dashCpp, other, hasFile));
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace().first.operator*());
 }

@@ -55,7 +55,7 @@ int main(int argc, char **argv)
         linkOrArchiveTarget->ASSIGN(Arch::X86, Warnings::ALL, WarningsAsErrors::ON, InstructionSet::alderlake,
                                     LeakSanitizer::ON, UndefinedSanitizer::ON, ExceptionHandling::OFF, RTTI::OFF,
        LTO::ON, LTOMode::FULL, DebugSymbols::OFF, RuntimeDebugging::OFF, Optimization::SPEED, RuntimeLink::STATIC);*/
-    GetPreProcessCpp("app").SOURCE_FILES("main.cpp").ASSIGN(ExceptionHandling::OFF, ExternCNoThrow::ON);
+    GetExeCpp("app").SOURCE_FILES("main.cpp").ASSIGN(CxxSTD::V_LATEST, TranslateInclude::YES);
 
     configureOrBuild();
     // This will be your last line. If you are doing packaging, then package.configure may be your last, where package

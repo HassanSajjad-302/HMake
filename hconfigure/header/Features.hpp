@@ -648,6 +648,7 @@ struct CommonFeatures
 
     Coverage coverage = Coverage::OFF;
     LTO lto = LTO::OFF;
+    LTOMode ltoMode = LTOMode::FAT;
     RuntimeLink runtimeLink = RuntimeLink::SHARED;
     RuntimeDebugging runtimeDebugging = RuntimeDebugging::ON;
     TargetOS targetOs;
@@ -672,7 +673,6 @@ struct CommonFeatures
 struct LinkerFeatures
 {
     set<const Node *> standardLibraryDirectories;
-    LTOMode ltoMode = LTOMode::FAT;
     Strip strip = Strip::OFF;
 
     // Windows specific
@@ -680,6 +680,8 @@ struct LinkerFeatures
     InstructionSet instructionSet = InstructionSet::OFF;
     CpuType cpuType;
 
+    // TODO
+    // Should be in common features
     CxxSTD cxxStd = CxxSTD::V_LATEST;
     CxxSTDDialect cxxStdDialect = CxxSTDDialect::ISO;
     Linker linker;
@@ -687,10 +689,7 @@ struct LinkerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
     Link link;
-    vector<const Node *> privateIncludes;
-    vector<const Node *> privateHUIncludes;
-    string privateLinkerFlags;
-    vector<Define> privateCompileDefinitions;
+    string requirementLinkerFlags;
     TargetType libraryType;
     LinkerFeatures();
     void setLinkerFromVSTools(struct VSTools &vsTools);
@@ -729,10 +728,9 @@ struct CompilerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
     Link link;
-    vector<const Node *> privateIncludes;
-    vector<const Node *> privateHUIncludes;
-    string privateCompilerFlags;
-    vector<Define> privateCompileDefinitions;
+    set<const Node *> requirementIncludes;
+    string requirementCompilerFlags;
+    set<Define> requirementCompileDefinitions;
     CompilerFeatures();
     void setCompilerFromVSTools(VSTools &vsTools);
     void setConfigType(ConfigType configurationType = cache.configurationType);

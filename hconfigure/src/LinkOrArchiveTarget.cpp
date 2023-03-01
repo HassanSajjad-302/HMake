@@ -20,7 +20,7 @@ LinkOrArchiveTarget::LinkOrArchiveTarget(string name, TargetType targetType, CTa
     linkTargetType = targetType;
 }
 
-void LinkOrArchiveTarget::initializeForBuild(Builder &builder)
+void LinkOrArchiveTarget::initializeForBuild()
 {
     if (outputName.empty())
     {
@@ -35,12 +35,36 @@ void LinkOrArchiveTarget::initializeForBuild(Builder &builder)
     // Parsing finished
 
     actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
+}
 
-    for (const LinkOrArchiveTarget *linkOrArchiveTarget : publicLibs)
+void LinkOrArchiveTarget::populateObjectFiles()
+{
+    for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
     {
-        addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget), 0);
+        objectFileProducer->getObjectFiles(&objectFiles, this);
     }
-    checkForPreBuiltAndCacheDir(builder);
+}
+
+void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
+{
+    if (!round)
+    {
+        initializeForBuild();
+        populateObjectFiles();
+        checkForPreBuiltAndCacheDir(builder);
+    }
+    else if (round == 3)
+    {
+        RealBTarget &round3 = getRealBTarget(3);
+        auto addBTargetDependencies = [&](set<LinkOrArchiveTarget *> &lib) {
+            for (LinkOrArchiveTarget *linkOrArchiveTarget : lib)
+            {
+                round3.addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget));
+            }
+        };
+        addBTargetDependencies(requirementDeps);
+        getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
+    }
 }
 
 LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
@@ -100,13 +124,13 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         if (EVALUATE(AddressModel::A_64))
         {
             // The various 64 bit runtime asan support libraries and related flags.
-            string FINDLIBS_SA_LINK =
+            flags.FINDLIBS_SA_LINK =
                 GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                                   "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64");
             flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
                 AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                 R"(/wholearchive\:"clang_rt.asan_dynamic-x86_64.lib /wholearchive\:"clang_rt.asan_dynamic_runtime_thunk-x86_64.lib)");
-            FINDLIBS_SA_LINK +=
+            flags.FINDLIBS_SA_LINK +=
                 GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                                   "clang_rt.asan-x86_64 clang_rt.asan_cxx-x86_64 ");
             flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
@@ -121,13 +145,13 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         {
             // The various 32 bit runtime asan support libraries and related flags.
 
-            string FINDLIBS_SA_LINK =
+            flags.FINDLIBS_SA_LINK =
                 GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                                   "clang_rt.asan_dynamic-i386 clang_rt.asan_dynamic_runtime_thunk-i386");
             flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
                 AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                 R"(/wholearchive\:"clang_rt.asan_dynamic-i386.lib /wholearchive\:"clang_rt.asan_dynamic_runtime_thunk-i386.lib)");
-            FINDLIBS_SA_LINK +=
+            flags.FINDLIBS_SA_LINK +=
                 GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                                   "clang_rt.asan-i386 clang_rt.asan_cxx-i386 ");
             flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
@@ -586,9 +610,18 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommand(bool ignoreTargets)
             LinkerFlags flags = getLinkerFlags();
 
             // TODO Not catering for MSVC
+            // Temporary Just for ensuring link success with clang Address-Sanitizer
+            // There should be no spaces after user-provided-flags.
             // TODO shared libraries not supported.
-            localLinkOrArchiveCommand += flags.OPTIONS + " " + flags.OPTIONS_LINK + " ";
-            localLinkOrArchiveCommand += publicLinkerFlags + " ";
+            if (linker.bTFamily == BTFamily::GCC)
+            {
+                localLinkOrArchiveCommand += flags.OPTIONS + " " + flags.OPTIONS_LINK + " ";
+            }
+            else if (linker.bTFamily == BTFamily::MSVC)
+            {
+                localLinkOrArchiveCommand += flags.FINDLIBS_SA_LINK + " ";
+            }
+            localLinkOrArchiveCommand += requirementLinkerFlags + " ";
             localLinkOrArchiveCommand += linkerTransitiveFlags + " ";
         }
 
@@ -605,113 +638,79 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommand(bool ignoreTargets)
 
         if (!ignoreTargets)
         {
-            vector<SourceNode *> sourceNodes;
-            vector<LinkOrArchiveTarget *> linkTargets;
-            RealBTarget &realBTarget = getRealBTarget(0);
-            for (auto it = realBTarget.allDependencies.rbegin(); it != realBTarget.allDependencies.rend(); ++it)
-            {
-                BTarget *dependency = *it;
-                if (auto *target = dynamic_cast<LinkOrArchiveTarget *>(dependency); target)
-                {
-                    linkTargets.emplace_back(target);
-                }
-                else
-                {
 
-                    if (auto *smFile = dynamic_cast<SMFile *>(dependency); smFile)
-                    {
-                        if (smFile->target == cppSourceTarget || (smFile->standardHeaderUnit))
-                        {
-                            sourceNodes.emplace_back(smFile);
-                        }
-                    }
-                    else if (auto *sourceNode = dynamic_cast<SourceNode *>(dependency); sourceNode)
-                    {
-                        if (cppSourceTarget->sourceFileDependencies.contains(*sourceNode))
-                        {
-                            sourceNodes.emplace_back(sourceNode);
-                        }
-                    }
-                }
-            }
-
-            for (SourceNode *sourceNode : sourceNodes)
+            for (ObjectFile *objectFile : objectFiles)
             {
-                string outputFilePath = sourceNode->getOutputFilePath();
+                string outputFilePath = objectFile->getObjectFileOutputFilePath();
                 localLinkOrArchiveCommand += addQuotes(outputFilePath) + " ";
             }
 
-            for (LinkOrArchiveTarget *target : linkTargets)
+            for (LinkOrArchiveTarget *target : requirementDeps)
             {
-                if (linkTargetType != TargetType::LIBRARY_STATIC)
-                {
-                    localLinkOrArchiveCommand += getLinkFlag(target->outputDirectory, target->outputName);
-                }
+                localLinkOrArchiveCommand += getLinkFlag(target->outputDirectory, target->outputName);
             }
         }
-        // HMake does not link any dependency to static library
-        if (linkTargetType != TargetType::LIBRARY_STATIC)
-        {
-            // TODO
-            // Not doing prebuilt libraries yet
 
-            /*        for (auto &i : libraryDependencies)
+        // TODO
+        // Not doing prebuilt libraries yet
+
+        /*        for (auto &i : libraryDependencies)
+                {
+                    if (i.preBuilt)
                     {
-                        if (i.preBuilt)
+                        if (linker.bTFamily == BTFamily::MSVC)
                         {
-                            if (linker.bTFamily == BTFamily::MSVC)
-                            {
-                                auto b = lcpSettings.libraryDependencies;
-                                local+= i.path + " ";
-                                linkOrArchiveCommandPrintFirstHalf += getReducedPath(i.path + " ", b);
-                            }
-                            else
-                            {
-                                string dir = path(i.path).parent_path().string();
-                                string libName = path(i.path).filename().string();
-                                libName.erase(0, 3);
-                                libName.erase(libName.find('.'), 2);
-                                local+= getLinkFlag(dir, libName);
-                                linkOrArchiveCommandPrintFirstHalf +=
-                                    getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies);
-                            }
+                            auto b = lcpSettings.libraryDependencies;
+                            local+= i.path + " ";
+                            linkOrArchiveCommandPrintFirstHalf += getReducedPath(i.path + " ", b);
                         }
-                    }*/
+                        else
+                        {
+                            string dir = path(i.path).parent_path().string();
+                            string libName = path(i.path).filename().string();
+                            libName.erase(0, 3);
+                            libName.erase(libName.find('.'), 2);
+                            local+= getLinkFlag(dir, libName);
+                            linkOrArchiveCommandPrintFirstHalf +=
+                                getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies);
+                        }
+                    }
+                }*/
 
-            auto getLibraryDirectoryFlag = [this]() {
-                if (linker.bTFamily == BTFamily::MSVC)
-                {
-                    return "/LIBPATH:";
-                }
-                else
-                {
-                    return "-L";
-                }
-            };
+        auto getLibraryDirectoryFlag = [this]() {
+            if (linker.bTFamily == BTFamily::MSVC)
+            {
+                return "/LIBPATH:";
+            }
+            else
+            {
+                return "-L";
+            }
+        };
 
-            // Following set is needed because otherwise pointers don't have string-like ordering, so two runs may
-            // generate different compile-commands, thus hurting the caching.
-            set<string> libraryIncludes;
+        // Following set is needed because otherwise pointers don't have string-like ordering, so two runs may
+        // generate different link-commands, thus hurting the caching.
+        set<string> libraryIncludes;
 
-            for (const Node *includeDir : libraryDirectories)
-            {
-                libraryIncludes.emplace(includeDir->filePath);
-            }
-            for (const Node *stdLibDir : standardLibraryDirectories)
-            {
-                libraryIncludes.emplace(stdLibDir->filePath);
-            }
-            for (const string &libDir : libraryIncludes)
-            {
-                localLinkOrArchiveCommand += getLibraryDirectoryFlag() + addQuotes(libDir) + " ";
-            }
-            localLinkOrArchiveCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
-            localLinkOrArchiveCommand += addQuotes(outputDirectory + actualOutputName) + " ";
-            if (linkTargetType == TargetType::LIBRARY_SHARED)
-            {
-                localLinkOrArchiveCommand += "/DLL";
-            }
+        for (const Node *includeDir : libraryDirectories)
+        {
+            libraryIncludes.emplace(includeDir->filePath);
         }
+        for (const Node *stdLibDir : standardLibraryDirectories)
+        {
+            libraryIncludes.emplace(stdLibDir->filePath);
+        }
+        for (const string &libDir : libraryIncludes)
+        {
+            localLinkOrArchiveCommand += getLibraryDirectoryFlag() + addQuotes(libDir) + " ";
+        }
+        localLinkOrArchiveCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
+        localLinkOrArchiveCommand += addQuotes(outputDirectory + actualOutputName) + " ";
+        if (linkTargetType == TargetType::LIBRARY_SHARED)
+        {
+            localLinkOrArchiveCommand += "/DLL";
+        }
+
         if (ignoreTargets)
         {
             return localLinkOrArchiveCommand;
@@ -736,28 +735,43 @@ string &LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
 
 void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &)
 {
+    RealBTarget &realBTarget = getRealBTarget(round);
     if (!round && selectiveBuild)
     {
-        if (linkTargetType == TargetType::LIBRARY_STATIC)
+        if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
         {
-            postBasicLinkOrArchive = std::make_shared<PostBasic>(Archive());
+            if (linkTargetType == TargetType::LIBRARY_STATIC)
+            {
+                postBasicLinkOrArchive = std::make_shared<PostBasic>(Archive());
+            }
+            else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+            {
+                postBasicLinkOrArchive = std::make_shared<PostBasic>(Link());
+            }
+            realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
+            if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
+            {
+                Json cacheFileJson = linker.bTPath.generic_string() + " " + getLinkOrArchiveCommand(true);
+                ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << cacheFileJson.dump(4);
+            }
         }
-        else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+        else
         {
-            postBasicLinkOrArchive = std::make_shared<PostBasic>(Link());
-        }
-        if (postBasicLinkOrArchive->successfullyCompleted)
-        {
-            Json cacheFileJson = linker.bTPath.generic_string() + " " + getLinkOrArchiveCommand(true);
-            ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << cacheFileJson.dump(4);
+            realBTarget.exitStatus = EXIT_FAILURE;
         }
     }
-    getRealBTarget(round).fileStatus = FileStatus::UPDATED;
+    else if (round == 3)
+    {
+        populateRequirementAndUsageRequirementDeps();
+        addRequirementDepsToBTargetDependencies();
+        populateRequirementAndUsageRequirementProperties();
+    }
+    realBTarget.fileStatus = FileStatus::UPDATED;
 }
 
 void LinkOrArchiveTarget::printMutexLockRoutine(unsigned short round)
 {
-    if (!round && selectiveBuild)
+    if (!round && selectiveBuild && getRealBTarget(0).dependenciesExitStatus == EXIT_SUCCESS)
     {
         if (linkTargetType == TargetType::LIBRARY_STATIC)
         {
@@ -772,35 +786,9 @@ void LinkOrArchiveTarget::printMutexLockRoutine(unsigned short round)
 
 void LinkOrArchiveTarget::setJson()
 {
-    vector<Json> dependenciesArray;
-
     // TODO
-    auto iterateOverLibraries = [&dependenciesArray](const set<LinkOrArchiveTarget *> &libraries) {
-        for (LinkOrArchiveTarget *library : libraries)
-        {
-            Json libDepObject;
-            libDepObject[JConsts::prebuilt] = false;
-            libDepObject[JConsts::path] = library->getTargetPointer();
-
-            dependenciesArray.emplace_back(libDepObject);
-        }
-    };
-
-    auto iterateOverPrebuiltLibs = [&dependenciesArray](const set<LinkOrArchiveTarget *> &prebuiltLibs) {
-        for (LinkOrArchiveTarget *pLibrary : prebuiltLibs)
-        {
-            Json libDepObject;
-            libDepObject[JConsts::prebuilt] = true;
-            // TODO
-            libDepObject[JConsts::path] = pLibrary->getTargetPointer();
-            dependenciesArray.emplace_back(libDepObject);
-        }
-    };
-
-    iterateOverLibraries(publicLibs);
-    iterateOverLibraries(privateLibs);
-    iterateOverPrebuiltLibs(publicPrebuilts);
-    iterateOverPrebuiltLibs(privatePrebuilts);
+    /*    iterateOverPrebuiltLibs(publicPrebuilts);
+        iterateOverPrebuiltLibs(privatePrebuilts);*/
 
     Json targetJson;
     targetJson[JConsts::targetType] = linkTargetType;
@@ -808,17 +796,32 @@ void LinkOrArchiveTarget::setJson()
     targetJson[JConsts::outputDirectory] = outputDirectory;
     targetJson[JConsts::linker] = linker;
     targetJson[JConsts::archiver] = archiver;
-    targetJson[JConsts::linkerFlags] = publicLinkerFlags;
-    targetJson[JConsts::cppSourceTargets] = cppSourceTarget->json;
-    targetJson[JConsts::libraryDependencies] = dependenciesArray;
-    // TODO
-    targetJson[JConsts::linkerTransitiveFlags] = publicLinkerFlags;
+    targetJson[JConsts::linkerFlags] = requirementLinkerFlags;
+    targetJson[JConsts::libraryDependencies] = requirementDeps;
     json[0] = std::move(targetJson);
 }
 
 BTarget *LinkOrArchiveTarget::getBTarget()
 {
     return this;
+}
+
+string LinkOrArchiveTarget::getTarjanNodeName()
+{
+    string str;
+    if (linkTargetType == TargetType::LIBRARY_STATIC)
+    {
+        str = "Static Library";
+    }
+    else if (linkTargetType == TargetType::LIBRARY_SHARED)
+    {
+        str = "Shared Library";
+    }
+    else
+    {
+        str = "Executable";
+    }
+    return str + " " + getSubDirForTarget();
 }
 
 PostBasic LinkOrArchiveTarget::Archive()
@@ -833,58 +836,45 @@ PostBasic LinkOrArchiveTarget::Link()
                      name, settings.lcpSettings.outputAndErrorFiles, true);
 }
 
-void LinkOrArchiveTarget::populateCTargetDependencies()
+void LinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
 {
-    addCTargetDependency(publicLibs);
-    addCTargetDependency(privateLibs);
-}
-
-void LinkOrArchiveTarget::addPrivatePropertiesToPublicProperties()
-{
-    publicLibs.insert(privateLibs.begin(), privateLibs.end());
-    for (LinkOrArchiveTarget *library : publicLibs)
+    // Access to addDependency() function must be synchronized
+    std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
+    RealBTarget &round0 = getRealBTarget(0);
+    RealBTarget &round2 = getRealBTarget(2);
+    for (LinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
     {
-        publicLibs.insert(library->publicLibs.begin(), library->publicLibs.end());
-        publicPrebuilts.insert(library->publicPrebuilts.begin(), library->publicPrebuilts.end());
-    }
-    cppSourceTarget->publicCompilerFlags += cppSourceTarget->privateCompilerFlags;
-
-    // TODO: Following is added to compile the examples. However, the code should also add other public
-    // properties from public dependencies
-    // Modify PLibrary to be dependent of Dependency, thus having public properties.
-    for (LinkOrArchiveTarget *lib : publicLibs)
-    {
-        for (const Node *idd : lib->cppSourceTarget->publicIncludes)
-        {
-            cppSourceTarget->publicIncludes.emplace(idd);
-        }
-        for (const Node *idd : lib->cppSourceTarget->publicHUIncludes)
-        {
-            cppSourceTarget->publicIncludes.emplace(idd);
-        }
-        cppSourceTarget->publicCompilerFlags += lib->cppSourceTarget->publicCompilerFlags;
-        cppSourceTarget->publicCompilerFlags += lib->cppSourceTarget->publicCompilerFlags;
+        round0.addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget));
+        round2.addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget));
     }
 }
 
-void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round)
+void LinkOrArchiveTarget::populateRequirementAndUsageRequirementProperties()
+{
+    for (LinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
+    {
+        requirementLinkerFlags += linkOrArchiveTarget->usageRequirementLinkerFlags;
+    }
+}
+
+void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round)
 {
     if (!round)
     {
         RealBTarget &realBTarget = getRealBTarget(round);
-        path outputPath = path(outputDirectory) / actualOutputName;
-        if (!std::filesystem::exists(outputPath))
+        if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
         {
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-        }
-        for (BTarget *bTarget : realBTarget.allDependencies)
-        {
-            if (auto linkOrArchiveTarget = dynamic_cast<LinkOrArchiveTarget *>(bTarget); linkOrArchiveTarget)
+            path outputPath = path(outputDirectory) / actualOutputName;
+            if (!std::filesystem::exists(outputPath))
             {
-                path depOutputPath = path(outputDirectory) / actualOutputName;
-                if (!exists(depOutputPath) ||
-                    Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
-                        Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                return;
+            }
+            for (LinkOrArchiveTarget *linkOrArchiveTarget : usageRequirementDeps)
+            {
+                path depOutputPath = path(linkOrArchiveTarget->outputDirectory) / linkOrArchiveTarget->actualOutputName;
+                if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
+                    Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
                 {
                     realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                 }
@@ -947,7 +937,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()
         LinkerFlags flags = getLinkerFlags();
 
         // TODO Not catering for MSVC
-        // TODO shared libraries not supported.
+        // TODO shared libraries not supported for GCC.
         if (lcpSettings.infrastructureFlags)
         {
             linkOrArchiveCommandPrint += flags.OPTIONS + " " + flags.OPTIONS_LINK + " ";
@@ -955,7 +945,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()
 
         if (lcpSettings.linkerFlags)
         {
-            linkOrArchiveCommandPrint += publicLinkerFlags + " ";
+            linkOrArchiveCommandPrint += requirementLinkerFlags + " ";
         }
 
         if (lcpSettings.linkerTransitiveFlags)
@@ -986,34 +976,6 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()
         }
     };
 
-    vector<SourceNode *> sourceNodes;
-    vector<LinkOrArchiveTarget *> linkTargets;
-
-    RealBTarget &realBTarget = getRealBTarget(0);
-    for (auto it = realBTarget.allDependencies.rbegin(); it != realBTarget.allDependencies.rend(); ++it)
-    {
-        BTarget *dependency = *it;
-        if (auto *smFile = dynamic_cast<SMFile *>(dependency); smFile)
-        {
-            if (smFile->target == cppSourceTarget || (smFile->standardHeaderUnit))
-            {
-                sourceNodes.emplace_back(smFile);
-            }
-        }
-        else if (auto *sourceNode = dynamic_cast<SourceNode *>(dependency); sourceNode)
-        {
-            if (cppSourceTarget->sourceFileDependencies.contains(*sourceNode))
-            {
-                sourceNodes.emplace_back(sourceNode);
-            }
-        }
-        else if (auto *target = dynamic_cast<LinkOrArchiveTarget *>(dependency); target)
-        {
-            linkTargets.emplace_back(target);
-        }
-    }
-
-    for (SourceNode *sourceNode : sourceNodes)
     {
         const PathPrint *pathPrint;
         if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -1024,102 +986,102 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()
         {
             pathPrint = &(lcpSettings.objectFiles);
         }
-        string outputFilePath = sourceNode->getOutputFilePath();
         if (pathPrint->printLevel != PathPrintLevel::NO)
         {
-            linkOrArchiveCommandPrint += getReducedPath(outputFilePath, *pathPrint) + " ";
+            for (ObjectFile *objectFile : objectFiles)
+            {
+                string outputFilePath = objectFile->getObjectFileOutputFilePath();
+
+                linkOrArchiveCommandPrint += objectFile->getObjectFileOutputFilePathPrint(*pathPrint) + " ";
+            }
         }
     }
 
-    for (LinkOrArchiveTarget *target : linkTargets)
+    for (LinkOrArchiveTarget *target : requirementDeps)
     {
-        if (linkTargetType != TargetType::LIBRARY_STATIC)
-        {
-            linkOrArchiveCommandPrint +=
-                getLinkFlagPrint(target->outputDirectory, target->outputName, lcpSettings.libraryDependencies);
-        }
+        linkOrArchiveCommandPrint +=
+            getLinkFlagPrint(target->outputDirectory, target->outputName, lcpSettings.libraryDependencies);
     }
 
     // HMake does not link any dependency to static library
-    if (linkTargetType != TargetType::LIBRARY_STATIC)
-    {
-        // TODO
-        // Not doing prebuilt libraries yet
 
-        /*        for (auto &i : libraryDependencies)
+    // TODO
+    // Not doing prebuilt libraries yet
+
+    /*        for (auto &i : libraryDependencies)
+            {
+                if (i.preBuilt)
                 {
-                    if (i.preBuilt)
+                    if (linker.bTFamily == BTFamily::MSVC)
                     {
-                        if (linker.bTFamily == BTFamily::MSVC)
-                        {
-                            auto b = lcpSettings.libraryDependencies;
-                            linkOrArchiveCommandPrintFirstHalf += getReducedPath(i.path + " ", b);
-                        }
-                        else
-                        {
-                            string dir = path(i.path).parent_path().string();
-                            string libName = path(i.path).filename().string();
-                            libName.erase(0, 3);
-                            libName.erase(libName.find('.'), 2);
-                            linkOrArchiveCommandPrintFirstHalf +=
-                                getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies);
-                        }
+                        auto b = lcpSettings.libraryDependencies;
+                        linkOrArchiveCommandPrintFirstHalf += getReducedPath(i.path + " ", b);
                     }
-                }*/
+                    else
+                    {
+                        string dir = path(i.path).parent_path().string();
+                        string libName = path(i.path).filename().string();
+                        libName.erase(0, 3);
+                        libName.erase(libName.find('.'), 2);
+                        linkOrArchiveCommandPrintFirstHalf +=
+                            getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies);
+                    }
+                }
+            }*/
 
-        auto getLibraryDirectoryFlag = [this]() {
-            if (linker.bTFamily == BTFamily::MSVC)
-            {
-                return "/LIBPATH:";
-            }
-            else
-            {
-                return "-L";
-            }
-        };
+    auto getLibraryDirectoryFlag = [this]() {
+        if (linker.bTFamily == BTFamily::MSVC)
+        {
+            return "/LIBPATH:";
+        }
+        else
+        {
+            return "-L";
+        }
+    };
 
+    if (lcpSettings.libraryDirectories.printLevel != PathPrintLevel::NO)
+    {
         for (const Node *includeDir : libraryDirectories)
         {
-            if (lcpSettings.libraryDirectories.printLevel != PathPrintLevel::NO)
-            {
-                linkOrArchiveCommandPrint += getLibraryDirectoryFlag() +
-                                             getReducedPath(includeDir->filePath, lcpSettings.libraryDirectories) + " ";
-            }
+            linkOrArchiveCommandPrint +=
+                getLibraryDirectoryFlag() + getReducedPath(includeDir->filePath, lcpSettings.libraryDirectories) + " ";
         }
+    }
 
+    if (lcpSettings.standardLibraryDirectories.printLevel != PathPrintLevel::NO)
+    {
         for (const Node *stdLibDir : standardLibraryDirectories)
         {
-            if (lcpSettings.environmentLibraryDirectories.printLevel != PathPrintLevel::NO)
-            {
-                linkOrArchiveCommandPrint +=
-                    getLibraryDirectoryFlag() +
-                    getReducedPath(stdLibDir->filePath, lcpSettings.environmentLibraryDirectories) + " ";
-            }
-        }
 
+            linkOrArchiveCommandPrint += getLibraryDirectoryFlag() +
+                                         getReducedPath(stdLibDir->filePath, lcpSettings.standardLibraryDirectories) +
+                                         " ";
+        }
+    }
+
+    if (lcpSettings.infrastructureFlags)
+    {
+        linkOrArchiveCommandPrint += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
+    }
+
+    if (lcpSettings.binary.printLevel != PathPrintLevel::NO)
+    {
+        linkOrArchiveCommandPrint += getReducedPath(outputDirectory + actualOutputName, lcpSettings.binary) + " ";
+    }
+
+    if (linkTargetType == TargetType::LIBRARY_SHARED)
+    {
         if (lcpSettings.infrastructureFlags)
         {
-            linkOrArchiveCommandPrint += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
-        }
-
-        if (lcpSettings.binary.printLevel != PathPrintLevel::NO)
-        {
-            linkOrArchiveCommandPrint += getReducedPath(outputDirectory + actualOutputName, lcpSettings.binary) + " ";
-        }
-
-        if (linkTargetType == TargetType::LIBRARY_SHARED)
-        {
-            if (lcpSettings.infrastructureFlags)
-            {
-                linkOrArchiveCommandPrint += "/DLL";
-            }
+            linkOrArchiveCommandPrint += "/DLL";
         }
     }
 }
 
 void LinkOrArchiveTarget::checkForPreBuiltAndCacheDir(Builder &)
 {
-    if (!std::filesystem::exists(path(buildCacheFilesDirPath)))
+    if (!exists(path(buildCacheFilesDirPath)))
     {
         create_directories(buildCacheFilesDirPath);
     }
@@ -1127,7 +1089,7 @@ void LinkOrArchiveTarget::checkForPreBuiltAndCacheDir(Builder &)
     RealBTarget &realBTarget = getRealBTarget(0);
 
     realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-    if (std::filesystem::exists(path(buildCacheFilesDirPath) / (name + ".cache")))
+    if (exists(path(buildCacheFilesDirPath) / (name + ".cache")))
     {
         Json targetCacheJson;
         ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> targetCacheJson;
@@ -1139,4 +1101,9 @@ void LinkOrArchiveTarget::checkForPreBuiltAndCacheDir(Builder &)
             realBTarget.fileStatus = FileStatus::UPDATED;
         }
     }
+}
+
+void to_json(Json &json, const LinkOrArchiveTarget &linkOrArchiveTarget)
+{
+    json = linkOrArchiveTarget.getTargetPointer();
 }

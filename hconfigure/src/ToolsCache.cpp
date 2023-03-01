@@ -76,7 +76,7 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
                           "\n" + cmdExe + "echo %LIB%;%LIBPATH% > " + temporaryLibFilename;
     ofstream(temporaryBatchFilename) << batchCommand;
 
-    if (int code = system((cmdExe + temporaryBatchFilename).c_str()); code == EXIT_FAILURE)
+    if (int code = system((cmdExe + temporaryBatchFilename).c_str()); code != EXIT_SUCCESS)
     {
         print(stderr, "Error in Initializing Environment\n");
         exit(EXIT_FAILURE);
@@ -200,7 +200,7 @@ void ToolsCache::detectToolsAndInitialize()
     {
         string batchFilePath =
             R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat")";
-        path toolBinDir = R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\bin)";
+        path toolBinDir = R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.35.32215\bin)";
         vsTools.emplace_back(batchFilePath, toolBinDir, Arch::X86, AddressModel::A_64, Arch::X86, AddressModel::A_64);
         vsTools.emplace_back(batchFilePath, toolBinDir, Arch::X86, AddressModel::A_64, Arch::X86, AddressModel::A_32);
         vsTools.emplace_back(batchFilePath, toolBinDir, Arch::X86, AddressModel::A_32, Arch::X86, AddressModel::A_64);

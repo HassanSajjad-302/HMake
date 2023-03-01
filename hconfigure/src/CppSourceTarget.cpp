@@ -1,6 +1,7 @@
 #include "CppSourceTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
+#include "LinkOrArchiveTarget.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
 #include <fstream>
@@ -105,32 +106,101 @@ CppSourceTarget::CppSourceTarget(string name_, TargetType targetType) : CTarget{
     compileTargetType = targetType;
 }
 
-CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, LinkOrArchiveTarget &linkOrArchiveTarget_)
-    : CTarget{std::move(name_)}, linkOrArchiveTarget(&linkOrArchiveTarget_)
-{
-    compileTargetType = targetType;
-}
-
 CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, CTarget &other, bool hasFile)
     : CTarget{std::move(name_), other, hasFile}
 {
     compileTargetType = targetType;
 }
 
-CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, LinkOrArchiveTarget &linkOrArchiveTarget_,
-                                 CTarget &other, bool hasFile)
-    : CTarget{std::move(name_), other, hasFile}, linkOrArchiveTarget(&linkOrArchiveTarget_)
+void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrArchiveTarget *linkOrArchiveTarget) const
 {
-    compileTargetType = targetType;
+    RealBTarget &linkRealBTarget = linkOrArchiveTarget->getRealBTarget(0);
+    for (const SourceNode &objectFile : sourceFileDependencies)
+    {
+        objectFiles->emplace_back(const_cast<SourceNode *>(&objectFile));
+        linkRealBTarget.addDependency(const_cast<SourceNode &>(objectFile));
+    }
+    for (const SMFile &objectFile : moduleSourceFileDependencies)
+    {
+        objectFiles->emplace_back(const_cast<SMFile *>(&objectFile));
+        linkRealBTarget.addDependency(const_cast<SMFile &>(objectFile));
+    }
+    for (const SMFile *objectFile : applicationHeaderUnits)
+    {
+        objectFiles->emplace_back(const_cast<SMFile *>(objectFile));
+        linkRealBTarget.addDependency(const_cast<SMFile &>(*objectFile));
+    }
+
+    for (const ObjectFileProducer *objectFileTarget : requirementObjectFileTargets)
+    {
+        objectFileTarget->getObjectFiles(objectFiles, linkOrArchiveTarget);
+    }
 }
 
 void CppSourceTarget::updateBTarget(unsigned short round, Builder &)
 {
     if (!round)
     {
-        pruneAndSaveBuildCache(true);
+        pruneAndSaveBuildCache();
+    }
+    else if (round == 3)
+    {
+        populateRequirementAndUsageRequirementDeps();
+        addRequirementDepsToBTargetDependencies();
+        populateTransitiveProperties();
+    }
+    getRealBTarget(round).fileStatus = FileStatus::UPDATED;
+}
+
+void CppSourceTarget::addRequirementDepsToBTargetDependencies()
+{
+    // Access to addDependency() function must be synchronized
+    std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
+
+    RealBTarget &round0 = getRealBTarget(0);
+    RealBTarget &round2 = getRealBTarget(2);
+    for (CppSourceTarget *cppSourceTarget : requirementDeps)
+    {
+        round0.addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
+        round2.addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
     }
 }
+
+void CppSourceTarget::populateTransitiveProperties()
+{
+    for (CppSourceTarget *cppSourceTarget : requirementDeps)
+    {
+        for (const Node *node : cppSourceTarget->usageRequirementIncludes)
+        {
+            requirementIncludes.emplace(node);
+        }
+        requirementCompilerFlags += cppSourceTarget->usageRequirementCompilerFlags;
+        for (const Define &define : cppSourceTarget->usageRequirementCompileDefinitions)
+        {
+            requirementCompileDefinitions.emplace(define);
+        }
+        requirementCompilerFlags += cppSourceTarget->usageRequirementCompilerFlags;
+        for (const ObjectFileProducer *objectFileProducer : cppSourceTarget->usageRequirementObjectFileTargets)
+        {
+            requirementObjectFileTargets.emplace(objectFileProducer);
+        }
+    }
+}
+
+/*void CppSourceTarget::assignDependencyOfLinkOrArchiveTarget(CppSourceTarget *cppSourceTarget) const
+{
+    if (linkOrArchiveTarget && cppSourceTarget->linkOrArchiveTarget)
+    {
+        if (linkOrArchiveTarget->linkTargetType == TargetType::LIBRARY_STATIC)
+        {
+            linkOrArchiveTarget->interfaceLibs.emplace(cppSourceTarget->linkOrArchiveTarget);
+        }
+        else
+        {
+            linkOrArchiveTarget->privateLibs.emplace(cppSourceTarget->linkOrArchiveTarget);
+        }
+    }
+}*/
 
 CppSourceTarget &CppSourceTarget::setModuleScope(CppSourceTarget *moduleScope_)
 {
@@ -627,49 +697,42 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
     return flags;
 }
 
-void CppSourceTarget::initializeForBuild(Builder &builder)
+void CppSourceTarget::initializeForBuild()
 {
     if (!moduleScope)
     {
         moduleScope = this;
     }
-
-    auto parseRegexSourceDirs = [target = this](bool assignToSourceNodes) {
-        for (const SourceDirectory &sourceDir : assignToSourceNodes ? target->regexSourceDirs : target->regexModuleDirs)
-        {
-            for (const auto &k : recursive_directory_iterator(path(sourceDir.sourceDirectory->filePath)))
-            {
-                try
-                {
-                    if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(sourceDir.regex)))
-                    {
-                        if (assignToSourceNodes)
-                        {
-                            target->addNodeInSourceFileDependencies(k.path().generic_string());
-                            target->sourceFileDependencies.emplace(target, k.path().generic_string());
-                        }
-                        else
-                        {
-                            target->addNodeInModuleSourceFileDependencies(k.path().generic_string());
-                            target->moduleSourceFileDependencies.emplace(target, k.path().generic_string());
-                        }
-                    }
-                }
-                catch (const std::regex_error &e)
-                {
-                    print(stderr, "regex_error : {}\nError happened while parsing regex {} of target{}\n", e.what(),
-                          sourceDir.regex, target->getTargetPointer());
-                    exit(EXIT_FAILURE);
-                }
-            }
-        }
-    };
-    parseRegexSourceDirs(true);
-    parseRegexSourceDirs(false);
-    buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
-    checkForPreBuiltAndCacheDir(builder);
-    parseModuleSourceFiles(builder);
     // Parsing finished
+    buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
+}
+
+void CppSourceTarget::preSort(Builder &builder, unsigned short round)
+{
+    if (round == 1)
+    {
+        initializeForBuild();
+        checkForPreBuiltAndCacheDir(builder);
+        parseModuleSourceFiles(builder);
+    }
+    else if (!round)
+    {
+        populateSourceNodes();
+        removeUnReferencedHeaderUnits();
+        resolveRequirePaths();
+    }
+    else if (round == 3)
+    {
+        auto addBTargetDependencies = [&](set<CppSourceTarget *> &lib) {
+            RealBTarget &round3 = getRealBTarget(3);
+            for (CppSourceTarget *cppSourceTarget : lib)
+            {
+                round3.addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
+            }
+        };
+        addBTargetDependencies(requirementDeps);
+        getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
+    }
 }
 
 void CppSourceTarget::setJson()
@@ -677,7 +740,7 @@ void CppSourceTarget::setJson()
     Json targetJson;
     targetJson[JConsts::targetType] = compileTargetType;
     targetJson[JConsts::compiler] = compiler;
-    targetJson[JConsts::compilerFlags] = publicCompilerFlags;
+    targetJson[JConsts::compilerFlags] = requirementCompilerFlags;
     // targetJson[JConsts::linkerFlags] = publicLinkerFlags;
     string str = "SOURCE_";
     targetJson[str + JConsts::files] = sourceFileDependencies;
@@ -685,29 +748,21 @@ void CppSourceTarget::setJson()
     str = "MODULE_";
     targetJson[str + JConsts::files] = moduleSourceFileDependencies;
     targetJson[str + JConsts::directories] = regexModuleDirs;
-    targetJson[JConsts::includeDirectories] = publicIncludes;
-    targetJson[JConsts::huIncludeDirectories] = publicHUIncludes;
+    targetJson[JConsts::includeDirectories] = requirementIncludes;
+    targetJson[JConsts::huIncludeDirectories] = huIncludes;
     // TODO
     //  Add Module Scope
-    //  TODO
-    targetJson[JConsts::compilerTransitiveFlags] = publicCompilerFlags;
-    // targetJson[JConsts::linkerTransitiveFlags] = publicLinkerFlags;
-    targetJson[JConsts::compileDefinitions] = publicCompileDefinitions;
+    targetJson[JConsts::compileDefinitions] = requirementCompileDefinitions;
+    // TODO
     targetJson[JConsts::variant] = JConsts::project;
+    // TODO
+    // Should transitive properties be displayed? In that case tranisitve properties be spearated out in
+    // addTransitiveProperties Function
     json[0] = std::move(targetJson);
 }
 
 void CppSourceTarget::writeJsonFile()
 {
-    // In case of other being LinkOrArchiveTarget and this not having file, this does not emplace the Json at end
-    // because setJson of LinkOrArchiveTarget adds the Json
-    if (auto *target = dynamic_cast<LinkOrArchiveTarget *>(other); target)
-    {
-        if (!hasFile)
-        {
-            return;
-        }
-    }
     CTarget::writeJsonFile();
 }
 
@@ -718,43 +773,76 @@ BTarget *CppSourceTarget::getBTarget()
 
 CppSourceTarget &CppSourceTarget::PUBLIC_COMPILER_FLAGS(const string &compilerFlags)
 {
-    publicCompilerFlags += compilerFlags;
+    requirementCompilerFlags += compilerFlags;
+    usageRequirementCompilerFlags += compilerFlags;
     return *this;
 }
 
 CppSourceTarget &CppSourceTarget::PRIVATE_COMPILER_FLAGS(const string &compilerFlags)
 {
-    privateCompilerFlags += compilerFlags;
+    requirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::PUBLIC_LINKER_FLAGS(const string &linkerFlags)
+CppSourceTarget &CppSourceTarget::INTERFACE_COMPILER_FLAGS(const string &compilerFlags)
 {
-    linkOrArchiveTarget->publicLinkerFlags += linkerFlags;
-    return *this;
-}
-
-CppSourceTarget &CppSourceTarget::PRIVATE_LINKER_FLAGS(const string &linkerFlags)
-{
-    linkOrArchiveTarget->privateLinkerFlags += linkerFlags;
+    usageRequirementCompilerFlags += compilerFlags;
     return *this;
 }
 
 CppSourceTarget &CppSourceTarget::PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
 {
-    publicCompileDefinitions.emplace(cddName, cddValue);
+    requirementCompileDefinitions.emplace(cddName, cddValue);
+    usageRequirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 
 CppSourceTarget &CppSourceTarget::PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
 {
-    publicCompileDefinitions.emplace(cddName, cddValue);
+    requirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
+
+CppSourceTarget &CppSourceTarget::INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
+{
+    usageRequirementCompileDefinitions.emplace(cddName, cddValue);
+    return *this;
+}
+
+static void parseRegexSourceDirs(CppSourceTarget &target, bool assignToSourceNodes)
+{
+    for (const SourceDirectory &sourceDir : assignToSourceNodes ? target.regexSourceDirs : target.regexModuleDirs)
+    {
+        for (const auto &k : recursive_directory_iterator(path(sourceDir.sourceDirectory->filePath)))
+        {
+            try
+            {
+                if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(sourceDir.regex)))
+                {
+                    if (assignToSourceNodes)
+                    {
+                        target.addNodeInSourceFileDependencies(k.path().generic_string());
+                    }
+                    else
+                    {
+                        target.addNodeInModuleSourceFileDependencies(k.path().generic_string());
+                    }
+                }
+            }
+            catch (const std::regex_error &e)
+            {
+                print(stderr, "regex_error : {}\nError happened while parsing regex {} of target{}\n", e.what(),
+                      sourceDir.regex, target.getTargetPointer());
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+};
 
 CppSourceTarget &CppSourceTarget::SOURCE_DIRECTORIES(const string &sourceDirectory, const string &regex)
 {
     regexSourceDirs.emplace(sourceDirectory, regex);
+    parseRegexSourceDirs(*this, true);
     return *this;
 }
 
@@ -767,6 +855,7 @@ CppSourceTarget &CppSourceTarget::MODULE_DIRECTORIES(const string &moduleDirecto
     else
     {
         regexModuleDirs.emplace(moduleDirectory, regex);
+        parseRegexSourceDirs(*this, false);
         return *this;
     }
 }
@@ -807,10 +896,10 @@ void CppSourceTarget::setCompileCommand()
         }
     };
 
-    compileCommand += publicCompilerFlags;
+    compileCommand += requirementCompilerFlags;
     compileCommand += compilerTransitiveFlags;
 
-    for (const auto &i : publicCompileDefinitions)
+    for (const auto &i : requirementCompileDefinitions)
     {
         if (compiler.bTFamily == BTFamily::MSVC)
         {
@@ -826,11 +915,7 @@ void CppSourceTarget::setCompileCommand()
     // different compile-commands, thus hurting the caching.
     set<string> includes;
 
-    for (const Node *idd : publicIncludes)
-    {
-        includes.emplace(idd->filePath);
-    }
-    for (const Node *idd : publicHUIncludes)
+    for (const Node *idd : requirementIncludes)
     {
         includes.emplace(idd->filePath);
     }
@@ -873,14 +958,14 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
 
     if (ccpSettings.compilerFlags)
     {
-        sourceCompileCommandPrintFirstHalf += publicCompilerFlags;
+        sourceCompileCommandPrintFirstHalf += requirementCompilerFlags;
     }
     if (ccpSettings.compilerTransitiveFlags)
     {
         sourceCompileCommandPrintFirstHalf += compilerTransitiveFlags;
     }
 
-    for (const auto &i : publicCompileDefinitions)
+    for (const auto &i : requirementCompileDefinitions)
     {
         if (ccpSettings.compileDefinitions)
         {
@@ -906,15 +991,7 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
         }
     };
 
-    for (const Node *idd : publicIncludes)
-    {
-        if (ccpSettings.projectIncludeDirectories.printLevel != PathPrintLevel::NO)
-        {
-            sourceCompileCommandPrintFirstHalf +=
-                getIncludeFlag() + getReducedPath(idd->filePath, ccpSettings.projectIncludeDirectories) + " ";
-        }
-    }
-    for (const Node *idd : publicHUIncludes)
+    for (const Node *idd : requirementIncludes)
     {
         if (ccpSettings.projectIncludeDirectories.printLevel != PathPrintLevel::NO)
         {
@@ -943,7 +1020,7 @@ string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
     return sourceCompileCommandPrintFirstHalf;
 }
 
-void CppSourceTarget::checkForPreBuiltAndCacheDir(Builder &builder)
+void CppSourceTarget::checkForPreBuiltAndCacheDir(Builder &)
 {
     // getCompileCommand is called concurrently and may cause a data-race, if this hasn't been called before.
     setCompileCommand();
@@ -989,8 +1066,7 @@ void CppSourceTarget::checkForPreBuiltAndCacheDir(Builder &builder)
                     j);
             }
 
-            ModuleScopeData &moduleScopeData =
-                builder.moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second;
+            ModuleScopeData &moduleScopeData = moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second;
             for (const Json &j : sourceCacheJson.at(JConsts::headerUnits))
             {
                 auto *smFile = const_cast<SMFile *>(
@@ -1002,7 +1078,7 @@ void CppSourceTarget::checkForPreBuiltAndCacheDir(Builder &builder)
     }
 }
 
-void CppSourceTarget::populateSourceNodesAndRemoveUnReferencedHeaderUnits()
+void CppSourceTarget::removeUnReferencedHeaderUnits()
 {
     for (auto it = applicationHeaderUnits.begin(); it != applicationHeaderUnits.end();)
     {
@@ -1015,6 +1091,52 @@ void CppSourceTarget::populateSourceNodesAndRemoveUnReferencedHeaderUnits()
             ++it;
         }
     }
+}
+
+void CppSourceTarget::resolveRequirePaths()
+{
+    ModuleScopeData &moduleScopeData = moduleScopes.find(moduleScope)->second;
+    for (SMFile smFileConst : moduleSourceFileDependencies)
+    {
+        auto &smFile = const_cast<SMFile &>(smFileConst);
+        for (const Json &requireJson : smFileConst.requiresJson)
+        {
+            string requireLogicalName = requireJson.at("logical-name").get<string>();
+            if (requireLogicalName == smFile.logicalName)
+            {
+                print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                      "In Scope\n{}\nModule\n{}\n can not depend on itself.\n", smFile.node->filePath);
+                exit(EXIT_FAILURE);
+            }
+            if (requireJson.contains("lookup-method"))
+            {
+                continue;
+            }
+            if (auto it = moduleScopeData.requirePaths.find(requireLogicalName);
+                it == moduleScopeData.requirePaths.end())
+            {
+                print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                      "No File Provides This {}.\n", requireLogicalName);
+                exit(EXIT_FAILURE);
+            }
+            else
+            {
+                SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
+                smFile.getRealBTarget(0).addDependency(smFileDep);
+            }
+        }
+
+        // TODO
+        /*        if (linkOrArchiveTarget)
+                {
+                    linkOrArchiveTarget->getRealBTarget(0).addDependency(smFile);
+                }*/
+        getRealBTarget(0).addDependency(smFile);
+    }
+}
+
+void CppSourceTarget::populateSourceNodes()
+{
     for (auto it = sourceFileDependencies.begin(); it != sourceFileDependencies.end();)
     {
         if (it->presentInSource)
@@ -1028,11 +1150,13 @@ void CppSourceTarget::populateSourceNodesAndRemoveUnReferencedHeaderUnits()
             {
                 sourceNode.setSourceNodeFileStatus(".o", 0);
             }
-            if (linkOrArchiveTarget)
-            {
-                linkOrArchiveTarget->addDependency(sourceNode, 0);
-            }
-            addDependency(sourceNode, 0);
+            // TODO
+            /*            if (linkOrArchiveTarget)
+                        {
+                            linkOrArchiveTarget->getRealBTarget(0).addDependency(sourceNode);
+                            linkOrArchiveTarget->objectFiles.emplace(&sourceNode);
+                        }*/
+            getRealBTarget(0).addDependency(sourceNode);
             ++it;
         }
         else
@@ -1044,8 +1168,8 @@ void CppSourceTarget::populateSourceNodesAndRemoveUnReferencedHeaderUnits()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
 {
-    ModuleScopeData &moduleScopeData = builder.moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second;
-    for (const Node *idd : publicHUIncludes)
+    ModuleScopeData &moduleScopeData = moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second;
+    for (const Node *idd : huIncludes)
     {
         if (const auto &[pos, Ok] = moduleScopeData.appHUDirTarget.emplace(idd, this); !Ok)
         {
@@ -1060,21 +1184,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
             exit(EXIT_FAILURE);
         }
     }
-    for (const Node *idd : privateHUIncludes)
-    {
-        if (const auto &[pos, Ok] = moduleScopeData.appHUDirTarget.emplace(idd, this); !Ok)
-        {
-            // TODO:
-            //  Improve Message
-            print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                  "In ModuleScope {}\nhu-include-directory\n{}\n is being provided by two different "
-                  "targets\n{}\n{}\nThis is not allowed "
-                  "because HMake can't determine which Header Unit to attach to which target.",
-                  moduleScope->getSubDirForTarget(), idd->filePath, getTargetPointer(),
-                  pos->second->getTargetPointer());
-            exit(EXIT_FAILURE);
-        }
-    }
+
     for (auto it = moduleSourceFileDependencies.begin(); it != moduleSourceFileDependencies.end();)
     {
         if (it->presentInSource)
@@ -1118,7 +1228,7 @@ string CppSourceTarget::getInfrastructureFlags()
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        return GET_FLAG_EVALUATE(TargetType::COMPILE, "-c", TargetType::PREPROCESS, "-P") + " /showIncludes ";
+        return GET_FLAG_EVALUATE(TargetType::OBJECT, "-c", TargetType::PREPROCESS, "-P") + " /showIncludes ";
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
@@ -1126,7 +1236,7 @@ string CppSourceTarget::getInfrastructureFlags()
         // prints 2 header deps in one line and no space in them so no way of
         // knowing whether this is a space in path or 2 different headers. Which
         // then breaks when last_write_time is checked for that path.
-        return GET_FLAG_EVALUATE(TargetType::COMPILE, "-c", TargetType::PREPROCESS, "-E") + " -MMD";
+        return GET_FLAG_EVALUATE(TargetType::OBJECT, "-c", TargetType::PREPROCESS, "-E") + " -MMD";
     }
     return "";
 }
@@ -1146,7 +1256,7 @@ string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourc
     }
     if (ccpSettings.infrastructureFlags)
     {
-        command += compiler.bTFamily == BTFamily::MSVC ? EVALUATE(TargetType::COMPILE) ? "/Fo" : "/Fi" : "-o ";
+        command += compiler.bTFamily == BTFamily::MSVC ? EVALUATE(TargetType::OBJECT) ? "/Fo" : "/Fi" : "-o ";
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
@@ -1181,7 +1291,7 @@ PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
         else
         {
             finalCompileCommand +=
-                smFile.getFlag(smFile.target->buildCacheFilesDirPath + path(smFile.node->filePath).filename().string());
+                smFile.getFlag(buildCacheFilesDirPath + path(smFile.node->filePath).filename().string());
         }
     }
     else
@@ -1205,7 +1315,7 @@ string CppSourceTarget::getSHUSPath() const
 
 string CppSourceTarget::getExtension()
 {
-    return GET_FLAG_EVALUATE(TargetType::PREPROCESS, ".ii", TargetType::COMPILE, ".o");
+    return GET_FLAG_EVALUATE(TargetType::PREPROCESS, ".ii", TargetType::OBJECT, ".o");
 }
 
 PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
@@ -1217,7 +1327,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
     finalCompileCommand += getInfrastructureFlags() + " " + addQuotes(sourceNode.node->filePath) + " ";
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        finalCompileCommand += (EVALUATE(TargetType::COMPILE) ? "/Fo" : "/Fi") +
+        finalCompileCommand += (EVALUATE(TargetType::OBJECT) ? "/Fo" : "/Fi") +
                                addQuotes(buildCacheFilesDirPath + compileFileName + getExtension()) + " ";
     }
     else if (compiler.bTFamily == BTFamily::GCC)
@@ -1252,8 +1362,7 @@ PostBasic CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printO
         exit(EXIT_FAILURE);
     }
 
-    string outputFilePath =
-        smFile.standardHeaderUnit ? smFile.target->moduleScope->buildCacheFilesDirPath : buildCacheFilesDirPath;
+    string outputFilePath = smFile.standardHeaderUnit ? moduleScope->buildCacheFilesDirPath : buildCacheFilesDirPath;
     return printOnlyOnError
                ? PostBasic(compiler, finalCompileCommand, "", outputFilePath,
                            path(smFile.node->filePath).filename().string() + ".smrules",
@@ -1264,22 +1373,37 @@ PostBasic CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printO
                            settings.ccpSettings.outputAndErrorFiles, true);
 }
 
-void CppSourceTarget::pruneAndSaveBuildCache(const bool successful)
+void CppSourceTarget::pruneAndSaveBuildCache()
 {
-    if (!successful)
+    vector<const SourceNode *> sourceFilesLocal;
+    vector<const SourceNode *> moduleFilesLocal;
+    vector<const SourceNode *> applicationHeaderUnitsLocal;
+    for (const SourceNode &sourceNode : sourceFileDependencies)
     {
-        for (auto it = sourceFileDependencies.begin(); it != sourceFileDependencies.end();)
+        if (const_cast<SourceNode &>(sourceNode).getRealBTarget(0).exitStatus == EXIT_SUCCESS)
         {
-            const_cast<SourceNode &>(*it).getRealBTarget(0).fileStatus == FileStatus::NEEDS_UPDATE
-                ? it = sourceFileDependencies.erase(it)
-                : ++it;
+            sourceFilesLocal.emplace_back(&sourceNode);
+        }
+    }
+    for (const SMFile &smFile : moduleSourceFileDependencies)
+    {
+        if (const_cast<SMFile &>(smFile).getRealBTarget(0).exitStatus == EXIT_SUCCESS)
+        {
+            moduleFilesLocal.emplace_back(&smFile);
+        }
+    }
+    for (const SMFile *smFile : applicationHeaderUnits)
+    {
+        if (const_cast<SMFile *>(smFile)->getRealBTarget(0).exitStatus == EXIT_SUCCESS)
+        {
+            applicationHeaderUnitsLocal.emplace_back(smFile);
         }
     }
     Json buildCache;
     buildCache[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
-    buildCache[JConsts::sourceDependencies] = sourceFileDependencies;
-    buildCache[JConsts::moduleDependencies] = moduleSourceFileDependencies;
-    buildCache[JConsts::headerUnits] = applicationHeaderUnits;
+    buildCache[JConsts::sourceDependencies] = sourceFilesLocal;
+    buildCache[JConsts::moduleDependencies] = moduleFilesLocal;
+    buildCache[JConsts::headerUnits] = applicationHeaderUnitsLocal;
     ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCache.dump(4);
 }
 

@@ -1,5 +1,7 @@
 #include "Configuration.hpp"
+#include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
+#include "DSC.hpp"
 #include "LinkOrArchiveTarget.hpp"
 
 Configuration::Configuration(const string &name_) : CTarget{name_}
@@ -10,25 +12,35 @@ Configuration::Configuration(const string &name_, CTarget &other, bool hasFile) 
 {
 }
 
-CppSourceTarget &Configuration::GetPreProcessCpp(const string &name_)
+void Configuration::setModuleScope(CppSourceTarget *moduleScope)
+{
+    for (CppSourceTarget *cppSourceTargetLocal : cppSourceTargets)
+    {
+        cppSourceTargetLocal->setModuleScope(moduleScope);
+    }
+}
+
+CppSourceTarget &Configuration::GetCppPreprocess(const string &name_)
 {
     CppSourceTarget &cppSourceTarget = const_cast<CppSourceTarget &>(
-        cppSourceTargets
-            .emplace(name_ + "-cpp", TargetType::PREPROCESS, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
+        targets<CppSourceTarget>
+            .emplace(name_ , TargetType::PREPROCESS, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
             .first.
             operator*());
+    cppSourceTargets.emplace(&cppSourceTarget);
     static_cast<CommonFeatures &>(cppSourceTarget) = commonFeatures;
     static_cast<CompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
 }
 
-CppSourceTarget &Configuration::GetCompileCpp(const string &name_)
+CppSourceTarget &Configuration::GetCppObject(const string &name_)
 {
     CppSourceTarget &cppSourceTarget = const_cast<CppSourceTarget &>(
-        cppSourceTargets
-            .emplace(name_ + "-cpp", TargetType::COMPILE, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
+        targets<CppSourceTarget>
+            .emplace(name_, TargetType::OBJECT, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
             .first.
             operator*());
+    cppSourceTargets.emplace(&cppSourceTarget);
     static_cast<CommonFeatures &>(cppSourceTarget) = commonFeatures;
     static_cast<CompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
@@ -37,92 +49,88 @@ CppSourceTarget &Configuration::GetCompileCpp(const string &name_)
 LinkOrArchiveTarget &Configuration::GetExe(const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget &>(
-        linkOrArchiveTargets
+        targets<LinkOrArchiveTarget>
             .emplace(name_, TargetType::EXECUTABLE, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
             .first.
             operator*());
+    linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
     static_cast<CommonFeatures &>(linkOrArchiveTarget) = commonFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
 
-LinkOrArchiveTarget &Configuration::GetLib(const string &name_)
+LinkOrArchiveTarget &Configuration::GetStatic(const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget &>(
-        linkOrArchiveTargets.emplace(name_, cache.libraryType, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
+        targets<LinkOrArchiveTarget>.emplace(name_, TargetType::LIBRARY_STATIC, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
             .first.
             operator*());
+    linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
     static_cast<CommonFeatures &>(linkOrArchiveTarget) = commonFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
 
-CppSourceTarget &Configuration::GetExeCpp(const string &name_)
+LinkOrArchiveTarget &Configuration::GetShared(const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetExe(name_);
+    LinkOrArchiveTarget &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget &>(
+        targets<LinkOrArchiveTarget>.emplace(name_, TargetType::LIBRARY_SHARED, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
+            .first.
+            operator*());
+    linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
     static_cast<CommonFeatures &>(linkOrArchiveTarget) = commonFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        cppSourceTargets
-            .emplace(name_ + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget,
-                     configTargetHaveFile == ConfigTargetHaveFile::YES)
-            .first.
-            operator->());
-    static_cast<CommonFeatures &>(*cppSourceTarget) = commonFeatures;
-    static_cast<CompilerFeatures &>(*cppSourceTarget) = compilerFeatures;
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
-    return *cppSourceTarget;
-}
-
-LinkOrArchiveTarget &Configuration::GetCppExe(const string &name_)
-{
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetExe(name_);
-    static_cast<CommonFeatures &>(linkOrArchiveTarget) = commonFeatures;
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        cppSourceTargets
-            .emplace(name_ + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget,
-                     configTargetHaveFile == ConfigTargetHaveFile::YES)
-            .first.
-            operator->());
-    static_cast<CommonFeatures &>(*cppSourceTarget) = commonFeatures;
-    static_cast<CompilerFeatures &>(*cppSourceTarget) = compilerFeatures;
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
     return linkOrArchiveTarget;
 }
 
-CppSourceTarget &Configuration::GetLibCpp(const string &name_)
+DSC<CppSourceTarget> &Configuration::GetCppExeDSC(const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetLib(name_);
-    static_cast<CommonFeatures &>(linkOrArchiveTarget) = commonFeatures;
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        cppSourceTargets
-            .emplace(name_ + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget,
-                     configTargetHaveFile == ConfigTargetHaveFile::YES)
-            .first.
-            operator->());
-    static_cast<CommonFeatures &>(*cppSourceTarget) = commonFeatures;
-    static_cast<CompilerFeatures &>(*cppSourceTarget) = compilerFeatures;
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
-    return *cppSourceTarget;
+    DSC<CppSourceTarget> dsc;
+    dsc.linkOrArchiveTarget = &(GetExe(name_ + dashLink));
+    dsc.objectFileProducer = &(GetCppObject(name_ + dashCpp));
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
-LinkOrArchiveTarget &Configuration::GetCppLib(const string &name_)
+DSC<CppSourceTarget> &Configuration::GetCppDSC(const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = GetLib(name_);
-    static_cast<CommonFeatures &>(linkOrArchiveTarget) = commonFeatures;
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    CppSourceTarget *cppSourceTarget = const_cast<CppSourceTarget *>(
-        cppSourceTargets
-            .emplace(name_ + "-cpp", TargetType::COMPILE, linkOrArchiveTarget, linkOrArchiveTarget,
-                     configTargetHaveFile == ConfigTargetHaveFile::YES)
-            .first.
-            operator->());
-    static_cast<CommonFeatures &>(*cppSourceTarget) = commonFeatures;
-    static_cast<CompilerFeatures &>(*cppSourceTarget) = compilerFeatures;
-    linkOrArchiveTarget.cppSourceTarget = cppSourceTarget;
-    return linkOrArchiveTarget;
+    DSC<CppSourceTarget> dsc;
+    dsc.objectFileProducer = &(GetCppObject(name_ + dashCpp));
+    if (cache.libraryType == TargetType::LIBRARY_STATIC)
+    {
+        dsc.linkOrArchiveTarget = &(GetStatic(name_ + dashLink));
+    }
+    else if (cache.libraryType == TargetType::LIBRARY_SHARED)
+    {
+        dsc.linkOrArchiveTarget = &(GetShared(name_ + dashLink));
+    }
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
+}
+
+DSC<CppSourceTarget> &Configuration::GetCppStaticDSC(const string &name_)
+{
+    DSC<CppSourceTarget> dsc;
+    dsc.linkOrArchiveTarget = &(GetStatic(name_ + dashLink));
+    dsc.objectFileProducer = &(GetCppObject(name_ + dashCpp));
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
+}
+
+DSC<CppSourceTarget> &Configuration::GetCppSharedDSC(const string &name_)
+{
+    DSC<CppSourceTarget> dsc;
+    dsc.linkOrArchiveTarget = &(GetShared(name_ + dashLink));
+    dsc.objectFileProducer = &(GetCppObject(name_ + dashCpp));
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
+}
+
+DSC<CppSourceTarget> &Configuration::GetCppObjectDSC(const string &name_)
+{
+    DSC<CppSourceTarget> dsc;
+    dsc.objectFileProducer = &(GetCppObject(name_ + dashCpp));
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
 void Configuration::setJson()
@@ -132,9 +140,9 @@ void Configuration::setJson()
     variantJson[JConsts::compiler] = compilerFeatures.compiler;
     variantJson[JConsts::linker] = linkerFeatures.linker;
     variantJson[JConsts::archiver] = linkerFeatures.archiver;
-    variantJson[JConsts::compilerFlags] = compilerFeatures.privateCompilerFlags;
-    variantJson[JConsts::compileDefinitions] = compilerFeatures.privateCompileDefinitions;
-    variantJson[JConsts::linkerFlags] = linkerFeatures.privateLinkerFlags;
+    variantJson[JConsts::compilerFlags] = compilerFeatures.requirementCompilerFlags;
+    variantJson[JConsts::compileDefinitions] = compilerFeatures.requirementCompileDefinitions;
+    variantJson[JConsts::linkerFlags] = linkerFeatures.requirementLinkerFlags;
     variantJson[JConsts::libraryType] = linkerFeatures.libraryType;
     variantJson[JConsts::targets] = elements;
     json[0] = std::move(variantJson);

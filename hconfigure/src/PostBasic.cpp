@@ -42,20 +42,18 @@ PostBasic::PostBasic(const BuildTool &buildTool, const string &commandFirstHalf,
     string cmdCharLimitMitigateCommand = addQuotes(toolPath.make_preferred().string()) + " @" +
                                          addQuotes(responseFile.generic_string()) + "> " + addQuotes(outputFileName) +
                                          " 2>" + addQuotes(errorFileName);
-    bool success = system(addQuotes(cmdCharLimitMitigateCommand).c_str());
+    exitStatus = system(addQuotes(cmdCharLimitMitigateCommand).c_str());
 #else
     string finalCompileCommand = buildTool.bTPath.generic_string() + " " + commandFirstHalf + "> " +
                                  addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
-    bool success = system(finalCompileCommand.c_str());
+    exitStatus = system(finalCompileCommand.c_str());
 #endif
-    if (success == EXIT_SUCCESS)
+    if (exitStatus == EXIT_SUCCESS)
     {
-        successfullyCompleted = true;
         commandSuccessOutput = file_to_string(outputFileName);
     }
     else
     {
-        successfullyCompleted = false;
         commandSuccessOutput = file_to_string(outputFileName);
         commandErrorOutput = file_to_string(errorFileName);
     }
@@ -66,7 +64,7 @@ void PostBasic::executePrintRoutine(uint32_t color, bool printOnlyOnError) const
     if (!printOnlyOnError)
     {
         print(fg(static_cast<fmt::color>(color)), pes, printCommand + " " + getThreadId() + "\n");
-        if (successfullyCompleted)
+        if (exitStatus == EXIT_SUCCESS)
         {
             if (!commandSuccessOutput.empty())
             {
@@ -79,7 +77,7 @@ void PostBasic::executePrintRoutine(uint32_t color, bool printOnlyOnError) const
             }
         }
     }
-    if (!successfullyCompleted)
+    if (exitStatus != EXIT_SUCCESS)
     {
         if (!commandSuccessOutput.empty())
         {
@@ -124,7 +122,7 @@ bool PostCompile::checkIfFileIsInEnvironmentIncludes(const string &str)
             return true;
         }
     }
-    for (const Node *node : target.publicIncludes)
+    for (const Node *node : target.requirementIncludes)
     {
         if (node->ignoreIncludes && equivalent(node->filePath, path(str).parent_path()))
         {
@@ -186,7 +184,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
 
     // First 2 lines are skipped as these are .o and .cpp file.
     // If the file is preprocessed, it does not generate the extra line
-    auto endIt = headerDeps.end() - (sourceNode.target->compileTargetType == TargetType::COMPILE ? 1 : 0);
+    auto endIt = headerDeps.end() - (sourceNode.target->compileTargetType == TargetType::OBJECT ? 1 : 0);
     for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
     {
         size_t pos = iter->find_first_not_of(" ");
@@ -200,17 +198,17 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
 
 void PostCompile::executePostCompileRoutineWithoutMutex(SourceNode &sourceNode)
 {
-    if (successfullyCompleted)
+    // Clearing old header-deps and adding the new ones.
+    sourceNode.headerDependencies.clear();
+    if (exitStatus == EXIT_SUCCESS)
     {
-        // Clearing old header-deps and adding the new ones.
-        sourceNode.headerDependencies.clear();
-    }
-    if (target.compiler.bTFamily == BTFamily::MSVC)
-    {
-        parseDepsFromMSVCTextOutput(sourceNode);
-    }
-    else if (target.compiler.bTFamily == BTFamily::GCC && successfullyCompleted)
-    {
-        parseDepsFromGCCDepsOutput(sourceNode);
+        if (target.compiler.bTFamily == BTFamily::MSVC)
+        {
+            parseDepsFromMSVCTextOutput(sourceNode);
+        }
+        else if (target.compiler.bTFamily == BTFamily::GCC && exitStatus == EXIT_SUCCESS)
+        {
+            parseDepsFromGCCDepsOutput(sourceNode);
+        }
     }
 }

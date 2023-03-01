@@ -11,7 +11,7 @@ using std::filesystem::path, std::size_t, std::map;
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
 TarjanNode(const struct BTarget *) -> TarjanNode<BTarget>;
 using TBT = TarjanNode<BTarget>;
-inline set<TBT> tarjanNodesBTargets;
+inline map<unsigned short, set<TBT>> tarjanNodesBTargets;
 
 TarjanNode(const class CTarget *) -> TarjanNode<CTarget>;
 using TCT = TarjanNode<CTarget>;
@@ -45,8 +45,13 @@ struct RealBTarget
     // Value is assigned on basis of TBT::topologicalSort index. Targets in allDependencies vector are arranged by this
     // value.
     size_t indexInTopologicalSort = 0;
+    BTarget *bTarget;
+    int dependenciesExitStatus = EXIT_SUCCESS;
+    int exitStatus = EXIT_SUCCESS;
     unsigned short round;
-    explicit RealBTarget(unsigned short round_);
+    explicit RealBTarget(unsigned short round_, BTarget *bTarget_);
+    void addTarjanNodeBTarget();
+    void addDependency(BTarget &dependency);
 };
 
 struct CompareRealBTargetId
@@ -59,6 +64,11 @@ struct CompareRealBTargetId
 };
 bool operator<(const RealBTarget &lhs, const RealBTarget &rhs);
 
+namespace BTargetNamespace
+{
+inline std::mutex addDependencyMutex;
+}
+
 struct BTarget // BTarget
 {
     inline static size_t total = 0;
@@ -70,13 +80,10 @@ struct BTarget // BTarget
 
     virtual string getTarjanNodeName();
 
-    void addDependency(BTarget &dependency, unsigned short round);
-    void setFileStatus(FileStatus fileStatus, unsigned short round);
     RealBTarget &getRealBTarget(unsigned short round);
     virtual void updateBTarget(unsigned short round, class Builder &builder);
     virtual void printMutexLockRoutine(unsigned short round);
-    virtual void initializeForBuild(class Builder &builder);
-    virtual void populateSourceNodesAndRemoveUnReferencedHeaderUnits();
+    virtual void preSort(Builder &builder, unsigned short round);
     virtual void duringSort(Builder &builder, unsigned short round);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
@@ -133,11 +140,6 @@ class CTarget // Configure Target
     virtual void writeJsonFile();
     virtual void configure();
     virtual BTarget *getBTarget();
-    // Following provides configure-time checks for dependency cycle between CTargets.  This is different from
-    // container-element dependency. Container-Element dependency-cycle is only checked in configure mode while
-    // this is also checked in build mode. This is used to check for cyclic dependencies between libraries.
-    virtual void populateCTargetDependencies();
-    virtual void addPrivatePropertiesToPublicProperties();
 };
 void to_json(Json &j, const CTarget *tar);
 

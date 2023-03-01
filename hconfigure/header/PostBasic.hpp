@@ -3,12 +3,14 @@
 #define HMAKE_POSTBASIC_HPP
 #include "BuildTools.hpp"
 #include "Settings.hpp"
+
+// Maybe use CRTP and inherit both SourceNode and LinkOrArchiveTarget from it. exitStatus is being copied currently.
 struct PostBasic
 {
     string printCommand;
     string commandSuccessOutput;
     string commandErrorOutput;
-    bool successfullyCompleted;
+    int exitStatus;
 
     /* Could be a target or a file. For target (link and archive), we add extra _t at the end of the target name.*/
     bool isTarget;

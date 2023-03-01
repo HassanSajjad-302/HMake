@@ -1,7 +1,5 @@
 #include "Builder.hpp"
 #include "BasicTargets.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "CppSourceTarget.hpp"
 #include "Utilities.hpp"
 #include <condition_variable>
 #include <fstream>
@@ -12,102 +10,41 @@
 using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream, std::ofstream, std::stack,
     std::filesystem::current_path;
 
-bool Builder::isCTargetInSelectedSubDirectory(const CTarget &cTarget)
+Builder::Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarget *> &preSortBTargets_)
+    : preSortBTargets{preSortBTargets_}
 {
-    path targetPath = cTarget.getSubDirForTarget();
-    for (; targetPath.root_path() != targetPath; targetPath = (targetPath / "..").lexically_normal())
+    round = roundBegin;
+    bool breakLoop = false;
+    while (true)
     {
-        std::error_code ec;
-        if (equivalent(targetPath, current_path(), ec))
+        if (breakLoop)
         {
-            return true;
+            break;
         }
-    }
-    return false;
-}
 
-Builder::Builder()
-{
-    vector<BTarget *> bTargets;
-    for (CTarget *cTarget : targetPointers<CTarget>)
-    {
-        if (BTarget *bTarget = cTarget->getBTarget(); bTarget)
+        // preSort is called only for few of BTarget. If preSort is needed then the bTarget can be added in the
+        // preSortBTargets of builder.
+        for (BTarget *bTarget : preSortBTargets)
         {
-            bTargets.emplace_back(bTarget);
-            if (isCTargetInSelectedSubDirectory(*cTarget))
-            {
-                bTarget->selectiveBuild = true;
-            }
+            bTarget->preSort(*this, round);
         }
-    }
-
-    for (BTarget *bTarget : bTargets)
-    {
-        bTarget->initializeForBuild(*this);
-    }
-    round = 1;
-    finalBTargetsSizeGoal = finalBTargets.size();
-    launchThreadsAndUpdateBTargets();
-
-    for (BTarget *bTarget : bTargets)
-    {
-        bTarget->populateSourceNodesAndRemoveUnReferencedHeaderUnits();
-    }
-    populateSetTarjanNodesBTargetsSMFiles();
-    round = 0;
-    populateFinalBTargets();
-    launchThreadsAndUpdateBTargets();
-}
-
-void Builder::populateSetTarjanNodesBTargetsSMFiles()
-{
-    for (auto &[moduleScope, moduleScopeData] : moduleScopes)
-    {
-        for (SMFile *smFileConst : moduleScopeData.smFiles)
+        populateFinalBTargets();
+        launchThreadsAndUpdateBTargets();
+        if (round == roundEnd)
         {
-            auto &smFile = const_cast<SMFile &>(*smFileConst);
-            CppSourceTarget *cppSourceTarget = smFile.target;
-            for (const Json &requireJson : smFileConst->requiresJson)
-            {
-                string requireLogicalName = requireJson.at("logical-name").get<string>();
-                if (requireLogicalName == smFile.logicalName)
-                {
-                    print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                          "In Scope\n{}\nModule\n{}\n can not depend on itself.\n", smFile.node->filePath);
-                    exit(EXIT_FAILURE);
-                }
-                if (requireJson.contains("lookup-method"))
-                {
-                    continue;
-                }
-                if (auto it = moduleScopeData.requirePaths.find(requireLogicalName);
-                    it == moduleScopeData.requirePaths.end())
-                {
-                    print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                          "No File Provides This {}.\n", requireLogicalName);
-                    exit(EXIT_FAILURE);
-                }
-                else
-                {
-                    SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
-                    smFile.addDependency(smFileDep, 0);
-                }
-            }
-
-            if (smFile.target->linkOrArchiveTarget)
-            {
-                smFile.target->linkOrArchiveTarget->addDependency(smFile, 0);
-            }
-            cppSourceTarget->addDependency(smFile, 0);
+            breakLoop = true;
+        }
+        else
+        {
+            --round;
         }
     }
 }
 
 void Builder::populateFinalBTargets()
 {
-    TBT::tarjanNodes = &tarjanNodesBTargets;
+    TBT::tarjanNodes = &(tarjanNodesBTargets.emplace(round, set<TBT>()).first->second);
     TBT::findSCCS();
-    tarjanNodesBTargets.clear();
     TBT::checkForCycle();
     size_t needsUpdate = 0;
 
@@ -123,7 +60,7 @@ void Builder::populateFinalBTargets()
             }
         }
     }
-    // for(auto it = )
+    finalBTargets.clear();
     for (unsigned i = 0; i < sortedBTargets.size(); ++i)
     {
         BTarget *bTarget = sortedBTargets[i];
@@ -162,42 +99,6 @@ void Builder::populateFinalBTargets()
     finalBTargetsSizeGoal = needsUpdate;
 }
 
-set<string> Builder::getTargetFilePathsFromVariantFile(const string &fileName)
-{
-    Json variantFileJson;
-    ifstream(fileName) >> variantFileJson;
-    return variantFileJson.at(JConsts::targets).get<set<string>>();
-}
-
-set<string> Builder::getTargetFilePathsFromProjectOrPackageFile(const string &fileName, bool isPackage)
-{
-    Json projectFileJson;
-    ifstream(fileName) >> projectFileJson;
-    vector<string> vec;
-    if (isPackage)
-    {
-        vector<Json> pVariantJson = projectFileJson.at(JConsts::variants).get<vector<Json>>();
-        for (const auto &i : pVariantJson)
-        {
-            vec.emplace_back(i.at(JConsts::index).get<string>());
-        }
-    }
-    else
-    {
-        vec = projectFileJson.at(JConsts::variants).get<vector<string>>();
-    }
-    set<string> targetFilePaths;
-    for (auto &i : vec)
-    {
-        for (const string &str :
-             getTargetFilePathsFromVariantFile(i + (isPackage ? "/packageVariant.hmake" : "/projectVariant.hmake")))
-        {
-            targetFilePaths.emplace(str);
-        }
-    }
-    return targetFilePaths;
-}
-
 void Builder::launchThreadsAndUpdateBTargets()
 {
     vector<thread *> threads;
@@ -221,7 +122,6 @@ void Builder::launchThreadsAndUpdateBTargets()
         t->join();
         delete t;
     }
-    finalBTargets.clear();
 }
 
 static mutex updateMutex;
@@ -284,12 +184,18 @@ void Builder::updateBTargets()
 
         printMutex.lock();
         bTarget->printMutexLockRoutine(round);
+        fflush(stdout);
         printMutex.unlock();
 
         updateMutex.lock();
+        RealBTarget &realBTarget = bTarget->getRealBTarget(round);
         for (BTarget *dependent : bTarget->getRealBTarget(round).dependents)
         {
             RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
+            if (realBTarget.exitStatus != EXIT_SUCCESS || realBTarget.dependenciesExitStatus != EXIT_SUCCESS)
+            {
+                dependentRealBTarget.dependenciesExitStatus = EXIT_FAILURE;
+            }
             --(dependentRealBTarget.dependenciesSize);
             if (!dependentRealBTarget.dependenciesSize && dependentRealBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
             {

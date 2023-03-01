@@ -19,6 +19,7 @@ struct LinkerFlags
     string SONAME_OPTION_LINK;
 
     // MSVC
+    string FINDLIBS_SA_LINK;
     string DOT_LD_LINK;
     string DOT_LD_ARCHIVE;
     string LINKFLAGS_LINK;
@@ -33,10 +34,10 @@ class LinkOrArchiveTarget : public CommonFeatures,
                             public CTarget,
                             public BTarget,
                             public LinkerFeatures,
-                            public FeatureConvenienceFunctions<LinkOrArchiveTarget>
+                            public FeatureConvenienceFunctions<LinkOrArchiveTarget>,
+                            public DS<LinkOrArchiveTarget>
 {
   public:
-    class CppSourceTarget *cppSourceTarget = nullptr;
     TargetType linkTargetType;
     shared_ptr<PostBasic> postBasicLinkOrArchive;
     string linkerTransitiveFlags;
@@ -45,27 +46,30 @@ class LinkOrArchiveTarget : public CommonFeatures,
     string linkOrArchiveCommandPrint;
     set<Node *> libraryDirectories;
 
-    set<LinkOrArchiveTarget *> publicLibs;
-    set<LinkOrArchiveTarget *> privateLibs;
-    set<LinkOrArchiveTarget *> publicPrebuilts;
-    set<LinkOrArchiveTarget *> privatePrebuilts;
+    vector<ObjectFile *> objectFiles;
+    set<ObjectFileProducer *> objectFileProducers;
+
+    /*    set<LinkOrArchiveTarget *> publicPrebuilts;
+        set<LinkOrArchiveTarget *> privatePrebuilts;*/
 
     string buildCacheFilesDirPath;
     string actualOutputName;
 
     LinkOrArchiveTarget(string name, TargetType targetType);
     LinkOrArchiveTarget(string name, TargetType targetType, class CTarget &other, bool hasFile = true);
-    void initializeForBuild(Builder &builder) override;
+    void initializeForBuild();
+    void populateObjectFiles();
+    void preSort(Builder &builder, unsigned short round) override;
     LinkerFlags getLinkerFlags();
     void updateBTarget(unsigned short round, Builder &builder) override;
     void printMutexLockRoutine(unsigned short round) override;
     void setJson() override;
     BTarget *getBTarget() override;
+    string getTarjanNodeName() override;
     PostBasic Archive();
     PostBasic Link();
-    bool linkFunctionCalled = false;
-    void populateCTargetDependencies() override;
-    void addPrivatePropertiesToPublicProperties() override;
+    void addRequirementDepsToBTargetDependencies();
+    void populateRequirementAndUsageRequirementProperties();
     void duringSort(Builder &builder, unsigned short round) override;
     void setLinkOrArchiveCommandPrint();
     string getLinkOrArchiveCommand(bool ignoreTargets);
@@ -73,11 +77,12 @@ class LinkOrArchiveTarget : public CommonFeatures,
     void checkForPreBuiltAndCacheDir(Builder &builder);
     string outputName;
     string outputDirectory;
-    string publicLinkerFlags;
+    string usageRequirementLinkerFlags;
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     LinkOrArchiveTarget &ASSIGN(T property, Property... properties);
     template <typename T> bool EVALUATE(T property) const;
 };
+void to_json(Json &json, const LinkOrArchiveTarget &linkOrArchiveTarget);
 
 template <Dependency dependency, typename T, typename... Property>
 LinkOrArchiveTarget &LinkOrArchiveTarget::ASSIGN(T property, Property... properties)

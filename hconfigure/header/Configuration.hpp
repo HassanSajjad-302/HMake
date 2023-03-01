@@ -3,12 +3,14 @@
 
 #include "BasicTargets.hpp"
 #include "ConfigType.hpp"
+#include "DSC.hpp"
 #include "Features.hpp"
 #include <memory>
 using std::shared_ptr;
 
 class LinkOrArchiveTarget;
 class CppSourceTarget;
+
 enum class ConfigTargetHaveFile
 {
     YES,
@@ -16,26 +18,29 @@ enum class ConfigTargetHaveFile
 };
 struct Configuration : public CTarget
 {
-    set<CppSourceTarget> cppSourceTargets;
-    set<LinkOrArchiveTarget> linkOrArchiveTargets;
+    set<CppSourceTarget *> cppSourceTargets;
+    set<LinkOrArchiveTarget *> linkOrArchiveTargets;
     CommonFeatures commonFeatures;
     CompilerFeatures compilerFeatures;
     LinkerFeatures linkerFeatures;
 
-    CppSourceTarget &GetPreProcessCpp(const string &name_);
-    CppSourceTarget &GetCompileCpp(const string &name_);
+    CppSourceTarget &GetCppPreprocess(const string &name_);
+    CppSourceTarget &GetCppObject(const string &name_);
     LinkOrArchiveTarget &GetExe(const string &name_);
-    LinkOrArchiveTarget &GetLib(const string &name_);
-    CppSourceTarget &GetExeCpp(const string &name_);
-    LinkOrArchiveTarget &GetCppExe(const string &name_);
-    CppSourceTarget &GetLibCpp(const string &name_);
-    LinkOrArchiveTarget &GetCppLib(const string &name_);
+    LinkOrArchiveTarget &GetStatic(const string &name_);
+    LinkOrArchiveTarget &GetShared(const string &name_);
+
+    DSC<CppSourceTarget> &GetCppExeDSC(const string &name_);
+    DSC<CppSourceTarget> &GetCppDSC(const string &name_);
+    DSC<CppSourceTarget> &GetCppStaticDSC(const string &name_);
+    DSC<CppSourceTarget> &GetCppSharedDSC(const string &name_);
+    DSC<CppSourceTarget> &GetCppObjectDSC(const string &name_);
 
     ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;
 
     explicit Configuration(const string &name_);
     Configuration(const string &name, CTarget &other, bool hasFile = true);
-    // Configuration()
+    void setModuleScope(CppSourceTarget *moduleScope);
     void setJson() override;
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     Configuration &ASSIGN(T property, Property... properties);
@@ -94,6 +99,10 @@ Configuration &Configuration::ASSIGN(T property, Property... properties)
     else if constexpr (std::is_same_v<decltype(property), LTO>)
     {
         commonFeatures.lto = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LTOMode>)
+    {
+        commonFeatures.ltoMode = property;
     }
     else if constexpr (std::is_same_v<decltype(property), RuntimeLink>)
     {
@@ -189,10 +198,6 @@ Configuration &Configuration::ASSIGN(T property, Property... properties)
         compilerFeatures.treatModuleAsSource = property;
     }
     // Linker Features
-    else if constexpr (std::is_same_v<decltype(property), LTOMode>)
-    {
-        linkerFeatures.ltoMode = property;
-    }
     else if constexpr (std::is_same_v<decltype(property), UserInterface>)
     {
         linkerFeatures.userInterface = property;
@@ -200,6 +205,10 @@ Configuration &Configuration::ASSIGN(T property, Property... properties)
     else if constexpr (std::is_same_v<decltype(property), Strip>)
     {
         linkerFeatures.strip = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Define>)
+    {
+        compilerFeatures.requirementCompileDefinitions.emplace(property);
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {

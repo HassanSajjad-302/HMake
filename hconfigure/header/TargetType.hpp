@@ -12,7 +12,7 @@ enum class TargetType
     LIBRARY_STATIC,
     LIBRARY_SHARED,
     PREPROCESS,
-    COMPILE,
+    OBJECT,
     RUN,
     PLIBRARY_STATIC,
     PLIBRARY_SHARED,
