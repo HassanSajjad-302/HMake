@@ -43,7 +43,8 @@ Builder::Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarge
 
 void Builder::populateFinalBTargets()
 {
-    TBT::tarjanNodes = &(tarjanNodesBTargets.emplace(round, set<TBT>()).first->second);
+    auto &k = tarjanNodesBTargets.emplace(round, set<TBT>()).first->second;
+    TBT::tarjanNodes = &(k);
     TBT::findSCCS();
     TBT::checkForCycle();
     size_t needsUpdate = 0;
@@ -111,10 +112,10 @@ void Builder::launchThreadsAndUpdateBTargets()
     unsigned short launchThreads = 12;
     if (launchThreads)
     {
-        while (threads.size() != launchThreads - 1)
-        {
-            threads.emplace_back(new thread{&Builder::updateBTargets, this});
-        }
+        /*        while (threads.size() != launchThreads - 1)
+                {
+                    threads.emplace_back(new thread{&Builder::updateBTargets, this});
+                }*/
         updateBTargets();
     }
     for (thread *t : threads)

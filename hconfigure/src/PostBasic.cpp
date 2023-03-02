@@ -184,7 +184,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
 
     // First 2 lines are skipped as these are .o and .cpp file.
     // If the file is preprocessed, it does not generate the extra line
-    auto endIt = headerDeps.end() - (sourceNode.target->compileTargetType == TargetType::OBJECT ? 1 : 0);
+    auto endIt = headerDeps.end() - (sourceNode.target->compileTargetType == TargetType::LIBRARY_OBJECT ? 1 : 0);
     for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
     {
         size_t pos = iter->find_first_not_of(" ");

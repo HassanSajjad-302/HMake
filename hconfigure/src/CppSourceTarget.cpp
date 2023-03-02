@@ -1221,7 +1221,7 @@ string CppSourceTarget::getInfrastructureFlags()
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        return GET_FLAG_EVALUATE(TargetType::OBJECT, "-c", TargetType::PREPROCESS, "-P") + " /showIncludes ";
+        return GET_FLAG_EVALUATE(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-P") + " /showIncludes ";
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
@@ -1229,7 +1229,7 @@ string CppSourceTarget::getInfrastructureFlags()
         // prints 2 header deps in one line and no space in them so no way of
         // knowing whether this is a space in path or 2 different headers. Which
         // then breaks when last_write_time is checked for that path.
-        return GET_FLAG_EVALUATE(TargetType::OBJECT, "-c", TargetType::PREPROCESS, "-E") + " -MMD";
+        return GET_FLAG_EVALUATE(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-E") + " -MMD";
     }
     return "";
 }
@@ -1249,7 +1249,7 @@ string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourc
     }
     if (ccpSettings.infrastructureFlags)
     {
-        command += compiler.bTFamily == BTFamily::MSVC ? EVALUATE(TargetType::OBJECT) ? "/Fo" : "/Fi" : "-o ";
+        command += compiler.bTFamily == BTFamily::MSVC ? EVALUATE(TargetType::LIBRARY_OBJECT) ? "/Fo" : "/Fi" : "-o ";
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
@@ -1308,7 +1308,7 @@ string CppSourceTarget::getSHUSPath() const
 
 string CppSourceTarget::getExtension()
 {
-    return GET_FLAG_EVALUATE(TargetType::PREPROCESS, ".ii", TargetType::OBJECT, ".o");
+    return GET_FLAG_EVALUATE(TargetType::PREPROCESS, ".ii", TargetType::LIBRARY_OBJECT, ".o");
 }
 
 PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
@@ -1320,7 +1320,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
     finalCompileCommand += getInfrastructureFlags() + " " + addQuotes(sourceNode.node->filePath) + " ";
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        finalCompileCommand += (EVALUATE(TargetType::OBJECT) ? "/Fo" : "/Fi") +
+        finalCompileCommand += (EVALUATE(TargetType::LIBRARY_OBJECT) ? "/Fo" : "/Fi") +
                                addQuotes(buildCacheFilesDirPath + compileFileName + getExtension()) + " ";
     }
     else if (compiler.bTFamily == BTFamily::GCC)

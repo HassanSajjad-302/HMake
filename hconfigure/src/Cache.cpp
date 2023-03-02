@@ -84,7 +84,8 @@ void from_json(const Json &j, Cache &cacheLocal)
     cacheLocal.isArchiverInVSToolsArray = j.at(JConsts::isArchiverInVSToolsArray).get<bool>();
     cacheLocal.selectedArchiverArrayIndex = j.at(JConsts::archiverSelectedArrayIndex).get<int>();
     cacheLocal.libraryType = j.at(JConsts::libraryType).get<TargetType>();
-    if (cacheLocal.libraryType != TargetType::LIBRARY_STATIC && cacheLocal.libraryType != TargetType::LIBRARY_SHARED)
+    if (cacheLocal.libraryType != TargetType::LIBRARY_STATIC && cacheLocal.libraryType != TargetType::LIBRARY_SHARED &&
+        cache.libraryType != TargetType::LIBRARY_OBJECT)
     {
         print(stderr, "Cache libraryType TargetType is not one of LIBRARY_STATIC or LIBRARY_SHARED \n");
         exit(EXIT_FAILURE);

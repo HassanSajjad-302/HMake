@@ -18,8 +18,8 @@ void to_json(Json &j, const TargetType &bTargetType)
     case TargetType::LIBRARY_SHARED:
         j = JConsts::shared;
         break;
-    case TargetType::OBJECT:
-        j = JConsts::compile;
+    case TargetType::LIBRARY_OBJECT:
+        j = JConsts::object;
         break;
     case TargetType::PREPROCESS:
         j = JConsts::preprocess;
@@ -52,7 +52,7 @@ void from_json(const Json &j, TargetType &bTargetType)
     }
     else if (j == JConsts::compile)
     {
-        bTargetType = TargetType::OBJECT;
+        bTargetType = TargetType::LIBRARY_OBJECT;
     }
     else if (j == JConsts::preprocess)
     {

@@ -23,13 +23,14 @@ CppSourceTarget &GetCppPreprocess(const string &name, CTarget &other, bool hasFi
 
 CppSourceTarget &GetCppObject(const string &name)
 {
-    return const_cast<CppSourceTarget &>(targets<CppSourceTarget>.emplace(name, TargetType::OBJECT).first.operator*());
+    return const_cast<CppSourceTarget &>(
+        targets<CppSourceTarget>.emplace(name, TargetType::LIBRARY_OBJECT).first.operator*());
 }
 
 CppSourceTarget &GetCppObject(const string &name, CTarget &other, bool hasFile)
 {
     return const_cast<CppSourceTarget &>(
-        targets<CppSourceTarget>.emplace(name, TargetType::OBJECT, other, hasFile).first.operator*());
+        targets<CppSourceTarget>.emplace(name, TargetType::LIBRARY_OBJECT, other, hasFile).first.operator*());
 }
 
 LinkOrArchiveTarget &GetExe(const string &name)

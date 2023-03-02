@@ -86,6 +86,7 @@ struct JConsts
     inline static const string moduleScope = "module-scope";
     inline static const string msvc = "msvc";
     inline static const string name = "name";
+    inline static const string object = "object";
     inline static const string objectFile = "object-file";
     inline static const string objectFiles = "object-files";
     inline static const string onlyLogicalNameOfRequireIfc = "only-logical-name-of-require-ifc";

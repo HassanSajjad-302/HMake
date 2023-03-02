@@ -37,7 +37,7 @@ CppSourceTarget &Configuration::GetCppObject(const string &name_)
 {
     CppSourceTarget &cppSourceTarget = const_cast<CppSourceTarget &>(
         targets<CppSourceTarget>
-            .emplace(name_, TargetType::OBJECT, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
+            .emplace(name_, TargetType::LIBRARY_OBJECT, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
             .first.
             operator*());
     cppSourceTargets.emplace(&cppSourceTarget);

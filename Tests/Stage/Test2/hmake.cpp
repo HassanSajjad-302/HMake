@@ -16,24 +16,20 @@ int main(int argc, char **argv)
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 
     auto configureFunc = [](Configuration &configuration) {
-        CppSourceTarget &lib4 = configuration.GetLibCpp("lib4")
-                                    .MODULE_DIRECTORIES("lib4/private/", ".*cpp")
-                                    .PUBLIC_HU_INCLUDES("lib4/public/");
+        DSC<CppSourceTarget> &lib4 = configuration.GetCppStaticDSC("lib4");
+        lib4.getSourceTarget().MODULE_DIRECTORIES("lib4/private/", ".*cpp").PUBLIC_HU_INCLUDES("lib4/public/");
 
-        CppSourceTarget &lib3 = configuration.GetLibCpp("lib3")
-                                    .MODULE_DIRECTORIES("lib3/private/", ".*cpp")
-                                    .PUBLIC_HU_INCLUDES("lib3/public/")
-                                    .PUBLIC_LIBRARIES(&lib4);
-        CppSourceTarget &lib2 = configuration.GetLibCpp("lib2")
-                                    .MODULE_DIRECTORIES("lib2/private/", ".*cpp")
-                                    .PUBLIC_HU_INCLUDES("lib2/public/")
-                                    .PRIVATE_LIBRARIES(&lib3);
-        CppSourceTarget &lib1 = configuration.GetLibCpp("lib1")
-                                    .MODULE_DIRECTORIES("lib1/private/", ".*cpp")
-                                    .PUBLIC_HU_INCLUDES("lib1/public/")
-                                    .PUBLIC_LIBRARIES(&lib2);
+        DSC<CppSourceTarget> &lib3 = configuration.GetCppStaticDSC("lib3").PUBLIC_LIBRARIES(&lib4);
+        lib3.getSourceTarget().MODULE_DIRECTORIES("lib3/private/", ".*cpp").PUBLIC_HU_INCLUDES("lib3/public/");
 
-        configuration.GetExeCpp("app").MODULE_FILES("main.cpp").PRIVATE_LIBRARIES(&lib1);
+        DSC<CppSourceTarget> &lib2 = configuration.GetCppStaticDSC("lib2").PRIVATE_LIBRARIES(&lib3);
+        lib2.getSourceTarget().MODULE_DIRECTORIES("lib2/private/", ".*cpp").PUBLIC_HU_INCLUDES("lib2/public/");
+
+        DSC<CppSourceTarget> &lib1 = configuration.GetCppStaticDSC("lib1").PUBLIC_LIBRARIES(&lib2);
+        lib1.getSourceTarget().MODULE_DIRECTORIES("lib1/private/", ".*cpp").PUBLIC_HU_INCLUDES("lib1/public/");
+
+        DSC<CppSourceTarget> &app = configuration.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1);
+        app.getSourceTarget().MODULE_FILES("main.cpp");
     };
 
     configureFunc(debug);
