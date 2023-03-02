@@ -28,7 +28,6 @@ void to_json(Json &json, const CompileCommandPrintSettings &ccpSettings)
     json[JConsts::tool] = ccpSettings.tool;
     json[JConsts::environmentCompilerFlags] = ccpSettings.environmentCompilerFlags;
     json[JConsts::compilerFlags] = ccpSettings.compilerFlags;
-    json[JConsts::compilerTransitiveFlags] = ccpSettings.compilerTransitiveFlags;
     json[JConsts::compileDefinitions] = ccpSettings.compileDefinitions;
     json[JConsts::projectIncludeDirectories] = ccpSettings.projectIncludeDirectories;
     json[JConsts::environmentIncludeDirectories] = ccpSettings.environmentIncludeDirectories;
@@ -51,7 +50,6 @@ void from_json(const Json &json, CompileCommandPrintSettings &ccpSettings)
     ccpSettings.tool.isTool = true;
     ccpSettings.environmentCompilerFlags = json.at(JConsts::environmentCompilerFlags).get<bool>();
     ccpSettings.compilerFlags = json.at(JConsts::compilerFlags).get<bool>();
-    ccpSettings.compilerTransitiveFlags = json.at(JConsts::compilerTransitiveFlags).get<bool>();
     ccpSettings.compileDefinitions = json.at(JConsts::compileDefinitions).get<bool>();
     ccpSettings.projectIncludeDirectories = json.at(JConsts::projectIncludeDirectories).get<PathPrint>();
     ccpSettings.environmentIncludeDirectories = json.at(JConsts::environmentIncludeDirectories).get<PathPrint>();

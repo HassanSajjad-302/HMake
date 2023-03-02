@@ -3,6 +3,6 @@
 int main(int argc, char **argv)
 {
     setBoolsAndSetRunDir(argc, argv);
-    GetExeCpp("app").SOURCE_FILES("main.cpp").ASSIGN(RTTI::OFF);
+    GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp");
     configureOrBuild();
 }

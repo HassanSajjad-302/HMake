@@ -71,17 +71,19 @@ LinkOrArchiveTarget &GetShared(const string &name, CTarget &other, bool hasFile)
 DSC<CppSourceTarget> &GetCppExeDSC(const string &name)
 {
     DSC<CppSourceTarget> dsc;
-    dsc.linkOrArchiveTarget = &(GetExe(name + dashLink));
     dsc.objectFileProducer = &(GetCppObject(name + dashCpp));
-    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace().first.operator*());
+    dsc.linkOrArchiveTarget = &(GetExe(name));
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
 DSC<CppSourceTarget> &GetCppExeDSC(const string &name, CTarget &other, bool hasFile)
 {
     DSC<CppSourceTarget> dsc;
-    dsc.linkOrArchiveTarget = &(GetExe(name + dashLink, other, hasFile));
     dsc.objectFileProducer = &(GetCppObject(name + dashCpp, other, hasFile));
-    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace().first.operator*());
+    dsc.linkOrArchiveTarget = &(GetExe(name, other, hasFile));
+    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
 DSC<CppSourceTarget> &GetCppDSC(const string &name)
@@ -90,13 +92,14 @@ DSC<CppSourceTarget> &GetCppDSC(const string &name)
     dsc.objectFileProducer = &(GetCppObject(name + dashCpp));
     if (cache.libraryType == TargetType::LIBRARY_STATIC)
     {
-        dsc.linkOrArchiveTarget = &(GetStatic(name + dashLink));
+        dsc.linkOrArchiveTarget = &(GetStatic(name));
+        dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
     }
     else if (cache.libraryType == TargetType::LIBRARY_SHARED)
     {
-        dsc.linkOrArchiveTarget = &(GetShared(name + dashLink));
+        dsc.linkOrArchiveTarget = &(GetShared(name));
+        dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
     }
-    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
     return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
@@ -106,20 +109,21 @@ DSC<CppSourceTarget> &GetCppDSC(const string &name, CTarget &other, bool hasFile
     dsc.objectFileProducer = &(GetCppObject(name + dashCpp, other, hasFile));
     if (cache.libraryType == TargetType::LIBRARY_STATIC)
     {
-        dsc.linkOrArchiveTarget = &(GetStatic(name + dashLink, other, hasFile));
+        dsc.linkOrArchiveTarget = &(GetStatic(name, other, hasFile));
+        dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
     }
     else if (cache.libraryType == TargetType::LIBRARY_SHARED)
     {
-        dsc.linkOrArchiveTarget = &(GetShared(name + dashLink, other, hasFile));
+        dsc.linkOrArchiveTarget = &(GetShared(name, other, hasFile));
+        dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
     }
-    dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
     return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
 DSC<CppSourceTarget> &GetCppStaticDSC(const string &name)
 {
     DSC<CppSourceTarget> dsc;
-    dsc.linkOrArchiveTarget = &(GetStatic(name + dashLink));
+    dsc.linkOrArchiveTarget = &(GetStatic(name));
     dsc.objectFileProducer = &(GetCppObject(name + dashCpp));
     dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
     return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
@@ -128,7 +132,7 @@ DSC<CppSourceTarget> &GetCppStaticDSC(const string &name)
 DSC<CppSourceTarget> &GetCppStaticDSC(const string &name, CTarget &other, bool hasFile)
 {
     DSC<CppSourceTarget> dsc;
-    dsc.linkOrArchiveTarget = &(GetStatic(name + dashLink, other, hasFile));
+    dsc.linkOrArchiveTarget = &(GetStatic(name, other, hasFile));
     dsc.objectFileProducer = &(GetCppObject(name + dashCpp, other, hasFile));
     dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
     return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
@@ -137,7 +141,7 @@ DSC<CppSourceTarget> &GetCppStaticDSC(const string &name, CTarget &other, bool h
 DSC<CppSourceTarget> &GetCppSharedDSC(const string &name)
 {
     DSC<CppSourceTarget> dsc;
-    dsc.linkOrArchiveTarget = &(GetShared(name + dashLink));
+    dsc.linkOrArchiveTarget = &(GetShared(name));
     dsc.objectFileProducer = &(GetCppObject(name + dashCpp));
     dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
     return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
@@ -146,7 +150,7 @@ DSC<CppSourceTarget> &GetCppSharedDSC(const string &name)
 DSC<CppSourceTarget> &GetCppSharedDSC(const string &name, CTarget &other, bool hasFile)
 {
     DSC<CppSourceTarget> dsc;
-    dsc.linkOrArchiveTarget = &(GetShared(name + dashLink, other, hasFile));
+    dsc.linkOrArchiveTarget = &(GetShared(name, other, hasFile));
     dsc.objectFileProducer = &(GetCppObject(name + dashCpp, other, hasFile));
     dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
     return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
@@ -156,12 +160,12 @@ DSC<CppSourceTarget> &GetCppObjectDSC(const string &name)
 {
     DSC<CppSourceTarget> dsc;
     dsc.objectFileProducer = &(GetCppObject(name + dashCpp));
-    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace().first.operator*());
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
 DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, CTarget &other, bool hasFile)
 {
     DSC<CppSourceTarget> dsc;
     dsc.objectFileProducer = &(GetCppObject(name + dashCpp, other, hasFile));
-    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace().first.operator*());
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }

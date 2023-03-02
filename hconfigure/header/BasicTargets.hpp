@@ -41,7 +41,7 @@ struct RealBTarget
     unsigned int dependenciesSize = 0;
     FileStatus fileStatus = FileStatus::UPDATED;
     // This points to the tarjanNodeBTargets set element
-    TBT *bTarjanNode = nullptr;
+    TBT *bTarjanNode;
     // Value is assigned on basis of TBT::topologicalSort index. Targets in allDependencies vector are arranged by this
     // value.
     size_t indexInTopologicalSort = 0;
@@ -50,7 +50,6 @@ struct RealBTarget
     int exitStatus = EXIT_SUCCESS;
     unsigned short round;
     explicit RealBTarget(unsigned short round_, BTarget *bTarget_);
-    void addTarjanNodeBTarget();
     void addDependency(BTarget &dependency);
 };
 
@@ -93,14 +92,6 @@ struct TarPointerComparator
     bool operator()(const CTarget *lhs, const CTarget *rhs) const;
 };
 
-template <typename T>
-concept SetOrVectorOfCTargetPointer =
-    requires(T a) {
-        a.begin();
-        a.end();
-        std::derived_from<std::remove_pointer<typename decltype(a)::value_type>, CTarget>;
-    };
-
 struct CTargetPointerComparator
 {
     bool operator()(const CTarget *lhs, const CTarget *rhs) const;
@@ -124,31 +115,18 @@ class CTarget // Configure Target
     // This points to the tarjanNodeCTargets set element
     TCT *cTarjanNode = nullptr;
     const bool hasFile = true;
-    // addNodeInTarjanNodeTargets might be called more than once in BSMode::BUILD
-    bool addNodeInTarjanNodeTargetsCalled = false;
     CTarget(string name_, CTarget &container, bool hasFile_ = true);
     explicit CTarget(string name_);
     string getTargetPointer() const;
     path getTargetFilePath() const;
     string getSubDirForTarget() const;
 
-    template <SetOrVectorOfCTargetPointer T> void addCTargetDependency(T &cTarget);
-
     virtual string getTarjanNodeName();
-
     virtual void setJson();
     virtual void writeJsonFile();
     virtual void configure();
     virtual BTarget *getBTarget();
 };
 void to_json(Json &j, const CTarget *tar);
-
-template <SetOrVectorOfCTargetPointer T> void CTarget::addCTargetDependency(T &containerOfPointers)
-{
-    for (CTarget *cTarget : containerOfPointers)
-    {
-        cTarjanNode->deps.emplace(cTarget->cTarjanNode);
-    }
-}
 
 #endif // HMAKE_BASICTARGETS_HPP

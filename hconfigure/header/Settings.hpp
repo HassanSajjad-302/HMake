@@ -36,7 +36,6 @@ struct CompileCommandPrintSettings
         .printLevel = PathPrintLevel::HALF, .depth = 0, .addQuotes = false, .isDirectory = false, .isTool = true};
     bool environmentCompilerFlags = false;
     bool compilerFlags = true;
-    bool compilerTransitiveFlags = true;
     bool compileDefinitions = true;
 
     PathPrint projectIncludeDirectories{
@@ -85,7 +84,6 @@ struct LinkCommandPrintSettings
         .printLevel = PathPrintLevel::HALF, .depth = 0, .addQuotes = false, .isDirectory = false, .isTool = true};
     bool infrastructureFlags = true;
     bool linkerFlags = true;
-    bool linkerTransitiveFlags = true;
     PathPrint objectFiles{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
     PathPrint libraryDependencies{

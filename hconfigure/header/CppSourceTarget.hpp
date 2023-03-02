@@ -73,7 +73,6 @@ class CppSourceTarget : public CommonFeatures,
     friend struct PostCompile;
     // Parsed Info Not Changed Once Read
     string targetFilePath;
-    string compilerTransitiveFlags;
     string buildCacheFilesDirPath;
 
     // Some State Variables

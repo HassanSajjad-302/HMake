@@ -56,13 +56,10 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
     else if (round == 3)
     {
         RealBTarget &round3 = getRealBTarget(3);
-        auto addBTargetDependencies = [&](set<LinkOrArchiveTarget *> &lib) {
-            for (LinkOrArchiveTarget *linkOrArchiveTarget : lib)
-            {
-                round3.addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget));
-            }
-        };
-        addBTargetDependencies(requirementDeps);
+        for (LinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
+        {
+            round3.addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget));
+        }
         getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
     }
 }
@@ -95,20 +92,20 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         string defaultAssembler = EVALUATE(Arch::IA64) ? "ias" : "";
         if (EVALUATE(Arch::X86))
         {
-            defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "ml64", AddressModel::A_32, "ml -coff");
+            defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "ml64 ", AddressModel::A_32, "ml -coff ");
         }
         else if (EVALUATE(Arch::ARM))
         {
-            defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "armasm64", AddressModel::A_32, "armasm");
+            defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "armasm64 ", AddressModel::A_32, "armasm ");
         }
-        string assemblerFlags = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx");
-        string assemblerOutputFlag = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-Fo", Arch::ARM, "-o");
+        string assemblerFlags = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
+        string assemblerOutputFlag = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
         // Line 1618
 
         flags.DOT_LD_LINK += "/NOLOGO /INCREMENTAL:NO";
         flags.DOT_LD_ARCHIVE += "lib /NOLOGO";
 
-        flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(LTO::ON, "/LTCG");
+        flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(LTO::ON, "/LTCG ");
         // End-Line 1682
 
         // Function completed. Jumping to rule configure-version-specific.
@@ -119,60 +116,61 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         CPP_FLAGS_COMPILE_CPP += "/Zc:throwingNew";
 
         // Line 492
-        flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(AddressSanitizer::ON, "-incremental\\:no");
+        flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(AddressSanitizer::ON, "-incremental:no ");
 
-        if (EVALUATE(AddressModel::A_64))
-        {
-            // The various 64 bit runtime asan support libraries and related flags.
-            flags.FINDLIBS_SA_LINK =
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
-                                  "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64");
-            flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
-                AND(AddressSanitizer::ON, RuntimeLink::SHARED),
-                R"(/wholearchive\:"clang_rt.asan_dynamic-x86_64.lib /wholearchive\:"clang_rt.asan_dynamic_runtime_thunk-x86_64.lib)");
-            flags.FINDLIBS_SA_LINK +=
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
-                                  "clang_rt.asan-x86_64 clang_rt.asan_cxx-x86_64 ");
-            flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
-                AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
-                R"(/wholearchive\:"clang_rt.asan-x86_64.lib /wholearchive\:"clang_rt.asan_cxx-x86_64.lib")");
-            string FINDLIBS_SA_LINK_DLL =
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-x86_64");
-            string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
-                                                          R"(/wholearchive\:"clang_rt.asan_dll_thunk-x86_64.lib")");
-        }
-        else if (EVALUATE(AddressModel::A_32))
-        {
-            // The various 32 bit runtime asan support libraries and related flags.
+        /*        if (EVALUATE(AddressModel::A_64))
+                {
+                    // The various 64 bit runtime asan support libraries and related flags.
+                    flags.FINDLIBS_SA_LINK =
+                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                                          "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64 ");
+                    flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
+                        AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                        R"(/wholearchive:"clang_rt.asan_dynamic-x86_64.lib
+           /wholearchive:"clang_rt.asan_dynamic_runtime_thunk-x86_64.lib )"); flags.FINDLIBS_SA_LINK +=
+                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                                          "clang_rt.asan-x86_64 clang_rt.asan_cxx-x86_64 ");
+                    flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
+                        AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                        R"(/wholearchive:"clang_rt.asan-x86_64.lib /wholearchive:"clang_rt.asan_cxx-x86_64.lib ")");
+                    string FINDLIBS_SA_LINK_DLL =
+                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+           "clang_rt.asan_dll_thunk-x86_64 "); string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON,
+           RuntimeLink::STATIC), R"(/wholearchive:"clang_rt.asan_dll_thunk-x86_64.lib ")");
+                }
+                else if (EVALUATE(AddressModel::A_32))
+                {
+                    // The various 32 bit runtime asan support libraries and related flags.
 
-            flags.FINDLIBS_SA_LINK =
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
-                                  "clang_rt.asan_dynamic-i386 clang_rt.asan_dynamic_runtime_thunk-i386");
-            flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
-                AND(AddressSanitizer::ON, RuntimeLink::SHARED),
-                R"(/wholearchive\:"clang_rt.asan_dynamic-i386.lib /wholearchive\:"clang_rt.asan_dynamic_runtime_thunk-i386.lib)");
-            flags.FINDLIBS_SA_LINK +=
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
-                                  "clang_rt.asan-i386 clang_rt.asan_cxx-i386 ");
-            flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
-                AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
-                R"(/wholearchive\:"clang_rt.asan-i386.lib /wholearchive\:"clang_rt.asan_cxx-i386.lib")");
-            string FINDLIBS_SA_LINK_DLL =
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386");
-            string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
-                                                          R"(/wholearchive\:"clang_rt.asan_dll_thunk-i386.lib")");
-        }
+                    flags.FINDLIBS_SA_LINK =
+                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                                          "clang_rt.asan_dynamic-i386 clang_rt.asan_dynamic_runtime_thunk-i386 ");
+                    flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
+                        AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                        R"(/wholearchive:"clang_rt.asan_dynamic-i386.lib
+           /wholearchive:"clang_rt.asan_dynamic_runtime_thunk-i386.lib )"); flags.FINDLIBS_SA_LINK +=
+                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                                          "clang_rt.asan-i386 clang_rt.asan_cxx-i386 ");
+                    flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
+                        AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                        R"(/wholearchive:"clang_rt.asan-i386.lib /wholearchive:"clang_rt.asan_cxx-i386.lib ")");
+                    string FINDLIBS_SA_LINK_DLL =
+                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386
+           "); string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+                                                                  R"(/wholearchive:"clang_rt.asan_dll_thunk-i386.lib
+           ")");
+                }*/
 
-        flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(Arch::IA64, "/MACHINE:IA64");
+        flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(Arch::IA64, "/MACHINE:IA64 ");
         if (EVALUATE(Arch::X86))
         {
             flags.LINKFLAGS_LINK +=
-                GET_FLAG_EVALUATE(AddressModel::A_64, "/MACHINE:X64", AddressModel::A_32, "/MACHINE:X86");
+                GET_FLAG_EVALUATE(AddressModel::A_64, "/MACHINE:X64 ", AddressModel::A_32, "/MACHINE:X86 ");
         }
         else if (EVALUATE(Arch::ARM))
         {
             flags.LINKFLAGS_LINK +=
-                GET_FLAG_EVALUATE(AddressModel::A_64, "/MACHINE:ARM64", AddressModel::A_32, "/MACHINE:ARM");
+                GET_FLAG_EVALUATE(AddressModel::A_64, "/MACHINE:ARM64 ", AddressModel::A_32, "/MACHINE:ARM ");
         }
 
         // Rule register-toolset-really on Line 1852
@@ -185,21 +183,21 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         // TODO:
         // Line 1927 - 1930 skipped because of cpu-type
 
-        flags.PDB_CFLAG += GET_FLAG_EVALUATE(AND(DebugSymbols::ON, DebugStore::DATABASE), "/Fd");
+        flags.PDB_CFLAG += GET_FLAG_EVALUATE(AND(DebugSymbols::ON, DebugStore::DATABASE), "/Fd ");
 
         // TODO// Line 1971
         //  There are variables UNDEFS and FORCE_INCLUDES
 
         if (EVALUATE(DebugSymbols::ON))
         {
-            flags.PDB_LINKFLAG += GET_FLAG_EVALUATE(DebugStore::DATABASE, "/PDB:");
+            flags.PDB_LINKFLAG += GET_FLAG_EVALUATE(DebugStore::DATABASE, "/PDB: ");
             flags.LINKFLAGS_LINK += "/DEBUG ";
-            flags.LINKFLAGS_MSVC += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/OPT:REF,ICF ");
+            flags.LINKFLAGS_MSVC += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/OPT:REF,ICF  ");
         }
         flags.LINKFLAGS_MSVC +=
-            GET_FLAG_EVALUATE(UserInterface::CONSOLE, "/subsystem:console", UserInterface::GUI, "/subsystem:windows",
-                              UserInterface::WINCE, "/subsystem:windowsce", UserInterface::NATIVE, "/subsystem:native",
-                              UserInterface::AUTO, "/subsystem:posix");
+            GET_FLAG_EVALUATE(UserInterface::CONSOLE, "/subsystem:console ", UserInterface::GUI, "/subsystem:windows ",
+                              UserInterface::WINCE, "/subsystem:windowsce ", UserInterface::NATIVE,
+                              "/subsystem:native ", UserInterface::AUTO, "/subsystem:posix ");
     }
     else if (linker.bTFamily == BTFamily::GCC)
     {
@@ -619,10 +617,17 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommand(bool ignoreTargets)
             }
             else if (linker.bTFamily == BTFamily::MSVC)
             {
-                localLinkOrArchiveCommand += flags.FINDLIBS_SA_LINK + " ";
+                for (const string &str : split(flags.FINDLIBS_SA_LINK, " "))
+                {
+                    if (str.empty())
+                    {
+                        continue;
+                    }
+                    localLinkOrArchiveCommand += str + ".lib ";
+                }
+                localLinkOrArchiveCommand += flags.LINKFLAGS_LINK + flags.LINKFLAGS_MSVC;
             }
             localLinkOrArchiveCommand += requirementLinkerFlags + " ";
-            localLinkOrArchiveCommand += linkerTransitiveFlags + " ";
         }
 
         auto getLinkFlag = [this](const string &libraryPath, const string &libraryName) {
@@ -936,21 +941,34 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()
 
         LinkerFlags flags = getLinkerFlags();
 
-        // TODO Not catering for MSVC
-        // TODO shared libraries not supported for GCC.
         if (lcpSettings.infrastructureFlags)
         {
-            linkOrArchiveCommandPrint += flags.OPTIONS + " " + flags.OPTIONS_LINK + " ";
+            // TODO Not catering for MSVC
+            // Temporary Just for ensuring link success with clang Address-Sanitizer
+            // There should be no spaces after user-provided-flags.
+            // TODO shared libraries not supported.
+            if (linker.bTFamily == BTFamily::GCC)
+            {
+                linkOrArchiveCommandPrint += flags.OPTIONS + " " + flags.OPTIONS_LINK + " ";
+            }
+            else if (linker.bTFamily == BTFamily::MSVC)
+            {
+
+                for (const string &str : split(flags.FINDLIBS_SA_LINK, " "))
+                {
+                    if (str.empty())
+                    {
+                        continue;
+                    }
+                    linkOrArchiveCommandPrint += str + ".lib ";
+                }
+                linkOrArchiveCommandPrint += flags.LINKFLAGS_LINK + flags.LINKFLAGS_MSVC;
+            }
         }
 
         if (lcpSettings.linkerFlags)
         {
             linkOrArchiveCommandPrint += requirementLinkerFlags + " ";
-        }
-
-        if (lcpSettings.linkerTransitiveFlags)
-        {
-            linkOrArchiveCommandPrint += linkerTransitiveFlags + " ";
         }
     }
 

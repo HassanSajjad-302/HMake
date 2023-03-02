@@ -723,14 +723,12 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     }
     else if (round == 3)
     {
-        auto addBTargetDependencies = [&](set<CppSourceTarget *> &lib) {
-            RealBTarget &round3 = getRealBTarget(3);
-            for (CppSourceTarget *cppSourceTarget : lib)
-            {
-                round3.addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
-            }
-        };
-        addBTargetDependencies(requirementDeps);
+        RealBTarget &round3 = getRealBTarget(3);
+        for (CppSourceTarget *cppSourceTarget : requirementDeps)
+        {
+            round3.addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
+        }
+
         getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
     }
 }
@@ -897,7 +895,6 @@ void CppSourceTarget::setCompileCommand()
     };
 
     compileCommand += requirementCompilerFlags;
-    compileCommand += compilerTransitiveFlags;
 
     for (const auto &i : requirementCompileDefinitions)
     {
@@ -959,10 +956,6 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
     if (ccpSettings.compilerFlags)
     {
         sourceCompileCommandPrintFirstHalf += requirementCompilerFlags;
-    }
-    if (ccpSettings.compilerTransitiveFlags)
-    {
-        sourceCompileCommandPrintFirstHalf += compilerTransitiveFlags;
     }
 
     for (const auto &i : requirementCompileDefinitions)

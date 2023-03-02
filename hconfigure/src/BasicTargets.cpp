@@ -19,10 +19,6 @@ bool IndexInTopologicalSortComparator::operator()(const BTarget *lhs, const BTar
 RealBTarget::RealBTarget(unsigned short round_, BTarget *bTarget_)
     : round(round_), bTarget(bTarget_), allDependencies(IndexInTopologicalSortComparator(round_))
 {
-}
-
-void RealBTarget::addTarjanNodeBTarget()
-{
     bTarjanNode = const_cast<TBT *>(
         tarjanNodesBTargets.emplace(round, set<TBT>()).first->second.emplace(bTarget).first.operator->());
 }
@@ -34,14 +30,6 @@ void RealBTarget::addDependency(BTarget &dependency)
         RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
         dependencyRealBTarget.dependents.emplace(bTarget);
         ++dependenciesSize;
-        if (!bTarjanNode)
-        {
-            addTarjanNodeBTarget();
-        }
-        if (!dependencyRealBTarget.bTarjanNode)
-        {
-            dependencyRealBTarget.addTarjanNodeBTarget();
-        }
         bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
     }
 }

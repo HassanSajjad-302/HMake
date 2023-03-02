@@ -53,16 +53,18 @@ int main(int argc, char **argv)
         CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
         debug.compilerFeatures.compiler.bTPath =
             "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\bin\\clang-cl";
-        debug.linkerFeatures.linker.bTPath =
-            "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\bin\\lld-link.exe";
-        debug.linkerFeatures.standardLibraryDirectories.emplace(
-            Node::getNodeFromString("C:\\Program Files\\Microsoft Visual "
-                                    "Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\lib\\clang\\15.0.1\\lib\\windows\\",
-                                    false));
-        debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE);
+        /*        debug.linkerFeatures.linker.bTPath =
+                    "C:\\Program Files\\Microsoft Visual
+           Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\bin\\lld-link.exe";*/
+        /*        debug.linkerFeatures.standardLibraryDirectories.emplace(
+                    Node::getNodeFromString("C:\\Program Files\\Microsoft Visual "
+                                            "Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\lib\\clang\\15.0.1\\lib\\windows\\",
+                                            false));*/
+        debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, AddressSanitizer::ON);
         release.ASSIGN(cxxStd, TranslateInclude::YES, TreatModuleAsSource::NO, ConfigType::RELEASE);
         arm.ASSIGN(cxxStd, Arch::ARM, TranslateInclude::YES, ConfigType::RELEASE, TreatModuleAsSource::NO);
-
+        /*        debug.compilerFeatures.requirementCompilerFlags += "--target=x86_64-pc-windows-msvc ";
+                debug.linkerFeatures.requirementLinkerFlags += "--target=x86_64-pc-windows-msvc";*/
         // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 
         auto fun = [](Configuration &configuration) {

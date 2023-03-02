@@ -40,7 +40,6 @@ class LinkOrArchiveTarget : public CommonFeatures,
   public:
     TargetType linkTargetType;
     shared_ptr<PostBasic> postBasicLinkOrArchive;
-    string linkerTransitiveFlags;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     string linkOrArchiveCommand;
     string linkOrArchiveCommandPrint;
