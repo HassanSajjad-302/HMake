@@ -59,6 +59,15 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
 
 static string configureBuildStr = getSlashedExeName("configure") + " --build";
 
+static void noFileUpdated()
+{
+    // Running configure.exe --build should not update any file
+    Snapshot snapshot(current_path());
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(false, false), true);
+}
+
 TEST(StageBasicTests, Test1_Compile)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
@@ -69,227 +78,56 @@ TEST(StageBasicTests, Test1_Compile)
     ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExeName("app"), "Hello World\n");
     current_path("../");
 
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0, 0), true);
-    }
-    {
-        // Touching main.cpp should update 10 files. (4*2 for app.exe an main.cpp.o (response, error, output) + (2
-        // target cache)
-        Snapshot before(current_path());
-        path mainFilePath = testSourcePath / "main.cpp";
-        touchFile(mainFilePath);
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 1, 1, 2), true);
-    }
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0, 0), true);
-    }
-    {
-        // Deleting app.exe should result in 5 files updated (4*1 for app.exe and 1 target-cache file
-        Snapshot before(current_path());
-        path appExeFilePath = testSourcePath / "Build/app" / path(getExeName("app"));
-        removeFilePath(appExeFilePath);
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 1, 1), true);
-    }
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0, 0), true);
-    }
-    {
-        // Deleting app-cpp.cache should result in 10 files updated.
-        Snapshot before(current_path());
-        path appCppCacheFilePath = testSourcePath / "Build/app/app-cpp/Cache_Build_Files/app-cpp.cache";
-        removeFilePath(appCppCacheFilePath);
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 1, 1, 2), true);
-    }
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0, 0), true);
-    }
-    {
-        // Deleting main.cpp.o should result in 10 files updated
-        Snapshot before(current_path());
-        path mainDotCppDotOFilePath = testSourcePath / "Build/app/app-cpp/Cache_Build_Files/main.cpp.o";
-        removeFilePath(mainDotCppDotOFilePath);
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 1, 1, 2), true);
-    }
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0, 0), true);
-    }
-    {
-        // Updating compiler-flags should result in 10 files updated
-        copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
-        ASSERT_EQ(system(getExeName("hhelper").c_str()), 0) << getExeName("hhelper") + " command failed.";
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 1, 1, 2), true);
-    }
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0, 0), true);
-    }
+    noFileUpdated();
+
+    Snapshot snapshot(current_path());
+
+    // Touching main.cpp
+    path mainFilePath = testSourcePath / "main.cpp";
+    touchFile(mainFilePath);
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
+
+    noFileUpdated();
+
+    // Deleting app.exe
+    snapshot.before(current_path());
+    path appExeFilePath = testSourcePath / "Build/app" / path(getExeName("app"));
+    removeFilePath(appExeFilePath);
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(false, true), true);
+
+    noFileUpdated();
+
+    // Deleting app-cpp.cache
+    snapshot.before(current_path());
+    path appCppCacheFilePath = testSourcePath / "Build/app-cpp/Cache_Build_Files/app-cpp.cache";
+    removeFilePath(appCppCacheFilePath);
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
+
+    noFileUpdated();
+
+    // Deleting main.cpp.o
+    snapshot.before(current_path());
+    path mainDotCppDotOFilePath = testSourcePath / "Build/app-cpp/Cache_Build_Files/main.cpp.o";
+    removeFilePath(mainDotCppDotOFilePath);
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
+
+    noFileUpdated();
+
+    // Updating compiler-flags
+    copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(getExeName("hhelper").c_str()), 0) << getExeName("hhelper") + " command failed.";
+    snapshot.before(current_path());
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
+
+    noFileUpdated();
 }
-
-/*
-TEST(StageBasicTests, Test1_Touch_Main)
-{
-    path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
-    current_path(testSourcePath);
-    copyFilePath(testSourcePath / "Version/hmake0.cpp", testSourcePath / "hmake.cpp");
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    current_path("app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExeName("app"), "Hello World\n");
-    current_path("../");
-
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0), true);
-    }
-    {
-        // Touching main.cpp should update 10 files. (4*2 for app.exe an main.cpp.o (response, error, output) + (2
-        // target cache)
-        Snapshot before(current_path());
-        path mainFilePath = testSourcePath / "main.cpp";
-        touchFile(mainFilePath);
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 2, 2), true);
-    }
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0), true);
-    }
-    {
-        // Deleting app.exe should result in 5 files updated (4*1 for app.exe and 1 target-cache file
-        Snapshot before(current_path());
-        path appExeFilePath = testSourcePath / "Build/app" / path(getSlashedExeName("app"));
-        removeFilePath(appExeFilePath);
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 1, 1), true);
-    }
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0), true);
-    }
-    {
-        // Deleting app-cpp.cache should result in 10 files updated.
-        Snapshot before(current_path());
-        path appCppCacheFilePath = testSourcePath / "Build/app/app-cpp/Cache_Build_Files/app-cpp.cache";
-        removeFilePath(appCppCacheFilePath);
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 2, 2), true);
-    }
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0), true);
-    }
-    {
-        // Deleting main.cpp.o should result in 10 files updated
-        Snapshot before(current_path());
-        path mainDotCppDotOFilePath = testSourcePath / "Build/app/app-cpp/Cache_Build_Files/main.cpp.o";
-        removeFilePath(mainDotCppDotOFilePath);
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 2, 2), true);
-    }
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0), true);
-    }
-    {
-        // Updating compiler-flags should result in 10 files updated
-        copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
-        ASSERT_EQ(system(getExeName("hhelper").c_str()), 0) << getExeName("hhelper") + " command failed.";
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 2, 2), true);
-    }
-    {
-        // Just running configure.exe --build should not update any file
-        Snapshot before(current_path());
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        Snapshot after(current_path());
-        ASSERT_EQ(Snapshot::snapshotBalances(before, after, 0, 0), true);
-    }
-}
-*/
-
-/*
-TEST(StageBasicTests, Test1Compile)
-{
-    current_path(path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    current_path("app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExeName("app"), "Hello World\n");
-}
-
-TEST(StageBasicTests, Test1Compile)
-{
-    current_path(path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    current_path("app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExeName("app"), "Hello World\n");
-}
-
-TEST(StageBasicTests, Test1Compile)
-{
-    current_path(path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    current_path("app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExeName("app"), "Hello World\n");
-}
-
-TEST(StageBasicTests, Test1Compile)
-{
-    current_path(path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    current_path("app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExeName("app"), "Hello World\n");
-}*/

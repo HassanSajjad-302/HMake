@@ -12,12 +12,16 @@ struct NodeCompare
     bool operator()(const Node *lhs, const Node *rhs) const;
 };
 
-struct Snapshot
+class Snapshot
 {
+    set<Node> beforeData;
+    set<Node> afterData;
+
+  public:
     explicit Snapshot(const path &directoryPath);
-    set<Node> data;
-    static bool snapshotBalances(const Snapshot &before, const Snapshot &after, unsigned short sourceFileTargets,
-                                 unsigned short linkTargets, unsigned short cacheFileTargets);
+    void before(const path &directoryPath);
+    void after(const path &directoryPath);
+    bool snapshotBalancesTest1(bool sourceFileUpdated, bool executableUpdated);
 };
 
 #endif // HMAKE_SNAPSHOT_HPP

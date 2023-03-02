@@ -10,6 +10,13 @@ bool NodeCompare::operator()(const Node *lhs, const Node *rhs) const
 
 Snapshot::Snapshot(const path &directoryPath)
 {
+    before(directoryPath);
+}
+
+void Snapshot::before(const path &directoryPath)
+{
+    beforeData.clear();
+    afterData.clear();
     Node::allFiles.clear();
     for (auto &f : recursive_directory_iterator(directoryPath))
     {
@@ -17,25 +24,55 @@ Snapshot::Snapshot(const path &directoryPath)
         {
             Node *node = const_cast<Node *>(Node::getNodeFromString(f.path().generic_string(), true));
             node->getLastUpdateTime();
-            data.emplace(*node);
+            beforeData.emplace(*node);
         }
     }
 }
-bool Snapshot::snapshotBalances(const Snapshot &before, const Snapshot &after, unsigned short sourceFileTargets,
-                                unsigned short linkTargets, unsigned short cacheFileTargets)
+
+void Snapshot::after(const path &directoryPath)
+{
+    Node::allFiles.clear();
+    for (auto &f : recursive_directory_iterator(directoryPath))
+    {
+        if (f.is_regular_file())
+        {
+            Node *node = const_cast<Node *>(Node::getNodeFromString(f.path().generic_string(), true));
+            node->getLastUpdateTime();
+            afterData.emplace(*node);
+        }
+    }
+}
+
+bool Snapshot::snapshotBalancesTest1(bool sourceFileUpdated, bool executableUpdated)
 {
     set<const Node *> difference;
-    for (const Node &node : after.data)
+    for (const Node &node : afterData)
     {
-        if (!before.data.contains(node) || before.data.find(node)->getLastUpdateTime() != node.getLastUpdateTime())
+        if (!beforeData.contains(node) || beforeData.find(node)->getLastUpdateTime() != node.getLastUpdateTime())
         {
             difference.emplace(&node);
         }
     }
-    // On Linux, there is no response file but for sourceFileTargets, there is header-dependency file, while
-    // cacheFileTargets are those for which there is also a cache file while for nonCacheTargets there is only
-    // target.json
     unsigned short linkTargetMultiplier = os == OS::NT ? 4 : 3;
-    unsigned short sum = (sourceFileTargets * 4) + (linkTargets * linkTargetMultiplier) + (cacheFileTargets * 1);
+    unsigned short sum = 0;
+    if (sourceFileUpdated)
+    {
+        // Output, Error, .o, Respone File on Windows / Deps Output File on Linux, CppSourceTarget Cache File
+        sum += 5;
+        executableUpdated = true;
+    }
+    if (executableUpdated)
+    {
+        if constexpr (os == OS::NT)
+        {
+            // Output, Error, Response, LinkOrArchiveTarget Cache File, EXE, PDB, ILK
+            sum += 7;
+        }
+        else
+        {
+            // Output, Error, LinkOrArchiveTarget Cache File, EXE
+            sum += 4;
+        }
+    }
     return difference.size() == sum;
 }
