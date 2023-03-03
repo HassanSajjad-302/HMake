@@ -43,7 +43,7 @@ Builder::Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarge
 
 void Builder::populateFinalBTargets()
 {
-    auto &k = tarjanNodesBTargets.emplace(round, set<TBT>()).first->second;
+    auto &k = tarjanNodesBTargets.try_emplace(round, set<TBT>()).first->second;
     TBT::tarjanNodes = &(k);
     TBT::findSCCS();
     TBT::checkForCycle();

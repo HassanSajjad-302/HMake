@@ -194,11 +194,11 @@ void CppSourceTarget::populateTransitiveProperties()
     {
         if (linkOrArchiveTarget->linkTargetType == TargetType::LIBRARY_STATIC)
         {
-            linkOrArchiveTarget->interfaceLibs.emplace(cppSourceTarget->linkOrArchiveTarget);
+            linkOrArchiveTarget->interfaceLibs.try_emplace(cppSourceTarget->linkOrArchiveTarget);
         }
         else
         {
-            linkOrArchiveTarget->privateLibs.emplace(cppSourceTarget->linkOrArchiveTarget);
+            linkOrArchiveTarget->privateLibs.try_emplace(cppSourceTarget->linkOrArchiveTarget);
         }
     }
 }*/
@@ -1162,10 +1162,10 @@ void CppSourceTarget::populateSourceNodes()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
 {
-    ModuleScopeData &moduleScopeData = moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second;
+    ModuleScopeData &moduleScopeData = moduleScopes.try_emplace(moduleScope, ModuleScopeData{}).first->second;
     for (const Node *idd : huIncludes)
     {
-        if (const auto &[pos, Ok] = moduleScopeData.appHUDirTarget.emplace(idd, this); !Ok)
+        if (const auto &[pos, Ok] = moduleScopeData.appHUDirTarget.try_emplace(idd, this); !Ok)
         {
             // TODO:
             //  Improve Message

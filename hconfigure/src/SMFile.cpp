@@ -266,7 +266,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
         hasProvide = true;
         // There can be only one provides but can be multiple requires.
         logicalName = rule.at("provides").get<Json>()[0].at("logical-name").get<string>();
-        if (auto [pos, ok] = moduleScopeData.requirePaths.emplace(logicalName, this); !ok)
+        if (auto [pos, ok] = moduleScopeData.requirePaths.try_emplace(logicalName, this); !ok)
         {
             const auto &[key, val] = *pos;
             // TODO
