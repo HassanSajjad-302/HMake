@@ -866,7 +866,7 @@ void LinkOrArchiveTarget::populateRequirementAndUsageRequirementProperties()
     }
 }
 
-void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned short)
+void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned int)
 {
     if (!round)
     {

@@ -69,7 +69,7 @@ class LinkOrArchiveTarget : public CommonFeatures,
     PostBasic Link();
     void addRequirementDepsToBTargetDependencies();
     void populateRequirementAndUsageRequirementProperties();
-    void duringSort(Builder &builder, unsigned short round, unsigned short indexInTopologicalSortComparator) override;
+    void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator) override;
     void setLinkOrArchiveCommandPrint();
     string getLinkOrArchiveCommand(bool ignoreTargets);
     string &getLinkOrArchiveCommandPrint();

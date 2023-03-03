@@ -114,10 +114,6 @@ CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, CTarget &o
 
 void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrArchiveTarget *linkOrArchiveTarget) const
 {
-    RealBTarget &linkRealBTarget = linkOrArchiveTarget->getRealBTarget(0);
-
-    // TODO
-    // Extra dependency specification here
     for (const SourceNode &objectFile : sourceFileDependencies)
     {
         objectFiles->emplace_back(const_cast<SourceNode *>(&objectFile));
@@ -767,6 +763,11 @@ void CppSourceTarget::setJson()
 void CppSourceTarget::writeJsonFile()
 {
     CTarget::writeJsonFile();
+}
+
+string CppSourceTarget::getTarjanNodeName()
+{
+    return "CppSourceTarget " + getSubDirForTarget();
 }
 
 BTarget *CppSourceTarget::getBTarget()

@@ -479,7 +479,7 @@ bool SMFile::isSubDirPathStandard(const path &headerUnitPath, set<const Node *> 
     return false;
 }
 
-void SMFile::duringSort(Builder &, unsigned short round, unsigned short)
+void SMFile::duringSort(Builder &, unsigned short round, unsigned int)
 {
     if (round)
     {

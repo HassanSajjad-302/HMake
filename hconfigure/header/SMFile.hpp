@@ -112,7 +112,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     void iterateRequiresJsonToInitializeNewHeaderUnits(ModuleScopeData &moduleScopeData, Builder &builder);
     static bool isSubDirPathStandard(const path &headerUnitPath, set<const Node *> &standardIncludes);
     void setSMFileStatusRoundZero();
-    void duringSort(Builder &builder, unsigned short round, unsigned short indexInTopologicalSortComparator) override;
+    void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator) override;
     string getFlag(const string &outputFilesWithoutExtension) const;
     string getFlagPrint(const string &outputFilesWithoutExtension) const;
     string getRequireFlag(const SMFile &dependentSMFile) const;

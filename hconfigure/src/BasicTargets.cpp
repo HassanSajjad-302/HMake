@@ -76,7 +76,7 @@ void BTarget::preSort(Builder &, unsigned short)
 {
 }
 
-void BTarget::duringSort(Builder &, unsigned short, unsigned short)
+void BTarget::duringSort(Builder &, unsigned short, unsigned int)
 {
 }
 

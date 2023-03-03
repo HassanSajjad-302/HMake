@@ -122,6 +122,7 @@ class CppSourceTarget : public CommonFeatures,
     void preSort(Builder &builder, unsigned short round) override;
     void setJson() override;
     void writeJsonFile() override;
+    string getTarjanNodeName() override;
     BTarget *getBTarget() override;
     CompilerFlags getCompilerFlags();
     // TODO
