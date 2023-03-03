@@ -6,7 +6,7 @@
 
 using std::filesystem::create_directories, std::ofstream;
 
-IndexInTopologicalSortComparator::IndexInTopologicalSortComparator(unsigned short round_) : round(round_)
+/*IndexInTopologicalSortComparator::IndexInTopologicalSortComparator(unsigned short round_) : round(round_)
 {
 }
 
@@ -14,10 +14,9 @@ bool IndexInTopologicalSortComparator::operator()(const BTarget *lhs, const BTar
 {
     return lhs->realBTargets.find(round)->indexInTopologicalSort <
            rhs->realBTargets.find(round)->indexInTopologicalSort;
-}
+}*/
 
-RealBTarget::RealBTarget(unsigned short round_, BTarget *bTarget_)
-    : round(round_), bTarget(bTarget_), allDependencies(IndexInTopologicalSortComparator(round_))
+RealBTarget::RealBTarget(unsigned short round_, BTarget *bTarget_) : round(round_), bTarget(bTarget_)
 {
     bTarjanNode = const_cast<TBT *>(
         tarjanNodesBTargets.emplace(round, set<TBT>()).first->second.emplace(bTarget).first.operator->());
@@ -77,7 +76,7 @@ void BTarget::preSort(Builder &, unsigned short)
 {
 }
 
-void BTarget::duringSort(Builder &, unsigned short)
+void BTarget::duringSort(Builder &, unsigned short, unsigned short)
 {
 }
 

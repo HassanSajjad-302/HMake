@@ -62,7 +62,6 @@ struct ModuleScopeData
 class CppSourceTarget : public CommonFeatures,
                         public CompilerFeatures,
                         public CTarget,
-                        public BTarget,
                         public FeatureConvenienceFunctions<CppSourceTarget>,
                         public ObjectFileProducerWithDS<CppSourceTarget>
 {

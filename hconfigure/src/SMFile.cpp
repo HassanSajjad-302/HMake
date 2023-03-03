@@ -135,9 +135,8 @@ void SourceNode::printMutexLockRoutine(unsigned short)
     }
 }
 
-void SourceNode::setSourceNodeFileStatus(const string &ex, unsigned short round)
+void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget)
 {
-    RealBTarget &realBTarget = getRealBTarget(round);
     realBTarget.fileStatus = FileStatus::UPDATED;
 
     path objectFilePath = path(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ex);
@@ -206,6 +205,11 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
             // and then set::emplace. Because set::contains is thread-safe while set::emplace isn't
             std::lock_guard<std::mutex> lk(smFilesInternalMutex);
             saveRequiresJsonAndInitializeHeaderUnits(builder);
+            assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
+            if (type != SM_FILE_TYPE::HEADER_UNIT)
+            {
+                target->getRealBTarget(0).addDependency(*this);
+            }
         }
         setSMFileStatusRoundZero();
     }
@@ -335,16 +339,16 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, ModuleScopeData &m
         headerUnitsConsumptionMethods[&smFileHeaderUnit].emplace(
             requireJson.at("lookup-method").get<string>() == "include-angle", requireLogicalName);
         ahuDirTarget->applicationHeaderUnits.emplace(&smFileHeaderUnit);
-        RealBTarget &smFileReal = smFileHeaderUnit.getRealBTarget(1);
+        RealBTarget &realBTarget = smFileHeaderUnit.getRealBTarget(1);
         if (!smFileHeaderUnit.presentInCache)
         {
-            smFileReal.fileStatus = FileStatus::NEEDS_UPDATE;
+            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
         }
         else
         {
-            smFileHeaderUnit.setSourceNodeFileStatus(".smrules", 1);
+            smFileHeaderUnit.setSourceNodeFileStatus(".smrules", realBTarget);
         }
-        if (smFileReal.fileStatus == FileStatus::NEEDS_UPDATE)
+        if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
         {
             smFileHeaderUnit.generateSMFileInRoundOne = true;
         }
@@ -475,23 +479,34 @@ bool SMFile::isSubDirPathStandard(const path &headerUnitPath, set<const Node *> 
     return false;
 }
 
-void SMFile::duringSort(Builder &, unsigned short round)
+void SMFile::duringSort(Builder &, unsigned short round, unsigned short)
 {
     if (round)
     {
         return;
     }
-    for (BTarget *bTarget : getRealBTarget(0).allDependencies)
+    for (BTarget *dependency : getRealBTarget(0).dependencies)
     {
-        if (auto *smFile = dynamic_cast<SMFile *>(bTarget); smFile)
+        if (auto *smFile = dynamic_cast<SMFile *>(dependency); smFile)
         {
-            for (auto &[headerUnitSMFile, headerUnitConsumerSet] : smFile->headerUnitsConsumptionMethods)
+            allSMFileDependenciesRoundZero.emplace(smFile);
+            for (BTarget *dep : smFile->getRealBTarget(0).dependencies)
             {
-                for (const HeaderUnitConsumer &headerUnitConsumer : headerUnitConsumerSet)
+                if (auto *smFile1 = dynamic_cast<SMFile *>(dep); smFile1)
                 {
-                    headerUnitsConsumptionMethods.emplace(headerUnitSMFile, set<HeaderUnitConsumer>{})
-                        .first->second.emplace(headerUnitConsumer);
+                    allSMFileDependenciesRoundZero.emplace(smFile1);
                 }
+            }
+        }
+    }
+    for (SMFile *smFile : allSMFileDependenciesRoundZero)
+    {
+        for (auto &[headerUnitSMFile, headerUnitConsumerSet] : smFile->headerUnitsConsumptionMethods)
+        {
+            for (const HeaderUnitConsumer &headerUnitConsumer : headerUnitConsumerSet)
+            {
+                headerUnitsConsumptionMethods.emplace(headerUnitSMFile, set<HeaderUnitConsumer>{})
+                    .first->second.emplace(headerUnitConsumer);
             }
         }
     }
@@ -658,12 +673,9 @@ string SMFile::getModuleCompileCommandPrintLastHalf()
     string moduleCompileCommandPrintLastHalf;
     if (ccpSettings.requireIFCs.printLevel != PathPrintLevel::NO)
     {
-        for (const BTarget *bTarget : getRealBTarget(0).allDependencies)
+        for (const SMFile *smFile : allSMFileDependenciesRoundZero)
         {
-            if (auto smFileDependency = static_cast<const SMFile *>(bTarget); smFileDependency)
-            {
-                moduleCompileCommandPrintLastHalf += smFileDependency->getRequireFlagPrint(*this);
-            }
+            moduleCompileCommandPrintLastHalf += smFile->getRequireFlagPrint(*this);
         }
     }
 

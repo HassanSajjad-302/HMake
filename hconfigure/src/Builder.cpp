@@ -66,16 +66,7 @@ void Builder::populateFinalBTargets()
     {
         BTarget *bTarget = sortedBTargets[i];
         RealBTarget &realBTarget = bTarget->getRealBTarget(round);
-        realBTarget.indexInTopologicalSort = i;
-        for (BTarget *dependency : realBTarget.dependencies)
-        {
-            realBTarget.allDependencies.emplace(dependency);
-            for (BTarget *dep : dependency->getRealBTarget(round).allDependencies)
-            {
-                realBTarget.allDependencies.emplace(dep);
-            }
-        }
-        bTarget->duringSort(*this, round);
+        bTarget->duringSort(*this, round, i);
         for (BTarget *dependent : realBTarget.dependents)
         {
             RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);

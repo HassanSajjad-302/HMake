@@ -18,12 +18,12 @@ using TCT = TarjanNode<CTarget>;
 inline set<TCT> tarjanNodesCTargets;
 
 struct RealBTarget;
-struct IndexInTopologicalSortComparator
+/*struct IndexInTopologicalSortComparator
 {
     explicit IndexInTopologicalSortComparator(unsigned short round_);
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
     unsigned short round;
-};
+};*/
 
 enum class FileStatus
 {
@@ -36,15 +36,10 @@ struct RealBTarget
 {
     set<BTarget *> dependents;
     set<BTarget *> dependencies;
-    // This includes dependencies and their dependencies arranged on basis of indexInTopologicalSort.
-    set<BTarget *, IndexInTopologicalSortComparator> allDependencies;
     unsigned int dependenciesSize = 0;
     FileStatus fileStatus = FileStatus::UPDATED;
     // This points to the tarjanNodeBTargets set element
     TBT *bTarjanNode;
-    // Value is assigned on basis of TBT::topologicalSort index. Targets in allDependencies vector are arranged by this
-    // value.
-    size_t indexInTopologicalSort = 0;
     BTarget *bTarget;
     int dependenciesExitStatus = EXIT_SUCCESS;
     int exitStatus = EXIT_SUCCESS;
@@ -83,7 +78,7 @@ struct BTarget // BTarget
     virtual void updateBTarget(unsigned short round, class Builder &builder);
     virtual void printMutexLockRoutine(unsigned short round);
     virtual void preSort(Builder &builder, unsigned short round);
-    virtual void duringSort(Builder &builder, unsigned short round);
+    virtual void duringSort(Builder &builder, unsigned short round, unsigned short indexInTopologicalSortComparator);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 

@@ -51,7 +51,7 @@ struct SourceNode : public ObjectFile
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) override;
     void updateBTarget(unsigned short round, Builder &builder) override;
     void printMutexLockRoutine(unsigned short round) override;
-    void setSourceNodeFileStatus(const string &ex, unsigned short round);
+    void setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget);
 };
 
 void to_json(Json &j, const SourceNode &sourceNode);
@@ -87,11 +87,20 @@ struct HeaderUnitConsumer
 
 struct SMFile : public SourceNode // Scanned Module Rule
 {
-    std::shared_ptr<PostBasic> postBasic;
-    SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
     string logicalName;
-    bool angle;
+    // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
+    // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
+    // is depending on is consuming it another way.
+    map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
+    std::shared_ptr<PostBasic> postBasic;
+    set<SMFile *> allSMFileDependenciesRoundZero;
     Json requiresJson;
+    SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
+    bool angle;
+    bool hasProvide = false;
+    bool standardHeaderUnit = false;
+    // Used to determine whether the file is present in cache and whether it needs an updated SMRules file.
+    bool generateSMFileInRoundOne = false;
 
     SMFile(CppSourceTarget *target_, const string &srcPath);
     void updateBTarget(unsigned short round, class Builder &builder) override;
@@ -103,20 +112,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     void iterateRequiresJsonToInitializeNewHeaderUnits(ModuleScopeData &moduleScopeData, Builder &builder);
     static bool isSubDirPathStandard(const path &headerUnitPath, set<const Node *> &standardIncludes);
     void setSMFileStatusRoundZero();
-
-    // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
-    // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
-    // is depending on is consuming it another way.
-    map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
-    vector<SMFile *> fileDependencies;
-    set<SMFile *> commandLineFileDependencies;
-
-    bool hasProvide = false;
-    bool standardHeaderUnit = false;
-    // Used to determine whether the file is present in cache and whether it needs an updated SMRules file.
-    bool generateSMFileInRoundOne = false;
-
-    void duringSort(Builder &builder, unsigned short round) override;
+    void duringSort(Builder &builder, unsigned short round, unsigned short indexInTopologicalSortComparator) override;
     string getFlag(const string &outputFilesWithoutExtension) const;
     string getFlagPrint(const string &outputFilesWithoutExtension) const;
     string getRequireFlag(const SMFile &dependentSMFile) const;

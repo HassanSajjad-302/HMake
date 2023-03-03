@@ -50,7 +50,10 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
     if (!round)
     {
         initializeForBuild();
-        populateObjectFiles();
+        for (ObjectFileProducer *objectFileProducer : objectFileProducers)
+        {
+            getRealBTarget(0).addDependency(*objectFileProducer);
+        }
         checkForPreBuiltAndCacheDir(builder);
     }
     else if (round == 3)
@@ -743,6 +746,7 @@ void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &)
     RealBTarget &realBTarget = getRealBTarget(round);
     if (!round && selectiveBuild)
     {
+        populateObjectFiles();
         if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
         {
             if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -843,7 +847,7 @@ PostBasic LinkOrArchiveTarget::Link()
 
 void LinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
 {
-    // Access to addDependency() function must be synchronized
+    // Access to addDependency() function must be synchronized because set::emplace is not thread-safe
     std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
     RealBTarget &round0 = getRealBTarget(0);
     RealBTarget &round2 = getRealBTarget(2);
@@ -862,7 +866,7 @@ void LinkOrArchiveTarget::populateRequirementAndUsageRequirementProperties()
     }
 }
 
-void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round)
+void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned short)
 {
     if (!round)
     {

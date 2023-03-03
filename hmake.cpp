@@ -73,13 +73,13 @@ int main(int argc, char **argv)
             DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
             fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
 
-            DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
+            DSC<CppSourceTarget> &hconfigure = configuration.GetCppObjectDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
             hconfigure.getSourceTarget()
                 .MODULE_DIRECTORIES("hconfigure/src/", ".*")
                 .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include")
                 .setModuleScope(fmt.getSourceTargetPointer());
 
-            DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PUBLIC_LIBRARIES(&hconfigure);
+            DSC<CppSourceTarget> &hhelper = configuration.GetCppObjectDSC("hhelper").PUBLIC_LIBRARIES(&hconfigure);
             hhelper.getSourceTarget()
                 .MODULE_FILES("hhelper/src/main.cpp")
                 .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header/"))

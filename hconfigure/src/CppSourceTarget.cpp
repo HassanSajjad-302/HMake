@@ -115,21 +115,26 @@ CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, CTarget &o
 void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrArchiveTarget *linkOrArchiveTarget) const
 {
     RealBTarget &linkRealBTarget = linkOrArchiveTarget->getRealBTarget(0);
+
+    // TODO
+    // Extra dependency specification here
     for (const SourceNode &objectFile : sourceFileDependencies)
     {
         objectFiles->emplace_back(const_cast<SourceNode *>(&objectFile));
-        linkRealBTarget.addDependency(const_cast<SourceNode &>(objectFile));
     }
     for (const SMFile &objectFile : moduleSourceFileDependencies)
     {
         objectFiles->emplace_back(const_cast<SMFile *>(&objectFile));
-        linkRealBTarget.addDependency(const_cast<SMFile &>(objectFile));
+        for (const SMFile *smFile : objectFile.allSMFileDependenciesRoundZero)
+        {
+            objectFiles->emplace_back(const_cast<SMFile *>(smFile));
+        }
     }
-    for (const SMFile *objectFile : applicationHeaderUnits)
+    /*    for (const SMFile *objectFile : applicationHeaderUnits)
     {
         objectFiles->emplace_back(const_cast<SMFile *>(objectFile));
         linkRealBTarget.addDependency(const_cast<SMFile &>(*objectFile));
-    }
+    }*/
 
     for (const ObjectFileProducer *objectFileTarget : requirementObjectFileTargets)
     {
@@ -180,7 +185,7 @@ void CppSourceTarget::populateTransitiveProperties()
             requirementCompileDefinitions.emplace(define);
         }
         requirementCompilerFlags += cppSourceTarget->usageRequirementCompilerFlags;
-        for (const ObjectFileProducer *objectFileProducer : cppSourceTarget->usageRequirementObjectFileTargets)
+        for (const ObjectFileProducer *objectFileProducer : cppSourceTarget->usageRequirementObjectFileProducers)
         {
             requirementObjectFileTargets.emplace(objectFileProducer);
         }
@@ -1135,21 +1140,16 @@ void CppSourceTarget::populateSourceNodes()
         if (it->presentInSource)
         {
             auto &sourceNode = const_cast<SourceNode &>(*it);
+            RealBTarget &realBTarget = getRealBTarget(0);
             if (!sourceNode.presentInCache)
             {
-                sourceNode.getRealBTarget(0).fileStatus = FileStatus::NEEDS_UPDATE;
+                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
             }
             else
             {
-                sourceNode.setSourceNodeFileStatus(".o", 0);
+                sourceNode.setSourceNodeFileStatus(".o", realBTarget);
             }
-            // TODO
-            /*            if (linkOrArchiveTarget)
-                        {
-                            linkOrArchiveTarget->getRealBTarget(0).addDependency(sourceNode);
-                            linkOrArchiveTarget->objectFiles.emplace(&sourceNode);
-                        }*/
-            getRealBTarget(0).addDependency(sourceNode);
+            realBTarget.addDependency(sourceNode);
             ++it;
         }
         else
@@ -1185,18 +1185,22 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
             auto &smFile = const_cast<SMFile &>(*it);
             if (auto [pos, Ok] = moduleScopeData.smFiles.emplace(&smFile); Ok)
             {
-                RealBTarget &smFileReal = smFile.getRealBTarget(1);
+                RealBTarget &realBTarget = smFile.getRealBTarget(1);
                 if (!smFile.presentInCache)
                 {
-                    smFileReal.fileStatus = FileStatus::NEEDS_UPDATE;
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                 }
                 else
                 {
-                    smFile.setSourceNodeFileStatus(".smrules", 1);
+                    smFile.setSourceNodeFileStatus(".smrules", realBTarget);
                 }
-                if (smFileReal.fileStatus == FileStatus::NEEDS_UPDATE)
+                if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
                 {
                     smFile.generateSMFileInRoundOne = true;
+                }
+                else
+                {
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                 }
                 builder.finalBTargets.emplace_back(&smFile);
             }
@@ -1264,12 +1268,9 @@ PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
 {
     string finalCompileCommand = compileCommand;
 
-    for (const BTarget *bTarget : smFile.getRealBTarget(0).allDependencies)
+    for (const SMFile *smFileLocal : smFile.allSMFileDependenciesRoundZero)
     {
-        if (const auto *smFileDependency = dynamic_cast<const SMFile *>(bTarget); smFileDependency)
-        {
-            finalCompileCommand += smFileDependency->getRequireFlag(smFile) + " ";
-        }
+        finalCompileCommand += smFileLocal->getRequireFlag(smFile) + " ";
     }
     finalCompileCommand += getInfrastructureFlags() + addQuotes(smFile.node->filePath) + " ";
 

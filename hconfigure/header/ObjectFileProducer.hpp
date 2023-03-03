@@ -10,7 +10,7 @@ struct ObjectFile : public BTarget
     virtual string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) = 0;
 };
 
-struct ObjectFileProducer
+struct ObjectFileProducer : public BTarget
 {
     virtual void getObjectFiles(vector<ObjectFile *> *objectFiles,
                                 class LinkOrArchiveTarget *linkOrArchiveTarget) const = 0;
@@ -19,7 +19,7 @@ struct ObjectFileProducer
 template <typename T> struct ObjectFileProducerWithDS : public ObjectFileProducer, public DS<T>
 {
     set<const ObjectFileProducer *> requirementObjectFileTargets;
-    set<const ObjectFileProducer *> usageRequirementObjectFileTargets;
+    set<const ObjectFileProducer *> usageRequirementObjectFileProducers;
 };
 
 #endif // HMAKE_OBJECTFILEPRODUCER_HPP

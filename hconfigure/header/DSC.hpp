@@ -16,7 +16,7 @@ template <typename T> struct DSC
     template <same_as<DSC<T> *>... U> DSC<T> &PUBLIC_LIBRARIES(DSC<T> *controller, const U... libraries)
     {
         assignLinkOrArchiveTargetLib(controller);
-        objectFileProducer->PUBLIC_LIBRARIES(controller->getSourceTargetPointer());
+        objectFileProducer->PUBLIC_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
             return PUBLIC_LIBRARIES(libraries...);
@@ -30,7 +30,7 @@ template <typename T> struct DSC
     template <same_as<DSC<T> *>... U> DSC<T> &PRIVATE_LIBRARIES(DSC<T> *controller, const U... libraries)
     {
         assignLinkOrArchiveTargetLib(controller);
-        objectFileProducer->PRIVATE_LIBRARIES(controller->getSourceTargetPointer());
+        objectFileProducer->PRIVATE_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
             return PRIVATE_LIBRARIES(libraries...);
@@ -44,7 +44,7 @@ template <typename T> struct DSC
     template <same_as<DSC<T> *>... U> DSC<T> &INTERFACE_LIBRARIES(DSC<T> *controller, const U... libraries)
     {
         assignLinkOrArchiveTargetLib(controller);
-        objectFileProducer->INTERFACE_LIBRARIES(controller->getSourceTargetPointer());
+        objectFileProducer->INTERFACE_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
             return INTERFACE_LIBRARIES(libraries...);
@@ -72,11 +72,11 @@ template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller)
         // None is ObjectLibrary
         if (linkOrArchiveTarget->linkTargetType == TargetType::LIBRARY_STATIC)
         {
-            linkOrArchiveTarget->usageRequirementDeps.emplace(controller->linkOrArchiveTarget);
+            linkOrArchiveTarget->INTERFACE_DEPS(controller->linkOrArchiveTarget);
         }
         else
         {
-            linkOrArchiveTarget->requirementDeps.emplace(controller->linkOrArchiveTarget);
+            linkOrArchiveTarget->PRIVATE_DEPS(controller->linkOrArchiveTarget);
         }
     }
     else if (linkOrArchiveTarget && !controller->linkOrArchiveTarget)
@@ -87,7 +87,7 @@ template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller)
     else if (!linkOrArchiveTarget && !controller->linkOrArchiveTarget)
     {
         // ObjectLibrary has another ObjectLibrary as dependency.
-        objectFileProducer->usageRequirementObjectFileTargets.emplace(controller->objectFileProducer);
+        objectFileProducer->usageRequirementObjectFileProducers.emplace(controller->objectFileProducer);
     }
     else
     {
