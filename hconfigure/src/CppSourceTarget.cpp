@@ -1141,7 +1141,7 @@ void CppSourceTarget::populateSourceNodes()
         if (it->presentInSource)
         {
             auto &sourceNode = const_cast<SourceNode &>(*it);
-            RealBTarget &realBTarget = getRealBTarget(0);
+            RealBTarget &realBTarget = sourceNode.getRealBTarget(0);
             if (!sourceNode.presentInCache)
             {
                 realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
@@ -1150,7 +1150,7 @@ void CppSourceTarget::populateSourceNodes()
             {
                 sourceNode.setSourceNodeFileStatus(".o", realBTarget);
             }
-            realBTarget.addDependency(sourceNode);
+            getRealBTarget(0).addDependency(sourceNode);
             ++it;
         }
         else

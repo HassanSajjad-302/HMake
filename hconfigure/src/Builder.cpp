@@ -101,13 +101,13 @@ void Builder::launchThreadsAndUpdateBTargets()
     // https://cs.stackexchange.com/a/16829
     finalBTargetsIterator = finalBTargets.begin();
 
-    unsigned short launchThreads = 12;
+    unsigned short launchThreads = 1;
     if (launchThreads)
     {
-        while (threads.size() != launchThreads - 1)
+/*        while (threads.size() != launchThreads - 1)
         {
             threads.emplace_back(new thread{&Builder::updateBTargets, this});
-        }
+        }*/
         updateBTargets();
     }
     for (thread *t : threads)
