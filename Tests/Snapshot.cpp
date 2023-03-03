@@ -59,7 +59,6 @@ bool Snapshot::snapshotBalancesTest1(bool sourceFileUpdated, bool executableUpda
     {
         // Output, Error, .o, Respone File on Windows / Deps Output File on Linux, CppSourceTarget Cache File
         sum += 5;
-        executableUpdated = true;
     }
     if (executableUpdated)
     {

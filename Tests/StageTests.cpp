@@ -58,12 +58,13 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
 }
 
 static string configureBuildStr = getSlashedExeName("configure") + " --build";
+static string hbuildBuildStr = getSlashedExeName("hbuild");
 
 static void noFileUpdated()
 {
     // Running configure.exe --build should not update any file
     Snapshot snapshot(current_path());
-    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
     snapshot.after(current_path());
     ASSERT_EQ(snapshot.snapshotBalancesTest1(false, false), true);
 }
@@ -88,6 +89,41 @@ TEST(StageBasicTests, Test1_Compile)
     ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
     snapshot.after(current_path());
     ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
+
+    noFileUpdated();
+
+    // Touching main.cpp. But hbuild executed in app-cpp.
+    touchFile(mainFilePath);
+    current_path("app-cpp/");
+    snapshot.before(current_path());
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(true, false), true);
+
+    noFileUpdated();
+
+    // Now executing again in build
+    current_path("../");
+    snapshot.before(current_path());
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(false, true), true);
+
+    noFileUpdated();
+
+    // Touching main.cpp. But hbuild executed in app
+    touchFile(mainFilePath);
+    snapshot.before(current_path());
+    current_path("app/");
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    current_path("../");
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
+
+    current_path("app/");
+    noFileUpdated();
+
+    current_path("../");
 
     noFileUpdated();
 

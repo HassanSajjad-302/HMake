@@ -99,7 +99,7 @@ SourceNode::SourceNode(CppSourceTarget *target_, const string &filePath)
 
 string SourceNode::getObjectFileOutputFilePath()
 {
-    return addQuotes(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o");
+    return target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o";
 }
 
 string SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
@@ -243,7 +243,7 @@ void SMFile::printMutexLockRoutine(unsigned short round)
 
 string SMFile::getObjectFileOutputFilePath()
 {
-    return standardHeaderUnit ? addQuotes(target->getSHUSPath() + path(node->filePath).filename().string() + ".o")
+    return standardHeaderUnit ? target->getSHUSPath() + path(node->filePath).filename().string() + ".o"
                               : SourceNode::getObjectFileOutputFilePath();
 }
 

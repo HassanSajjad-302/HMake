@@ -649,8 +649,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommand(bool ignoreTargets)
 
             for (ObjectFile *objectFile : objectFiles)
             {
-                string outputFilePath = objectFile->getObjectFileOutputFilePath();
-                localLinkOrArchiveCommand += addQuotes(outputFilePath) + " ";
+                localLinkOrArchiveCommand += addQuotes(objectFile->getObjectFileOutputFilePath()) + " ";
             }
 
             for (LinkOrArchiveTarget *target : requirementDeps)
@@ -746,7 +745,6 @@ void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &)
     RealBTarget &realBTarget = getRealBTarget(round);
     if (!round && selectiveBuild)
     {
-        populateObjectFiles();
         if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
         {
             if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -870,6 +868,7 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned i
 {
     if (!round)
     {
+        populateObjectFiles();
         RealBTarget &realBTarget = getRealBTarget(round);
         if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
         {
@@ -886,6 +885,21 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned i
                     Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
                 {
                     realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                    return;
+                }
+            }
+            for (ObjectFile *objectFile : objectFiles)
+            {
+                if(!exists(path(objectFile->getObjectFileOutputFilePath())))
+                {
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                    return;
+                }
+                if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)->getLastUpdateTime() >
+                    Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                {
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                    return;
                 }
             }
         }
@@ -1012,8 +1026,6 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()
         {
             for (ObjectFile *objectFile : objectFiles)
             {
-                string outputFilePath = objectFile->getObjectFileOutputFilePath();
-
                 linkOrArchiveCommandPrint += objectFile->getObjectFileOutputFilePathPrint(*pathPrint) + " ";
             }
         }
