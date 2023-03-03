@@ -53,7 +53,7 @@ struct RealBTarget
     void addDependency(BTarget &dependency);
 };
 
-struct CompareRealBTargetId
+struct CompareRealBTargetRound
 {
     using is_transparent = void; // for example with void,
                                  // but could be int or struct CanSearchOnId;
@@ -74,7 +74,7 @@ struct BTarget // BTarget
     size_t id = 0; // unique for every BTarget
     bool selectiveBuild = false;
 
-    set<RealBTarget, CompareRealBTargetId> realBTargets;
+    set<RealBTarget, CompareRealBTargetRound> realBTargets;
     explicit BTarget();
 
     virtual string getTarjanNodeName();

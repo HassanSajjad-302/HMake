@@ -109,13 +109,14 @@ void Builder::launchThreadsAndUpdateBTargets()
     // launched. Following should be helpful for this calculation in DSL.
     // https://cs.stackexchange.com/a/16829
     finalBTargetsIterator = finalBTargets.begin();
+
     unsigned short launchThreads = 12;
     if (launchThreads)
     {
-        /*        while (threads.size() != launchThreads - 1)
-                {
-                    threads.emplace_back(new thread{&Builder::updateBTargets, this});
-                }*/
+        while (threads.size() != launchThreads - 1)
+        {
+            threads.emplace_back(new thread{&Builder::updateBTargets, this});
+        }
         updateBTargets();
     }
     for (thread *t : threads)

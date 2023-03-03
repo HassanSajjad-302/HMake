@@ -34,17 +34,17 @@ void RealBTarget::addDependency(BTarget &dependency)
     }
 }
 
-bool CompareRealBTargetId::operator()(RealBTarget const &lhs, RealBTarget const &rhs) const
+bool CompareRealBTargetRound::operator()(RealBTarget const &lhs, RealBTarget const &rhs) const
 {
     return lhs.round < rhs.round;
 }
 
-bool CompareRealBTargetId::operator()(unsigned short round, RealBTarget const &rhs) const
+bool CompareRealBTargetRound::operator()(unsigned short round, RealBTarget const &rhs) const
 {
     return round < rhs.round;
 }
 
-bool CompareRealBTargetId::operator()(RealBTarget const &lhs, unsigned short round) const
+bool CompareRealBTargetRound::operator()(RealBTarget const &lhs, unsigned short round) const
 {
     return lhs.round < round;
 }

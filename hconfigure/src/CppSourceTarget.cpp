@@ -1089,7 +1089,7 @@ void CppSourceTarget::removeUnReferencedHeaderUnits()
 void CppSourceTarget::resolveRequirePaths()
 {
     ModuleScopeData &moduleScopeData = moduleScopes.find(moduleScope)->second;
-    for (SMFile smFileConst : moduleSourceFileDependencies)
+    for (const SMFile &smFileConst : moduleSourceFileDependencies)
     {
         auto &smFile = const_cast<SMFile &>(smFileConst);
         for (const Json &requireJson : smFileConst.requiresJson)
