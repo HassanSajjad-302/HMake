@@ -69,7 +69,9 @@ static void noFileUpdated()
     ASSERT_EQ(snapshot.snapshotBalancesTest1(false, false), true);
 }
 
-TEST(StageBasicTests, Test1_Compile)
+// Tests Hello-World and rebuild in different directories on touching file.
+/*
+TEST(StageTests, Test1)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
     current_path(testSourcePath);
@@ -242,4 +244,111 @@ TEST(StageBasicTests, Test1_Compile)
     ASSERT_EQ(snapshot.snapshotBalancesTest1(false, true), true);
 
     noFileUpdated();
+}
+*/
+
+// Tests Property Transitiviy, rebuild in multiple directories on touching file, source-file inclusion and exclusion,
+// header-files exclusion and inclusion, libraries exclusion and inclusion.
+TEST(StageBasicTests, Test2)
+{
+    path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test2");
+    current_path(testSourcePath);
+    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    current_path("Debug/app/");
+    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExeName("app"), "36\n");
+    current_path("../../");
+
+    noFileUpdated();
+
+    Snapshot snapshot(current_path());
+
+    // Touching main.cpp
+    path mainFilePath = testSourcePath / "main.cpp";
+    touchFile(mainFilePath);
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Touched{.mainDotCpp = true}), true);
+
+    noFileUpdated();
+
+    // Touching public-lib3.hpp
+    path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
+    touchFile(publicLib3DotHpp);
+    snapshot.before(current_path());
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Touched{.publicLib3DotHpp = true}), true);
+
+    noFileUpdated();
+
+    // private-lib1 main.cpp
+    path privateLib1DotHpp = testSourcePath / "lib1/private/private-lib1.hpp";
+    touchFile(privateLib1DotHpp);
+    snapshot.before(current_path());
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Touched{.privateLib1DotHpp = true}), true);
+
+    noFileUpdated();
+
+    // Touching lib4.cpp
+    path lib4DotCpp = testSourcePath / "lib4/private/lib4.cpp";
+    touchFile(lib4DotCpp);
+    snapshot.before(current_path());
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Touched{.lib4DotCpp = true}), true);
+
+    noFileUpdated();
+
+    // Touching public-lib4.hpp
+    path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
+    touchFile(publicLib4DotHpp);
+    snapshot.before(current_path());
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Touched{.publicLib4DotHpp = true}), true);
+
+    noFileUpdated();
+
+    // Deleting app-cpp.cache
+    path lib3CppCacheFilePath = testSourcePath / "Build/Debug/lib3/app-cpp/Cache_Build_Files/app-cpp.cache";
+    removeFilePath(lib3CppCacheFilePath);
+    snapshot.before(current_path());
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Touched{.lib3DotCpp = true}), true);
+
+    noFileUpdated();
+
+    /*
+
+        // Deleting lib4 and lib2's app-cpp.cache
+        path mainFilePath = testSourcePath / "main.cpp";
+        touchFile(mainFilePath);
+        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+        snapshot.after(current_path());
+        ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Touched{.mainDotCpp = true}), true);
+
+        noFileUpdated();
+
+
+
+
+
+
+
+
+
+
+
+        // Touching main.cpp lib1.cpp lib1.hpp-public lib4.hpp-public
+        path mainFilePath = testSourcePath / "main.cpp";
+        touchFile(mainFilePath);
+        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+        snapshot.after(current_path());
+        ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Touched{.mainDotCpp = true}), true);
+
+        noFileUpdated();
+    */
 }

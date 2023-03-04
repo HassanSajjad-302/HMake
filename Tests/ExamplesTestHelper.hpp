@@ -35,7 +35,7 @@ inline string getArchiveName(const string &libName)
 
 struct ExamplesTestHelper
 {
-    static void recreateBuildDirAndBuildHMakeProject(bool onlyPackageNoProject = false);
+    static void recreateBuildDirAndBuildHMakeProject();
     static void runAppWithExpectedOutput(const string &appName, const string &expectedOutput);
     static void recreateBuildDir();
 };
