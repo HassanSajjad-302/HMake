@@ -137,6 +137,23 @@ TEST(StageBasicTests, Test1_Compile)
 
     noFileUpdated();
 
+    // Deleting app.exe. But hbuild executed in app-cpp first and then in app
+    snapshot.before(current_path());
+    removeFilePath(appExeFilePath);
+    current_path("app-cpp/");
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    current_path("../");
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(false, false), true);
+    snapshot.before(current_path());
+    current_path("app/");
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    current_path("../");
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(false, true), true);
+
+    noFileUpdated();
+
     // Deleting app-cpp.cache
     snapshot.before(current_path());
     path appCppCacheFilePath = testSourcePath / "Build/app-cpp/Cache_Build_Files/app-cpp.cache";
@@ -147,11 +164,39 @@ TEST(StageBasicTests, Test1_Compile)
 
     noFileUpdated();
 
+    // Deleting app-cpp.cache but executing hbuild in app
+    removeFilePath(appCppCacheFilePath);
+    snapshot.before(current_path());
+    current_path("app/");
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    current_path("../");
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
+
+    current_path("app/");
+    noFileUpdated();
+    current_path("../");
+
+    current_path("app-cpp/");
+    noFileUpdated();
+    current_path("../");
+
     // Deleting main.cpp.o
     snapshot.before(current_path());
     path mainDotCppDotOFilePath = testSourcePath / "Build/app-cpp/Cache_Build_Files/main.cpp.o";
     removeFilePath(mainDotCppDotOFilePath);
     ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
+
+    noFileUpdated();
+
+    // Deleting main.cpp.o but executing in app/
+    snapshot.before(current_path());
+    removeFilePath(mainDotCppDotOFilePath);
+    current_path("app/");
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    current_path("../");
     snapshot.after(current_path());
     ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
 
@@ -164,6 +209,37 @@ TEST(StageBasicTests, Test1_Compile)
     ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
     snapshot.after(current_path());
     ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
+
+    // Updating compiler-flags but executing in app
+    copyFilePath(testSourcePath / "Version/hmake0.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(getExeName("hhelper").c_str()), 0) << getExeName("hhelper") + " command failed.";
+    snapshot.before(current_path());
+    current_path("app/");
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    current_path("../");
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
+
+    current_path("app/");
+    noFileUpdated();
+    current_path("../");
+    noFileUpdated();
+
+    // Updating compiler-flags but executing in app-cpp
+    copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(getExeName("hhelper").c_str()), 0) << getExeName("hhelper") + " command failed.";
+    snapshot.before(current_path());
+    current_path("app-cpp");
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    current_path("../");
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(true, false), true);
+
+    // Executing in Build. Only app to be updated.
+    snapshot.before(current_path());
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(false, true), true);
 
     noFileUpdated();
 }
