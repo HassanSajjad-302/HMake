@@ -878,7 +878,7 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned i
                 realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                 return;
             }
-            for (LinkOrArchiveTarget *linkOrArchiveTarget : usageRequirementDeps)
+            for (LinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
             {
                 path depOutputPath = path(linkOrArchiveTarget->outputDirectory) / linkOrArchiveTarget->actualOutputName;
                 if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
