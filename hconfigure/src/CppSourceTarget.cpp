@@ -140,7 +140,7 @@ void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrAr
 
 void CppSourceTarget::updateBTarget(unsigned short round, Builder &)
 {
-    if (!round)
+    if (!round && selectiveBuild)
     {
         pruneAndSaveBuildCache();
     }
