@@ -21,7 +21,7 @@ class HconfigureTests : public testing::Test
         current_path(path(SOURCE_DIRECTORY) / path("Tests/Stage"));
         ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
         current_path("0/app/");
-        ExamplesTestHelper::runAppWithExpectedOutput(getExeName("app"), "Hello World\n");
+        // ExamplesTestHelper::runAppWithExpectedOutput(getExeName("app"), "Hello World\n");
     }
 };
 

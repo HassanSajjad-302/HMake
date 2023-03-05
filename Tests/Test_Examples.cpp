@@ -1,5 +1,7 @@
 
+#include "BuildSystemFunctions.hpp"
 #include "ExamplesTestHelper.hpp"
+#include "Features.hpp"
 #include "filesystem"
 #include "fmt/format.h"
 #include "fstream"
@@ -18,7 +20,8 @@ TEST(ExamplesTest, Example1)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example1"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("0/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getExeName("app"), "Hello World\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "Hello World\n");
 }
 
 TEST(ExamplesTest, Example2)
@@ -26,9 +29,11 @@ TEST(ExamplesTest, Example2)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example2"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("0/Animal/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getExeName("Animal"), "Cat says Meow..\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "Animal"),
+                                                 "Cat says Meow..\n");
     current_path("../../1/Animal/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getExeName("Animal"), "Cat says Meow..\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "Animal"),
+                                                 "Cat says Meow..\n");
 }
 
 TEST(ExamplesTest, Example3)
@@ -36,10 +41,10 @@ TEST(ExamplesTest, Example3)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example3"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("0/app");
-    ExamplesTestHelper::runAppWithExpectedOutput(getExeName("app"),
+    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "func1 called\nfunc2 called\nfunc3 called\nfunc4 called\n");
     current_path("../../1/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getExeName("app"),
+    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "func1 called\nfunc2 called\nfunc3 called\nfunc4 called\n");
 }
 
@@ -48,7 +53,8 @@ TEST(ExamplesTest, Example4)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example4"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("0/app");
-    ExamplesTestHelper::runAppWithExpectedOutput(getExeName("app"), "func() from file1.cpp called.\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "func() from file1.cpp called.\n");
 
     Json cacheFileJson;
     current_path("../../");
@@ -58,12 +64,13 @@ TEST(ExamplesTest, Example4)
     cacheFileJson["cache-variables"]["FILE1"] = false;
     ofstream("cache.hmake") << cacheFileJson.dump(4);
 
-    ASSERT_EQ(system(getSlashedExeName("configureDerived").c_str()), 0)
-        << getExeName("configureDerived") + " command failed.";
-    ASSERT_EQ(system(getExeName("hbuild").c_str()), 0) << getExeName("hbuild") + " command failed.";
+    ASSERT_EQ(system(getSlashedExecutableName("configureDerived").c_str()), 0)
+        << getSlashedExecutableName("configureDerived") + " command failed.";
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
 
     current_path("0/app");
-    ExamplesTestHelper::runAppWithExpectedOutput(getExeName("app"), "func() from file2.cpp called.\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "func() from file2.cpp called.\n");
 }
 
 TEST(ExamplesTest, Example5)
@@ -71,7 +78,7 @@ TEST(ExamplesTest, Example5)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example5"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("0/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getExeName("app"), "");
+    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"), "");
 }
 
 // Prebuilt libraries can have publicDependencies. But those should be named as just libraries i.e. without public.
@@ -83,7 +90,8 @@ TEST(ExamplesTest, Example5)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example6"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("0/Animal/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getExeName("Animal"), "Cat says Meow..\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "Animal"), "Cat
+says Meow..\n");
 }
 
 TEST(ExamplesTest, Example7)
@@ -108,7 +116,8 @@ TEST(ExamplesTest, Example9)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example9"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("0/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getExeName("app"), "Hello World\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "Hello World\n");
 }
 
 TEST(ExamplesTest, Example10)

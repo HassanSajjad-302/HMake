@@ -275,6 +275,11 @@ string getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, con
     exit(EXIT_FAILURE);
 }
 
+string getSlashedExecutableName(const string &name)
+{
+    return os == OS::NT ? (name + ".exe") : ("./" + name);
+}
+
 CommonFeatures::CommonFeatures()
 {
     // TODO

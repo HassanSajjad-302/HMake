@@ -1,6 +1,7 @@
 
 
 #include "ExamplesTestHelper.hpp"
+#include "Features.hpp"
 #include "gtest/gtest.h"
 #include <filesystem>
 #include <fstream>
@@ -17,15 +18,14 @@ void ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject()
     }
     create_directory("Build");
     current_path("Build");
-    ASSERT_EQ(system(getExeName("hhelper").c_str()), 0) << "First " + getExeName("hhelper") + " command failed.";
-    ASSERT_EQ(system(getExeName("hhelper").c_str()), 0) << "Second " + getExeName("hhelper") + " command failed.";
-    ASSERT_EQ(system(getExeName("hbuild").c_str()), 0) << getExeName("hbuild") + " command failed.";
-
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << "First " + hhelperStr + " command failed.";
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << "Second " + hhelperStr + " command failed.";
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
 }
 
 void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const string &expectedOutput)
 {
-    const string command = getSlashedExeName(appName) + " > file";
+    const string command = getSlashedExecutableName(appName) + " > file";
     ASSERT_EQ(system(command.c_str()), 0) << "Could Not Run " << appName;
     stringstream output;
     output << ifstream("file").rdbuf();

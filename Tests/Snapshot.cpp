@@ -107,33 +107,22 @@ bool Snapshot::snapshotBalancesTest2(Test2Touched touched)
         touched.lib4DotCpp = true;
         touched.lib3DotCpp = true;
         touched.lib2DotCpp = true;
-
-        touched.lib4Linked = true;
-        touched.lib3Linked = true;
-        touched.lib2Linked = true;
     }
 
     if (touched.privateLib4DotHpp)
     {
         touched.lib4DotCpp = true;
-
-        touched.lib4Linked = true;
     }
 
     if (touched.publicLib3DotHpp)
     {
         touched.lib3DotCpp = true;
         touched.lib2DotCpp = true;
-
-        touched.lib3Linked = true;
-        touched.lib2Linked = true;
     }
 
     if (touched.privateLib3DotHpp)
     {
         touched.lib3DotCpp = true;
-
-        touched.lib3Linked = true;
     }
 
     if (touched.publicLib2DotHpp)
@@ -141,33 +130,39 @@ bool Snapshot::snapshotBalancesTest2(Test2Touched touched)
         touched.lib2DotCpp = true;
         touched.lib1DotCpp = true;
         touched.mainDotCpp = true;
-
-        touched.lib2Linked = true;
-        touched.lib1Linked = true;
-        touched.appLinked = true;
     }
 
     if (touched.privateLib2DotHpp)
     {
         touched.lib2DotCpp = true;
-
-        touched.lib2Linked = true;
     }
 
     if (touched.publicLib1DotHpp)
     {
         touched.lib1DotCpp = true;
         touched.mainDotCpp = true;
-
-        touched.lib1Linked = true;
-        touched.appLinked = true;
     }
 
     if (touched.privateLib1DotHpp)
     {
         touched.lib1DotCpp = true;
+    }
 
+    if (touched.lib1DotCpp)
+    {
         touched.lib1Linked = true;
+    }
+    if (touched.lib2DotCpp)
+    {
+        touched.lib2Linked = true;
+    }
+    if (touched.lib3DotCpp)
+    {
+        touched.lib3Linked = true;
+    }
+    if (touched.lib4DotCpp)
+    {
+        touched.lib4Linked = true;
     }
 
     if (touched.lib1Linked || touched.lib2Linked || touched.lib3Linked || touched.lib4Linked || touched.mainDotCpp)

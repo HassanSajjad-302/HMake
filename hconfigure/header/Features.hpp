@@ -238,6 +238,7 @@ void from_json(const Json &json, OS &osLocal);
 
 string getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const string &targetName);
 string getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const string &actualName);
+string getSlashedExecutableName(const string &name);
 
 enum class CxxSTD
 {

@@ -1,5 +1,6 @@
 #include "BuildSystemFunctions.hpp"
 #include "ExamplesTestHelper.hpp"
+#include "Features.hpp"
 #include "SMFile.hpp"
 #include "Snapshot.hpp"
 #include "Utilities.hpp"
@@ -57,8 +58,7 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
     }
 }
 
-static string configureBuildStr = getSlashedExeName("configure") + " --build";
-static string hbuildBuildStr = getSlashedExeName("hbuild");
+static string configureBuildStr = getSlashedExecutableName("configure") + " --build";
 
 static void noFileUpdated()
 {
@@ -70,7 +70,6 @@ static void noFileUpdated()
 }
 
 // Tests Hello-World and rebuild in different directories on touching file.
-/*
 TEST(StageTests, Test1)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
@@ -78,7 +77,7 @@ TEST(StageTests, Test1)
     copyFilePath(testSourcePath / "Version/hmake0.cpp", testSourcePath / "hmake.cpp");
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExeName("app"), "Hello World\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExecutableName("app"), "Hello World\n");
     current_path("../");
 
     noFileUpdated();
@@ -131,7 +130,8 @@ TEST(StageTests, Test1)
 
     // Deleting app.exe
     snapshot.before(current_path());
-    path appExeFilePath = testSourcePath / "Build/app" / path(getExeName("app"));
+    path appExeFilePath =
+        testSourcePath / "Build/app" / path(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"));
     removeFilePath(appExeFilePath);
     ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
     snapshot.after(current_path());
@@ -206,7 +206,7 @@ TEST(StageTests, Test1)
 
     // Updating compiler-flags
     copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(getExeName("hhelper").c_str()), 0) << getExeName("hhelper") + " command failed.";
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     snapshot.before(current_path());
     ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
     snapshot.after(current_path());
@@ -214,7 +214,7 @@ TEST(StageTests, Test1)
 
     // Updating compiler-flags but executing in app
     copyFilePath(testSourcePath / "Version/hmake0.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(getExeName("hhelper").c_str()), 0) << getExeName("hhelper") + " command failed.";
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     snapshot.before(current_path());
     current_path("app/");
     ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
@@ -229,7 +229,7 @@ TEST(StageTests, Test1)
 
     // Updating compiler-flags but executing in app-cpp
     copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(getExeName("hhelper").c_str()), 0) << getExeName("hhelper") + " command failed.";
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     snapshot.before(current_path());
     current_path("app-cpp");
     ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
@@ -245,7 +245,6 @@ TEST(StageTests, Test1)
 
     noFileUpdated();
 }
-*/
 
 // Tests Property Transitiviy, rebuild in multiple directories on touching file, source-file inclusion and exclusion,
 // header-files exclusion and inclusion, libraries exclusion and inclusion.
@@ -255,7 +254,7 @@ TEST(StageBasicTests, Test2)
     current_path(testSourcePath);
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("Debug/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExeName("app"), "36\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExecutableName("app"), "36\n");
     current_path("../../");
 
     noFileUpdated();
@@ -312,7 +311,7 @@ TEST(StageBasicTests, Test2)
     noFileUpdated();
 
     // Deleting app-cpp.cache
-    path lib3CppCacheFilePath = testSourcePath / "Build/Debug/lib3/app-cpp/Cache_Build_Files/app-cpp.cache";
+    path lib3CppCacheFilePath = testSourcePath / "Build/Debug/lib3-cpp/Cache_Build_Files/lib3-cpp.cache";
     removeFilePath(lib3CppCacheFilePath);
     snapshot.before(current_path());
     ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
@@ -321,34 +320,31 @@ TEST(StageBasicTests, Test2)
 
     noFileUpdated();
 
-    /*
+    // Deleting lib4 and lib2's app-cpp.cache
+    path lib4 = testSourcePath / "Build/Debug/lib4/" /
+                path(getActualNameFromTargetName(TargetType::LIBRARY_STATIC, os, "lib4"));
+    path lib2CppCacheFilePath = testSourcePath / "Build/Debug/lib2-cpp/Cache_Build_Files/lib2-cpp.cache";
+    removeFilePath(lib4);
+    removeFilePath(lib2CppCacheFilePath);
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Touched{.lib2DotCpp = true, .lib4Linked = true}), true);
 
-        // Deleting lib4 and lib2's app-cpp.cache
-        path mainFilePath = testSourcePath / "main.cpp";
-        touchFile(mainFilePath);
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        snapshot.after(current_path());
-        ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Touched{.mainDotCpp = true}), true);
+    noFileUpdated();
 
-        noFileUpdated();
+    // Touching main.cpp lib1.cpp lib1.hpp-public lib4.hpp-public
 
+    path lib1DotCpp = testSourcePath / "lib1/private/lib1.cpp";
+    path publicLib1DotHpp = testSourcePath / "lib1/public/public-lib1.hpp";
+    touchFile(mainFilePath);
+    touchFile(lib1DotCpp);
+    touchFile(publicLib1DotHpp);
+    touchFile(publicLib4DotHpp);
+    ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
+    snapshot.after(current_path());
+    ASSERT_EQ(snapshot.snapshotBalancesTest2(
+                  Test2Touched{.mainDotCpp = true, .publicLib1DotHpp = true, .publicLib4DotHpp = true}),
+              true);
 
-
-
-
-
-
-
-
-
-
-        // Touching main.cpp lib1.cpp lib1.hpp-public lib4.hpp-public
-        path mainFilePath = testSourcePath / "main.cpp";
-        touchFile(mainFilePath);
-        ASSERT_EQ(system(configureBuildStr.c_str()), 0) << configureBuildStr + " command failed.";
-        snapshot.after(current_path());
-        ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Touched{.mainDotCpp = true}), true);
-
-        noFileUpdated();
-    */
+    noFileUpdated();
 }
