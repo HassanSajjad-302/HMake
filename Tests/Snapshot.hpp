@@ -12,8 +12,18 @@ struct NodeCompare
     bool operator()(const Node *lhs, const Node *rhs) const;
 };
 
-struct Test2Touched
+struct Setup
 {
+    const path &hbuildExecutionPath = current_path();
+    unsigned short filesCompiled;
+    unsigned short cppTargets;
+    unsigned short linkTargetsNoDebug;
+    unsigned short linkTargetsDebug;
+};
+
+struct Test2Setup
+{
+    const path &hbuildExecutionPath = current_path();
     bool appLinked = false;
     bool mainDotCpp = false;
     bool lib1Linked = false;
@@ -37,7 +47,6 @@ struct Test2Touched
 struct Test1Setup
 {
     const path &hbuildExecutionPath = current_path();
-    const path &snapshotPath = current_path();
     bool sourceFileUpdated = false;
     bool executableFileUpdated = false;
 };
@@ -54,7 +63,7 @@ class Snapshot
     bool snapshotBalancesTest1(bool sourceFileUpdated, bool executableUpdated);
     bool snapshotBalances(unsigned short filesCompiled, unsigned short cppTargets, unsigned short linkTargetsNoDebug,
                           unsigned short linkTargetsDebug);
-    bool snapshotBalancesTest2(Test2Touched touched);
+    bool snapshotBalancesTest2(Test2Setup touched);
 };
 
 #endif // HMAKE_SNAPSHOT_HPP

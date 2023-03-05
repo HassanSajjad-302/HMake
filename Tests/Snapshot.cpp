@@ -100,7 +100,7 @@ bool Snapshot::snapshotBalances(unsigned short filesCompiled, unsigned short cpp
     return difference.size() == sum;
 }
 
-bool Snapshot::snapshotBalancesTest2(Test2Touched touched)
+bool Snapshot::snapshotBalancesTest2(Test2Setup touched)
 {
     if (touched.publicLib4DotHpp)
     {
