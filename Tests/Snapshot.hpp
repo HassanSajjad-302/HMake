@@ -5,7 +5,7 @@
 #include "SMFile.hpp"
 #include <filesystem>
 
-using std::filesystem::path, std::filesystem::file_time_type;
+using std::filesystem::path, std::filesystem::file_time_type, std::filesystem::current_path;
 
 struct NodeCompare
 {
@@ -32,6 +32,14 @@ struct Test2Touched
     bool lib4DotCpp = false;
     bool privateLib4DotHpp = false;
     bool publicLib4DotHpp = false;
+};
+
+struct Test1Setup
+{
+    const path &hbuildExecutionPath = current_path();
+    const path &snapshotPath = current_path();
+    bool sourceFileUpdated = false;
+    bool executableFileUpdated = false;
 };
 
 class Snapshot
