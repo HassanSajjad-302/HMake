@@ -50,17 +50,21 @@ void Builder::populateFinalBTargets()
     size_t needsUpdate = 0;
 
     vector<BTarget *> sortedBTargets = std::move(TBT::topologicalSort);
-    for (auto it = sortedBTargets.rbegin(); it != sortedBTargets.rend(); ++it)
+    if (!round)
     {
-        BTarget *bTarget = *it;
-        if (bTarget->selectiveBuild)
+        for (auto it = sortedBTargets.rbegin(); it != sortedBTargets.rend(); ++it)
         {
-            for (BTarget *dependency : bTarget->getRealBTarget(round).dependencies)
+            BTarget *bTarget = *it;
+            if (bTarget->selectiveBuild)
             {
-                dependency->selectiveBuild = true;
+                for (BTarget *dependency : bTarget->getRealBTarget(0).dependencies)
+                {
+                    dependency->selectiveBuild = true;
+                }
             }
         }
     }
+
     finalBTargets.clear();
     for (unsigned i = 0; i < sortedBTargets.size(); ++i)
     {

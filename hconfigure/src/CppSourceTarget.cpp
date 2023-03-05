@@ -158,10 +158,9 @@ void CppSourceTarget::addRequirementDepsToBTargetDependencies()
     // Access to addDependency() function must be synchronized
     std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
 
-    RealBTarget &round2 = getRealBTarget(2);
     for (CppSourceTarget *cppSourceTarget : requirementDeps)
     {
-        round2.addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
+        getRealBTarget(2).addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
     }
 }
 
