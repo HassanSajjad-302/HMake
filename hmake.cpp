@@ -61,7 +61,7 @@ int main(int argc, char **argv)
                     Node::getNodeFromString("C:\\Program Files\\Microsoft Visual "
                                             "Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\lib\\clang\\15.0.1\\lib\\windows\\",
                                             false));*/
-        debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG, AddressSanitizer::OFF,
+        debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, TranslateInclude::YES, ConfigType::DEBUG, AddressSanitizer::OFF,
                      RuntimeDebugging::OFF);
         release.ASSIGN(cxxStd, TranslateInclude::YES, TreatModuleAsSource::NO, ConfigType::RELEASE);
         arm.ASSIGN(cxxStd, Arch::ARM, TranslateInclude::YES, ConfigType::RELEASE, TreatModuleAsSource::NO);

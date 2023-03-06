@@ -82,11 +82,6 @@ struct BTarget // BTarget
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
-struct TarPointerComparator
-{
-    bool operator()(const CTarget *lhs, const CTarget *rhs) const;
-};
-
 struct CTargetPointerComparator
 {
     bool operator()(const CTarget *lhs, const CTarget *rhs) const;
@@ -94,13 +89,13 @@ struct CTargetPointerComparator
 
 class CTarget // Configure Target
 {
-    inline static set<CTarget *, CTargetPointerComparator> cTargetsSameFileAndNameCheck;
+    inline static set<std::pair<string, string>> cTargetsSameFileAndNameCheck;
     void initializeCTarget();
 
   public:
     string name;
     Json json;
-    set<CTarget *, TarPointerComparator> elements;
+    set<CTarget *, CTargetPointerComparator> elements;
     inline static size_t total = 0;
     size_t id = 0; // unique for every BTarget
     // If target has file, this is that file directory. Else, it is the directory of container it is present in.

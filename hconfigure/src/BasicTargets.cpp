@@ -85,14 +85,9 @@ bool operator<(const BTarget &lhs, const BTarget &rhs)
     return lhs.id < rhs.id;
 }
 
-bool TarPointerComparator::operator()(const CTarget *lhs, const CTarget *rhs) const
-{
-    return lhs->name < rhs->name;
-}
-
 bool CTargetPointerComparator::operator()(const CTarget *lhs, const CTarget *rhs) const
 {
-    return (lhs->targetFileDir + lhs->name) < (rhs->targetFileDir + rhs->name);
+    return lhs->name < rhs->name;
 }
 
 void CTarget::initializeCTarget()
@@ -102,7 +97,7 @@ void CTarget::initializeCTarget()
     cTarjanNode = const_cast<TCT *>(tarjanNodesCTargets.emplace(this).first.operator->());
     if (hasFile)
     {
-        const auto &[pos, Ok] = cTargetsSameFileAndNameCheck.emplace(this);
+        const auto &[pos, Ok] = cTargetsSameFileAndNameCheck.emplace(name, targetFileDir);
         if (!Ok)
         {
             print(stderr, "There exists two targets with name {} and targetFileDir {}", name, targetFileDir);
@@ -164,7 +159,7 @@ path CTarget::getTargetFilePath() const
 
 string CTarget::getSubDirForTarget() const
 {
-    return other ? other->getSubDirForTarget() + name + "/" : targetFileDir;
+    return other ? (other->getSubDirForTarget() + name + "/") : targetFileDir;
 }
 
 string CTarget::getTarjanNodeName()
