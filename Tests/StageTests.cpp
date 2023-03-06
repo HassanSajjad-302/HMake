@@ -60,28 +60,21 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
 
 static string configureBuildStr = getSlashedExecutableName("configure") + " --build";
 
-static void noFileUpdated(const path &hbuildExecutionPath = current_path(), const path &snapshotPath = current_path())
-{
-    // Running configure.exe --build should not update any file
-    path p = current_path();
-    current_path(hbuildExecutionPath);
-    Snapshot snapshot(snapshotPath);
-    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
-    snapshot.after(snapshotPath);
-    current_path(p);
-    ASSERT_EQ(snapshot.snapshotBalancesTest1(false, false), true);
-}
-
 static void executeSubTest1(Test1Setup setup)
 {
     // Running configure.exe --build should not update any file
     path p = current_path();
     current_path(setup.hbuildExecutionPath);
-    Snapshot snapshot(current_path());
+    Snapshot snapshot(p);
     ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
-    snapshot.after(current_path());
-    current_path(p);
+    snapshot.after(p);
     ASSERT_EQ(snapshot.snapshotBalancesTest1(setup.sourceFileUpdated, setup.executableFileUpdated), true);
+
+    snapshot.before(p);
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    snapshot.after(p);
+    current_path(p);
+    ASSERT_EQ(snapshot.snapshotBalancesTest1(false, false), true);
 }
 
 static void executeSubTest2(Test2Setup setup)
@@ -89,11 +82,16 @@ static void executeSubTest2(Test2Setup setup)
     // Running configure.exe --build should not update any file
     path p = current_path();
     current_path(setup.hbuildExecutionPath);
-    Snapshot snapshot(current_path());
+    Snapshot snapshot(p);
     ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
-    snapshot.after(current_path());
-    current_path(p);
+    snapshot.after(p);
     ASSERT_EQ(snapshot.snapshotBalancesTest2(setup), true);
+
+    snapshot.before(p);
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    snapshot.after(p);
+    current_path(p);
+    ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Setup{}), true);
 }
 
 static void executeSnapshotBalances(unsigned short filesCompiled, unsigned short cppTargets,
@@ -106,25 +104,16 @@ static void executeSnapshotBalances(unsigned short filesCompiled, unsigned short
     Snapshot snapshot(p);
     ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
     snapshot.after(p);
-    current_path(p);
     ASSERT_EQ(snapshot.snapshotBalances(filesCompiled, cppTargets, linkTargetsNoDebug, linkTargetsDebug), true);
+
+    snapshot.before(p);
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    snapshot.after(p);
+    current_path(p);
+    ASSERT_EQ(snapshot.snapshotBalances(0, 0, 0, 0), true);
 }
 
-/*static Snapshot getSnapshotSubTest1(const path &hbuildExecutionPath = current_path(),
-                                    const path &snapshotPath = current_path())
-{
-    // Running configure.exe --build should not update any file
-    path p = current_path();
-    current_path(hbuildExecutionPath);
-    Snapshot snapshot(snapshotPath);
-    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
-    snapshot.after(snapshotPath);
-    current_path(p);
-    ASSERT_EQ(snapshot.snapshotBalancesTest1(false, false), true);
-}*/
-
 // Tests Hello-World and rebuild in different directories on touching file.
-/*
 TEST(StageTests, Test1)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
@@ -135,7 +124,7 @@ TEST(StageTests, Test1)
     ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExecutableName("app"), "Hello World\n");
     current_path("../");
 
-    noFileUpdated();
+    executeSubTest1(Test1Setup{});
 
     Snapshot snapshot(current_path());
 
@@ -146,8 +135,6 @@ TEST(StageTests, Test1)
     snapshot.after(current_path());
     ASSERT_EQ(snapshot.snapshotBalancesTest1(true, true), true);
 
-    executeSubTest1(Test1Setup{});
-
     // Touching main.cpp. But hbuild executed in app-cpp.
     touchFile(mainFilePath);
     executeSubTest1(Test1Setup{.hbuildExecutionPath = "app-cpp/", .sourceFileUpdated = true});
@@ -155,51 +142,43 @@ TEST(StageTests, Test1)
 
     // Now executing again in Build
     executeSubTest1(Test1Setup{.executableFileUpdated = true});
-    executeSubTest1(Test1Setup{});
 
     // Touching main.cpp. But hbuild executed in app
     touchFile(mainFilePath);
     executeSubTest1(
         Test1Setup{.hbuildExecutionPath = "app/", .sourceFileUpdated = true, .executableFileUpdated = true});
     executeSubTest1(Test1Setup{.hbuildExecutionPath = "app/"});
-    executeSubTest1(Test1Setup{});
 
     // Deleting app.exe
     path appExeFilePath =
         testSourcePath / "Build/app" / path(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"));
     removeFilePath(appExeFilePath);
     executeSubTest1(Test1Setup{.executableFileUpdated = true});
-    executeSubTest1(Test1Setup{});
 
     // Deleting app.exe. But hbuild executed in app-cpp first and then in app
     removeFilePath(appExeFilePath);
     executeSubTest1(Test1Setup{.hbuildExecutionPath = "app-cpp/"});
     executeSubTest1(Test1Setup{.hbuildExecutionPath = "app/", .executableFileUpdated = true});
-    executeSubTest1(Test1Setup{});
 
     // Deleting app-cpp.cache
     path appCppCacheFilePath = testSourcePath / "Build/app-cpp/Cache_Build_Files/app-cpp.cache";
     removeFilePath(appCppCacheFilePath);
     executeSubTest1(Test1Setup{.sourceFileUpdated = true, .executableFileUpdated = true});
-    executeSubTest1(Test1Setup{});
 
     // Deleting app-cpp.cache but executing hbuild in app
     removeFilePath(appCppCacheFilePath);
     executeSubTest1(
         Test1Setup{.hbuildExecutionPath = "app/", .sourceFileUpdated = true, .executableFileUpdated = true});
-    executeSubTest1(Test1Setup{});
 
     // Deleting main.cpp.o
     path mainDotCppDotOFilePath = testSourcePath / "Build/app-cpp/Cache_Build_Files/main.cpp.o";
     removeFilePath(mainDotCppDotOFilePath);
     executeSubTest1(Test1Setup{.sourceFileUpdated = true, .executableFileUpdated = true});
-    executeSubTest1(Test1Setup{});
 
     // Deleting main.cpp.o but executing in app/
     removeFilePath(mainDotCppDotOFilePath);
     executeSubTest1(
         Test1Setup{.hbuildExecutionPath = "app/", .sourceFileUpdated = true, .executableFileUpdated = true});
-    executeSubTest1(Test1Setup{});
 
     // Updating compiler-flags
     copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
@@ -220,11 +199,10 @@ TEST(StageTests, Test1)
     // Executing in Build. Only app to be updated.
     executeSubTest1(Test1Setup{.executableFileUpdated = true});
 }
-*/
 
 // Tests Property Transitiviy, rebuild in multiple directories on touching file, source-file inclusion and exclusion,
 // header-files exclusion and inclusion, libraries exclusion and inclusion.
-TEST(StageBasicTests, Test2)
+TEST(StageTests, Test2)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test2");
     current_path(testSourcePath);
@@ -289,7 +267,6 @@ TEST(StageBasicTests, Test2)
     executeSnapshotBalances(1, 1, 0, 0, "Debug/lib3-cpp");
     executeSnapshotBalances(0, 0, 1, 0, "Debug/lib3");
     executeSnapshotBalances(1, 1, 2, 1);
-    executeSubTest2(Test2Setup{});
 
     // TODO
     // noFileUpdated() function call with current_path whenever in some path.
@@ -302,7 +279,6 @@ TEST(StageBasicTests, Test2)
     executeSnapshotBalances(0, 0, 0, 0, "Debug/lib3");
     executeSnapshotBalances(0, 0, 0, 0, "Debug/lib1");
     executeSnapshotBalances(0, 0, 0, 0, "Debug/lib1-cpp");
-    print("{}\n", current_path().generic_string());
     executeSnapshotBalances(1, 1, 1, 1, "Debug/app");
 
     // Touching main.cpp lib1.hpp-public, then hbuild in app
