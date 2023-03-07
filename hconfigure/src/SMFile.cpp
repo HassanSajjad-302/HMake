@@ -175,8 +175,6 @@ void SourceNode::printMutexLockRoutine(unsigned short)
 
 void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget)
 {
-    realBTarget.fileStatus = FileStatus::UPDATED;
-
     path objectFilePath = path(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ex);
 
     if (!std::filesystem::exists(objectFilePath))
@@ -377,13 +375,16 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
             requireJson.at("lookup-method").get<string>() == "include-angle", requireLogicalName);
         ahuDirTarget->applicationHeaderUnits.emplace(&headerUnit);
         RealBTarget &realBTarget = headerUnit.getRealBTarget(1);
-        if (!headerUnit.presentInCache)
+        if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
         {
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-        }
-        else
-        {
-            headerUnit.setSourceNodeFileStatus(".smrules", realBTarget);
+            if (!headerUnit.presentInCache)
+            {
+                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+            }
+            else
+            {
+                headerUnit.setSourceNodeFileStatus(".smrules", realBTarget);
+            }
         }
         if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
         {

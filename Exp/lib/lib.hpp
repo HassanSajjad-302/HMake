@@ -1,0 +1,1 @@
+bool func(unsigned short i);

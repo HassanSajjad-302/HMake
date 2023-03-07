@@ -299,7 +299,6 @@ TEST(StageTests, Test2)
     copyFilePath(testSourcePath / "Version/1/main.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/1/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
     removeFilePath(testSourcePath / "lib1/public/public-lib1.hpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(1, 1, 0, 0, "Debug/lib1-cpp");
     executeSnapshotBalances(1, 1, 1, 1, "Debug/app");
     executeSnapshotBalances(0, 0, 0, 0);
