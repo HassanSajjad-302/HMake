@@ -84,12 +84,6 @@ struct Define
 void to_json(Json &j, const Define &cd);
 void from_json(const Json &j, Define &cd);
 
-enum class Link
-{
-    STATIC,
-    SHARED,
-};
-
 enum class Threading
 {
     SINGLE,
@@ -689,7 +683,6 @@ struct LinkerFeatures
     Archiver archiver;
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
-    Link link;
     string requirementLinkerFlags;
     TargetType libraryType;
     LinkerFeatures();
@@ -728,7 +721,6 @@ struct CompilerFeatures
     Compiler compiler;
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
-    Link link;
     set<const Node *> requirementIncludes;
     string requirementCompilerFlags;
     set<Define> requirementCompileDefinitions;

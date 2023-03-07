@@ -96,10 +96,6 @@ LinkOrArchiveTarget &LinkOrArchiveTarget::ASSIGN(T property, Property... propert
     {
         threading = property;
     }
-    else if constexpr (std::is_same_v<decltype(property), enum Link>)
-    {
-        link = property;
-    }
     else if constexpr (std::is_same_v<decltype(property), CxxSTD>)
     {
         cxxStd = property;
@@ -219,10 +215,6 @@ template <typename T> bool LinkOrArchiveTarget::EVALUATE(T property) const
     else if constexpr (std::is_same_v<decltype(property), Threading>)
     {
         return threading == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), enum Link>)
-    {
-        return link == property;
     }
     else if constexpr (std::is_same_v<decltype(property), CxxSTD>)
     {

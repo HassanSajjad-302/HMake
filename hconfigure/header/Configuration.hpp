@@ -133,10 +133,6 @@ Configuration &Configuration::ASSIGN(T property, Property... properties)
     {
         compilerFeatures.threading = property;
     }
-    else if constexpr (std::is_same_v<decltype(property), enum Link>)
-    {
-        compilerFeatures.link = property;
-    }
     else if constexpr (std::is_same_v<decltype(property), CxxSTD>)
     {
         compilerFeatures.cxxStd = property;

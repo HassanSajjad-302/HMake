@@ -607,7 +607,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
             }
             if (noStaticLink && EVALUATE(RuntimeLink::STATIC))
             {
-                if (EVALUATE(Link::SHARED))
+                if (EVALUATE(TargetType::LIBRARY_SHARED))
                 {
                     print("WARNING: On gcc, DLLs can not be built with <runtime-link>static\n ");
                 }
