@@ -56,6 +56,12 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
               destinationFilePath.generic_string(), ec ? ec.message() : "");
         exit(EXIT_FAILURE);
     }
+    if constexpr (os == OS::NT)
+    {
+        // TODO
+        // On Windows copying does not edit the last-update-time. Not investing further atm.
+        touchFile(destinationFilePath);
+    }
 }
 
 static string configureBuildStr = getSlashedExecutableName("configure") + " --build";
@@ -208,6 +214,11 @@ static void setupTest2Default()
     copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/0/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
     copyFilePath(testSourcePath / "Version/0/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
+    path extraIncludeFilePath = testSourcePath / "lib1/public/extra-include.hpp";
+    if (exists(extraIncludeFilePath))
+    {
+        removeFilePath(extraIncludeFilePath);
+    }
 }
 
 // Tests Property Transitiviy, rebuild in multiple directories on touching file, source-file inclusion and exclusion,
@@ -303,5 +314,20 @@ TEST(StageTests, Test2)
     executeSnapshotBalances(1, 1, 1, 1, "Debug/app");
     executeSnapshotBalances(0, 0, 0, 0);
 
-    setupTest2Default();
+    // Replacing public-lib1.hpp with two header-files and restoring lib1.cpp and main.cpp
+    copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
+    copyFilePath(testSourcePath / "Version/0/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
+    copyFilePath(testSourcePath / "Version/2/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
+    copyFilePath(testSourcePath / "Version/2/extra-include.hpp", testSourcePath / "lib1/public/extra-include.hpp");
+    executeSnapshotBalances(0, 0, 0, 0, "Debug/lib2-cpp");
+    executeSnapshotBalances(1, 1, 0, 0, "Debug/lib1-cpp");
+    executeSnapshotBalances(1, 1, 1, 1);
+
+    // Resorting to the default-version for the project
+
+    // Removing all libraries, making main simple and reconfiguring the project.
+
+    // Resorting to the old-main and reconfiguring the project.
+
+    // setupTest2Default();
 }
