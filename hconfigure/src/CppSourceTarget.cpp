@@ -1081,7 +1081,11 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
         auto initializeSourceNodePointer = [](SourceNode &sourceNode, const Json &j) {
             for (const Json &headerFile : j.at(JConsts::headerDependencies))
             {
-                sourceNode.headerDependencies.emplace(Node::getNodeFromString(headerFile, true));
+                Node *node = const_cast<Node *>(Node::getNodeFromString(headerFile, true, true));
+                if (!node->doesNotExist)
+                {
+                    sourceNode.headerDependencies.emplace(node);
+                }
             }
             sourceNode.presentInCache = true;
         };

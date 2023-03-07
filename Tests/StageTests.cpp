@@ -210,6 +210,7 @@ TEST(StageTests, Test2)
     current_path(testSourcePath);
     copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/0/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
+    copyFilePath(testSourcePath / "Version/0/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
 
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("Debug/app/");
@@ -288,9 +289,12 @@ TEST(StageTests, Test2)
     touchFile(publicLib1DotHpp);
     executeSnapshotBalances(2, 2, 1, 1, "Debug/app");
 
-    // TODO
-    // After reconfiguring, run hbuild in other directories.
-
-    // Adding public-lib1.hpp contents to main.cpp
-    // removeFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
+    // Adding public-lib1.hpp contents to main.cpp and lib1.cpp and removing it from directory
+    copyFilePath(testSourcePath / "Version/1/main.cpp", testSourcePath / "main.cpp");
+    copyFilePath(testSourcePath / "Version/1/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
+    removeFilePath(testSourcePath / "lib1/public/public-lib1.hpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(1, 1, 0, 0, "Debug/lib1-cpp");
+    executeSnapshotBalances(1, 1, 1, 1, "Debug/app");
+    executeSnapshotBalances(0, 0, 0, 0);
 }
