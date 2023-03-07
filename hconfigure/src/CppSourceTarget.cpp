@@ -27,18 +27,46 @@ bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs)
     return std::tie(lhs.sourceDirectory, lhs.regex) < std::tie(rhs.sourceDirectory, rhs.regex);
 }
 
-void CppSourceTarget::addNodeInSourceFileDependencies(const string &str)
+SourceNode &CppSourceTarget::addNodeInSourceFileDependencies(Node *node)
 {
-    auto [pos, ok] = sourceFileDependencies.emplace(this, str);
-    auto &sourceNode = const_cast<SourceNode &>(*pos);
-    sourceNode.presentInSource = true;
+    set<SourceNode, CompareSourceNode>::const_iterator sourceNode;
+    if (auto it = sourceFileDependencies.find(node); it == sourceFileDependencies.end())
+    {
+        sourceNode = sourceFileDependencies.emplace(this, node).first;
+    }
+    else
+    {
+        sourceNode = it;
+    }
+    return const_cast<SourceNode &>(*sourceNode);
 }
 
-void CppSourceTarget::addNodeInModuleSourceFileDependencies(const std::string &str)
+SMFile &CppSourceTarget::addNodeInModuleSourceFileDependencies(Node *node)
 {
-    auto [pos, ok] = moduleSourceFileDependencies.emplace(this, str);
-    auto &smFile = const_cast<SMFile &>(*pos);
-    smFile.presentInSource = true;
+    set<SMFile, CompareSourceNode>::const_iterator moduleNode;
+    if (auto it = moduleSourceFileDependencies.find(node); it == moduleSourceFileDependencies.end())
+    {
+        moduleNode = moduleSourceFileDependencies.emplace(this, node).first;
+    }
+    else
+    {
+        moduleNode = it;
+    }
+    return const_cast<SMFile &>(*moduleNode);
+}
+
+SMFile &CppSourceTarget::addNodeInHeaderUnits(Node *node)
+{
+    set<SMFile, CompareSourceNode>::const_iterator headerUnit;
+    if (auto it = moduleScopeData->headerUnits.find(node); it == moduleScopeData->headerUnits.end())
+    {
+        headerUnit = moduleScopeData->headerUnits.emplace(this, node).first;
+    }
+    else
+    {
+        headerUnit = it;
+    }
+    return const_cast<SMFile &>(*headerUnit);
 }
 
 void CppSourceTarget::setCpuType()
@@ -700,6 +728,15 @@ void CppSourceTarget::initializeForBuild()
     if (!moduleScope)
     {
         moduleScope = this;
+        if (!moduleScopeData)
+        {
+            moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
+        }
+    }
+    if (!moduleScopeData && !moduleScope->moduleScopeData)
+    {
+        moduleScope->moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
+        moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
     }
     // Parsing finished
     buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
@@ -710,7 +747,7 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     if (round == 1)
     {
         initializeForBuild();
-        checkForPreBuiltAndCacheDir(builder);
+        readBuildCacheFile(builder);
         parseModuleSourceFiles(builder);
     }
     else if (!round)
@@ -822,11 +859,15 @@ static void parseRegexSourceDirs(CppSourceTarget &target, bool assignToSourceNod
                 {
                     if (assignToSourceNodes)
                     {
-                        target.addNodeInSourceFileDependencies(k.path().generic_string());
+                        SourceNode &sourceNode = target.addNodeInSourceFileDependencies(
+                            const_cast<Node *>(Node::getNodeFromString(k.path().generic_string(), true)));
+                        sourceNode.presentInSource = true;
                     }
                     else
                     {
-                        target.addNodeInModuleSourceFileDependencies(k.path().generic_string());
+                        SMFile &smFile = target.addNodeInModuleSourceFileDependencies(
+                            const_cast<Node *>(Node::getNodeFromString(k.path().generic_string(), true)));
+                        smFile.presentInSource = true;
                     }
                 }
             }
@@ -1016,7 +1057,7 @@ string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
     return sourceCompileCommandPrintFirstHalf;
 }
 
-void CppSourceTarget::checkForPreBuiltAndCacheDir(Builder &)
+void CppSourceTarget::readBuildCacheFile(Builder &)
 {
     // getCompileCommand is called concurrently and may cause a data-race, if this hasn't been called before.
     setCompileCommand();
@@ -1037,38 +1078,42 @@ void CppSourceTarget::checkForPreBuiltAndCacheDir(Builder &)
         ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> sourceCacheJson;
 
         string str = sourceCacheJson.at(JConsts::compileCommand).get<string>();
-        auto initializeSourceNodePointer = [](SourceNode *sourceNode, const Json &j) {
+        auto initializeSourceNodePointer = [](SourceNode &sourceNode, const Json &j) {
             for (const Json &headerFile : j.at(JConsts::headerDependencies))
             {
-                sourceNode->headerDependencies.emplace(Node::getNodeFromString(headerFile, true));
+                sourceNode.headerDependencies.emplace(Node::getNodeFromString(headerFile, true));
             }
-            sourceNode->presentInCache = true;
+            sourceNode.presentInCache = true;
         };
 
         if (str == compiler.bTPath.generic_string() + " " + getCompileCommand())
         {
             for (const Json &j : sourceCacheJson.at(JConsts::sourceDependencies))
             {
-                initializeSourceNodePointer(
-                    const_cast<SourceNode *>(
-                        sourceFileDependencies.emplace(this, j.at(JConsts::srcFile)).first.operator->()),
-                    j);
+                Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
+                if (!node->doesNotExist)
+                {
+                    initializeSourceNodePointer(addNodeInSourceFileDependencies(node), j);
+                }
             }
             for (const Json &j : sourceCacheJson.at(JConsts::moduleDependencies))
             {
-                initializeSourceNodePointer(
-                    const_cast<SMFile *>(
-                        moduleSourceFileDependencies.emplace(this, j.at(JConsts::srcFile)).first.operator->()),
-                    j);
+                Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
+                if (!node->doesNotExist)
+                {
+                    initializeSourceNodePointer(addNodeInModuleSourceFileDependencies(node), j);
+                }
             }
 
-            ModuleScopeData &moduleScopeData = moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second;
             for (const Json &j : sourceCacheJson.at(JConsts::headerUnits))
             {
-                auto *smFile = const_cast<SMFile *>(
-                    moduleScopeData.headerUnits.emplace(this, j.at(JConsts::srcFile)).first.operator->());
-                initializeSourceNodePointer(smFile, j);
-                smFile->standardHeaderUnit = false;
+                Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
+                if (!node->doesNotExist)
+                {
+                    SMFile &smFile = addNodeInHeaderUnits(node);
+                    smFile.standardHeaderUnit = false;
+                    initializeSourceNodePointer(smFile, j);
+                }
             }
         }
     }
@@ -1091,7 +1136,6 @@ void CppSourceTarget::removeUnReferencedHeaderUnits()
 
 void CppSourceTarget::resolveRequirePaths()
 {
-    ModuleScopeData &moduleScopeData = moduleScopes.find(moduleScope)->second;
     for (const SMFile &smFileConst : moduleSourceFileDependencies)
     {
         auto &smFile = const_cast<SMFile &>(smFileConst);
@@ -1108,8 +1152,8 @@ void CppSourceTarget::resolveRequirePaths()
             {
                 continue;
             }
-            if (auto it = moduleScopeData.requirePaths.find(requireLogicalName);
-                it == moduleScopeData.requirePaths.end())
+            if (auto it = moduleScopeData->requirePaths.find(requireLogicalName);
+                it == moduleScopeData->requirePaths.end())
             {
                 print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
                       "No File Provides This {}.\n", requireLogicalName);
@@ -1159,10 +1203,9 @@ void CppSourceTarget::populateSourceNodes()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
 {
-    ModuleScopeData &moduleScopeData = moduleScopes.try_emplace(moduleScope, ModuleScopeData{}).first->second;
     for (const Node *idd : huIncludes)
     {
-        if (const auto &[pos, Ok] = moduleScopeData.appHUDirTarget.try_emplace(idd, this); !Ok)
+        if (const auto &[pos, Ok] = moduleScopeData->appHUDirTarget.try_emplace(idd, this); !Ok)
         {
             // TODO:
             //  Improve Message
@@ -1181,7 +1224,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
         if (it->presentInSource)
         {
             auto &smFile = const_cast<SMFile &>(*it);
-            if (auto [pos, Ok] = moduleScopeData.smFiles.emplace(&smFile); Ok)
+            if (auto [pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
             {
                 RealBTarget &realBTarget = smFile.getRealBTarget(1);
                 if (!smFile.presentInCache)

@@ -51,9 +51,8 @@ struct CompilerFlags
 
 struct ModuleScopeData
 {
-    set<CppSourceTarget *> cppTargets;
     set<SMFile *> smFiles;
-    set<SMFile> headerUnits;
+    set<SMFile, CompareSourceNode> headerUnits;
     // Which application header unit directory come from which target
     map<const Node *, CppSourceTarget *> appHUDirTarget;
     map<string, SMFile *> requirePaths;
@@ -68,6 +67,7 @@ class CppSourceTarget : public CommonFeatures,
   public:
     TargetType compileTargetType;
     CppSourceTarget *moduleScope = nullptr;
+    ModuleScopeData *moduleScopeData = nullptr;
     inline static map<const CppSourceTarget *, ModuleScopeData> moduleScopes;
     friend struct PostCompile;
     // Parsed Info Not Changed Once Read
@@ -79,11 +79,12 @@ class CppSourceTarget : public CommonFeatures,
     string compileCommand;
     string sourceCompileCommandPrintFirstHalf;
 
-    set<SourceNode> sourceFileDependencies;
+    set<SourceNode, CompareSourceNode> sourceFileDependencies;
     // Comparator used is same as for SourceNode
-    set<SMFile> moduleSourceFileDependencies;
-    void addNodeInSourceFileDependencies(const string &str);
-    void addNodeInModuleSourceFileDependencies(const std::string &str);
+    set<SMFile, CompareSourceNode> moduleSourceFileDependencies;
+    SourceNode &addNodeInSourceFileDependencies(Node *node);
+    SMFile &addNodeInModuleSourceFileDependencies(Node *node);
+    SMFile &addNodeInHeaderUnits(Node *node);
     void setCpuType();
     bool isCpuTypeG7();
 
@@ -94,7 +95,7 @@ class CppSourceTarget : public CommonFeatures,
     void setSourceCompileCommandPrintFirstHalf();
     inline string &getSourceCompileCommandPrintFirstHalf();
 
-    void checkForPreBuiltAndCacheDir(Builder &builder);
+    void readBuildCacheFile(Builder &);
     void removeUnReferencedHeaderUnits();
     void resolveRequirePaths();
     void populateSourceNodes();
@@ -139,19 +140,24 @@ class CppSourceTarget : public CommonFeatures,
     CppSourceTarget &setModuleScope(CppSourceTarget *moduleScope_);
     // TODO
     //  U functions should accept one Argument atleast.
-    template <same_as<char const *>... U> CppSourceTarget &PUBLIC_INCLUDES(U... includeDirectoryString);
-    template <same_as<char const *>... U> CppSourceTarget &PRIVATE_INCLUDES(U... includeDirectoryString);
-    template <same_as<char const *>... U> CppSourceTarget &INTERFACE_INCLUDES(U... includeDirectoryString);
-    template <same_as<char const *>... U> CppSourceTarget &PUBLIC_HU_INCLUDES(U... includeDirectoryString);
-    template <same_as<char const *>... U> CppSourceTarget &PRIVATE_HU_INCLUDES(U... includeDirectoryString);
+    template <same_as<const string &>... U>
+    CppSourceTarget &PUBLIC_INCLUDES(const string &include, U... includeDirectoryString);
+    template <same_as<const string &>... U>
+    CppSourceTarget &PRIVATE_INCLUDES(const string &include, U... includeDirectoryString);
+    template <same_as<const string &>... U>
+    CppSourceTarget &INTERFACE_INCLUDES(const string &include, U... includeDirectoryString);
+    template <same_as<const string &>... U>
+    CppSourceTarget &PUBLIC_HU_INCLUDES(const string &include, U... includeDirectoryString);
+    template <same_as<const string &>... U>
+    CppSourceTarget &PRIVATE_HU_INCLUDES(const string &include, U... includeDirectoryString);
     CppSourceTarget &PUBLIC_COMPILER_FLAGS(const string &compilerFlags);
     CppSourceTarget &PRIVATE_COMPILER_FLAGS(const string &compilerFlags);
     CppSourceTarget &INTERFACE_COMPILER_FLAGS(const string &compilerFlags);
     CppSourceTarget &PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
     CppSourceTarget &PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
     CppSourceTarget &INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
-    template <same_as<char const *>... U> CppSourceTarget &SOURCE_FILES(U... sourceFileString);
-    template <same_as<char const *>... U> CppSourceTarget &MODULE_FILES(U... moduleFileString);
+    template <same_as<const string &>... U> CppSourceTarget &SOURCE_FILES(const string &srcFile, U... sourceFileString);
+    template <same_as<const string &>... U> CppSourceTarget &MODULE_FILES(const string &modFile, U... moduleFileString);
 
     CppSourceTarget &SOURCE_DIRECTORIES(const string &sourceDirectory, const string &regex);
     CppSourceTarget &MODULE_DIRECTORIES(const string &moduleDirectory, const string &regex);
@@ -163,55 +169,116 @@ class CppSourceTarget : public CommonFeatures,
     template <Dependency dependency = Dependency::PRIVATE, typename T> void assignCommonFeature(T property);
 }; // class Target
 
-template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(U... includeDirectoryString)
+template <same_as<const string &>... U>
+CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(const string &include, U... includeDirectoryString)
 {
-    (requirementIncludes.emplace(Node::getNodeFromString(includeDirectoryString, false)), ...);
-    (usageRequirementIncludes.emplace(Node::getNodeFromString(includeDirectoryString, false)), ...);
-    return *this;
-}
-
-template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PRIVATE_INCLUDES(U... includeDirectoryString)
-{
-    (requirementIncludes.emplace(Node::getNodeFromString(includeDirectoryString, false)), ...);
-    return *this;
-}
-
-template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::INTERFACE_INCLUDES(U... includeDirectoryString)
-{
-    (usageRequirementIncludes.emplace(Node::getNodeFromString(includeDirectoryString, false)), ...);
-    return *this;
-}
-
-template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(U... includeDirectoryString)
-{
-    PUBLIC_INCLUDES(includeDirectoryString...);
-    (huIncludes.emplace(Node::getNodeFromString(includeDirectoryString, false)), ...);
-    return *this;
-}
-
-template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(U... includeDirectoryString)
-{
-    PRIVATE_INCLUDES(includeDirectoryString...);
-    (huIncludes.emplace(Node::getNodeFromString(includeDirectoryString, false)), ...);
-    return *this;
-}
-
-template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::SOURCE_FILES(U... sourceFileString)
-{
-    (addNodeInSourceFileDependencies(sourceFileString), ...);
-    return *this;
-}
-
-template <same_as<char const *>... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(U... moduleFileString)
-{
-    if (EVALUATE(TreatModuleAsSource::YES))
+    const Node *node = Node::getNodeFromString(include, false);
+    requirementIncludes.emplace(node);
+    usageRequirementIncludes.emplace(node);
+    if constexpr (sizeof...(includeDirectoryString))
     {
-        return SOURCE_FILES(moduleFileString...);
+        PUBLIC_INCLUDES(includeDirectoryString...);
     }
     else
     {
-        (addNodeInModuleSourceFileDependencies(moduleFileString), ...);
         return *this;
+    }
+}
+
+template <same_as<const string &>... U>
+CppSourceTarget &CppSourceTarget::PRIVATE_INCLUDES(const string &include, U... includeDirectoryString)
+{
+    requirementIncludes.emplace(Node::getNodeFromString(include, false));
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        PRIVATE_INCLUDES(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <same_as<const string &>... U>
+CppSourceTarget &CppSourceTarget::INTERFACE_INCLUDES(const string &include, U... includeDirectoryString)
+{
+    usageRequirementIncludes.emplace(Node::getNodeFromString(include, false));
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        INTERFACE_INCLUDES(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <same_as<const string &>... U>
+CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const string &include, U... includeDirectoryString)
+{
+    PUBLIC_INCLUDES(include);
+    huIncludes.emplace(Node::getNodeFromString(include, false));
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        PUBLIC_HU_INCLUDES(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <same_as<const string &>... U>
+CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const string &include, U... includeDirectoryString)
+{
+    PRIVATE_INCLUDES(include);
+    huIncludes.emplace(Node::getNodeFromString(include, false));
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        PRIVATE_HU_INCLUDES(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <same_as<const string &>... U>
+CppSourceTarget &CppSourceTarget::SOURCE_FILES(const string &srcFile, U... sourceFileString)
+{
+    SourceNode &sourceNode =
+        addNodeInSourceFileDependencies(const_cast<Node *>(Node::getNodeFromString(srcFile, true)));
+    sourceNode.presentInSource = true;
+    if constexpr (sizeof...(sourceFileString))
+    {
+        SOURCE_FILES(sourceFileString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <same_as<const string &>... U>
+CppSourceTarget &CppSourceTarget::MODULE_FILES(const string &modFile, U... moduleFileString)
+{
+    if (EVALUATE(TreatModuleAsSource::YES))
+    {
+        return SOURCE_FILES(modFile, moduleFileString...);
+    }
+    else
+    {
+        SMFile &smFile =
+            addNodeInModuleSourceFileDependencies(const_cast<Node *>(Node::getNodeFromString(modFile, true)));
+        smFile.presentInSource = true;
+        if constexpr (sizeof...(moduleFileString))
+        {
+            MODULE_FILES(moduleFileString...);
+        }
+        else
+        {
+            return *this;
+        }
     }
 }
 

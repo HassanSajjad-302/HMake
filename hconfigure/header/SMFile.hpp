@@ -41,12 +41,23 @@ class Node
     bool isUpdated = false;
 
   public:
+    bool doesNotExist = false;
     // Used with includeDirectories to specify whether to ignore include-files from these directories from being stored
     // in target-cache file
     bool ignoreIncludes = false;
 };
 bool operator<(const Node &lhs, const Node &rhs);
 void to_json(Json &j, const Node *node);
+
+struct SourceNode;
+struct CompareSourceNode
+{
+    using is_transparent = void; // for example with void,
+                                 // but could be int or struct CanSearchOnId;
+    bool operator()(SourceNode const &lhs, SourceNode const &rhs) const;
+    bool operator()(Node *lhs, SourceNode const &rhs) const;
+    bool operator()(SourceNode const &lhs, Node *rhs) const;
+};
 
 struct SourceNode : public ObjectFile
 {
@@ -56,7 +67,7 @@ struct SourceNode : public ObjectFile
     CppSourceTarget *target;
     std::shared_ptr<PostCompile> postCompile;
     set<const Node *> headerDependencies;
-    SourceNode(CppSourceTarget *target_, const string &filePath);
+    SourceNode(CppSourceTarget *target_, Node *node_);
     string getObjectFileOutputFilePath() override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) override;
     void updateBTarget(unsigned short round, Builder &builder) override;
@@ -112,14 +123,14 @@ struct SMFile : public SourceNode // Scanned Module Rule
     // Used to determine whether the file is present in cache and whether it needs an updated SMRules file.
     bool generateSMFileInRoundOne = false;
 
-    SMFile(CppSourceTarget *target_, const string &srcPath);
+    SMFile(CppSourceTarget *target_, Node *node_);
     void updateBTarget(unsigned short round, class Builder &builder) override;
     void printMutexLockRoutine(unsigned short round) override;
     string getObjectFileOutputFilePath() override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) override;
     void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder);
-    void initializeNewHeaderUnit(const Json &requireJson, struct ModuleScopeData &moduleScopeData, Builder &builder);
-    void iterateRequiresJsonToInitializeNewHeaderUnits(ModuleScopeData &moduleScopeData, Builder &builder);
+    void initializeNewHeaderUnit(const Json &requireJson, Builder &builder);
+    void iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder);
     static bool isSubDirPathStandard(const path &headerUnitPath, set<const Node *> &standardIncludes);
     void setSMFileStatusRoundZero();
     void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator) override;

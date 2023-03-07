@@ -72,6 +72,7 @@ Node::Node(const path &filePath_, bool isFile, bool mayNotExist)
                   isFile ? "regular" : "directory", getStatusString(filePath_));
             exit(EXIT_FAILURE);
         }
+        doesNotExist = true;
     }
 }
 
@@ -115,8 +116,22 @@ void to_json(Json &j, const Node *node)
     j = node->filePath;
 }
 
-SourceNode::SourceNode(CppSourceTarget *target_, const string &filePath)
-    : target(target_), node{Node::getNodeFromString(filePath, true)}
+bool CompareSourceNode::operator()(SourceNode const &lhs, SourceNode const &rhs) const
+{
+    return lhs.node < rhs.node;
+}
+
+bool CompareSourceNode::operator()(Node *lhs, SourceNode const &rhs) const
+{
+    return lhs < rhs.node;
+}
+
+bool CompareSourceNode::operator()(SourceNode const &lhs, Node *rhs) const
+{
+    return lhs.node < rhs;
+}
+
+SourceNode::SourceNode(CppSourceTarget *target_, Node *node_) : target(target_), node{node_}
 {
 }
 
@@ -208,7 +223,7 @@ HeaderUnitConsumer::HeaderUnitConsumer(bool angle_, string logicalName_)
 {
 }
 
-SMFile::SMFile(CppSourceTarget *target_, const string &srcPath) : SourceNode(target_, srcPath)
+SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node_)
 {
 }
 
@@ -283,13 +298,12 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     Json smFileJson;
     ifstream(smFilePath) >> smFileJson;
     Json rule = smFileJson.at("rules").get<Json>()[0];
-    ModuleScopeData &moduleScopeData = CppSourceTarget::moduleScopes.find(target->moduleScope)->second;
     if (rule.contains("provides"))
     {
         hasProvide = true;
         // There can be only one provides but can be multiple requires.
         logicalName = rule.at("provides").get<Json>()[0].at("logical-name").get<string>();
-        if (auto [pos, ok] = moduleScopeData.requirePaths.try_emplace(logicalName, this); !ok)
+        if (auto [pos, ok] = target->moduleScopeData->requirePaths.try_emplace(logicalName, this); !ok)
         {
             const auto &[key, val] = *pos;
             // TODO
@@ -301,10 +315,10 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
         }
     }
     requiresJson = std::move(rule.at("requires"));
-    iterateRequiresJsonToInitializeNewHeaderUnits(moduleScopeData, builder);
+    iterateRequiresJsonToInitializeNewHeaderUnits(builder);
 }
 
-void SMFile::initializeNewHeaderUnit(const Json &requireJson, ModuleScopeData &moduleScopeData, Builder &builder)
+void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 {
     string requireLogicalName = requireJson.at("logical-name").get<string>();
     if (requireLogicalName == logicalName)
@@ -332,7 +346,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, ModuleScopeData &m
         // Iterating over all header-unit-directories of the module-scope to find out which header-unit
         // directory this header-unit comes from and which target that header-unit-directory belongs to
         // if any
-        for (auto &dir : moduleScopeData.appHUDirTarget)
+        for (auto &dir : target->moduleScopeData->appHUDirTarget)
         {
             const Node *dirNode = dir.first;
             path result = path(headerUnitPath).lexically_relative(dirNode->filePath).generic_string();
@@ -352,41 +366,41 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, ModuleScopeData &m
         exit(EXIT_FAILURE);
     }
 
-    const auto &[pos1, Ok1] = moduleScopeData.headerUnits.emplace(ahuDirTarget, headerUnitPath);
-    if (!pos1->presentInSource)
+    SMFile &headerUnit =
+        target->addNodeInHeaderUnits(const_cast<Node *>(Node::getNodeFromString(headerUnitPath, true)));
+    if (!headerUnit.presentInSource)
     {
-        auto &smFileHeaderUnit = const_cast<SMFile &>(*pos1);
-        smFileHeaderUnit.presentInSource = true;
-        smFileHeaderUnit.standardHeaderUnit = true;
-        smFileHeaderUnit.type = SM_FILE_TYPE::HEADER_UNIT;
-        headerUnitsConsumptionMethods[&smFileHeaderUnit].emplace(
+        headerUnit.presentInSource = true;
+        headerUnit.standardHeaderUnit = true;
+        headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
+        headerUnitsConsumptionMethods[&headerUnit].emplace(
             requireJson.at("lookup-method").get<string>() == "include-angle", requireLogicalName);
-        ahuDirTarget->applicationHeaderUnits.emplace(&smFileHeaderUnit);
-        RealBTarget &realBTarget = smFileHeaderUnit.getRealBTarget(1);
-        if (!smFileHeaderUnit.presentInCache)
+        ahuDirTarget->applicationHeaderUnits.emplace(&headerUnit);
+        RealBTarget &realBTarget = headerUnit.getRealBTarget(1);
+        if (!headerUnit.presentInCache)
         {
             realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
         }
         else
         {
-            smFileHeaderUnit.setSourceNodeFileStatus(".smrules", realBTarget);
+            headerUnit.setSourceNodeFileStatus(".smrules", realBTarget);
         }
         if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
         {
-            smFileHeaderUnit.generateSMFileInRoundOne = true;
+            headerUnit.generateSMFileInRoundOne = true;
         }
-        getRealBTarget(0).addDependency(smFileHeaderUnit);
-        builder.addNewBTargetInFinalBTargets(&smFileHeaderUnit);
+        getRealBTarget(0).addDependency(headerUnit);
+        builder.addNewBTargetInFinalBTargets(&headerUnit);
     }
 }
 
-void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(ModuleScopeData &moduleScopeData, Builder &builder)
+void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 {
     if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
         for (const Json &requireJson : requiresJson)
         {
-            initializeNewHeaderUnit(requireJson, moduleScopeData, builder);
+            initializeNewHeaderUnit(requireJson, builder);
         }
     }
     else
@@ -406,7 +420,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(ModuleScopeData &modu
             }
             if (requireJson.contains("lookup-method"))
             {
-                initializeNewHeaderUnit(requireJson, moduleScopeData, builder);
+                initializeNewHeaderUnit(requireJson, builder);
             }
             else
             {
