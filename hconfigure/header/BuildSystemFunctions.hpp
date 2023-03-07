@@ -39,6 +39,8 @@ inline constexpr OS os = OS::NT;
 inline constexpr OS os = OS::LINUX;
 #endif
 
+inline std::mutex printMutex;
+
 void setBoolsAndSetRunDir(int argc, char **argv);
 inline const string pes = "{}"; // paranthesis-escape-sequence, meant to be used in fmt::print.
 inline const string dashCpp = "-cpp";

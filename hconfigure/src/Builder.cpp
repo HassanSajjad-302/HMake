@@ -122,7 +122,6 @@ void Builder::launchThreadsAndUpdateBTargets()
 }
 
 static mutex updateMutex;
-static mutex printMutex;
 
 std::condition_variable cond;
 
@@ -178,11 +177,6 @@ void Builder::updateBTargets()
         }
 
         bTarget->updateBTarget(round, *this);
-
-        printMutex.lock();
-        bTarget->printMutexLockRoutine(round);
-        fflush(stdout);
-        printMutex.unlock();
 
         updateMutex.lock();
         RealBTarget &realBTarget = bTarget->getRealBTarget(round);

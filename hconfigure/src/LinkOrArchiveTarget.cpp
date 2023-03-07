@@ -751,6 +751,7 @@ void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &)
     {
         if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
         {
+            shared_ptr<PostBasic> postBasicLinkOrArchive;
             if (linkTargetType == TargetType::LIBRARY_STATIC)
             {
                 postBasicLinkOrArchive = std::make_shared<PostBasic>(Archive());
@@ -765,6 +766,17 @@ void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &)
                 Json cacheFileJson = linker.bTPath.generic_string() + " " + getLinkOrArchiveCommand(true);
                 ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << cacheFileJson.dump(4);
             }
+
+            std::lock_guard<std::mutex> lk(printMutex);
+            if (linkTargetType == TargetType::LIBRARY_STATIC)
+            {
+                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
+            }
+            else if (linkTargetType == TargetType::EXECUTABLE)
+            {
+                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
+            }
+            fflush(stdout);
         }
         else
         {
@@ -778,21 +790,6 @@ void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &)
         populateRequirementAndUsageRequirementProperties();
     }
     realBTarget.fileStatus = FileStatus::UPDATED;
-}
-
-void LinkOrArchiveTarget::printMutexLockRoutine(unsigned short round)
-{
-    if (!round && selectiveBuild && getRealBTarget(0).dependenciesExitStatus == EXIT_SUCCESS)
-    {
-        if (linkTargetType == TargetType::LIBRARY_STATIC)
-        {
-            postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
-        }
-        else if (linkTargetType == TargetType::EXECUTABLE)
-        {
-            postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
-        }
-    }
 }
 
 void LinkOrArchiveTarget::setJson()

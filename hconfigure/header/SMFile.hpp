@@ -2,7 +2,6 @@
 #define HMAKE_SMFILE_HPP
 
 #include "ObjectFileProducer.hpp"
-#include "PostBasic.hpp"
 #include "nlohmann/json.hpp"
 #include <filesystem>
 #include <set>
@@ -63,14 +62,12 @@ struct SourceNode : public ObjectFile
     const Node *node;
     bool presentInCache = false;
     bool presentInSource = false;
-    CppSourceTarget *target;
-    std::shared_ptr<PostCompile> postCompile;
+    class CppSourceTarget *target;
     set<const Node *> headerDependencies;
     SourceNode(CppSourceTarget *target_, Node *node_);
     string getObjectFileOutputFilePath() override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) override;
     void updateBTarget(unsigned short round, Builder &builder) override;
-    void printMutexLockRoutine(unsigned short round) override;
     void setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget);
 };
 
@@ -112,7 +109,6 @@ struct SMFile : public SourceNode // Scanned Module Rule
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // is depending on is consuming it another way.
     map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
-    std::shared_ptr<PostBasic> postBasic;
     set<SMFile *> allSMFileDependenciesRoundZero;
     Json requiresJson;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
@@ -124,7 +120,6 @@ struct SMFile : public SourceNode // Scanned Module Rule
 
     SMFile(CppSourceTarget *target_, Node *node_);
     void updateBTarget(unsigned short round, class Builder &builder) override;
-    void printMutexLockRoutine(unsigned short round) override;
     string getObjectFileOutputFilePath() override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) override;
     void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder);

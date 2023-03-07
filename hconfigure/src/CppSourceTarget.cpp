@@ -1,5 +1,6 @@
 #include "CppSourceTarget.hpp"
 #include "BuildSystemFunctions.hpp"
+#include "Builder.hpp"
 #include "Cache.hpp"
 #include "LinkOrArchiveTarget.hpp"
 #include "Utilities.hpp"

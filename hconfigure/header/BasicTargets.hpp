@@ -76,7 +76,6 @@ struct BTarget // BTarget
 
     RealBTarget &getRealBTarget(unsigned short round);
     virtual void updateBTarget(unsigned short round, class Builder &builder);
-    virtual void printMutexLockRoutine(unsigned short round);
     virtual void preSort(Builder &builder, unsigned short round);
     virtual void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator);
 };

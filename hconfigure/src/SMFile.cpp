@@ -1,8 +1,10 @@
 #include "SMFile.hpp"
 
 #include "BuildSystemFunctions.hpp"
+#include "Builder.hpp"
 #include "CppSourceTarget.hpp"
 #include "JConsts.hpp"
+#include "PostBasic.hpp"
 #include "Settings.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
@@ -152,24 +154,19 @@ void SourceNode::updateBTarget(unsigned short round, Builder &)
         RealBTarget &realBTarget = getRealBTarget(round);
         if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
         {
-            postCompile = std::make_shared<PostCompile>(target->updateSourceNodeBTarget(*this));
-            postCompile->executePostCompileRoutineWithoutMutex(*this);
-            realBTarget.exitStatus = postCompile->exitStatus;
+            PostCompile postCompile = target->updateSourceNodeBTarget(*this);
+            postCompile.executePostCompileRoutineWithoutMutex(*this);
+            realBTarget.exitStatus = postCompile.exitStatus;
             realBTarget.fileStatus = FileStatus::UPDATED;
+
+            std::lock_guard<std::mutex> lk(printMutex);
+            postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
+            fflush(stdout);
         }
         else
         {
             realBTarget.exitStatus = EXIT_FAILURE;
         }
-    }
-}
-
-void SourceNode::printMutexLockRoutine(unsigned short)
-{
-    RealBTarget &realBTarget = getRealBTarget(0);
-    if (selectiveBuild && realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
-    {
-        postCompile->executePrintRoutine(settings.pcSettings.compileCommandColor, false);
     }
 }
 
@@ -234,7 +231,10 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
     {
         if (generateSMFileInRoundOne)
         {
-            postBasic = std::make_shared<PostBasic>(target->GenerateSMRulesFile(*this, true));
+            PostBasic postBasic = target->GenerateSMRulesFile(*this, true);
+            std::lock_guard<std::mutex> lk(printMutex);
+            postBasic.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
+            fflush(stdout);
         }
         {
             // Maybe fine-grain this mutex by using multiple mutexes in following functions. And first use set::contain
@@ -253,9 +253,13 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
     {
         if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
         {
-            postCompile = std::make_shared<PostCompile>(target->CompileSMFile(*this));
-            realBTarget.exitStatus = postCompile->exitStatus;
-            postCompile->executePostCompileRoutineWithoutMutex(*this);
+            PostCompile postCompile = target->CompileSMFile(*this);
+            realBTarget.exitStatus = postCompile.exitStatus;
+            postCompile.executePostCompileRoutineWithoutMutex(*this);
+
+            std::lock_guard<std::mutex> lk(printMutex);
+            postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
+            fflush(stdout);
         }
         else
         {
@@ -263,18 +267,6 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
         }
     }
     realBTarget.fileStatus = FileStatus::UPDATED;
-}
-
-void SMFile::printMutexLockRoutine(unsigned short round)
-{
-    if (round == 1 && generateSMFileInRoundOne)
-    {
-        postBasic->executePrintRoutine(settings.pcSettings.compileCommandColor, true);
-    }
-    else if (!round && selectiveBuild && getRealBTarget(0).dependenciesExitStatus == EXIT_SUCCESS)
-    {
-        postCompile->executePrintRoutine(settings.pcSettings.compileCommandColor, false);
-    }
 }
 
 string SMFile::getObjectFileOutputFilePath()

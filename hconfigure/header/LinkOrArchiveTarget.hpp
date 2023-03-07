@@ -3,7 +3,7 @@
 
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
-#include "SMFile.hpp"
+#include "PostBasic.hpp"
 
 struct LinkerFlags
 {
@@ -39,7 +39,6 @@ class LinkOrArchiveTarget : public CommonFeatures,
 {
   public:
     TargetType linkTargetType;
-    shared_ptr<PostBasic> postBasicLinkOrArchive;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     string linkOrArchiveCommand;
     string linkOrArchiveCommandPrint;
@@ -61,7 +60,6 @@ class LinkOrArchiveTarget : public CommonFeatures,
     void preSort(Builder &builder, unsigned short round) override;
     LinkerFlags getLinkerFlags();
     void updateBTarget(unsigned short round, Builder &builder) override;
-    void printMutexLockRoutine(unsigned short round) override;
     void setJson() override;
     BTarget *getBTarget() override;
     string getTarjanNodeName() override;

@@ -68,10 +68,6 @@ void BTarget::updateBTarget(unsigned short, Builder &)
 {
 }
 
-void BTarget::printMutexLockRoutine(unsigned short)
-{
-}
-
 void BTarget::preSort(Builder &, unsigned short)
 {
 }

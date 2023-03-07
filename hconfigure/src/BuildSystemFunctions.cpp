@@ -1,4 +1,5 @@
 #include "BuildSystemFunctions.hpp"
+#include "Builder.hpp"
 #include "Cache.hpp"
 #include "CppSourceTarget.hpp"
 #include "fmt/format.h"
@@ -6,7 +7,7 @@
 #include <fstream>
 
 using fmt::print, std::filesystem::current_path, std::filesystem::exists, std::filesystem::directory_iterator,
-    std::ifstream;
+    std::ifstream, std::list;
 
 void setBoolsAndSetRunDir(int argc, char **argv)
 {
