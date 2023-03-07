@@ -97,6 +97,10 @@ bool Snapshot::snapshotBalances(unsigned short filesCompiled, unsigned short cpp
     sum += linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
     sum += linkTargetsDebug * debugLinkTargetsMultiplier;
     sum += cppTargets;
+    if (difference.size() != sum)
+    {
+        bool breakpoint = true;
+    }
     return difference.size() == sum;
 }
 

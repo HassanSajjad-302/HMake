@@ -42,17 +42,17 @@ string getStatusString(const path &p)
     }
 }
 
-bool CompareNode::operator()(Node const &lhs, Node const &rhs) const
+bool CompareNode::operator()(const Node &lhs, const Node &rhs) const
 {
     return lhs.filePath < rhs.filePath;
 }
 
-bool CompareNode::operator()(const string &lhs, Node const &rhs) const
+bool CompareNode::operator()(const string &lhs, const Node &rhs) const
 {
     return lhs < rhs.filePath;
 }
 
-bool CompareNode::operator()(Node const &lhs, const string &rhs) const
+bool CompareNode::operator()(const Node &lhs, const string &rhs) const
 {
     return lhs.filePath < rhs;
 }
@@ -98,7 +98,7 @@ const Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotE
 
     // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
     // performed only once.
-    if (auto it = allFiles.find(filePath); it != allFiles.end())
+    if (auto it = allFiles.find(filePath.string()); it != allFiles.end())
     {
         return it.operator->();
     }
@@ -116,17 +116,17 @@ void to_json(Json &j, const Node *node)
     j = node->filePath;
 }
 
-bool CompareSourceNode::operator()(SourceNode const &lhs, SourceNode const &rhs) const
+bool CompareSourceNode::operator()(const SourceNode &lhs, const SourceNode &rhs) const
 {
     return lhs.node < rhs.node;
 }
 
-bool CompareSourceNode::operator()(Node *lhs, SourceNode const &rhs) const
+bool CompareSourceNode::operator()(Node *lhs, const SourceNode &rhs) const
 {
     return lhs < rhs.node;
 }
 
-bool CompareSourceNode::operator()(SourceNode const &lhs, Node *rhs) const
+bool CompareSourceNode::operator()(const SourceNode &lhs, Node *rhs) const
 {
     return lhs.node < rhs;
 }

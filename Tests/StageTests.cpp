@@ -77,23 +77,6 @@ static void executeSubTest1(Test1Setup setup)
     ASSERT_EQ(snapshot.snapshotBalancesTest1(false, false), true);
 }
 
-static void executeSubTest2(Test2Setup setup)
-{
-    // Running configure.exe --build should not update any file
-    path p = current_path();
-    current_path(setup.hbuildExecutionPath);
-    Snapshot snapshot(p);
-    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
-    snapshot.after(p);
-    ASSERT_EQ(snapshot.snapshotBalancesTest2(setup), true);
-
-    snapshot.before(p);
-    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
-    snapshot.after(p);
-    current_path(p);
-    ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Setup{}), true);
-}
-
 static void executeSnapshotBalances(unsigned short filesCompiled, unsigned short cppTargets,
                                     unsigned short linkTargetsNoDebug, unsigned short linkTargetsDebug,
                                     const path &hbuildExecutionPath = current_path())
@@ -122,7 +105,7 @@ TEST(StageTests, Test1)
     copyFilePath(testSourcePath / "Version/hmake0.cpp", testSourcePath / "hmake.cpp");
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExecutableName("app"), "Hello World\n");
+    ExamplesTestHelper::runAppWithExpectedOutput("app", "Hello World\n");
     current_path("../");
 
     executeSubTest1(Test1Setup{});
@@ -202,19 +185,42 @@ TEST(StageTests, Test1)
 }
 */
 
+static void executeSubTest2(Test2Setup setup)
+{
+    // Running configure.exe --build should not update any file
+    path p = current_path();
+    current_path(setup.hbuildExecutionPath);
+    Snapshot snapshot(p);
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    snapshot.after(p);
+    ASSERT_EQ(snapshot.snapshotBalancesTest2(setup), true);
+
+    snapshot.before(p);
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    snapshot.after(p);
+    current_path(p);
+    ASSERT_EQ(snapshot.snapshotBalancesTest2(Test2Setup{}), true);
+}
+
+static void setupTest2Default()
+{
+    path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test2");
+    copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
+    copyFilePath(testSourcePath / "Version/0/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
+    copyFilePath(testSourcePath / "Version/0/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
+}
+
 // Tests Property Transitiviy, rebuild in multiple directories on touching file, source-file inclusion and exclusion,
 // header-files exclusion and inclusion, libraries exclusion and inclusion.
 TEST(StageTests, Test2)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test2");
     current_path(testSourcePath);
-    copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
-    copyFilePath(testSourcePath / "Version/0/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
-    copyFilePath(testSourcePath / "Version/0/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
+    setupTest2Default();
 
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("Debug/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExecutableName("app"), "36\n");
+    ExamplesTestHelper::runAppWithExpectedOutput("app", "36\n");
     current_path("../../");
 
     executeSubTest2(Test2Setup{});
@@ -297,4 +303,6 @@ TEST(StageTests, Test2)
     executeSnapshotBalances(1, 1, 0, 0, "Debug/lib1-cpp");
     executeSnapshotBalances(1, 1, 1, 1, "Debug/app");
     executeSnapshotBalances(0, 0, 0, 0);
+
+    setupTest2Default();
 }

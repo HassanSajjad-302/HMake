@@ -16,11 +16,10 @@ using std::string, std::map, std::set, std::vector, std::filesystem::path, std::
 class Node;
 struct CompareNode
 {
-    using is_transparent = void; // for example with void,
-                                 // but could be int or struct CanSearchOnId;
-    bool operator()(Node const &lhs, Node const &rhs) const;
-    bool operator()(const string &lhs, Node const &rhs) const;
-    bool operator()(Node const &lhs, const string &rhs) const;
+    using is_transparent = void;
+    bool operator()(const Node &lhs, const Node &rhs) const;
+    bool operator()(const string &lhs, const Node &rhs) const;
+    bool operator()(const Node &lhs, const string &rhs) const;
 };
 
 class Node
@@ -54,9 +53,9 @@ struct CompareSourceNode
 {
     using is_transparent = void; // for example with void,
                                  // but could be int or struct CanSearchOnId;
-    bool operator()(SourceNode const &lhs, SourceNode const &rhs) const;
-    bool operator()(Node *lhs, SourceNode const &rhs) const;
-    bool operator()(SourceNode const &lhs, Node *rhs) const;
+    bool operator()(const SourceNode &lhs, const SourceNode &rhs) const;
+    bool operator()(Node *lhs, const SourceNode &rhs) const;
+    bool operator()(const SourceNode &lhs, Node *rhs) const;
 };
 
 struct SourceNode : public ObjectFile

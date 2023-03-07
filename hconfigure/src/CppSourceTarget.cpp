@@ -763,6 +763,10 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
         {
             round3.addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
         }
+        for (CppSourceTarget *cppSourceTarget : usageRequirementDeps)
+        {
+            round3.addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
+        }
 
         getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
     }

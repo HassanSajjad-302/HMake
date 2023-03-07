@@ -63,6 +63,10 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
         {
             round3.addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget));
         }
+        for (LinkOrArchiveTarget *linkOrArchiveTarget : usageRequirementDeps)
+        {
+            round3.addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget));
+        }
         getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
     }
 }
@@ -890,7 +894,7 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned i
             }
             for (ObjectFile *objectFile : objectFiles)
             {
-                if(!exists(path(objectFile->getObjectFileOutputFilePath())))
+                if (!exists(path(objectFile->getObjectFileOutputFilePath())))
                 {
                     realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                     return;
