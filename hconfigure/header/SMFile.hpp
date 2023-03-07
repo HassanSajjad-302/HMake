@@ -13,18 +13,28 @@
 using Json = nlohmann::ordered_json;
 using std::string, std::map, std::set, std::vector, std::filesystem::path, std::pair;
 
+class Node;
+struct CompareNode
+{
+    using is_transparent = void; // for example with void,
+                                 // but could be int or struct CanSearchOnId;
+    bool operator()(Node const &lhs, Node const &rhs) const;
+    bool operator()(const string &lhs, Node const &rhs) const;
+    bool operator()(Node const &lhs, const string &rhs) const;
+};
+
 class Node
 {
     std::filesystem::file_time_type lastUpdateTime;
 
   public:
-    Node(const path &filePath_, bool isFile);
+    Node(const path &filePath_, bool isFile, bool mayNotExist = false);
     // This keeps info if a file is touched. If it's touched, it's not touched again.
-    inline static set<Node> allFiles;
+    inline static set<Node, CompareNode> allFiles;
     string filePath;
     std::filesystem::file_time_type getLastUpdateTime() const;
     // Create a node and inserts it into the allFiles if it is not already there
-    static const Node *getNodeFromString(const string &str, bool isFile);
+    static const Node *getNodeFromString(const string &str, bool isFile, bool mayNotExist = false);
 
   private:
     // Because checking for lastUpdateTime is expensive, it is done only once even if file is used in multiple targets.

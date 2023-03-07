@@ -4,10 +4,11 @@ int main(int argc, char **argv)
 {
     setBoolsAndSetRunDir(argc, argv);
     vector<Configuration> confs;
-    for (unsigned short i = 0; i < 5; ++i)
+    confs.reserve(1000);
+    for (unsigned short i = 0; i < 1000; ++i)
     {
         confs.emplace_back(std::to_string(i));
-        confs[i].ASSIGN(TreatModuleAsSource::NO);
+        confs[i].ASSIGN(TreatModuleAsSource::YES);
         auto fun = [](Configuration &configuration) {
             DSC<CppSourceTarget> &lib = configuration.GetCppStaticDSC("lib");
             lib.getSourceTarget().MODULE_FILES("lib/lib.cpp").PUBLIC_HU_INCLUDES("lib/");

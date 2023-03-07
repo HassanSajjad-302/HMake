@@ -42,17 +42,36 @@ string getStatusString(const path &p)
     }
 }
 
-Node::Node(const path &filePath_, bool isFile)
+bool CompareNode::operator()(Node const &lhs, Node const &rhs) const
 {
-    if (directory_entry(filePath_).status().type() == (isFile ? file_type::regular : file_type::directory))
+    return lhs.filePath < rhs.filePath;
+}
+
+bool CompareNode::operator()(const string &lhs, Node const &rhs) const
+{
+    return lhs < rhs.filePath;
+}
+
+bool CompareNode::operator()(Node const &lhs, const string &rhs) const
+{
+    return lhs.filePath < rhs;
+}
+
+Node::Node(const path &filePath_, bool isFile, bool mayNotExist)
+{
+    std::filesystem::file_type nodeType = directory_entry(filePath_).status().type();
+    if (nodeType == (isFile ? file_type::regular : file_type::directory))
     {
         filePath = filePath_.generic_string();
     }
     else
     {
-        print(stderr, "{} is not a {} file. File Type is {}\n", filePath_.generic_string(),
-              isFile ? "regular" : "directory", getStatusString(filePath_));
-        exit(EXIT_FAILURE);
+        if (!mayNotExist || nodeType != file_type::not_found)
+        {
+            print(stderr, "{} is not a {} file. File Type is {}\n", filePath_.generic_string(),
+                  isFile ? "regular" : "directory", getStatusString(filePath_));
+            exit(EXIT_FAILURE);
+        }
     }
 }
 
@@ -67,7 +86,7 @@ std::filesystem::file_time_type Node::getLastUpdateTime() const
 }
 
 static std::mutex nodeInsertMutex;
-const Node *Node::getNodeFromString(const string &str, bool isFile)
+const Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
 {
     path filePath{str};
     if (filePath.is_relative())
@@ -78,8 +97,12 @@ const Node *Node::getNodeFromString(const string &str, bool isFile)
 
     // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
     // performed only once.
+    if (auto it = allFiles.find(filePath); it != allFiles.end())
+    {
+        return it.operator->();
+    }
     std::lock_guard<std::mutex> lk(nodeInsertMutex);
-    return allFiles.emplace(filePath, isFile).first.operator->();
+    return allFiles.emplace(filePath, isFile, mayNotExist).first.operator->();
 }
 
 bool operator<(const Node &lhs, const Node &rhs)

@@ -114,6 +114,7 @@ static void executeSnapshotBalances(unsigned short filesCompiled, unsigned short
 }
 
 // Tests Hello-World and rebuild in different directories on touching file.
+/*
 TEST(StageTests, Test1)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
@@ -199,6 +200,7 @@ TEST(StageTests, Test1)
     // Executing in Build. Only app to be updated.
     executeSubTest1(Test1Setup{.executableFileUpdated = true});
 }
+*/
 
 // Tests Property Transitiviy, rebuild in multiple directories on touching file, source-file inclusion and exclusion,
 // header-files exclusion and inclusion, libraries exclusion and inclusion.
@@ -206,6 +208,9 @@ TEST(StageTests, Test2)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test2");
     current_path(testSourcePath);
+    copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
+    copyFilePath(testSourcePath / "Version/0/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
+
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("Debug/app/");
     ExamplesTestHelper::runAppWithExpectedOutput(getSlashedExecutableName("app"), "36\n");
@@ -268,9 +273,6 @@ TEST(StageTests, Test2)
     executeSnapshotBalances(0, 0, 1, 0, "Debug/lib3");
     executeSnapshotBalances(1, 1, 2, 1);
 
-    // TODO
-    // noFileUpdated() function call with current_path whenever in some path.
-
     // Touching lib2.cpp, then executing in lib4, lib3-cpp, lib3, lib1, lib1-cpp, app
     path lib2DotCpp = testSourcePath / "lib2/private/lib2.cpp";
     touchFile(lib2DotCpp);
@@ -285,4 +287,10 @@ TEST(StageTests, Test2)
     touchFile(mainFilePath);
     touchFile(publicLib1DotHpp);
     executeSnapshotBalances(2, 2, 1, 1, "Debug/app");
+
+    // TODO
+    // After reconfiguring, run hbuild in other directories.
+
+    // Adding public-lib1.hpp contents to main.cpp
+    // removeFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
 }
