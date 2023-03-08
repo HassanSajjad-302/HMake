@@ -82,6 +82,8 @@ class CppSourceTarget : public CommonFeatures,
     set<SourceNode, CompareSourceNode> sourceFileDependencies;
     // Comparator used is same as for SourceNode
     set<SMFile, CompareSourceNode> moduleSourceFileDependencies;
+    // Set to true if a source or module-file from this target is compiled/attempted.
+    bool fileFromThisTargetCompiled = false;
     SourceNode &addNodeInSourceFileDependencies(Node *node);
     SMFile &addNodeInModuleSourceFileDependencies(Node *node);
     SMFile &addNodeInHeaderUnits(Node *node);

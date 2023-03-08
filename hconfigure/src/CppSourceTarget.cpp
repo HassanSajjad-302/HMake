@@ -169,7 +169,7 @@ void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrAr
 
 void CppSourceTarget::updateBTarget(unsigned short round, Builder &)
 {
-    if (!round && selectiveBuild)
+    if (!round && fileFromThisTargetCompiled)
     {
         pruneAndSaveBuildCache();
     }
@@ -1333,6 +1333,7 @@ string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourc
 
 PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
 {
+    fileFromThisTargetCompiled = true;
     string finalCompileCommand = compileCommand;
 
     for (const SMFile *smFileLocal : smFile.allSMFileDependenciesRoundZero)
@@ -1381,6 +1382,7 @@ string CppSourceTarget::getExtension()
 
 PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 {
+    fileFromThisTargetCompiled = true;
     string compileFileName = path(sourceNode.node->filePath).filename().string();
 
     string finalCompileCommand = getCompileCommand() + " ";
