@@ -734,10 +734,13 @@ void CppSourceTarget::initializeForBuild()
             moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
         }
     }
-    if (!moduleScopeData && !moduleScope->moduleScopeData)
+    if (!moduleScopeData)
     {
-        moduleScope->moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
-        moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
+        if (!moduleScope->moduleScopeData)
+        {
+            moduleScope->moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
+        }
+        moduleScopeData = moduleScope->moduleScopeData;
     }
     // Parsing finished
     buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
