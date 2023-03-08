@@ -63,6 +63,8 @@ class Snapshot
     bool snapshotBalancesTest1(bool sourceFileUpdated, bool executableUpdated);
     bool snapshotBalances(unsigned short filesCompiled, unsigned short cppTargets, unsigned short linkTargetsNoDebug,
                           unsigned short linkTargetsDebug);
+    bool snapshotErroneousBalances(unsigned short errorFiles, unsigned short filesCompiled, unsigned short cppTargets,
+                                   unsigned short linkTargetsNoDebug, unsigned short linkTargetsDebug);
     bool snapshotBalancesTest2(Test2Setup touched);
 };
 
