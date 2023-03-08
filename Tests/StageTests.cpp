@@ -103,7 +103,6 @@ static void executeSnapshotBalances(unsigned short filesCompiled, unsigned short
 }
 
 // Tests Hello-World and rebuild in different directories on touching file.
-/*
 TEST(StageTests, Test1)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
@@ -189,7 +188,6 @@ TEST(StageTests, Test1)
     // Executing in Build. Only app to be updated.
     executeSubTest1(Test1Setup{.executableFileUpdated = true});
 }
-*/
 
 static void executeSubTest2(Test2Setup setup)
 {
@@ -211,13 +209,21 @@ static void executeSubTest2(Test2Setup setup)
 static void setupTest2Default()
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test2");
+    copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
     copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/0/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
     copyFilePath(testSourcePath / "Version/0/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
+    copyFilePath(testSourcePath / "Version/0/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
+
     path extraIncludeFilePath = testSourcePath / "lib1/public/extra-include.hpp";
     if (exists(extraIncludeFilePath))
     {
         removeFilePath(extraIncludeFilePath);
+    }
+    path tempLib4Path = testSourcePath / "lib4/private/temp.cpp";
+    if (exists(tempLib4Path))
+    {
+        removeFilePath(tempLib4Path);
     }
 }
 
@@ -324,10 +330,31 @@ TEST(StageTests, Test2)
     executeSnapshotBalances(1, 1, 1, 1);
 
     // Resorting to the default-version for the project
+    setupTest2Default();
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
 
     // Removing all libraries, making main simple and reconfiguring the project.
+    copyFilePath(testSourcePath / "Version/3/main.cpp", testSourcePath / "main.cpp");
+    copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+
+    executeSnapshotBalances(0, 0, 0, 0, "Debug/lib2-cpp");
+    executeSnapshotBalances(1, 1, 0, 0, "Debug/app-cpp");
+    executeSnapshotBalances(0, 0, 0, 1, "Debug/app");
 
     // Resorting to the old-main and reconfiguring the project.
+    copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
+    copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
 
-    // setupTest2Default();
+    executeSnapshotBalances(0, 0, 0, 0, "Debug/lib2-cpp");
+    executeSnapshotBalances(0, 0, 0, 0, "Debug/lib4");
+    executeSnapshotBalances(1, 1, 0, 1);
+
+    // Moving lib4.cpp code to temp.cpp in lib4/
+    removeFilePath(testSourcePath / "lib4/private/lib4.cpp");
+    copyFilePath(testSourcePath / "Version/4/temp.cpp", testSourcePath / "lib4/private/temp.cpp");
+    executeSnapshotBalances(0, 0, 0, 0, "Debug/lib2-cpp");
+    executeSnapshotBalances(1, 1, 1, 0, "Debug/lib4");
+    executeSnapshotBalances(0, 0, 0, 1);
 }

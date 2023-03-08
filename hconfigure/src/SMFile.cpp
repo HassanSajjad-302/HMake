@@ -520,7 +520,7 @@ void SMFile::duringSort(Builder &, unsigned short round, unsigned int)
         if (auto *smFile = dynamic_cast<SMFile *>(dependency); smFile)
         {
             allSMFileDependenciesRoundZero.emplace(smFile);
-            for (BTarget *dep : smFile->getRealBTarget(0).dependencies)
+            for (BTarget *dep : smFile->allSMFileDependenciesRoundZero)
             {
                 if (auto *smFile1 = dynamic_cast<SMFile *>(dep); smFile1)
                 {
