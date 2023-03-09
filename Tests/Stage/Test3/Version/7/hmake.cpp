@@ -7,7 +7,7 @@ int main(int argc, char **argv)
 
     CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
 
-    debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::DEBUG);
+    debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE);
 
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 

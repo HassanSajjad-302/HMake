@@ -3,31 +3,31 @@
 int main(int argc, char **argv)
 {
     setBoolsAndSetRunDir(argc, argv);
-    Configuration pass{"Pass"};
-    Configuration fail{"Fail"};
-    Configuration headerUnitPass{"HeaderUnitPass"};
-    Configuration headerUnitFail{"HeaderUnitFail"};
-    CxxSTD cxxStd = pass.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
+    Configuration debug{"Debug"};
 
-    pass.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::DEBUG);
-    fail.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::DEBUG, Define("FAIL_THE_BUILD"));
-    headerUnitPass.ASSIGN(cxxStd, ConfigType::DEBUG, Define("USE_HEADER_UNIT"));
-    headerUnitFail.ASSIGN(cxxStd, ConfigType::DEBUG, Define("FAIL_THE_BUILD"), Define("USE_HEADER_UNIT"));
+    CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
+
+    debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::DEBUG);
+
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 
     auto configureFunc = [](Configuration &configuration) {
-        CppSourceTarget &lib =
-            configuration.GetLibCpp("lib")
-                .MODULE_FILES("lib/func1.cpp" /*, "lib/func2.cpp", "lib/func3.cpp", "lib/func4.cpp"*/)
-                .PUBLIC_HU_INCLUDES("lib/");
-        /*configuration.GetLibCpp("lib").MODULE_DIRECTORIES("lib/", ".*cpp").PUBLIC_HU_INCLUDES("lib/");*/
-        CppSourceTarget &app = configuration.GetExeCpp("app").MODULE_FILES("main.cpp").PRIVATE_LIBRARIES(&lib);
-        configuration.setModuleScope(&app);
+        DSC<CppSourceTarget> &lib4 = configuration.GetCppStaticDSC("lib4");
+        lib4.getSourceTarget().SOURCE_DIRECTORIES("lib4/private/", ".*cpp").PUBLIC_INCLUDES("lib4/public/");
+
+        DSC<CppSourceTarget> &lib3 = configuration.GetCppStaticDSC("lib3").PUBLIC_LIBRARIES(&lib4);
+        lib3.getSourceTarget().SOURCE_DIRECTORIES("lib3/private/", ".*cpp").PUBLIC_INCLUDES("lib3/public/");
+
+        DSC<CppSourceTarget> &lib2 = configuration.GetCppStaticDSC("lib2").PRIVATE_LIBRARIES(&lib3);
+        lib2.getSourceTarget().SOURCE_DIRECTORIES("lib2/private/", ".*cpp").PUBLIC_INCLUDES("lib2/public/");
+
+        DSC<CppSourceTarget> &lib1 = configuration.GetCppStaticDSC("lib1").PUBLIC_LIBRARIES(&lib2);
+        lib1.getSourceTarget().SOURCE_DIRECTORIES("lib1/private/", ".*cpp").PUBLIC_INCLUDES("lib1/public/");
+
+        DSC<CppSourceTarget> &app = configuration.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1);
+        app.getSourceTarget().SOURCE_FILES("main.cpp");
     };
 
-    // configureFunc(pass);
-    // configureFunc(fail);
-    configureFunc(headerUnitPass);
-    // configureFunc(headerUnitFail);
+    configureFunc(debug);
     configureOrBuild();
 }

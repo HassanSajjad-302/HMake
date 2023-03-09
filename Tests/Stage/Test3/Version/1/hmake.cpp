@@ -7,7 +7,7 @@ int main(int argc, char **argv)
 
     CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
 
-    debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::DEBUG);
+    debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, ConfigType::RELEASE);
 
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 
@@ -16,7 +16,7 @@ int main(int argc, char **argv)
         lib4.getSourceTarget().SOURCE_DIRECTORIES("lib4/private/", ".*cpp").PUBLIC_INCLUDES("lib4/public/");
 
         DSC<CppSourceTarget> &lib3 = configuration.GetCppStaticDSC("lib3").PUBLIC_LIBRARIES(&lib4);
-        lib3.getSourceTarget().SOURCE_DIRECTORIES("lib3/private/", ".*cpp").PUBLIC_INCLUDES("lib3/public/");
+        lib3.getSourceTarget().MODULE_DIRECTORIES("lib3/private/", ".*cpp").PUBLIC_HU_INCLUDES("lib3/public/");
 
         DSC<CppSourceTarget> &lib2 = configuration.GetCppStaticDSC("lib2").PRIVATE_LIBRARIES(&lib3);
         lib2.getSourceTarget().SOURCE_DIRECTORIES("lib2/private/", ".*cpp").PUBLIC_INCLUDES("lib2/public/");
