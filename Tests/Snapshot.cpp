@@ -262,5 +262,5 @@ bool Snapshot::snapshotBalancesTest2(Test2Setup touched)
         ++filesCompiled;
     }
 
-    return snapshotBalances(filesCompiled, cppTargets, linkTargets, linkTargetsDebug);
+    return snapshotBalances(0, filesCompiled, cppTargets, linkTargets, linkTargetsDebug);
 }

@@ -1302,11 +1302,12 @@ string CppSourceTarget::getInfrastructureFlags(bool showIncludes)
     if (compiler.bTFamily == BTFamily::MSVC)
     {
         string str = GET_FLAG_EVALUATE(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-P");
-        str += " -nologo ";
+        str += " /nologo ";
         if (showIncludes)
         {
             str += "/showIncludes ";
         }
+        return str;
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
@@ -1360,7 +1361,7 @@ string CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &smF
         if (compiler.bTFamily == BTFamily::MSVC)
         {
             string translateIncludeFlag = GET_FLAG_EVALUATE(TranslateInclude::YES, "/translateInclude ");
-            command += translateIncludeFlag + " -nologo /showIncludes /scanDependencies ";
+            command += translateIncludeFlag + " /nologo /showIncludes /scanDependencies ";
         }
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
@@ -1456,7 +1457,7 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
     {
         string translateIncludeFlag = GET_FLAG_EVALUATE(TranslateInclude::YES, "/translateInclude ");
         finalCompileCommand +=
-            translateIncludeFlag + " -nologo /showIncludes /scanDependencies " +
+            translateIncludeFlag + " /nologo /showIncludes /scanDependencies " +
             addQuotes(buildCacheFilesDirPath + path(smFile.node->filePath).filename().string() + ".smrules") + " ";
     }
     else
