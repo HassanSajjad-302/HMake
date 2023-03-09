@@ -161,7 +161,10 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
 
     if (settings.ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput)
     {
-        outputLines.erase(outputLines.begin());
+        if (!outputLines.empty())
+        {
+            outputLines.erase(outputLines.begin());
+        }
     }
 
     string treatedOutput; // Output With All information of include files removed.

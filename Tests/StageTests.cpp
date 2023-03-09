@@ -480,7 +480,7 @@ TEST(StageTests, Test3)
     copyFilePath(testSourcePath / "Version/1/lib3.cpp", testSourcePath / "lib3/private/lib3.cpp");
     removeFilePath(testSourcePath / "Build/Debug/lib3-cpp/Cache_Build_Files/lib3.cpp.o");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(2, 0, 0, 0, 0, "Debug/lib4-cpp");
+    executeSnapshotBalances(2, 0, 1, 0, 0, "Debug/lib4-cpp");
     executeSnapshotBalances(0, 2, 1, 0, 0, "Debug/lib3-cpp");
 
     /*    // Touching main.cpp
