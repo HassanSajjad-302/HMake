@@ -61,10 +61,11 @@ class Snapshot
     void before(const path &directoryPath);
     void after(const path &directoryPath);
     bool snapshotBalancesTest1(bool sourceFileUpdated, bool executableUpdated);
-    bool snapshotBalances(unsigned short filesCompiled, unsigned short cppTargets, unsigned short linkTargetsNoDebug,
-                          unsigned short linkTargetsDebug);
-    bool snapshotErroneousBalances(unsigned short errorFiles, unsigned short filesCompiled, unsigned short cppTargets,
-                                   unsigned short linkTargetsNoDebug, unsigned short linkTargetsDebug);
+    bool snapshotBalances(unsigned short smruleFiles, unsigned short filesCompiled, unsigned short cppTargets,
+                          unsigned short linkTargetsNoDebug, unsigned short linkTargetsDebug);
+    bool snapshotErroneousBalances(unsigned short errorFiles, unsigned short smruleFiles, unsigned short filesCompiled,
+                                   unsigned short cppTargets, unsigned short linkTargetsNoDebug,
+                                   unsigned short linkTargetsDebug);
     bool snapshotBalancesTest2(Test2Setup touched);
 };
 

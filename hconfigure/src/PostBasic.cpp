@@ -132,9 +132,9 @@ bool PostCompile::checkIfFileIsInEnvironmentIncludes(const string &str)
     return false;
 }
 
-void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode)
+void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &output)
 {
-    vector<string> outputLines = split(commandSuccessOutput, "\n");
+    vector<string> outputLines = split(output, "\n");
     string includeFileNote = "Note: including file:";
 
     for (auto iter = outputLines.begin(); iter != outputLines.end();)
@@ -173,7 +173,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode)
     {
         treatedOutput.pop_back();
     }
-    commandSuccessOutput = std::move(treatedOutput);
+    output = std::move(treatedOutput);
 }
 
 void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
@@ -196,17 +196,20 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
     }
 }
 
-void PostCompile::executePostCompileRoutineWithoutMutex(SourceNode &sourceNode)
+void PostCompile::parseHeaderDeps(SourceNode &sourceNode)
 {
     // Clearing old header-deps and adding the new ones.
     sourceNode.headerDependencies.clear();
-    if (exitStatus == EXIT_SUCCESS)
+    if (target.compiler.bTFamily == BTFamily::MSVC)
     {
-        if (target.compiler.bTFamily == BTFamily::MSVC)
-        {
-            parseDepsFromMSVCTextOutput(sourceNode);
-        }
-        else if (target.compiler.bTFamily == BTFamily::GCC && exitStatus == EXIT_SUCCESS)
+        parseDepsFromMSVCTextOutput(sourceNode, commandSuccessOutput);
+        // In case of GenerateSMRules header-file info is printed to stderr instead of stout. Just one more wrinkle.
+        // Hahaha
+        parseDepsFromMSVCTextOutput(sourceNode, commandErrorOutput);
+    }
+    else
+    {
+        if (exitStatus == EXIT_SUCCESS)
         {
             parseDepsFromGCCDepsOutput(sourceNode);
         }

@@ -155,7 +155,7 @@ void SourceNode::updateBTarget(unsigned short round, Builder &)
         if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
         {
             PostCompile postCompile = target->updateSourceNodeBTarget(*this);
-            postCompile.executePostCompileRoutineWithoutMutex(*this);
+            postCompile.parseHeaderDeps(*this);
             realBTarget.exitStatus = postCompile.exitStatus;
             realBTarget.fileStatus = FileStatus::UPDATED;
 
@@ -231,10 +231,25 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
     {
         if (generateSMFileInRoundOne)
         {
-            PostBasic postBasic = target->GenerateSMRulesFile(*this, true);
-            std::lock_guard<std::mutex> lk(printMutex);
-            postBasic.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
-            fflush(stdout);
+            // TODO
+            //  Expose setting for printOnlyOnError
+            PostCompile postCompile = target->GenerateSMRulesFile(*this, true);
+            {
+                std::lock_guard<std::mutex> lk(printMutex);
+                postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
+                fflush(stdout);
+            }
+            if (postCompile.exitStatus == EXIT_SUCCESS)
+            {
+                postCompile.parseHeaderDeps(*this);
+            }
+            else
+            {
+                // In-case of error in .o file generation, build system continues, so other .o files could be compiled
+                // and those aren't recompiled in next-run. But side effects of allowing build-system to continue from
+                // here are too complex to evaluate, so exiting.
+                exit(EXIT_FAILURE);
+            }
         }
         {
             // Maybe fine-grain this mutex by using multiple mutexes in following functions. And first use set::contain
@@ -255,7 +270,7 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
         {
             PostCompile postCompile = target->CompileSMFile(*this);
             realBTarget.exitStatus = postCompile.exitStatus;
-            postCompile.executePostCompileRoutineWithoutMutex(*this);
+            postCompile.parseHeaderDeps(*this);
 
             std::lock_guard<std::mutex> lk(printMutex);
             postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
@@ -709,7 +724,7 @@ string SMFile::getModuleCompileCommandPrintLastHalf()
         }
     }
 
-    moduleCompileCommandPrintLastHalf += ccpSettings.infrastructureFlags ? target->getInfrastructureFlags() : "";
+    moduleCompileCommandPrintLastHalf += ccpSettings.infrastructureFlags ? target->getInfrastructureFlags(false) : "";
     moduleCompileCommandPrintLastHalf += getReducedPath(node->filePath, ccpSettings.sourceFile) + " ";
     moduleCompileCommandPrintLastHalf +=
         getFlagPrint(target->buildCacheFilesDirPath + path(node->filePath).filename().string());

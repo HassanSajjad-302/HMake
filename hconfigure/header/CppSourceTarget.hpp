@@ -102,14 +102,15 @@ class CppSourceTarget : public CommonFeatures,
     void resolveRequirePaths();
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);
-    string getInfrastructureFlags();
+    string getInfrastructureFlags(bool showIncludes);
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode);
+    string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile);
     PostCompile CompileSMFile(SMFile &smFile);
     string getSHUSPath() const;
     string getExtension();
     PostCompile updateSourceNodeBTarget(SourceNode &sourceNode);
 
-    PostBasic GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
+    PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void pruneAndSaveBuildCache();
 
     set<const Node *> usageRequirementIncludes;

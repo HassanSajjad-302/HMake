@@ -76,7 +76,7 @@ bool Snapshot::snapshotBalancesTest1(bool sourceFileUpdated, bool executableUpda
     return difference.size() == sum;
 }
 
-bool Snapshot::snapshotBalances(unsigned short filesCompiled, unsigned short cppTargets,
+bool Snapshot::snapshotBalances(unsigned short smruleFiles, unsigned short filesCompiled, unsigned short cppTargets,
                                 unsigned short linkTargetsNoDebug, unsigned short linkTargetsDebug)
 {
     set<const Node *> difference;
@@ -91,6 +91,8 @@ bool Snapshot::snapshotBalances(unsigned short filesCompiled, unsigned short cpp
     unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 7 : 4; // No response file on Linux
     unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 5 : 4;
 
+    // Output, Error, .smrules, Respone File on Windows / Deps Output File on Linux
+    sum += 4 * smruleFiles;
     // Output, Error, .o, Respone File on Windows / Deps Output File on Linux
     sum += 4 * filesCompiled;
 
@@ -104,9 +106,9 @@ bool Snapshot::snapshotBalances(unsigned short filesCompiled, unsigned short cpp
     return difference.size() == sum;
 }
 
-bool Snapshot::snapshotErroneousBalances(unsigned short errorFiles, unsigned short filesCompiled,
-                                         unsigned short cppTargets, unsigned short linkTargetsNoDebug,
-                                         unsigned short linkTargetsDebug)
+bool Snapshot::snapshotErroneousBalances(unsigned short errorFiles, unsigned short smruleFiles,
+                                         unsigned short filesCompiled, unsigned short cppTargets,
+                                         unsigned short linkTargetsNoDebug, unsigned short linkTargetsDebug)
 {
     set<const Node *> difference;
     for (const Node &node : afterData)
@@ -122,6 +124,9 @@ bool Snapshot::snapshotErroneousBalances(unsigned short errorFiles, unsigned sho
 
     // Output, Error, Respone File on Windows / Deps Output File on Linux
     sum += 3 * errorFiles;
+
+    // Output, Error, .smrules, Respone File on Windows / Deps Output File on Linux
+    sum += 4 * smruleFiles;
 
     // Output, Error, .o, Respone File on Windows / Deps Output File on Linux
     sum += 4 * filesCompiled;

@@ -169,9 +169,12 @@ void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrAr
 
 void CppSourceTarget::updateBTarget(unsigned short round, Builder &)
 {
-    if (!round && fileFromThisTargetCompiled)
+    if (!round || round == 1)
     {
-        pruneAndSaveBuildCache();
+        if (fileFromThisTargetCompiled)
+        {
+            pruneAndSaveBuildCache();
+        }
     }
     else if (round == 3)
     {
@@ -1267,6 +1270,9 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
                 if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
                 {
                     smFile.generateSMFileInRoundOne = true;
+                    // To Ensure that the latest heder-file deps info generated is stored in .cache because .o may not
+                    // be generated because of selectiveBuild
+                    getRealBTarget(1).addDependency(smFile);
                 }
                 else
                 {
@@ -1291,11 +1297,16 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
     }
 }
 
-string CppSourceTarget::getInfrastructureFlags()
+string CppSourceTarget::getInfrastructureFlags(bool showIncludes)
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        return GET_FLAG_EVALUATE(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-P") + " /showIncludes ";
+        string str = GET_FLAG_EVALUATE(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-P");
+        str += " -nologo ";
+        if (showIncludes)
+        {
+            str += "/showIncludes ";
+        }
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
@@ -1315,7 +1326,7 @@ string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourc
     string command;
     if (ccpSettings.infrastructureFlags)
     {
-        command += getInfrastructureFlags() + " ";
+        command += getInfrastructureFlags(true) + " ";
     }
     if (ccpSettings.sourceFile.printLevel != PathPrintLevel::NO)
     {
@@ -1334,19 +1345,45 @@ string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourc
     return command;
 }
 
+string CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &smFile)
+{
+    const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
+
+    string command;
+
+    if (ccpSettings.sourceFile.printLevel != PathPrintLevel::NO)
+    {
+        command += getReducedPath(smFile.node->filePath, ccpSettings.sourceFile) + " ";
+    }
+    if (ccpSettings.infrastructureFlags)
+    {
+        if (compiler.bTFamily == BTFamily::MSVC)
+        {
+            string translateIncludeFlag = GET_FLAG_EVALUATE(TranslateInclude::YES, "/translateInclude ");
+            command += translateIncludeFlag + " -nologo /showIncludes /scanDependencies ";
+        }
+    }
+    if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
+    {
+        string outputFilePath = smFile.standardHeaderUnit ? moduleScope->getSHUSPath() : buildCacheFilesDirPath;
+        command += getReducedPath(outputFilePath + path(smFile.node->filePath).filename().string() + ".smrules",
+                                  ccpSettings.objectFile) +
+                   " ";
+    }
+
+    return command;
+}
+
 PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
 {
-    fileFromThisTargetCompiled = true;
     string finalCompileCommand = compileCommand;
 
     for (const SMFile *smFileLocal : smFile.allSMFileDependenciesRoundZero)
     {
         finalCompileCommand += smFileLocal->getRequireFlag(smFile) + " ";
     }
-    finalCompileCommand += getInfrastructureFlags() + addQuotes(smFile.node->filePath) + " ";
+    finalCompileCommand += getInfrastructureFlags(false) + addQuotes(smFile.node->filePath) + " ";
 
-    // TODO:
-    //  getFlag and getRequireFlags create confusion. Instead of getRequireFlags, only getFlag should be used.
     if (smFile.type == SM_FILE_TYPE::HEADER_UNIT)
     {
         if (smFile.standardHeaderUnit)
@@ -1390,7 +1427,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 
     string finalCompileCommand = getCompileCommand() + " ";
 
-    finalCompileCommand += getInfrastructureFlags() + " " + addQuotes(sourceNode.node->filePath) + " ";
+    finalCompileCommand += getInfrastructureFlags(true) + " " + addQuotes(sourceNode.node->filePath) + " ";
     if (compiler.bTFamily == BTFamily::MSVC)
     {
         finalCompileCommand += (EVALUATE(TargetType::LIBRARY_OBJECT) ? "/Fo" : "/Fi") +
@@ -1410,15 +1447,16 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
                        settings.ccpSettings.outputAndErrorFiles};
 }
 
-PostBasic CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError)
+PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError)
 {
+    fileFromThisTargetCompiled = true;
     string finalCompileCommand = getCompileCommand() + addQuotes(smFile.node->filePath) + " ";
 
     if (compiler.bTFamily == BTFamily::MSVC)
     {
         string translateIncludeFlag = GET_FLAG_EVALUATE(TranslateInclude::YES, "/translateInclude ");
         finalCompileCommand +=
-            translateIncludeFlag + " /scanDependencies " +
+            translateIncludeFlag + " -nologo /showIncludes /scanDependencies " +
             addQuotes(buildCacheFilesDirPath + path(smFile.node->filePath).filename().string() + ".smrules") + " ";
     }
     else
@@ -1428,15 +1466,15 @@ PostBasic CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printO
         exit(EXIT_FAILURE);
     }
 
-    string outputFilePath = smFile.standardHeaderUnit ? moduleScope->buildCacheFilesDirPath : buildCacheFilesDirPath;
+    string outputFilePath = smFile.standardHeaderUnit ? moduleScope->getSHUSPath() : buildCacheFilesDirPath;
     return printOnlyOnError
-               ? PostBasic(compiler, finalCompileCommand, "", outputFilePath,
-                           path(smFile.node->filePath).filename().string() + ".smrules",
-                           settings.ccpSettings.outputAndErrorFiles, true)
-               : PostBasic(compiler, finalCompileCommand,
-                           getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPart(smFile),
-                           outputFilePath, path(smFile.node->filePath).filename().string() + ".smrules",
-                           settings.ccpSettings.outputAndErrorFiles, true);
+               ? PostCompile(*this, compiler, finalCompileCommand, "", outputFilePath,
+                             path(smFile.node->filePath).filename().string() + ".smrules",
+                             settings.ccpSettings.outputAndErrorFiles)
+               : PostCompile(*this, compiler, finalCompileCommand,
+                             getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPart(smFile),
+                             outputFilePath, path(smFile.node->filePath).filename().string() + ".smrules",
+                             settings.ccpSettings.outputAndErrorFiles);
 }
 
 void CppSourceTarget::pruneAndSaveBuildCache()

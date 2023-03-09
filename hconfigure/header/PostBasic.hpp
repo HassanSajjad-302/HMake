@@ -34,12 +34,9 @@ struct PostCompile : PostBasic
                          const PathPrint &pathPrint);
 
     bool checkIfFileIsInEnvironmentIncludes(const string &str);
-
-    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode);
-
+    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, string &output);
     void parseDepsFromGCCDepsOutput(SourceNode &sourceNode);
-
-    void executePostCompileRoutineWithoutMutex(SourceNode &sourceNode);
+    void parseHeaderDeps(SourceNode &sourceNode);
 };
 
 #endif // HMAKE_POSTBASIC_HPP
