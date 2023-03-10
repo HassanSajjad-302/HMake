@@ -76,6 +76,38 @@ bool Snapshot::snapshotBalancesTest1(bool sourceFileUpdated, bool executableUpda
     return difference.size() == sum;
 }
 
+bool Snapshot::snapshotBalances(const Updates &updates)
+{
+    set<const Node *> difference;
+    for (const Node &node : afterData)
+    {
+        if (!beforeData.contains(node) || beforeData.find(node)->getLastUpdateTime() != node.getLastUpdateTime())
+        {
+            difference.emplace(&node);
+        }
+    }
+    unsigned short sum = 0;
+    unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 7 : 4; // No response file on Linux
+    unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 5 : 4;
+
+    // Output, Error, .smrules, Respone File on Windows / Deps Output File on Linux
+    sum += 4 * updates.smruleFiles;
+    // Output, Error, .o, Respone File on Windows / Deps Output File on Linux
+    sum += 4 * updates.sourceFiles;
+
+    sum += 3 * updates.errorFiles;
+    sum += 5 * updates.moduleFiles;
+
+    sum += updates.linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
+    sum += updates.linkTargetsDebug * debugLinkTargetsMultiplier;
+    sum += updates.cppTargets;
+    if (difference.size() != sum)
+    {
+        bool breakpoint = true;
+    }
+    return difference.size() == sum;
+}
+
 bool Snapshot::snapshotBalances(unsigned short smruleFiles, unsigned short filesCompiled, unsigned short cppTargets,
                                 unsigned short linkTargetsNoDebug, unsigned short linkTargetsDebug)
 {

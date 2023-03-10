@@ -76,7 +76,7 @@ void BTarget::duringSort(Builder &, unsigned short, unsigned int)
 {
 }
 
-void BTarget::noNextRound(Builder &, unsigned short)
+void BTarget::exitingAfterThisRound(Builder &builder, unsigned short)
 {
 }
 

@@ -1147,7 +1147,7 @@ void CppSourceTarget::resolveRequirePaths()
     for (const SMFile &smFileConst : moduleSourceFileDependencies)
     {
         auto &smFile = const_cast<SMFile &>(smFileConst);
-        for (const Json &requireJson : smFileConst.requiresJson)
+        for (const Json &requireJson : smFile.requiresJson)
         {
             string requireLogicalName = requireJson.at("logical-name").get<string>();
             if (requireLogicalName == smFile.logicalName)
@@ -1170,6 +1170,7 @@ void CppSourceTarget::resolveRequirePaths()
             else
             {
                 SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
+                smFile.getRealBTarget(0).addDependency(smFileDep);
             }
         }
     }

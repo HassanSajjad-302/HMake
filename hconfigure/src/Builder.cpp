@@ -31,11 +31,11 @@ Builder::Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarge
         populateFinalBTargets();
         launchThreadsAndUpdateBTargets();
 
-        if (noNextRound)
+        if (exitAfterThisRound)
         {
             for (BTarget *bTarget : preSortBTargets)
             {
-                bTarget->noNextRound(*this, round);
+                bTarget->exitingAfterThisRound(*this, round);
             }
         }
 

@@ -255,19 +255,15 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
             }
             if (realBTarget.exitStatus == EXIT_SUCCESS)
             {
+                smrulesFileUpdated = true;
                 postCompile.parseHeaderDeps(*this);
             }
             else
             {
                 // In-case of error in .o file generation, build system continues, so other .o files could be compiled
                 // and those aren't recompiled in next-run. But side effects of allowing build-system to continue from
-                // here are too complex to evaluate, so exiting.
-
-                // TODO
-                // Maybe have exitBeforeCompletion in Builder set to false and true it here. If true next round is not
-                // executed and a new function is called for all BTargets. CppSourceTarget in that function removes
-                // erroneous smrule files and saves the cache. so next run only
-                exit(EXIT_FAILURE);
+                // here are too complex to evaluate, so exiting after this round.
+                builder.exitAfterThisRound = true;
             }
         }
         {

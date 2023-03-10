@@ -51,6 +51,17 @@ struct Test1Setup
     bool executableFileUpdated = false;
 };
 
+struct Updates
+{
+    unsigned short errorFiles = 0;
+    unsigned short smruleFiles = 0;
+    unsigned short sourceFiles = 0;
+    unsigned short moduleFiles = 0;
+    unsigned short cppTargets = 0;
+    unsigned short linkTargetsNoDebug = 0;
+    unsigned short linkTargetsDebug = 0;
+};
+
 class Snapshot
 {
     set<Node> beforeData;
@@ -61,6 +72,7 @@ class Snapshot
     void before(const path &directoryPath);
     void after(const path &directoryPath);
     bool snapshotBalancesTest1(bool sourceFileUpdated, bool executableUpdated);
+    bool snapshotBalances(const Updates &updates);
     bool snapshotBalances(unsigned short smruleFiles, unsigned short filesCompiled, unsigned short cppTargets,
                           unsigned short linkTargetsNoDebug, unsigned short linkTargetsDebug);
     bool snapshotErroneousBalances(unsigned short errorFiles, unsigned short smruleFiles, unsigned short filesCompiled,

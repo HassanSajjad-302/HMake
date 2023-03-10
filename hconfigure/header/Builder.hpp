@@ -16,7 +16,7 @@ class Builder
 
   public:
     list<BTarget *> finalBTargets;
-    bool noNextRound = false;
+    bool exitAfterThisRound = false;
     explicit Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarget *> &preSortBTargets_);
     void populateFinalBTargets();
 
