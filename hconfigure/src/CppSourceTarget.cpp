@@ -1170,7 +1170,6 @@ void CppSourceTarget::resolveRequirePaths()
             else
             {
                 SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
-                smFile.getRealBTarget(0).addDependency(smFileDep);
             }
         }
     }
@@ -1239,9 +1238,6 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
                 if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
                 {
                     smFile.generateSMFileInRoundOne = true;
-                    // To Ensure that the latest heder-file deps info generated is stored in .cache because .o may not
-                    // be generated because of selectiveBuild
-                    getRealBTarget(0).fileStatus = FileStatus::NEEDS_UPDATE;
                 }
                 else
                 {
@@ -1257,6 +1253,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
                       (**pos).target->getTargetPointer());
                 exit(EXIT_FAILURE);
             }
+            getRealBTarget(0).addDependency(smFile);
             ++it;
         }
         else

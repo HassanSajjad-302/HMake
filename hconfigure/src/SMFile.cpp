@@ -278,6 +278,7 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
             assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
         }
         setSMFileStatusRoundZero();
+        target->getRealBTarget(0).addDependency(*this);
     }
     else if (!round && selectiveBuild)
     {
@@ -407,8 +408,6 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
         {
             headerUnit.generateSMFileInRoundOne = true;
-            // To save the updated .cache file
-            target->getRealBTarget(0).fileStatus = FileStatus::NEEDS_UPDATE;
         }
         getRealBTarget(0).addDependency(headerUnit);
         builder.addNewBTargetInFinalBTargets(&headerUnit);
