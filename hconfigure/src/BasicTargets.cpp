@@ -76,6 +76,10 @@ void BTarget::duringSort(Builder &, unsigned short, unsigned int)
 {
 }
 
+void BTarget::noNextRound(Builder &, unsigned short)
+{
+}
+
 bool operator<(const BTarget &lhs, const BTarget &rhs)
 {
     return lhs.id < rhs.id;

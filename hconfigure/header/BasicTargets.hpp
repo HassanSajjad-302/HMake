@@ -78,6 +78,7 @@ struct BTarget // BTarget
     virtual void updateBTarget(unsigned short round, class Builder &builder);
     virtual void preSort(Builder &builder, unsigned short round);
     virtual void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator);
+    virtual void noNextRound(Builder &builder, unsigned short round);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 

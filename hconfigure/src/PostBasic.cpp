@@ -51,6 +51,7 @@ PostBasic::PostBasic(const BuildTool &buildTool, const string &commandFirstHalf,
     if (exitStatus == EXIT_SUCCESS)
     {
         commandSuccessOutput = file_to_string(outputFileName);
+        commandErrorOutput = file_to_string(errorFileName);
     }
     else
     {

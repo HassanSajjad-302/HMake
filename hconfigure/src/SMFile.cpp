@@ -98,12 +98,15 @@ const Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotE
     }
     filePath = filePath.lexically_normal();
 
-    // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
-    // performed only once.
     if (auto it = allFiles.find(filePath.string()); it != allFiles.end())
     {
         return it.operator->();
     }
+
+    // TODO
+    // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
+    // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
+    // performed only once.
     std::lock_guard<std::mutex> lk(nodeInsertMutex);
     return allFiles.emplace(filePath, isFile, mayNotExist).first.operator->();
 }
@@ -234,12 +237,13 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
             // TODO
             //  Expose setting for printOnlyOnError
             PostCompile postCompile = target->GenerateSMRulesFile(*this, true);
+            realBTarget.exitStatus = postCompile.exitStatus;
             {
                 std::lock_guard<std::mutex> lk(printMutex);
                 postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
                 fflush(stdout);
             }
-            if (postCompile.exitStatus == EXIT_SUCCESS)
+            if (realBTarget.exitStatus == EXIT_SUCCESS)
             {
                 postCompile.parseHeaderDeps(*this);
             }
@@ -248,6 +252,11 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
                 // In-case of error in .o file generation, build system continues, so other .o files could be compiled
                 // and those aren't recompiled in next-run. But side effects of allowing build-system to continue from
                 // here are too complex to evaluate, so exiting.
+
+                // TODO
+                // Maybe have exitBeforeCompletion in Builder set to false and true it here. If true next round is not
+                // executed and a new function is called for all BTargets. CppSourceTarget in that function removes
+                // erroneous smrule files and saves the cache. so next run only
                 exit(EXIT_FAILURE);
             }
         }
@@ -257,10 +266,6 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
             std::lock_guard<std::mutex> lk(smFilesInternalMutex);
             saveRequiresJsonAndInitializeHeaderUnits(builder);
             assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
-            if (type != SM_FILE_TYPE::HEADER_UNIT)
-            {
-                target->getRealBTarget(0).addDependency(*this);
-            }
         }
         setSMFileStatusRoundZero();
     }
@@ -270,7 +275,6 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
         {
             PostCompile postCompile = target->CompileSMFile(*this);
             realBTarget.exitStatus = postCompile.exitStatus;
-            postCompile.parseHeaderDeps(*this);
 
             std::lock_guard<std::mutex> lk(printMutex);
             postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
@@ -396,6 +400,8 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
         {
             headerUnit.generateSMFileInRoundOne = true;
+            // To save the updated .cache file
+            target->getRealBTarget(0).fileStatus = FileStatus::NEEDS_UPDATE;
         }
         getRealBTarget(0).addDependency(headerUnit);
         builder.addNewBTargetInFinalBTargets(&headerUnit);

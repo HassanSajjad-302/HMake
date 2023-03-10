@@ -30,6 +30,15 @@ Builder::Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarge
         }
         populateFinalBTargets();
         launchThreadsAndUpdateBTargets();
+
+        if (noNextRound)
+        {
+            for (BTarget *bTarget : preSortBTargets)
+            {
+                bTarget->noNextRound(*this, round);
+            }
+        }
+
         if (round == roundEnd)
         {
             breakLoop = true;

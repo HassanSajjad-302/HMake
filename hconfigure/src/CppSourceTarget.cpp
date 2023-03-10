@@ -1090,6 +1090,9 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
 
         string str = sourceCacheJson.at(JConsts::compileCommand).get<string>();
         auto initializeSourceNodePointer = [](SourceNode &sourceNode, const Json &j, bool smFile) {
+            // TODO
+            //  Node::getNodeFromString() checks for the existence but this source-file may not be a source-file anymore
+            //  i.e. this check is not needed. So, instead header-files json should be stored.
             for (const Json &headerFile : j.at(JConsts::headerDependencies))
             {
                 Node *node = const_cast<Node *>(Node::getNodeFromString(headerFile, true, true));
@@ -1191,13 +1194,6 @@ void CppSourceTarget::resolveRequirePaths()
                 smFile.getRealBTarget(0).addDependency(smFileDep);
             }
         }
-
-        // TODO
-        /*        if (linkOrArchiveTarget)
-                {
-                    linkOrArchiveTarget->getRealBTarget(0).addDependency(smFile);
-                }*/
-        getRealBTarget(0).addDependency(smFile);
     }
 }
 
@@ -1272,7 +1268,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
                     smFile.generateSMFileInRoundOne = true;
                     // To Ensure that the latest heder-file deps info generated is stored in .cache because .o may not
                     // be generated because of selectiveBuild
-                    getRealBTarget(1).addDependency(smFile);
+                    getRealBTarget(0).fileStatus = FileStatus::NEEDS_UPDATE;
                 }
                 else
                 {
@@ -1483,6 +1479,12 @@ void CppSourceTarget::pruneAndSaveBuildCache()
     vector<const SourceNode *> sourceFilesLocal;
     vector<const SourceNode *> moduleFilesLocal;
     vector<const SourceNode *> applicationHeaderUnitsLocal;
+
+    // Suppose user changes compile-command and this causes error in compilation. If erroneous files aren't removed,
+    // they won't be recompiled next time because user didn't touch them or their dependencies, only impacted the
+    // compile-command. But erroneous module-files still would be updated because they don't have the latest .o file
+    // compared to .smrule file corresponding to the updated compile-command.
+
     for (const SourceNode &sourceNode : sourceFileDependencies)
     {
         if (const_cast<SourceNode &>(sourceNode).getRealBTarget(0).exitStatus == EXIT_SUCCESS)
@@ -1492,17 +1494,11 @@ void CppSourceTarget::pruneAndSaveBuildCache()
     }
     for (const SMFile &smFile : moduleSourceFileDependencies)
     {
-        if (const_cast<SMFile &>(smFile).getRealBTarget(0).exitStatus == EXIT_SUCCESS)
-        {
-            moduleFilesLocal.emplace_back(&smFile);
-        }
+        moduleFilesLocal.emplace_back(&smFile);
     }
     for (const SMFile *smFile : applicationHeaderUnits)
     {
-        if (const_cast<SMFile *>(smFile)->getRealBTarget(0).exitStatus == EXIT_SUCCESS)
-        {
-            applicationHeaderUnitsLocal.emplace_back(smFile);
-        }
+        applicationHeaderUnitsLocal.emplace_back(smFile);
     }
     Json buildCache;
     buildCache[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
