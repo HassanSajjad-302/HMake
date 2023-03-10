@@ -189,12 +189,22 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
     }
     else
     {
-        for (const Node *headerNode : headerDependencies)
+
+        for (const Json &str : headerFilesJson)
         {
-            if (headerNode->getLastUpdateTime() > objectFileLastEditTime)
+            Node *headerNode = const_cast<Node *>(Node::getNodeFromString(str, true, true));
+            if (node->doesNotExist)
             {
                 realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                 break;
+            }
+            else
+            {
+                if (headerNode->getLastUpdateTime() > objectFileLastEditTime)
+                {
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                    break;
+                }
             }
         }
     }
@@ -386,16 +396,13 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
             requireJson.at("lookup-method").get<string>() == "include-angle", requireLogicalName);
         ahuDirTarget->applicationHeaderUnits.emplace(&headerUnit);
         RealBTarget &realBTarget = headerUnit.getRealBTarget(1);
-        if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
+        if (!headerUnit.presentInCache)
         {
-            if (!headerUnit.presentInCache)
-            {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-            }
-            else
-            {
-                headerUnit.setSourceNodeFileStatus(".smrules", realBTarget);
-            }
+            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        }
+        else
+        {
+            headerUnit.setSourceNodeFileStatus(".smrules", realBTarget);
         }
         if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
         {

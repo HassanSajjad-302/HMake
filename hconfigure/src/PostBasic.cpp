@@ -203,7 +203,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
 void PostCompile::parseHeaderDeps(SourceNode &sourceNode)
 {
     // Clearing old header-deps and adding the new ones.
-    sourceNode.headerDependencies.clear();
+    assert(sourceNode.headerDependencies.empty());
     if (target.compiler.bTFamily == BTFamily::MSVC)
     {
         parseDepsFromMSVCTextOutput(sourceNode, commandSuccessOutput);

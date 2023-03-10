@@ -1089,59 +1089,38 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
         ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> sourceCacheJson;
 
         string str = sourceCacheJson.at(JConsts::compileCommand).get<string>();
-        auto initializeSourceNodePointer = [](SourceNode &sourceNode, const Json &j, bool smFile) {
-            // TODO
-            //  Node::getNodeFromString() checks for the existence but this source-file may not be a source-file anymore
-            //  i.e. this check is not needed. So, instead header-files json should be stored.
-            for (const Json &headerFile : j.at(JConsts::headerDependencies))
-            {
-                Node *node = const_cast<Node *>(Node::getNodeFromString(headerFile, true, true));
-                if (node->doesNotExist)
-                {
-                    if (smFile)
-                    {
-                        sourceNode.getRealBTarget(1).fileStatus = FileStatus::NEEDS_UPDATE;
-                    }
-                    else
-                    {
-                        sourceNode.getRealBTarget(0).fileStatus = FileStatus::NEEDS_UPDATE;
-                    }
-                }
-                else
-                {
-                    sourceNode.headerDependencies.emplace(node);
-                }
-            }
-            sourceNode.presentInCache = true;
-        };
-
         if (str == compiler.bTPath.generic_string() + " " + getCompileCommand())
         {
-            for (const Json &j : sourceCacheJson.at(JConsts::sourceDependencies))
+            for (Json &j : sourceCacheJson.at(JConsts::sourceDependencies))
             {
                 Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
                 if (!node->doesNotExist)
                 {
-                    initializeSourceNodePointer(addNodeInSourceFileDependencies(node), j, false);
+                    SourceNode &sourceNode = addNodeInSourceFileDependencies(node);
+                    sourceNode.presentInCache = true;
+                    sourceNode.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
                 }
             }
-            for (const Json &j : sourceCacheJson.at(JConsts::moduleDependencies))
+            for (Json &j : sourceCacheJson.at(JConsts::moduleDependencies))
             {
                 Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
                 if (!node->doesNotExist)
                 {
-                    initializeSourceNodePointer(addNodeInModuleSourceFileDependencies(node), j, true);
+                    SMFile &smFile = addNodeInModuleSourceFileDependencies(node);
+                    smFile.presentInCache = true;
+                    smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
                 }
             }
 
-            for (const Json &j : sourceCacheJson.at(JConsts::headerUnits))
+            for (Json &j : sourceCacheJson.at(JConsts::headerUnits))
             {
                 Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
                 if (!node->doesNotExist)
                 {
                     SMFile &smFile = addNodeInHeaderUnits(node);
                     smFile.standardHeaderUnit = false;
-                    initializeSourceNodePointer(smFile, j, true);
+                    smFile.presentInCache = true;
+                    smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
                 }
             }
         }
@@ -1205,16 +1184,13 @@ void CppSourceTarget::populateSourceNodes()
         {
             auto &sourceNode = const_cast<SourceNode &>(*it);
             RealBTarget &realBTarget = sourceNode.getRealBTarget(0);
-            if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
+            if (!sourceNode.presentInCache)
             {
-                if (!sourceNode.presentInCache)
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                }
-                else
-                {
-                    sourceNode.setSourceNodeFileStatus(".o", realBTarget);
-                }
+                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+            }
+            else
+            {
+                sourceNode.setSourceNodeFileStatus(".o", realBTarget);
             }
             getRealBTarget(0).addDependency(sourceNode);
             ++it;
@@ -1252,16 +1228,13 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
             if (auto [pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
             {
                 RealBTarget &realBTarget = smFile.getRealBTarget(1);
-                if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
+                if (!smFile.presentInCache)
                 {
-                    if (!smFile.presentInCache)
-                    {
-                        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                    }
-                    else
-                    {
-                        smFile.setSourceNodeFileStatus(".smrules", realBTarget);
-                    }
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                }
+                else
+                {
+                    smFile.setSourceNodeFileStatus(".smrules", realBTarget);
                 }
                 if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
                 {

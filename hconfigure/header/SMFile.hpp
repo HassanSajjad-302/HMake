@@ -59,6 +59,7 @@ struct CompareSourceNode
 
 struct SourceNode : public ObjectFile
 {
+    Json headerFilesJson;
     const Node *node;
     bool presentInCache = false;
     bool presentInSource = false;
