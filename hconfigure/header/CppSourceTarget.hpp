@@ -90,7 +90,7 @@ class CppSourceTarget : public CommonFeatures,
     void setCpuType();
     bool isCpuTypeG7();
 
-    set<const SMFile *> applicationHeaderUnits;
+    set<const SMFile *> headerUnits;
 
     string &getCompileCommand();
     void setCompileCommand();

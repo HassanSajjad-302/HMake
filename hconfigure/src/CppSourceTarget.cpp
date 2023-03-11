@@ -152,6 +152,10 @@ void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrAr
         objectFiles->emplace_back(const_cast<SMFile *>(&objectFile));
         for (const SMFile *smFile : objectFile.allSMFileDependenciesRoundZero)
         {
+            if (smFile->standardHeaderUnit && linkOrArchiveTarget->linkTargetType != TargetType::EXECUTABLE)
+            {
+                continue;
+            }
             objectFiles->emplace_back(const_cast<SMFile *>(smFile));
         }
     }
@@ -1129,17 +1133,34 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
                     smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
                 }
             }
+            if (moduleScope == this)
+            {
+                if (sourceCacheJson.contains(JConsts::standardHeaderUnits))
+                {
+                    for (Json &j : sourceCacheJson.at(JConsts::standardHeaderUnits))
+                    {
+                        Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
+                        if (!node->doesNotExist)
+                        {
+                            SMFile &smFile = addNodeInHeaderUnits(node);
+                            smFile.standardHeaderUnit = true;
+                            smFile.presentInCache = true;
+                            smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 void CppSourceTarget::removeUnReferencedHeaderUnits()
 {
-    for (auto it = applicationHeaderUnits.begin(); it != applicationHeaderUnits.end();)
+    for (auto it = headerUnits.begin(); it != headerUnits.end();)
     {
         if (!(*it)->presentInSource)
         {
-            it = applicationHeaderUnits.erase(it);
+            it = headerUnits.erase(it);
         }
         else
         {
@@ -1458,7 +1479,9 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
     if (exitingAfterRoundOne)
     {
         vector<const SourceNode *> moduleFilesLocal;
+        moduleFilesLocal.reserve(moduleSourceFileDependencies.size());
         vector<const SourceNode *> applicationHeaderUnitsLocal;
+        applicationHeaderUnitsLocal.reserve(headerUnits.size());
         // Suppose user changes compile-command and this causes error in smrule generation. If erroneous files aren't
         // removed, they won't be re-generated next time because user didn't touch them or their dependencies, only
         // impacted the compile-command.
@@ -1470,7 +1493,7 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
                 moduleFilesLocal.emplace_back(&smFile);
             }
         }
-        for (const SMFile *headerUnit : applicationHeaderUnits)
+        for (const SMFile *headerUnit : headerUnits)
         {
             if (headerUnit->smrulesFileParsed)
             {
@@ -1489,6 +1512,7 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
     {
 
         vector<const SourceNode *> sourceFilesLocal;
+        sourceFilesLocal.reserve(sourceFileDependencies.size());
 
         // Suppose user changes compile-command and this causes error in compilation. If erroneous files aren't removed,
         // they won't be recompiled next time because user didn't touch them or their dependencies, only impacted the
@@ -1506,7 +1530,7 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
         buildCache[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
         buildCache[JConsts::sourceDependencies] = sourceFilesLocal;
         buildCache[JConsts::moduleDependencies] = moduleSourceFileDependencies;
-        buildCache[JConsts::headerUnits] = applicationHeaderUnits;
+        buildCache[JConsts::headerUnits] = headerUnits;
         ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCache.dump(4);
     }
 }

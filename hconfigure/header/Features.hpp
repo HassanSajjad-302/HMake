@@ -691,6 +691,10 @@ struct LinkerFeatures
 
 struct CompilerFeatures
 {
+    // Only reason for the existence of the following is to prune this out of pretty-printing. Maybe level based
+    // printing would be better than fine-grained printing control. In level-based printing user would set a level for
+    // printing. Include-Nodes would have a level above or below than user-nodes, so they won't be printed at default
+    // level.
     set<const Node *> standardIncludes;
     StdLib stdLib = StdLib::NATIVE;
 

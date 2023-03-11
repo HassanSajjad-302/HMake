@@ -101,7 +101,7 @@ PostCompile::PostCompile(const CppSourceTarget &target_, const BuildTool &buildT
 {
 }
 
-bool PostCompile::checkIfFileIsInEnvironmentIncludes(const string &str)
+bool PostCompile::ignoreHeaderFile(const string &str)
 {
     //  Premature Optimization Haha
     // TODO:
@@ -142,13 +142,17 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
     {
         if (iter->contains(includeFileNote))
         {
-            size_t pos = iter->find_first_not_of(includeFileNote);
-            pos = iter->find_first_not_of(" ", pos);
-            iter->erase(iter->begin(), iter->begin() + (int)pos);
-            if (!checkIfFileIsInEnvironmentIncludes(*iter))
+            if (!sourceNode.ignoreHeaderDeps)
             {
-                sourceNode.headerDependencies.emplace(Node::getNodeFromString(*iter, true));
+                size_t pos = iter->find_first_not_of(includeFileNote);
+                pos = iter->find_first_not_of(" ", pos);
+                iter->erase(iter->begin(), iter->begin() + (int)pos);
+                if (!ignoreHeaderFile(*iter))
+                {
+                    sourceNode.headerDependencies.emplace(Node::getNodeFromString(*iter, true));
+                }
             }
+
             if (settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
             {
                 iter = outputLines.erase(iter);
@@ -193,7 +197,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
     {
         size_t pos = iter->find_first_not_of(" ");
         string headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
-        if (!checkIfFileIsInEnvironmentIncludes(headerDep))
+        if (!ignoreHeaderFile(headerDep))
         {
             sourceNode.headerDependencies.emplace(Node::getNodeFromString(headerDep, true));
         }

@@ -129,6 +129,7 @@ struct JConsts
     inline static const string sourceDirectory = "source-directory";
     inline static const string sourceFile = "source-file";
     inline static const string srcFile = "src-file";
+    inline static const string standardHeaderUnits = "standard-header-units";
     inline static const string static_ = "static";
     inline static const string targetAddressModel = "target-address-model";
     inline static const string targetArchitecture = "target-architecture";

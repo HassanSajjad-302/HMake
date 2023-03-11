@@ -394,11 +394,15 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     if (!headerUnit.presentInSource)
     {
         headerUnit.presentInSource = true;
-        headerUnit.standardHeaderUnit = true;
+        headerUnit.standardHeaderUnit = isStandardHeaderUnit;
+        if (headerUnit.standardHeaderUnit)
+        {
+            headerUnit.ignoreHeaderDeps = ignoreStandardHeaderUnitsHeaderDeps;
+        }
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
         headerUnitsConsumptionMethods[&headerUnit].emplace(
             requireJson.at("lookup-method").get<string>() == "include-angle", requireLogicalName);
-        ahuDirTarget->applicationHeaderUnits.emplace(&headerUnit);
+        ahuDirTarget->headerUnits.emplace(&headerUnit);
         RealBTarget &realBTarget = headerUnit.getRealBTarget(1);
         if (!headerUnit.presentInCache)
         {

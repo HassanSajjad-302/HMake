@@ -33,7 +33,7 @@ struct PostCompile : PostBasic
                          string printCommandFirstHalf, const string &buildCacheFilesDirPath, const string &fileName,
                          const PathPrint &pathPrint);
 
-    bool checkIfFileIsInEnvironmentIncludes(const string &str);
+    bool ignoreHeaderFile(const string &str);
     void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, string &output);
     void parseDepsFromGCCDepsOutput(SourceNode &sourceNode);
     void parseHeaderDeps(SourceNode &sourceNode);

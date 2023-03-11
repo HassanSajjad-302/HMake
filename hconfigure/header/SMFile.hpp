@@ -63,6 +63,7 @@ struct SourceNode : public ObjectFile
     const Node *node;
     bool presentInCache = false;
     bool presentInSource = false;
+    bool ignoreHeaderDeps = false;
     class CppSourceTarget *target;
     set<const Node *> headerDependencies;
     SourceNode(CppSourceTarget *target_, Node *node_);
@@ -120,6 +121,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     // Used to determine whether the file is present in cache and whether it needs an updated SMRules file.
     bool generateSMFileInRoundOne = false;
 
+    inline static bool ignoreStandardHeaderUnitsHeaderDeps = true;
     SMFile(CppSourceTarget *target_, Node *node_);
     void updateBTarget(unsigned short round, class Builder &builder) override;
     string getObjectFileOutputFilePath() override;
