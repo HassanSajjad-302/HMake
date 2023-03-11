@@ -155,11 +155,6 @@ void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrAr
             objectFiles->emplace_back(const_cast<SMFile *>(smFile));
         }
     }
-    /*    for (const SMFile *objectFile : applicationHeaderUnits)
-    {
-        objectFiles->emplace_back(const_cast<SMFile *>(objectFile));
-        linkRealBTarget.addDependency(const_cast<SMFile &>(*objectFile));
-    }*/
 
     for (const ObjectFileProducer *objectFileTarget : requirementObjectFileTargets)
     {
@@ -222,21 +217,6 @@ void CppSourceTarget::populateTransitiveProperties()
         }
     }
 }
-
-/*void CppSourceTarget::assignDependencyOfLinkOrArchiveTarget(CppSourceTarget *cppSourceTarget) const
-{
-    if (linkOrArchiveTarget && cppSourceTarget->linkOrArchiveTarget)
-    {
-        if (linkOrArchiveTarget->linkTargetType == TargetType::LIBRARY_STATIC)
-        {
-            linkOrArchiveTarget->interfaceLibs.try_emplace(cppSourceTarget->linkOrArchiveTarget);
-        }
-        else
-        {
-            linkOrArchiveTarget->privateLibs.try_emplace(cppSourceTarget->linkOrArchiveTarget);
-        }
-    }
-}*/
 
 CppSourceTarget &CppSourceTarget::setModuleScope(CppSourceTarget *moduleScope_)
 {
@@ -1095,13 +1075,12 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
 
     if (std::filesystem::exists(path(buildCacheFilesDirPath) / (name + ".cache")))
     {
-        Json sourceCacheJson;
-        ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> sourceCacheJson;
+        ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> buildCacheJson;
 
-        string str = sourceCacheJson.at(JConsts::compileCommand).get<string>();
+        string str = buildCacheJson.at(JConsts::compileCommand).get<string>();
         if (str == compiler.bTPath.generic_string() + " " + getCompileCommand())
         {
-            for (Json &j : sourceCacheJson.at(JConsts::sourceDependencies))
+            for (Json &j : buildCacheJson.at(JConsts::sourceDependencies))
             {
                 Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
                 if (!node->doesNotExist)
@@ -1111,7 +1090,7 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
                     sourceNode.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
                 }
             }
-            for (Json &j : sourceCacheJson.at(JConsts::moduleDependencies))
+            for (Json &j : buildCacheJson.at(JConsts::moduleDependencies))
             {
                 Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
                 if (!node->doesNotExist)
@@ -1122,7 +1101,7 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
                 }
             }
 
-            for (Json &j : sourceCacheJson.at(JConsts::headerUnits))
+            for (Json &j : buildCacheJson.at(JConsts::headerUnits))
             {
                 Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
                 if (!node->doesNotExist)
@@ -1215,7 +1194,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
 {
     for (const Node *idd : huIncludes)
     {
-        if (const auto &[pos, Ok] = moduleScopeData->appHUDirTarget.try_emplace(idd, this); !Ok)
+        if (const auto &[pos, Ok] = moduleScopeData->huDirTarget.try_emplace(idd, this); !Ok)
         {
             // TODO:
             //  Improve Message
@@ -1440,8 +1419,8 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
     {
         vector<const SourceNode *> moduleFilesLocal;
         moduleFilesLocal.reserve(moduleSourceFileDependencies.size());
-        vector<const SourceNode *> applicationHeaderUnitsLocal;
-        applicationHeaderUnitsLocal.reserve(headerUnits.size());
+        vector<const SourceNode *> headerUnitsLocal;
+        headerUnitsLocal.reserve(headerUnitsLocal.size());
         // Suppose user changes compile-command and this causes error in smrule generation. If erroneous files aren't
         // removed, they won't be re-generated next time because user didn't touch them or their dependencies, only
         // impacted the compile-command.
@@ -1457,16 +1436,14 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
         {
             if (headerUnit->smrulesFileParsed)
             {
-                applicationHeaderUnitsLocal.emplace_back(headerUnit);
+                headerUnitsLocal.emplace_back(headerUnit);
             }
         }
 
-        Json buildCache;
-        buildCache[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
-        buildCache[JConsts::sourceDependencies] = sourceFileDependencies;
-        buildCache[JConsts::moduleDependencies] = moduleFilesLocal;
-        buildCache[JConsts::headerUnits] = applicationHeaderUnitsLocal;
-        ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCache.dump(4);
+        buildCacheJson[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
+        buildCacheJson[JConsts::moduleDependencies] = moduleFilesLocal;
+        buildCacheJson[JConsts::headerUnits] = headerUnitsLocal;
+        ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCacheJson.dump(4);
     }
     else
     {
@@ -1486,12 +1463,9 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
                 sourceFilesLocal.emplace_back(&sourceNode);
             }
         }
-        Json buildCache;
-        buildCache[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
-        buildCache[JConsts::sourceDependencies] = sourceFilesLocal;
-        buildCache[JConsts::moduleDependencies] = moduleSourceFileDependencies;
-        buildCache[JConsts::headerUnits] = headerUnits;
-        ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCache.dump(4);
+        buildCacheJson[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
+        buildCacheJson[JConsts::sourceDependencies] = sourceFilesLocal;
+        ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCacheJson.dump(4);
     }
 }
 

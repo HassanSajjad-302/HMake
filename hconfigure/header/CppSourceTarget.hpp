@@ -53,8 +53,8 @@ struct ModuleScopeData
 {
     set<SMFile *> smFiles;
     set<SMFile, CompareSourceNode> headerUnits;
-    // Which application header unit directory come from which target
-    map<const Node *, CppSourceTarget *> appHUDirTarget;
+    // Which header unit directory come from which target
+    map<const Node *, CppSourceTarget *> huDirTarget;
     map<string, SMFile *> requirePaths;
 };
 
@@ -65,6 +65,7 @@ class CppSourceTarget : public CommonFeatures,
                         public ObjectFileProducerWithDS<CppSourceTarget>
 {
   public:
+    Json buildCacheJson;
     TargetType compileTargetType;
     CppSourceTarget *moduleScope = nullptr;
     ModuleScopeData *moduleScopeData = nullptr;

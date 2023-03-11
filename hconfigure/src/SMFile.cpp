@@ -347,7 +347,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     // Iterating over all header-unit-directories of the module-scope to find out which header-unit
     // directory this header-unit comes from and which target that header-unit-directory belongs to
     // if any
-    for (auto &dir : target->moduleScopeData->appHUDirTarget)
+    for (auto &dir : target->moduleScopeData->huDirTarget)
     {
         const Node *dirNode = dir.first;
         path result = path(headerUnitPath).lexically_relative(dirNode->filePath).generic_string();
