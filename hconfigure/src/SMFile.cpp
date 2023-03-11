@@ -242,6 +242,18 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
     RealBTarget &realBTarget = getRealBTarget(round);
     if (round == 1)
     {
+        auto parseSMRuleFile = [&]() {
+            {
+                // Maybe fine-grain this mutex by using multiple mutexes in following functions. And first use
+                // set::contain and then set::emplace. Because set::contains is thread-safe while set::emplace isn't
+                std::lock_guard<std::mutex> lk(smFilesInternalMutex);
+                saveRequiresJsonAndInitializeHeaderUnits(builder);
+                assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
+            }
+            setSMFileStatusRoundZero();
+            target->getRealBTarget(0).addDependency(*this);
+            smrulesFileParsed = true;
+        };
         if (generateSMFileInRoundOne)
         {
             // TODO
@@ -255,8 +267,8 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
             }
             if (realBTarget.exitStatus == EXIT_SUCCESS)
             {
-                smrulesFileUpdated = true;
                 postCompile.parseHeaderDeps(*this);
+                parseSMRuleFile();
             }
             else
             {
@@ -266,15 +278,10 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
                 builder.exitAfterThisRound = true;
             }
         }
+        else
         {
-            // Maybe fine-grain this mutex by using multiple mutexes in following functions. And first use set::contain
-            // and then set::emplace. Because set::contains is thread-safe while set::emplace isn't
-            std::lock_guard<std::mutex> lk(smFilesInternalMutex);
-            saveRequiresJsonAndInitializeHeaderUnits(builder);
-            assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
+            parseSMRuleFile();
         }
-        setSMFileStatusRoundZero();
-        target->getRealBTarget(0).addDependency(*this);
     }
     else if (!round && selectiveBuild)
     {

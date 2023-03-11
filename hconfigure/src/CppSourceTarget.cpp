@@ -169,11 +169,11 @@ void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrAr
 
 void CppSourceTarget::updateBTarget(unsigned short round, Builder &)
 {
-    if (!round || round == 1)
+    if (!round)
     {
         if (fileFromThisTargetCompiled)
         {
-            pruneAndSaveBuildCache();
+            saveBuildCache(false);
         }
     }
     else if (round == 3)
@@ -183,6 +183,12 @@ void CppSourceTarget::updateBTarget(unsigned short round, Builder &)
         populateTransitiveProperties();
     }
     getRealBTarget(round).fileStatus = FileStatus::UPDATED;
+}
+
+void CppSourceTarget::exitingAfterThisRound(Builder &, unsigned short round)
+{
+    assert(round == 1);
+    saveBuildCache(true);
 }
 
 void CppSourceTarget::addRequirementDepsToBTargetDependencies()
@@ -1445,38 +1451,64 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
                              settings.ccpSettings.outputAndErrorFiles);
 }
 
-void CppSourceTarget::pruneAndSaveBuildCache()
+void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
 {
-    vector<const SourceNode *> sourceFilesLocal;
-    vector<const SourceNode *> moduleFilesLocal;
-    vector<const SourceNode *> applicationHeaderUnitsLocal;
-
-    // Suppose user changes compile-command and this causes error in compilation. If erroneous files aren't removed,
-    // they won't be recompiled next time because user didn't touch them or their dependencies, only impacted the
-    // compile-command. But erroneous module-files still would be updated because they don't have the latest .o file
-    // compared to .smrule file corresponding to the updated compile-command.
-
-    for (const SourceNode &sourceNode : sourceFileDependencies)
+    // Following keeps the cache only for successful updates i.e. failed updates would be re-run next time for their
+    // lack of existence in the cache.
+    if (exitingAfterRoundOne)
     {
-        if (const_cast<SourceNode &>(sourceNode).getRealBTarget(0).exitStatus == EXIT_SUCCESS)
+        vector<const SourceNode *> moduleFilesLocal;
+        vector<const SourceNode *> applicationHeaderUnitsLocal;
+        // Suppose user changes compile-command and this causes error in smrule generation. If erroneous files aren't
+        // removed, they won't be re-generated next time because user didn't touch them or their dependencies, only
+        // impacted the compile-command.
+
+        for (const SMFile &smFile : moduleSourceFileDependencies)
         {
-            sourceFilesLocal.emplace_back(&sourceNode);
+            if (smFile.smrulesFileParsed)
+            {
+                moduleFilesLocal.emplace_back(&smFile);
+            }
         }
+        for (const SMFile *headerUnit : applicationHeaderUnits)
+        {
+            if (headerUnit->smrulesFileParsed)
+            {
+                applicationHeaderUnitsLocal.emplace_back(headerUnit);
+            }
+        }
+
+        Json buildCache;
+        buildCache[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
+        buildCache[JConsts::sourceDependencies] = sourceFileDependencies;
+        buildCache[JConsts::moduleDependencies] = moduleFilesLocal;
+        buildCache[JConsts::headerUnits] = applicationHeaderUnitsLocal;
+        ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCache.dump(4);
     }
-    for (const SMFile &smFile : moduleSourceFileDependencies)
+    else
     {
-        moduleFilesLocal.emplace_back(&smFile);
+
+        vector<const SourceNode *> sourceFilesLocal;
+
+        // Suppose user changes compile-command and this causes error in compilation. If erroneous files aren't removed,
+        // they won't be recompiled next time because user didn't touch them or their dependencies, only impacted the
+        // compile-command. But erroneous module-files still would be updated because they don't have the latest .o file
+        // compared to .smrule file corresponding to the updated compile-command.
+
+        for (const SourceNode &sourceNode : sourceFileDependencies)
+        {
+            if (const_cast<SourceNode &>(sourceNode).getRealBTarget(0).exitStatus == EXIT_SUCCESS)
+            {
+                sourceFilesLocal.emplace_back(&sourceNode);
+            }
+        }
+        Json buildCache;
+        buildCache[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
+        buildCache[JConsts::sourceDependencies] = sourceFilesLocal;
+        buildCache[JConsts::moduleDependencies] = moduleSourceFileDependencies;
+        buildCache[JConsts::headerUnits] = applicationHeaderUnits;
+        ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCache.dump(4);
     }
-    for (const SMFile *smFile : applicationHeaderUnits)
-    {
-        applicationHeaderUnitsLocal.emplace_back(smFile);
-    }
-    Json buildCache;
-    buildCache[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
-    buildCache[JConsts::sourceDependencies] = sourceFilesLocal;
-    buildCache[JConsts::moduleDependencies] = moduleFilesLocal;
-    buildCache[JConsts::headerUnits] = applicationHeaderUnitsLocal;
-    ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCache.dump(4);
 }
 
 PLibrary::PLibrary(Configuration &, const path &libraryPath_, TargetType libraryType_)

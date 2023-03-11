@@ -116,7 +116,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     bool angle;
     bool hasProvide = false;
     bool standardHeaderUnit = false;
-    bool smrulesFileUpdated = false;
+    bool smrulesFileParsed = false;
     // Used to determine whether the file is present in cache and whether it needs an updated SMRules file.
     bool generateSMFileInRoundOne = false;
 

@@ -37,6 +37,7 @@ Builder::Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarge
             {
                 bTarget->exitingAfterThisRound(*this, round);
             }
+            exit(EXIT_SUCCESS);
         }
 
         if (round == roundEnd)

@@ -111,7 +111,7 @@ class CppSourceTarget : public CommonFeatures,
     PostCompile updateSourceNodeBTarget(SourceNode &sourceNode);
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
-    void pruneAndSaveBuildCache();
+    void saveBuildCache(bool exitingAfterRoundOne);
 
     set<const Node *> usageRequirementIncludes;
     // In module scope, two different targets should not have a directory in huIncludes
@@ -136,6 +136,7 @@ class CppSourceTarget : public CommonFeatures,
 
     void getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrArchiveTarget *linkOrArchiveTarget) const override;
     void updateBTarget(unsigned short round, Builder &builder) override;
+    void exitingAfterThisRound(Builder &builder, unsigned short round) override;
     void addRequirementDepsToBTargetDependencies();
     void populateTransitiveProperties();
     //
