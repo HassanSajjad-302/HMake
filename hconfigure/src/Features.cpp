@@ -360,15 +360,22 @@ CompilerFeatures::CompilerFeatures()
     }
 }
 
+void CompilerFeatures::addNewStandardInclude(const Node *node)
+{
+    standardIncludes.emplace(node);
+    const_cast<Node *>(node)->ignoreIncludes = true;
+    if (stdIncludesAreHuIncludes == StdIncludesAreHUIncludes::YES)
+    {
+        huIncludes.emplace(node);
+    }
+}
+
 void CompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
 {
     compiler = vsTools.compiler;
-    standardIncludes.clear();
     for (const string &str : vsTools.includeDirectories)
     {
-        Node *node =
-            const_cast<Node *>(standardIncludes.emplace(Node::getNodeFromString(str, false)).first.operator*());
-        node->ignoreIncludes = true;
+        addNewStandardInclude(Node::getNodeFromString(str, false));
     }
 }
 

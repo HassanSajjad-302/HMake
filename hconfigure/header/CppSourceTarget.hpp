@@ -82,7 +82,7 @@ class CppSourceTarget : public CommonFeatures,
     set<SourceNode, CompareSourceNode> sourceFileDependencies;
     // Comparator used is same as for SourceNode
     set<SMFile, CompareSourceNode> moduleSourceFileDependencies;
-    // Set to true if a source or module-file from this target is compiled/attempted.
+    // Set to true if a source or smrule is updated so that latest cache could be stored.
     bool fileFromThisTargetCompiled = false;
     SourceNode &addNodeInSourceFileDependencies(Node *node);
     SMFile &addNodeInModuleSourceFileDependencies(Node *node);
@@ -114,8 +114,6 @@ class CppSourceTarget : public CommonFeatures,
     void saveBuildCache(bool exitingAfterRoundOne);
 
     set<const Node *> usageRequirementIncludes;
-    // In module scope, two different targets should not have a directory in huIncludes
-    set<const Node *> huIncludes;
 
     string usageRequirementCompilerFlags;
     set<Define> usageRequirementCompileDefinitions;

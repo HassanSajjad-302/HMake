@@ -47,6 +47,9 @@ class Node
 bool operator<(const Node &lhs, const Node &rhs);
 void to_json(Json &j, const Node *node);
 
+struct IncludeNode
+{
+};
 struct SourceNode;
 struct CompareSourceNode
 {
