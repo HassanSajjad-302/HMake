@@ -84,7 +84,7 @@ class CppSourceTarget : public CommonFeatures,
     // Comparator used is same as for SourceNode
     set<SMFile, CompareSourceNode> moduleSourceFileDependencies;
     // Set to true if a source or smrule is updated so that latest cache could be stored.
-    bool fileFromThisTargetCompiled = false;
+    bool sourceFileOrSMRuleFileUpdated = false;
     SourceNode &addNodeInSourceFileDependencies(Node *node);
     SMFile &addNodeInModuleSourceFileDependencies(Node *node);
     SMFile &addNodeInHeaderUnits(Node *node);
@@ -136,7 +136,6 @@ class CppSourceTarget : public CommonFeatures,
 
     void getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrArchiveTarget *linkOrArchiveTarget) const override;
     void updateBTarget(unsigned short round, Builder &builder) override;
-    void exitingAfterThisRound(Builder &builder, unsigned short round) override;
     void addRequirementDepsToBTargetDependencies();
     void populateTransitiveProperties();
     //

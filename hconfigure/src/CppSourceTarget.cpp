@@ -162,13 +162,13 @@ void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrAr
     }
 }
 
-void CppSourceTarget::updateBTarget(unsigned short round, Builder &)
+void CppSourceTarget::updateBTarget(unsigned short round, Builder &builder)
 {
-    if (!round)
+    if (!round || round == 1)
     {
-        if (fileFromThisTargetCompiled)
+        if (sourceFileOrSMRuleFileUpdated)
         {
-            saveBuildCache(false);
+            saveBuildCache(builder.exitAfterThisRound);
         }
     }
     else if (round == 3)
@@ -178,12 +178,6 @@ void CppSourceTarget::updateBTarget(unsigned short round, Builder &)
         populateTransitiveProperties();
     }
     getRealBTarget(round).fileStatus = FileStatus::UPDATED;
-}
-
-void CppSourceTarget::exitingAfterThisRound(Builder &, unsigned short round)
-{
-    assert(round == 1);
-    saveBuildCache(true);
 }
 
 void CppSourceTarget::addRequirementDepsToBTargetDependencies()
@@ -1357,7 +1351,7 @@ string CppSourceTarget::getExtension()
 
 PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 {
-    fileFromThisTargetCompiled = true;
+    sourceFileOrSMRuleFileUpdated = true;
     string compileFileName = path(sourceNode.node->filePath).filename().string();
 
     string finalCompileCommand = getCompileCommand() + " ";
@@ -1384,7 +1378,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 
 PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError)
 {
-    fileFromThisTargetCompiled = true;
+    sourceFileOrSMRuleFileUpdated = true;
     string finalCompileCommand = getCompileCommand() + addQuotes(smFile.node->filePath) + " ";
 
     if (compiler.bTFamily == BTFamily::MSVC)
@@ -1420,7 +1414,7 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
         vector<const SourceNode *> moduleFilesLocal;
         moduleFilesLocal.reserve(moduleSourceFileDependencies.size());
         vector<const SourceNode *> headerUnitsLocal;
-        headerUnitsLocal.reserve(headerUnitsLocal.size());
+        headerUnitsLocal.reserve(headerUnits.size());
         // Suppose user changes compile-command and this causes error in smrule generation. If erroneous files aren't
         // removed, they won't be re-generated next time because user didn't touch them or their dependencies, only
         // impacted the compile-command.
@@ -1450,6 +1444,10 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
 
         vector<const SourceNode *> sourceFilesLocal;
         sourceFilesLocal.reserve(sourceFileDependencies.size());
+        vector<const SourceNode *> moduleFilesLocal;
+        moduleFilesLocal.reserve(moduleSourceFileDependencies.size());
+        vector<const SourceNode *> headerUnitsLocal;
+        headerUnitsLocal.reserve(headerUnits.size());
 
         // Suppose user changes compile-command and this causes error in compilation. If erroneous files aren't removed,
         // they won't be recompiled next time because user didn't touch them or their dependencies, only impacted the
@@ -1463,8 +1461,24 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
                 sourceFilesLocal.emplace_back(&sourceNode);
             }
         }
+        for (const SMFile &smFile : moduleSourceFileDependencies)
+        {
+            if (smFile.smrulesFileParsed)
+            {
+                moduleFilesLocal.emplace_back(&smFile);
+            }
+        }
+        for (const SMFile *headerUnit : headerUnits)
+        {
+            if (headerUnit->smrulesFileParsed)
+            {
+                headerUnitsLocal.emplace_back(headerUnit);
+            }
+        }
         buildCacheJson[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
         buildCacheJson[JConsts::sourceDependencies] = sourceFilesLocal;
+        buildCacheJson[JConsts::moduleDependencies] = moduleFilesLocal;
+        buildCacheJson[JConsts::headerUnits] = headerUnitsLocal;
         ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCacheJson.dump(4);
     }
 }

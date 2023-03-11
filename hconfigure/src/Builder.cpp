@@ -33,10 +33,6 @@ Builder::Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarge
 
         if (exitAfterThisRound)
         {
-            for (BTarget *bTarget : preSortBTargets)
-            {
-                bTarget->exitingAfterThisRound(*this, round);
-            }
             exit(EXIT_SUCCESS);
         }
 
