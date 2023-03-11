@@ -118,14 +118,14 @@ bool PostCompile::ignoreHeaderFile(const string &str)
 
     for (const Node *node : target.standardIncludes)
     {
-        if (node->ignoreIncludes && equivalent(node->filePath, path(str).parent_path()))
+        if (node->ignoreHeaderDeps && equivalent(node->filePath, path(str).parent_path()))
         {
             return true;
         }
     }
     for (const Node *node : target.requirementIncludes)
     {
-        if (node->ignoreIncludes && equivalent(node->filePath, path(str).parent_path()))
+        if (node->ignoreHeaderDeps && equivalent(node->filePath, path(str).parent_path()))
         {
             return true;
         }

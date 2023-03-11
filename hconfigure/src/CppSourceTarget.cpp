@@ -152,10 +152,6 @@ void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrAr
         objectFiles->emplace_back(const_cast<SMFile *>(&objectFile));
         for (const SMFile *smFile : objectFile.allSMFileDependenciesRoundZero)
         {
-            if (smFile->standardHeaderUnit && linkOrArchiveTarget->linkTargetType != TargetType::EXECUTABLE)
-            {
-                continue;
-            }
             objectFiles->emplace_back(const_cast<SMFile *>(smFile));
         }
     }
@@ -245,6 +241,15 @@ void CppSourceTarget::populateTransitiveProperties()
 CppSourceTarget &CppSourceTarget::setModuleScope(CppSourceTarget *moduleScope_)
 {
     moduleScope = moduleScope_;
+    return *this;
+}
+
+CppSourceTarget &CppSourceTarget::assignStandardIncludesToHUIncludes()
+{
+    for (const Node *node : standardIncludes)
+    {
+        huIncludes.emplace(node);
+    }
     return *this;
 }
 
@@ -1087,11 +1092,6 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
     {
         create_directories(buildCacheFilesDirPath);
     }
-    path shuCachePath = getSHUSPath();
-    if (!exists(shuCachePath))
-    {
-        create_directories(shuCachePath);
-    }
 
     if (std::filesystem::exists(path(buildCacheFilesDirPath) / (name + ".cache")))
     {
@@ -1128,26 +1128,8 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
                 if (!node->doesNotExist)
                 {
                     SMFile &smFile = addNodeInHeaderUnits(node);
-                    smFile.standardHeaderUnit = false;
                     smFile.presentInCache = true;
                     smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                }
-            }
-            if (moduleScope == this)
-            {
-                if (sourceCacheJson.contains(JConsts::standardHeaderUnits))
-                {
-                    for (Json &j : sourceCacheJson.at(JConsts::standardHeaderUnits))
-                    {
-                        Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
-                        if (!node->doesNotExist)
-                        {
-                            SMFile &smFile = addNodeInHeaderUnits(node);
-                            smFile.standardHeaderUnit = true;
-                            smFile.presentInCache = true;
-                            smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                        }
-                    }
                 }
             }
         }
@@ -1360,8 +1342,7 @@ string CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &smF
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
-        string outputFilePath = smFile.standardHeaderUnit ? moduleScope->getSHUSPath() : buildCacheFilesDirPath;
-        command += getReducedPath(outputFilePath + path(smFile.node->filePath).filename().string() + ".smrules",
+        command += getReducedPath(buildCacheFilesDirPath + path(smFile.node->filePath).filename().string() + ".smrules",
                                   ccpSettings.objectFile) +
                    " ";
     }
@@ -1379,35 +1360,15 @@ PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
     }
     finalCompileCommand += getInfrastructureFlags(false) + addQuotes(smFile.node->filePath) + " ";
 
-    if (smFile.type == SM_FILE_TYPE::HEADER_UNIT)
-    {
-        if (smFile.standardHeaderUnit)
-        {
-            finalCompileCommand += smFile.getFlag(getSHUSPath() + path(smFile.node->filePath).filename().string());
-        }
-        else
-        {
-            finalCompileCommand +=
-                smFile.getFlag(buildCacheFilesDirPath + path(smFile.node->filePath).filename().string());
-        }
-    }
-    else
-    {
-        finalCompileCommand += smFile.getFlag(buildCacheFilesDirPath + path(smFile.node->filePath).filename().string());
-    }
+    finalCompileCommand += smFile.getFlag(buildCacheFilesDirPath + path(smFile.node->filePath).filename().string());
 
     return PostCompile{*this,
                        compiler,
                        finalCompileCommand,
                        getSourceCompileCommandPrintFirstHalf() + smFile.getModuleCompileCommandPrintLastHalf(),
-                       smFile.standardHeaderUnit ? getSHUSPath() : buildCacheFilesDirPath,
+                       buildCacheFilesDirPath,
                        path(smFile.node->filePath).filename().string(),
                        settings.ccpSettings.outputAndErrorFiles};
-}
-
-string CppSourceTarget::getSHUSPath() const
-{
-    return moduleScope->getSubDirForTarget() + "shus/";
 }
 
 string CppSourceTarget::getExtension()
@@ -1461,14 +1422,13 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
         exit(EXIT_FAILURE);
     }
 
-    string outputFilePath = smFile.standardHeaderUnit ? moduleScope->getSHUSPath() : buildCacheFilesDirPath;
     return printOnlyOnError
-               ? PostCompile(*this, compiler, finalCompileCommand, "", outputFilePath,
+               ? PostCompile(*this, compiler, finalCompileCommand, "", buildCacheFilesDirPath,
                              path(smFile.node->filePath).filename().string() + ".smrules",
                              settings.ccpSettings.outputAndErrorFiles)
                : PostCompile(*this, compiler, finalCompileCommand,
                              getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPart(smFile),
-                             outputFilePath, path(smFile.node->filePath).filename().string() + ".smrules",
+                             buildCacheFilesDirPath, path(smFile.node->filePath).filename().string() + ".smrules",
                              settings.ccpSettings.outputAndErrorFiles);
 }
 

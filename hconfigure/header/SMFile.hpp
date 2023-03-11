@@ -42,14 +42,11 @@ class Node
     bool doesNotExist = false;
     // Used with includeDirectories to specify whether to ignore include-files from these directories from being stored
     // in target-cache file
-    bool ignoreIncludes = false;
+    bool ignoreHeaderDeps = false;
 };
 bool operator<(const Node &lhs, const Node &rhs);
 void to_json(Json &j, const Node *node);
 
-struct IncludeNode
-{
-};
 struct SourceNode;
 struct CompareSourceNode
 {
@@ -119,20 +116,18 @@ struct SMFile : public SourceNode // Scanned Module Rule
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
     bool angle;
     bool hasProvide = false;
-    bool standardHeaderUnit = false;
     bool smrulesFileParsed = false;
     // Used to determine whether the file is present in cache and whether it needs an updated SMRules file.
     bool generateSMFileInRoundOne = false;
 
-    inline static bool ignoreStandardHeaderUnitsHeaderDeps = true;
+    // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
+    // ignoreHeaderDeps is true
+    inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
     SMFile(CppSourceTarget *target_, Node *node_);
     void updateBTarget(unsigned short round, class Builder &builder) override;
-    string getObjectFileOutputFilePath() override;
-    string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) override;
     void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder);
     void initializeNewHeaderUnit(const Json &requireJson, Builder &builder);
     void iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder);
-    static bool isSubDirPathStandard(const path &headerUnitPath, set<const Node *> &standardIncludes);
     void setSMFileStatusRoundZero();
     void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator) override;
     string getFlag(const string &outputFilesWithoutExtension) const;

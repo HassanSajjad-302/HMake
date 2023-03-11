@@ -302,19 +302,6 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
     realBTarget.fileStatus = FileStatus::UPDATED;
 }
 
-string SMFile::getObjectFileOutputFilePath()
-{
-    return standardHeaderUnit ? target->getSHUSPath() + path(node->filePath).filename().string() + ".o"
-                              : SourceNode::getObjectFileOutputFilePath();
-}
-
-string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
-{
-    return standardHeaderUnit
-               ? getReducedPath(target->getSHUSPath() + path(node->filePath).filename().string() + ".o", pathPrint)
-               : SourceNode::getObjectFileOutputFilePathPrint(pathPrint);
-}
-
 void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
 {
     string smFilePath = target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".smrules";
@@ -353,38 +340,39 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 
     string headerUnitPath = path(requireJson.at("source-path").get<string>()).lexically_normal().generic_string();
 
-    bool isStandardHeaderUnit = false;
-    bool isApplicationHeaderUnit = false;
+    // The target from which this header-unit comes from
+    CppSourceTarget *huDirTarget = nullptr;
+    const Node *nodeDir;
 
-    // The target from which this header-unit comes from or this target's moduleScope if header-unit is
-    // a standard header-unit
-    CppSourceTarget *ahuDirTarget = nullptr;
-    if (isSubDirPathStandard(headerUnitPath, target->standardIncludes))
+    // Iterating over all header-unit-directories of the module-scope to find out which header-unit
+    // directory this header-unit comes from and which target that header-unit-directory belongs to
+    // if any
+    for (auto &dir : target->moduleScopeData->appHUDirTarget)
     {
-        isStandardHeaderUnit = true;
-        ahuDirTarget = target->moduleScope;
-    }
-    if (!isStandardHeaderUnit)
-    {
-        // Iterating over all header-unit-directories of the module-scope to find out which header-unit
-        // directory this header-unit comes from and which target that header-unit-directory belongs to
-        // if any
-        for (auto &dir : target->moduleScopeData->appHUDirTarget)
+        const Node *dirNode = dir.first;
+        path result = path(headerUnitPath).lexically_relative(dirNode->filePath).generic_string();
+        if (!result.empty() && !result.generic_string().starts_with(".."))
         {
-            const Node *dirNode = dir.first;
-            path result = path(headerUnitPath).lexically_relative(dirNode->filePath).generic_string();
-            if (!result.empty() && !result.generic_string().starts_with(".."))
+            if (huDirTarget)
             {
-                isApplicationHeaderUnit = true;
-                ahuDirTarget = dir.second;
+                print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                      "Module Header Unit\n{}\n belongs to two Target Header Unit Includes\n{}\n{}\nof Module "
+                      "Scope\n{}\n",
+                      headerUnitPath, nodeDir->filePath, dirNode->filePath, target->moduleScope->getTargetPointer());
+                exit(EXIT_FAILURE);
+            }
+            else
+            {
+                huDirTarget = dir.second;
+                nodeDir = dir.first;
             }
         }
     }
-    if (!isStandardHeaderUnit && !isApplicationHeaderUnit)
+
+    if (!huDirTarget)
     {
         print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-              "Module Header Unit\n{}\n is neither a Standard Header Unit nor belongs to any Target "
-              "Header Unit Includes of Module Scope\n{}\n",
+              "Module Header Unit\n{}\n does not belongs to any Target Header Unit Includes of Module Scope\n{}\n",
               headerUnitPath, target->moduleScope->getTargetPointer());
         exit(EXIT_FAILURE);
     }
@@ -394,15 +382,14 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     if (!headerUnit.presentInSource)
     {
         headerUnit.presentInSource = true;
-        headerUnit.standardHeaderUnit = isStandardHeaderUnit;
-        if (headerUnit.standardHeaderUnit)
+        if (nodeDir->ignoreHeaderDeps)
         {
-            headerUnit.ignoreHeaderDeps = ignoreStandardHeaderUnitsHeaderDeps;
+            headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
         headerUnitsConsumptionMethods[&headerUnit].emplace(
             requireJson.at("lookup-method").get<string>() == "include-angle", requireLogicalName);
-        ahuDirTarget->headerUnits.emplace(&headerUnit);
+        huDirTarget->headerUnits.emplace(&headerUnit);
         RealBTarget &realBTarget = headerUnit.getRealBTarget(1);
         if (!headerUnit.presentInCache)
         {
@@ -482,20 +469,8 @@ void SMFile::setSMFileStatusRoundZero()
     RealBTarget &realBTarget = getRealBTarget(0);
     if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
     {
-        path objectFilePath;
-        if (type == SM_FILE_TYPE::HEADER_UNIT && standardHeaderUnit)
-        {
-            objectFilePath = path(target->moduleScope->getSubDirForTarget() + "shus/" +
-                                  path(node->filePath).filename().string() + ".o");
-            if (!exists(objectFilePath))
-            {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-            }
-            return;
-        }
-
         string fileName = path(node->filePath).filename().string();
-        objectFilePath = path(target->buildCacheFilesDirPath + fileName + ".o");
+        path objectFilePath = path(target->buildCacheFilesDirPath + fileName + ".o");
         Node *smRuleNode =
             const_cast<Node *>(Node::getNodeFromString(target->buildCacheFilesDirPath + fileName + ".smrules", true));
         if (!exists(path(smRuleNode->filePath)))
@@ -518,29 +493,6 @@ void SMFile::setSMFileStatusRoundZero()
             realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
         }
     }
-}
-
-bool SMFile::isSubDirPathStandard(const path &headerUnitPath, set<const Node *> &standardIncludes)
-{
-    string headerUnitPathSMallCase = headerUnitPath.generic_string();
-    for (auto &c : headerUnitPathSMallCase)
-    {
-        c = (char)::tolower(c);
-    }
-    for (const Node *stdInclude : standardIncludes)
-    {
-        string directoryPathSmallCase = stdInclude->filePath;
-        for (auto &c : directoryPathSmallCase)
-        {
-            c = (char)::tolower(c);
-        }
-        path result = path(headerUnitPathSMallCase).lexically_relative(directoryPathSmallCase).generic_string();
-        if (!result.empty() && !result.generic_string().starts_with(".."))
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 void SMFile::duringSort(Builder &, unsigned short round, unsigned int)
@@ -655,15 +607,8 @@ string SMFile::getFlagPrint(const string &outputFilesWithoutExtension) const
 
 string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
 {
-    string ifcFilePath;
-    if (standardHeaderUnit)
-    {
-        ifcFilePath = addQuotes(target->getSHUSPath() + path(node->filePath).filename().string() + ".ifc");
-    }
-    else
-    {
-        ifcFilePath = addQuotes(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".ifc");
-    }
+    string ifcFilePath = addQuotes(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".ifc");
+
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
         print(stderr, "HMake Error! In getRequireFlag() type is NOT_ASSIGNED");

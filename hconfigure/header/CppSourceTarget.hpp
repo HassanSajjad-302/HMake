@@ -106,7 +106,6 @@ class CppSourceTarget : public CommonFeatures,
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode);
     string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile);
     PostCompile CompileSMFile(SMFile &smFile);
-    string getSHUSPath() const;
     string getExtension();
     PostCompile updateSourceNodeBTarget(SourceNode &sourceNode);
 
@@ -114,6 +113,8 @@ class CppSourceTarget : public CommonFeatures,
     void saveBuildCache(bool exitingAfterRoundOne);
 
     set<const Node *> usageRequirementIncludes;
+    // In module scope, two different targets should not have a directory in huIncludes
+    set<const Node *> huIncludes;
 
     string usageRequirementCompilerFlags;
     set<Define> usageRequirementCompileDefinitions;
@@ -140,8 +141,7 @@ class CppSourceTarget : public CommonFeatures,
     //
 
     CppSourceTarget &setModuleScope(CppSourceTarget *moduleScope_);
-    // TODO
-    //  U functions should accept one Argument atleast.
+    CppSourceTarget &assignStandardIncludesToHUIncludes();
     template <typename... U> CppSourceTarget &PUBLIC_INCLUDES(const string &include, U... includeDirectoryString);
     template <typename... U> CppSourceTarget &PRIVATE_INCLUDES(const string &include, U... includeDirectoryString);
     template <typename... U> CppSourceTarget &INTERFACE_INCLUDES(const string &include, U... includeDirectoryString);

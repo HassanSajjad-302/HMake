@@ -21,13 +21,6 @@ enum class TreatModuleAsSource
     YES
 };
 
-// Standard Includes Are Header Unit Includes
-enum class StdIncludesAreHUIncludes
-{
-    NO,
-    YES
-};
-
 // In b2 features every non-optional, non-free feature must have a value. Because hmake does not have optional features,
 // all optional features have extra enum value OFF declared here. A feature default value is given by the first value
 // listed in the feature declaration which is imitated in CompilerFeautres and LinkerFeatures.
@@ -716,7 +709,6 @@ struct CompilerFeatures
     RTTI rtti = RTTI::ON;
     TranslateInclude translateInclude = TranslateInclude::NO;
     TreatModuleAsSource treatModuleAsSource = TreatModuleAsSource::NO;
-    StdIncludesAreHUIncludes stdIncludesAreHuIncludes = StdIncludesAreHUIncludes::NO;
 
     // Used only for GCC
     TemplateDepth templateDepth{1024};
@@ -734,12 +726,9 @@ struct CompilerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
     set<const Node *> requirementIncludes;
-    // In module scope, two different targets should not have a directory in huIncludes
-    set<const Node *> huIncludes;
     string requirementCompilerFlags;
     set<Define> requirementCompileDefinitions;
     CompilerFeatures();
-    void addNewStandardInclude(const Node *node);
     void setCompilerFromVSTools(VSTools &vsTools);
     void setConfigType(ConfigType configurationType = cache.configurationType);
 };
