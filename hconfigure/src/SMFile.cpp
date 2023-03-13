@@ -98,6 +98,18 @@ const Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotE
     }
     filePath = filePath.lexically_normal();
 
+    if constexpr (os == OS::NT)
+    {
+        // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
+        // actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
+        string lowerCase = filePath.string();
+        for (char &c : lowerCase)
+        {
+            // Warning: assuming paths to be ASCII
+            c = tolower(c);
+        }
+        filePath = lowerCase;
+    }
     if (auto it = allFiles.find(filePath.string()); it != allFiles.end())
     {
         return it.operator->();
@@ -378,7 +390,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     }
 
     SMFile &headerUnit =
-        target->addNodeInHeaderUnits(const_cast<Node *>(Node::getNodeFromString(headerUnitPath, true)));
+        huDirTarget->addNodeInHeaderUnits(const_cast<Node *>(Node::getNodeFromString(headerUnitPath, true)));
     if (!headerUnit.presentInSource)
     {
         headerUnit.presentInSource = true;

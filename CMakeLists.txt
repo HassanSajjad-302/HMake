@@ -62,7 +62,7 @@ add_executable(hbuild
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Tests/Stage/Test4/hmake.cpp)
+add_executable(HMakeHelper hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 
 

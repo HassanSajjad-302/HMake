@@ -27,16 +27,19 @@ int main(int argc, char **argv)
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 
     auto fun = [](Configuration &configuration) {
+        DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
+        stdhu.getSourceTarget().assignStandardIncludesToHUIncludes();
+
         DSC<CppSourceTarget> &fmt = configuration.GetCppObjectDSC("fmt");
         fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
 
         DSC<CppSourceTarget> &hconfigure = configuration.GetCppObjectDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
         hconfigure.getSourceTarget()
             .MODULE_DIRECTORIES("hconfigure/src/", ".*")
-            .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include")
-            .setModuleScope(fmt.getSourceTargetPointer());
+            .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include");
 
-        DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PUBLIC_LIBRARIES(&hconfigure);
+        DSC<CppSourceTarget> &hhelper =
+            configuration.GetCppExeDSC("hhelper").PUBLIC_LIBRARIES(&hconfigure).PRIVATE_LIBRARIES(&stdhu);
         hhelper.getSourceTarget()
             .MODULE_FILES("hhelper/src/main.cpp")
             .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header/"))
@@ -47,11 +50,12 @@ int main(int argc, char **argv)
             .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_STATIC_LIB_PATH",
                                         addEscapedQuotes(configureDir + "0/hconfigure/hconfigure.lib"))
             .PRIVATE_COMPILE_DEFINITION("FMT_STATIC_LIB_DIRECTORY", addEscapedQuotes(configureDir + "0/fmt/"))
-            .PRIVATE_COMPILE_DEFINITION("FMT_STATIC_LIB_PATH", addEscapedQuotes(configureDir + "0/fmt/fmt.lib"))
-            .setModuleScope(fmt.getSourceTargetPointer());
+            .PRIVATE_COMPILE_DEFINITION("FMT_STATIC_LIB_PATH", addEscapedQuotes(configureDir + "0/fmt/fmt.lib"));
 
-        DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PUBLIC_LIBRARIES(&hconfigure);
-        hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp").setModuleScope(fmt.getSourceTargetPointer());
+        DSC<CppSourceTarget> &hbuild =
+            configuration.GetCppExeDSC("hbuild").PUBLIC_LIBRARIES(&hconfigure).PRIVATE_LIBRARIES(&stdhu);
+        hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
+        configuration.setModuleScope(stdhu.getSourceTargetPointer());
     };
 
     fun(debug);
