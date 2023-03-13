@@ -2,10 +2,10 @@
 #define HMAKE_SETTINGS_HPP
 
 #ifdef USE_HEADER_UNITS
-#include "fmt/color.h"
-#include "nlohmann/json.hpp"
-#include <string>
-#include <thread>
+import "fmt/color.h";
+import "nlohmann/json.hpp";
+import <string>;
+import <thread>;
 #else
 #include "fmt/color.h"
 #include "nlohmann/json.hpp"
@@ -149,3 +149,4 @@ void from_json(const Json &json, Settings &settings_);
 string getReducedPath(const string &subjectPath, const PathPrint &pathPrint);
 inline Settings settings;
 #endif // HMAKE_SETTINGS_HPP
+

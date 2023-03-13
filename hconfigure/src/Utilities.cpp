@@ -1,9 +1,9 @@
 
 #ifdef USE_HEADER_UNITS
-#include "Utilities.hpp"
-#include "fmt/format.h"
-#include <fstream>
-#include <sstream>
+import "Utilities.hpp";
+import "fmt/format.h";
+import <fstream>;
+import <sstream>;
 #else
 #include "Utilities.hpp"
 #include "fmt/format.h"

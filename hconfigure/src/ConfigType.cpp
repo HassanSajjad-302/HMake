@@ -1,7 +1,7 @@
 
 #ifdef USE_HEADER_UNITS
-#include "ConfigType.hpp"
-#include "JConsts.hpp"
+import "ConfigType.hpp";
+import "JConsts.hpp";
 #else
 #include "ConfigType.hpp"
 #include "JConsts.hpp"
@@ -29,3 +29,4 @@ void from_json(const Json &json, ConfigType &configType)
         configType = ConfigType::RELEASE;
     }
 }
+

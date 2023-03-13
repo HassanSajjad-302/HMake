@@ -1,8 +1,8 @@
 #ifndef HMAKE_BUILDER_HPP
 #define HMAKE_BUILDER_HPP
 #ifdef USE_HEADER_UNITS
-#include <list>
-#include <string>
+import <list>;
+import <string>;
 #else
 #include <list>
 #include <string>
@@ -31,3 +31,4 @@ class Builder
 };
 
 #endif // HMAKE_BUILDER_HPP
+

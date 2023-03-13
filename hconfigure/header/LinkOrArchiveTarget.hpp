@@ -1,9 +1,9 @@
 #ifndef HMAKE_LINKORARCHIVETARGET_HPP
 #define HMAKE_LINKORARCHIVETARGET_HPP
 #ifdef USE_HEADER_UNITS
-#include "Features.hpp"
-#include "FeaturesConvenienceFunctions.hpp"
-#include "PostBasic.hpp"
+import "Features.hpp";
+import "FeaturesConvenienceFunctions.hpp";
+import "PostBasic.hpp";
 #else
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
@@ -320,3 +320,4 @@ template <typename T> bool LinkOrArchiveTarget::EVALUATE(T property) const
 }
 
 #endif // HMAKE_LINKORARCHIVETARGET_HPP
+

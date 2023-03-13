@@ -1,15 +1,15 @@
 
 #ifdef USE_HEADER_UNITS
-#include "CppSourceTarget.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "Builder.hpp"
-#include "Cache.hpp"
-#include "LinkOrArchiveTarget.hpp"
-#include "Utilities.hpp"
-#include <filesystem>
-#include <fstream>
-#include <regex>
-#include <utility>
+import "CppSourceTarget.hpp";
+import "BuildSystemFunctions.hpp";
+import "Builder.hpp";
+import "Cache.hpp";
+import "LinkOrArchiveTarget.hpp";
+import "Utilities.hpp";
+import <filesystem>;
+import <fstream>;
+import <regex>;
+import <utility>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"

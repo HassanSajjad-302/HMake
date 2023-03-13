@@ -2,8 +2,8 @@
 #define HMAKE_UTILITIES_HPP
 
 #ifdef USE_HEADER_UNITS
-#include <string>
-#include <vector>
+import <string>;
+import <vector>;
 #else
 #include <string>
 #include <vector>

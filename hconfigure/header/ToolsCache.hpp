@@ -2,12 +2,12 @@
 #define HMAKE_TOOLSCACHE_HPP
 
 #ifdef USE_HEADER_UNITS
-#include "BuildTools.hpp"
-#include "Features.hpp"
-#include "nlohmann/json.hpp"
-#include <set>
-#include <string>
-#include <vector>
+import "BuildTools.hpp";
+import "Features.hpp";
+import "nlohmann/json.hpp";
+import <set>;
+import <string>;
+import <vector>;
 #else
 #include "BuildTools.hpp"
 #include "Features.hpp"
@@ -62,3 +62,4 @@ void to_json(Json &j, const ToolsCache &toolsCacheLocal);
 void from_json(const Json &j, ToolsCache &toolsCacheLocal);
 inline ToolsCache toolsCache;
 #endif // HMAKE_TOOLSCACHE_HPP
+

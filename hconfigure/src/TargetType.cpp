@@ -1,8 +1,8 @@
 
 #ifdef USE_HEADER_UNITS
-#include "TargetType.hpp"
-#include "JConsts.hpp"
-#include "fmt/format.h"
+import "TargetType.hpp";
+import "JConsts.hpp";
+import "fmt/format.h";
 #else
 #include "JConsts.hpp"
 #include "TargetType.hpp"

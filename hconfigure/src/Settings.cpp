@@ -1,8 +1,8 @@
 
 #ifdef USE_HEADER_UNITS
-#include "Settings.hpp"
-#include "JConsts.hpp"
-#include "fmt/format.h"
+import "Settings.hpp";
+import "JConsts.hpp";
+import "fmt/format.h";
 #else
 #include "JConsts.hpp"
 #include "Settings.hpp"
@@ -263,3 +263,4 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
         return str.substr(index + 1, str.size() - 1);
     }
 }
+

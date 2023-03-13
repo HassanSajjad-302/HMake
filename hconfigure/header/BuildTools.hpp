@@ -1,8 +1,8 @@
 #ifndef HMAKE_BUILDTOOLS_HPP
 #define HMAKE_BUILDTOOLS_HPP
 #ifdef USE_HEADER_UNITS
-#include "nlohmann/json.hpp"
-#include <filesystem>
+import "nlohmann/json.hpp";
+import <filesystem>;
 #else
 #include "nlohmann/json.hpp"
 #include <filesystem>
@@ -69,3 +69,4 @@ struct Archiver : BuildTool
 };
 
 #endif // HMAKE_BUILDTOOLS_HPP
+

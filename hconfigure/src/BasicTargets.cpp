@@ -1,10 +1,10 @@
 
 #ifdef USE_HEADER_UNITS
-#include "BasicTargets.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "CppSourceTarget.hpp"
-#include <filesystem>
-#include <fstream>
+import "BasicTargets.hpp";
+import "BuildSystemFunctions.hpp";
+import "CppSourceTarget.hpp";
+import <filesystem>;
+import <fstream>;
 #else
 #include "BasicTargets.hpp"
 #include "BuildSystemFunctions.hpp"
@@ -211,3 +211,4 @@ void to_json(Json &j, const CTarget *tar)
 {
     j = tar->targetFileDir;
 }
+

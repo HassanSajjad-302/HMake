@@ -1,6 +1,6 @@
 
 #ifdef USE_HEADER_UNITS
-#include "ObjectFileProducer.hpp"
+import "ObjectFileProducer.hpp";
 #else
 #include "ObjectFileProducer.hpp"
 #endif

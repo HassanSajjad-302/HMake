@@ -1,13 +1,13 @@
 
 #ifdef USE_HEADER_UNITS
-#include "Builder.hpp"
-#include "BasicTargets.hpp"
-#include "Utilities.hpp"
-#include <condition_variable>
-#include <fstream>
-#include <mutex>
-#include <stack>
-#include <thread>
+import "Builder.hpp";
+import "BasicTargets.hpp";
+import "Utilities.hpp";
+import <condition_variable>;
+import <fstream>;
+import <mutex>;
+import <stack>;
+import <thread>;
 #else
 #include "BasicTargets.hpp"
 #include "Builder.hpp"

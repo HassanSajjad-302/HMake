@@ -1,10 +1,10 @@
 
 #ifdef USE_HEADER_UNITS
-#include "Configuration.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "CppSourceTarget.hpp"
-#include "DSC.hpp"
-#include "LinkOrArchiveTarget.hpp"
+import "Configuration.hpp";
+import "BuildSystemFunctions.hpp";
+import "CppSourceTarget.hpp";
+import "DSC.hpp";
+import "LinkOrArchiveTarget.hpp";
 #else
 #include "BuildSystemFunctions.hpp"
 #include "Configuration.hpp"

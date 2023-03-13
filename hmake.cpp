@@ -20,6 +20,7 @@ int main(int argc, char **argv)
                                         false));*/
     debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG, AddressSanitizer::OFF,
                  RuntimeDebugging::OFF);
+    debug.compilerFeatures.requirementCompileDefinitions.emplace(Define("USE_HEADER_UNITS"));
     release.ASSIGN(cxxStd, TranslateInclude::YES, TreatModuleAsSource::NO, ConfigType::RELEASE);
     arm.ASSIGN(cxxStd, Arch::ARM, TranslateInclude::YES, ConfigType::RELEASE, TreatModuleAsSource::NO);
     /*        debug.compilerFeatures.requirementCompilerFlags += "--target=x86_64-pc-windows-msvc ";

@@ -1,13 +1,13 @@
 
 #ifdef USE_HEADER_UNITS
-#include "Features.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "Cache.hpp"
-#include "CppSourceTarget.hpp"
-#include "JConsts.hpp"
-#include "ToolsCache.hpp"
-#include "fmt/format.h"
-#include "nlohmann/json.hpp"
+import "Features.hpp";
+import "BuildSystemFunctions.hpp";
+import "Cache.hpp";
+import "CppSourceTarget.hpp";
+import "JConsts.hpp";
+import "ToolsCache.hpp";
+import "fmt/format.h";
+import "nlohmann/json.hpp";
 #else
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"

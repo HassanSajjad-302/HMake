@@ -1,9 +1,9 @@
 
 #ifdef USE_HEADER_UNITS
-#include "BuildTools.hpp"
-#include "JConsts.hpp"
-#include <string>
-#include <utility>
+import "BuildTools.hpp";
+import "JConsts.hpp";
+import <string>;
+import <utility>;
 #else
 #include "BuildTools.hpp"
 #include "JConsts.hpp"

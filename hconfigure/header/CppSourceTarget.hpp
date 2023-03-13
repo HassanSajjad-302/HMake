@@ -1,17 +1,17 @@
 #ifndef HMAKE_CPPSOURCETARGET_HPP
 #define HMAKE_CPPSOURCETARGET_HPP
 #ifdef USE_HEADER_UNITS
-#include "BuildTools.hpp"
-#include "Configuration.hpp"
-#include "Features.hpp"
-#include "FeaturesConvenienceFunctions.hpp"
-#include "JConsts.hpp"
-#include "PostBasic.hpp"
-#include "SMFile.hpp"
-#include "ToolsCache.hpp"
-#include <concepts>
-#include <set>
-#include <string>
+import "BuildTools.hpp";
+import "Configuration.hpp";
+import "Features.hpp";
+import "FeaturesConvenienceFunctions.hpp";
+import "JConsts.hpp";
+import "PostBasic.hpp";
+import "SMFile.hpp";
+import "ToolsCache.hpp";
+import <concepts>;
+import <set>;
+import <string>;
 #else
 #include "BuildTools.hpp"
 #include "Configuration.hpp"
@@ -624,3 +624,4 @@ class PLibrary
 bool operator<(const PLibrary &lhs, const PLibrary &rhs);
 void to_json(Json &j, const PLibrary *pLibrary);
 #endif // HMAKE_CPPSOURCETARGET_HPP
+

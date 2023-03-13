@@ -1,11 +1,11 @@
 
 #ifdef USE_HEADER_UNITS
-#include "Cache.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "JConsts.hpp"
-#include "Settings.hpp"
-#include "fmt/format.h"
-#include "fstream"
+import "Cache.hpp";
+import "BuildSystemFunctions.hpp";
+import "JConsts.hpp";
+import "Settings.hpp";
+import "fmt/format.h";
+import "fstream";
 #else
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
@@ -103,3 +103,4 @@ void from_json(const Json &j, Cache &cacheLocal)
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();
     cacheLocal.compileConfigureCommands = j.at(JConsts::compileConfigureCommands).get<vector<string>>();
 }
+

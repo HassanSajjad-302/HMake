@@ -2,8 +2,8 @@
 #ifndef HMAKE_OBJECTFILEPRODUCER_HPP
 #define HMAKE_OBJECTFILEPRODUCER_HPP
 #ifdef USE_HEADER_UNITS
-#include "BasicTargets.hpp"
-#include "DS.hpp"
+import "BasicTargets.hpp";
+import "DS.hpp";
 #else
 #include "BasicTargets.hpp"
 #include "DS.hpp"
@@ -28,3 +28,4 @@ template <typename T> struct ObjectFileProducerWithDS : public ObjectFileProduce
 };
 
 #endif // HMAKE_OBJECTFILEPRODUCER_HPP
+

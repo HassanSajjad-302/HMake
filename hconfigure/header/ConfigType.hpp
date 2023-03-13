@@ -2,7 +2,7 @@
 #ifndef HMAKE_CONFIGTYPE_HPP
 #define HMAKE_CONFIGTYPE_HPP
 #ifdef USE_HEADER_UNITS
-#include "nlohmann/json.hpp"
+import "nlohmann/json.hpp";
 #else
 #include "nlohmann/json.hpp"
 #endif
@@ -25,3 +25,4 @@ void to_json(Json &json, const ConfigType &configType);
 void from_json(const Json &json, ConfigType &configType);
 
 #endif // HMAKE_CONFIGTYPE_HPP
+

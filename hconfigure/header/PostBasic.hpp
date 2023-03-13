@@ -3,8 +3,8 @@
 #define HMAKE_POSTBASIC_HPP
 
 #ifdef USE_HEADER_UNITS
-#include "BuildTools.hpp"
-#include "Settings.hpp"
+import "BuildTools.hpp";
+import "Settings.hpp";
 #else
 #include "BuildTools.hpp"
 #include "Settings.hpp"
@@ -46,3 +46,4 @@ struct PostCompile : PostBasic
 };
 
 #endif // HMAKE_POSTBASIC_HPP
+

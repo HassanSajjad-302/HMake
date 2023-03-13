@@ -1,9 +1,9 @@
 
 #ifdef USE_HEADER_UNITS
-#include "GetTarget.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "Cache.hpp"
-#include "CppSourceTarget.hpp"
+import "GetTarget.hpp";
+import "BuildSystemFunctions.hpp";
+import "Cache.hpp";
+import "CppSourceTarget.hpp";
 #else
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"

@@ -2,8 +2,8 @@
 #define HMAKE_TARGETTYPE_HPP
 
 #ifdef USE_HEADER_UNITS
-#include "nlohmann/json.hpp"
-#include <string>
+import "nlohmann/json.hpp";
+import <string>;
 #else
 #include "nlohmann/json.hpp"
 #include <string>

@@ -1,10 +1,10 @@
 #ifndef HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 #define HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 #ifdef USE_HEADER_UNITS
-#include "Features.hpp"
-#include <map>
-#include <set>
-#include <string>
+import "Features.hpp";
+import <map>;
+import <set>;
+import <string>;
 #else
 #include "Features.hpp"
 #include <map>
@@ -53,3 +53,4 @@ inline const string dashCpp = "-cpp";
 inline const string dashLink = "-link";
 void configureOrBuild();
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP
+

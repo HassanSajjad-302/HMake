@@ -1,10 +1,10 @@
 
 #ifdef USE_HEADER_UNITS
-#include "PostBasic.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "CppSourceTarget.hpp"
-#include "Utilities.hpp"
-#include <fstream>
+import "PostBasic.hpp";
+import "BuildSystemFunctions.hpp";
+import "CppSourceTarget.hpp";
+import "Utilities.hpp";
+import <fstream>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
@@ -232,3 +232,4 @@ void PostCompile::parseHeaderDeps(SourceNode &sourceNode)
         }
     }
 }
+

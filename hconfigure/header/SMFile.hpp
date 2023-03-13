@@ -1,13 +1,13 @@
 #ifndef HMAKE_SMFILE_HPP
 #define HMAKE_SMFILE_HPP
 #ifdef USE_HEADER_UNITS
-#include "ObjectFileProducer.hpp"
-#include "nlohmann/json.hpp"
-#include <filesystem>
-#include <set>
-#include <string>
-#include <utility>
-#include <vector>
+import "ObjectFileProducer.hpp";
+import "nlohmann/json.hpp";
+import <filesystem>;
+import <set>;
+import <string>;
+import <utility>;
+import <vector>;
 #else
 #include "ObjectFileProducer.hpp"
 #include "nlohmann/json.hpp"

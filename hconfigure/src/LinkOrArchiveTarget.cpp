@@ -1,13 +1,13 @@
 
 #ifdef USE_HEADER_UNITS
-#include "LinkOrArchiveTarget.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "Cache.hpp"
-#include "CppSourceTarget.hpp"
-#include "Utilities.hpp"
-#include <filesystem>
-#include <fstream>
-#include <utility>
+import "LinkOrArchiveTarget.hpp";
+import "BuildSystemFunctions.hpp";
+import "Cache.hpp";
+import "CppSourceTarget.hpp";
+import "Utilities.hpp";
+import <filesystem>;
+import <fstream>;
+import <utility>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"

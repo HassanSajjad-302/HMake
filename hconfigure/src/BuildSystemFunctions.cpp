@@ -1,12 +1,12 @@
 
 #ifdef USE_HEADER_UNITS
-#include "BuildSystemFunctions.hpp"
-#include "Builder.hpp"
-#include "Cache.hpp"
-#include "CppSourceTarget.hpp"
-#include "fmt/format.h"
-#include <filesystem>
-#include <fstream>
+import "BuildSystemFunctions.hpp";
+import "Builder.hpp";
+import "Cache.hpp";
+import "CppSourceTarget.hpp";
+import "fmt/format.h";
+import <filesystem>;
+import <fstream>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"

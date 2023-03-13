@@ -2,12 +2,12 @@
 #define HMAKE_TARJANNODE_HPP
 
 #ifdef USE_HEADER_UNITS
-#include "Settings.hpp"
-#include "fmt/color.h"
-#include "fmt/format.h"
-#include <set>
-#include <string>
-#include <vector>
+import "Settings.hpp";
+import "fmt/color.h";
+import "fmt/format.h";
+import <set>;
+import <string>;
+import <vector>;
 #else
 #include "Settings.hpp"
 #include "fmt/color.h"

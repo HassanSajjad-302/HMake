@@ -1,11 +1,11 @@
 #ifndef HMAKE_FEATURES_HPP
 #define HMAKE_FEATURES_HPP
 #ifdef USE_HEADER_UNITS
-#include "BuildTools.hpp"
-#include "Cache.hpp"
-#include "SMFile.hpp"
-#include "TargetType.hpp"
-#include <vector>
+import "BuildTools.hpp";
+import "Cache.hpp";
+import "SMFile.hpp";
+import "TargetType.hpp";
+import <vector>;
 #else
 #include "BuildTools.hpp"
 #include "Cache.hpp"
@@ -741,3 +741,4 @@ struct CompilerFeatures
 };
 
 #endif // HMAKE_FEATURES_HPP
+

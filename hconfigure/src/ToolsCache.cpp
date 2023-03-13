@@ -1,13 +1,13 @@
 
 #ifdef USE_HEADER_UNITS
-#include "ToolsCache.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "JConsts.hpp"
-#include "Utilities.hpp"
-#include "fmt/format.h"
-#include <filesystem>
-#include <fstream>
-#include <utility>
+import "ToolsCache.hpp";
+import "BuildSystemFunctions.hpp";
+import "JConsts.hpp";
+import "Utilities.hpp";
+import "fmt/format.h";
+import <filesystem>;
+import <fstream>;
+import <utility>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
@@ -253,3 +253,4 @@ void from_json(const Json &j, ToolsCache &toolsCacheLocal)
     toolsCacheLocal.linkers = j.at(JConsts::linkerArray).get<vector<Linker>>();
     toolsCacheLocal.archivers = j.at(JConsts::archiverArray).get<vector<Archiver>>();
 }
+

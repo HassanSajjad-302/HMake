@@ -1,7 +1,7 @@
 #ifndef HMAKE_JCONSTS_H
 #define HMAKE_JCONSTS_H
 #ifdef USE_HEADER_UNITS
-#include <string>
+import <string>;
 #else
 #include <string>
 #endif
@@ -153,3 +153,4 @@ struct JConsts
 };
 
 #endif // HMAKE_JCONSTS_H
+

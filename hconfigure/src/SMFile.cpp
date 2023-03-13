@@ -1,18 +1,18 @@
 
 #ifdef USE_HEADER_UNITS
-#include "SMFile.hpp"
+import "SMFile.hpp";
 
-#include "BuildSystemFunctions.hpp"
-#include "Builder.hpp"
-#include "CppSourceTarget.hpp"
-#include "JConsts.hpp"
-#include "PostBasic.hpp"
-#include "Settings.hpp"
-#include "Utilities.hpp"
-#include <filesystem>
-#include <fstream>
-#include <mutex>
-#include <utility>
+import "BuildSystemFunctions.hpp";
+import "Builder.hpp";
+import "CppSourceTarget.hpp";
+import "JConsts.hpp";
+import "PostBasic.hpp";
+import "Settings.hpp";
+import "Utilities.hpp";
+import <filesystem>;
+import <fstream>;
+import <mutex>;
+import <utility>;
 #else
 #include "SMFile.hpp"
 

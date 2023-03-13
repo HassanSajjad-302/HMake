@@ -2,8 +2,8 @@
 #ifndef HMAKE_DS_HPP
 #define HMAKE_DS_HPP
 #ifdef USE_HEADER_UNITS
-#include <concepts>
-#include <set>
+import <concepts>;
+import <set>;
 #else
 #include <concepts>
 #include <set>
@@ -64,3 +64,4 @@ template <typename T> void DS<T>::populateRequirementAndUsageRequirementDeps()
 }
 
 #endif // HMAKE_DS_HPP
+

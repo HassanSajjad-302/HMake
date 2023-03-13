@@ -2,7 +2,7 @@
 #ifndef HMAKE_GETTARGET_HPP
 #define HMAKE_GETTARGET_HPP
 #ifdef USE_HEADER_UNITS
-#include "DSC.hpp"
+import "DSC.hpp";
 #else
 #include "DSC.hpp"
 #endif
@@ -29,3 +29,4 @@ DSC<CppSourceTarget> &GetCppObjectDSC(const string &name);
 DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, CTarget &other, bool hasFile = true);
 
 #endif // HMAKE_GETTARGET_HPP
+

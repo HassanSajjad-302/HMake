@@ -1,11 +1,11 @@
 #ifndef HMAKE_CONFIGURATION_HPP
 #define HMAKE_CONFIGURATION_HPP
 #ifdef USE_HEADER_UNITS
-#include "BasicTargets.hpp"
-#include "ConfigType.hpp"
-#include "DSC.hpp"
-#include "Features.hpp"
-#include <memory>
+import "BasicTargets.hpp";
+import "ConfigType.hpp";
+import "DSC.hpp";
+import "Features.hpp";
+import <memory>;
 #else
 #include "BasicTargets.hpp"
 #include "ConfigType.hpp"
@@ -233,3 +233,4 @@ Configuration &Configuration::ASSIGN(T property, Property... properties)
 }
 
 #endif // HMAKE_CONFIGURATION_HPP
+

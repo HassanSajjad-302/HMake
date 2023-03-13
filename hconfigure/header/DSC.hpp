@@ -2,7 +2,7 @@
 #ifndef HMAKE_DSC_HPP
 #define HMAKE_DSC_HPP
 #ifdef USE_HEADER_UNITS
-#include "LinkOrArchiveTarget.hpp"
+import "LinkOrArchiveTarget.hpp";
 #else
 #include "LinkOrArchiveTarget.hpp"
 #endif
@@ -135,3 +135,4 @@ template <typename T> T *DSC<T>::getSourceTargetPointer()
 }
 
 #endif // HMAKE_DSC_HPP
+

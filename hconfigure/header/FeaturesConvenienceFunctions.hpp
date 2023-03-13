@@ -1,9 +1,9 @@
 #ifndef HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
 #define HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
 #ifdef USE_HEADER_UNITS
-#include "ConfigType.hpp"
-#include <concepts>
-#include <string>
+import "ConfigType.hpp";
+import <concepts>;
+import <string>;
 #else
 #include "ConfigType.hpp"
 #include <concepts>
@@ -211,3 +211,4 @@ U &FeatureConvenienceFunctions<U>::M_RIGHT(T condition, Condition... conditions)
 }
 
 #endif // HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
+
