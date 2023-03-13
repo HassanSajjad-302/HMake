@@ -1,9 +1,14 @@
 
 #ifndef HMAKE_OBJECTFILEPRODUCER_HPP
 #define HMAKE_OBJECTFILEPRODUCER_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "BasicTargets.hpp"
 #include "DS.hpp"
+#else
+#include "BasicTargets.hpp"
+#include "DS.hpp"
+#endif
+
 struct ObjectFile : public BTarget
 {
     virtual string getObjectFileOutputFilePath() = 0;

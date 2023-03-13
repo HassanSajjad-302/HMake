@@ -1,3 +1,5 @@
+
+#ifdef USE_HEADER_UNITS
 #include "LinkOrArchiveTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
@@ -6,6 +8,16 @@
 #include <filesystem>
 #include <fstream>
 #include <utility>
+#else
+#include "BuildSystemFunctions.hpp"
+#include "Cache.hpp"
+#include "CppSourceTarget.hpp"
+#include "LinkOrArchiveTarget.hpp"
+#include "Utilities.hpp"
+#include <filesystem>
+#include <fstream>
+#include <utility>
+#endif
 
 using std::ofstream, std::filesystem::create_directories, std::ifstream;
 

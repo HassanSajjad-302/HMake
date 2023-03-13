@@ -1,3 +1,5 @@
+
+#ifdef USE_HEADER_UNITS
 #include "SMFile.hpp"
 
 #include "BuildSystemFunctions.hpp"
@@ -11,6 +13,21 @@
 #include <fstream>
 #include <mutex>
 #include <utility>
+#else
+#include "SMFile.hpp"
+
+#include "BuildSystemFunctions.hpp"
+#include "Builder.hpp"
+#include "CppSourceTarget.hpp"
+#include "JConsts.hpp"
+#include "PostBasic.hpp"
+#include "Settings.hpp"
+#include "Utilities.hpp"
+#include <filesystem>
+#include <fstream>
+#include <mutex>
+#include <utility>
+#endif
 
 using std::filesystem::directory_entry, std::filesystem::file_type, std::tie, std::ifstream,
     std::filesystem::file_time_type;

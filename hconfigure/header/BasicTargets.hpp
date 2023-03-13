@@ -1,10 +1,16 @@
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
-
+#ifdef USE_HEADER_UNITS
+import "TargetType.hpp";
+import "TarjanNode.hpp";
+import <filesystem>;
+import <map>;
+#else
 #include "TargetType.hpp"
 #include "TarjanNode.hpp"
 #include <filesystem>
 #include <map>
+#endif
 
 using std::filesystem::path, std::size_t, std::map;
 

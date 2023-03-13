@@ -1,9 +1,17 @@
+
+#ifdef USE_HEADER_UNITS
 #include "BasicTargets.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
 #include <filesystem>
 #include <fstream>
-
+#else
+#include "BasicTargets.hpp"
+#include "BuildSystemFunctions.hpp"
+#include "CppSourceTarget.hpp"
+#include <filesystem>
+#include <fstream>
+#endif
 using std::filesystem::create_directories, std::ofstream;
 
 /*IndexInTopologicalSortComparator::IndexInTopologicalSortComparator(unsigned short round_) : round(round_)

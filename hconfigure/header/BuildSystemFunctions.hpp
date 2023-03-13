@@ -1,10 +1,16 @@
 #ifndef HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 #define HMAKE_BUILDSYSTEMFUNCTIONS_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "Features.hpp"
 #include <map>
 #include <set>
 #include <string>
+#else
+#include "Features.hpp"
+#include <map>
+#include <set>
+#include <string>
+#endif
 
 using std::string, std::set, std::map;
 

@@ -1,7 +1,15 @@
+
+#ifdef USE_HEADER_UNITS
 #include "Utilities.hpp"
 #include "fmt/format.h"
 #include <fstream>
 #include <sstream>
+#else
+#include "Utilities.hpp"
+#include "fmt/format.h"
+#include <fstream>
+#include <sstream>
+#endif
 
 using std::ifstream, fmt::print;
 

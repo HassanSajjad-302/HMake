@@ -1,3 +1,5 @@
+
+#ifdef USE_HEADER_UNITS
 #include "CppSourceTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
@@ -8,6 +10,18 @@
 #include <fstream>
 #include <regex>
 #include <utility>
+#else
+#include "BuildSystemFunctions.hpp"
+#include "Builder.hpp"
+#include "Cache.hpp"
+#include "CppSourceTarget.hpp"
+#include "LinkOrArchiveTarget.hpp"
+#include "Utilities.hpp"
+#include <filesystem>
+#include <fstream>
+#include <regex>
+#include <utility>
+#endif
 
 using std::filesystem::create_directories, std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream,
     std::regex, std::regex_error;

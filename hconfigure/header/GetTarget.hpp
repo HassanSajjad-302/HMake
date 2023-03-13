@@ -1,8 +1,11 @@
 
 #ifndef HMAKE_GETTARGET_HPP
 #define HMAKE_GETTARGET_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "DSC.hpp"
+#else
+#include "DSC.hpp"
+#endif
 
 CppSourceTarget &GetCppPreprocess(const string &name);
 CppSourceTarget &GetCppPreprocess(const string &name, CTarget &other, bool hasFile = true);

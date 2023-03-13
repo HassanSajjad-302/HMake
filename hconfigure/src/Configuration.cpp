@@ -1,8 +1,17 @@
+
+#ifdef USE_HEADER_UNITS
 #include "Configuration.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
 #include "LinkOrArchiveTarget.hpp"
+#else
+#include "BuildSystemFunctions.hpp"
+#include "Configuration.hpp"
+#include "CppSourceTarget.hpp"
+#include "DSC.hpp"
+#include "LinkOrArchiveTarget.hpp"
+#endif
 
 Configuration::Configuration(const string &name_) : CTarget{name_}
 {

@@ -1,10 +1,17 @@
 #ifndef HMAKE_SETTINGS_HPP
 #define HMAKE_SETTINGS_HPP
 
+#ifdef USE_HEADER_UNITS
 #include "fmt/color.h"
 #include "nlohmann/json.hpp"
 #include <string>
 #include <thread>
+#else
+#include "fmt/color.h"
+#include "nlohmann/json.hpp"
+#include <string>
+#include <thread>
+#endif
 
 using std::string;
 using Json = nlohmann::ordered_json;

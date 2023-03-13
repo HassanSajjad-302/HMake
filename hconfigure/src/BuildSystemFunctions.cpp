@@ -1,3 +1,5 @@
+
+#ifdef USE_HEADER_UNITS
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "Cache.hpp"
@@ -5,6 +7,15 @@
 #include "fmt/format.h"
 #include <filesystem>
 #include <fstream>
+#else
+#include "BuildSystemFunctions.hpp"
+#include "Builder.hpp"
+#include "Cache.hpp"
+#include "CppSourceTarget.hpp"
+#include "fmt/format.h"
+#include <filesystem>
+#include <fstream>
+#endif
 
 using fmt::print, std::filesystem::current_path, std::filesystem::exists, std::filesystem::directory_iterator,
     std::ifstream, std::list;

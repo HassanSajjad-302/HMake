@@ -1,8 +1,11 @@
 
 #ifndef HMAKE_DSC_HPP
 #define HMAKE_DSC_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "LinkOrArchiveTarget.hpp"
+#else
+#include "LinkOrArchiveTarget.hpp"
+#endif
 
 // Dependency Specification Controller
 template <typename T> struct DSC

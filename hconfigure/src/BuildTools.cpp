@@ -1,8 +1,15 @@
+
+#ifdef USE_HEADER_UNITS
 #include "BuildTools.hpp"
 #include "JConsts.hpp"
 #include <string>
 #include <utility>
-
+#else
+#include "BuildTools.hpp"
+#include "JConsts.hpp"
+#include <string>
+#include <utility>
+#endif
 using std::to_string, std::stringstream;
 
 Version::Version(unsigned int majorVersion_, unsigned int minorVersion_, unsigned int patchVersion_)

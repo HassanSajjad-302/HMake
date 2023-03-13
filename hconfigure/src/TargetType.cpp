@@ -1,6 +1,13 @@
+
+#ifdef USE_HEADER_UNITS
 #include "TargetType.hpp"
 #include "JConsts.hpp"
 #include "fmt/format.h"
+#else
+#include "JConsts.hpp"
+#include "TargetType.hpp"
+#include "fmt/format.h"
+#endif
 
 using fmt::print;
 

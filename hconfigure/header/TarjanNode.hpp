@@ -1,12 +1,22 @@
 #ifndef HMAKE_TARJANNODE_HPP
 #define HMAKE_TARJANNODE_HPP
 
+#ifdef USE_HEADER_UNITS
 #include "Settings.hpp"
 #include "fmt/color.h"
 #include "fmt/format.h"
 #include <set>
 #include <string>
 #include <vector>
+#else
+#include "Settings.hpp"
+#include "fmt/color.h"
+#include "fmt/format.h"
+#include <set>
+#include <string>
+#include <vector>
+#endif
+
 using std::vector, std::set, std::string, fmt::print;
 
 template <typename T> class TarjanNode

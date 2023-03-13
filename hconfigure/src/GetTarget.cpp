@@ -1,8 +1,15 @@
 
+#ifdef USE_HEADER_UNITS
 #include "GetTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
 #include "CppSourceTarget.hpp"
+#else
+#include "BuildSystemFunctions.hpp"
+#include "Cache.hpp"
+#include "CppSourceTarget.hpp"
+#include "GetTarget.hpp"
+#endif
 
 // TODO
 //  Why _CPP_SOURCE is embedded with name?

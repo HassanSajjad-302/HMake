@@ -1,6 +1,13 @@
+
+#ifdef USE_HEADER_UNITS
 #include "Settings.hpp"
 #include "JConsts.hpp"
 #include "fmt/format.h"
+#else
+#include "JConsts.hpp"
+#include "Settings.hpp"
+#include "fmt/format.h"
+#endif
 
 using fmt::print;
 void to_json(Json &json, const PathPrint &pathPrint)

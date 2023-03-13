@@ -1,9 +1,16 @@
-
+#ifdef USE_HEADER_UNITS
 #include "BuildSystemFunctions.hpp"
 #include "fmt/format.h"
 #include <filesystem>
 #include <fstream>
 #include <string>
+#else
+#include "BuildSystemFunctions.hpp"
+#include "fmt/format.h"
+#include <filesystem>
+#include <fstream>
+#include <string>
+#endif
 
 using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, fmt::print,
     std::filesystem::path, std::filesystem::exists, std::string;

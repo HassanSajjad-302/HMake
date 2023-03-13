@@ -1,9 +1,14 @@
 #ifndef HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
 #define HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "ConfigType.hpp"
 #include <concepts>
 #include <string>
+#else
+#include "ConfigType.hpp"
+#include <concepts>
+#include <string>
+#endif
 
 using std::string;
 

@@ -1,8 +1,12 @@
 #ifndef HMAKE_BUILDTOOLS_HPP
 #define HMAKE_BUILDTOOLS_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "nlohmann/json.hpp"
 #include <filesystem>
+#else
+#include "nlohmann/json.hpp"
+#include <filesystem>
+#endif
 
 using std::filesystem::path;
 using Json = nlohmann::ordered_json;

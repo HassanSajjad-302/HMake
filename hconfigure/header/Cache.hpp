@@ -1,12 +1,20 @@
 #ifndef HMAKE_CACHE_HPP
 #define HMAKE_CACHE_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "ConfigType.hpp"
 #include "TargetType.hpp"
 #include "nlohmann/json.hpp"
 #include <filesystem>
 #include <string>
 #include <vector>
+#else
+#include "ConfigType.hpp"
+#include "TargetType.hpp"
+#include "nlohmann/json.hpp"
+#include <filesystem>
+#include <string>
+#include <vector>
+#endif
 
 using Json = nlohmann::ordered_json;
 using std::string, std::vector, std::filesystem::path;

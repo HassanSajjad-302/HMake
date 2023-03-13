@@ -1,11 +1,21 @@
 #ifndef HMAKE_TOOLSCACHE_HPP
 #define HMAKE_TOOLSCACHE_HPP
+
+#ifdef USE_HEADER_UNITS
 #include "BuildTools.hpp"
 #include "Features.hpp"
 #include "nlohmann/json.hpp"
 #include <set>
 #include <string>
 #include <vector>
+#else
+#include "BuildTools.hpp"
+#include "Features.hpp"
+#include "nlohmann/json.hpp"
+#include <set>
+#include <string>
+#include <vector>
+#endif
 
 using std::vector;
 

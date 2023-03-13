@@ -1,6 +1,11 @@
+
+#ifdef USE_HEADER_UNITS
 #include "ConfigType.hpp"
 #include "JConsts.hpp"
-
+#else
+#include "ConfigType.hpp"
+#include "JConsts.hpp"
+#endif
 void to_json(Json &json, const ConfigType &configType)
 {
     if (configType == ConfigType::DEBUG)

@@ -1,3 +1,5 @@
+
+#ifdef USE_HEADER_UNITS
 #include "Builder.hpp"
 #include "BasicTargets.hpp"
 #include "Utilities.hpp"
@@ -6,7 +8,16 @@
 #include <mutex>
 #include <stack>
 #include <thread>
-
+#else
+#include "BasicTargets.hpp"
+#include "Builder.hpp"
+#include "Utilities.hpp"
+#include <condition_variable>
+#include <fstream>
+#include <mutex>
+#include <stack>
+#include <thread>
+#endif
 using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream, std::ofstream, std::stack,
     std::filesystem::current_path;
 

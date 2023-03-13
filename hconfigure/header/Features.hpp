@@ -1,11 +1,18 @@
 #ifndef HMAKE_FEATURES_HPP
 #define HMAKE_FEATURES_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "BuildTools.hpp"
 #include "Cache.hpp"
 #include "SMFile.hpp"
 #include "TargetType.hpp"
 #include <vector>
+#else
+#include "BuildTools.hpp"
+#include "Cache.hpp"
+#include "SMFile.hpp"
+#include "TargetType.hpp"
+#include <vector>
+#endif
 
 using std::vector;
 

@@ -1,6 +1,6 @@
 #ifndef HMAKE_CPPSOURCETARGET_HPP
 #define HMAKE_CPPSOURCETARGET_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "BuildTools.hpp"
 #include "Configuration.hpp"
 #include "Features.hpp"
@@ -12,6 +12,19 @@
 #include <concepts>
 #include <set>
 #include <string>
+#else
+#include "BuildTools.hpp"
+#include "Configuration.hpp"
+#include "Features.hpp"
+#include "FeaturesConvenienceFunctions.hpp"
+#include "JConsts.hpp"
+#include "PostBasic.hpp"
+#include "SMFile.hpp"
+#include "ToolsCache.hpp"
+#include <concepts>
+#include <set>
+#include <string>
+#endif
 
 using std::set, std::string, std::same_as;
 

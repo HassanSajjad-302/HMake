@@ -1,9 +1,14 @@
 #ifndef HMAKE_LINKORARCHIVETARGET_HPP
 #define HMAKE_LINKORARCHIVETARGET_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "PostBasic.hpp"
+#else
+#include "Features.hpp"
+#include "FeaturesConvenienceFunctions.hpp"
+#include "PostBasic.hpp"
+#endif
 
 struct LinkerFlags
 {

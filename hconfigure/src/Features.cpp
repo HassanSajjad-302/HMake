@@ -1,3 +1,5 @@
+
+#ifdef USE_HEADER_UNITS
 #include "Features.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
@@ -6,6 +8,17 @@
 #include "ToolsCache.hpp"
 #include "fmt/format.h"
 #include "nlohmann/json.hpp"
+#else
+#include "BuildSystemFunctions.hpp"
+#include "Cache.hpp"
+#include "CppSourceTarget.hpp"
+#include "Features.hpp"
+#include "JConsts.hpp"
+#include "ToolsCache.hpp"
+#include "fmt/format.h"
+#include "nlohmann/json.hpp"
+#endif
+
 using Json = nlohmann::ordered_json;
 using fmt::print;
 

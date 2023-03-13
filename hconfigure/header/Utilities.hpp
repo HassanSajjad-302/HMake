@@ -1,7 +1,13 @@
 #ifndef HMAKE_UTILITIES_HPP
 #define HMAKE_UTILITIES_HPP
+
+#ifdef USE_HEADER_UNITS
 #include <string>
 #include <vector>
+#else
+#include <string>
+#include <vector>
+#endif
 
 using std::string, std::vector;
 string addQuotes(const string &pathString);

@@ -1,9 +1,13 @@
 
 #ifndef HMAKE_DS_HPP
 #define HMAKE_DS_HPP
-
+#ifdef USE_HEADER_UNITS
 #include <concepts>
 #include <set>
+#else
+#include <concepts>
+#include <set>
+#endif
 
 using std::set, std::same_as;
 

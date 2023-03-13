@@ -1,3 +1,5 @@
+
+#ifdef USE_HEADER_UNITS
 #include "ToolsCache.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
@@ -6,6 +8,17 @@
 #include <filesystem>
 #include <fstream>
 #include <utility>
+#else
+#include "BuildSystemFunctions.hpp"
+#include "JConsts.hpp"
+#include "ToolsCache.hpp"
+#include "Utilities.hpp"
+#include "fmt/format.h"
+#include <filesystem>
+#include <fstream>
+#include <utility>
+#endif
+
 using std::ofstream, fmt::print, std::filesystem::remove;
 
 VSTools::VSTools(string batchFile, path toolBinDir, Arch hostArch_, AddressModel hostAM_, Arch targetArch_,

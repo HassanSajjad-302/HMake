@@ -1,8 +1,17 @@
+
+#ifdef USE_HEADER_UNITS
 #include "PostBasic.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
 #include "Utilities.hpp"
 #include <fstream>
+#else
+#include "BuildSystemFunctions.hpp"
+#include "CppSourceTarget.hpp"
+#include "PostBasic.hpp"
+#include "Utilities.hpp"
+#include <fstream>
+#endif
 
 using std::ofstream;
 

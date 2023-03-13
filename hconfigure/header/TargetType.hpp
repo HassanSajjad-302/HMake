@@ -1,7 +1,13 @@
 #ifndef HMAKE_TARGETTYPE_HPP
 #define HMAKE_TARGETTYPE_HPP
+
+#ifdef USE_HEADER_UNITS
 #include "nlohmann/json.hpp"
 #include <string>
+#else
+#include "nlohmann/json.hpp"
+#include <string>
+#endif
 
 using Json = nlohmann::ordered_json;
 using std::string;

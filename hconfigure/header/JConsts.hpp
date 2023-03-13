@@ -1,7 +1,11 @@
 #ifndef HMAKE_JCONSTS_H
 #define HMAKE_JCONSTS_H
-
+#ifdef USE_HEADER_UNITS
 #include <string>
+#else
+#include <string>
+#endif
+
 using std::string;
 struct JConsts
 {

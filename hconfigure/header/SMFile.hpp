@@ -1,6 +1,6 @@
 #ifndef HMAKE_SMFILE_HPP
 #define HMAKE_SMFILE_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "ObjectFileProducer.hpp"
 #include "nlohmann/json.hpp"
 #include <filesystem>
@@ -8,6 +8,15 @@
 #include <string>
 #include <utility>
 #include <vector>
+#else
+#include "ObjectFileProducer.hpp"
+#include "nlohmann/json.hpp"
+#include <filesystem>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+#endif
 
 using Json = nlohmann::ordered_json;
 using std::string, std::map, std::set, std::vector, std::filesystem::path, std::pair;

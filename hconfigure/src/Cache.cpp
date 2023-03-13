@@ -1,9 +1,19 @@
+
+#ifdef USE_HEADER_UNITS
 #include "Cache.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
 #include "Settings.hpp"
 #include "fmt/format.h"
 #include "fstream"
+#else
+#include "BuildSystemFunctions.hpp"
+#include "Cache.hpp"
+#include "JConsts.hpp"
+#include "Settings.hpp"
+#include "fmt/format.h"
+#include "fstream"
+#endif
 
 using std::ifstream, fmt::print, std::ofstream;
 

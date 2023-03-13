@@ -1,8 +1,14 @@
 
 #ifndef HMAKE_POSTBASIC_HPP
 #define HMAKE_POSTBASIC_HPP
+
+#ifdef USE_HEADER_UNITS
 #include "BuildTools.hpp"
 #include "Settings.hpp"
+#else
+#include "BuildTools.hpp"
+#include "Settings.hpp"
+#endif
 
 // Maybe use CRTP and inherit both SourceNode and LinkOrArchiveTarget from it. exitStatus is being copied currently.
 struct PostBasic

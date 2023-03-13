@@ -1,11 +1,19 @@
 #ifndef HMAKE_CONFIGURATION_HPP
 #define HMAKE_CONFIGURATION_HPP
-
+#ifdef USE_HEADER_UNITS
 #include "BasicTargets.hpp"
 #include "ConfigType.hpp"
 #include "DSC.hpp"
 #include "Features.hpp"
 #include <memory>
+#else
+#include "BasicTargets.hpp"
+#include "ConfigType.hpp"
+#include "DSC.hpp"
+#include "Features.hpp"
+#include <memory>
+#endif
+
 using std::shared_ptr;
 
 class LinkOrArchiveTarget;

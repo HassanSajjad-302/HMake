@@ -1,8 +1,12 @@
 #ifndef HMAKE_BUILDER_HPP
 #define HMAKE_BUILDER_HPP
-
+#ifdef USE_HEADER_UNITS
 #include <list>
 #include <string>
+#else
+#include <list>
+#include <string>
+#endif
 
 using std::string, std::list;
 
