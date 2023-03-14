@@ -125,3 +125,4 @@ class CTarget // Configure Target
 void to_json(Json &j, const CTarget *tar);
 
 #endif // HMAKE_BASICTARGETS_HPP
+

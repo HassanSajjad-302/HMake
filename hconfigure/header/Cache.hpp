@@ -3,7 +3,7 @@
 #ifdef USE_HEADER_UNITS
 import "ConfigType.hpp";
 import "TargetType.hpp";
-import "nlohmann/json.hpp";
+#include "nlohmann/json.hpp";
 import <filesystem>;
 import <string>;
 import <vector>;

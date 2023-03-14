@@ -7,7 +7,7 @@ import "CppSourceTarget.hpp";
 import "JConsts.hpp";
 import "ToolsCache.hpp";
 import "fmt/format.h";
-import "nlohmann/json.hpp";
+#include "nlohmann/json.hpp";
 #else
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"

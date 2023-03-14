@@ -416,8 +416,6 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
-        headerUnitsConsumptionMethods[&headerUnit].emplace(
-            requireJson.at("lookup-method").get<string>() == "include-angle", requireLogicalName);
         huDirTarget->headerUnits.emplace(&headerUnit);
         RealBTarget &realBTarget = headerUnit.getRealBTarget(1);
         if (!headerUnit.presentInCache)
@@ -432,9 +430,11 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         {
             headerUnit.generateSMFileInRoundOne = true;
         }
-        getRealBTarget(0).addDependency(headerUnit);
         builder.addNewBTargetInFinalBTargets(&headerUnit);
     }
+    headerUnitsConsumptionMethods[&headerUnit].emplace(requireJson.at("lookup-method").get<string>() == "include-angle",
+                                                       requireLogicalName);
+    getRealBTarget(0).addDependency(headerUnit);
 }
 
 void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)

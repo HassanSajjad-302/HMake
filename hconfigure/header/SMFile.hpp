@@ -2,7 +2,7 @@
 #define HMAKE_SMFILE_HPP
 #ifdef USE_HEADER_UNITS
 import "ObjectFileProducer.hpp";
-import "nlohmann/json.hpp";
+#include "nlohmann/json.hpp";
 import <filesystem>;
 import <set>;
 import <string>;

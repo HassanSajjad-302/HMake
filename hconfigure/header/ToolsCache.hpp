@@ -4,7 +4,7 @@
 #ifdef USE_HEADER_UNITS
 import "BuildTools.hpp";
 import "Features.hpp";
-import "nlohmann/json.hpp";
+#include "nlohmann/json.hpp";
 import <set>;
 import <string>;
 import <vector>;

@@ -1,7 +1,7 @@
 #ifndef HMAKE_BUILDTOOLS_HPP
 #define HMAKE_BUILDTOOLS_HPP
 #ifdef USE_HEADER_UNITS
-import "nlohmann/json.hpp";
+#include "nlohmann/json.hpp";
 import <filesystem>;
 #else
 #include "nlohmann/json.hpp"

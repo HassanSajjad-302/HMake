@@ -2,7 +2,7 @@
 #ifndef HMAKE_CONFIGTYPE_HPP
 #define HMAKE_CONFIGTYPE_HPP
 #ifdef USE_HEADER_UNITS
-import "nlohmann/json.hpp";
+#include "nlohmann/json.hpp";
 #else
 #include "nlohmann/json.hpp"
 #endif

@@ -17,7 +17,7 @@ import "TarjanNode.hpp";
 import "ToolsCache.hpp";
 import "Utilities.hpp";
 import "fmt/color.h";
-import "nlohmann/json.hpp";
+#include "nlohmann/json.hpp";
 import <filesystem>;
 import <memory>;
 import <set>;
