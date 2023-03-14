@@ -147,7 +147,7 @@ class CppSourceTarget : public CommonFeatures,
     CppSourceTarget(string name_, TargetType targetType);
     CppSourceTarget(string name_, TargetType targetType, CTarget &other, bool hasFile = true);
 
-    void getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrArchiveTarget *linkOrArchiveTarget) const override;
+    void getObjectFiles(set<ObjectFile *> *objectFiles, LinkOrArchiveTarget *linkOrArchiveTarget) const override;
     void updateBTarget(unsigned short round, Builder &builder) override;
     void addRequirementDepsToBTargetDependencies();
     void populateTransitiveProperties();

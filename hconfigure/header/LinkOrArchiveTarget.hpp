@@ -49,7 +49,7 @@ class LinkOrArchiveTarget : public CommonFeatures,
     string linkOrArchiveCommandPrint;
     set<Node *> libraryDirectories;
 
-    vector<ObjectFile *> objectFiles;
+    set<ObjectFile *> objectFiles;
     set<ObjectFileProducer *> objectFileProducers;
 
     /*    set<LinkOrArchiveTarget *> publicPrebuilts;

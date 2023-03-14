@@ -57,12 +57,11 @@ target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/fmt/i
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:fmt::fmt>")
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_PATH="$<TARGET_FILE:fmt>")
 
-add_executable(hbuild
-        hbuild/src/main.cpp hconfigure/header/NlohmannJson.hpp)
+add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper hmake.cpp)
+add_executable(HMakeHelper Examples/Example10/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 
 

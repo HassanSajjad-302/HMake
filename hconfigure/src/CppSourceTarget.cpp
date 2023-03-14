@@ -155,18 +155,18 @@ CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, CTarget &o
     compileTargetType = targetType;
 }
 
-void CppSourceTarget::getObjectFiles(vector<ObjectFile *> *objectFiles, LinkOrArchiveTarget *linkOrArchiveTarget) const
+void CppSourceTarget::getObjectFiles(set<ObjectFile *> *objectFiles, LinkOrArchiveTarget *linkOrArchiveTarget) const
 {
     for (const SourceNode &objectFile : sourceFileDependencies)
     {
-        objectFiles->emplace_back(const_cast<SourceNode *>(&objectFile));
+        objectFiles->emplace(const_cast<SourceNode *>(&objectFile));
     }
     for (const SMFile &objectFile : moduleSourceFileDependencies)
     {
-        objectFiles->emplace_back(const_cast<SMFile *>(&objectFile));
+        objectFiles->emplace(const_cast<SMFile *>(&objectFile));
         for (const SMFile *smFile : objectFile.allSMFileDependenciesRoundZero)
         {
-            objectFiles->emplace_back(const_cast<SMFile *>(smFile));
+            objectFiles->emplace(const_cast<SMFile *>(smFile));
         }
     }
 

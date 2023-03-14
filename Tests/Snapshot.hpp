@@ -55,6 +55,7 @@ struct Updates
 {
     unsigned short errorFiles = 0;
     unsigned short smruleFiles = 0;
+    // module-files which don't have .ifc file generated are also considered sourceFiles
     unsigned short sourceFiles = 0;
     unsigned short moduleFiles = 0;
     unsigned short cppTargets = 0;
