@@ -424,7 +424,6 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
-        huDirTarget->headerUnits.emplace(&headerUnit);
         RealBTarget &realBTarget = headerUnit.getRealBTarget(1);
         headerUnit.setSourceNodeFileStatus(".smrules", realBTarget);
 

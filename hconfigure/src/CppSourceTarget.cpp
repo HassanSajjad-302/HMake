@@ -76,6 +76,7 @@ SMFile &CppSourceTarget::addNodeInHeaderUnits(Node *node)
     if (auto it = moduleScopeData->headerUnits.find(node); it == moduleScopeData->headerUnits.end())
     {
         headerUnit = moduleScopeData->headerUnits.emplace(this, node).first;
+        headerUnits.emplace(&(*headerUnit));
     }
     else
     {
@@ -1105,7 +1106,7 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
                 SourceNode &sourceNode = addNodeInSourceFileDependencies(node);
                 sourceNode.presentInCache = true;
                 sourceNode.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                sourceNode.compileCommandJson = std::move(j.at(JConsts::compileCommand));
+                sourceNode.compileCommandJson = j.at(JConsts::compileCommand);
             }
         }
         for (Json &j : buildCacheJson.at(JConsts::moduleDependencies))
@@ -1116,7 +1117,7 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
                 SMFile &smFile = addNodeInModuleSourceFileDependencies(node);
                 smFile.presentInCache = true;
                 smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                smFile.compileCommandJson = std::move(j.at(JConsts::compileCommand));
+                smFile.compileCommandJson = j.at(JConsts::compileCommand);
             }
         }
 
@@ -1175,9 +1176,12 @@ void CppSourceTarget::populateSourceNodes()
 {
     for (auto it = sourceFileDependencies.begin(); it != sourceFileDependencies.end();)
     {
-        auto &sourceNode = const_cast<SourceNode &>(*it);
-        sourceNode.setSourceNodeFileStatus(".o", sourceNode.getRealBTarget(0));
-        getRealBTarget(0).addDependency(sourceNode);
+        if (it->presentInSource)
+        {
+            auto &sourceNode = const_cast<SourceNode &>(*it);
+            sourceNode.setSourceNodeFileStatus(".o", sourceNode.getRealBTarget(0));
+            getRealBTarget(0).addDependency(sourceNode);
+        }
         ++it;
     }
 }
@@ -1202,29 +1206,32 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
 
     for (auto it = moduleSourceFileDependencies.begin(); it != moduleSourceFileDependencies.end();)
     {
-        auto &smFile = const_cast<SMFile &>(*it);
-        if (auto [pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
+        if (it->presentInSource)
         {
-            RealBTarget &realBTarget = smFile.getRealBTarget(1);
-            smFile.setSourceNodeFileStatus(".smrules", realBTarget);
-            if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+            auto &smFile = const_cast<SMFile &>(*it);
+            if (auto [pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
             {
-                smFile.generateSMFileInRoundOne = true;
+                RealBTarget &realBTarget = smFile.getRealBTarget(1);
+                smFile.setSourceNodeFileStatus(".smrules", realBTarget);
+                if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+                {
+                    smFile.generateSMFileInRoundOne = true;
+                }
+                else
+                {
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                }
             }
             else
             {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                      "In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
+                      moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
+                      (**pos).target->getTargetPointer());
+                exit(EXIT_FAILURE);
             }
+            getRealBTarget(0).addDependency(smFile);
         }
-        else
-        {
-            print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                  "In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
-                  moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
-                  (**pos).target->getTargetPointer());
-            exit(EXIT_FAILURE);
-        }
-        getRealBTarget(0).addDependency(smFile);
         ++it;
     }
 }
