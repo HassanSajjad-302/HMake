@@ -1,6 +1,6 @@
 
-import "private-lib4.hpp";
-import "public-lib4.hpp";
+#include "private-lib4.hpp"
+#include "public-lib4.hpp"
 
 unsigned short getValueLib4()
 {

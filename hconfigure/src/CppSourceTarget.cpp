@@ -11,10 +11,10 @@ import <fstream>;
 import <regex>;
 import <utility>;
 #else
+#include "CppSourceTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "Cache.hpp"
-#include "CppSourceTarget.hpp"
 #include "LinkOrArchiveTarget.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
@@ -159,14 +159,23 @@ void CppSourceTarget::getObjectFiles(set<ObjectFile *> *objectFiles, LinkOrArchi
 {
     for (const SourceNode &objectFile : sourceFileDependencies)
     {
-        objectFiles->emplace(const_cast<SourceNode *>(&objectFile));
+        if (objectFile.presentInSource)
+        {
+            objectFiles->emplace(const_cast<SourceNode *>(&objectFile));
+        }
     }
     for (const SMFile &objectFile : moduleSourceFileDependencies)
     {
-        objectFiles->emplace(const_cast<SMFile *>(&objectFile));
-        for (const SMFile *smFile : objectFile.allSMFileDependenciesRoundZero)
+        if (objectFile.presentInSource)
         {
-            objectFiles->emplace(const_cast<SMFile *>(smFile));
+            objectFiles->emplace(const_cast<SMFile *>(&objectFile));
+        }
+    }
+    for (const SMFile *headerUnit : headerUnits)
+    {
+        if (headerUnit->presentInSource)
+        {
+            objectFiles->emplace(const_cast<SMFile *>(headerUnit));
         }
     }
 
@@ -241,6 +250,8 @@ CppSourceTarget &CppSourceTarget::assignStandardIncludesToHUIncludes()
     return *this;
 }
 
+// For some features the resultant object-file is same these are termed incidental. Change these does not result in
+// recompilation. Skip these in compiler-command that is cached.
 CompilerFlags CppSourceTarget::getCompilerFlags()
 {
     CompilerFlags flags;
@@ -758,12 +769,14 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     {
         initializeForBuild();
         readBuildCacheFile(builder);
+        // getCompileCommand will be later on called concurrently therefore need to set this before.
+        setCompileCommand();
+        setSourceCompileCommandPrintFirstHalf();
         parseModuleSourceFiles(builder);
     }
     else if (!round)
     {
         populateSourceNodes();
-        removeUnReferencedHeaderUnits();
         resolveRequirePaths();
     }
     else if (round == 3)
@@ -790,6 +803,8 @@ void CppSourceTarget::setJson()
     targetJson[JConsts::compilerFlags] = requirementCompilerFlags;
     // targetJson[JConsts::linkerFlags] = publicLinkerFlags;
     string str = "SOURCE_";
+    // TODO
+    //  Remove cached nodes from sourceFileDependencies and moduleSourceFileDependencies
     targetJson[str + JConsts::files] = sourceFileDependencies;
     targetJson[str + JConsts::directories] = regexSourceDirs;
     str = "MODULE_";
@@ -1073,9 +1088,6 @@ string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
 
 void CppSourceTarget::readBuildCacheFile(Builder &)
 {
-    // getCompileCommand is called concurrently and may cause a data-race, if this hasn't been called before.
-    setCompileCommand();
-    setSourceCompileCommandPrintFirstHalf();
     if (!std::filesystem::exists(path(buildCacheFilesDirPath)))
     {
         create_directories(buildCacheFilesDirPath);
@@ -1085,55 +1097,39 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
     {
         ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> buildCacheJson;
 
-        string str = buildCacheJson.at(JConsts::compileCommand).get<string>();
-        if (str == compiler.bTPath.generic_string() + " " + getCompileCommand())
+        for (Json &j : buildCacheJson.at(JConsts::sourceDependencies))
         {
-            for (Json &j : buildCacheJson.at(JConsts::sourceDependencies))
+            Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
+            if (!node->doesNotExist)
             {
-                Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
-                if (!node->doesNotExist)
-                {
-                    SourceNode &sourceNode = addNodeInSourceFileDependencies(node);
-                    sourceNode.presentInCache = true;
-                    sourceNode.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                }
-            }
-            for (Json &j : buildCacheJson.at(JConsts::moduleDependencies))
-            {
-                Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
-                if (!node->doesNotExist)
-                {
-                    SMFile &smFile = addNodeInModuleSourceFileDependencies(node);
-                    smFile.presentInCache = true;
-                    smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                }
-            }
-
-            for (Json &j : buildCacheJson.at(JConsts::headerUnits))
-            {
-                Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
-                if (!node->doesNotExist)
-                {
-                    SMFile &smFile = addNodeInHeaderUnits(node);
-                    smFile.presentInCache = true;
-                    smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                }
+                SourceNode &sourceNode = addNodeInSourceFileDependencies(node);
+                sourceNode.presentInCache = true;
+                sourceNode.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
+                sourceNode.compileCommandJson = std::move(j.at(JConsts::compileCommand));
             }
         }
-    }
-}
-
-void CppSourceTarget::removeUnReferencedHeaderUnits()
-{
-    for (auto it = headerUnits.begin(); it != headerUnits.end();)
-    {
-        if (!(*it)->presentInSource)
+        for (Json &j : buildCacheJson.at(JConsts::moduleDependencies))
         {
-            it = headerUnits.erase(it);
+            Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
+            if (!node->doesNotExist)
+            {
+                SMFile &smFile = addNodeInModuleSourceFileDependencies(node);
+                smFile.presentInCache = true;
+                smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
+                smFile.compileCommandJson = std::move(j.at(JConsts::compileCommand));
+            }
         }
-        else
+
+        for (Json &j : buildCacheJson.at(JConsts::headerUnits))
         {
-            ++it;
+            Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
+            if (!node->doesNotExist)
+            {
+                SMFile &headerUnit = addNodeInHeaderUnits(node);
+                headerUnit.presentInCache = true;
+                headerUnit.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
+                headerUnit.compileCommandJson = std::move(j.at(JConsts::compileCommand));
+            }
         }
     }
 }
@@ -1142,31 +1138,34 @@ void CppSourceTarget::resolveRequirePaths()
 {
     for (const SMFile &smFileConst : moduleSourceFileDependencies)
     {
-        auto &smFile = const_cast<SMFile &>(smFileConst);
-        for (const Json &requireJson : smFile.requiresJson)
+        if (smFileConst.presentInSource)
         {
-            string requireLogicalName = requireJson.at("logical-name").get<string>();
-            if (requireLogicalName == smFile.logicalName)
+            auto &smFile = const_cast<SMFile &>(smFileConst);
+            for (const Json &requireJson : smFile.requiresJson)
             {
-                print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                      "In Scope\n{}\nModule\n{}\n can not depend on itself.\n", smFile.node->filePath);
-                exit(EXIT_FAILURE);
-            }
-            if (requireJson.contains("lookup-method"))
-            {
-                continue;
-            }
-            if (auto it = moduleScopeData->requirePaths.find(requireLogicalName);
-                it == moduleScopeData->requirePaths.end())
-            {
-                print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                      "No File Provides This {}.\n", requireLogicalName);
-                exit(EXIT_FAILURE);
-            }
-            else
-            {
-                SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
-                smFile.getRealBTarget(0).addDependency(smFileDep);
+                string requireLogicalName = requireJson.at("logical-name").get<string>();
+                if (requireLogicalName == smFile.logicalName)
+                {
+                    print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                          "In Scope\n{}\nModule\n{}\n can not depend on itself.\n", smFile.node->filePath);
+                    exit(EXIT_FAILURE);
+                }
+                if (requireJson.contains("lookup-method"))
+                {
+                    continue;
+                }
+                if (auto it = moduleScopeData->requirePaths.find(requireLogicalName);
+                    it == moduleScopeData->requirePaths.end())
+                {
+                    print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                          "No File Provides This {}.\n", requireLogicalName);
+                    exit(EXIT_FAILURE);
+                }
+                else
+                {
+                    SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
+                    smFile.getRealBTarget(0).addDependency(smFileDep);
+                }
             }
         }
     }
@@ -1176,25 +1175,10 @@ void CppSourceTarget::populateSourceNodes()
 {
     for (auto it = sourceFileDependencies.begin(); it != sourceFileDependencies.end();)
     {
-        if (it->presentInSource)
-        {
-            auto &sourceNode = const_cast<SourceNode &>(*it);
-            RealBTarget &realBTarget = sourceNode.getRealBTarget(0);
-            if (!sourceNode.presentInCache)
-            {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-            }
-            else
-            {
-                sourceNode.setSourceNodeFileStatus(".o", realBTarget);
-            }
-            getRealBTarget(0).addDependency(sourceNode);
-            ++it;
-        }
-        else
-        {
-            it = sourceFileDependencies.erase(it);
-        }
+        auto &sourceNode = const_cast<SourceNode &>(*it);
+        sourceNode.setSourceNodeFileStatus(".o", sourceNode.getRealBTarget(0));
+        getRealBTarget(0).addDependency(sourceNode);
+        ++it;
     }
 }
 
@@ -1218,45 +1202,30 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
 
     for (auto it = moduleSourceFileDependencies.begin(); it != moduleSourceFileDependencies.end();)
     {
-        if (it->presentInSource)
+        auto &smFile = const_cast<SMFile &>(*it);
+        if (auto [pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
         {
-            auto &smFile = const_cast<SMFile &>(*it);
-            if (auto [pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
+            RealBTarget &realBTarget = smFile.getRealBTarget(1);
+            smFile.setSourceNodeFileStatus(".smrules", realBTarget);
+            if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
             {
-                RealBTarget &realBTarget = smFile.getRealBTarget(1);
-                if (!smFile.presentInCache)
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                }
-                else
-                {
-                    smFile.setSourceNodeFileStatus(".smrules", realBTarget);
-                }
-                if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
-                {
-                    smFile.generateSMFileInRoundOne = true;
-                }
-                else
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                }
-                builder.finalBTargets.emplace_back(&smFile);
+                smFile.generateSMFileInRoundOne = true;
             }
             else
             {
-                print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                      "In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
-                      moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
-                      (**pos).target->getTargetPointer());
-                exit(EXIT_FAILURE);
+                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
             }
-            getRealBTarget(0).addDependency(smFile);
-            ++it;
         }
         else
         {
-            it = moduleSourceFileDependencies.erase(it);
+            print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
+                  "In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
+                  moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
+                  (**pos).target->getTargetPointer());
+            exit(EXIT_FAILURE);
         }
+        getRealBTarget(0).addDependency(smFile);
+        ++it;
     }
 }
 
@@ -1419,80 +1388,88 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
                              settings.ccpSettings.outputAndErrorFiles);
 }
 
+// If source-file or header-unit is removed and is re-added later on. it would be
+// recompiled. Because current caching mechanism does not store compile-command per file but instead stores it
+// per-target. So can't be sure that whether the compile-command for it was updated or not. This is also the reason for
+// the need of removal of erroneous files. Maybe change that?
 void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
 {
     // Following keeps the cache only for successful updates i.e. failed updates would be re-run next time for their
     // lack of existence in the cache.
     if (exitingAfterRoundOne)
     {
-        vector<const SourceNode *> moduleFilesLocal;
-        moduleFilesLocal.reserve(moduleSourceFileDependencies.size());
-        vector<const SourceNode *> headerUnitsLocal;
-        headerUnitsLocal.reserve(headerUnits.size());
-        // Suppose user changes compile-command and this causes error in smrule generation. If erroneous files aren't
-        // removed, they won't be re-generated next time because user didn't touch them or their dependencies, only
-        // impacted the compile-command.
+        /*        vector<const SourceNode *> moduleFilesLocal;
+                moduleFilesLocal.reserve(moduleSourceFileDependencies.size());
+                vector<const SourceNode *> headerUnitsLocal;
+                headerUnitsLocal.reserve(headerUnits.size());
+                // Suppose user changes compile-command and this causes error in smrule generation. If erroneous files
+           aren't
+                // removed, they won't be re-generated next time because user didn't touch them or their dependencies,
+           only
+                // impacted the compile-command.
 
-        for (const SMFile &smFile : moduleSourceFileDependencies)
-        {
-            if (smFile.smrulesFileParsed)
-            {
-                moduleFilesLocal.emplace_back(&smFile);
-            }
-        }
-        for (const SMFile *headerUnit : headerUnits)
-        {
-            if (headerUnit->smrulesFileParsed)
-            {
-                headerUnitsLocal.emplace_back(headerUnit);
-            }
-        }
+                for (const SMFile &smFile : moduleSourceFileDependencies)
+                {
+                    if (smFile.smrulesFileParsed)
+                    {
+                        moduleFilesLocal.emplace_back(&smFile);
+                    }
+                }
+                for (const SMFile *headerUnit : headerUnits)
+                {
+                    if (headerUnit->smrulesFileParsed)
+                    {
+                        headerUnitsLocal.emplace_back(headerUnit);
+                    }
+                }*/
 
-        buildCacheJson[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
-        buildCacheJson[JConsts::moduleDependencies] = moduleFilesLocal;
-        buildCacheJson[JConsts::headerUnits] = headerUnitsLocal;
+        buildCacheJson[JConsts::moduleDependencies] = moduleSourceFileDependencies;
+        buildCacheJson[JConsts::headerUnits] = headerUnits;
         ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCacheJson.dump(4);
     }
     else
     {
 
-        vector<const SourceNode *> sourceFilesLocal;
-        sourceFilesLocal.reserve(sourceFileDependencies.size());
-        vector<const SourceNode *> moduleFilesLocal;
-        moduleFilesLocal.reserve(moduleSourceFileDependencies.size());
-        vector<const SourceNode *> headerUnitsLocal;
-        headerUnitsLocal.reserve(headerUnits.size());
+        /*        vector<const SourceNode *> sourceFilesLocal;
+                sourceFilesLocal.reserve(sourceFileDependencies.size());
+                vector<const SourceNode *> moduleFilesLocal;
+                moduleFilesLocal.reserve(moduleSourceFileDependencies.size());
+                vector<const SourceNode *> headerUnitsLocal;
+                headerUnitsLocal.reserve(headerUnits.size());
 
-        // Suppose user changes compile-command and this causes error in compilation. If erroneous files aren't removed,
-        // they won't be recompiled next time because user didn't touch them or their dependencies, only impacted the
-        // compile-command. But erroneous module-files still would be updated because they don't have the latest .o file
-        // compared to .smrule file corresponding to the updated compile-command.
+                // Suppose user changes compile-command and this causes error in compilation. If erroneous files aren't
+           removed,
+                // they won't be recompiled next time because user didn't touch them or their dependencies, only
+           impacted the
+                // compile-command. But erroneous module-files still would be updated because they don't have the latest
+           .o file
+                // compared to .smrule file corresponding to the updated compile-command.
 
-        for (const SourceNode &sourceNode : sourceFileDependencies)
-        {
-            if (const_cast<SourceNode &>(sourceNode).getRealBTarget(0).exitStatus == EXIT_SUCCESS)
-            {
-                sourceFilesLocal.emplace_back(&sourceNode);
-            }
-        }
-        for (const SMFile &smFile : moduleSourceFileDependencies)
-        {
-            if (smFile.smrulesFileParsed)
-            {
-                moduleFilesLocal.emplace_back(&smFile);
-            }
-        }
-        for (const SMFile *headerUnit : headerUnits)
-        {
-            if (headerUnit->smrulesFileParsed)
-            {
-                headerUnitsLocal.emplace_back(headerUnit);
-            }
-        }
-        buildCacheJson[JConsts::compileCommand] = compiler.bTPath.generic_string() + " " + compileCommand;
-        buildCacheJson[JConsts::sourceDependencies] = sourceFilesLocal;
-        buildCacheJson[JConsts::moduleDependencies] = moduleFilesLocal;
-        buildCacheJson[JConsts::headerUnits] = headerUnitsLocal;
+                for (const SourceNode &sourceNode : sourceFileDependencies)
+                {
+                    if (const_cast<SourceNode &>(sourceNode).getRealBTarget(0).exitStatus == EXIT_SUCCESS)
+                    {
+                        sourceFilesLocal.emplace_back(&sourceNode);
+                    }
+                }
+                for (const SMFile &smFile : moduleSourceFileDependencies)
+                {
+                    if (smFile.smrulesFileParsed)
+                    {
+                        moduleFilesLocal.emplace_back(&smFile);
+                    }
+                }
+                for (const SMFile *headerUnit : headerUnits)
+                {
+                    if (headerUnit->smrulesFileParsed)
+                    {
+                        headerUnitsLocal.emplace_back(headerUnit);
+                    }
+                }
+                */
+        buildCacheJson[JConsts::sourceDependencies] = sourceFileDependencies;
+        buildCacheJson[JConsts::moduleDependencies] = moduleSourceFileDependencies;
+        buildCacheJson[JConsts::headerUnits] = headerUnits;
         ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCacheJson.dump(4);
     }
 }

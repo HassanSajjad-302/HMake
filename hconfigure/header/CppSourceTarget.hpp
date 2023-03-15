@@ -112,7 +112,6 @@ class CppSourceTarget : public CommonFeatures,
     inline string &getSourceCompileCommandPrintFirstHalf();
 
     void readBuildCacheFile(Builder &);
-    void removeUnReferencedHeaderUnits();
     void resolveRequirePaths();
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);

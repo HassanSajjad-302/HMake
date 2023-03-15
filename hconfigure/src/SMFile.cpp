@@ -190,7 +190,10 @@ void SourceNode::updateBTarget(unsigned short round, Builder &)
             postCompile.parseHeaderDeps(*this);
             realBTarget.exitStatus = postCompile.exitStatus;
             realBTarget.fileStatus = FileStatus::UPDATED;
-
+            if (realBTarget.exitStatus == EXIT_SUCCESS)
+            {
+                compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
+            }
             std::lock_guard<std::mutex> lk(printMutex);
             postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
             fflush(stdout);
@@ -206,35 +209,44 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
 {
     path objectFilePath = path(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ex);
 
+    if (!presentInCache)
+    {
+        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        return;
+    }
+
+    if (compileCommandJson != target->compiler.bTPath.generic_string() + " " + target->compileCommand)
+    {
+        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        return;
+    }
+
     if (!std::filesystem::exists(objectFilePath))
     {
         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
         return;
     }
+
     file_time_type objectFileLastEditTime = last_write_time(objectFilePath);
     if (node->getLastUpdateTime() > objectFileLastEditTime)
     {
         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        return;
     }
-    else
-    {
 
-        for (const Json &str : headerFilesJson)
+    for (const Json &str : headerFilesJson)
+    {
+        Node *headerNode = const_cast<Node *>(Node::getNodeFromString(str, true, true));
+        if (node->doesNotExist)
         {
-            Node *headerNode = const_cast<Node *>(Node::getNodeFromString(str, true, true));
-            if (node->doesNotExist)
-            {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                break;
-            }
-            else
-            {
-                if (headerNode->getLastUpdateTime() > objectFileLastEditTime)
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                    break;
-                }
-            }
+            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+            return;
+        }
+
+        if (headerNode->getLastUpdateTime() > objectFileLastEditTime)
+        {
+            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+            return;
         }
     }
 }
@@ -242,6 +254,7 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
 void to_json(Json &j, const SourceNode &sourceNode)
 {
     j[JConsts::srcFile] = sourceNode.node->filePath;
+    j[JConsts::compileCommand] = sourceNode.compileCommandJson;
     j[JConsts::headerDependencies] = sourceNode.headerDependencies;
 }
 
@@ -271,7 +284,22 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
     RealBTarget &realBTarget = getRealBTarget(round);
     if (round == 1)
     {
-        auto parseSMRuleFile = [&]() {
+        realBTarget.exitStatus = EXIT_SUCCESS;
+        if (generateSMFileInRoundOne)
+        {
+            // TODO
+            //  Expose setting for printOnlyOnError
+            PostCompile postCompile = target->GenerateSMRulesFile(*this, true);
+            {
+                std::lock_guard<std::mutex> lk(printMutex);
+                postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
+                fflush(stdout);
+            }
+            postCompile.parseHeaderDeps(*this);
+            realBTarget.exitStatus = postCompile.exitStatus;
+        }
+        if (realBTarget.exitStatus == EXIT_SUCCESS)
+        {
             {
                 // Maybe fine-grain this mutex by using multiple mutexes in following functions. And first use
                 // set::contain and then set::emplace. Because set::contains is thread-safe while set::emplace isn't
@@ -282,34 +310,14 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
             setSMFileStatusRoundZero();
             target->getRealBTarget(0).addDependency(*this);
             smrulesFileParsed = true;
-        };
-        if (generateSMFileInRoundOne)
-        {
-            // TODO
-            //  Expose setting for printOnlyOnError
-            PostCompile postCompile = target->GenerateSMRulesFile(*this, true);
-            realBTarget.exitStatus = postCompile.exitStatus;
-            {
-                std::lock_guard<std::mutex> lk(printMutex);
-                postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
-                fflush(stdout);
-            }
-            if (realBTarget.exitStatus == EXIT_SUCCESS)
-            {
-                postCompile.parseHeaderDeps(*this);
-                parseSMRuleFile();
-            }
-            else
-            {
-                // In-case of error in .o file generation, build system continues, so other .o files could be compiled
-                // and those aren't recompiled in next-run. But side effects of allowing build-system to continue from
-                // here are too complex to evaluate, so exiting after this round.
-                builder.exitAfterThisRound = true;
-            }
+            compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
         }
         else
         {
-            parseSMRuleFile();
+            // In-case of error in .o file generation, build system continues, so other .o files could be compiled
+            // and those aren't recompiled in next-run. But side effects of allowing build-system to continue from
+            // here are too complex to evaluate, so exiting after this round.
+            builder.exitAfterThisRound = true;
         }
     }
     else if (!round && selectiveBuild)
@@ -418,14 +426,8 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
         huDirTarget->headerUnits.emplace(&headerUnit);
         RealBTarget &realBTarget = headerUnit.getRealBTarget(1);
-        if (!headerUnit.presentInCache)
-        {
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-        }
-        else
-        {
-            headerUnit.setSourceNodeFileStatus(".smrules", realBTarget);
-        }
+        headerUnit.setSourceNodeFileStatus(".smrules", realBTarget);
+
         if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
         {
             headerUnit.generateSMFileInRoundOne = true;
