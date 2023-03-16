@@ -307,7 +307,6 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
                 saveRequiresJsonAndInitializeHeaderUnits(builder);
                 assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
             }
-            setSMFileStatusRoundZero();
             target->getRealBTarget(0).addDependency(*this);
             smrulesFileParsed = true;
             compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
@@ -503,15 +502,16 @@ void SMFile::setSMFileStatusRoundZero()
         path objectFilePath = path(target->buildCacheFilesDirPath + fileName + ".o");
         Node *smRuleNode =
             const_cast<Node *>(Node::getNodeFromString(target->buildCacheFilesDirPath + fileName + ".smrules", true));
+#ifndef NDEBUG
         if (!exists(path(smRuleNode->filePath)))
         {
             print(stderr,
                   "Warning. Following smrules not found while checking the object-file-status which must had been "
                   "generated in round 1.\n{}\n",
                   smRuleNode->filePath);
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-            return;
+            exit(EXIT_FAILURE);
         }
+#endif
         if (!exists(objectFilePath))
         {
             realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
@@ -521,6 +521,46 @@ void SMFile::setSMFileStatusRoundZero()
         if (smRuleNode->getLastUpdateTime() > objectFileLastEditTime)
         {
             realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+            return;
+        }
+        file_time_type ifcFileLastEditTime;
+        bool hasIfcFile = false;
+        if (type != SM_FILE_TYPE::PRIMARY_IMPLEMENTATION && type != SM_FILE_TYPE::PARTITION_IMPLEMENTATION &&
+            type != SM_FILE_TYPE::GLOBAL_MODULE_FRAGMENT)
+        {
+            hasIfcFile = true;
+            path ifcFilePath = path(target->buildCacheFilesDirPath + fileName + ".ifc");
+            if (!exists(ifcFilePath))
+            {
+                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                return;
+            }
+            ifcFileLastEditTime = last_write_time(ifcFilePath);
+            if (smRuleNode->getLastUpdateTime() > ifcFileLastEditTime)
+            {
+                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                return;
+            }
+        }
+
+        for (SMFile *dep : allSMFileDependenciesRoundZero)
+        {
+            string depFileName = path(dep->node->filePath).filename().string();
+            path depIfcFilePath = path(dep->target->buildCacheFilesDirPath + depFileName + ".ifc");
+            file_time_type depIfcFileLastEditTime = last_write_time(depIfcFilePath);
+            if (depIfcFileLastEditTime > objectFileLastEditTime)
+            {
+                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                return;
+            }
+            if (hasIfcFile)
+            {
+                if (depIfcFileLastEditTime > ifcFileLastEditTime)
+                {
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                    return;
+                }
+            }
         }
     }
 }
@@ -545,6 +585,7 @@ void SMFile::duringSort(Builder &, unsigned short round, unsigned int)
             }
         }
     }
+    setSMFileStatusRoundZero();
     for (SMFile *smFile : allSMFileDependenciesRoundZero)
     {
         for (auto &[headerUnitSMFile, headerUnitConsumerSet] : smFile->headerUnitsConsumptionMethods)

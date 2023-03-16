@@ -903,11 +903,11 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned i
             }
             for (ObjectFile *objectFile : objectFiles)
             {
-                if (!exists(path(objectFile->getObjectFileOutputFilePath())))
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                    return;
-                }
+                /*                if (!exists(path(objectFile->getObjectFileOutputFilePath())))
+                                {
+                                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                                    return;
+                                }*/
                 if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)->getLastUpdateTime() >
                     Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
                 {
