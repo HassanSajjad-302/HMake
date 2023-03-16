@@ -499,7 +499,7 @@ void SMFile::setSMFileStatusRoundZero()
     if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
     {
         string fileName = path(node->filePath).filename().string();
-        path objectFilePath = path(target->buildCacheFilesDirPath + fileName + ".o");
+        path objectFilePath = path(target->buildCacheFilesDirPath + fileName + ".m.o");
         Node *smRuleNode =
             const_cast<Node *>(Node::getNodeFromString(target->buildCacheFilesDirPath + fileName + ".smrules", true));
 #ifndef NDEBUG
@@ -565,6 +565,17 @@ void SMFile::setSMFileStatusRoundZero()
     }
 }
 
+string SMFile::getObjectFileOutputFilePath()
+{
+    return target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".m.o";
+}
+
+string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
+{
+    return getReducedPath(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".m.o",
+                          pathPrint);
+}
+
 void SMFile::duringSort(Builder &, unsigned short round, unsigned int)
 {
     if (round)
@@ -602,7 +613,7 @@ void SMFile::duringSort(Builder &, unsigned short round, unsigned int)
 string SMFile::getFlag(const string &outputFilesWithoutExtension) const
 {
     string str = "/ifcOutput" + addQuotes(outputFilesWithoutExtension + ".ifc") + " " + "/Fo" +
-                 addQuotes(outputFilesWithoutExtension + ".o");
+                 addQuotes(outputFilesWithoutExtension + ".m.o");
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
         print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
@@ -620,7 +631,7 @@ string SMFile::getFlag(const string &outputFilesWithoutExtension) const
     }
     else
     {
-        str = "/Fo" + addQuotes(outputFilesWithoutExtension + ".o");
+        str = "/Fo" + addQuotes(outputFilesWithoutExtension + ".m.o");
         if (type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
         {
             return "/internalPartition " + str;
@@ -645,7 +656,7 @@ string SMFile::getFlagPrint(const string &outputFilesWithoutExtension) const
     str += infra ? "/Fo" : "";
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
-        str += getReducedPath(outputFilesWithoutExtension + ".o", ccpSettings.objectFile);
+        str += getReducedPath(outputFilesWithoutExtension + ".m.o", ccpSettings.objectFile);
     }
 
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
@@ -664,7 +675,7 @@ string SMFile::getFlagPrint(const string &outputFilesWithoutExtension) const
     }
     else
     {
-        str = infra ? "/Fo" : "" + getReducedPath(outputFilesWithoutExtension + ".o", ccpSettings.objectFile);
+        str = infra ? "/Fo" : "" + getReducedPath(outputFilesWithoutExtension + ".m.o", ccpSettings.objectFile);
         if (type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
         {
             return (infra ? "/internalPartition " : "") + str;
