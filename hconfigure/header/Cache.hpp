@@ -65,7 +65,8 @@ CacheVariable<T>::CacheVariable(string cacheVariableString_, T defaultValue)
     }
     else
     {
-        cacheVariablesJson["FILE1"] = defaultValue;
+        value = defaultValue;
+        cacheVariablesJson[jsonString] = value;
     }
 }
 
