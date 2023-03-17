@@ -1405,75 +1405,12 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
     // lack of existence in the cache.
     if (exitingAfterRoundOne)
     {
-        /*        vector<const SourceNode *> moduleFilesLocal;
-                moduleFilesLocal.reserve(moduleSourceFileDependencies.size());
-                vector<const SourceNode *> headerUnitsLocal;
-                headerUnitsLocal.reserve(headerUnits.size());
-                // Suppose user changes compile-command and this causes error in smrule generation. If erroneous files
-           aren't
-                // removed, they won't be re-generated next time because user didn't touch them or their dependencies,
-           only
-                // impacted the compile-command.
-
-                for (const SMFile &smFile : moduleSourceFileDependencies)
-                {
-                    if (smFile.smrulesFileParsed)
-                    {
-                        moduleFilesLocal.emplace_back(&smFile);
-                    }
-                }
-                for (const SMFile *headerUnit : headerUnits)
-                {
-                    if (headerUnit->smrulesFileParsed)
-                    {
-                        headerUnitsLocal.emplace_back(headerUnit);
-                    }
-                }*/
-
         buildCacheJson[JConsts::moduleDependencies] = moduleSourceFileDependencies;
         buildCacheJson[JConsts::headerUnits] = headerUnits;
         ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCacheJson.dump(4);
     }
     else
     {
-
-        /*        vector<const SourceNode *> sourceFilesLocal;
-                sourceFilesLocal.reserve(sourceFileDependencies.size());
-                vector<const SourceNode *> moduleFilesLocal;
-                moduleFilesLocal.reserve(moduleSourceFileDependencies.size());
-                vector<const SourceNode *> headerUnitsLocal;
-                headerUnitsLocal.reserve(headerUnits.size());
-
-                // Suppose user changes compile-command and this causes error in compilation. If erroneous files aren't
-           removed,
-                // they won't be recompiled next time because user didn't touch them or their dependencies, only
-           impacted the
-                // compile-command. But erroneous module-files still would be updated because they don't have the latest
-           .o file
-                // compared to .smrule file corresponding to the updated compile-command.
-
-                for (const SourceNode &sourceNode : sourceFileDependencies)
-                {
-                    if (const_cast<SourceNode &>(sourceNode).getRealBTarget(0).exitStatus == EXIT_SUCCESS)
-                    {
-                        sourceFilesLocal.emplace_back(&sourceNode);
-                    }
-                }
-                for (const SMFile &smFile : moduleSourceFileDependencies)
-                {
-                    if (smFile.smrulesFileParsed)
-                    {
-                        moduleFilesLocal.emplace_back(&smFile);
-                    }
-                }
-                for (const SMFile *headerUnit : headerUnits)
-                {
-                    if (headerUnit->smrulesFileParsed)
-                    {
-                        headerUnitsLocal.emplace_back(headerUnit);
-                    }
-                }
-                */
         buildCacheJson[JConsts::sourceDependencies] = sourceFileDependencies;
         buildCacheJson[JConsts::moduleDependencies] = moduleSourceFileDependencies;
         buildCacheJson[JConsts::headerUnits] = headerUnits;

@@ -13,10 +13,19 @@ int main(int argc, char **argv)
 
     auto configureFunc = [](Configuration &configuration) {
         DSC<CppSourceTarget> &lib4 = configuration.GetCppStaticDSC("lib4");
-        lib4.getSourceTarget()
-            .SOURCE_DIRECTORIES("lib4/private/", ".*cpp")
-            .PUBLIC_HU_INCLUDES("lib4/public/")
-            .PRIVATE_HU_INCLUDES("lib4/private/");
+        lib4.getSourceTarget().PUBLIC_HU_INCLUDES("lib4/public/").PRIVATE_HU_INCLUDES("lib4/private/");
+
+        bool useModule = CacheVariable<bool>("use-module", true).value;
+        if (useModule)
+        {
+            lib4.getSourceTarget()
+                .MODULE_DIRECTORIES("lib4/private", ".*cpp")
+                .PRIVATE_COMPILE_DEFINITION("USE_MODULE", "");
+        }
+        else
+        {
+            lib4.getSourceTarget().SOURCE_DIRECTORIES("lib4/private", ".*cpp");
+        }
 
         DSC<CppSourceTarget> &lib3 = configuration.GetCppStaticDSC("lib3").PUBLIC_LIBRARIES(&lib4);
         lib3.getSourceTarget().MODULE_DIRECTORIES("lib3/private/", ".*cpp").PUBLIC_HU_INCLUDES("lib3/public/");

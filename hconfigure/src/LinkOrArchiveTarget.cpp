@@ -9,10 +9,10 @@ import <filesystem>;
 import <fstream>;
 import <utility>;
 #else
+#include "LinkOrArchiveTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
 #include "CppSourceTarget.hpp"
-#include "LinkOrArchiveTarget.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
 #include <fstream>
@@ -775,7 +775,15 @@ void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &)
             realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
             if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
             {
-                Json cacheFileJson = linker.bTPath.generic_string() + " " + getLinkOrArchiveCommand(true);
+                Json cacheFileJson;
+                cacheFileJson[JConsts::linkCommand] =
+                    linker.bTPath.generic_string() + " " + getLinkOrArchiveCommand(true);
+                vector<string> cachedObjectFilesVector;
+                for (ObjectFile *objectFile : objectFiles)
+                {
+                    cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
+                }
+                cacheFileJson[JConsts::objectFiles] = std::move(cachedObjectFilesVector);
                 ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << cacheFileJson.dump(4);
             }
 
@@ -903,11 +911,11 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned i
             }
             for (ObjectFile *objectFile : objectFiles)
             {
-                /*                if (!exists(path(objectFile->getObjectFileOutputFilePath())))
-                                {
-                                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                                    return;
-                                }*/
+                if (!cachedObjectFiles.contains(objectFile->getObjectFileOutputFilePath()))
+                {
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                    return;
+                }
                 if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)->getLastUpdateTime() >
                     Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
                 {
@@ -1138,9 +1146,10 @@ void LinkOrArchiveTarget::checkForPreBuiltAndCacheDir(Builder &)
     realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
     if (exists(path(buildCacheFilesDirPath) / (name + ".cache")))
     {
-        Json targetCacheJson;
-        ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> targetCacheJson;
-        string command = std::move(targetCacheJson);
+        Json linkTargetCacheJson;
+        ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> linkTargetCacheJson;
+        string command = std::move(linkTargetCacheJson.at(JConsts::linkCommand));
+        cachedObjectFiles = std::move(linkTargetCacheJson.at(JConsts::objectFiles).get<set<string>>());
         path targetOutputPath = outputDirectory + actualOutputName;
 
         if (exists(targetOutputPath) && command == linker.bTPath.generic_string() + " " + getLinkOrArchiveCommand(true))

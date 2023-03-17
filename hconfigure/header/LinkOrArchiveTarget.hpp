@@ -51,9 +51,7 @@ class LinkOrArchiveTarget : public CommonFeatures,
 
     set<ObjectFile *> objectFiles;
     set<ObjectFileProducer *> objectFileProducers;
-
-    /*    set<LinkOrArchiveTarget *> publicPrebuilts;
-        set<LinkOrArchiveTarget *> privatePrebuilts;*/
+    set<string> cachedObjectFiles;
 
     string buildCacheFilesDirPath;
     string actualOutputName;
