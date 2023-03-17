@@ -190,6 +190,8 @@ void SourceNode::updateBTarget(unsigned short round, Builder &)
             postCompile.parseHeaderDeps(*this);
             realBTarget.exitStatus = postCompile.exitStatus;
             realBTarget.fileStatus = FileStatus::UPDATED;
+            // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
+            // cached compile-command would be different
             if (realBTarget.exitStatus == EXIT_SUCCESS)
             {
                 compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
@@ -309,6 +311,8 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
             }
             target->getRealBTarget(0).addDependency(*this);
             smrulesFileParsed = true;
+            // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
+            // cached compile-command would be different
             compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
         }
         else

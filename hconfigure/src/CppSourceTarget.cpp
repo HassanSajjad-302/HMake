@@ -1395,14 +1395,8 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
                              settings.ccpSettings.outputAndErrorFiles);
 }
 
-// If source-file or header-unit is removed and is re-added later on. it would be
-// recompiled. Because current caching mechanism does not store compile-command per file but instead stores it
-// per-target. So can't be sure that whether the compile-command for it was updated or not. This is also the reason for
-// the need of removal of erroneous files. Maybe change that?
 void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
 {
-    // Following keeps the cache only for successful updates i.e. failed updates would be re-run next time for their
-    // lack of existence in the cache.
     if (exitingAfterRoundOne)
     {
         buildCacheJson[JConsts::moduleDependencies] = moduleSourceFileDependencies;
