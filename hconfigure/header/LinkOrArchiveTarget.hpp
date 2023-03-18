@@ -34,15 +34,26 @@ struct LinkerFlags
     string LINKFLAGS_MSVC;
 };
 
+class PrebuiltLinkOrArchiveTarget : public BTarget
+{
+  public:
+    string outputDirectory;
+    string outputName;
+    string actualOutputName;
+    TargetType linkTargetType;
+
+    PrebuiltLinkOrArchiveTarget(const string &name, string directory, TargetType linkTargetType_);
+    PrebuiltLinkOrArchiveTarget(string name, string directory);
+};
+
 using std::shared_ptr;
 class LinkOrArchiveTarget : public CTarget,
-                            public BTarget,
+                            public PrebuiltLinkOrArchiveTarget,
                             public LinkerFeatures,
                             public FeatureConvenienceFunctions<LinkOrArchiveTarget>,
                             public DS<LinkOrArchiveTarget>
 {
   public:
-    TargetType linkTargetType;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     string linkOrArchiveCommand;
     string linkOrArchiveCommandPrint;
@@ -53,10 +64,9 @@ class LinkOrArchiveTarget : public CTarget,
     set<string> cachedObjectFiles;
 
     string buildCacheFilesDirPath;
-    string actualOutputName;
 
-    LinkOrArchiveTarget(string name, TargetType targetType);
-    LinkOrArchiveTarget(string name, TargetType targetType, class CTarget &other, bool hasFile = true);
+    LinkOrArchiveTarget(string name_, TargetType targetType);
+    LinkOrArchiveTarget(string name_, TargetType targetType, class CTarget &other, bool hasFile = true);
     void initializeForBuild();
     void populateObjectFiles();
     void preSort(Builder &builder, unsigned short round) override;
@@ -74,8 +84,6 @@ class LinkOrArchiveTarget : public CTarget,
     string getLinkOrArchiveCommand(bool ignoreTargets);
     string &getLinkOrArchiveCommandPrint();
     void checkForPreBuiltAndCacheDir(Builder &builder);
-    string outputName;
-    string outputDirectory;
     string usageRequirementLinkerFlags;
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     LinkOrArchiveTarget &ASSIGN(T property, Property... properties);

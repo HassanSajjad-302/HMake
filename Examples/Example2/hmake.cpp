@@ -3,32 +3,28 @@
 int main(int argc, char **argv)
 {
     setBoolsAndSetRunDir(argc, argv);
-    /*    vector<Variant *> variants;
-        Variant variantRelease("Release");
-        Variant variantDebug("DEBUG");
-        variants.emplace_back(&variantDebug);
-        variants.emplace_back(&variantRelease);
 
-        for (Variant *variant : variants)
-        {
-            Library cat("Cat", *variant);
-            cat.SOURCE_FILES("Cat/src/Cat.cpp").PUBLIC_INCLUDES("Cat/header");
+    DSC<CppSourceTarget> &catStatic = GetCppStaticDSC("Cat-Static");
+    catStatic.getSourceTarget()
+        .SOURCE_FILES("Cat/src/Cat.cpp")
+        .PUBLIC_INCLUDES("Cat/header")
+        .PRIVATE_COMPILE_DEFINITION("CAT_EXPORT", "");
 
-            Executable animal("Animal", *variant);
-            animal.SOURCE_FILES("main.cpp").PUBLIC_LIBRARIES(&cat);
-            variant->configure();
-        }*/
+    DSC<CppSourceTarget> &animalStatic = GetCppExeDSC("Animal-Static");
+    animalStatic.PRIVATE_LIBRARIES(&catStatic);
+    animalStatic.getSourceTarget().SOURCE_FILES("main.cpp").PRIVATE_COMPILE_DEFINITION("CAT_EXPORT", "");
 
-    cache.libraryType = TargetType::LIBRARY_SHARED;
-    LinkOrArchiveTarget *target = GetCppLib("Cat")
-                                      .cppSourceTarget->SOURCE_FILES("Cat/src/Cat.cpp")
-                                      .PUBLIC_INCLUDES("Cat/header")
-                                      .PRIVATE_COMPILE_DEFINITION("CAT_EXPORT", "__declspec(dllexport)")
-                                      .linkOrArchiveTarget;
-    GetCppExe("Animal")
-        .cppSourceTarget->SOURCE_FILES("main.cpp")
-        .PRIVATE_COMPILE_DEFINITION("CAT_EXPORT", "__declspec(dllimport)")
-        .linkOrArchiveTarget->publicLibs.emplace(target);
+    DSC<CppSourceTarget> &catShared = GetCppSharedDSC("Cat-Shared");
+    catShared.getSourceTarget()
+        .SOURCE_FILES("Cat/src/Cat.cpp")
+        .PUBLIC_INCLUDES("Cat/header")
+        .PRIVATE_COMPILE_DEFINITION("CAT_EXPORT", "__declspec(dllexport)");
+
+    DSC<CppSourceTarget> &animalShared = GetCppExeDSC("Animal-Shared");
+    animalShared.PRIVATE_LIBRARIES(&catShared);
+    animalShared.getSourceTarget()
+        .SOURCE_FILES("main.cpp")
+        .PRIVATE_COMPILE_DEFINITION("CAT_EXPORT", "__declspec(dllimport)");
+
     configureOrBuild();
-    // I suggest you see the directory structure of your buildDir.
 }

@@ -21,32 +21,33 @@ import <utility>;
 
 using std::ofstream, std::filesystem::create_directories, std::ifstream;
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(string name, TargetType targetType) : CTarget(std::move(name))
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &name, string directory,
+                                                         TargetType linkTargetType_)
+    : linkTargetType(linkTargetType_), outputDirectory(std::move(directory)), outputName(name),
+      actualOutputName(getActualNameFromTargetName(linkTargetType_, os, name))
+{
+}
+
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(string name, string directory)
+{
+    // TODO
+}
+
+LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType)
+    : CTarget(std::move(name_)), PrebuiltLinkOrArchiveTarget(name, getSubDirForTarget(), targetType)
 {
     linkTargetType = targetType;
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(string name, TargetType targetType, CTarget &other, bool hasFile)
-    : CTarget(std::move(name), other, hasFile)
+LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType, CTarget &other, bool hasFile)
+    : CTarget(std::move(name_), other, hasFile), PrebuiltLinkOrArchiveTarget(name, getSubDirForTarget(), targetType)
 {
     linkTargetType = targetType;
 }
 
 void LinkOrArchiveTarget::initializeForBuild()
 {
-    if (outputName.empty())
-    {
-        outputName = name;
-    }
-    if (outputDirectory.empty())
-    {
-        outputDirectory = getSubDirForTarget();
-    }
-
     buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
-    // Parsing finished
-
-    actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
 }
 
 void LinkOrArchiveTarget::populateObjectFiles()
