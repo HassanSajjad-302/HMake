@@ -641,8 +641,10 @@ enum class DebugStore
 // ASSIGN of CppSourceTarget and LinkOrArchiveTarget also assign the targetType property which is respective to those
 // classes.
 
-struct CommonFeatures
+struct LinkerFeatures
 {
+    set<const Node *> standardLibraryDirectories;
+
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
     ThreadSanitizer threadSanitizer = ThreadSanitizer::OFF;
@@ -668,13 +670,7 @@ struct CommonFeatures
     // Windows Specifc
     DebugStore debugStore = DebugStore::OBJECT;
 
-    CommonFeatures();
-    void setConfigType(ConfigType configType);
-};
 
-struct LinkerFeatures
-{
-    set<const Node *> standardLibraryDirectories;
     Strip strip = Strip::OFF;
 
     // Windows specific
@@ -694,6 +690,7 @@ struct LinkerFeatures
     TargetType libraryType;
     LinkerFeatures();
     void setLinkerFromVSTools(struct VSTools &vsTools);
+    void setConfigType(ConfigType configType);
 };
 
 struct CompilerFeatures
@@ -703,6 +700,32 @@ struct CompilerFeatures
     // printing. Include-Nodes would have a level above or below than user-nodes, so they won't be printed at default
     // level.
     set<const Node *> standardIncludes;
+
+    AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
+    LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
+    ThreadSanitizer threadSanitizer = ThreadSanitizer::OFF;
+    UndefinedSanitizer undefinedSanitizer = UndefinedSanitizer::OFF;
+
+    Coverage coverage = Coverage::OFF;
+    LTO lto = LTO::OFF;
+    LTOMode ltoMode = LTOMode::FAT;
+    RuntimeLink runtimeLink = RuntimeLink::SHARED;
+    RuntimeDebugging runtimeDebugging = RuntimeDebugging::ON;
+    TargetOS targetOs;
+    DebugSymbols debugSymbols = DebugSymbols::ON;
+    Profiling profiling = Profiling::OFF;
+    LocalVisibility localVisibility = LocalVisibility::OFF;
+
+    ConfigType configurationType;
+
+    // Following two are initialized in constructor
+    // AddressModel and Architecture to target for.
+    Arch arch;
+    AddressModel addModel;
+
+    // Windows Specifc
+    DebugStore debugStore = DebugStore::OBJECT;
+
     StdLib stdLib = StdLib::NATIVE;
 
     Optimization optimization = Optimization::OFF;
@@ -737,7 +760,7 @@ struct CompilerFeatures
     set<Define> requirementCompileDefinitions;
     CompilerFeatures();
     void setCompilerFromVSTools(VSTools &vsTools);
-    void setConfigType(ConfigType configurationType = cache.configurationType);
+    void setConfigType(ConfigType configType);
 };
 
 #endif // HMAKE_FEATURES_HPP

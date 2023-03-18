@@ -37,7 +37,6 @@ CppSourceTarget &Configuration::GetCppPreprocess(const string &name_)
             .first.
             operator*());
     cppSourceTargets.emplace(&cppSourceTarget);
-    static_cast<CommonFeatures &>(cppSourceTarget) = commonFeatures;
     static_cast<CompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
 }
@@ -50,7 +49,6 @@ CppSourceTarget &Configuration::GetCppObject(const string &name_)
             .first.
             operator*());
     cppSourceTargets.emplace(&cppSourceTarget);
-    static_cast<CommonFeatures &>(cppSourceTarget) = commonFeatures;
     static_cast<CompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
 }
@@ -63,7 +61,6 @@ LinkOrArchiveTarget &Configuration::GetExe(const string &name_)
             .first.
             operator*());
     linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
-    static_cast<CommonFeatures &>(linkOrArchiveTarget) = commonFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
@@ -75,7 +72,6 @@ LinkOrArchiveTarget &Configuration::GetStatic(const string &name_)
             .first.
             operator*());
     linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
-    static_cast<CommonFeatures &>(linkOrArchiveTarget) = commonFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
@@ -87,7 +83,6 @@ LinkOrArchiveTarget &Configuration::GetShared(const string &name_)
             .first.
             operator*());
     linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
-    static_cast<CommonFeatures &>(linkOrArchiveTarget) = commonFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
@@ -146,7 +141,7 @@ DSC<CppSourceTarget> &Configuration::GetCppObjectDSC(const string &name_)
 void Configuration::setJson()
 {
     Json variantJson;
-    variantJson[JConsts::configuration] = commonFeatures.configurationType;
+    variantJson[JConsts::configuration] = compilerFeatures.configurationType;
     variantJson[JConsts::compiler] = compilerFeatures.compiler;
     variantJson[JConsts::linker] = linkerFeatures.linker;
     variantJson[JConsts::archiver] = linkerFeatures.archiver;

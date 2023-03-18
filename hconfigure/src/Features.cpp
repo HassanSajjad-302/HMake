@@ -293,7 +293,7 @@ string getSlashedExecutableName(const string &name)
     return os == OS::NT ? (name + ".exe") : ("./" + name);
 }
 
-CommonFeatures::CommonFeatures()
+LinkerFeatures::LinkerFeatures()
 {
     // TODO
     addModel = AddressModel::A_64;
@@ -307,31 +307,6 @@ CommonFeatures::CommonFeatures()
         targetOs = TargetOS::LINUX_;
     }
     configurationType = cache.configurationType;
-}
-
-void CommonFeatures::setConfigType(ConfigType configType)
-{
-    // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
-    // variant is set runtime-debugging is not set though. Here it is set, however.
-    if (configType == ConfigType::DEBUG)
-    {
-        debugSymbols = DebugSymbols::ON;
-        runtimeDebugging = RuntimeDebugging::ON;
-    }
-    else if (configType == ConfigType::RELEASE)
-    {
-        runtimeDebugging = RuntimeDebugging::OFF;
-        debugSymbols = DebugSymbols::OFF;
-    }
-    else if (configType == ConfigType::PROFILE)
-    {
-        debugSymbols = DebugSymbols::ON;
-        profiling = Profiling::ON;
-    }
-}
-
-LinkerFeatures::LinkerFeatures()
-{
     if (cache.isLinkerInVSToolsArray)
     {
         setLinkerFromVSTools(toolsCache.vsTools[cache.selectedLinkerArrayIndex]);
@@ -361,8 +336,42 @@ void LinkerFeatures::setLinkerFromVSTools(struct VSTools &vsTools)
     }
 }
 
+void LinkerFeatures::setConfigType(ConfigType configType)
+{
+    // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
+    // variant is set runtime-debugging is not set though. Here it is set, however.
+    if (configType == ConfigType::DEBUG)
+    {
+        debugSymbols = DebugSymbols::ON;
+        runtimeDebugging = RuntimeDebugging::ON;
+    }
+    else if (configType == ConfigType::RELEASE)
+    {
+        runtimeDebugging = RuntimeDebugging::OFF;
+        debugSymbols = DebugSymbols::OFF;
+    }
+    else if (configType == ConfigType::PROFILE)
+    {
+        debugSymbols = DebugSymbols::ON;
+        profiling = Profiling::ON;
+    }
+}
+
 CompilerFeatures::CompilerFeatures()
 {
+    // TODO
+    addModel = AddressModel::A_64;
+    arch = Arch::X86;
+    if constexpr (os == OS::NT)
+    {
+        targetOs = TargetOS::WINDOWS;
+    }
+    else if constexpr (os == OS::LINUX)
+    {
+        targetOs = TargetOS::LINUX_;
+    }
+    configurationType = cache.configurationType;
+
     if (cache.isCompilerInVSToolsArray)
     {
         setCompilerFromVSTools(toolsCache.vsTools[cache.selectedCompilerArrayIndex]);
@@ -385,18 +394,36 @@ void CompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
     }
 }
 
-void CompilerFeatures::setConfigType(ConfigType configurationType)
+void CompilerFeatures::setConfigType(ConfigType configType)
 {
     // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
     // variant is set runtime-debugging is not set though. Here it is set, however.
-    if (configurationType == ConfigType::DEBUG)
+    if (configType == ConfigType::DEBUG)
     {
         optimization = Optimization::OFF;
         inlining = Inlining::OFF;
     }
-    else if (configurationType == ConfigType::RELEASE)
+    else if (configType == ConfigType::RELEASE)
     {
         optimization = Optimization::SPEED;
         inlining = Inlining::FULL;
+    }
+
+    // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
+    // variant is set runtime-debugging is not set though. Here it is set, however.
+    if (configType == ConfigType::DEBUG)
+    {
+        debugSymbols = DebugSymbols::ON;
+        runtimeDebugging = RuntimeDebugging::ON;
+    }
+    else if (configType == ConfigType::RELEASE)
+    {
+        runtimeDebugging = RuntimeDebugging::OFF;
+        debugSymbols = DebugSymbols::OFF;
+    }
+    else if (configType == ConfigType::PROFILE)
+    {
+        debugSymbols = DebugSymbols::ON;
+        profiling = Profiling::ON;
     }
 }

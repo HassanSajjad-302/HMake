@@ -35,8 +35,7 @@ struct LinkerFlags
 };
 
 using std::shared_ptr;
-class LinkOrArchiveTarget : public CommonFeatures,
-                            public CTarget,
+class LinkOrArchiveTarget : public CTarget,
                             public BTarget,
                             public LinkerFeatures,
                             public FeatureConvenienceFunctions<LinkOrArchiveTarget>,
@@ -318,4 +317,3 @@ template <typename T> bool LinkOrArchiveTarget::EVALUATE(T property) const
 }
 
 #endif // HMAKE_LINKORARCHIVETARGET_HPP
-

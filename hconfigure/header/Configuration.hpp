@@ -28,7 +28,6 @@ struct Configuration : public CTarget
 {
     set<CppSourceTarget *> cppSourceTargets;
     set<LinkOrArchiveTarget *> linkOrArchiveTargets;
-    CommonFeatures commonFeatures;
     CompilerFeatures compilerFeatures;
     LinkerFeatures linkerFeatures;
 
@@ -65,72 +64,88 @@ Configuration &Configuration::ASSIGN(T property, Property... properties)
     else if constexpr (std::is_same_v<decltype(property), ConfigType>)
     {
         compilerFeatures.setConfigType(property);
-        commonFeatures.setConfigType(property);
+        linkerFeatures.setConfigType(property);
     }
     // CommonFeatures
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {
-        commonFeatures.targetOs = property;
+        compilerFeatures.targetOs = property;
+        linkerFeatures.targetOs = property;
     }
     else if constexpr (std::is_same_v<decltype(property), DebugSymbols>)
     {
-        commonFeatures.debugSymbols = property;
+        compilerFeatures.debugSymbols = property;
+        linkerFeatures.debugSymbols = property;
     }
     else if constexpr (std::is_same_v<decltype(property), Profiling>)
     {
-        commonFeatures.profiling = property;
+        compilerFeatures.profiling = property;
+        linkerFeatures.profiling = property;
     }
     else if constexpr (std::is_same_v<decltype(property), LocalVisibility>)
     {
-        commonFeatures.localVisibility = property;
+        compilerFeatures.localVisibility = property;
+        linkerFeatures.localVisibility = property;
     }
     else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
     {
-        commonFeatures.addressSanitizer = property;
+        compilerFeatures.addressSanitizer = property;
+        linkerFeatures.addressSanitizer = property;
     }
     else if constexpr (std::is_same_v<decltype(property), LeakSanitizer>)
     {
-        commonFeatures.leakSanitizer = property;
+        compilerFeatures.leakSanitizer = property;
+        linkerFeatures.leakSanitizer = property;
     }
     else if constexpr (std::is_same_v<decltype(property), ThreadSanitizer>)
     {
-        commonFeatures.threadSanitizer = property;
+        compilerFeatures.threadSanitizer = property;
+        linkerFeatures.threadSanitizer = property;
     }
     else if constexpr (std::is_same_v<decltype(property), UndefinedSanitizer>)
     {
-        commonFeatures.undefinedSanitizer = property;
+        compilerFeatures.undefinedSanitizer = property;
+        linkerFeatures.undefinedSanitizer = property;
     }
     else if constexpr (std::is_same_v<decltype(property), Coverage>)
     {
-        commonFeatures.coverage = property;
+        compilerFeatures.coverage = property;
+        linkerFeatures.coverage = property;
     }
     else if constexpr (std::is_same_v<decltype(property), LTO>)
     {
-        commonFeatures.lto = property;
+        compilerFeatures.lto = property;
+        linkerFeatures.lto = property;
     }
     else if constexpr (std::is_same_v<decltype(property), LTOMode>)
     {
-        commonFeatures.ltoMode = property;
+        compilerFeatures.ltoMode = property;
+        linkerFeatures.ltoMode = property;
     }
     else if constexpr (std::is_same_v<decltype(property), RuntimeLink>)
     {
-        commonFeatures.runtimeLink = property;
+        compilerFeatures.runtimeLink = property;
+        linkerFeatures.runtimeLink = property;
     }
     else if constexpr (std::is_same_v<decltype(property), Arch>)
     {
-        commonFeatures.arch = property;
+        compilerFeatures.arch = property;
+        linkerFeatures.arch = property;
     }
     else if constexpr (std::is_same_v<decltype(property), AddressModel>)
     {
-        commonFeatures.addModel = property;
+        compilerFeatures.addModel = property;
+        linkerFeatures.addModel = property;
     }
     else if constexpr (std::is_same_v<decltype(property), DebugStore>)
     {
-        commonFeatures.debugStore = property;
+        compilerFeatures.debugStore = property;
+        linkerFeatures.debugStore = property;
     }
     else if constexpr (std::is_same_v<decltype(property), RuntimeDebugging>)
     {
-        commonFeatures.runtimeDebugging = property;
+        compilerFeatures.runtimeDebugging = property;
+        linkerFeatures.runtimeDebugging = property;
     }
     // CompilerFeatures
     else if constexpr (std::is_same_v<decltype(property), Compiler>)
@@ -233,4 +248,3 @@ Configuration &Configuration::ASSIGN(T property, Property... properties)
 }
 
 #endif // HMAKE_CONFIGURATION_HPP
-

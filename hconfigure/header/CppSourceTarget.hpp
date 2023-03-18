@@ -71,8 +71,7 @@ struct ModuleScopeData
     map<string, SMFile *> requirePaths;
 };
 
-class CppSourceTarget : public CommonFeatures,
-                        public CompilerFeatures,
+class CppSourceTarget : public CompilerFeatures,
                         public CTarget,
                         public FeatureConvenienceFunctions<CppSourceTarget>,
                         public ObjectFileProducerWithDS<CppSourceTarget>
@@ -623,4 +622,3 @@ class PLibrary
 bool operator<(const PLibrary &lhs, const PLibrary &rhs);
 void to_json(Json &j, const PLibrary *pLibrary);
 #endif // HMAKE_CPPSOURCETARGET_HPP
-
