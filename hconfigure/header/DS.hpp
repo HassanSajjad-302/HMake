@@ -16,25 +16,25 @@ template <typename T> struct DS
 {
     set<T *> requirementDeps;
     set<T *> usageRequirementDeps;
-    template <same_as<T *>... U> T &PUBLIC_DEPS(const U... libraries);
-    template <same_as<T *>... U> T &PRIVATE_DEPS(const U... libraries);
-    template <same_as<T *>... U> T &INTERFACE_DEPS(const U... libraries);
+    template <typename... U> T &PUBLIC_DEPS(const U... libraries);
+    template <typename... U> T &PRIVATE_DEPS(const U... libraries);
+    template <typename... U> T &INTERFACE_DEPS(const U... libraries);
     void populateRequirementAndUsageRequirementDeps();
 };
 
-template <typename T> template <same_as<T *>... U> T &DS<T>::INTERFACE_DEPS(const U... libraries)
+template <typename T> template <typename... U> T &DS<T>::INTERFACE_DEPS(const U... libraries)
 {
     (usageRequirementDeps.emplace(libraries...));
     return static_cast<T &>(*this);
 }
 
-template <typename T> template <same_as<T *>... U> T &DS<T>::PRIVATE_DEPS(const U... libraries)
+template <typename T> template <typename... U> T &DS<T>::PRIVATE_DEPS(const U... libraries)
 {
     (requirementDeps.emplace(libraries...));
     return static_cast<T &>(*this);
 }
 
-template <typename T> template <same_as<T *>... U> T &DS<T>::PUBLIC_DEPS(const U... libraries)
+template <typename T> template <typename... U> T &DS<T>::PUBLIC_DEPS(const U... libraries)
 {
     (requirementDeps.emplace(libraries...));
     (usageRequirementDeps.emplace(libraries...));

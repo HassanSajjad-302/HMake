@@ -6,8 +6,8 @@ import "CppSourceTarget.hpp";
 import "DSC.hpp";
 import "LinkOrArchiveTarget.hpp";
 #else
-#include "BuildSystemFunctions.hpp"
 #include "Configuration.hpp"
+#include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
 #include "LinkOrArchiveTarget.hpp"
@@ -19,6 +19,12 @@ Configuration::Configuration(const string &name_) : CTarget{name_}
 
 Configuration::Configuration(const string &name_, CTarget &other, bool hasFile) : CTarget{name_, other, hasFile}
 {
+}
+
+void Configuration::setLinkerFromVSTools(struct VSTools &vsTools)
+{
+    linkerFeatures.linker = vsTools.linker;
+    plaFeatures.setLinkerDirectoriesFromVSTools(vsTools);
 }
 
 void Configuration::setModuleScope(CppSourceTarget *moduleScope)
@@ -61,6 +67,7 @@ LinkOrArchiveTarget &Configuration::GetExe(const string &name_)
             .first.
             operator*());
     linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
+    static_cast<PLAFeatures &>(linkOrArchiveTarget) = plaFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
@@ -72,6 +79,7 @@ LinkOrArchiveTarget &Configuration::GetStatic(const string &name_)
             .first.
             operator*());
     linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
+    static_cast<PLAFeatures &>(linkOrArchiveTarget) = plaFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
@@ -83,6 +91,7 @@ LinkOrArchiveTarget &Configuration::GetShared(const string &name_)
             .first.
             operator*());
     linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
+    static_cast<PLAFeatures &>(linkOrArchiveTarget) = plaFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
@@ -147,7 +156,7 @@ void Configuration::setJson()
     variantJson[JConsts::archiver] = linkerFeatures.archiver;
     variantJson[JConsts::compilerFlags] = compilerFeatures.requirementCompilerFlags;
     variantJson[JConsts::compileDefinitions] = compilerFeatures.requirementCompileDefinitions;
-    variantJson[JConsts::linkerFlags] = linkerFeatures.requirementLinkerFlags;
+    variantJson[JConsts::linkerFlags] = plaFeatures.requirementLinkerFlags;
     variantJson[JConsts::libraryType] = linkerFeatures.libraryType;
     variantJson[JConsts::targets] = elements;
     json[0] = std::move(variantJson);

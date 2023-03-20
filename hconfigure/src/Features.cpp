@@ -293,6 +293,23 @@ string getSlashedExecutableName(const string &name)
     return os == OS::NT ? (name + ".exe") : ("./" + name);
 }
 
+PLAFeatures::PLAFeatures()
+{
+    if (cache.isLinkerInVSToolsArray)
+    {
+        setLinkerDirectoriesFromVSTools(toolsCache.vsTools[cache.selectedLinkerArrayIndex]);
+    }
+}
+
+void PLAFeatures::setLinkerDirectoriesFromVSTools(struct VSTools &vsTools)
+{
+    standardLibraryDirectories.clear();
+    for (const string &str : vsTools.libraryDirectories)
+    {
+        standardLibraryDirectories.emplace(Node::getNodeFromString(str, false));
+    }
+}
+
 LinkerFeatures::LinkerFeatures()
 {
     // TODO
@@ -309,7 +326,7 @@ LinkerFeatures::LinkerFeatures()
     configurationType = cache.configurationType;
     if (cache.isLinkerInVSToolsArray)
     {
-        setLinkerFromVSTools(toolsCache.vsTools[cache.selectedLinkerArrayIndex]);
+        linker = toolsCache.vsTools[cache.selectedLinkerArrayIndex].linker;
     }
     else
     {
@@ -324,16 +341,6 @@ LinkerFeatures::LinkerFeatures()
         archiver = toolsCache.archivers[cache.selectedArchiverArrayIndex];
     }
     libraryType = cache.libraryType;
-}
-
-void LinkerFeatures::setLinkerFromVSTools(struct VSTools &vsTools)
-{
-    linker = vsTools.linker;
-    standardLibraryDirectories.clear();
-    for (const string &str : vsTools.libraryDirectories)
-    {
-        standardLibraryDirectories.emplace(Node::getNodeFromString(str, false));
-    }
 }
 
 void LinkerFeatures::setConfigType(ConfigType configType)

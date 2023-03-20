@@ -34,24 +34,29 @@ struct LinkerFlags
     string LINKFLAGS_MSVC;
 };
 
-class PrebuiltLinkOrArchiveTarget : public BTarget
+class PrebuiltLinkOrArchiveTarget : public BTarget, public DS<PrebuiltLinkOrArchiveTarget>, public PLAFeatures
 {
   public:
     string outputDirectory;
     string outputName;
     string actualOutputName;
+    string usageRequirementLinkerFlags;
     TargetType linkTargetType;
 
     PrebuiltLinkOrArchiveTarget(const string &name, string directory, TargetType linkTargetType_);
     PrebuiltLinkOrArchiveTarget(string name, string directory);
+    virtual void preSort(Builder &builder, unsigned short round);
+    virtual void updateBTarget(unsigned short round, class Builder &builder);
+    void addRequirementDepsToBTargetDependencies();
+    void populateRequirementAndUsageRequirementProperties();
 };
+void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget);
 
 using std::shared_ptr;
 class LinkOrArchiveTarget : public CTarget,
                             public PrebuiltLinkOrArchiveTarget,
                             public LinkerFeatures,
-                            public FeatureConvenienceFunctions<LinkOrArchiveTarget>,
-                            public DS<LinkOrArchiveTarget>
+                            public FeatureConvenienceFunctions<LinkOrArchiveTarget>
 {
   public:
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
@@ -67,6 +72,7 @@ class LinkOrArchiveTarget : public CTarget,
 
     LinkOrArchiveTarget(string name_, TargetType targetType);
     LinkOrArchiveTarget(string name_, TargetType targetType, class CTarget &other, bool hasFile = true);
+    void setLinkerFromVSTools(struct VSTools &vsTools);
     void initializeForBuild();
     void populateObjectFiles();
     void preSort(Builder &builder, unsigned short round) override;
@@ -84,12 +90,10 @@ class LinkOrArchiveTarget : public CTarget,
     string getLinkOrArchiveCommand(bool ignoreTargets);
     string &getLinkOrArchiveCommandPrint();
     void checkForPreBuiltAndCacheDir(Builder &builder);
-    string usageRequirementLinkerFlags;
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     LinkOrArchiveTarget &ASSIGN(T property, Property... properties);
     template <typename T> bool EVALUATE(T property) const;
 };
-void to_json(Json &json, const LinkOrArchiveTarget &linkOrArchiveTarget);
 
 template <Dependency dependency, typename T, typename... Property>
 LinkOrArchiveTarget &LinkOrArchiveTarget::ASSIGN(T property, Property... properties)

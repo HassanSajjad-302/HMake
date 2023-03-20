@@ -61,7 +61,7 @@ BTarget::BTarget()
     id = total++;
 }
 
-string BTarget::getTarjanNodeName()
+string BTarget::getTarjanNodeName() const
 {
     return "BTarget " + std::to_string(id);
 }

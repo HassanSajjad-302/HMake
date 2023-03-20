@@ -31,6 +31,61 @@ PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &name, str
 PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(string name, string directory)
 {
     // TODO
+    // This constructor and TarjanNodeName function and word "common" removal.
+}
+
+void PrebuiltLinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
+{
+    if (round == 3)
+    {
+
+        RealBTarget &round3 = getRealBTarget(3);
+        for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
+        {
+            round3.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
+        }
+        for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : usageRequirementDeps)
+        {
+            round3.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
+        }
+        getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
+    }
+}
+
+void PrebuiltLinkOrArchiveTarget::updateBTarget(unsigned short round, class Builder &builder)
+{
+    if (round == 3)
+    {
+        populateRequirementAndUsageRequirementDeps();
+        addRequirementDepsToBTargetDependencies();
+        populateRequirementAndUsageRequirementProperties();
+    }
+}
+
+void PrebuiltLinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
+{
+    // Access to addDependency() function must be synchronized because set::emplace is not thread-safe
+    std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
+    RealBTarget &round0 = getRealBTarget(0);
+    RealBTarget &round2 = getRealBTarget(2);
+    for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
+    {
+        round0.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
+        round2.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
+    }
+}
+
+void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementProperties()
+{
+    for (PrebuiltLinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
+    {
+        requirementLinkerFlags += linkOrArchiveTarget->usageRequirementLinkerFlags;
+    }
+}
+
+void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget)
+{
+    json = prebuiltLinkOrArchiveTarget.getTarjanNodeName();
 }
 
 LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType)
@@ -43,6 +98,12 @@ LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType, CT
     : CTarget(std::move(name_), other, hasFile), PrebuiltLinkOrArchiveTarget(name, getSubDirForTarget(), targetType)
 {
     linkTargetType = targetType;
+}
+
+void LinkOrArchiveTarget::setLinkerFromVSTools(struct VSTools &vsTools)
+{
+    linker = vsTools.linker;
+    setLinkerDirectoriesFromVSTools(vsTools);
 }
 
 void LinkOrArchiveTarget::initializeForBuild()
@@ -71,16 +132,7 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
     }
     else if (round == 3)
     {
-        RealBTarget &round3 = getRealBTarget(3);
-        for (LinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
-        {
-            round3.addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget));
-        }
-        for (LinkOrArchiveTarget *linkOrArchiveTarget : usageRequirementDeps)
-        {
-            round3.addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget));
-        }
-        getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
+        PrebuiltLinkOrArchiveTarget::preSort(builder, round);
     }
 }
 
@@ -669,9 +721,10 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommand(bool ignoreTargets)
                 localLinkOrArchiveCommand += addQuotes(objectFile->getObjectFileOutputFilePath()) + " ";
             }
 
-            for (LinkOrArchiveTarget *target : requirementDeps)
+            for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
             {
-                localLinkOrArchiveCommand += getLinkFlag(target->outputDirectory, target->outputName);
+                localLinkOrArchiveCommand +=
+                    getLinkFlag(prebuiltLinkOrArchiveTarget->outputDirectory, prebuiltLinkOrArchiveTarget->outputName);
             }
         }
 
@@ -757,7 +810,7 @@ string &LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
     return linkOrArchiveCommandPrint;
 }
 
-void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &)
+void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &builder)
 {
     RealBTarget &realBTarget = getRealBTarget(round);
     if (!round && selectiveBuild)
@@ -806,9 +859,7 @@ void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &)
     }
     else if (round == 3)
     {
-        populateRequirementAndUsageRequirementDeps();
-        addRequirementDepsToBTargetDependencies();
-        populateRequirementAndUsageRequirementProperties();
+        PrebuiltLinkOrArchiveTarget::updateBTarget(round, builder);
     }
     realBTarget.fileStatus = FileStatus::UPDATED;
 }
@@ -826,7 +877,13 @@ void LinkOrArchiveTarget::setJson()
     targetJson[JConsts::linker] = linker;
     targetJson[JConsts::archiver] = archiver;
     targetJson[JConsts::linkerFlags] = requirementLinkerFlags;
-    targetJson[JConsts::libraryDependencies] = requirementDeps;
+    vector<Json> requirementDepsJson;
+    requirementDepsJson.reserve(requirementDeps.size());
+    for (DS<PrebuiltLinkOrArchiveTarget> *prebuilt : requirementDeps)
+    {
+        requirementDepsJson.emplace_back(static_cast<PrebuiltLinkOrArchiveTarget *>(prebuilt)->getTarjanNodeName());
+    }
+    targetJson[JConsts::libraryDependencies] = requirementDepsJson;
     json[0] = std::move(targetJson);
 }
 
@@ -865,27 +922,6 @@ PostBasic LinkOrArchiveTarget::Link()
                      name, settings.lcpSettings.outputAndErrorFiles, true);
 }
 
-void LinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
-{
-    // Access to addDependency() function must be synchronized because set::emplace is not thread-safe
-    std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
-    RealBTarget &round0 = getRealBTarget(0);
-    RealBTarget &round2 = getRealBTarget(2);
-    for (LinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
-    {
-        round0.addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget));
-        round2.addDependency(const_cast<LinkOrArchiveTarget &>(*linkOrArchiveTarget));
-    }
-}
-
-void LinkOrArchiveTarget::populateRequirementAndUsageRequirementProperties()
-{
-    for (LinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
-    {
-        requirementLinkerFlags += linkOrArchiveTarget->usageRequirementLinkerFlags;
-    }
-}
-
 void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned int)
 {
     if (!round)
@@ -900,9 +936,10 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned i
                 realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                 return;
             }
-            for (LinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
+            for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
             {
-                path depOutputPath = path(linkOrArchiveTarget->outputDirectory) / linkOrArchiveTarget->actualOutputName;
+                path depOutputPath =
+                    path(prebuiltLinkOrArchiveTarget->outputDirectory) / prebuiltLinkOrArchiveTarget->actualOutputName;
                 if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
                     Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
                 {
@@ -1053,10 +1090,11 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()
         }
     }
 
-    for (LinkOrArchiveTarget *target : requirementDeps)
+    for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
     {
         linkOrArchiveCommandPrint +=
-            getLinkFlagPrint(target->outputDirectory, target->outputName, lcpSettings.libraryDependencies);
+            getLinkFlagPrint(prebuiltLinkOrArchiveTarget->outputDirectory, prebuiltLinkOrArchiveTarget->outputName,
+                             lcpSettings.libraryDependencies);
     }
 
     // HMake does not link any dependency to static library
@@ -1158,9 +1196,4 @@ void LinkOrArchiveTarget::checkForPreBuiltAndCacheDir(Builder &)
             realBTarget.fileStatus = FileStatus::UPDATED;
         }
     }
-}
-
-void to_json(Json &json, const LinkOrArchiveTarget &linkOrArchiveTarget)
-{
-    json = linkOrArchiveTarget.getTargetPointer();
 }

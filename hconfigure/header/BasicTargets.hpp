@@ -78,7 +78,7 @@ struct BTarget // BTarget
     set<RealBTarget, CompareRealBTargetRound> realBTargets;
     explicit BTarget();
 
-    virtual string getTarjanNodeName();
+    virtual string getTarjanNodeName() const;
 
     RealBTarget &getRealBTarget(unsigned short round);
     virtual void updateBTarget(unsigned short round, class Builder &builder);

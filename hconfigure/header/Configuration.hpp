@@ -29,6 +29,7 @@ struct Configuration : public CTarget
     set<CppSourceTarget *> cppSourceTargets;
     set<LinkOrArchiveTarget *> linkOrArchiveTargets;
     CompilerFeatures compilerFeatures;
+    PLAFeatures plaFeatures;
     LinkerFeatures linkerFeatures;
 
     CppSourceTarget &GetCppPreprocess(const string &name_);
@@ -47,6 +48,7 @@ struct Configuration : public CTarget
 
     explicit Configuration(const string &name_);
     Configuration(const string &name, CTarget &other, bool hasFile = true);
+    void setLinkerFromVSTools(struct VSTools &vsTools);
     void setModuleScope(CppSourceTarget *moduleScope);
     void setJson() override;
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
