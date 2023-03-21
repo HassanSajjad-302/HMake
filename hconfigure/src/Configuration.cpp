@@ -96,6 +96,13 @@ LinkOrArchiveTarget &Configuration::GetShared(const string &name_)
     return linkOrArchiveTarget;
 }
 
+CPT &Configuration::GetCPT()
+{
+    CPT &cpt = const_cast<CPT &>(targets<CPT>.emplace().first.operator*());
+    prebuiltTargets.emplace(&cpt);
+    return cpt;
+}
+
 DSC<CppSourceTarget> &Configuration::GetCppExeDSC(const string &name_)
 {
     DSC<CppSourceTarget> dsc;

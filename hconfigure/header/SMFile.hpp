@@ -40,6 +40,7 @@ class Node
     inline static set<Node, CompareNode> allFiles;
     string filePath;
     std::filesystem::file_time_type getLastUpdateTime() const;
+    static path getFinalNodePathFromString(const string &str);
     // Create a node and inserts it into the allFiles if it is not already there
     static const Node *getNodeFromString(const string &str, bool isFile, bool mayNotExist = false);
 

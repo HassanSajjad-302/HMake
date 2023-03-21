@@ -7,6 +7,8 @@ import "LinkOrArchiveTarget.hpp";
 #include "LinkOrArchiveTarget.hpp"
 #endif
 
+template <typename T> struct DSCPrebuilt;
+
 // Dependency Specification Controller
 template <typename T> struct DSC
 {
@@ -16,8 +18,8 @@ template <typename T> struct DSC
     auto operator<=>(const DSC<T> &) const = default;
 
     void assignLinkOrArchiveTargetLib(DSC *controller);
-
-    template <same_as<DSC<T> *>... U> DSC<T> &PUBLIC_LIBRARIES(DSC<T> *controller, const U... libraries)
+    void assignPrebuiltLinkOrArchiveTarget(DSCPrebuilt<BaseType> *controller);
+    template <typename... U> DSC<T> &PUBLIC_LIBRARIES(DSC<T> *controller, const U... libraries)
     {
         assignLinkOrArchiveTargetLib(controller);
         objectFileProducer->PUBLIC_DEPS(controller->getSourceTargetPointer());
@@ -31,7 +33,7 @@ template <typename T> struct DSC
         }
     }
 
-    template <same_as<DSC<T> *>... U> DSC<T> &PRIVATE_LIBRARIES(DSC<T> *controller, const U... libraries)
+    template <typename... U> DSC<T> &PRIVATE_LIBRARIES(DSC<T> *controller, const U... libraries)
     {
         assignLinkOrArchiveTargetLib(controller);
         objectFileProducer->PRIVATE_DEPS(controller->getSourceTargetPointer());
@@ -45,7 +47,7 @@ template <typename T> struct DSC
         }
     }
 
-    template <same_as<DSC<T> *>... U> DSC<T> &INTERFACE_LIBRARIES(DSC<T> *controller, const U... libraries)
+    template <typename... U> DSC<T> &INTERFACE_LIBRARIES(DSC<T> *controller, const U... libraries)
     {
         assignLinkOrArchiveTargetLib(controller);
         objectFileProducer->INTERFACE_DEPS(controller->getSourceTargetPointer());
@@ -59,6 +61,44 @@ template <typename T> struct DSC
         }
     }
 
+    template <typename... U> DSC<T> &PUBLIC_LIBRARIES(DSCPrebuilt<T> *controller, const U... libraries)
+    {
+        objectFileProducer->PUBLIC_DEPS(controller->getSourceTargetPointer());
+        if constexpr (sizeof...(libraries))
+        {
+            return PUBLIC_LIBRARIES(libraries...);
+        }
+        else
+        {
+            return *this;
+        }
+    }
+
+    template <typename... U> DSC<T> &PRIVATE_LIBRARIES(DSCPrebuilt<T> *controller, const U... libraries)
+    {
+        objectFileProducer->PRIVATE_DEPS(controller->getSourceTargetPointer());
+        if constexpr (sizeof...(libraries))
+        {
+            return PRIVATE_LIBRARIES(libraries...);
+        }
+        else
+        {
+            return *this;
+        }
+    }
+
+    template <typename... U> DSC<T> &INTERFACE_LIBRARIES(DSCPrebuilt<T> *controller, const U... libraries)
+    {
+        objectFileProducer->INTERFACE_DEPS(controller->getSourceTargetPointer());
+        if constexpr (sizeof...(libraries))
+        {
+            return INTERFACE_LIBRARIES(libraries...);
+        }
+        else
+        {
+            return *this;
+        }
+    }
     T &getSourceTarget();
     T *getSourceTargetPointer();
 };
@@ -102,15 +142,42 @@ template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller)
     }
 }
 
+template <typename T> void DSC<T>::assignPrebuiltLinkOrArchiveTarget(DSCPrebuilt<BaseType> *controller)
+{
+    if (!objectFileProducer || !controller->prebuilt)
+    {
+        print(stderr, "DSC<T> objectFileProducer  or DSCPrebuilt<T> prebuilt cannot be nullptr\n");
+        exit(EXIT_FAILURE);
+    }
+    if (!linkOrArchiveTarget || !controller->prebuiltLinkOrArchiveTarget)
+    {
+        print(stderr, "DSC<T> linkOrArchiveTarget or DSCPrebuilt<T> prebuiltLinkOrArchiveTarget cannot be nullptr\n");
+        exit(EXIT_FAILURE);
+    }
+    // If linkOrArchiveTarget does not exists for a DSC<T>, then it is an ObjectLibrary.
+    if (linkOrArchiveTarget && controller->prebuiltLinkOrArchiveTarget)
+    {
+        // None is ObjectLibrary
+        if (linkOrArchiveTarget->linkTargetType == TargetType::LIBRARY_STATIC)
+        {
+            linkOrArchiveTarget->INTERFACE_DEPS(controller->prebuiltLinkOrArchiveTarget);
+        }
+        else
+        {
+            linkOrArchiveTarget->PRIVATE_DEPS(controller->prebuiltLinkOrArchiveTarget);
+        }
+    }
+}
+
 /*template <typename T>
-template <same_as<DSC<T> *>... U>
+template <typename... U>
 DSC<T> &DSC<T>::PUBLIC_LIBRARIES(DSC<T> *controller, const U... libraries)
 {
 
 }
 
 template <typename T>
-template <same_as<DSC<T> *>... U>
+template <typename... U>
 DSC<T> &DSC<T>::PRIVATE_LIBRARIES(DSC<T> *controller, const U... libraries)
 {
 
@@ -118,7 +185,7 @@ DSC<T> &DSC<T>::PRIVATE_LIBRARIES(DSC<T> *controller, const U... libraries)
 }
 
 template <typename T>
-template <same_as<DSC<T> *>... U>
+template <typename... U>
 DSC<T> &DSC<T>::INTERFACE_LIBRARIES(DSC<T> *controller, const U... libraries)
 {
 
@@ -135,5 +202,51 @@ template <typename T> T *DSC<T>::getSourceTargetPointer()
     return static_cast<T *>(objectFileProducer);
 }
 
-#endif // HMAKE_DSC_HPP
+// Dependency Specification Controller Prebuilt
+template <typename T> struct DSCPrebuilt
+{
+    T *prebuilt = nullptr;
+    PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget = nullptr;
+    auto operator<=>(const DSCPrebuilt<T> &) const = default;
 
+    template <typename... U> DSCPrebuilt<T> &INTERFACE_LIBRARIES(DSCPrebuilt<T> *controller, const U... libraries)
+    {
+        prebuilt->INTERFACE_DEPS(controller->getSourceTargetPointer());
+        prebuiltLinkOrArchiveTarget->PRIVATE_DEPS(controller->getSourceTargetPointer());
+        if constexpr (sizeof...(libraries))
+        {
+            return INTERFACE_LIBRARIES(libraries...);
+        }
+        else
+        {
+            return *this;
+        }
+    }
+
+    T &getSourceTarget();
+    T *getSourceTargetPointer();
+    PrebuiltLinkOrArchiveTarget &getLinkTarget();
+    PrebuiltLinkOrArchiveTarget *getLinkTargetPointer();
+};
+
+template <typename T> T &DSCPrebuilt<T>::getSourceTarget()
+{
+    return static_cast<T &>(*prebuilt);
+}
+
+template <typename T> T *DSCPrebuilt<T>::getSourceTargetPointer()
+{
+    return static_cast<T *>(prebuilt);
+}
+
+template <typename T> PrebuiltLinkOrArchiveTarget &DSCPrebuilt<T>::getLinkTarget()
+{
+    return *prebuiltLinkOrArchiveTarget;
+}
+
+template <typename T> PrebuiltLinkOrArchiveTarget *DSCPrebuilt<T>::getLinkTargetPointer()
+{
+    return prebuiltLinkOrArchiveTarget;
+}
+
+#endif // HMAKE_DSC_HPP

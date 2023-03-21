@@ -17,8 +17,7 @@ struct ObjectFile : public BTarget
 
 struct ObjectFileProducer : public BTarget
 {
-    virtual void getObjectFiles(set<ObjectFile *> *objectFiles,
-                                class LinkOrArchiveTarget *linkOrArchiveTarget) const = 0;
+    virtual void getObjectFiles(set<ObjectFile *> *objectFiles, class LinkOrArchiveTarget *linkOrArchiveTarget) const;
 };
 
 // This is used in conjunction with DSC to specify dependencies.

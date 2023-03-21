@@ -105,8 +105,7 @@ std::filesystem::file_time_type Node::getLastUpdateTime() const
     return lastUpdateTime;
 }
 
-static std::mutex nodeInsertMutex;
-const Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
+path Node::getFinalNodePathFromString(const string &str)
 {
     path filePath{str};
     if (filePath.is_relative())
@@ -127,6 +126,13 @@ const Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotE
         }
         filePath = lowerCase;
     }
+    return filePath;
+}
+
+static std::mutex nodeInsertMutex;
+const Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
+{
+    path filePath = getFinalNodePathFromString(str);
     if (auto it = allFiles.find(filePath.string()); it != allFiles.end())
     {
         return it.operator->();

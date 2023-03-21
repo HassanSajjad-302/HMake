@@ -28,6 +28,7 @@ struct Configuration : public CTarget
 {
     set<CppSourceTarget *> cppSourceTargets;
     set<LinkOrArchiveTarget *> linkOrArchiveTargets;
+    set<struct CPT *> prebuiltTargets;
     CompilerFeatures compilerFeatures;
     PLAFeatures plaFeatures;
     LinkerFeatures linkerFeatures;
@@ -37,6 +38,8 @@ struct Configuration : public CTarget
     LinkOrArchiveTarget &GetExe(const string &name_);
     LinkOrArchiveTarget &GetStatic(const string &name_);
     LinkOrArchiveTarget &GetShared(const string &name_);
+    PrebuiltLinkOrArchiveTarget &GetPrebuiltLinkOrArchiveTarget();
+    CPT &GetCPT();
 
     DSC<CppSourceTarget> &GetCppExeDSC(const string &name_);
     DSC<CppSourceTarget> &GetCppDSC(const string &name_);

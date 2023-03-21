@@ -21,10 +21,10 @@ import <utility>;
 
 using std::ofstream, std::filesystem::create_directories, std::ifstream;
 
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &name, string directory,
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &name, const string &directory,
                                                          TargetType linkTargetType_)
-    : linkTargetType(linkTargetType_), outputDirectory(std::move(directory)), outputName(name),
-      actualOutputName(getActualNameFromTargetName(linkTargetType_, os, name))
+    : linkTargetType(linkTargetType_), outputDirectory(Node::getFinalNodePathFromString(directory).string()),
+      outputName(name), actualOutputName(getActualNameFromTargetName(linkTargetType_, os, name))
 {
 }
 

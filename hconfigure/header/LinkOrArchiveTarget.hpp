@@ -43,7 +43,7 @@ class PrebuiltLinkOrArchiveTarget : public BTarget, public DS<PrebuiltLinkOrArch
     string usageRequirementLinkerFlags;
     TargetType linkTargetType;
 
-    PrebuiltLinkOrArchiveTarget(const string &name, string directory, TargetType linkTargetType_);
+    PrebuiltLinkOrArchiveTarget(const string &name, const string &directory, TargetType linkTargetType_);
     PrebuiltLinkOrArchiveTarget(string name, string directory);
     virtual void preSort(Builder &builder, unsigned short round);
     virtual void updateBTarget(unsigned short round, class Builder &builder);
