@@ -209,15 +209,15 @@ void CppSourceTarget::addRequirementDepsToBTargetDependencies()
     // Access to addDependency() function must be synchronized
     std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
 
-    for (CppSourceTarget *cppSourceTarget : requirementDeps)
+    for (CPT *cppSourceTarget : requirementDeps)
     {
-        getRealBTarget(2).addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
+        getRealBTarget(2).addDependency(const_cast<CPT &>(*cppSourceTarget));
     }
 }
 
 void CppSourceTarget::populateTransitiveProperties()
 {
-    for (CppSourceTarget *cppSourceTarget : requirementDeps)
+    for (CPT *cppSourceTarget : requirementDeps)
     {
         for (const Node *node : cppSourceTarget->usageRequirementIncludes)
         {
@@ -783,13 +783,13 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     else if (round == 3)
     {
         RealBTarget &round3 = getRealBTarget(3);
-        for (CppSourceTarget *cppSourceTarget : requirementDeps)
+        for (CPT *cppSourceTarget : requirementDeps)
         {
-            round3.addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
+            round3.addDependency(const_cast<CPT &>(*cppSourceTarget));
         }
-        for (CppSourceTarget *cppSourceTarget : usageRequirementDeps)
+        for (CPT *cppSourceTarget : usageRequirementDeps)
         {
-            round3.addDependency(const_cast<CppSourceTarget &>(*cppSourceTarget));
+            round3.addDependency(const_cast<CPT &>(*cppSourceTarget));
         }
 
         getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
@@ -1412,6 +1412,7 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
     }
 }
 
+/*
 PLibrary::PLibrary(Configuration &, const path &libraryPath_, TargetType libraryType_)
 {
     // TODO
@@ -1443,3 +1444,4 @@ void to_json(Json &j, const PLibrary *pLibrary)
     j[JConsts::prebuilt] = true;
     j[JConsts::path] = pLibrary->libraryPath.generic_string();
 }
+*/

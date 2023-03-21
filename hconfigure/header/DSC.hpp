@@ -10,7 +10,8 @@ import "LinkOrArchiveTarget.hpp";
 // Dependency Specification Controller
 template <typename T> struct DSC
 {
-    ObjectFileProducerWithDS<T> *objectFileProducer = nullptr;
+    using BaseType = T::BaseType;
+    ObjectFileProducerWithDS<BaseType> *objectFileProducer = nullptr;
     LinkOrArchiveTarget *linkOrArchiveTarget = nullptr;
     auto operator<=>(const DSC<T> &) const = default;
 

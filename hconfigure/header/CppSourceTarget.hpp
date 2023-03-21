@@ -2,8 +2,7 @@
 #define HMAKE_CPPSOURCETARGET_HPP
 #ifdef USE_HEADER_UNITS
 import "BuildTools.hpp";
-import "Configuration.hpp";
-import "Features.hpp";
+import "Prebuilt.hpp" import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
 import "JConsts.hpp";
 import "PostBasic.hpp";
@@ -14,11 +13,11 @@ import <set>;
 import <string>;
 #else
 #include "BuildTools.hpp"
-#include "Configuration.hpp"
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "JConsts.hpp"
 #include "PostBasic.hpp"
+#include "Prebuilt.hpp"
 #include "SMFile.hpp"
 #include "ToolsCache.hpp"
 #include <concepts>
@@ -74,9 +73,10 @@ struct ModuleScopeData
 class CppSourceTarget : public CompilerFeatures,
                         public CTarget,
                         public FeatureConvenienceFunctions<CppSourceTarget>,
-                        public ObjectFileProducerWithDS<CppSourceTarget>
+                        public CppPT
 {
   public:
+    using BaseType = CPT;
     Json buildCacheJson;
     TargetType compileTargetType;
     CppSourceTarget *moduleScope = nullptr;
@@ -124,12 +124,9 @@ class CppSourceTarget : public CompilerFeatures,
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void saveBuildCache(bool exitingAfterRoundOne);
 
-    set<const Node *> usageRequirementIncludes;
     // In module scope, two different targets should not have a directory in huIncludes
     set<const Node *> huIncludes;
 
-    string usageRequirementCompilerFlags;
-    set<Define> usageRequirementCompileDefinitions;
     set<SourceDirectory> regexSourceDirs;
     set<SourceDirectory> regexModuleDirs;
 
@@ -617,7 +614,7 @@ class PLibrary
     vector<Define> compileDefinitions;
     path libraryPath;
     mutable TargetType targetType;
-    PLibrary(Configuration &variant, const path &libraryPath_, TargetType libraryType_);
+    // PLibrary(Configuration &variant, const path &libraryPath_, TargetType libraryType_);
 };
 bool operator<(const PLibrary &lhs, const PLibrary &rhs);
 void to_json(Json &j, const PLibrary *pLibrary);

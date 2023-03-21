@@ -1,13 +1,15 @@
 #include "Configure.hpp"
 
-int main()
+int main(int argc, char **argv)
 {
+    setBoolsAndSetRunDir(argc, argv);
+
     Cache::initializeCache();
     Project project;
     ProjectVariant variantRelease;
 
-    Executable animal("Animal", variantRelease);
-    ADD_SRC_FILES_TO_TARGET(animal, "main.cpp");
+    DSC<CppSourceTarget> &animal = GetCppExeDSC("animal");
+    animal.getSourceTarget().SOURCE_FILES("main.cpp");
 
     // PLibrary means prebuilt library. if you want to use a prebuilt library, you can use it this way.
     // Note that the library had to specify the includeDirectoryDependency explicitly. An easy was to use a packaged
