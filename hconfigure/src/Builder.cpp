@@ -122,7 +122,7 @@ void Builder::launchThreadsAndUpdateBTargets()
     // https://cs.stackexchange.com/a/16829
     finalBTargetsIterator = finalBTargets.begin();
 
-    unsigned short launchThreads = 1;
+    unsigned short launchThreads = 12;
     if (launchThreads)
     {
         while (threads.size() != launchThreads - 1)

@@ -68,6 +68,11 @@ void PrebuiltLinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
     }
 }
 
+string PrebuiltLinkOrArchiveTarget::getActualOutputPath()
+{
+    return outputDirectory + actualOutputName;
+}
+
 void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget)
 {
     json = prebuiltLinkOrArchiveTarget.getTarjanNodeName();
@@ -110,7 +115,7 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
         initializeForBuild();
         for (ObjectFileProducer *objectFileProducer : objectFileProducers)
         {
-            getRealBTarget(0).addDependency(*objectFileProducer);
+            objectFileProducer->addDependencyOnObjectFileProducers(this);
         }
         checkForPreBuiltAndCacheDir(builder);
     }
@@ -656,7 +661,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommand(bool ignoreTargets)
                 return "";
             };
             localLinkOrArchiveCommand += getArchiveOutputFlag();
-            localLinkOrArchiveCommand += addQuotes(outputDirectory + actualOutputName) + " ";
+            localLinkOrArchiveCommand += addQuotes(getActualOutputPath()) + " ";
         }
         else
         {
@@ -740,7 +745,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommand(bool ignoreTargets)
             localLinkOrArchiveCommand += getLibraryDirectoryFlag() + addQuotes(libDir) + " ";
         }
         localLinkOrArchiveCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
-        localLinkOrArchiveCommand += addQuotes(outputDirectory + actualOutputName) + " ";
+        localLinkOrArchiveCommand += addQuotes(getActualOutputPath()) + " ";
         if (linkTargetType == TargetType::LIBRARY_SHARED)
         {
             localLinkOrArchiveCommand += "/DLL";
@@ -889,7 +894,7 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned i
         RealBTarget &realBTarget = getRealBTarget(round);
         if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
         {
-            path outputPath = path(outputDirectory) / actualOutputName;
+            path outputPath = path(getActualOutputPath());
             if (!std::filesystem::exists(outputPath))
             {
                 realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
@@ -897,8 +902,7 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned i
             }
             for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
             {
-                path depOutputPath =
-                    path(prebuiltLinkOrArchiveTarget->outputDirectory) / prebuiltLinkOrArchiveTarget->actualOutputName;
+                path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
                 if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
                     Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
                 {
@@ -959,7 +963,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()
 
         if (acpSettings.archive.printLevel != PathPrintLevel::NO)
         {
-            linkOrArchiveCommandPrint += getReducedPath(outputDirectory + outputName, acpSettings.archive) + " ";
+            linkOrArchiveCommandPrint += getReducedPath(getActualOutputPath(), acpSettings.archive) + " ";
         }
     }
     else
@@ -1096,7 +1100,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()
 
     if (lcpSettings.binary.printLevel != PathPrintLevel::NO)
     {
-        linkOrArchiveCommandPrint += getReducedPath(outputDirectory + actualOutputName, lcpSettings.binary) + " ";
+        linkOrArchiveCommandPrint += getReducedPath(getActualOutputPath(), lcpSettings.binary) + " ";
     }
 
     if (linkTargetType == TargetType::LIBRARY_SHARED)
@@ -1124,7 +1128,7 @@ void LinkOrArchiveTarget::checkForPreBuiltAndCacheDir(Builder &)
         ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> linkTargetCacheJson;
         string command = std::move(linkTargetCacheJson.at(JConsts::linkCommand));
         cachedObjectFiles = std::move(linkTargetCacheJson.at(JConsts::objectFiles).get<set<string>>());
-        path targetOutputPath = outputDirectory + actualOutputName;
+        path targetOutputPath = getActualOutputPath();
 
         if (exists(targetOutputPath) && command == linker.bTPath.generic_string() + " " + getLinkOrArchiveCommand(true))
         {

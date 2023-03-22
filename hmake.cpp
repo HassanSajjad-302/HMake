@@ -1,27 +1,53 @@
 #include "Configure.hpp"
 
+#include <functional>
+#include <utility>
+
+using std::function;
+template <typename T> struct RoundZeroBTarget : public BTarget
+{
+    function<T> j;
+    RoundZeroBTarget()
+    {
+        getRealBTarget(0).fileStatus = FileStatus::NEEDS_UPDATE;
+    }
+    void setFunctor(function<T> f)
+    {
+        j = std::move(f);
+    }
+    void updateBTarget(unsigned short round, class Builder &builder) override
+    {
+        j();
+        getRealBTarget(0).fileStatus = FileStatus::UPDATED;
+    }
+};
+
+template <typename T> struct CTargetRoundZeroBTarget : public RoundZeroBTarget<T>, public CTarget
+{
+    function<T> j;
+    explicit CTargetRoundZeroBTarget(const string &name_) : CTarget(name_)
+    {
+    }
+    CTargetRoundZeroBTarget(const string &name_, CTarget &container, bool hasFile = true)
+        : CTarget(name_, container, hasFile)
+    {
+    }
+};
+
 int main(int argc, char **argv)
 {
     setBoolsAndSetRunDir(argc, argv);
     Configuration debug{"Debug"};
-    Configuration release{"Release"};
+    Configuration releaseSpeed{"RSpeed"};
+    Configuration releaseSize{"RSize"};
     Configuration arm("arm");
 
     CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
-    /*        debug.compilerFeatures.compiler.bTPath =
-                "C:\\Program Files\\Microsoft Visual
-       Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\bin\\clang-cl";*/
-    /*        debug.linkerFeatures.linker.bTPath =
-                "C:\\Program Files\\Microsoft Visual
-       Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\bin\\lld-link.exe";*/
-    /*        debug.linkerFeatures.standardLibraryDirectories.emplace(
-                Node::getNodeFromString("C:\\Program Files\\Microsoft Visual "
-                                        "Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\lib\\clang\\15.0.1\\lib\\windows\\",
-                                        false));*/
     debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG, AddressSanitizer::OFF,
                  RuntimeDebugging::OFF);
     debug.compilerFeatures.requirementCompileDefinitions.emplace(Define("USE_HEADER_UNITS"));
-    release.ASSIGN(cxxStd, TranslateInclude::YES, TreatModuleAsSource::NO, ConfigType::RELEASE);
+    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE);
+    releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
     arm.ASSIGN(cxxStd, Arch::ARM, TranslateInclude::YES, ConfigType::RELEASE, TreatModuleAsSource::NO);
     /*        debug.compilerFeatures.requirementCompilerFlags += "--target=x86_64-pc-windows-msvc ";
             debug.linkerFeatures.requirementLinkerFlags += "--target=x86_64-pc-windows-msvc";*/
@@ -59,8 +85,28 @@ int main(int argc, char **argv)
         configuration.setModuleScope(stdhu.getSourceTargetPointer());
     };
 
-    fun(debug);
+    // fun(debug);
     /*        fun(release);
             fun(arm);*/
+
+    fun(releaseSize);
+    fun(releaseSpeed);
+
+    CTargetRoundZeroBTarget<void()> sizeDifference("Size-Difference");
+
+    for (LinkOrArchiveTarget *linkOrArchiveTarget : releaseSpeed.linkOrArchiveTargets)
+    {
+        sizeDifference.getRealBTarget(0).addDependency(*linkOrArchiveTarget);
+    }
+
+    auto lamb = [&]() {
+        for (LinkOrArchiveTarget *linkOrArchiveTarget : releaseSpeed.linkOrArchiveTargets)
+        {
+            std::filesystem::copy(linkOrArchiveTarget->getActualOutputPath(),
+                                  sizeDifference.getSubDirForTarget() + linkOrArchiveTarget->actualOutputName,
+                                  std::filesystem::copy_options::overwrite_existing);
+        }
+    };
+    sizeDifference.setFunctor(lamb);
     configureOrBuild();
 }

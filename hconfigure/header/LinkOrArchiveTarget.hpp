@@ -47,6 +47,7 @@ class PrebuiltLinkOrArchiveTarget : public BTarget, public DS<PrebuiltLinkOrArch
     virtual void preSort(Builder &builder, unsigned short round);
     virtual void updateBTarget(unsigned short round, class Builder &builder);
     void addRequirementDepsToBTargetDependencies();
+    string getActualOutputPath();
 };
 void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget);
 
