@@ -3,11 +3,11 @@
 #define HMAKE_PREBUILT_HPP
 
 #ifdef USE_HEADER_UNITS
-import "ObjectFileProducer.hpp";
+import "SMFile.hpp";
 import <set>;
 import <string>;
 #else
-#include "ObjectFileProducer.hpp"
+#include "SMFile.hpp"
 #include <set>
 #include <string>
 #endif
@@ -20,7 +20,24 @@ struct CPT : public ObjectFileProducerWithDS<CPT>
     set<const class Node *> usageRequirementIncludes;
     string usageRequirementCompilerFlags;
     set<struct Define> usageRequirementCompileDefinitions;
+
+    template <typename... U> CPT &INTERFACE_INCLUDES(const string &include, U... includeDirectoryString);
+    CPT &INTERFACE_COMPILER_FLAGS(const string &compilerFlags);
+    CPT &INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue = "");
 };
+
+template <typename... U> CPT &CPT::INTERFACE_INCLUDES(const string &include, U... includeDirectoryString)
+{
+    usageRequirementIncludes.emplace(Node::getNodeFromString(include, false));
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        return INTERFACE_INCLUDES(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
 
 // CppPrebuiltTarget
 struct CppPT : public CPT

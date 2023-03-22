@@ -21,12 +21,6 @@ Configuration::Configuration(const string &name_, CTarget &other, bool hasFile) 
 {
 }
 
-void Configuration::setLinkerFromVSTools(struct VSTools &vsTools)
-{
-    linkerFeatures.linker = vsTools.linker;
-    plaFeatures.setLinkerDirectoriesFromVSTools(vsTools);
-}
-
 void Configuration::setModuleScope(CppSourceTarget *moduleScope)
 {
     for (CppSourceTarget *cppSourceTargetLocal : cppSourceTargets)
@@ -67,7 +61,6 @@ LinkOrArchiveTarget &Configuration::GetExe(const string &name_)
             .first.
             operator*());
     linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
-    static_cast<PLAFeatures &>(linkOrArchiveTarget) = plaFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
@@ -79,7 +72,6 @@ LinkOrArchiveTarget &Configuration::GetStatic(const string &name_)
             .first.
             operator*());
     linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
-    static_cast<PLAFeatures &>(linkOrArchiveTarget) = plaFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
@@ -91,9 +83,17 @@ LinkOrArchiveTarget &Configuration::GetShared(const string &name_)
             .first.
             operator*());
     linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
-    static_cast<PLAFeatures &>(linkOrArchiveTarget) = plaFeatures;
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
+}
+
+PrebuiltLinkOrArchiveTarget &Configuration::GetPrebuiltLinkOrArchiveTarget(const string &name, const string &directory,
+                                                                           TargetType linkTargetType_)
+{
+    PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget = const_cast<PrebuiltLinkOrArchiveTarget &>(
+        targets<PrebuiltLinkOrArchiveTarget>.emplace(name, directory, linkTargetType_).first.operator*());
+    prebuiltLinkOrArchiveTargets.emplace(&prebuiltLinkOrArchiveTarget);
+    return prebuiltLinkOrArchiveTarget;
 }
 
 CPT &Configuration::GetCPT()
@@ -154,6 +154,14 @@ DSC<CppSourceTarget> &Configuration::GetCppObjectDSC(const string &name_)
     return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
+DSCPrebuilt<CPT> &Configuration::GetCPTDSC(const string &name, const string &directory, TargetType linkTargetType_)
+{
+    DSCPrebuilt<CPT> dsc;
+    dsc.prebuilt = &(GetCPT());
+    dsc.prebuiltLinkOrArchiveTarget = &(GetPrebuiltLinkOrArchiveTarget(name, directory, linkTargetType_));
+    return const_cast<DSCPrebuilt<CPT> &>(targets<DSCPrebuilt<CPT>>.emplace(dsc).first.operator*());
+}
+
 void Configuration::setJson()
 {
     Json variantJson;
@@ -163,7 +171,7 @@ void Configuration::setJson()
     variantJson[JConsts::archiver] = linkerFeatures.archiver;
     variantJson[JConsts::compilerFlags] = compilerFeatures.requirementCompilerFlags;
     variantJson[JConsts::compileDefinitions] = compilerFeatures.requirementCompileDefinitions;
-    variantJson[JConsts::linkerFlags] = plaFeatures.requirementLinkerFlags;
+    variantJson[JConsts::linkerFlags] = linkerFeatures.requirementLinkerFlags;
     variantJson[JConsts::libraryType] = linkerFeatures.libraryType;
     variantJson[JConsts::targets] = elements;
     json[0] = std::move(variantJson);

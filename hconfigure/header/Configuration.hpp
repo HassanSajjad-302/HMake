@@ -28,9 +28,9 @@ struct Configuration : public CTarget
 {
     set<CppSourceTarget *> cppSourceTargets;
     set<LinkOrArchiveTarget *> linkOrArchiveTargets;
+    set<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;
     set<struct CPT *> prebuiltTargets;
     CompilerFeatures compilerFeatures;
-    PLAFeatures plaFeatures;
     LinkerFeatures linkerFeatures;
 
     CppSourceTarget &GetCppPreprocess(const string &name_);
@@ -38,7 +38,9 @@ struct Configuration : public CTarget
     LinkOrArchiveTarget &GetExe(const string &name_);
     LinkOrArchiveTarget &GetStatic(const string &name_);
     LinkOrArchiveTarget &GetShared(const string &name_);
-    PrebuiltLinkOrArchiveTarget &GetPrebuiltLinkOrArchiveTarget();
+
+    PrebuiltLinkOrArchiveTarget &GetPrebuiltLinkOrArchiveTarget(const string &name, const string &directory,
+                                                                TargetType linkTargetType_);
     CPT &GetCPT();
 
     DSC<CppSourceTarget> &GetCppExeDSC(const string &name_);
@@ -47,11 +49,12 @@ struct Configuration : public CTarget
     DSC<CppSourceTarget> &GetCppSharedDSC(const string &name_);
     DSC<CppSourceTarget> &GetCppObjectDSC(const string &name_);
 
+    DSCPrebuilt<CPT> &GetCPTDSC(const string &name, const string &directory, TargetType linkTargetType_);
+
     ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;
 
     explicit Configuration(const string &name_);
     Configuration(const string &name, CTarget &other, bool hasFile = true);
-    void setLinkerFromVSTools(struct VSTools &vsTools);
     void setModuleScope(CppSourceTarget *moduleScope);
     void setJson() override;
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>

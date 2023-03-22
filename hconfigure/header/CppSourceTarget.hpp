@@ -6,7 +6,6 @@ import "Prebuilt.hpp" import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
 import "JConsts.hpp";
 import "PostBasic.hpp";
-import "SMFile.hpp";
 import "ToolsCache.hpp";
 import <concepts>;
 import <set>;
@@ -18,7 +17,6 @@ import <string>;
 #include "JConsts.hpp"
 #include "PostBasic.hpp"
 #include "Prebuilt.hpp"
-#include "SMFile.hpp"
 #include "ToolsCache.hpp"
 #include <concepts>
 #include <set>
@@ -158,9 +156,9 @@ class CppSourceTarget : public CompilerFeatures,
     CppSourceTarget &PUBLIC_COMPILER_FLAGS(const string &compilerFlags);
     CppSourceTarget &PRIVATE_COMPILER_FLAGS(const string &compilerFlags);
     CppSourceTarget &INTERFACE_COMPILER_FLAGS(const string &compilerFlags);
-    CppSourceTarget &PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
-    CppSourceTarget &PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
-    CppSourceTarget &INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue);
+    CppSourceTarget &PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &cddValue = "");
+    CppSourceTarget &PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue = "");
+    CppSourceTarget &INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue = "");
     template <typename... U> CppSourceTarget &SOURCE_FILES(const string &srcFile, U... sourceFileString);
     template <typename... U> CppSourceTarget &MODULE_FILES(const string &modFile, U... moduleFileString);
 
@@ -595,27 +593,4 @@ template <Dependency dependency, typename T> void CppSourceTarget::assignCommonF
     }
 }
 
-// PreBuilt-Library
-class PLibrary
-{
-    PLibrary() = default;
-    friend class PPLibrary;
-
-    TargetType libraryType;
-
-  private:
-    vector<PLibrary *> prebuilts;
-
-  public:
-    string libraryName;
-    set<Node *> includes;
-    string compilerFlags;
-    string linkerFlags;
-    vector<Define> compileDefinitions;
-    path libraryPath;
-    mutable TargetType targetType;
-    // PLibrary(Configuration &variant, const path &libraryPath_, TargetType libraryType_);
-};
-bool operator<(const PLibrary &lhs, const PLibrary &rhs);
-void to_json(Json &j, const PLibrary *pLibrary);
 #endif // HMAKE_CPPSOURCETARGET_HPP

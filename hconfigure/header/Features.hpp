@@ -641,19 +641,10 @@ enum class DebugStore
 // ASSIGN of CppSourceTarget and LinkOrArchiveTarget also assign the targetType property which is respective to those
 // classes.
 
-// Prebuilt LinkOrArchiveTarget Features
-struct PLAFeatures
-{
-    string requirementLinkerFlags;
-    // TODO
-    // Replace standardLibraryDirectories with libraryDirectories
-    set<const Node *> standardLibraryDirectories;
-    PLAFeatures();
-    void setLinkerDirectoriesFromVSTools(struct VSTools &vsTools);
-};
-
 struct LinkerFeatures
 {
+    set<const Node *> standardLibraryDirectories;
+
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
     ThreadSanitizer threadSanitizer = ThreadSanitizer::OFF;
@@ -694,8 +685,10 @@ struct LinkerFeatures
     Archiver archiver;
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
+    string requirementLinkerFlags;
     TargetType libraryType;
     LinkerFeatures();
+    void setLinkerFromVSTools(struct VSTools &vsTools);
     void setConfigType(ConfigType configType);
 };
 
@@ -770,3 +763,4 @@ struct CompilerFeatures
 };
 
 #endif // HMAKE_FEATURES_HPP
+

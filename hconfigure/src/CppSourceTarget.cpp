@@ -1411,37 +1411,3 @@ void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
         ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCacheJson.dump(4);
     }
 }
-
-/*
-PLibrary::PLibrary(Configuration &, const path &libraryPath_, TargetType libraryType_)
-{
-    // TODO
-    // Should check if library exists or not
-    libraryType = libraryType_;
-    if (libraryType != TargetType::PLIBRARY_STATIC || libraryType != TargetType::PLIBRARY_SHARED)
-    {
-        print(stderr, "PLibrary libraryType TargetType is not one of PLIBRARY_STATIC or PLIBRARY_SHARED \n");
-        exit(EXIT_FAILURE);
-    }
-    if (libraryPath_.is_relative())
-    {
-        libraryPath = path(srcDir) / libraryPath_;
-        libraryPath = libraryPath.lexically_normal();
-    }
-    libraryName = getTargetNameFromActualName(libraryType, os, libraryPath.filename().string());
-}
-
-bool operator<(const PLibrary &lhs, const PLibrary &rhs)
-{
-    // TODO
-    // What is this?
-    return lhs.libraryName < rhs.libraryName && lhs.libraryPath < rhs.libraryPath && lhs.includes < rhs.includes &&
-           lhs.compilerFlags < rhs.compilerFlags && lhs.compilerFlags < rhs.compilerFlags;
-}
-
-void to_json(Json &j, const PLibrary *pLibrary)
-{
-    j[JConsts::prebuilt] = true;
-    j[JConsts::path] = pLibrary->libraryPath.generic_string();
-}
-*/

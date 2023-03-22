@@ -34,7 +34,7 @@ struct LinkerFlags
     string LINKFLAGS_MSVC;
 };
 
-class PrebuiltLinkOrArchiveTarget : public BTarget, public DS<PrebuiltLinkOrArchiveTarget>, public PLAFeatures
+class PrebuiltLinkOrArchiveTarget : public BTarget, public DS<PrebuiltLinkOrArchiveTarget>
 {
   public:
     string outputDirectory;
@@ -44,11 +44,9 @@ class PrebuiltLinkOrArchiveTarget : public BTarget, public DS<PrebuiltLinkOrArch
     TargetType linkTargetType;
 
     PrebuiltLinkOrArchiveTarget(const string &name, const string &directory, TargetType linkTargetType_);
-    PrebuiltLinkOrArchiveTarget(string name, string directory);
     virtual void preSort(Builder &builder, unsigned short round);
     virtual void updateBTarget(unsigned short round, class Builder &builder);
     void addRequirementDepsToBTargetDependencies();
-    void populateRequirementAndUsageRequirementProperties();
 };
 void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget);
 
@@ -83,7 +81,6 @@ class LinkOrArchiveTarget : public CTarget,
     string getTarjanNodeName() override;
     PostBasic Archive();
     PostBasic Link();
-    void addRequirementDepsToBTargetDependencies();
     void populateRequirementAndUsageRequirementProperties();
     void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator) override;
     void setLinkOrArchiveCommandPrint();

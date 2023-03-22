@@ -4,20 +4,21 @@ int main(int argc, char **argv)
 {
     setBoolsAndSetRunDir(argc, argv);
 
-    DSC<CppSourceTarget> &animal = GetCppExeDSC("animal");
-    animal.getSourceTarget().SOURCE_FILES("main.cpp");
+    auto makeAnimal = [](TargetType targetType) {
+        string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
+        DSCPrebuilt<CPT> &cat = GetCPTDSC("Cat" + str, "../Example2/Build/Cat" + str + "/", targetType);
+        cat.getSourceTarget()
+            .INTERFACE_INCLUDES("../Example2/Cat/header")
+            .INTERFACE_COMPILE_DEFINITION("CAT_EXPORT",
+                                          targetType == TargetType::LIBRARY_STATIC ? "" : "__declspec(dllimport)");
 
-    // PLibrary means prebuilt library. if you want to use a prebuilt library, you can use it this way.
-    // Note that the library had to specify the includeDirectoryDependency explicitly. An easy was to use a packaged
-    // library. Generating a hmake packaged library is shown in next example.
+        DSC<CppSourceTarget> &animal = GetCppExeDSC("Animal" + str);
+        animal.PRIVATE_LIBRARIES(&cat);
+        animal.getSourceTarget().SOURCE_FILES("main.cpp");
+    };
 
-    PrebuiltLinkOrArchiveTarget prebuiltLinkOrArchiveTarget("Cat-Static", "../Example2/Build/Cat-Static/",
-                                                            TargetType::LIBRARY_STATIC);
-    CPT catCppPrebuilt;
-    catCppPrebuilt.usageRequirementIncludes.emplace(Node::getNodeFromString("../Example2/Cat/header", false));
-    catCppPrebuilt.usageRequirementCompileDefinitions.emplace(Define("CAT_EXPORT"));
-    animal.linkOrArchiveTarget->PRIVATE_DEPS(&prebuiltLinkOrArchiveTarget);
-    animal.objectFileProducer->PRIVATE_DEPS(&catCppPrebuilt);
+    makeAnimal(TargetType::LIBRARY_STATIC);
+    makeAnimal(TargetType::LIBRARY_SHARED);
 
     configureOrBuild();
 }

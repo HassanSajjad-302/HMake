@@ -28,12 +28,6 @@ PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &name, con
 {
 }
 
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(string name, string directory)
-{
-    // TODO
-    // This constructor and TarjanNodeName function and word "common" removal.
-}
-
 void PrebuiltLinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
 {
     if (round == 3)
@@ -58,7 +52,6 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(unsigned short round, class Buil
     {
         populateRequirementAndUsageRequirementDeps();
         addRequirementDepsToBTargetDependencies();
-        populateRequirementAndUsageRequirementProperties();
     }
 }
 
@@ -72,14 +65,6 @@ void PrebuiltLinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
     {
         round0.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
         round2.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
-    }
-}
-
-void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementProperties()
-{
-    for (PrebuiltLinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
-    {
-        requirementLinkerFlags += linkOrArchiveTarget->usageRequirementLinkerFlags;
     }
 }
 
@@ -103,7 +88,6 @@ LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType, CT
 void LinkOrArchiveTarget::setLinkerFromVSTools(struct VSTools &vsTools)
 {
     linker = vsTools.linker;
-    setLinkerDirectoriesFromVSTools(vsTools);
 }
 
 void LinkOrArchiveTarget::initializeForBuild()
@@ -728,32 +712,6 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommand(bool ignoreTargets)
             }
         }
 
-        // TODO
-        // Not doing prebuilt libraries yet
-
-        /*        for (auto &i : libraryDependencies)
-                {
-                    if (i.preBuilt)
-                    {
-                        if (linker.bTFamily == BTFamily::MSVC)
-                        {
-                            auto b = lcpSettings.libraryDependencies;
-                            local+= i.path + " ";
-                            linkOrArchiveCommandPrintFirstHalf += getReducedPath(i.path + " ", b);
-                        }
-                        else
-                        {
-                            string dir = path(i.path).parent_path().string();
-                            string libName = path(i.path).filename().string();
-                            libName.erase(0, 3);
-                            libName.erase(libName.find('.'), 2);
-                            local+= getLinkFlag(dir, libName);
-                            linkOrArchiveCommandPrintFirstHalf +=
-                                getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies);
-                        }
-                    }
-                }*/
-
         auto getLibraryDirectoryFlag = [this]() {
             if (linker.bTFamily == BTFamily::MSVC)
             {
@@ -859,17 +817,18 @@ void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &builder)
     }
     else if (round == 3)
     {
-        PrebuiltLinkOrArchiveTarget::updateBTarget(round, builder);
+        PrebuiltLinkOrArchiveTarget::updateBTarget(3, builder);
+        addRequirementDepsToBTargetDependencies();
+        for (PrebuiltLinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
+        {
+            requirementLinkerFlags += linkOrArchiveTarget->usageRequirementLinkerFlags;
+        }
     }
     realBTarget.fileStatus = FileStatus::UPDATED;
 }
 
 void LinkOrArchiveTarget::setJson()
 {
-    // TODO
-    /*    iterateOverPrebuiltLibs(publicPrebuilts);
-        iterateOverPrebuiltLibs(privatePrebuilts);*/
-
     Json targetJson;
     targetJson[JConsts::targetType] = linkTargetType;
     targetJson[JConsts::outputName] = outputName;
@@ -1098,30 +1057,6 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()
     }
 
     // HMake does not link any dependency to static library
-
-    // TODO
-    // Not doing prebuilt libraries yet
-
-    /*        for (auto &i : libraryDependencies)
-            {
-                if (i.preBuilt)
-                {
-                    if (linker.bTFamily == BTFamily::MSVC)
-                    {
-                        auto b = lcpSettings.libraryDependencies;
-                        linkOrArchiveCommandPrintFirstHalf += getReducedPath(i.path + " ", b);
-                    }
-                    else
-                    {
-                        string dir = path(i.path).parent_path().string();
-                        string libName = path(i.path).filename().string();
-                        libName.erase(0, 3);
-                        libName.erase(libName.find('.'), 2);
-                        linkOrArchiveCommandPrintFirstHalf +=
-                            getLinkFlagPrint(dir, libName, lcpSettings.libraryDependencies);
-                    }
-                }
-            }*/
 
     auto getLibraryDirectoryFlag = [this]() {
         if (linker.bTFamily == BTFamily::MSVC)

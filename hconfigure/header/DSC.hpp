@@ -61,8 +61,9 @@ template <typename T> struct DSC
         }
     }
 
-    template <typename... U> DSC<T> &PUBLIC_LIBRARIES(DSCPrebuilt<T> *controller, const U... libraries)
+    template <typename... U> DSC<T> &PUBLIC_LIBRARIES(DSCPrebuilt<BaseType> *controller, const U... libraries)
     {
+        assignPrebuiltLinkOrArchiveTarget(controller);
         objectFileProducer->PUBLIC_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
@@ -74,8 +75,9 @@ template <typename T> struct DSC
         }
     }
 
-    template <typename... U> DSC<T> &PRIVATE_LIBRARIES(DSCPrebuilt<T> *controller, const U... libraries)
+    template <typename... U> DSC<T> &PRIVATE_LIBRARIES(DSCPrebuilt<BaseType> *controller, const U... libraries)
     {
+        assignPrebuiltLinkOrArchiveTarget(controller);
         objectFileProducer->PRIVATE_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
@@ -87,8 +89,9 @@ template <typename T> struct DSC
         }
     }
 
-    template <typename... U> DSC<T> &INTERFACE_LIBRARIES(DSCPrebuilt<T> *controller, const U... libraries)
+    template <typename... U> DSC<T> &INTERFACE_LIBRARIES(DSCPrebuilt<BaseType> *controller, const U... libraries)
     {
+        assignPrebuiltLinkOrArchiveTarget(controller);
         objectFileProducer->INTERFACE_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
