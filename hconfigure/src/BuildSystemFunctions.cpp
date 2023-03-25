@@ -31,7 +31,7 @@ void setBoolsAndSetRunDir(int argc, char **argv)
         }
         else
         {
-            print(stderr, "{}", "Invoked with unknown CMD option");
+            print(stderr, "{}", "setBoolsAndSetRunDir Invoked with unknown CMD option");
             exit(EXIT_FAILURE);
         }
     }
@@ -90,26 +90,13 @@ void configureOrBuild()
         TCT::checkForCycle();
     }
 
-    auto isCTargetInSelectedSubDirectory = [](const CTarget &cTarget) {
-        path targetPath = cTarget.getSubDirForTarget();
-        for (; targetPath.root_path() != targetPath; targetPath = (targetPath / "..").lexically_normal())
-        {
-            std::error_code ec;
-            if (equivalent(targetPath, current_path(), ec))
-            {
-                return true;
-            }
-        }
-        return false;
-    };
-
     list<BTarget *> preSortBTargets;
     for (CTarget *cTarget : targetPointers<CTarget>)
     {
         if (BTarget *bTarget = cTarget->getBTarget(); bTarget)
         {
             preSortBTargets.emplace_back(bTarget);
-            if (bsMode == BSMode::BUILD && isCTargetInSelectedSubDirectory(*cTarget))
+            if (cTarget->isCTargetInSelectedSubDirectory())
             {
                 bTarget->selectiveBuild = true;
             }

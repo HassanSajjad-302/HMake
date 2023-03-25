@@ -1,5 +1,16 @@
 #include "Configure.hpp"
 
+void func(int argc, char **argv)
+{
+    setBoolsAndSetRunDir(argc, argv);
+
+    DSC<CppSourceTarget> &app = GetCppExeDSC("app");
+    app.getSourceTarget().SOURCE_FILES("main.cpp");
+}
+
+FUNC
+
+/*
 int main(int argc, char **argv)
 {
     // Following line will initialize the Cache class static members from cache.hmake. That's why if cache file does not
@@ -16,7 +27,8 @@ int main(int argc, char **argv)
     // anything. In the future, when it's ready then e.g. your use case is to only allow gcc and no other compiler. You
     // can write the following code snippet. So that in case more than one compiler are detected, use gcc. If gcc is not
     // detected then exit.
-    /*
+    */
+/*
     bool compilerFound = false;
     for(int i=0;i<Cache::compilerArray.size(); ++i){
       if(Cache::compilerArray[i].compilerFamily == CompilerFamily::GCC){
@@ -27,7 +39,8 @@ int main(int argc, char **argv)
     if(!compilerFound){
       cerr << "Compiler Not detected" << endl;
       exit(EXIT_FAILURE);
-    }*/
+    }*//*
+
     setBoolsAndSetRunDir(argc, argv);
 
     // There should be only one project variable. Project class has name and version members but because those are not
@@ -49,13 +62,16 @@ int main(int argc, char **argv)
 
     // If you don't provide full path then relative path is converted into full path like following
     // Cache::sourceDirectory.path/path i.e. your path is taken relative to sourceDirectory.
-    /*    CppSourceTarget *linkOrArchiveTarget = GetCppExe("app").cppSourceTarget;
+    */
+/*    CppSourceTarget *linkOrArchiveTarget = GetCppExe("app").cppSourceTarget;
         linkOrArchiveTarget->setConfigType(ConfigType::RELEASE);
         linkOrArchiveTarget->SOURCE_FILES("main.cpp").setConfigType(ConfigType::DEBUG);
         linkOrArchiveTarget->ASSIGN(Arch::X86, Warnings::ALL, WarningsAsErrors::ON, InstructionSet::alderlake,
                                     LeakSanitizer::ON, UndefinedSanitizer::ON, ExceptionHandling::OFF, RTTI::OFF,
-       LTO::ON, LTOMode::FULL, DebugSymbols::OFF, RuntimeDebugging::OFF, Optimization::SPEED, RuntimeLink::STATIC);*/
-    GetExeCpp("app").SOURCE_FILES("main.cpp").ASSIGN(CxxSTD::V_LATEST, TranslateInclude::YES);
+       LTO::ON, LTOMode::FULL, DebugSymbols::OFF, RuntimeDebugging::OFF, Optimization::SPEED, RuntimeLink::STATIC);*//*
+
+    DSC<CppSourceTarget> &app = GetCppExeDSC("app");
+    app.getSourceTarget().SOURCE_FILES("main.cpp");
 
     configureOrBuild();
     // This will be your last line. If you are doing packaging, then package.configure may be your last, where package
@@ -86,3 +102,4 @@ int main(int argc, char **argv)
 
     // So, when package.configure() is called it generates all hmake files.
 }
+*/

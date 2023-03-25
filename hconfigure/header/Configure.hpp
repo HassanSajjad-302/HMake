@@ -1,5 +1,6 @@
 #ifndef HMAKE_CONFIGURE_HPP
 #define HMAKE_CONFIGURE_HPP
+
 #ifdef USE_HEADER_UNITS
 import "BasicTargets.hpp";
 import "BuildSystemFunctions.hpp";
@@ -49,4 +50,16 @@ import <utility>;
 #include <thread>
 #include <utility>
 #endif
+
+#ifdef EXE
+#define FUNC                                                                                                           \
+    int main(int argc, char **argv)                                                                                    \
+    {                                                                                                                  \
+        func(argc, argv);                                                                                              \
+        configureOrBuild();                                                                                            \
+    }
+#else
+#define FUNC
+#endif
+
 #endif // HMAKE_CONFIGURE_HPP

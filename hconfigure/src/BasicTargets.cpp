@@ -12,7 +12,7 @@ import <fstream>;
 #include <filesystem>
 #include <fstream>
 #endif
-using std::filesystem::create_directories, std::ofstream;
+using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path;
 
 /*IndexInTopologicalSortComparator::IndexInTopologicalSortComparator(unsigned short round_) : round(round_)
 {
@@ -166,6 +166,23 @@ string CTarget::getSubDirForTarget() const
     return other ? (other->getSubDirForTarget() + name + "/") : targetFileDir;
 }
 
+bool CTarget::isCTargetInSelectedSubDirectory() const
+{
+    if (bsMode == BSMode::BUILD)
+    {
+        path targetPath = getSubDirForTarget();
+        for (; targetPath.root_path() != targetPath; targetPath = (targetPath / "..").lexically_normal())
+        {
+            std::error_code ec;
+            if (equivalent(targetPath, current_path(), ec))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 string CTarget::getTarjanNodeName()
 {
     return "CTarget " + getSubDirForTarget();
@@ -211,4 +228,3 @@ void to_json(Json &j, const CTarget *tar)
 {
     j = tar->targetFileDir;
 }
-

@@ -110,11 +110,13 @@ class CTarget // Configure Target
     // This points to the tarjanNodeCTargets set element
     TCT *cTarjanNode = nullptr;
     const bool hasFile = true;
+    bool selectiveBuild = false;
     CTarget(string name_, CTarget &container, bool hasFile_ = true);
     explicit CTarget(string name_);
     string getTargetPointer() const;
     path getTargetFilePath() const;
     string getSubDirForTarget() const;
+    bool isCTargetInSelectedSubDirectory() const;
 
     virtual string getTarjanNodeName();
     virtual void setJson();

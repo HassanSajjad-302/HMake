@@ -39,7 +39,7 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
 #define THROW true
 #endif
 
-int main()
+int main(int argc, char **argv)
 {
     if (THROW)
     {
@@ -64,6 +64,21 @@ int main()
     }
     if (count == 0)
     {
+        bool dynamic = false;
+        if (argc > 1)
+        {
+            string argument(argv[1]);
+            if (argument == "--dynamic")
+            {
+                dynamic = true;
+            }
+            else
+            {
+                print(stderr, "{}", "hhelper Invoked with unknown CMD option");
+                exit(EXIT_FAILURE);
+            }
+        }
+
         if constexpr (os == OS::LINUX)
         {
             Version ver{10, 2, 0};
@@ -84,14 +99,22 @@ int main()
         path fmtStaticLibDirectoryPath = path(FMT_STATIC_LIB_DIRECTORY);
         path hconfigureStaticLibPath = path(HCONFIGURE_STATIC_LIB_PATH);
         path fmtStaticLibPath = path(FMT_STATIC_LIB_PATH);
+        string exeDefine = "EXE";
+
         if constexpr (os == OS::LINUX)
         {
-            string compileCommand =
-                "c++ -std=c++2b -fsanitize=thread -fno-omit-frame-pointer "
-                " -I " HCONFIGURE_HEADER " -I " JSON_HEADER "  -I " FMT_HEADER " {SOURCE_DIRECTORY}/hmake.cpp"
-                " -L " HCONFIGURE_STATIC_LIB_DIRECTORY " -l hconfigure -L " FMT_STATIC_LIB_DIRECTORY " -l fmt "
-                " -o "
-                "{CONFIGURE_DIRECTORY}/configure";
+            string exportDefine = " -DEXPORT ";
+            string compileCommand = "c++ ";
+            compileCommand += dynamic ? ("-D" + exeDefine + exportDefine) : " ";
+            compileCommand +=
+                "-std=c++2b -fsanitize=thread -fno-omit-frame-pointer "
+                " -I " HCONFIGURE_HEADER " -I " JSON_HEADER "  -I " FMT_HEADER " {SOURCE_DIRECTORY}/hmake.cpp ";
+            compileCommand += dynamic ? "-Wl,--whole-archive -fPIC -shared " : " ";
+            compileCommand += "-L " HCONFIGURE_STATIC_LIB_DIRECTORY " -l hconfigure ";
+            compileCommand += dynamic ? "-Wl,--no-whole-archive " : " ";
+            compileCommand += "-L " FMT_STATIC_LIB_DIRECTORY " -l fmt "
+                              "-o "
+                              "{CONFIGURE_DIRECTORY}/configure";
             cache.compileConfigureCommands.push_back(compileCommand);
         }
         else
@@ -108,14 +131,17 @@ int main()
             // hhelper currently only works with MSVC compiler expected in toolsCache vsTools[0]
             string compileCommand = addQuotes(toolsCache.vsTools[0].compiler.bTPath.make_preferred().string());
 
+            string exportDefine = " /DEXPORT=__declspec(dllexport) ";
+            compileCommand += dynamic ? (" /D" + exeDefine + exportDefine) : " ";
             for (const string &str : toolsCache.vsTools[0].includeDirectories)
             {
-                compileCommand += " /I " + addQuotes(str);
+                compileCommand += "/I " + addQuotes(str) + " ";
             }
-            compileCommand += " /I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() + " /I " +
-                              fmtHeaderPath.string() + " /std:c++latest /EHsc /MD /nologo" +
-                              " {SOURCE_DIRECTORY}/hmake.cpp"
-                              " /link /SUBSYSTEM:CONSOLE /NOLOGO ";
+            compileCommand += "/I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() + " /I " +
+                              fmtHeaderPath.string() + " /std:c++latest /EHsc /MD /nologo " +
+                              "{SOURCE_DIRECTORY}/hmake.cpp "
+                              "/link /SUBSYSTEM:CONSOLE /NOLOGO ";
+            compileCommand += dynamic ? "/DLL /OPT:REF " : " ";
             for (const string &str : toolsCache.vsTools[0].libraryDirectories)
             {
                 compileCommand += "/LIBPATH:" + addQuotes(str) + " ";

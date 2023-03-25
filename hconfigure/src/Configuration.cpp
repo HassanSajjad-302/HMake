@@ -15,6 +15,7 @@ import "LinkOrArchiveTarget.hpp";
 
 Configuration::Configuration(const string &name_) : CTarget{name_}
 {
+    selectiveBuild = isCTargetInSelectedSubDirectory();
 }
 
 Configuration::Configuration(const string &name_, CTarget &other, bool hasFile) : CTarget{name_, other, hasFile}

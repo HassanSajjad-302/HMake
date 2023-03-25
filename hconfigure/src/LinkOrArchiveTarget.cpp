@@ -776,7 +776,7 @@ string &LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
 void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &builder)
 {
     RealBTarget &realBTarget = getRealBTarget(round);
-    if (!round && selectiveBuild)
+    if (!round && BTarget::selectiveBuild)
     {
         if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
         {
