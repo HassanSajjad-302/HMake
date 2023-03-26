@@ -38,12 +38,20 @@ add_library(hconfigure STATIC
         hconfigure/src/DSC.cpp
         hconfigure/src/ObjectFileProducer.cpp
         hconfigure/src/DS.cpp
-        hconfigure/src/Prebuilt.cpp)
+        hconfigure/src/Prebuilt.cpp
+        hconfigure/src/DLLLoader.cpp
+        hconfigure/src/Configure.cpp)
 
 target_link_libraries(hconfigure PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
 target_include_directories(hconfigure
                 PUBLIC hconfigure/header
         )
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
+    target_compile_definitions(hconfigure PUBLIC "EXPORT=__declspec(dllexport)")
+else ()
+    target_compile_definitions(hconfigure PUBLIC EXPORT=)
+    set(CMAKE_CXX_STANDARD 23)
+endif ()
 
 add_executable(htools htools/main.cpp)
 target_link_libraries(htools PRIVATE hconfigure)
@@ -64,6 +72,7 @@ target_link_libraries(hbuild PRIVATE hconfigure)
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
 add_executable(HMakeHelper Examples/Example1/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
+target_compile_definitions(HMakeHelper PRIVATE EXE)
 
 
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)

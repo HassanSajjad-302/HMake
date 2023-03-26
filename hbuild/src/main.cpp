@@ -1,11 +1,12 @@
 #ifdef USE_HEADER_UNITS
-#include "BuildSystemFunctions.hpp"
+#include "DLLLoader.hpp"
 #include "fmt/format.h"
 #include <filesystem>
 #include <fstream>
 #include <string>
 #else
 #include "BuildSystemFunctions.hpp"
+#include "DLLLoader.hpp"
 #include "fmt/format.h"
 #include <filesystem>
 #include <fstream>
@@ -36,22 +37,41 @@ int main(int argc, char **argv)
     }
     else
     {
-        path configureFilePath;
-        bool configureAppExists = false;
-        string configureName = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
+        path configureSharedLibPath;
+        bool configureSharedLibExists = false;
+        string configureName = getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure");
         for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
         {
-            configureFilePath = p / configureName;
-            if (exists(configureFilePath))
+            configureSharedLibPath = p / configureName;
+            if (exists(configureSharedLibPath))
             {
-                configureAppExists = true;
+                configureSharedLibExists = true;
                 break;
             }
         }
-        if (configureAppExists)
+        if (configureSharedLibExists)
         {
-            string str = configureFilePath.string() + " --build";
-            return system(str.c_str());
+            DLLLoader loader(configureSharedLibPath.string().c_str());
+            typedef int (*Func2)(BSMode bsMode);
+            auto func2 = loader.getSymbol<Func2>("func2");
+            if (!func2)
+            {
+                print(stderr, "Symbol func2 could not be loaded from configure dynamic library\n");
+                exit(EXIT_FAILURE);
+            }
+            int exitStatus = func2(BSMode::BUILD);
+            if (exitStatus != EXIT_SUCCESS)
+            {
+                auto errorMessageStrPtrLocal = loader.getSymbol<const char *>("errorMessageStrPtr");
+                if (!errorMessageStrPtrLocal)
+                {
+                    print(stderr,
+                          "Symbol errorMessageStrPtrLocal could not be loaded from configure dynamic library\n");
+                    exit(EXIT_FAILURE);
+                }
+                print(stderr, "{}\n", errorMessageStrPtrLocal);
+                exit(EXIT_FAILURE);
+            }
         }
         else
         {

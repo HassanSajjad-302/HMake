@@ -20,29 +20,16 @@ import <fstream>;
 using fmt::print, std::filesystem::current_path, std::filesystem::exists, std::filesystem::directory_iterator,
     std::ifstream, std::list;
 
-void setBoolsAndSetRunDir(int argc, char **argv)
+void initializeCache(BSMode bsMode_)
 {
-    if (argc > 1)
-    {
-        string argument(argv[1]);
-        if (argument == "--build")
-        {
-            bsMode = BSMode::BUILD;
-        }
-        else
-        {
-            print(stderr, "{}", "setBoolsAndSetRunDir Invoked with unknown CMD option");
-            exit(EXIT_FAILURE);
-        }
-    }
-
+    bsMode = bsMode_;
     if (bsMode == BSMode::BUILD)
     {
         path configurePath;
         bool configureExists = false;
         for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
         {
-            configurePath = p / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
+            configurePath = p / getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure");
             if (exists(configurePath))
             {
                 configureExists = true;
@@ -70,7 +57,6 @@ void setBoolsAndSetRunDir(int argc, char **argv)
 
     if (bsMode == BSMode::BUILD)
     {
-
         auto initializeSettings = [](const path &settingsFilePath) {
             Json outputSettingsJson;
             ifstream(settingsFilePath) >> outputSettingsJson;
@@ -79,6 +65,24 @@ void setBoolsAndSetRunDir(int argc, char **argv)
 
         initializeSettings(path(configureDir) / "settings.hmake");
     }
+}
+
+BSMode getBuildSystemModeFromArguments(int argc, char **argv)
+{
+    if (argc > 1)
+    {
+        string argument(argv[1]);
+        if (argument == "--build")
+        {
+            bsMode = BSMode::BUILD;
+        }
+        else
+        {
+            print(stderr, "{}", "setBoolsAndSetRunDir Invoked with unknown CMD option");
+            exit(EXIT_FAILURE);
+        }
+    }
+    return bsMode;
 }
 
 void configureOrBuild()

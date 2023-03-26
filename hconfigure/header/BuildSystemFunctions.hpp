@@ -47,10 +47,10 @@ inline constexpr OS os = OS::LINUX;
 
 inline std::mutex printMutex;
 
-void setBoolsAndSetRunDir(int argc, char **argv);
+void initializeCache(BSMode bsMode_);
+BSMode getBuildSystemModeFromArguments(int argc, char **argv);
 inline const string pes = "{}"; // paranthesis-escape-sequence, meant to be used in fmt::print.
 inline const string dashCpp = "-cpp";
 inline const string dashLink = "-link";
 void configureOrBuild();
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP
-

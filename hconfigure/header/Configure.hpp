@@ -51,15 +51,37 @@ import <utility>;
 #include <utility>
 #endif
 
+extern "C" EXPORT int func2(BSMode bsMode_);
+inline string *errorMessageString = nullptr;
+extern "C" EXPORT const char *errorMessageStrPtr;
+
+// If this functions is not called then the unused symbols are not exported and above globals are not initialized.
+void exportAllSymbolsAndInitializeGlobals();
+
+// Clear the error message string pointer
+extern "C" EXPORT void clearError();
+
+// Executes the function in try-catch block and also sets the errorMessageStrPtr equal to the exception what message
+// string
+template <typename T> int executeInTryCatchAndSetErrorMessagePtr(std::function<T> funcLocal)
+{
 #ifdef EXE
-#define FUNC                                                                                                           \
-    int main(int argc, char **argv)                                                                                    \
-    {                                                                                                                  \
-        func(argc, argv);                                                                                              \
-        configureOrBuild();                                                                                            \
-    }
+    funcLocal();
+    return EXIT_SUCCESS;
 #else
-#define FUNC
+    try
+    {
+        funcLocal();
+    }
+    catch (std::exception &ec)
+    {
+        clearError();
+        errorMessageString = new string(ec.what());
+        errorMessageStrPtr = errorMessageString->c_str();
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 #endif
+}
 
 #endif // HMAKE_CONFIGURE_HPP
