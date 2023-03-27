@@ -19,7 +19,8 @@ extern "C" EXPORT int func(BSMode bsMode_)
 #ifdef EXE
 int main(int argc, char **argv)
 {
-    func(getBuildSystemModeFromArguments(argc, argv));
+    initializeCache(getBuildSystemModeFromArguments(argc, argv));
+    buildSpecification();
     configureOrBuild();
 }
 #else

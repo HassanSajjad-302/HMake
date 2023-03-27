@@ -1,6 +1,5 @@
 #include "Configure.hpp"
 
-char const *errorMessageStrPtr;
 void exportAllSymbolsAndInitializeGlobals()
 {
     decltype(func2) f;

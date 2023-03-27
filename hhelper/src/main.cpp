@@ -183,13 +183,13 @@ int main(int argc, char **argv)
         int exitStatus = func2(BSMode::CONFIGURE);
         if (exitStatus != EXIT_SUCCESS)
         {
-            auto errorMessageStrPtrLocal = loader.getSymbol<const char *>("errorMessageStrPtr");
+            auto errorMessageStrPtrLocal = loader.getSymbol<const char **>("errorMessageStrPtr");
             if (!errorMessageStrPtrLocal)
             {
                 print(stderr, "Symbol errorMessageStrPtrLocal could not be loaded from configure dynamic library\n");
                 exit(EXIT_FAILURE);
             }
-            print(stderr, "{}\n", errorMessageStrPtrLocal);
+            print(stderr, "{}\n", *errorMessageStrPtrLocal);
             exit(EXIT_FAILURE);
         }
     }

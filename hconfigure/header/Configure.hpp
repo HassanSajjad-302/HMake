@@ -53,7 +53,7 @@ import <utility>;
 
 extern "C" EXPORT int func2(BSMode bsMode_);
 inline string *errorMessageString = nullptr;
-extern "C" EXPORT const char *errorMessageStrPtr;
+extern "C" inline EXPORT const char *errorMessageStrPtr = nullptr;
 
 // If this functions is not called then the unused symbols are not exported and above globals are not initialized.
 void exportAllSymbolsAndInitializeGlobals();
