@@ -17,7 +17,6 @@ import "Settings.hpp";
 import "TarjanNode.hpp";
 import "ToolsCache.hpp";
 import "Utilities.hpp";
-import "fmt/color.h";
 #include "nlohmann/json.hpp";
 import <filesystem>;
 import <memory>;
@@ -41,7 +40,6 @@ import <utility>;
 #include "TarjanNode.hpp"
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"
-#include "fmt/color.h"
 #include "nlohmann/json.hpp"
 #include <filesystem>
 #include <memory>

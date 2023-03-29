@@ -110,7 +110,7 @@ template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller)
 {
     if (!objectFileProducer || !controller->objectFileProducer)
     {
-        print(stderr, "DSC<T> objectFileProducer cannot be nullptr\n");
+        printErrorMessage("DSC<T> objectFileProducer cannot be nullptr\n");
         exit(EXIT_FAILURE);
     }
     // If linkOrArchiveTarget does not exists for a DSC<T>, then it is an ObjectLibrary.
@@ -139,8 +139,9 @@ template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller)
     else
     {
         // ObjectLibrary has LinkOrArchiveTarget as dependency.
-        print(stderr, "ObjectLibrary DSC\n{}\ncan't have LinkOrArchiveTarget DSC\n{}\nas dependency.\n",
-              objectFileProducer->getTarjanNodeName(), controller->linkOrArchiveTarget->getTarjanNodeName());
+        printErrorMessage(format("ObjectLibrary DSC\n{}\ncan't have LinkOrArchiveTarget DSC\n{}\nas dependency.\n",
+                                 objectFileProducer->getTarjanNodeName(),
+                                 controller->linkOrArchiveTarget->getTarjanNodeName()));
         exit(EXIT_FAILURE);
     }
 }
@@ -149,12 +150,13 @@ template <typename T> void DSC<T>::assignPrebuiltLinkOrArchiveTarget(DSCPrebuilt
 {
     if (!objectFileProducer || !controller->prebuilt)
     {
-        print(stderr, "DSC<T> objectFileProducer  or DSCPrebuilt<T> prebuilt cannot be nullptr\n");
+        printErrorMessage("DSC<T> objectFileProducer  or DSCPrebuilt<T> prebuilt cannot be nullptr\n");
         exit(EXIT_FAILURE);
     }
     if (!linkOrArchiveTarget || !controller->prebuiltLinkOrArchiveTarget)
     {
-        print(stderr, "DSC<T> linkOrArchiveTarget or DSCPrebuilt<T> prebuiltLinkOrArchiveTarget cannot be nullptr\n");
+        printErrorMessage(
+            "DSC<T> linkOrArchiveTarget or DSCPrebuilt<T> prebuiltLinkOrArchiveTarget cannot be nullptr\n");
         exit(EXIT_FAILURE);
     }
     // If linkOrArchiveTarget does not exists for a DSC<T>, then it is an ObjectLibrary.

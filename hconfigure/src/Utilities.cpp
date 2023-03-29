@@ -1,17 +1,19 @@
 
 #ifdef USE_HEADER_UNITS
 import "Utilities.hpp";
-import "fmt/format.h";
+import "BuildSystemFunctions.hpp";
 import <fstream>;
 import <sstream>;
+import <format>;
 #else
 #include "Utilities.hpp"
-#include "fmt/format.h"
+#include "BuildSystemFunctions.hpp"
+#include <format>
 #include <fstream>
 #include <sstream>
 #endif
 
-using std::ifstream, fmt::print;
+using std::ifstream, std::format;
 
 string addQuotes(const string &pathString)
 {
@@ -31,7 +33,7 @@ string file_to_string(const string &file_name)
     if (file_stream.fail())
     {
         // Error opening file.
-        print(stderr, "Error opening file {}\n", file_name);
+        printErrorMessage(format("Error opening file {}\n", file_name));
         exit(EXIT_FAILURE);
     }
 
@@ -41,7 +43,7 @@ string file_to_string(const string &file_name)
     if (file_stream.fail() && !file_stream.eof())
     {
         // Error reading file.
-        print(stderr, "Error reading file {}\n", file_name);
+        printErrorMessage(format("Error reading file {}\n", file_name));
         exit(EXIT_FAILURE);
     }
 

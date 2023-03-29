@@ -104,7 +104,8 @@ void CTarget::initializeCTarget()
         const auto &[pos, Ok] = cTargetsSameFileAndNameCheck.emplace(name, targetFileDir);
         if (!Ok)
         {
-            print(stderr, "There exists two targets with name {} and targetFileDir {}", name, targetFileDir);
+            printErrorMessage(
+                format("There exists two targets with name {} and targetFileDir {}", name, targetFileDir));
             exit(EXIT_FAILURE);
         }
     }
@@ -115,8 +116,8 @@ CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
 {
     if (!container.hasFile && hasFile_)
     {
-        print(stderr, "Target {} in file {} has no file. It can't have element target\n", container.name,
-              container.targetFileDir);
+        printErrorMessage(format("Target {} in file {} has no file. It can't have element target\n", container.name,
+                                 container.targetFileDir));
         exit(EXIT_FAILURE);
     }
     if (hasFile)
@@ -137,8 +138,8 @@ CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
         }
         else
         {
-            print(stderr, "Container {} already has the element {}.\n", container.getTargetPointer(),
-                  this->getTargetPointer());
+            printErrorMessage(format("Container {} already has the element {}.\n", container.getTargetPointer(),
+                                     this->getTargetPointer()));
             exit(EXIT_FAILURE);
         }
     }
@@ -206,7 +207,7 @@ void CTarget::writeJsonFile()
         create_directories(getSubDirForTarget());
         if (!other->json.is_array())
         {
-            print("Invalid assignment to Json of {} Json type must be array\n", getTargetPointer());
+            printErrorMessage(format("Invalid assignment to Json of {} Json type must be array\n", getTargetPointer()));
             exit(EXIT_FAILURE);
         }
         other->json.emplace_back(json);

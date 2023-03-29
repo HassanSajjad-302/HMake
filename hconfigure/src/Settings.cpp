@@ -2,14 +2,13 @@
 #ifdef USE_HEADER_UNITS
 import "Settings.hpp";
 import "JConsts.hpp";
-import "fmt/format.h";
+import "BuildSystemFunctions.hpp";
 #else
-#include "JConsts.hpp"
 #include "Settings.hpp"
-#include "fmt/format.h"
+#include "BuildSystemFunctions.hpp"
+#include "JConsts.hpp"
 #endif
 
-using fmt::print;
 void to_json(Json &json, const PathPrint &pathPrint)
 {
     json[JConsts::pathPrintLevel] = pathPrint.printLevel;
@@ -22,7 +21,7 @@ void from_json(const Json &json, PathPrint &pathPrint)
     uint8_t level = json.at(JConsts::pathPrintLevel).get<uint8_t>();
     if (level < 0 || level > 2)
     {
-        print(stderr, "Level should be in range 0-2\n");
+        printErrorMessage("Level should be in range 0-2\n");
         exit(EXIT_FAILURE);
     }
     pathPrint.printLevel = (PathPrintLevel)level;
@@ -263,4 +262,3 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
         return str.substr(index + 1, str.size() - 1);
     }
 }
-

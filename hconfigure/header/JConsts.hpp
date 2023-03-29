@@ -67,7 +67,7 @@ struct JConsts
     inline static const string includeDirectories = "include-directories";
     inline static const string index = "index";
     inline static const string infrastructureFlags = "infrastructure-flags";
-    inline static const string interface = "interface";
+    inline static const string interface_ = "interface";
     inline static const string isCompilerInVSToolsArray = "is-compiler-in-vstools-array";
     inline static const string isLinkerInVSToolsArray = "is-linker-in-vstools-array";
     inline static const string isArchiverInVSToolsArray = "is-archiver-in-vstools-array";

@@ -1,20 +1,23 @@
 #ifdef USE_HEADER_UNITS
-#include "DLLLoader.hpp"
-#include "fmt/format.h"
-#include <filesystem>
-#include <fstream>
-#include <string>
+import "BuildSystemFunctions.hpp";
+import "Features.hpp";
+import "TargetType.hpp";
+import "DLLLoader.hpp";
+import <filesystem>;
+import <fstream>;
+import <string>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "DLLLoader.hpp"
-#include "fmt/format.h"
+#include "Features.hpp"
+#include "TargetType.hpp"
 #include <filesystem>
 #include <fstream>
 #include <string>
 #endif
 
-using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, fmt::print,
-    std::filesystem::path, std::filesystem::exists, std::string;
+using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::filesystem::path,
+    std::filesystem::exists, std::string;
 int main(int argc, char **argv)
 {
     if (argc == 2)
@@ -31,7 +34,7 @@ int main(int argc, char **argv)
         }
         if (!is_regular_file(buildFilePath))
         {
-            fmt::print("{} is not regular file.\n", buildFilePath.string());
+            printMessage(format("{} is not regular file.\n", buildFilePath.string()));
             exit(EXIT_FAILURE);
         }
     }
@@ -56,7 +59,7 @@ int main(int argc, char **argv)
             auto func2 = loader.getSymbol<Func2>("func2");
             if (!func2)
             {
-                print(stderr, "Symbol func2 could not be loaded from configure dynamic library\n");
+                printErrorMessage("Symbol func2 could not be loaded from configure dynamic library\n");
                 exit(EXIT_FAILURE);
             }
             int exitStatus = func2(BSMode::BUILD);
@@ -65,17 +68,18 @@ int main(int argc, char **argv)
                 auto errorMessageStrPtrLocal = loader.getSymbol<const char **>("errorMessageStrPtr");
                 if (!errorMessageStrPtrLocal)
                 {
-                    print(stderr,
-                          "Symbol errorMessageStrPtrLocal could not be loaded from configure dynamic library\n");
+                    printErrorMessage(
+                        "Symbol errorMessageStrPtrLocal could not be loaded from configure dynamic library\n");
                     exit(EXIT_FAILURE);
                 }
-                print(stderr, "{}\n", *errorMessageStrPtrLocal);
+                printErrorMessage(format("{}\n", *errorMessageStrPtrLocal));
                 exit(EXIT_FAILURE);
             }
         }
         else
         {
-            print(stderr, "{} File could not be found in current directory and directories above\n", configureName);
+            printErrorMessage(
+                format("{} File could not be found in current directory and directories above\n", configureName));
             exit(EXIT_FAILURE);
         }
     }

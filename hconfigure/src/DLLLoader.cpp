@@ -1,13 +1,15 @@
 
 #ifdef USE_HEADER_UNITS
 import "DLLLoader.hpp";
-import "fmt/format.h";
+import <BuildSystemFunctions.hpp>;
+import <format>;
 #else
 #include "DLLLoader.hpp"
-#include "fmt/format.h"
+#include "BuildSystemFunctions.hpp"
+#include "format"
 #endif
 
-using fmt::print;
+using std::format;
 
 DLLLoader::DLLLoader(const char *path)
 {
@@ -21,7 +23,7 @@ DLLLoader::DLLLoader(const char *path)
     if (!handle)
     {
         // Handle the error if the library fails to load
-        print(stderr, "Could Not Load DLL {}", path);
+        printErrorMessage(format("Could Not Load DLL {}", path));
     }
 }
 

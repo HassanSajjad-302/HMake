@@ -1,6 +1,7 @@
 #ifndef HMAKE_FEATURES_HPP
 #define HMAKE_FEATURES_HPP
 #ifdef USE_HEADER_UNITS
+import "OS.hpp";
 import "BuildTools.hpp";
 import "Cache.hpp";
 import "SMFile.hpp";
@@ -9,6 +10,7 @@ import <vector>;
 #else
 #include "BuildTools.hpp"
 #include "Cache.hpp"
+#include "OS.hpp"
 #include "SMFile.hpp"
 #include "TargetType.hpp"
 #include <vector>
@@ -225,15 +227,6 @@ enum class RuntimeDebugging
     ON
 };
 
-enum class OS
-{
-    AIX,
-    CYGWIN,
-    LINUX,
-    MACOSX,
-    NT,
-    VMS,
-};
 void to_json(Json &json, const OS &osLocal);
 void from_json(const Json &json, OS &osLocal);
 

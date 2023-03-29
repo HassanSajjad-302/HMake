@@ -1,4 +1,15 @@
 
+#ifdef USE_HEADER_UNITS
+import "BuildSystemFunctions.hpp";
+import "BuildTools.hpp";
+import "Cache.hpp";
+import "JConsts.hpp";
+import "ToolsCache.hpp";
+import "Utilities.hpp";
+import "DLLLoader.hpp";
+import <filesystem>;
+import <fstream>;
+#else
 #include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
 #include "Cache.hpp"
@@ -6,11 +17,11 @@
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"
-#include "fmt/format.h"
 #include <filesystem>
 #include <fstream>
+#endif
 
-using std::string, std::vector, std::ifstream, std::ofstream, fmt::print, std::endl, std::filesystem::path,
+using std::string, std::vector, std::ifstream, std::ofstream, std::endl, std::filesystem::path,
     std::filesystem::current_path, std::filesystem::directory_iterator, std::to_string, std::runtime_error,
     std::filesystem::canonical;
 using Json = nlohmann::ordered_json;
@@ -44,7 +55,7 @@ int main(int argc, char **argv)
 {
     if (THROW)
     {
-        print(stderr, "Macros Required for hhelper are not provided.\n");
+        printErrorMessage("Macros Required for hhelper are not provided.\n");
         exit(EXIT_FAILURE);
     }
     int count = 0;
@@ -60,7 +71,7 @@ int main(int argc, char **argv)
     }
     if (count > 1)
     {
-        print(stderr, "More than one file with cache.hmake name present\n");
+        printErrorMessage("More than one file with cache.hmake name present\n");
         exit(EXIT_FAILURE);
     }
     if (count == 0)
@@ -102,8 +113,7 @@ int main(int argc, char **argv)
             toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
             if (toolsCache.vsTools.empty() && toolsCache.compilers.empty())
             {
-                print(
-                    stderr,
+                printErrorMessage(
                     "No compiler found from ToolsCache variable. Please ensure htools has been run as admin before\n");
                 exit(EXIT_FAILURE);
             }
@@ -149,7 +159,7 @@ int main(int argc, char **argv)
 
         if (!cacheLocal.compileConfigureCommands.empty())
         {
-            print("Executing commands as specified in cache.hmake to produce configure executable\n");
+            printMessage("Executing commands as specified in cache.hmake to produce configure executable\n");
         }
 
         for (string &compileConfigureCommand : cacheLocal.compileConfigureCommands)
@@ -162,7 +172,7 @@ int main(int argc, char **argv)
             {
                 compileConfigureCommand.replace(position, confDirString.size(), current_path().string());
             }
-            print("{}\n", compileConfigureCommand);
+            printMessage(format("{}\n", compileConfigureCommand));
             int code = system(compileConfigureCommand.c_str());
             if (code != EXIT_SUCCESS)
             {
@@ -177,7 +187,7 @@ int main(int argc, char **argv)
         auto func2 = loader.getSymbol<Func2>("func2");
         if (!func2)
         {
-            print(stderr, "Symbol func2 could not be loaded from configure dynamic library\n");
+            printErrorMessage("Symbol func2 could not be loaded from configure dynamic library\n");
             exit(EXIT_FAILURE);
         }
         int exitStatus = func2(BSMode::CONFIGURE);
@@ -186,10 +196,11 @@ int main(int argc, char **argv)
             auto errorMessageStrPtrLocal = loader.getSymbol<const char **>("errorMessageStrPtr");
             if (!errorMessageStrPtrLocal)
             {
-                print(stderr, "Symbol errorMessageStrPtrLocal could not be loaded from configure dynamic library\n");
+                printErrorMessage(
+                    "Symbol errorMessageStrPtrLocal could not be loaded from configure dynamic library\n");
                 exit(EXIT_FAILURE);
             }
-            print(stderr, "{}\n", *errorMessageStrPtrLocal);
+            printErrorMessage(format("{}\n", *errorMessageStrPtrLocal));
             exit(EXIT_FAILURE);
         }
     }

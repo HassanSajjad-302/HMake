@@ -3,21 +3,19 @@
 
 #ifdef USE_HEADER_UNITS
 import "Settings.hpp";
-import "fmt/color.h";
-import "fmt/format.h";
+import "BuildSystemFunctions.hpp";
 import <set>;
 import <string>;
 import <vector>;
 #else
+#include "BuildSystemFunctions.hpp"
 #include "Settings.hpp"
-#include "fmt/color.h"
-#include "fmt/format.h"
 #include <set>
 #include <string>
 #include <vector>
 #endif
 
-using std::vector, std::set, std::string, fmt::print;
+using std::vector, std::set, std::string, std::format;
 
 template <typename T> class TarjanNode
 {
@@ -130,20 +128,21 @@ template <typename T> void TarjanNode<T>::checkForCycle()
 {
     if (cycleExists)
     {
-        fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                   "There is a Cyclic-Dependency.\n");
+        printErrorMessageColor("There is a Cyclic-Dependency.\n", settings.pcSettings.toolErrorOutput);
         size_t cycleSize = cycle.size();
         for (unsigned int i = 0; i < cycleSize; ++i)
         {
             if (cycleSize == i + 1)
             {
-                fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                           "{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[0]->getTarjanNodeName());
+                printErrorMessageColor(
+                    format("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[0]->getTarjanNodeName()),
+                    settings.pcSettings.toolErrorOutput);
             }
             else
             {
-                fmt::print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                           "{} Depends On {}.\n", cycle[0]->getTarjanNodeName(), cycle[0]->getTarjanNodeName());
+                printErrorMessageColor(
+                    format("{} Depends On {}.\n", cycle[0]->getTarjanNodeName(), cycle[0]->getTarjanNodeName()),
+                    settings.pcSettings.toolErrorOutput);
             }
         }
         exit(EXIT_SUCCESS);

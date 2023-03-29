@@ -4,7 +4,6 @@ import "ToolsCache.hpp";
 import "BuildSystemFunctions.hpp";
 import "JConsts.hpp";
 import "Utilities.hpp";
-import "fmt/format.h";
 import <filesystem>;
 import <fstream>;
 import <utility>;
@@ -13,13 +12,12 @@ import <utility>;
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"
-#include "fmt/format.h"
 #include <filesystem>
 #include <fstream>
 #include <utility>
 #endif
 
-using std::ofstream, fmt::print, std::filesystem::remove;
+using std::ofstream, std::filesystem::remove;
 
 VSTools::VSTools(string batchFile, path toolBinDir, Arch hostArch_, AddressModel hostAM_, Arch targetArch_,
                  AddressModel targetAM_, bool executingFromWSL)
@@ -62,7 +60,7 @@ VSTools::VSTools(string batchFile, path toolBinDir, Arch hostArch_, AddressModel
     // tools will be installed. Support the vcvarsall.bat file code here and provide API about it.
     if (!hostSupported || !targetSupported)
     {
-        print(stderr, "host or target not supported in VSTool\n");
+        printErrorMessage("host or target not supported in VSTool\n");
         exit(EXIT_FAILURE);
     }
     compiler.bTFamily = linker.bTFamily = archiver.bTFamily = BTFamily::MSVC;
@@ -91,7 +89,7 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
 
     if (int code = system((cmdExe + temporaryBatchFilename).c_str()); code != EXIT_SUCCESS)
     {
-        print(stderr, "Error in Initializing Environment\n");
+        printErrorMessage("Error in Initializing Environment\n");
         exit(EXIT_FAILURE);
     }
     remove(temporaryBatchFilename);
@@ -194,7 +192,7 @@ ToolsCache::ToolsCache()
         }
         else
         {
-            print(stderr, "Exiting in ToolsCache Constructor. HOME Environment variable not set\n");
+            printErrorMessage("Exiting in ToolsCache Constructor. HOME Environment variable not set\n");
             exit(EXIT_FAILURE);
         }
     }

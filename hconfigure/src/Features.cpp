@@ -6,7 +6,6 @@ import "Cache.hpp";
 import "CppSourceTarget.hpp";
 import "JConsts.hpp";
 import "ToolsCache.hpp";
-import "fmt/format.h";
 #include "nlohmann/json.hpp";
 #else
 #include "BuildSystemFunctions.hpp"
@@ -15,12 +14,10 @@ import "fmt/format.h";
 #include "Features.hpp"
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
-#include "fmt/format.h"
 #include "nlohmann/json.hpp"
 #endif
 
 using Json = nlohmann::ordered_json;
-using fmt::print;
 
 void to_json(Json &j, const Arch &arch)
 {
@@ -139,7 +136,7 @@ void from_json(const Json &j, Arch &arch)
     }
     else
     {
-        print(stderr, "conversion from json string literal to enum class Arch failed");
+        printErrorMessage("conversion from json string literal to enum class Arch failed\n");
         exit(EXIT_FAILURE);
     }
 }
@@ -183,7 +180,7 @@ void from_json(const Json &j, AddressModel &am)
     }
     else
     {
-        print(stderr, "conversion from json string literal to enum class AM failed");
+        printErrorMessage("conversion from json string literal to enum class AM failed\n");
         exit(EXIT_FAILURE);
     }
 }
@@ -254,7 +251,7 @@ string getActualNameFromTargetName(TargetType bTargetType, const OS osLocal, con
         actualName += osLocal == OS::NT ? ".dll" : ".so";
         return actualName;
     }
-    print(stderr, "Other Targets Are Not Supported Yet.\n");
+    printErrorMessage("Other Targets Are Not Supported Yet.\n");
     exit(EXIT_FAILURE);
 }
 
@@ -284,7 +281,7 @@ string getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, con
         libName = libName.erase(libName.find('.'), eraseCount);
         return libName;
     }
-    print(stderr, "Other Targets Are Not Supported Yet.\n");
+    printErrorMessage("Other Targets Are Not Supported Yet.\n");
     exit(EXIT_FAILURE);
 }
 

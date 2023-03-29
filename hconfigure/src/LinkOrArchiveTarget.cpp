@@ -429,7 +429,7 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
             {
                 if (EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    print("WARNING: On gcc, DLLs can not be built with <runtime-link>static\n ");
+                    printMessage("WARNING: On gcc, DLLs can not be built with <runtime-link>static\n ");
                 }
                 else
                 {

@@ -627,7 +627,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
             {
                 if (EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    print("WARNING: On gcc, DLLs can not be built with <runtime-link>static\n ");
+                    printMessage("WARNING: On gcc, DLLs can not be built with <runtime-link>static\n ");
                 }
                 else
                 {
@@ -903,8 +903,8 @@ static void parseRegexSourceDirs(CppSourceTarget &target, bool assignToSourceNod
             }
             catch (const std::regex_error &e)
             {
-                print(stderr, "regex_error : {}\nError happened while parsing regex {} of target{}\n", e.what(),
-                      sourceDir.regex, target.getTargetPointer());
+                printErrorMessage(format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
+                                         e.what(), sourceDir.regex, target.getTargetPointer()));
                 exit(EXIT_FAILURE);
             }
         }
@@ -1147,8 +1147,9 @@ void CppSourceTarget::resolveRequirePaths()
                 string requireLogicalName = requireJson.at("logical-name").get<string>();
                 if (requireLogicalName == smFile.logicalName)
                 {
-                    print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                          "In Scope\n{}\nModule\n{}\n can not depend on itself.\n", smFile.node->filePath);
+                    printErrorMessageColor(format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
+                                                  moduleScope->getSubDirForTarget(), smFile.node->filePath),
+                                           settings.pcSettings.toolErrorOutput);
                     exit(EXIT_FAILURE);
                 }
                 if (requireJson.contains("lookup-method"))
@@ -1158,8 +1159,8 @@ void CppSourceTarget::resolveRequirePaths()
                 if (auto it = moduleScopeData->requirePaths.find(requireLogicalName);
                     it == moduleScopeData->requirePaths.end())
                 {
-                    print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                          "No File Provides This {}.\n", requireLogicalName);
+                    printErrorMessageColor(format("No File Provides This {}.\n", requireLogicalName),
+                                           settings.pcSettings.toolErrorOutput);
                     exit(EXIT_FAILURE);
                 }
                 else
@@ -1194,12 +1195,13 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
         {
             // TODO:
             //  Improve Message
-            print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                  "In ModuleScope {}\nhu-include-directory\n{}\n is being provided by two different "
-                  "targets\n{}\n{}\nThis is not allowed "
-                  "because HMake can't determine which Header Unit to attach to which target.",
-                  moduleScope->getSubDirForTarget(), idd->filePath, getTargetPointer(),
-                  pos->second->getTargetPointer());
+            printErrorMessageColor(
+                format("In ModuleScope {}\nhu-include-directory\n{}\n is being provided by two different "
+                       "targets\n{}\n{}\nThis is not allowed "
+                       "because HMake can't determine which Header Unit to attach to which target.",
+                       moduleScope->getSubDirForTarget(), idd->filePath, getTargetPointer(),
+                       pos->second->getTargetPointer()),
+                settings.pcSettings.toolErrorOutput);
             exit(EXIT_FAILURE);
         }
     }
@@ -1224,10 +1226,11 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
             }
             else
             {
-                print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                      "In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
-                      moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
-                      (**pos).target->getTargetPointer());
+                printErrorMessageColor(
+                    format("In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
+                           moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
+                           (**pos).target->getTargetPointer()),
+                    settings.pcSettings.toolErrorOutput);
                 exit(EXIT_FAILURE);
             }
             getRealBTarget(0).addDependency(smFile);
@@ -1380,8 +1383,7 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
     }
     else
     {
-        print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-              "Modules supported only on MSVC\n");
+        printErrorMessageColor("Modules supported only on MSVC\n", settings.pcSettings.toolErrorOutput);
         exit(EXIT_FAILURE);
     }
 

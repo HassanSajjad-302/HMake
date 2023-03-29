@@ -4,18 +4,16 @@ import "Cache.hpp";
 import "BuildSystemFunctions.hpp";
 import "JConsts.hpp";
 import "Settings.hpp";
-import "fmt/format.h";
 import "fstream";
 #else
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
 #include "JConsts.hpp"
 #include "Settings.hpp"
-#include "fmt/format.h"
 #include "fstream"
 #endif
 
-using std::ifstream, fmt::print, std::ofstream;
+using std::ifstream, std::ofstream;
 
 Cache::Cache()
 {
@@ -97,7 +95,7 @@ void from_json(const Json &j, Cache &cacheLocal)
     if (cacheLocal.libraryType != TargetType::LIBRARY_STATIC && cacheLocal.libraryType != TargetType::LIBRARY_SHARED &&
         cache.libraryType != TargetType::LIBRARY_OBJECT)
     {
-        print(stderr, "Cache libraryType TargetType is not one of LIBRARY_STATIC or LIBRARY_SHARED \n");
+        printErrorMessage("Cache libraryType TargetType is not one of LIBRARY_STATIC or LIBRARY_SHARED \n");
         exit(EXIT_FAILURE);
     }
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();

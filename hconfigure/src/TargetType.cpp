@@ -2,14 +2,10 @@
 #ifdef USE_HEADER_UNITS
 import "TargetType.hpp";
 import "JConsts.hpp";
-import "fmt/format.h";
 #else
 #include "JConsts.hpp"
 #include "TargetType.hpp"
-#include "fmt/format.h"
 #endif
-
-using fmt::print;
 
 void to_json(Json &j, const TargetType &bTargetType)
 {

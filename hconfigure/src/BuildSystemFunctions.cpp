@@ -85,6 +85,54 @@ BSMode getBuildSystemModeFromArguments(int argc, char **argv)
     return bsMode;
 }
 
+void printMessage(const string &message)
+{
+    if (printMessagePointer)
+    {
+        printMessagePointer(message);
+    }
+    else
+    {
+        print("{}", message);
+    }
+}
+
+void preintMessageColor(const string &message, uint32_t color)
+{
+    if (printMessageColorPointer)
+    {
+        printMessageColorPointer(message, color);
+    }
+    else
+    {
+        print(fg(static_cast<fmt::color>(color)), "Modules supported only on MSVC\n");
+    }
+}
+
+void printErrorMessage(const string &message)
+{
+    if (printErrorMessagePointer)
+    {
+        printErrorMessagePointer(message);
+    }
+    else
+    {
+        print(stderr, "{}", message);
+    }
+}
+
+void printErrorMessageColor(const string &message, uint32_t color)
+{
+    if (printErrorMessageColorPointer)
+    {
+        printErrorMessageColorPointer(message, color);
+    }
+    else
+    {
+        print(stderr, fg(static_cast<fmt::color>(color)), "Modules supported only on MSVC\n");
+    }
+}
+
 void configureOrBuild()
 {
     if (bsMode == BSMode::CONFIGURE)

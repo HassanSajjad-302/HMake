@@ -6,9 +6,9 @@ import "CppSourceTarget.hpp";
 import "Utilities.hpp";
 import <fstream>;
 #else
+#include "PostBasic.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
-#include "PostBasic.hpp"
 #include "Utilities.hpp"
 #include <fstream>
 #endif
@@ -73,17 +73,16 @@ void PostBasic::executePrintRoutine(uint32_t color, bool printOnlyOnError) const
 {
     if (!printOnlyOnError)
     {
-        print(fg(static_cast<fmt::color>(color)), pes, printCommand + " " + getThreadId() + "\n");
+        preintMessageColor(format("{}", printCommand + " " + getThreadId() + "\n"), color);
         if (exitStatus == EXIT_SUCCESS)
         {
             if (!commandSuccessOutput.empty())
             {
-                print(fg(static_cast<fmt::color>(color)), pes, commandSuccessOutput + "\n");
+                preintMessageColor(format("{}", commandSuccessOutput + "\n"), color);
             }
             if (!commandErrorOutput.empty())
             {
-                print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)), pes,
-                      commandErrorOutput + "\n");
+                printErrorMessageColor(format("{}", commandErrorOutput + "\n"), settings.pcSettings.toolErrorOutput);
             }
         }
     }
@@ -91,12 +90,11 @@ void PostBasic::executePrintRoutine(uint32_t color, bool printOnlyOnError) const
     {
         if (!commandSuccessOutput.empty())
         {
-            print(fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)), pes, commandSuccessOutput + "\n");
+            printErrorMessageColor(format("{}", commandSuccessOutput + "\n"), settings.pcSettings.toolErrorOutput);
         }
         if (!commandErrorOutput.empty())
         {
-            print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)), pes,
-                  commandErrorOutput + "\n");
+            printErrorMessageColor(format("{}", commandErrorOutput + "\n"), settings.pcSettings.toolErrorOutput);
         }
     }
 }
@@ -232,4 +230,3 @@ void PostCompile::parseHeaderDeps(SourceNode &sourceNode)
         }
     }
 }
-

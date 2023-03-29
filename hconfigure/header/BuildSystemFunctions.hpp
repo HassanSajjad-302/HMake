@@ -1,18 +1,20 @@
 #ifndef HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 #define HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 #ifdef USE_HEADER_UNITS
-import "Features.hpp";
+import "OS.hpp";
 import <map>;
 import <set>;
 import <string>;
+import <mutex>;
 #else
-#include "Features.hpp"
+#include "OS.hpp"
 #include <map>
+#include <mutex>
 #include <set>
 #include <string>
 #endif
 
-using std::string, std::set, std::map;
+using std::string, std::set, std::map, std::mutex;
 
 inline string srcDir;
 
@@ -49,8 +51,22 @@ inline std::mutex printMutex;
 
 void initializeCache(BSMode bsMode_);
 BSMode getBuildSystemModeFromArguments(int argc, char **argv);
-inline const string pes = "{}"; // paranthesis-escape-sequence, meant to be used in fmt::print.
 inline const string dashCpp = "-cpp";
 inline const string dashLink = "-link";
+
+typedef void (*PrintMessage)(const string &message);
+typedef void (*PrintMessageColor)(const string &message, uint32_t color);
+
+extern "C" inline EXPORT PrintMessage printMessagePointer = nullptr;
+extern "C" inline EXPORT PrintMessageColor printMessageColorPointer = nullptr;
+extern "C" inline EXPORT PrintMessage printErrorMessagePointer = nullptr;
+extern "C" inline EXPORT PrintMessageColor printErrorMessageColorPointer = nullptr;
+
+void printMessage(const string &message);
+void preintMessageColor(const string &message, uint32_t color);
+void printErrorMessage(const string &message);
+void printErrorMessageColor(const string &message, uint32_t color);
+
 void configureOrBuild();
+
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

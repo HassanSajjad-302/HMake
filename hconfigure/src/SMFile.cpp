@@ -87,8 +87,8 @@ Node::Node(const path &filePath_, bool isFile, bool mayNotExist)
     {
         if (!mayNotExist || nodeType != file_type::not_found)
         {
-            print(stderr, "{} is not a {} file. File Type is {}\n", filePath_.generic_string(),
-                  isFile ? "regular" : "directory", getStatusString(filePath_));
+            printErrorMessage(format("{} is not a {} file. File Type is {}\n", filePath_.generic_string(),
+                                     isFile ? "regular" : "directory", getStatusString(filePath_)));
             exit(EXIT_FAILURE);
         }
         doesNotExist = true;
@@ -343,9 +343,10 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
             const auto &[key, val] = *pos;
             // TODO
             // Mention the module scope too.
-            print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                  "In Module-Scope:\n{}\nModule:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
-                  target->moduleScope->getSubDirForTarget(), logicalName, node->filePath, val->node->filePath);
+            printErrorMessageColor(
+                format("In Module-Scope:\n{}\nModule:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
+                       target->moduleScope->getSubDirForTarget(), logicalName, node->filePath, val->node->filePath),
+                settings.pcSettings.toolErrorOutput);
             exit(EXIT_FAILURE);
         }
     }
@@ -358,8 +359,9 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     string requireLogicalName = requireJson.at("logical-name").get<string>();
     if (requireLogicalName == logicalName)
     {
-        print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-              "In Scope\n{}\nModule\n{}\n can not depend on itself.\n", node->filePath);
+        printErrorMessageColor(format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
+                                      target->moduleScope->getSubDirForTarget(), node->filePath),
+                               settings.pcSettings.toolErrorOutput);
         exit(EXIT_FAILURE);
     }
 
@@ -380,10 +382,12 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         {
             if (huDirTarget)
             {
-                print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                      "Module Header Unit\n{}\n belongs to two Target Header Unit Includes\n{}\n{}\nof Module "
-                      "Scope\n{}\n",
-                      headerUnitPath, nodeDir->filePath, dirNode->filePath, target->moduleScope->getTargetPointer());
+                printErrorMessageColor(
+                    format("Module Header Unit\n{}\n belongs to two Target Header Unit Includes\n{}\n{}\nof Module "
+                           "Scope\n{}\n",
+                           headerUnitPath, nodeDir->filePath, dirNode->filePath,
+                           target->moduleScope->getTargetPointer()),
+                    settings.pcSettings.toolErrorOutput);
                 exit(EXIT_FAILURE);
             }
             else
@@ -396,9 +400,10 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 
     if (!huDirTarget)
     {
-        print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-              "Module Header Unit\n{}\n does not belongs to any Target Header Unit Includes of Module Scope\n{}\n",
-              headerUnitPath, target->moduleScope->getTargetPointer());
+        printErrorMessageColor(
+            format("Module Header Unit\n{}\n does not belongs to any Target Header Unit Includes of Module Scope\n{}\n",
+                   headerUnitPath, target->moduleScope->getTargetPointer()),
+            settings.pcSettings.toolErrorOutput);
         exit(EXIT_FAILURE);
     }
 
@@ -446,8 +451,9 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
             string requireLogicalName = requireJson.at("logical-name").get<string>();
             if (requireLogicalName == logicalName)
             {
-                print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-                      "In Scope\n{}\nModule\n{}\n can not depend on itself.\n", node->filePath);
+                printErrorMessageColor(format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
+                                              target->moduleScope->getSubDirForTarget(), node->filePath),
+                                       settings.pcSettings.toolErrorOutput);
                 exit(EXIT_FAILURE);
             }
             if (requireJson.contains("lookup-method"))
@@ -494,10 +500,10 @@ void SMFile::setSMFileStatusRoundZero()
 #ifndef NDEBUG
         if (!exists(path(smRuleNode->filePath)))
         {
-            print(stderr,
-                  "Warning. Following smrules not found while checking the object-file-status which must had been "
-                  "generated in round 1.\n{}\n",
-                  smRuleNode->filePath);
+            printErrorMessage(
+                format("Warning. Following smrules not found while checking the object-file-status which must had been "
+                       "generated in round 1.\n{}\n",
+                       smRuleNode->filePath));
             exit(EXIT_FAILURE);
         }
 #endif
@@ -605,8 +611,7 @@ string SMFile::getFlag(const string &outputFilesWithoutExtension) const
                  addQuotes(outputFilesWithoutExtension + ".m.o");
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
-        print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-              "Error! In getRequireFlag() type is NOT_ASSIGNED");
+        printErrorMessageColor("Error! In getRequireFlag() type is NOT_ASSIGNED", settings.pcSettings.toolErrorOutput);
         exit(EXIT_FAILURE);
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
@@ -650,8 +655,7 @@ string SMFile::getFlagPrint(const string &outputFilesWithoutExtension) const
 
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
-        print(stderr, fg(static_cast<fmt::color>(settings.pcSettings.toolErrorOutput)),
-              "Error! In getRequireFlag() type is NOT_ASSIGNED");
+        printErrorMessageColor("Error! In getRequireFlag() type is NOT_ASSIGNED", settings.pcSettings.toolErrorOutput);
         exit(EXIT_FAILURE);
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
@@ -682,7 +686,7 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
 
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
-        print(stderr, "HMake Error! In getRequireFlag() type is NOT_ASSIGNED");
+        printErrorMessage("HMake Error! In getRequireFlag() type is NOT_ASSIGNED");
         exit(EXIT_FAILURE);
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
@@ -704,7 +708,7 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
         }
         return str;
     }
-    print(stderr, "HMake Error! In getRequireFlag() unknown type");
+    printErrorMessage("HMake Error! In getRequireFlag() unknown type");
     exit(EXIT_FAILURE);
 }
 
@@ -719,7 +723,7 @@ string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
     };
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
-        print(stderr, "HMake Error! In getRequireFlag() type is NOT_ASSIGNED");
+        printErrorMessage("HMake Error! In getRequireFlag() type is NOT_ASSIGNED");
         exit(EXIT_FAILURE);
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
@@ -743,7 +747,7 @@ string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
         }
         return str;
     }
-    print(stderr, "HMake Error! In getRequireFlag() unknown type");
+    printErrorMessage("HMake Error! In getRequireFlag() unknown type");
     exit(EXIT_FAILURE);
 }
 
