@@ -120,7 +120,7 @@ class CppSourceTarget : public CompilerFeatures,
     PostCompile updateSourceNodeBTarget(SourceNode &sourceNode);
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
-    void saveBuildCache(bool exitingAfterRoundOne);
+    void saveBuildCache(bool round);
 
     // In module scope, two different targets should not have a directory in huIncludes
     set<const Node *> huIncludes;

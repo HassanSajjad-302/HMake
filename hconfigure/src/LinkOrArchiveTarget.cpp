@@ -778,47 +778,40 @@ void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &builder)
     RealBTarget &realBTarget = getRealBTarget(round);
     if (!round && BTarget::selectiveBuild)
     {
-        if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
-        {
-            shared_ptr<PostBasic> postBasicLinkOrArchive;
-            if (linkTargetType == TargetType::LIBRARY_STATIC)
-            {
-                postBasicLinkOrArchive = std::make_shared<PostBasic>(Archive());
-            }
-            else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
-            {
-                postBasicLinkOrArchive = std::make_shared<PostBasic>(Link());
-            }
-            realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
-            if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
-            {
-                Json cacheFileJson;
-                cacheFileJson[JConsts::linkCommand] =
-                    linker.bTPath.generic_string() + " " + getLinkOrArchiveCommand(true);
-                vector<string> cachedObjectFilesVector;
-                for (ObjectFile *objectFile : objectFiles)
-                {
-                    cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
-                }
-                cacheFileJson[JConsts::objectFiles] = std::move(cachedObjectFilesVector);
-                ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << cacheFileJson.dump(4);
-            }
 
-            std::lock_guard<std::mutex> lk(printMutex);
-            if (linkTargetType == TargetType::LIBRARY_STATIC)
-            {
-                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
-            }
-            else if (linkTargetType == TargetType::EXECUTABLE)
-            {
-                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
-            }
-            fflush(stdout);
-        }
-        else
+        shared_ptr<PostBasic> postBasicLinkOrArchive;
+        if (linkTargetType == TargetType::LIBRARY_STATIC)
         {
-            realBTarget.exitStatus = EXIT_FAILURE;
+            postBasicLinkOrArchive = std::make_shared<PostBasic>(Archive());
         }
+        else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+        {
+            postBasicLinkOrArchive = std::make_shared<PostBasic>(Link());
+        }
+        realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
+        if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
+        {
+            Json cacheFileJson;
+            cacheFileJson[JConsts::linkCommand] = linker.bTPath.generic_string() + " " + getLinkOrArchiveCommand(true);
+            vector<string> cachedObjectFilesVector;
+            for (ObjectFile *objectFile : objectFiles)
+            {
+                cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
+            }
+            cacheFileJson[JConsts::objectFiles] = std::move(cachedObjectFilesVector);
+            ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << cacheFileJson.dump(4);
+        }
+
+        std::lock_guard<std::mutex> lk(printMutex);
+        if (linkTargetType == TargetType::LIBRARY_STATIC)
+        {
+            postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
+        }
+        else if (linkTargetType == TargetType::EXECUTABLE)
+        {
+            postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
+        }
+        fflush(stdout);
     }
     else if (round == 3)
     {

@@ -190,26 +190,19 @@ void SourceNode::updateBTarget(unsigned short round, Builder &)
     if (!round && selectiveBuild)
     {
         RealBTarget &realBTarget = getRealBTarget(round);
-        if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
+        PostCompile postCompile = target->updateSourceNodeBTarget(*this);
+        postCompile.parseHeaderDeps(*this);
+        realBTarget.exitStatus = postCompile.exitStatus;
+        realBTarget.fileStatus = FileStatus::UPDATED;
+        // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
+        // cached compile-command would be different
+        if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            PostCompile postCompile = target->updateSourceNodeBTarget(*this);
-            postCompile.parseHeaderDeps(*this);
-            realBTarget.exitStatus = postCompile.exitStatus;
-            realBTarget.fileStatus = FileStatus::UPDATED;
-            // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
-            // cached compile-command would be different
-            if (realBTarget.exitStatus == EXIT_SUCCESS)
-            {
-                compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
-            }
-            std::lock_guard<std::mutex> lk(printMutex);
-            postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
-            fflush(stdout);
+            compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
         }
-        else
-        {
-            realBTarget.exitStatus = EXIT_FAILURE;
-        }
+        std::lock_guard<std::mutex> lk(printMutex);
+        postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
+        fflush(stdout);
     }
 }
 
@@ -321,29 +314,15 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
             // cached compile-command would be different
             compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
         }
-        else
-        {
-            // In-case of error in .o file generation, build system continues, so other .o files could be compiled
-            // and those aren't recompiled in next-run. But side effects of allowing build-system to continue from
-            // here are too complex to evaluate, so exiting after this round.
-            builder.exitAfterThisRound = true;
-        }
     }
     else if (!round && selectiveBuild)
     {
-        if (realBTarget.dependenciesExitStatus == EXIT_SUCCESS)
-        {
-            PostCompile postCompile = target->CompileSMFile(*this);
-            realBTarget.exitStatus = postCompile.exitStatus;
+        PostCompile postCompile = target->CompileSMFile(*this);
+        realBTarget.exitStatus = postCompile.exitStatus;
 
-            std::lock_guard<std::mutex> lk(printMutex);
-            postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
-            fflush(stdout);
-        }
-        else
-        {
-            realBTarget.exitStatus = EXIT_FAILURE;
-        }
+        std::lock_guard<std::mutex> lk(printMutex);
+        postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
+        fflush(stdout);
     }
     realBTarget.fileStatus = FileStatus::UPDATED;
 }

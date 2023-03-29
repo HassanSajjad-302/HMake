@@ -9,8 +9,8 @@ import <mutex>;
 import <stack>;
 import <thread>;
 #else
-#include "BasicTargets.hpp"
 #include "Builder.hpp"
+#include "BasicTargets.hpp"
 #include "Utilities.hpp"
 #include <condition_variable>
 #include <fstream>
@@ -42,7 +42,7 @@ Builder::Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarge
         populateFinalBTargets();
         launchThreadsAndUpdateBTargets();
 
-        if (exitAfterThisRound)
+        if (updateBTargetFailed)
         {
             exit(EXIT_SUCCESS);
         }
@@ -176,6 +176,8 @@ void Builder::updateBTargets()
     }
     while (true)
     {
+        RealBTarget *realBTarget;
+
         if (shouldWait)
         {
             cond.wait(lk, [&]() {
@@ -190,19 +192,27 @@ void Builder::updateBTargets()
                 bTarget = *finalBTargetsIterator;
                 ++finalBTargetsIterator;
             }
+            realBTarget = &(bTarget->getRealBTarget(round));
             updateMutex.unlock();
         }
 
-        bTarget->updateBTarget(round, *this);
+        if (realBTarget->exitStatus == EXIT_SUCCESS)
+        {
+            bTarget->updateBTarget(round, *this);
+        }
+        if (realBTarget->exitStatus != EXIT_SUCCESS)
+        {
+            updateBTargetFailed = true;
+        }
 
         updateMutex.lock();
-        RealBTarget &realBTarget = bTarget->getRealBTarget(round);
+
         for (BTarget *dependent : bTarget->getRealBTarget(round).dependents)
         {
             RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
-            if (realBTarget.exitStatus != EXIT_SUCCESS || realBTarget.dependenciesExitStatus != EXIT_SUCCESS)
+            if (realBTarget->exitStatus != EXIT_SUCCESS)
             {
-                dependentRealBTarget.dependenciesExitStatus = EXIT_FAILURE;
+                dependentRealBTarget.exitStatus = EXIT_FAILURE;
             }
             --(dependentRealBTarget.dependenciesSize);
             if (!dependentRealBTarget.dependenciesSize && dependentRealBTarget.fileStatus == FileStatus::NEEDS_UPDATE)

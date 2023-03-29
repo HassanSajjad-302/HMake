@@ -47,7 +47,6 @@ struct RealBTarget
     // This points to the tarjanNodeBTargets set element
     TBT *bTarjanNode;
     BTarget *bTarget;
-    int dependenciesExitStatus = EXIT_SUCCESS;
     int exitStatus = EXIT_SUCCESS;
     unsigned short round;
     explicit RealBTarget(unsigned short round_, BTarget *bTarget_);

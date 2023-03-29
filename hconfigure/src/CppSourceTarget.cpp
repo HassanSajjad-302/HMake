@@ -192,7 +192,7 @@ void CppSourceTarget::updateBTarget(unsigned short round, Builder &builder)
     {
         if (sourceFileOrSMRuleFileUpdated)
         {
-            saveBuildCache(builder.exitAfterThisRound);
+            saveBuildCache(round);
         }
     }
     else if (round == 3)
@@ -1395,9 +1395,9 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
                              settings.ccpSettings.outputAndErrorFiles);
 }
 
-void CppSourceTarget::saveBuildCache(bool exitingAfterRoundOne)
+void CppSourceTarget::saveBuildCache(bool round)
 {
-    if (exitingAfterRoundOne)
+    if (round)
     {
         buildCacheJson[JConsts::moduleDependencies] = moduleSourceFileDependencies;
         buildCacheJson[JConsts::headerUnits] = headerUnits;

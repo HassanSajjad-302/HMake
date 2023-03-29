@@ -20,7 +20,7 @@ class Builder
 
   public:
     list<BTarget *> finalBTargets;
-    bool exitAfterThisRound = false;
+    bool updateBTargetFailed = false;
     explicit Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarget *> &preSortBTargets_);
     void populateFinalBTargets();
 
