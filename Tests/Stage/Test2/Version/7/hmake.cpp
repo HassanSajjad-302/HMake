@@ -2,7 +2,7 @@
 
 void buildSpecification()
 {
-    Configuration &debug = GetConfiguration("Debug");
+    Configuration &debug = GetConfiguration("Release");
 
     CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
 

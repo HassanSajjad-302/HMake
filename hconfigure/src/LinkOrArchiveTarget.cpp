@@ -776,7 +776,7 @@ string &LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
 void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &builder)
 {
     RealBTarget &realBTarget = getRealBTarget(round);
-    if (!round && BTarget::selectiveBuild)
+    if (!round && BTarget::selectiveBuild && realBTarget.exitStatus == EXIT_SUCCESS)
     {
 
         shared_ptr<PostBasic> postBasicLinkOrArchive;

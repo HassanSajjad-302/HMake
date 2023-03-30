@@ -47,6 +47,7 @@ struct RealBTarget
     // This points to the tarjanNodeBTargets set element
     TBT *bTarjanNode;
     BTarget *bTarget;
+    // Plays two roles. Depicts the exitStatus of itself and of its dependencies
     int exitStatus = EXIT_SUCCESS;
     unsigned short round;
     explicit RealBTarget(unsigned short round_, BTarget *bTarget_);
@@ -126,4 +127,3 @@ class CTarget // Configure Target
 void to_json(Json &j, const CTarget *tar);
 
 #endif // HMAKE_BASICTARGETS_HPP
-

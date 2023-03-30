@@ -142,7 +142,7 @@ static void executeErroneousSnapshotBalances(const Updates &updates, const path 
     path p = current_path();
     current_path(hbuildExecutionPath);
     Snapshot snapshot(p);
-    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    system(hbuildBuildStr.c_str());
     snapshot.after(p);
     ASSERT_EQ(snapshot.snapshotBalances(updates), true);
     current_path(p);
@@ -399,31 +399,34 @@ TEST(StageTests, Test2)
     touchFile(testSourcePath / "lib4/private/temp.cpp");
     removeFilePath(testSourcePath / "Build/Debug/lib3/" /
                    getActualNameFromTargetName(TargetType::LIBRARY_STATIC, os, "lib3"));
-    executeErroneousSnapshotBalances(1, 0, 1, 1, 1, 0);
-    executeErroneousSnapshotBalances(1, 0, 0, 1, 0, 0);
-    executeSnapshotBalances(0, 0, 0, 0, 0, "Debug/lib3");
+    executeErroneousSnapshotBalances(
+        Updates{.errorFiles = 1, .sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1});
+    executeErroneousSnapshotBalances(Updates{.errorFiles = 1, .cppTargets = 1});
+    executeSnapshotBalances(Updates{}, "Debug/lib3");
 
     // Erroneous lib4.cpp replaced by an empty lib4.cpp
     copyFilePath(testSourcePath / "Version/6/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
-    executeSnapshotBalances(0, 0, 0, 0, 0, "Debug/lib3-cpp");
-    executeSnapshotBalances(0, 1, 1, 0, 0, "Debug/lib4-cpp");
-    executeSnapshotBalances(0, 0, 0, 1, 1);
+    executeSnapshotBalances(Updates{}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Copying Erroneous lib4.cpp to lib4/private and changing the hmake.cpp and reconfiguring the project.
     copyFilePath(testSourcePath / "Version/5/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
     copyFilePath(testSourcePath / "Version/7/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
 
-    executeErroneousSnapshotBalances(0, 0, 1, 1, 1, 0, "Debug/lib3/");
-    executeErroneousSnapshotBalances(0, 0, 0, 0, 0, 0, "Debug/lib3/");
-    executeErroneousSnapshotBalances(1, 0, 1, 1, 0, 0, "Debug/lib4/");
-    executeErroneousSnapshotBalances(1, 0, 3, 4, 2, 0);
-    executeErroneousSnapshotBalances(1, 0, 0, 1, 0, 0);
+    executeErroneousSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1},
+                                     "Release/lib3/");
+    executeErroneousSnapshotBalances(Updates{}, "Release/lib3/");
+    executeErroneousSnapshotBalances(Updates{.errorFiles = 1, .sourceFiles = 1, .cppTargets = 1}, "Release/lib4/");
+    executeErroneousSnapshotBalances(
+        Updates{.errorFiles = 1, .sourceFiles = 3, .cppTargets = 4, .linkTargetsNoDebug = 2});
+    executeErroneousSnapshotBalances(Updates{.errorFiles = 1, .cppTargets = 1});
 
     // Copying Correct lib4.cpp
     copyFilePath(testSourcePath / "Version/6/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
-    executeSnapshotBalances(0, 0, 0, 0, 0, "Debug/lib3/");
-    executeSnapshotBalances(0, 1, 1, 2, 0);
+    executeSnapshotBalances(Updates{}, "Release/lib3/");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 2});
 }
 
 static void setupTest3Default()

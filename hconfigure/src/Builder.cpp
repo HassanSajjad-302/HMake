@@ -199,23 +199,20 @@ void Builder::updateBTargets()
             updateMutex.unlock();
         }
 
-        // updateBTarget call is skipped if any dependency updateBTarget failed.
-        if (realBTarget->exitStatus == EXIT_SUCCESS)
+        try
         {
-            try
+            bTarget->updateBTarget(round, *this);
+        }
+        catch (std::exception &ec)
+        {
+            realBTarget->exitStatus = EXIT_FAILURE;
+            string str(ec.what());
+            if (!str.empty())
             {
-                bTarget->updateBTarget(round, *this);
-            }
-            catch (std::exception &ec)
-            {
-                realBTarget->exitStatus = EXIT_FAILURE;
-                string str(ec.what());
-                if (!str.empty())
-                {
-                    printErrorMessage(str);
-                }
+                printErrorMessage(str);
             }
         }
+
         if (realBTarget->exitStatus != EXIT_SUCCESS)
         {
             updateBTargetFailed = true;

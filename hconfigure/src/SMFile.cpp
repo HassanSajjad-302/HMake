@@ -284,9 +284,8 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
 {
     // Danger Following is executed concurrently
     RealBTarget &realBTarget = getRealBTarget(round);
-    if (round == 1)
+    if (round == 1 && realBTarget.exitStatus == EXIT_SUCCESS)
     {
-        realBTarget.exitStatus = EXIT_SUCCESS;
         if (generateSMFileInRoundOne)
         {
             // TODO
@@ -316,7 +315,7 @@ void SMFile::updateBTarget(unsigned short round, Builder &builder)
             compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
         }
     }
-    else if (!round && selectiveBuild)
+    else if (!round && selectiveBuild && realBTarget.exitStatus == EXIT_SUCCESS)
     {
         PostCompile postCompile = target->CompileSMFile(*this);
         realBTarget.exitStatus = postCompile.exitStatus;
