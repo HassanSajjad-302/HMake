@@ -1,13 +1,12 @@
 #include "Configure.hpp"
 
-int main(int argc, char **argv)
+void buildSpecification()
 {
-    setBoolsAndSetRunDir(argc, argv);
-    Configuration debug{"Debug"};
+    Configuration &debug = GetConfiguration("Debug");
 
     CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
 
-    debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE);
+    debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::DEBUG);
 
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 
@@ -29,5 +28,47 @@ int main(int argc, char **argv)
     };
 
     configureFunc(debug);
-    configureOrBuild();
 }
+
+#ifdef EXE
+int main(int argc, char **argv)
+{
+    try
+    {
+        initializeCache(getBuildSystemModeFromArguments(argc, argv));
+        buildSpecification();
+        configureOrBuild();
+    }
+    catch (std::exception &ec)
+    {
+        string str(ec.what());
+        if (!str.empty())
+        {
+            printErrorMessage(str);
+        }
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+#else
+extern "C" EXPORT int func2(BSMode bsMode_)
+{
+    try
+    {
+        exportAllSymbolsAndInitializeGlobals();
+        initializeCache(bsMode_);
+        buildSpecification();
+        configureOrBuild();
+    }
+    catch (std::exception &ec)
+    {
+        string str(ec.what());
+        if (!str.empty())
+        {
+            printErrorMessage(str);
+        }
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+#endif

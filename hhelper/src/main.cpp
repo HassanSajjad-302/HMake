@@ -190,18 +190,6 @@ int main(int argc, char **argv)
             printErrorMessage("Symbol func2 could not be loaded from configure dynamic library\n");
             exit(EXIT_FAILURE);
         }
-        int exitStatus = func2(BSMode::CONFIGURE);
-        if (exitStatus != EXIT_SUCCESS)
-        {
-            auto errorMessageStrPtrLocal = loader.getSymbol<const char **>("errorMessageStrPtr");
-            if (!errorMessageStrPtrLocal)
-            {
-                printErrorMessage(
-                    "Symbol errorMessageStrPtrLocal could not be loaded from configure dynamic library\n");
-                exit(EXIT_FAILURE);
-            }
-            printErrorMessage(format("{}\n", *errorMessageStrPtrLocal));
-            exit(EXIT_FAILURE);
-        }
+        return func2(BSMode::CONFIGURE);
     }
 }
