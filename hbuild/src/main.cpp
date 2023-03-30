@@ -2,15 +2,15 @@
 import "BuildSystemFunctions.hpp";
 import "Features.hpp";
 import "TargetType.hpp";
-import "DLLLoader.hpp";
+import "zDLLLoader.hpp";
 import <filesystem>;
 import <fstream>;
 import <string>;
 #else
 #include "BuildSystemFunctions.hpp"
-#include "DLLLoader.hpp"
 #include "Features.hpp"
 #include "TargetType.hpp"
+#include "zDLLLoader.hpp"
 #include <filesystem>
 #include <fstream>
 #include <string>

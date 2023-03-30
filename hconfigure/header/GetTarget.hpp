@@ -2,11 +2,15 @@
 #ifndef HMAKE_GETTARGET_HPP
 #define HMAKE_GETTARGET_HPP
 #ifdef USE_HEADER_UNITS
+import "Configuration.hpp";
 import "DSC.hpp";
 #else
+#include "Configure.hpp"
 #include "DSC.hpp"
 #endif
 
+Configuration &GetConfiguration(const string &name);
+Configuration &GetConfiguration(const string &name, CTarget &other, bool hasFile = true);
 CppSourceTarget &GetCppPreprocess(const string &name);
 CppSourceTarget &GetCppPreprocess(const string &name, CTarget &other, bool hasFile = true);
 CppSourceTarget &GetCppObject(const string &name);

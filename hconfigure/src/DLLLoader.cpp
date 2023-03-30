@@ -4,9 +4,9 @@ import "DLLLoader.hpp";
 import <BuildSystemFunctions.hpp>;
 import <format>;
 #else
-#include "DLLLoader.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "format"
+#include "zDLLLoader.hpp"
 #endif
 
 using std::format;

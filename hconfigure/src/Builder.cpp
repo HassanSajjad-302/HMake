@@ -156,8 +156,11 @@ void Builder::addNewBTargetInFinalBTargets(BTarget *bTarget)
 
 void Builder::updateBTargets()
 {
-    std::unique_lock<std::mutex> lk(updateMutex);
     BTarget *bTarget;
+    RealBTarget *realBTarget;
+
+    std::unique_lock<std::mutex> lk(updateMutex);
+
     if (finalBTargets.size() == finalBTargetsSizeGoal && finalBTargetsIterator == finalBTargets.end())
     {
         return;
@@ -170,13 +173,13 @@ void Builder::updateBTargets()
     else
     {
         bTarget = *finalBTargetsIterator;
+        realBTarget = &(bTarget->getRealBTarget(round));
         ++finalBTargetsIterator;
         shouldWait = false;
         updateMutex.unlock();
     }
     while (true)
     {
-        RealBTarget *realBTarget;
 
         if (shouldWait)
         {
@@ -190,9 +193,9 @@ void Builder::updateBTargets()
             else
             {
                 bTarget = *finalBTargetsIterator;
+                realBTarget = &(bTarget->getRealBTarget(round));
                 ++finalBTargetsIterator;
             }
-            realBTarget = &(bTarget->getRealBTarget(round));
             updateMutex.unlock();
         }
 
@@ -232,6 +235,7 @@ void Builder::updateBTargets()
         else
         {
             bTarget = *finalBTargetsIterator;
+            realBTarget = &(bTarget->getRealBTarget(round));
             ++finalBTargetsIterator;
             shouldWait = false;
             updateMutex.unlock();

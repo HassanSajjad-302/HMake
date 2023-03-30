@@ -177,3 +177,8 @@ void Configuration::setJson()
     variantJson[JConsts::targets] = elements;
     json[0] = std::move(variantJson);
 }
+
+bool operator<(const Configuration &lhs, const Configuration &rhs)
+{
+    return lhs.name < rhs.name;
+}

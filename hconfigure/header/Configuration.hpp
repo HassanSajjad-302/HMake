@@ -60,6 +60,7 @@ struct Configuration : public CTarget
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     Configuration &ASSIGN(T property, Property... properties);
 };
+bool operator<(const Configuration &lhs, const Configuration &rhs);
 
 template <Dependency dependency, typename T, typename... Property>
 Configuration &Configuration::ASSIGN(T property, Property... properties)

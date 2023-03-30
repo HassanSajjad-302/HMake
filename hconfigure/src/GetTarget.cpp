@@ -5,25 +5,30 @@ import "BuildSystemFunctions.hpp";
 import "Cache.hpp";
 import "CppSourceTarget.hpp";
 #else
+#include "GetTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
 #include "CppSourceTarget.hpp"
-#include "GetTarget.hpp"
 #endif
 
-// TODO
-//  Why _CPP_SOURCE is embedded with name?
+Configuration &GetConfiguration(const string &name)
+{
+    return const_cast<Configuration &>(targets<Configuration>.emplace(name).first.operator*());
+}
+
+Configuration &GetConfiguration(const string &name, CTarget &other, bool hasFile)
+{
+    return const_cast<Configuration &>(targets<Configuration>.emplace(name, other, hasFile).first.operator*());
+}
 
 CppSourceTarget &GetCppPreprocess(const string &name)
 {
-
     return const_cast<CppSourceTarget &>(
         targets<CppSourceTarget>.emplace(name, TargetType::PREPROCESS).first.operator*());
 }
 
 CppSourceTarget &GetCppPreprocess(const string &name, CTarget &other, bool hasFile)
 {
-
     return const_cast<CppSourceTarget &>(
         targets<CppSourceTarget>.emplace(name, TargetType::PREPROCESS, other, hasFile).first.operator*());
 }

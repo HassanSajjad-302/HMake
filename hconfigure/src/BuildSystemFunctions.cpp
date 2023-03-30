@@ -105,7 +105,7 @@ void preintMessageColor(const string &message, uint32_t color)
     }
     else
     {
-        print(fg(static_cast<fmt::color>(color)), "Modules supported only on MSVC\n");
+        print(fg(static_cast<fmt::color>(color)), message);
     }
 }
 
@@ -129,7 +129,7 @@ void printErrorMessageColor(const string &message, uint32_t color)
     }
     else
     {
-        print(stderr, fg(static_cast<fmt::color>(color)), "Modules supported only on MSVC\n");
+        print(stderr, fg(static_cast<fmt::color>(color)), message);
     }
 }
 

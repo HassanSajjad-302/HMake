@@ -1,14 +1,14 @@
 
-#ifndef HMAKE_DLLLOADER_HPP
-#define HMAKE_DLLLOADER_HPP
+#ifndef HMAKE_ZDLLLOADER_HPP
+#define HMAKE_ZDLLLOADER_HPP
 
 #ifdef _WIN32
 #ifdef USE_HEADER_UNITS
-import "Windows.h";
+import <Windows.h>;
 import <string>;
 #else
-#include "Windows.h"
-#include "string"
+#include <Windows.h>
+#include <string>
 #endif
 #else
 #include "string"
@@ -17,6 +17,8 @@ import <string>;
 
 using std::string;
 
+// Header-File is named as zDLLLoader.h so that it is at bottom of includes because otherwise Window.h cause symbol
+// pollution in other header-files. What could be a better fix.
 struct DLLLoader
 {
 #ifdef _WIN32
@@ -44,4 +46,4 @@ template <typename T> T DLLLoader::getSymbol(const string &name)
     return symbol;
 }
 
-#endif // HMAKE_DLLLOADER_HPP
+#endif // HMAKE_ZDLLLOADER_HPP

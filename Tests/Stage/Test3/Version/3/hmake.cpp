@@ -1,9 +1,8 @@
 #include "Configure.hpp"
 
-int main(int argc, char **argv)
+void buildSpecification()
 {
-    setBoolsAndSetRunDir(argc, argv);
-    Configuration debug{"Debug"};
+    Configuration &debug = GetConfiguration("Debug");
 
     CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
 
@@ -34,5 +33,35 @@ int main(int argc, char **argv)
     };
 
     configureFunc(debug);
+}
+
+extern "C" EXPORT int func(BSMode bsMode_)
+{
+    std::function f([&]() {
+        exportAllSymbolsAndInitializeGlobals();
+        initializeCache(bsMode_);
+        buildSpecification();
+    });
+    return executeInTryCatchAndSetErrorMessagePtr(std::move(f));
+}
+
+#ifdef EXE
+int main(int argc, char **argv)
+{
+    initializeCache(getBuildSystemModeFromArguments(argc, argv));
+    buildSpecification();
     configureOrBuild();
 }
+#else
+extern "C" EXPORT int func2(BSMode bsMode_)
+{
+    std::function f([&]() { func(bsMode_); });
+    int errorCode = executeInTryCatchAndSetErrorMessagePtr(std::move(f));
+    if (errorCode != EXIT_SUCCESS)
+    {
+        return errorCode;
+    }
+    std::function j([&]() { configureOrBuild(); });
+    return executeInTryCatchAndSetErrorMessagePtr(std::move(j));
+}
+#endif

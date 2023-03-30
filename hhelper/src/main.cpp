@@ -6,17 +6,17 @@ import "Cache.hpp";
 import "JConsts.hpp";
 import "ToolsCache.hpp";
 import "Utilities.hpp";
-import "DLLLoader.hpp";
+import "zDLLLoader.hpp";
 import <filesystem>;
 import <fstream>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
 #include "Cache.hpp"
-#include "DLLLoader.hpp"
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"
+#include "zDLLLoader.hpp"
 #include <filesystem>
 #include <fstream>
 #endif
