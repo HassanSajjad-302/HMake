@@ -905,7 +905,7 @@ static void parseRegexSourceDirs(CppSourceTarget &target, bool assignToSourceNod
             {
                 printErrorMessage(format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
                                          e.what(), sourceDir.regex, target.getTargetPointer()));
-                exit(EXIT_FAILURE);
+                throw std::exception();
             }
         }
     }
@@ -1150,7 +1150,7 @@ void CppSourceTarget::resolveRequirePaths()
                     printErrorMessageColor(format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
                                                   moduleScope->getSubDirForTarget(), smFile.node->filePath),
                                            settings.pcSettings.toolErrorOutput);
-                    exit(EXIT_FAILURE);
+                    throw std::exception();
                 }
                 if (requireJson.contains("lookup-method"))
                 {
@@ -1161,7 +1161,7 @@ void CppSourceTarget::resolveRequirePaths()
                 {
                     printErrorMessageColor(format("No File Provides This {}.\n", requireLogicalName),
                                            settings.pcSettings.toolErrorOutput);
-                    exit(EXIT_FAILURE);
+                    throw std::exception();
                 }
                 else
                 {
@@ -1202,7 +1202,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
                        moduleScope->getSubDirForTarget(), idd->filePath, getTargetPointer(),
                        pos->second->getTargetPointer()),
                 settings.pcSettings.toolErrorOutput);
-            exit(EXIT_FAILURE);
+            throw std::exception();
         }
     }
 
@@ -1231,7 +1231,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
                            moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
                            (**pos).target->getTargetPointer()),
                     settings.pcSettings.toolErrorOutput);
-                exit(EXIT_FAILURE);
+                throw std::exception();
             }
             getRealBTarget(0).addDependency(smFile);
         }
@@ -1384,7 +1384,7 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
     else
     {
         printErrorMessageColor("Modules supported only on MSVC\n", settings.pcSettings.toolErrorOutput);
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
 
     return printOnlyOnError

@@ -145,7 +145,7 @@ template <typename T> void TarjanNode<T>::checkForCycle()
                     settings.pcSettings.toolErrorOutput);
             }
         }
-        exit(EXIT_SUCCESS);
+        throw std::exception();
     }
 }
 

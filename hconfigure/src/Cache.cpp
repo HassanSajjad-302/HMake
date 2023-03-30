@@ -96,7 +96,7 @@ void from_json(const Json &j, Cache &cacheLocal)
         cache.libraryType != TargetType::LIBRARY_OBJECT)
     {
         printErrorMessage("Cache libraryType TargetType is not one of LIBRARY_STATIC or LIBRARY_SHARED \n");
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();
     cacheLocal.compileConfigureCommands = j.at(JConsts::compileConfigureCommands).get<vector<string>>();

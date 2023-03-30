@@ -111,7 +111,7 @@ template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller)
     if (!objectFileProducer || !controller->objectFileProducer)
     {
         printErrorMessage("DSC<T> objectFileProducer cannot be nullptr\n");
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
     // If linkOrArchiveTarget does not exists for a DSC<T>, then it is an ObjectLibrary.
     if (linkOrArchiveTarget && controller->linkOrArchiveTarget)
@@ -142,7 +142,7 @@ template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller)
         printErrorMessage(format("ObjectLibrary DSC\n{}\ncan't have LinkOrArchiveTarget DSC\n{}\nas dependency.\n",
                                  objectFileProducer->getTarjanNodeName(),
                                  controller->linkOrArchiveTarget->getTarjanNodeName()));
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
 }
 
@@ -151,13 +151,13 @@ template <typename T> void DSC<T>::assignPrebuiltLinkOrArchiveTarget(DSCPrebuilt
     if (!objectFileProducer || !controller->prebuilt)
     {
         printErrorMessage("DSC<T> objectFileProducer  or DSCPrebuilt<T> prebuilt cannot be nullptr\n");
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
     if (!linkOrArchiveTarget || !controller->prebuiltLinkOrArchiveTarget)
     {
         printErrorMessage(
             "DSC<T> linkOrArchiveTarget or DSCPrebuilt<T> prebuiltLinkOrArchiveTarget cannot be nullptr\n");
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
     // If linkOrArchiveTarget does not exists for a DSC<T>, then it is an ObjectLibrary.
     if (linkOrArchiveTarget && controller->prebuiltLinkOrArchiveTarget)

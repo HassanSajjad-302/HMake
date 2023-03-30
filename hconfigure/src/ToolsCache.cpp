@@ -61,7 +61,7 @@ VSTools::VSTools(string batchFile, path toolBinDir, Arch hostArch_, AddressModel
     if (!hostSupported || !targetSupported)
     {
         printErrorMessage("host or target not supported in VSTool\n");
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
     compiler.bTFamily = linker.bTFamily = archiver.bTFamily = BTFamily::MSVC;
     compiler.bTVersion = linker.bTVersion = archiver.bTVersion = toolVersion;
@@ -90,7 +90,7 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
     if (int code = system((cmdExe + temporaryBatchFilename).c_str()); code != EXIT_SUCCESS)
     {
         printErrorMessage("Error in Initializing Environment\n");
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
     remove(temporaryBatchFilename);
 
@@ -193,7 +193,7 @@ ToolsCache::ToolsCache()
         else
         {
             printErrorMessage("Exiting in ToolsCache Constructor. HOME Environment variable not set\n");
-            exit(EXIT_FAILURE);
+            throw std::exception();
         }
     }
     else if constexpr (os == OS::NT)

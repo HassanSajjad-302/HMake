@@ -25,6 +25,7 @@ enum class BSMode // Build System Mode
 {
     BUILD,
     CONFIGURE,
+    IDE,
 };
 
 // By default, mode is configure, however, if, --build cmd option is passed, it is set to BUILD.

@@ -30,7 +30,7 @@ import <utility>;
 #endif
 
 using std::filesystem::directory_entry, std::filesystem::file_type, std::tie, std::ifstream,
-    std::filesystem::file_time_type;
+    std::filesystem::file_time_type, std::exception;
 
 string getStatusString(const path &p)
 {
@@ -89,7 +89,7 @@ Node::Node(const path &filePath_, bool isFile, bool mayNotExist)
         {
             printErrorMessage(format("{} is not a {} file. File Type is {}\n", filePath_.generic_string(),
                                      isFile ? "regular" : "directory", getStatusString(filePath_)));
-            exit(EXIT_FAILURE);
+            throw std::exception();
         }
         doesNotExist = true;
     }
@@ -143,7 +143,8 @@ const Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotE
     // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
     // performed only once.
     std::lock_guard<std::mutex> lk(nodeInsertMutex);
-    return allFiles.emplace(filePath, isFile, mayNotExist).first.operator->();
+    Node node(filePath, isFile, mayNotExist);
+    return allFiles.emplace(std::move(node)).first.operator->();
 }
 
 bool operator<(const Node &lhs, const Node &rhs)
@@ -347,7 +348,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
                 format("In Module-Scope:\n{}\nModule:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
                        target->moduleScope->getSubDirForTarget(), logicalName, node->filePath, val->node->filePath),
                 settings.pcSettings.toolErrorOutput);
-            exit(EXIT_FAILURE);
+            throw std::exception();
         }
     }
     requiresJson = std::move(rule.at("requires"));
@@ -362,7 +363,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         printErrorMessageColor(format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
                                       target->moduleScope->getSubDirForTarget(), node->filePath),
                                settings.pcSettings.toolErrorOutput);
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
 
     string headerUnitPath = path(requireJson.at("source-path").get<string>()).lexically_normal().generic_string();
@@ -388,7 +389,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
                            headerUnitPath, nodeDir->filePath, dirNode->filePath,
                            target->moduleScope->getTargetPointer()),
                     settings.pcSettings.toolErrorOutput);
-                exit(EXIT_FAILURE);
+                throw std::exception();
             }
             else
             {
@@ -404,7 +405,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
             format("Module Header Unit\n{}\n does not belongs to any Target Header Unit Includes of Module Scope\n{}\n",
                    headerUnitPath, target->moduleScope->getTargetPointer()),
             settings.pcSettings.toolErrorOutput);
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
 
     SMFile &headerUnit =
@@ -454,7 +455,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
                 printErrorMessageColor(format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
                                               target->moduleScope->getSubDirForTarget(), node->filePath),
                                        settings.pcSettings.toolErrorOutput);
-                exit(EXIT_FAILURE);
+                throw std::exception();
             }
             if (requireJson.contains("lookup-method"))
             {
@@ -504,7 +505,7 @@ void SMFile::setSMFileStatusRoundZero()
                 format("Warning. Following smrules not found while checking the object-file-status which must had been "
                        "generated in round 1.\n{}\n",
                        smRuleNode->filePath));
-            exit(EXIT_FAILURE);
+            throw std::exception();
         }
 #endif
         if (!exists(objectFilePath))
@@ -612,7 +613,7 @@ string SMFile::getFlag(const string &outputFilesWithoutExtension) const
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
         printErrorMessageColor("Error! In getRequireFlag() type is NOT_ASSIGNED", settings.pcSettings.toolErrorOutput);
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
     {
@@ -656,7 +657,7 @@ string SMFile::getFlagPrint(const string &outputFilesWithoutExtension) const
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
         printErrorMessageColor("Error! In getRequireFlag() type is NOT_ASSIGNED", settings.pcSettings.toolErrorOutput);
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
     {
@@ -687,7 +688,7 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
         printErrorMessage("HMake Error! In getRequireFlag() type is NOT_ASSIGNED");
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
     {
@@ -709,7 +710,7 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
         return str;
     }
     printErrorMessage("HMake Error! In getRequireFlag() unknown type");
-    exit(EXIT_FAILURE);
+    throw std::exception();
 }
 
 string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
@@ -724,7 +725,7 @@ string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
         printErrorMessage("HMake Error! In getRequireFlag() type is NOT_ASSIGNED");
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
     {
@@ -748,7 +749,7 @@ string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
         return str;
     }
     printErrorMessage("HMake Error! In getRequireFlag() unknown type");
-    exit(EXIT_FAILURE);
+    throw std::exception();
 }
 
 string SMFile::getModuleCompileCommandPrintLastHalf()

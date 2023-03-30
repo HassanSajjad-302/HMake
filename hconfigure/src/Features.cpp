@@ -137,7 +137,7 @@ void from_json(const Json &j, Arch &arch)
     else
     {
         printErrorMessage("conversion from json string literal to enum class Arch failed\n");
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
 }
 
@@ -181,7 +181,7 @@ void from_json(const Json &j, AddressModel &am)
     else
     {
         printErrorMessage("conversion from json string literal to enum class AM failed\n");
-        exit(EXIT_FAILURE);
+        throw std::exception();
     }
 }
 
@@ -252,7 +252,7 @@ string getActualNameFromTargetName(TargetType bTargetType, const OS osLocal, con
         return actualName;
     }
     printErrorMessage("Other Targets Are Not Supported Yet.\n");
-    exit(EXIT_FAILURE);
+    throw std::exception();
 }
 
 string getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, const string &actualName)
@@ -282,7 +282,7 @@ string getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, con
         return libName;
     }
     printErrorMessage("Other Targets Are Not Supported Yet.\n");
-    exit(EXIT_FAILURE);
+    throw std::exception();
 }
 
 string getSlashedExecutableName(const string &name)

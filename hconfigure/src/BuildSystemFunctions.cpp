@@ -23,7 +23,7 @@ using fmt::print, std::filesystem::current_path, std::filesystem::exists, std::f
 void initializeCache(BSMode bsMode_)
 {
     bsMode = bsMode_;
-    if (bsMode == BSMode::BUILD)
+    if (bsMode != BSMode::CONFIGURE)
     {
         path configurePath;
         bool configureExists = false;
@@ -44,7 +44,7 @@ void initializeCache(BSMode bsMode_)
         else
         {
             print(stderr, "Configure could not be found in current directory and directories above\n");
-            exit(EXIT_FAILURE);
+            throw std::exception();
         }
     }
     else
@@ -55,7 +55,7 @@ void initializeCache(BSMode bsMode_)
     cache.initializeCacheVariableFromCacheFile();
     toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
 
-    if (bsMode == BSMode::BUILD)
+    if (bsMode != BSMode::CONFIGURE)
     {
         auto initializeSettings = [](const path &settingsFilePath) {
             Json outputSettingsJson;
@@ -78,8 +78,8 @@ BSMode getBuildSystemModeFromArguments(int argc, char **argv)
         }
         else
         {
-            print(stderr, "{}", "setBoolsAndSetRunDir Invoked with unknown CMD option");
-            exit(EXIT_FAILURE);
+            print(stderr, "{}", "getBuildSystemModeFromArguments Invoked with unknown CMD option");
+            throw std::exception();
         }
     }
     return bsMode;
@@ -135,6 +135,11 @@ void printErrorMessageColor(const string &message, uint32_t color)
 
 void configureOrBuild()
 {
+
+    if (bsMode == BSMode::IDE)
+    {
+        return;
+    }
     if (bsMode == BSMode::CONFIGURE)
     {
         TCT::tarjanNodes = &tarjanNodesCTargets;
