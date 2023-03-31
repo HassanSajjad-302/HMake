@@ -40,7 +40,7 @@ template <typename T> T DLLLoader::getSymbol(const string &name)
 #ifdef _WIN32
         symbol = reinterpret_cast<T>(GetProcAddress(handle, name.c_str()));
 #else
-        symbol = reinterpret_cast<T>(dlsym(handle_, name.c_str()));
+        symbol = reinterpret_cast<T>(dlsym(handle, name.c_str()));
 #endif
     }
     return symbol;

@@ -1106,7 +1106,7 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
                 SourceNode &sourceNode = addNodeInSourceFileDependencies(node);
                 sourceNode.presentInCache = true;
                 sourceNode.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                sourceNode.compileCommandJson = j.at(JConsts::compileCommand);
+                sourceNode.compileCommandJson = std::move(j.at(JConsts::compileCommand).get<string>());
             }
         }
         for (Json &j : buildCacheJson.at(JConsts::moduleDependencies))
@@ -1117,7 +1117,7 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
                 SMFile &smFile = addNodeInModuleSourceFileDependencies(node);
                 smFile.presentInCache = true;
                 smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                smFile.compileCommandJson = j.at(JConsts::compileCommand);
+                smFile.compileCommandJson = std::move(j.at(JConsts::compileCommand).get<string>());
             }
         }
 
@@ -1129,7 +1129,7 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
                 SMFile &headerUnit = addNodeInHeaderUnits(node);
                 headerUnit.presentInCache = true;
                 headerUnit.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                headerUnit.compileCommandJson = std::move(j.at(JConsts::compileCommand));
+                headerUnit.compileCommandJson = std::move(j.at(JConsts::compileCommand).get<string>());
             }
         }
     }

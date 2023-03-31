@@ -12,7 +12,7 @@ template <typename T> struct DSCPrebuilt;
 // Dependency Specification Controller
 template <typename T> struct DSC
 {
-    using BaseType = T::BaseType;
+    using BaseType = typename T::BaseType;
     ObjectFileProducerWithDS<BaseType> *objectFileProducer = nullptr;
     LinkOrArchiveTarget *linkOrArchiveTarget = nullptr;
     auto operator<=>(const DSC<T> &) const = default;

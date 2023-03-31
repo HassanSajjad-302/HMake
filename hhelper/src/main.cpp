@@ -100,9 +100,9 @@ int main(int argc, char **argv)
         if constexpr (os == OS::LINUX)
         {
             string compileCommand =
-                "c++ -DEXPORT  -std=c++2b -fsanitize=thread -fno-omit-frame-pointer "
+                "c++ -DEXPORT=\"\"  -std=c++2b -fsanitize=thread -fno-omit-frame-pointer -fPIC "
                 " -I " HCONFIGURE_HEADER " -I " JSON_HEADER "  -I " FMT_HEADER
-                " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -fPIC -shared -L " HCONFIGURE_STATIC_LIB_DIRECTORY
+                " {SOURCE_DIRECTORY}/hmake.cpp -shared -Wl,--whole-archive -L " HCONFIGURE_STATIC_LIB_DIRECTORY
                 " -l hconfigure -Wl,--no-whole-archive -L " FMT_STATIC_LIB_DIRECTORY
                 " -l fmt -o {CONFIGURE_DIRECTORY}/" +
                 getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure");

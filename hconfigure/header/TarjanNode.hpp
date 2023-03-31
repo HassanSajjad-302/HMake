@@ -15,7 +15,7 @@ import <vector>;
 #include <vector>
 #endif
 
-using std::vector, std::set, std::string, std::format;
+using std::vector, std::set, std::string, fmt::format;
 
 template <typename T> class TarjanNode
 {

@@ -42,6 +42,13 @@ add_library(hconfigure STATIC
         hconfigure/src/DLLLoader.cpp
         hconfigure/src/Configure.cpp)
 
+
+
+if(UNIX)
+ target_compile_options(hconfigure PRIVATE -fPIC)
+  target_compile_options(fmt PRIVATE -fPIC)
+ endif()
+
 target_link_libraries(hconfigure PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
 target_include_directories(hconfigure
                 PUBLIC hconfigure/header
@@ -70,7 +77,7 @@ add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Tests/Stage/Test4/hmake.cpp)
+add_executable(HMakeHelper Tests/Stage/Test2/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 

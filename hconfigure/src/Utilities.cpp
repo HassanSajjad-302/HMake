@@ -2,18 +2,19 @@
 #ifdef USE_HEADER_UNITS
 import "Utilities.hpp";
 import "BuildSystemFunctions.hpp";
+#include <fmt/format.h>
 import <fstream>;
 import <sstream>;
-import <format>;
+;
 #else
-#include "Utilities.hpp"
 #include "BuildSystemFunctions.hpp"
-#include <format>
+#include "Utilities.hpp"
+#include "fmt/format.h"
 #include <fstream>
 #include <sstream>
 #endif
 
-using std::ifstream, std::format;
+using std::ifstream, fmt::format;
 
 string addQuotes(const string &pathString)
 {
