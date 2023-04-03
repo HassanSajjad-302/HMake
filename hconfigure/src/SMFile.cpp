@@ -186,7 +186,7 @@ string SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
     return getReducedPath(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o", pathPrint);
 }
 
-void SourceNode::updateBTarget(unsigned short round, Builder &)
+void SourceNode::updateBTarget(Builder &, unsigned short round)
 {
     if (!round && selectiveBuild)
     {
@@ -280,7 +280,7 @@ SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node
 }
 
 static std::mutex smFilesInternalMutex;
-void SMFile::updateBTarget(unsigned short round, Builder &builder)
+void SMFile::updateBTarget(Builder &builder, unsigned short round)
 {
     // Danger Following is executed concurrently
     RealBTarget &realBTarget = getRealBTarget(round);

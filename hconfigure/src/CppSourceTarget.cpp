@@ -186,24 +186,6 @@ void CppSourceTarget::getObjectFiles(set<ObjectFile *> *objectFiles, LinkOrArchi
     }
 }
 
-void CppSourceTarget::updateBTarget(unsigned short round, Builder &builder)
-{
-    if (!round || round == 1)
-    {
-        if (sourceFileOrSMRuleFileUpdated)
-        {
-            saveBuildCache(round);
-        }
-    }
-    else if (round == 3)
-    {
-        populateRequirementAndUsageRequirementDeps();
-        addRequirementDepsToBTargetDependencies();
-        populateTransitiveProperties();
-    }
-    getRealBTarget(round).fileStatus = FileStatus::UPDATED;
-}
-
 void CppSourceTarget::addRequirementDepsToBTargetDependencies()
 {
     // Access to addDependency() function must be synchronized
@@ -789,6 +771,24 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
 
         getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
     }
+}
+
+void CppSourceTarget::updateBTarget(Builder &builder, unsigned short round)
+{
+    if (!round || round == 1)
+    {
+        if (sourceFileOrSMRuleFileUpdated)
+        {
+            saveBuildCache(round);
+        }
+    }
+    else if (round == 3)
+    {
+        populateRequirementAndUsageRequirementDeps();
+        addRequirementDepsToBTargetDependencies();
+        populateTransitiveProperties();
+    }
+    getRealBTarget(round).fileStatus = FileStatus::UPDATED;
 }
 
 void CppSourceTarget::setJson()

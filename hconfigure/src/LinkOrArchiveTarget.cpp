@@ -46,7 +46,7 @@ void PrebuiltLinkOrArchiveTarget::preSort(Builder &builder, unsigned short round
     }
 }
 
-void PrebuiltLinkOrArchiveTarget::updateBTarget(unsigned short round, class Builder &builder)
+void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
 {
     if (round == 3)
     {
@@ -123,6 +123,100 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
     {
         PrebuiltLinkOrArchiveTarget::preSort(builder, round);
     }
+}
+
+void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned int)
+{
+    if (!round)
+    {
+        populateObjectFiles();
+        RealBTarget &realBTarget = getRealBTarget(round);
+        if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
+        {
+            path outputPath = path(getActualOutputPath());
+            if (!std::filesystem::exists(outputPath))
+            {
+                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                return;
+            }
+            for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
+            {
+                path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
+                if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
+                    Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                {
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                    return;
+                }
+            }
+            for (ObjectFile *objectFile : objectFiles)
+            {
+                if (!cachedObjectFiles.contains(objectFile->getObjectFileOutputFilePath()))
+                {
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                    return;
+                }
+                if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)->getLastUpdateTime() >
+                    Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                {
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                    return;
+                }
+            }
+        }
+    }
+}
+
+void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
+{
+    RealBTarget &realBTarget = getRealBTarget(round);
+    if (!round && BTarget::selectiveBuild && realBTarget.exitStatus == EXIT_SUCCESS)
+    {
+
+        shared_ptr<PostBasic> postBasicLinkOrArchive;
+        if (linkTargetType == TargetType::LIBRARY_STATIC)
+        {
+            postBasicLinkOrArchive = std::make_shared<PostBasic>(Archive());
+        }
+        else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+        {
+            postBasicLinkOrArchive = std::make_shared<PostBasic>(Link());
+        }
+        realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
+        if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
+        {
+            Json cacheFileJson;
+            cacheFileJson[JConsts::linkCommand] = linker.bTPath.generic_string() + " " + getLinkOrArchiveCommand(true);
+            vector<string> cachedObjectFilesVector;
+            for (ObjectFile *objectFile : objectFiles)
+            {
+                cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
+            }
+            cacheFileJson[JConsts::objectFiles] = std::move(cachedObjectFilesVector);
+            ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << cacheFileJson.dump(4);
+        }
+
+        std::lock_guard<std::mutex> lk(printMutex);
+        if (linkTargetType == TargetType::LIBRARY_STATIC)
+        {
+            postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
+        }
+        else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+        {
+            postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
+        }
+        fflush(stdout);
+    }
+    else if (round == 3)
+    {
+        PrebuiltLinkOrArchiveTarget::updateBTarget(3, builder);
+        addRequirementDepsToBTargetDependencies();
+        for (PrebuiltLinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
+        {
+            requirementLinkerFlags += linkOrArchiveTarget->usageRequirementLinkerFlags;
+        }
+    }
+    realBTarget.fileStatus = FileStatus::UPDATED;
 }
 
 LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
@@ -772,58 +866,6 @@ string &LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
     return linkOrArchiveCommandPrint;
 }
 
-void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &builder)
-{
-    RealBTarget &realBTarget = getRealBTarget(round);
-    if (!round && BTarget::selectiveBuild && realBTarget.exitStatus == EXIT_SUCCESS)
-    {
-
-        shared_ptr<PostBasic> postBasicLinkOrArchive;
-        if (linkTargetType == TargetType::LIBRARY_STATIC)
-        {
-            postBasicLinkOrArchive = std::make_shared<PostBasic>(Archive());
-        }
-        else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
-        {
-            postBasicLinkOrArchive = std::make_shared<PostBasic>(Link());
-        }
-        realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
-        if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
-        {
-            Json cacheFileJson;
-            cacheFileJson[JConsts::linkCommand] = linker.bTPath.generic_string() + " " + getLinkOrArchiveCommand(true);
-            vector<string> cachedObjectFilesVector;
-            for (ObjectFile *objectFile : objectFiles)
-            {
-                cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
-            }
-            cacheFileJson[JConsts::objectFiles] = std::move(cachedObjectFilesVector);
-            ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << cacheFileJson.dump(4);
-        }
-
-        std::lock_guard<std::mutex> lk(printMutex);
-        if (linkTargetType == TargetType::LIBRARY_STATIC)
-        {
-            postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
-        }
-        else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
-        {
-            postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
-        }
-        fflush(stdout);
-    }
-    else if (round == 3)
-    {
-        PrebuiltLinkOrArchiveTarget::updateBTarget(3, builder);
-        addRequirementDepsToBTargetDependencies();
-        for (PrebuiltLinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
-        {
-            requirementLinkerFlags += linkOrArchiveTarget->usageRequirementLinkerFlags;
-        }
-    }
-    realBTarget.fileStatus = FileStatus::UPDATED;
-}
-
 void LinkOrArchiveTarget::setJson()
 {
     Json targetJson;
@@ -876,48 +918,6 @@ PostBasic LinkOrArchiveTarget::Link()
 {
     return PostBasic(linker, getLinkOrArchiveCommand(false), getLinkOrArchiveCommandPrint(), buildCacheFilesDirPath,
                      name, settings.lcpSettings.outputAndErrorFiles, true);
-}
-
-void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned int)
-{
-    if (!round)
-    {
-        populateObjectFiles();
-        RealBTarget &realBTarget = getRealBTarget(round);
-        if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
-        {
-            path outputPath = path(getActualOutputPath());
-            if (!std::filesystem::exists(outputPath))
-            {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                return;
-            }
-            for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
-            {
-                path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
-                if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
-                    Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                    return;
-                }
-            }
-            for (ObjectFile *objectFile : objectFiles)
-            {
-                if (!cachedObjectFiles.contains(objectFile->getObjectFileOutputFilePath()))
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                    return;
-                }
-                if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)->getLastUpdateTime() >
-                    Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                    return;
-                }
-            }
-        }
-    }
 }
 
 void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()

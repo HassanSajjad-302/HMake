@@ -72,7 +72,7 @@ RealBTarget &BTarget::getRealBTarget(unsigned short round)
     return const_cast<RealBTarget &>(*it);
 }
 
-void BTarget::updateBTarget(unsigned short, Builder &)
+void BTarget::updateBTarget(Builder &, unsigned short)
 {
 }
 

@@ -44,8 +44,8 @@ class PrebuiltLinkOrArchiveTarget : public BTarget, public DS<PrebuiltLinkOrArch
     TargetType linkTargetType;
 
     PrebuiltLinkOrArchiveTarget(const string &name, const string &directory, TargetType linkTargetType_);
-    virtual void preSort(Builder &builder, unsigned short round);
-    virtual void updateBTarget(unsigned short round, class Builder &builder);
+    virtual void preSort(class Builder &builder, unsigned short round);
+    virtual void updateBTarget(Builder &builder, unsigned short round);
     void addRequirementDepsToBTargetDependencies();
     string getActualOutputPath();
 };
@@ -75,15 +75,15 @@ class LinkOrArchiveTarget : public CTarget,
     void initializeForBuild();
     void populateObjectFiles();
     void preSort(Builder &builder, unsigned short round) override;
+    void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator) override;
+    void updateBTarget(Builder &builder, unsigned short round) override;
     LinkerFlags getLinkerFlags();
-    void updateBTarget(unsigned short round, Builder &builder) override;
     void setJson() override;
     BTarget *getBTarget() override;
     string getTarjanNodeName() override;
     PostBasic Archive();
     PostBasic Link();
     void populateRequirementAndUsageRequirementProperties();
-    void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator) override;
     void setLinkOrArchiveCommandPrint();
     string getLinkOrArchiveCommand(bool ignoreTargets);
     string &getLinkOrArchiveCommandPrint();

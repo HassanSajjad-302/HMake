@@ -40,7 +40,8 @@ add_library(hconfigure STATIC
         hconfigure/src/DS.cpp
         hconfigure/src/Prebuilt.cpp
         hconfigure/src/DLLLoader.cpp
-        hconfigure/src/Configure.cpp)
+        hconfigure/src/Configure.cpp
+        hconfigure/src/SizeDifference.cpp)
 
 
 

@@ -14,6 +14,7 @@ import "GetTarget.hpp";
 import "JConsts.hpp";
 import "SMFile.hpp";
 import "Settings.hpp";
+import "SizeDifference.hpp";
 import "TarjanNode.hpp";
 import "ToolsCache.hpp";
 import "Utilities.hpp";
@@ -37,6 +38,7 @@ import <utility>;
 #include "JConsts.hpp"
 #include "SMFile.hpp"
 #include "Settings.hpp"
+#include "SizeDifference.hpp"
 #include "TarjanNode.hpp"
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"

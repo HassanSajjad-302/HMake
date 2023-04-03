@@ -130,6 +130,7 @@ class CppSourceTarget : public CompilerFeatures,
 
     void initializeForBuild();
     void preSort(Builder &builder, unsigned short round) override;
+    void updateBTarget(Builder &builder, unsigned short round) override;
     void setJson() override;
     void writeJsonFile() override;
     string getTarjanNodeName() override;
@@ -141,7 +142,6 @@ class CppSourceTarget : public CompilerFeatures,
     CppSourceTarget(string name_, TargetType targetType, CTarget &other, bool hasFile = true);
 
     void getObjectFiles(set<ObjectFile *> *objectFiles, LinkOrArchiveTarget *linkOrArchiveTarget) const override;
-    void updateBTarget(unsigned short round, Builder &builder) override;
     void addRequirementDepsToBTargetDependencies();
     void populateTransitiveProperties();
     //

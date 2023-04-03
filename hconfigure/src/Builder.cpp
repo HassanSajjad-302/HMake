@@ -201,7 +201,7 @@ void Builder::updateBTargets()
 
         try
         {
-            bTarget->updateBTarget(round, *this);
+            bTarget->updateBTarget(*this, round);
         }
         catch (std::exception &ec)
         {

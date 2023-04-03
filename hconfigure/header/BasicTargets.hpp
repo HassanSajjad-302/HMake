@@ -47,6 +47,7 @@ struct RealBTarget
     // This points to the tarjanNodeBTargets set element
     TBT *bTarjanNode;
     BTarget *bTarget;
+    bool dependencyNeedsUpdate = false;
     // Plays two roles. Depicts the exitStatus of itself and of its dependencies
     int exitStatus = EXIT_SUCCESS;
     unsigned short round;
@@ -81,7 +82,7 @@ struct BTarget // BTarget
     virtual string getTarjanNodeName() const;
 
     RealBTarget &getRealBTarget(unsigned short round);
-    virtual void updateBTarget(unsigned short round, class Builder &builder);
+    virtual void updateBTarget(class Builder &builder, unsigned short round);
     virtual void preSort(Builder &builder, unsigned short round);
     virtual void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator);
 };
