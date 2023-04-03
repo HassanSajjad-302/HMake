@@ -209,7 +209,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
     }
     else if (round == 3)
     {
-        PrebuiltLinkOrArchiveTarget::updateBTarget(3, builder);
+        PrebuiltLinkOrArchiveTarget::updateBTarget(builder, 3);
         addRequirementDepsToBTargetDependencies();
         for (PrebuiltLinkOrArchiveTarget *linkOrArchiveTarget : requirementDeps)
         {

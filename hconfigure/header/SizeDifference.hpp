@@ -8,11 +8,6 @@ import "BasicTargets.hpp";
 #include "BasicTargets.hpp"
 #endif
 
-void func()
-{
-    std::function<void()> j;
-}
-
 using std::function;
 template <typename PreSortType = void(Builder &, unsigned short round),
           typename DuringSortType = void(Builder &, unsigned short round, unsigned int),

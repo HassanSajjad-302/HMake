@@ -13,7 +13,7 @@ import <fstream>;
 #include <fstream>
 #endif
 
-using std::ofstream;
+using std::ofstream, fmt::format;
 
 string getThreadId()
 {
@@ -73,16 +73,17 @@ void PostBasic::executePrintRoutine(uint32_t color, bool printOnlyOnError) const
 {
     if (!printOnlyOnError)
     {
-        preintMessageColor(format("{}", printCommand + " " + getThreadId() + "\n"), color);
+        preintMessageColor(fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color);
         if (exitStatus == EXIT_SUCCESS)
         {
             if (!commandSuccessOutput.empty())
             {
-                preintMessageColor(format("{}", commandSuccessOutput + "\n"), color);
+                preintMessageColor(fmt::format("{}", commandSuccessOutput + "\n"), color);
             }
             if (!commandErrorOutput.empty())
             {
-                printErrorMessageColor(format("{}", commandErrorOutput + "\n"), settings.pcSettings.toolErrorOutput);
+                printErrorMessageColor(fmt::format("{}", commandErrorOutput + "\n"),
+                                       settings.pcSettings.toolErrorOutput);
             }
         }
     }
@@ -90,11 +91,11 @@ void PostBasic::executePrintRoutine(uint32_t color, bool printOnlyOnError) const
     {
         if (!commandSuccessOutput.empty())
         {
-            printErrorMessageColor(format("{}", commandSuccessOutput + "\n"), settings.pcSettings.toolErrorOutput);
+            printErrorMessageColor(fmt::format("{}", commandSuccessOutput + "\n"), settings.pcSettings.toolErrorOutput);
         }
         if (!commandErrorOutput.empty())
         {
-            printErrorMessageColor(format("{}", commandErrorOutput + "\n"), settings.pcSettings.toolErrorOutput);
+            printErrorMessageColor(fmt::format("{}", commandErrorOutput + "\n"), settings.pcSettings.toolErrorOutput);
         }
     }
 }

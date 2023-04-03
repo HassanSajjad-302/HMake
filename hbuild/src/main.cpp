@@ -34,7 +34,7 @@ int main(int argc, char **argv)
         }
         if (!is_regular_file(buildFilePath))
         {
-            printMessage(format("{} is not regular file.\n", buildFilePath.string()));
+            printMessage(fmt::format("{} is not regular file.\n", buildFilePath.string()));
             exit(EXIT_FAILURE);
         }
     }
@@ -67,7 +67,7 @@ int main(int argc, char **argv)
         else
         {
             printErrorMessage(
-                format("{} File could not be found in current directory and directories above\n", configureName));
+                fmt::format("{} File could not be found in current directory and directories above\n", configureName));
             exit(EXIT_FAILURE);
         }
     }

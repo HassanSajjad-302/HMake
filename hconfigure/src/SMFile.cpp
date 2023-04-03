@@ -87,8 +87,8 @@ Node::Node(const path &filePath_, bool isFile, bool mayNotExist)
     {
         if (!mayNotExist || nodeType != file_type::not_found)
         {
-            printErrorMessage(format("{} is not a {} file. File Type is {}\n", filePath_.generic_string(),
-                                     isFile ? "regular" : "directory", getStatusString(filePath_)));
+            printErrorMessage(fmt::format("{} is not a {} file. File Type is {}\n", filePath_.generic_string(),
+                                          isFile ? "regular" : "directory", getStatusString(filePath_)));
             throw std::exception();
         }
         doesNotExist = true;
@@ -344,8 +344,9 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
             // TODO
             // Mention the module scope too.
             printErrorMessageColor(
-                format("In Module-Scope:\n{}\nModule:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
-                       target->moduleScope->getSubDirForTarget(), logicalName, node->filePath, val->node->filePath),
+                fmt::format(
+                    "In Module-Scope:\n{}\nModule:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
+                    target->moduleScope->getSubDirForTarget(), logicalName, node->filePath, val->node->filePath),
                 settings.pcSettings.toolErrorOutput);
             throw std::exception();
         }
@@ -359,8 +360,8 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     string requireLogicalName = requireJson.at("logical-name").get<string>();
     if (requireLogicalName == logicalName)
     {
-        printErrorMessageColor(format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                      target->moduleScope->getSubDirForTarget(), node->filePath),
+        printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
+                                           target->moduleScope->getSubDirForTarget(), node->filePath),
                                settings.pcSettings.toolErrorOutput);
         throw std::exception();
     }
@@ -383,10 +384,10 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
             if (huDirTarget)
             {
                 printErrorMessageColor(
-                    format("Module Header Unit\n{}\n belongs to two Target Header Unit Includes\n{}\n{}\nof Module "
-                           "Scope\n{}\n",
-                           headerUnitPath, nodeDir->filePath, dirNode->filePath,
-                           target->moduleScope->getTargetPointer()),
+                    fmt::format(
+                        "Module Header Unit\n{}\n belongs to two Target Header Unit Includes\n{}\n{}\nof Module "
+                        "Scope\n{}\n",
+                        headerUnitPath, nodeDir->filePath, dirNode->filePath, target->moduleScope->getTargetPointer()),
                     settings.pcSettings.toolErrorOutput);
                 throw std::exception();
             }
@@ -401,8 +402,9 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     if (!huDirTarget)
     {
         printErrorMessageColor(
-            format("Module Header Unit\n{}\n does not belongs to any Target Header Unit Includes of Module Scope\n{}\n",
-                   headerUnitPath, target->moduleScope->getTargetPointer()),
+            fmt::format(
+                "Module Header Unit\n{}\n does not belongs to any Target Header Unit Includes of Module Scope\n{}\n",
+                headerUnitPath, target->moduleScope->getTargetPointer()),
             settings.pcSettings.toolErrorOutput);
         throw std::exception();
     }
@@ -451,8 +453,8 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
             string requireLogicalName = requireJson.at("logical-name").get<string>();
             if (requireLogicalName == logicalName)
             {
-                printErrorMessageColor(format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                              target->moduleScope->getSubDirForTarget(), node->filePath),
+                printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
+                                                   target->moduleScope->getSubDirForTarget(), node->filePath),
                                        settings.pcSettings.toolErrorOutput);
                 throw std::exception();
             }
@@ -500,10 +502,10 @@ void SMFile::setSMFileStatusRoundZero()
 #ifndef NDEBUG
         if (!exists(path(smRuleNode->filePath)))
         {
-            printErrorMessage(
-                format("Warning. Following smrules not found while checking the object-file-status which must had been "
-                       "generated in round 1.\n{}\n",
-                       smRuleNode->filePath));
+            printErrorMessage(fmt::format(
+                "Warning. Following smrules not found while checking the object-file-status which must had been "
+                "generated in round 1.\n{}\n",
+                smRuleNode->filePath));
             throw std::exception();
         }
 #endif

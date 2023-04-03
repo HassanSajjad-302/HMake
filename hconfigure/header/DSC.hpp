@@ -139,9 +139,9 @@ template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller)
     else
     {
         // ObjectLibrary has LinkOrArchiveTarget as dependency.
-        printErrorMessage(format("ObjectLibrary DSC\n{}\ncan't have LinkOrArchiveTarget DSC\n{}\nas dependency.\n",
-                                 objectFileProducer->getTarjanNodeName(),
-                                 controller->linkOrArchiveTarget->getTarjanNodeName()));
+        printErrorMessage(fmt::format("ObjectLibrary DSC\n{}\ncan't have LinkOrArchiveTarget DSC\n{}\nas dependency.\n",
+                                      objectFileProducer->getTarjanNodeName(),
+                                      controller->linkOrArchiveTarget->getTarjanNodeName()));
         throw std::exception();
     }
 }

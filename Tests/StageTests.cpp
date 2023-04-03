@@ -419,7 +419,6 @@ static void setupTest3Default()
 // in-compilation in one file, reconfiguration, header-files exclusion-inclusion, module/source-files/header-units
 // exclusion/inclusion.
 
-/*
 TEST(StageTests, Test3)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test3");
@@ -445,27 +444,23 @@ TEST(StageTests, Test3)
 
     // Touching public-lib3.hpp
     path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
-    */
-/*        touchFile(publicLib3DotHpp);
-            executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib4-cpp");
-            executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
-            executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
-            executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});*//*
-
+    touchFile(publicLib3DotHpp);
+    executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib4.hpp
     path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
-    */
-/*    touchFile(publicLib4DotHpp);
-        executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib1-cpp");
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib2-cpp");
+    touchFile(publicLib4DotHpp);
+    executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib1-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib2-cpp");
         executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
         executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug =
-       1});*//*
+        executeSnapshotBalances(
+            Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
-
-    // Making lib4.cpp and lib2.cpp both module-files.
+        // Making lib4.cpp and lib2.cpp both module-files.
     // 4 smrules files lib4.cpp lib3.cpp public-lib4.hpp privte-lib4.hpp will be updated
     copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
     copyFilePath(testSourcePath / "Version/3/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
@@ -476,34 +471,30 @@ TEST(StageTests, Test3)
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Removing both header-units from lib4.cpp
-    */
-/*    copyFilePath(testSourcePath / "Version/4/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
-        executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib3-cpp");
-        executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
+    copyFilePath(testSourcePath / "Version/4/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
+    executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
         executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
         // Adding both header-units back in lib4.cpp
         copyFilePath(testSourcePath / "Version/3/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
         executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib3-cpp");
         executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
-        executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});*//*
+        executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
-
-    // Touching public-lib4.hpp.
+        // Touching public-lib4.hpp.
     // lib3.cpp has a header-unit dep on public-lib3.hpp which has a header-dep on public-lib4.hpp, i.e. public-lib3.hpp
     // will be recompiled and its dependent lib3.cpp will also be recompiled but public-lib4.hpp is itself a header-unit
     // in lib4.cpp, so its smrule will also be generated.
-    */
-/*    touchFile(testSourcePath / "lib4/public/public-lib4.hpp");
+        touchFile(testSourcePath / "lib4/public/public-lib4.hpp");
         executeSnapshotBalances(Updates{.smruleFiles = 2, .sourceFiles = 1, .moduleFiles = 1, .cppTargets = 2},
                                 "Debug/lib3-cpp");
         executeSnapshotBalances(Updates{}, "Debug/lib1-cpp");
         executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
         executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
-        executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});*//*
+        executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
-
-    // Changing hmake.cpp to have option to switch lib4.cpp from module to source
+        // Changing hmake.cpp to have option to switch lib4.cpp from module to source
     copyFilePath(testSourcePath / "Version/4/hmake.cpp", testSourcePath / "hmake.cpp");
     copyFilePath(testSourcePath / "Version/4/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
@@ -549,4 +540,3 @@ TEST(StageTests, Test3)
                                     .linkTargetsNoDebug = 2,
                                     .linkTargetsDebug = 1});
 }
-*/

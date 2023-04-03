@@ -105,7 +105,7 @@ void CTarget::initializeCTarget()
         if (!Ok)
         {
             printErrorMessage(
-                format("There exists two targets with name {} and targetFileDir {}", name, targetFileDir));
+                fmt::format("There exists two targets with name {} and targetFileDir {}", name, targetFileDir));
             throw std::exception();
         }
     }
@@ -116,7 +116,7 @@ CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
 {
     if (!container.hasFile && hasFile_)
     {
-        printErrorMessage(format(
+        printErrorMessage(fmt::format(
             "Container Target\n{}\nwith no file can't have target\n{}\nwith file. It can't have element target\n",
             container.name, name));
         throw std::exception();
@@ -139,8 +139,8 @@ CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
         }
         else
         {
-            printErrorMessage(format("Container {} already has the element {}.\n", container.getTargetPointer(),
-                                     this->getTargetPointer()));
+            printErrorMessage(fmt::format("Container {} already has the element {}.\n", container.getTargetPointer(),
+                                          this->getTargetPointer()));
             throw std::exception();
         }
     }
@@ -208,7 +208,8 @@ void CTarget::writeJsonFile()
         create_directories(getSubDirForTarget());
         if (!other->json.is_array())
         {
-            printErrorMessage(format("Invalid assignment to Json of {} Json type must be array\n", getTargetPointer()));
+            printErrorMessage(
+                fmt::format("Invalid assignment to Json of {} Json type must be array\n", getTargetPointer()));
             throw std::exception();
         }
         other->json.emplace_back(json);

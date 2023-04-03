@@ -898,8 +898,8 @@ static void parseRegexSourceDirs(CppSourceTarget &target, bool assignToSourceNod
             }
             catch (const std::regex_error &e)
             {
-                printErrorMessage(format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
-                                         e.what(), sourceDir.regex, target.getTargetPointer()));
+                printErrorMessage(fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
+                                              e.what(), sourceDir.regex, target.getTargetPointer()));
                 throw std::exception();
             }
         }
@@ -1142,8 +1142,8 @@ void CppSourceTarget::resolveRequirePaths()
                 string requireLogicalName = requireJson.at("logical-name").get<string>();
                 if (requireLogicalName == smFile.logicalName)
                 {
-                    printErrorMessageColor(format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                  moduleScope->getSubDirForTarget(), smFile.node->filePath),
+                    printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
+                                                       moduleScope->getSubDirForTarget(), smFile.node->filePath),
                                            settings.pcSettings.toolErrorOutput);
                     throw std::exception();
                 }
@@ -1154,7 +1154,7 @@ void CppSourceTarget::resolveRequirePaths()
                 if (auto it = moduleScopeData->requirePaths.find(requireLogicalName);
                     it == moduleScopeData->requirePaths.end())
                 {
-                    printErrorMessageColor(format("No File Provides This {}.\n", requireLogicalName),
+                    printErrorMessageColor(fmt::format("No File Provides This {}.\n", requireLogicalName),
                                            settings.pcSettings.toolErrorOutput);
                     throw std::exception();
                 }
@@ -1191,11 +1191,11 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
             // TODO:
             //  Improve Message
             printErrorMessageColor(
-                format("In ModuleScope {}\nhu-include-directory\n{}\n is being provided by two different "
-                       "targets\n{}\n{}\nThis is not allowed "
-                       "because HMake can't determine which Header Unit to attach to which target.",
-                       moduleScope->getSubDirForTarget(), idd->filePath, getTargetPointer(),
-                       pos->second->getTargetPointer()),
+                fmt::format("In ModuleScope {}\nhu-include-directory\n{}\n is being provided by two different "
+                            "targets\n{}\n{}\nThis is not allowed "
+                            "because HMake can't determine which Header Unit to attach to which target.",
+                            moduleScope->getSubDirForTarget(), idd->filePath, getTargetPointer(),
+                            pos->second->getTargetPointer()),
                 settings.pcSettings.toolErrorOutput);
             throw std::exception();
         }
@@ -1222,9 +1222,9 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
             else
             {
                 printErrorMessageColor(
-                    format("In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
-                           moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
-                           (**pos).target->getTargetPointer()),
+                    fmt::format("In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
+                                moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
+                                (**pos).target->getTargetPointer()),
                     settings.pcSettings.toolErrorOutput);
                 throw std::exception();
             }

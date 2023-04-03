@@ -172,7 +172,7 @@ int main(int argc, char **argv)
             {
                 compileConfigureCommand.replace(position, confDirString.size(), current_path().string());
             }
-            printMessage(format("{}\n", compileConfigureCommand));
+            printMessage(fmt::format("{}\n", compileConfigureCommand));
             int code = system(compileConfigureCommand.c_str());
             if (code != EXIT_SUCCESS)
             {
