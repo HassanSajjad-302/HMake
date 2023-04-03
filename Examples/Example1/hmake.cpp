@@ -2,8 +2,7 @@
 
 void buildSpecification()
 {
-    DSC<CppSourceTarget> &app = GetCppExeDSC("app");
-    app.getSourceTarget().SOURCE_FILES("main.cpp");
+    GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp");
 }
 
 #ifdef EXE

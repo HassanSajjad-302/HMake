@@ -266,9 +266,6 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         //-Wl and --start-group options are needed because gcc command-line is used. But the HMake approach has been to
         // differentiate in compiler and linker
         //  Notes
-        //   For Windows NT, we use a different JAMSHELL
-        //   Currently, I ain't caring for the propagated properties. These properties are only being
-        //   assigned to the parent.
         //   TODO s
         //   262 Be caustious of this rc-type. It has something to do with Windows resource compiler
         //   which I don't know
@@ -287,8 +284,9 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
             // -fPIC
             if (linkTargetType == TargetType::LIBRARY_STATIC || linkTargetType == TargetType::LIBRARY_SHARED)
             {
-                if (OR(TargetOS::WINDOWS, TargetOS::CYGWIN))
+                if (!OR(TargetOS::WINDOWS, TargetOS::CYGWIN))
                 {
+                    addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-fPIC ");
                 }
             }
         }
@@ -746,9 +744,10 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommand(bool ignoreTargets)
         }
         localLinkOrArchiveCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
         localLinkOrArchiveCommand += addQuotes(getActualOutputPath()) + " ";
+
         if (linkTargetType == TargetType::LIBRARY_SHARED)
         {
-            localLinkOrArchiveCommand += "/DLL";
+            localLinkOrArchiveCommand += linker.bTFamily == BTFamily::MSVC ? "/DLL  " : " -shared ";
         }
 
         if (ignoreTargets)
@@ -807,7 +806,7 @@ void LinkOrArchiveTarget::updateBTarget(unsigned short round, Builder &builder)
         {
             postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
         }
-        else if (linkTargetType == TargetType::EXECUTABLE)
+        else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
         {
             postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
         }
@@ -1096,12 +1095,9 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommandPrint()
         linkOrArchiveCommandPrint += getReducedPath(getActualOutputPath(), lcpSettings.binary) + " ";
     }
 
-    if (linkTargetType == TargetType::LIBRARY_SHARED)
+    if (lcpSettings.infrastructureFlags)
     {
-        if (lcpSettings.infrastructureFlags)
-        {
-            linkOrArchiveCommandPrint += "/DLL";
-        }
+        linkOrArchiveCommandPrint += linker.bTFamily == BTFamily::MSVC ? "/DLL" : " -shared ";
     }
 }
 

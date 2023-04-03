@@ -423,15 +423,11 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         //-Wl and --start-group options are needed because gcc command-line is used. But the HMake approach has been to
         // differentiate in compiler and linker
         //  Notes
-        //   For Windows NT, we use a different JAMSHELL
-        //   Currently, I ain't caring for the propagated properties. These properties are only being
-        //   assigned to the parent.
         //   TODO s
         //   262 Be caustious of this rc-type. It has something to do with Windows resource compiler
         //   which I don't know
         //   TODO: flavor is being assigned based on the -dumpmachine argument to the gcc command. But this
         //    is not yet catered here.
-        //
 
         auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const string &str) { flags.OPTIONS_COMPILE += str; };
         auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const string &str) {
@@ -443,12 +439,11 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
 
         auto isTargetBSD = [&]() { return OR(TargetOS::BSD, TargetOS::FREEBSD, TargetOS::NETBSD, TargetOS::NETBSD); };
         {
-            // -fPIC
-            if (compileTargetType == TargetType::LIBRARY_STATIC || compileTargetType == TargetType::LIBRARY_SHARED)
+            // TargetType is not checked here which is checked in gcc.jam. Maybe better is to manage this through
+            // Configuration. -fPIC
+            if (!OR(TargetOS::WINDOWS, TargetOS::CYGWIN))
             {
-                if (OR(TargetOS::WINDOWS, TargetOS::CYGWIN))
-                {
-                }
+                addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-fPIC ");
             }
         }
         {
