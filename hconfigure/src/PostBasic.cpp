@@ -30,6 +30,10 @@ PostBasic::PostBasic(const BuildTool &buildTool, const string &commandFirstHalf,
                      bool isTarget_)
     : isTarget{isTarget_}
 {
+    // TODO
+    // This does process setup for the output and error stream in a bit costly manner by redirecting it to files and
+    // then reading from those files. More native APIS should be used. Also if there could be a way to preserve the
+    // coloring of the output.
     string str = isTarget ? "_t" : "";
 
     string outputFileName = buildCacheFilesDirPath + fileName + "_output" + str;

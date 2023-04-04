@@ -34,6 +34,12 @@ struct LinkerFlags
     string LINKFLAGS_MSVC;
 };
 
+// TODO
+// Should not be inherited from DS<PrebuiltLinkOrArchiveTarget>. Following class will provide the functions provided by
+// the base class itself. Instead of set<PrebuiltLinkOrArchiveTarget *> requirements and usageRequirements variables,
+// set<PrebuiltDep *> requirements and usageRequirements variables will be used. PrebuiltDep will be a wrapper over
+// PrebuiltLinkOrArchiveTarget which has the pre and post linker flags string which determine any pre or post
+// linker-flags to use with that dependency. This will support the use-cases like the -Wl,--whole-archive idiomatically.
 class PrebuiltLinkOrArchiveTarget : public BTarget, public DS<PrebuiltLinkOrArchiveTarget>
 {
   public:

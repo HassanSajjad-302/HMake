@@ -24,6 +24,10 @@ enum class ConfigTargetHaveFile
     YES,
     NO,
 };
+
+// TODO
+// HollowConfiguration type which is very similar to Configuration except it does not inherit from CTarget which means
+// CppSourceTarget etc could be created with a properties preset but a new Configuration Directory will not be created
 struct Configuration : public CTarget
 {
     set<CppSourceTarget *> cppSourceTargets;
