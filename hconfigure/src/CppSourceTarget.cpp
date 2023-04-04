@@ -743,6 +743,10 @@ void CppSourceTarget::initializeForBuild()
 
 void CppSourceTarget::preSort(Builder &builder, unsigned short round)
 {
+    // Try moving following all except round 3 to updateBTarget, so it can be called concurrently as well. Similar in
+    // LinkOrArchiveTarget. Then the preSort function is called only once, when configureOrBuild() function is called
+    // instead of calling it every round. Also builder can be a global object instead of passing it to all BTarget
+    // override functions.
     if (round == 1)
     {
         initializeForBuild();

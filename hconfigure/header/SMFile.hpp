@@ -125,7 +125,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     set<SMFile *> allSMFileDependenciesRoundZero;
     Json requiresJson;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
-    bool angle;
+    bool angle = false;
     bool hasProvide = false;
     bool smrulesFileParsed = false;
     // Used to determine whether the file is present in cache and whether it needs an updated SMRules file.

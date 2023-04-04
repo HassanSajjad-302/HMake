@@ -579,17 +579,19 @@ void SMFile::duringSort(Builder &, unsigned short round, unsigned int)
     {
         return;
     }
+    // Following could be moved to updateBTarget, so that it could be parallel. Same in LinkOrArchiveTarget. So, this
+    // function can be removed.
+    // preSort function will set the RealBTarget round 0 status to NEEDS_UPDATE, so that following could be called in
+    // updateBTarget. dependencyNeedsUpdate variable in RealBTarget will be used to determine whether the file needs an
+    // update because of its dependencies or not.
     for (BTarget *dependency : getRealBTarget(0).dependencies)
     {
         if (auto *smFile = dynamic_cast<SMFile *>(dependency); smFile)
         {
             allSMFileDependenciesRoundZero.emplace(smFile);
-            for (BTarget *dep : smFile->allSMFileDependenciesRoundZero)
+            for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
             {
-                if (auto *smFile1 = dynamic_cast<SMFile *>(dep); smFile1)
-                {
-                    allSMFileDependenciesRoundZero.emplace(smFile1);
-                }
+                allSMFileDependenciesRoundZero.emplace(smFileDep);
             }
         }
     }
