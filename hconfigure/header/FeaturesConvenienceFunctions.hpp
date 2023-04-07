@@ -175,7 +175,7 @@ U &FeatureConvenienceFunctions<U>::SINGLE(T condition, P property)
 {
     if (static_cast<U &>(*this).EVALUATE(condition))
     {
-        static_cast<U &>(*this).ASSIGN(property);
+        static_cast<U &>(*this).ASSIGN<dependency>(property);
     }
     return static_cast<U &>(*this);
 }

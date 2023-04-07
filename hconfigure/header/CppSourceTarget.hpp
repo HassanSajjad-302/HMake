@@ -68,6 +68,10 @@ struct ModuleScopeData
     map<string, SMFile *> requirePaths;
 };
 
+// TODO
+// HMake currently does not has proper C Support. There is workaround though. Types such as Compiler and
+// CompilerFeatures should be renamed to CppCompiler and CppCompilerFeatures and new types such as CSourceTarget would
+// be defined.
 class CppSourceTarget : public CompilerFeatures,
                         public CTarget,
                         public FeatureConvenienceFunctions<CppSourceTarget>,
@@ -286,9 +290,53 @@ template <typename... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(const st
 template <Dependency dependency, typename T, typename... Property>
 CppSourceTarget &CppSourceTarget::ASSIGN(T property, Property... properties)
 {
-    if constexpr (std::is_same_v<decltype(property), Compiler>)
+    if constexpr (std::is_same_v<decltype(property), CSourceTarget>)
+    {
+        cSourceTarget = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Compiler>)
     {
         compiler = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BTFamily>)
+    {
+        compiler.bTFamily = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), path>)
+    {
+        compiler.bTPath = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CxxFlags>)
+    {
+        if constexpr (dependency == Dependency::PRIVATE)
+        {
+            requirementCompilerFlags += property;
+        }
+        else if constexpr (dependency == Dependency::INTERFACE)
+        {
+            usageRequirementCompilerFlags += property;
+        }
+        else
+        {
+            requirementCompilerFlags += property;
+            usageRequirementCompilerFlags += property;
+        }
+    }
+    else if constexpr (std::is_same_v<decltype(property), Define>)
+    {
+        if constexpr (dependency == Dependency::PRIVATE)
+        {
+            requirementCompileDefinitions.emplace(property);
+        }
+        else if constexpr (dependency == Dependency::INTERFACE)
+        {
+            usageRequirementCompileDefinitions.emplace(property);
+        }
+        else
+        {
+            requirementCompileDefinitions.emplace(property);
+            usageRequirementCompileDefinitions.emplace(property);
+        }
     }
     else if constexpr (std::is_same_v<decltype(property), Threading>)
     {
@@ -378,9 +426,17 @@ CppSourceTarget &CppSourceTarget::ASSIGN(T property, Property... properties)
 
 template <typename T> bool CppSourceTarget::EVALUATE(T property) const
 {
+    if constexpr (std::is_same_v<decltype(property), CSourceTarget>)
+    {
+        return cSourceTarget == property;
+    }
     if constexpr (std::is_same_v<decltype(property), Compiler>)
     {
         return compiler == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BTFamily>)
+    {
+        return compiler.bTFamily == property;
     }
     else if constexpr (std::is_same_v<decltype(property), Threading>)
     {
@@ -442,7 +498,6 @@ template <typename T> bool CppSourceTarget::EVALUATE(T property) const
     {
         return cpuType == property;
     }
-    // CommonFeature properties
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {
         return targetOs == property;

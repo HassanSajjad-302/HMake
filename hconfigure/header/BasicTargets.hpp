@@ -53,6 +53,25 @@ struct RealBTarget
     unsigned short round;
     explicit RealBTarget(unsigned short round_, BTarget *bTarget_);
     void addDependency(BTarget &dependency);
+
+    // TODO
+    //  Following describes the time taken for the completion of this task. Currently unused. how to determine cpu time
+    //  for this task in multi-threaded scenario
+    unsigned long timeTaken = 0;
+
+    // TODO
+    // Some tools like modern linker or some common release management tasks like compression supports parallel
+    // execution. But HMake can't use these tools without risking overflow of thread allocation compared to hardware
+    // supported threads. Algorithm is to be developed which will call updateBTarget with the number of threads
+    // alloted. It will work such that total allotment never crosses the number of hardware threads. Following two
+    // variables will be used as guide for the algorithm
+
+    // How many threads the linker supports. -1 means any. some tools may not support more than a fixed number
+    int supportsThread = -1;
+
+    // Some tasks have more potential to benefit from multiple threading than others. Or they maybe executing more than
+    // others. Such will have priority and will be alloted more compared to the other.
+    float potential = 0.5f;
 };
 
 struct CompareRealBTargetRound
@@ -85,6 +104,10 @@ struct BTarget // BTarget
     virtual void updateBTarget(class Builder &builder, unsigned short round);
     virtual void preSort(Builder &builder, unsigned short round);
     virtual void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator);
+
+    // TODO
+    // Following describes total time taken across all rounds.
+    float totalTimeTaken = 0.0f;
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 

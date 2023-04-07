@@ -30,6 +30,18 @@ enum class TreatModuleAsSource
     YES
 };
 
+enum class CSourceTarget
+{
+    NO,
+    YES
+};
+
+enum class CopyDLLToExeDir
+{
+    NO,
+    YES
+};
+
 // In b2 features every non-optional, non-free feature must have a value. Because hmake does not have optional features,
 // all optional features have extra enum value OFF declared here. A feature default value is given by the first value
 // listed in the feature declaration which is imitated in CompilerFeautres and LinkerFeatures.
@@ -624,15 +636,10 @@ enum class DebugStore
     DATABASE,
 };
 
-// While LinkerFeatures and CompilerFeatures affect only linkerFlags and compilerFlags respectively, CommonFeatures
-// impact both. So, CppSourceTarget and LinkOrAchiveTarget both also inherit from CommonFeatures besides inheriting one
-// of CompilerFeatures or LinkerFeatures.
-
-// ASSIGN function of LinkOrAchiveTarget can be used to assign these properties conveniently. ASSIGN function of
-// CppSourceTarget, for common features will also assign the linkOrAchiveTarget properties, so two calls aren't needed.
-// LinkerFeatures of CppSourceTarget::linkOrArchiveTarget can also be assigned through CppSourceTarget::ASSIGN()
-// ASSIGN of CppSourceTarget and LinkOrArchiveTarget also assign the targetType property which is respective to those
-// classes.
+struct PrebuiltLinkerFeatures
+{
+    CopyDLLToExeDir copyDllToExeDir = CopyDLLToExeDir::YES;
+};
 
 struct LinkerFeatures
 {
@@ -742,6 +749,8 @@ struct CompilerFeatures
     InstructionSet instructionSet = InstructionSet::OFF;
     CpuType cpuType;
 
+    CSourceTarget cSourceTarget = CSourceTarget::NO;
+
     CxxSTD cxxStd = CxxSTD::V_LATEST;
     CxxSTDDialect cxxStdDialect = CxxSTDDialect::ISO;
     Compiler compiler;
@@ -756,4 +765,3 @@ struct CompilerFeatures
 };
 
 #endif // HMAKE_FEATURES_HPP
-

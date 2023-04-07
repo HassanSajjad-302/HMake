@@ -1,54 +1,137 @@
 #include "Configure.hpp"
 
-#include <functional>
-#include <utility>
+using std::filesystem::file_size;
 
 void configurationSpecification(Configuration &configuration)
 {
     DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
     stdhu.getSourceTarget().assignStandardIncludesToHUIncludes();
 
-    DSC<CppSourceTarget> &fmt = configuration.GetCppObjectDSC("fmt");
+    DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
     fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
 
-    DSC<CppSourceTarget> &hconfigure = configuration.GetCppObjectDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
+    DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
     hconfigure.getSourceTarget()
         .MODULE_DIRECTORIES("hconfigure/src/", ".*")
-        .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include");
+        .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include")
+        .SINGLE<Dependency::PUBLIC>(BTFamily::MSVC, Define("EXPORT", "__declspec(dllexport)"));
 
-    DSC<CppSourceTarget> &hhelper =
-        configuration.GetCppExeDSC("hhelper").PUBLIC_LIBRARIES(&hconfigure).PRIVATE_LIBRARIES(&stdhu);
+    DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hhelper.getSourceTarget()
         .MODULE_FILES("hhelper/src/main.cpp")
         .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header/"))
         .PRIVATE_COMPILE_DEFINITION("JSON_HEADER", addEscapedQuotes(srcDir + "json/include/"))
         .PRIVATE_COMPILE_DEFINITION("FMT_HEADER", addEscapedQuotes(srcDir + "fmt/include/"))
-        .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_STATIC_LIB_DIRECTORY", addEscapedQuotes(configureDir + "0/hconfigure/"))
-        .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_STATIC_LIB_PATH",
-                                    addEscapedQuotes(configureDir + "0/hconfigure/hconfigure.lib"))
-        .PRIVATE_COMPILE_DEFINITION("FMT_STATIC_LIB_DIRECTORY", addEscapedQuotes(configureDir + "0/fmt/"))
-        .PRIVATE_COMPILE_DEFINITION("FMT_STATIC_LIB_PATH", addEscapedQuotes(configureDir + "0/fmt/fmt.lib"));
+        .PRIVATE_COMPILE_DEFINITION(
+            "HCONFIGURE_STATIC_LIB_DIRECTORY",
+            addEscapedQuotes(
+                path(hconfigure.linkOrArchiveTarget->getActualOutputPath()).parent_path().generic_string()))
+        .PRIVATE_COMPILE_DEFINITION(
+            "HCONFIGURE_STATIC_LIB_PATH",
+            addEscapedQuotes(path(hconfigure.linkOrArchiveTarget->getActualOutputPath()).generic_string()))
+        .PRIVATE_COMPILE_DEFINITION(
+            "FMT_STATIC_LIB_DIRECTORY",
+            addEscapedQuotes(path(fmt.linkOrArchiveTarget->getTargetFilePath()).parent_path().generic_string()))
+        .PRIVATE_COMPILE_DEFINITION(
+            "FMT_STATIC_LIB_PATH",
+            addEscapedQuotes(path(fmt.linkOrArchiveTarget->getActualOutputPath()).generic_string()));
 
-    DSC<CppSourceTarget> &hbuild =
-        configuration.GetCppExeDSC("hbuild").PUBLIC_LIBRARIES(&hconfigure).PRIVATE_LIBRARIES(&stdhu);
+    DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
+    configuration.setModuleScope(stdhu.getSourceTargetPointer());
+
+    DSC<CppSourceTarget> &hmakeHelper =
+        configuration.GetCppExeDSC("HMakeHelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
+    hmakeHelper.getSourceTarget().MODULE_FILES("hmake.cpp").PRIVATE_COMPILE_DEFINITION("EXE");
+
     configuration.setModuleScope(stdhu.getSourceTargetPointer());
 }
 
+struct SizeDifference : public CTarget, public BTarget
+{
+    Configuration &sizeConfiguration;
+    Configuration &speedConfiguration;
+
+    SizeDifference(string name, Configuration &sizeConfiguration_, Configuration &speedConfiguration_)
+        : CTarget(std::move(name)), sizeConfiguration(sizeConfiguration_), speedConfiguration(speedConfiguration_)
+    {
+        RealBTarget &realBTarget = getRealBTarget(0);
+        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
+        {
+            if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+            {
+                realBTarget.addDependency(*linkOrArchiveTarget);
+            }
+        }
+
+        for (LinkOrArchiveTarget *linkOrArchiveTarget : speedConfiguration.linkOrArchiveTargets)
+        {
+            if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+            {
+                realBTarget.addDependency(*linkOrArchiveTarget);
+            }
+        }
+    }
+
+    void updateBTarget(Builder &, unsigned short round) override
+    {
+        RealBTarget &realBTarget = getRealBTarget(0);
+
+        if (!round && realBTarget.exitStatus == EXIT_SUCCESS)
+        {
+
+            string sizeDirPath = getSubDirForTarget() + "Size/";
+            string speedDirPath = getSubDirForTarget() + "Speed/";
+
+            std::filesystem::create_directories(sizeDirPath);
+            std::filesystem::create_directories(speedDirPath);
+
+            unsigned long long speedSize = 0;
+            unsigned long long sizeSize = 0;
+            for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
+            {
+                if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+                {
+                    sizeSize += file_size(linkOrArchiveTarget->getActualOutputPath());
+                    std::filesystem::copy(linkOrArchiveTarget->getActualOutputPath(),
+                                          sizeDirPath + linkOrArchiveTarget->actualOutputName,
+                                          std::filesystem::copy_options::overwrite_existing);
+                }
+            }
+
+            for (LinkOrArchiveTarget *linkOrArchiveTarget : speedConfiguration.linkOrArchiveTargets)
+            {
+                if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+                {
+                    speedSize += file_size(linkOrArchiveTarget->getActualOutputPath());
+                    std::filesystem::copy(linkOrArchiveTarget->getActualOutputPath(),
+                                          speedDirPath + linkOrArchiveTarget->actualOutputName,
+                                          std::filesystem::copy_options::overwrite_existing);
+                }
+            }
+
+            std::lock_guard<mutex> lk{printMutex};
+            fmt::print("Speed build size - {}\nSize build size - {}", speedSize, sizeSize);
+            fflush(stdout);
+        }
+    }
+};
+
 void buildSpecification()
 {
-    Configuration &debug = GetConfiguration("Debug");
+    // Configuration &debug = GetConfiguration("Debug");
     Configuration &releaseSpeed = GetConfiguration("RSpeed");
     Configuration &releaseSize = GetConfiguration("RSize");
-    Configuration &arm = GetConfiguration("arm");
+    //  Configuration &arm = GetConfiguration("arm");
 
-    CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
-    debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG, AddressSanitizer::OFF,
-                 RuntimeDebugging::OFF);
-    debug.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS");
-    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE);
+    CxxSTD cxxStd = releaseSpeed.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
+    /*    debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG, AddressSanitizer::OFF,
+                     RuntimeDebugging::OFF);
+        debug.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS");*/
+    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
     releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
-    arm.ASSIGN(cxxStd, Arch::ARM, TranslateInclude::YES, ConfigType::RELEASE, TreatModuleAsSource::NO);
+    //  arm.ASSIGN(cxxStd, Arch::ARM, TranslateInclude::YES, ConfigType::RELEASE, TreatModuleAsSource::NO);
     /*        debug.compilerFeatures.requirementCompilerFlags += "--target=x86_64-pc-windows-msvc ";
             debug.linkerFeatures.requirementLinkerFlags += "--target=x86_64-pc-windows-msvc";*/
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
@@ -58,25 +141,27 @@ void buildSpecification()
         configurationSpecification(const_cast<Configuration &>(configuration));
     }
 
-    auto updateBTarget = [&](Builder &builder, unsigned short round) {
-        for (LinkOrArchiveTarget *linkOrArchiveTarget : releaseSpeed.linkOrArchiveTargets)
-        {
-            std::filesystem::copy(linkOrArchiveTarget->getActualOutputPath(),
-                                  sizeDifference.getSubDirForTarget() + linkOrArchiveTarget->actualOutputName,
-                                  std::filesystem::copy_options::overwrite_existing);
-        }
-    };
+    auto *sizeDifference = new SizeDifference("Size-Difference", releaseSize, releaseSpeed);
 
-    CTargetRoundZeroBTarget<void(Builder &, unsigned short), void(Builder &, unsigned short, unsigned int),
-                            decltype(updateBTarget)>
-        sizeDifference("Size-Difference");
+    /* auto updateBTarget = [&](Builder &builder, unsigned short round) {
+         for (LinkOrArchiveTarget *linkOrArchiveTarget : releaseSpeed.linkOrArchiveTargets)
+         {
+             std::filesystem::copy(linkOrArchiveTarget->getActualOutputPath(),
+                                   sizeDifference.getSubDirForTarget() + linkOrArchiveTarget->actualOutputName,
+                                   std::filesystem::copy_options::overwrite_existing);
+         }
+     };
 
-    for (LinkOrArchiveTarget *linkOrArchiveTarget : releaseSpeed.linkOrArchiveTargets)
-    {
-        sizeDifference.getRealBTarget(0).addDependency(*linkOrArchiveTarget);
-    }
+     CTargetRoundZeroBTarget<void(Builder &, unsigned short), void(Builder &, unsigned short, unsigned int),
+                             decltype(updateBTarget)>
+         sizeDifference("Size-Difference");
 
-    sizeDifference.setUpdateFunctor(lamb);
+     for (LinkOrArchiveTarget *linkOrArchiveTarget : releaseSpeed.linkOrArchiveTargets)
+     {
+         sizeDifference.getRealBTarget(0).addDependency(*linkOrArchiveTarget);
+     }
+
+     sizeDifference.setUpdateFunctor(lamb);*/
 }
 
 #ifdef EXE

@@ -51,7 +51,7 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
 #define THROW true
 #endif
 
-int main(int argc, char **argv)
+int main()
 {
     if (THROW)
     {

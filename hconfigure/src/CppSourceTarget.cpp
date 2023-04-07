@@ -777,7 +777,7 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     }
 }
 
-void CppSourceTarget::updateBTarget(Builder &builder, unsigned short round)
+void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
 {
     if (!round || round == 1)
     {
@@ -792,7 +792,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, unsigned short round)
         addRequirementDepsToBTargetDependencies();
         populateTransitiveProperties();
     }
-    getRealBTarget(round).fileStatus = FileStatus::UPDATED;
 }
 
 void CppSourceTarget::setJson()
@@ -947,14 +946,19 @@ void CppSourceTarget::setCompileCommand()
 
     if (compiler.bTFamily == BTFamily::GCC)
     {
+        // string str = cSourceTarget == CSourceTarget::YES ? "-xc" : "-xc++";
         compileCommand +=
             flags.LANG + flags.OPTIONS + flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP + flags.DEFINES_COMPILE_CPP;
     }
     else if (compiler.bTFamily == BTFamily::MSVC)
     {
-        compileCommand += "-TP " + flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE + flags.OPTIONS_COMPILE +
+        string str = cSourceTarget == CSourceTarget::YES ? "-TC" : "-TP";
+        compileCommand += str + " " + flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE + flags.OPTIONS_COMPILE +
                           flags.OPTIONS_COMPILE_CPP;
     }
+
+    string translateIncludeFlag = GET_FLAG_EVALUATE(TranslateInclude::YES, "/translateInclude ");
+    compileCommand += translateIncludeFlag;
 
     auto getIncludeFlag = [this]() {
         if (compiler.bTFamily == BTFamily::MSVC)
@@ -1186,7 +1190,7 @@ void CppSourceTarget::populateSourceNodes()
     }
 }
 
-void CppSourceTarget::parseModuleSourceFiles(Builder &builder)
+void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
     for (const Node *idd : huIncludes)
     {
@@ -1375,9 +1379,8 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
 
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        string translateIncludeFlag = GET_FLAG_EVALUATE(TranslateInclude::YES, "/translateInclude ");
         finalCompileCommand +=
-            translateIncludeFlag + " /nologo /showIncludes /scanDependencies " +
+            " /nologo /showIncludes /scanDependencies " +
             addQuotes(buildCacheFilesDirPath + path(smFile.node->filePath).filename().string() + ".smrules") + " ";
     }
     else
@@ -1391,7 +1394,7 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
                              path(smFile.node->filePath).filename().string() + ".smrules",
                              settings.ccpSettings.outputAndErrorFiles)
                : PostCompile(*this, compiler, finalCompileCommand,
-                             getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPart(smFile),
+                             getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPartSMRule(smFile),
                              buildCacheFilesDirPath, path(smFile.node->filePath).filename().string() + ".smrules",
                              settings.ccpSettings.outputAndErrorFiles);
 }

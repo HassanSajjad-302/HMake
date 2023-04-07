@@ -88,11 +88,11 @@ LinkOrArchiveTarget &Configuration::GetShared(const string &name_)
     return linkOrArchiveTarget;
 }
 
-PrebuiltLinkOrArchiveTarget &Configuration::GetPrebuiltLinkOrArchiveTarget(const string &name, const string &directory,
+PrebuiltLinkOrArchiveTarget &Configuration::GetPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory,
                                                                            TargetType linkTargetType_)
 {
     PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget = const_cast<PrebuiltLinkOrArchiveTarget &>(
-        targets<PrebuiltLinkOrArchiveTarget>.emplace(name, directory, linkTargetType_).first.operator*());
+        targets<PrebuiltLinkOrArchiveTarget>.emplace(name_, directory, linkTargetType_).first.operator*());
     prebuiltLinkOrArchiveTargets.emplace(&prebuiltLinkOrArchiveTarget);
     return prebuiltLinkOrArchiveTarget;
 }
@@ -117,12 +117,12 @@ DSC<CppSourceTarget> &Configuration::GetCppDSC(const string &name_)
 {
     DSC<CppSourceTarget> dsc;
     dsc.objectFileProducer = &(GetCppObject(name_ + dashCpp));
-    if (cache.libraryType == TargetType::LIBRARY_STATIC)
+    if (linkerFeatures.libraryType == TargetType::LIBRARY_STATIC)
     {
         dsc.linkOrArchiveTarget = &(GetStatic(name_));
         dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
     }
-    else if (cache.libraryType == TargetType::LIBRARY_SHARED)
+    else if (linkerFeatures.libraryType == TargetType::LIBRARY_SHARED)
     {
         dsc.linkOrArchiveTarget = &(GetShared(name_));
         dsc.linkOrArchiveTarget->objectFileProducers.emplace(dsc.objectFileProducer);
@@ -155,11 +155,11 @@ DSC<CppSourceTarget> &Configuration::GetCppObjectDSC(const string &name_)
     return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(dsc).first.operator*());
 }
 
-DSCPrebuilt<CPT> &Configuration::GetCPTDSC(const string &name, const string &directory, TargetType linkTargetType_)
+DSCPrebuilt<CPT> &Configuration::GetCPTDSC(const string &name_, const string &directory, TargetType linkTargetType_)
 {
     DSCPrebuilt<CPT> dsc;
     dsc.prebuilt = &(GetCPT());
-    dsc.prebuiltLinkOrArchiveTarget = &(GetPrebuiltLinkOrArchiveTarget(name, directory, linkTargetType_));
+    dsc.prebuiltLinkOrArchiveTarget = &(GetPrebuiltLinkOrArchiveTarget(name_, directory, linkTargetType_));
     return const_cast<DSCPrebuilt<CPT> &>(targets<DSCPrebuilt<CPT>>.emplace(dsc).first.operator*());
 }
 

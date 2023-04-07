@@ -97,6 +97,7 @@ void Builder::populateFinalBTargets()
             }
             else if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
             {
+                dependentRealBTarget.dependencyNeedsUpdate = true;
                 dependentRealBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
             }
         }
@@ -219,7 +220,7 @@ void Builder::updateBTargets()
         }
 
         updateMutex.lock();
-
+        bTarget->getRealBTarget(round).fileStatus = FileStatus::UPDATED;
         for (BTarget *dependent : bTarget->getRealBTarget(round).dependents)
         {
             RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);

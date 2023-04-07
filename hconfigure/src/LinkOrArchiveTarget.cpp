@@ -46,7 +46,7 @@ void PrebuiltLinkOrArchiveTarget::preSort(Builder &builder, unsigned short round
     }
 }
 
-void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
+void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &, unsigned short round)
 {
     if (round == 3)
     {
@@ -88,11 +88,6 @@ LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType, CT
     : CTarget(std::move(name_), other, hasFile), PrebuiltLinkOrArchiveTarget(name, getSubDirForTarget(), targetType)
 {
     linkTargetType = targetType;
-}
-
-void LinkOrArchiveTarget::setLinkerFromVSTools(struct VSTools &vsTools)
-{
-    linker = vsTools.linker;
 }
 
 void LinkOrArchiveTarget::initializeForBuild()
@@ -216,7 +211,6 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             requirementLinkerFlags += linkOrArchiveTarget->usageRequirementLinkerFlags;
         }
     }
-    realBTarget.fileStatus = FileStatus::UPDATED;
 }
 
 LinkerFlags LinkOrArchiveTarget::getLinkerFlags()

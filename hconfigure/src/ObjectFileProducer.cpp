@@ -7,8 +7,7 @@ import "LinkOrArchiveTarget.hpp";
 #include "LinkOrArchiveTarget.hpp"
 #endif
 
-void ObjectFileProducer::getObjectFiles(set<ObjectFile *> *objectFiles,
-                                        class LinkOrArchiveTarget *linkOrArchiveTarget) const
+void ObjectFileProducer::getObjectFiles(set<ObjectFile *> *, class LinkOrArchiveTarget *) const
 {
 }
 

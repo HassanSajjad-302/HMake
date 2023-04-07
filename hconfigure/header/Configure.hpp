@@ -30,6 +30,7 @@ import <utility>;
 #include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
 #include "Builder.hpp"
+#include "CTargetRoundZeroBTarget.hpp"
 #include "Cache.hpp"
 #include "Configuration.hpp"
 #include "CppSourceTarget.hpp"
@@ -38,7 +39,6 @@ import <utility>;
 #include "JConsts.hpp"
 #include "SMFile.hpp"
 #include "Settings.hpp"
-#include "SizeDifference.hpp"
 #include "TarjanNode.hpp"
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"
@@ -50,6 +50,18 @@ import <utility>;
 #include <thread>
 #include <utility>
 #endif
+
+// TODO
+// HMake in future will only be available as module. Hence configuration will-be a split-second process.
+
+// TODO
+// HMake is designed to have all the build specification in a single-file. This might not be sufficient for really-big
+// projects. An approach to have a tugboat hmake.cpp that builds the cargo configure.dll, which then builds the project
+// will be explored.
+
+// TODO
+//  configure.dll on linux is compiled with -fsanitizer=thread but no sanitizer is used on Windows. Choice for
+//  using sanitizer will be optional.
 
 extern "C" EXPORT int func2(BSMode bsMode_);
 

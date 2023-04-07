@@ -50,8 +50,8 @@ class PrebuiltLinkOrArchiveTarget : public BTarget, public DS<PrebuiltLinkOrArch
     TargetType linkTargetType;
 
     PrebuiltLinkOrArchiveTarget(const string &name, const string &directory, TargetType linkTargetType_);
-    virtual void preSort(class Builder &builder, unsigned short round);
-    virtual void updateBTarget(Builder &builder, unsigned short round);
+    void preSort(class Builder &builder, unsigned short round) override;
+    void updateBTarget(Builder &builder, unsigned short round) override;
     void addRequirementDepsToBTargetDependencies();
     string getActualOutputPath();
 };
@@ -77,7 +77,6 @@ class LinkOrArchiveTarget : public CTarget,
 
     LinkOrArchiveTarget(string name_, TargetType targetType);
     LinkOrArchiveTarget(string name_, TargetType targetType, class CTarget &other, bool hasFile = true);
-    void setLinkerFromVSTools(struct VSTools &vsTools);
     void initializeForBuild();
     void populateObjectFiles();
     void preSort(Builder &builder, unsigned short round) override;
@@ -89,7 +88,6 @@ class LinkOrArchiveTarget : public CTarget,
     string getTarjanNodeName() override;
     PostBasic Archive();
     PostBasic Link();
-    void populateRequirementAndUsageRequirementProperties();
     void setLinkOrArchiveCommandPrint();
     string getLinkOrArchiveCommand(bool ignoreTargets);
     string &getLinkOrArchiveCommandPrint();
@@ -105,6 +103,30 @@ LinkOrArchiveTarget &LinkOrArchiveTarget::ASSIGN(T property, Property... propert
     if constexpr (std::is_same_v<decltype(property), Linker>)
     {
         linker = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BTFamily>)
+    {
+        linker.bTFamily = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), path>)
+    {
+        linker.bTPath = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LinkFlags>)
+    {
+        if constexpr (dependency == Dependency::PRIVATE)
+        {
+            requirementLinkerFlags += property;
+        }
+        else if constexpr (dependency == Dependency::INTERFACE)
+        {
+            usageRequirementLinkerFlags += property;
+        }
+        else
+        {
+            requirementLinkerFlags += property;
+            usageRequirementLinkerFlags += property;
+        }
     }
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {
@@ -225,6 +247,10 @@ template <typename T> bool LinkOrArchiveTarget::EVALUATE(T property) const
     if constexpr (std::is_same_v<decltype(property), Linker>)
     {
         return linker == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BTFamily>)
+    {
+        return linker.bTFamily == property;
     }
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {

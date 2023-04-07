@@ -43,7 +43,7 @@ struct Configuration : public CTarget
     LinkOrArchiveTarget &GetStatic(const string &name_);
     LinkOrArchiveTarget &GetShared(const string &name_);
 
-    PrebuiltLinkOrArchiveTarget &GetPrebuiltLinkOrArchiveTarget(const string &name, const string &directory,
+    PrebuiltLinkOrArchiveTarget &GetPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory,
                                                                 TargetType linkTargetType_);
     CPT &GetCPT();
 
@@ -61,13 +61,11 @@ struct Configuration : public CTarget
     Configuration(const string &name, CTarget &other, bool hasFile = true);
     void setModuleScope(CppSourceTarget *moduleScope);
     void setJson() override;
-    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
-    Configuration &ASSIGN(T property, Property... properties);
+    template <typename T, typename... Property> Configuration &ASSIGN(T property, Property... properties);
 };
 bool operator<(const Configuration &lhs, const Configuration &rhs);
 
-template <Dependency dependency, typename T, typename... Property>
-Configuration &Configuration::ASSIGN(T property, Property... properties)
+template <typename T, typename... Property> Configuration &Configuration::ASSIGN(T property, Property... properties)
 {
     // ConfigTargetHaveFile property of Configuration class itself
     if constexpr (std::is_same_v<decltype(property), ConfigTargetHaveFile>)
@@ -161,6 +159,14 @@ Configuration &Configuration::ASSIGN(T property, Property... properties)
         linkerFeatures.runtimeDebugging = property;
     }
     // CompilerFeatures
+    else if constexpr (std::is_same_v<decltype(property), CxxFlags>)
+    {
+        compilerFeatures.requirementCompilerFlags += property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Define>)
+    {
+        compilerFeatures.requirementCompileDefinitions.emplace(property);
+    }
     else if constexpr (std::is_same_v<decltype(property), Compiler>)
     {
         compilerFeatures.compiler = property;
@@ -230,6 +236,10 @@ Configuration &Configuration::ASSIGN(T property, Property... properties)
         compilerFeatures.treatModuleAsSource = property;
     }
     // Linker Features
+    else if constexpr (std::is_same_v<decltype(property), LinkFlags>)
+    {
+        linkerFeatures.requirementLinkerFlags += property;
+    }
     else if constexpr (std::is_same_v<decltype(property), UserInterface>)
     {
         linkerFeatures.userInterface = property;

@@ -194,7 +194,6 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
         PostCompile postCompile = target->updateSourceNodeBTarget(*this);
         postCompile.parseHeaderDeps(*this);
         realBTarget.exitStatus = postCompile.exitStatus;
-        realBTarget.fileStatus = FileStatus::UPDATED;
         // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
         // cached compile-command would be different
         if (realBTarget.exitStatus == EXIT_SUCCESS)
@@ -324,7 +323,6 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
         postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
         fflush(stdout);
     }
-    realBTarget.fileStatus = FileStatus::UPDATED;
 }
 
 void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
@@ -370,7 +368,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
-    const Node *nodeDir;
+    const Node *nodeDir = nullptr;
 
     // Iterating over all header-unit-directories of the module-scope to find out which header-unit
     // directory this header-unit comes from and which target that header-unit-directory belongs to
