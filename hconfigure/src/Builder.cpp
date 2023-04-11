@@ -203,23 +203,27 @@ void Builder::updateBTargets()
         try
         {
             bTarget->updateBTarget(*this, round);
+            updateMutex.lock();
+            if (realBTarget->exitStatus != EXIT_SUCCESS)
+            {
+                updateBTargetFailed = true;
+            }
         }
         catch (std::exception &ec)
         {
+            updateMutex.lock();
             realBTarget->exitStatus = EXIT_FAILURE;
             string str(ec.what());
             if (!str.empty())
             {
                 printErrorMessage(str);
             }
+            if (realBTarget->exitStatus != EXIT_SUCCESS)
+            {
+                updateBTargetFailed = true;
+            }
         }
 
-        if (realBTarget->exitStatus != EXIT_SUCCESS)
-        {
-            updateBTargetFailed = true;
-        }
-
-        updateMutex.lock();
         bTarget->getRealBTarget(round).fileStatus = FileStatus::UPDATED;
         for (BTarget *dependent : bTarget->getRealBTarget(round).dependents)
         {

@@ -16,13 +16,18 @@ struct LinkerFlags
     string OPTIONS;
     string OPTIONS_LINK;
     string LANG;
-    string RPATH_LINK;
     string RPATH_OPTION_LINK;
     string FINDLIBS_ST_PFX_LINK;
     string FINDLIBS_SA_PFX_LINK;
     string HAVE_SONAME_LINK;
     string SONAME_OPTION_LINK;
+    string DOT_IMPLIB_COMMAND_LINK_DLL;
 
+    // Following two are directly used instead of being set
+    string RPATH_LINK;
+    string RPATH_LINK_LINK;
+
+    bool isRpathOs = false;
     // MSVC
     string FINDLIBS_SA_LINK;
     string DOT_LD_LINK;
@@ -40,7 +45,11 @@ struct LinkerFlags
 // set<PrebuiltDep *> requirements and usageRequirements variables will be used. PrebuiltDep will be a wrapper over
 // PrebuiltLinkOrArchiveTarget which has the pre and post linker flags string which determine any pre or post
 // linker-flags to use with that dependency. This will support the use-cases like the -Wl,--whole-archive idiomatically.
-class PrebuiltLinkOrArchiveTarget : public BTarget, public DS<PrebuiltLinkOrArchiveTarget>
+// That dependency struct will also have string for rpath per dependency. By default initialized to
+// getActualOutputPath() but can be modified to allow custom rpath
+class PrebuiltLinkOrArchiveTarget : public BTarget,
+                                    public DS<PrebuiltLinkOrArchiveTarget>,
+                                    public PrebuiltLinkerFeatures
 {
   public:
     string outputDirectory;
@@ -54,8 +63,45 @@ class PrebuiltLinkOrArchiveTarget : public BTarget, public DS<PrebuiltLinkOrArch
     void updateBTarget(Builder &builder, unsigned short round) override;
     void addRequirementDepsToBTargetDependencies();
     string getActualOutputPath();
+
+    template <Dependency dependency, typename T, typename... Property>
+    PrebuiltLinkOrArchiveTarget &ASSIGN(T property, Property... properties);
+    template <typename T> bool EVALUATE(T property) const;
 };
 void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget);
+
+template <Dependency dependency, typename T, typename... Property>
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::ASSIGN(T property, Property... properties)
+{
+    if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDir>)
+    {
+        copyDllToExeDir = property;
+    }
+    else
+    {
+        outputDirectory = property; // Just to fail the compilation. Ensures that all properties are handled.
+    }
+    if constexpr (sizeof...(properties))
+    {
+        return ASSIGN(properties...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename T> bool PrebuiltLinkOrArchiveTarget::EVALUATE(T property) const
+{
+    if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDir>)
+    {
+        return copyDllToExeDir == property;
+    }
+    else
+    {
+        outputDirectory = property; // Just to fail the compilation. Ensures that all properties are handled.
+    }
+}
 
 using std::shared_ptr;
 class LinkOrArchiveTarget : public CTarget,
@@ -65,13 +111,12 @@ class LinkOrArchiveTarget : public CTarget,
 {
   public:
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
-    string linkOrArchiveCommand;
-    string linkOrArchiveCommandPrint;
+    string linkOrArchiveCommandWithoutTargets;
+    string linkOrArchiveCommandWithTargets;
     set<Node *> libraryDirectories;
 
     set<ObjectFile *> objectFiles;
     set<ObjectFileProducer *> objectFileProducers;
-    set<string> cachedObjectFiles;
 
     string buildCacheFilesDirPath;
 
@@ -88,10 +133,8 @@ class LinkOrArchiveTarget : public CTarget,
     string getTarjanNodeName() override;
     PostBasic Archive();
     PostBasic Link();
-    void setLinkOrArchiveCommandPrint();
-    string getLinkOrArchiveCommand(bool ignoreTargets);
-    string &getLinkOrArchiveCommandPrint();
-    void checkForPreBuiltAndCacheDir(Builder &builder);
+    void setLinkOrArchiveCommands();
+    string getLinkOrArchiveCommandPrint();
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     LinkOrArchiveTarget &ASSIGN(T property, Property... properties);
     template <typename T> bool EVALUATE(T property) const;
@@ -230,7 +273,7 @@ LinkOrArchiveTarget &LinkOrArchiveTarget::ASSIGN(T property, Property... propert
     }
     else
     {
-        linker = property; // Just to fail the compilation. Ensures that all properties are handled.
+        PrebuiltLinkOrArchiveTarget::ASSIGN(property);
     }
     if constexpr (sizeof...(properties))
     {
@@ -354,7 +397,7 @@ template <typename T> bool LinkOrArchiveTarget::EVALUATE(T property) const
     }
     else
     {
-        linker = property; // Just to fail the compilation. Ensures that all properties are handled.
+        return PrebuiltLinkOrArchiveTarget::EVALUATE(property);
     }
 }
 

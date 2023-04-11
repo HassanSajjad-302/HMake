@@ -74,16 +74,6 @@ struct RealBTarget
     float potential = 0.5f;
 };
 
-struct CompareRealBTargetRound
-{
-    using is_transparent = void; // for example with void,
-                                 // but could be int or struct CanSearchOnId;
-    bool operator()(RealBTarget const &lhs, RealBTarget const &rhs) const;
-    bool operator()(unsigned short round, RealBTarget const &rhs) const;
-    bool operator()(RealBTarget const &lhs, unsigned short round) const;
-};
-bool operator<(const RealBTarget &lhs, const RealBTarget &rhs);
-
 namespace BTargetNamespace
 {
 inline std::mutex addDependencyMutex;
@@ -95,7 +85,7 @@ struct BTarget // BTarget
     size_t id = 0; // unique for every BTarget
     bool selectiveBuild = false;
 
-    set<RealBTarget, CompareRealBTargetRound> realBTargets;
+    map<unsigned short, RealBTarget> realBTargets;
     explicit BTarget();
 
     virtual string getTarjanNodeName() const;

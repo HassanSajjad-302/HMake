@@ -133,18 +133,21 @@ static std::mutex nodeInsertMutex;
 const Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
 {
     path filePath = getFinalNodePathFromString(str);
-    if (auto it = allFiles.find(filePath.string()); it != allFiles.end())
-    {
-        return it.operator->();
-    }
 
     // TODO
     // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
     // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
     // performed only once.
     std::lock_guard<std::mutex> lk(nodeInsertMutex);
-    Node node(filePath, isFile, mayNotExist);
-    return allFiles.emplace(std::move(node)).first.operator->();
+    if (auto it = allFiles.find(filePath.string()); it != allFiles.end())
+    {
+        return it.operator->();
+    }
+    else
+    {
+        Node node(filePath, isFile, mayNotExist);
+        return allFiles.emplace(std::move(node)).first.operator->();
+    }
 }
 
 bool operator<(const Node &lhs, const Node &rhs)

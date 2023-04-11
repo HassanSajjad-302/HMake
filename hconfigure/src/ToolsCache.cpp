@@ -220,7 +220,7 @@ void ToolsCache::detectToolsAndInitialize()
     else if constexpr (os == OS::LINUX)
     {
         compilers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/g++");
-        linkers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/g++");
+        linkers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/ld");
         archivers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/ar");
     }
     if (!exists(toolsCacheFilePath))

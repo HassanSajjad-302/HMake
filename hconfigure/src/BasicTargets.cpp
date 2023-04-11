@@ -41,21 +41,6 @@ void RealBTarget::addDependency(BTarget &dependency)
     }
 }
 
-bool CompareRealBTargetRound::operator()(RealBTarget const &lhs, RealBTarget const &rhs) const
-{
-    return lhs.round < rhs.round;
-}
-
-bool CompareRealBTargetRound::operator()(unsigned short round, RealBTarget const &rhs) const
-{
-    return round < rhs.round;
-}
-
-bool CompareRealBTargetRound::operator()(RealBTarget const &lhs, unsigned short round) const
-{
-    return lhs.round < round;
-}
-
 BTarget::BTarget()
 {
     id = total++;
@@ -68,8 +53,8 @@ string BTarget::getTarjanNodeName() const
 
 RealBTarget &BTarget::getRealBTarget(unsigned short round)
 {
-    auto it = realBTargets.emplace(round, this).first;
-    return const_cast<RealBTarget &>(*it);
+    auto it = realBTargets.try_emplace(round, round, this).first;
+    return const_cast<RealBTarget &>(it->second);
 }
 
 void BTarget::updateBTarget(Builder &, unsigned short)

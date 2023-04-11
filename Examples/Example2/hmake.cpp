@@ -21,7 +21,7 @@ void buildSpecification()
     CoppyDLLType &copyDLL = const_cast<CoppyDLLType &>(targets<CoppyDLLType>.emplace().first.operator*());
     copyDLL.realBTarget.addDependency(*(catShared.linkOrArchiveTarget));
     copyDLL.setUpdateFunctor([&](Builder &builder, unsigned short round) {
-        if (!round && copyDLL.realBTarget.exitStatus == EXIT_SUCCESS)
+        if (!round && copyDLL.selectiveBuild && copyDLL.realBTarget.exitStatus == EXIT_SUCCESS)
         {
             std::filesystem::copy(catShared.linkOrArchiveTarget->getActualOutputPath(),
                                   path(animalShared.linkOrArchiveTarget->getActualOutputPath()).parent_path(),
