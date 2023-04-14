@@ -1,7 +1,5 @@
-
 #include "iostream"
-
-void func1()
+void func()
 {
-    std::cout << "func1 called" << std::endl;
+    std::cout << "func() from file1.cpp called." << std::endl;
 }

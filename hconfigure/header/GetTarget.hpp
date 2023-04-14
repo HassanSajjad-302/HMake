@@ -26,17 +26,22 @@ PrebuiltLinkOrArchiveTarget &GetPrebuiltLinkOrArchiveTarget(const string &name, 
                                                             TargetType linkTargetType_);
 CPT &GetCPT();
 
-DSC<CppSourceTarget> &GetCppExeDSC(const string &name);
-DSC<CppSourceTarget> &GetCppExeDSC(const string &name, CTarget &other, bool hasFile = true);
-DSC<CppSourceTarget> &GetCppDSC(const string &name);
-DSC<CppSourceTarget> &GetCppDSC(const string &name, CTarget &other, bool hasFile = true);
-DSC<CppSourceTarget> &GetCppStaticDSC(const string &name);
-DSC<CppSourceTarget> &GetCppStaticDSC(const string &name, CTarget &other, bool hasFile = true);
-DSC<CppSourceTarget> &GetCppSharedDSC(const string &name);
-DSC<CppSourceTarget> &GetCppSharedDSC(const string &name, CTarget &other, bool hasFile = true);
+DSC<CppSourceTarget> &GetCppExeDSC(const string &name, bool defines = false, string define = "");
+DSC<CppSourceTarget> &GetCppExeDSC(const string &name, CTarget &other, bool defines = false, string define = "",
+                                   bool hasFile = true);
+DSC<CppSourceTarget> &GetCppDSC(const string &name, bool defines = false, string define = "");
+DSC<CppSourceTarget> &GetCppDSC(const string &name, CTarget &other, bool defines = false, string define = "",
+                                bool hasFile = true);
+DSC<CppSourceTarget> &GetCppStaticDSC(const string &name, bool defines = false, string define = "");
+DSC<CppSourceTarget> &GetCppStaticDSC(const string &name, CTarget &other, bool defines = false, string define = "",
+                                      bool hasFile = true);
+DSC<CppSourceTarget> &GetCppSharedDSC(const string &name, bool defines = false, string define = "");
+DSC<CppSourceTarget> &GetCppSharedDSC(const string &name, CTarget &other, bool defines = false, string define = "",
+                                      bool hasFile = true);
 DSC<CppSourceTarget> &GetCppObjectDSC(const string &name);
 DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, CTarget &other, bool hasFile = true);
 
-DSCPrebuilt<CPT> &GetCPTDSC(const string &name, const string &directory, TargetType linkTargetType_);
+DSCPrebuilt<CPT> &GetCPTLibraryDSC(const string &name, const string &directory, TargetType linkTargetType_,
+                                   const bool defines = false, string define = "");
 
 #endif // HMAKE_GETTARGET_HPP

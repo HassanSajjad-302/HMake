@@ -47,13 +47,13 @@ struct Configuration : public CTarget
                                                                 TargetType linkTargetType_);
     CPT &GetCPT();
 
-    DSC<CppSourceTarget> &GetCppExeDSC(const string &name_);
-    DSC<CppSourceTarget> &GetCppDSC(const string &name_);
-    DSC<CppSourceTarget> &GetCppStaticDSC(const string &name_);
-    DSC<CppSourceTarget> &GetCppSharedDSC(const string &name_);
+    DSC<CppSourceTarget> &GetCppExeDSC(const string &name_, bool defines = false, string define = "");
+    DSC<CppSourceTarget> &GetCppDSC(const string &name_, bool defines = false, string define = "");
+    DSC<CppSourceTarget> &GetCppStaticDSC(const string &name_, bool defines = false, string define = "");
+    DSC<CppSourceTarget> &GetCppSharedDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &GetCppObjectDSC(const string &name_);
 
-    DSCPrebuilt<CPT> &GetCPTDSC(const string &name, const string &directory, TargetType linkTargetType_);
+    DSCPrebuilt<CPT> &GetCPTLibraryDSC(const string &name, const string &directory, TargetType linkTargetType_);
 
     ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;
 
@@ -93,10 +93,10 @@ template <typename T, typename... Property> Configuration &Configuration::ASSIGN
         compilerFeatures.profiling = property;
         linkerFeatures.profiling = property;
     }
-    else if constexpr (std::is_same_v<decltype(property), LocalVisibility>)
+    else if constexpr (std::is_same_v<decltype(property), Visibility>)
     {
         compilerFeatures.localVisibility = property;
-        linkerFeatures.localVisibility = property;
+        linkerFeatures.visibility = property;
     }
     else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
     {

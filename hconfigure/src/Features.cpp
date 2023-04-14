@@ -304,6 +304,7 @@ LinkerFeatures::LinkerFeatures()
         targetOs = TargetOS::LINUX_;
     }
     configurationType = cache.configurationType;
+    setConfigType(configurationType);
     if (cache.isLinkerInVSToolsArray)
     {
         setLinkerFromVSTools(toolsCache.vsTools[cache.selectedLinkerArrayIndex]);
@@ -368,7 +369,7 @@ CompilerFeatures::CompilerFeatures()
         targetOs = TargetOS::LINUX_;
     }
     configurationType = cache.configurationType;
-
+    setConfigType(configurationType);
     if (cache.isCompilerInVSToolsArray)
     {
         setCompilerFromVSTools(toolsCache.vsTools[cache.selectedCompilerArrayIndex]);

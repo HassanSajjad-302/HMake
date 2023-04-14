@@ -139,5 +139,6 @@ class CTarget // Configure Target
     virtual BTarget *getBTarget();
 };
 void to_json(Json &j, const CTarget *tar);
+bool operator<(const CTarget &lhs, const CTarget &rhs);
 
 #endif // HMAKE_BASICTARGETS_HPP

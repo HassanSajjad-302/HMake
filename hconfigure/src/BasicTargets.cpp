@@ -216,3 +216,8 @@ void to_json(Json &j, const CTarget *tar)
 {
     j = tar->targetFileDir;
 }
+
+bool operator<(const CTarget &lhs, const CTarget &rhs)
+{
+    return lhs.id < rhs.id;
+}

@@ -17,6 +17,7 @@ using std::set, std::string;
 // CPrebuiltTarget
 struct CPT : public ObjectFileProducerWithDS<CPT>
 {
+    static constexpr bool DefineDLLDefinition = true;
     set<const class Node *> usageRequirementIncludes;
     string usageRequirementCompilerFlags;
     set<struct Define> usageRequirementCompileDefinitions;

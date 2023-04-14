@@ -42,6 +42,18 @@ enum class CopyDLLToExeDir
     YES
 };
 
+enum class DefineDLLPrivate
+{
+    YES,
+    NO,
+};
+
+enum class DefineDLLInterface
+{
+    YES,
+    NO,
+};
+
 // In b2 features every non-optional, non-free feature must have a value. Because hmake does not have optional features,
 // all optional features have extra enum value OFF declared here. A feature default value is given by the first value
 // listed in the feature declaration which is imitated in CompilerFeautres and LinkerFeatures.
@@ -162,7 +174,7 @@ enum class Profiling
     ON,
 };
 
-enum class LocalVisibility
+enum class Visibility
 {
     OFF,
     GLOBAL,
@@ -636,9 +648,19 @@ enum class DebugStore
     DATABASE,
 };
 
+struct DSCPrebuiltFeatures
+{
+    DefineDLLInterface defineDllInterface = DefineDLLInterface::NO;
+};
+
+struct DSCFeatures : public DSCPrebuiltFeatures
+{
+    DefineDLLPrivate defineDllPrivate = DefineDLLPrivate::NO;
+};
+
 struct PrebuiltLinkerFeatures
 {
-    CopyDLLToExeDir copyDllToExeDir = CopyDLLToExeDir::YES;
+    CopyDLLToExeDir copyDllToExeDir = CopyDLLToExeDir::NO;
 };
 
 struct LinkerFeatures
@@ -658,7 +680,7 @@ struct LinkerFeatures
     TargetOS targetOs;
     DebugSymbols debugSymbols = DebugSymbols::ON;
     Profiling profiling = Profiling::OFF;
-    LocalVisibility localVisibility = LocalVisibility::OFF;
+    Visibility visibility = Visibility::HIDDEN;
 
     ConfigType configurationType;
 
@@ -713,7 +735,7 @@ struct CompilerFeatures
     TargetOS targetOs;
     DebugSymbols debugSymbols = DebugSymbols::ON;
     Profiling profiling = Profiling::OFF;
-    LocalVisibility localVisibility = LocalVisibility::OFF;
+    Visibility localVisibility = Visibility::HIDDEN;
 
     ConfigType configurationType;
 

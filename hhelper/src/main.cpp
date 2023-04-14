@@ -51,12 +51,21 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
 #define THROW true
 #endif
 
-int main()
+int main(int argc, char **argv)
 {
     if (THROW)
     {
         printErrorMessage("Macros Required for hhelper are not provided.\n");
         exit(EXIT_FAILURE);
+    }
+    bool onlyConfigure = false;
+    if (argc == 2)
+    {
+        string argument(argv[1]);
+        if (argument == "--configure")
+        {
+            onlyConfigure = true;
+        }
     }
     int count = 0;
     path cacheFilePath;
@@ -144,44 +153,53 @@ int main()
     }
     else
     {
-        Json cacheJson;
-        ifstream("cache.hmake") >> cacheJson;
-        Cache cacheLocal = cacheJson;
-        path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
-        if (sourceDirPath.is_relative())
-        {
-            sourceDirPath = (current_path() / sourceDirPath).lexically_normal();
-        }
-        sourceDirPath = sourceDirPath.generic_string();
-
-        string srcDirString = "{SOURCE_DIRECTORY}";
-        string confDirString = "{CONFIGURE_DIRECTORY}";
-
-        if (!cacheLocal.compileConfigureCommands.empty())
-        {
-            printMessage("Executing commands as specified in cache.hmake to produce configure executable\n");
-        }
-
-        for (string &compileConfigureCommand : cacheLocal.compileConfigureCommands)
-        {
-            if (const size_t position = compileConfigureCommand.find(srcDirString); position != string::npos)
-            {
-                compileConfigureCommand.replace(position, srcDirString.size(), sourceDirPath.string());
-            }
-            if (const size_t position = compileConfigureCommand.find(confDirString); position != string::npos)
-            {
-                compileConfigureCommand.replace(position, confDirString.size(), current_path().string());
-            }
-            printMessage(fmt::format("{}\n", compileConfigureCommand));
-            int code = system(compileConfigureCommand.c_str());
-            if (code != EXIT_SUCCESS)
-            {
-                exit(code);
-            }
-        }
-
         string configureSharedLibPath =
             (current_path() / getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure")).string();
+        if (onlyConfigure)
+        {
+            if (!exists(path(configureSharedLibPath)))
+            {
+                exit(EXIT_FAILURE);
+            }
+        }
+        else
+        {
+            Json cacheJson;
+            ifstream("cache.hmake") >> cacheJson;
+            Cache cacheLocal = cacheJson;
+            path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
+            if (sourceDirPath.is_relative())
+            {
+                sourceDirPath = (current_path() / sourceDirPath).lexically_normal();
+            }
+            sourceDirPath = sourceDirPath.generic_string();
+
+            string srcDirString = "{SOURCE_DIRECTORY}";
+            string confDirString = "{CONFIGURE_DIRECTORY}";
+
+            if (!cacheLocal.compileConfigureCommands.empty())
+            {
+                printMessage("Executing commands as specified in cache.hmake to produce configure executable\n");
+            }
+
+            for (string &compileConfigureCommand : cacheLocal.compileConfigureCommands)
+            {
+                if (const size_t position = compileConfigureCommand.find(srcDirString); position != string::npos)
+                {
+                    compileConfigureCommand.replace(position, srcDirString.size(), sourceDirPath.string());
+                }
+                if (const size_t position = compileConfigureCommand.find(confDirString); position != string::npos)
+                {
+                    compileConfigureCommand.replace(position, confDirString.size(), current_path().string());
+                }
+                printMessage(fmt::format("{}\n", compileConfigureCommand));
+                int code = system(compileConfigureCommand.c_str());
+                if (code != EXIT_SUCCESS)
+                {
+                    exit(code);
+                }
+            }
+        }
         DLLLoader loader(configureSharedLibPath.c_str());
         typedef int (*Func2)(BSMode bsMode);
         auto func2 = loader.getSymbol<Func2>("func2");

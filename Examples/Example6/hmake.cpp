@@ -1,24 +1,19 @@
 #include "Configure.hpp"
 
-int main(int argc, char **argv)
+int main()
 {
-    setBoolsAndSetRunDir(argc, argv);
+    Cache::initializeCache();
+    Project project;
 
-    auto makeAnimal = [](TargetType targetType) {
-        string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
-        DSCPrebuilt<CPT> &cat = GetCPTDSC("Cat" + str, "../Example2/Build/Cat" + str + "/", targetType);
-        cat.getSourceTarget()
-            .INTERFACE_INCLUDES("../Example2/Cat/header")
-            .INTERFACE_COMPILE_DEFINITION("CAT_EXPORT",
-                                          targetType == TargetType::LIBRARY_STATIC ? "" : "__declspec(dllimport)");
+    ProjectVariant variant{project};
+    Executable app("app", variant);
+    // Following adds module source to the target. If a target has module source it is a module target. Otherwise, it is
+    // a source target. A module target cannot be a dependency.
 
-        DSC<CppSourceTarget> &animal = GetCppExeDSC("Animal" + str);
-        animal.PRIVATE_LIBRARIES(&cat);
-        animal.getSourceTarget().SOURCE_FILES("main.cpp");
-    };
-
-    makeAnimal(TargetType::LIBRARY_STATIC);
-    makeAnimal(TargetType::LIBRARY_SHARED);
-
-    configureOrBuild();
+    // Simplifying a bit but even a project of 10k module files can be compiled with a very short hmake.cpp file because
+    // dependencies are automatically sorted between the module files. e.g. the following line to add all the
+    // source-code. ADD_MODULE_DIR_TO_TARGET(app, ".", "*.cpp");
+    app.MODULE_DIRECTORIES("Mod_Src/", R"(^(?!hmake\.cpp$).*)");
+    app.PUBLIC_COMPILER_FLAGS("/std:c++20 /experimental:module");
+    project.configure();
 }

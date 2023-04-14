@@ -97,6 +97,10 @@ template <typename T> bool PrebuiltLinkOrArchiveTarget::EVALUATE(T property) con
     {
         return copyDllToExeDir == property;
     }
+    else if constexpr (std::is_same_v<decltype(property), TargetType>)
+    {
+        return linkTargetType == property;
+    }
     else
     {
         outputDirectory = property; // Just to fail the compilation. Ensures that all properties are handled.
@@ -139,6 +143,7 @@ class LinkOrArchiveTarget : public CTarget,
     LinkOrArchiveTarget &ASSIGN(T property, Property... properties);
     template <typename T> bool EVALUATE(T property) const;
 };
+bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs);
 
 template <Dependency dependency, typename T, typename... Property>
 LinkOrArchiveTarget &LinkOrArchiveTarget::ASSIGN(T property, Property... properties)
@@ -195,9 +200,9 @@ LinkOrArchiveTarget &LinkOrArchiveTarget::ASSIGN(T property, Property... propert
     {
         profiling = property;
     }
-    else if constexpr (std::is_same_v<decltype(property), LocalVisibility>)
+    else if constexpr (std::is_same_v<decltype(property), Visibility>)
     {
-        localVisibility = property;
+        visibility = property;
     }
     else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
     {
@@ -319,9 +324,9 @@ template <typename T> bool LinkOrArchiveTarget::EVALUATE(T property) const
     {
         return profiling == property;
     }
-    else if constexpr (std::is_same_v<decltype(property), LocalVisibility>)
+    else if constexpr (std::is_same_v<decltype(property), Visibility>)
     {
-        return localVisibility == property;
+        return visibility == property;
     }
     else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
     {

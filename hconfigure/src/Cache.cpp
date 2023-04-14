@@ -26,6 +26,7 @@ Cache::Cache()
     isArchiverInVSToolsArray = isPresentInVSTools;
     selectedArchiverArrayIndex = 0;
     libraryType = TargetType::LIBRARY_STATIC;
+    configurationType = ConfigType::RELEASE;
 }
 
 void Cache::initializeCacheVariableFromCacheFile()

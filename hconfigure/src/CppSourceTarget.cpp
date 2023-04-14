@@ -548,13 +548,13 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(DebugSymbols::ON, "-g ");
         flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Profiling::ON, "-pg ");
 
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(LocalVisibility::HIDDEN, "-fvisibility=hidden ");
-        flags.OPTIONS_COMPILE_CPP += GET_FLAG_EVALUATE(LocalVisibility::HIDDEN, "-fvisibility-inlines-hidden ");
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Visibility::HIDDEN, "-fvisibility=hidden ");
+        flags.OPTIONS_COMPILE_CPP += GET_FLAG_EVALUATE(Visibility::HIDDEN, "-fvisibility-inlines-hidden ");
         if (!EVALUATE(TargetOS::DARWIN))
         {
-            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(LocalVisibility::PROTECTED, "-fvisibility=protected ");
+            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Visibility::PROTECTED, "-fvisibility=protected ");
         }
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(LocalVisibility::GLOBAL, "-fvisibility=default ");
+        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Visibility::GLOBAL, "-fvisibility=default ");
 
         flags.OPTIONS_COMPILE_CPP += GET_FLAG_EVALUATE(ExceptionHandling::OFF, "-fno-exceptions ");
         flags.OPTIONS_COMPILE_CPP += GET_FLAG_EVALUATE(RTTI::OFF, "-fno-rtti ");
@@ -1345,9 +1345,15 @@ string CppSourceTarget::getExtension()
     return GET_FLAG_EVALUATE(TargetType::PREPROCESS, ".ii", TargetType::LIBRARY_OBJECT, ".o");
 }
 
+mutex cppSourceTargetDotCpp_TempMutex;
+
 PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 {
+    // Use atomic_flag instead
+    cppSourceTargetDotCpp_TempMutex.lock();
     sourceFileOrSMRuleFileUpdated = true;
+    cppSourceTargetDotCpp_TempMutex.unlock();
+
     string compileFileName = path(sourceNode.node->filePath).filename().string();
 
     string finalCompileCommand = getCompileCommand() + " ";
@@ -1374,7 +1380,9 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 
 PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError)
 {
+    cppSourceTargetDotCpp_TempMutex.lock();
     sourceFileOrSMRuleFileUpdated = true;
+    cppSourceTargetDotCpp_TempMutex.unlock();
     string finalCompileCommand = getCompileCommand() + addQuotes(smFile.node->filePath) + " ";
 
     if (compiler.bTFamily == BTFamily::MSVC)
@@ -1414,4 +1422,9 @@ void CppSourceTarget::saveBuildCache(bool round)
         buildCacheJson[JConsts::headerUnits] = headerUnits;
         ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCacheJson.dump(4);
     }
+}
+
+bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs)
+{
+    return lhs.CTarget::id < rhs.CTarget::id;
 }

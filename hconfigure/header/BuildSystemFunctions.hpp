@@ -21,11 +21,11 @@ inline string srcDir;
 // path of directory which has configure executable of the project
 inline string configureDir;
 
-enum class BSMode // Build System Mode
+enum class BSMode : unsigned short // Build System Mode
 {
-    BUILD,
-    CONFIGURE,
-    IDE,
+    CONFIGURE = 0,
+    BUILD = 1,
+    IDE = 2,
 };
 
 // By default, mode is configure, however, if, --build cmd option is passed, it is set to BUILD.

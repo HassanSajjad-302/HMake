@@ -559,12 +559,11 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         flags.OPTIONS_LINK += GET_FLAG_EVALUATE(DebugSymbols::ON, "-g ");
         flags.OPTIONS_LINK += GET_FLAG_EVALUATE(Profiling::ON, "-pg ");
 
-        flags.OPTIONS_LINK +=
-            GET_FLAG_EVALUATE(LocalVisibility::HIDDEN, "-fvisibility=hidden -fvisibility-inlines-hidden ",
-                              LocalVisibility::GLOBAL, "-fvisibility=default ");
+        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(Visibility::HIDDEN, "-fvisibility=hidden -fvisibility-inlines-hidden ",
+                                                Visibility::GLOBAL, "-fvisibility=default ");
         if (!EVALUATE(TargetOS::DARWIN))
         {
-            flags.OPTIONS_LINK += GET_FLAG_EVALUATE(LocalVisibility::PROTECTED, "-fvisibility=protected ");
+            flags.OPTIONS_LINK += GET_FLAG_EVALUATE(Visibility::PROTECTED, "-fvisibility=protected ");
         }
 
         // Sanitizers
@@ -1143,6 +1142,11 @@ string LinkOrArchiveTarget::getTarjanNodeName()
         str = "Executable";
     }
     return str + " " + getSubDirForTarget();
+}
+
+bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs)
+{
+    return lhs.CTarget::id < rhs.CTarget::id;
 }
 
 PostBasic LinkOrArchiveTarget::Archive()

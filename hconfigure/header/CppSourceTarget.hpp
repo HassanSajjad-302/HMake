@@ -79,6 +79,7 @@ class CppSourceTarget : public CompilerFeatures,
 {
   public:
     using BaseType = CPT;
+    static constexpr bool DefineDLLDefinition = true;
     Json buildCacheJson;
     TargetType compileTargetType;
     CppSourceTarget *moduleScope = nullptr;
@@ -98,7 +99,7 @@ class CppSourceTarget : public CompilerFeatures,
     // Comparator used is same as for SourceNode
     set<SMFile, CompareSourceNode> moduleSourceFileDependencies;
     // Set to true if a source or smrule is updated so that latest cache could be stored.
-    bool sourceFileOrSMRuleFileUpdated = false;
+    std::atomic<bool> sourceFileOrSMRuleFileUpdated = false;
     SourceNode &addNodeInSourceFileDependencies(Node *node);
     SMFile &addNodeInModuleSourceFileDependencies(Node *node);
     SMFile &addNodeInHeaderUnits(Node *node);
@@ -175,6 +176,7 @@ class CppSourceTarget : public CompilerFeatures,
     template <typename T> bool EVALUATE(T property) const;
     template <Dependency dependency = Dependency::PRIVATE, typename T> void assignCommonFeature(T property);
 }; // class Target
+bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
 
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(const string &include, U... includeDirectoryString)
@@ -510,7 +512,7 @@ template <typename T> bool CppSourceTarget::EVALUATE(T property) const
     {
         return profiling == property;
     }
-    else if constexpr (std::is_same_v<decltype(property), LocalVisibility>)
+    else if constexpr (std::is_same_v<decltype(property), Visibility>)
     {
         return localVisibility == property;
     }
@@ -594,7 +596,7 @@ template <Dependency dependency, typename T> void CppSourceTarget::assignCommonF
     {
         profiling = property;
     }
-    else if constexpr (std::is_same_v<decltype(property), LocalVisibility>)
+    else if constexpr (std::is_same_v<decltype(property), Visibility>)
     {
         localVisibility = property;
     }

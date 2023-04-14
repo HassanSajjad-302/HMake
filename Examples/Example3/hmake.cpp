@@ -1,29 +1,63 @@
 #include "Configure.hpp"
 
-int main()
+void buildSpecification()
 {
-    Cache::initializeCache();
-    Project project;
-    ProjectVariant variantRelease(project);
+    CppSourceTarget &app = GetCppExeDSC("app").getSourceTarget();
+    app.SOURCE_FILES("main.cpp");
 
-    Executable app("app", variantRelease);
-    // Just the files matching the regex in second argument will be used for compilation. i.e. hmake.cpp will
-    // be ignored. Please not it also checks the subdirectories. More control over this is planned.
-    app.SOURCE_DIRECTORIES(".", "file[1-4]\\.cpp|main\\.cpp");
-    // ADD_SRC_DIR_TO_TARGET(animal, ".", "\\w+\\b(?<!\\bhmake)");
-
-    ProjectVariant variantDebug(project);
-    variantDebug.configurationType = ConfigType::DEBUG;
-
-    variantDebug.copyAllTargetsFromOtherVariant(variantRelease);
-    project.configure();
-
-    // Target has other members/features which I will not demonstrate. Such as
-    //  compilerFlagsDependencies
-    //  linkerFlagsDependencies
-    //  outputName (This is name of the compiled target binary. Currently, not a lot of customization is
-    // available for it. i.e. You may want to use version with name or not. Currently, for a library
-    // the name will always be lib + targetName + .a.)
-    //  outputDirectory(This is where binary will be compiled. You can't change the configureDirectory, however
-    //  you can change the outputDirectory).
+    // Change the value of "FILE1" in cache.hmake to false and then run configure again.
+    // Then run hbuild. Now file2.cpp will be used.
+    // CacheVariable is template. So you can use any type with it. However, conversions from and to json should
+    // exist for that type. See nlohmann/json for details. I guess mostly bool will be used.
+    if (CacheVariable("FILE1", true).value)
+    {
+        app.SOURCE_FILES("file1.cpp");
+    }
+    else
+    {
+        app.SOURCE_FILES("file2.cpp");
+    }
 }
+
+#ifdef EXE
+int main(int argc, char **argv)
+{
+    try
+    {
+        initializeCache(getBuildSystemModeFromArguments(argc, argv));
+        buildSpecification();
+        configureOrBuild();
+    }
+    catch (std::exception &ec)
+    {
+        string str(ec.what());
+        if (!str.empty())
+        {
+            printErrorMessage(str);
+        }
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+#else
+extern "C" EXPORT int func2(BSMode bsMode_)
+{
+    try
+    {
+        exportAllSymbolsAndInitializeGlobals();
+        initializeCache(bsMode_);
+        buildSpecification();
+        configureOrBuild();
+    }
+    catch (std::exception &ec)
+    {
+        string str(ec.what());
+        if (!str.empty())
+        {
+            printErrorMessage(str);
+        }
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+#endif

@@ -1,8 +1,6 @@
-
-extern void func();
-extern void func();
+#include "Cat.hpp"
 
 int main()
 {
-    func();
+    Cat::print();
 }

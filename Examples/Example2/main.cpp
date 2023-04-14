@@ -1,6 +1,13 @@
-#include "Cat.hpp"
+
+extern void func1();
+extern void func2();
+extern void func3();
+extern void func4();
 
 int main()
 {
-    Cat::print();
+    func1();
+    func2();
+    func3();
+    func4();
 }

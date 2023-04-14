@@ -1,5 +1,0 @@
-
-namespace Dog
-{
-void print();
-}
