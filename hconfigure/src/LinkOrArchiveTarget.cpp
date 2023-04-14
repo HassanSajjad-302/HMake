@@ -870,10 +870,12 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
         {
             for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
             {
-
-                localLinkCommand += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                                    addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path()) +
-                                    " ";
+                if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+                {
+                    localLinkCommand +=
+                        "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
+                        addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path()) + " ";
+                }
             }
         }
 
@@ -881,9 +883,12 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
         {
             for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
             {
-                localLinkCommand += "-Wl,-rpath-link -Wl," +
-                                    addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path()) +
-                                    " ";
+                if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+                {
+                    localLinkCommand +=
+                        "-Wl,-rpath-link -Wl," +
+                        addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path()) + " ";
+                }
             }
         }
         localLinkCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
@@ -1059,28 +1064,32 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
 
         if (EVALUATE(BTFamily::GCC) && lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
         {
-
             for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
             {
-                linkOrArchiveCommandPrint +=
-                    "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                    getReducedPath(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path(),
-                                   lcpSettings.libraryDependencies) +
-                    " ";
+                if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+                {
+                    linkOrArchiveCommandPrint +=
+                        "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
+                        getReducedPath(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path(),
+                                       lcpSettings.libraryDependencies) +
+                        " ";
+                }
             }
         }
 
         if (AND(BTFamily::GCC, TargetType::EXECUTABLE) && flags.isRpathOs &&
             lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
         {
-
             for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
             {
-                linkOrArchiveCommandPrint +=
-                    "-Wl,-rpath-link -Wl," +
-                    getReducedPath(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path(),
-                                   lcpSettings.libraryDependencies) +
-                    " ";
+                if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+                {
+                    linkOrArchiveCommandPrint +=
+                        "-Wl,-rpath-link -Wl," +
+                        getReducedPath(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path(),
+                                       lcpSettings.libraryDependencies) +
+                        " ";
+                }
             }
         }
 

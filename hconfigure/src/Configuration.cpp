@@ -112,17 +112,18 @@ DSC<CppSourceTarget> &Configuration::GetCppExeDSC(const string &name_, const boo
                                                                                std::move(define)).first.operator*());
 }
 
-DSC<CppSourceTarget> &Configuration::GetCppDSC(const string &name_, const bool defines, string define)
+DSC<CppSourceTarget> &Configuration::GetCppTargetDSC(const string &name_, bool defines, string define,
+                                                     TargetType targetType)
 {
     CppSourceTarget *cppSourceTarget = &(GetCppObject(name_ + dashCpp));
-    if (linkerFeatures.libraryType == TargetType::LIBRARY_STATIC)
+    if (targetType == TargetType::LIBRARY_STATIC)
     {
         return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(
                                                                                    cppSourceTarget, &(GetStatic(name_)),
                                                                                    defines,
                                                                                    std::move(define)).first.operator*());
     }
-    else if (linkerFeatures.libraryType == TargetType::LIBRARY_SHARED)
+    else if (targetType == TargetType::LIBRARY_SHARED)
     {
         return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(
                                                                                    cppSourceTarget, &(GetShared(name_)),
@@ -156,8 +157,8 @@ DSC<CppSourceTarget> &Configuration::GetCppObjectDSC(const string &name_)
         targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name_ + dashCpp))).first.operator*());
 }
 
-DSCPrebuilt<CPT> &Configuration::GetCPTLibraryDSC(const string &name, const string &directory,
-                                                  TargetType linkTargetType_)
+DSCPrebuilt<CPT> &Configuration::GetCPTTargetDSC(const string &name, const string &directory,
+                                                 TargetType linkTargetType_)
 {
     DSCPrebuilt<CPT> dsc;
     dsc.prebuilt = &(GetCPT());

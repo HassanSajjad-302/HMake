@@ -4,7 +4,9 @@
 #ifdef USE_HEADER_UNITS
 import "Configuration.hpp";
 import "DSC.hpp";
+import "Cache.hpp";
 #else
+#include "Cache.hpp"
 #include "Configure.hpp"
 #include "DSC.hpp"
 #endif
@@ -29,9 +31,10 @@ CPT &GetCPT();
 DSC<CppSourceTarget> &GetCppExeDSC(const string &name, bool defines = false, string define = "");
 DSC<CppSourceTarget> &GetCppExeDSC(const string &name, CTarget &other, bool defines = false, string define = "",
                                    bool hasFile = true);
-DSC<CppSourceTarget> &GetCppDSC(const string &name, bool defines = false, string define = "");
+DSC<CppSourceTarget> &GetCppTargetDSC(const string &name, bool defines = false, string define = "",
+                                      TargetType targetType = cache.libraryType);
 DSC<CppSourceTarget> &GetCppDSC(const string &name, CTarget &other, bool defines = false, string define = "",
-                                bool hasFile = true);
+                                bool hasFile = true, TargetType targetType = cache.libraryType);
 DSC<CppSourceTarget> &GetCppStaticDSC(const string &name, bool defines = false, string define = "");
 DSC<CppSourceTarget> &GetCppStaticDSC(const string &name, CTarget &other, bool defines = false, string define = "",
                                       bool hasFile = true);
@@ -41,7 +44,7 @@ DSC<CppSourceTarget> &GetCppSharedDSC(const string &name, CTarget &other, bool d
 DSC<CppSourceTarget> &GetCppObjectDSC(const string &name);
 DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, CTarget &other, bool hasFile = true);
 
-DSCPrebuilt<CPT> &GetCPTLibraryDSC(const string &name, const string &directory, TargetType linkTargetType_,
-                                   const bool defines = false, string define = "");
+DSCPrebuilt<CPT> &GetCPTTargetDSC(const string &name, const string &directory, TargetType linkTargetType_,
+                                  const bool defines = false, string define = "");
 
 #endif // HMAKE_GETTARGET_HPP

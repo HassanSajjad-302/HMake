@@ -6,13 +6,13 @@ void buildSpecification()
         string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
         DSCPrebuilt<CPT> &cat =
-            GetCPTLibraryDSC("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
+            GetCPTTargetDSC("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
         cat.getSourceTarget().INTERFACE_INCLUDES("../Example4/Cat/header");
 
-        DSC<CppSourceTarget> &dog = GetCppExeDSC("Dog" + str, true, "DOG_EXPORT");
+        DSC<CppSourceTarget> &dog = GetCppTargetDSC("Dog" + str, true, "DOG_EXPORT", targetType);
         dog.PUBLIC_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog/src/Dog.cpp").PUBLIC_INCLUDES("Dog/header/");
 
-        DSC<CppSourceTarget> &dog2 = GetCppExeDSC("Dog2" + str, true, "DOG2_EXPORT");
+        DSC<CppSourceTarget> &dog2 = GetCppTargetDSC("Dog2" + str, true, "DOG2_EXPORT", targetType);
         dog2.PRIVATE_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog2/src/Dog.cpp").PUBLIC_INCLUDES("Dog2/header/");
 
         DSC<CppSourceTarget> &app = GetCppExeDSC("App" + str);

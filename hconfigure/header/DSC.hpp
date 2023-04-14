@@ -16,8 +16,8 @@ template <typename T> struct DSC : DSCFeatures
     ObjectFileProducerWithDS<BaseType> *objectFileProducer = nullptr;
     LinkOrArchiveTarget *linkOrArchiveTarget = nullptr;
 
-    void assignLinkOrArchiveTargetLib(DSC *controller);
-    void assignPrebuiltLinkOrArchiveTarget(DSCPrebuilt<BaseType> *controller);
+    void assignLinkOrArchiveTargetLib(DSC *controller, Dependency dependency);
+    void assignPrebuiltLinkOrArchiveTarget(DSCPrebuilt<BaseType> *controller, Dependency dependency);
 
     string define;
 
@@ -78,7 +78,7 @@ template <typename T> struct DSC : DSCFeatures
 
     template <typename... U> DSC<T> &PUBLIC_LIBRARIES(DSC<T> *controller, const U... libraries)
     {
-        assignLinkOrArchiveTargetLib(controller);
+        assignLinkOrArchiveTargetLib(controller, Dependency::PUBLIC);
         objectFileProducer->PUBLIC_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
@@ -92,7 +92,7 @@ template <typename T> struct DSC : DSCFeatures
 
     template <typename... U> DSC<T> &PRIVATE_LIBRARIES(DSC<T> *controller, const U... libraries)
     {
-        assignLinkOrArchiveTargetLib(controller);
+        assignLinkOrArchiveTargetLib(controller, Dependency::PRIVATE);
         objectFileProducer->PRIVATE_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
@@ -106,7 +106,7 @@ template <typename T> struct DSC : DSCFeatures
 
     template <typename... U> DSC<T> &INTERFACE_LIBRARIES(DSC<T> *controller, const U... libraries)
     {
-        assignLinkOrArchiveTargetLib(controller);
+        assignLinkOrArchiveTargetLib(controller, Dependency::INTERFACE);
         objectFileProducer->INTERFACE_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
@@ -120,7 +120,7 @@ template <typename T> struct DSC : DSCFeatures
 
     template <typename... U> DSC<T> &PUBLIC_LIBRARIES(DSCPrebuilt<BaseType> *controller, const U... libraries)
     {
-        assignPrebuiltLinkOrArchiveTarget(controller);
+        assignPrebuiltLinkOrArchiveTarget(controller, Dependency::PUBLIC);
         objectFileProducer->PUBLIC_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
@@ -134,7 +134,7 @@ template <typename T> struct DSC : DSCFeatures
 
     template <typename... U> DSC<T> &PRIVATE_LIBRARIES(DSCPrebuilt<BaseType> *controller, const U... libraries)
     {
-        assignPrebuiltLinkOrArchiveTarget(controller);
+        assignPrebuiltLinkOrArchiveTarget(controller, Dependency::PRIVATE);
         objectFileProducer->PRIVATE_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
@@ -148,7 +148,7 @@ template <typename T> struct DSC : DSCFeatures
 
     template <typename... U> DSC<T> &INTERFACE_LIBRARIES(DSCPrebuilt<BaseType> *controller, const U... libraries)
     {
-        assignPrebuiltLinkOrArchiveTarget(controller);
+        assignPrebuiltLinkOrArchiveTarget(controller, Dependency::INTERFACE);
         objectFileProducer->INTERFACE_DEPS(controller->getSourceTargetPointer());
         if constexpr (sizeof...(libraries))
         {
@@ -169,7 +169,7 @@ template <typename T> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
            std::tie(rhs.objectFileProducer, rhs.linkOrArchiveTarget);
 }
 
-template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller)
+template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller, Dependency dependency)
 {
     if (!objectFileProducer || !controller->objectFileProducer)
     {
@@ -186,7 +186,7 @@ template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller)
         }
         else
         {
-            linkOrArchiveTarget->PRIVATE_DEPS(controller->linkOrArchiveTarget);
+            linkOrArchiveTarget->DEPS(controller->linkOrArchiveTarget, dependency);
         }
     }
     else if (linkOrArchiveTarget && !controller->linkOrArchiveTarget)
@@ -234,7 +234,8 @@ template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller)
     }
 }
 
-template <typename T> void DSC<T>::assignPrebuiltLinkOrArchiveTarget(DSCPrebuilt<BaseType> *controller)
+template <typename T>
+void DSC<T>::assignPrebuiltLinkOrArchiveTarget(DSCPrebuilt<BaseType> *controller, Dependency dependency)
 {
     if (!objectFileProducer || !controller->prebuilt)
     {
@@ -257,7 +258,7 @@ template <typename T> void DSC<T>::assignPrebuiltLinkOrArchiveTarget(DSCPrebuilt
         }
         else
         {
-            linkOrArchiveTarget->PRIVATE_DEPS(controller->prebuiltLinkOrArchiveTarget);
+            linkOrArchiveTarget->DEPS(controller->prebuiltLinkOrArchiveTarget, dependency);
         }
     }
 

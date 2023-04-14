@@ -48,12 +48,13 @@ struct Configuration : public CTarget
     CPT &GetCPT();
 
     DSC<CppSourceTarget> &GetCppExeDSC(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &GetCppDSC(const string &name_, bool defines = false, string define = "");
+    DSC<CppSourceTarget> &GetCppTargetDSC(const string &name_, bool defines = false, string define = "",
+                                          TargetType targetType = cache.libraryType);
     DSC<CppSourceTarget> &GetCppStaticDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &GetCppSharedDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &GetCppObjectDSC(const string &name_);
 
-    DSCPrebuilt<CPT> &GetCPTLibraryDSC(const string &name, const string &directory, TargetType linkTargetType_);
+    DSCPrebuilt<CPT> &GetCPTTargetDSC(const string &name, const string &directory, TargetType linkTargetType_);
 
     ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;
 

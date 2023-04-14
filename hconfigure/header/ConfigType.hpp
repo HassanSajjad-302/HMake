@@ -8,12 +8,6 @@
 #endif
 
 using Json = nlohmann::ordered_json;
-enum class Dependency
-{
-    PUBLIC,
-    PRIVATE,
-    INTERFACE
-};
 
 enum class ConfigType
 {
