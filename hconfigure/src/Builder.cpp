@@ -204,6 +204,7 @@ void Builder::updateBTargets()
         {
             bTarget->updateBTarget(*this, round);
             updateMutex.lock();
+            realBTarget->updateCalled = true;
             if (realBTarget->exitStatus != EXIT_SUCCESS)
             {
                 updateBTargetFailed = true;

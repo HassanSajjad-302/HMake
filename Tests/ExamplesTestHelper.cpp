@@ -26,7 +26,7 @@ void ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject()
 
 void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const string &expectedOutput)
 {
-    const string command = getSlashedExecutableName(appName) + " > file";
+    const string command = appName + " > file";
     ASSERT_EQ(system(command.c_str()), 0) << "Could Not Run " << appName;
     stringstream output;
     output << ifstream("file").rdbuf();

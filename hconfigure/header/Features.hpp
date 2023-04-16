@@ -36,7 +36,7 @@ enum class CSourceTarget
     YES
 };
 
-enum class CopyDLLToExeDir
+enum class CopyDLLToExeDirOnNTOs
 {
     NO,
     YES
@@ -660,7 +660,7 @@ struct DSCFeatures : public DSCPrebuiltFeatures
 
 struct PrebuiltLinkerFeatures
 {
-    CopyDLLToExeDir copyDllToExeDir = CopyDLLToExeDir::NO;
+    CopyDLLToExeDirOnNTOs toExeDirOnNtOs = CopyDLLToExeDirOnNTOs::YES;
 };
 
 struct LinkerFeatures

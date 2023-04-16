@@ -48,6 +48,7 @@ struct RealBTarget
     TBT *bTarjanNode;
     BTarget *bTarget;
     bool dependencyNeedsUpdate = false;
+    bool updateCalled = false;
     // Plays two roles. Depicts the exitStatus of itself and of its dependencies
     int exitStatus = EXIT_SUCCESS;
     unsigned short round;

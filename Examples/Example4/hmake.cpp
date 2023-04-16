@@ -16,18 +16,23 @@ void buildSpecification()
     animalShared.PRIVATE_LIBRARIES(&catShared);
     animalShared.getSourceTarget().SOURCE_FILES("main.cpp");
 
-    // Have a copyToDependent bool in Cat-Shared and copy the dll based on that bool in LinkOrArchiveTarget.
-    using CoppyDLLType = RoundZeroBTarget<void(Builder &, unsigned short)>;
-    CoppyDLLType &copyDLL = const_cast<CoppyDLLType &>(targets<CoppyDLLType>.emplace().first.operator*());
-    copyDLL.realBTarget.addDependency(*(catShared.linkOrArchiveTarget));
-    copyDLL.setUpdateFunctor([&](Builder &builder, unsigned short round) {
-        if (!round && copyDLL.selectiveBuild && copyDLL.realBTarget.exitStatus == EXIT_SUCCESS)
-        {
-            std::filesystem::copy(catShared.linkOrArchiveTarget->getActualOutputPath(),
-                                  path(animalShared.linkOrArchiveTarget->getActualOutputPath()).parent_path(),
-                                  std::filesystem::copy_options::overwrite_existing);
-        }
-    });
+    /*    // Have a copyToDependent bool in Cat-Shared and copy the dll based on that bool in LinkOrArchiveTarget.
+        using CoppyDLLType = RoundZeroBTarget<void(Builder &, unsigned short)>;
+        CoppyDLLType &copyDLL = const_cast<CoppyDLLType &>(targets<CoppyDLLType>.emplace().first.operator*());
+        copyDLL.realBTarget.addDependency(*(catShared.linkOrArchiveTarget));
+        copyDLL.setUpdateFunctor([&](Builder &builder, unsigned short round) {
+            if (!round && copyDLL.realBTarget.exitStatus == EXIT_SUCCESS)
+            {
+                {
+                    printMutex.lock();
+                    printErrorMessage("Formatting");
+                    printMutex.unlock();
+                }
+                std::filesystem::copy(catShared.linkOrArchiveTarget->getActualOutputPath(),
+                                      path(animalShared.linkOrArchiveTarget->getActualOutputPath()).parent_path(),
+                                      std::filesystem::copy_options::overwrite_existing);
+            }
+        });*/
     /*    for (const DSC<CppSourceTarget> &cppTargetConst : targets<DSC<CppSourceTarget>>)
         {
             auto &cppTarget = const_cast<DSC<CppSourceTarget> &>(cppTargetConst);

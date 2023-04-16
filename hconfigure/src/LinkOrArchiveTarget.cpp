@@ -131,66 +131,111 @@ void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round, uns
         {
             create_directories(buildCacheFilesDirPath);
             realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-            return;
         }
-
-        if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
+        else if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
         {
-
             path outputPath = path(getActualOutputPath());
             if (!std::filesystem::exists(outputPath))
             {
                 realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                return;
-            }
-
-            set<string> cachedObjectFiles;
-            if (exists(path(buildCacheFilesDirPath) / (name + ".cache")))
-            {
-                Json linkTargetCacheJson;
-                ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> linkTargetCacheJson;
-                string command = std::move(linkTargetCacheJson.at(JConsts::linkCommand));
-                cachedObjectFiles = std::move(linkTargetCacheJson.at(JConsts::objectFiles).get<set<string>>());
-
-                if (command != linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets)
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                    return;
-                }
             }
             else
             {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                return;
-            }
 
-            for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
-            {
-                path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
-                if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
-                    Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                set<string> cachedObjectFiles;
+                if (exists(path(buildCacheFilesDirPath) / (name + ".cache")))
                 {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                    return;
+                    Json linkTargetCacheJson;
+                    ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> linkTargetCacheJson;
+                    string command = std::move(linkTargetCacheJson.at(JConsts::linkCommand));
+                    cachedObjectFiles = std::move(linkTargetCacheJson.at(JConsts::objectFiles).get<set<string>>());
+
+                    if (command == linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets)
+                    {
+                        bool needsUpdate = false;
+                        for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
+                        {
+                            path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
+                            if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
+                                Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                            {
+                                needsUpdate = true;
+                                break;
+                            }
+                        }
+
+                        for (ObjectFile *objectFile : objectFiles)
+                        {
+                            if (!cachedObjectFiles.contains(objectFile->getObjectFileOutputFilePath()))
+                            {
+                                needsUpdate = true;
+                                break;
+                            }
+                            if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)
+                                    ->getLastUpdateTime() >
+                                Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                            {
+                                needsUpdate = true;
+                                break;
+                            }
+                        }
+                        if (needsUpdate)
+                        {
+                            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                        }
+                    }
+                    else
+                    {
+                        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                    }
                 }
-            }
-            for (ObjectFile *objectFile : objectFiles)
-            {
-                if (!cachedObjectFiles.contains(objectFile->getObjectFileOutputFilePath()))
+                else
                 {
                     realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                    return;
-                }
-                if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)->getLastUpdateTime() >
-                    Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                    return;
                 }
             }
         }
-        else
+
+        if constexpr (os == OS::NT)
         {
+            if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) &&
+                realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+            {
+                for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : requirementDeps)
+                {
+                    if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+                    {
+                        if (prebuiltLinkOrArchiveTarget->getRealBTarget(0).fileStatus == FileStatus::NEEDS_UPDATE)
+                        {
+                            // latest dll will be built and copied
+                            dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
+                        }
+                        else
+                        {
+                            // latest dll exists but it might not have been copied in the previous invocation.
+
+                            Node *copiedDLLNode = const_cast<Node *>(Node::getNodeFromString(
+                                outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName, true, true));
+
+                            if (copiedDLLNode->doesNotExist)
+                            {
+                                dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
+                            }
+                            else
+                            {
+                                if (copiedDLLNode->getLastUpdateTime() <
+                                    Node::getNodeFromString(prebuiltLinkOrArchiveTarget->outputDirectory +
+                                                                prebuiltLinkOrArchiveTarget->actualOutputName,
+                                                            true)
+                                        ->getLastUpdateTime())
+                                {
+                                    dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -225,16 +270,32 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << cacheFileJson.dump(4);
         }
 
-        std::lock_guard<std::mutex> lk(printMutex);
-        if (linkTargetType == TargetType::LIBRARY_STATIC)
         {
-            postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
+            std::lock_guard<std::mutex> lk(printMutex);
+            if (linkTargetType == TargetType::LIBRARY_STATIC)
+            {
+                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
+            }
+            else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+            {
+                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
+            }
+            fflush(stdout);
         }
-        else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+
+        if constexpr (os == OS::NT)
         {
-            postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
+            if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && realBTarget.exitStatus == EXIT_SUCCESS)
+            {
+                for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : dllsToBeCopied)
+                {
+                    std::filesystem::copy_file(prebuiltLinkOrArchiveTarget->outputDirectory +
+                                                   prebuiltLinkOrArchiveTarget->actualOutputName,
+                                               outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName,
+                                               std::filesystem::copy_options::overwrite_existing);
+                }
+            }
         }
-        fflush(stdout);
     }
     else if (round == 3)
     {
@@ -874,7 +935,8 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                 {
                     localLinkCommand +=
                         "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                        addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path()) + " ";
+                        addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string()) +
+                        " ";
                 }
             }
         }
@@ -887,7 +949,8 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                 {
                     localLinkCommand +=
                         "-Wl,-rpath-link -Wl," +
-                        addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path()) + " ";
+                        addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string()) +
+                        " ";
                 }
             }
         }
@@ -1070,7 +1133,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                 {
                     linkOrArchiveCommandPrint +=
                         "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                        getReducedPath(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path(),
+                        getReducedPath(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string(),
                                        lcpSettings.libraryDependencies) +
                         " ";
                 }
@@ -1086,7 +1149,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                 {
                     linkOrArchiveCommandPrint +=
                         "-Wl,-rpath-link -Wl," +
-                        getReducedPath(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path(),
+                        getReducedPath(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string(),
                                        lcpSettings.libraryDependencies) +
                         " ";
                 }

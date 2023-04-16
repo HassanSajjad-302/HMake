@@ -73,9 +73,9 @@ void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiv
 template <Dependency dependency, typename T, typename... Property>
 PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::ASSIGN(T property, Property... properties)
 {
-    if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDir>)
+    if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
     {
-        copyDllToExeDir = property;
+        toExeDirOnNtOs = property;
     }
     else
     {
@@ -93,9 +93,9 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::ASSIGN(T property, Pro
 
 template <typename T> bool PrebuiltLinkOrArchiveTarget::EVALUATE(T property) const
 {
-    if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDir>)
+    if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
     {
-        return copyDllToExeDir == property;
+        return toExeDirOnNtOs == property;
     }
     else if constexpr (std::is_same_v<decltype(property), TargetType>)
     {
@@ -121,6 +121,7 @@ class LinkOrArchiveTarget : public CTarget,
 
     set<ObjectFile *> objectFiles;
     set<ObjectFileProducer *> objectFileProducers;
+    vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
 
     string buildCacheFilesDirPath;
 
