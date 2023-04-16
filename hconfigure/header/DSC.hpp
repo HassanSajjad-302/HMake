@@ -21,52 +21,47 @@ template <typename T> struct DSC : DSCFeatures
 
     string define;
 
-    DSC() = default;
-
-    DSC(T *ptr, LinkOrArchiveTarget *linkOrArchiveTarget_, bool defines, string define_ = "")
+    DSC(T *ptr, LinkOrArchiveTarget *linkOrArchiveTarget_, bool defines = false, string define_ = "")
     {
         objectFileProducer = ptr;
         linkOrArchiveTarget = linkOrArchiveTarget_;
         linkOrArchiveTarget->objectFileProducers.emplace(objectFileProducer);
 
-        if constexpr (T::DefineDLLDefinition)
+        if (define_.empty())
         {
-            if (define_.empty())
-            {
-                define = linkOrArchiveTarget->name;
-                transform(define.begin(), define.end(), define.begin(), ::toupper);
-                define += "_EXPORT";
-            }
-            else
-            {
-                define = std::move(define_);
-            }
+            define = linkOrArchiveTarget->name;
+            transform(define.begin(), define.end(), define.begin(), ::toupper);
+            define += "_EXPORT";
+        }
+        else
+        {
+            define = std::move(define_);
+        }
 
-            if (defines)
-            {
-                defineDllPrivate = DefineDLLPrivate::YES;
-                defineDllInterface = DefineDLLInterface::YES;
-            }
+        if (defines)
+        {
+            defineDllPrivate = DefineDLLPrivate::YES;
+            defineDllInterface = DefineDLLInterface::YES;
+        }
 
-            if (defineDllPrivate == DefineDLLPrivate::YES)
+        if (defineDllPrivate == DefineDLLPrivate::YES)
+        {
+            // Maybe call a function pointer in ptr if user wants to customize this
+            if (linkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
             {
-                // Maybe call a function pointer in ptr if user wants to customize this
-                if (linkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+                if (ptr->compiler.bTFamily == BTFamily::MSVC)
                 {
-                    if (ptr->compiler.bTFamily == BTFamily::MSVC)
-                    {
-                        ptr->requirementCompileDefinitions.emplace(Define(define, "__declspec(dllexport)"));
-                    }
-                    else
-                    {
-                        ptr->requirementCompileDefinitions.emplace(
-                            Define(define, "\"__attribute__ ((visibility (\\\"default\\\")))\""));
-                    }
+                    ptr->requirementCompileDefinitions.emplace(Define(define, "__declspec(dllexport)"));
                 }
                 else
                 {
-                    ptr->requirementCompileDefinitions.emplace(Define(define, ""));
+                    ptr->requirementCompileDefinitions.emplace(
+                        Define(define, "\"__attribute__ ((visibility (\\\"default\\\")))\""));
                 }
+            }
+            else
+            {
+                ptr->requirementCompileDefinitions.emplace(Define(define, ""));
             }
         }
     }
@@ -208,28 +203,24 @@ template <typename T> void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller,
         throw std::exception();
     }
 
-    if constexpr (T::DefineDLLDefinition)
+    if (controller->defineDllInterface == DefineDLLInterface::YES)
     {
-        if (controller->defineDllInterface == DefineDLLInterface::YES)
+        T *ptr = static_cast<T *>(objectFileProducer);
+        T *c_ptr = static_cast<T *>(controller->objectFileProducer);
+        if (controller->linkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
         {
-            T *ptr = static_cast<T *>(objectFileProducer);
-            T *c_ptr = static_cast<T *>(controller->objectFileProducer);
-            if (controller->linkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+            if (ptr->compiler.bTFamily == BTFamily::MSVC)
             {
-                if (ptr->compiler.bTFamily == BTFamily::MSVC)
-                {
-                    c_ptr->usageRequirementCompileDefinitions.emplace(
-                        Define(controller->define, "__declspec(dllimport)"));
-                }
-                else
-                {
-                    c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
-                }
+                c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, "__declspec(dllimport)"));
             }
             else
             {
                 c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
             }
+        }
+        else
+        {
+            c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
         }
     }
 }
@@ -262,28 +253,24 @@ void DSC<T>::assignPrebuiltLinkOrArchiveTarget(DSCPrebuilt<BaseType> *controller
         }
     }
 
-    if constexpr (T::DefineDLLDefinition)
+    if (controller->defineDllInterface == DefineDLLInterface::YES)
     {
-        if (controller->defineDllInterface == DefineDLLInterface::YES)
+        T *ptr = static_cast<T *>(objectFileProducer);
+        BaseType *c_ptr = controller->prebuilt;
+        if (controller->prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
         {
-            T *ptr = static_cast<T *>(objectFileProducer);
-            BaseType *c_ptr = controller->prebuilt;
-            if (controller->prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+            if (ptr->compiler.bTFamily == BTFamily::MSVC)
             {
-                if (ptr->compiler.bTFamily == BTFamily::MSVC)
-                {
-                    c_ptr->usageRequirementCompileDefinitions.emplace(
-                        Define(controller->define, "__declspec(dllimport)"));
-                }
-                else
-                {
-                    c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
-                }
+                c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, "__declspec(dllimport)"));
             }
             else
             {
                 c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
             }
+        }
+        else
+        {
+            c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
         }
     }
 }
@@ -329,31 +316,27 @@ template <typename T> struct DSCPrebuilt : DSCPrebuiltFeatures
 
     string define;
 
-    DSCPrebuilt() = default;
-
-    DSCPrebuilt(T *ptr, PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget_, bool defines, string define_ = "")
+    DSCPrebuilt(T *ptr, PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget_, bool defines = false,
+                string define_ = "")
     {
 
         prebuilt = ptr;
         prebuiltLinkOrArchiveTarget = prebuiltLinkOrArchiveTarget_;
 
-        if constexpr (T::DefineDLLDefinition)
+        if (define_.empty())
         {
-            if (define_.empty())
-            {
-                define = prebuiltLinkOrArchiveTarget->outputName;
-                transform(define.begin(), define.end(), define.begin(), ::toupper);
-                define += "_EXPORT";
-            }
-            else
-            {
-                define = std::move(define_);
-            }
+            define = prebuiltLinkOrArchiveTarget->outputName;
+            transform(define.begin(), define.end(), define.begin(), ::toupper);
+            define += "_EXPORT";
+        }
+        else
+        {
+            define = std::move(define_);
+        }
 
-            if (defines)
-            {
-                defineDllInterface = DefineDLLInterface::YES;
-            }
+        if (defines)
+        {
+            defineDllInterface = DefineDLLInterface::YES;
         }
     }
 

@@ -160,9 +160,7 @@ DSC<CppSourceTarget> &Configuration::GetCppObjectDSC(const string &name_)
 DSCPrebuilt<CPT> &Configuration::GetCPTTargetDSC(const string &name, const string &directory,
                                                  TargetType linkTargetType_)
 {
-    DSCPrebuilt<CPT> dsc;
-    dsc.prebuilt = &(GetCPT());
-    dsc.prebuiltLinkOrArchiveTarget = &(GetPrebuiltLinkOrArchiveTarget(name, directory, linkTargetType_));
+    DSCPrebuilt<CPT> dsc(&(GetCPT()), &(GetPrebuiltLinkOrArchiveTarget(name, directory, linkTargetType_)));
     return const_cast<DSCPrebuilt<CPT> &>(targets<DSCPrebuilt<CPT>>.emplace(dsc).first.operator*());
 }
 

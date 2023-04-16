@@ -79,7 +79,6 @@ class CppSourceTarget : public CompilerFeatures,
 {
   public:
     using BaseType = CPT;
-    static constexpr bool DefineDLLDefinition = true;
     Json buildCacheJson;
     TargetType compileTargetType;
     CppSourceTarget *moduleScope = nullptr;
