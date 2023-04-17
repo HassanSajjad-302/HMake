@@ -21,98 +21,6 @@ import <utility>;
 
 using std::ofstream, std::filesystem::create_directories, std::ifstream;
 
-PrebuiltDep::PrebuiltDep(bool defaultRPath_, bool defaultRpathLink_)
-    : defaultRpath{defaultRPath_}, defaultRpathLink{defaultRpathLink_}
-{
-}
-
-void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
-{
-    // Set is copied because new elements are to be inserted in it.
-    map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> localRequirementDeps = requirementDeps;
-
-    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : localRequirementDeps)
-    {
-        for (auto &[prebuiltLinkOrArchiveTarget_, prebuilt] : prebuiltLinkOrArchiveTarget->usageRequirementDeps)
-        {
-            PrebuiltDep prebuiltDep_;
-
-            prebuiltDep_.requirementPreLF = prebuilt.usageRequirementPreLF;
-            prebuiltDep_.requirementPostLF = prebuilt.usageRequirementPostLF;
-            prebuiltDep_.requirementRpathLink = prebuilt.usageRequirementRpathLink;
-            prebuiltDep_.requirementRpath = prebuilt.usageRequirementRPath;
-            prebuiltDep_.defaultRpath = false;
-            prebuiltDep_.defaultRpathLink = false;
-
-            requirementDeps.emplace(prebuiltLinkOrArchiveTarget, std::move(prebuiltDep_));
-        }
-    }
-
-    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : usageRequirementDeps)
-    {
-        for (auto &[prebuiltLinkOrArchiveTarget_, prebuilt] : prebuiltLinkOrArchiveTarget->usageRequirementDeps)
-        {
-            usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget_, PrebuiltDep{});
-        }
-    }
-}
-
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &name, const string &directory,
-                                                         TargetType linkTargetType_)
-    : linkTargetType(linkTargetType_), outputDirectory(Node::getFinalNodePathFromString(directory).string()),
-      outputName(name), actualOutputName(getActualNameFromTargetName(linkTargetType_, os, name))
-{
-}
-
-void PrebuiltLinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
-{
-    if (round == 3)
-    {
-        RealBTarget &round3 = getRealBTarget(3);
-        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
-        {
-            round3.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
-        }
-        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : usageRequirementDeps)
-        {
-            round3.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
-        }
-        getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
-    }
-}
-
-void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &, unsigned short round)
-{
-    if (round == 3)
-    {
-        populateRequirementAndUsageRequirementDeps();
-        addRequirementDepsToBTargetDependencies();
-    }
-}
-
-void PrebuiltLinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
-{
-    // Access to addDependency() function must be synchronized because set::emplace is not thread-safe
-    std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
-    RealBTarget &round0 = getRealBTarget(0);
-    RealBTarget &round2 = getRealBTarget(2);
-    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
-    {
-        round0.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
-        round2.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
-    }
-}
-
-string PrebuiltLinkOrArchiveTarget::getActualOutputPath()
-{
-    return outputDirectory + actualOutputName;
-}
-
-void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget)
-{
-    json = prebuiltLinkOrArchiveTarget.getTarjanNodeName();
-}
-
 LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType)
     : CTarget(std::move(name_)), PrebuiltLinkOrArchiveTarget(name, getSubDirForTarget(), targetType)
 {
@@ -930,8 +838,10 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
     {
         for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
         {
+            linkOrArchiveCommandWithTargets += prebuiltDep.requirementPreLF;
             linkOrArchiveCommandWithTargets +=
                 getLinkFlag(prebuiltLinkOrArchiveTarget->outputDirectory, prebuiltLinkOrArchiveTarget->outputName);
+            linkOrArchiveCommandWithTargets += prebuiltDep.requirementPostLF;
         }
 
         auto getLibraryDirectoryFlag = [this]() {
@@ -968,10 +878,18 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    localLinkCommand +=
-                        "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                        addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string()) +
-                        " ";
+                    if (prebuiltDep.defaultRpathLink)
+                    {
+
+                        localLinkCommand +=
+                            "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
+                            addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string()) +
+                            " ";
+                    }
+                    else
+                    {
+                        localLinkCommand += prebuiltDep.requirementRpathLink;
+                    }
                 }
             }
         }
@@ -982,10 +900,18 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    localLinkCommand +=
-                        "-Wl,-rpath-link -Wl," +
-                        addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string()) +
-                        " ";
+                    if (prebuiltDep.defaultRpath)
+                    {
+
+                        localLinkCommand +=
+                            "-Wl,-rpath-link -Wl," +
+                            addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string()) +
+                            " ";
+                    }
+                    else
+                    {
+                        localLinkCommand += prebuiltDep.requirementRpath;
+                    }
                 }
             }
         }
@@ -1122,11 +1048,16 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
     if (linkTargetType != TargetType::LIBRARY_STATIC)
     {
 
-        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        if (lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
         {
-            linkOrArchiveCommandPrint +=
-                getLinkFlagPrint(prebuiltLinkOrArchiveTarget->outputDirectory, prebuiltLinkOrArchiveTarget->outputName,
-                                 lcpSettings.libraryDependencies);
+            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+            {
+                linkOrArchiveCommandPrint += prebuiltDep.requirementPreLF;
+                linkOrArchiveCommandPrint +=
+                    getLinkFlagPrint(prebuiltLinkOrArchiveTarget->outputDirectory,
+                                     prebuiltLinkOrArchiveTarget->outputName, lcpSettings.libraryDependencies);
+                linkOrArchiveCommandPrint += prebuiltDep.requirementPostLF;
+            }
         }
 
         auto getLibraryDirectoryFlag = [this]() {
@@ -1166,11 +1097,19 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    linkOrArchiveCommandPrint +=
-                        "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                        getReducedPath(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string(),
-                                       lcpSettings.libraryDependencies) +
-                        " ";
+                    if (prebuiltDep.defaultRpathLink)
+                    {
+                        linkOrArchiveCommandPrint +=
+                            "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
+                            getReducedPath(
+                                path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string(),
+                                lcpSettings.libraryDependencies) +
+                            " ";
+                    }
+                    else
+                    {
+                        linkOrArchiveCommandPrint += prebuiltDep.requirementRpathLink;
+                    }
                 }
             }
         }
@@ -1182,11 +1121,19 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    linkOrArchiveCommandPrint +=
-                        "-Wl,-rpath-link -Wl," +
-                        getReducedPath(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string(),
-                                       lcpSettings.libraryDependencies) +
-                        " ";
+                    if (prebuiltDep.defaultRpath)
+                    {
+                        linkOrArchiveCommandPrint +=
+                            "-Wl,-rpath-link -Wl," +
+                            getReducedPath(
+                                path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string(),
+                                lcpSettings.libraryDependencies) +
+                            " ";
+                    }
+                    else
+                    {
+                        linkOrArchiveCommandPrint += prebuiltDep.requirementRpath;
+                    }
                 }
             }
         }
