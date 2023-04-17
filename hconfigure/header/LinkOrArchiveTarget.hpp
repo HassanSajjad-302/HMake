@@ -4,10 +4,12 @@
 import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
 import "PostBasic.hpp";
+import "PrebuiltLinkOrArchiveTarget.hpp";
 #else
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "PostBasic.hpp"
+#include "PrebuiltLinkOrArchiveTarget.hpp"
 #endif
 
 struct LinkerFlags
@@ -38,74 +40,6 @@ struct LinkerFlags
     string PDB_LINKFLAG;
     string LINKFLAGS_MSVC;
 };
-
-// TODO
-// Should not be inherited from DS<PrebuiltLinkOrArchiveTarget>. Following class will provide the functions provided by
-// the base class itself. Instead of set<PrebuiltLinkOrArchiveTarget *> requirements and usageRequirements variables,
-// set<PrebuiltDep *> requirements and usageRequirements variables will be used. PrebuiltDep will be a wrapper over
-// PrebuiltLinkOrArchiveTarget which has the pre and post linker flags string which determine any pre or post
-// linker-flags to use with that dependency. This will support the use-cases like the -Wl,--whole-archive idiomatically.
-// That dependency struct will also have string for rpath per dependency. By default initialized to
-// getActualOutputPath() but can be modified to allow custom rpath
-class PrebuiltLinkOrArchiveTarget : public BTarget,
-                                    public DS<PrebuiltLinkOrArchiveTarget>,
-                                    public PrebuiltLinkerFeatures
-{
-  public:
-    string outputDirectory;
-    string outputName;
-    string actualOutputName;
-    string usageRequirementLinkerFlags;
-    TargetType linkTargetType;
-
-    PrebuiltLinkOrArchiveTarget(const string &name, const string &directory, TargetType linkTargetType_);
-    void preSort(class Builder &builder, unsigned short round) override;
-    void updateBTarget(Builder &builder, unsigned short round) override;
-    void addRequirementDepsToBTargetDependencies();
-    string getActualOutputPath();
-
-    template <Dependency dependency, typename T, typename... Property>
-    PrebuiltLinkOrArchiveTarget &ASSIGN(T property, Property... properties);
-    template <typename T> bool EVALUATE(T property) const;
-};
-void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget);
-
-template <Dependency dependency, typename T, typename... Property>
-PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::ASSIGN(T property, Property... properties)
-{
-    if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
-    {
-        toExeDirOnNtOs = property;
-    }
-    else
-    {
-        outputDirectory = property; // Just to fail the compilation. Ensures that all properties are handled.
-    }
-    if constexpr (sizeof...(properties))
-    {
-        return ASSIGN(properties...);
-    }
-    else
-    {
-        return *this;
-    }
-}
-
-template <typename T> bool PrebuiltLinkOrArchiveTarget::EVALUATE(T property) const
-{
-    if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
-    {
-        return toExeDirOnNtOs == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TargetType>)
-    {
-        return linkTargetType == property;
-    }
-    else
-    {
-        outputDirectory = property; // Just to fail the compilation. Ensures that all properties are handled.
-    }
-}
 
 using std::shared_ptr;
 class LinkOrArchiveTarget : public CTarget,

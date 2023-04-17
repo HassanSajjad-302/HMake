@@ -18,54 +18,64 @@ template <typename T> struct DS
 {
     set<T *> requirementDeps;
     set<T *> usageRequirementDeps;
-    template <typename... U> T &PUBLIC_DEPS(const U... libraries);
-    template <typename... U> T &PRIVATE_DEPS(const U... libraries);
-    template <typename... U> T &INTERFACE_DEPS(const U... libraries);
+    template <typename... U> T &PUBLIC_DEPS(T *dep, const U... deps);
+    template <typename... U> T &PRIVATE_DEPS(T *dep, const U... deps);
+    template <typename... U> T &INTERFACE_DEPS(T *dep, const U... deps);
 
-    template <typename V, typename... U> T &DEPS(V library, Dependency dependency, const U... libraries);
+    template <typename... U> T &DEPS(T *dep, Dependency dependency, const U... deps);
 
     void populateRequirementAndUsageRequirementDeps();
 };
 
-template <typename T> template <typename... U> T &DS<T>::INTERFACE_DEPS(const U... libraries)
+template <typename T> template <typename... U> T &DS<T>::INTERFACE_DEPS(T *dep, const U... deps)
 {
-    (usageRequirementDeps.emplace(libraries...));
+    usageRequirementDeps.emplace(dep);
+    if constexpr (sizeof...(deps))
+    {
+        return INTERFACE_DEPS(deps...);
+    }
     return static_cast<T &>(*this);
 }
 
-template <typename T> template <typename... U> T &DS<T>::PRIVATE_DEPS(const U... libraries)
+template <typename T> template <typename... U> T &DS<T>::PRIVATE_DEPS(T *dep, const U... deps)
 {
-    (requirementDeps.emplace(libraries...));
+    requirementDeps.emplace(dep);
+    if constexpr (sizeof...(deps))
+    {
+        return PRIVATE_DEPS(deps...);
+    }
     return static_cast<T &>(*this);
 }
 
-template <typename T> template <typename... U> T &DS<T>::PUBLIC_DEPS(const U... libraries)
+template <typename T> template <typename... U> T &DS<T>::PUBLIC_DEPS(T *dep, const U... deps)
 {
-    (requirementDeps.emplace(libraries...));
-    (usageRequirementDeps.emplace(libraries...));
+    requirementDeps.emplace(dep);
+    usageRequirementDeps.emplace(dep);
+    if constexpr (sizeof...(deps))
+    {
+        return PUBLIC_DEPS(deps...);
+    }
     return static_cast<T &>(*this);
 }
 
-template <typename T>
-template <typename V, typename... U>
-T &DS<T>::DEPS(V library, Dependency dependency, const U... libraries)
+template <typename T> template <typename... U> T &DS<T>::DEPS(T *dep, Dependency dependency, const U... deps)
 {
     if (dependency == Dependency::PUBLIC)
     {
-        (requirementDeps.emplace(library));
-        (usageRequirementDeps.emplace(library));
+        requirementDeps.emplace(dep);
+        usageRequirementDeps.emplace(dep);
     }
     else if (dependency == Dependency::PRIVATE)
     {
-        (requirementDeps.emplace(library));
+        requirementDeps.emplace(dep);
     }
     else
     {
-        (usageRequirementDeps.emplace(library));
+        usageRequirementDeps.emplace(dep);
     }
-    if constexpr (sizeof...(libraries))
+    if constexpr (sizeof...(deps))
     {
-        return DEPS(libraries...);
+        return DEPS(deps...);
     }
     return static_cast<T &>(*this);
 }
