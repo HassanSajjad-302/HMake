@@ -10,15 +10,6 @@ import "FeaturesConvenienceFunctions.hpp";
 #include "FeaturesConvenienceFunctions.hpp"
 #endif
 
-// TODO
-// Should not be inherited from DS<PrebuiltLinkOrArchiveTarget>. Following class will provide the functions provided by
-// the base class itself. Instead of set<PrebuiltLinkOrArchiveTarget *> requirements and usageRequirements variables,
-// set<PrebuiltDep *> requirements and usageRequirements variables will be used. PrebuiltDep will be a wrapper over
-// PrebuiltLinkOrArchiveTarget which has the pre and post linker flags string which determine any pre or post
-// linker-flags to use with that dependency. This will support the use-cases like the -Wl,--whole-archive idiomatically.
-// That dependency struct will also have string for rpath per dependency. By default initialized to
-// getActualOutputPath() but can be modified to allow custom rpath
-
 class PrebuiltLinkOrArchiveTarget;
 
 struct PrebuiltDep
@@ -54,6 +45,7 @@ class PrebuiltLinkOrArchiveTarget : public BTarget, public PrebuiltLinkerFeature
 
     map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> requirementDeps;
     map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> usageRequirementDeps;
+
     template <typename... U>
     PrebuiltLinkOrArchiveTarget &PUBLIC_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps);
     template <typename... U>
@@ -63,6 +55,20 @@ class PrebuiltLinkOrArchiveTarget : public BTarget, public PrebuiltLinkerFeature
 
     template <typename... U>
     PrebuiltLinkOrArchiveTarget &DEPS(PrebuiltLinkOrArchiveTarget *dep, Dependency dependency, U... deps);
+
+    template <typename... U>
+    PrebuiltLinkOrArchiveTarget &PUBLIC_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
+                                             PrebuiltDep prebuiltDep, U... deps);
+    template <typename... U>
+    PrebuiltLinkOrArchiveTarget &PRIVATE_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
+                                              PrebuiltDep prebuiltDep, U... deps);
+    template <typename... U>
+    PrebuiltLinkOrArchiveTarget &INTERFACE_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
+                                                PrebuiltDep prebuiltDep, U... deps);
+
+    template <typename... U>
+    PrebuiltLinkOrArchiveTarget &DEPS(PrebuiltLinkOrArchiveTarget *dep, Dependency dependency, PrebuiltDep prebuiltDep,
+                                      U... deps);
 
     void populateRequirementAndUsageRequirementDeps();
 
@@ -121,16 +127,78 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::DEPS(PrebuiltLinkOrArc
 {
     if (dependency == Dependency::PUBLIC)
     {
-        (requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{}));
-        (usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{}));
+        requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+        usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
     }
     else if (dependency == Dependency::PRIVATE)
     {
-        (requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{}));
+        requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
     }
     else
     {
-        (usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{}));
+        usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+    }
+    if constexpr (sizeof...(deps))
+    {
+        return DEPS(deps...);
+    }
+    return *this;
+}
+
+template <typename... U>
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::INTERFACE_DEPS(
+    PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, PrebuiltDep prebuiltDep, U... deps)
+{
+    usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    if constexpr (sizeof...(deps))
+    {
+        return INTERFACE_DEPS(deps...);
+    }
+    return *this;
+}
+
+template <typename... U>
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PRIVATE_DEPS(
+    PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, PrebuiltDep prebuiltDep, U... deps)
+{
+    requirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    if constexpr (sizeof...(deps))
+    {
+        return PRIVATE_DEPS(deps...);
+    }
+    return *this;
+}
+
+template <typename... U>
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PUBLIC_DEPS(
+    PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, PrebuiltDep prebuiltDep, U... deps)
+{
+    requirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    if constexpr (sizeof...(deps))
+    {
+        return PUBLIC_DEPS(deps...);
+    }
+    return *this;
+}
+
+template <typename... U>
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
+                                                               Dependency dependency, PrebuiltDep prebuiltDep,
+                                                               U... deps)
+{
+    if (dependency == Dependency::PUBLIC)
+    {
+        requirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+        usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    }
+    else if (dependency == Dependency::PRIVATE)
+    {
+        requirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    }
+    else
+    {
+        usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
     }
     if constexpr (sizeof...(deps))
     {

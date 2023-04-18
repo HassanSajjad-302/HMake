@@ -2,37 +2,41 @@
 
 void buildSpecification()
 {
-    DSC<CppSourceTarget> &catStatic = GetCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
-    catStatic.getSourceTarget().SOURCE_FILES("Cat/src/Cat.cpp").PUBLIC_INCLUDES("Cat/header");
+    /*    DSC<CppSourceTarget> &catStatic = GetCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
+        catStatic.getSourceTarget().SOURCE_FILES("Cat/src/Cat.cpp").PUBLIC_INCLUDES("Cat/header");
 
-    DSC<CppSourceTarget> &animalStatic = GetCppExeDSC("Animal-Static");
-    animalStatic.PRIVATE_LIBRARIES(&catStatic);
-    animalStatic.getSourceTarget().SOURCE_FILES("main.cpp");
+        DSC<CppSourceTarget> &animalStatic = GetCppExeDSC("Animal-Static");
+        animalStatic.PRIVATE_LIBRARIES(&catStatic);
+        animalStatic.getSourceTarget().SOURCE_FILES("main.cpp");*/
 
     DSC<CppSourceTarget> &catShared = GetCppSharedDSC("Cat-Shared", true, "CAT_EXPORT");
     catShared.getSourceTarget().SOURCE_FILES("Cat/src/Cat.cpp").PUBLIC_INCLUDES("Cat/header");
 
     DSC<CppSourceTarget> &animalShared = GetCppExeDSC("Animal-Shared");
-    animalShared.PRIVATE_LIBRARIES(&catShared);
+
+    PrebuiltDep prebuiltDep(false, true);
+    prebuiltDep.requirementRpath = "-Wl,-R -Wl,'$ORIGIN' ";
+    animalShared.PRIVATE_LIBRARIES(&catShared, std::move(prebuiltDep));
     animalShared.getSourceTarget().SOURCE_FILES("main.cpp");
 
-    /*    // Have a copyToDependent bool in Cat-Shared and copy the dll based on that bool in LinkOrArchiveTarget.
-        using CoppyDLLType = RoundZeroBTarget<void(Builder &, unsigned short)>;
-        CoppyDLLType &copyDLL = const_cast<CoppyDLLType &>(targets<CoppyDLLType>.emplace().first.operator*());
-        copyDLL.realBTarget.addDependency(*(catShared.linkOrArchiveTarget));
-        copyDLL.setUpdateFunctor([&](Builder &builder, unsigned short round) {
-            if (!round && copyDLL.realBTarget.exitStatus == EXIT_SUCCESS)
+    using CoppyDLLType = RoundZeroBTarget<void(Builder &, unsigned short)>;
+    CoppyDLLType &copyDLL = const_cast<CoppyDLLType &>(targets<CoppyDLLType>.emplace().first.operator*());
+    copyDLL.realBTarget.addDependency(*(animalShared.linkOrArchiveTarget));
+    copyDLL.setUpdateFunctor([&](Builder &builder, unsigned short round) {
+        if (!round && copyDLL.realBTarget.exitStatus == EXIT_SUCCESS)
+        {
             {
-                {
-                    printMutex.lock();
-                    printErrorMessage("Formatting");
-                    printMutex.unlock();
-                }
-                std::filesystem::copy(catShared.linkOrArchiveTarget->getActualOutputPath(),
-                                      path(animalShared.linkOrArchiveTarget->getActualOutputPath()).parent_path(),
-                                      std::filesystem::copy_options::overwrite_existing);
+                printMutex.lock();
+                printErrorMessage("Formatting");
+                printMutex.unlock();
             }
-        });*/
+            std::filesystem::copy(catShared.linkOrArchiveTarget->getActualOutputPath(),
+                                  path(animalShared.linkOrArchiveTarget->getActualOutputPath()).parent_path(),
+                                  std::filesystem::copy_options::overwrite_existing);
+            std::filesystem::remove(catShared.linkOrArchiveTarget->getActualOutputPath());
+        }
+    });
+
     /*    for (const DSC<CppSourceTarget> &cppTargetConst : targets<DSC<CppSourceTarget>>)
         {
             auto &cppTarget = const_cast<DSC<CppSourceTarget> &>(cppTargetConst);

@@ -878,7 +878,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    if (prebuiltDep.defaultRpathLink)
+                    if (prebuiltDep.defaultRpath)
                     {
 
                         localLinkCommand +=
@@ -888,7 +888,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                     }
                     else
                     {
-                        localLinkCommand += prebuiltDep.requirementRpathLink;
+                        localLinkCommand += prebuiltDep.requirementRpath;
                     }
                 }
             }
@@ -900,7 +900,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    if (prebuiltDep.defaultRpath)
+                    if (prebuiltDep.defaultRpathLink)
                     {
 
                         localLinkCommand +=
@@ -910,7 +910,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                     }
                     else
                     {
-                        localLinkCommand += prebuiltDep.requirementRpath;
+                        localLinkCommand += prebuiltDep.requirementRpathLink;
                     }
                 }
             }
@@ -1047,7 +1047,6 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
 
     if (linkTargetType != TargetType::LIBRARY_STATIC)
     {
-
         if (lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
         {
             for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
@@ -1097,7 +1096,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    if (prebuiltDep.defaultRpathLink)
+                    if (prebuiltDep.defaultRpath)
                     {
                         linkOrArchiveCommandPrint +=
                             "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
@@ -1108,7 +1107,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                     }
                     else
                     {
-                        linkOrArchiveCommandPrint += prebuiltDep.requirementRpathLink;
+                        linkOrArchiveCommandPrint += prebuiltDep.requirementRpath;
                     }
                 }
             }
@@ -1121,7 +1120,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    if (prebuiltDep.defaultRpath)
+                    if (prebuiltDep.defaultRpathLink)
                     {
                         linkOrArchiveCommandPrint +=
                             "-Wl,-rpath-link -Wl," +
@@ -1132,7 +1131,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                     }
                     else
                     {
-                        linkOrArchiveCommandPrint += prebuiltDep.requirementRpath;
+                        linkOrArchiveCommandPrint += prebuiltDep.requirementRpathLink;
                     }
                 }
             }
