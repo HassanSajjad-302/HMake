@@ -139,6 +139,7 @@ class CppSourceTarget : public CompilerFeatures,
     void writeJsonFile() override;
     string getTarjanNodeName() override;
     BTarget *getBTarget() override;
+    C_Target *get_CAPITarget(BSMode bsMode) override;
     CompilerFlags getCompilerFlags();
     // TODO
   public:

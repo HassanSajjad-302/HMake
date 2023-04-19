@@ -837,6 +837,52 @@ BTarget *CppSourceTarget::getBTarget()
     return this;
 }
 
+C_Target *CppSourceTarget::get_CAPITarget(BSMode)
+{
+    auto *c_cppSourceTarget = new C_CppSourceTarget();
+
+    c_cppSourceTarget->parent = reinterpret_cast<C_CTarget *>(CTarget::get_CAPITarget(bsMode)->object);
+
+    c_cppSourceTarget->sourceFilesCount = sourceFileDependencies.size();
+    c_cppSourceTarget->sourceFiles = new const char *[sourceFileDependencies.size()];
+    unsigned short i = 0;
+    for (const SourceNode &sourceNode : sourceFileDependencies)
+    {
+        c_cppSourceTarget->sourceFiles[i] = sourceNode.node->filePath.c_str();
+        ++i;
+    }
+
+    c_cppSourceTarget->moduleFilesCount = moduleSourceFileDependencies.size();
+    c_cppSourceTarget->moduleFiles = new const char *[moduleSourceFileDependencies.size()];
+    i = 0;
+    for (const SourceNode &sourceNode : moduleSourceFileDependencies)
+    {
+        c_cppSourceTarget->sourceFiles[i] = sourceNode.node->filePath.c_str();
+        ++i;
+    }
+
+    c_cppSourceTarget->includeDirsCount = requirementIncludes.size();
+    c_cppSourceTarget->includeDirs = new const char *[requirementIncludes.size()];
+
+    i = 0;
+    for (const Node *node : requirementIncludes)
+    {
+        c_cppSourceTarget->includeDirs[i] = node->filePath.c_str();
+        ++i;
+    }
+
+    // setCompileCommand() is called in round 1. Maybe better to run till round 1 in BSMode::IDE and remove following
+    setCompileCommand();
+
+    c_cppSourceTarget->compileCommand = compileCommand.c_str();
+    c_cppSourceTarget->compilerPath = compiler.bTPath.c_str();
+
+    auto *c_Target = new C_Target();
+    c_Target->type = C_TargetType::C_CPP_TARGET_TYPE;
+    c_Target->object = c_cppSourceTarget;
+    return c_Target;
+}
+
 CppSourceTarget &CppSourceTarget::PUBLIC_COMPILER_FLAGS(const string &compilerFlags)
 {
     requirementCompilerFlags += compilerFlags;

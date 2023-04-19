@@ -135,7 +135,6 @@ void printErrorMessageColor(const string &message, uint32_t color)
 
 void configureOrBuild()
 {
-
     if (bsMode == BSMode::IDE)
     {
         return;

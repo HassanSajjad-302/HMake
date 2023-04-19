@@ -62,6 +62,7 @@ struct Configuration : public CTarget
     Configuration(const string &name, CTarget &other, bool hasFile = true);
     void setModuleScope(CppSourceTarget *moduleScope);
     void setJson() override;
+    C_Target *get_CAPITarget(BSMode bsMode) override;
     template <typename T, typename... Property> Configuration &ASSIGN(T property, Property... properties);
 };
 bool operator<(const Configuration &lhs, const Configuration &rhs);

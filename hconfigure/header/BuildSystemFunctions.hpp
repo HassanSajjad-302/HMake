@@ -39,7 +39,7 @@ inline set<string> targetSubDirectories;
 template <typename T> inline set<T> targets;
 
 // Following can be used to hold pointers for all targets in the build system. It is used by CTarget and BTarget
-// constructor by emplacing this
+// constructor.
 template <typename T> inline set<T *> targetPointers;
 
 #ifdef _WIN32

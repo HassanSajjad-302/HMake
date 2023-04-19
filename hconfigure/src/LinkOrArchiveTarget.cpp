@@ -1175,6 +1175,18 @@ void LinkOrArchiveTarget::setJson()
     json[0] = std::move(targetJson);
 }
 
+C_Target *LinkOrArchiveTarget::get_CAPITarget(BSMode bsMode)
+{
+    auto *c_configuration = new C_LinkOrArchiveTarget();
+
+    c_configuration->parent = reinterpret_cast<C_CTarget *>(CTarget::get_CAPITarget(bsMode)->object);
+
+    auto *c_Target = new C_Target();
+    c_Target->type = C_TargetType::C_LOA_TARGET_TYPE;
+    c_Target->object = c_configuration;
+    return c_Target;
+}
+
 BTarget *LinkOrArchiveTarget::getBTarget()
 {
     return this;

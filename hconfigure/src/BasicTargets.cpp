@@ -212,6 +212,17 @@ BTarget *CTarget::getBTarget()
     return nullptr;
 }
 
+C_Target *CTarget::get_CAPITarget(BSMode)
+{
+    auto *c_cTarget = new C_CTarget();
+    c_cTarget->dir = (new string(getSubDirForTarget()))->c_str();
+
+    auto *c_Target = new C_Target();
+    c_Target->type = C_TargetType::C_CONFIGURE_TARGET_TYPE;
+    c_Target->object = c_cTarget;
+    return c_Target;
+}
+
 void to_json(Json &j, const CTarget *tar)
 {
     j = tar->targetFileDir;

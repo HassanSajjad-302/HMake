@@ -179,6 +179,18 @@ void Configuration::setJson()
     json[0] = std::move(variantJson);
 }
 
+C_Target *Configuration::get_CAPITarget(BSMode bsMode)
+{
+    auto *c_configuration = new C_Configuration();
+
+    c_configuration->parent = reinterpret_cast<C_CTarget *>(CTarget::get_CAPITarget(bsMode)->object);
+
+    auto *c_Target = new C_Target();
+    c_Target->type = C_TargetType::C_CONFIGURATION_TARGET_TYPE;
+    c_Target->object = c_configuration;
+    return c_Target;
+}
+
 bool operator<(const Configuration &lhs, const Configuration &rhs)
 {
     return lhs.name < rhs.name;

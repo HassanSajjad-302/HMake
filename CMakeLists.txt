@@ -42,7 +42,8 @@ add_library(hconfigure STATIC
         hconfigure/src/DLLLoader.cpp
         hconfigure/src/Configure.cpp
         hconfigure/src/CTargetRoundZeroBTarget.cpp
-        hconfigure/src/PrebuiltLinkOrArchiveTarget.cpp)
+        hconfigure/src/PrebuiltLinkOrArchiveTarget.cpp
+        hconfigure/src/C_API.cpp)
 
 
 
@@ -79,7 +80,7 @@ add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Examples/Example4/hmake.cpp)
+add_executable(HMakeHelper Tests/C_API/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 
@@ -92,7 +93,8 @@ add_executable(Tests Tests/main.cpp
         Tests/Test_Examples.cpp
         Tests/Test_hconfigure.cpp
         Tests/StageTests.cpp
-        Tests/Snapshot.cpp)
+        Tests/Snapshot.cpp
+        Tests/C_API_Tests.cpp)
 target_link_libraries(Tests PRIVATE gtest gtest_main nlohmann_json::nlohmann_json fmt::fmt)
 target_include_directories(Tests PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 target_compile_definitions(Tests PRIVATE SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}/")

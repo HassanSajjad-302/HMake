@@ -207,6 +207,7 @@ void ToolsCache::detectToolsAndInitialize()
     // TODO
     // HMake does not have installer yet. Otherwise, this maybe added in installer. Currently, nothing is detected yet.
     // 2022 Visual Studio Community is requirement. So is g++-12.2.0.
+
     if constexpr (os == OS::NT)
     {
         string batchFilePath =
@@ -220,7 +221,7 @@ void ToolsCache::detectToolsAndInitialize()
     else if constexpr (os == OS::LINUX)
     {
         compilers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/g++");
-        linkers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/ld");
+        linkers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/g++");
         archivers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/ar");
     }
     if (!exists(toolsCacheFilePath))

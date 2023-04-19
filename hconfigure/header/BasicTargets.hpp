@@ -1,11 +1,13 @@
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
 #ifdef USE_HEADER_UNITS
+import "C_API.hpp";
 import "TargetType.hpp";
 import "TarjanNode.hpp";
 import <filesystem>;
 import <map>;
 #else
+#include "C_API.hpp"
 #include "TargetType.hpp"
 #include "TarjanNode.hpp"
 #include <filesystem>
@@ -67,12 +69,14 @@ struct RealBTarget
     // alloted. It will work such that total allotment never crosses the number of hardware threads. Following two
     // variables will be used as guide for the algorithm
 
-    // How many threads the linker supports. -1 means any. some tools may not support more than a fixed number
-    int supportsThread = -1;
-
-    // Some tasks have more potential to benefit from multiple threading than others. Or they maybe executing more than
-    // others. Such will have priority and will be alloted more compared to the other.
+    // Some tasks have more potential to benefit from multiple threading than others. Or they maybe executing for longer
+    // than others. Users will assign such higher priority and will be allocated more of  the thread-pool compared to
+    // the other.
     float potential = 0.5f;
+
+    // How many threads the tool supports. -1 means any. some tools may not support more than a fixed number, so
+    // updateBTarget will not passed more than supportsThread
+    short supportsThread = -1;
 };
 
 namespace BTargetNamespace
@@ -97,7 +101,7 @@ struct BTarget // BTarget
     virtual void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator);
 
     // TODO
-    // Following describes total time taken across all rounds.
+    // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
     float totalTimeTaken = 0.0f;
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
@@ -138,6 +142,7 @@ class CTarget // Configure Target
     virtual void writeJsonFile();
     virtual void configure();
     virtual BTarget *getBTarget();
+    virtual C_Target *get_CAPITarget(BSMode bsMode);
 };
 void to_json(Json &j, const CTarget *tar);
 bool operator<(const CTarget &lhs, const CTarget &rhs);
