@@ -875,7 +875,7 @@ C_Target *CppSourceTarget::get_CAPITarget(BSMode)
     setCompileCommand();
 
     c_cppSourceTarget->compileCommand = compileCommand.c_str();
-    c_cppSourceTarget->compilerPath = compiler.bTPath.c_str();
+    c_cppSourceTarget->compilerPath = compiler.bTPath.generic_string().c_str();
 
     auto *c_Target = new C_Target();
     c_Target->type = C_TargetType::C_CPP_TARGET_TYPE;

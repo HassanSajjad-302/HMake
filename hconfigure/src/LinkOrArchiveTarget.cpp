@@ -62,7 +62,7 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
     }
 }
 
-void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round, unsigned int)
+void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned int)
 {
     if (!round)
     {
@@ -1175,11 +1175,11 @@ void LinkOrArchiveTarget::setJson()
     json[0] = std::move(targetJson);
 }
 
-C_Target *LinkOrArchiveTarget::get_CAPITarget(BSMode bsMode)
+C_Target *LinkOrArchiveTarget::get_CAPITarget(BSMode bsModeLocal)
 {
     auto *c_configuration = new C_LinkOrArchiveTarget();
 
-    c_configuration->parent = reinterpret_cast<C_CTarget *>(CTarget::get_CAPITarget(bsMode)->object);
+    c_configuration->parent = reinterpret_cast<C_CTarget *>(CTarget::get_CAPITarget(bsModeLocal)->object);
 
     auto *c_Target = new C_Target();
     c_Target->type = C_TargetType::C_LOA_TARGET_TYPE;

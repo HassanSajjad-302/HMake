@@ -68,7 +68,7 @@ class LinkOrArchiveTarget : public CTarget,
     void updateBTarget(Builder &builder, unsigned short round) override;
     LinkerFlags getLinkerFlags();
     void setJson() override;
-    C_Target *get_CAPITarget(BSMode bsMode) override;
+    C_Target *get_CAPITarget(BSMode bsModeLocal) override;
     BTarget *getBTarget() override;
     string getTarjanNodeName() override;
     PostBasic Archive();

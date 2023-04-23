@@ -54,7 +54,7 @@ struct Configuration : public CTarget
     DSC<CppSourceTarget> &GetCppSharedDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &GetCppObjectDSC(const string &name_);
 
-    DSCPrebuilt<CPT> &GetCPTTargetDSC(const string &name, const string &directory, TargetType linkTargetType_);
+    DSCPrebuilt<CPT> &GetCPTTargetDSC(const string &name_, const string &directory, TargetType linkTargetType_);
 
     ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;
 
@@ -62,7 +62,7 @@ struct Configuration : public CTarget
     Configuration(const string &name, CTarget &other, bool hasFile = true);
     void setModuleScope(CppSourceTarget *moduleScope);
     void setJson() override;
-    C_Target *get_CAPITarget(BSMode bsMode) override;
+    C_Target *get_CAPITarget(BSMode bsModeLocal) override;
     template <typename T, typename... Property> Configuration &ASSIGN(T property, Property... properties);
 };
 bool operator<(const Configuration &lhs, const Configuration &rhs);

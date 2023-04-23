@@ -23,11 +23,11 @@ void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
             prebuiltDep_.requirementPreLF = prebuilt.usageRequirementPreLF;
             prebuiltDep_.requirementPostLF = prebuilt.usageRequirementPostLF;
             prebuiltDep_.requirementRpathLink = prebuilt.usageRequirementRpathLink;
-            prebuiltDep_.requirementRpath = prebuilt.usageRequirementRPath;
-            prebuiltDep_.defaultRpath = false;
-            prebuiltDep_.defaultRpathLink = false;
+            prebuiltDep_.requirementRpath = prebuilt.usageRequirementRpath;
+            prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
+            prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
 
-            requirementDeps.emplace(prebuiltLinkOrArchiveTarget, std::move(prebuiltDep_));
+            requirementDeps.emplace(prebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
         }
     }
 
@@ -35,7 +35,16 @@ void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
     {
         for (auto &[prebuiltLinkOrArchiveTarget_, prebuilt] : prebuiltLinkOrArchiveTarget->usageRequirementDeps)
         {
-            usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget_, PrebuiltDep{});
+            PrebuiltDep prebuiltDep_;
+
+            prebuiltDep_.usageRequirementPreLF = prebuilt.usageRequirementPreLF;
+            prebuiltDep_.usageRequirementPostLF = prebuilt.usageRequirementPostLF;
+            prebuiltDep_.usageRequirementRpathLink = prebuilt.usageRequirementRpathLink;
+            prebuiltDep_.usageRequirementRpath = prebuilt.usageRequirementRpath;
+            prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
+            prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
+
+            usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
         }
     }
 }
@@ -47,7 +56,7 @@ PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &name, con
 {
 }
 
-void PrebuiltLinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
+void PrebuiltLinkOrArchiveTarget::preSort(Builder &, unsigned short round)
 {
     if (round == 3)
     {

@@ -118,6 +118,11 @@ struct SizeDifference : public CTarget, public BTarget
     }
 };
 
+bool operator<(const SizeDifference &lhs, const SizeDifference &rhs)
+{
+    return lhs.CTarget::id < rhs.CTarget::id;
+}
+
 void buildSpecification()
 {
     // Configuration &debug = GetConfiguration("Debug");
@@ -129,7 +134,7 @@ void buildSpecification()
     /*    debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG, AddressSanitizer::OFF,
                      RuntimeDebugging::OFF);
         debug.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS");*/
-    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
+    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::YES, TranslateInclude::YES, ConfigType::RELEASE);
     releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
     //  arm.ASSIGN(cxxStd, Arch::ARM, TranslateInclude::YES, ConfigType::RELEASE, TreatModuleAsSource::NO);
     /*        debug.compilerFeatures.requirementCompilerFlags += "--target=x86_64-pc-windows-msvc ";
@@ -141,7 +146,7 @@ void buildSpecification()
         configurationSpecification(const_cast<Configuration &>(configuration));
     }
 
-    auto *sizeDifference = new SizeDifference("Size-Difference", releaseSize, releaseSpeed);
+    targets<SizeDifference>.emplace("Size-Difference", releaseSize, releaseSpeed);
 
     /* auto updateBTarget = [&](Builder &builder, unsigned short round) {
          for (LinkOrArchiveTarget *linkOrArchiveTarget : releaseSpeed.linkOrArchiveTargets)

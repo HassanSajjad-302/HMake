@@ -8,7 +8,7 @@ import "IDE_API.hpp";
 extern "C" EXPORT C_TargetContainer *getCTargetContainer(BSMode bsModeLocal)
 {
     auto *c_cTargetContainer = new C_TargetContainer();
-    c_cTargetContainer->size = targetPointers<CTarget>.size();
+    c_cTargetContainer->size = static_cast<unsigned short>(targetPointers<CTarget>.size());
     c_cTargetContainer->c_cTargets = new C_Target *[c_cTargetContainer->size];
 
     unsigned short i = 0;

@@ -157,10 +157,10 @@ DSC<CppSourceTarget> &Configuration::GetCppObjectDSC(const string &name_)
         targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name_ + dashCpp))).first.operator*());
 }
 
-DSCPrebuilt<CPT> &Configuration::GetCPTTargetDSC(const string &name, const string &directory,
+DSCPrebuilt<CPT> &Configuration::GetCPTTargetDSC(const string &name_, const string &directory,
                                                  TargetType linkTargetType_)
 {
-    DSCPrebuilt<CPT> dsc(&(GetCPT()), &(GetPrebuiltLinkOrArchiveTarget(name, directory, linkTargetType_)));
+    DSCPrebuilt<CPT> dsc(&(GetCPT()), &(GetPrebuiltLinkOrArchiveTarget(name_, directory, linkTargetType_)));
     return const_cast<DSCPrebuilt<CPT> &>(targets<DSCPrebuilt<CPT>>.emplace(dsc).first.operator*());
 }
 
@@ -179,11 +179,11 @@ void Configuration::setJson()
     json[0] = std::move(variantJson);
 }
 
-C_Target *Configuration::get_CAPITarget(BSMode bsMode)
+C_Target *Configuration::get_CAPITarget(BSMode bsModeLocal)
 {
     auto *c_configuration = new C_Configuration();
 
-    c_configuration->parent = reinterpret_cast<C_CTarget *>(CTarget::get_CAPITarget(bsMode)->object);
+    c_configuration->parent = reinterpret_cast<C_CTarget *>(CTarget::get_CAPITarget(bsModeLocal)->object);
 
     auto *c_Target = new C_Target();
     c_Target->type = C_TargetType::C_CONFIGURATION_TARGET_TYPE;

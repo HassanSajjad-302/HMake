@@ -26,7 +26,7 @@ struct PrebuiltDep
     string usageRequirementRpathLink;
 
     string requirementRpath;
-    string usageRequirementRPath;
+    string usageRequirementRpath;
 
     bool defaultRpath = true;
     bool defaultRpathLink = true;

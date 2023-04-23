@@ -41,7 +41,6 @@ TEST(CAPITEST, Test1)
         if (cTargetContainer->c_cTargets[i]->type == C_TargetType::C_CONFIGURE_TARGET_TYPE)
         {
             auto c_cTarget = reinterpret_cast<C_CTarget *>(cTargetContainer->c_cTargets[i]->object);
-            const char *c = (testBuildDir / "Custom/").c_str();
             ASSERT_EQ(equivalent(path(c_cTarget->dir), testBuildDir / "Custom/"), true);
         }
         else if (cTargetContainer->c_cTargets[i]->type == C_TargetType::C_CPP_TARGET_TYPE)
