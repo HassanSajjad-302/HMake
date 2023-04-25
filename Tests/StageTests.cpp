@@ -113,7 +113,6 @@ static void executeErroneousSnapshotBalances(const Updates &updates, const path 
 }
 
 // Tests Hello-World and rebuild in different directories on touching file.
-/*
 TEST(StageTests, Test1)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
@@ -121,7 +120,7 @@ TEST(StageTests, Test1)
     copyFilePath(testSourcePath / "Version/hmake0.cpp", testSourcePath / "hmake.cpp");
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("app/");
-    ExamplesTestHelper::runAppWithExpectedOutput("app", "Hello World\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "Hello World\n");
     current_path("../");
 
     executeSubTest1(Test1Setup{});
@@ -199,7 +198,6 @@ TEST(StageTests, Test1)
     // Executing in Build. Only app to be updated.
     executeSubTest1(Test1Setup{.executableFileUpdated = true});
 }
-*/
 
 static void setupTest2Default()
 {
@@ -236,7 +234,7 @@ TEST(StageTests, Test2)
 
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("Debug/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput("app", "36\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "36\n");
     current_path("../../");
 
     executeSnapshotBalances(Updates{});
