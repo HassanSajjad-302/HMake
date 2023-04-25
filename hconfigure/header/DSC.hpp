@@ -3,8 +3,10 @@
 #define HMAKE_DSC_HPP
 #ifdef USE_HEADER_UNITS
 import "LinkOrArchiveTarget.hpp";
+import "ObjectFileProducer.hpp";
 #else
 #include "LinkOrArchiveTarget.hpp"
+#include "ObjectFileProducer.hpp"
 #endif
 
 template <typename T> struct DSCPrebuilt;

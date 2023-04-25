@@ -2,10 +2,12 @@
 #define HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
 #ifdef USE_HEADER_UNITS
 import "ConfigType.hpp";
+import "Dependency.hpp";
 import <concepts>;
 import <string>;
 #else
 #include "ConfigType.hpp"
+#include "Dependency.hpp"
 #include <concepts>
 #include <string>
 #endif

@@ -35,8 +35,8 @@ void to_json(Json &json, const CompileCommandPrintSettings &ccpSettings)
     json[JConsts::environmentCompilerFlags] = ccpSettings.environmentCompilerFlags;
     json[JConsts::compilerFlags] = ccpSettings.compilerFlags;
     json[JConsts::compileDefinitions] = ccpSettings.compileDefinitions;
-    json[JConsts::projectIncludeDirectories] = ccpSettings.projectIncludeDirectories;
-    json[JConsts::environmentIncludeDirectories] = ccpSettings.environmentIncludeDirectories;
+    json[JConsts::projectIncludeDirectories] = ccpSettings.includeDirectories;
+    json[JConsts::environmentIncludeDirectories] = ccpSettings.standardIncludeDirectories;
     json[JConsts::onlyLogicalNameOfRequireIfc] = ccpSettings.onlyLogicalNameOfRequireIFC;
     json[JConsts::requireIfcs] = ccpSettings.requireIFCs;
     json[JConsts::sourceFile] = ccpSettings.sourceFile;
@@ -57,8 +57,8 @@ void from_json(const Json &json, CompileCommandPrintSettings &ccpSettings)
     ccpSettings.environmentCompilerFlags = json.at(JConsts::environmentCompilerFlags).get<bool>();
     ccpSettings.compilerFlags = json.at(JConsts::compilerFlags).get<bool>();
     ccpSettings.compileDefinitions = json.at(JConsts::compileDefinitions).get<bool>();
-    ccpSettings.projectIncludeDirectories = json.at(JConsts::projectIncludeDirectories).get<PathPrint>();
-    ccpSettings.environmentIncludeDirectories = json.at(JConsts::environmentIncludeDirectories).get<PathPrint>();
+    ccpSettings.includeDirectories = json.at(JConsts::projectIncludeDirectories).get<PathPrint>();
+    ccpSettings.standardIncludeDirectories = json.at(JConsts::environmentIncludeDirectories).get<PathPrint>();
     ccpSettings.onlyLogicalNameOfRequireIFC = json.at(JConsts::onlyLogicalNameOfRequireIfc).get<bool>();
     ccpSettings.requireIFCs = json.at(JConsts::requireIfcs).get<PathPrint>();
     ccpSettings.sourceFile = json.at(JConsts::sourceFile).get<PathPrint>();

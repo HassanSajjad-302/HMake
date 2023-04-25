@@ -3,6 +3,7 @@
 import "BuildSystemFunctions.hpp";
 import "BuildTools.hpp";
 import "Cache.hpp";
+import "fmt/format.h";
 import "JConsts.hpp";
 import "ToolsCache.hpp";
 import "Utilities.hpp";
@@ -16,6 +17,7 @@ import <fstream>;
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"
+#include "fmt/format.h"
 #include "zDLLLoader.hpp"
 #include <filesystem>
 #include <fstream>
@@ -109,7 +111,7 @@ int main(int argc, char **argv)
         if constexpr (os == OS::LINUX)
         {
             string compileCommand =
-                "c++ -DEXPORT=\"\"  -std=c++2b -fsanitize=thread -fno-omit-frame-pointer -fPIC "
+                "c++ -std=c++2b -fvisibility=hidden -fsanitize=thread -fno-omit-frame-pointer -fPIC "
                 " -I " HCONFIGURE_HEADER " -I " JSON_HEADER "  -I " FMT_HEADER
                 " {SOURCE_DIRECTORY}/hmake.cpp -shared -Wl,--whole-archive -L " HCONFIGURE_STATIC_LIB_DIRECTORY
                 " -l hconfigure -Wl,--no-whole-archive -L " FMT_STATIC_LIB_DIRECTORY

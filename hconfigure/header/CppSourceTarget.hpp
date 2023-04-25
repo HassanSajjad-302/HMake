@@ -64,7 +64,7 @@ struct ModuleScopeData
     set<SMFile *> smFiles;
     set<SMFile, CompareSourceNode> headerUnits;
     // Which header unit directory come from which target
-    map<const Node *, CppSourceTarget *> huDirTarget;
+    map<const std::pair<const Node *const, InclNode> *, CppSourceTarget *> huDirTarget;
     map<string, SMFile *> requirePaths;
 };
 
@@ -127,7 +127,7 @@ class CppSourceTarget : public CompilerFeatures,
     void saveBuildCache(bool round);
 
     // In module scope, two different targets should not have a directory in huIncludes
-    set<const Node *> huIncludes;
+    vector<const std::pair<const Node *const, InclNode> *> huIncludes;
 
     set<SourceDirectory> regexSourceDirs;
     set<SourceDirectory> regexModuleDirs;
@@ -182,7 +182,7 @@ template <typename... U>
 CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(const string &include, U... includeDirectoryString)
 {
     const Node *node = Node::getNodeFromString(include, false);
-    requirementIncludes.emplace(node);
+    requirementIncludes.try_emplace(node, InclNode(false, false));
     usageRequirementIncludes.emplace(node);
     if constexpr (sizeof...(includeDirectoryString))
     {
@@ -197,7 +197,7 @@ CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(const string &include, U... in
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PRIVATE_INCLUDES(const string &include, U... includeDirectoryString)
 {
-    requirementIncludes.emplace(Node::getNodeFromString(include, false));
+    requirementIncludes.try_emplace(Node::getNodeFromString(include, false), InclNode(false, false));
     if constexpr (sizeof...(includeDirectoryString))
     {
         return PRIVATE_INCLUDES(includeDirectoryString...);
@@ -225,8 +225,13 @@ CppSourceTarget &CppSourceTarget::INTERFACE_INCLUDES(const string &include, U...
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const string &include, U... includeDirectoryString)
 {
-    PUBLIC_INCLUDES(include);
-    huIncludes.emplace(Node::getNodeFromString(include, false));
+    const Node *node = Node::getNodeFromString(include, false);
+    usageRequirementIncludes.emplace(node);
+    if (const auto &[first, second] = requirementIncludes.try_emplace(node, InclNode(false, false)); second)
+    {
+        huIncludes.emplace_back(first.operator->());
+    }
+
     if constexpr (sizeof...(includeDirectoryString))
     {
         return PUBLIC_HU_INCLUDES(includeDirectoryString...);
@@ -240,8 +245,12 @@ CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const string &include, U...
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const string &include, U... includeDirectoryString)
 {
-    PRIVATE_INCLUDES(include);
-    huIncludes.emplace(Node::getNodeFromString(include, false));
+    if (const auto &[first, second] =
+            requirementIncludes.try_emplace(Node::getNodeFromString(include, false), InclNode(false, false));
+        second)
+    {
+        huIncludes.emplace_back(first.operator->());
+    }
     if constexpr (sizeof...(includeDirectoryString))
     {
         return PRIVATE_HU_INCLUDES(includeDirectoryString...);

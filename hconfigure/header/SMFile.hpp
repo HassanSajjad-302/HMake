@@ -50,12 +50,25 @@ class Node
 
   public:
     bool doesNotExist = false;
-    // Used with includeDirectories to specify whether to ignore include-files from these directories from being stored
-    // in target-cache file
-    bool ignoreHeaderDeps = false;
 };
 bool operator<(const Node &lhs, const Node &rhs);
 void to_json(Json &j, const Node *node);
+
+class LibDirNode
+{
+  public:
+    bool isStandard = false;
+    explicit LibDirNode(bool isStandard_ = false);
+};
+
+class InclNode : public LibDirNode
+{
+  public:
+    // Used with includeDirectories to specify whether to ignore include-files from these directories from being stored
+    // in target-cache file
+    bool ignoreHeaderDeps = false;
+    explicit InclNode(bool isStandard_ = false, bool ignoreHeaderDeps_ = false);
+};
 
 struct SourceNode;
 struct CompareSourceNode

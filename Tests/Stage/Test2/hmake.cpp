@@ -2,11 +2,11 @@
 
 void buildSpecification()
 {
-    Configuration &debug = GetConfiguration("Release");
+    Configuration &debug = GetConfiguration("Debug");
 
     CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
 
-    debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE);
+    debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::DEBUG);
 
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 

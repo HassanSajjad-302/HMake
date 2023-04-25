@@ -4,17 +4,21 @@
 import "OS.hpp";
 import "BuildTools.hpp";
 import "Cache.hpp";
-import "SMFile.hpp";
 import "TargetType.hpp";
+import <map>;
+import <set>;
 import <vector>;
 #else
 #include "BuildTools.hpp"
 #include "Cache.hpp"
 #include "OS.hpp"
-#include "SMFile.hpp"
 #include "TargetType.hpp"
+#include <map>
+#include <set>
 #include <vector>
 #endif
+
+using std::map, std::set;
 
 using std::vector;
 
@@ -665,8 +669,6 @@ struct PrebuiltLinkerFeatures
 
 struct LinkerFeatures
 {
-    set<const Node *> standardLibraryDirectories;
-
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
     ThreadSanitizer threadSanitizer = ThreadSanitizer::OFF;
@@ -707,6 +709,8 @@ struct LinkerFeatures
     Archiver archiver;
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
+
+    map<const class Node *, class LibDirNode> requirementLibraryDirectories;
     string requirementLinkerFlags;
     TargetType libraryType;
     LinkerFeatures();
@@ -716,11 +720,12 @@ struct LinkerFeatures
 
 struct CompilerFeatures
 {
+    // TODO
     // Only reason for the existence of the following is to prune this out of pretty-printing. Maybe level based
     // printing would be better than fine-grained printing control. In level-based printing user would set a level for
     // printing. Include-Nodes would have a level above or below than user-nodes, so they won't be printed at default
     // level.
-    set<const Node *> standardIncludes;
+    // set<const const class Node *> standardIncludes;
 
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
@@ -778,7 +783,8 @@ struct CompilerFeatures
     Compiler compiler;
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
-    set<const Node *> requirementIncludes;
+
+    map<const class Node *, class InclNode> requirementIncludes;
     string requirementCompilerFlags;
     set<Define> requirementCompileDefinitions;
     CompilerFeatures();

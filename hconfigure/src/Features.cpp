@@ -327,10 +327,9 @@ LinkerFeatures::LinkerFeatures()
 void LinkerFeatures::setLinkerFromVSTools(struct VSTools &vsTools)
 {
     linker = vsTools.linker;
-    standardLibraryDirectories.clear();
     for (const string &str : vsTools.libraryDirectories)
     {
-        standardLibraryDirectories.emplace(Node::getNodeFromString(str, false));
+        requirementLibraryDirectories.try_emplace(Node::getNodeFromString(str, false), true);
     }
 }
 
@@ -383,12 +382,9 @@ CompilerFeatures::CompilerFeatures()
 void CompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
 {
     compiler = vsTools.compiler;
-    standardIncludes.clear();
     for (const string &str : vsTools.includeDirectories)
     {
-        Node *node =
-            const_cast<Node *>(standardIncludes.emplace(Node::getNodeFromString(str, false)).first.operator*());
-        node->ignoreHeaderDeps = true;
+        requirementIncludes.try_emplace(Node::getNodeFromString(str, false), InclNode(true, true));
     }
 }
 

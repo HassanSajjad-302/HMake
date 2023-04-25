@@ -3,9 +3,11 @@
 #define HMAKE_PREBUILTLINKORARCHIVETARGET_HPP
 
 #ifdef USE_HEADER_UNITS
+import "BasicTargets.hpp";
 import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
 #else
+#include "BasicTargets.hpp"
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #endif

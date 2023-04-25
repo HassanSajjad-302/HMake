@@ -1,7 +1,9 @@
 #ifdef USE_HEADER_UNITS
 import "PrebuiltLinkOrArchiveTarget.hpp";
+import "SMFile.hpp";
 #else
 #include "PrebuiltLinkOrArchiveTarget.hpp"
+#include "SMFile.hpp"
 #endif
 
 PrebuiltDep::PrebuiltDep(bool defaultRPath_, bool defaultRpathLink_)

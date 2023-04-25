@@ -53,8 +53,8 @@ class LinkOrArchiveTarget : public CTarget,
     string linkOrArchiveCommandWithTargets;
     set<Node *> libraryDirectories;
 
-    set<ObjectFile *> objectFiles;
-    set<ObjectFileProducer *> objectFileProducers;
+    set<class ObjectFile *> objectFiles;
+    set<class ObjectFileProducer *> objectFileProducers;
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
 
     string buildCacheFilesDirPath;

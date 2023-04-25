@@ -160,6 +160,15 @@ void to_json(Json &j, const Node *node)
     j = node->filePath;
 }
 
+LibDirNode::LibDirNode(bool isStandard_) : isStandard{isStandard_}
+{
+}
+
+InclNode::InclNode(bool isStandard_, bool ignoreHeaderDeps_)
+    : LibDirNode(isStandard_), ignoreHeaderDeps{ignoreHeaderDeps_}
+{
+}
+
 bool CompareSourceNode::operator()(const SourceNode &lhs, const SourceNode &rhs) const
 {
     return lhs.node < rhs.node;
@@ -371,15 +380,15 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
-    const Node *nodeDir = nullptr;
+    const std::pair<const Node *const, InclNode> *nodeDir = nullptr;
 
     // Iterating over all header-unit-directories of the module-scope to find out which header-unit
     // directory this header-unit comes from and which target that header-unit-directory belongs to
     // if any
     for (auto &dir : target->moduleScopeData->huDirTarget)
     {
-        const Node *dirNode = dir.first;
-        path result = path(headerUnitPath).lexically_relative(dirNode->filePath).generic_string();
+        const std::pair<const Node *const, InclNode> *dirNode = dir.first;
+        path result = path(headerUnitPath).lexically_relative(dirNode->first->filePath).generic_string();
         if (!result.empty() && !result.generic_string().starts_with(".."))
         {
             if (huDirTarget)
@@ -388,7 +397,8 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
                     fmt::format(
                         "Module Header Unit\n{}\n belongs to two Target Header Unit Includes\n{}\n{}\nof Module "
                         "Scope\n{}\n",
-                        headerUnitPath, nodeDir->filePath, dirNode->filePath, target->moduleScope->getTargetPointer()),
+                        headerUnitPath, nodeDir->first->filePath, dirNode->first->filePath,
+                        target->moduleScope->getTargetPointer()),
                     settings.pcSettings.toolErrorOutput);
                 throw std::exception();
             }
@@ -415,7 +425,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     if (!headerUnit.presentInSource)
     {
         headerUnit.presentInSource = true;
-        if (nodeDir->ignoreHeaderDeps)
+        if (nodeDir->second.ignoreHeaderDeps)
         {
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }

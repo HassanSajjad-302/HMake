@@ -3,6 +3,7 @@
 #ifndef HMAKE_EXAMPLESTESTHELPER_HPP
 #define HMAKE_EXAMPLESTESTHELPER_HPP
 
+#include "BuildSystemFunctions.hpp"
 #include "Features.hpp"
 #include <string>
 using std::string;

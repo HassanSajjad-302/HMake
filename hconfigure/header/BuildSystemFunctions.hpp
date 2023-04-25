@@ -14,6 +14,14 @@ import <mutex>;
 #include <string>
 #endif
 
+#ifdef WIN32
+
+#else
+
+#define EXPORT __attribute__((visibility("default")))
+
+#endif
+
 using std::string, std::set, std::map, std::mutex;
 
 inline string srcDir;

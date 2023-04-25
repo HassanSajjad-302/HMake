@@ -45,9 +45,9 @@ struct CompileCommandPrintSettings
     bool compilerFlags = true;
     bool compileDefinitions = true;
 
-    PathPrint projectIncludeDirectories{
+    PathPrint includeDirectories{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
-    PathPrint environmentIncludeDirectories{
+    PathPrint standardIncludeDirectories{
         .printLevel = PathPrintLevel::NO, .depth = 1, .addQuotes = false, .isDirectory = true, .isTool = false};
     bool onlyLogicalNameOfRequireIFC = true;
     PathPrint requireIFCs{

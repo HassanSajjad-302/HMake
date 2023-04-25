@@ -203,7 +203,8 @@ void CppSourceTarget::populateTransitiveProperties()
     {
         for (const Node *node : cppSourceTarget->usageRequirementIncludes)
         {
-            requirementIncludes.emplace(node);
+            // TODO
+            requirementIncludes.try_emplace(node, InclNode(false, false));
         }
         requirementCompilerFlags += cppSourceTarget->usageRequirementCompilerFlags;
         for (const Define &define : cppSourceTarget->usageRequirementCompileDefinitions)
@@ -226,9 +227,12 @@ CppSourceTarget &CppSourceTarget::setModuleScope(CppSourceTarget *moduleScope_)
 
 CppSourceTarget &CppSourceTarget::assignStandardIncludesToHUIncludes()
 {
-    for (const Node *node : standardIncludes)
+    for (const std::pair<const Node *const, InclNode> &include : requirementIncludes)
     {
-        huIncludes.emplace(node);
+        if (include.second.isStandard)
+        {
+            huIncludes.emplace_back(&include);
+        }
     }
     return *this;
 }
@@ -809,8 +813,9 @@ void CppSourceTarget::setJson()
     str = "MODULE_";
     targetJson[str + JConsts::files] = moduleSourceFileDependencies;
     targetJson[str + JConsts::directories] = regexModuleDirs;
-    targetJson[JConsts::includeDirectories] = requirementIncludes;
-    targetJson[JConsts::huIncludeDirectories] = huIncludes;
+    // TODO
+    /*    targetJson[JConsts::includeDirectories] = requirementIncludes;
+        targetJson[JConsts::huIncludeDirectories] = huIncludes;*/
     // TODO
     //  Add Module Scope
     targetJson[JConsts::compileDefinitions] = requirementCompileDefinitions;
@@ -865,9 +870,9 @@ C_Target *CppSourceTarget::get_CAPITarget(BSMode)
     c_cppSourceTarget->includeDirs = new const char *[requirementIncludes.size()];
 
     i = 0;
-    for (const Node *node : requirementIncludes)
+    for (const std::pair<const Node *const, InclNode> &include : requirementIncludes)
     {
-        c_cppSourceTarget->includeDirs[i] = node->filePath.c_str();
+        c_cppSourceTarget->includeDirs[i] = include.first->filePath.c_str();
         ++i;
     }
 
@@ -875,7 +880,8 @@ C_Target *CppSourceTarget::get_CAPITarget(BSMode)
     setCompileCommand();
 
     c_cppSourceTarget->compileCommand = compileCommand.c_str();
-    c_cppSourceTarget->compilerPath = compiler.bTPath.generic_string().c_str();
+    auto *compilerPath = new string(compiler.bTPath.generic_string());
+    c_cppSourceTarget->compilerPath = compilerPath->c_str();
 
     auto *c_Target = new C_Target();
     c_Target->type = C_TargetType::C_CPP_TARGET_TYPE;
@@ -1035,14 +1041,14 @@ void CppSourceTarget::setCompileCommand()
     // different compile-commands, thus hurting the caching.
     set<string> includes;
 
-    for (const Node *idd : requirementIncludes)
+    for (const std::pair<const Node *const, InclNode> &include : requirementIncludes)
     {
-        includes.emplace(idd->filePath);
+        includes.emplace(include.first->filePath);
     }
 
-    for (const Node *stdInclude : standardIncludes)
+    for (const std::pair<const Node *const, InclNode> &include : requirementIncludes)
     {
-        includes.emplace(stdInclude->filePath);
+        includes.emplace(include.first->filePath);
     }
 
     for (const string &include : includes)
@@ -1107,22 +1113,24 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
         }
     };
 
-    for (const Node *idd : requirementIncludes)
+    for (const std::pair<const Node *const, InclNode> &include : requirementIncludes)
     {
-        if (ccpSettings.projectIncludeDirectories.printLevel != PathPrintLevel::NO)
+        if (include.second.isStandard)
         {
-            sourceCompileCommandPrintFirstHalf +=
-                getIncludeFlag() + getReducedPath(idd->filePath, ccpSettings.projectIncludeDirectories) + " ";
+            if (ccpSettings.standardIncludeDirectories.printLevel != PathPrintLevel::NO)
+            {
+                sourceCompileCommandPrintFirstHalf +=
+                    getIncludeFlag() + getReducedPath(include.first->filePath, ccpSettings.standardIncludeDirectories) +
+                    " ";
+            }
         }
-    }
-
-    for (const Node *stdInclude : standardIncludes)
-    {
-        if (ccpSettings.environmentIncludeDirectories.printLevel != PathPrintLevel::NO)
+        else
         {
-            sourceCompileCommandPrintFirstHalf +=
-                getIncludeFlag() + getReducedPath(stdInclude->filePath, ccpSettings.environmentIncludeDirectories) +
-                " ";
+            if (ccpSettings.includeDirectories.printLevel != PathPrintLevel::NO)
+            {
+                sourceCompileCommandPrintFirstHalf +=
+                    getIncludeFlag() + getReducedPath(include.first->filePath, ccpSettings.includeDirectories) + " ";
+            }
         }
     }
 }
@@ -1238,9 +1246,9 @@ void CppSourceTarget::populateSourceNodes()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
-    for (const Node *idd : huIncludes)
+    for (const std::pair<const Node *const, InclNode> *include : huIncludes)
     {
-        if (const auto &[pos, Ok] = moduleScopeData->huDirTarget.try_emplace(idd, this); !Ok)
+        if (const auto &[pos, Ok] = moduleScopeData->huDirTarget.try_emplace(include, this); !Ok)
         {
             // TODO:
             //  Improve Message
@@ -1248,7 +1256,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
                 fmt::format("In ModuleScope {}\nhu-include-directory\n{}\n is being provided by two different "
                             "targets\n{}\n{}\nThis is not allowed "
                             "because HMake can't determine which Header Unit to attach to which target.",
-                            moduleScope->getSubDirForTarget(), idd->filePath, getTargetPointer(),
+                            moduleScope->getSubDirForTarget(), include->first->filePath, getTargetPointer(),
                             pos->second->getTargetPointer()),
                 settings.pcSettings.toolErrorOutput);
             throw std::exception();

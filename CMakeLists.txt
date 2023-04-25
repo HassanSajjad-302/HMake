@@ -2,13 +2,13 @@ cmake_minimum_required(VERSION 3.21.0)
 
 project(HMake LANGUAGES CXX)
 
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GCC")
     add_compile_options(-fsanitize=thread -std=c++2b)
     add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
-elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC" AND "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    add_compile_options(/fsanitize=address)
-    set(CMAKE_CXX_STANDARD 23)
-else()
+elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
+    if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+        add_compile_options(/fsanitize=address)
+    endif ()
     set(CMAKE_CXX_STANDARD 23)
 endif ()
 
@@ -46,22 +46,19 @@ add_library(hconfigure STATIC
         hconfigure/src/C_API.cpp)
 
 
-
-if(UNIX)
- target_compile_options(hconfigure PRIVATE -fPIC)
-  target_compile_options(fmt PRIVATE -fPIC)
- endif()
+if (UNIX)
+    target_compile_options(hconfigure PRIVATE -fPIC)
+    target_compile_options(fmt PRIVATE -fPIC)
+endif ()
 
 target_link_libraries(hconfigure PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
 target_include_directories(hconfigure
-                PUBLIC hconfigure/header
+        PUBLIC hconfigure/header
         )
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
-    target_compile_definitions(hconfigure PUBLIC "EXPORT=__declspec(dllexport)")
-else ()
-    target_compile_definitions(hconfigure PUBLIC EXPORT=)
-    set(CMAKE_CXX_STANDARD 23)
-endif ()
+
+if(UNIX)
+target_compile_options(hconfigure PRIVATE -fvisibility=hidden)
+endif()
 
 add_executable(htools htools/main.cpp)
 target_link_libraries(htools PRIVATE hconfigure)

@@ -13,8 +13,7 @@ void configurationSpecification(Configuration &configuration)
     DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
     hconfigure.getSourceTarget()
         .MODULE_DIRECTORIES("hconfigure/src/", ".*")
-        .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include")
-        .SINGLE<Dependency::PUBLIC>(BTFamily::MSVC, Define("EXPORT", "__declspec(dllexport)"));
+        .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include");
 
     DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hhelper.getSourceTarget()
@@ -112,7 +111,7 @@ struct SizeDifference : public CTarget, public BTarget
             }
 
             std::lock_guard<mutex> lk{printMutex};
-            fmt::print("Speed build size - {}\nSize build size - {}", speedSize, sizeSize);
+            fmt::print("Speed build size - {}\nSize build size - {}\n", speedSize, sizeSize);
             fflush(stdout);
         }
     }
@@ -134,7 +133,7 @@ void buildSpecification()
     /*    debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG, AddressSanitizer::OFF,
                      RuntimeDebugging::OFF);
         debug.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS");*/
-    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::YES, TranslateInclude::YES, ConfigType::RELEASE);
+    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE);
     releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
     //  arm.ASSIGN(cxxStd, Arch::ARM, TranslateInclude::YES, ConfigType::RELEASE, TreatModuleAsSource::NO);
     /*        debug.compilerFeatures.requirementCompilerFlags += "--target=x86_64-pc-windows-msvc ";
