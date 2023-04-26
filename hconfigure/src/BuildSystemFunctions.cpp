@@ -146,15 +146,18 @@ void configureOrBuild()
         TCT::checkForCycle();
     }
 
-    list<BTarget *> preSortBTargets;
+    vector<BTarget *> preSortBTargets;
     for (CTarget *cTarget : targetPointers<CTarget>)
     {
-        if (BTarget *bTarget = cTarget->getBTarget(); bTarget)
+        if (cTarget->callPreSort)
         {
-            preSortBTargets.emplace_back(bTarget);
-            if (cTarget->isCTargetInSelectedSubDirectory())
+            if (BTarget *bTarget = cTarget->getBTarget(); bTarget)
             {
-                bTarget->selectiveBuild = true;
+                preSortBTargets.emplace_back(bTarget);
+                if (cTarget->getSelectiveBuild())
+                {
+                    bTarget->selectiveBuild = true;
+                }
             }
         }
     }

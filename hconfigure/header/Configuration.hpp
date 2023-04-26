@@ -30,10 +30,10 @@ enum class ConfigTargetHaveFile
 // CppSourceTarget etc could be created with a properties preset but a new Configuration Directory will not be created
 struct Configuration : public CTarget
 {
-    set<CppSourceTarget *> cppSourceTargets;
-    set<LinkOrArchiveTarget *> linkOrArchiveTargets;
-    set<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;
-    set<struct CPT *> prebuiltTargets;
+    vector<CppSourceTarget *> cppSourceTargets;
+    vector<LinkOrArchiveTarget *> linkOrArchiveTargets;
+    vector<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;
+    vector<struct CPT *> prebuiltTargets;
     CompilerFeatures compilerFeatures;
     LinkerFeatures linkerFeatures;
 
@@ -60,6 +60,7 @@ struct Configuration : public CTarget
 
     explicit Configuration(const string &name_);
     Configuration(const string &name, CTarget &other, bool hasFile = true);
+    void markArchivePoint();
     void setModuleScope(CppSourceTarget *moduleScope);
     void setJson() override;
     C_Target *get_CAPITarget(BSMode bsModeLocal) override;

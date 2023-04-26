@@ -10,6 +10,8 @@ void configurationSpecification(Configuration &configuration)
     DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
     fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
 
+    configuration.markArchivePoint();
+
     DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
     hconfigure.getSourceTarget()
         .MODULE_DIRECTORIES("hconfigure/src/", ".*")

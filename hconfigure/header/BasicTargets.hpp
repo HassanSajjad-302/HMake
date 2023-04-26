@@ -115,6 +115,7 @@ class CTarget // Configure Target
 {
     inline static set<std::pair<string, string>> cTargetsSameFileAndNameCheck;
     void initializeCTarget();
+    bool selectiveBuild = false;
 
   public:
     string name;
@@ -129,13 +130,14 @@ class CTarget // Configure Target
     // This points to the tarjanNodeCTargets set element
     TCT *cTarjanNode = nullptr;
     const bool hasFile = true;
-    bool selectiveBuild = false;
+    bool selectiveBuildSet = false;
+    bool callPreSort = true;
     CTarget(string name_, CTarget &container, bool hasFile_ = true);
     explicit CTarget(string name_);
     string getTargetPointer() const;
     path getTargetFilePath() const;
     string getSubDirForTarget() const;
-    bool isCTargetInSelectedSubDirectory() const;
+    bool getSelectiveBuild();
 
     virtual string getTarjanNodeName();
     virtual void setJson();

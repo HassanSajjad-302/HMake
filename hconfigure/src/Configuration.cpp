@@ -15,11 +15,22 @@ import "LinkOrArchiveTarget.hpp";
 
 Configuration::Configuration(const string &name_) : CTarget{name_}
 {
-    selectiveBuild = isCTargetInSelectedSubDirectory();
 }
 
 Configuration::Configuration(const string &name_, CTarget &other, bool hasFile) : CTarget{name_, other, hasFile}
 {
+}
+
+void Configuration::markArchivePoint()
+{
+    // TODO
+    // This functions marks the archive point i.e. the targets before this function should be archived upon successful
+    // build. i.e. some extra info will be saved in target-cache file of these targets.
+    // The goal is that next time when hbuild is invoked, archived targets source-files won't be checked for
+    // existence/rebuilt. Neither will smfiles be generated for such targets module-files. Neither the header-files
+    // coming from such targets includes will be stored in cache.
+    // The use-case is when e.g. a target A dependens on targets B and C, such that these targets source is never meant
+    // to be changed e.g. fmt and json source in hmake project.
 }
 
 void Configuration::setModuleScope(CppSourceTarget *moduleScope)
@@ -37,7 +48,7 @@ CppSourceTarget &Configuration::GetCppPreprocess(const string &name_)
             .emplace(name_ , TargetType::PREPROCESS, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
             .first.
             operator*());
-    cppSourceTargets.emplace(&cppSourceTarget);
+    cppSourceTargets.emplace_back(&cppSourceTarget);
     static_cast<CompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
 }
@@ -49,7 +60,7 @@ CppSourceTarget &Configuration::GetCppObject(const string &name_)
             .emplace(name_, TargetType::LIBRARY_OBJECT, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
             .first.
             operator*());
-    cppSourceTargets.emplace(&cppSourceTarget);
+    cppSourceTargets.emplace_back(&cppSourceTarget);
     static_cast<CompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
 }
@@ -61,7 +72,7 @@ LinkOrArchiveTarget &Configuration::GetExe(const string &name_)
             .emplace(name_, TargetType::EXECUTABLE, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
             .first.
             operator*());
-    linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
+    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
@@ -72,7 +83,7 @@ LinkOrArchiveTarget &Configuration::GetStatic(const string &name_)
         targets<LinkOrArchiveTarget>.emplace(name_, TargetType::LIBRARY_STATIC, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
             .first.
             operator*());
-    linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
+    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
@@ -83,7 +94,7 @@ LinkOrArchiveTarget &Configuration::GetShared(const string &name_)
         targets<LinkOrArchiveTarget>.emplace(name_, TargetType::LIBRARY_SHARED, *this, configTargetHaveFile == ConfigTargetHaveFile::YES)
             .first.
             operator*());
-    linkOrArchiveTargets.emplace(&linkOrArchiveTarget);
+    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
@@ -93,14 +104,14 @@ PrebuiltLinkOrArchiveTarget &Configuration::GetPrebuiltLinkOrArchiveTarget(const
 {
     PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget = const_cast<PrebuiltLinkOrArchiveTarget &>(
         targets<PrebuiltLinkOrArchiveTarget>.emplace(name_, directory, linkTargetType_).first.operator*());
-    prebuiltLinkOrArchiveTargets.emplace(&prebuiltLinkOrArchiveTarget);
+    prebuiltLinkOrArchiveTargets.emplace_back(&prebuiltLinkOrArchiveTarget);
     return prebuiltLinkOrArchiveTarget;
 }
 
 CPT &Configuration::GetCPT()
 {
     CPT &cpt = const_cast<CPT &>(targets<CPT>.emplace().first.operator*());
-    prebuiltTargets.emplace(&cpt);
+    prebuiltTargets.emplace_back(&cpt);
     return cpt;
 }
 
@@ -193,5 +204,5 @@ C_Target *Configuration::get_CAPITarget(BSMode bsModeLocal)
 
 bool operator<(const Configuration &lhs, const Configuration &rhs)
 {
-    return lhs.name < rhs.name;
+    return lhs.id < rhs.id;
 }

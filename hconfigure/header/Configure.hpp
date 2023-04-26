@@ -63,6 +63,9 @@ import <utility>;
 //  configure.dll on linux is compiled with -fsanitizer=thread but no sanitizer is used on Windows. Choice for
 //  using sanitizer will be optional.
 
+// TODO
+// Instead of target-cache file per target, a central JSON for target caches should be used.
+
 extern "C" EXPORT int func2(BSMode bsMode_);
 
 // If this functions is not called then the unused symbols are not exported and above globals are not initialized.

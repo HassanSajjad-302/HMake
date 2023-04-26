@@ -214,7 +214,7 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::ASSIGN(T property, Pro
 {
     if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
     {
-        toExeDirOnNtOs = property;
+        copyToExeDirOnNtOs = property;
     }
     else
     {
@@ -234,7 +234,7 @@ template <typename T> bool PrebuiltLinkOrArchiveTarget::EVALUATE(T property) con
 {
     if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
     {
-        return toExeDirOnNtOs == property;
+        return copyToExeDirOnNtOs == property;
     }
     else if constexpr (std::is_same_v<decltype(property), TargetType>)
     {

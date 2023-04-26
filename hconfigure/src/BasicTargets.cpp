@@ -153,9 +153,9 @@ string CTarget::getSubDirForTarget() const
     return other ? (other->getSubDirForTarget() + name + "/") : targetFileDir;
 }
 
-bool CTarget::isCTargetInSelectedSubDirectory() const
+bool CTarget::getSelectiveBuild()
 {
-    if (bsMode == BSMode::BUILD)
+    if (bsMode == BSMode::BUILD && !selectiveBuildSet)
     {
         path targetPath = getSubDirForTarget();
         for (; targetPath.root_path() != targetPath; targetPath = (targetPath / "..").lexically_normal())
@@ -163,11 +163,13 @@ bool CTarget::isCTargetInSelectedSubDirectory() const
             std::error_code ec;
             if (equivalent(targetPath, current_path(), ec))
             {
-                return true;
+                selectiveBuild = true;
+                break;
             }
         }
+        selectiveBuildSet = true;
     }
-    return false;
+    return selectiveBuild;
 }
 
 string CTarget::getTarjanNodeName()

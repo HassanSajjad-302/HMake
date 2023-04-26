@@ -1,27 +1,25 @@
 #ifndef HMAKE_BUILDER_HPP
 #define HMAKE_BUILDER_HPP
 #ifdef USE_HEADER_UNITS
-import <list>;
+import <vector>;
 import <string>;
 #else
-#include <list>
 #include <string>
+#include <vector>
 #endif
 
-using std::string, std::list;
+using std::string, std::vector;
 
 class Builder
 {
     unsigned short round = 0;
-    list<struct BTarget *>::iterator finalBTargetsIterator;
+    vector<struct BTarget *>::iterator finalBTargetsIterator;
     size_t finalBTargetsSizeGoal = 0;
 
-    list<BTarget *> &preSortBTargets;
-
   public:
-    list<BTarget *> finalBTargets;
+    vector<BTarget *> finalBTargets;
     bool updateBTargetFailed = false;
-    explicit Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarget *> &preSortBTargets_);
+    explicit Builder(unsigned short roundBegin, unsigned short roundEnd, vector<BTarget *> &preSortBTargets);
     void populateFinalBTargets();
 
     // This function is executed by multiple threads and is executed recursively until build is finished.

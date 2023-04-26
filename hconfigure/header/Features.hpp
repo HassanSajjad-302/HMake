@@ -662,9 +662,12 @@ struct DSCFeatures : public DSCPrebuiltFeatures
     DefineDLLPrivate defineDllPrivate = DefineDLLPrivate::NO;
 };
 
+// TODO
+// Add another feature "CanBeUpdated", that suggests that whether the prebuilt target can be updated so its timestamp is
+// not checked by-default.
 struct PrebuiltLinkerFeatures
 {
-    CopyDLLToExeDirOnNTOs toExeDirOnNtOs = CopyDLLToExeDirOnNTOs::YES;
+    CopyDLLToExeDirOnNTOs copyToExeDirOnNtOs = CopyDLLToExeDirOnNTOs::YES;
 };
 
 struct LinkerFeatures
@@ -701,8 +704,6 @@ struct LinkerFeatures
     InstructionSet instructionSet = InstructionSet::OFF;
     CpuType cpuType;
 
-    // TODO
-    // Should be in common features
     CxxSTD cxxStd = CxxSTD::V_LATEST;
     CxxSTDDialect cxxStdDialect = CxxSTDDialect::ISO;
     Linker linker;
@@ -720,13 +721,6 @@ struct LinkerFeatures
 
 struct CompilerFeatures
 {
-    // TODO
-    // Only reason for the existence of the following is to prune this out of pretty-printing. Maybe level based
-    // printing would be better than fine-grained printing control. In level-based printing user would set a level for
-    // printing. Include-Nodes would have a level above or below than user-nodes, so they won't be printed at default
-    // level.
-    // set<const const class Node *> standardIncludes;
-
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
     ThreadSanitizer threadSanitizer = ThreadSanitizer::OFF;
@@ -771,8 +765,6 @@ struct CompilerFeatures
 
     // Following two are initialized in constructor
     // AddressModel and Architecture to target for.
-    // TODO
-    // Maybe these be placed in LinkerFeatures
     InstructionSet instructionSet = InstructionSet::OFF;
     CpuType cpuType;
 

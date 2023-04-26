@@ -21,8 +21,7 @@ import <thread>;
 using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream, std::ofstream, std::stack,
     std::filesystem::current_path;
 
-Builder::Builder(unsigned short roundBegin, unsigned short roundEnd, list<BTarget *> &preSortBTargets_)
-    : preSortBTargets{preSortBTargets_}
+Builder::Builder(unsigned short roundBegin, unsigned short roundEnd, vector<BTarget *> &preSortBTargets)
 {
     round = roundBegin;
     bool breakLoop = false;
@@ -118,9 +117,9 @@ void Builder::launchThreadsAndUpdateBTargets()
     vector<thread *> threads;
 
     // TODO
-    // Instead of launching all threads, only the required amount should be
-    // launched. Following should be helpful for this calculation in DSL.
-    // https://cs.stackexchange.com/a/16829
+    // Transition from one round to the next round can be more seamless. Instead of thread recreation and destruction
+    // old threads should wait. one thread should call populateFinalBTargets and then next threads should start
+    // execution. Also tarjannode sorting could be more parallel.
     finalBTargetsIterator = finalBTargets.begin();
 
     unsigned short launchThreads = 12;
