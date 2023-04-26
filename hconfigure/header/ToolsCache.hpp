@@ -46,10 +46,24 @@ struct VSTools
 void to_json(Json &j, const VSTools &vsTool);
 void from_json(const Json &j, VSTools &vsTool);
 
+// On Windows standard libraries and includes are not provided by default. And tools used are different based on
+// Architecture and Address-Model.
+struct LinuxTools
+{
+    string command;
+    Compiler compiler;
+    set<string> includeDirectories;
+    LinuxTools(const Compiler &compiler_);
+    LinuxTools() = default;
+};
+void to_json(Json &j, const LinuxTools &linuxTools);
+void from_json(const Json &j, LinuxTools &linuxTools);
+
 struct ToolsCache
 {
     path toolsCacheFilePath;
     vector<VSTools> vsTools;
+    vector<LinuxTools> linuxTools;
     // Following are tools besides vsTools
     vector<Compiler> compilers;
     vector<Linker> linkers;

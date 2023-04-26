@@ -83,6 +83,7 @@ struct JConsts
     inline static const string linkerSelectedArrayIndex = "linker-selected-array-index";
     inline static const string linkerTransitiveFlags = "linker-transitive-flags";
     inline static const string linkPrintSettings = "link-print-settings";
+    inline static const string linuxTools = "linux-tools";
     inline static const string linuxUnix = "linux-unix";
     inline static const string maximumBuildThreads = "maximum-build-threads";
     inline static const string maximumLinkThreads = "maximum-link-threads";

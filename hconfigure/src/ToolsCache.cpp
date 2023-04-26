@@ -8,9 +8,9 @@ import <filesystem>;
 import <fstream>;
 import <utility>;
 #else
+#include "ToolsCache.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
-#include "ToolsCache.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
 #include <fstream>
@@ -181,6 +181,79 @@ void from_json(const Json &j, VSTools &vsTool)
     vsTool.libraryDirectories = j.at(JConsts::libraryDirectories).get<set<string>>();
 }
 
+LinuxTools::LinuxTools(const Compiler &compiler_) : compiler{compiler_}
+{
+    string temporaryIncludeFilename = "temporaryInclude.txt";
+
+    string temporaryCppFile = "temporary-main.cpp";
+    ofstream(temporaryCppFile) << "";
+    command = compiler.bTPath.string() + " " + temporaryCppFile + " -E -v> " + temporaryIncludeFilename + " 2>&1";
+    int code = system(command.c_str());
+    remove(temporaryCppFile);
+    if (code != EXIT_SUCCESS)
+    {
+        printErrorMessage("Error in Initializing Environment\n");
+        throw std::exception();
+    }
+
+    string accumulatedPaths = file_to_string(temporaryIncludeFilename);
+    remove(temporaryIncludeFilename);
+    vector<string> lines = split(std::move(accumulatedPaths), "\n");
+
+    size_t foundIndex = 0;
+    for (size_t i = 0; i < lines.size(); ++i)
+    {
+        if (lines[i] == "#include <...> search starts here:")
+        {
+            foundIndex = i;
+            break;
+        }
+    }
+
+    if (foundIndex)
+    {
+        size_t endIndex = 0;
+        for (size_t i = foundIndex + 1; i < lines.size(); ++i)
+        {
+            if (lines[i] == "End of search list.")
+            {
+                endIndex = i;
+                break;
+            }
+        }
+
+        if (endIndex)
+        {
+            for (size_t i = foundIndex + 1; i < endIndex; ++i)
+            {
+                includeDirectories.emplace(lines[i]);
+            }
+        }
+        else
+        {
+            printMessage("Warning! No standard include found during LinuxTools::\n");
+        }
+    }
+    else
+    {
+        printMessage("Warning! No standard include found during LinuxTools::\n");
+    }
+}
+
+void to_json(Json &j, const LinuxTools &linuxTools)
+{
+    j[JConsts::command] = linuxTools.command;
+    j[JConsts::compiler] = linuxTools.compiler;
+    j[JConsts::includeDirectories] = linuxTools.includeDirectories;
+}
+
+void from_json(const Json &j, LinuxTools &linuxTools)
+{
+    linuxTools.command = j.at(JConsts::command).get<string>();
+    linuxTools.compiler = j.at(JConsts::compiler).get<Compiler>();
+    linuxTools.includeDirectories = j.at(JConsts::includeDirectories).get<set<string>>();
+}
+
 ToolsCache::ToolsCache()
 {
     string toolsCacheFile = "toolsCache.json";
@@ -220,8 +293,8 @@ void ToolsCache::detectToolsAndInitialize()
     }
     else if constexpr (os == OS::LINUX)
     {
-        compilers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/g++");
-        linkers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/g++");
+        linuxTools.emplace_back(Compiler(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/c++"));
+        linkers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/c++");
         archivers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/ar");
     }
     if (!exists(toolsCacheFilePath))
@@ -240,6 +313,7 @@ void ToolsCache::initializeToolsCacheVariableFromToolsCacheFile()
 void to_json(Json &j, const ToolsCache &toolsCacheLocal)
 {
     j[JConsts::vsTools] = toolsCacheLocal.vsTools;
+    j[JConsts::linuxTools] = toolsCacheLocal.linuxTools;
     j[JConsts::compilerArray] = toolsCacheLocal.compilers;
     j[JConsts::linkerArray] = toolsCacheLocal.linkers;
     j[JConsts::archiverArray] = toolsCacheLocal.archivers;
@@ -248,8 +322,8 @@ void to_json(Json &j, const ToolsCache &toolsCacheLocal)
 void from_json(const Json &j, ToolsCache &toolsCacheLocal)
 {
     toolsCacheLocal.vsTools = j.at(JConsts::vsTools).get<vector<VSTools>>();
+    toolsCacheLocal.linuxTools = j.at(JConsts::linuxTools).get<vector<LinuxTools>>();
     toolsCacheLocal.compilers = j.at(JConsts::compilerArray).get<vector<Compiler>>();
     toolsCacheLocal.linkers = j.at(JConsts::linkerArray).get<vector<Linker>>();
     toolsCacheLocal.archivers = j.at(JConsts::archiverArray).get<vector<Archiver>>();
 }
-
