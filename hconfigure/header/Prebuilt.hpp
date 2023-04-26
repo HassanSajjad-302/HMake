@@ -17,7 +17,7 @@ using std::set, std::string;
 // CPrebuiltTarget
 struct CPT : public ObjectFileProducerWithDS<CPT>
 {
-    set<const class Node *> usageRequirementIncludes;
+    map<const class Node *, class InclNode> usageRequirementIncludes;
     string usageRequirementCompilerFlags;
     set<struct Define> usageRequirementCompileDefinitions;
 
@@ -28,7 +28,7 @@ struct CPT : public ObjectFileProducerWithDS<CPT>
 
 template <typename... U> CPT &CPT::INTERFACE_INCLUDES(const string &include, U... includeDirectoryString)
 {
-    usageRequirementIncludes.emplace(Node::getNodeFromString(include, false));
+    usageRequirementIncludes.emplace(Node::getNodeFromString(include, false), InclNode(false, false));
     if constexpr (sizeof...(includeDirectoryString))
     {
         return INTERFACE_INCLUDES(includeDirectoryString...);

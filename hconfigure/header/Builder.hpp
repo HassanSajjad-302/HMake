@@ -3,21 +3,23 @@
 #ifdef USE_HEADER_UNITS
 import <vector>;
 import <string>;
+import <list>;
 #else
+#include <list>
 #include <string>
 #include <vector>
 #endif
 
-using std::string, std::vector;
+using std::string, std::vector, std::list;
 
 class Builder
 {
     unsigned short round = 0;
-    vector<struct BTarget *>::iterator finalBTargetsIterator;
+    list<struct BTarget *>::iterator finalBTargetsIterator;
     size_t finalBTargetsSizeGoal = 0;
 
   public:
-    vector<BTarget *> finalBTargets;
+    list<BTarget *> finalBTargets;
     bool updateBTargetFailed = false;
     explicit Builder(unsigned short roundBegin, unsigned short roundEnd, vector<BTarget *> &preSortBTargets);
     void populateFinalBTargets();

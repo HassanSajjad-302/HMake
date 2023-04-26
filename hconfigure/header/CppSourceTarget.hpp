@@ -153,6 +153,8 @@ class CppSourceTarget : public CompilerFeatures,
 
     CppSourceTarget &setModuleScope(CppSourceTarget *moduleScope_);
     CppSourceTarget &assignStandardIncludesToHUIncludes();
+    // TODO
+    // Also provide function overload for functions like PUBLIC_INCLUDES here and in CPT
     template <typename... U> CppSourceTarget &PUBLIC_INCLUDES(const string &include, U... includeDirectoryString);
     template <typename... U> CppSourceTarget &PRIVATE_INCLUDES(const string &include, U... includeDirectoryString);
     template <typename... U> CppSourceTarget &INTERFACE_INCLUDES(const string &include, U... includeDirectoryString);
@@ -183,7 +185,7 @@ CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(const string &include, U... in
 {
     const Node *node = Node::getNodeFromString(include, false);
     requirementIncludes.try_emplace(node, InclNode(false, false));
-    usageRequirementIncludes.emplace(node);
+    usageRequirementIncludes.try_emplace(node, InclNode(false, false));
     if constexpr (sizeof...(includeDirectoryString))
     {
         return PUBLIC_INCLUDES(includeDirectoryString...);
@@ -211,7 +213,7 @@ CppSourceTarget &CppSourceTarget::PRIVATE_INCLUDES(const string &include, U... i
 template <typename... U>
 CppSourceTarget &CppSourceTarget::INTERFACE_INCLUDES(const string &include, U... includeDirectoryString)
 {
-    usageRequirementIncludes.emplace(Node::getNodeFromString(include, false));
+    usageRequirementIncludes.try_emplace(Node::getNodeFromString(include, false), InclNode(false, false));
     if constexpr (sizeof...(includeDirectoryString))
     {
         return INTERFACE_INCLUDES(includeDirectoryString...);
@@ -226,7 +228,7 @@ template <typename... U>
 CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const string &include, U... includeDirectoryString)
 {
     const Node *node = Node::getNodeFromString(include, false);
-    usageRequirementIncludes.emplace(node);
+    usageRequirementIncludes.try_emplace(node, InclNode(false, false));
     if (const auto &[first, second] = requirementIncludes.try_emplace(node, InclNode(false, false)); second)
     {
         huIncludes.emplace_back(first.operator->());

@@ -201,10 +201,9 @@ void CppSourceTarget::populateTransitiveProperties()
 {
     for (CPT *cppSourceTarget : requirementDeps)
     {
-        for (const Node *node : cppSourceTarget->usageRequirementIncludes)
+        for (const std::pair<const Node *const, InclNode> &include : cppSourceTarget->usageRequirementIncludes)
         {
-            // TODO
-            requirementIncludes.try_emplace(node, InclNode(false, false));
+            requirementIncludes.emplace(include);
         }
         requirementCompilerFlags += cppSourceTarget->usageRequirementCompilerFlags;
         for (const Define &define : cppSourceTarget->usageRequirementCompileDefinitions)

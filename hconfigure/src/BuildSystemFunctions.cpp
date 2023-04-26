@@ -18,7 +18,7 @@ import <fstream>;
 #endif
 
 using fmt::print, std::filesystem::current_path, std::filesystem::exists, std::filesystem::directory_iterator,
-    std::ifstream, std::list;
+    std::ifstream;
 
 void initializeCache(BSMode bsMode_)
 {

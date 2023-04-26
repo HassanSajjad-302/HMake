@@ -142,32 +142,15 @@ void buildSpecification()
             debug.linkerFeatures.requirementLinkerFlags += "--target=x86_64-pc-windows-msvc";*/
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 
-    for (const Configuration &configuration : targets<Configuration>)
-    {
-        configurationSpecification(const_cast<Configuration &>(configuration));
-    }
-
     targets<SizeDifference>.emplace("Size-Difference", releaseSize, releaseSpeed);
 
-    /* auto updateBTarget = [&](Builder &builder, unsigned short round) {
-         for (LinkOrArchiveTarget *linkOrArchiveTarget : releaseSpeed.linkOrArchiveTargets)
-         {
-             std::filesystem::copy(linkOrArchiveTarget->getActualOutputPath(),
-                                   sizeDifference.getSubDirForTarget() + linkOrArchiveTarget->actualOutputName,
-                                   std::filesystem::copy_options::overwrite_existing);
-         }
-     };
-
-     CTargetRoundZeroBTarget<void(Builder &, unsigned short), void(Builder &, unsigned short, unsigned int),
-                             decltype(updateBTarget)>
-         sizeDifference("Size-Difference");
-
-     for (LinkOrArchiveTarget *linkOrArchiveTarget : releaseSpeed.linkOrArchiveTargets)
-     {
-         sizeDifference.getRealBTarget(0).addDependency(*linkOrArchiveTarget);
-     }
-
-     sizeDifference.setUpdateFunctor(lamb);*/
+    for (const Configuration &configuration : targets<Configuration>)
+    {
+        if (const_cast<Configuration &>(configuration).getSelectiveBuild())
+        {
+            configurationSpecification(const_cast<Configuration &>(configuration));
+        }
+    }
 }
 
 #ifdef EXE
