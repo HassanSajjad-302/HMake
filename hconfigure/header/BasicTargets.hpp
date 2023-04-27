@@ -26,12 +26,10 @@ using TCT = TarjanNode<CTarget>;
 inline set<TCT> tarjanNodesCTargets;
 
 struct RealBTarget;
-/*struct IndexInTopologicalSortComparator
+struct IndexInTopologicalSortComparatorRoundZero
 {
-    explicit IndexInTopologicalSortComparator(unsigned short round_);
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
-    unsigned short round;
-};*/
+};
 
 enum class FileStatus
 {

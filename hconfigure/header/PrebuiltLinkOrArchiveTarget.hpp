@@ -48,6 +48,9 @@ class PrebuiltLinkOrArchiveTarget : public BTarget, public PrebuiltLinkerFeature
     map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> requirementDeps;
     map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> usageRequirementDeps;
 
+    map<PrebuiltLinkOrArchiveTarget *, const PrebuiltDep *, IndexInTopologicalSortComparatorRoundZero>
+        sortedPrebuiltDependencies;
+
     template <typename... U>
     PrebuiltLinkOrArchiveTarget &PUBLIC_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps);
     template <typename... U>

@@ -67,6 +67,12 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round)
     if (!round)
     {
         populateObjectFiles();
+
+        for (auto &[pre, dep] : requirementDeps)
+        {
+            sortedPrebuiltDependencies.emplace(pre, &(dep));
+        }
+
         setLinkOrArchiveCommands();
         RealBTarget &realBTarget = getRealBTarget(round);
 
@@ -836,12 +842,12 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
 
     if (linkTargetType != TargetType::LIBRARY_STATIC)
     {
-        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : sortedPrebuiltDependencies)
         {
-            linkOrArchiveCommandWithTargets += prebuiltDep.requirementPreLF;
+            linkOrArchiveCommandWithTargets += prebuiltDep->requirementPreLF;
             linkOrArchiveCommandWithTargets +=
                 getLinkFlag(prebuiltLinkOrArchiveTarget->outputDirectory, prebuiltLinkOrArchiveTarget->outputName);
-            linkOrArchiveCommandWithTargets += prebuiltDep.requirementPostLF;
+            linkOrArchiveCommandWithTargets += prebuiltDep->requirementPostLF;
         }
 
         auto getLibraryDirectoryFlag = [this]() {
@@ -862,11 +868,11 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
 
         if (EVALUATE(BTFamily::GCC))
         {
-            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : sortedPrebuiltDependencies)
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    if (prebuiltDep.defaultRpath)
+                    if (prebuiltDep->defaultRpath)
                     {
 
                         localLinkCommand +=
@@ -876,7 +882,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                     }
                     else
                     {
-                        localLinkCommand += prebuiltDep.requirementRpath;
+                        localLinkCommand += prebuiltDep->requirementRpath;
                     }
                 }
             }
@@ -884,11 +890,11 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
 
         if (AND(BTFamily::GCC, TargetType::EXECUTABLE) && flags.isRpathOs)
         {
-            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : sortedPrebuiltDependencies)
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    if (prebuiltDep.defaultRpathLink)
+                    if (prebuiltDep->defaultRpathLink)
                     {
 
                         localLinkCommand +=
@@ -898,7 +904,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                     }
                     else
                     {
-                        localLinkCommand += prebuiltDep.requirementRpathLink;
+                        localLinkCommand += prebuiltDep->requirementRpathLink;
                     }
                 }
             }
@@ -1037,13 +1043,13 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
     {
         if (lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
         {
-            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                linkOrArchiveCommandPrint += prebuiltDep.requirementPreLF;
+                linkOrArchiveCommandPrint += prebuiltDep->requirementPreLF;
                 linkOrArchiveCommandPrint +=
                     getLinkFlagPrint(prebuiltLinkOrArchiveTarget->outputDirectory,
                                      prebuiltLinkOrArchiveTarget->outputName, lcpSettings.libraryDependencies);
-                linkOrArchiveCommandPrint += prebuiltDep.requirementPostLF;
+                linkOrArchiveCommandPrint += prebuiltDep->requirementPostLF;
             }
         }
 
@@ -1082,11 +1088,11 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
 
         if (EVALUATE(BTFamily::GCC) && lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
         {
-            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : sortedPrebuiltDependencies)
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    if (prebuiltDep.defaultRpath)
+                    if (prebuiltDep->defaultRpath)
                     {
                         linkOrArchiveCommandPrint +=
                             "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
@@ -1097,7 +1103,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                     }
                     else
                     {
-                        linkOrArchiveCommandPrint += prebuiltDep.requirementRpath;
+                        linkOrArchiveCommandPrint += prebuiltDep->requirementRpath;
                     }
                 }
             }
@@ -1106,11 +1112,11 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         if (AND(BTFamily::GCC, TargetType::EXECUTABLE) && flags.isRpathOs &&
             lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
         {
-            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : sortedPrebuiltDependencies)
             {
                 if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                 {
-                    if (prebuiltDep.defaultRpathLink)
+                    if (prebuiltDep->defaultRpathLink)
                     {
                         linkOrArchiveCommandPrint +=
                             "-Wl,-rpath-link -Wl," +
@@ -1121,7 +1127,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                     }
                     else
                     {
-                        linkOrArchiveCommandPrint += prebuiltDep.requirementRpathLink;
+                        linkOrArchiveCommandPrint += prebuiltDep->requirementRpathLink;
                     }
                 }
             }

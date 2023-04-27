@@ -14,15 +14,11 @@ import <fstream>;
 #endif
 using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path;
 
-/*IndexInTopologicalSortComparator::IndexInTopologicalSortComparator(unsigned short round_) : round(round_)
+bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
 {
+    return const_cast<BTarget *>(lhs)->getRealBTarget(0).indexInTopologicalSort >
+           const_cast<BTarget *>(rhs)->getRealBTarget(0).indexInTopologicalSort;
 }
-
-bool IndexInTopologicalSortComparator::operator()(const BTarget *lhs, const BTarget *rhs) const
-{
-    return lhs->realBTargets.find(round)->indexInTopologicalSort <
-           rhs->realBTargets.find(round)->indexInTopologicalSort;
-}*/
 
 RealBTarget::RealBTarget(BTarget *bTarget_, unsigned short round_) : bTarget(bTarget_), round(round_)
 {
