@@ -64,7 +64,7 @@ struct ModuleScopeData
     set<SMFile *> smFiles;
     set<SMFile, CompareSourceNode> headerUnits;
     // Which header unit directory come from which target
-    map<const std::pair<const Node *const, InclNode> *, CppSourceTarget *> huDirTarget;
+    map<const InclNode *, CppSourceTarget *> huDirTarget;
     map<string, SMFile *> requirePaths;
 };
 
@@ -127,7 +127,7 @@ class CppSourceTarget : public CompilerFeatures,
     void saveBuildCache(bool round);
 
     // In module scope, two different targets should not have a directory in huIncludes
-    vector<const std::pair<const Node *const, InclNode> *> huIncludes;
+    vector<InclNode *> huIncludes;
 
     set<SourceDirectory> regexSourceDirs;
     set<SourceDirectory> regexModuleDirs;
@@ -183,9 +183,9 @@ bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(const string &include, U... includeDirectoryString)
 {
-    const Node *node = Node::getNodeFromString(include, false);
-    requirementIncludes.try_emplace(node, InclNode(false, false));
-    usageRequirementIncludes.try_emplace(node, InclNode(false, false));
+    Node *node = Node::getNodeFromString(include, false);
+    InclNode::emplaceInList(requirementIncludes, node);
+    InclNode::emplaceInList(usageRequirementIncludes, node);
     if constexpr (sizeof...(includeDirectoryString))
     {
         return PUBLIC_INCLUDES(includeDirectoryString...);
@@ -199,7 +199,7 @@ CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(const string &include, U... in
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PRIVATE_INCLUDES(const string &include, U... includeDirectoryString)
 {
-    requirementIncludes.try_emplace(Node::getNodeFromString(include, false), InclNode(false, false));
+    InclNode::emplaceInList(requirementIncludes, Node::getNodeFromString(include, false));
     if constexpr (sizeof...(includeDirectoryString))
     {
         return PRIVATE_INCLUDES(includeDirectoryString...);
@@ -213,7 +213,7 @@ CppSourceTarget &CppSourceTarget::PRIVATE_INCLUDES(const string &include, U... i
 template <typename... U>
 CppSourceTarget &CppSourceTarget::INTERFACE_INCLUDES(const string &include, U... includeDirectoryString)
 {
-    usageRequirementIncludes.try_emplace(Node::getNodeFromString(include, false), InclNode(false, false));
+    InclNode::emplaceInList(usageRequirementIncludes, Node::getNodeFromString(include, false));
     if constexpr (sizeof...(includeDirectoryString))
     {
         return INTERFACE_INCLUDES(includeDirectoryString...);
@@ -227,11 +227,11 @@ CppSourceTarget &CppSourceTarget::INTERFACE_INCLUDES(const string &include, U...
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const string &include, U... includeDirectoryString)
 {
-    const Node *node = Node::getNodeFromString(include, false);
-    usageRequirementIncludes.try_emplace(node, InclNode(false, false));
-    if (const auto &[first, second] = requirementIncludes.try_emplace(node, InclNode(false, false)); second)
+    Node *node = Node::getNodeFromString(include, false);
+    InclNode::emplaceInList(usageRequirementIncludes, node);
+    if (bool added = InclNode::emplaceInList(requirementIncludes, node); added)
     {
-        huIncludes.emplace_back(first.operator->());
+        huIncludes.emplace_back(&(requirementIncludes.back()));
     }
 
     if constexpr (sizeof...(includeDirectoryString))
@@ -247,11 +247,9 @@ CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const string &include, U...
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const string &include, U... includeDirectoryString)
 {
-    if (const auto &[first, second] =
-            requirementIncludes.try_emplace(Node::getNodeFromString(include, false), InclNode(false, false));
-        second)
+    if (bool added = InclNode::emplaceInList(requirementIncludes, Node::getNodeFromString(include, false)); added)
     {
-        huIncludes.emplace_back(first.operator->());
+        huIncludes.emplace_back(&(requirementIncludes.back()));
     }
     if constexpr (sizeof...(includeDirectoryString))
     {

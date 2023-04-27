@@ -51,7 +51,6 @@ class LinkOrArchiveTarget : public CTarget,
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     string linkOrArchiveCommandWithoutTargets;
     string linkOrArchiveCommandWithTargets;
-    set<Node *> libraryDirectories;
 
     set<class ObjectFile *> objectFiles;
     set<class ObjectFileProducer *> objectFileProducers;

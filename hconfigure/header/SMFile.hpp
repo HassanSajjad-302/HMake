@@ -4,6 +4,7 @@
 import "ObjectFileProducer.hpp";
 #include "nlohmann/json.hpp";
 import <filesystem>;
+import <list>;
 import <set>;
 import <string>;
 import <utility>;
@@ -12,6 +13,7 @@ import <vector>;
 #include "ObjectFileProducer.hpp"
 #include "nlohmann/json.hpp"
 #include <filesystem>
+#include <list>
 #include <set>
 #include <string>
 #include <utility>
@@ -19,7 +21,7 @@ import <vector>;
 #endif
 
 using Json = nlohmann::ordered_json;
-using std::string, std::map, std::set, std::vector, std::filesystem::path, std::pair;
+using std::string, std::map, std::set, std::vector, std::filesystem::path, std::pair, std::list;
 
 class Node;
 struct CompareNode
@@ -42,7 +44,7 @@ class Node
     std::filesystem::file_time_type getLastUpdateTime() const;
     static path getFinalNodePathFromString(const string &str);
     // Create a node and inserts it into the allFiles if it is not already there
-    static const Node *getNodeFromString(const string &str, bool isFile, bool mayNotExist = false);
+    static Node *getNodeFromString(const string &str, bool isFile, bool mayNotExist = false);
 
   private:
     // Because checking for lastUpdateTime is expensive, it is done only once even if file is used in multiple targets.
@@ -57,8 +59,11 @@ void to_json(Json &j, const Node *node);
 class LibDirNode
 {
   public:
+    Node *node = nullptr;
     bool isStandard = false;
-    explicit LibDirNode(bool isStandard_ = false);
+    explicit LibDirNode(Node *node_, bool isStandard_ = false);
+    static void emplaceInList(list<LibDirNode> &libDirNodes, LibDirNode &libDirNode);
+    static void emplaceInList(list<LibDirNode> &libDirNodes, Node *node_, bool isStandard_ = false);
 };
 
 class InclNode : public LibDirNode
@@ -67,7 +72,10 @@ class InclNode : public LibDirNode
     // Used with includeDirectories to specify whether to ignore include-files from these directories from being stored
     // in target-cache file
     bool ignoreHeaderDeps = false;
-    explicit InclNode(bool isStandard_ = false, bool ignoreHeaderDeps_ = false);
+    explicit InclNode(Node *node_, bool isStandard_ = false, bool ignoreHeaderDeps_ = false);
+    static bool emplaceInList(list<InclNode> &includes, InclNode &libDirNode);
+    static bool emplaceInList(list<InclNode> &includes, Node *node_, bool isStandard_ = false,
+                              bool ignoreHeaderDeps_ = false);
 };
 
 struct SourceNode;

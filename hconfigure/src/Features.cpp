@@ -329,7 +329,7 @@ void LinkerFeatures::setLinkerFromVSTools(struct VSTools &vsTools)
     linker = vsTools.linker;
     for (const string &str : vsTools.libraryDirectories)
     {
-        requirementLibraryDirectories.try_emplace(Node::getNodeFromString(str, false), true);
+        LibDirNode::emplaceInList(requirementLibraryDirectories, Node::getNodeFromString(str, false), true);
     }
 }
 
@@ -391,7 +391,7 @@ void CompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
     compiler = vsTools.compiler;
     for (const string &str : vsTools.includeDirectories)
     {
-        requirementIncludes.try_emplace(Node::getNodeFromString(str, false), InclNode(true, true));
+        InclNode::emplaceInList(requirementIncludes, Node::getNodeFromString(str, false), true, true);
     }
 }
 
@@ -400,7 +400,7 @@ void CompilerFeatures::setCompilerFromLinuxTools(LinuxTools &linuxTools)
     compiler = linuxTools.compiler;
     for (const string &str : linuxTools.includeDirectories)
     {
-        requirementIncludes.try_emplace(Node::getNodeFromString(str, false), InclNode(true, true));
+        InclNode::emplaceInList(requirementIncludes, Node::getNodeFromString(str, false), true, true);
     }
 }
 

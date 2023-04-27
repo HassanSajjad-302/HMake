@@ -855,21 +855,9 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             }
         };
 
-        // Following set is needed because otherwise pointers don't have string-like ordering, so two runs may
-        // generate different link-commands, thus hurting the caching.
-        set<string> libraryIncludes;
-
-        for (const Node *includeDir : libraryDirectories)
+        for (const LibDirNode &libDirNode : requirementLibraryDirectories)
         {
-            libraryIncludes.emplace(includeDir->filePath);
-        }
-        for (auto &[node, libDirNode] : requirementLibraryDirectories)
-        {
-            libraryIncludes.emplace(node->filePath);
-        }
-        for (const string &libDir : libraryIncludes)
-        {
-            localLinkCommand += getLibraryDirectoryFlag() + addQuotes(libDir) + " ";
+            localLinkCommand += getLibraryDirectoryFlag() + addQuotes(libDirNode.node->filePath) + " ";
         }
 
         if (EVALUATE(BTFamily::GCC))
@@ -1070,16 +1058,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
             }
         };
 
-        if (lcpSettings.libraryDirectories.printLevel != PathPrintLevel::NO)
-        {
-            for (const Node *includeDir : libraryDirectories)
-            {
-                linkOrArchiveCommandPrint += getLibraryDirectoryFlag() +
-                                             getReducedPath(includeDir->filePath, lcpSettings.libraryDirectories) + " ";
-            }
-        }
-
-        for (auto &[node, libDirNode] : requirementLibraryDirectories)
+        for (const LibDirNode &libDirNode : requirementLibraryDirectories)
         {
             if (libDirNode.isStandard)
             {
@@ -1087,15 +1066,16 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                 {
                     linkOrArchiveCommandPrint +=
                         getLibraryDirectoryFlag() +
-                        getReducedPath(node->filePath, lcpSettings.standardLibraryDirectories) + " ";
+                        getReducedPath(libDirNode.node->filePath, lcpSettings.standardLibraryDirectories) + " ";
                 }
             }
             else
             {
                 if (lcpSettings.libraryDirectories.printLevel != PathPrintLevel::NO)
                 {
-                    linkOrArchiveCommandPrint += getLibraryDirectoryFlag() +
-                                                 getReducedPath(node->filePath, lcpSettings.libraryDirectories) + " ";
+                    linkOrArchiveCommandPrint +=
+                        getLibraryDirectoryFlag() +
+                        getReducedPath(libDirNode.node->filePath, lcpSettings.libraryDirectories) + " ";
                 }
             }
         }

@@ -128,17 +128,9 @@ bool PostCompile::ignoreHeaderFile(const string &str)
     // includes is related(equivalent, subdirectory) with any of normal includes
     // or vice-versa.
 
-    for (auto &[node, inclNode] : target.requirementIncludes)
+    for (const InclNode &inclNode : target.requirementIncludes)
     {
-        if (inclNode.ignoreHeaderDeps && equivalent(node->filePath, path(str).parent_path()))
-        {
-            return true;
-        }
-    }
-
-    for (auto &[node, inclNode] : target.requirementIncludes)
-    {
-        if (inclNode.ignoreHeaderDeps && equivalent(node->filePath, path(str).parent_path()))
+        if (inclNode.ignoreHeaderDeps && equivalent(inclNode.node->filePath, path(str).parent_path()))
         {
             return true;
         }

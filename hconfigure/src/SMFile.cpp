@@ -130,7 +130,7 @@ path Node::getFinalNodePathFromString(const string &str)
 }
 
 static std::mutex nodeInsertMutex;
-const Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
 {
     path filePath = getFinalNodePathFromString(str);
 
@@ -141,12 +141,12 @@ const Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotE
     std::lock_guard<std::mutex> lk(nodeInsertMutex);
     if (auto it = allFiles.find(filePath.string()); it != allFiles.end())
     {
-        return it.operator->();
+        return const_cast<Node *>(it.operator->());
     }
     else
     {
         Node node(filePath, isFile, mayNotExist);
-        return allFiles.emplace(std::move(node)).first.operator->();
+        return const_cast<Node *>(allFiles.emplace(std::move(node)).first.operator->());
     }
 }
 
@@ -160,13 +160,63 @@ void to_json(Json &j, const Node *node)
     j = node->filePath;
 }
 
-LibDirNode::LibDirNode(bool isStandard_) : isStandard{isStandard_}
+LibDirNode::LibDirNode(Node *node_, bool isStandard_) : node{node_}, isStandard{isStandard_}
 {
 }
 
-InclNode::InclNode(bool isStandard_, bool ignoreHeaderDeps_)
-    : LibDirNode(isStandard_), ignoreHeaderDeps{ignoreHeaderDeps_}
+void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, LibDirNode &libDirNode)
 {
+    for (LibDirNode &libDirNode_ : libDirNodes)
+    {
+        if (libDirNode_.node == libDirNode.node)
+        {
+            return;
+        }
+    }
+    libDirNodes.emplace_back(libDirNode);
+}
+
+void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, Node *node_, bool isStandard_)
+{
+    for (LibDirNode &libDirNode : libDirNodes)
+    {
+        if (libDirNode.node == node_)
+        {
+            return;
+        }
+    }
+    libDirNodes.emplace_back(node_, isStandard_);
+}
+
+InclNode::InclNode(Node *node_, bool isStandard_, bool ignoreHeaderDeps_)
+    : LibDirNode(node_, isStandard_), ignoreHeaderDeps{ignoreHeaderDeps_}
+{
+}
+
+bool InclNode::emplaceInList(list<InclNode> &includes, InclNode &libDirNode)
+{
+    for (InclNode &include : includes)
+    {
+        if (include.node == libDirNode.node)
+        {
+            return false;
+        }
+    }
+    includes.emplace_back(libDirNode);
+    return true;
+}
+
+bool InclNode::emplaceInList(list<InclNode> &includes, Node *node_, bool isStandard_, bool ignoreHeaderDeps_)
+{
+    for (InclNode &include : includes)
+    {
+        if (include.node == node_)
+        {
+            return false;
+        }
+    }
+    includes.emplace_back(node_, isStandard_, ignoreHeaderDeps_);
+    return true;
 }
 
 bool CompareSourceNode::operator()(const SourceNode &lhs, const SourceNode &rhs) const
@@ -380,15 +430,15 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
-    const std::pair<const Node *const, InclNode> *nodeDir = nullptr;
+    const InclNode *nodeDir = nullptr;
 
     // Iterating over all header-unit-directories of the module-scope to find out which header-unit
     // directory this header-unit comes from and which target that header-unit-directory belongs to
     // if any
-    for (auto &dir : target->moduleScopeData->huDirTarget)
+    for (const auto &[inclNode, target] : target->moduleScopeData->huDirTarget)
     {
-        const std::pair<const Node *const, InclNode> *dirNode = dir.first;
-        path result = path(headerUnitPath).lexically_relative(dirNode->first->filePath).generic_string();
+        const InclNode *dirNode = inclNode;
+        path result = path(headerUnitPath).lexically_relative(dirNode->node->filePath).generic_string();
         if (!result.empty() && !result.generic_string().starts_with(".."))
         {
             if (huDirTarget)
@@ -397,15 +447,15 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
                     fmt::format(
                         "Module Header Unit\n{}\n belongs to two Target Header Unit Includes\n{}\n{}\nof Module "
                         "Scope\n{}\n",
-                        headerUnitPath, nodeDir->first->filePath, dirNode->first->filePath,
+                        headerUnitPath, nodeDir->node->filePath, dirNode->node->filePath,
                         target->moduleScope->getTargetPointer()),
                     settings.pcSettings.toolErrorOutput);
                 throw std::exception();
             }
             else
             {
-                huDirTarget = dir.second;
-                nodeDir = dir.first;
+                huDirTarget = target;
+                nodeDir = inclNode;
             }
         }
     }
@@ -425,7 +475,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     if (!headerUnit.presentInSource)
     {
         headerUnit.presentInSource = true;
-        if (nodeDir->second.ignoreHeaderDeps)
+        if (nodeDir->ignoreHeaderDeps)
         {
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }

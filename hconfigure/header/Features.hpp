@@ -4,7 +4,7 @@
 import "OS.hpp";
 import "BuildTools.hpp";
 import "Cache.hpp";
-import "TargetType.hpp";
+import "SMFile.hpp" import "TargetType.hpp";
 import <map>;
 import <set>;
 import <vector>;
@@ -12,6 +12,7 @@ import <vector>;
 #include "BuildTools.hpp"
 #include "Cache.hpp"
 #include "OS.hpp"
+#include "SMFile.hpp"
 #include "TargetType.hpp"
 #include <map>
 #include <set>
@@ -711,7 +712,7 @@ struct LinkerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 
-    map<const class Node *, class LibDirNode> requirementLibraryDirectories;
+    list<LibDirNode> requirementLibraryDirectories;
     string requirementLinkerFlags;
     TargetType libraryType;
     LinkerFeatures();
@@ -776,7 +777,7 @@ struct CompilerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 
-    map<const class Node *, class InclNode> requirementIncludes;
+    list<InclNode> requirementIncludes;
     string requirementCompilerFlags;
     set<Define> requirementCompileDefinitions;
     CompilerFeatures();
