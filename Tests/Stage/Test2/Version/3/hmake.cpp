@@ -4,7 +4,7 @@ void buildSpecification()
 {
     Configuration &debug = GetConfiguration("Debug");
 
-    CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
+    CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
 
     debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::DEBUG);
 

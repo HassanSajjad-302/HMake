@@ -305,7 +305,7 @@ LinkerFeatures::LinkerFeatures()
     }
     configurationType = cache.configurationType;
     setConfigType(configurationType);
-    if (cache.isLinkerInVSToolsArray)
+    if (cache.isLinkerInToolsArray)
     {
         setLinkerFromVSTools(toolsCache.vsTools[cache.selectedLinkerArrayIndex]);
     }
@@ -313,7 +313,7 @@ LinkerFeatures::LinkerFeatures()
     {
         linker = toolsCache.linkers[cache.selectedLinkerArrayIndex];
     }
-    if (cache.isArchiverInVSToolsArray)
+    if (cache.isArchiverInToolsArray)
     {
         archiver = toolsCache.vsTools[cache.selectedArchiverArrayIndex].archiver;
     }
@@ -369,9 +369,16 @@ CompilerFeatures::CompilerFeatures()
     }
     configurationType = cache.configurationType;
     setConfigType(configurationType);
-    if (cache.isCompilerInVSToolsArray)
+    if (cache.isCompilerInToolsArray)
     {
-        setCompilerFromVSTools(toolsCache.vsTools[cache.selectedCompilerArrayIndex]);
+        if constexpr (os == OS::NT)
+        {
+            setCompilerFromVSTools(toolsCache.vsTools[cache.selectedCompilerArrayIndex]);
+        }
+        else
+        {
+            setCompilerFromLinuxTools(toolsCache.linuxTools[cache.selectedCompilerArrayIndex]);
+        }
     }
     else
     {
@@ -383,6 +390,15 @@ void CompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
 {
     compiler = vsTools.compiler;
     for (const string &str : vsTools.includeDirectories)
+    {
+        requirementIncludes.try_emplace(Node::getNodeFromString(str, false), InclNode(true, true));
+    }
+}
+
+void CompilerFeatures::setCompilerFromLinuxTools(LinuxTools &linuxTools)
+{
+    compiler = linuxTools.compiler;
+    for (const string &str : linuxTools.includeDirectories)
     {
         requirementIncludes.try_emplace(Node::getNodeFromString(str, false), InclNode(true, true));
     }

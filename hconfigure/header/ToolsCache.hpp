@@ -35,8 +35,8 @@ struct VSTools
     AddressModel hostAM;
     Arch targetArch;
     AddressModel targetAM;
-    set<string> includeDirectories;
-    set<string> libraryDirectories;
+    vector<string> includeDirectories;
+    vector<string> libraryDirectories;
     VSTools(string batchFile, path toolBinDir, Arch hostArch_, AddressModel hostAM_, Arch targetArch_,
             AddressModel targetAM_, bool executingFromWSL = false);
     VSTools() = default;
@@ -52,8 +52,8 @@ struct LinuxTools
 {
     string command;
     Compiler compiler;
-    set<string> includeDirectories;
-    LinuxTools(const Compiler &compiler_);
+    vector<string> includeDirectories;
+    LinuxTools(Compiler compiler_);
     LinuxTools() = default;
 };
 void to_json(Json &j, const LinuxTools &linuxTools);

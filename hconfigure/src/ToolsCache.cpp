@@ -94,8 +94,8 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
     }
     remove(temporaryBatchFilename);
 
-    auto splitPathsAndAssignToVector = [](string &accumulatedPaths) -> set<string> {
-        set<string> separatedPaths{};
+    auto splitPathsAndAssignToVector = [](string &accumulatedPaths) -> vector<string> {
+        vector<string> separatedPaths{};
         size_t pos = accumulatedPaths.find(';');
         while (pos != std::string::npos)
         {
@@ -104,20 +104,20 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
             {
                 break;
             }
-            separatedPaths.emplace(token);
+            emplaceInVector(separatedPaths, std::move(token));
             accumulatedPaths.erase(0, pos + 1);
             pos = accumulatedPaths.find(';');
         }
         return separatedPaths;
     };
 
-    auto convertPathsToWSLPaths = [executingFromWSL](set<string> &vec) {
+    auto convertPathsToWSLPaths = [executingFromWSL](vector<string> &vec) {
         if (executingFromWSL)
         {
             const std::string s = "\\";
             const std::string t = "/";
 
-            set<string> vec2 = std::move(vec);
+            vector<string> vec2 = std::move(vec);
             vec.clear();
             for (const string &str : vec2)
             {
@@ -130,7 +130,7 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
                 }
                 str2.erase(0, 2);
                 string str3 = "/mnt/c" + str2;
-                vec.emplace(std::move(str3));
+                vec.emplace_back(std::move(str3));
             }
         }
     };
@@ -177,11 +177,11 @@ void from_json(const Json &j, VSTools &vsTool)
     vsTool.hostAM = j.at(JConsts::hostArddressModel).get<AddressModel>();
     vsTool.targetArch = j.at(JConsts::targetArchitecture).get<Arch>();
     vsTool.targetAM = j.at(JConsts::targetAddressModel).get<AddressModel>();
-    vsTool.includeDirectories = j.at(JConsts::includeDirectories).get<set<string>>();
-    vsTool.libraryDirectories = j.at(JConsts::libraryDirectories).get<set<string>>();
+    vsTool.includeDirectories = j.at(JConsts::includeDirectories).get<vector<string>>();
+    vsTool.libraryDirectories = j.at(JConsts::libraryDirectories).get<vector<string>>();
 }
 
-LinuxTools::LinuxTools(const Compiler &compiler_) : compiler{compiler_}
+LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
 {
     string temporaryIncludeFilename = "temporaryInclude.txt";
 
@@ -226,7 +226,8 @@ LinuxTools::LinuxTools(const Compiler &compiler_) : compiler{compiler_}
         {
             for (size_t i = foundIndex + 1; i < endIndex; ++i)
             {
-                includeDirectories.emplace(lines[i]);
+                // first character is space, so substr is copied
+                emplaceInVector(includeDirectories, lines[i].substr(1, lines[i].size() - 1));
             }
         }
         else
@@ -251,7 +252,7 @@ void from_json(const Json &j, LinuxTools &linuxTools)
 {
     linuxTools.command = j.at(JConsts::command).get<string>();
     linuxTools.compiler = j.at(JConsts::compiler).get<Compiler>();
-    linuxTools.includeDirectories = j.at(JConsts::includeDirectories).get<set<string>>();
+    linuxTools.includeDirectories = j.at(JConsts::includeDirectories).get<vector<string>>();
 }
 
 ToolsCache::ToolsCache()

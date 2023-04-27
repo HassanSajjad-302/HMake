@@ -26,11 +26,11 @@ struct Cache
     // isToolInVSToolsArray to be used only on Windows. Determines if the index of tool is in VSTools array or is in
     // plain array. In VSTools array, compiler and linker also have include-directories and library-directories with
     // them which are loaded from toolsCache global variable.
-    bool isCompilerInVSToolsArray;
+    bool isCompilerInToolsArray;
     unsigned selectedCompilerArrayIndex;
-    bool isLinkerInVSToolsArray;
+    bool isLinkerInToolsArray;
     unsigned selectedLinkerArrayIndex;
-    bool isArchiverInVSToolsArray;
+    bool isArchiverInToolsArray;
     unsigned selectedArchiverArrayIndex;
     enum TargetType libraryType;
     Json cacheVariables;

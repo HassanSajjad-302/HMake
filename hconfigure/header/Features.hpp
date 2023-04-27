@@ -781,6 +781,7 @@ struct CompilerFeatures
     set<Define> requirementCompileDefinitions;
     CompilerFeatures();
     void setCompilerFromVSTools(VSTools &vsTools);
+    void setCompilerFromLinuxTools(struct LinuxTools &linuxTools);
     void setConfigType(ConfigType configType);
 };
 

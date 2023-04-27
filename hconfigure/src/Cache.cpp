@@ -17,13 +17,13 @@ using std::ifstream, std::ofstream;
 
 Cache::Cache()
 {
-    constexpr bool isPresentInVSTools = os == OS::NT ? true : false;
+    constexpr bool isPresentInTools = os == OS::NT ? true : false;
     sourceDirectoryPath = "../";
-    isCompilerInVSToolsArray = isPresentInVSTools;
+    isCompilerInToolsArray = true;
     selectedCompilerArrayIndex = 0;
-    isLinkerInVSToolsArray = isPresentInVSTools;
+    isLinkerInToolsArray = isPresentInTools;
     selectedLinkerArrayIndex = 0;
-    isArchiverInVSToolsArray = isPresentInVSTools;
+    isArchiverInToolsArray = isPresentInTools;
     selectedArchiverArrayIndex = 0;
     libraryType = TargetType::LIBRARY_STATIC;
     configurationType = ConfigType::RELEASE;
@@ -64,11 +64,11 @@ void to_json(Json &j, const Cache &cacheLocal)
 {
     j[JConsts::sourceDirectory] = cacheLocal.sourceDirectoryPath.generic_string();
     j[JConsts::configuration] = cacheLocal.configurationType;
-    j[JConsts::isCompilerInVSToolsArray] = cacheLocal.isCompilerInVSToolsArray;
+    j[JConsts::isCompilerInToolsArray] = cacheLocal.isCompilerInToolsArray;
     j[JConsts::compilerSelectedArrayIndex] = cacheLocal.selectedCompilerArrayIndex;
-    j[JConsts::isLinkerInVSToolsArray] = cacheLocal.isLinkerInVSToolsArray;
+    j[JConsts::isLinkerInToolsArray] = cacheLocal.isLinkerInToolsArray;
     j[JConsts::linkerSelectedArrayIndex] = cacheLocal.selectedLinkerArrayIndex;
-    j[JConsts::isArchiverInVSToolsArray] = cacheLocal.isArchiverInVSToolsArray;
+    j[JConsts::isArchiverInToolsArray] = cacheLocal.isArchiverInToolsArray;
     j[JConsts::archiverSelectedArrayIndex] = cacheLocal.selectedArchiverArrayIndex;
     j[JConsts::libraryType] = cacheLocal.libraryType;
     j[JConsts::cacheVariables] = cacheLocal.cacheVariables;
@@ -86,11 +86,11 @@ void from_json(const Json &j, Cache &cacheLocal)
     srcDir = cacheLocal.sourceDirectoryPath.generic_string();
 
     cacheLocal.configurationType = j.at(JConsts::configuration).get<ConfigType>();
-    cacheLocal.isCompilerInVSToolsArray = j.at(JConsts::isCompilerInVSToolsArray).get<bool>();
+    cacheLocal.isCompilerInToolsArray = j.at(JConsts::isCompilerInToolsArray).get<bool>();
     cacheLocal.selectedCompilerArrayIndex = j.at(JConsts::compilerSelectedArrayIndex).get<int>();
-    cacheLocal.isLinkerInVSToolsArray = j.at(JConsts::isLinkerInVSToolsArray).get<bool>();
+    cacheLocal.isLinkerInToolsArray = j.at(JConsts::isLinkerInToolsArray).get<bool>();
     cacheLocal.selectedLinkerArrayIndex = j.at(JConsts::linkerSelectedArrayIndex).get<int>();
-    cacheLocal.isArchiverInVSToolsArray = j.at(JConsts::isArchiverInVSToolsArray).get<bool>();
+    cacheLocal.isArchiverInToolsArray = j.at(JConsts::isArchiverInToolsArray).get<bool>();
     cacheLocal.selectedArchiverArrayIndex = j.at(JConsts::archiverSelectedArrayIndex).get<int>();
     cacheLocal.libraryType = j.at(JConsts::libraryType).get<TargetType>();
     if (cacheLocal.libraryType != TargetType::LIBRARY_STATIC && cacheLocal.libraryType != TargetType::LIBRARY_SHARED &&

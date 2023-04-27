@@ -68,9 +68,9 @@ struct JConsts
     inline static const string index = "index";
     inline static const string infrastructureFlags = "infrastructure-flags";
     inline static const string interface_ = "interface";
-    inline static const string isCompilerInVSToolsArray = "is-compiler-in-vstools-array";
-    inline static const string isLinkerInVSToolsArray = "is-linker-in-vstools-array";
-    inline static const string isArchiverInVSToolsArray = "is-archiver-in-vstools-array";
+    inline static const string isCompilerInToolsArray = "is-compiler-in-tools-array";
+    inline static const string isLinkerInToolsArray = "is-linker-in-tools-array";
+    inline static const string isArchiverInToolsArray = "is-archiver-in-tools-array";
     inline static const string libraryDependencies = "library-dependencies";
     inline static const string libraryDirectories = "library-directories";
     inline static const string libraryType = "library-type";
