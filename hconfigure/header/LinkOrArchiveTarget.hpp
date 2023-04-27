@@ -63,13 +63,13 @@ class LinkOrArchiveTarget : public CTarget,
     void initializeForBuild();
     void populateObjectFiles();
     void preSort(Builder &builder, unsigned short round) override;
-    void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator) override;
+    void duringSort(Builder &builder, unsigned short round) override;
     void updateBTarget(Builder &builder, unsigned short round) override;
     LinkerFlags getLinkerFlags();
     void setJson() override;
     C_Target *get_CAPITarget(BSMode bsModeLocal) override;
     BTarget *getBTarget() override;
-    string getTarjanNodeName() override;
+    string getTarjanNodeName() const override;
     PostBasic Archive();
     PostBasic Link();
     void setLinkOrArchiveCommands();

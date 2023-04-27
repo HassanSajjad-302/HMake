@@ -24,7 +24,7 @@ bool IndexInTopologicalSortComparator::operator()(const BTarget *lhs, const BTar
            rhs->realBTargets.find(round)->indexInTopologicalSort;
 }*/
 
-RealBTarget::RealBTarget(unsigned short round_, BTarget *bTarget_) : round(round_), bTarget(bTarget_)
+RealBTarget::RealBTarget(BTarget *bTarget_, unsigned short round_) : bTarget(bTarget_), round(round_)
 {
     bTarjanNode = const_cast<TBT *>(
         tarjanNodesBTargets.emplace(round, set<TBT>()).first->second.emplace(bTarget).first.operator->());
@@ -46,6 +46,8 @@ BTarget::BTarget()
     id = total++;
 }
 
+BTarget::~BTarget() = default;
+
 string BTarget::getTarjanNodeName() const
 {
     return "BTarget " + std::to_string(id);
@@ -53,19 +55,19 @@ string BTarget::getTarjanNodeName() const
 
 RealBTarget &BTarget::getRealBTarget(unsigned short round)
 {
-    auto it = realBTargets.try_emplace(round, round, this).first;
+    auto it = realBTargets.try_emplace(round, this, round).first;
     return const_cast<RealBTarget &>(it->second);
-}
-
-void BTarget::updateBTarget(Builder &, unsigned short)
-{
 }
 
 void BTarget::preSort(Builder &, unsigned short)
 {
 }
 
-void BTarget::duringSort(Builder &, unsigned short, unsigned int)
+void BTarget::duringSort(Builder &, unsigned short)
+{
+}
+
+void BTarget::updateBTarget(Builder &, unsigned short)
 {
 }
 
@@ -97,7 +99,7 @@ void CTarget::initializeCTarget()
 }
 
 CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
-    : name{std::move(name_)}, hasFile{hasFile_}, other(&container)
+    : name{std::move(name_)}, other(&container), hasFile{hasFile_}
 {
     if (!container.hasFile && hasFile_)
     {
@@ -138,6 +140,8 @@ CTarget::CTarget(string name_)
     initializeCTarget();
 }
 
+CTarget::~CTarget() = default;
+
 string CTarget::getTargetPointer() const
 {
     return other ? other->getTargetPointer() + (hasFile ? "" : "/") + name + "/" : targetFileDir;
@@ -172,7 +176,7 @@ bool CTarget::getSelectiveBuild()
     return selectiveBuild;
 }
 
-string CTarget::getTarjanNodeName()
+string CTarget::getTarjanNodeName() const
 {
     return "CTarget " + getSubDirForTarget();
 }

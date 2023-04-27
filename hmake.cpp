@@ -57,29 +57,34 @@ struct SizeDifference : public CTarget, public BTarget
         : CTarget(std::move(name)), sizeConfiguration(sizeConfiguration_), speedConfiguration(speedConfiguration_)
     {
         RealBTarget &realBTarget = getRealBTarget(0);
-        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-        for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
+        if (speedConfiguration.getSelectiveBuild() && sizeConfiguration.getSelectiveBuild() && getSelectiveBuild())
         {
-            if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+            for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
             {
-                realBTarget.addDependency(*linkOrArchiveTarget);
+                if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+                {
+                    realBTarget.addDependency(*linkOrArchiveTarget);
+                }
             }
-        }
 
-        for (LinkOrArchiveTarget *linkOrArchiveTarget : speedConfiguration.linkOrArchiveTargets)
-        {
-            if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+            for (LinkOrArchiveTarget *linkOrArchiveTarget : speedConfiguration.linkOrArchiveTargets)
             {
-                realBTarget.addDependency(*linkOrArchiveTarget);
+                if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+                {
+                    realBTarget.addDependency(*linkOrArchiveTarget);
+                }
             }
         }
     }
+
+    virtual ~SizeDifference() = default;
 
     void updateBTarget(Builder &, unsigned short round) override
     {
         RealBTarget &realBTarget = getRealBTarget(0);
 
-        if (!round && realBTarget.exitStatus == EXIT_SUCCESS)
+        if (!round && realBTarget.exitStatus == EXIT_SUCCESS && getSelectiveBuild())
         {
 
             string sizeDirPath = getSubDirForTarget() + "Size/";
@@ -142,8 +147,6 @@ void buildSpecification()
             debug.linkerFeatures.requirementLinkerFlags += "--target=x86_64-pc-windows-msvc";*/
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 
-    targets<SizeDifference>.emplace("Size-Difference", releaseSize, releaseSpeed);
-
     for (const Configuration &configuration : targets<Configuration>)
     {
         if (const_cast<Configuration &>(configuration).getSelectiveBuild())
@@ -151,6 +154,8 @@ void buildSpecification()
             configurationSpecification(const_cast<Configuration &>(configuration));
         }
     }
+
+    targets<SizeDifference>.emplace("Size-Difference", releaseSize, releaseSpeed);
 }
 
 #ifdef EXE

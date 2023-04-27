@@ -62,7 +62,7 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
     }
 }
 
-void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned int)
+void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round)
 {
     if (!round)
     {
@@ -91,7 +91,7 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round, unsigned i
                     Json linkTargetCacheJson;
                     ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> linkTargetCacheJson;
                     string command = std::move(linkTargetCacheJson.at(JConsts::linkCommand));
-                    cachedObjectFiles = std::move(linkTargetCacheJson.at(JConsts::objectFiles).get<set<string>>());
+                    cachedObjectFiles = linkTargetCacheJson.at(JConsts::objectFiles).get<set<string>>();
 
                     if (command == linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets)
                     {
@@ -1182,7 +1182,7 @@ BTarget *LinkOrArchiveTarget::getBTarget()
     return this;
 }
 
-string LinkOrArchiveTarget::getTarjanNodeName()
+string LinkOrArchiveTarget::getTarjanNodeName() const
 {
     string str;
     if (linkTargetType == TargetType::LIBRARY_STATIC)

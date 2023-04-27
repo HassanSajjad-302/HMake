@@ -46,9 +46,9 @@ struct JConsts
     inline static const string depth = "depth";
     inline static const string directories = "directories";
     inline static const string elements = "elements";
-    inline static const string environmentCompilerFlags = "environment-compiler-flags";
-    inline static const string environmentIncludeDirectories = "environment-include-directories";
-    inline static const string environmentLibraryDirectories = "environment-library-directories";
+    inline static const string standardCompilerFlags = "standard-compiler-flags";
+    inline static const string standardIncludeDirectories = "standard-include-directories";
+    inline static const string standardLibraryDirectories = "standard-library-directories";
     inline static const string executable = "executable";
     inline static const string family = "family";
     inline static const string files = "files";

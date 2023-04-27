@@ -107,9 +107,9 @@ void PostBasic::executePrintRoutine(uint32_t color, bool printOnlyOnError) const
 PostCompile::PostCompile(const CppSourceTarget &target_, const BuildTool &buildTool, const string &commandFirstHalf,
                          string printCommandFirstHalf, const string &buildCacheFilesDirPath, const string &fileName,
                          const PathPrint &pathPrint)
-    : target{const_cast<CppSourceTarget &>(target_)},
-      PostBasic(buildTool, commandFirstHalf, std::move(printCommandFirstHalf), buildCacheFilesDirPath, fileName,
-                pathPrint, false)
+    : PostBasic(buildTool, commandFirstHalf, std::move(printCommandFirstHalf), buildCacheFilesDirPath, fileName,
+                pathPrint, false),
+      target{const_cast<CppSourceTarget &>(target_)}
 {
 }
 

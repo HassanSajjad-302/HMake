@@ -33,7 +33,7 @@ void Cache::initializeCacheVariableFromCacheFile()
 {
     // Cache from cacheFileJson is read in both of build system modes but is saved only in CONFIGURE mode.
 
-    path filePath = path(configureDir) / "cache.hmake";
+    path filePath = path(configureDir) / "cache.json";
     Json cacheFileJsonLocal;
     ifstream(filePath) >> cacheFileJsonLocal;
     *this = cacheFileJsonLocal;
@@ -41,10 +41,10 @@ void Cache::initializeCacheVariableFromCacheFile()
     // Settings are saved only if mode is configure.
     if (bsMode == BSMode::CONFIGURE)
     {
-        if (!std::filesystem::exists(path(configureDir) / path("settings.hmake")))
+        if (!std::filesystem::exists(path(configureDir) / path("settings.json")))
         {
             Json settingsJson = Settings{};
-            ofstream(path(configureDir) / path("settings.hmake")) << settingsJson.dump(4);
+            ofstream(path(configureDir) / path("settings.json")) << settingsJson.dump(4);
         }
     }
 }
@@ -54,7 +54,7 @@ void Cache::registerCacheVariables()
     // Cache is saved only if mode is configure
     if (bsMode == BSMode::CONFIGURE)
     {
-        path filePath = path(configureDir) / "cache.hmake";
+        path filePath = path(configureDir) / "cache.json";
         cacheFileJson[JConsts::cacheVariables] = cacheVariables;
         ofstream(filePath) << cacheFileJson.dump(4);
     }

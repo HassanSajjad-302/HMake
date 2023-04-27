@@ -44,6 +44,7 @@ struct RealBTarget
 {
     set<BTarget *> dependents;
     set<BTarget *> dependencies;
+    unsigned int indexInTopologicalSort = 0;
     unsigned int dependenciesSize = 0;
     FileStatus fileStatus = FileStatus::UPDATED;
     // This points to the tarjanNodeBTargets set element
@@ -54,7 +55,7 @@ struct RealBTarget
     // Plays two roles. Depicts the exitStatus of itself and of its dependencies
     int exitStatus = EXIT_SUCCESS;
     unsigned short round;
-    explicit RealBTarget(unsigned short round_, BTarget *bTarget_);
+    explicit RealBTarget(BTarget *bTarget_, unsigned short round);
     void addDependency(BTarget &dependency);
 
     // TODO
@@ -92,13 +93,14 @@ struct BTarget // BTarget
 
     map<unsigned short, RealBTarget> realBTargets;
     explicit BTarget();
+    virtual ~BTarget();
 
     virtual string getTarjanNodeName() const;
 
     RealBTarget &getRealBTarget(unsigned short round);
-    virtual void updateBTarget(class Builder &builder, unsigned short round);
-    virtual void preSort(Builder &builder, unsigned short round);
-    virtual void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator);
+    virtual void preSort(class Builder &builder, unsigned short round);
+    virtual void duringSort(Builder &builder, unsigned short round);
+    virtual void updateBTarget(Builder &builder, unsigned short round);
 
     // TODO
     // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
@@ -134,12 +136,13 @@ class CTarget // Configure Target
     bool callPreSort = true;
     CTarget(string name_, CTarget &container, bool hasFile_ = true);
     explicit CTarget(string name_);
+    virtual ~CTarget();
     string getTargetPointer() const;
     path getTargetFilePath() const;
     string getSubDirForTarget() const;
     bool getSelectiveBuild();
 
-    virtual string getTarjanNodeName();
+    virtual string getTarjanNodeName() const;
     virtual void setJson();
     virtual void writeJsonFile();
     virtual void configure();

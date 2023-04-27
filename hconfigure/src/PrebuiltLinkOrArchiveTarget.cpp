@@ -53,8 +53,8 @@ void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
 
 PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &name, const string &directory,
                                                          TargetType linkTargetType_)
-    : linkTargetType(linkTargetType_), outputDirectory(Node::getFinalNodePathFromString(directory).string()),
-      outputName(name), actualOutputName(getActualNameFromTargetName(linkTargetType_, os, name))
+    : outputDirectory(Node::getFinalNodePathFromString(directory).string()), outputName(name),
+      actualOutputName(getActualNameFromTargetName(linkTargetType_, os, name)), linkTargetType(linkTargetType_)
 {
 }
 

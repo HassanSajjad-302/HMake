@@ -41,14 +41,13 @@ struct CompileCommandPrintSettings
 {
     PathPrint tool{
         .printLevel = PathPrintLevel::HALF, .depth = 0, .addQuotes = false, .isDirectory = false, .isTool = true};
-    bool environmentCompilerFlags = false;
     bool compilerFlags = true;
     bool compileDefinitions = true;
 
     PathPrint includeDirectories{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
     PathPrint standardIncludeDirectories{
-        .printLevel = PathPrintLevel::NO, .depth = 1, .addQuotes = false, .isDirectory = true, .isTool = false};
+        .printLevel = PathPrintLevel::NO, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
     bool onlyLogicalNameOfRequireIFC = true;
     PathPrint requireIFCs{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};

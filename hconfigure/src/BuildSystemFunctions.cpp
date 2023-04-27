@@ -63,7 +63,7 @@ void initializeCache(BSMode bsMode_)
             settings = outputSettingsJson;
         };
 
-        initializeSettings(path(configureDir) / "settings.hmake");
+        initializeSettings(path(configureDir) / "settings.json");
     }
 }
 

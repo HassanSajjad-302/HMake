@@ -74,7 +74,7 @@ int main(int argc, char **argv)
     path cp = current_path();
     for (const auto &i : directory_iterator(cp))
     {
-        if (i.is_regular_file() && i.path().filename() == "cache.hmake")
+        if (i.is_regular_file() && i.path().filename() == "cache.json")
         {
             cacheFilePath = i.path();
             ++count;
@@ -82,7 +82,7 @@ int main(int argc, char **argv)
     }
     if (count > 1)
     {
-        printErrorMessage("More than one file with cache.hmake name present\n");
+        printErrorMessage("More than one file with cache.json name present\n");
         exit(EXIT_FAILURE);
     }
     if (count == 0)
@@ -151,7 +151,7 @@ int main(int argc, char **argv)
         }
 
         Json cacheJson = cache;
-        ofstream("cache.hmake") << cacheJson.dump(4);
+        ofstream("cache.json") << cacheJson.dump(4);
     }
     else
     {
@@ -167,7 +167,7 @@ int main(int argc, char **argv)
         else
         {
             Json cacheJson;
-            ifstream("cache.hmake") >> cacheJson;
+            ifstream("cache.json") >> cacheJson;
             Cache cacheLocal = cacheJson;
             path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
             if (sourceDirPath.is_relative())
@@ -181,7 +181,7 @@ int main(int argc, char **argv)
 
             if (!cacheLocal.compileConfigureCommands.empty())
             {
-                printMessage("Executing commands as specified in cache.hmake to produce configure executable\n");
+                printMessage("Executing commands as specified in cache.json to produce configure executable\n");
             }
 
             for (string &compileConfigureCommand : cacheLocal.compileConfigureCommands)

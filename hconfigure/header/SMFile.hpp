@@ -92,11 +92,11 @@ struct SourceNode : public ObjectFile
 {
     Json headerFilesJson;
     string compileCommandJson;
+    class CppSourceTarget *target;
     const Node *node;
     bool presentInCache = false;
     bool presentInSource = false;
     bool ignoreHeaderDeps = false;
-    class CppSourceTarget *target;
     set<const Node *> headerDependencies;
     SourceNode(CppSourceTarget *target_, Node *node_);
     string getObjectFileOutputFilePath() override;
@@ -163,7 +163,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     void setSMFileStatusRoundZero();
     string getObjectFileOutputFilePath() override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) override;
-    void duringSort(Builder &builder, unsigned short round, unsigned int indexInTopologicalSortComparator) override;
+    void duringSort(Builder &builder, unsigned short round) override;
     string getFlag(const string &outputFilesWithoutExtension) const;
     string getFlagPrint(const string &outputFilesWithoutExtension) const;
     string getRequireFlag(const SMFile &dependentSMFile) const;

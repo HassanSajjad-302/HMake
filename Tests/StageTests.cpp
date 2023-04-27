@@ -505,7 +505,7 @@ TEST(StageTests, Test3)
                                     .linkTargetsNoDebug = 2,
                                     .linkTargetsDebug = 1});
     executeSnapshotBalances(Updates{});
-    path cacheFile = testSourcePath / "Build/cache.hmake";
+    path cacheFile = testSourcePath / "Build/cache.json";
     Json cacheJson;
     ifstream(cacheFile) >> cacheJson;
     // Moving from module to source, lib4.cpp will be recompiled because lib4.cpp.o was not compiled with latest
