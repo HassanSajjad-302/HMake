@@ -73,24 +73,35 @@ TEST(ExamplesTest, Example4)
         "Cat says Meow..\n");
 }
 
+#ifndef WIN32
 TEST(ExamplesTest, Example5)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example5"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    current_path("0/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"), "");
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Animal/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "Animal"),
+                                                 "Cat says Meow..\n");
 }
+#endif
 
-/*
 TEST(ExamplesTest, Example6)
 {
+
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example6"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    current_path("0/Animal/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "Animal"), "Cat
-says Meow..\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/App-Static/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "Cat says Meow..\nDog says Woof..\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/App-Shared/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "Cat says Meow..\nDog says Woof..\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/App2-Static/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "Cat says Meow..\nDog says Woof..\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/App2-Shared/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "Cat says Meow..\nDog says Woof..\n");
 }
-*/
 
 #ifdef _WIN32
 TEST(ExamplesTest, Example9)

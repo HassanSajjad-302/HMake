@@ -26,17 +26,6 @@ RealBTarget::RealBTarget(BTarget *bTarget_, unsigned short round_) : bTarget(bTa
         tarjanNodesBTargets.emplace(round, set<TBT>()).first->second.emplace(bTarget).first.operator->());
 }
 
-void RealBTarget::addDependency(BTarget &dependency)
-{
-    if (dependencies.emplace(&dependency).second)
-    {
-        RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
-        dependencyRealBTarget.dependents.emplace(bTarget);
-        ++dependenciesSize;
-        bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
-    }
-}
-
 BTarget::BTarget()
 {
     id = total++;
@@ -187,8 +176,11 @@ void CTarget::writeJsonFile()
     if (hasFile)
     {
         create_directories(targetFileDir);
-        path p = getTargetFilePath();
-        ofstream(p) << json.dump(4);
+        if (!json.empty())
+        {
+            path p = getTargetFilePath();
+            ofstream(p) << json.dump(4);
+        }
     }
     else
     {

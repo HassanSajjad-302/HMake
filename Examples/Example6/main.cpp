@@ -2,6 +2,6 @@
 
 int main()
 {
-    Dog::print();
     Cat::print();
+    Dog::print();
 }

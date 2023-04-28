@@ -32,8 +32,6 @@ struct PrebuiltDep
 
     bool defaultRpath = true;
     bool defaultRpathLink = true;
-    PrebuiltDep() = default;
-    PrebuiltDep(bool defaultRPath_, bool defaultRpathLink_);
 };
 
 class PrebuiltLinkOrArchiveTarget : public BTarget, public PrebuiltLinkerFeatures
@@ -77,11 +75,11 @@ class PrebuiltLinkOrArchiveTarget : public BTarget, public PrebuiltLinkerFeature
 
     void populateRequirementAndUsageRequirementDeps();
 
-    PrebuiltLinkOrArchiveTarget(const string &name, const string &directory, TargetType linkTargetType_);
+    PrebuiltLinkOrArchiveTarget(const string &outputName_, const string &directory, TargetType linkTargetType_);
     void preSort(class Builder &builder, unsigned short round) override;
     void updateBTarget(Builder &builder, unsigned short round) override;
     void addRequirementDepsToBTargetDependencies();
-    string getActualOutputPath();
+    string getActualOutputPath() const;
 
     template <Dependency dependency, typename T, typename... Property>
     PrebuiltLinkOrArchiveTarget &ASSIGN(T property, Property... properties);

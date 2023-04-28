@@ -2,10 +2,12 @@
 #ifndef HMAKE_GETTARGET_HPP
 #define HMAKE_GETTARGET_HPP
 #ifdef USE_HEADER_UNITS
+import "CTargetRoundZeroBTarget.hpp";
 import "Configuration.hpp";
 import "DSC.hpp";
 import "Cache.hpp";
 #else
+#include "CTargetRoundZeroBTarget.hpp"
 #include "Cache.hpp"
 #include "Configure.hpp"
 #include "DSC.hpp"
@@ -45,6 +47,22 @@ DSC<CppSourceTarget> &GetCppObjectDSC(const string &name);
 DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, CTarget &other, bool hasFile = true);
 
 DSCPrebuilt<CPT> &GetCPTTargetDSC(const string &name, const string &directory, TargetType linkTargetType_,
-                                  const bool defines = false, string define = "");
+                                  bool defines = false, string define = "");
+
+template <typename... U>
+RoundZeroUpdateBTarget &GetRoundZeroUpdateBTarget(function<void(Builder &, unsigned short, BTarget &bTarget)> func,
+                                                  U &...dependencies)
+{
+    RoundZeroUpdateBTarget &roundZeroUpdateBTarget = const_cast<RoundZeroUpdateBTarget &>(
+        targets<RoundZeroUpdateBTarget>.emplace(std::move(func)).first.operator*());
+    if constexpr (sizeof...(dependencies))
+    {
+        roundZeroUpdateBTarget.getRealBTarget(0).addDependency(dependencies...);
+    }
+    return roundZeroUpdateBTarget;
+}
+
+// TODO
+// Also provide functions for GetCTargetRoundZeroBTarget here and in Configuration.
 
 #endif // HMAKE_GETTARGET_HPP

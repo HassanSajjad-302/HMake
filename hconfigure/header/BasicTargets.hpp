@@ -54,8 +54,8 @@ struct RealBTarget
     int exitStatus = EXIT_SUCCESS;
     unsigned short round;
     explicit RealBTarget(BTarget *bTarget_, unsigned short round);
-    void addDependency(BTarget &dependency);
 
+    template <typename... U> void addDependency(BTarget &dependency, U &...bTargets);
     // TODO
     //  Following describes the time taken for the completion of this task. Currently unused. how to determine cpu time
     //  for this task in multi-threaded scenario
@@ -105,6 +105,22 @@ struct BTarget // BTarget
     float totalTimeTaken = 0.0f;
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
+
+template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U &...bTargets)
+{
+    if (dependencies.emplace(&dependency).second)
+    {
+        RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
+        dependencyRealBTarget.dependents.emplace(bTarget);
+        ++dependenciesSize;
+        bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
+    }
+
+    if constexpr (sizeof...(bTargets))
+    {
+        addDependency(bTargets...);
+    }
+}
 
 struct CTargetPointerComparator
 {

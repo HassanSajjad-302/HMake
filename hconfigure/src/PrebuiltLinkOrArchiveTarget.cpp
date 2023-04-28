@@ -6,11 +6,6 @@ import "SMFile.hpp";
 #include "SMFile.hpp"
 #endif
 
-PrebuiltDep::PrebuiltDep(bool defaultRPath_, bool defaultRpathLink_)
-    : defaultRpath{defaultRPath_}, defaultRpathLink{defaultRpathLink_}
-{
-}
-
 void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
 {
     // Set is copied because new elements are to be inserted in it.
@@ -51,10 +46,10 @@ void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
     }
 }
 
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &name, const string &directory,
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, const string &directory,
                                                          TargetType linkTargetType_)
-    : outputDirectory(Node::getFinalNodePathFromString(directory).string()), outputName(name),
-      actualOutputName(getActualNameFromTargetName(linkTargetType_, os, name)), linkTargetType(linkTargetType_)
+    : outputDirectory(Node::getFinalNodePathFromString(directory).string()), outputName(outputName_),
+      actualOutputName(getActualNameFromTargetName(linkTargetType_, os, outputName_)), linkTargetType(linkTargetType_)
 {
 }
 
@@ -97,7 +92,7 @@ void PrebuiltLinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
     }
 }
 
-string PrebuiltLinkOrArchiveTarget::getActualOutputPath()
+string PrebuiltLinkOrArchiveTarget::getActualOutputPath() const
 {
     return outputDirectory + actualOutputName;
 }

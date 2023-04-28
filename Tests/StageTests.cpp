@@ -542,3 +542,7 @@ TEST(StageTests, Test3)
 }
 
 #endif
+
+// TODO
+// Few features like PrebuiltLinkOrArchiveTarget::outputName and PrebuiltLinkOrArchiveTarget::name aren't tested. atm.
+// Testing could be further expanded as-well.

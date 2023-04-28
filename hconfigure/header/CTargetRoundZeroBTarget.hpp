@@ -9,38 +9,36 @@ import "BasicTargets.hpp";
 #endif
 
 using std::function;
-template <typename UpdateBTargetType> struct RoundZeroBTarget : public BTarget
+struct RoundZeroUpdateBTarget : public BTarget
 {
-    function<UpdateBTargetType> updateFunctor = nullptr;
-    RealBTarget &realBTarget;
+    function<void(Builder &, unsigned short, BTarget &bTarget)> updateFunctor = nullptr;
 
-    RoundZeroBTarget() : realBTarget(getRealBTarget(0))
+    explicit RoundZeroUpdateBTarget(function<void(Builder &, unsigned short, BTarget &bTarget)> updateFunctor_)
+        : updateFunctor(std::move(updateFunctor_))
     {
-        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-    }
-
-    void setUpdateFunctor(function<UpdateBTargetType> f)
-    {
-        updateFunctor = std::move(f);
+        getRealBTarget(0).fileStatus = FileStatus::NEEDS_UPDATE;
     }
 
     void updateBTarget(class Builder &builder, unsigned short round) override
     {
-        if (updateFunctor)
+        if (!round)
         {
-            updateFunctor(builder, round);
+            updateFunctor(builder, round, *this);
+            getRealBTarget(0).fileStatus = FileStatus::UPDATED;
         }
-        getRealBTarget(0).fileStatus = FileStatus::UPDATED;
     }
 };
 
-template <typename T> struct CTargetRoundZeroBTarget : public RoundZeroBTarget<T>, public CTarget
+struct CTargetRoundZeroBTarget : public RoundZeroUpdateBTarget, public CTarget
 {
-    explicit CTargetRoundZeroBTarget(const string &name_) : CTarget(name_)
+    explicit CTargetRoundZeroBTarget(const string &name_,
+                                     function<void(Builder &, unsigned short, BTarget &bTarget)> updateFunctor_)
+        : RoundZeroUpdateBTarget(std::move(updateFunctor_)), CTarget(name_)
     {
     }
-    CTargetRoundZeroBTarget(const string &name_, CTarget &container, bool hasFile = true)
-        : CTarget(name_, container, hasFile)
+    CTargetRoundZeroBTarget(const string &name_, CTarget &container, bool hasFile,
+                            function<void(Builder &, unsigned short, BTarget &bTarget)> updateFunctor_)
+        : RoundZeroUpdateBTarget(std::move(updateFunctor_)), CTarget(name_, container, hasFile)
     {
     }
 };

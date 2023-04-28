@@ -33,6 +33,12 @@ LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType, CT
     linkTargetType = targetType;
 }
 
+void LinkOrArchiveTarget::setOutputName(string outputName_)
+{
+    actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName_);
+    outputName = std::move(outputName_);
+}
+
 void LinkOrArchiveTarget::initializeForBuild()
 {
     buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";

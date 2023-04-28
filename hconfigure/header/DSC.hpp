@@ -344,7 +344,7 @@ void DSC<T>::assignPrebuiltLinkOrArchiveTarget(DSCPrebuilt<BaseType> *controller
         }
         else
         {
-            linkOrArchiveTarget->DEPS(controller->prebuiltLinkOrArchiveTarget, std::move(prebuiltDep), dependency);
+            linkOrArchiveTarget->DEPS(controller->prebuiltLinkOrArchiveTarget, dependency, std::move(prebuiltDep));
         }
     }
 

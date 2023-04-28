@@ -60,6 +60,7 @@ class LinkOrArchiveTarget : public CTarget,
 
     LinkOrArchiveTarget(string name_, TargetType targetType);
     LinkOrArchiveTarget(string name_, TargetType targetType, class CTarget &other, bool hasFile = true);
+    void setOutputName(string outputName_);
     void initializeForBuild();
     void populateObjectFiles();
     void preSort(Builder &builder, unsigned short round) override;

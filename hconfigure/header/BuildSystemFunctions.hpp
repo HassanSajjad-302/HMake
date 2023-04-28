@@ -71,6 +71,7 @@ extern "C" inline EXPORT PrintMessageColor printMessageColorPointer = nullptr;
 extern "C" inline EXPORT PrintMessage printErrorMessagePointer = nullptr;
 extern "C" inline EXPORT PrintMessageColor printErrorMessageColorPointer = nullptr;
 
+// Provide these with extern "C" linkage as well so ide/editor could pipe the logging.
 void printMessage(const string &message);
 void preintMessageColor(const string &message, uint32_t color);
 void printErrorMessage(const string &message);
