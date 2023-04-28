@@ -59,6 +59,9 @@ enum class DefineDLLInterface
     NO,
 };
 
+// TODO
+// A feature for --nostdinc and --nostdinc++
+
 // In b2 features every non-optional, non-free feature must have a value. Because hmake does not have optional features,
 // all optional features have extra enum value OFF declared here. A feature default value is given by the first value
 // listed in the feature declaration which is imitated in CompilerFeautres and LinkerFeatures.

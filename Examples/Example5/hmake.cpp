@@ -2,28 +2,62 @@
 
 void buildSpecification()
 {
-    auto makeApps = [](TargetType targetType) {
-        string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
+    /*    DSC<CppSourceTarget> &catStatic = GetCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
+        catStatic.getSourceTarget().SOURCE_FILES("Cat/src/Cat.cpp").PUBLIC_INCLUDES("Cat/header");
 
-        DSCPrebuilt<CPT> &cat =
-            GetCPTTargetDSC("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
-        cat.getSourceTarget().INTERFACE_INCLUDES("../Example4/Cat/header");
+        DSC<CppSourceTarget> &animalStatic = GetCppExeDSC("Animal-Static");
+        animalStatic.PRIVATE_LIBRARIES(&catStatic);
+        animalStatic.getSourceTarget().SOURCE_FILES("main.cpp");*/
 
-        DSC<CppSourceTarget> &dog = GetCppTargetDSC("Dog" + str, true, "DOG_EXPORT", targetType);
-        dog.PUBLIC_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog/src/Dog.cpp").PUBLIC_INCLUDES("Dog/header/");
+    DSC<CppSourceTarget> &catShared = GetCppSharedDSC("Cat-Shared", true, "CAT_EXPORT");
+    catShared.getSourceTarget().SOURCE_FILES("Cat/src/Cat.cpp").PUBLIC_INCLUDES("Cat/header");
 
-        DSC<CppSourceTarget> &dog2 = GetCppTargetDSC("Dog2" + str, true, "DOG2_EXPORT", targetType);
-        dog2.PRIVATE_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog2/src/Dog.cpp").PUBLIC_INCLUDES("Dog2/header/");
+    DSC<CppSourceTarget> &animalShared = GetCppExeDSC("Animal-Shared");
 
-        DSC<CppSourceTarget> &app = GetCppExeDSC("App" + str);
-        app.PRIVATE_LIBRARIES(&dog).getSourceTarget().SOURCE_FILES("main.cpp");
+    PrebuiltDep prebuiltDep(false, true);
+    prebuiltDep.requirementRpath = "-Wl,-R -Wl,'$ORIGIN' ";
+    animalShared.PRIVATE_LIBRARIES(&catShared, std::move(prebuiltDep));
+    animalShared.getSourceTarget().SOURCE_FILES("main.cpp");
 
-        DSC<CppSourceTarget> &app2 = GetCppExeDSC("App2" + str);
-        app2.PRIVATE_LIBRARIES(&dog2).getSourceTarget().SOURCE_FILES("main2.cpp");
-    };
+    using CoppyDLLType = RoundZeroBTarget<void(Builder &, unsigned short)>;
+    CoppyDLLType &copyDLL = const_cast<CoppyDLLType &>(targets<CoppyDLLType>.emplace().first.operator*());
+    copyDLL.realBTarget.addDependency(*(animalShared.linkOrArchiveTarget));
+    copyDLL.setUpdateFunctor([&](Builder &builder, unsigned short round) {
+        if (!round && copyDLL.realBTarget.exitStatus == EXIT_SUCCESS)
+        {
+            {
+                printMutex.lock();
+                printErrorMessage("Formatting");
+                printMutex.unlock();
+            }
+            std::filesystem::copy(catShared.linkOrArchiveTarget->getActualOutputPath(),
+                                  path(animalShared.linkOrArchiveTarget->getActualOutputPath()).parent_path(),
+                                  std::filesystem::copy_options::overwrite_existing);
+            std::filesystem::remove(catShared.linkOrArchiveTarget->getActualOutputPath());
+        }
+    });
 
-    makeApps(TargetType::LIBRARY_STATIC);
-    makeApps(TargetType::LIBRARY_SHARED);
+    /*    for (const DSC<CppSourceTarget> &cppTargetConst : targets<DSC<CppSourceTarget>>)
+        {
+            auto &cppTarget = const_cast<DSC<CppSourceTarget> &>(cppTargetConst);
+
+            if (cppTarget.getSourceTarget().EVALUATE(BTFamily::MSVC))
+            {
+                if (cppTarget.linkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+                {
+                    cppTarget.getSourceTarget().PRIVATE_COMPILE_DEFINITION("CAT_EXPORT", "__declspec(dllexport)");
+                    cppTarget.getSourceTarget().INTERFACE_COMPILE_DEFINITION("CAT_EXPORT", "__declspec(dllimport)");
+                }
+                else if (cppTarget.linkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_STATIC))
+                {
+                    cppTarget.getSourceTarget().PUBLIC_COMPILE_DEFINITION("CAT_EXPORT", "");
+                }
+            }
+            else
+            {
+                cppTarget.getSourceTarget().PUBLIC_COMPILE_DEFINITION("CAT_EXPORT", "");
+            }
+        }*/
 }
 
 #ifdef EXE
