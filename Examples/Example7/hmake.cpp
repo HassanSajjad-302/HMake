@@ -2,7 +2,8 @@
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().MODULE_DIRECTORIES("Mod_Src/", R"(^(?!hmake\.cpp$).*)");
+    GetCppExeDSC("app").getSourceTarget().MODULE_FILES("main.cpp", "std.cpp");
+    GetCppExeDSC("app2").getSourceTarget().MODULE_FILES("main2.cpp").assignStandardIncludesToHUIncludes();
 }
 
 #ifdef EXE
@@ -30,7 +31,6 @@ extern "C" EXPORT int func2(BSMode bsMode_)
 {
     try
     {
-        exportAllSymbolsAndInitializeGlobals();
         initializeCache(bsMode_);
         buildSpecification();
         configureOrBuild();

@@ -44,6 +44,11 @@ RealBTarget &BTarget::getRealBTarget(unsigned short round)
     return const_cast<RealBTarget &>(it->second);
 }
 
+unsigned short BTarget::getBTargetType() const
+{
+    return 0;
+}
+
 void BTarget::preSort(Builder &, unsigned short)
 {
 }

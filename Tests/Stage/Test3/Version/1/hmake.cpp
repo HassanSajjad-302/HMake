@@ -33,33 +33,44 @@ void buildSpecification()
     configureFunc(debug);
 }
 
-extern "C" EXPORT int func(BSMode bsMode_)
-{
-    std::function f([&]() {
-        exportAllSymbolsAndInitializeGlobals();
-        initializeCache(bsMode_);
-        buildSpecification();
-    });
-    return executeInTryCatchAndSetErrorMessagePtr(std::move(f));
-}
-
 #ifdef EXE
 int main(int argc, char **argv)
 {
-    initializeCache(getBuildSystemModeFromArguments(argc, argv));
-    buildSpecification();
-    configureOrBuild();
+    try
+    {
+        initializeCache(getBuildSystemModeFromArguments(argc, argv));
+        buildSpecification();
+        configureOrBuild();
+    }
+    catch (std::exception &ec)
+    {
+        string str(ec.what());
+        if (!str.empty())
+        {
+            printErrorMessage(str);
+        }
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }
 #else
 extern "C" EXPORT int func2(BSMode bsMode_)
 {
-    std::function f([&]() { func(bsMode_); });
-    int errorCode = executeInTryCatchAndSetErrorMessagePtr(std::move(f));
-    if (errorCode != EXIT_SUCCESS)
+    try
     {
-        return errorCode;
+        initializeCache(bsMode_);
+        buildSpecification();
+        configureOrBuild();
     }
-    std::function j([&]() { configureOrBuild(); });
-    return executeInTryCatchAndSetErrorMessagePtr(std::move(j));
+    catch (std::exception &ec)
+    {
+        string str(ec.what());
+        if (!str.empty())
+        {
+            printErrorMessage(str);
+        }
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }
 #endif

@@ -83,6 +83,11 @@ namespace BTargetNamespace
 inline std::mutex addDependencyMutex;
 }
 
+enum class BTargetType : unsigned short
+{
+    SMFILE = 1,
+};
+
 struct BTarget // BTarget
 {
     inline static size_t total = 0;
@@ -96,6 +101,7 @@ struct BTarget // BTarget
     virtual string getTarjanNodeName() const;
 
     RealBTarget &getRealBTarget(unsigned short round);
+    virtual unsigned short getBTargetType() const;
     virtual void preSort(class Builder &builder, unsigned short round);
     virtual void duringSort(Builder &builder, unsigned short round);
     virtual void updateBTarget(Builder &builder, unsigned short round);

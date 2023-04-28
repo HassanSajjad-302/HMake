@@ -2,11 +2,11 @@
 
 void buildSpecification()
 {
-    Configuration &debug = GetConfiguration("Release");
+    Configuration &debug = GetConfiguration("Debug");
 
     CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
 
-    debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE);
+    debug.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::DEBUG);
 
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 
@@ -55,7 +55,6 @@ extern "C" EXPORT int func2(BSMode bsMode_)
 {
     try
     {
-        exportAllSymbolsAndInitializeGlobals();
         initializeCache(bsMode_);
         buildSpecification();
         configureOrBuild();

@@ -104,18 +104,24 @@ TEST(ExamplesTest, Example6)
 }
 
 #ifdef _WIN32
-TEST(ExamplesTest, Example9)
+TEST(ExamplesTest, Example7)
 {
-    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example9"));
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example7"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    current_path("0/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "Hello World\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app2/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app2"),
                                                  "Hello World\n");
 }
 
-TEST(ExamplesTest, Example10)
+TEST(ExamplesTest, Example8)
 {
-    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example10/ball_pit"));
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example8"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "Hello World\n");
 }
 #endif

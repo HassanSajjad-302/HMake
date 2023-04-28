@@ -35,7 +35,6 @@ void buildSpecification()
     configureFunc(debug);
 }
 
-
 #ifdef EXE
 int main(int argc, char **argv)
 {
@@ -61,7 +60,6 @@ extern "C" EXPORT int func2(BSMode bsMode_)
 {
     try
     {
-        exportAllSymbolsAndInitializeGlobals();
         initializeCache(bsMode_);
         buildSpecification();
         configureOrBuild();

@@ -68,9 +68,6 @@ import <utility>;
 
 extern "C" EXPORT int func2(BSMode bsMode_);
 
-// If this functions is not called then the unused symbols are not exported and above globals are not initialized.
-void exportAllSymbolsAndInitializeGlobals();
-
 // Executes the function in try-catch block and also sets the errorMessageStrPtr equal to the exception what message
 // string
 template <typename T> int executeInTryCatchAndSetErrorMessagePtr(std::function<T> funcLocal)

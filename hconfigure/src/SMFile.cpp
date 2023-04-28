@@ -634,6 +634,11 @@ string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
                           pathPrint);
 }
 
+unsigned short SMFile::getBTargetType() const
+{
+    return static_cast<unsigned short>(BTargetType::SMFILE);
+}
+
 void SMFile::duringSort(Builder &, unsigned short round)
 {
     if (round)
@@ -649,8 +654,9 @@ void SMFile::duringSort(Builder &, unsigned short round)
     //  update because of its dependencies or not.
     for (BTarget *dependency : getRealBTarget(0).dependencies)
     {
-        if (auto *smFile = dynamic_cast<SMFile *>(dependency); smFile)
+        if (dependency->getBTargetType() == static_cast<unsigned short>(BTargetType::SMFILE))
         {
+            auto *smFile = static_cast<SMFile *>(dependency);
             allSMFileDependenciesRoundZero.emplace(smFile);
             for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
             {
@@ -795,24 +801,43 @@ string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
     {
-        return ccpSettings.infrastructureFlags ? "/reference " : "" + getRequireIFCPathOrLogicalName(logicalName) + " ";
+        if (ccpSettings.requireIFCs.printLevel == PathPrintLevel::NO)
+        {
+            return "";
+        }
+        else
+        {
+            string str;
+            if (ccpSettings.infrastructureFlags)
+            {
+                str += "/reference ";
+            }
+            return str + getRequireIFCPathOrLogicalName(logicalName) + " ";
+        }
     }
     else if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
         assert(dependentSMFile.headerUnitsConsumptionMethods.contains(const_cast<SMFile *>(this)) &&
                "SMFile referencing a headerUnit for which there is no consumption method");
-        string str;
-        for (const HeaderUnitConsumer &headerUnitConsumer :
-             dependentSMFile.headerUnitsConsumptionMethods.find(this)->second)
+        if (ccpSettings.requireIFCs.printLevel == PathPrintLevel::NO)
         {
-            if (!ccpSettings.infrastructureFlags)
-            {
-                string angleStr = headerUnitConsumer.angle ? "angle" : "quote";
-                str += "/headerUnit:" + angleStr + " ";
-            }
-            str += getRequireIFCPathOrLogicalName(headerUnitConsumer.logicalName) + " ";
+            return "";
         }
-        return str;
+        else
+        {
+            string str;
+            for (const HeaderUnitConsumer &headerUnitConsumer :
+                 dependentSMFile.headerUnitsConsumptionMethods.find(this)->second)
+            {
+                if (ccpSettings.infrastructureFlags)
+                {
+                    string angleStr = headerUnitConsumer.angle ? "angle" : "quote";
+                    str += "/headerUnit:" + angleStr + " ";
+                }
+                str += getRequireIFCPathOrLogicalName(headerUnitConsumer.logicalName) + " ";
+            }
+            return str;
+        }
     }
     printErrorMessage("HMake Error! In getRequireFlag() unknown type");
     throw std::exception();

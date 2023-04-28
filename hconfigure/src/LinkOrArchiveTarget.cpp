@@ -7,6 +7,7 @@ import "CppSourceTarget.hpp";
 import "Utilities.hpp";
 import <filesystem>;
 import <fstream>;
+import <stack>;
 import <utility>;
 #else
 #include "LinkOrArchiveTarget.hpp"
@@ -16,10 +17,11 @@ import <utility>;
 #include "Utilities.hpp"
 #include <filesystem>
 #include <fstream>
+#include <stack>
 #include <utility>
 #endif
 
-using std::ofstream, std::filesystem::create_directories, std::ifstream;
+using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack;
 
 LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType)
     : CTarget(std::move(name_)), PrebuiltLinkOrArchiveTarget(name, getSubDirForTarget(), targetType)
@@ -156,8 +158,17 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round)
             if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) &&
                 realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
             {
+                set<PrebuiltLinkOrArchiveTarget *> checked;
+                stack<PrebuiltLinkOrArchiveTarget *> allDeps;
                 for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
                 {
+                    checked.emplace(prebuiltLinkOrArchiveTarget);
+                    allDeps.emplace(prebuiltLinkOrArchiveTarget);
+                }
+                while (!allDeps.empty())
+                {
+                    PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget = allDeps.top();
+                    allDeps.pop();
                     if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                     {
                         if (prebuiltLinkOrArchiveTarget->getRealBTarget(0).fileStatus == FileStatus::NEEDS_UPDATE)
@@ -187,6 +198,14 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round)
                                     dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
                                 }
                             }
+                        }
+                    }
+                    for (auto &[prebuiltLinkOrArchiveTarget_, prebuiltDep] :
+                         prebuiltLinkOrArchiveTarget->requirementDeps)
+                    {
+                        if (checked.emplace(prebuiltLinkOrArchiveTarget_).second)
+                        {
+                            allDeps.emplace(prebuiltLinkOrArchiveTarget_);
                         }
                     }
                 }

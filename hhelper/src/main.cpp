@@ -131,7 +131,6 @@ int main(int argc, char **argv)
 
             // hhelper currently only works with MSVC compiler expected in toolsCache vsTools[0]
             string compileCommand = addQuotes(toolsCache.vsTools[0].compiler.bTPath.make_preferred().string()) + " ";
-            compileCommand += R"(/DEXPORT=__declspec(dllexport) )";
             for (const string &str : toolsCache.vsTools[0].includeDirectories)
             {
                 compileCommand += "/I " + addQuotes(str) + " ";
@@ -143,8 +142,8 @@ int main(int argc, char **argv)
             {
                 compileCommand += "/LIBPATH:" + addQuotes(str) + " ";
             }
-            compileCommand += addQuotes(hconfigureStaticLibPath.string()) + " " + addQuotes(fmtStaticLibPath.string()) +
-                              " /OUT:{CONFIGURE_DIRECTORY}/" +
+            compileCommand += "/WHOLEARCHIVE:" + addQuotes(hconfigureStaticLibPath.string()) + " " +
+                              addQuotes(fmtStaticLibPath.string()) + " /OUT:{CONFIGURE_DIRECTORY}/" +
                               getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure");
             compileCommand = addQuotes(compileCommand);
             cache.compileConfigureCommands.push_back(compileCommand);

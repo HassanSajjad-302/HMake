@@ -2,7 +2,7 @@
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp").ASSIGN(RTTI::OFF);
+    GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp");
 }
 
 #ifdef EXE
@@ -30,7 +30,6 @@ extern "C" EXPORT int func2(BSMode bsMode_)
 {
     try
     {
-        exportAllSymbolsAndInitializeGlobals();
         initializeCache(bsMode_);
         buildSpecification();
         configureOrBuild();

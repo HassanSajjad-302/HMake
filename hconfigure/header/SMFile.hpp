@@ -163,6 +163,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     void setSMFileStatusRoundZero();
     string getObjectFileOutputFilePath() override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) override;
+    unsigned short getBTargetType() const override;
     void duringSort(Builder &builder, unsigned short round) override;
     string getFlag(const string &outputFilesWithoutExtension) const;
     string getFlagPrint(const string &outputFilesWithoutExtension) const;
