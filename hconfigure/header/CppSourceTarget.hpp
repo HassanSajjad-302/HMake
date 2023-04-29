@@ -131,6 +131,8 @@ class CppSourceTarget : public CompilerFeatures,
 
     set<SourceDirectory> regexSourceDirs;
     set<SourceDirectory> regexModuleDirs;
+    // requirementIncludes size before populateTransitiveProperties function is called
+    unsigned short reqIncSizeBeforePopulate = 0;
 
     void initializeForBuild();
     void preSort(Builder &builder, unsigned short round) override;

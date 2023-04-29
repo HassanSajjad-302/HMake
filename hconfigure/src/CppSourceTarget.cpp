@@ -793,6 +793,8 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
     {
         populateRequirementAndUsageRequirementDeps();
         addRequirementDepsToBTargetDependencies();
+        // Needed to maintain ordering between different includes specification.
+        reqIncSizeBeforePopulate = requirementIncludes.size();
         populateTransitiveProperties();
     }
 }
@@ -1036,9 +1038,36 @@ void CppSourceTarget::setCompileCommand()
         }
     }
 
-    for (const InclNode &include : requirementIncludes)
+    // Following set is needed because otherwise InclNode propogated from other requirementDeps won't have ordering,
+    // because requirementDeps in DS is set. Because of weak ordering this will hurt the caching. Now,
+    // requirementIncludes can be made set, but this is not done to maintain specification order for include-dirs
+
+    // I think ideally this should not be support this. A same header-file should not present in more than one
+    // header-file.
+
+    unsigned short i = 0;
+    auto it = requirementIncludes.begin();
+    while (true)
     {
-        compileCommand.append(getIncludeFlag() + addQuotes(include.node->filePath) + " ");
+        compileCommand.append(getIncludeFlag() + addQuotes(it->node->filePath) + " ");
+        ++it;
+        ++i;
+        if (i == reqIncSizeBeforePopulate)
+        {
+            break;
+        }
+    }
+
+    set<string> includes;
+
+    for (; it != requirementIncludes.end(); ++it)
+    {
+        includes.emplace(it->node->filePath);
+    }
+
+    for (const string &include : includes)
+    {
+        compileCommand.append(getIncludeFlag() + addQuotes(include) + " ");
     }
 }
 
