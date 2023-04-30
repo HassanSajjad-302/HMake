@@ -2,7 +2,7 @@
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp");
+    GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp").ASSIGN(RTTI::OFF);
 }
 
 #ifdef EXE

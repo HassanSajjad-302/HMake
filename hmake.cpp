@@ -183,7 +183,6 @@ extern "C" EXPORT int func2(BSMode bsMode_)
 {
     try
     {
-        exportAllSymbolsAndInitializeGlobals();
         initializeCache(bsMode_);
         buildSpecification();
         configureOrBuild();

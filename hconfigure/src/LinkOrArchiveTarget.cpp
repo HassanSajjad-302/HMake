@@ -70,7 +70,7 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
     }
 }
 
-void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round)
+void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round)
 {
     if (!round)
     {
@@ -110,14 +110,18 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round)
                     if (command == linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets)
                     {
                         bool needsUpdate = false;
-                        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+                        if (!EVALUATE(TargetType::LIBRARY_STATIC))
                         {
-                            path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
-                            if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
-                                Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
                             {
-                                needsUpdate = true;
-                                break;
+
+                                path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
+                                if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
+                                    Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                                {
+                                    needsUpdate = true;
+                                    break;
+                                }
                             }
                         }
 
@@ -212,6 +216,7 @@ void LinkOrArchiveTarget::duringSort(Builder &, unsigned short round)
             }
         }
     }
+    PrebuiltLinkOrArchiveTarget::duringSort(builder, round);
 }
 
 void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
@@ -275,9 +280,12 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
     {
         PrebuiltLinkOrArchiveTarget::updateBTarget(builder, 3);
         addRequirementDepsToBTargetDependencies();
-        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        if (!EVALUATE(TargetType::LIBRARY_STATIC))
         {
-            requirementLinkerFlags += prebuiltLinkOrArchiveTarget->usageRequirementLinkerFlags;
+            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+            {
+                requirementLinkerFlags += prebuiltLinkOrArchiveTarget->usageRequirementLinkerFlags;
+            }
         }
     }
 }

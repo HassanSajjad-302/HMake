@@ -16,9 +16,9 @@ class Builder
 {
     unsigned short round = 0;
     list<struct BTarget *>::iterator finalBTargetsIterator;
-    size_t finalBTargetsSizeGoal = 0;
 
   public:
+    size_t finalBTargetsSizeGoal = 0;
     list<BTarget *> finalBTargets;
     bool updateBTargetFailed = false;
     explicit Builder(unsigned short roundBegin, unsigned short roundEnd, vector<BTarget *> &preSortBTargets);

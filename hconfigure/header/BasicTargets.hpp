@@ -101,7 +101,7 @@ struct BTarget // BTarget
     virtual string getTarjanNodeName() const;
 
     RealBTarget &getRealBTarget(unsigned short round);
-    virtual unsigned short getBTargetType() const;
+    virtual BTargetType getBTargetType() const;
     virtual void preSort(class Builder &builder, unsigned short round);
     virtual void duringSort(Builder &builder, unsigned short round);
     virtual void updateBTarget(Builder &builder, unsigned short round);

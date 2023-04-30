@@ -43,39 +43,6 @@ void Snapshot::after(const path &directoryPath)
     }
 }
 
-bool Snapshot::snapshotBalancesTest1(bool sourceFileUpdated, bool executableUpdated)
-{
-    set<const Node *> difference;
-    for (const Node &node : afterData)
-    {
-        if (!beforeData.contains(node) || beforeData.find(node)->getLastUpdateTime() != node.getLastUpdateTime())
-        {
-            difference.emplace(&node);
-        }
-    }
-    unsigned short linkTargetMultiplier = os == OS::NT ? 4 : 3;
-    unsigned short sum = 0;
-    if (sourceFileUpdated)
-    {
-        // Output, Error, .o, Respone File on Windows / Deps Output File on Linux, CppSourceTarget Cache File
-        sum += 5;
-    }
-    if (executableUpdated)
-    {
-        if constexpr (os == OS::NT)
-        {
-            // Output, Error, Response, LinkOrArchiveTarget Cache File, EXE, PDB, ILK
-            sum += 7;
-        }
-        else
-        {
-            // Output, Error, LinkOrArchiveTarget Cache File, EXE
-            sum += 4;
-        }
-    }
-    return difference.size() == sum;
-}
-
 bool Snapshot::snapshotBalances(const Updates &updates)
 {
     set<const Node *> difference;
@@ -101,71 +68,6 @@ bool Snapshot::snapshotBalances(const Updates &updates)
     sum += updates.linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
     sum += updates.linkTargetsDebug * debugLinkTargetsMultiplier;
     sum += updates.cppTargets;
-    if (difference.size() != sum)
-    {
-        bool breakpoint = true;
-    }
-    return difference.size() == sum;
-}
-
-bool Snapshot::snapshotBalances(unsigned short smruleFiles, unsigned short filesCompiled, unsigned short cppTargets,
-                                unsigned short linkTargetsNoDebug, unsigned short linkTargetsDebug)
-{
-    set<const Node *> difference;
-    for (const Node &node : afterData)
-    {
-        if (!beforeData.contains(node) || beforeData.find(node)->getLastUpdateTime() != node.getLastUpdateTime())
-        {
-            difference.emplace(&node);
-        }
-    }
-    unsigned short sum = 0;
-    unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 7 : 4; // No response file on Linux
-    unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 5 : 4;
-
-    // Output, Error, .smrules, Respone File on Windows / Deps Output File on Linux
-    sum += 4 * smruleFiles;
-    // Output, Error, .o, Respone File on Windows / Deps Output File on Linux
-    sum += 4 * filesCompiled;
-
-    sum += linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
-    sum += linkTargetsDebug * debugLinkTargetsMultiplier;
-    sum += cppTargets;
-    if (difference.size() != sum)
-    {
-        bool breakpoint = true;
-    }
-    return difference.size() == sum;
-}
-
-bool Snapshot::snapshotErroneousBalances(unsigned short errorFiles, unsigned short smruleFiles,
-                                         unsigned short filesCompiled, unsigned short cppTargets,
-                                         unsigned short linkTargetsNoDebug, unsigned short linkTargetsDebug)
-{
-    set<const Node *> difference;
-    for (const Node &node : afterData)
-    {
-        if (!beforeData.contains(node) || beforeData.find(node)->getLastUpdateTime() != node.getLastUpdateTime())
-        {
-            difference.emplace(&node);
-        }
-    }
-    unsigned short sum = 0;
-    unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 7 : 4; // No response file on Linux
-    unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 5 : 4;
-
-    // Output, Error, Respone File on Windows / Deps Output File on Linux
-    sum += 3 * errorFiles;
-
-    // Output, Error, .smrules, Respone File on Windows / Deps Output File on Linux
-    sum += 4 * smruleFiles;
-
-    // Output, Error, .o, Respone File on Windows / Deps Output File on Linux
-    sum += 4 * filesCompiled;
-
-    sum += linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
-    sum += linkTargetsDebug * debugLinkTargetsMultiplier;
-    sum += cppTargets;
     if (difference.size() != sum)
     {
         bool breakpoint = true;

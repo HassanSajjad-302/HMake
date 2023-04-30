@@ -49,13 +49,7 @@ class Snapshot
     explicit Snapshot(const path &directoryPath);
     void before(const path &directoryPath);
     void after(const path &directoryPath);
-    bool snapshotBalancesTest1(bool sourceFileUpdated, bool executableUpdated);
     bool snapshotBalances(const Updates &updates);
-    bool snapshotBalances(unsigned short smruleFiles, unsigned short filesCompiled, unsigned short cppTargets,
-                          unsigned short linkTargetsNoDebug, unsigned short linkTargetsDebug);
-    bool snapshotErroneousBalances(unsigned short errorFiles, unsigned short smruleFiles, unsigned short filesCompiled,
-                                   unsigned short cppTargets, unsigned short linkTargetsNoDebug,
-                                   unsigned short linkTargetsDebug);
 };
 
 #endif // HMAKE_SNAPSHOT_HPP

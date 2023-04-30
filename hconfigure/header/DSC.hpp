@@ -269,9 +269,12 @@ void DSC<T>::assignLinkOrArchiveTargetLib(DSC *controller, Dependency dependency
     if (linkOrArchiveTarget && controller->linkOrArchiveTarget)
     {
         // None is ObjectLibrary
-        if (linkOrArchiveTarget->linkTargetType == TargetType::LIBRARY_STATIC)
+        if (linkOrArchiveTarget->linkTargetType == TargetType::LIBRARY_STATIC && dependency == Dependency::PRIVATE)
         {
-            linkOrArchiveTarget->INTERFACE_DEPS(controller->linkOrArchiveTarget, std::move(prebuiltDep));
+            // A static library can't have Dependency::PRIVATE deps, it can only have Dependency::INTERFACE. But, the
+            // following PUBLIC_DEPS is done for correct-ordering when static-libs are finally supplied to dynamic-lib
+            // or exe. Static library ignores the deps.
+            linkOrArchiveTarget->PUBLIC_DEPS(controller->linkOrArchiveTarget, std::move(prebuiltDep));
         }
         else
         {

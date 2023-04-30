@@ -63,7 +63,6 @@ void Builder::populateFinalBTargets()
     TBT::tarjanNodes = &(k);
     TBT::findSCCS();
     TBT::checkForCycle();
-    size_t needsUpdate = 0;
 
     vector<BTarget *> sortedBTargets = std::move(TBT::topologicalSort);
     if (!round)
@@ -84,33 +83,9 @@ void Builder::populateFinalBTargets()
     finalBTargets.clear();
     for (unsigned i = 0; i < sortedBTargets.size(); ++i)
     {
-        BTarget *bTarget = sortedBTargets[i];
-        RealBTarget &realBTarget = bTarget->getRealBTarget(round);
-        realBTarget.indexInTopologicalSort = i;
-        bTarget->duringSort(*this, round);
-        for (BTarget *dependent : realBTarget.dependents)
-        {
-            RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
-            if (realBTarget.fileStatus == FileStatus::UPDATED)
-            {
-                --(dependentRealBTarget.dependenciesSize);
-            }
-            else if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
-            {
-                dependentRealBTarget.dependencyNeedsUpdate = true;
-                dependentRealBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-            }
-        }
-        if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
-        {
-            ++needsUpdate;
-            if (!realBTarget.dependenciesSize)
-            {
-                finalBTargets.emplace_back(bTarget);
-            }
-        }
+        sortedBTargets[i]->getRealBTarget(round).indexInTopologicalSort = i;
+        sortedBTargets[i]->duringSort(*this, round);
     }
-    finalBTargetsSizeGoal = needsUpdate;
 }
 
 void Builder::launchThreadsAndUpdateBTargets()
@@ -137,6 +112,7 @@ void Builder::launchThreadsAndUpdateBTargets()
         t->join();
         delete t;
     }
+    finalBTargetsSizeGoal = 0;
 }
 
 static mutex updateMutex;

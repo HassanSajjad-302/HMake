@@ -1,8 +1,10 @@
 #ifdef USE_HEADER_UNITS
+import "Builder.hpp";
 import "PrebuiltLinkOrArchiveTarget.hpp";
 import "SMFile.hpp";
 #else
 #include "PrebuiltLinkOrArchiveTarget.hpp"
+#include "Builder.hpp"
 #include "SMFile.hpp"
 #endif
 

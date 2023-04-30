@@ -1,13 +1,14 @@
 
 #ifdef USE_HEADER_UNITS
 import "BasicTargets.hpp";
-import "BuildSystemFunctions.hpp";
+import "Builder.hpp" import "BuildSystemFunctions.hpp";
 import "CppSourceTarget.hpp";
 import <filesystem>;
 import <fstream>;
 #else
 #include "BasicTargets.hpp"
 #include "BuildSystemFunctions.hpp"
+#include "Builder.hpp"
 #include "CppSourceTarget.hpp"
 #include <filesystem>
 #include <fstream>
@@ -44,17 +45,39 @@ RealBTarget &BTarget::getRealBTarget(unsigned short round)
     return const_cast<RealBTarget &>(it->second);
 }
 
-unsigned short BTarget::getBTargetType() const
+BTargetType BTarget::getBTargetType() const
 {
-    return 0;
+    return static_cast<BTargetType>(0);
 }
 
 void BTarget::preSort(Builder &, unsigned short)
 {
 }
 
-void BTarget::duringSort(Builder &, unsigned short)
+void BTarget::duringSort(Builder &builder, unsigned short round)
 {
+    RealBTarget &realBTarget = getRealBTarget(round);
+    for (BTarget *dependent : realBTarget.dependents)
+    {
+        RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
+        if (realBTarget.fileStatus == FileStatus::UPDATED)
+        {
+            --(dependentRealBTarget.dependenciesSize);
+        }
+        else if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+        {
+            dependentRealBTarget.dependencyNeedsUpdate = true;
+            dependentRealBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        }
+    }
+    if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+    {
+        ++builder.finalBTargetsSizeGoal;
+        if (!realBTarget.dependenciesSize)
+        {
+            builder.finalBTargets.emplace_back(this);
+        }
+    }
 }
 
 void BTarget::updateBTarget(Builder &, unsigned short)

@@ -634,48 +634,47 @@ string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
                           pathPrint);
 }
 
-unsigned short SMFile::getBTargetType() const
+BTargetType SMFile::getBTargetType() const
 {
-    return static_cast<unsigned short>(BTargetType::SMFILE);
+    return BTargetType::SMFILE;
 }
 
-void SMFile::duringSort(Builder &, unsigned short round)
+void SMFile::duringSort(Builder &builder, unsigned short round)
 {
-    if (round)
+    if (!round)
     {
-        return;
-    }
 
-    // TODO
-    //  Following could be moved to updateBTarget, so that it could be parallel. Same in LinkOrArchiveTarget. So, this
-    //  function can be removed.
-    //  preSort function will set the RealBTarget round 0 status to NEEDS_UPDATE, so that following could be called in
-    //  updateBTarget. dependencyNeedsUpdate variable in RealBTarget will be used to determine whether the file needs an
-    //  update because of its dependencies or not.
-    for (BTarget *dependency : getRealBTarget(0).dependencies)
-    {
-        if (dependency->getBTargetType() == static_cast<unsigned short>(BTargetType::SMFILE))
+        // TODO
+        //  Following could be moved to updateBTarget, so that it could be parallel. Same in LinkOrArchiveTarget. So,
+        //  this function can be removed. preSort function will set the RealBTarget round 0 status to NEEDS_UPDATE, so
+        //  that following could be called in updateBTarget. dependencyNeedsUpdate variable in RealBTarget will be used
+        //  to determine whether the file needs an update because of its dependencies or not.
+        for (BTarget *dependency : getRealBTarget(0).dependencies)
         {
-            auto *smFile = static_cast<SMFile *>(dependency);
-            allSMFileDependenciesRoundZero.emplace(smFile);
-            for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
+            if (dependency->getBTargetType() == BTargetType::SMFILE)
             {
-                allSMFileDependenciesRoundZero.emplace(smFileDep);
+                auto *smFile = static_cast<SMFile *>(dependency);
+                allSMFileDependenciesRoundZero.emplace(smFile);
+                for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
+                {
+                    allSMFileDependenciesRoundZero.emplace(smFileDep);
+                }
+            }
+        }
+        setSMFileStatusRoundZero();
+        for (SMFile *smFile : allSMFileDependenciesRoundZero)
+        {
+            for (auto &[headerUnitSMFile, headerUnitConsumerSet] : smFile->headerUnitsConsumptionMethods)
+            {
+                for (const HeaderUnitConsumer &headerUnitConsumer : headerUnitConsumerSet)
+                {
+                    headerUnitsConsumptionMethods.emplace(headerUnitSMFile, set<HeaderUnitConsumer>{})
+                        .first->second.emplace(headerUnitConsumer);
+                }
             }
         }
     }
-    setSMFileStatusRoundZero();
-    for (SMFile *smFile : allSMFileDependenciesRoundZero)
-    {
-        for (auto &[headerUnitSMFile, headerUnitConsumerSet] : smFile->headerUnitsConsumptionMethods)
-        {
-            for (const HeaderUnitConsumer &headerUnitConsumer : headerUnitConsumerSet)
-            {
-                headerUnitsConsumptionMethods.emplace(headerUnitSMFile, set<HeaderUnitConsumer>{})
-                    .first->second.emplace(headerUnitConsumer);
-            }
-        }
-    }
+    BTarget::duringSort(builder, round);
 }
 
 string SMFile::getFlag(const string &outputFilesWithoutExtension) const
