@@ -1055,15 +1055,9 @@ void CppSourceTarget::setCompileCommand()
 
     unsigned short i = 0;
     auto it = requirementIncludes.begin();
-    while (true)
+    for (; i < reqIncSizeBeforePopulate; ++i)
     {
         compileCommand.append(getIncludeFlag() + addQuotes(it->node->filePath) + " ");
-        ++it;
-        ++i;
-        if (i == reqIncSizeBeforePopulate)
-        {
-            break;
-        }
     }
 
     set<string> includes;

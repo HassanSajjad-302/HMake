@@ -135,10 +135,6 @@ void printErrorMessageColor(const string &message, uint32_t color)
 
 void configureOrBuild()
 {
-    if (bsMode == BSMode::IDE)
-    {
-        return;
-    }
     if (bsMode == BSMode::CONFIGURE)
     {
         TCT::tarjanNodes = &tarjanNodesCTargets;
@@ -164,7 +160,12 @@ void configureOrBuild()
     {
         Builder{3, 2, preSortBTargets};
     }
-    if (bsMode == BSMode::CONFIGURE)
+
+    if (bsMode == BSMode::BUILD)
+    {
+        Builder{1, 0, preSortBTargets};
+    }
+    else if (bsMode == BSMode::CONFIGURE)
     {
         vector<CTarget *> &cTargetsSortedForConfigure = TCT::topologicalSort;
         for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
