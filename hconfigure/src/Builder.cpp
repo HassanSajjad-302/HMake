@@ -72,9 +72,12 @@ void Builder::populateFinalBTargets()
             BTarget *bTarget = *it;
             if (bTarget->selectiveBuild)
             {
-                for (BTarget *dependency : bTarget->getRealBTarget(0).dependencies)
+                for (auto &[dependency, bTargetDepType] : bTarget->getRealBTarget(0).dependencies)
                 {
-                    dependency->selectiveBuild = true;
+                    if (bTargetDepType == BTargetDepType::FULL)
+                    {
+                        dependency->selectiveBuild = true;
+                    }
                 }
             }
         }
@@ -98,7 +101,7 @@ void Builder::launchThreadsAndUpdateBTargets()
     // execution. Also tarjannode sorting could be more parallel.
     finalBTargetsIterator = finalBTargets.begin();
 
-    unsigned short launchThreads = 12;
+    unsigned short launchThreads = settings.maximumBuildThreads;
     if (launchThreads)
     {
         while (threads.size() != launchThreads - 1)
@@ -202,22 +205,26 @@ void Builder::updateBTargets()
         }
 
         bTarget->getRealBTarget(round).fileStatus = FileStatus::UPDATED;
-        for (BTarget *dependent : bTarget->getRealBTarget(round).dependents)
+        for (auto &[dependent, bTargetDepType] : bTarget->getRealBTarget(round).dependents)
         {
             RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
-            if (realBTarget->exitStatus != EXIT_SUCCESS)
+            if (bTargetDepType == BTargetDepType::FULL)
             {
-                dependentRealBTarget.exitStatus = EXIT_FAILURE;
-            }
-            --(dependentRealBTarget.dependenciesSize);
-            if (!dependentRealBTarget.dependenciesSize && dependentRealBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
-            {
-                finalBTargets.emplace_back(dependent);
-                if (finalBTargetsIterator == finalBTargets.end())
+                if (realBTarget->exitStatus != EXIT_SUCCESS)
                 {
-                    --finalBTargetsIterator;
+                    dependentRealBTarget.exitStatus = EXIT_FAILURE;
                 }
-                cond.notify_all();
+                --(dependentRealBTarget.dependenciesSize);
+                if (!dependentRealBTarget.dependenciesSize &&
+                    dependentRealBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+                {
+                    finalBTargets.emplace_back(dependent);
+                    if (finalBTargetsIterator == finalBTargets.end())
+                    {
+                        --finalBTargetsIterator;
+                    }
+                    cond.notify_all();
+                }
             }
         }
         if (finalBTargetsIterator == finalBTargets.end())

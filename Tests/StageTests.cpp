@@ -96,7 +96,6 @@ static void executeErroneousSnapshotBalances(const Updates &updates, const path 
 }
 
 // Tests Hello-World and rebuild in different directories on touching file.
-/*
 TEST(StageTests, Test1)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
@@ -172,7 +171,6 @@ TEST(StageTests, Test1)
     // Executing in Build. Only app to be updated.
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
 }
-*/
 
 static void setupTest2Default()
 {
@@ -213,128 +211,118 @@ TEST(StageTests, Test2)
     current_path("../../");
 
     executeSnapshotBalances(Updates{});
-    /*
 
-        // Touching main.cpp
-        path mainFilePath = testSourcePath / "main.cpp";
-        touchFile(mainFilePath);
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsDebug = 1});
+    // Touching main.cpp
+    path mainFilePath = testSourcePath / "main.cpp";
+    touchFile(mainFilePath);
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsDebug = 1});
 
-        // Touching public-lib3.hpp
-        path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
-        touchFile(publicLib3DotHpp);
-        executeSnapshotBalances(Updates{.sourceFiles = 2, .cppTargets = 2, .linkTargetsNoDebug = 2, .linkTargetsDebug =
-       1});
+    // Touching public-lib3.hpp
+    path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
+    touchFile(publicLib3DotHpp);
+    executeSnapshotBalances(Updates{.sourceFiles = 2, .cppTargets = 2, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
-        // Touching private-lib1 and main.cpp
-        path privateLib1DotHpp = testSourcePath / "lib1/private/private-lib1.hpp";
-        touchFile(mainFilePath);
-        touchFile(privateLib1DotHpp);
-        executeSnapshotBalances(Updates{.sourceFiles = 2, .cppTargets = 2, .linkTargetsNoDebug = 1, .linkTargetsDebug =
-       1});
+    // Touching private-lib1 and main.cpp
+    path privateLib1DotHpp = testSourcePath / "lib1/private/private-lib1.hpp";
+    touchFile(mainFilePath);
+    touchFile(privateLib1DotHpp);
+    executeSnapshotBalances(Updates{.sourceFiles = 2, .cppTargets = 2, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
-        // Touching lib4.cpp
-        path lib4DotCpp = testSourcePath / "lib4/private/lib4.cpp";
-        touchFile(lib4DotCpp);
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug =
-       1});
+    // Touching lib4.cpp
+    path lib4DotCpp = testSourcePath / "lib4/private/lib4.cpp";
+    touchFile(lib4DotCpp);
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
-        // Touching public-lib4.hpp
-        path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
-        touchFile(publicLib4DotHpp);
-        executeSnapshotBalances(Updates{.sourceFiles = 3, .cppTargets = 3, .linkTargetsNoDebug = 3, .linkTargetsDebug =
-       1});
+    // Touching public-lib4.hpp
+    path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
+    touchFile(publicLib4DotHpp);
+    executeSnapshotBalances(Updates{.sourceFiles = 3, .cppTargets = 3, .linkTargetsNoDebug = 3, .linkTargetsDebug = 1});
 
-        // Deleting lib3-cpp.cache
-        path lib3CppCacheFilePath = testSourcePath / "Build/Debug/lib3-cpp/Cache_Build_Files/lib3-cpp.cache";
-        removeFilePath(lib3CppCacheFilePath);
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug =
-       1});
+    // Deleting lib3-cpp.cache
+    path lib3CppCacheFilePath = testSourcePath / "Build/Debug/lib3-cpp/Cache_Build_Files/lib3-cpp.cache";
+    removeFilePath(lib3CppCacheFilePath);
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
-        // Deleting lib4 and lib2's app-cpp.cache
-        path lib4 = testSourcePath / "Build/Debug/lib4/" /
-                    path(getActualNameFromTargetName(TargetType::LIBRARY_STATIC, os, "lib4"));
-        path lib2CppCacheFilePath = testSourcePath / "Build/Debug/lib2-cpp/Cache_Build_Files/lib2-cpp.cache";
-        removeFilePath(lib4);
-        removeFilePath(lib2CppCacheFilePath);
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug =
-       1});
+    // Deleting lib4 and lib2's app-cpp.cache
+    path lib4 = testSourcePath / "Build/Debug/lib4/" /
+                path(getActualNameFromTargetName(TargetType::LIBRARY_STATIC, os, "lib4"));
+    path lib2CppCacheFilePath = testSourcePath / "Build/Debug/lib2-cpp/Cache_Build_Files/lib2-cpp.cache";
+    removeFilePath(lib4);
+    removeFilePath(lib2CppCacheFilePath);
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
-        // Touching main.cpp lib1.cpp lib1.hpp-public lib4.hpp-public
-        path lib1DotCpp = testSourcePath / "lib1/private/lib1.cpp";
-        path publicLib1DotHpp = testSourcePath / "lib1/public/public-lib1.hpp";
-        touchFile(mainFilePath);
-        touchFile(lib1DotCpp);
-        touchFile(publicLib1DotHpp);
-        touchFile(publicLib4DotHpp);
-        executeSnapshotBalances(Updates{.sourceFiles = 5, .cppTargets = 5, .linkTargetsNoDebug = 4, .linkTargetsDebug =
-       1});
+    // Touching main.cpp lib1.cpp lib1.hpp-public lib4.hpp-public
+    path lib1DotCpp = testSourcePath / "lib1/private/lib1.cpp";
+    path publicLib1DotHpp = testSourcePath / "lib1/public/public-lib1.hpp";
+    touchFile(mainFilePath);
+    touchFile(lib1DotCpp);
+    touchFile(publicLib1DotHpp);
+    touchFile(publicLib4DotHpp);
+    executeSnapshotBalances(Updates{.sourceFiles = 5, .cppTargets = 5, .linkTargetsNoDebug = 4, .linkTargetsDebug = 1});
 
-        // Touching public-lib4 then running hbuild in lib4-cpp, lib3-cpp, lib3, Build
-        touchFile(publicLib4DotHpp);
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib4-cpp");
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib3-cpp");
-        executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug =
-       1});
+    // Touching public-lib4 then running hbuild in lib4-cpp, lib3-cpp, lib3, Build
+    touchFile(publicLib4DotHpp);
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
-        // Touching lib2.cpp, then executing in lib4, lib3-cpp, lib3, lib1, lib1-cpp, app
-        path lib2DotCpp = testSourcePath / "lib2/private/lib2.cpp";
-        touchFile(lib2DotCpp);
-        executeSnapshotBalances(Updates{}, "Debug/lib4");
-        executeSnapshotBalances(Updates{}, "Debug/lib3-cpp");
-        executeSnapshotBalances(Updates{}, "Debug/lib3");
-        executeSnapshotBalances(Updates{}, "Debug/lib1");
-        executeSnapshotBalances(Updates{}, "Debug/lib1-cpp");
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug =
-       1}, "Debug/app");
+    // Touching lib2.cpp, then executing in lib4, lib3-cpp, lib3, lib1, lib1-cpp, app
+    path lib2DotCpp = testSourcePath / "lib2/private/lib2.cpp";
+    touchFile(lib2DotCpp);
+    executeSnapshotBalances(Updates{}, "Debug/lib4");
+    executeSnapshotBalances(Updates{}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{}, "Debug/lib3");
+    executeSnapshotBalances(Updates{}, "Debug/lib1");
+    executeSnapshotBalances(Updates{}, "Debug/lib1-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1},
+                            "Debug/app");
 
-        // Touching main.cpp lib1.hpp-public, then hbuild in app
-        touchFile(mainFilePath);
-        touchFile(publicLib1DotHpp);
-        executeSnapshotBalances(Updates{.sourceFiles = 2, .cppTargets = 2, .linkTargetsNoDebug = 1, .linkTargetsDebug =
-       1}, "Debug/app");
+    // Touching main.cpp lib1.hpp-public, then hbuild in app
+    touchFile(mainFilePath);
+    touchFile(publicLib1DotHpp);
+    executeSnapshotBalances(Updates{.sourceFiles = 2, .cppTargets = 2, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1},
+                            "Debug/app");
 
-        // Adding public-lib1.hpp contents to main.cpp and lib1.cpp and removing it from directory
-        copyFilePath(testSourcePath / "Version/1/main.cpp", testSourcePath / "main.cpp");
-        copyFilePath(testSourcePath / "Version/1/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
-        removeFilePath(testSourcePath / "lib1/public/public-lib1.hpp");
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib1-cpp");
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug =
-       1}, "Debug/app"); executeSnapshotBalances(Updates{});
+    // Adding public-lib1.hpp contents to main.cpp and lib1.cpp and removing it from directory
+    copyFilePath(testSourcePath / "Version/1/main.cpp", testSourcePath / "main.cpp");
+    copyFilePath(testSourcePath / "Version/1/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
+    removeFilePath(testSourcePath / "lib1/public/public-lib1.hpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib1-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1},
+                            "Debug/app");
+    executeSnapshotBalances(Updates{});
 
-        // Replacing public-lib1.hpp with two header-files and restoring lib1.cpp and main.cpp
-        copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
-        copyFilePath(testSourcePath / "Version/0/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
-        copyFilePath(testSourcePath / "Version/2/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
-        copyFilePath(testSourcePath / "Version/2/extra-include.hpp", testSourcePath / "lib1/public/extra-include.hpp");
-        executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib1-cpp");
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug =
-       1});
+    // Replacing public-lib1.hpp with two header-files and restoring lib1.cpp and main.cpp
+    copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
+    copyFilePath(testSourcePath / "Version/0/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
+    copyFilePath(testSourcePath / "Version/2/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
+    copyFilePath(testSourcePath / "Version/2/extra-include.hpp", testSourcePath / "lib1/public/extra-include.hpp");
+    executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib1-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
-        // Resorting to the default-version for the project
-        setupTest2Default();
-        ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    // Resorting to the default-version for the project
+    setupTest2Default();
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
 
-        // Removing all libraries, making main simple and reconfiguring the project.
-        copyFilePath(testSourcePath / "Version/3/main.cpp", testSourcePath / "main.cpp");
-        copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
-        ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    // Removing all libraries, making main simple and reconfiguring the project.
+    copyFilePath(testSourcePath / "Version/3/main.cpp", testSourcePath / "main.cpp");
+    copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
 
-        executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/app-cpp");
-        executeSnapshotBalances(Updates{.linkTargetsDebug = 1}, "Debug/app");
+    executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/app-cpp");
+    executeSnapshotBalances(Updates{.linkTargetsDebug = 1}, "Debug/app");
 
-        // Resorting to the old-main and reconfiguring the project.
-        copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
-        copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
-        ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    // Resorting to the old-main and reconfiguring the project.
+    copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
+    copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
 
-        executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
-        executeSnapshotBalances(Updates{}, "Debug/lib4");
-        executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsDebug = 1});
-    */
+    executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
+    executeSnapshotBalances(Updates{}, "Debug/lib4");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsDebug = 1});
     // Moving lib4.cpp code to temp.cpp in lib4/
     removeFilePath(testSourcePath / "lib4/private/lib4.cpp");
     copyFilePath(testSourcePath / "Version/4/temp.cpp", testSourcePath / "lib4/private/temp.cpp");

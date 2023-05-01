@@ -87,10 +87,22 @@ void PrebuiltLinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
     std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
     RealBTarget &round0 = getRealBTarget(0);
     RealBTarget &round2 = getRealBTarget(2);
-    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+    if (EVALUATE(TargetType::LIBRARY_STATIC))
     {
-        round0.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
-        round2.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
+        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        {
+            round0.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget),
+                                 BTargetDepType::LOOSE);
+            round2.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
+        }
+    }
+    else
+    {
+        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        {
+            round0.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
+            round2.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
+        }
     }
 }
 

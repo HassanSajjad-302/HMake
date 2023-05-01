@@ -38,10 +38,20 @@ enum class FileStatus
     NEEDS_UPDATE
 };
 
+enum class BTargetDepType
+{
+    FULL,
+
+    // Following specifies a dependency only for ordering. That dependency won't be considered for selectiveBuild, and,
+    // won't be updated when the dependencies are updated, and, will still be updated even if dependency exitStatus ==
+    // EXIT_FAILURE
+    LOOSE,
+};
+
 struct RealBTarget
 {
-    set<BTarget *> dependents;
-    set<BTarget *> dependencies;
+    map<BTarget *, BTargetDepType> dependents;
+    map<BTarget *, BTargetDepType> dependencies;
     unsigned int indexInTopologicalSort = 0;
     unsigned int dependenciesSize = 0;
     FileStatus fileStatus = FileStatus::UPDATED;
@@ -56,6 +66,7 @@ struct RealBTarget
     explicit RealBTarget(BTarget *bTarget_, unsigned short round);
 
     template <typename... U> void addDependency(BTarget &dependency, U &...bTargets);
+    template <typename... U> void addDependency(BTarget &dependency, BTargetDepType, U &...bTargets);
     // TODO
     //  Following describes the time taken for the completion of this task. Currently unused. how to determine cpu time
     //  for this task in multi-threaded scenario
@@ -114,10 +125,27 @@ bool operator<(const BTarget &lhs, const BTarget &rhs);
 
 template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U &...bTargets)
 {
-    if (dependencies.emplace(&dependency).second)
+    if (dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
     {
         RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
-        dependencyRealBTarget.dependents.emplace(bTarget);
+        dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::FULL);
+        ++dependenciesSize;
+        bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
+    }
+
+    if constexpr (sizeof...(bTargets))
+    {
+        addDependency(bTargets...);
+    }
+}
+
+template <typename... U>
+void RealBTarget::addDependency(BTarget &dependency, BTargetDepType bTargetDepType, U &...bTargets)
+{
+    if (dependencies.try_emplace(&dependency, bTargetDepType).second)
+    {
+        RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
+        dependencyRealBTarget.dependents.try_emplace(bTarget, bTargetDepType);
         ++dependenciesSize;
         bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
     }

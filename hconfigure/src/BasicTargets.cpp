@@ -57,10 +57,10 @@ void BTarget::preSort(Builder &, unsigned short)
 void BTarget::duringSort(Builder &builder, unsigned short round)
 {
     RealBTarget &realBTarget = getRealBTarget(round);
-    for (BTarget *dependent : realBTarget.dependents)
+    for (auto &[dependent, bTargetDepType] : realBTarget.dependents)
     {
         RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
-        if (realBTarget.fileStatus == FileStatus::UPDATED)
+        if (realBTarget.fileStatus == FileStatus::UPDATED || bTargetDepType == BTargetDepType::LOOSE)
         {
             --(dependentRealBTarget.dependenciesSize);
         }

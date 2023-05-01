@@ -649,7 +649,7 @@ void SMFile::duringSort(Builder &builder, unsigned short round)
         //  this function can be removed. preSort function will set the RealBTarget round 0 status to NEEDS_UPDATE, so
         //  that following could be called in updateBTarget. dependencyNeedsUpdate variable in RealBTarget will be used
         //  to determine whether the file needs an update because of its dependencies or not.
-        for (BTarget *dependency : getRealBTarget(0).dependencies)
+        for (auto &[dependency, ignore] : getRealBTarget(0).dependencies)
         {
             if (dependency->getBTargetType() == BTargetType::SMFILE)
             {
