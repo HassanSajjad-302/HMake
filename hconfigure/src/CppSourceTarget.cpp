@@ -156,27 +156,35 @@ CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, CTarget &o
     compileTargetType = targetType;
 }
 
-void CppSourceTarget::getObjectFiles(set<ObjectFile *> *objectFiles, LinkOrArchiveTarget *linkOrArchiveTarget) const
+void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
+                                     LinkOrArchiveTarget *linkOrArchiveTarget) const
 {
-    for (const SourceNode &objectFile : sourceFileDependencies)
-    {
-        if (objectFile.presentInSource)
-        {
-            objectFiles->emplace(const_cast<SourceNode *>(&objectFile));
-        }
-    }
+    set<const SMFile *, IndexInTopologicalSortComparatorRoundZero> sortedSMFileDependencies;
     for (const SMFile &objectFile : moduleSourceFileDependencies)
     {
         if (objectFile.presentInSource)
         {
-            objectFiles->emplace(const_cast<SMFile *>(&objectFile));
+            sortedSMFileDependencies.emplace(&objectFile);
         }
     }
     for (const SMFile *headerUnit : headerUnits)
     {
         if (headerUnit->presentInSource)
         {
-            objectFiles->emplace(const_cast<SMFile *>(headerUnit));
+            sortedSMFileDependencies.emplace(headerUnit);
+        }
+    }
+
+    for (const SMFile *objectFile : sortedSMFileDependencies)
+    {
+        objectFiles->emplace_back(objectFile);
+    }
+
+    for (const SourceNode &objectFile : sourceFileDependencies)
+    {
+        if (objectFile.presentInSource)
+        {
+            objectFiles->emplace_back(&objectFile);
         }
     }
 

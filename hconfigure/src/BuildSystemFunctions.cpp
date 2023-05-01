@@ -177,8 +177,4 @@ void configureOrBuild()
         }
         cache.registerCacheVariables();
     }
-    else
-    {
-        Builder{1, 0, preSortBTargets};
-    }
 }

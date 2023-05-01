@@ -495,11 +495,12 @@ TEST(StageTests, Test3)
     ofstream(cacheFile) << cacheJson.dump(4);
     executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib3");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
-    // The following line is commented because when moving from source to modules, a linker-error happens. But relinking
-    // does not cause the error.
-    // executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
-    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
-    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+
+    // linker prints "fatal error" but still builds the lib fine and snapshot balances. Just to be safe the module
+    // object-files are now specified in order. This shouldn't be needed as object-files ordering specification should
+    // not matter to linker. Changes in this commit will probably be reverted.
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+
     // Moving back to source from module. lib4.cpp.o should not be rebuilt because lib4.cpp with the same
     // compile-command is already in the cache but relinking should happen because previously it were source-file
     // object-files, now it is module-file object-files.

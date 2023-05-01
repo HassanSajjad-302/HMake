@@ -12,8 +12,8 @@ import "DS.hpp";
 class ObjectFile : public BTarget
 {
   public:
-    virtual string getObjectFileOutputFilePath() = 0;
-    virtual string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) = 0;
+    virtual string getObjectFileOutputFilePath() const = 0;
+    virtual string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
 };
 
 class ObjectFileProducer : public BTarget
@@ -26,7 +26,8 @@ class ObjectFileProducer : public BTarget
     set<const ObjectFileProducer *> requirementObjectFileTargets;
     set<const ObjectFileProducer *> usageRequirementObjectFileProducers;
 
-    virtual void getObjectFiles(set<ObjectFile *> *objectFiles, class LinkOrArchiveTarget *linkOrArchiveTarget) const;
+    virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles,
+                                class LinkOrArchiveTarget *linkOrArchiveTarget) const;
     void addDependencyOnObjectFileProducers(LinkOrArchiveTarget *linkOrArchiveTarget);
 };
 

@@ -52,7 +52,7 @@ class LinkOrArchiveTarget : public CTarget,
     string linkOrArchiveCommandWithoutTargets;
     string linkOrArchiveCommandWithTargets;
 
-    set<class ObjectFile *> objectFiles;
+    vector<const class ObjectFile *> objectFiles;
     set<class ObjectFileProducer *> objectFileProducers;
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
 

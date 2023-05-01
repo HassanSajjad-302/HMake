@@ -238,12 +238,12 @@ SourceNode::SourceNode(CppSourceTarget *target_, Node *node_) : target(target_),
 {
 }
 
-string SourceNode::getObjectFileOutputFilePath()
+string SourceNode::getObjectFileOutputFilePath() const
 {
     return target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o";
 }
 
-string SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
+string SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
 {
     return getReducedPath(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o", pathPrint);
 }
@@ -623,12 +623,12 @@ void SMFile::setSMFileStatusRoundZero()
     }
 }
 
-string SMFile::getObjectFileOutputFilePath()
+string SMFile::getObjectFileOutputFilePath() const
 {
     return target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".m.o";
 }
 
-string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
+string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
 {
     return getReducedPath(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".m.o",
                           pathPrint);

@@ -125,7 +125,7 @@ void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round)
                             }
                         }
 
-                        for (ObjectFile *objectFile : objectFiles)
+                        for (const ObjectFile *objectFile : objectFiles)
                         {
                             if (!cachedObjectFiles.contains(objectFile->getObjectFileOutputFilePath()))
                             {
@@ -241,7 +241,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             cacheFileJson[JConsts::linkCommand] =
                 linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets;
             vector<string> cachedObjectFilesVector;
-            for (ObjectFile *objectFile : objectFiles)
+            for (const ObjectFile *objectFile : objectFiles)
             {
                 cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
             }
@@ -868,7 +868,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
     linkOrArchiveCommandWithTargets = std::move(localLinkCommand);
     localLinkCommand.clear();
 
-    for (ObjectFile *objectFile : objectFiles)
+    for (const ObjectFile *objectFile : objectFiles)
     {
         linkOrArchiveCommandWithTargets += addQuotes(objectFile->getObjectFileOutputFilePath()) + " ";
     }
@@ -1065,7 +1065,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         }
         if (pathPrint->printLevel != PathPrintLevel::NO)
         {
-            for (ObjectFile *objectFile : objectFiles)
+            for (const ObjectFile *objectFile : objectFiles)
             {
                 linkOrArchiveCommandPrint += objectFile->getObjectFileOutputFilePathPrint(*pathPrint) + " ";
             }
