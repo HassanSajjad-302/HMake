@@ -1,6 +1,6 @@
 #ifdef USE_HEADER_UNITS
 import "BasicTargets.hpp";
-import "IDE_API.hpp";
+import "C_API.hpp";
 #else
 #include "BasicTargets.hpp"
 #endif

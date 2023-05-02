@@ -14,7 +14,7 @@ import "GetTarget.hpp";
 import "JConsts.hpp";
 import "SMFile.hpp";
 import "Settings.hpp";
-import "SizeDifference.hpp";
+import "CTargetRoundZeroBTarget.hpp";
 import "TarjanNode.hpp";
 import "ToolsCache.hpp";
 import "Utilities.hpp";

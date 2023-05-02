@@ -2,7 +2,7 @@
 #define HMAKE_C_API_HPP
 
 #ifdef USE_HEADER_UNITS
-import "BuildSystemFunctions.hpp"
+import "BuildSystemFunctions.hpp";
 #else
 #include "BuildSystemFunctions.hpp"
 #endif

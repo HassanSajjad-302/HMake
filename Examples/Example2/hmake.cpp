@@ -3,7 +3,10 @@
 
 void configurationSpecification(Configuration &configuration)
 {
-    configuration.GetCppExeDSC("app").getSourceTarget().SOURCE_DIRECTORIES(".", "file[1-4]\\.cpp|main\\.cpp");
+    configuration.GetCppExeDSC("app")
+        .getSourceTarget()
+        .SOURCE_DIRECTORIES(".", "file[1-4]\\.cpp|main\\.cpp")
+        .SINGLE(LTO::ON, Optimization::SPACE);
 }
 
 void buildSpecification()

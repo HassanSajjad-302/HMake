@@ -39,6 +39,10 @@ template <typename... U> CPT &CPT::INTERFACE_INCLUDES(const string &include, U..
     }
 }
 
+// TODO
+//  Will support prebuilt modules object-files and ifc consumption and will be the only way if a different
+//  compile-command is intended for some header-unit / header-units compared to the other module-files.
+
 // CppPrebuiltTarget
 struct CppPT : public CPT
 {
