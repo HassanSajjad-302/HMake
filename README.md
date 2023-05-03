@@ -130,11 +130,15 @@ These functions preserve by emplacing the element in ```targets``` template vari
 <summary>hmake.cpp</summary>
 
 ```cpp
+
 #include "Configure.hpp"
 
 void configurationSpecification(Configuration &configuration)
 {
-    configuration.GetCppExeDSC("app").getSourceTarget().SOURCE_DIRECTORIES(".", "file[1-4]\\.cpp|main\\.cpp");
+    configuration.GetCppExeDSC("app")
+        .getSourceTarget()
+        .SOURCE_DIRECTORIES(".", "file[1-4]\\.cpp|main\\.cpp")
+        .SINGLE(LTO::ON, Optimization::SPACE);
 }
 
 void buildSpecification()
