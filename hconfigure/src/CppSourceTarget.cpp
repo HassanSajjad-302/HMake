@@ -936,6 +936,9 @@ CppSourceTarget &CppSourceTarget::INTERFACE_COMPILE_DEFINITION(const string &cdd
     return *this;
 }
 
+// TODO
+// This is being called every time DIRECTORY is being parsed. Also does not differentiates between a simple directory
+// and recursive directory
 static void parseRegexSourceDirs(CppSourceTarget &target, bool assignToSourceNodes)
 {
     for (const SourceDirectory &sourceDir : assignToSourceNodes ? target.regexSourceDirs : target.regexModuleDirs)

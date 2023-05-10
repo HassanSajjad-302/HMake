@@ -48,6 +48,9 @@ void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
     }
 }
 
+// TODO
+// public constructor should check the existence of library but the protected constructor shouldn't which will be used
+// by LinkOrArchiveTarget.
 PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, const string &directory,
                                                          TargetType linkTargetType_)
     : outputDirectory(Node::getFinalNodePathFromString(directory).string()), outputName(outputName_),
