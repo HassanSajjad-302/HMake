@@ -5,8 +5,7 @@ void buildSpecification()
     GetCppExeDSC("app")
         .getSourceTarget()
         .PUBLIC_INCLUDES("3rd_party/olcPixelGameEngine")
-        .MODULE_DIRECTORIES("./modules/", ".*")
-        .MODULE_DIRECTORIES("./src", ".*")
+        .R_MODULE_DIRECTORIES("modules/", "src/")
         .ASSIGN(CxxSTD::V_LATEST);
 }
 

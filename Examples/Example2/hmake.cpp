@@ -5,7 +5,7 @@ void configurationSpecification(Configuration &configuration)
 {
     configuration.GetCppExeDSC("app")
         .getSourceTarget()
-        .SOURCE_DIRECTORIES(".", "file[1-4]\\.cpp|main\\.cpp")
+        .SOURCE_DIRECTORIES_RG(".", "file[1-4]\\.cpp|main\\.cpp")
         .SINGLE(LTO::ON, Optimization::SPACE);
 }
 

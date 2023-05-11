@@ -29,8 +29,9 @@ struct SourceDirectory
 {
     const Node *sourceDirectory;
     string regex;
+    bool recursive;
     SourceDirectory() = default;
-    SourceDirectory(const string &sourceDirectory_, string regex_);
+    SourceDirectory(const string &sourceDirectory_, string regex_, bool recursive_ = false);
 };
 void to_json(Json &j, const SourceDirectory &sourceDirectory);
 bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs);
@@ -171,10 +172,19 @@ class CppSourceTarget : public CompilerFeatures,
     CppSourceTarget &INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue = "");
     template <typename... U> CppSourceTarget &SOURCE_FILES(const string &srcFile, U... sourceFileString);
     template <typename... U> CppSourceTarget &MODULE_FILES(const string &modFile, U... moduleFileString);
-
-    CppSourceTarget &SOURCE_DIRECTORIES(const string &sourceDirectory, const string &regex);
-    CppSourceTarget &MODULE_DIRECTORIES(const string &moduleDirectory, const string &regex);
-
+    void parseRegexSourceDirs(bool assignToSourceNodes, bool recursive, const SourceDirectory &dir);
+    template <typename... U> CppSourceTarget &SOURCE_DIRECTORIES(const string &sourceDirectory, U... directories);
+    template <typename... U> CppSourceTarget &MODULE_DIRECTORIES(const string &moduleDirectory, U... directories);
+    template <typename... U>
+    CppSourceTarget &SOURCE_DIRECTORIES_RG(const string &sourceDirectory, const string &regex, U... directories);
+    template <typename... U>
+    CppSourceTarget &MODULE_DIRECTORIES_RG(const string &moduleDirectory, const string &regex, U... directories);
+    template <typename... U> CppSourceTarget &R_SOURCE_DIRECTORIES(const string &sourceDirectory, U... directories);
+    template <typename... U> CppSourceTarget &R_MODULE_DIRECTORIES(const string &moduleDirectory, U... directories);
+    template <typename... U>
+    CppSourceTarget &R_SOURCE_DIRECTORIES_RG(const string &sourceDirectory, const string &regex, U... directories);
+    template <typename... U>
+    CppSourceTarget &R_MODULE_DIRECTORIES_RG(const string &moduleDirectory, const string &regex, U... directories);
     //
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     CppSourceTarget &ASSIGN(T property, Property... properties);
@@ -299,6 +309,122 @@ template <typename... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(const st
             return *this;
         }
     }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::SOURCE_DIRECTORIES(const string &sourceDirectory, U... directories)
+{
+    if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, ".*"); Ok)
+    {
+        parseRegexSourceDirs(true, false, *pos);
+    }
+    if constexpr (sizeof...(directories))
+    {
+        return SOURCE_DIRECTORIES(directories...);
+    }
+    return *this;
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::MODULE_DIRECTORIES(const string &moduleDirectory, U... directories)
+{
+    if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, ".*"); Ok)
+    {
+        parseRegexSourceDirs(false, false, *pos);
+    }
+    if constexpr (sizeof...(directories))
+    {
+        return MODULE_DIRECTORIES(directories...);
+    }
+    return *this;
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::SOURCE_DIRECTORIES_RG(const string &sourceDirectory, const string &regex,
+                                                        U... directories)
+{
+    if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, regex); Ok)
+    {
+        parseRegexSourceDirs(true, false, *pos);
+    }
+    if constexpr (sizeof...(directories))
+    {
+        return SOURCE_DIRECTORIES_RG(directories...);
+    }
+    return *this;
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::MODULE_DIRECTORIES_RG(const string &moduleDirectory, const string &regex,
+                                                        U... directories)
+{
+    if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, regex); Ok)
+    {
+        parseRegexSourceDirs(false, false, *pos);
+    }
+    if constexpr (sizeof...(directories))
+    {
+        return MODULE_DIRECTORIES_RG(directories...);
+    }
+    return *this;
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::R_SOURCE_DIRECTORIES(const string &sourceDirectory, U... directories)
+{
+    if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, ".*", true); Ok)
+    {
+        parseRegexSourceDirs(true, true, *pos);
+    }
+    if constexpr (sizeof...(directories))
+    {
+        return R_SOURCE_DIRECTORIES(directories...);
+    }
+    return *this;
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::R_MODULE_DIRECTORIES(const string &moduleDirectory, U... directories)
+{
+    if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, ".*", true); Ok)
+    {
+        parseRegexSourceDirs(false, true, *pos);
+    }
+    if constexpr (sizeof...(directories))
+    {
+        return R_MODULE_DIRECTORIES(directories...);
+    }
+    return *this;
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::R_SOURCE_DIRECTORIES_RG(const string &sourceDirectory, const string &regex,
+                                                          U... directories)
+{
+    if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, regex, true); Ok)
+    {
+        parseRegexSourceDirs(true, true, *pos);
+    }
+    if constexpr (sizeof...(directories))
+    {
+        return R_SOURCE_DIRECTORIES_RG(directories...);
+    }
+    return *this;
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::R_MODULE_DIRECTORIES_RG(const string &moduleDirectory, const string &regex,
+                                                          U... directories)
+{
+    if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, regex, true); Ok)
+    {
+        parseRegexSourceDirs(false, true, *pos);
+    }
+    if constexpr (sizeof...(directories))
+    {
+        return R_MODULE_DIRECTORIES_RG(directories...);
+    }
+    return *this;
 }
 
 template <Dependency dependency, typename T, typename... Property>

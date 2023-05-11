@@ -137,7 +137,7 @@ void configurationSpecification(Configuration &configuration)
 {
     configuration.GetCppExeDSC("app")
         .getSourceTarget()
-        .SOURCE_DIRECTORIES(".", "file[1-4]\\.cpp|main\\.cpp")
+        .SOURCE_DIRECTORIES_RG(".", "file[1-4]\\.cpp|main\\.cpp")
         .SINGLE(LTO::ON, Optimization::SPACE);
 }
 
@@ -210,7 +210,10 @@ These functions will return the respective element but with the properties of Co
 In ```configurationSpecification```, ```Optimization::SPACE``` is set based on the ```LTO``` feature.
 More functions like ```SINGLE``` are available in the ```CppSourceTarget``` and ```LinkOrArchiveTarget```,
 as these are inheriting from the ```FeatureConvenienceFunctions.hpp```.
-These functions allow easier conditional property-specification.
+These functions allow more concise conditional property-specification.
+```SOURCE_DIRECTORIES_RG``` function also takes the ```regex``` argument,
+which otherwise is defaulted to ```.*``` in ```SOURCE_DIRECTORIES```
+while ```R_SOURCE_DIRECTORIES``` uses a recursive directory iterator.
 
 ### Example 3
 
@@ -648,7 +651,7 @@ include as hu-include at the same time.
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().MODULE_DIRECTORIES("Mod_Src/", ".*");
+    GetCppExeDSC("app").getSourceTarget().MODULE_DIRECTORIES("Mod_Src/");
 }
 
 #ifdef EXE
@@ -729,7 +732,7 @@ void configurationSpecification(Configuration &configuration)
 
     DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
     hconfigure.getSourceTarget()
-        .MODULE_DIRECTORIES("hconfigure/src/", ".*")
+        .MODULE_DIRECTORIES("hconfigure/src/")
         .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include");
 
     DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);

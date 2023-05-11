@@ -23,11 +23,11 @@ import <utility>;
 #include <utility>
 #endif
 
-using std::filesystem::create_directories, std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream,
-    std::regex, std::regex_error;
+using std::filesystem::create_directories, std::filesystem::directory_iterator,
+    std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
 
-SourceDirectory::SourceDirectory(const string &sourceDirectory_, string regex_)
-    : sourceDirectory{Node::getNodeFromString(sourceDirectory_, false)}, regex{std::move(regex_)}
+SourceDirectory::SourceDirectory(const string &sourceDirectory_, string regex_, const bool recursive_)
+    : sourceDirectory{Node::getNodeFromString(sourceDirectory_, false)}, regex{std::move(regex_)}, recursive(recursive_)
 {
 }
 
@@ -939,58 +939,53 @@ CppSourceTarget &CppSourceTarget::INTERFACE_COMPILE_DEFINITION(const string &cdd
 // TODO
 // This is being called every time DIRECTORY is being parsed. Also does not differentiates between a simple directory
 // and recursive directory
-static void parseRegexSourceDirs(CppSourceTarget &target, bool assignToSourceNodes)
-{
-    for (const SourceDirectory &sourceDir : assignToSourceNodes ? target.regexSourceDirs : target.regexModuleDirs)
-    {
-        for (const auto &k : recursive_directory_iterator(path(sourceDir.sourceDirectory->filePath)))
-        {
-            try
-            {
-                if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(sourceDir.regex)))
-                {
-                    if (assignToSourceNodes)
-                    {
-                        SourceNode &sourceNode = target.addNodeInSourceFileDependencies(
-                            const_cast<Node *>(Node::getNodeFromString(k.path().generic_string(), true)));
-                        sourceNode.presentInSource = true;
-                    }
-                    else
-                    {
-                        SMFile &smFile = target.addNodeInModuleSourceFileDependencies(
-                            const_cast<Node *>(Node::getNodeFromString(k.path().generic_string(), true)));
-                        smFile.presentInSource = true;
-                    }
-                }
-            }
-            catch (const std::regex_error &e)
-            {
-                printErrorMessage(fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
-                                              e.what(), sourceDir.regex, target.getTargetPointer()));
-                throw std::exception();
-            }
-        }
-    }
-};
-
-CppSourceTarget &CppSourceTarget::SOURCE_DIRECTORIES(const string &sourceDirectory, const string &regex)
-{
-    regexSourceDirs.emplace(sourceDirectory, regex);
-    parseRegexSourceDirs(*this, true);
-    return *this;
-}
-
-CppSourceTarget &CppSourceTarget::MODULE_DIRECTORIES(const string &moduleDirectory, const string &regex)
+void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, bool recursive, const SourceDirectory &dir)
 {
     if (EVALUATE(TreatModuleAsSource::YES))
     {
-        return SOURCE_DIRECTORIES(moduleDirectory, regex);
+        assignToSourceNodes = true;
+    }
+
+    auto addNewFile = [&](const auto &k) {
+        try
+        {
+            if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(dir.regex)))
+            {
+                if (assignToSourceNodes)
+                {
+                    SourceNode &sourceNode = addNodeInSourceFileDependencies(
+                        const_cast<Node *>(Node::getNodeFromString(k.path().generic_string(), true)));
+                    sourceNode.presentInSource = true;
+                }
+                else
+                {
+                    SMFile &smFile = addNodeInModuleSourceFileDependencies(
+                        const_cast<Node *>(Node::getNodeFromString(k.path().generic_string(), true)));
+                    smFile.presentInSource = true;
+                }
+            }
+        }
+        catch (const std::regex_error &e)
+        {
+            printErrorMessage(fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
+                                          e.what(), dir.regex, getTargetPointer()));
+            throw std::exception();
+        }
+    };
+
+    if (recursive)
+    {
+        for (const auto &k : recursive_directory_iterator(path(dir.sourceDirectory->filePath)))
+        {
+            addNewFile(k);
+        }
     }
     else
     {
-        regexModuleDirs.emplace(moduleDirectory, regex);
-        parseRegexSourceDirs(*this, false);
-        return *this;
+        for (const auto &k : directory_iterator(path(dir.sourceDirectory->filePath)))
+        {
+            addNewFile(k);
+        }
     }
 }
 
