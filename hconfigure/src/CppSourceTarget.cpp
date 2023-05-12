@@ -1056,6 +1056,7 @@ void CppSourceTarget::setCompileCommand()
     for (; i < reqIncSizeBeforePopulate; ++i)
     {
         compileCommand.append(getIncludeFlag() + addQuotes(it->node->filePath) + " ");
+        ++it;
     }
 
     set<string> includes;
