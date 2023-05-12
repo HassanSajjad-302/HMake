@@ -368,7 +368,7 @@ The third argument specifies what compile-definition to use.
 By default ```name + "_EXPORT"``` compile-definition will be used.
 On Windows, HMake also by-default, copies the shared library dependencies to the build-dir.
 You can change that by ```ASSIGN(CopyDLLToExeDirOnNTOs::NO)``` call to the
-```linkOrArchiveTarget``` of the ```DSC```.
+```prebuiltLinkOrArchiveTarget``` of the ```DSC```.
 
 ### Example 5
 
@@ -391,15 +391,15 @@ void buildSpecification()
         [&](Builder &builder, unsigned short round, BTarget &bTarget) {
             if (bTarget.getRealBTarget(0).exitStatus == EXIT_SUCCESS)
             {
-                std::filesystem::copy(catShared.linkOrArchiveTarget->getActualOutputPath(),
-                                      path(animalShared.linkOrArchiveTarget->getActualOutputPath()).parent_path(),
+                std::filesystem::copy(catShared.prebuiltLinkOrArchiveTarget->getActualOutputPath(),
+                                      path(animalShared.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path(),
                                       std::filesystem::copy_options::overwrite_existing);
-                std::filesystem::remove(catShared.linkOrArchiveTarget->getActualOutputPath());
+                std::filesystem::remove(catShared.prebuiltLinkOrArchiveTarget->getActualOutputPath());
                 std::lock_guard<std::mutex> lk(printMutex);
                 printMessage("libCat.so copied to Animal/ and deleted from Cat/\n");
             }
         },
-        *(animalShared.linkOrArchiveTarget), *(catShared.linkOrArchiveTarget));
+        *(animalShared.prebuiltLinkOrArchiveTarget), *(catShared.prebuiltLinkOrArchiveTarget));
 }
 
 #ifdef EXE
@@ -485,8 +485,8 @@ void buildSpecification()
     auto makeApps = [](TargetType targetType) {
         string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
-        DSCPrebuilt<CPT> &cat =
-            GetCPTTargetDSC("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
+        DSC<CPT> &cat =
+            GetCPTDSC_P("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
         cat.getSourceTarget().INTERFACE_INCLUDES("../Example4/Cat/header");
 
         DSC<CppSourceTarget> &dog = GetCppTargetDSC("Dog" + str, true, "DOG_EXPORT", targetType);
@@ -496,11 +496,11 @@ void buildSpecification()
         dog2.PRIVATE_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog2/src/Dog.cpp").PUBLIC_INCLUDES("Dog2/header/");
 
         DSC<CppSourceTarget> &app = GetCppExeDSC("App" + str);
-        app.linkOrArchiveTarget->setOutputName("app");
+        app.getLinkOrArchiveTarget().setOutputName("app");
         app.PRIVATE_LIBRARIES(&dog).getSourceTarget().SOURCE_FILES("main.cpp");
 
         DSC<CppSourceTarget> &app2 = GetCppExeDSC("App2" + str);
-        app2.linkOrArchiveTarget->setOutputName("app");
+        app2.getLinkOrArchiveTarget().setOutputName("app");
         app2.PRIVATE_LIBRARIES(&dog2).getSourceTarget().SOURCE_FILES("main2.cpp");
     };
 
@@ -732,7 +732,7 @@ void configurationSpecification(Configuration &configuration)
 
     DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
     hconfigure.getSourceTarget()
-        .MODULE_DIRECTORIES("hconfigure/src/")
+        .MODULE_DIRECTORIES("hconfigure/src/", ".*")
         .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include");
 
     DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
@@ -744,16 +744,17 @@ void configurationSpecification(Configuration &configuration)
         .PRIVATE_COMPILE_DEFINITION(
             "HCONFIGURE_STATIC_LIB_DIRECTORY",
             addEscapedQuotes(
-                path(hconfigure.linkOrArchiveTarget->getActualOutputPath()).parent_path().generic_string()))
+                path(hconfigure.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().generic_string()))
         .PRIVATE_COMPILE_DEFINITION(
             "HCONFIGURE_STATIC_LIB_PATH",
-            addEscapedQuotes(path(hconfigure.linkOrArchiveTarget->getActualOutputPath()).generic_string()))
+            addEscapedQuotes(path(hconfigure.prebuiltLinkOrArchiveTarget->getActualOutputPath()).generic_string()))
         .PRIVATE_COMPILE_DEFINITION(
             "FMT_STATIC_LIB_DIRECTORY",
-            addEscapedQuotes(path(fmt.linkOrArchiveTarget->getTargetFilePath()).parent_path().generic_string()))
+            addEscapedQuotes(
+                path(fmt.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().generic_string()))
         .PRIVATE_COMPILE_DEFINITION(
             "FMT_STATIC_LIB_PATH",
-            addEscapedQuotes(path(fmt.linkOrArchiveTarget->getActualOutputPath()).generic_string()));
+            addEscapedQuotes(path(fmt.prebuiltLinkOrArchiveTarget->getActualOutputPath()).generic_string()));
 
     DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
@@ -858,12 +859,12 @@ void buildSpecification()
     /*    debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG, AddressSanitizer::OFF,
                      RuntimeDebugging::OFF);
         debug.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS");*/
-    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::YES, TranslateInclude::YES, ConfigType::RELEASE);
+    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
     releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
     //  arm.ASSIGN(cxxStd, Arch::ARM, TranslateInclude::YES, ConfigType::RELEASE, TreatModuleAsSource::NO);
     /*        debug.compilerFeatures.requirementCompilerFlags += "--target=x86_64-pc-windows-msvc ";
             debug.linkerFeatures.requirementLinkerFlags += "--target=x86_64-pc-windows-msvc";*/
-    //releaseSpeed.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS", "1");
+    // releaseSpeed.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS", "1");
 
     for (const Configuration &configuration : targets<Configuration>)
     {

@@ -19,10 +19,11 @@ class ObjectFile : public BTarget
 class ObjectFileProducer : public BTarget
 {
   public:
-    // Following are needed to propagate dependencies above if linkOrArchiveTarget of both DSC(dependency and dependent)
-    // is nullptr i.e. if there are 3 targets A,B,C. C being executable and have dependency on B(a library) having a
-    // dependency on A(a library). Then object-files of A would be propagated to C through linkOrArchiveTarget of B. But
-    // in-case both B and C are object-file-targets, then object-files of C will propagate through object-files of B
+    // Following are needed to propagate dependencies above if prebuiltLinkOrArchiveTarget of both DSC(dependency and
+    // dependent) is nullptr i.e. if there are 3 targets A,B,C. C being executable and have dependency on B(a library)
+    // having a dependency on A(a library). Then object-files of A would be propagated to C through
+    // prebuiltLinkOrArchiveTarget of B. But in-case both B and C are object-file-targets, then object-files of C will
+    // propagate through object-files of B
     set<const ObjectFileProducer *> requirementObjectFileTargets;
     set<const ObjectFileProducer *> usageRequirementObjectFileProducers;
 

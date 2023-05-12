@@ -39,12 +39,15 @@ struct Configuration : public CTarget
 
     CppSourceTarget &GetCppPreprocess(const string &name_);
     CppSourceTarget &GetCppObject(const string &name_);
-    LinkOrArchiveTarget &GetExe(const string &name_);
-    LinkOrArchiveTarget &GetStatic(const string &name_);
-    LinkOrArchiveTarget &GetShared(const string &name_);
+    LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(const string &name_);
+    LinkOrArchiveTarget &GetStaticLinkOrArchiveTarget(const string &name_);
+    LinkOrArchiveTarget &GetSharedLinkOrArchiveTarget(const string &name_);
 
     PrebuiltLinkOrArchiveTarget &GetPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory,
                                                                 TargetType linkTargetType_);
+    PrebuiltLinkOrArchiveTarget &GetStaticPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
+    PrebuiltLinkOrArchiveTarget &GetSharedPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
+
     CPT &GetCPT();
 
     DSC<CppSourceTarget> &GetCppExeDSC(const string &name_, bool defines = false, string define = "");
@@ -54,7 +57,10 @@ struct Configuration : public CTarget
     DSC<CppSourceTarget> &GetCppSharedDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &GetCppObjectDSC(const string &name_);
 
-    DSCPrebuilt<CPT> &GetCPTTargetDSC(const string &name_, const string &directory, TargetType linkTargetType_);
+    // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
+    DSC<CPT> &GetCPTDSC_P(const string &name_, const string &directory, TargetType targetType);
+    DSC<CPT> &GetCPTStaticDSC_P(const string &name_, const string &directory);
+    DSC<CPT> &GetCPTSharedDSC_P(const string &name_, const string &directory);
 
     ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;
 

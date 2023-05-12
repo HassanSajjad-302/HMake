@@ -13,15 +13,16 @@ void buildSpecification()
         [&](Builder &builder, unsigned short round, BTarget &bTarget) {
             if (bTarget.getRealBTarget(0).exitStatus == EXIT_SUCCESS)
             {
-                std::filesystem::copy(catShared.linkOrArchiveTarget->getActualOutputPath(),
-                                      path(animalShared.linkOrArchiveTarget->getActualOutputPath()).parent_path(),
-                                      std::filesystem::copy_options::overwrite_existing);
-                std::filesystem::remove(catShared.linkOrArchiveTarget->getActualOutputPath());
+                std::filesystem::copy(
+                    catShared.prebuiltLinkOrArchiveTarget->getActualOutputPath(),
+                    path(animalShared.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path(),
+                    std::filesystem::copy_options::overwrite_existing);
+                std::filesystem::remove(catShared.prebuiltLinkOrArchiveTarget->getActualOutputPath());
                 std::lock_guard<std::mutex> lk(printMutex);
                 printMessage("libCat.so copied to Animal/ and deleted from Cat/\n");
             }
         },
-        *(animalShared.linkOrArchiveTarget), *(catShared.linkOrArchiveTarget));
+        *(animalShared.prebuiltLinkOrArchiveTarget), *(catShared.prebuiltLinkOrArchiveTarget));
 }
 
 #ifdef EXE

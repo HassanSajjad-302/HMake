@@ -5,8 +5,7 @@ void buildSpecification()
     auto makeApps = [](TargetType targetType) {
         string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
-        DSCPrebuilt<CPT> &cat =
-            GetCPTTargetDSC("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
+        DSC<CPT> &cat = GetCPTDSC_P("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
         cat.getSourceTarget().INTERFACE_INCLUDES("../Example4/Cat/header");
 
         DSC<CppSourceTarget> &dog = GetCppTargetDSC("Dog" + str, true, "DOG_EXPORT", targetType);
@@ -16,11 +15,11 @@ void buildSpecification()
         dog2.PRIVATE_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog2/src/Dog.cpp").PUBLIC_INCLUDES("Dog2/header/");
 
         DSC<CppSourceTarget> &app = GetCppExeDSC("App" + str);
-        app.linkOrArchiveTarget->setOutputName("app");
+        app.getLinkOrArchiveTarget().setOutputName("app");
         app.PRIVATE_LIBRARIES(&dog).getSourceTarget().SOURCE_FILES("main.cpp");
 
         DSC<CppSourceTarget> &app2 = GetCppExeDSC("App2" + str);
-        app2.linkOrArchiveTarget->setOutputName("app");
+        app2.getLinkOrArchiveTarget().setOutputName("app");
         app2.PRIVATE_LIBRARIES(&dog2).getSourceTarget().SOURCE_FILES("main2.cpp");
     };
 

@@ -17,6 +17,7 @@ using std::set, std::string;
 // CPrebuiltTarget
 struct CPT : public ObjectFileProducerWithDS<CPT>
 {
+    using BaseType = CPT;
     list<InclNode> usageRequirementIncludes;
     string usageRequirementCompilerFlags;
     set<struct Define> usageRequirementCompileDefinitions;

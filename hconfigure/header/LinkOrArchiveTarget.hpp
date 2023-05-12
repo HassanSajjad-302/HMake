@@ -47,13 +47,13 @@ class LinkOrArchiveTarget : public CTarget,
                             public LinkerFeatures,
                             public FeatureConvenienceFunctions<LinkOrArchiveTarget>
 {
+    using BaseType = PrebuiltLinkOrArchiveTarget;
+
   public:
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     string linkOrArchiveCommandWithoutTargets;
     string linkOrArchiveCommandWithTargets;
 
-    vector<const class ObjectFile *> objectFiles;
-    set<class ObjectFileProducer *> objectFileProducers;
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
 
     string buildCacheFilesDirPath;

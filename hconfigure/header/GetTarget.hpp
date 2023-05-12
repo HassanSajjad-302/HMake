@@ -21,13 +21,15 @@ CppSourceTarget &GetCppObject(const string &name);
 CppSourceTarget &GetCppObject(const string &name, CTarget &other, bool hasFile = true);
 LinkOrArchiveTarget &GetExe(const string &name);
 LinkOrArchiveTarget &GetExe(const string &name, CTarget &other, bool hasFile = true);
-LinkOrArchiveTarget &GetStatic(const string &name);
-LinkOrArchiveTarget &GetStatic(const string &name, CTarget &other, bool hasFile = true);
-LinkOrArchiveTarget &GetShared(const string &name);
-LinkOrArchiveTarget &GetShared(const string &name, CTarget &other, bool hasFile = true);
+LinkOrArchiveTarget &GetStaticLinkOrArchiveTarget(const string &name);
+LinkOrArchiveTarget &GetStaticLinkOrArchiveTarget(const string &name, CTarget &other, bool hasFile = true);
+LinkOrArchiveTarget &GetSharedLinkOrArchiveTarget(const string &name);
+LinkOrArchiveTarget &GetSharedLinkOrArchiveTarget(const string &name, CTarget &other, bool hasFile = true);
 
 PrebuiltLinkOrArchiveTarget &GetPrebuiltLinkOrArchiveTarget(const string &name, const string &directory,
                                                             TargetType linkTargetType_);
+PrebuiltLinkOrArchiveTarget &GetStaticPrebuiltLinkOrArchiveTarget(const string &name, const string &directory);
+PrebuiltLinkOrArchiveTarget &GetSharedPrebuiltLinkOrArchiveTarget(const string &name, const string &directory);
 CPT &GetCPT();
 
 DSC<CppSourceTarget> &GetCppExeDSC(const string &name, bool defines = false, string define = "");
@@ -46,8 +48,11 @@ DSC<CppSourceTarget> &GetCppSharedDSC(const string &name, CTarget &other, bool d
 DSC<CppSourceTarget> &GetCppObjectDSC(const string &name);
 DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, CTarget &other, bool hasFile = true);
 
-DSCPrebuilt<CPT> &GetCPTTargetDSC(const string &name, const string &directory, TargetType linkTargetType_,
-                                  bool defines = false, string define = "");
+// _P means that it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
+
+DSC<CPT> &GetCPTDSC_P(const string &name, const string &directory, TargetType targetType, bool defines, string define);
+DSC<CPT> &GetCPTStaticDSC_P(const string &name, const string &directory, bool defines = false, string define = "");
+DSC<CPT> &GetCPTSharedDSC_P(const string &name, const string &directory, bool defines = false, string define = "");
 
 template <typename... U>
 RoundZeroUpdateBTarget &GetRoundZeroUpdateBTarget(function<void(Builder &, unsigned short, BTarget &bTarget)> func,

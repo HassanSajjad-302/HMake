@@ -26,16 +26,17 @@ void configurationSpecification(Configuration &configuration)
         .PRIVATE_COMPILE_DEFINITION(
             "HCONFIGURE_STATIC_LIB_DIRECTORY",
             addEscapedQuotes(
-                path(hconfigure.linkOrArchiveTarget->getActualOutputPath()).parent_path().generic_string()))
+                path(hconfigure.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().generic_string()))
         .PRIVATE_COMPILE_DEFINITION(
             "HCONFIGURE_STATIC_LIB_PATH",
-            addEscapedQuotes(path(hconfigure.linkOrArchiveTarget->getActualOutputPath()).generic_string()))
+            addEscapedQuotes(path(hconfigure.prebuiltLinkOrArchiveTarget->getActualOutputPath()).generic_string()))
         .PRIVATE_COMPILE_DEFINITION(
             "FMT_STATIC_LIB_DIRECTORY",
-            addEscapedQuotes(path(fmt.linkOrArchiveTarget->getTargetFilePath()).parent_path().generic_string()))
+            addEscapedQuotes(
+                path(fmt.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().generic_string()))
         .PRIVATE_COMPILE_DEFINITION(
             "FMT_STATIC_LIB_PATH",
-            addEscapedQuotes(path(fmt.linkOrArchiveTarget->getActualOutputPath()).generic_string()));
+            addEscapedQuotes(path(fmt.prebuiltLinkOrArchiveTarget->getActualOutputPath()).generic_string()));
 
     DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");

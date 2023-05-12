@@ -49,6 +49,9 @@ class PrebuiltLinkOrArchiveTarget : public BTarget, public PrebuiltLinkerFeature
     map<PrebuiltLinkOrArchiveTarget *, const PrebuiltDep *, IndexInTopologicalSortComparatorRoundZero>
         sortedPrebuiltDependencies;
 
+    vector<const class ObjectFile *> objectFiles;
+    set<class ObjectFileProducer *> objectFileProducers;
+
     template <typename... U>
     PrebuiltLinkOrArchiveTarget &PUBLIC_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps);
     template <typename... U>
