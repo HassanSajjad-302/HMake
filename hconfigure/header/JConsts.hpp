@@ -11,6 +11,7 @@ struct JConsts
 {
     inline static const string addQuotes = "add-quotes";
     inline static const string archive = "archive";
+    inline static const string archived = "archived";
     inline static const string archiveCommandColor = "archive-command-color";
     inline static const string archivePrintSettings = "archive-print-settings";
     inline static const string archiver = "archiver";

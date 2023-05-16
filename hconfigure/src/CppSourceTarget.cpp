@@ -769,11 +769,6 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
     return flags;
 }
 
-void CppSourceTarget::initializeForBuild()
-{
-    buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
-}
-
 void CppSourceTarget::preSort(Builder &builder, unsigned short round)
 {
     // Try moving following all except round 3 to updateBTarget, so it can be called concurrently as well. Similar in
@@ -782,7 +777,7 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     // override functions.
     if (round == 1)
     {
-        initializeForBuild();
+        buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
         readBuildCacheFile(builder);
         // getCompileCommand will be later on called concurrently therefore need to set this before.
         setCompileCommand();
@@ -1186,6 +1181,7 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
     if (!std::filesystem::exists(path(buildCacheFilesDirPath)))
     {
         create_directories(buildCacheFilesDirPath);
+        return;
     }
 
     if (std::filesystem::exists(path(buildCacheFilesDirPath) / (name + ".cache")))
@@ -1491,6 +1487,14 @@ void CppSourceTarget::saveBuildCache(bool round)
     }
     else
     {
+        if (archiving)
+        {
+            if (getRealBTarget(0).exitStatus == EXIT_SUCCESS)
+            {
+                archived = true;
+            }
+        }
+        buildCacheJson[JConsts::archived] = archived;
         buildCacheJson[JConsts::sourceDependencies] = sourceFileDependencies;
         buildCacheJson[JConsts::moduleDependencies] = moduleSourceFileDependencies;
         buildCacheJson[JConsts::headerUnits] = headerUnits;

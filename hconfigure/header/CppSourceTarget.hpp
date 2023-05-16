@@ -132,7 +132,9 @@ class CppSourceTarget : public CompilerFeatures,
     // requirementIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
 
-    void initializeForBuild();
+    bool archiving = false;
+    bool archived = false;
+
     void preSort(Builder &builder, unsigned short round) override;
     void updateBTarget(Builder &builder, unsigned short round) override;
     void setJson() override;

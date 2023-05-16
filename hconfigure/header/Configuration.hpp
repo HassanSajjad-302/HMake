@@ -37,6 +37,7 @@ struct Configuration : public CTarget
     CompilerFeatures compilerFeatures;
     LinkerFeatures linkerFeatures;
     CppSourceTarget *moduleScope = nullptr;
+    bool archiving = false;
 
     CppSourceTarget &GetCppPreprocess(const string &name_);
     CppSourceTarget &GetCppObject(const string &name_);

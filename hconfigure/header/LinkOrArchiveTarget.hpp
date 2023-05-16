@@ -58,6 +58,9 @@ class LinkOrArchiveTarget : public CTarget,
 
     string buildCacheFilesDirPath;
 
+    bool archiving = false;
+    bool archived = false;
+
     LinkOrArchiveTarget(string name_, TargetType targetType);
     LinkOrArchiveTarget(string name_, TargetType targetType, class CTarget &other, bool hasFile = true);
     void setOutputName(string outputName_);
