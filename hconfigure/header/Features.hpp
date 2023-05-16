@@ -787,6 +787,21 @@ struct CompilerFeatures
     void setCompilerFromVSTools(VSTools &vsTools);
     void setCompilerFromLinuxTools(struct LinuxTools &linuxTools);
     void setConfigType(ConfigType configType);
+    template <typename... U> CompilerFeatures &PRIVATE_INCLUDES(const string &include, U... includeDirectoryString);
 };
+
+template <typename... U>
+CompilerFeatures &CompilerFeatures::PRIVATE_INCLUDES(const string &include, U... includeDirectoryString)
+{
+    InclNode::emplaceInList(requirementIncludes, Node::getNodeFromString(include, false));
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        return PRIVATE_INCLUDES(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
 
 #endif // HMAKE_FEATURES_HPP

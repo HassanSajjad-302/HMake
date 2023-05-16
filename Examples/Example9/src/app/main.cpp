@@ -1,5 +1,5 @@
-#include "public-lib1.hpp"
-#include "public-lib2.hpp"
+import "lib1/public-lib1.hpp";
+import "lib2/public-lib2.hpp";
 
 int main()
 {

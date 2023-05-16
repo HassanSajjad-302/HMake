@@ -2,7 +2,7 @@
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().MODULE_DIRECTORIES("Mod_Src/");
+    GetCppExeDSC("app").getSourceTarget().MODULE_DIRECTORIES("Mod_Src/").setModuleScope();
 }
 
 #ifdef EXE

@@ -150,7 +150,7 @@ class CppSourceTarget : public CompilerFeatures,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
     void addRequirementDepsToBTargetDependencies();
     void populateTransitiveProperties();
-    void markInclNodeAsHUNode(const InclNode &inclNode);
+    void registerHUInclNode(const InclNode &inclNode);
 
     CppSourceTarget &setModuleScope(CppSourceTarget *moduleScope_);
     CppSourceTarget &setModuleScope();
@@ -244,7 +244,7 @@ CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const string &include, U...
     InclNode::emplaceInList(usageRequirementIncludes, node);
     if (bool added = InclNode::emplaceInList(requirementIncludes, node); added)
     {
-        markInclNodeAsHUNode(requirementIncludes.back());
+        registerHUInclNode(requirementIncludes.back());
     }
 
     if constexpr (sizeof...(includeDirectoryString))
@@ -262,7 +262,7 @@ CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const string &include, U..
 {
     if (bool added = InclNode::emplaceInList(requirementIncludes, Node::getNodeFromString(include, false)); added)
     {
-        markInclNodeAsHUNode(requirementIncludes.back());
+        registerHUInclNode(requirementIncludes.back());
     }
     if constexpr (sizeof...(includeDirectoryString))
     {
@@ -277,7 +277,7 @@ CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const string &include, U..
 template <typename... U>
 CppSourceTarget &CppSourceTarget::HU_DIRECTORIES(const string &include, U... includeDirectoryString)
 {
-    markInclNodeAsHUNode(targets<InclNode>.emplace(Node::getNodeFromString(include, false)).first.operator*());
+    registerHUInclNode(targets<InclNode>.emplace(Node::getNodeFromString(include, false)).first.operator*());
 
     if constexpr (sizeof...(includeDirectoryString))
     {

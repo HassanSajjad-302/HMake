@@ -12,7 +12,8 @@ void buildSpecification()
 
     auto configureFunc = [](Configuration &configuration) {
         DSC<CppSourceTarget> &lib4 = configuration.GetCppStaticDSC("lib4");
-        lib4.getSourceTarget().PUBLIC_HU_INCLUDES("lib4/public/").PRIVATE_HU_INCLUDES("lib4/private/");
+        lib4.getSourceTarget().setModuleScope().PUBLIC_HU_INCLUDES("lib4/public/").PRIVATE_HU_INCLUDES("lib4/private/");
+        configuration.moduleScope = lib4.getSourceTargetPointer();
 
         bool useModule = CacheVariable<bool>("use-module", true).value;
         if (useModule)
@@ -37,13 +38,10 @@ void buildSpecification()
 
         DSC<CppSourceTarget> &app = configuration.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1);
         app.getSourceTarget().SOURCE_FILES("main.cpp");
-
-        configuration.setModuleScope(app.getSourceTargetPointer());
     };
 
     configureFunc(debug);
 }
-
 
 #ifdef EXE
 int main(int argc, char **argv)

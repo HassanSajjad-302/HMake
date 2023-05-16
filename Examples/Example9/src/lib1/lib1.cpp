@@ -1,5 +1,5 @@
-#include "lib1/public-lib1.hpp"
-#include "private-lib1.hpp"
+import "lib1/public-lib1.hpp";
+import "private-lib1.hpp";
 
 unsigned short getValueLib1()
 {

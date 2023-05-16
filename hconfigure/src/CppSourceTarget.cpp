@@ -226,7 +226,7 @@ void CppSourceTarget::populateTransitiveProperties()
     }
 }
 
-void CppSourceTarget::markInclNodeAsHUNode(const InclNode &inclNode)
+void CppSourceTarget::registerHUInclNode(const InclNode &inclNode)
 {
     if (!moduleScopeData)
     {
@@ -277,7 +277,7 @@ CppSourceTarget &CppSourceTarget::assignStandardIncludesToHUIncludes()
     {
         if (include.isStandard)
         {
-            markInclNodeAsHUNode(include);
+            registerHUInclNode(include);
         }
     }
     return *this;

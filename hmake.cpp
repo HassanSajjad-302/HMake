@@ -5,7 +5,8 @@ using std::filesystem::file_size;
 void configurationSpecification(Configuration &configuration)
 {
     DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
-    stdhu.getSourceTarget().assignStandardIncludesToHUIncludes();
+    stdhu.getSourceTarget().setModuleScope().assignStandardIncludesToHUIncludes();
+    configuration.moduleScope = stdhu.getSourceTargetPointer();
 
     DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
     fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
@@ -14,7 +15,7 @@ void configurationSpecification(Configuration &configuration)
 
     DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
     hconfigure.getSourceTarget()
-        .MODULE_DIRECTORIES("hconfigure/src/", ".*")
+        .MODULE_DIRECTORIES("hconfigure/src/")
         .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include");
 
     DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
@@ -40,13 +41,10 @@ void configurationSpecification(Configuration &configuration)
 
     DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
-    configuration.setModuleScope(stdhu.getSourceTargetPointer());
 
     DSC<CppSourceTarget> &hmakeHelper =
         configuration.GetCppExeDSC("HMakeHelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hmakeHelper.getSourceTarget().MODULE_FILES("hmake.cpp").PRIVATE_COMPILE_DEFINITION("EXE");
-
-    configuration.setModuleScope(stdhu.getSourceTargetPointer());
 }
 
 struct SizeDifference : public CTarget, public BTarget

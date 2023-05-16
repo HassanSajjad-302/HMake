@@ -124,4 +124,13 @@ TEST(ExamplesTest, Example8)
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Hello World\n");
 }
+
+TEST(ExamplesTest, Example9)
+{
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example9"));
+    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Debug/app/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "36\n");
+}
 #endif

@@ -635,11 +635,22 @@ So, the modules from one ```CppSourceTarget``` can use modules from another ```C
 while at the same time being compiled by a different compile-command.
 module-scope of a ```CppSourceTarget``` defaults to itself.
 
-Generally, in a build-specification, ```CppSourceTarget::setModuleScope(CppSourceTarget *)```
-should be called by all except one ```CppSourceTarget``` with the value of that target.
+```setModuleScope()``` sets the module-scope to itself.
+While its overload ```setModuleScope(CppSourceTarget *cppSourceTarget)``` sets
+the scope to the respective target.
+One of these functions must be called to initialize the moduleScopeData of the module-scope,
+if it isn't already.
+Generally, in a build-specification,
+all ```CppSourceTarget```should have the same module-scope.
 
-```CppSourceTarget::PUBLIC_HU_INCLUDES``` and ```CppSourceTarget::PRIVATE_HU_INCLUDES``` can mark an
-include as hu-include at the same time.
+```CppSourceTarget``` member functions ```HU_DIRECTORIES```,
+```PUBLIC_HU_INCLUDES``` and ```PRIVATE_HU_INCLUDES```
+are used for registering an include-directory for header-units.
+The reason for ```HU_DIRECTORIES``` besides
+```PUBLIC_HU_INCLUDES``` and ```PRIVATE_HU_INCLUDES```
+is that sometimes general include-directories are less specialized
+while header-unit-include-directories are more specialized.
+That is showcased in Example 9.
 
 ### Example 8
 
@@ -705,12 +716,117 @@ extern "C" EXPORT int func2(BSMode bsMode_)
 <summary>hmake.cpp</summary>
 
 ```cpp
+#include "Configure.hpp"
+
+template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T &...targets)
+{
+    CppSourceTarget &t = target.getSourceTarget();
+    string str = t.name.substr(0, t.name.size() - 4); // Removing -cpp from the name
+    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp")
+        .HU_DIRECTORIES("src/" + str + "/")
+        .HU_DIRECTORIES("include/" + str + "/");
+
+    if constexpr (sizeof...(targets))
+    {
+        initializeTargets(targets...);
+    }
+}
+
+void configurationSpecification(Configuration &configuration)
+{
+    configuration.compilerFeatures.PRIVATE_INCLUDES("include/");
+
+    DSC<CppSourceTarget> &stdhu = configuration.GetCppStaticDSC("stdhu");
+
+    stdhu.getSourceTargetPointer()->setModuleScope().assignStandardIncludesToHUIncludes();
+    configuration.moduleScope = stdhu.getSourceTargetPointer();
+
+    DSC<CppSourceTarget> &lib4 = configuration.GetCppStaticDSC("lib4");
+    DSC<CppSourceTarget> &lib3 = configuration.GetCppStaticDSC("lib3").PUBLIC_LIBRARIES(&lib4);
+    DSC<CppSourceTarget> &lib2 = configuration.GetCppStaticDSC("lib2").PRIVATE_LIBRARIES(&lib3);
+    DSC<CppSourceTarget> &lib1 = configuration.GetCppStaticDSC("lib1").PUBLIC_LIBRARIES(&lib2);
+    DSC<CppSourceTarget> &app = configuration.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1, &stdhu);
+
+
+    initializeTargets(lib1, lib2, lib3, lib4, app);
+}
+
+void buildSpecification()
+{
+    Configuration &debug = GetConfiguration("Debug");
+
+    CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
+
+    debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG);
+
+    configurationSpecification(debug);
+}
+
+#ifdef EXE
+int main(int argc, char **argv)
+{
+    try
+    {
+        initializeCache(getBuildSystemModeFromArguments(argc, argv));
+        buildSpecification();
+        configureOrBuild();
+    }
+    catch (std::exception &ec)
+    {
+        string str(ec.what());
+        if (!str.empty())
+        {
+            printErrorMessage(str);
+        }
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+#else
+extern "C" EXPORT int func2(BSMode bsMode_)
+{
+    try
+    {
+        initializeCache(bsMode_);
+        buildSpecification();
+        configureOrBuild();
+    }
+    catch (std::exception &ec)
+    {
+        string str(ec.what());
+        if (!str.empty())
+        {
+            printErrorMessage(str);
+        }
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+#endif
+```
+
+</details>
+
+This example showcases usage of ```HU_DIRECTORIES```.
+In this example, if we had used ```HU_INCLUDES``` functions instead,
+then this would have been a configuration error.
+Because twp targets would have the same header-unit-include,
+and HMake won't have been able to decide which target to associate with the header-unit.
+Using ```HU_DIRECTORIES``` ensure that header-units from ```include/lib1/```
+and ```src/lib1/``` are linked with lib1 and so on.
+
+### Example 10
+
+<details>
+<summary>hmake.cpp</summary>
+
+```cpp
 
 ```
 
 </details>
 
-### Example 10. HMake Project Example
+### Example 11. HMake Project Example
 
 <details>
 <summary>hmake.cpp</summary>
@@ -723,7 +839,8 @@ using std::filesystem::file_size;
 void configurationSpecification(Configuration &configuration)
 {
     DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
-    stdhu.getSourceTarget().assignStandardIncludesToHUIncludes();
+    stdhu.getSourceTarget().setModuleScope().assignStandardIncludesToHUIncludes();
+    configuration.moduleScope = stdhu.getSourceTargetPointer();
 
     DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
     fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
@@ -732,7 +849,7 @@ void configurationSpecification(Configuration &configuration)
 
     DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
     hconfigure.getSourceTarget()
-        .MODULE_DIRECTORIES("hconfigure/src/", ".*")
+        .MODULE_DIRECTORIES("hconfigure/src/")
         .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include");
 
     DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
@@ -758,13 +875,10 @@ void configurationSpecification(Configuration &configuration)
 
     DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
-    configuration.setModuleScope(stdhu.getSourceTargetPointer());
 
     DSC<CppSourceTarget> &hmakeHelper =
         configuration.GetCppExeDSC("HMakeHelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hmakeHelper.getSourceTarget().MODULE_FILES("hmake.cpp").PRIVATE_COMPILE_DEFINITION("EXE");
-
-    configuration.setModuleScope(stdhu.getSourceTargetPointer());
 }
 
 struct SizeDifference : public CTarget, public BTarget
@@ -918,6 +1032,7 @@ extern "C" EXPORT int func2(BSMode bsMode_)
     return EXIT_SUCCESS;
 }
 #endif
+
 ```
 
 </details>
@@ -926,8 +1041,8 @@ This example showcases HMake extensibility and support for drop-in replacement o
 header-files with header-units.
 ```GetCppObjectDSC``` is used for a target for which there is no link-target i.e. header-only cpp-target.
 In this case header-unit only.
-This line ```configuration.setModuleScope(stdhu.getSourceTargetPointer());``` sets the
-module-scope for all the targets in the configuration.
+This line ```configuration.moduleScope = stdhu.getSourceTargetPointer();```
+will set the module-scope for all the targets declared after this line in the configuration.
 
 ```markArchivePoint``` function is a WIP. It will be used to specify that fmt, json and stdhu are never
 meant to be changed. So, hbuild can ignore checking object-files of these for rebuild.

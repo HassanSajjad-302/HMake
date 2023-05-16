@@ -2,12 +2,12 @@
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().MODULE_FILES("main.cpp", "std.cpp").setModuleScope();
-    GetCppExeDSC("app2")
+    GetCppExeDSC("app")
         .getSourceTarget()
-        .MODULE_FILES("main2.cpp")
         .setModuleScope()
-        .assignStandardIncludesToHUIncludes();
+        .PUBLIC_HU_INCLUDES("3rd_party/olcPixelGameEngine")
+        .R_MODULE_DIRECTORIES("modules/", "src/")
+        .ASSIGN(CxxSTD::V_LATEST);
 }
 
 #ifdef EXE
