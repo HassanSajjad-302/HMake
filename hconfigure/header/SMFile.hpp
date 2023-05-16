@@ -77,6 +77,7 @@ class InclNode : public LibDirNode
     static bool emplaceInList(list<InclNode> &includes, Node *node_, bool isStandard_ = false,
                               bool ignoreHeaderDeps_ = false);
 };
+bool operator<(const InclNode &lhs, const InclNode &rhs);
 
 struct SourceNode;
 struct CompareSourceNode

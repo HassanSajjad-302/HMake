@@ -127,9 +127,6 @@ class CppSourceTarget : public CompilerFeatures,
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void saveBuildCache(bool round);
 
-    // In module scope, two different targets should not have a directory in huIncludes
-    vector<InclNode *> huIncludes;
-
     set<SourceDirectory> regexSourceDirs;
     set<SourceDirectory> regexModuleDirs;
     // requirementIncludes size before populateTransitiveProperties function is called
@@ -153,9 +150,11 @@ class CppSourceTarget : public CompilerFeatures,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
     void addRequirementDepsToBTargetDependencies();
     void populateTransitiveProperties();
-    //
+    void markInclNodeAsHUNode(const InclNode &inclNode);
 
     CppSourceTarget &setModuleScope(CppSourceTarget *moduleScope_);
+    CppSourceTarget &setModuleScope();
+
     CppSourceTarget &assignStandardIncludesToHUIncludes();
     // TODO
     // Also provide function overload for functions like PUBLIC_INCLUDES here and in CPT
@@ -164,6 +163,7 @@ class CppSourceTarget : public CompilerFeatures,
     template <typename... U> CppSourceTarget &INTERFACE_INCLUDES(const string &include, U... includeDirectoryString);
     template <typename... U> CppSourceTarget &PUBLIC_HU_INCLUDES(const string &include, U... includeDirectoryString);
     template <typename... U> CppSourceTarget &PRIVATE_HU_INCLUDES(const string &include, U... includeDirectoryString);
+    template <typename... U> CppSourceTarget &HU_DIRECTORIES(const string &include, U... includeDirectoryString);
     CppSourceTarget &PUBLIC_COMPILER_FLAGS(const string &compilerFlags);
     CppSourceTarget &PRIVATE_COMPILER_FLAGS(const string &compilerFlags);
     CppSourceTarget &INTERFACE_COMPILER_FLAGS(const string &compilerFlags);
@@ -244,7 +244,7 @@ CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const string &include, U...
     InclNode::emplaceInList(usageRequirementIncludes, node);
     if (bool added = InclNode::emplaceInList(requirementIncludes, node); added)
     {
-        huIncludes.emplace_back(&(requirementIncludes.back()));
+        markInclNodeAsHUNode(requirementIncludes.back());
     }
 
     if constexpr (sizeof...(includeDirectoryString))
@@ -262,11 +262,26 @@ CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const string &include, U..
 {
     if (bool added = InclNode::emplaceInList(requirementIncludes, Node::getNodeFromString(include, false)); added)
     {
-        huIncludes.emplace_back(&(requirementIncludes.back()));
+        markInclNodeAsHUNode(requirementIncludes.back());
     }
     if constexpr (sizeof...(includeDirectoryString))
     {
         return PRIVATE_HU_INCLUDES(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::HU_DIRECTORIES(const string &include, U... includeDirectoryString)
+{
+    markInclNodeAsHUNode(targets<InclNode>.emplace(Node::getNodeFromString(include, false)).first.operator*());
+
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        return HU_DIRECTORIES(includeDirectoryString...);
     }
     else
     {

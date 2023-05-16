@@ -36,6 +36,7 @@ struct Configuration : public CTarget
     vector<struct CPT *> prebuiltTargets;
     CompilerFeatures compilerFeatures;
     LinkerFeatures linkerFeatures;
+    CppSourceTarget *moduleScope = nullptr;
 
     CppSourceTarget &GetCppPreprocess(const string &name_);
     CppSourceTarget &GetCppObject(const string &name_);
@@ -67,7 +68,6 @@ struct Configuration : public CTarget
     explicit Configuration(const string &name_);
     Configuration(const string &name, CTarget &other, bool hasFile = true);
     void markArchivePoint();
-    void setModuleScope(CppSourceTarget *moduleScope);
     void setJson() override;
     C_Target *get_CAPITarget(BSMode bsModeLocal) override;
     template <typename T, typename... Property> Configuration &ASSIGN(T property, Property... properties);

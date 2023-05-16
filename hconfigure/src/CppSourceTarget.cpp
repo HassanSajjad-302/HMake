@@ -226,9 +226,48 @@ void CppSourceTarget::populateTransitiveProperties()
     }
 }
 
+void CppSourceTarget::markInclNodeAsHUNode(const InclNode &inclNode)
+{
+    if (!moduleScopeData)
+    {
+        printErrorMessage(fmt::format("For CppSourceTarget: {}\nmarkInclNodeAsHUNode function should be "
+                                      "called after calling setModuleScope function\n",
+                                      getSubDirForTarget()));
+        throw std::exception();
+    }
+    if (const auto &[pos, Ok] = moduleScopeData->huDirTarget.try_emplace(&inclNode, this); !Ok)
+    {
+        printErrorMessageColor(fmt::format("In ModuleScope {}\nhu-include-directory\n{}\n is being twice by "
+                                           "targets\n{}\n{}\nThis is not allowed "
+                                           "because HMake can't determine the CppSourceTarget to associate with the "
+                                           "header-units present in this include-directory.\n",
+                                           moduleScope->getSubDirForTarget(), inclNode.node->filePath,
+                                           getTargetPointer(), pos->second->getTargetPointer()),
+                               settings.pcSettings.toolErrorOutput);
+        throw std::exception();
+    }
+}
+
 CppSourceTarget &CppSourceTarget::setModuleScope(CppSourceTarget *moduleScope_)
 {
     moduleScope = moduleScope_;
+    if (!moduleScope->moduleScopeData)
+    {
+        moduleScope->moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
+    }
+    moduleScopeData = moduleScope->moduleScopeData;
+
+    return *this;
+}
+
+CppSourceTarget &CppSourceTarget::setModuleScope()
+{
+    moduleScope = this;
+    if (!moduleScope->moduleScopeData)
+    {
+        moduleScope->moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
+    }
+    moduleScopeData = moduleScope->moduleScopeData;
     return *this;
 }
 
@@ -238,7 +277,7 @@ CppSourceTarget &CppSourceTarget::assignStandardIncludesToHUIncludes()
     {
         if (include.isStandard)
         {
-            huIncludes.emplace_back(&include);
+            markInclNodeAsHUNode(include);
         }
     }
     return *this;
@@ -732,23 +771,6 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
 
 void CppSourceTarget::initializeForBuild()
 {
-    if (!moduleScope)
-    {
-        moduleScope = this;
-        if (!moduleScopeData)
-        {
-            moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
-        }
-    }
-    if (!moduleScopeData)
-    {
-        if (!moduleScope->moduleScopeData)
-        {
-            moduleScope->moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
-        }
-        moduleScopeData = moduleScope->moduleScopeData;
-    }
-    // Parsing finished
     buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
 }
 
@@ -1261,23 +1283,6 @@ void CppSourceTarget::populateSourceNodes()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
-    for (const InclNode *include : huIncludes)
-    {
-        if (const auto &[pos, Ok] = moduleScopeData->huDirTarget.try_emplace(include, this); !Ok)
-        {
-            // TODO:
-            //  Improve Message
-            printErrorMessageColor(
-                fmt::format("In ModuleScope {}\nhu-include-directory\n{}\n is being provided by two different "
-                            "targets\n{}\n{}\nThis is not allowed "
-                            "because HMake can't determine which Header Unit to attach to which target.",
-                            moduleScope->getSubDirForTarget(), include->node->filePath, getTargetPointer(),
-                            pos->second->getTargetPointer()),
-                settings.pcSettings.toolErrorOutput);
-            throw std::exception();
-        }
-    }
-
     for (auto it = moduleSourceFileDependencies.begin(); it != moduleSourceFileDependencies.end();)
     {
         if (it->presentInSource)

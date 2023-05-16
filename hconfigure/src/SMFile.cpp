@@ -219,6 +219,12 @@ bool InclNode::emplaceInList(list<InclNode> &includes, Node *node_, bool isStand
     return true;
 }
 
+bool operator<(const InclNode &lhs, const InclNode &rhs)
+{
+    return std::tie(lhs.node, lhs.isStandard, lhs.ignoreHeaderDeps) <
+           std::tie(rhs.node, rhs.isStandard, rhs.ignoreHeaderDeps);
+}
+
 bool CompareSourceNode::operator()(const SourceNode &lhs, const SourceNode &rhs) const
 {
     return lhs.node < rhs.node;

@@ -1,5 +1,15 @@
 #include "Configure.hpp"
 
+template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T &...targets)
+{
+    CppSourceTarget &t = target.getSourceTarget();
+    t.SOURCE_DIRECTORIES("src/" + t.name + "/");
+    if constexpr (sizeof...(targets))
+    {
+        initializeTargets(targets...);
+    }
+}
+
 void buildSpecification()
 {
     Configuration &debug = GetConfiguration("Debug");
@@ -11,6 +21,8 @@ void buildSpecification()
     // configuration.privateCompileDefinitions.emplace_back("USE_HEADER_UNITS", "1");
 
     auto configureFunc = [](Configuration &configuration) {
+        // configuration.compilerFeatures.requirementIncludes.emplace()
+
         DSC<CppSourceTarget> &lib4 = configuration.GetCppStaticDSC("lib4");
         lib4.getSourceTarget()
             .SOURCE_DIRECTORIES_RG("lib4/private/", ".*cpp")
@@ -28,6 +40,8 @@ void buildSpecification()
 
         DSC<CppSourceTarget> &app = configuration.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1);
         app.getSourceTarget().SOURCE_FILES("main.cpp");
+
+        initializeTargets(lib1, lib2, lib3, lib4, app);
     };
 
     configureFunc(debug);

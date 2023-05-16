@@ -33,14 +33,6 @@ void Configuration::markArchivePoint()
     // to be changed e.g. fmt and json source in hmake project.
 }
 
-void Configuration::setModuleScope(CppSourceTarget *moduleScope)
-{
-    for (CppSourceTarget *cppSourceTargetLocal : cppSourceTargets)
-    {
-        cppSourceTargetLocal->setModuleScope(moduleScope);
-    }
-}
-
 CppSourceTarget &Configuration::GetCppPreprocess(const string &name_)
 {
     CppSourceTarget &cppSourceTarget = const_cast<CppSourceTarget &>(
@@ -50,6 +42,10 @@ CppSourceTarget &Configuration::GetCppPreprocess(const string &name_)
             operator*());
     cppSourceTargets.emplace_back(&cppSourceTarget);
     static_cast<CompilerFeatures &>(cppSourceTarget) = compilerFeatures;
+    if (moduleScope)
+    {
+        cppSourceTarget.setModuleScope(moduleScope);
+    }
     return cppSourceTarget;
 }
 
@@ -62,6 +58,10 @@ CppSourceTarget &Configuration::GetCppObject(const string &name_)
             operator*());
     cppSourceTargets.emplace_back(&cppSourceTarget);
     static_cast<CompilerFeatures &>(cppSourceTarget) = compilerFeatures;
+    if (moduleScope)
+    {
+        cppSourceTarget.setModuleScope(moduleScope);
+    }
     return cppSourceTarget;
 }
 
