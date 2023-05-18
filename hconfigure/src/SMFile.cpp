@@ -375,6 +375,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
                 saveRequiresJsonAndInitializeHeaderUnits(builder);
                 assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
             }
+            // if(builder.finalBTargetsSizeGoal == )
             target->getRealBTarget(0).addDependency(*this);
             smrulesFileParsed = true;
             // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
@@ -407,8 +408,6 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
         if (auto [pos, ok] = target->moduleScopeData->requirePaths.try_emplace(logicalName, this); !ok)
         {
             const auto &[key, val] = *pos;
-            // TODO
-            // Mention the module scope too.
             printErrorMessageColor(
                 fmt::format(
                     "In Module-Scope:\n{}\nModule:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
@@ -433,6 +432,18 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     }
 
     string headerUnitPath = path(requireJson.at("source-path").get<string>()).lexically_normal().generic_string();
+
+    /*    if constexpr (os == OS::NT)
+        {
+            // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of
+       the
+            // actual paths. Sometimes, it returns normal however.
+            for (char &c : headerUnitPath)
+            {
+                // Warning: assuming paths to be ASCII
+                c = tolower(c);
+            }
+        }*/
 
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;

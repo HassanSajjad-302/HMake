@@ -28,6 +28,7 @@ class Builder
     void launchThreadsAndUpdateBTargets();
     void addNewBTargetInFinalBTargets(BTarget *bTarget);
     void updateBTargets();
+    bool lastBTarget();
 };
 
 #endif // HMAKE_BUILDER_HPP

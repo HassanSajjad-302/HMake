@@ -104,7 +104,7 @@ void Builder::launchThreadsAndUpdateBTargets()
     unsigned short launchThreads = settings.maximumBuildThreads;
     if (launchThreads)
     {
-        while (threads.size() != launchThreads - 1)
+        while (threads.size() != 2)
         {
             threads.emplace_back(new thread{&Builder::updateBTargets, this});
         }
@@ -124,12 +124,14 @@ std::condition_variable cond;
 
 void Builder::addNewBTargetInFinalBTargets(BTarget *bTarget)
 {
-    std::lock_guard<std::mutex> lk(updateMutex);
-    finalBTargets.emplace_back(bTarget);
-    ++finalBTargetsSizeGoal;
-    if (finalBTargetsIterator == finalBTargets.end())
     {
-        --finalBTargetsIterator;
+        std::lock_guard<std::mutex> lk(updateMutex);
+        finalBTargets.emplace_back(bTarget);
+        ++finalBTargetsSizeGoal;
+        if (finalBTargetsIterator == finalBTargets.end())
+        {
+            --finalBTargetsIterator;
+        }
     }
     cond.notify_all();
 }
@@ -138,45 +140,28 @@ void Builder::updateBTargets()
 {
     BTarget *bTarget;
     RealBTarget *realBTarget;
+    unsigned short additions = 0;
 
     std::unique_lock<std::mutex> lk(updateMutex);
 
-    if (finalBTargets.size() == finalBTargetsSizeGoal && finalBTargetsIterator == finalBTargets.end())
-    {
-        return;
-    }
-    bool shouldWait;
-    if (finalBTargetsIterator == finalBTargets.end())
-    {
-        shouldWait = true;
-    }
-    else
-    {
-        bTarget = *finalBTargetsIterator;
-        realBTarget = &(bTarget->getRealBTarget(round));
-        ++finalBTargetsIterator;
-        shouldWait = false;
-        updateMutex.unlock();
-    }
     while (true)
     {
-
-        if (shouldWait)
+        while (true)
         {
-            cond.wait(lk, [&]() {
-                return finalBTargetsIterator != finalBTargets.end() || finalBTargets.size() == finalBTargetsSizeGoal;
-            });
-            if (finalBTargets.size() == finalBTargetsSizeGoal)
-            {
-                return;
-            }
-            else
+            if (finalBTargetsIterator != finalBTargets.end())
             {
                 bTarget = *finalBTargetsIterator;
                 realBTarget = &(bTarget->getRealBTarget(round));
                 ++finalBTargetsIterator;
+                updateMutex.unlock();
+                cond.notify_all();
+                break;
             }
-            updateMutex.unlock();
+            else if (finalBTargets.size() == finalBTargetsSizeGoal)
+            {
+                return;
+            }
+            cond.wait(lk);
         }
 
         try
@@ -223,21 +208,15 @@ void Builder::updateBTargets()
                     {
                         --finalBTargetsIterator;
                     }
-                    cond.notify_all();
+                    ++additions;
                 }
             }
         }
-        if (finalBTargetsIterator == finalBTargets.end())
-        {
-            shouldWait = true;
-        }
-        else
-        {
-            bTarget = *finalBTargetsIterator;
-            realBTarget = &(bTarget->getRealBTarget(round));
-            ++finalBTargetsIterator;
-            shouldWait = false;
-            updateMutex.unlock();
-        }
     }
+}
+
+bool Builder::lastBTarget()
+{
+    std::lock_guard<std::mutex> lk(updateMutex);
+    return finalBTargetsSizeGoal == finalBTargets.size();
 }
