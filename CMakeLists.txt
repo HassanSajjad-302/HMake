@@ -99,3 +99,6 @@ target_link_libraries(Tests PRIVATE hconfigure)
 
 add_dependencies(Tests hhelper)
 add_dependencies(Tests hbuild)
+
+add_executable(hwrite hwrite/main.cpp)
+target_link_libraries(hwrite PRIVATE hconfigure)

@@ -2,7 +2,8 @@
 #define HMAKE_CPPSOURCETARGET_HPP
 #ifdef USE_HEADER_UNITS
 import "BuildTools.hpp";
-import "Prebuilt.hpp" import "Features.hpp";
+import "Prebuilt.hpp";
+import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
 import "JConsts.hpp";
 import "PostBasic.hpp";
@@ -67,6 +68,8 @@ struct ModuleScopeData
     // Which header unit directory come from which target
     map<const InclNode *, CppSourceTarget *> huDirTarget;
     map<string, SMFile *> requirePaths;
+    set<CppSourceTarget *> targets;
+    unsigned int totalSMRuleFileCount = 0;
 };
 
 // TODO

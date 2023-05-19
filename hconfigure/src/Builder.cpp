@@ -101,10 +101,10 @@ void Builder::launchThreadsAndUpdateBTargets()
     // execution. Also tarjannode sorting could be more parallel.
     finalBTargetsIterator = finalBTargets.begin();
 
-    unsigned short launchThreads = settings.maximumBuildThreads;
+    unsigned int launchThreads = settings.maximumBuildThreads;
     if (launchThreads)
     {
-        while (threads.size() != 2)
+        while (threads.size() != launchThreads - 1)
         {
             threads.emplace_back(new thread{&Builder::updateBTargets, this});
         }
@@ -140,7 +140,6 @@ void Builder::updateBTargets()
 {
     BTarget *bTarget;
     RealBTarget *realBTarget;
-    unsigned short additions = 0;
 
     std::unique_lock<std::mutex> lk(updateMutex);
 
@@ -208,15 +207,29 @@ void Builder::updateBTargets()
                     {
                         --finalBTargetsIterator;
                     }
-                    ++additions;
                 }
             }
         }
     }
 }
 
-bool Builder::lastBTarget()
+bool Builder::addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets)
 {
-    std::lock_guard<std::mutex> lk(updateMutex);
-    return finalBTargetsSizeGoal == finalBTargets.size();
+    {
+        std::lock_guard<std::mutex> lk(updateMutex);
+        for (CppSourceTarget *target : targets)
+        {
+            if (target->sourceFileOrSMRuleFileUpdated)
+            {
+                finalBTargets.emplace_back(target);
+                ++finalBTargetsSizeGoal;
+                if (finalBTargetsIterator == finalBTargets.end())
+                {
+                    --finalBTargetsIterator;
+                }
+            }
+        }
+    }
+    cond.notify_all();
+    return false;
 }

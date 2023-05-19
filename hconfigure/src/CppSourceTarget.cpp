@@ -256,18 +256,13 @@ CppSourceTarget &CppSourceTarget::setModuleScope(CppSourceTarget *moduleScope_)
         moduleScope->moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
     }
     moduleScopeData = moduleScope->moduleScopeData;
-
+    moduleScopeData->targets.emplace(this);
     return *this;
 }
 
 CppSourceTarget &CppSourceTarget::setModuleScope()
 {
-    moduleScope = this;
-    if (!moduleScope->moduleScopeData)
-    {
-        moduleScope->moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
-    }
-    moduleScopeData = moduleScope->moduleScopeData;
+    setModuleScope(this);
     return *this;
 }
 
@@ -1291,6 +1286,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
                 if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
                 {
                     smFile.generateSMFileInRoundOne = true;
+                    ++moduleScopeData->totalSMRuleFileCount;
                 }
                 else
                 {
@@ -1481,6 +1477,7 @@ void CppSourceTarget::saveBuildCache(bool round)
 {
     if (round)
     {
+        buildCacheJson[JConsts::sourceDependencies] = sourceFileDependencies;
         buildCacheJson[JConsts::moduleDependencies] = moduleSourceFileDependencies;
         buildCacheJson[JConsts::headerUnits] = headerUnits;
         ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCacheJson.dump(4);

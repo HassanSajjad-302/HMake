@@ -9,7 +9,7 @@ import "Cache.hpp";
 #else
 #include "CTargetRoundZeroBTarget.hpp"
 #include "Cache.hpp"
-#include "Configure.hpp"
+#include "Configuration.hpp"
 #include "DSC.hpp"
 #endif
 

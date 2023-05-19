@@ -1,7 +1,8 @@
 
 #ifdef USE_HEADER_UNITS
 import "BasicTargets.hpp";
-import "Builder.hpp" import "BuildSystemFunctions.hpp";
+import "Builder.hpp";
+import "BuildSystemFunctions.hpp";
 import "CppSourceTarget.hpp";
 import <filesystem>;
 import <fstream>;

@@ -102,6 +102,7 @@ struct SourceNode : public ObjectFile
     SourceNode(CppSourceTarget *target_, Node *node_);
     string getObjectFileOutputFilePath() const override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
+    string getTarjanNodeName() const override;
     void updateBTarget(Builder &builder, unsigned short round) override;
     void setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget);
 };
@@ -157,6 +158,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     // ignoreHeaderDeps is true
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
     SMFile(CppSourceTarget *target_, Node *node_);
+    void decrementTotalSMRuleFileCount(Builder &builder);
     void updateBTarget(Builder &builder, unsigned short round) override;
     void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder);
     void initializeNewHeaderUnit(const Json &requireJson, Builder &builder);

@@ -254,6 +254,11 @@ string SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) 
     return getReducedPath(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o", pathPrint);
 }
 
+string SourceNode::getTarjanNodeName() const
+{
+    return node->filePath;
+}
+
 void SourceNode::updateBTarget(Builder &, unsigned short round)
 {
     if (!round && selectiveBuild)
@@ -346,7 +351,24 @@ SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node
 {
 }
 
+static std::mutex totalSMRuleFileCountMutex; // TODO: atomics should be used instead of this
+
+void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
+{
+    std::lock_guard<std::mutex> lk(totalSMRuleFileCountMutex);
+    --target->moduleScopeData->totalSMRuleFileCount;
+    if (!target->moduleScopeData->totalSMRuleFileCount)
+    {
+        // A smrule file was updated. And all module scope smrule files have been checked. Following is done to
+        // write the CppSourceTarget .cache files. So, if because of an error during smrule generation of a file,
+        // hmake is exiting after round 1, in next invocation, it won't generate the smrule of successfully
+        // generated files.
+        builder.addCppSourceTargetsInFinalBTargets(target->moduleScopeData->targets);
+    }
+}
+
 static std::mutex smFilesInternalMutex;
+
 void SMFile::updateBTarget(Builder &builder, unsigned short round)
 {
     // Danger Following is executed concurrently
@@ -375,6 +397,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
                 saveRequiresJsonAndInitializeHeaderUnits(builder);
                 assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
             }
+
             // if(builder.finalBTargetsSizeGoal == )
             target->getRealBTarget(0).addDependency(*this);
             smrulesFileParsed = true;
@@ -382,6 +405,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
             // cached compile-command would be different
             compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
         }
+        decrementTotalSMRuleFileCount(builder);
     }
     else if (!round && selectiveBuild && realBTarget.exitStatus == EXIT_SUCCESS)
     {
@@ -413,6 +437,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
                     "In Module-Scope:\n{}\nModule:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
                     target->moduleScope->getSubDirForTarget(), logicalName, node->filePath, val->node->filePath),
                 settings.pcSettings.toolErrorOutput);
+            decrementTotalSMRuleFileCount(builder);
             throw std::exception();
         }
     }
@@ -428,22 +453,23 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
                                            target->moduleScope->getSubDirForTarget(), node->filePath),
                                settings.pcSettings.toolErrorOutput);
+        decrementTotalSMRuleFileCount(builder);
         throw std::exception();
     }
 
     string headerUnitPath = path(requireJson.at("source-path").get<string>()).lexically_normal().generic_string();
 
-    /*    if constexpr (os == OS::NT)
+    // lexically_relative in SMFile::initializeNewHeaderUnit does not work otherwise
+    if constexpr (os == OS::NT)
+    {
+        // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
+        // actual paths. Sometimes, it returns normal however.
+        for (char &c : headerUnitPath)
         {
-            // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of
-       the
-            // actual paths. Sometimes, it returns normal however.
-            for (char &c : headerUnitPath)
-            {
-                // Warning: assuming paths to be ASCII
-                c = tolower(c);
-            }
-        }*/
+            // Warning: assuming paths to be ASCII
+            c = tolower(c);
+        }
+    }
 
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
@@ -452,7 +478,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     // Iterating over all header-unit-directories of the module-scope to find out which header-unit
     // directory this header-unit comes from and which target that header-unit-directory belongs to
     // if any
-    for (const auto &[inclNode, target] : target->moduleScopeData->huDirTarget)
+    for (const auto &[inclNode, targetLocal] : target->moduleScopeData->huDirTarget)
     {
         const InclNode *dirNode = inclNode;
         path result = path(headerUnitPath).lexically_relative(dirNode->node->filePath).generic_string();
@@ -467,11 +493,12 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
                         headerUnitPath, nodeDir->node->filePath, dirNode->node->filePath,
                         target->moduleScope->getTargetPointer()),
                     settings.pcSettings.toolErrorOutput);
+                decrementTotalSMRuleFileCount(builder);
                 throw std::exception();
             }
             else
             {
-                huDirTarget = target;
+                huDirTarget = targetLocal;
                 nodeDir = inclNode;
             }
         }
@@ -484,6 +511,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
                 "Module Header Unit\n{}\n does not belongs to any Target Header Unit Includes of Module Scope\n{}\n",
                 headerUnitPath, target->moduleScope->getTargetPointer()),
             settings.pcSettings.toolErrorOutput);
+        decrementTotalSMRuleFileCount(builder);
         throw std::exception();
     }
 
@@ -503,6 +531,11 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
         {
             headerUnit.generateSMFileInRoundOne = true;
+        }
+
+        {
+            std::lock_guard<std::mutex> lk(totalSMRuleFileCountMutex);
+            ++target->moduleScopeData->totalSMRuleFileCount;
         }
         builder.addNewBTargetInFinalBTargets(&headerUnit);
     }
@@ -534,6 +567,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
                 printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
                                                    target->moduleScope->getSubDirForTarget(), node->filePath),
                                        settings.pcSettings.toolErrorOutput);
+                decrementTotalSMRuleFileCount(builder);
                 throw std::exception();
             }
             if (requireJson.contains("lookup-method"))

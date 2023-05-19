@@ -4,7 +4,8 @@
 import "OS.hpp";
 import "BuildTools.hpp";
 import "Cache.hpp";
-import "SMFile.hpp" import "TargetType.hpp";
+import "SMFile.hpp";
+import "TargetType.hpp";
 import <map>;
 import <set>;
 import <vector>;

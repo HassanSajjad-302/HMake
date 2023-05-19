@@ -132,7 +132,7 @@ template <typename T> void TarjanNode<T>::checkForCycle()
         size_t cycleSize = cycle.size();
         for (unsigned int i = 0; i < cycleSize; ++i)
         {
-            if (cycleSize == i + 1)
+            if (i == cycleSize - 1)
             {
                 printErrorMessageColor(
                     fmt::format("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[0]->getTarjanNodeName()),
@@ -140,9 +140,9 @@ template <typename T> void TarjanNode<T>::checkForCycle()
             }
             else
             {
-                printErrorMessageColor(
-                    fmt::format("{} Depends On {}.\n", cycle[0]->getTarjanNodeName(), cycle[0]->getTarjanNodeName()),
-                    settings.pcSettings.toolErrorOutput);
+                printErrorMessageColor(fmt::format("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(),
+                                                   cycle[i + 1]->getTarjanNodeName()),
+                                       settings.pcSettings.toolErrorOutput);
             }
         }
         throw std::exception();

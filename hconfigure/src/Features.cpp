@@ -6,7 +6,7 @@ import "Cache.hpp";
 import "CppSourceTarget.hpp";
 import "JConsts.hpp";
 import "ToolsCache.hpp";
-#include "nlohmann/json.hpp";
+import "nlohmann/json.hpp";
 #else
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"

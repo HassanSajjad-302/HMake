@@ -1,10 +1,12 @@
 #ifndef HMAKE_BUILDER_HPP
 #define HMAKE_BUILDER_HPP
 #ifdef USE_HEADER_UNITS
+import "CppSourceTarget.hpp";
 import <vector>;
 import <string>;
 import <list>;
 #else
+#include "CppSourceTarget.hpp"
 #include <list>
 #include <string>
 #include <vector>
@@ -28,7 +30,8 @@ class Builder
     void launchThreadsAndUpdateBTargets();
     void addNewBTargetInFinalBTargets(BTarget *bTarget);
     void updateBTargets();
-    bool lastBTarget();
+
+    bool addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets);
 };
 
 #endif // HMAKE_BUILDER_HPP
