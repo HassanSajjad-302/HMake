@@ -38,7 +38,7 @@ add_library(hconfigure STATIC
         hconfigure/src/DSC.cpp
         hconfigure/src/ObjectFileProducer.cpp
         hconfigure/src/DS.cpp
-        hconfigure/src/Prebuilt.cpp
+        hconfigure/src/CSourceTarget.cpp
         hconfigure/src/DLLLoader.cpp
         hconfigure/src/Configure.cpp
         hconfigure/src/CTargetRoundZeroBTarget.cpp

@@ -33,7 +33,7 @@ struct Configuration : public CTarget
     vector<CppSourceTarget *> cppSourceTargets;
     vector<LinkOrArchiveTarget *> linkOrArchiveTargets;
     vector<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;
-    vector<struct CPT *> prebuiltTargets;
+    vector<struct CSourceTarget *> prebuiltTargets;
     CompilerFeatures compilerFeatures;
     LinkerFeatures linkerFeatures;
     CppSourceTarget *moduleScope = nullptr;
@@ -50,8 +50,9 @@ struct Configuration : public CTarget
     PrebuiltLinkOrArchiveTarget &GetStaticPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
     PrebuiltLinkOrArchiveTarget &GetSharedPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
 
-    CPT &GetCPT();
+    CSourceTarget &GetCPT();
 
+    DSC<CppSourceTarget> &GetCppDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &GetCppExeDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &GetCppTargetDSC(const string &name_, bool defines = false, string define = "",
                                           TargetType targetType = cache.libraryType);
@@ -60,9 +61,11 @@ struct Configuration : public CTarget
     DSC<CppSourceTarget> &GetCppObjectDSC(const string &name_);
 
     // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
-    DSC<CPT> &GetCPTDSC_P(const string &name_, const string &directory, TargetType targetType);
-    DSC<CPT> &GetCPTStaticDSC_P(const string &name_, const string &directory);
-    DSC<CPT> &GetCPTSharedDSC_P(const string &name_, const string &directory);
+    DSC<CSourceTarget> &GetCPTDSC_P(const string &name_, const string &directory, TargetType targetType);
+    DSC<CSourceTarget> &GetCPTStaticDSC_P(const string &name_, const string &directory);
+    DSC<CSourceTarget> &GetCPTSharedDSC_P(const string &name_, const string &directory);
+
+    DSC<CppSourceTarget> &GetCppStaticDSC_P(const string &name_, const string &directory);
 
     ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;
 

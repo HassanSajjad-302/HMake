@@ -103,9 +103,9 @@ PrebuiltLinkOrArchiveTarget &GetSharedPrebuiltLinkOrArchiveTarget(const string &
     return prebuiltLinkOrArchiveTarget;
 }
 
-CPT &GetCPT()
+CSourceTarget &GetCPT()
 {
-    CPT &cpt = const_cast<CPT &>(targets<CPT>.emplace().first.operator*());
+    CSourceTarget &cpt = const_cast<CSourceTarget &>(targets<CSourceTarget>.emplace().first.operator*());
     return cpt;
 }
 
@@ -213,26 +213,27 @@ DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, CTarget &other, bool h
         targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name + dashCpp, other, hasFile))).first.operator*());
 }
 
-DSC<CPT> &GetCPTDSC_P(const string &name, const string &directory, TargetType targetType, bool defines, string define)
+DSC<CSourceTarget> &GetCPTDSC_P(const string &name, const string &directory, TargetType targetType, bool defines,
+                                string define)
 {
-    return const_cast<DSC<CPT> &>(
-        targets<DSC<CPT>>.emplace(
+    return const_cast<DSC<CSourceTarget> &>(
+        targets<DSC<CSourceTarget>>.emplace(
                              &(GetCPT()), &(GetPrebuiltLinkOrArchiveTarget(name, directory, targetType)),
                              defines, std::move(define)).first.operator*());
 }
 
-DSC<CPT> &GetCPTStaticDSC_P(const string &name, const string &directory, bool defines, string define)
+DSC<CSourceTarget> &GetCPTStaticDSC_P(const string &name, const string &directory, bool defines, string define)
 {
-    return const_cast<DSC<CPT> &>(
-        targets<DSC<CPT>>.emplace(
+    return const_cast<DSC<CSourceTarget> &>(
+        targets<DSC<CSourceTarget>>.emplace(
                                      &(GetCPT()), &(GetStaticPrebuiltLinkOrArchiveTarget(name, directory)),
                                      defines, std::move(define)).first.operator*());
 }
 
-DSC<CPT> &GetCPTSharedDSC_P(const string &name, const string &directory, bool defines, string define)
+DSC<CSourceTarget> &GetCPTSharedDSC_P(const string &name, const string &directory, bool defines, string define)
 {
-    return const_cast<DSC<CPT> &>(
-        targets<DSC<CPT>>.emplace(
+    return const_cast<DSC<CSourceTarget> &>(
+        targets<DSC<CSourceTarget>>.emplace(
                                      &(GetCPT()), &(GetSharedPrebuiltLinkOrArchiveTarget(name, directory)),
                                      defines, std::move(define)).first.operator*());
 }

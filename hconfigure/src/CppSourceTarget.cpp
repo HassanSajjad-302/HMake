@@ -199,15 +199,15 @@ void CppSourceTarget::addRequirementDepsToBTargetDependencies()
     // Access to addDependency() function must be synchronized
     std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
 
-    for (CPT *cppSourceTarget : requirementDeps)
+    for (CSourceTarget *cppSourceTarget : requirementDeps)
     {
-        getRealBTarget(2).addDependency(const_cast<CPT &>(*cppSourceTarget));
+        getRealBTarget(2).addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
     }
 }
 
 void CppSourceTarget::populateTransitiveProperties()
 {
-    for (CPT *cppSourceTarget : requirementDeps)
+    for (CSourceTarget *cppSourceTarget : requirementDeps)
     {
         for (InclNode &include : cppSourceTarget->usageRequirementIncludes)
         {
@@ -787,13 +787,13 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     else if (round == 3)
     {
         RealBTarget &round3 = getRealBTarget(3);
-        for (CPT *cppSourceTarget : requirementDeps)
+        for (CSourceTarget *cppSourceTarget : requirementDeps)
         {
-            round3.addDependency(const_cast<CPT &>(*cppSourceTarget));
+            round3.addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
         }
-        for (CPT *cppSourceTarget : usageRequirementDeps)
+        for (CSourceTarget *cppSourceTarget : usageRequirementDeps)
         {
-            round3.addDependency(const_cast<CPT &>(*cppSourceTarget));
+            round3.addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
         }
 
         getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;

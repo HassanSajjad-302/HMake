@@ -11,9 +11,12 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *lin
 {
     objectFileProducer = ptr;
     prebuiltLinkOrArchiveTarget = linkOrArchiveTarget_;
-    prebuiltLinkOrArchiveTarget->objectFileProducers.emplace(objectFileProducer);
+    if (linkOrArchiveTarget_)
+    {
+        prebuiltLinkOrArchiveTarget->objectFileProducers.emplace(objectFileProducer);
+    }
 
-    if (define_.empty())
+    if (define_.empty() && prebuiltLinkOrArchiveTarget)
     {
         define = prebuiltLinkOrArchiveTarget->outputName;
         transform(define.begin(), define.end(), define.begin(), ::toupper);
@@ -30,7 +33,7 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *lin
         defineDllInterface = DefineDLLInterface::YES;
     }
 
-    if (defineDllPrivate == DefineDLLPrivate::YES)
+    if (defineDllPrivate == DefineDLLPrivate::YES && prebuiltLinkOrArchiveTarget)
     {
         // Maybe call a function pointer in ptr if user wants to customize this
         if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))

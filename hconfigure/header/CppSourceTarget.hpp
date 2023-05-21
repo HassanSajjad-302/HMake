@@ -13,11 +13,11 @@ import <set>;
 import <string>;
 #else
 #include "BuildTools.hpp"
+#include "CSourceTarget.hpp"
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "JConsts.hpp"
 #include "PostBasic.hpp"
-#include "Prebuilt.hpp"
 #include "ToolsCache.hpp"
 #include <concepts>
 #include <set>
@@ -82,7 +82,7 @@ class CppSourceTarget : public CompilerFeatures,
                         public CppPT
 {
   public:
-    using BaseType = CPT;
+    using BaseType = CSourceTarget;
     Json buildCacheJson;
     TargetType compileTargetType;
     CppSourceTarget *moduleScope = nullptr;

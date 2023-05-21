@@ -3,17 +3,17 @@
 import "Prebuilt.hpp";
 import "Features.hpp";
 #else
-#include "Prebuilt.hpp"
+#include "CSourceTarget.hpp"
 #include "Features.hpp"
 #endif
 
-CPT &CPT::INTERFACE_COMPILER_FLAGS(const string &compilerFlags)
+CSourceTarget &CSourceTarget::INTERFACE_COMPILER_FLAGS(const string &compilerFlags)
 {
     usageRequirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CPT &CPT::INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
+CSourceTarget &CSourceTarget::INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
 {
     usageRequirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
