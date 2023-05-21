@@ -21,6 +21,29 @@ Configuration &GetConfiguration(const string &name, CTarget &other, bool hasFile
     return const_cast<Configuration &>(targets<Configuration>.emplace(name, other, hasFile).first.operator*());
 }
 
+/*CSourceTarget &GetCPreprocess(const string &name)
+{
+    return const_cast<CSourceTarget &>(targets<CSourceTarget>.emplace(name, TargetType::PREPROCESS).first.operator*());
+}
+
+CSourceTarget &GetCPreprocess(const string &name, CTarget &other, bool hasFile)
+{
+    return const_cast<CSourceTarget &>(
+        targets<CSourceTarget>.emplace(name, TargetType::PREPROCESS, other, hasFile).first.operator*());
+}
+
+CSourceTarget &GetCObject(const string &name)
+{
+    return const_cast<CSourceTarget &>(
+        targets<CSourceTarget>.emplace(name, TargetType::LIBRARY_OBJECT).first.operator*());
+}
+
+CSourceTarget &GetCObject(const string &name, CTarget &other, bool hasFile)
+{
+    return const_cast<CSourceTarget &>(
+        targets<CSourceTarget>.emplace(name, TargetType::LIBRARY_OBJECT, other, hasFile).first.operator*());
+}*/
+
 CppSourceTarget &GetCppPreprocess(const string &name)
 {
     return const_cast<CppSourceTarget &>(
@@ -145,8 +168,51 @@ DSC<CppSourceTarget> &GetCppTargetDSC(const string &name, bool defines, string d
     }
 }
 
-DSC<CppSourceTarget> &GetCppDSC(const string &name, CTarget &other, const bool defines, string define, bool hasFile,
-                                TargetType targetType)
+DSC<CppSourceTarget> &GetCppTargetDSC(const string &name, CTarget &other, bool defines, string define,
+                                      TargetType targetType, bool hasFile)
+{
+    CppSourceTarget *cppSourceTarget = &(GetCppObject(name + dashCpp, other, hasFile));
+    if (targetType == TargetType::LIBRARY_STATIC)
+    {
+        return const_cast<DSC<CppSourceTarget> &>(
+            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &(GetStaticLinkOrArchiveTarget(name, other, hasFile)), defines, std::move(define)).first.operator*());
+    }
+    else if (targetType == TargetType::LIBRARY_SHARED)
+    {
+        return const_cast<DSC<CppSourceTarget> &>(
+            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &(GetSharedLinkOrArchiveTarget(name, other, hasFile)), defines, std::move(define)).first.operator*());
+    }
+    else
+    {
+        return const_cast<DSC<CppSourceTarget> &>(
+            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget).first.operator*());
+    }
+}
+
+DSC<CppSourceTarget> &GetCppDSC(const string &name, const bool defines, string define, TargetType targetType)
+{
+    CppSourceTarget *cppSourceTarget = &(GetCppObject(name + dashCpp));
+    if (targetType == TargetType::LIBRARY_STATIC)
+    {
+        return const_cast<DSC<CppSourceTarget> &>(
+            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &(GetStaticLinkOrArchiveTarget(name)),
+                                                  defines, std::move(define)).first.operator*());
+    }
+    else if (targetType == TargetType::LIBRARY_SHARED)
+    {
+        return const_cast<DSC<CppSourceTarget> &>(
+            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &(GetSharedLinkOrArchiveTarget(name)),
+                                                  defines, std::move(define)).first.operator*());
+    }
+    else
+    {
+        return const_cast<DSC<CppSourceTarget> &>(
+            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget).first.operator*());
+    }
+}
+
+DSC<CppSourceTarget> &GetCppDSC(const string &name, CTarget &other, const bool defines, string define,
+                                TargetType targetType, bool hasFile)
 {
     CppSourceTarget *cppSourceTarget = &(GetCppObject(name + dashCpp, other, hasFile));
     if (targetType == TargetType::LIBRARY_STATIC)
@@ -213,27 +279,79 @@ DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, CTarget &other, bool h
         targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name + dashCpp, other, hasFile))).first.operator*());
 }
 
-DSC<CSourceTarget> &GetCPTDSC_P(const string &name, const string &directory, TargetType targetType, bool defines,
-                                string define)
+DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &directory, bool defines, string define,
+                                              TargetType targetType)
 {
-    return const_cast<DSC<CSourceTarget> &>(
-        targets<DSC<CSourceTarget>>.emplace(
-                             &(GetCPT()), &(GetPrebuiltLinkOrArchiveTarget(name, directory, targetType)),
-                             defines, std::move(define)).first.operator*());
+    CppSourceTarget *cppSourceTarget = &(GetCppObject(name + dashCpp));
+    if (targetType == TargetType::LIBRARY_STATIC)
+    {
+        return const_cast<DSC<CppSourceTarget, true> &>(
+            targets<DSC<CppSourceTarget, true>>.emplace(cppSourceTarget, &(GetStaticPrebuiltLinkOrArchiveTarget(name, directory)), defines, std::move(define)).first.operator*());
+    }
+    else if (targetType == TargetType::LIBRARY_SHARED)
+    {
+        return const_cast<DSC<CppSourceTarget, true> &>(
+            targets<DSC<CppSourceTarget, true>>.emplace(cppSourceTarget, &(GetSharedPrebuiltLinkOrArchiveTarget(name, directory)), defines, std::move(define)).first.operator*());
+    }
+    else
+    {
+        printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
+        throw std::exception{};
+    }
 }
 
-DSC<CSourceTarget> &GetCPTStaticDSC_P(const string &name, const string &directory, bool defines, string define)
+DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &directory, CTarget &other, bool defines,
+                                              string define, TargetType targetType, bool hasFile)
 {
-    return const_cast<DSC<CSourceTarget> &>(
-        targets<DSC<CSourceTarget>>.emplace(
-                                     &(GetCPT()), &(GetStaticPrebuiltLinkOrArchiveTarget(name, directory)),
-                                     defines, std::move(define)).first.operator*());
+    CppSourceTarget *cppSourceTarget = &(GetCppObject(name + dashCpp, other, hasFile));
+    if (targetType == TargetType::LIBRARY_STATIC)
+    {
+        return const_cast<DSC<CppSourceTarget, true> &>(
+            targets<DSC<CppSourceTarget, true>>.emplace(cppSourceTarget, &(GetStaticPrebuiltLinkOrArchiveTarget(name, directory)), defines, std::move(define)).first.operator*());
+    }
+    else if (targetType == TargetType::LIBRARY_SHARED)
+    {
+        return const_cast<DSC<CppSourceTarget, true> &>(
+            targets<DSC<CppSourceTarget, true>>.emplace(cppSourceTarget, &(GetSharedPrebuiltLinkOrArchiveTarget(name, directory)), defines, std::move(define)).first.operator*());
+    }
+    else
+    {
+        printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
+        throw std::exception{};
+    }
 }
 
-DSC<CSourceTarget> &GetCPTSharedDSC_P(const string &name, const string &directory, bool defines, string define)
+DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const string &name, const string &directory, const bool defines,
+                                              string define)
 {
-    return const_cast<DSC<CSourceTarget> &>(
-        targets<DSC<CSourceTarget>>.emplace(
-                                     &(GetCPT()), &(GetSharedPrebuiltLinkOrArchiveTarget(name, directory)),
-                                     defines, std::move(define)).first.operator*());
+    return const_cast<DSC<CppSourceTarget, true> &>(
+        targets<DSC<CppSourceTarget, true>>.emplace(&(GetCppObject(name + dashCpp)), &(GetStaticPrebuiltLinkOrArchiveTarget(name, directory)),
+                                              defines, std::move(define)).first.operator*());
+}
+
+DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const string &name, const string &directory, CTarget &other,
+                                              const bool defines, string define, bool hasFile)
+{
+    return const_cast<DSC<CppSourceTarget, true> &>(
+        targets<DSC<CppSourceTarget, true>>.emplace(&(GetCppObject(name + dashCpp, other, hasFile)),
+                                              &(GetStaticPrebuiltLinkOrArchiveTarget(name, directory)),
+                                              defines, std::move(define)).first.operator*());
+}
+
+DSC<CppSourceTarget, true> &GetCppSharedDSC_P(const string &name, const string &directory, const bool defines,
+                                              string define)
+{
+    return const_cast<DSC<CppSourceTarget, true> &>(
+        targets<DSC<CppSourceTarget, true>>.emplace(&(GetCppObject(name + dashCpp)), &(GetSharedPrebuiltLinkOrArchiveTarget(name, directory)),
+                                              defines, std::move(define)).first.operator*());
+}
+
+DSC<CppSourceTarget, true> &GetCppSharedDSC_P(const string &name, const string &directory, CTarget &other,
+                                              const bool defines, string define, bool hasFile)
+{
+    return const_cast<DSC<CppSourceTarget, true> &>(
+        targets<DSC<CppSourceTarget, true>>.emplace(
+                                         &(GetCppObject(name + dashCpp, other, hasFile)),
+                                         &(GetSharedPrebuiltLinkOrArchiveTarget(name, directory)),
+                                         defines, std::move(define)).first.operator*());
 }

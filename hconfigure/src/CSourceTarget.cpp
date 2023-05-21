@@ -18,3 +18,8 @@ CSourceTarget &CSourceTarget::INTERFACE_COMPILE_DEFINITION(const string &cddName
     usageRequirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
+
+bool operator<(const CSourceTarget &lhs, const CSourceTarget &rhs)
+{
+    return lhs.id < rhs.id;
+}

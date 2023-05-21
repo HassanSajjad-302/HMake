@@ -34,7 +34,7 @@ struct Configuration : public CTarget
     vector<LinkOrArchiveTarget *> linkOrArchiveTargets;
     vector<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;
     vector<struct CSourceTarget *> prebuiltTargets;
-    CompilerFeatures compilerFeatures;
+    CppCompilerFeatures compilerFeatures;
     LinkerFeatures linkerFeatures;
     CppSourceTarget *moduleScope = nullptr;
     bool archiving = false;
@@ -61,11 +61,15 @@ struct Configuration : public CTarget
     DSC<CppSourceTarget> &GetCppObjectDSC(const string &name_);
 
     // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
-    DSC<CSourceTarget> &GetCPTDSC_P(const string &name_, const string &directory, TargetType targetType);
-    DSC<CSourceTarget> &GetCPTStaticDSC_P(const string &name_, const string &directory);
-    DSC<CSourceTarget> &GetCPTSharedDSC_P(const string &name_, const string &directory);
 
-    DSC<CppSourceTarget> &GetCppStaticDSC_P(const string &name_, const string &directory);
+    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &directory, bool defines,
+                                                  string define, TargetType targetType);
+
+    DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const string &name, const string &directory, bool defines,
+                                                  string define);
+
+    DSC<CppSourceTarget, true> &GetCppSharedDSC_P(const string &name, const string &directory, bool defines,
+                                                  string define);
 
     ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;
 
@@ -171,7 +175,7 @@ template <typename T, typename... Property> Configuration &Configuration::ASSIGN
         compilerFeatures.runtimeDebugging = property;
         linkerFeatures.runtimeDebugging = property;
     }
-    // CompilerFeatures
+    // CppCompilerFeatures
     else if constexpr (std::is_same_v<decltype(property), CxxFlags>)
     {
         compilerFeatures.requirementCompilerFlags += property;

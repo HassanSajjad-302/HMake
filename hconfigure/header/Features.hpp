@@ -36,12 +36,6 @@ enum class TreatModuleAsSource
     YES
 };
 
-enum class CSourceTarget
-{
-    NO,
-    YES
-};
-
 enum class CopyDLLToExeDirOnNTOs
 {
     NO,
@@ -724,7 +718,7 @@ struct LinkerFeatures
     void setConfigType(ConfigType configType);
 };
 
-struct CompilerFeatures
+struct CppCompilerFeatures
 {
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
@@ -773,8 +767,6 @@ struct CompilerFeatures
     InstructionSet instructionSet = InstructionSet::OFF;
     CpuType cpuType;
 
-    CSourceTarget cSourceTarget = CSourceTarget::NO;
-
     CxxSTD cxxStd = CxxSTD::V_LATEST;
     CxxSTDDialect cxxStdDialect = CxxSTDDialect::ISO;
     Compiler compiler;
@@ -784,15 +776,15 @@ struct CompilerFeatures
     list<InclNode> requirementIncludes;
     string requirementCompilerFlags;
     set<Define> requirementCompileDefinitions;
-    CompilerFeatures();
+    CppCompilerFeatures();
     void setCompilerFromVSTools(VSTools &vsTools);
     void setCompilerFromLinuxTools(struct LinuxTools &linuxTools);
     void setConfigType(ConfigType configType);
-    template <typename... U> CompilerFeatures &PRIVATE_INCLUDES(const string &include, U... includeDirectoryString);
+    template <typename... U> CppCompilerFeatures &PRIVATE_INCLUDES(const string &include, U... includeDirectoryString);
 };
 
 template <typename... U>
-CompilerFeatures &CompilerFeatures::PRIVATE_INCLUDES(const string &include, U... includeDirectoryString)
+CppCompilerFeatures &CppCompilerFeatures::PRIVATE_INCLUDES(const string &include, U... includeDirectoryString)
 {
     InclNode::emplaceInList(requirementIncludes, Node::getNodeFromString(include, false));
     if constexpr (sizeof...(includeDirectoryString))

@@ -11,7 +11,7 @@ import "CppSourceTarget.hpp";
 #include "ObjectFileProducer.hpp"
 #endif
 
-// Dependency Specification Controller
+// Dependency Specification Controller. Following declaration is for T = CSourceTarget
 template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
 {
     using BaseType = typename T::BaseType;
@@ -56,7 +56,7 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
         objectFileProducer = ptr;
     }
 
-    template <typename U, typename... V> DSC<T> &PUBLIC_LIBRARIES(DSC<U> *controller, const V... libraries)
+    template <typename U, typename... V> DSC &PUBLIC_LIBRARIES(DSC<U> *controller, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::PUBLIC, prebuiltDepLocal);
         if (objectFileProducer && controller->objectFileProducer)
@@ -73,7 +73,7 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
         }
     }
 
-    template <typename U, typename... V> DSC<T> &PRIVATE_LIBRARIES(DSC<U> *controller, const V... libraries)
+    template <typename U, typename... V> DSC &PRIVATE_LIBRARIES(DSC<U> *controller, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::PRIVATE, prebuiltDepLocal);
         if (objectFileProducer && controller->objectFileProducer)
@@ -90,7 +90,7 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
         }
     }
 
-    template <typename U, typename... V> DSC<T> &INTERFACE_LIBRARIES(DSC<U> *controller, const V... libraries)
+    template <typename U, typename... V> DSC &INTERFACE_LIBRARIES(DSC<U> *controller, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::INTERFACE, prebuiltDepLocal);
         if (objectFileProducer && controller->objectFileProducer)
@@ -108,7 +108,7 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
     }
 
     template <typename U, typename... V>
-    DSC<T> &PUBLIC_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
+    DSC &PUBLIC_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::PUBLIC, std::move(prebuiltDep));
         if (objectFileProducer && controller->objectFileProducer)
@@ -126,7 +126,7 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
     }
 
     template <typename U, typename... V>
-    DSC<T> &PRIVATE_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
+    DSC &PRIVATE_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::PRIVATE, std::move(prebuiltDep));
         if (objectFileProducer && controller->objectFileProducer)
@@ -144,7 +144,7 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
     }
 
     template <typename U, typename... V>
-    DSC<T> &INTERFACE_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
+    DSC &INTERFACE_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::INTERFACE, std::move(prebuiltDep));
         if (objectFileProducer && controller->objectFileProducer)
@@ -167,7 +167,7 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
     LinkOrArchiveTarget &getLinkOrArchiveTarget();
 };
 
-template <typename T, bool prebuilt> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
+template <typename T, bool prebuilt> bool operator<(const DSC<T, prebuilt> &lhs, const DSC<T, prebuilt> &rhs)
 {
     return std::tie(lhs.objectFileProducer, lhs.prebuiltLinkOrArchiveTarget) <
            std::tie(rhs.objectFileProducer, rhs.prebuiltLinkOrArchiveTarget);
@@ -177,7 +177,7 @@ template <typename T, bool prebuilt>
 template <typename U>
 void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U> *controller, Dependency dependency, PrebuiltDep prebuiltDep)
 {
-    // If prebuiltLinkOrArchiveTarget does not exists for a DSC<T>, then it is an ObjectLibrary.
+    // If prebuiltLinkOrArchiveTarget does not exists for a DSC, then it is an ObjectLibrary.
     if (prebuiltLinkOrArchiveTarget && controller->prebuiltLinkOrArchiveTarget)
     {
         // None is ObjectLibrary
@@ -256,7 +256,7 @@ template <typename U>
 void DSC<CSourceTarget>::assignLinkOrArchiveTargetLib(DSC<U> *controller, Dependency dependency,
                                                       PrebuiltDep prebuiltDep)
 {
-    // If prebuiltLinkOrArchiveTarget does not exists for a DSC<T>, then it is an ObjectLibrary.
+    // If prebuiltLinkOrArchiveTarget does not exists for a DSC, then it is an ObjectLibrary.
     if (prebuiltLinkOrArchiveTarget && controller->prebuiltLinkOrArchiveTarget)
     {
         // None is ObjectLibrary
@@ -358,4 +358,5 @@ template <typename T, bool prebuilt> LinkOrArchiveTarget &DSC<T, prebuilt>::getL
 template <>
 DSC<CppSourceTarget>::DSC(class CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *linkOrArchiveTarget_, bool defines,
                           string define_);
+
 #endif // HMAKE_DSC_HPP

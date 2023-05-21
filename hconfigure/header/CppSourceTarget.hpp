@@ -72,14 +72,10 @@ struct ModuleScopeData
     unsigned int totalSMRuleFileCount = 0;
 };
 
-// TODO
-// HMake currently does not has proper C Support. There is workaround though. Types such as Compiler and
-// CompilerFeatures should be renamed to CppCompiler and CppCompilerFeatures and new types such as CSourceTarget would
-// be defined.
-class CppSourceTarget : public CompilerFeatures,
+class CppSourceTarget : public CppCompilerFeatures,
                         public CTarget,
                         public FeatureConvenienceFunctions<CppSourceTarget>,
-                        public CppPT
+                        public CSourceTarget
 {
   public:
     using BaseType = CSourceTarget;
@@ -450,11 +446,7 @@ CppSourceTarget &CppSourceTarget::R_MODULE_DIRECTORIES_RG(const string &moduleDi
 template <Dependency dependency, typename T, typename... Property>
 CppSourceTarget &CppSourceTarget::ASSIGN(T property, Property... properties)
 {
-    if constexpr (std::is_same_v<decltype(property), CSourceTarget>)
-    {
-        cSourceTarget = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Compiler>)
+    if constexpr (std::is_same_v<decltype(property), Compiler>)
     {
         compiler = property;
     }
@@ -586,10 +578,6 @@ CppSourceTarget &CppSourceTarget::ASSIGN(T property, Property... properties)
 
 template <typename T> bool CppSourceTarget::EVALUATE(T property) const
 {
-    if constexpr (std::is_same_v<decltype(property), CSourceTarget>)
-    {
-        return cSourceTarget == property;
-    }
     if constexpr (std::is_same_v<decltype(property), Compiler>)
     {
         return compiler == property;

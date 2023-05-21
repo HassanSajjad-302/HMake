@@ -16,7 +16,7 @@ using std::string;
 
 // TODO
 // Write a concept that checks for the presence of EVALUATE() and ASSIGN() functions.
-// CRTP Pattern Used for defining Convenience Features that are used with CompilerFeatures and LinkerFeatures.
+// CRTP Pattern Used for defining Convenience Features that are used with CppCompilerFeatures and LinkerFeatures.
 // EVALUATE() and ASSIGN() are defined in the derived class.
 template <typename U> class FeatureConvenienceFunctions
 {

@@ -26,6 +26,7 @@ struct CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>
     CSourceTarget &INTERFACE_COMPILER_FLAGS(const string &compilerFlags);
     CSourceTarget &INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue = "");
 };
+bool operator<(const CSourceTarget &lhs, const CSourceTarget &rhs);
 
 template <typename... U>
 CSourceTarget &CSourceTarget::INTERFACE_INCLUDES(const string &include, U... includeDirectoryString)

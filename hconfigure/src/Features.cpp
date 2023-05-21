@@ -354,7 +354,7 @@ void LinkerFeatures::setConfigType(ConfigType configType)
     }
 }
 
-CompilerFeatures::CompilerFeatures()
+CppCompilerFeatures::CppCompilerFeatures()
 {
     // TODO
     addModel = AddressModel::A_64;
@@ -386,7 +386,7 @@ CompilerFeatures::CompilerFeatures()
     }
 }
 
-void CompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
+void CppCompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
 {
     compiler = vsTools.compiler;
     for (const string &str : vsTools.includeDirectories)
@@ -395,7 +395,7 @@ void CompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
     }
 }
 
-void CompilerFeatures::setCompilerFromLinuxTools(LinuxTools &linuxTools)
+void CppCompilerFeatures::setCompilerFromLinuxTools(LinuxTools &linuxTools)
 {
     compiler = linuxTools.compiler;
     for (const string &str : linuxTools.includeDirectories)
@@ -404,7 +404,7 @@ void CompilerFeatures::setCompilerFromLinuxTools(LinuxTools &linuxTools)
     }
 }
 
-void CompilerFeatures::setConfigType(ConfigType configType)
+void CppCompilerFeatures::setConfigType(ConfigType configType)
 {
     // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
     // variant is set runtime-debugging is not set though. Here it is set, however.

@@ -1023,7 +1023,8 @@ void CppSourceTarget::setCompileCommand()
     }
     else if (compiler.bTFamily == BTFamily::MSVC)
     {
-        string str = cSourceTarget == CSourceTarget::YES ? "-TC" : "-TP";
+        // string str = cSourceTarget == CSourceTarget::YES ? "-TC" : "-TP";
+        string str = "-TP";
         compileCommand += str + " " + flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE + flags.OPTIONS_COMPILE +
                           flags.OPTIONS_COMPILE_CPP;
     }
