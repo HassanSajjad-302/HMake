@@ -20,7 +20,7 @@ import <vector>;
 using std::vector;
 
 using std::string, std::set;
-using Json = nlohmann::ordered_json;
+using Json = nlohmann::json;
 
 // On Windows standard libraries and includes are not provided by default. And tools used are different based on
 // Architecture and Address-Model.

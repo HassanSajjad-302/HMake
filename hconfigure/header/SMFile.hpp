@@ -20,7 +20,7 @@ import <vector>;
 #include <vector>
 #endif
 
-using Json = nlohmann::ordered_json;
+using Json = nlohmann::json;
 using std::string, std::map, std::set, std::vector, std::filesystem::path, std::pair, std::list;
 
 class Node;
@@ -91,8 +91,8 @@ struct CompareSourceNode
 
 struct SourceNode : public ObjectFile
 {
-    Json headerFilesJson;
-    string compileCommandJson;
+    Json *headerFilesJson;
+    Json compileCommandJson;
     class CppSourceTarget *target;
     const Node *node;
     bool presentInCache = false;

@@ -8,6 +8,7 @@ import <string>;
 import <mutex>;
 #else
 #include "OS.hpp"
+#include "nlohmann/json.hpp"
 #include <map>
 #include <mutex>
 #include <set>
@@ -19,6 +20,14 @@ import <mutex>;
 #else
 #define EXPORT __attribute__((visibility("default")))
 #endif
+
+// TODO
+// Hashing should be used for compile-command as explained here https://aosabook.org/en/posa/ninja.html
+// File paths could be hashed as-well, if impactful. Other formats besides json could be explored for faster loading and
+// processing.
+using Json = nlohmann::json; // Unordered json
+inline Json buildCache;
+void writeBuildCache();
 
 using std::string, std::set, std::map, std::mutex;
 

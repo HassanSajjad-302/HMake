@@ -18,7 +18,12 @@ import <fstream>;
 #endif
 
 using fmt::print, std::filesystem::current_path, std::filesystem::exists, std::filesystem::directory_iterator,
-    std::ifstream;
+    std::ifstream, std::ofstream;
+
+void writeBuildCache()
+{
+    ofstream(configureDir + "/build-cache.json") << buildCache.dump(4);
+}
 
 void initializeCache(BSMode bsMode_)
 {
@@ -140,6 +145,14 @@ void configureOrBuild()
         TCT::tarjanNodes = &tarjanNodesCTargets;
         TCT::findSCCS();
         TCT::checkForCycle();
+    }
+    if (bsMode == BSMode::BUILD)
+    {
+        path p = path(configureDir) / "build-cache.json";
+        if (exists(p))
+        {
+            ifstream(p.string()) >> buildCache;
+        }
     }
 
     vector<BTarget *> preSortBTargets;

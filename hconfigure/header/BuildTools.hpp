@@ -9,7 +9,7 @@ import <filesystem>;
 #endif
 
 using std::filesystem::path;
-using Json = nlohmann::ordered_json;
+using Json = nlohmann::json;
 
 enum class Platform
 {

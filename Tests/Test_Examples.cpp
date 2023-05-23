@@ -13,8 +13,6 @@
 using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::path,
     std::filesystem::current_path, std::cout, fmt::format, std::filesystem::remove_all, std::ifstream, std::ofstream;
 
-using Json = nlohmann::ordered_json;
-
 TEST(ExamplesTest, Example1)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example1"));

@@ -1174,48 +1174,56 @@ string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
 
 void CppSourceTarget::readBuildCacheFile(Builder &)
 {
+    const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
+    targetBuildCache = iter.operator->();
+
+    if (Ok)
+    {
+        targetBuildCache->emplace(JConsts::sourceDependencies, Json::object_t{});
+        targetBuildCache->emplace(JConsts::moduleDependencies, Json::object_t{});
+        targetBuildCache->emplace(JConsts::headerUnits, Json::object_t{});
+    }
+
     if (!std::filesystem::exists(path(buildCacheFilesDirPath)))
     {
         create_directories(buildCacheFilesDirPath);
         return;
     }
 
-    if (std::filesystem::exists(path(buildCacheFilesDirPath) / (name + ".cache")))
+    if (!Ok)
     {
-        ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> buildCacheJson;
-
-        for (Json &j : buildCacheJson.at(JConsts::sourceDependencies))
+        for (Json &j : targetBuildCache->at(JConsts::sourceDependencies))
         {
             Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
             if (!node->doesNotExist)
             {
                 SourceNode &sourceNode = addNodeInSourceFileDependencies(node);
                 sourceNode.presentInCache = true;
-                sourceNode.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                sourceNode.compileCommandJson = j.at(JConsts::compileCommand).get<string>();
+                sourceNode.headerFilesJson = &(j.at(JConsts::headerDependencies));
+                sourceNode.compileCommandJson = j.at(JConsts::compileCommand);
             }
         }
-        for (Json &j : buildCacheJson.at(JConsts::moduleDependencies))
+        for (Json &j : targetBuildCache->at(JConsts::moduleDependencies))
         {
             Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
             if (!node->doesNotExist)
             {
                 SMFile &smFile = addNodeInModuleSourceFileDependencies(node);
                 smFile.presentInCache = true;
-                smFile.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                smFile.compileCommandJson = j.at(JConsts::compileCommand).get<string>();
+                smFile.headerFilesJson = &(j.at(JConsts::headerDependencies));
+                smFile.compileCommandJson = j.at(JConsts::compileCommand);
             }
         }
 
-        for (Json &j : buildCacheJson.at(JConsts::headerUnits))
+        for (Json &j : targetBuildCache->at(JConsts::headerUnits))
         {
             Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
             if (!node->doesNotExist)
             {
                 SMFile &headerUnit = addNodeInHeaderUnits(node);
                 headerUnit.presentInCache = true;
-                headerUnit.headerFilesJson = std::move(j.at(JConsts::headerDependencies));
-                headerUnit.compileCommandJson = j.at(JConsts::compileCommand).get<string>();
+                headerUnit.headerFilesJson = &(j.at(JConsts::headerDependencies));
+                headerUnit.compileCommandJson = j.at(JConsts::compileCommand);
             }
         }
     }
@@ -1478,10 +1486,10 @@ void CppSourceTarget::saveBuildCache(bool round)
 {
     if (round)
     {
-        buildCacheJson[JConsts::sourceDependencies] = sourceFileDependencies;
-        buildCacheJson[JConsts::moduleDependencies] = moduleSourceFileDependencies;
-        buildCacheJson[JConsts::headerUnits] = headerUnits;
-        ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCacheJson.dump(4);
+        (*targetBuildCache)[JConsts::sourceDependencies] = sourceFileDependencies;
+        (*targetBuildCache)[JConsts::moduleDependencies] = moduleSourceFileDependencies;
+        (*targetBuildCache)[JConsts::headerUnits] = headerUnits;
+        writeBuildCache();
     }
     else
     {
@@ -1492,11 +1500,11 @@ void CppSourceTarget::saveBuildCache(bool round)
                 archived = true;
             }
         }
-        buildCacheJson[JConsts::archived] = archived;
-        buildCacheJson[JConsts::sourceDependencies] = sourceFileDependencies;
-        buildCacheJson[JConsts::moduleDependencies] = moduleSourceFileDependencies;
-        buildCacheJson[JConsts::headerUnits] = headerUnits;
-        ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << buildCacheJson.dump(4);
+        //(*targetBuildCache)[JConsts::archived] = archived;
+        (*targetBuildCache)[JConsts::sourceDependencies] = sourceFileDependencies;
+        (*targetBuildCache)[JConsts::moduleDependencies] = moduleSourceFileDependencies;
+        (*targetBuildCache)[JConsts::headerUnits] = headerUnits;
+        writeBuildCache();
     }
 }
 

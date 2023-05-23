@@ -57,7 +57,6 @@ class LinkOrArchiveTarget : public CTarget,
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
 
     string buildCacheFilesDirPath;
-
     bool archiving = false;
     bool archived = false;
 

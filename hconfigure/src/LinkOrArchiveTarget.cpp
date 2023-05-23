@@ -98,16 +98,24 @@ void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round)
             }
             else
             {
+                const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
+                Json &targetBuildCache = iter.operator*();
 
-                set<string> cachedObjectFiles;
-                if (exists(path(buildCacheFilesDirPath) / (name + ".cache")))
+                if (Ok)
                 {
-                    Json linkTargetCacheJson;
-                    ifstream(path(buildCacheFilesDirPath) / (name + ".cache")) >> linkTargetCacheJson;
-                    string command = std::move(linkTargetCacheJson.at(JConsts::linkCommand));
-                    cachedObjectFiles = linkTargetCacheJson.at(JConsts::objectFiles).get<set<string>>();
+                    // Following is needed because of selectedBuild. Because of that a target getSubDirOfTarget might be
+                    // saved early in the build-process, without its link-command and object-files getting updated. So,
+                    // the following scaffold is created, so that the following nlohmann::json::at command will succeed.
+                    targetBuildCache.emplace(JConsts::compileCommand, Json::string_t{});
+                    targetBuildCache.emplace(JConsts::objectFiles, Json::array_t{});
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                }
+                else
+                {
+                    set<string> cachedObjectFiles = targetBuildCache.at(JConsts::objectFiles).get<set<string>>();
 
-                    if (command == linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets)
+                    if (targetBuildCache[JConsts::linkCommand] ==
+                        linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets)
                     {
                         bool needsUpdate = false;
                         if (!EVALUATE(TargetType::LIBRARY_STATIC))
@@ -149,10 +157,6 @@ void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round)
                     {
                         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                     }
-                }
-                else
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                 }
             }
         }
@@ -237,16 +241,16 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
         realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
         if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
         {
-            Json cacheFileJson;
-            cacheFileJson[JConsts::linkCommand] =
+            Json &targetBuildCache = buildCache.emplace(getSubDirForTarget(), Json::object_t{}).first.operator*();
+            targetBuildCache[JConsts::linkCommand] =
                 linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets;
             vector<string> cachedObjectFilesVector;
             for (const ObjectFile *objectFile : objectFiles)
             {
                 cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
             }
-            cacheFileJson[JConsts::objectFiles] = std::move(cachedObjectFilesVector);
-            ofstream(path(buildCacheFilesDirPath) / (name + ".cache")) << cacheFileJson.dump(4);
+            targetBuildCache[JConsts::objectFiles] = std::move(cachedObjectFilesVector);
+            writeBuildCache();
         }
 
         {

@@ -54,8 +54,8 @@ bool Snapshot::snapshotBalances(const Updates &updates)
         }
     }
     unsigned short sum = 0;
-    unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 7 : 4; // No response file on Linux
-    unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 5 : 4;
+    unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 6 : 3; // No response file on Linux
+    unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 4 : 3;
 
     // Output, Error, .smrules, Respone File on Windows / Deps Output File on Linux
     sum += 4 * updates.smruleFiles;
@@ -67,7 +67,10 @@ bool Snapshot::snapshotBalances(const Updates &updates)
 
     sum += updates.linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
     sum += updates.linkTargetsDebug * debugLinkTargetsMultiplier;
-    sum += updates.cppTargets;
+    if (updates.cppTargets || updates.linkTargetsNoDebug || updates.linkTargetsDebug)
+    {
+        sum += 1; // build-cache.jon
+    }
     if (difference.size() != sum)
     {
         bool breakpoint = true;

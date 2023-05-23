@@ -9,7 +9,7 @@ import <string>;
 #include <string>
 #endif
 
-using Json = nlohmann::ordered_json;
+using Json = nlohmann::json;
 using std::string;
 
 enum class TargetType

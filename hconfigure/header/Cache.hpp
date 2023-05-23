@@ -16,7 +16,7 @@ import <vector>;
 #include <vector>
 #endif
 
-using Json = nlohmann::ordered_json;
+using Json = nlohmann::json;
 using std::string, std::vector, std::filesystem::path;
 struct Cache
 {

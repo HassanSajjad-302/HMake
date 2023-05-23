@@ -308,7 +308,7 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
         return;
     }
 
-    for (const Json &str : headerFilesJson)
+    for (const Json &str : *headerFilesJson)
     {
         Node *headerNode = const_cast<Node *>(Node::getNodeFromString(str, true, true));
         if (node->doesNotExist)

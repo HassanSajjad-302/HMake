@@ -7,7 +7,7 @@
 #include "nlohmann/json.hpp"
 #endif
 
-using Json = nlohmann::ordered_json;
+using Json = nlohmann::json;
 
 enum class ConfigType
 {

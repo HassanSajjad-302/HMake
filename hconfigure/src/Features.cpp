@@ -17,7 +17,7 @@ import "nlohmann/json.hpp";
 #include "nlohmann/json.hpp"
 #endif
 
-using Json = nlohmann::ordered_json;
+using Json = nlohmann::json;
 
 void to_json(Json &j, const Arch &arch)
 {

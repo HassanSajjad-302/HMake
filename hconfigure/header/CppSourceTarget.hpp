@@ -79,7 +79,7 @@ class CppSourceTarget : public CppCompilerFeatures,
 {
   public:
     using BaseType = CSourceTarget;
-    Json buildCacheJson;
+    Json *targetBuildCache;
     TargetType compileTargetType;
     CppSourceTarget *moduleScope = nullptr;
     ModuleScopeData *moduleScopeData = nullptr;

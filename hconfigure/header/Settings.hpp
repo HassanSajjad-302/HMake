@@ -14,7 +14,7 @@ import <thread>;
 #endif
 
 using std::string;
-using Json = nlohmann::ordered_json;
+using Json = nlohmann::json;
 
 enum class PathPrintLevel
 {

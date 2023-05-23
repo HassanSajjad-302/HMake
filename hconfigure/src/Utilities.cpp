@@ -34,7 +34,7 @@ string file_to_string(const string &file_name)
     if (file_stream.fail())
     {
         // Error opening file.
-        printErrorMessage(format("Error opening file {}\n", file_name));
+        printErrorMessage(fmt::format("Error opening file {}\n", file_name));
         throw std::exception();
     }
 
@@ -44,7 +44,7 @@ string file_to_string(const string &file_name)
     if (file_stream.fail() && !file_stream.eof())
     {
         // Error reading file.
-        printErrorMessage(format("Error reading file {}\n", file_name));
+        printErrorMessage(fmt::format("Error reading file {}\n", file_name));
         throw std::exception();
     }
 

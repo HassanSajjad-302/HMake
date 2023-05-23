@@ -15,9 +15,8 @@
 
 using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::path,
     std::filesystem::current_path, std::cout, fmt::format, std::filesystem::remove_all, std::ifstream, std::ofstream,
-    std::filesystem::remove, std::filesystem::copy_file, std::error_code, std::filesystem::copy_options, fmt::print;
-
-using Json = nlohmann::ordered_json;
+    std::filesystem::remove, std::filesystem::remove_all, std::filesystem::copy_file, std::error_code,
+    std::filesystem::copy_options, fmt::print;
 
 static void touchFile(const path &filePath)
 {
@@ -41,6 +40,16 @@ static void removeFilePath(const path &filePath)
 {
     error_code ec;
     if (bool removed = remove(filePath, ec); !removed || ec)
+    {
+        print(stderr, "Could Not Remove the filePath {}\nError {}", filePath.generic_string(), ec ? ec.message() : "");
+        exit(EXIT_FAILURE);
+    }
+}
+
+static void removeDirectory(const path &filePath)
+{
+    error_code ec;
+    if (bool removed = remove_all(filePath, ec); !removed || ec)
     {
         print(stderr, "Could Not Remove the filePath {}\nError {}", filePath.generic_string(), ec ? ec.message() : "");
         exit(EXIT_FAILURE);
@@ -135,13 +144,13 @@ TEST(StageTests, Test1)
     executeSnapshotBalances(Updates{}, "app-cpp/");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "app/");
 
-    // Deleting app-cpp.cache
-    path appCppCacheFilePath = testSourcePath / "Build/app-cpp/Cache_Build_Files/app-cpp.cache";
-    removeFilePath(appCppCacheFilePath);
+    // Deleting app-cpp directory
+    path appCppDirectory = testSourcePath / "Build/app-cpp/";
+    removeDirectory(appCppDirectory);
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1});
 
-    // Deleting app-cpp.cache but executing hbuild in app
-    removeFilePath(appCppCacheFilePath);
+    // Deleting app-cpp directory but executing hbuild in app
+    removeDirectory(appCppDirectory);
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1}, "app/");
 
     // Deleting main.cpp.o
@@ -238,17 +247,17 @@ TEST(StageTests, Test2)
     touchFile(publicLib4DotHpp);
     executeSnapshotBalances(Updates{.sourceFiles = 3, .cppTargets = 3, .linkTargetsNoDebug = 3, .linkTargetsDebug = 1});
 
-    // Deleting lib3-cpp.cache
-    path lib3CppCacheFilePath = testSourcePath / "Build/Debug/lib3-cpp/Cache_Build_Files/lib3-cpp.cache";
-    removeFilePath(lib3CppCacheFilePath);
+    // Deleting lib3-cpp directory
+    path lib3CppDirectory = testSourcePath / "Build/Debug/lib3-cpp/";
+    removeDirectory(lib3CppDirectory);
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
-    // Deleting lib4 and lib2's app-cpp.cache
+    // Deleting lib4 and lib2-cpp directory
     path lib4 = testSourcePath / "Build/Debug/lib4/" /
                 path(getActualNameFromTargetName(TargetType::LIBRARY_STATIC, os, "lib4"));
-    path lib2CppCacheFilePath = testSourcePath / "Build/Debug/lib2-cpp/Cache_Build_Files/lib2-cpp.cache";
+    path lib2CppDirectory = testSourcePath / "Build/Debug/lib2-cpp/";
     removeFilePath(lib4);
-    removeFilePath(lib2CppCacheFilePath);
+    removeDirectory(lib2CppDirectory);
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Touching main.cpp lib1.cpp lib1.hpp-public lib4.hpp-public
