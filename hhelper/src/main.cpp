@@ -136,7 +136,7 @@ int main(int argc, char **argv)
                 compileCommand += "/I " + addQuotes(str) + " ";
             }
             compileCommand += "/I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() + " /I " +
-                              fmtHeaderPath.string() + " /std:c++latest /EHsc /MD /nologo " +
+                              fmtHeaderPath.string() + " /std:c++latest /GL /EHsc /MD /nologo " +
                               "{SOURCE_DIRECTORY}/hmake.cpp /link /SUBSYSTEM:CONSOLE /NOLOGO /DLL ";
             for (const string &str : toolsCache.vsTools[0].libraryDirectories)
             {
