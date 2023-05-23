@@ -206,7 +206,7 @@ void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controlle
                                               std::move(prebuiltDep));
         }
     }
-    else if (prebuiltLinkOrArchiveTarget && !controller->prebuiltLinkOrArchiveTarget)
+    else if (prebuiltLinkOrArchiveTarget)
     {
         if (!controller->objectFileProducer)
         {
@@ -216,7 +216,15 @@ void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controlle
         // LinkOrArchiveTarget has ObjectLibrary as dependency.
         prebuiltLinkOrArchiveTarget->objectFileProducers.emplace(controller->objectFileProducer);
     }
-    else if (!prebuiltLinkOrArchiveTarget && !controller->prebuiltLinkOrArchiveTarget)
+    else if (controller->prebuiltLinkOrArchiveTarget)
+    {
+        // ObjectLibrary has LinkOrArchiveTarget as dependency.
+        printErrorMessage(fmt::format(
+            "ObjectLibrary DSC\n{}\ncan't have PrebuiltLinkOrArchiveTarget DSC\n{}\nas dependency.\n",
+            objectFileProducer->getTarjanNodeName(), controller->prebuiltLinkOrArchiveTarget->getTarjanNodeName()));
+        throw std::exception();
+    }
+    else
     {
         if (!controller->objectFileProducer)
         {
@@ -230,14 +238,6 @@ void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controlle
         }
         // ObjectLibrary has another ObjectLibrary as dependency.
         objectFileProducer->usageRequirementObjectFileProducers.emplace(controller->objectFileProducer);
-    }
-    else
-    {
-        // ObjectLibrary has LinkOrArchiveTarget as dependency.
-        printErrorMessage(fmt::format(
-            "ObjectLibrary DSC\n{}\ncan't have PrebuiltLinkOrArchiveTarget DSC\n{}\nas dependency.\n",
-            objectFileProducer->getTarjanNodeName(), controller->prebuiltLinkOrArchiveTarget->getTarjanNodeName()));
-        throw std::exception();
     }
 
     if (controller->defineDllInterface == DefineDLLInterface::YES)
@@ -286,45 +286,49 @@ void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U, true> *controller, De
         }
         prebuiltLinkOrArchiveTarget->objectFileProducers.emplace(controller->objectFileProducer);
     }
-    else if (prebuiltLinkOrArchiveTarget && !controller->prebuiltLinkOrArchiveTarget)
-    {
-        if (!controller->objectFileProducer)
-        {
-            printErrorMessage(fmt::format("Dependency is nullptr\n"));
-            throw std::exception();
-        }
-        // LinkOrArchiveTarget has ObjectLibrary as dependency.
-        prebuiltLinkOrArchiveTarget->objectFileProducers.emplace(controller->objectFileProducer);
-    }
-    else if (!prebuiltLinkOrArchiveTarget && !controller->prebuiltLinkOrArchiveTarget)
-    {
-        if (!controller->objectFileProducer)
-        {
-            printErrorMessage(fmt::format("Dependency is nullptr\n"));
-            throw std::exception();
-        }
-        if (!objectFileProducer)
-        {
-            printErrorMessage(fmt::format("Dependent is nullptr\n"));
-            throw std::exception();
-        }
-        // ObjectLibrary has another ObjectLibrary as dependency.
-        objectFileProducer->usageRequirementObjectFileProducers.emplace(controller->objectFileProducer);
-    }
     else
     {
-        // ObjectLibrary has LinkOrArchiveTarget as dependency.
-        printErrorMessage(fmt::format(
-            "ObjectLibrary DSC\n{}\ncan't have PrebuiltLinkOrArchiveTarget DSC\n{}\nas dependency.\n",
-            objectFileProducer->getTarjanNodeName(), controller->prebuiltLinkOrArchiveTarget->getTarjanNodeName()));
-        throw std::exception();
+        if (prebuiltLinkOrArchiveTarget)
+        {
+            if (!controller->objectFileProducer)
+            {
+                printErrorMessage(fmt::format("Dependency is nullptr\n"));
+                throw std::exception();
+            }
+            // LinkOrArchiveTarget has ObjectLibrary as dependency.
+            prebuiltLinkOrArchiveTarget->objectFileProducers.emplace(controller->objectFileProducer);
+        }
+        else if (!prebuiltLinkOrArchiveTarget && !controller->prebuiltLinkOrArchiveTarget)
+        {
+            if (!controller->objectFileProducer)
+            {
+                printErrorMessage(fmt::format("Dependency is nullptr\n"));
+                throw std::exception();
+            }
+            if (!objectFileProducer)
+            {
+                printErrorMessage(fmt::format("Dependent is nullptr\n"));
+                throw std::exception();
+            }
+            // ObjectLibrary has another ObjectLibrary as dependency.
+            objectFileProducer->usageRequirementObjectFileProducers.emplace(controller->objectFileProducer);
+        }
+        else
+        {
+            // ObjectLibrary has LinkOrArchiveTarget as dependency.
+            printErrorMessage(fmt::format(
+                "ObjectLibrary DSC\n{}\ncan't have PrebuiltLinkOrArchiveTarget DSC\n{}\nas dependency.\n",
+                objectFileProducer->getTarjanNodeName(), controller->prebuiltLinkOrArchiveTarget->getTarjanNodeName()));
+            throw std::exception();
+        }
     }
 
     if (controller->defineDllInterface == DefineDLLInterface::YES)
     {
         T *ptr = static_cast<T *>(objectFileProducer);
         U *c_ptr = static_cast<U *>(controller->objectFileProducer);
-        if (controller->prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+        if (prebuiltLinkOrArchiveTarget &&
+            controller->prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
         {
             if (ptr->compiler.bTFamily == BTFamily::MSVC)
             {

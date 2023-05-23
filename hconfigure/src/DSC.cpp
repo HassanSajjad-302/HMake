@@ -33,10 +33,9 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *lin
         defineDllInterface = DefineDLLInterface::YES;
     }
 
-    if (defineDllPrivate == DefineDLLPrivate::YES && prebuiltLinkOrArchiveTarget)
+    if (defineDllPrivate == DefineDLLPrivate::YES)
     {
-        // Maybe call a function pointer in ptr if user wants to customize this
-        if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+        if (prebuiltLinkOrArchiveTarget && prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
         {
             if (ptr->compiler.bTFamily == BTFamily::MSVC)
             {

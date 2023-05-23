@@ -37,6 +37,7 @@ struct Configuration : public CTarget
     CppCompilerFeatures compilerFeatures;
     LinkerFeatures linkerFeatures;
     CppSourceTarget *moduleScope = nullptr;
+    TargetType targetType = TargetType::LIBRARY_STATIC;
     bool archiving = false;
 
     CppSourceTarget &GetCppPreprocess(const string &name_);
@@ -52,18 +53,18 @@ struct Configuration : public CTarget
 
     CSourceTarget &GetCPT();
 
-    DSC<CppSourceTarget> &GetCppDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &GetCppExeDSC(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &GetCppTargetDSC(const string &name_, bool defines = false, string define = "",
-                                          TargetType targetType = cache.libraryType);
+    DSC<CppSourceTarget> &GetCppTargetDSC(const string &name_, TargetType targetType_ = cache.libraryType,
+                                          bool defines = false, string define = "");
     DSC<CppSourceTarget> &GetCppStaticDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &GetCppSharedDSC(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &GetCppObjectDSC(const string &name_);
+    DSC<CppSourceTarget> &GetCppObjectDSC(const string &name_, bool defines = false, string define = "");
 
     // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
 
-    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &directory, bool defines = false,
-                                                  string define = "", TargetType targetType = cache.libraryType);
+    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &directory,
+                                                  TargetType targetType_ = cache.libraryType, bool defines = false,
+                                                  string define = "");
 
     DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const string &name, const string &directory, bool defines = false,
                                                   string define = "");
@@ -88,6 +89,10 @@ template <typename T, typename... Property> Configuration &Configuration::ASSIGN
     if constexpr (std::is_same_v<decltype(property), ConfigTargetHaveFile>)
     {
         configTargetHaveFile = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TargetType>)
+    {
+        targetType = property;
     }
     else if constexpr (std::is_same_v<decltype(property), ConfigType>)
     {

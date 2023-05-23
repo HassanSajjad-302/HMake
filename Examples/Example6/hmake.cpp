@@ -5,7 +5,8 @@ void buildSpecification()
     auto makeApps = [](TargetType targetType) {
         string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
-        DSC<CPT> &cat = GetCPTDSC_P("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
+        DSC<CppSourceTarget, true> &cat =
+            GetCppTargetDSC_P("Cat" + str, "../Example4/Build/Cat" + str + "/", true, "CAT_EXPORT", targetType);
         cat.getSourceTarget().INTERFACE_INCLUDES("../Example4/Cat/header");
 
         DSC<CppSourceTarget> &dog = GetCppTargetDSC("Dog" + str, true, "DOG_EXPORT", targetType);

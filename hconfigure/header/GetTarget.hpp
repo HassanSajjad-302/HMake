@@ -44,32 +44,30 @@ PrebuiltLinkOrArchiveTarget &GetSharedPrebuiltLinkOrArchiveTarget(const string &
 DSC<CppSourceTarget> &GetCppExeDSC(const string &name, bool defines = false, string define = "");
 DSC<CppSourceTarget> &GetCppExeDSC(const string &name, CTarget &other, bool defines = false, string define = "",
                                    bool hasFile = true);
-DSC<CppSourceTarget> &GetCppTargetDSC(const string &name, bool defines = false, string define = "",
-                                      TargetType targetType = cache.libraryType);
-DSC<CppSourceTarget> &GetCppTargetDSC(const string &name, CTarget &other, bool defines = false, string define = "",
-                                      TargetType targetType = cache.libraryType, bool hasFile = true);
-DSC<CppSourceTarget> &GetCppDSC(const string &name, bool defines = false, string define = "",
-                                TargetType targetType = cache.libraryType);
-DSC<CppSourceTarget> &GetCppDSC(const string &name, CTarget &other, bool defines = false, string define = "",
-                                TargetType targetType = cache.libraryType, bool hasFile = true);
+DSC<CppSourceTarget> &GetCppTargetDSC(const string &name, TargetType targetType = cache.libraryType,
+                                      bool defines = false, string define = "");
+DSC<CppSourceTarget> &GetCppTargetDSC(const string &name, CTarget &other, TargetType targetType = cache.libraryType,
+                                      bool defines = false, string define = "", bool hasFile = true);
 DSC<CppSourceTarget> &GetCppStaticDSC(const string &name, bool defines = false, string define = "");
 DSC<CppSourceTarget> &GetCppStaticDSC(const string &name, CTarget &other, bool defines = false, string define = "",
                                       bool hasFile = true);
 DSC<CppSourceTarget> &GetCppSharedDSC(const string &name, bool defines = false, string define = "");
 DSC<CppSourceTarget> &GetCppSharedDSC(const string &name, CTarget &other, bool defines = false, string define = "",
                                       bool hasFile = true);
-DSC<CppSourceTarget> &GetCppObjectDSC(const string &name);
-DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, CTarget &other, bool hasFile = true);
+DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, bool defines = false, string define = "");
+DSC<CppSourceTarget> &GetCppObjectDSC(const string &name, CTarget &other, bool defines = false, string define = "",
+                                      bool hasFile = true);
 
 // _P means that it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget.
 // GetCppObjectDSC_P and GetCppDSC_P are not provided because if PrebuiltLinkOrArchiveTarget * is nullptr, then the
 // above functions can be used.
 
-DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &directory, bool defines = false,
-                                              string define = "", TargetType targetType = cache.libraryType);
+DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &directory,
+                                              TargetType targetType = cache.libraryType, bool defines = false,
+                                              string define = "");
 DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &directory, CTarget &other,
-                                              bool defines = false, string define = "",
-                                              TargetType targetType = cache.libraryType, bool hasFile = true);
+                                              TargetType targetType = cache.libraryType, bool defines = false,
+                                              string define = "", bool hasFile = true);
 DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const string &name, const string &directory, bool defines = false,
                                               string define = "");
 DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const string &name, const string &directory, CTarget &other,
