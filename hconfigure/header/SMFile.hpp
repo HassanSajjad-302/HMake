@@ -111,7 +111,7 @@ void to_json(Json &j, const SourceNode &sourceNode);
 void to_json(Json &j, const SourceNode *smFile);
 bool operator<(const SourceNode &lhs, const SourceNode &rhs);
 
-enum class SM_REQUIRE_TYPE : unsigned short
+enum class SM_REQUIRE_TYPE : char
 {
     NOT_ASSIGNED = 0,
     PRIMARY_EXPORT = 1,
@@ -119,7 +119,7 @@ enum class SM_REQUIRE_TYPE : unsigned short
     HEADER_UNIT = 3,
 };
 
-enum class SM_FILE_TYPE : unsigned short
+enum class SM_FILE_TYPE : char
 {
     NOT_ASSIGNED = 0,
     PRIMARY_EXPORT = 1,

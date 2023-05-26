@@ -36,7 +36,7 @@ inline string srcDir;
 // path of directory which has configure executable of the project
 inline string configureDir;
 
-enum class BSMode : unsigned short // Build System Mode
+enum class BSMode : char // Build System Mode
 {
     CONFIGURE = 0,
     BUILD = 1,

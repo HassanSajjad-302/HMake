@@ -31,14 +31,14 @@ struct IndexInTopologicalSortComparatorRoundZero
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
 };
 
-enum class FileStatus
+enum class FileStatus : char
 {
     NOT_ASSIGNED,
     UPDATED,
     NEEDS_UPDATE
 };
 
-enum class BTargetDepType
+enum class BTargetDepType : bool
 {
     FULL,
 

@@ -24,31 +24,31 @@ using std::map, std::set;
 
 using std::vector;
 
-enum class TranslateInclude
+enum class TranslateInclude : bool
 {
     NO,
     YES,
 };
 
-enum class TreatModuleAsSource
+enum class TreatModuleAsSource : bool
 {
     NO,
     YES
 };
 
-enum class CopyDLLToExeDirOnNTOs
+enum class CopyDLLToExeDirOnNTOs : bool
 {
     NO,
     YES
 };
 
-enum class DefineDLLPrivate
+enum class DefineDLLPrivate : bool
 {
     YES,
     NO,
 };
 
-enum class DefineDLLInterface
+enum class DefineDLLInterface : bool
 {
     YES,
     NO,
@@ -61,7 +61,7 @@ enum class DefineDLLInterface
 // all optional features have extra enum value OFF declared here. A feature default value is given by the first value
 // listed in the feature declaration which is imitated in CompilerFeautres and LinkerFeatures.
 
-enum class Arch // Architecture
+enum class Arch : char // Architecture
 {
     X86,
     IA64,
@@ -84,7 +84,7 @@ enum class Arch // Architecture
 void to_json(Json &j, const Arch &arch);
 void from_json(const Json &j, Arch &arch);
 
-enum class AddressModel // AddressModel
+enum class AddressModel : char // AddressModel
 {
     A_16,
     A_32,
@@ -120,13 +120,13 @@ struct Define
 void to_json(Json &j, const Define &cd);
 void from_json(const Json &j, Define &cd);
 
-enum class Threading
+enum class Threading : bool
 {
     SINGLE,
     MULTI
 };
 
-enum class Warnings
+enum class Warnings : char
 {
     ON,
     ALL,
@@ -135,49 +135,49 @@ enum class Warnings
     OFF,
 };
 
-enum class WarningsAsErrors
+enum class WarningsAsErrors : bool
 {
     OFF,
     ON,
 };
 
-enum class ExceptionHandling
+enum class ExceptionHandling : bool
 {
     ON,
     OFF
 };
 
-enum class AsyncExceptions
+enum class AsyncExceptions : bool
 {
     OFF,
     ON,
 };
 
-enum class ExternCNoThrow
+enum class ExternCNoThrow : bool
 {
     OFF,
     ON,
 };
 
-enum class RTTI
+enum class RTTI : bool
 {
     ON,
     OFF,
 };
 
-enum class DebugSymbols
+enum class DebugSymbols : bool
 {
     ON,
     OFF,
 };
 
-enum class Profiling
+enum class Profiling : bool
 {
     OFF,
     ON,
 };
 
-enum class Visibility
+enum class Visibility : char
 {
     OFF,
     GLOBAL,
@@ -185,48 +185,48 @@ enum class Visibility
     PROTECTED,
 };
 
-enum class AddressSanitizer
+enum class AddressSanitizer : char
 {
     OFF,
     NORECOVER,
     ON,
 };
 
-enum class LeakSanitizer
+enum class LeakSanitizer : char
 {
     OFF,
     NORECOVER,
     ON,
 };
 
-enum class ThreadSanitizer
+enum class ThreadSanitizer : char
 {
     OFF,
     NORECOVER,
     ON,
 };
 
-enum class UndefinedSanitizer
+enum class UndefinedSanitizer : char
 {
     OFF,
     NORECOVER,
     ON,
 };
 
-enum class LTO
+enum class LTO : bool
 {
     OFF,
     ON,
 };
 
-enum class LTOMode
+enum class LTOMode : char
 {
     FAT,
     FULL,
     THIN,
 };
 
-enum class StdLib
+enum class StdLib : char
 {
     NATIVE,
     GNU,
@@ -236,19 +236,19 @@ enum class StdLib
     APACHE,
 };
 
-enum class Coverage
+enum class Coverage : bool
 {
     OFF,
     ON,
 };
 
-enum class RuntimeLink
+enum class RuntimeLink : bool
 {
     SHARED,
     STATIC,
 };
 
-enum class RuntimeDebugging
+enum class RuntimeDebugging : bool
 {
     OFF,
     ON
@@ -261,7 +261,7 @@ string getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const
 string getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const string &actualName);
 string getSlashedExecutableName(const string &name);
 
-enum class CxxSTD
+enum class CxxSTD : char
 {
     V_98,
     V_03,
@@ -280,14 +280,14 @@ enum class CxxSTD
     V_LATEST,
 };
 
-enum class CxxSTDDialect
+enum class CxxSTDDialect : char
 {
     ISO,
     GNU,
     MS,
 };
 
-enum class TargetOS
+enum class TargetOS : char
 {
     AIX,
     ANDROID,
@@ -315,7 +315,7 @@ enum class TargetOS
     WINDOWS,
 };
 
-enum class Language
+enum class Language : char
 {
     C,
     CPP,
@@ -323,7 +323,7 @@ enum class Language
     OBJECTIVE_CPP,
 };
 
-enum class Optimization
+enum class Optimization : char
 {
     OFF,
     SPEED,
@@ -332,21 +332,21 @@ enum class Optimization
     DEBUG,
 };
 
-enum class Inlining
+enum class Inlining : char
 {
     OFF,
     ON,
     FULL,
 };
 
-enum class Vectorize
+enum class Vectorize : char
 {
     OFF,
     ON,
     FULL,
 };
 
-enum class UserInterface
+enum class UserInterface : char
 {
     CONSOLE,
     GUI,
@@ -355,13 +355,13 @@ enum class UserInterface
     AUTO,
 };
 
-enum class Strip
+enum class Strip : bool
 {
     OFF,
     ON,
 };
 
-enum class InstructionSet
+enum class InstructionSet : unsigned short
 {
     // x86 and x86-64
     OFF,
@@ -632,7 +632,7 @@ enum class InstructionSet
 };
 
 // Declared on Line 2143 in msvc.jam
-enum class CpuType
+enum class CpuType : char
 {
     G5,
     G6,
@@ -645,7 +645,7 @@ enum class CpuType
 };
 
 // Declared on Line 1871 msvc.jam
-enum class DebugStore
+enum class DebugStore : bool
 {
     OBJECT,
     DATABASE,

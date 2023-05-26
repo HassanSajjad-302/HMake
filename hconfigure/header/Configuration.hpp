@@ -19,7 +19,7 @@ using std::shared_ptr;
 class LinkOrArchiveTarget;
 class CppSourceTarget;
 
-enum class ConfigTargetHaveFile
+enum class ConfigTargetHaveFile : bool
 {
     YES,
     NO,

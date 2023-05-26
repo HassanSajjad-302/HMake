@@ -9,7 +9,7 @@
 
 using Json = nlohmann::json;
 
-enum class ConfigType
+enum class ConfigType : char
 {
     DEBUG,
     RELEASE,

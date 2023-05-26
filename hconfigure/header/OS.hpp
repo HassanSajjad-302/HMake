@@ -2,7 +2,7 @@
 #ifndef HMAKE_OS_HPP
 #define HMAKE_OS_HPP
 
-enum class OS
+enum class OS : char
 {
     AIX,
     CYGWIN,

@@ -12,7 +12,7 @@ import <string>;
 using Json = nlohmann::json;
 using std::string;
 
-enum class TargetType
+enum class TargetType : char
 {
     EXECUTABLE,
     LIBRARY_STATIC,

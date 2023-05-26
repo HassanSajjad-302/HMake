@@ -16,7 +16,7 @@ import <thread>;
 using std::string;
 using Json = nlohmann::json;
 
-enum class PathPrintLevel
+enum class PathPrintLevel : char
 {
     NO = 0,
     HALF = 1,
