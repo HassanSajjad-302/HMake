@@ -806,6 +806,7 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
     {
         if (sourceFileOrSMRuleFileUpdated)
         {
+            sourceFileOrSMRuleFileUpdated = false;
             saveBuildCache(round);
         }
     }
@@ -832,7 +833,7 @@ void CppSourceTarget::setJson()
     targetJson[str + JConsts::files] = sourceFileDependencies;
     targetJson[str + JConsts::directories] = regexSourceDirs;
     str = "MODULE_";
-    targetJson[str + JConsts::files] = moduleSourceFileDependencies;
+    // targetJson[str + JConsts::files] = moduleSourceFileDependencies;
     targetJson[str + JConsts::directories] = regexModuleDirs;
     // TODO
     /*    targetJson[JConsts::includeDirectories] = requirementIncludes;
@@ -1172,6 +1173,8 @@ string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
     return sourceCompileCommandPrintFirstHalf;
 }
 
+// Will directly parsing source-files and module-files and then checking whether they exist in the cache be an
+// improvement. This will also save the conditional check of presentInSource
 void CppSourceTarget::readBuildCacheFile(Builder &)
 {
     const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
@@ -1236,7 +1239,7 @@ void CppSourceTarget::resolveRequirePaths()
         if (smFileConst.presentInSource)
         {
             auto &smFile = const_cast<SMFile &>(smFileConst);
-            for (const Json &requireJson : smFile.requiresJson)
+            for (const Json &requireJson : *(smFile.requiresJson))
             {
                 string requireLogicalName = requireJson.at("logical-name").get<string>();
                 if (requireLogicalName == smFile.logicalName)
@@ -1295,12 +1298,12 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
                 if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
                 {
                     smFile.generateSMFileInRoundOne = true;
-                    ++moduleScopeData->totalSMRuleFileCount;
                 }
                 else
                 {
                     realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                 }
+                ++moduleScopeData->totalSMRuleFileCount;
             }
             else
             {
@@ -1486,7 +1489,6 @@ void CppSourceTarget::saveBuildCache(bool round)
 {
     if (round)
     {
-        (*targetBuildCache)[JConsts::sourceDependencies] = sourceFileDependencies;
         (*targetBuildCache)[JConsts::moduleDependencies] = moduleSourceFileDependencies;
         (*targetBuildCache)[JConsts::headerUnits] = headerUnits;
         writeBuildCache();
@@ -1502,8 +1504,6 @@ void CppSourceTarget::saveBuildCache(bool round)
         }
         //(*targetBuildCache)[JConsts::archived] = archived;
         (*targetBuildCache)[JConsts::sourceDependencies] = sourceFileDependencies;
-        (*targetBuildCache)[JConsts::moduleDependencies] = moduleSourceFileDependencies;
-        (*targetBuildCache)[JConsts::headerUnits] = headerUnits;
         writeBuildCache();
     }
 }

@@ -21,7 +21,7 @@ import <vector>;
 #endif
 
 using Json = nlohmann::json;
-using std::string, std::map, std::set, std::vector, std::filesystem::path, std::pair, std::list;
+using std::string, std::map, std::set, std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr;
 
 class Node;
 struct CompareNode
@@ -108,7 +108,7 @@ struct SourceNode : public ObjectFile
 };
 
 void to_json(Json &j, const SourceNode &sourceNode);
-void to_json(Json &j, const SourceNode *smFile);
+void to_json(Json &j, const SourceNode *sourceNode);
 bool operator<(const SourceNode &lhs, const SourceNode &rhs);
 
 enum class SM_REQUIRE_TYPE : char
@@ -146,7 +146,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     // is depending on is consuming it another way.
     map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
     set<SMFile *> allSMFileDependenciesRoundZero;
-    Json requiresJson;
+    Json *requiresJson = nullptr;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
     bool angle = false;
     bool hasProvide = false;
@@ -174,4 +174,8 @@ struct SMFile : public SourceNode // Scanned Module Rule
     string getRequireFlagPrint(const SMFile &logicalName_) const;
     string getModuleCompileCommandPrintLastHalf();
 };
+
+void to_json(Json &j, const SMFile &smFile);
+void to_json(Json &j, const SMFile *smFile);
+
 #endif // HMAKE_SMFILE_HPP

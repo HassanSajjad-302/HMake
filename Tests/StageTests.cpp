@@ -368,10 +368,29 @@ TEST(StageTests, Test2)
         Updates{.errorFiles = 1, .sourceFiles = 3, .cppTargets = 4, .linkTargetsNoDebug = 2});
     executeErroneousSnapshotBalances(Updates{.errorFiles = 1, .cppTargets = 1});
 
-    // Copying Correct lib4.cpp
+    // Copying Empty lib4.cpp
     copyFilePath(testSourcePath / "Version/6/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
     executeSnapshotBalances(Updates{}, "Release/lib3/");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 2});
+
+    // Restoring lib4.cpp. This hmake.cpp will make the selection between lib4.cpp and temp.cpp based on the cache
+    // variable use-lib4.cpp value
+    copyFilePath(testSourcePath / "Version/8/hmake.cpp", testSourcePath / "hmake.cpp");
+    copyFilePath(testSourcePath / "Version/0/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1}, "Debug/lib4");
+    executeSnapshotBalances(Updates{.linkTargetsDebug = 1});
+
+    path cacheFile = testSourcePath / "Build/cache.json";
+    Json cacheJson;
+    ifstream(cacheFile) >> cacheJson;
+    // Changing the cache variable to false should cause only the relinking, but not the recompilation of temp.cpp.
+    cacheJson["cache-variables"]["use-lib4.cpp"] = false;
+    ofstream(cacheFile) << cacheJson.dump(4);
+    executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
+    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
+    executeSnapshotBalances(Updates{});
 }
 
 static void setupTest3Default()

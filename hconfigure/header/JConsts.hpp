@@ -86,6 +86,7 @@ struct JConsts
     inline static const string linkPrintSettings = "link-print-settings";
     inline static const string linuxTools = "linux-tools";
     inline static const string linuxUnix = "linux-unix";
+    inline static const string logicalName = "logical-name";
     inline static const string maximumBuildThreads = "maximum-build-threads";
     inline static const string maximumLinkThreads = "maximum-link-threads";
     inline static const string moduleDependencies = "module-dependencies";
@@ -128,9 +129,11 @@ struct JConsts
     inline static const string regexString = "regex-string";
     inline static const string release = "release";
     inline static const string requireIfcs = "require-ifcs";
+    inline static const string requires_ = "requires";
     inline static const string run = "run";
     inline static const string shared = "shared";
     inline static const string showPercentage = "show-percentage";
+    inline static const string smFileType = "smfile-type";
     inline static const string sourceDependencies = "source-dependencies";
     inline static const string sourceDirectory = "source-directory";
     inline static const string sourceFile = "source-file";

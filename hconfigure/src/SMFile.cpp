@@ -332,9 +332,9 @@ void to_json(Json &j, const SourceNode &sourceNode)
     j[JConsts::headerDependencies] = sourceNode.headerDependencies;
 }
 
-void to_json(Json &j, const SourceNode *smFile)
+void to_json(Json &j, const SourceNode *sourceNode)
 {
-    j = *smFile;
+    j = *sourceNode;
 }
 
 bool operator<(const SourceNode &lhs, const SourceNode &rhs)
@@ -441,7 +441,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
             throw std::exception();
         }
     }
-    requiresJson = std::move(rule.at("requires"));
+    requiresJson = new Json(rule.at("requires"));
     iterateRequiresJsonToInitializeNewHeaderUnits(builder);
 }
 
@@ -548,7 +548,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 {
     if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
-        for (const Json &requireJson : requiresJson)
+        for (const Json &requireJson : *requiresJson)
         {
             initializeNewHeaderUnit(requireJson, builder);
         }
@@ -559,7 +559,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
         bool hasLogicalNameRequireDependency = false;
         // If following is true then smFile is PartitionImplementation.
         bool hasPartitionExportDependency = false;
-        for (const Json &requireJson : requiresJson)
+        for (const Json &requireJson : *requiresJson)
         {
             string requireLogicalName = requireJson.at("logical-name").get<string>();
             if (requireLogicalName == logicalName)
@@ -910,4 +910,15 @@ string SMFile::getModuleCompileCommandPrintLastHalf()
     moduleCompileCommandPrintLastHalf +=
         getFlagPrint(target->buildCacheFilesDirPath + path(node->filePath).filename().string());
     return moduleCompileCommandPrintLastHalf;
+}
+
+void to_json(Json &j, const SMFile &smFile)
+{
+    j = static_cast<const SourceNode &>(smFile);
+    j[JConsts::requires_] = std::move(*(smFile.requiresJson));
+}
+
+void to_json(Json &j, const SMFile *smFile)
+{
+    j = *smFile;
 }
