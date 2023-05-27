@@ -17,8 +17,7 @@ import <fstream>;
 #include <fstream>
 #endif
 
-using fmt::print, std::filesystem::current_path, std::filesystem::exists, std::filesystem::directory_iterator,
-    std::ifstream, std::ofstream;
+using fmt::print, std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
 
 std::mutex buildCacheMutex;
 void writeBuildCache()
@@ -150,11 +149,7 @@ void configureOrBuild()
     }
     if (bsMode == BSMode::BUILD)
     {
-        path p = path(configureDir) / "build-cache.json";
-        if (exists(p))
-        {
-            ifstream(p.string()) >> buildCache;
-        }
+        actuallyReadTheFile();
     }
 
     vector<BTarget *> preSortBTargets;

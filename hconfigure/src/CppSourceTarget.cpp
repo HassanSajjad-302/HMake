@@ -1293,16 +1293,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
             auto &smFile = const_cast<SMFile &>(*it);
             if (auto [pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
             {
-                RealBTarget &realBTarget = smFile.getRealBTarget(1);
-                smFile.setSourceNodeFileStatus(".smrules", realBTarget);
-                if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
-                {
-                    smFile.generateSMFileInRoundOne = true;
-                }
-                else
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                }
+                smFile.getRealBTarget(1).fileStatus = FileStatus::NEEDS_UPDATE;
                 ++moduleScopeData->totalSMRuleFileCount;
             }
             else

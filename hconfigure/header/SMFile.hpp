@@ -98,7 +98,7 @@ struct SourceNode : public ObjectFile
     bool presentInCache = false;
     bool presentInSource = false;
     bool ignoreHeaderDeps = false;
-    set<const Node *> headerDependencies;
+    vector<string> headerDependencies;
     SourceNode(CppSourceTarget *target_, Node *node_);
     string getObjectFileOutputFilePath() const override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
@@ -150,9 +150,6 @@ struct SMFile : public SourceNode // Scanned Module Rule
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
     bool angle = false;
     bool hasProvide = false;
-    bool smrulesFileParsed = false;
-    // Used to determine whether the file is present in cache and whether it needs an updated SMRules file.
-    bool generateSMFileInRoundOne = false;
 
     // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
     // ignoreHeaderDeps is true
@@ -163,6 +160,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder);
     void initializeNewHeaderUnit(const Json &requireJson, Builder &builder);
     void iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder);
+    bool generateSMFileInRoundOne();
     void setSMFileStatusRoundZero();
     string getObjectFileOutputFilePath() const override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;

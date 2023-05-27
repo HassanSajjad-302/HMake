@@ -154,7 +154,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
                 iter->erase(iter->begin(), iter->begin() + (int)pos);
                 if (!ignoreHeaderFile(*iter))
                 {
-                    sourceNode.headerDependencies.emplace(Node::getNodeFromString(*iter, true));
+                    sourceNode.headerDependencies.emplace_back(*iter);
                 }
             }
 
@@ -204,7 +204,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode)
         string headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
         if (!ignoreHeaderFile(headerDep))
         {
-            sourceNode.headerDependencies.emplace(Node::getNodeFromString(headerDep, true));
+            sourceNode.headerDependencies.emplace_back(headerDep);
         }
     }
 }
