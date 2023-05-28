@@ -271,7 +271,8 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
         // cached compile-command would be different
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
+            (*sourceJson)[JConsts::compileCommand] =
+                target->compiler.bTPath.generic_string() + " " + target->compileCommand;
         }
         std::lock_guard<std::mutex> lk(printMutex);
         postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
@@ -284,13 +285,8 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
     Node *objectFileNode = Node::getNodeFromString(
         target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ex, true, true);
 
-    if (!presentInCache)
-    {
-        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-        return;
-    }
-
-    if (compileCommandJson != target->compiler.bTPath.generic_string() + " " + target->compileCommand)
+    if ((*sourceJson)[JConsts::compileCommand] !=
+        target->compiler.bTPath.generic_string() + " " + target->compileCommand)
     {
         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
         return;
@@ -308,7 +304,7 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
         return;
     }
 
-    for (const Json &str : *headerFilesJson)
+    for (const Json &str : (*sourceJson)[JConsts::headerDependencies])
     {
         Node *headerNode = Node::getNodeFromString(str, true, true);
         if (headerNode->doesNotExist)
@@ -327,9 +323,7 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
 
 void to_json(Json &j, const SourceNode &sourceNode)
 {
-    j[JConsts::srcFile] = sourceNode.node->filePath;
-    j[JConsts::compileCommand] = sourceNode.compileCommandJson;
-    j[JConsts::headerDependencies] = sourceNode.headerDependencies;
+    j[JConsts::srcFile] = *(sourceNode.sourceJson);
 }
 
 void to_json(Json &j, const SourceNode *sourceNode)
@@ -400,9 +394,6 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
 
             // if(builder.finalBTargetsSizeGoal == )
             target->getRealBTarget(0).addDependency(*this);
-            // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
-            // cached compile-command would be different
-            compileCommandJson = target->compiler.bTPath.generic_string() + " " + target->compileCommand;
         }
         decrementTotalSMRuleFileCount(builder);
     }
@@ -414,15 +405,27 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
         std::lock_guard<std::mutex> lk(printMutex);
         postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
         fflush(stdout);
+
+        if (realBTarget.exitStatus == EXIT_SUCCESS)
+        {
+            // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
+            // cached compile-command would be different
+            (*sourceJson)[JConsts::compileCommand] =
+                target->compiler.bTPath.generic_string() + " " + target->compileCommand;
+            target->targetCacheChanged = true;
+        }
     }
 }
 
 void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
 {
-    string smFilePath = target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".smrules";
-    Json smFileJson;
-    ifstream(smFilePath) >> smFileJson;
-    Json rule = smFileJson.at("rules").get<Json>()[0];
+    if (readJsonFromSMRulesFile)
+    {
+        string smFilePath = target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".smrules";
+        ifstream(smFilePath) >> sourceJson->at(JConsts::smrules);
+    }
+
+    Json &rule = sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
     if (rule.contains("provides"))
     {
         hasProvide = true;
@@ -440,7 +443,6 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
             throw std::exception();
         }
     }
-    requiresJson = new Json(rule.at("requires"));
     iterateRequiresJsonToInitializeNewHeaderUnits(builder);
 }
 
@@ -514,24 +516,50 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         throw std::exception();
     }
 
-    SMFile &headerUnit = huDirTarget->addNodeInHeaderUnits(Node::getNodeFromString(headerUnitPath, true));
-    if (!headerUnit.presentInSource)
+    Node *headerUnitNode = Node::getNodeFromString(headerUnitPath, true);
+
+    set<SMFile, CompareSourceNode>::const_iterator headerUnitIt;
+    if (auto it = huDirTarget->moduleScopeData->headerUnits.find(headerUnitNode);
+        it == huDirTarget->moduleScopeData->headerUnits.end())
     {
-        headerUnit.presentInSource = true;
+        headerUnitIt = huDirTarget->moduleScopeData->headerUnits.emplace(huDirTarget, headerUnitNode).first;
+        huDirTarget->headerUnits.emplace(&(*headerUnitIt));
+
+        auto &headerUnit = const_cast<SMFile &>(*headerUnitIt);
+
         if (nodeDir->ignoreHeaderDeps)
         {
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }
+
+        Json &headerUnitsJson = huDirTarget->targetBuildCache->operator[](JConsts::moduleDependencies);
+        const auto &[pos, Ok] = headerUnitsJson.emplace(headerUnit.node->filePath, Json::object_t{});
+        if (Ok)
+        {
+            Json &moduleJson = pos.value();
+            moduleJson.emplace(JConsts::compileCommand, Json::string_t{});
+            moduleJson.emplace(JConsts::headerDependencies, Json::array_t{});
+            moduleJson.emplace(JConsts::smrules, Json::object_t{});
+        }
+        headerUnit.sourceJson = pos.operator->();
+
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
         RealBTarget &realBTarget = headerUnit.getRealBTarget(1);
-        headerUnit.setSourceNodeFileStatus(".smrules", realBTarget);
 
         {
             std::lock_guard<std::mutex> lk(totalSMRuleFileCountMutex);
             ++target->moduleScopeData->totalSMRuleFileCount;
         }
+
         builder.addNewBTargetInFinalBTargets(&headerUnit);
     }
+    else
+    {
+        headerUnitIt = it;
+    }
+
+    auto &headerUnit = const_cast<SMFile &>(*headerUnitIt);
+
     headerUnitsConsumptionMethods[&headerUnit].emplace(requireJson.at("lookup-method").get<string>() == "include-angle",
                                                        requireLogicalName);
     getRealBTarget(0).addDependency(headerUnit);
@@ -541,9 +569,13 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 {
     if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
-        for (const Json &requireJson : *requiresJson)
+        Json &rules = sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
+        if (auto it = rules.find(JConsts::requires_); it != rules.end())
         {
-            initializeNewHeaderUnit(requireJson, builder);
+            for (const Json &requireJson : *it)
+            {
+                initializeNewHeaderUnit(requireJson, builder);
+            }
         }
     }
     else
@@ -552,27 +584,31 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
         bool hasLogicalNameRequireDependency = false;
         // If following is true then smFile is PartitionImplementation.
         bool hasPartitionExportDependency = false;
-        for (const Json &requireJson : *requiresJson)
+        Json &rules = sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
+        if (auto it = rules.find(JConsts::requires_); it != rules.end())
         {
-            string requireLogicalName = requireJson.at("logical-name").get<string>();
-            if (requireLogicalName == logicalName)
+            for (const Json &requireJson : *it)
             {
-                printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                   target->moduleScope->getSubDirForTarget(), node->filePath),
-                                       settings.pcSettings.toolErrorOutput);
-                decrementTotalSMRuleFileCount(builder);
-                throw std::exception();
-            }
-            if (requireJson.contains("lookup-method"))
-            {
-                initializeNewHeaderUnit(requireJson, builder);
-            }
-            else
-            {
-                hasLogicalNameRequireDependency = true;
-                if (requireLogicalName.contains(':'))
+                string requireLogicalName = requireJson.at("logical-name").get<string>();
+                if (requireLogicalName == logicalName)
                 {
-                    hasPartitionExportDependency = true;
+                    printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
+                                                       target->moduleScope->getSubDirForTarget(), node->filePath),
+                                           settings.pcSettings.toolErrorOutput);
+                    decrementTotalSMRuleFileCount(builder);
+                    throw std::exception();
+                }
+                if (requireJson.contains("lookup-method"))
+                {
+                    initializeNewHeaderUnit(requireJson, builder);
+                }
+                else
+                {
+                    hasLogicalNameRequireDependency = true;
+                    if (requireLogicalName.contains(':'))
+                    {
+                        hasPartitionExportDependency = true;
+                    }
                 }
             }
         }
@@ -598,47 +634,44 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 bool SMFile::generateSMFileInRoundOne()
 {
     RealBTarget &realBTarget = getRealBTarget(0);
-    if (!presentInCache)
+
+    if ((*sourceJson)[JConsts::compileCommand] !=
+        target->compiler.bTPath.generic_string() + " " + target->compileCommand)
     {
         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        readJsonFromSMRulesFile = true;
+        return true;
     }
     else
     {
-        if (compileCommandJson != target->compiler.bTPath.generic_string() + " " + target->compileCommand)
+        Node *objectFileNode = Node::getNodeFromString(
+            target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".m.o"), true, true);
+
+        if (objectFileNode->doesNotExist)
         {
             realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
         }
         else
         {
-            Node *objectFileNode = Node::getNodeFromString(
-                target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".m.o"), true, true);
-
-            if (objectFileNode->doesNotExist)
+            if (node->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
             {
                 realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
             }
             else
             {
-                if (node->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+                for (const Json &str : (*sourceJson)[JConsts::headerDependencies])
                 {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                }
-                else
-                {
-                    for (const Json &str : *headerFilesJson)
+                    Node *headerNode = Node::getNodeFromString(str, true, true);
+                    if (headerNode->doesNotExist)
                     {
-                        Node *headerNode = Node::getNodeFromString(str, true, true);
-                        if (headerNode->doesNotExist)
-                        {
-                            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                            break;
-                        }
+                        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                        break;
+                    }
 
-                        if (headerNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
-                        {
-                            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                            break;
-                        }
+                    if (headerNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+                    {
+                        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                        break;
                     }
                 }
             }
@@ -647,6 +680,8 @@ bool SMFile::generateSMFileInRoundOne()
 
     if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
     {
+        readJsonFromSMRulesFile = true;
+
         // If smrules file exists, and is updated, then it won't be updated. This can happen when, because of
         // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the .m.o file
 
@@ -665,7 +700,7 @@ bool SMFile::generateSMFileInRoundOne()
             }
             else
             {
-                for (const Json &str : *headerFilesJson)
+                for (const Json &str : (*sourceJson)[JConsts::headerDependencies])
                 {
                     Node *headerNode = Node::getNodeFromString(str, true, true);
                     if (headerNode->doesNotExist)
@@ -682,67 +717,6 @@ bool SMFile::generateSMFileInRoundOne()
         }
     }
     return false;
-}
-
-void SMFile::setSMFileStatusRoundZero()
-{
-    RealBTarget &realBTarget = getRealBTarget(0);
-    if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
-    {
-        string fileName = path(node->filePath).filename().string();
-        Node *smRuleNode = Node::getNodeFromString(target->buildCacheFilesDirPath + fileName + ".smrules", true);
-        Node *objectFileNode = Node::getNodeFromString(target->buildCacheFilesDirPath + fileName + ".m.o", true, true);
-
-        if (objectFileNode->doesNotExist)
-        {
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-            return;
-        }
-        if (smRuleNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
-        {
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-            return;
-        }
-        file_time_type ifcFileLastEditTime;
-        bool hasIfcFile = false;
-        if (type != SM_FILE_TYPE::PRIMARY_IMPLEMENTATION && type != SM_FILE_TYPE::PARTITION_IMPLEMENTATION &&
-            type != SM_FILE_TYPE::GLOBAL_MODULE_FRAGMENT)
-        {
-            hasIfcFile = true;
-            Node *ifcFileNode = const_cast<Node *>(
-                Node::getNodeFromString(target->buildCacheFilesDirPath + fileName + ".ifc", true, true));
-            if (ifcFileNode->doesNotExist)
-            {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                return;
-            }
-            if (smRuleNode->getLastUpdateTime() > ifcFileNode->getLastUpdateTime())
-            {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                return;
-            }
-        }
-
-        for (SMFile *dep : allSMFileDependenciesRoundZero)
-        {
-            string depFileName = path(dep->node->filePath).filename().string();
-            const Node *depIfcFileNode =
-                Node::getNodeFromString(dep->target->buildCacheFilesDirPath + depFileName + ".ifc", true);
-            if (depIfcFileNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
-            {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                return;
-            }
-            if (hasIfcFile)
-            {
-                if (depIfcFileNode->getLastUpdateTime() > ifcFileLastEditTime)
-                {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                    return;
-                }
-            }
-        }
-    }
 }
 
 string SMFile::getObjectFileOutputFilePath() const
@@ -1001,15 +975,4 @@ string SMFile::getModuleCompileCommandPrintLastHalf()
     moduleCompileCommandPrintLastHalf +=
         getFlagPrint(target->buildCacheFilesDirPath + path(node->filePath).filename().string());
     return moduleCompileCommandPrintLastHalf;
-}
-
-void to_json(Json &j, const SMFile &smFile)
-{
-    j = static_cast<const SourceNode &>(smFile);
-    j[JConsts::requires_] = *(smFile.requiresJson);
-}
-
-void to_json(Json &j, const SMFile *smFile)
-{
-    j = *smFile;
 }

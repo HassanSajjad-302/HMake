@@ -130,10 +130,12 @@ struct JConsts
     inline static const string release = "release";
     inline static const string requireIfcs = "require-ifcs";
     inline static const string requires_ = "requires";
+    inline static const string rules = "rules";
     inline static const string run = "run";
     inline static const string shared = "shared";
     inline static const string showPercentage = "show-percentage";
     inline static const string smFileType = "smfile-type";
+    inline static const string smrules = "smrules";
     inline static const string sourceDependencies = "source-dependencies";
     inline static const string sourceDirectory = "source-directory";
     inline static const string sourceFile = "source-file";

@@ -34,13 +34,16 @@ struct CompareNode
 
 class Node
 {
+  public:
+    string filePath;
+
+  private:
     std::filesystem::file_time_type lastUpdateTime;
 
   public:
     Node(const path &filePath_, bool isFile, bool mayNotExist = false);
     // This keeps info if a file is touched. If it's touched, it's not touched again.
     inline static set<Node, CompareNode> allFiles;
-    string filePath;
     std::filesystem::file_time_type getLastUpdateTime() const;
     static path getFinalNodePathFromString(const string &str);
     // Create a node and inserts it into the allFiles if it is not already there
@@ -91,14 +94,10 @@ struct CompareSourceNode
 
 struct SourceNode : public ObjectFile
 {
-    Json *headerFilesJson;
-    Json compileCommandJson;
+    Json *sourceJson = nullptr;
     class CppSourceTarget *target;
     const Node *node;
-    bool presentInCache = false;
-    bool presentInSource = false;
     bool ignoreHeaderDeps = false;
-    vector<string> headerDependencies;
     SourceNode(CppSourceTarget *target_, Node *node_);
     string getObjectFileOutputFilePath() const override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
@@ -146,10 +145,11 @@ struct SMFile : public SourceNode // Scanned Module Rule
     // is depending on is consuming it another way.
     map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
     set<SMFile *> allSMFileDependenciesRoundZero;
-    Json *requiresJson = nullptr;
+
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
     bool angle = false;
     bool hasProvide = false;
+    bool readJsonFromSMRulesFile = false;
 
     // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
     // ignoreHeaderDeps is true
@@ -161,7 +161,6 @@ struct SMFile : public SourceNode // Scanned Module Rule
     void initializeNewHeaderUnit(const Json &requireJson, Builder &builder);
     void iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder);
     bool generateSMFileInRoundOne();
-    void setSMFileStatusRoundZero();
     string getObjectFileOutputFilePath() const override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
@@ -173,7 +172,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     string getModuleCompileCommandPrintLastHalf();
 };
 
-void to_json(Json &j, const SMFile &smFile);
-void to_json(Json &j, const SMFile *smFile);
+/*void to_json(Json &j, const SMFile &smFile);
+void to_json(Json &j, const SMFile *smFile);*/
 
 #endif // HMAKE_SMFILE_HPP

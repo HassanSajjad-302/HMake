@@ -98,7 +98,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     // Comparator used is same as for SourceNode
     set<SMFile, CompareSourceNode> moduleSourceFileDependencies;
     // Set to true if a source or smrule is updated so that latest cache could be stored.
-    std::atomic<bool> sourceFileOrSMRuleFileUpdated = false;
+    std::atomic<bool> targetCacheChanged = false;
     SourceNode &addNodeInSourceFileDependencies(Node *node);
     SMFile &addNodeInModuleSourceFileDependencies(Node *node);
     SMFile &addNodeInHeaderUnits(Node *node);
@@ -294,7 +294,6 @@ template <typename... U> CppSourceTarget &CppSourceTarget::SOURCE_FILES(const st
 {
     SourceNode &sourceNode =
         addNodeInSourceFileDependencies(const_cast<Node *>(Node::getNodeFromString(srcFile, true)));
-    sourceNode.presentInSource = true;
     if constexpr (sizeof...(sourceFileString))
     {
         return SOURCE_FILES(sourceFileString...);
@@ -315,7 +314,6 @@ template <typename... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(const st
     {
         SMFile &smFile =
             addNodeInModuleSourceFileDependencies(const_cast<Node *>(Node::getNodeFromString(modFile, true)));
-        smFile.presentInSource = true;
         if constexpr (sizeof...(moduleFileString))
         {
             return MODULE_FILES(moduleFileString...);

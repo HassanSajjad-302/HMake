@@ -219,7 +219,7 @@ bool Builder::addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets
         std::lock_guard<std::mutex> lk(updateMutex);
         for (CppSourceTarget *target : targets)
         {
-            if (target->sourceFileOrSMRuleFileUpdated)
+            if (target->targetCacheChanged)
             {
                 finalBTargets.emplace_back(target);
                 ++finalBTargetsSizeGoal;

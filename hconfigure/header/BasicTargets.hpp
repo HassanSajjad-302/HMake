@@ -52,25 +52,21 @@ struct RealBTarget
 {
     map<BTarget *, BTargetDepType> dependents;
     map<BTarget *, BTargetDepType> dependencies;
-    unsigned int indexInTopologicalSort = 0;
-    unsigned int dependenciesSize = 0;
-    FileStatus fileStatus = FileStatus::UPDATED;
+
     // This points to the tarjanNodeBTargets set element
     TBT *bTarjanNode;
     BTarget *bTarget;
-    bool dependencyNeedsUpdate = false;
-    bool updateCalled = false;
-    // Plays two roles. Depicts the exitStatus of itself and of its dependencies
-    int exitStatus = EXIT_SUCCESS;
-    unsigned short round;
-    explicit RealBTarget(BTarget *bTarget_, unsigned short round);
 
-    template <typename... U> void addDependency(BTarget &dependency, U &...bTargets);
-    template <typename... U> void addDependency(BTarget &dependency, BTargetDepType, U &...bTargets);
+    unsigned int indexInTopologicalSort = 0;
+    unsigned int dependenciesSize = 0;
+
     // TODO
     //  Following describes the time taken for the completion of this task. Currently unused. how to determine cpu time
     //  for this task in multi-threaded scenario
     unsigned long timeTaken = 0;
+
+    // Plays two roles. Depicts the exitStatus of itself and of its dependencies
+    int exitStatus = EXIT_SUCCESS;
 
     // TODO
     // Some tools like modern linker or some common release management tasks like compression supports parallel
@@ -87,6 +83,18 @@ struct RealBTarget
     // How many threads the tool supports. -1 means any. some tools may not support more than a fixed number, so
     // updateBTarget will not passed more than supportsThread
     short supportsThread = -1;
+
+    unsigned short round;
+
+    FileStatus fileStatus = FileStatus::UPDATED;
+
+    bool dependencyNeedsUpdate = false;
+    bool updateCalled = false;
+
+    explicit RealBTarget(BTarget *bTarget_, unsigned short round);
+
+    template <typename... U> void addDependency(BTarget &dependency, U &...bTargets);
+    template <typename... U> void addDependency(BTarget &dependency, BTargetDepType, U &...bTargets);
 };
 
 namespace BTargetNamespace
@@ -102,10 +110,17 @@ enum class BTargetType : unsigned short
 struct BTarget // BTarget
 {
     inline static size_t total = 0;
-    size_t id = 0; // unique for every BTarget
-    bool selectiveBuild = false;
 
     map<unsigned short, RealBTarget> realBTargets;
+
+    size_t id = 0; // unique for every BTarget
+
+    // TODO
+    // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
+    float totalTimeTaken = 0.0f;
+
+    bool selectiveBuild = false;
+
     explicit BTarget();
     virtual ~BTarget();
 
@@ -116,10 +131,6 @@ struct BTarget // BTarget
     virtual void preSort(class Builder &builder, unsigned short round);
     virtual void duringSort(Builder &builder, unsigned short round);
     virtual void updateBTarget(Builder &builder, unsigned short round);
-
-    // TODO
-    // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
-    float totalTimeTaken = 0.0f;
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
@@ -165,16 +176,18 @@ class CTarget // Configure Target
 {
     inline static set<std::pair<string, string>> cTargetsSameFileAndNameCheck;
     void initializeCTarget();
-    bool selectiveBuild = false;
 
   public:
     string name;
-    Json json;
-    set<CTarget *, CTargetPointerComparator> elements;
-    inline static size_t total = 0;
-    size_t id = 0; // unique for every BTarget
     // If target has file, this is that file directory. Else, it is the directory of container it is present in.
     string targetFileDir;
+
+    set<CTarget *, CTargetPointerComparator> elements;
+
+    Json json;
+    inline static size_t total = 0;
+    size_t id = 0; // unique for every BTarget
+
     // If constructor with other target is used, the pointer to the other target
     CTarget *other = nullptr;
     // This points to the tarjanNodeCTargets set element
@@ -182,6 +195,11 @@ class CTarget // Configure Target
     const bool hasFile = true;
     bool selectiveBuildSet = false;
     bool callPreSort = true;
+
+  private:
+    bool selectiveBuild = false;
+
+  public:
     CTarget(string name_, CTarget &container, bool hasFile_ = true);
     explicit CTarget(string name_);
     virtual ~CTarget();

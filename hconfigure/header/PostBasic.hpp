@@ -40,8 +40,8 @@ struct PostCompile : PostBasic
                          const PathPrint &pathPrint);
 
     bool ignoreHeaderFile(const string &str);
-    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, string &output);
-    void parseDepsFromGCCDepsOutput(SourceNode &sourceNode);
+    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, string &output, Json &headerDepsJson);
+    void parseDepsFromGCCDepsOutput(SourceNode &sourceNode, Json &headerDepsJson);
     void parseHeaderDeps(SourceNode &sourceNode);
 };
 

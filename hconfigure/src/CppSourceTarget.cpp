@@ -162,17 +162,11 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
     set<const SMFile *, IndexInTopologicalSortComparatorRoundZero> sortedSMFileDependencies;
     for (const SMFile &objectFile : moduleSourceFileDependencies)
     {
-        if (objectFile.presentInSource)
-        {
-            sortedSMFileDependencies.emplace(&objectFile);
-        }
+        sortedSMFileDependencies.emplace(&objectFile);
     }
     for (const SMFile *headerUnit : headerUnits)
     {
-        if (headerUnit->presentInSource)
-        {
-            sortedSMFileDependencies.emplace(headerUnit);
-        }
+        sortedSMFileDependencies.emplace(headerUnit);
     }
 
     for (const SMFile *objectFile : sortedSMFileDependencies)
@@ -182,10 +176,7 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
 
     for (const SourceNode &objectFile : sourceFileDependencies)
     {
-        if (objectFile.presentInSource)
-        {
-            objectFiles->emplace_back(&objectFile);
-        }
+        objectFiles->emplace_back(&objectFile);
     }
 
     for (const ObjectFileProducer *objectFileTarget : requirementObjectFileTargets)
@@ -804,9 +795,9 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
 {
     if (!round || round == 1)
     {
-        if (sourceFileOrSMRuleFileUpdated)
+        if (targetCacheChanged)
         {
-            sourceFileOrSMRuleFileUpdated = false;
+            targetCacheChanged = false;
             saveBuildCache(round);
         }
     }
@@ -968,13 +959,11 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, bool recurs
                 {
                     SourceNode &sourceNode = addNodeInSourceFileDependencies(
                         const_cast<Node *>(Node::getNodeFromString(k.path().generic_string(), true)));
-                    sourceNode.presentInSource = true;
                 }
                 else
                 {
                     SMFile &smFile = addNodeInModuleSourceFileDependencies(
                         const_cast<Node *>(Node::getNodeFromString(k.path().generic_string(), true)));
-                    smFile.presentInSource = true;
                 }
             }
         }
@@ -1192,54 +1181,18 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
         create_directories(buildCacheFilesDirPath);
         return;
     }
-
-    if (!Ok)
-    {
-        for (Json &j : targetBuildCache->at(JConsts::sourceDependencies))
-        {
-            Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
-            if (!node->doesNotExist)
-            {
-                SourceNode &sourceNode = addNodeInSourceFileDependencies(node);
-                sourceNode.presentInCache = true;
-                sourceNode.headerFilesJson = &(j.at(JConsts::headerDependencies));
-                sourceNode.compileCommandJson = j.at(JConsts::compileCommand);
-            }
-        }
-        for (Json &j : targetBuildCache->at(JConsts::moduleDependencies))
-        {
-            Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
-            if (!node->doesNotExist)
-            {
-                SMFile &smFile = addNodeInModuleSourceFileDependencies(node);
-                smFile.presentInCache = true;
-                smFile.headerFilesJson = &(j.at(JConsts::headerDependencies));
-                smFile.compileCommandJson = j.at(JConsts::compileCommand);
-            }
-        }
-
-        for (Json &j : targetBuildCache->at(JConsts::headerUnits))
-        {
-            Node *node = const_cast<Node *>(Node::getNodeFromString(j.at(JConsts::srcFile), true, true));
-            if (!node->doesNotExist)
-            {
-                SMFile &headerUnit = addNodeInHeaderUnits(node);
-                headerUnit.presentInCache = true;
-                headerUnit.headerFilesJson = &(j.at(JConsts::headerDependencies));
-                headerUnit.compileCommandJson = j.at(JConsts::compileCommand);
-            }
-        }
-    }
 }
 
 void CppSourceTarget::resolveRequirePaths()
 {
     for (const SMFile &smFileConst : moduleSourceFileDependencies)
     {
-        if (smFileConst.presentInSource)
+        auto &smFile = const_cast<SMFile &>(smFileConst);
+
+        Json &rules = smFile.sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
+        if (auto jsonIt = rules.find(JConsts::requires_); jsonIt != rules.end())
         {
-            auto &smFile = const_cast<SMFile &>(smFileConst);
-            for (const Json &requireJson : *(smFile.requiresJson))
+            for (const Json &requireJson : *jsonIt)
             {
                 string requireLogicalName = requireJson.at("logical-name").get<string>();
                 if (requireLogicalName == smFile.logicalName)
@@ -1272,41 +1225,59 @@ void CppSourceTarget::resolveRequirePaths()
 
 void CppSourceTarget::populateSourceNodes()
 {
+    Json &sourceFilesJson = (*targetBuildCache)[JConsts::sourceDependencies];
     for (auto it = sourceFileDependencies.begin(); it != sourceFileDependencies.end();)
     {
-        if (it->presentInSource)
+        auto &sourceNode = const_cast<SourceNode &>(*it);
+
+        const auto &[pos, Ok] = sourceFilesJson.emplace(sourceNode.node->filePath, Json::object_t{});
+        if (Ok)
         {
-            auto &sourceNode = const_cast<SourceNode &>(*it);
-            sourceNode.setSourceNodeFileStatus(".o", sourceNode.getRealBTarget(0));
-            getRealBTarget(0).addDependency(sourceNode);
+            Json &sourceJson = pos.value();
+            sourceJson.emplace(JConsts::compileCommand, Json::string_t{});
+            sourceJson.emplace(JConsts::headerDependencies, Json::array_t{});
         }
+        sourceNode.sourceJson = pos.operator->();
+
+        sourceNode.setSourceNodeFileStatus(".o", sourceNode.getRealBTarget(0));
+        getRealBTarget(0).addDependency(sourceNode);
+
         ++it;
     }
 }
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
+    Json &moduleFilesJson = (*targetBuildCache)[JConsts::moduleDependencies];
     for (auto it = moduleSourceFileDependencies.begin(); it != moduleSourceFileDependencies.end();)
     {
-        if (it->presentInSource)
+        auto &smFile = const_cast<SMFile &>(*it);
+        if (auto [pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
         {
-            auto &smFile = const_cast<SMFile &>(*it);
-            if (auto [pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
-            {
-                smFile.getRealBTarget(1).fileStatus = FileStatus::NEEDS_UPDATE;
-                ++moduleScopeData->totalSMRuleFileCount;
-            }
-            else
-            {
-                printErrorMessageColor(
-                    fmt::format("In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
-                                moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
-                                (**pos).target->getTargetPointer()),
-                    settings.pcSettings.toolErrorOutput);
-                throw std::exception();
-            }
-            getRealBTarget(0).addDependency(smFile);
+            smFile.getRealBTarget(1).fileStatus = FileStatus::NEEDS_UPDATE;
+            ++moduleScopeData->totalSMRuleFileCount;
         }
+        else
+        {
+            printErrorMessageColor(
+                fmt::format("In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
+                            moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
+                            (**pos).target->getTargetPointer()),
+                settings.pcSettings.toolErrorOutput);
+            throw std::exception();
+        }
+        getRealBTarget(0).addDependency(smFile);
+
+        const auto &[pos, Ok] = moduleFilesJson.emplace(smFile.node->filePath, Json::object_t{});
+        if (Ok)
+        {
+            Json &moduleJson = pos.value();
+            moduleJson.emplace(JConsts::compileCommand, Json::string_t{});
+            moduleJson.emplace(JConsts::headerDependencies, Json::array_t{});
+            moduleJson.emplace(JConsts::smrules, Json::object_t{});
+        }
+        smFile.sourceJson = pos.operator->();
+
         ++it;
     }
 }
@@ -1420,7 +1391,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 {
     // Use atomic_flag instead
     cppSourceTargetDotCpp_TempMutex.lock();
-    sourceFileOrSMRuleFileUpdated = true;
+    targetCacheChanged = true;
     cppSourceTargetDotCpp_TempMutex.unlock();
 
     string compileFileName = path(sourceNode.node->filePath).filename().string();
@@ -1450,7 +1421,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError)
 {
     cppSourceTargetDotCpp_TempMutex.lock();
-    sourceFileOrSMRuleFileUpdated = true;
+    targetCacheChanged = true;
     cppSourceTargetDotCpp_TempMutex.unlock();
     string finalCompileCommand = getCompileCommand() + addQuotes(smFile.node->filePath) + " ";
 
@@ -1480,8 +1451,6 @@ void CppSourceTarget::saveBuildCache(bool round)
 {
     if (round)
     {
-        (*targetBuildCache)[JConsts::moduleDependencies] = moduleSourceFileDependencies;
-        (*targetBuildCache)[JConsts::headerUnits] = headerUnits;
         writeBuildCache();
     }
     else
@@ -1493,8 +1462,6 @@ void CppSourceTarget::saveBuildCache(bool round)
                 archived = true;
             }
         }
-        //(*targetBuildCache)[JConsts::archived] = archived;
-        (*targetBuildCache)[JConsts::sourceDependencies] = sourceFileDependencies;
         writeBuildCache();
     }
 }

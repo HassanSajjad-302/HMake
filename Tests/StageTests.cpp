@@ -92,6 +92,25 @@ static void executeSnapshotBalances(const Updates &updates, const path &hbuildEx
     ASSERT_EQ(snapshot.snapshotBalances(Updates{}), true);
 }
 
+static void executeTwoSnapshotBalances(const Updates &updates1, const Updates &updates2,
+                                       const path &hbuildExecutionPath = current_path())
+{
+    // Running configure.exe --build should not update any file
+    path p = current_path();
+    current_path(hbuildExecutionPath);
+    Snapshot snapshot(p);
+    int exitCode = system(hbuildBuildStr.c_str());
+    ASSERT_EQ(exitCode, 0) << hbuildBuildStr + " command failed.";
+    snapshot.after(p);
+    ASSERT_EQ(snapshot.snapshotBalances(updates1), true);
+
+    snapshot.before(p);
+    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    snapshot.after(p);
+    current_path(p);
+    ASSERT_EQ(snapshot.snapshotBalances(updates2), true);
+}
+
 static void executeErroneousSnapshotBalances(const Updates &updates, const path &hbuildExecutionPath = current_path())
 {
     // Running configure.exe --build should not update any file
@@ -521,8 +540,18 @@ TEST(StageTests, Test3)
                                     .linkTargetsDebug = 1});
     cacheJson["cache-variables"]["use-module"] = true;
     ofstream(cacheFile) << cacheJson.dump(4);
-    executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib3");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+
+    // compile-command is only updated when the module is updated. Because, otherwise, if the module-file is not edited
+    // and only the compile-command is changed, HMake might not build the module because of selectiveBuild, but because
+    // the changed compile-command is saved, HMake won't rebuild in next invocations. This, however, means that HMake
+    // might regenerate the smrules file because of changed compile-command, if that changed compile-command wasn't
+    // conserved previously, because HMake didn't build the module because of selectiveBuild. So, HMake will keep
+    // regenerating the .smrules, unless the changed compile-command is saved by building the respective module.
+
+    executeTwoSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, Updates{.smruleFiles = 1, .cppTargets = 1},
+                               "Debug/lib3");
+    executeSnapshotBalances(Updates{.smruleFiles = 1, .sourceFiles = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1},
+                            "Debug/lib2");
 
     // linker prints "fatal error" but still builds the lib fine and snapshot balances. Just to be safe the module
     // object-files are now specified in order. This shouldn't be needed as object-files ordering specification should
