@@ -821,7 +821,7 @@ void CppSourceTarget::setJson()
     string str = "SOURCE_";
     // TODO
     //  Remove cached nodes from sourceFileDependencies and moduleSourceFileDependencies
-    targetJson[str + JConsts::files] = sourceFileDependencies;
+    // targetJson[str + JConsts::files] = sourceFileDependencies;
     targetJson[str + JConsts::directories] = regexSourceDirs;
     str = "MODULE_";
     // targetJson[str + JConsts::files] = moduleSourceFileDependencies;

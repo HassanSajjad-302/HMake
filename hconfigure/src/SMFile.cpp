@@ -112,7 +112,7 @@ path Node::getFinalNodePathFromString(const string &str)
     {
         filePath = path(srcDir) / filePath;
     }
-    filePath = filePath.lexically_normal();
+    filePath = filePath.lexically_normal().generic_string();
 
     if constexpr (os == OS::NT)
     {
