@@ -229,9 +229,13 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, Json &heade
     }
 }
 
-void PostCompile::parseHeaderDeps(SourceNode &sourceNode)
+void PostCompile::parseHeaderDeps(SourceNode &sourceNode, unsigned short round)
 {
-    Json &headerDepsJson = sourceNode.sourceJson->operator[](JConsts::headerDependencies);
+    if (round == 0)
+    {
+        buildCacheMutex.lock();
+    }
+    Json &headerDepsJson = sourceNode.sourceJson->at(JConsts::headerDependencies);
     headerDepsJson.clear();
 
     if (target.compiler.bTFamily == BTFamily::MSVC)
@@ -247,5 +251,9 @@ void PostCompile::parseHeaderDeps(SourceNode &sourceNode)
         {
             parseDepsFromGCCDepsOutput(sourceNode, headerDepsJson);
         }
+    }
+    if (round == 0)
+    {
+        buildCacheMutex.unlock();
     }
 }

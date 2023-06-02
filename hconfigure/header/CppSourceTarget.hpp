@@ -99,9 +99,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     set<SMFile, CompareSourceNode> moduleSourceFileDependencies;
     // Set to true if a source or smrule is updated so that latest cache could be stored.
     std::atomic<bool> targetCacheChanged = false;
-    SourceNode &addNodeInSourceFileDependencies(Node *node);
-    SMFile &addNodeInModuleSourceFileDependencies(Node *node);
-    SMFile &addNodeInHeaderUnits(Node *node);
     void setCpuType();
     bool isCpuTypeG7();
 
@@ -292,8 +289,7 @@ CppSourceTarget &CppSourceTarget::HU_DIRECTORIES(const string &include, U... inc
 
 template <typename... U> CppSourceTarget &CppSourceTarget::SOURCE_FILES(const string &srcFile, U... sourceFileString)
 {
-    SourceNode &sourceNode =
-        addNodeInSourceFileDependencies(const_cast<Node *>(Node::getNodeFromString(srcFile, true)));
+    sourceFileDependencies.emplace(this, const_cast<Node *>(Node::getNodeFromString(srcFile, true)));
     if constexpr (sizeof...(sourceFileString))
     {
         return SOURCE_FILES(sourceFileString...);
@@ -312,8 +308,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(const st
     }
     else
     {
-        SMFile &smFile =
-            addNodeInModuleSourceFileDependencies(const_cast<Node *>(Node::getNodeFromString(modFile, true)));
+        moduleSourceFileDependencies.emplace(this, const_cast<Node *>(Node::getNodeFromString(modFile, true)));
         if constexpr (sizeof...(moduleFileString))
         {
             return MODULE_FILES(moduleFileString...);

@@ -21,7 +21,7 @@ import <utility>;
 #include <utility>
 #endif
 
-using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack;
+using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard, std::mutex;
 
 LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType)
     : CTarget(std::move(name_)), PrebuiltLinkOrArchiveTarget(name, getSubDirForTarget(), targetType)
@@ -41,11 +41,6 @@ void LinkOrArchiveTarget::setOutputName(string outputName_)
     outputName = std::move(outputName_);
 }
 
-void LinkOrArchiveTarget::initializeForBuild()
-{
-    buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
-}
-
 void LinkOrArchiveTarget::populateObjectFiles()
 {
     for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
@@ -58,7 +53,7 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
 {
     if (!round)
     {
-        initializeForBuild();
+        buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
         for (ObjectFileProducer *objectFileProducer : objectFileProducers)
         {
             objectFileProducer->addDependencyOnObjectFileProducers(this);
@@ -89,7 +84,25 @@ void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round)
             create_directories(buildCacheFilesDirPath);
             realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
         }
-        else if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
+
+        // No other thread during BTarget::duringSort calls saveBuildCache() i.e. only the following operation needs to
+        // be guarded by the mutex, otherwise all the targetBuildCache access would have been guarded
+        buildCacheMutex.lock();
+        const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
+        buildCacheMutex.unlock();
+        targetBuildCache = iter.operator->();
+
+        if (Ok)
+        {
+            // Following is needed because of selectedBuild. Because of that a target getSubDirOfTarget might be
+            // saved early in the build-process, without its link-command and object-files getting updated. So,
+            // the following scaffold is created, so that the following nlohmann::json::at command will succeed.
+            targetBuildCache->emplace(JConsts::linkCommand, Json::string_t{});
+            targetBuildCache->emplace(JConsts::objectFiles, Json::array_t{});
+            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        }
+
+        if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
         {
             path outputPath = path(getActualOutputPath());
             if (!std::filesystem::exists(outputPath))
@@ -98,65 +111,50 @@ void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round)
             }
             else
             {
-                const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
-                Json &targetBuildCache = iter.operator*();
+                set<string> cachedObjectFiles = targetBuildCache->at(JConsts::objectFiles).get<set<string>>();
 
-                if (Ok)
+                if (targetBuildCache->at(JConsts::linkCommand) ==
+                    linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets)
                 {
-                    // Following is needed because of selectedBuild. Because of that a target getSubDirOfTarget might be
-                    // saved early in the build-process, without its link-command and object-files getting updated. So,
-                    // the following scaffold is created, so that the following nlohmann::json::at command will succeed.
-                    targetBuildCache.emplace(JConsts::compileCommand, Json::string_t{});
-                    targetBuildCache.emplace(JConsts::objectFiles, Json::array_t{});
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                }
-                else
-                {
-                    set<string> cachedObjectFiles = targetBuildCache.at(JConsts::objectFiles).get<set<string>>();
-
-                    if (targetBuildCache[JConsts::linkCommand] ==
-                        linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets)
+                    bool needsUpdate = false;
+                    if (!EVALUATE(TargetType::LIBRARY_STATIC))
                     {
-                        bool needsUpdate = false;
-                        if (!EVALUATE(TargetType::LIBRARY_STATIC))
+                        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
                         {
-                            for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
-                            {
 
-                                path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
-                                if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
-                                    Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
-                                {
-                                    needsUpdate = true;
-                                    break;
-                                }
-                            }
-                        }
-
-                        for (const ObjectFile *objectFile : objectFiles)
-                        {
-                            if (!cachedObjectFiles.contains(objectFile->getObjectFileOutputFilePath()))
-                            {
-                                needsUpdate = true;
-                                break;
-                            }
-                            if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)
-                                    ->getLastUpdateTime() >
+                            path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
+                            if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
                                 Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
                             {
                                 needsUpdate = true;
                                 break;
                             }
                         }
-                        if (needsUpdate)
+                    }
+
+                    for (const ObjectFile *objectFile : objectFiles)
+                    {
+                        if (!cachedObjectFiles.contains(objectFile->getObjectFileOutputFilePath()))
                         {
-                            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                            needsUpdate = true;
+                            break;
+                        }
+                        if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)
+                                ->getLastUpdateTime() >
+                            Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                        {
+                            needsUpdate = true;
+                            break;
                         }
                     }
-                    else
+                    if (needsUpdate)
                     {
                         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                     }
+                }
+                else
+                {
+                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                 }
             }
         }
@@ -241,20 +239,20 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
         realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
         if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
         {
-            Json &targetBuildCache = buildCache.emplace(getSubDirForTarget(), Json::object_t{}).first.operator*();
-            targetBuildCache[JConsts::linkCommand] =
-                linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets;
             vector<string> cachedObjectFilesVector;
             for (const ObjectFile *objectFile : objectFiles)
             {
                 cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
             }
-            targetBuildCache[JConsts::objectFiles] = std::move(cachedObjectFilesVector);
-            writeBuildCache();
+            lock_guard<mutex> lk(buildCacheMutex);
+            targetBuildCache->at(JConsts::linkCommand) =
+                linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets;
+            targetBuildCache->at(JConsts::objectFiles) = std::move(cachedObjectFilesVector);
+            writeBuildCacheUnlocked();
         }
 
         {
-            std::lock_guard<std::mutex> lk(printMutex);
+            lock_guard<mutex> lk(printMutex);
             if (linkTargetType == TargetType::LIBRARY_STATIC)
             {
                 postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);

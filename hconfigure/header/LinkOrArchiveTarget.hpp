@@ -53,17 +53,16 @@ class LinkOrArchiveTarget : public CTarget,
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     string linkOrArchiveCommandWithoutTargets;
     string linkOrArchiveCommandWithTargets;
-
+    string buildCacheFilesDirPath;
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
 
-    string buildCacheFilesDirPath;
+    Json *targetBuildCache;
     bool archiving = false;
     bool archived = false;
 
     LinkOrArchiveTarget(string name_, TargetType targetType);
     LinkOrArchiveTarget(string name_, TargetType targetType, class CTarget &other, bool hasFile = true);
     void setOutputName(string outputName_);
-    void initializeForBuild();
     void populateObjectFiles();
     void preSort(Builder &builder, unsigned short round) override;
     void duringSort(Builder &builder, unsigned short round) override;

@@ -42,49 +42,6 @@ bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs)
     return std::tie(lhs.sourceDirectory, lhs.regex) < std::tie(rhs.sourceDirectory, rhs.regex);
 }
 
-SourceNode &CppSourceTarget::addNodeInSourceFileDependencies(Node *node)
-{
-    set<SourceNode, CompareSourceNode>::const_iterator sourceNode;
-    if (auto it = sourceFileDependencies.find(node); it == sourceFileDependencies.end())
-    {
-        sourceNode = sourceFileDependencies.emplace(this, node).first;
-    }
-    else
-    {
-        sourceNode = it;
-    }
-    return const_cast<SourceNode &>(*sourceNode);
-}
-
-SMFile &CppSourceTarget::addNodeInModuleSourceFileDependencies(Node *node)
-{
-    set<SMFile, CompareSourceNode>::const_iterator moduleNode;
-    if (auto it = moduleSourceFileDependencies.find(node); it == moduleSourceFileDependencies.end())
-    {
-        moduleNode = moduleSourceFileDependencies.emplace(this, node).first;
-    }
-    else
-    {
-        moduleNode = it;
-    }
-    return const_cast<SMFile &>(*moduleNode);
-}
-
-SMFile &CppSourceTarget::addNodeInHeaderUnits(Node *node)
-{
-    set<SMFile, CompareSourceNode>::const_iterator headerUnit;
-    if (auto it = moduleScopeData->headerUnits.find(node); it == moduleScopeData->headerUnits.end())
-    {
-        headerUnit = moduleScopeData->headerUnits.emplace(this, node).first;
-        headerUnits.emplace(&(*headerUnit));
-    }
-    else
-    {
-        headerUnit = it;
-    }
-    return const_cast<SMFile &>(*headerUnit);
-}
-
 void CppSourceTarget::setCpuType()
 {
     // Based on msvc.jam Line 2141
@@ -957,13 +914,12 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, bool recurs
             {
                 if (assignToSourceNodes)
                 {
-                    SourceNode &sourceNode = addNodeInSourceFileDependencies(
-                        const_cast<Node *>(Node::getNodeFromString(k.path().generic_string(), true)));
+                    sourceFileDependencies.emplace(this, Node::getNodeFromString(k.path().generic_string(), true));
                 }
                 else
                 {
-                    SMFile &smFile = addNodeInModuleSourceFileDependencies(
-                        const_cast<Node *>(Node::getNodeFromString(k.path().generic_string(), true)));
+                    moduleSourceFileDependencies.emplace(this,
+                                                         Node::getNodeFromString(k.path().generic_string(), true));
                 }
             }
         }
@@ -1019,7 +975,7 @@ void CppSourceTarget::setCompileCommand()
                           flags.OPTIONS_COMPILE_CPP;
     }
 
-    string translateIncludeFlag = GET_FLAG_EVALUATE(TranslateInclude::YES, "/translateInclude ");
+    string translateIncludeFlag = GET_FLAG_EVALUATE(AND(TranslateInclude::YES, BTFamily::MSVC), "/translateInclude ");
     compileCommand += translateIncludeFlag;
 
     auto getIncludeFlag = [this]() {
@@ -1166,7 +1122,12 @@ string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
 // improvement. This will also save the conditional check of presentInSource
 void CppSourceTarget::readBuildCacheFile(Builder &)
 {
+
+    // No other thread during BTarget::preSort calls saveBuildCache() i.e. only the following operation needs to be
+    // guarded by the mutex, otherwise all the targetBuildCache access would had been guarded
+    buildCacheMutex.lock();
     const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
+    buildCacheMutex.unlock();
     targetBuildCache = iter.operator->();
 
     if (Ok)
@@ -1225,7 +1186,12 @@ void CppSourceTarget::resolveRequirePaths()
 
 void CppSourceTarget::populateSourceNodes()
 {
-    Json &sourceFilesJson = (*targetBuildCache)[JConsts::sourceDependencies];
+    // No other thread during BTarget::preSort calls saveBuildCache() i.e. only the following operation needs to be
+    // guarded by the mutex, otherwise all the targetBuildCache access would had been guarded
+    buildCacheMutex.lock();
+    Json &sourceFilesJson = targetBuildCache->at(JConsts::sourceDependencies);
+    buildCacheMutex.unlock();
+
     for (auto it = sourceFileDependencies.begin(); it != sourceFileDependencies.end();)
     {
         auto &sourceNode = const_cast<SourceNode &>(*it);
@@ -1248,7 +1214,12 @@ void CppSourceTarget::populateSourceNodes()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
-    Json &moduleFilesJson = (*targetBuildCache)[JConsts::moduleDependencies];
+    // No other thread during BTarget::preSort calls saveBuildCache() i.e. only the following operation needs to be
+    // guarded by the mutex, otherwise all the targetBuildCache access would had been guarded
+    buildCacheMutex.lock();
+    Json &moduleFilesJson = targetBuildCache->at(JConsts::moduleDependencies);
+    buildCacheMutex.unlock();
+
     for (auto it = moduleSourceFileDependencies.begin(); it != moduleSourceFileDependencies.end();)
     {
         auto &smFile = const_cast<SMFile &>(*it);

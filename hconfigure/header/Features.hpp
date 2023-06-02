@@ -678,7 +678,7 @@ struct LinkerFeatures
 
     Coverage coverage = Coverage::OFF;
     LTO lto = LTO::OFF;
-    LTOMode ltoMode = LTOMode::FAT;
+    LTOMode ltoMode = LTOMode::FULL;
     RuntimeLink runtimeLink = RuntimeLink::SHARED;
     RuntimeDebugging runtimeDebugging = RuntimeDebugging::ON;
     TargetOS targetOs;
@@ -727,7 +727,7 @@ struct CppCompilerFeatures
 
     Coverage coverage = Coverage::OFF;
     LTO lto = LTO::OFF;
-    LTOMode ltoMode = LTOMode::FAT;
+    LTOMode ltoMode = LTOMode::FULL;
     RuntimeLink runtimeLink = RuntimeLink::SHARED;
     RuntimeDebugging runtimeDebugging = RuntimeDebugging::ON;
     TargetOS targetOs;

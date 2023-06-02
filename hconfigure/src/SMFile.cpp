@@ -30,7 +30,7 @@ import <utility>;
 #endif
 
 using std::filesystem::directory_entry, std::filesystem::file_type, std::tie, std::ifstream,
-    std::filesystem::file_time_type, std::exception;
+    std::filesystem::file_time_type, std::exception, std::lock_guard;
 
 string getStatusString(const path &p)
 {
@@ -129,7 +129,7 @@ path Node::getFinalNodePathFromString(const string &str)
     return filePath;
 }
 
-static std::mutex nodeInsertMutex;
+static mutex nodeInsertMutex;
 Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
 {
     path filePath = getFinalNodePathFromString(str);
@@ -138,7 +138,7 @@ Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
     // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
     // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
     // performed only once.
-    std::lock_guard<std::mutex> lk(nodeInsertMutex);
+    lock_guard<mutex> lk(nodeInsertMutex);
     if (auto it = allFiles.find(filePath.string()); it != allFiles.end())
     {
         return const_cast<Node *>(it.operator->());
@@ -265,27 +265,29 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
     {
         RealBTarget &realBTarget = getRealBTarget(round);
         PostCompile postCompile = target->updateSourceNodeBTarget(*this);
-        postCompile.parseHeaderDeps(*this);
+        postCompile.parseHeaderDeps(*this, round);
         realBTarget.exitStatus = postCompile.exitStatus;
         // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
         // cached compile-command would be different
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            (*sourceJson)[JConsts::compileCommand] =
+            // Mutex is needed because while parallel reading is safe, parallel read-write is not safe
+            lock_guard<mutex> lk(buildCacheMutex);
+            sourceJson->at(JConsts::compileCommand) =
                 target->compiler.bTPath.generic_string() + " " + target->compileCommand;
         }
-        std::lock_guard<std::mutex> lk(printMutex);
+        lock_guard<mutex> lk(printMutex);
         postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
         fflush(stdout);
     }
 }
 
-void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget)
+void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget) const
 {
     Node *objectFileNode = Node::getNodeFromString(
         target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ex, true, true);
 
-    if ((*sourceJson)[JConsts::compileCommand] !=
+    if (sourceJson->at(JConsts::compileCommand) !=
         target->compiler.bTPath.generic_string() + " " + target->compileCommand)
     {
         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
@@ -304,7 +306,7 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
         return;
     }
 
-    for (const Json &str : (*sourceJson)[JConsts::headerDependencies])
+    for (const Json &str : sourceJson->at(JConsts::headerDependencies))
     {
         Node *headerNode = Node::getNodeFromString(str, true, true);
         if (headerNode->doesNotExist)
@@ -323,7 +325,7 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
 
 void to_json(Json &j, const SourceNode &sourceNode)
 {
-    j[JConsts::srcFile] = *(sourceNode.sourceJson);
+    // j[JConsts::srcFile] = *(sourceNode.sourceJson);
 }
 
 void to_json(Json &j, const SourceNode *sourceNode)
@@ -345,11 +347,11 @@ SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node
 {
 }
 
-static std::mutex totalSMRuleFileCountMutex; // TODO: atomics should be used instead of this
+static mutex totalSMRuleFileCountMutex; // TODO: atomics should be used instead of this
 
 void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
 {
-    std::lock_guard<std::mutex> lk(totalSMRuleFileCountMutex);
+    lock_guard<mutex> lk(totalSMRuleFileCountMutex);
     --target->moduleScopeData->totalSMRuleFileCount;
     if (!target->moduleScopeData->totalSMRuleFileCount)
     {
@@ -361,7 +363,7 @@ void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
     }
 }
 
-static std::mutex smFilesInternalMutex;
+static mutex smFilesInternalMutex;
 
 void SMFile::updateBTarget(Builder &builder, unsigned short round)
 {
@@ -375,11 +377,11 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
             //  Expose setting for printOnlyOnError
             PostCompile postCompile = target->GenerateSMRulesFile(*this, true);
             {
-                std::lock_guard<std::mutex> lk(printMutex);
+                lock_guard<mutex> lk(printMutex);
                 postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
                 fflush(stdout);
             }
-            postCompile.parseHeaderDeps(*this);
+            postCompile.parseHeaderDeps(*this, round);
             realBTarget.exitStatus = postCompile.exitStatus;
         }
         if (realBTarget.exitStatus == EXIT_SUCCESS)
@@ -387,7 +389,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
             {
                 // Maybe fine-grain this mutex by using multiple mutexes in following functions. And first use
                 // set::contain and then set::emplace. Because set::contains is thread-safe while set::emplace isn't
-                std::lock_guard<std::mutex> lk(smFilesInternalMutex);
+                lock_guard<mutex> lk(smFilesInternalMutex);
                 saveRequiresJsonAndInitializeHeaderUnits(builder);
                 assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
             }
@@ -402,15 +404,19 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
         PostCompile postCompile = target->CompileSMFile(*this);
         realBTarget.exitStatus = postCompile.exitStatus;
 
-        std::lock_guard<std::mutex> lk(printMutex);
-        postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
-        fflush(stdout);
+        {
+            lock_guard<mutex> lk(printMutex);
+            postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
+            fflush(stdout);
+        }
 
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
             // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
             // cached compile-command would be different
-            (*sourceJson)[JConsts::compileCommand] =
+            // Mutex is needed because while parallel reading is safe, parallel read-write is not safe
+            lock_guard<mutex> lk(buildCacheMutex);
+            sourceJson->at(JConsts::compileCommand) =
                 target->compiler.bTPath.generic_string() + " " + target->compileCommand;
             target->targetCacheChanged = true;
         }
@@ -532,22 +538,26 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }
 
-        Json &headerUnitsJson = huDirTarget->targetBuildCache->operator[](JConsts::moduleDependencies);
-        const auto &[pos, Ok] = headerUnitsJson.emplace(headerUnit.node->filePath, Json::object_t{});
-        if (Ok)
+        // No other thread during BTarget::updateBTarget in round 1 calls saveBuildCache() i.e. only the following
+        // operation needs to be guarded by the mutex, otherwise all the targetBuildCache access would have been guarded
+        // Also each smfile deals with its own cache json, so, only the emplacing in the cache needs to be guarded.
         {
-            Json &moduleJson = pos.value();
-            moduleJson.emplace(JConsts::compileCommand, Json::string_t{});
-            moduleJson.emplace(JConsts::headerDependencies, Json::array_t{});
-            moduleJson.emplace(JConsts::smrules, Json::object_t{});
+            lock_guard<mutex> lk(buildCacheMutex);
+            Json &headerUnitsJson = huDirTarget->targetBuildCache->operator[](JConsts::moduleDependencies);
+            const auto &[pos, Ok] = headerUnitsJson.emplace(headerUnit.node->filePath, Json::object_t{});
+            if (Ok)
+            {
+                Json &moduleJson = pos.value();
+                moduleJson.emplace(JConsts::compileCommand, Json::string_t{});
+                moduleJson.emplace(JConsts::headerDependencies, Json::array_t{});
+                moduleJson.emplace(JConsts::smrules, Json::object_t{});
+            }
+            headerUnit.sourceJson = pos.operator->();
         }
-        headerUnit.sourceJson = pos.operator->();
 
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
-        RealBTarget &realBTarget = headerUnit.getRealBTarget(1);
-
         {
-            std::lock_guard<std::mutex> lk(totalSMRuleFileCountMutex);
+            lock_guard<mutex> lk(totalSMRuleFileCountMutex);
             ++target->moduleScopeData->totalSMRuleFileCount;
         }
 
@@ -635,7 +645,7 @@ bool SMFile::generateSMFileInRoundOne()
 {
     RealBTarget &realBTarget = getRealBTarget(0);
 
-    if ((*sourceJson)[JConsts::compileCommand] !=
+    if (sourceJson->at(JConsts::compileCommand) !=
         target->compiler.bTPath.generic_string() + " " + target->compileCommand)
     {
         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
@@ -659,7 +669,7 @@ bool SMFile::generateSMFileInRoundOne()
             }
             else
             {
-                for (const Json &str : (*sourceJson)[JConsts::headerDependencies])
+                for (const Json &str : sourceJson->at(JConsts::headerDependencies))
                 {
                     Node *headerNode = Node::getNodeFromString(str, true, true);
                     if (headerNode->doesNotExist)
@@ -700,7 +710,7 @@ bool SMFile::generateSMFileInRoundOne()
             }
             else
             {
-                for (const Json &str : (*sourceJson)[JConsts::headerDependencies])
+                for (const Json &str : sourceJson->at(JConsts::headerDependencies))
                 {
                     Node *headerNode = Node::getNodeFromString(str, true, true);
                     if (headerNode->doesNotExist)

@@ -19,10 +19,14 @@ import <fstream>;
 
 using fmt::print, std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
 
-std::mutex buildCacheMutex;
 void writeBuildCache()
 {
     std::lock_guard<std::mutex> lk(buildCacheMutex);
+    ofstream(configureDir + "/build-cache.json") << buildCache.dump(4);
+}
+
+void writeBuildCacheUnlocked()
+{
     ofstream(configureDir + "/build-cache.json") << buildCache.dump(4);
 }
 
@@ -149,7 +153,11 @@ void configureOrBuild()
     }
     if (bsMode == BSMode::BUILD)
     {
-        actuallyReadTheFile();
+        path p = path(configureDir) / "build-cache.json";
+        if (exists(p))
+        {
+            ifstream(p.string()) >> buildCache;
+        }
     }
 
     vector<BTarget *> preSortBTargets;

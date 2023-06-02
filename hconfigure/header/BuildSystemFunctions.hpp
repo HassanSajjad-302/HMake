@@ -27,7 +27,9 @@ import <mutex>;
 // processing.
 using Json = nlohmann::json; // Unordered json
 inline Json buildCache;
+inline std::mutex buildCacheMutex;
 void writeBuildCache();
+void writeBuildCacheUnlocked();
 
 using std::string, std::set, std::map, std::mutex;
 

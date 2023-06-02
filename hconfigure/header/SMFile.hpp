@@ -103,7 +103,7 @@ struct SourceNode : public ObjectFile
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     string getTarjanNodeName() const override;
     void updateBTarget(Builder &builder, unsigned short round) override;
-    void setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget);
+    void setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget) const;
 };
 
 void to_json(Json &j, const SourceNode &sourceNode);
