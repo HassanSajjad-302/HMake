@@ -318,6 +318,21 @@ void Builder::execute()
         break;
         case BuilderMode::DURING_SORT: {
             bTarget->duringSort(*this, round);
+            /*            for (auto &[dependent, bTargetDepType] : realBTarget.dependents)
+                        {
+                            RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
+                            if (realBTarget.fileStatus == FileStatus::UPDATED || bTargetDepType ==
+               BTargetDepType::LOOSE)
+                            {
+                                --(dependentRealBTarget.dependenciesSize);
+                            }
+                            else if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+                            {
+                                dependentRealBTarget.dependencyNeedsUpdate = true;
+                                dependentRealBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                            }
+                        }*/
+
             for (auto &[dependent, bTargetDepType] : bTarget->getRealBTarget(round).dependents)
             {
                 RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
@@ -332,6 +347,15 @@ void Builder::execute()
                             --duringSortBTargetsIterator;
                         }
                     }
+                }
+            }
+
+            if (realBTarget->fileStatus == FileStatus::NEEDS_UPDATE)
+            {
+                ++updateBTargetsSizeGoal;
+                if (!realBTarget->dependenciesSize)
+                {
+                    updateBTargets.emplace_back(bTarget);
                 }
             }
         }
