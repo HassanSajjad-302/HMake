@@ -59,7 +59,7 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
             objectFileProducer->addDependencyOnObjectFileProducers(this);
         }
     }
-    else if (round == 3)
+    else if (round == 2)
     {
         PrebuiltLinkOrArchiveTarget::preSort(builder, round);
     }
@@ -102,7 +102,7 @@ void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round)
             realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
         }
 
-        if (realBTarget.fileStatus != FileStatus::NEEDS_UPDATE)
+        if (realBTarget.fileStatus == FileStatus::UPDATED)
         {
             path outputPath = path(getActualOutputPath());
             if (!std::filesystem::exists(outputPath))
@@ -278,7 +278,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             }
         }
     }
-    else if (round == 3)
+    else if (round == 2)
     {
         PrebuiltLinkOrArchiveTarget::updateBTarget(builder, 3);
         addRequirementDepsToBTargetDependencies();

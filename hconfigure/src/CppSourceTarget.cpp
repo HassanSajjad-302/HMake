@@ -732,19 +732,19 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
         populateSourceNodes();
         resolveRequirePaths();
     }
-    else if (round == 3)
+    else if (round == 2)
     {
-        RealBTarget &round3 = getRealBTarget(3);
+        RealBTarget &round2 = getRealBTarget(2);
         for (CSourceTarget *cppSourceTarget : requirementDeps)
         {
-            round3.addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
+            round2.addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
         }
         for (CSourceTarget *cppSourceTarget : usageRequirementDeps)
         {
-            round3.addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
+            round2.addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
         }
 
-        getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
+        round2.fileStatus = FileStatus::NEEDS_UPDATE;
     }
 }
 
@@ -758,7 +758,7 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
             saveBuildCache(round);
         }
     }
-    else if (round == 3)
+    else if (round == 2)
     {
         populateRequirementAndUsageRequirementDeps();
         addRequirementDepsToBTargetDependencies();

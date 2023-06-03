@@ -14,22 +14,39 @@ import <list>;
 
 using std::string, std::vector, std::list;
 
+enum class BuilderMode : char
+{
+    PRE_SORT,
+    DURING_SORT,
+    UPDATE_BTARGET,
+};
+
 class Builder
 {
+  public:
+    list<BTarget *> updateBTargets;
+    vector<BTarget *> preSortBTargets;
+    list<BTarget *> duringSortBTargets;
+    size_t updateBTargetsSizeGoal = 0;
+    size_t duringSortBTargetsSizeGoal = 0;
+
+  private:
+    list<BTarget *>::iterator updateBTargetsIterator;
+    vector<BTarget *>::iterator preSortBTargetsIterator;
+    list<BTarget *>::iterator duringSortBTargetsIterator;
+    unsigned short threadCount = 0;
+    unsigned short numberOfLaunchedThreads = 0;
     unsigned short round = 0;
-    list<struct BTarget *>::iterator finalBTargetsIterator;
 
   public:
-    size_t finalBTargetsSizeGoal = 0;
-    list<BTarget *> finalBTargets;
+    BuilderMode builderMode = BuilderMode::PRE_SORT;
+
     bool updateBTargetFailed = false;
-    explicit Builder(unsigned short roundBegin, unsigned short roundEnd, vector<BTarget *> &preSortBTargets);
+    explicit Builder();
     void populateFinalBTargets();
 
-    // This function is executed by multiple threads and is executed recursively until build is finished.
-    void launchThreadsAndUpdateBTargets();
     void addNewBTargetInFinalBTargets(BTarget *bTarget);
-    void updateBTargets();
+    void execute();
 
     bool addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets);
 };

@@ -160,40 +160,27 @@ void configureOrBuild()
         }
     }
 
-    vector<BTarget *> preSortBTargets;
-    for (CTarget *cTarget : targetPointers<CTarget>)
-    {
-        if (cTarget->callPreSort)
-        {
-            if (BTarget *bTarget = cTarget->getBTarget(); bTarget)
-            {
-                preSortBTargets.emplace_back(bTarget);
-                if (cTarget->getSelectiveBuild())
-                {
-                    bTarget->selectiveBuild = true;
-                }
-            }
-        }
-    }
-    {
-        Builder{3, 2, preSortBTargets};
-    }
+    Builder{};
 
-    if (bsMode == BSMode::BUILD)
-    {
-        Builder{1, 0, preSortBTargets};
-    }
-    else if (bsMode == BSMode::CONFIGURE)
-    {
-        vector<CTarget *> &cTargetsSortedForConfigure = TCT::topologicalSort;
-        for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
-        {
-            it.operator*()->setJson();
+    /*    {
+            Builder{3, 2, preSortBTargets};
         }
-        for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
+
+        if (bsMode == BSMode::BUILD)
         {
-            it.operator*()->writeJsonFile();
+            Builder{1, 0, preSortBTargets};
         }
-        cache.registerCacheVariables();
-    }
+        else if (bsMode == BSMode::CONFIGURE)
+        {
+            vector<CTarget *> &cTargetsSortedForConfigure = TCT::topologicalSort;
+            for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
+            {
+                it.operator*()->setJson();
+            }
+            for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
+            {
+                it.operator*()->writeJsonFile();
+            }
+            cache.registerCacheVariables();
+        }*/
 }

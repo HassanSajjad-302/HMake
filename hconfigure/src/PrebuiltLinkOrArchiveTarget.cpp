@@ -60,24 +60,24 @@ PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputNam
 
 void PrebuiltLinkOrArchiveTarget::preSort(Builder &, unsigned short round)
 {
-    if (round == 3)
+    if (round == 2)
     {
-        RealBTarget &round3 = getRealBTarget(3);
+        RealBTarget &round2 = getRealBTarget(2);
         for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
         {
-            round3.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
+            round2.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
         }
         for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : usageRequirementDeps)
         {
-            round3.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
+            round2.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
         }
-        getRealBTarget(3).fileStatus = FileStatus::NEEDS_UPDATE;
+        round2.fileStatus = FileStatus::NEEDS_UPDATE;
     }
 }
 
 void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &, unsigned short round)
 {
-    if (round == 3)
+    if (round == 2)
     {
         populateRequirementAndUsageRequirementDeps();
         addRequirementDepsToBTargetDependencies();

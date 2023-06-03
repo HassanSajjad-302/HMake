@@ -73,10 +73,10 @@ void BTarget::duringSort(Builder &builder, unsigned short round)
     }
     if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
     {
-        ++builder.finalBTargetsSizeGoal;
+        ++builder.updateBTargetsSizeGoal;
         if (!realBTarget.dependenciesSize)
         {
-            builder.finalBTargets.emplace_back(this);
+            builder.updateBTargets.emplace_back(this);
         }
     }
 }
