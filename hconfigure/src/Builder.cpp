@@ -249,12 +249,16 @@ void Builder::execute()
 
                     if (!round)
                     {
-                        for (auto it = TBT::topologicalSort.rbegin(); it != TBT::topologicalSort.rend(); ++it)
+                        for (size_t i = TBT::topologicalSort.size() - 1; i > 0; --i)
                         {
-                            BTarget *bTarget_ = *it;
-                            if (bTarget_->selectiveBuild)
+                            RealBTarget &localReal = TBT::topologicalSort[i]->getRealBTarget(0);
+                            if (TBT::topologicalSort[i]->selectiveBuild)
                             {
-                                for (auto &[dependency, bTargetDepType] : bTarget_->getRealBTarget(0).dependencies)
+                                localReal.fileStatus = FileStatus::NEEDS_UPDATE;
+                                updateBTargets.emplace_back(TBT::topologicalSort[i]);
+                                localReal.indexInTopologicalSort = i;
+                                ++updateBTargetsSizeGoal;
+                                for (auto &[dependency, bTargetDepType] : localReal.dependencies)
                                 {
                                     if (bTargetDepType == BTargetDepType::FULL)
                                     {
@@ -262,26 +266,31 @@ void Builder::execute()
                                     }
                                 }
                             }
+                            else
+                            {
+                                localReal.fileStatus = FileStatus::UPDATED;
+                            }
                         }
                     }
-
-                    // Index is only needed in round zero. Perform only for round one.
-                    for (unsigned i = 0; i < TBT::topologicalSort.size(); ++i)
+                    else
                     {
-                        BTarget *bTarget_ = TBT::topologicalSort[i];
-                        RealBTarget &r = bTarget_->getRealBTarget(round);
-                        r.indexInTopologicalSort = i;
-                        r.dependenciesSize = r.dependencies.size();
-                        if (!r.dependenciesSize)
+                        // In rounds 2 and 1 all the targets will be updated.
+                        // It is also considered that all targets have there fileStatus = FileStatus::NEEDS_UPDATE
+                        // Index is only needed in round zero. Perform only for round one.
+                        for (unsigned i = 0; i < TBT::topologicalSort.size(); ++i)
                         {
-                            duringSortBTargets.emplace_back(TBT::topologicalSort[i]);
+                            BTarget *bTarget_ = TBT::topologicalSort[i];
+                            RealBTarget &r = bTarget_->getRealBTarget(round);
+                            if (!r.dependenciesSize)
+                            {
+                                updateBTargets.emplace_back(TBT::topologicalSort[i]);
+                            }
                         }
-                    }
 
-                    duringSortBTargetsSizeGoal = TBT::topologicalSort.size();
-                    duringSortBTargetsIterator = duringSortBTargets.begin();
-                    updateBTargetsSizeGoal = 0;
-                    builderMode = BuilderMode::DURING_SORT;
+                        updateBTargetsSizeGoal = TBT::topologicalSort.size();
+                    }
+                    updateBTargetsIterator = updateBTargets.begin();
+                    builderMode = BuilderMode::UPDATE_BTARGET;
                 }
                 break;
                 case BuilderMode::DURING_SORT: {
