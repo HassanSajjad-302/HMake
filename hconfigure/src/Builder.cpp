@@ -155,13 +155,13 @@ void Builder::execute()
     bool nextMode = false;
 
     std::unique_lock<std::mutex> lk(updateMutex);
+    printMessage("Locking\n");
 
     while (true)
     {
         bool shouldBreak = false;
         while (true)
         {
-
             switch (builderMode)
             {
             case BuilderMode::PRE_SORT: {
@@ -179,6 +179,7 @@ void Builder::execute()
                     bTarget = *preSortBTargetsIterator;
                     ++preSortBTargetsIterator;
                     updateMutex.unlock();
+                    printMessage(fmt::format("Unock round and line {} {}\n", round, 182));
                     cond.notify_all();
                     shouldBreak = true;
                 }
@@ -191,6 +192,7 @@ void Builder::execute()
                     bTarget = *duringSortBTargetsIterator;
                     ++duringSortBTargetsIterator;
                     updateMutex.unlock();
+                    printMessage(fmt::format("Unock round and line {} {}\n", round, 195));
                     cond.notify_all();
                     shouldBreak = true;
                 }
@@ -212,6 +214,7 @@ void Builder::execute()
                     realBTarget = &(bTarget->getRealBTarget(round));
                     ++updateBTargetsIterator;
                     updateMutex.unlock();
+                    printMessage(fmt::format("Unock round and line {} {}\n", round, 217));
                     cond.notify_all();
                     shouldBreak = true;
                 }
@@ -316,6 +319,7 @@ void Builder::execute()
             else
             {
                 cond.wait(lk);
+                printMessage("Locking\n");
             }
         }
 
