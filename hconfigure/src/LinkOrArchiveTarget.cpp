@@ -80,7 +80,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     if (!exists(path(buildCacheFilesDirPath)))
     {
         create_directories(buildCacheFilesDirPath);
-        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        fileStatus.store(true, std::memory_order_release);
     }
 
     // No other thread during BTarget::duringSort calls saveBuildCache() i.e. only the following operation needs to
@@ -95,19 +95,19 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         // the following scaffold is created, so that the following nlohmann::json::at command will succeed.
         iter->emplace(JConsts::linkCommand, Json::string_t{});
         iter->emplace(JConsts::objectFiles, Json::array_t{});
-        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        fileStatus.store(true, std::memory_order_release);
     }
 
     buildCacheMutex.unlock();
 
     targetBuildCache = iter.operator*();
 
-    if (realBTarget.fileStatus == FileStatus::UPDATED)
+    if (fileStatus.load(std::memory_order_acquire))
     {
         path outputPath = path(getActualOutputPath());
         if (!std::filesystem::exists(outputPath))
         {
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+            fileStatus.store(true, std::memory_order_release);
         }
         else
         {
@@ -148,19 +148,18 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 }
                 if (needsUpdate)
                 {
-                    realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                    fileStatus.store(true, std::memory_order_release);
                 }
             }
             else
             {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                fileStatus.store(true, std::memory_order_release);
             }
         }
 
         if constexpr (os == OS::NT)
         {
-            if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) &&
-                realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+            if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && fileStatus.load(std::memory_order_acquire))
             {
                 set<PrebuiltLinkOrArchiveTarget *> checked;
                 stack<PrebuiltLinkOrArchiveTarget *> allDeps;
@@ -175,7 +174,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                     allDeps.pop();
                     if (prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
                     {
-                        if (prebuiltLinkOrArchiveTarget->getRealBTarget(0).fileStatus == FileStatus::NEEDS_UPDATE)
+                        if (prebuiltLinkOrArchiveTarget->fileStatus.load(std::memory_order_acquire))
                         {
                             // latest dll will be built and copied
                             dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
@@ -216,7 +215,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
             }
         }
     }
-    BTarget::assignFileStatusToDependents(realBTarget);
+    assignFileStatusToDependents(realBTarget);
 }
 
 void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
@@ -225,7 +224,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
     if (!round && realBTarget.exitStatus == EXIT_SUCCESS)
     {
         setFileStatus(realBTarget);
-        if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+        if (fileStatus.load(std::memory_order_acquire))
         {
             shared_ptr<PostBasic> postBasicLinkOrArchive;
             if (linkTargetType == TargetType::LIBRARY_STATIC)

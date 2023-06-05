@@ -4,6 +4,7 @@
 import "C_API.hpp";
 import "TargetType.hpp";
 import "TarjanNode.hpp";
+import <atomic>;
 import <filesystem>;
 import <map>;
 import <mutex>;
@@ -11,12 +12,13 @@ import <mutex>;
 #include "C_API.hpp"
 #include "TargetType.hpp"
 #include "TarjanNode.hpp"
+#include <atomic>
 #include <filesystem>
 #include <map>
 #include <mutex>
 #endif
 
-using std::filesystem::path, std::size_t, std::map, std::mutex, std::lock_guard;
+using std::filesystem::path, std::size_t, std::map, std::mutex, std::lock_guard, std::atomic_flag;
 
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
 TarjanNode(const struct BTarget *) -> TarjanNode<BTarget>;
@@ -31,13 +33,6 @@ struct RealBTarget;
 struct IndexInTopologicalSortComparatorRoundZero
 {
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
-};
-
-enum class FileStatus : char
-{
-    NOT_ASSIGNED,
-    UPDATED,
-    NEEDS_UPDATE
 };
 
 enum class BTargetDepType : bool
@@ -88,8 +83,6 @@ struct RealBTarget
 
     unsigned short round;
 
-    FileStatus fileStatus = FileStatus::UPDATED;
-
     bool updateCalled = false;
 
     explicit RealBTarget(BTarget *bTarget_, unsigned short round);
@@ -119,8 +112,8 @@ struct BTarget // BTarget
     // TODO
     // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
     float totalTimeTaken = 0.0f;
-
     bool selectiveBuild = false;
+    std::atomic<bool> fileStatus = false;
 
     explicit BTarget();
     virtual ~BTarget();
@@ -129,7 +122,7 @@ struct BTarget // BTarget
 
     RealBTarget &getRealBTarget(unsigned short round);
     virtual BTargetType getBTargetType() const;
-    static void assignFileStatusToDependents(RealBTarget &realBTarget);
+    void assignFileStatusToDependents(RealBTarget &realBTarget) const;
     virtual void preSort(class Builder &builder, unsigned short round);
     virtual void updateBTarget(Builder &builder, unsigned short round);
 };

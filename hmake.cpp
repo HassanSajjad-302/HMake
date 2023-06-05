@@ -58,7 +58,6 @@ struct SizeDifference : public CTarget, public BTarget
         RealBTarget &realBTarget = getRealBTarget(0);
         if (speedConfiguration.getSelectiveBuild() && sizeConfiguration.getSelectiveBuild() && getSelectiveBuild())
         {
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
             for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
             {
                 if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))

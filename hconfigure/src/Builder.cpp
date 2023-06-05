@@ -139,10 +139,13 @@ void Builder::execute()
                 if (preSortBTargetsIterator == preSortBTargets.end())
                 {
                     ++threadCount;
-                    // printMessage(fmt::format("{} {} {} {} {}\n", round, "presort-exiting", threadCount,
-                    //  numberOfLaunchedThreads, getThreadId()));
+                    /*                    printMessage(fmt::format("{} {} {} {} {}\n", round,
+                                                                 "preSotBTargetIterator == preSortBTargets.end()",
+                       threadCount, numberOfLaunchedThreads, getThreadId()));*/
                     if (threadCount == numberOfLaunchedThreads)
                     {
+                        /*                        printMessage(fmt::format("{} {} {}\n", round, "PRE_SORT threadCount ==
+                           numberOfLaunchThreads", getThreadId()));*/
                         threadCount = 0;
                         nextMode = true;
 
@@ -152,6 +155,7 @@ void Builder::execute()
                         TBT::checkForCycle();
 
                         updateBTargets.clear();
+                        updateBTargetsSizeGoal = 0;
 
                         size_t topSize = TBT::topologicalSort.size();
 
@@ -177,16 +181,11 @@ void Builder::execute()
                                         }
                                     }
                                 }
-                                else
-                                {
-                                    localReal.fileStatus = FileStatus::UPDATED;
-                                }
                             }
                         }
                         else
                         {
                             // In rounds 2 and 1 all the targets will be updated.
-                            // It is also considered that all targets have there fileStatus = FileStatus::NEEDS_UPDATE
                             // Index is only needed in round zero. Perform only for round one.
                             for (unsigned i = 0; i < TBT::topologicalSort.size(); ++i)
                             {
@@ -242,10 +241,14 @@ void Builder::execute()
                     }
 
                     ++threadCount;
-                    // printMessage(fmt::format("{} {} {} {} {}\n", round, "update-exiting", threadCount,
-                    //  numberOfLaunchedThreads, getThreadId()));
+                    /*                     printMessage(fmt::format("{} {} {} {} {}\n", round,
+                                                                 "updateBTargets.size() == updateBTargetsSizeGoal",
+                       threadCount, numberOfLaunchedThreads, getThreadId()));*/
                     if (threadCount == numberOfLaunchedThreads)
                     {
+                        /*                        printMessage(fmt::format("{} {} {}\n", round,
+                                                                         "UPDATE_BTARGET threadCount ==
+                           numberOfLaunchThreads", getThreadId()));*/
                         if (round)
                         {
                             threadCount = 0;
@@ -354,7 +357,6 @@ void Builder::execute()
                 }
             }
 
-            bTarget->getRealBTarget(round).fileStatus = FileStatus::UPDATED;
             if (round)
             {
                 for (auto &[dependent, bTargetDepType] : bTarget->getRealBTarget(round).dependents)

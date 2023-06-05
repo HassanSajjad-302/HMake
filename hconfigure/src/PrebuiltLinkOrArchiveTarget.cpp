@@ -71,7 +71,6 @@ void PrebuiltLinkOrArchiveTarget::preSort(Builder &, unsigned short round)
         {
             round2.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
         }
-        round2.fileStatus = FileStatus::NEEDS_UPDATE;
     }
 }
 

@@ -16,7 +16,6 @@ struct RoundZeroUpdateBTarget : public BTarget
     explicit RoundZeroUpdateBTarget(function<void(Builder &, unsigned short, BTarget &bTarget)> updateFunctor_)
         : updateFunctor(std::move(updateFunctor_))
     {
-        getRealBTarget(0).fileStatus = FileStatus::NEEDS_UPDATE;
     }
 
     void updateBTarget(class Builder &builder, unsigned short round) override
@@ -24,7 +23,6 @@ struct RoundZeroUpdateBTarget : public BTarget
         if (!round)
         {
             updateFunctor(builder, round, *this);
-            getRealBTarget(0).fileStatus = FileStatus::UPDATED;
         }
     }
 };

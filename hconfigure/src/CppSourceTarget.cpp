@@ -754,6 +754,10 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
         {
             targetCacheChanged = false;
             saveBuildCache(round);
+            if (!round)
+            {
+                assignFileStatusToDependents(getRealBTarget(0));
+            }
         }
     }
     else if (round == 2)

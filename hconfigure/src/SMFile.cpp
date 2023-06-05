@@ -265,8 +265,10 @@ string SourceNode::getTarjanNodeName() const
 
 void SourceNode::updateBTarget(Builder &, unsigned short round)
 {
-    if (RealBTarget &realBTarget = getRealBTarget(round); !round && realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+    if (!round && fileStatus.load(std::memory_order_acquire))
     {
+        RealBTarget &realBTarget = getRealBTarget(round);
+        assignFileStatusToDependents(realBTarget);
         PostCompile postCompile = target->updateSourceNodeBTarget(*this);
         postCompile.parseHeaderDeps(*this, round);
         realBTarget.exitStatus = postCompile.exitStatus;
@@ -283,7 +285,7 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
     }
 }
 
-void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget) const
+void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget)
 {
     Node *objectFileNode = Node::getNodeFromString(
         target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ex, true, true);
@@ -291,19 +293,19 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
     if (sourceJson->at(JConsts::compileCommand) !=
         target->compiler.bTPath.generic_string() + " " + target->compileCommand)
     {
-        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        fileStatus.store(true, std::memory_order_release);
         return;
     }
 
     if (objectFileNode->doesNotExist)
     {
-        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        fileStatus.store(true, std::memory_order_release);
         return;
     }
 
     if (node->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
     {
-        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+        fileStatus.store(true, std::memory_order_release);
         return;
     }
 
@@ -312,13 +314,13 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
         Node *headerNode = Node::getNodeFromString(str, true, true);
         if (headerNode->doesNotExist)
         {
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+            fileStatus.store(true, std::memory_order_release);
             return;
         }
 
         if (headerNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
         {
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+            fileStatus.store(true, std::memory_order_release);
             return;
         }
     }
@@ -639,90 +641,92 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 }
 
 bool SMFile::generateSMFileInRoundOne()
-{
-    RealBTarget &realBTarget = getRealBTarget(0);
+{ /*
+     RealBTarget &realBTarget = getRealBTarget(0);
 
-    if (sourceJson->at(JConsts::compileCommand) !=
-        target->compiler.bTPath.generic_string() + " " + target->compileCommand)
-    {
-        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-        readJsonFromSMRulesFile = true;
-        return true;
-    }
-    else
-    {
-        Node *objectFileNode = Node::getNodeFromString(
-            target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".m.o"), true, true);
+     if (sourceJson->at(JConsts::compileCommand) !=
+         target->compiler.bTPath.generic_string() + " " + target->compileCommand)
+     {
+         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+         readJsonFromSMRulesFile = true;
+         return true;
+     }
+     else
+     {
+         Node *objectFileNode = Node::getNodeFromString(
+             target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".m.o"), true, true);
 
-        if (objectFileNode->doesNotExist)
-        {
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-        }
-        else
-        {
-            if (node->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
-            {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-            }
-            else
-            {
-                for (const Json &str : sourceJson->at(JConsts::headerDependencies))
-                {
-                    Node *headerNode = Node::getNodeFromString(str, true, true);
-                    if (headerNode->doesNotExist)
-                    {
-                        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                        break;
-                    }
+         if (objectFileNode->doesNotExist)
+         {
+             realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+         }
+         else
+         {
+             if (node->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+             {
+                 realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+             }
+             else
+             {
+                 for (const Json &str : sourceJson->at(JConsts::headerDependencies))
+                 {
+                     Node *headerNode = Node::getNodeFromString(str, true, true);
+                     if (headerNode->doesNotExist)
+                     {
+                         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                         break;
+                     }
 
-                    if (headerNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
-                    {
-                        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                        break;
-                    }
-                }
-            }
-        }
-    }
+                     if (headerNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+                     {
+                         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                         break;
+                     }
+                 }
+             }
+         }
+     }
 
-    if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
-    {
-        readJsonFromSMRulesFile = true;
+     if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+     {
+         readJsonFromSMRulesFile = true;
 
-        // If smrules file exists, and is updated, then it won't be updated. This can happen when, because of
-        // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the .m.o file
+         // If smrules file exists, and is updated, then it won't be updated. This can happen when, because of
+         // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the .m.o
+     file
 
-        Node *smRuleFileNode = Node::getNodeFromString(
-            target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".smrules"), true, true);
+         Node *smRuleFileNode = Node::getNodeFromString(
+             target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".smrules"), true, true);
 
-        if (smRuleFileNode->doesNotExist)
-        {
-            return true;
-        }
-        else
-        {
-            if (node->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
-            {
-                return true;
-            }
-            else
-            {
-                for (const Json &str : sourceJson->at(JConsts::headerDependencies))
-                {
-                    Node *headerNode = Node::getNodeFromString(str, true, true);
-                    if (headerNode->doesNotExist)
-                    {
-                        return true;
-                    }
+         if (smRuleFileNode->doesNotExist)
+         {
+             return true;
+         }
+         else
+         {
+             if (node->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
+             {
+                 return true;
+             }
+             else
+             {
+                 for (const Json &str : sourceJson->at(JConsts::headerDependencies))
+                 {
+                     Node *headerNode = Node::getNodeFromString(str, true, true);
+                     if (headerNode->doesNotExist)
+                     {
+                         return true;
+                     }
 
-                    if (headerNode->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
-                    {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
+                     if (headerNode->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
+                     {
+                         return true;
+                     }
+                 }
+             }
+         }
+     }
+     return false;*/
     return false;
 }
 
@@ -744,59 +748,60 @@ BTargetType SMFile::getBTargetType() const
 
 void SMFile::duringSort(Builder &builder, unsigned short round)
 {
-    if (!round)
-    {
-        path objectFilePath;
+    /*  if (!round)
+      {
+          path objectFilePath;
 
-        RealBTarget &realBTarget = getRealBTarget(0);
-        auto emplaceInAll = [&](SMFile *smFile) {
-            if (const auto &[pos, Ok] = allSMFileDependenciesRoundZero.emplace(smFile); Ok)
-            {
-                for (auto &[headerUnitSMFile, headerUnitConsumerSet] : smFile->headerUnitsConsumptionMethods)
-                {
-                    for (const HeaderUnitConsumer &headerUnitConsumer : headerUnitConsumerSet)
-                    {
-                        headerUnitsConsumptionMethods.emplace(headerUnitSMFile, set<HeaderUnitConsumer>{})
-                            .first->second.emplace(headerUnitConsumer);
-                    }
-                }
+          RealBTarget &realBTarget = getRealBTarget(0);
+          auto emplaceInAll = [&](SMFile *smFile) {
+              if (const auto &[pos, Ok] = allSMFileDependenciesRoundZero.emplace(smFile); Ok)
+              {
+                  for (auto &[headerUnitSMFile, headerUnitConsumerSet] : smFile->headerUnitsConsumptionMethods)
+                  {
+                      for (const HeaderUnitConsumer &headerUnitConsumer : headerUnitConsumerSet)
+                      {
+                          headerUnitsConsumptionMethods.emplace(headerUnitSMFile, set<HeaderUnitConsumer>{})
+                              .first->second.emplace(headerUnitConsumer);
+                      }
+                  }
 
-                if (realBTarget.fileStatus == FileStatus::UPDATED)
-                {
-                    Node *objectFileNode = Node::getNodeFromString(
-                        target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".m.o", true);
+                  if (realBTarget.fileStatus == FileStatus::UPDATED)
+                  {
+                      Node *objectFileNode = Node::getNodeFromString(
+                          target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".m.o", true);
 
-                    string depFileName = path(smFile->node->filePath).filename().string();
-                    Node *depObjectFileNode = Node::getNodeFromString(
-                        smFile->target->buildCacheFilesDirPath + depFileName + ".m.o", true, true);
+                      string depFileName = path(smFile->node->filePath).filename().string();
+                      Node *depObjectFileNode = Node::getNodeFromString(
+                          smFile->target->buildCacheFilesDirPath + depFileName + ".m.o", true, true);
 
-                    if (depObjectFileNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
-                    {
-                        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                        return;
-                    }
-                }
-            }
-        };
+                      if (depObjectFileNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+                      {
+                          realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                          return;
+                      }
+                  }
+              }
+          };
 
-        // TODO
-        //  Following could be moved to updateBTarget, so that it could be parallel. Same in LinkOrArchiveTarget. So,
-        //  this function can be removed. preSort function will set the RealBTarget round 0 status to NEEDS_UPDATE, so
-        //  that following could be called in updateBTarget. dependencyNeedsUpdate variable in RealBTarget will be used
-        //  to determine whether the file needs an update because of its dependencies or not.
-        for (auto &[dependency, ignore] : getRealBTarget(0).dependencies)
-        {
-            if (dependency->getBTargetType() == BTargetType::SMFILE)
-            {
-                auto *smFile = static_cast<SMFile *>(dependency);
-                emplaceInAll(smFile);
-                for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
-                {
-                    emplaceInAll(smFileDep);
-                }
-            }
-        }
-    }
+          // TODO
+          //  Following could be moved to updateBTarget, so that it could be parallel. Same in LinkOrArchiveTarget. So,
+          //  this function can be removed. preSort function will set the RealBTarget round 0 status to NEEDS_UPDATE, so
+          //  that following could be called in updateBTarget. dependencyNeedsUpdate variable in RealBTarget will be
+      used
+          //  to determine whether the file needs an update because of its dependencies or not.
+          for (auto &[dependency, ignore] : getRealBTarget(0).dependencies)
+          {
+              if (dependency->getBTargetType() == BTargetType::SMFILE)
+              {
+                  auto *smFile = static_cast<SMFile *>(dependency);
+                  emplaceInAll(smFile);
+                  for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
+                  {
+                      emplaceInAll(smFileDep);
+                  }
+              }
+          }
+      }*/
 }
 
 string SMFile::getFlag(const string &outputFilesWithoutExtension) const

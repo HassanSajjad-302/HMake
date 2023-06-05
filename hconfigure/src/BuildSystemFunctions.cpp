@@ -95,6 +95,13 @@ BSMode getBuildSystemModeFromArguments(int argc, char **argv)
     return bsMode;
 }
 
+void printDebugMessage(const string &message)
+{
+#ifndef NDEBUG
+    printMessage(message);
+#endif
+}
+
 void printMessage(const string &message)
 {
     if (printMessagePointer)

@@ -53,13 +53,13 @@ BTargetType BTarget::getBTargetType() const
     return static_cast<BTargetType>(0);
 }
 
-void BTarget::assignFileStatusToDependents(RealBTarget &realBTarget)
+void BTarget::assignFileStatusToDependents(RealBTarget &realBTarget) const
 {
-    for (auto &[dependent, bTargetDepType] : realBTarget.dependents)
+    if (fileStatus.load(std::memory_order_acquire))
     {
-        if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+        for (auto &[dependent, bTargetDepType] : realBTarget.dependents)
         {
-            dependent->getRealBTarget(0).fileStatus = FileStatus::NEEDS_UPDATE;
+            dependent->fileStatus.store(true, std::memory_order_seq_cst);
         }
     }
 }

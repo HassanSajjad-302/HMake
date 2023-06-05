@@ -3,8 +3,11 @@ cmake_minimum_required(VERSION 3.21.0)
 project(HMake LANGUAGES CXX)
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GCC")
+
     add_compile_options(-fsanitize=thread -std=c++2b)
     add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
+
+    add_compile_options(-std=c++2b)
 elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
     if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         add_compile_options(/fsanitize=address)
@@ -77,7 +80,7 @@ add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Examples/Example1/hmake.cpp)
+add_executable(HMakeHelper Tests/Stage/Test1/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 
