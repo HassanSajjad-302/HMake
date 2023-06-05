@@ -743,8 +743,6 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
         {
             round2.addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
         }
-
-        round2.fileStatus = FileStatus::NEEDS_UPDATE;
     }
 }
 
@@ -1118,24 +1116,22 @@ string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
     return sourceCompileCommandPrintFirstHalf;
 }
 
-// Will directly parsing source-files and module-files and then checking whether they exist in the cache be an
-// improvement. This will also save the conditional check of presentInSource
 void CppSourceTarget::readBuildCacheFile(Builder &)
 {
-
-    // No other thread during BTarget::preSort calls saveBuildCache() i.e. only the following operation needs to be
-    // guarded by the mutex, otherwise all the targetBuildCache access would had been guarded
     buildCacheMutex.lock();
+
     const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
-    buildCacheMutex.unlock();
-    targetBuildCache = iter.operator->();
 
     if (Ok)
     {
-        targetBuildCache->emplace(JConsts::sourceDependencies, Json::object_t{});
-        targetBuildCache->emplace(JConsts::moduleDependencies, Json::object_t{});
-        targetBuildCache->emplace(JConsts::headerUnits, Json::object_t{});
+        iter->emplace(JConsts::sourceDependencies, Json::object_t{});
+        iter->emplace(JConsts::moduleDependencies, Json::object_t{});
+        iter->emplace(JConsts::headerUnits, Json::object_t{});
     }
+
+    buildCacheMutex.unlock();
+
+    targetBuildCache = iter.operator*();
 
     if (!std::filesystem::exists(path(buildCacheFilesDirPath)))
     {
@@ -1186,11 +1182,7 @@ void CppSourceTarget::resolveRequirePaths()
 
 void CppSourceTarget::populateSourceNodes()
 {
-    // No other thread during BTarget::preSort calls saveBuildCache() i.e. only the following operation needs to be
-    // guarded by the mutex, otherwise all the targetBuildCache access would had been guarded
-    buildCacheMutex.lock();
-    Json &sourceFilesJson = targetBuildCache->at(JConsts::sourceDependencies);
-    buildCacheMutex.unlock();
+    Json &sourceFilesJson = targetBuildCache.at(JConsts::sourceDependencies);
 
     for (auto it = sourceFileDependencies.begin(); it != sourceFileDependencies.end();)
     {
@@ -1214,18 +1206,13 @@ void CppSourceTarget::populateSourceNodes()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
-    // No other thread during BTarget::preSort calls saveBuildCache() i.e. only the following operation needs to be
-    // guarded by the mutex, otherwise all the targetBuildCache access would had been guarded
-    buildCacheMutex.lock();
-    Json &moduleFilesJson = targetBuildCache->at(JConsts::moduleDependencies);
-    buildCacheMutex.unlock();
+    Json &moduleFilesJson = targetBuildCache.at(JConsts::moduleDependencies);
 
     for (auto it = moduleSourceFileDependencies.begin(); it != moduleSourceFileDependencies.end();)
     {
         auto &smFile = const_cast<SMFile &>(*it);
         if (auto [pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
         {
-            smFile.getRealBTarget(1).fileStatus = FileStatus::NEEDS_UPDATE;
             ++moduleScopeData->totalSMRuleFileCount;
         }
         else
@@ -1420,9 +1407,12 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
 
 void CppSourceTarget::saveBuildCache(bool round)
 {
+    lock_guard<mutex> lk{buildCacheMutex};
+    buildCache.at(getSubDirForTarget()) = targetBuildCache;
+
     if (round)
     {
-        writeBuildCache();
+        writeBuildCacheUnlocked();
     }
     else
     {
@@ -1433,7 +1423,7 @@ void CppSourceTarget::saveBuildCache(bool round)
                 archived = true;
             }
         }
-        writeBuildCache();
+        writeBuildCacheUnlocked();
     }
 }
 

@@ -65,7 +65,9 @@ struct Configuration : public CTarget
     DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &directory,
                                                   TargetType targetType_ = cache.libraryType, bool defines = false,
                                                   string define = "");
-
+    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &prebuiltName,
+                                                  const string &directory, TargetType targetType_ = cache.libraryType,
+                                                  bool defines = false, string define = "");
     DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const string &name, const string &directory, bool defines = false,
                                                   string define = "");
 

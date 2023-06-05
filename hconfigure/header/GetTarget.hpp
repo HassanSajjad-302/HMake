@@ -68,6 +68,12 @@ DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &
 DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &directory, CTarget &other,
                                               TargetType targetType = cache.libraryType, bool defines = false,
                                               string define = "", bool hasFile = true);
+DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &prebuiltName, const string &directory,
+                                              TargetType targetType = cache.libraryType, bool defines = false,
+                                              string define = "");
+DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &prebuiltName, const string &directory,
+                                              CTarget &other, TargetType targetType = cache.libraryType,
+                                              bool defines = false, string define = "", bool hasFile = true);
 DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const string &name, const string &directory, bool defines = false,
                                               string define = "");
 DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const string &name, const string &directory, CTarget &other,

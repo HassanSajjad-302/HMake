@@ -65,97 +65,95 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
     }
 }
 
-void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round)
+void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 {
-    if (!round)
+
+    populateObjectFiles();
+
+    for (auto &[pre, dep] : requirementDeps)
     {
-        populateObjectFiles();
+        sortedPrebuiltDependencies.emplace(pre, &(dep));
+    }
 
-        for (auto &[pre, dep] : requirementDeps)
+    setLinkOrArchiveCommands();
+
+    if (!exists(path(buildCacheFilesDirPath)))
+    {
+        create_directories(buildCacheFilesDirPath);
+        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+    }
+
+    // No other thread during BTarget::duringSort calls saveBuildCache() i.e. only the following operation needs to
+    // be guarded by the mutex, otherwise all the targetBuildCache access would have been guarded
+    buildCacheMutex.lock();
+    const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
+
+    if (Ok)
+    {
+        // Following is needed because of selectedBuild. Because of that a target getSubDirOfTarget might be
+        // saved early in the build-process, without its link-command and object-files getting updated. So,
+        // the following scaffold is created, so that the following nlohmann::json::at command will succeed.
+        iter->emplace(JConsts::linkCommand, Json::string_t{});
+        iter->emplace(JConsts::objectFiles, Json::array_t{});
+        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+    }
+
+    buildCacheMutex.unlock();
+
+    targetBuildCache = iter.operator*();
+
+    if (realBTarget.fileStatus == FileStatus::UPDATED)
+    {
+        path outputPath = path(getActualOutputPath());
+        if (!std::filesystem::exists(outputPath))
         {
-            sortedPrebuiltDependencies.emplace(pre, &(dep));
-        }
-
-        setLinkOrArchiveCommands();
-        RealBTarget &realBTarget = getRealBTarget(round);
-
-        if (!exists(path(buildCacheFilesDirPath)))
-        {
-            create_directories(buildCacheFilesDirPath);
             realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
         }
-
-        // No other thread during BTarget::duringSort calls saveBuildCache() i.e. only the following operation needs to
-        // be guarded by the mutex, otherwise all the targetBuildCache access would have been guarded
-        buildCacheMutex.lock();
-        const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
-        buildCacheMutex.unlock();
-        targetBuildCache = iter.operator->();
-
-        if (Ok)
+        else
         {
-            // Following is needed because of selectedBuild. Because of that a target getSubDirOfTarget might be
-            // saved early in the build-process, without its link-command and object-files getting updated. So,
-            // the following scaffold is created, so that the following nlohmann::json::at command will succeed.
-            targetBuildCache->emplace(JConsts::linkCommand, Json::string_t{});
-            targetBuildCache->emplace(JConsts::objectFiles, Json::array_t{});
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-        }
+            set<string> cachedObjectFiles = targetBuildCache.at(JConsts::objectFiles).get<set<string>>();
 
-        if (realBTarget.fileStatus == FileStatus::UPDATED)
-        {
-            path outputPath = path(getActualOutputPath());
-            if (!std::filesystem::exists(outputPath))
+            if (targetBuildCache.at(JConsts::linkCommand) ==
+                linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets)
             {
-                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-            }
-            else
-            {
-                set<string> cachedObjectFiles = targetBuildCache->at(JConsts::objectFiles).get<set<string>>();
-
-                if (targetBuildCache->at(JConsts::linkCommand) ==
-                    linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets)
+                bool needsUpdate = false;
+                if (!EVALUATE(TargetType::LIBRARY_STATIC))
                 {
-                    bool needsUpdate = false;
-                    if (!EVALUATE(TargetType::LIBRARY_STATIC))
+                    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
                     {
-                        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
-                        {
 
-                            path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
-                            if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
-                                Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
-                            {
-                                needsUpdate = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    for (const ObjectFile *objectFile : objectFiles)
-                    {
-                        if (!cachedObjectFiles.contains(objectFile->getObjectFileOutputFilePath()))
-                        {
-                            needsUpdate = true;
-                            break;
-                        }
-                        if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)
-                                ->getLastUpdateTime() >
+                        path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
+                        if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
                             Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
                         {
                             needsUpdate = true;
                             break;
                         }
                     }
-                    if (needsUpdate)
+                }
+
+                for (const ObjectFile *objectFile : objectFiles)
+                {
+                    if (!cachedObjectFiles.contains(objectFile->getObjectFileOutputFilePath()))
                     {
-                        realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
+                        needsUpdate = true;
+                        break;
+                    }
+                    if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)->getLastUpdateTime() >
+                        Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                    {
+                        needsUpdate = true;
+                        break;
                     }
                 }
-                else
+                if (needsUpdate)
                 {
                     realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
                 }
+            }
+            else
+            {
+                realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
             }
         }
 
@@ -218,69 +216,75 @@ void LinkOrArchiveTarget::duringSort(Builder &builder, unsigned short round)
             }
         }
     }
-    PrebuiltLinkOrArchiveTarget::duringSort(builder, round);
+    BTarget::assignFileStatusToDependents(realBTarget);
 }
 
 void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
 {
     RealBTarget &realBTarget = getRealBTarget(round);
-    if (!round && BTarget::selectiveBuild && realBTarget.exitStatus == EXIT_SUCCESS)
+    if (!round && realBTarget.exitStatus == EXIT_SUCCESS)
     {
-
-        shared_ptr<PostBasic> postBasicLinkOrArchive;
-        if (linkTargetType == TargetType::LIBRARY_STATIC)
+        setFileStatus(realBTarget);
+        if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
         {
-            postBasicLinkOrArchive = std::make_shared<PostBasic>(Archive());
-        }
-        else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
-        {
-            postBasicLinkOrArchive = std::make_shared<PostBasic>(Link());
-        }
-        realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
-        if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
-        {
-            vector<string> cachedObjectFilesVector;
-            for (const ObjectFile *objectFile : objectFiles)
-            {
-                cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
-            }
-            lock_guard<mutex> lk(buildCacheMutex);
-            targetBuildCache->at(JConsts::linkCommand) =
-                linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets;
-            targetBuildCache->at(JConsts::objectFiles) = std::move(cachedObjectFilesVector);
-            writeBuildCacheUnlocked();
-        }
-
-        {
-            lock_guard<mutex> lk(printMutex);
+            shared_ptr<PostBasic> postBasicLinkOrArchive;
             if (linkTargetType == TargetType::LIBRARY_STATIC)
             {
-                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
+                postBasicLinkOrArchive = std::make_shared<PostBasic>(Archive());
             }
             else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
             {
-                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
+                postBasicLinkOrArchive = std::make_shared<PostBasic>(Link());
             }
-            fflush(stdout);
-        }
-
-        if constexpr (os == OS::NT)
-        {
-            if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && realBTarget.exitStatus == EXIT_SUCCESS)
+            realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
+            if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
             {
-                for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : dllsToBeCopied)
+                vector<string> cachedObjectFilesVector;
+                for (const ObjectFile *objectFile : objectFiles)
                 {
-                    std::filesystem::copy_file(prebuiltLinkOrArchiveTarget->outputDirectory +
-                                                   prebuiltLinkOrArchiveTarget->actualOutputName,
-                                               outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName,
-                                               std::filesystem::copy_options::overwrite_existing);
+                    cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
+                }
+
+                targetBuildCache.at(JConsts::linkCommand) =
+                    linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets;
+                targetBuildCache.at(JConsts::objectFiles) = std::move(cachedObjectFilesVector);
+
+                lock_guard<mutex> lk(buildCacheMutex);
+                buildCache.at(getSubDirForTarget()) = targetBuildCache;
+                writeBuildCacheUnlocked();
+            }
+
+            {
+                lock_guard<mutex> lk(printMutex);
+                if (linkTargetType == TargetType::LIBRARY_STATIC)
+                {
+                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
+                }
+                else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+                {
+                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
+                }
+                fflush(stdout);
+            }
+
+            if constexpr (os == OS::NT)
+            {
+                if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && realBTarget.exitStatus == EXIT_SUCCESS)
+                {
+                    for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : dllsToBeCopied)
+                    {
+                        std::filesystem::copy_file(prebuiltLinkOrArchiveTarget->outputDirectory +
+                                                       prebuiltLinkOrArchiveTarget->actualOutputName,
+                                                   outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName,
+                                                   std::filesystem::copy_options::overwrite_existing);
+                    }
                 }
             }
         }
     }
     else if (round == 2)
     {
-        PrebuiltLinkOrArchiveTarget::updateBTarget(builder, 3);
+        PrebuiltLinkOrArchiveTarget::updateBTarget(builder, 2);
         addRequirementDepsToBTargetDependencies();
         if (!EVALUATE(TargetType::LIBRARY_STATIC))
         {

@@ -14,7 +14,7 @@ import <fstream>;
 #include <filesystem>
 #include <fstream>
 #endif
-using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path;
+using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::mutex, std::lock_guard;
 
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
 {
@@ -40,8 +40,10 @@ string BTarget::getTarjanNodeName() const
     return "BTarget " + std::to_string(id);
 }
 
+mutex btarget_getrealbtarget;
 RealBTarget &BTarget::getRealBTarget(unsigned short round)
 {
+    lock_guard<mutex> lk{btarget_getrealbtarget};
     auto it = realBTargets.try_emplace(round, this, round).first;
     return const_cast<RealBTarget &>(it->second);
 }
@@ -51,11 +53,18 @@ BTargetType BTarget::getBTargetType() const
     return static_cast<BTargetType>(0);
 }
 
-void BTarget::preSort(Builder &, unsigned short)
+void BTarget::assignFileStatusToDependents(RealBTarget &realBTarget)
 {
+    for (auto &[dependent, bTargetDepType] : realBTarget.dependents)
+    {
+        if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
+        {
+            dependent->getRealBTarget(0).fileStatus = FileStatus::NEEDS_UPDATE;
+        }
+    }
 }
 
-void BTarget::duringSort(Builder &builder, unsigned short round)
+void BTarget::preSort(Builder &, unsigned short)
 {
 }
 

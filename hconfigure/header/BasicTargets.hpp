@@ -6,15 +6,17 @@ import "TargetType.hpp";
 import "TarjanNode.hpp";
 import <filesystem>;
 import <map>;
+import <mutex>;
 #else
 #include "C_API.hpp"
 #include "TargetType.hpp"
 #include "TarjanNode.hpp"
 #include <filesystem>
 #include <map>
+#include <mutex>
 #endif
 
-using std::filesystem::path, std::size_t, std::map;
+using std::filesystem::path, std::size_t, std::map, std::mutex, std::lock_guard;
 
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
 TarjanNode(const struct BTarget *) -> TarjanNode<BTarget>;
@@ -44,7 +46,7 @@ enum class BTargetDepType : bool
 
     // Following specifies a dependency only for ordering. That dependency won't be considered for selectiveBuild, and,
     // won't be updated when the dependencies are updated, and, will still be updated even if dependency exitStatus ==
-    // EXIT_FAILURE
+    // EXIT_FAILURE. Only useable in round 0.
     LOOSE,
 };
 
@@ -88,13 +90,12 @@ struct RealBTarget
 
     FileStatus fileStatus = FileStatus::UPDATED;
 
-    bool dependencyNeedsUpdate = false;
     bool updateCalled = false;
 
     explicit RealBTarget(BTarget *bTarget_, unsigned short round);
 
     template <typename... U> void addDependency(BTarget &dependency, U &...bTargets);
-    template <typename... U> void addDependency(BTarget &dependency, BTargetDepType, U &...bTargets);
+    template <typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
 };
 
 namespace BTargetNamespace
@@ -128,20 +129,24 @@ struct BTarget // BTarget
 
     RealBTarget &getRealBTarget(unsigned short round);
     virtual BTargetType getBTargetType() const;
+    static void assignFileStatusToDependents(RealBTarget &realBTarget);
     virtual void preSort(class Builder &builder, unsigned short round);
-    virtual void duringSort(Builder &builder, unsigned short round);
     virtual void updateBTarget(Builder &builder, unsigned short round);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
+inline std::mutex realbtarget_adddependency;
 template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U &...bTargets)
 {
-    if (dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
     {
-        RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
-        dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::FULL);
-        ++dependenciesSize;
-        bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
+        lock_guard<mutex> lk{realbtarget_adddependency};
+        if (dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
+        {
+            RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
+            dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::FULL);
+            ++dependenciesSize;
+            bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
+        }
     }
 
     if constexpr (sizeof...(bTargets))
@@ -150,14 +155,12 @@ template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U 
     }
 }
 
-template <typename... U>
-void RealBTarget::addDependency(BTarget &dependency, BTargetDepType bTargetDepType, U &...bTargets)
+template <typename... U> void RealBTarget::addLooseDependency(BTarget &dependency, U &...bTargets)
 {
-    if (dependencies.try_emplace(&dependency, bTargetDepType).second)
+    if (dependencies.try_emplace(&dependency, BTargetDepType::LOOSE).second)
     {
         RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
-        dependencyRealBTarget.dependents.try_emplace(bTarget, bTargetDepType);
-        ++dependenciesSize;
+        dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::LOOSE);
         bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
     }
 

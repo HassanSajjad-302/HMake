@@ -56,7 +56,7 @@ class LinkOrArchiveTarget : public CTarget,
     string buildCacheFilesDirPath;
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
 
-    Json *targetBuildCache;
+    Json targetBuildCache;
     bool archiving = false;
     bool archived = false;
 
@@ -65,7 +65,7 @@ class LinkOrArchiveTarget : public CTarget,
     void setOutputName(string outputName_);
     void populateObjectFiles();
     void preSort(Builder &builder, unsigned short round) override;
-    void duringSort(Builder &builder, unsigned short round) override;
+    void setFileStatus(RealBTarget &realBTarget);
     void updateBTarget(Builder &builder, unsigned short round) override;
     LinkerFlags getLinkerFlags();
     void setJson() override;

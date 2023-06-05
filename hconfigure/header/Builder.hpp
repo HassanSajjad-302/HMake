@@ -17,7 +17,6 @@ using std::string, std::vector, std::list;
 enum class BuilderMode : char
 {
     PRE_SORT,
-    DURING_SORT,
     UPDATE_BTARGET,
 };
 
@@ -26,14 +25,12 @@ class Builder
   public:
     list<BTarget *> updateBTargets;
     vector<BTarget *> preSortBTargets;
-    list<BTarget *> duringSortBTargets;
     size_t updateBTargetsSizeGoal = 0;
     size_t duringSortBTargetsSizeGoal = 0;
 
   private:
     list<BTarget *>::iterator updateBTargetsIterator;
     vector<BTarget *>::iterator preSortBTargetsIterator;
-    list<BTarget *>::iterator duringSortBTargetsIterator;
     unsigned short threadCount = 0;
     unsigned short numberOfLaunchedThreads = 0;
     unsigned short round = 0;
@@ -43,7 +40,6 @@ class Builder
 
     bool updateBTargetFailed = false;
     explicit Builder();
-    void populateFinalBTargets();
 
     void addNewBTargetInFinalBTargets(BTarget *bTarget);
     void execute();

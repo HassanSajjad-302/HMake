@@ -94,8 +94,7 @@ void PrebuiltLinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
     {
         for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
         {
-            round0.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget),
-                                 BTargetDepType::LOOSE);
+            round0.addLooseDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
             round2.addDependency(const_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltLinkOrArchiveTarget));
         }
     }

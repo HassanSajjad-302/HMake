@@ -231,10 +231,6 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, Json &heade
 
 void PostCompile::parseHeaderDeps(SourceNode &sourceNode, unsigned short round)
 {
-    if (round == 0)
-    {
-        buildCacheMutex.lock();
-    }
     Json &headerDepsJson = sourceNode.sourceJson->at(JConsts::headerDependencies);
     headerDepsJson.clear();
 
@@ -251,9 +247,5 @@ void PostCompile::parseHeaderDeps(SourceNode &sourceNode, unsigned short round)
         {
             parseDepsFromGCCDepsOutput(sourceNode, headerDepsJson);
         }
-    }
-    if (round == 0)
-    {
-        buildCacheMutex.unlock();
     }
 }

@@ -95,12 +95,16 @@ Node::Node(const path &filePath_, bool isFile, bool mayNotExist)
     }
 }
 
+std::mutex fileTimeUpdateMutex;
 std::filesystem::file_time_type Node::getLastUpdateTime() const
 {
-    if (!isUpdated)
     {
-        const_cast<std::filesystem::file_time_type &>(lastUpdateTime) = last_write_time(path(filePath));
-        const_cast<bool &>(isUpdated) = true;
+        lock_guard<mutex> lk(fileTimeUpdateMutex);
+        if (!isUpdated)
+        {
+            const_cast<std::filesystem::file_time_type &>(lastUpdateTime) = last_write_time(path(filePath));
+            const_cast<bool &>(isUpdated) = true;
+        }
     }
     return lastUpdateTime;
 }
@@ -261,9 +265,8 @@ string SourceNode::getTarjanNodeName() const
 
 void SourceNode::updateBTarget(Builder &, unsigned short round)
 {
-    if (!round && selectiveBuild)
+    if (RealBTarget &realBTarget = getRealBTarget(round); !round && realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
     {
-        RealBTarget &realBTarget = getRealBTarget(round);
         PostCompile postCompile = target->updateSourceNodeBTarget(*this);
         postCompile.parseHeaderDeps(*this, round);
         realBTarget.exitStatus = postCompile.exitStatus;
@@ -271,8 +274,6 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
         // cached compile-command would be different
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            // Mutex is needed because while parallel reading is safe, parallel read-write is not safe
-            lock_guard<mutex> lk(buildCacheMutex);
             sourceJson->at(JConsts::compileCommand) =
                 target->compiler.bTPath.generic_string() + " " + target->compileCommand;
         }
@@ -414,8 +415,6 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
         {
             // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
             // cached compile-command would be different
-            // Mutex is needed because while parallel reading is safe, parallel read-write is not safe
-            lock_guard<mutex> lk(buildCacheMutex);
             sourceJson->at(JConsts::compileCommand) =
                 target->compiler.bTPath.generic_string() + " " + target->compileCommand;
             target->targetCacheChanged = true;
@@ -452,6 +451,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     iterateRequiresJsonToInitializeNewHeaderUnits(builder);
 }
 
+std::mutex targetBuildCacheModuledependencies;
 void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 {
     string requireLogicalName = requireJson.at("logical-name").get<string>();
@@ -538,22 +538,19 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }
 
-        // No other thread during BTarget::updateBTarget in round 1 calls saveBuildCache() i.e. only the following
-        // operation needs to be guarded by the mutex, otherwise all the targetBuildCache access would have been guarded
-        // Also each smfile deals with its own cache json, so, only the emplacing in the cache needs to be guarded.
+        targetBuildCacheModuledependencies.lock();
+        Json &headerUnitsJson = huDirTarget->targetBuildCache.at(JConsts::headerUnits);
+        targetBuildCacheModuledependencies.unlock();
+
+        const auto &[pos, Ok] = headerUnitsJson.emplace(headerUnit.node->filePath, Json::object_t{});
+        if (Ok)
         {
-            lock_guard<mutex> lk(buildCacheMutex);
-            Json &headerUnitsJson = huDirTarget->targetBuildCache->operator[](JConsts::moduleDependencies);
-            const auto &[pos, Ok] = headerUnitsJson.emplace(headerUnit.node->filePath, Json::object_t{});
-            if (Ok)
-            {
-                Json &moduleJson = pos.value();
-                moduleJson.emplace(JConsts::compileCommand, Json::string_t{});
-                moduleJson.emplace(JConsts::headerDependencies, Json::array_t{});
-                moduleJson.emplace(JConsts::smrules, Json::object_t{});
-            }
-            headerUnit.sourceJson = pos.operator->();
+            Json &moduleJson = pos.value();
+            moduleJson.emplace(JConsts::compileCommand, Json::string_t{});
+            moduleJson.emplace(JConsts::headerDependencies, Json::array_t{});
+            moduleJson.emplace(JConsts::smrules, Json::object_t{});
         }
+        headerUnit.sourceJson = pos.operator->();
 
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
         {
@@ -800,7 +797,6 @@ void SMFile::duringSort(Builder &builder, unsigned short round)
             }
         }
     }
-    BTarget::duringSort(builder, round);
 }
 
 string SMFile::getFlag(const string &outputFilesWithoutExtension) const
