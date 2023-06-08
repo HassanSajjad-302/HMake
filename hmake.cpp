@@ -76,13 +76,18 @@ struct SizeDifference : public CTarget, public BTarget
         }
     }
 
+    BTarget *getBTarget() override
+    {
+        return this;
+    }
+
     virtual ~SizeDifference() = default;
 
     void updateBTarget(Builder &, unsigned short round) override
     {
         RealBTarget &realBTarget = getRealBTarget(0);
 
-        if (!round && realBTarget.exitStatus == EXIT_SUCCESS && getSelectiveBuild())
+        if (!round && realBTarget.exitStatus == EXIT_SUCCESS)
         {
 
             string sizeDirPath = getSubDirForTarget() + "Size/";

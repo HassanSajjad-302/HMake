@@ -9,9 +9,11 @@ import <set>;
 import <string>;
 import <utility>;
 import <vector>;
+import <atomic>;
 #else
 #include "ObjectFileProducer.hpp"
 #include "nlohmann/json.hpp"
+#include <atomic>
 #include <filesystem>
 #include <list>
 #include <set>
@@ -21,7 +23,8 @@ import <vector>;
 #endif
 
 using Json = nlohmann::json;
-using std::string, std::map, std::set, std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr;
+using std::string, std::map, std::set, std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr,
+    std::atomic, std::atomic_flag;
 
 class Node;
 struct CompareNode
@@ -38,6 +41,7 @@ class Node
     string filePath;
 
   private:
+    std::filesystem::directory_entry entry;
     std::filesystem::file_time_type lastUpdateTime;
 
   public:

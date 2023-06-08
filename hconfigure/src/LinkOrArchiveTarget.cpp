@@ -102,7 +102,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
     targetBuildCache = iter.operator*();
 
-    if (fileStatus.load(std::memory_order_acquire))
+    if (!fileStatus.load(std::memory_order_acquire))
     {
         path outputPath = path(getActualOutputPath());
         if (!std::filesystem::exists(outputPath))

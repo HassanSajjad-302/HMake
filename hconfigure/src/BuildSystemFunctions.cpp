@@ -150,6 +150,15 @@ void printErrorMessageColor(const string &message, uint32_t color)
     }
 }
 
+void actuallyReadTheCache()
+{
+    path p = path(configureDir) / "build-cache.json";
+    if (exists(p))
+    {
+        ifstream(p.string()) >> buildCache;
+    }
+}
+
 void configureOrBuild()
 {
     if (bsMode == BSMode::CONFIGURE)
@@ -160,11 +169,7 @@ void configureOrBuild()
     }
     if (bsMode == BSMode::BUILD)
     {
-        path p = path(configureDir) / "build-cache.json";
-        if (exists(p))
-        {
-            ifstream(p.string()) >> buildCache;
-        }
+        actuallyReadTheCache();
     }
 
     Builder{};

@@ -76,9 +76,9 @@ bool CompareNode::operator()(const Node &lhs, const string &rhs) const
     return lhs.filePath < rhs;
 }
 
-Node::Node(const path &filePath_, bool isFile, bool mayNotExist)
+Node::Node(const path &filePath_, bool isFile, bool mayNotExist) : entry(directory_entry(filePath_))
 {
-    std::filesystem::file_type nodeType = directory_entry(filePath_).status().type();
+    std::filesystem::file_type nodeType = entry.status().type();
     if (nodeType == (isFile ? file_type::regular : file_type::directory))
     {
         filePath = filePath_.generic_string();
@@ -98,6 +98,7 @@ Node::Node(const path &filePath_, bool isFile, bool mayNotExist)
 std::mutex fileTimeUpdateMutex;
 std::filesystem::file_time_type Node::getLastUpdateTime() const
 {
+    return entry.last_write_time();
     {
         lock_guard<mutex> lk(fileTimeUpdateMutex);
         if (!isUpdated)
@@ -106,7 +107,6 @@ std::filesystem::file_time_type Node::getLastUpdateTime() const
             const_cast<bool &>(isUpdated) = true;
         }
     }
-    return lastUpdateTime;
 }
 
 path Node::getFinalNodePathFromString(const string &str)
@@ -142,16 +142,17 @@ Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
     // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
     // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
     // performed only once.
+
+    {
+        lock_guard<mutex> lk(nodeInsertMutex);
+        if (auto it = allFiles.find(filePath.string()); it != allFiles.end())
+        {
+            return const_cast<Node *>(it.operator->());
+        }
+    }
+
     lock_guard<mutex> lk(nodeInsertMutex);
-    if (auto it = allFiles.find(filePath.string()); it != allFiles.end())
-    {
-        return const_cast<Node *>(it.operator->());
-    }
-    else
-    {
-        Node node(filePath, isFile, mayNotExist);
-        return const_cast<Node *>(allFiles.emplace(std::move(node)).first.operator->());
-    }
+    return const_cast<Node *>(allFiles.emplace(filePath, isFile, mayNotExist).first.operator->());
 }
 
 bool operator<(const Node &lhs, const Node &rhs)

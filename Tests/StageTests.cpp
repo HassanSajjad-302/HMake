@@ -379,6 +379,8 @@ TEST(StageTests, Test2)
     copyFilePath(testSourcePath / "Version/7/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
 
+    create_directory("Release/lib3/");
+    create_directory("Release/lib4/");
     executeErroneousSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1},
                                      "Release/lib3/");
     executeErroneousSnapshotBalances(Updates{}, "Release/lib3/");

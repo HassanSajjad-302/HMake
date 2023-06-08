@@ -118,6 +118,8 @@ extern string getThreadId();
 unsigned short count = 0;
 #endif
 
+vector<std::thread::id> threadIds;
+
 void Builder::execute()
 {
     BTarget *bTarget = nullptr;
@@ -125,9 +127,11 @@ void Builder::execute()
 
     // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
     std::unique_lock<std::mutex> lk(updateMutex);
-
+    BuilderMode builderModeLocal = builderMode;
+    unsigned short roundLocal = round;
     while (true)
     {
+        bool counted = false;
         while (true)
         {
             bool shouldBreak = false;
@@ -136,9 +140,25 @@ void Builder::execute()
             switch (builderMode)
             {
             case BuilderMode::PRE_SORT: {
-                if (preSortBTargetsIterator == preSortBTargets.end())
+                if (preSortBTargetsIterator != preSortBTargets.end())
+                {
+                    // printMessage(fmt::format("{} {} {}\n", round, "presort-executing", getThreadId()));
+                    bTarget = *preSortBTargetsIterator;
+                    ++preSortBTargetsIterator;
+                    // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
+                    updateMutex.unlock();
+                    cond.notify_all();
+                    shouldBreak = true;
+                }
+                else if (!counted && preSortBTargetsIterator == preSortBTargets.end())
                 {
                     ++threadCount;
+                    counted = true;
+                    if (!round)
+                    {
+                        threadIds.emplace_back(std::this_thread::get_id());
+                    }
+
                     /*                    printMessage(fmt::format("{} {} {} {} {}\n", round,
                                                                  "preSotBTargetIterator == preSortBTargets.end()",
                        threadCount, numberOfLaunchedThreads, getThreadId()));*/
@@ -201,22 +221,13 @@ void Builder::execute()
                         }
                         updateBTargetsIterator = updateBTargets.begin();
                         builderMode = BuilderMode::UPDATE_BTARGET;
+                        counted = false;
                         // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
                         updateMutex.unlock();
                         cond.notify_all();
                         // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
                         updateMutex.lock();
                     }
-                }
-                else
-                {
-                    // printMessage(fmt::format("{} {} {}\n", round, "presort-executing", getThreadId()));
-                    bTarget = *preSortBTargetsIterator;
-                    ++preSortBTargetsIterator;
-                    // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
-                    updateMutex.unlock();
-                    cond.notify_all();
-                    shouldBreak = true;
                 }
             }
             break;
@@ -232,7 +243,7 @@ void Builder::execute()
                     cond.notify_all();
                     shouldBreak = true;
                 }
-                else if (updateBTargets.size() == updateBTargetsSizeGoal)
+                else if (updateBTargets.size() == updateBTargetsSizeGoal && !counted)
                 {
                     if (!round && threadCount == numberOfLaunchedThreads)
                     {
@@ -241,6 +252,10 @@ void Builder::execute()
                     }
 
                     ++threadCount;
+                    if (round)
+                    {
+                        counted = true;
+                    }
                     /*                     printMessage(fmt::format("{} {} {} {} {}\n", round,
                                                                  "updateBTargets.size() == updateBTargetsSizeGoal",
                        threadCount, numberOfLaunchedThreads, getThreadId()));*/
@@ -249,16 +264,14 @@ void Builder::execute()
                         /*                        printMessage(fmt::format("{} {} {}\n", round,
                                                                          "UPDATE_BTARGET threadCount ==
                            numberOfLaunchThreads", getThreadId()));*/
-                        if (round)
-                        {
-                            threadCount = 0;
-                            nextMode = true;
-                        }
 
                         if (round)
                         {
+                            nextMode = true;
+                            threadCount = 0;
                             preSortBTargetsIterator = preSortBTargets.begin();
                             builderMode = BuilderMode::PRE_SORT;
+                            counted = false;
                             --round;
                             cond.notify_all();
                         }
@@ -283,42 +296,17 @@ void Builder::execute()
                 break;
             }
 
-#ifndef NDEBUG
             if (!nextMode)
             {
                 // printMessage(fmt::format("{} {} {}\n", round, "Locking", getThreadId()));
-                ++count;
-                if (count == numberOfLaunchedThreads)
+                cond.wait(lk);
+                if (builderModeLocal != builderMode || roundLocal != round)
                 {
-                    if (updateBTargetsIterator != updateBTargets.end())
-                    {
-                        BTarget *b = *updateBTargetsIterator;
-                        BTarget *c = b;
-                    }
-                    else
-                    {
-                        bool doubt = true;
-                        for (BTarget *t : TBT::topologicalSort)
-                        {
-                            if (t->getRealBTarget(0).dependenciesSize)
-                            {
-                                bool bugFound = true;
-                            }
-                        }
-                    }
-                    bool breakpoint = true;
+                    builderModeLocal = builderMode;
+                    roundLocal = round;
+                    counted = false;
                 }
-                cond.wait(lk);
-                --count;
             }
-#else
-
-            if (!nextMode)
-            {
-                // printMessage(fmt::format("{} {} {}\n", round, "Locking", getThreadId()));
-                cond.wait(lk);
-            }
-#endif
         }
 
         switch (builderMode)
