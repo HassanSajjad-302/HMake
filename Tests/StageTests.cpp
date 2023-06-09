@@ -6,7 +6,6 @@
 #include "Utilities.hpp"
 #include "fmt/core.h"
 #include "fmt/format.h"
-#include "nlohmann/json.hpp"
 #include "gtest/gtest.h"
 #include <filesystem>
 #include <fstream>

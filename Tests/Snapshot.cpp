@@ -24,7 +24,7 @@ void Snapshot::before(const path &directoryPath)
         {
             Node *node = const_cast<Node *>(Node::getNodeFromString(f.path().generic_string(), true));
             node->getLastUpdateTime();
-            beforeData.emplace(node->filePath, true);
+            beforeData.emplace(*node);
         }
     }
 }
@@ -38,7 +38,7 @@ void Snapshot::after(const path &directoryPath)
         {
             Node *node = const_cast<Node *>(Node::getNodeFromString(f.path().generic_string(), true));
             node->getLastUpdateTime();
-            afterData.emplace(node->filePath, true);
+            afterData.emplace(*node);
         }
     }
 }

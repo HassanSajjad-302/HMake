@@ -98,15 +98,13 @@ Node::Node(const path &filePath_, bool isFile, bool mayNotExist) : entry(directo
 std::mutex fileTimeUpdateMutex;
 std::filesystem::file_time_type Node::getLastUpdateTime() const
 {
-    return entry.last_write_time();
+    lock_guard<mutex> lk(fileTimeUpdateMutex);
+    if (!isUpdated)
     {
-        lock_guard<mutex> lk(fileTimeUpdateMutex);
-        if (!isUpdated)
-        {
-            const_cast<std::filesystem::file_time_type &>(lastUpdateTime) = last_write_time(path(filePath));
-            const_cast<bool &>(isUpdated) = true;
-        }
+        const_cast<std::filesystem::file_time_type &>(lastUpdateTime) = last_write_time(path(filePath));
+        const_cast<bool &>(isUpdated) = true;
     }
+    return lastUpdateTime;
 }
 
 path Node::getFinalNodePathFromString(const string &str)

@@ -61,7 +61,7 @@ void BTarget::assignFileStatusToDependents(RealBTarget &realBTarget) const
         {
             if (bTargetDepType == BTargetDepType::FULL)
             {
-                dependent->fileStatus.store(true, std::memory_order_seq_cst);
+                dependent->fileStatus.store(true, std::memory_order_release);
             }
         }
     }
