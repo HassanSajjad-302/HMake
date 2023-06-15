@@ -58,40 +58,6 @@ Builder::Builder()
         t->join();
         delete t;
     }
-
-    /*    updateBTargetsSizeGoal = 0;
-
-        bool breakLoop = false;
-        while (true)
-        {
-            if (breakLoop)
-            {
-                break;
-            }
-
-            // preSort is called only for few of BTarget. If preSort is needed then the bTarget can be added in the
-            // preSortBTargets of builder.
-            for (BTarget *bTarget : preSortBTargets)
-            {
-                bTarget->preSort(*this, round);
-            }
-            populateFinalBTargets();
-            launchThreadsAndUpdateBTargets();
-
-            if (updateBTargetFailed)
-            {
-                throw std::exception();
-            }
-
-            if (round == roundEnd)
-            {
-                breakLoop = true;
-            }
-            else
-            {
-                --round;
-            }
-        }*/
 }
 
 static mutex updateMutex;
@@ -221,6 +187,7 @@ void Builder::execute()
                         }
                         updateBTargetsIterator = updateBTargets.begin();
                         builderMode = BuilderMode::UPDATE_BTARGET;
+                        builderModeLocal = builderMode;
                         counted = false;
                         // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
                         updateMutex.unlock();
@@ -234,6 +201,13 @@ void Builder::execute()
             case BuilderMode::UPDATE_BTARGET: {
                 if (updateBTargetsIterator != updateBTargets.end())
                 {
+                    // This can be true when a thread has already added in threadCount but then later a new btarget was
+                    // appended to the updateBTargets by function like addNewBTargetInFinalBTargets
+                    if (counted)
+                    {
+                        --threadCount;
+                        counted = false;
+                    }
                     // printMessage(fmt::format("{} {} {}\n", round, "update-executing", getThreadId()));
                     bTarget = *updateBTargetsIterator;
                     realBTarget = &(bTarget->getRealBTarget(round));
@@ -271,9 +245,13 @@ void Builder::execute()
                             threadCount = 0;
                             preSortBTargetsIterator = preSortBTargets.begin();
                             builderMode = BuilderMode::PRE_SORT;
+                            builderModeLocal = builderMode;
                             counted = false;
                             --round;
+                            roundLocal = round;
+                            updateMutex.unlock();
                             cond.notify_all();
+                            updateMutex.lock();
                         }
                         else
                         {
@@ -323,7 +301,6 @@ void Builder::execute()
                 bTarget->updateBTarget(*this, round);
                 // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
                 updateMutex.lock();
-                realBTarget->updateCalled = true;
                 if (realBTarget->exitStatus != EXIT_SUCCESS)
                 {
                     updateBTargetFailed = true;
@@ -401,7 +378,7 @@ bool Builder::addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets
         std::lock_guard<std::mutex> lk(updateMutex);
         for (CppSourceTarget *target : targets)
         {
-            if (target->targetCacheChanged)
+            if (target->targetCacheChanged.load(std::memory_order_acquire))
             {
                 updateBTargets.emplace_back(target);
                 ++updateBTargetsSizeGoal;

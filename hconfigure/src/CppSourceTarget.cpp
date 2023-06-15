@@ -730,7 +730,10 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     else if (!round)
     {
         populateSourceNodes();
-        resolveRequirePaths();
+        if (moduleScope == this)
+        {
+            resolveRequirePaths();
+        }
     }
     else if (round == 2)
     {
@@ -750,9 +753,9 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
 {
     if (!round || round == 1)
     {
-        if (targetCacheChanged)
+        if (targetCacheChanged.load(std::memory_order_acquire))
         {
-            targetCacheChanged = false;
+            targetCacheChanged.store(false, std::memory_order_release);
             saveBuildCache(round);
             if (!round)
             {
@@ -1146,20 +1149,18 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
 
 void CppSourceTarget::resolveRequirePaths()
 {
-    for (const SMFile &smFileConst : moduleSourceFileDependencies)
+    for (SMFile *smFile : moduleScopeData->smFiles)
     {
-        auto &smFile = const_cast<SMFile &>(smFileConst);
-
-        Json &rules = smFile.sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
+        Json &rules = smFile->sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
         if (auto jsonIt = rules.find(JConsts::requires_); jsonIt != rules.end())
         {
             for (const Json &requireJson : *jsonIt)
             {
                 string requireLogicalName = requireJson.at("logical-name").get<string>();
-                if (requireLogicalName == smFile.logicalName)
+                if (requireLogicalName == smFile->logicalName)
                 {
                     printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                       moduleScope->getSubDirForTarget(), smFile.node->filePath),
+                                                       moduleScope->getSubDirForTarget(), smFile->node->filePath),
                                            settings.pcSettings.toolErrorOutput);
                     throw std::exception();
                 }
@@ -1177,7 +1178,7 @@ void CppSourceTarget::resolveRequirePaths()
                 else
                 {
                     SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
-                    smFile.getRealBTarget(0).addDependency(smFileDep);
+                    smFile->getRealBTarget(0).addDependency(smFileDep);
                 }
             }
         }
@@ -1215,19 +1216,26 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
     for (auto it = moduleSourceFileDependencies.begin(); it != moduleSourceFileDependencies.end();)
     {
         auto &smFile = const_cast<SMFile &>(*it);
-        if (auto [pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
+
         {
-            ++moduleScopeData->totalSMRuleFileCount;
+            lock_guard<mutex> lk(modulescopedata_smFiles);
+            if (const auto &[pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
+            {
+                ++moduleScopeData->totalSMRuleFileCount;
+                // So, it becomes part of DAG
+                smFile.getRealBTarget(1);
+            }
+            else
+            {
+                printErrorMessageColor(
+                    fmt::format("In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
+                                moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
+                                (**pos).target->getTargetPointer()),
+                    settings.pcSettings.toolErrorOutput);
+                throw std::exception();
+            }
         }
-        else
-        {
-            printErrorMessageColor(
-                fmt::format("In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
-                            moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
-                            (**pos).target->getTargetPointer()),
-                settings.pcSettings.toolErrorOutput);
-            throw std::exception();
-        }
+
         getRealBTarget(0).addDependency(smFile);
 
         const auto &[pos, Ok] = moduleFilesJson.emplace(smFile.node->filePath, Json::object_t{});
@@ -1352,9 +1360,7 @@ mutex cppSourceTargetDotCpp_TempMutex;
 PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 {
     // Use atomic_flag instead
-    cppSourceTargetDotCpp_TempMutex.lock();
-    targetCacheChanged = true;
-    cppSourceTargetDotCpp_TempMutex.unlock();
+    targetCacheChanged.store(true, std::memory_order_release);
 
     string compileFileName = path(sourceNode.node->filePath).filename().string();
 
@@ -1382,9 +1388,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 
 PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError)
 {
-    cppSourceTargetDotCpp_TempMutex.lock();
-    targetCacheChanged = true;
-    cppSourceTargetDotCpp_TempMutex.unlock();
+    targetCacheChanged.store(true, std::memory_order_release);
     string finalCompileCommand = getCompileCommand() + addQuotes(smFile.node->filePath) + " ";
 
     if (compiler.bTFamily == BTFamily::MSVC)

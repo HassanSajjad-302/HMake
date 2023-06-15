@@ -1107,7 +1107,7 @@ replacement of the other.
 I am also trying to expand the build algorithm, so, it can have
 smart thread-allocation for different tasks based on priority and quota.
 TODOs for these are mentioned in ```RealBTarget```, ```Builder.cpp```
-and ```SMFile::duringSort```. Help would be appreciated.
+and ```SMFile::setFileStatusAndPopulateAllDependencies```. Help would be appreciated.
 
 Also, IDE/Editor tools need to parse the source-code for intelligent suggestions.  
 Can this be cached and supplied to compiler backend, when user builds the code,

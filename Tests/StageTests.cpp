@@ -12,10 +12,10 @@
 #include <iostream>
 #include <string>
 
-using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::path,
-    std::filesystem::current_path, std::cout, fmt::format, std::filesystem::remove_all, std::ifstream, std::ofstream,
-    std::filesystem::remove, std::filesystem::remove_all, std::filesystem::copy_file, std::error_code,
-    std::filesystem::copy_options, fmt::print;
+using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::create_directories,
+    std::filesystem::path, std::filesystem::current_path, std::cout, fmt::format, std::filesystem::remove_all,
+    std::ifstream, std::ofstream, std::filesystem::remove, std::filesystem::remove_all, std::filesystem::copy_file,
+    std::error_code, std::filesystem::copy_options, fmt::print;
 
 static void touchFile(const path &filePath)
 {
@@ -378,8 +378,8 @@ TEST(StageTests, Test2)
     copyFilePath(testSourcePath / "Version/7/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
 
-    create_directory("Release/lib3/");
-    create_directory("Release/lib4/");
+    create_directories("Release/lib3/");
+    create_directories("Release/lib4/");
     executeErroneousSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1},
                                      "Release/lib3/");
     executeErroneousSnapshotBalances(Updates{}, "Release/lib3/");

@@ -55,14 +55,11 @@ BTargetType BTarget::getBTargetType() const
 
 void BTarget::assignFileStatusToDependents(RealBTarget &realBTarget) const
 {
-    if (fileStatus.load(std::memory_order_acquire))
+    for (auto &[dependent, bTargetDepType] : realBTarget.dependents)
     {
-        for (auto &[dependent, bTargetDepType] : realBTarget.dependents)
+        if (bTargetDepType == BTargetDepType::FULL)
         {
-            if (bTargetDepType == BTargetDepType::FULL)
-            {
-                dependent->fileStatus.store(true, std::memory_order_release);
-            }
+            dependent->fileStatus.store(true, std::memory_order_release);
         }
     }
 }

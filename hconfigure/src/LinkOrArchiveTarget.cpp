@@ -83,8 +83,9 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         fileStatus.store(true, std::memory_order_release);
     }
 
-    // No other thread during BTarget::duringSort calls saveBuildCache() i.e. only the following operation needs to
-    // be guarded by the mutex, otherwise all the targetBuildCache access would have been guarded
+    // No other thread during BTarget::setFileStatusAndPopulateAllDependencies calls saveBuildCache() i.e. only the
+    // following operation needs to be guarded by the mutex, otherwise all the targetBuildCache access would have been
+    // guarded
     buildCacheMutex.lock();
     const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
 
@@ -215,7 +216,10 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
             }
         }
     }
-    assignFileStatusToDependents(realBTarget);
+    if (fileStatus.load(std::memory_order_acquire))
+    {
+        assignFileStatusToDependents(realBTarget);
+    }
 }
 
 void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)

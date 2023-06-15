@@ -170,9 +170,8 @@ void configureOrBuild()
     if (bsMode == BSMode::BUILD)
     {
         actuallyReadTheCache();
+        Builder{};
     }
-
-    Builder{};
 
     /*    {
             Builder{3, 2, preSortBTargets};

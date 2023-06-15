@@ -168,7 +168,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     string getObjectFileOutputFilePath() const override;
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
-    void duringSort(Builder &builder, unsigned short round);
+    void setFileStatusAndPopulateAllDependencies();
     string getFlag(const string &outputFilesWithoutExtension) const;
     string getFlagPrint(const string &outputFilesWithoutExtension) const;
     string getRequireFlag(const SMFile &dependentSMFile) const;

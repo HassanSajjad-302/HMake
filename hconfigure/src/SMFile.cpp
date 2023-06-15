@@ -365,8 +365,6 @@ void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
     }
 }
 
-static mutex smFilesInternalMutex;
-
 void SMFile::updateBTarget(Builder &builder, unsigned short round)
 {
     // Danger Following is executed concurrently
@@ -389,36 +387,37 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
             {
-                // Maybe fine-grain this mutex by using multiple mutexes in following functions. And first use
-                // set::contain and then set::emplace. Because set::contains is thread-safe while set::emplace isn't
-                lock_guard<mutex> lk(smFilesInternalMutex);
                 saveRequiresJsonAndInitializeHeaderUnits(builder);
                 assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
             }
-
-            // if(builder.finalBTargetsSizeGoal == )
             target->getRealBTarget(0).addDependency(*this);
         }
         decrementTotalSMRuleFileCount(builder);
     }
-    else if (!round && selectiveBuild && realBTarget.exitStatus == EXIT_SUCCESS)
+    else if (!round && realBTarget.exitStatus == EXIT_SUCCESS)
     {
-        PostCompile postCompile = target->CompileSMFile(*this);
-        realBTarget.exitStatus = postCompile.exitStatus;
+        setFileStatusAndPopulateAllDependencies();
 
+        if (fileStatus.load(std::memory_order_acquire))
         {
-            lock_guard<mutex> lk(printMutex);
-            postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
-            fflush(stdout);
-        }
+            assignFileStatusToDependents(realBTarget);
+            PostCompile postCompile = target->CompileSMFile(*this);
+            realBTarget.exitStatus = postCompile.exitStatus;
 
-        if (realBTarget.exitStatus == EXIT_SUCCESS)
-        {
-            // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
-            // cached compile-command would be different
-            sourceJson->at(JConsts::compileCommand) =
-                target->compiler.bTPath.generic_string() + " " + target->compileCommand;
-            target->targetCacheChanged = true;
+            {
+                lock_guard<mutex> lk(printMutex);
+                postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
+                fflush(stdout);
+            }
+
+            if (realBTarget.exitStatus == EXIT_SUCCESS)
+            {
+                // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
+                // cached compile-command would be different
+                sourceJson->at(JConsts::compileCommand) =
+                    target->compiler.bTPath.generic_string() + " " + target->compileCommand;
+                target->targetCacheChanged.store(true, std::memory_order_release);
+            }
         }
     }
 }
@@ -437,7 +436,12 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
         hasProvide = true;
         // There can be only one provides but can be multiple requires.
         logicalName = rule.at("provides").get<Json>()[0].at("logical-name").get<string>();
-        if (auto [pos, ok] = target->moduleScopeData->requirePaths.try_emplace(logicalName, this); !ok)
+
+        modulescopedata_requirePaths.lock();
+        auto [pos, ok] = target->moduleScopeData->requirePaths.try_emplace(logicalName, this);
+        modulescopedata_requirePaths.unlock();
+
+        if (!ok)
         {
             const auto &[key, val] = *pos;
             printErrorMessageColor(
@@ -452,9 +456,9 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     iterateRequiresJsonToInitializeNewHeaderUnits(builder);
 }
 
-std::mutex targetBuildCacheModuledependencies;
 void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 {
+    ModuleScopeData *moduleScopeData = target->moduleScopeData;
     string requireLogicalName = requireJson.at("logical-name").get<string>();
     if (requireLogicalName == logicalName)
     {
@@ -486,7 +490,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     // Iterating over all header-unit-directories of the module-scope to find out which header-unit
     // directory this header-unit comes from and which target that header-unit-directory belongs to
     // if any
-    for (const auto &[inclNode, targetLocal] : target->moduleScopeData->huDirTarget)
+    for (const auto &[inclNode, targetLocal] : moduleScopeData->huDirTarget)
     {
         const InclNode *dirNode = inclNode;
         path result = path(headerUnitPath).lexically_relative(dirNode->node->filePath).generic_string();
@@ -526,11 +530,16 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     Node *headerUnitNode = Node::getNodeFromString(headerUnitPath, true);
 
     set<SMFile, CompareSourceNode>::const_iterator headerUnitIt;
-    if (auto it = huDirTarget->moduleScopeData->headerUnits.find(headerUnitNode);
-        it == huDirTarget->moduleScopeData->headerUnits.end())
+
+    modulescopedata_headerUnits.lock();
+    if (auto it = moduleScopeData->headerUnits.find(headerUnitNode); it == moduleScopeData->headerUnits.end())
     {
-        headerUnitIt = huDirTarget->moduleScopeData->headerUnits.emplace(huDirTarget, headerUnitNode).first;
-        huDirTarget->headerUnits.emplace(&(*headerUnitIt));
+        headerUnitIt = moduleScopeData->headerUnits.emplace(huDirTarget, headerUnitNode).first;
+        modulescopedata_headerUnits.unlock();
+        {
+            lock_guard<mutex> lk{huDirTarget->headerUnitsMutex};
+            huDirTarget->headerUnits.emplace(&(*headerUnitIt));
+        }
 
         auto &headerUnit = const_cast<SMFile &>(*headerUnitIt);
 
@@ -539,9 +548,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }
 
-        targetBuildCacheModuledependencies.lock();
         Json &headerUnitsJson = huDirTarget->targetBuildCache.at(JConsts::headerUnits);
-        targetBuildCacheModuledependencies.unlock();
 
         const auto &[pos, Ok] = headerUnitsJson.emplace(headerUnit.node->filePath, Json::object_t{});
         if (Ok)
@@ -563,6 +570,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     }
     else
     {
+        modulescopedata_headerUnits.unlock();
         headerUnitIt = it;
     }
 
@@ -640,92 +648,92 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 }
 
 bool SMFile::generateSMFileInRoundOne()
-{ /*
-     RealBTarget &realBTarget = getRealBTarget(0);
+{
+    if (sourceJson->at(JConsts::compileCommand) !=
+        target->compiler.bTPath.generic_string() + " " + target->compileCommand)
+    {
+        readJsonFromSMRulesFile = true;
+        // This is the only access in round 1. Maybe change to relaxed
+        fileStatus.store(true, std::memory_order_release);
+        return true;
+    }
 
-     if (sourceJson->at(JConsts::compileCommand) !=
-         target->compiler.bTPath.generic_string() + " " + target->compileCommand)
-     {
-         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-         readJsonFromSMRulesFile = true;
-         return true;
-     }
-     else
-     {
-         Node *objectFileNode = Node::getNodeFromString(
-             target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".m.o"), true, true);
+    bool needsUpdate = false;
+    Node *objectFileNode = Node::getNodeFromString(
+        target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".m.o"), true, true);
 
-         if (objectFileNode->doesNotExist)
-         {
-             realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-         }
-         else
-         {
-             if (node->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
-             {
-                 realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-             }
-             else
-             {
-                 for (const Json &str : sourceJson->at(JConsts::headerDependencies))
-                 {
-                     Node *headerNode = Node::getNodeFromString(str, true, true);
-                     if (headerNode->doesNotExist)
-                     {
-                         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                         break;
-                     }
+    if (objectFileNode->doesNotExist)
+    {
+        needsUpdate = true;
+    }
+    else
+    {
+        if (node->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+        {
+            needsUpdate = true;
+        }
+        else
+        {
+            for (const Json &str : sourceJson->at(JConsts::headerDependencies))
+            {
+                Node *headerNode = Node::getNodeFromString(str, true, true);
+                if (headerNode->doesNotExist)
+                {
+                    needsUpdate = true;
+                    break;
+                }
 
-                     if (headerNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
-                     {
-                         realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                         break;
-                     }
-                 }
-             }
-         }
-     }
+                if (headerNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+                {
+                    needsUpdate = true;
+                    break;
+                }
+            }
+        }
+    }
 
-     if (realBTarget.fileStatus == FileStatus::NEEDS_UPDATE)
-     {
-         readJsonFromSMRulesFile = true;
+    if (needsUpdate)
+    {
+        // This is the only access in round 1. Maybe change to relaxed
+        fileStatus.store(true, std::memory_order_release);
 
-         // If smrules file exists, and is updated, then it won't be updated. This can happen when, because of
-         // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the .m.o
-     file
+        readJsonFromSMRulesFile = true;
 
-         Node *smRuleFileNode = Node::getNodeFromString(
-             target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".smrules"), true, true);
+        // If smrules file exists, and is updated, then it won't be updated. This can happen when, because of
+        // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the
+        // .m.o file.
 
-         if (smRuleFileNode->doesNotExist)
-         {
-             return true;
-         }
-         else
-         {
-             if (node->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
-             {
-                 return true;
-             }
-             else
-             {
-                 for (const Json &str : sourceJson->at(JConsts::headerDependencies))
-                 {
-                     Node *headerNode = Node::getNodeFromString(str, true, true);
-                     if (headerNode->doesNotExist)
-                     {
-                         return true;
-                     }
+        Node *smRuleFileNode = Node::getNodeFromString(
+            target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".smrules"), true, true);
 
-                     if (headerNode->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
-                     {
-                         return true;
-                     }
-                 }
-             }
-         }
-     }
-     return false;*/
+        if (smRuleFileNode->doesNotExist)
+        {
+            return true;
+        }
+        else
+        {
+            if (node->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
+            {
+                return true;
+            }
+            else
+            {
+                for (const Json &str : sourceJson->at(JConsts::headerDependencies))
+                {
+                    Node *headerNode = Node::getNodeFromString(str, true, true);
+                    if (headerNode->doesNotExist)
+                    {
+                        return true;
+                    }
+
+                    if (headerNode->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
     return false;
 }
 
@@ -745,62 +753,52 @@ BTargetType SMFile::getBTargetType() const
     return BTargetType::SMFILE;
 }
 
-void SMFile::duringSort(Builder &builder, unsigned short round)
+void SMFile::setFileStatusAndPopulateAllDependencies()
 {
-    /*  if (!round)
-      {
-          path objectFilePath;
+    path objectFilePath;
 
-          RealBTarget &realBTarget = getRealBTarget(0);
-          auto emplaceInAll = [&](SMFile *smFile) {
-              if (const auto &[pos, Ok] = allSMFileDependenciesRoundZero.emplace(smFile); Ok)
-              {
-                  for (auto &[headerUnitSMFile, headerUnitConsumerSet] : smFile->headerUnitsConsumptionMethods)
-                  {
-                      for (const HeaderUnitConsumer &headerUnitConsumer : headerUnitConsumerSet)
-                      {
-                          headerUnitsConsumptionMethods.emplace(headerUnitSMFile, set<HeaderUnitConsumer>{})
-                              .first->second.emplace(headerUnitConsumer);
-                      }
-                  }
+    auto emplaceInAll = [&](SMFile *smFile) {
+        if (const auto &[pos, Ok] = allSMFileDependenciesRoundZero.emplace(smFile); Ok)
+        {
+            for (auto &[headerUnitSMFile, headerUnitConsumerSet] : smFile->headerUnitsConsumptionMethods)
+            {
+                for (const HeaderUnitConsumer &headerUnitConsumer : headerUnitConsumerSet)
+                {
+                    headerUnitsConsumptionMethods.emplace(headerUnitSMFile, set<HeaderUnitConsumer>{})
+                        .first->second.emplace(headerUnitConsumer);
+                }
+            }
 
-                  if (realBTarget.fileStatus == FileStatus::UPDATED)
-                  {
-                      Node *objectFileNode = Node::getNodeFromString(
-                          target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".m.o", true);
+            if (!fileStatus.load(std::memory_order_acquire))
+            {
+                Node *objectFileNode = Node::getNodeFromString(
+                    target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".m.o", true);
 
-                      string depFileName = path(smFile->node->filePath).filename().string();
-                      Node *depObjectFileNode = Node::getNodeFromString(
-                          smFile->target->buildCacheFilesDirPath + depFileName + ".m.o", true, true);
+                string depFileName = path(smFile->node->filePath).filename().string();
+                Node *depObjectFileNode =
+                    Node::getNodeFromString(smFile->target->buildCacheFilesDirPath + depFileName + ".m.o", true, true);
 
-                      if (depObjectFileNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
-                      {
-                          realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
-                          return;
-                      }
-                  }
-              }
-          };
+                if (depObjectFileNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+                {
+                    fileStatus.store(true, std::memory_order_release);
+                    return;
+                }
+            }
+        }
+    };
 
-          // TODO
-          //  Following could be moved to updateBTarget, so that it could be parallel. Same in LinkOrArchiveTarget. So,
-          //  this function can be removed. preSort function will set the RealBTarget round 0 status to NEEDS_UPDATE, so
-          //  that following could be called in updateBTarget. dependencyNeedsUpdate variable in RealBTarget will be
-      used
-          //  to determine whether the file needs an update because of its dependencies or not.
-          for (auto &[dependency, ignore] : getRealBTarget(0).dependencies)
-          {
-              if (dependency->getBTargetType() == BTargetType::SMFILE)
-              {
-                  auto *smFile = static_cast<SMFile *>(dependency);
-                  emplaceInAll(smFile);
-                  for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
-                  {
-                      emplaceInAll(smFileDep);
-                  }
-              }
-          }
-      }*/
+    for (auto &[dependency, ignore] : getRealBTarget(0).dependencies)
+    {
+        if (dependency->getBTargetType() == BTargetType::SMFILE)
+        {
+            auto *smFile = static_cast<SMFile *>(dependency);
+            emplaceInAll(smFile);
+            for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
+            {
+                emplaceInAll(smFileDep);
+            }
+        }
+    }
 }
 
 string SMFile::getFlag(const string &outputFilesWithoutExtension) const

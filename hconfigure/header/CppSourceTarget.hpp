@@ -61,13 +61,24 @@ struct CompilerFlags
     string CPP_FLAGS_COMPILE;
 };
 
+inline mutex modulescopedata_smFiles;
+inline mutex modulescopedata_headerUnits;
+inline mutex modulescopedata_requirePaths;
 struct ModuleScopeData
 {
+    // Written mutex locked in round 1 preSort.
     set<SMFile *> smFiles;
+
+    // Written mutex locked in round 1 updateBTarget
     set<SMFile, CompareSourceNode> headerUnits;
+
     // Which header unit directory come from which target
     map<const InclNode *, CppSourceTarget *> huDirTarget;
+
+    // Written mutex locked in round 1 updateBTarget.
+    // Which require is provided by which SMFile
     map<string, SMFile *> requirePaths;
+
     set<CppSourceTarget *> targets;
     unsigned int totalSMRuleFileCount = 0;
 };
@@ -79,6 +90,8 @@ class CppSourceTarget : public CppCompilerFeatures,
 {
   public:
     using BaseType = CSourceTarget;
+    // Written mutex locked in round 1 updateBTarget
+    mutex headerUnitsMutex;
     Json targetBuildCache;
     TargetType compileTargetType;
     CppSourceTarget *moduleScope = nullptr;

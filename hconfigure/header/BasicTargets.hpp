@@ -83,8 +83,6 @@ struct RealBTarget
 
     unsigned short round;
 
-    bool updateCalled = false;
-
     explicit RealBTarget(BTarget *bTarget_, unsigned short round);
 
     template <typename... U> void addDependency(BTarget &dependency, U &...bTargets);
