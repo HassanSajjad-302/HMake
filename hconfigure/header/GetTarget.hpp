@@ -30,6 +30,7 @@ CppSourceTarget &GetCppObject(const string &name, CTarget &other, bool hasFile =
 
 LinkOrArchiveTarget &GetExe(const string &name);
 LinkOrArchiveTarget &GetExe(const string &name, CTarget &other, bool hasFile = true);
+PrebuiltBasic &GetPrebuiltBasic(const string &name_);
 LinkOrArchiveTarget &GetStaticLinkOrArchiveTarget(const string &name);
 LinkOrArchiveTarget &GetStaticLinkOrArchiveTarget(const string &name, CTarget &other, bool hasFile = true);
 LinkOrArchiveTarget &GetSharedLinkOrArchiveTarget(const string &name);
@@ -84,15 +85,12 @@ DSC<CppSourceTarget, true> &GetCppSharedDSC_P(const string &name, const string &
                                               bool defines = false, string define = "", bool hasFile = true);
 
 template <typename... U>
-RoundZeroUpdateBTarget &GetRoundZeroUpdateBTarget(function<void(Builder &, unsigned short, BTarget &bTarget)> func,
-                                                  U &...dependencies)
+RoundZeroUpdateBTarget &GetRoundZeroUpdateBTarget(function<void(Builder &, BTarget &bTarget)> func, U &...dependencies)
 {
     RoundZeroUpdateBTarget &roundZeroUpdateBTarget = const_cast<RoundZeroUpdateBTarget &>(
         targets<RoundZeroUpdateBTarget>.emplace(std::move(func)).first.operator*());
-    if constexpr (sizeof...(dependencies))
-    {
-        roundZeroUpdateBTarget.getRealBTarget(0).addDependency(dependencies...);
-    }
+    roundZeroUpdateBTarget.getRealBTarget(0).addDependency(dependencies...);
+    roundZeroUpdateBTarget.selectiveBuild = true;
     return roundZeroUpdateBTarget;
 }
 

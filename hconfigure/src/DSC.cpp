@@ -5,20 +5,25 @@ import "DSC.hpp";
 #include "DSC.hpp"
 #endif
 
-template <>
-DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *linkOrArchiveTarget_, bool defines,
-                          string define_)
+template <> DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, string define_)
 {
-    objectFileProducer = ptr;
-    prebuiltLinkOrArchiveTarget = linkOrArchiveTarget_;
-    if (linkOrArchiveTarget_)
+    // TODO Remove this later
+    if (!ptr || !prebuiltBasic_)
     {
-        prebuiltLinkOrArchiveTarget->objectFileProducers.emplace(objectFileProducer);
+        printErrorMessage("Error in Specialized DSC constructor. One is nullptr\n");
+        throw std::exception{};
     }
 
-    if (define_.empty() && prebuiltLinkOrArchiveTarget)
+    objectFileProducer = ptr;
+    prebuiltBasic = prebuiltBasic_;
+    if (prebuiltBasic_)
     {
-        define = prebuiltLinkOrArchiveTarget->outputName;
+        prebuiltBasic->objectFileProducers.emplace(objectFileProducer);
+    }
+
+    if (define_.empty() && !prebuiltBasic->EVALUATE(TargetType::PREBUILT_BASIC))
+    {
+        define = prebuiltBasic->outputName;
         transform(define.begin(), define.end(), define.begin(), ::toupper);
         define += "_EXPORT";
     }
@@ -35,7 +40,7 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *lin
 
     if (defineDllPrivate == DefineDLLPrivate::YES)
     {
-        if (prebuiltLinkOrArchiveTarget && prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
+        if (prebuiltBasic->EVALUATE(TargetType::LIBRARY_SHARED))
         {
             if (ptr->compiler.bTFamily == BTFamily::MSVC)
             {

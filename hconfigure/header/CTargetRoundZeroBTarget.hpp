@@ -11,9 +11,9 @@ import "BasicTargets.hpp";
 using std::function;
 struct RoundZeroUpdateBTarget : public BTarget
 {
-    function<void(Builder &, unsigned short, BTarget &bTarget)> updateFunctor = nullptr;
+    function<void(Builder &, BTarget &bTarget)> updateFunctor = nullptr;
 
-    explicit RoundZeroUpdateBTarget(function<void(Builder &, unsigned short, BTarget &bTarget)> updateFunctor_)
+    explicit RoundZeroUpdateBTarget(function<void(Builder &, BTarget &bTarget)> updateFunctor_)
         : updateFunctor(std::move(updateFunctor_))
     {
     }
@@ -22,20 +22,19 @@ struct RoundZeroUpdateBTarget : public BTarget
     {
         if (!round)
         {
-            updateFunctor(builder, round, *this);
+            updateFunctor(builder, *this);
         }
     }
 };
 
 struct CTargetRoundZeroBTarget : public RoundZeroUpdateBTarget, public CTarget
 {
-    explicit CTargetRoundZeroBTarget(const string &name_,
-                                     function<void(Builder &, unsigned short, BTarget &bTarget)> updateFunctor_)
+    explicit CTargetRoundZeroBTarget(const string &name_, function<void(Builder &, BTarget &bTarget)> updateFunctor_)
         : RoundZeroUpdateBTarget(std::move(updateFunctor_)), CTarget(name_)
     {
     }
     CTargetRoundZeroBTarget(const string &name_, CTarget &container, bool hasFile,
-                            function<void(Builder &, unsigned short, BTarget &bTarget)> updateFunctor_)
+                            function<void(Builder &, BTarget &bTarget)> updateFunctor_)
         : RoundZeroUpdateBTarget(std::move(updateFunctor_)), CTarget(name_, container, hasFile)
     {
     }

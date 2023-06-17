@@ -172,26 +172,17 @@ void configureOrBuild()
         actuallyReadTheCache();
         Builder{};
     }
-
-    /*    {
-            Builder{3, 2, preSortBTargets};
-        }
-
-        if (bsMode == BSMode::BUILD)
+    if (bsMode == BSMode::CONFIGURE)
+    {
+        vector<CTarget *> &cTargetsSortedForConfigure = TCT::topologicalSort;
+        for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
         {
-            Builder{1, 0, preSortBTargets};
+            it.operator*()->setJson();
         }
-        else if (bsMode == BSMode::CONFIGURE)
+        for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
         {
-            vector<CTarget *> &cTargetsSortedForConfigure = TCT::topologicalSort;
-            for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
-            {
-                it.operator*()->setJson();
-            }
-            for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
-            {
-                it.operator*()->writeJsonFile();
-            }
-            cache.registerCacheVariables();
-        }*/
+            it.operator*()->writeJsonFile();
+        }
+        cache.registerCacheVariables();
+    }
 }

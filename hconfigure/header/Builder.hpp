@@ -24,7 +24,6 @@ class Builder
 {
   public:
     list<BTarget *> updateBTargets;
-    vector<BTarget *> preSortBTargets;
     size_t updateBTargetsSizeGoal = 0;
     size_t duringSortBTargetsSizeGoal = 0;
 

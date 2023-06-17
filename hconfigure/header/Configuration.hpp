@@ -42,6 +42,7 @@ struct Configuration : public CTarget
 
     CppSourceTarget &GetCppPreprocess(const string &name_);
     CppSourceTarget &GetCppObject(const string &name_);
+    PrebuiltBasic &GetPrebuiltBasic(const string &name_);
     LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(const string &name_);
     LinkOrArchiveTarget &GetStaticLinkOrArchiveTarget(const string &name_);
     LinkOrArchiveTarget &GetSharedLinkOrArchiveTarget(const string &name_);

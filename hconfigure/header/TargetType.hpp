@@ -22,6 +22,7 @@ enum class TargetType : char
     RUN,
     PLIBRARY_STATIC,
     PLIBRARY_SHARED,
+    PREBUILT_BASIC,
 };
 void to_json(Json &j, const TargetType &targetType);
 void from_json(const Json &j, TargetType &targetType);

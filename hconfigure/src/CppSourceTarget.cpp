@@ -105,12 +105,14 @@ bool CppSourceTarget::isCpuTypeG7()
 CppSourceTarget::CppSourceTarget(string name_, TargetType targetType) : CTarget{std::move(name_)}
 {
     compileTargetType = targetType;
+    preSortBTargets.emplace_back(this);
 }
 
 CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, CTarget &other, bool hasFile)
     : CTarget{std::move(name_), other, hasFile}
 {
     compileTargetType = targetType;
+    preSortBTargets.emplace_back(this);
 }
 
 void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
@@ -134,11 +136,6 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
     for (const SourceNode &objectFile : sourceFileDependencies)
     {
         objectFiles->emplace_back(&objectFile);
-    }
-
-    for (const ObjectFileProducer *objectFileTarget : requirementObjectFileTargets)
-    {
-        objectFileTarget->getObjectFiles(objectFiles, linkOrArchiveTarget);
     }
 }
 
@@ -167,10 +164,6 @@ void CppSourceTarget::populateTransitiveProperties()
             requirementCompileDefinitions.emplace(define);
         }
         requirementCompilerFlags += cppSourceTarget->usageRequirementCompilerFlags;
-        for (const ObjectFileProducer *objectFileProducer : cppSourceTarget->usageRequirementObjectFileProducers)
-        {
-            requirementObjectFileTargets.emplace(objectFileProducer);
-        }
     }
 }
 
@@ -766,14 +759,13 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
     else if (round == 2)
     {
         populateRequirementAndUsageRequirementDeps();
-        addRequirementDepsToBTargetDependencies();
         // Needed to maintain ordering between different includes specification.
         reqIncSizeBeforePopulate = requirementIncludes.size();
         populateTransitiveProperties();
     }
 }
 
-void CppSourceTarget::setJson()
+/*void CppSourceTarget::setJson()
 {
     Json targetJson;
     targetJson[JConsts::targetType] = compileTargetType;
@@ -789,8 +781,8 @@ void CppSourceTarget::setJson()
     // targetJson[str + JConsts::files] = moduleSourceFileDependencies;
     targetJson[str + JConsts::directories] = regexModuleDirs;
     // TODO
-    /*    targetJson[JConsts::includeDirectories] = requirementIncludes;
-        targetJson[JConsts::huIncludeDirectories] = huIncludes;*/
+    *//*    targetJson[JConsts::includeDirectories] = requirementIncludes;
+        targetJson[JConsts::huIncludeDirectories] = huIncludes;*//*
     // TODO
     //  Add Module Scope
     targetJson[JConsts::compileDefinitions] = requirementCompileDefinitions;
@@ -805,7 +797,7 @@ void CppSourceTarget::setJson()
 void CppSourceTarget::writeJsonFile()
 {
     CTarget::writeJsonFile();
-}
+}*/
 
 string CppSourceTarget::getTarjanNodeName() const
 {

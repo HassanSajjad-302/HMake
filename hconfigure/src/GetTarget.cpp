@@ -80,6 +80,11 @@ LinkOrArchiveTarget &GetExe(const string &name, CTarget &other, bool hasFile)
         targets<LinkOrArchiveTarget>.emplace(name, TargetType::EXECUTABLE, other, hasFile).first.operator*());
 }
 
+PrebuiltBasic &GetPrebuiltBasic(const string &name_)
+{
+    return const_cast<PrebuiltBasic &>(targets<PrebuiltBasic>.emplace(name_).first.operator*());
+}
+
 LinkOrArchiveTarget &GetStaticLinkOrArchiveTarget(const string &name)
 {
     return const_cast<LinkOrArchiveTarget &>(

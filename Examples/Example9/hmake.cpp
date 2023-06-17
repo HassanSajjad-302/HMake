@@ -14,33 +14,36 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T 
     }
 }
 
-void configurationSpecification(Configuration &configuration)
+void configurationSpecification(Configuration &config)
 {
-    configuration.compilerFeatures.PRIVATE_INCLUDES("include/");
+    config.compilerFeatures.PRIVATE_INCLUDES("include/");
 
-    DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
+    DSC<CppSourceTarget> &stdhu = config.GetCppObjectDSC("stdhu");
 
     stdhu.getSourceTargetPointer()->setModuleScope().assignStandardIncludesToHUIncludes();
-    configuration.moduleScope = stdhu.getSourceTargetPointer();
+    config.moduleScope = stdhu.getSourceTargetPointer();
 
-    DSC<CppSourceTarget> &lib4 = configuration.GetCppStaticDSC("lib4");
-    DSC<CppSourceTarget> &lib3 = configuration.GetCppStaticDSC("lib3").PUBLIC_LIBRARIES(&lib4);
-    DSC<CppSourceTarget> &lib2 = configuration.GetCppStaticDSC("lib2").PRIVATE_LIBRARIES(&lib3);
-    DSC<CppSourceTarget> &lib1 = configuration.GetCppStaticDSC("lib1").PUBLIC_LIBRARIES(&lib2);
-    DSC<CppSourceTarget> &app = configuration.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1, &stdhu);
+    DSC<CppSourceTarget> &lib4 = config.GetCppTargetDSC("lib4", config.targetType);
+    DSC<CppSourceTarget> &lib3 = config.GetCppTargetDSC("lib3", config.targetType).PUBLIC_LIBRARIES(&lib4);
+    DSC<CppSourceTarget> &lib2 = config.GetCppTargetDSC("lib2", config.targetType).PRIVATE_LIBRARIES(&lib3);
+    DSC<CppSourceTarget> &lib1 = config.GetCppTargetDSC("lib1", config.targetType).PUBLIC_LIBRARIES(&lib2);
+    DSC<CppSourceTarget> &app = config.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1, &stdhu);
 
     initializeTargets(lib1, lib2, lib3, lib4, app);
 }
 
 void buildSpecification()
 {
-    Configuration &debug = GetConfiguration("Debug");
+    CxxSTD cxxStd = toolsCache.vsTools[0].compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
 
-    CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
+    /*
+        Configuration &static_ = GetConfiguration("static");
+        static_.ASSIGN(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_STATIC);
+        configurationSpecification(static_);*/
 
-    debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG);
-
-    configurationSpecification(debug);
+    Configuration &object = GetConfiguration("object");
+    object.ASSIGN(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_OBJECT);
+    configurationSpecification(object);
 }
 
 #ifdef EXE

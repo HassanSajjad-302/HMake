@@ -10,19 +10,19 @@ void buildSpecification()
     animalShared.getSourceTarget().SOURCE_FILES("../Example4/main.cpp");
 
     GetRoundZeroUpdateBTarget(
-        [&](Builder &builder, unsigned short round, BTarget &bTarget) {
-            if (bTarget.getRealBTarget(0).exitStatus == EXIT_SUCCESS)
+        [&](Builder &builder, BTarget &bTarget) {
+            if (bTarget.getRealBTarget(0).exitStatus == EXIT_SUCCESS &&
+                bTarget.fileStatus.load(std::memory_order_acquire))
             {
-                std::filesystem::copy(
-                    catShared.prebuiltLinkOrArchiveTarget->getActualOutputPath(),
-                    path(animalShared.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path(),
-                    std::filesystem::copy_options::overwrite_existing);
-                std::filesystem::remove(catShared.prebuiltLinkOrArchiveTarget->getActualOutputPath());
+                std::filesystem::copy(catShared.getLinkOrArchiveTarget().getActualOutputPath(),
+                                      path(animalShared.getLinkOrArchiveTarget().getActualOutputPath()).parent_path(),
+                                      std::filesystem::copy_options::overwrite_existing);
+                std::filesystem::remove(catShared.getLinkOrArchiveTarget().getActualOutputPath());
                 std::lock_guard<std::mutex> lk(printMutex);
                 printMessage("libCat.so copied to Animal/ and deleted from Cat/\n");
             }
         },
-        *(animalShared.prebuiltLinkOrArchiveTarget), *(catShared.prebuiltLinkOrArchiveTarget));
+        animalShared.getLinkOrArchiveTarget(), catShared.getLinkOrArchiveTarget());
 }
 
 #ifdef EXE

@@ -46,7 +46,8 @@ add_library(hconfigure STATIC
         hconfigure/src/Configure.cpp
         hconfigure/src/CTargetRoundZeroBTarget.cpp
         hconfigure/src/PrebuiltLinkOrArchiveTarget.cpp
-        hconfigure/src/C_API.cpp)
+        hconfigure/src/C_API.cpp
+        hconfigure/src/PrebuiltBasic.cpp)
 
 
 if (UNIX)

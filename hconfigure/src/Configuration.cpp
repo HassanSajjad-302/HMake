@@ -65,6 +65,11 @@ CppSourceTarget &Configuration::GetCppObject(const string &name_)
     return cppSourceTarget;
 }
 
+PrebuiltBasic &Configuration::GetPrebuiltBasic(const string &name_)
+{
+    return const_cast<PrebuiltBasic &>(targets<PrebuiltBasic>.emplace(name_).first.operator*());
+}
+
 LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget &>(
@@ -175,22 +180,19 @@ DSC<CppSourceTarget> &Configuration::GetCppSharedDSC(const string &name_, const 
 DSC<CppSourceTarget> &Configuration::GetCppObjectDSC(const string &name_, const bool defines, string define)
 {
     return const_cast<DSC<CppSourceTarget> &>(
-        targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name_ + dashCpp)), nullptr, defines, std::move(define)).first.operator*());
+        targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name_ + dashCpp)), &GetPrebuiltBasic(name_), defines, std::move(define)).first.operator*());
 }
 
 DSC<CppSourceTarget, true> &Configuration::GetCppTargetDSC_P(const string &name, const string &directory,
                                                              TargetType targetType_, bool defines, string define)
 {
-    CppSourceTarget *cppSourceTarget = &(GetCppObject(name + dashCpp));
     if (targetType_ == TargetType::LIBRARY_STATIC)
     {
-        return const_cast<DSC<CppSourceTarget, true> &>(
-            targets<DSC<CppSourceTarget, true>>.emplace(cppSourceTarget, &(GetStaticPrebuiltLinkOrArchiveTarget(name, directory)), defines, std::move(define)).first.operator*());
+        return GetCppStaticDSC_P(name, directory, defines, define);
     }
     else if (targetType_ == TargetType::LIBRARY_SHARED)
     {
-        return const_cast<DSC<CppSourceTarget, true> &>(
-            targets<DSC<CppSourceTarget, true>>.emplace(cppSourceTarget, &(GetSharedPrebuiltLinkOrArchiveTarget(name, directory)), defines, std::move(define)).first.operator*());
+        return GetCppSharedDSC_P(name, directory, defines, define);
     }
     else
     {

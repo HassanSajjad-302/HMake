@@ -63,12 +63,13 @@ class LinkOrArchiveTarget : public CTarget,
     LinkOrArchiveTarget(string name_, TargetType targetType);
     LinkOrArchiveTarget(string name_, TargetType targetType, class CTarget &other, bool hasFile = true);
     void setOutputName(string outputName_);
-    void populateObjectFiles();
     void preSort(Builder &builder, unsigned short round) override;
     void setFileStatus(RealBTarget &realBTarget);
     void updateBTarget(Builder &builder, unsigned short round) override;
     LinkerFlags getLinkerFlags();
-    void setJson() override;
+    /*
+        void setJson() override;
+    */
     C_Target *get_CAPITarget(BSMode bsModeLocal) override;
     BTarget *getBTarget() override;
     string getTarjanNodeName() const override;

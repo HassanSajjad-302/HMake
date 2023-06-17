@@ -15,6 +15,8 @@ import <mutex>;
 #include <string>
 #endif
 
+using std::string, std::set, std::map, std::mutex, std::vector;
+
 #ifdef _WIN32
 #define EXPORT __declspec(dllexport)
 #else
@@ -30,8 +32,6 @@ inline Json buildCache;
 inline std::mutex buildCacheMutex;
 void writeBuildCache();
 void writeBuildCacheUnlocked();
-
-using std::string, std::set, std::map, std::mutex;
 
 inline string srcDir;
 
@@ -67,6 +67,8 @@ inline constexpr OS os = OS::LINUX;
 
 inline std::mutex printMutex;
 
+// presort will be called for such targets in 3 rounds. Currently, CppSourceTarget and PrebuiltBasic is added.
+inline vector<struct BTarget *> preSortBTargets;
 void initializeCache(BSMode bsMode_);
 BSMode getBuildSystemModeFromArguments(int argc, char **argv);
 inline const string dashCpp = "-cpp";

@@ -24,8 +24,6 @@ class ObjectFileProducer : public BTarget
     // having a dependency on A(a library). Then object-files of A would be propagated to C through
     // prebuiltLinkOrArchiveTarget of B. But in-case both B and C are object-file-targets, then object-files of C will
     // propagate through object-files of B
-    set<const ObjectFileProducer *> requirementObjectFileTargets;
-    set<const ObjectFileProducer *> usageRequirementObjectFileProducers;
 
     virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                                 class LinkOrArchiveTarget *linkOrArchiveTarget) const;
