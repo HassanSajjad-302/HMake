@@ -158,15 +158,39 @@ string CTarget::getSubDirForTarget() const
     return other ? (other->getSubDirForTarget() + name + "/") : targetFileDir;
 }
 
+// selectiveBuild is set for the children if hbuild is executed in parent directory. Uses by the Builder::Builder
 bool CTarget::getSelectiveBuild()
 {
     if (bsMode == BSMode::BUILD && !selectiveBuildSet)
     {
         path targetPath = getSubDirForTarget();
+        path compare = current_path();
         for (; targetPath.root_path() != targetPath; targetPath = (targetPath / "..").lexically_normal())
         {
             std::error_code ec;
-            if (equivalent(targetPath, current_path(), ec))
+            if (equivalent(targetPath, compare, ec))
+            {
+                selectiveBuild = true;
+                break;
+            }
+        }
+        selectiveBuildSet = true;
+    }
+    return selectiveBuild;
+}
+
+// selectiveBuild is set for the parent if hbuild is executed in child directory. Used in hmake.cpp to rule out other
+// configurations specifications
+bool CTarget::getSelectiveBuildChildDir()
+{
+    if (bsMode == BSMode::BUILD && !selectiveBuildSet)
+    {
+        path targetPath = getSubDirForTarget();
+        path compare = current_path();
+        for (; compare.root_path() != compare; compare = (compare / "..").lexically_normal())
+        {
+            std::error_code ec;
+            if (equivalent(targetPath, compare, ec))
             {
                 selectiveBuild = true;
                 break;

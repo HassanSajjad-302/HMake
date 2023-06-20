@@ -25,7 +25,6 @@ class Builder
   public:
     list<BTarget *> updateBTargets;
     size_t updateBTargetsSizeGoal = 0;
-    size_t duringSortBTargetsSizeGoal = 0;
 
   private:
     list<BTarget *>::iterator updateBTargetsIterator;
@@ -36,8 +35,13 @@ class Builder
 
   public:
     BuilderMode builderMode = BuilderMode::PRE_SORT;
-
     bool updateBTargetFailed = false;
+
+  private:
+    bool shouldExitAfterRoundMode = false;
+    bool errorHappenedInRoundMode = false;
+
+  public:
     explicit Builder();
 
     void addNewBTargetInFinalBTargets(BTarget *bTarget);
@@ -47,4 +51,3 @@ class Builder
 };
 
 #endif // HMAKE_BUILDER_HPP
-

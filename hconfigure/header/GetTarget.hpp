@@ -90,7 +90,6 @@ RoundZeroUpdateBTarget &GetRoundZeroUpdateBTarget(function<void(Builder &, BTarg
     RoundZeroUpdateBTarget &roundZeroUpdateBTarget = const_cast<RoundZeroUpdateBTarget &>(
         targets<RoundZeroUpdateBTarget>.emplace(std::move(func)).first.operator*());
     roundZeroUpdateBTarget.getRealBTarget(0).addDependency(dependencies...);
-    roundZeroUpdateBTarget.selectiveBuild = true;
     return roundZeroUpdateBTarget;
 }
 

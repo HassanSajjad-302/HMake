@@ -264,7 +264,7 @@ string SourceNode::getTarjanNodeName() const
 
 void SourceNode::updateBTarget(Builder &, unsigned short round)
 {
-    if (!round && fileStatus.load(std::memory_order_acquire))
+    if (!round && fileStatus.load(std::memory_order_acquire) && selectiveBuild)
     {
         RealBTarget &realBTarget = getRealBTarget(round);
         assignFileStatusToDependents(realBTarget);
@@ -394,10 +394,18 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
         }
         decrementTotalSMRuleFileCount(builder);
     }
-    else if (!round && realBTarget.exitStatus == EXIT_SUCCESS)
+    else if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
     {
         setFileStatusAndPopulateAllDependencies();
 
+        // TODO
+        // Add a different compile-command for smrules generation, so that smrules is not regenerated if e.g. the
+        // compile command is changed because module compile-command is saved only when module is recompiled, while
+        // smrule compile-command is saved when smrule is recompiled. The hash will be used and same hash can be used.
+
+        // TODO
+        // Here we will also check whether the module compile-command is changed to decide whether to recompile or not.
+        // Tests might be reverted to older state.
         if (fileStatus.load(std::memory_order_acquire))
         {
             assignFileStatusToDependents(realBTarget);

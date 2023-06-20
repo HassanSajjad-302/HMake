@@ -234,9 +234,12 @@ void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controlle
             objectFileProducer->usageRequirementObjectFileProducers.emplace(controller->objectFileProducer);
         }*/
 
+    // TODO
     // A limitation is that this might add two different compiledefinitions for two different consumers with different
     // compilers. A solution is to use a header-file with definitions as CMake does.
 
+    // TODO
+    // Comments will be removed from Builder.cpp and DSC.hpp after this.
     if (controller->defineDllInterface == DefineDLLInterface::YES)
     {
         T *ptr = static_cast<T *>(objectFileProducer);

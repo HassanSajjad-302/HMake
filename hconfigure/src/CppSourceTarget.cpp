@@ -139,17 +139,6 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
     }
 }
 
-void CppSourceTarget::addRequirementDepsToBTargetDependencies()
-{
-    // Access to addDependency() function must be synchronized
-    std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
-
-    for (CSourceTarget *cppSourceTarget : requirementDeps)
-    {
-        getRealBTarget(2).addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
-    }
-}
-
 void CppSourceTarget::populateTransitiveProperties()
 {
     for (CSourceTarget *cppSourceTarget : requirementDeps)

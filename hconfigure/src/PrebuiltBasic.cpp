@@ -63,7 +63,14 @@ PrebuiltBasic::PrebuiltBasic(string outputName_, TargetType linkTargetType_)
 
 void PrebuiltBasic::preSort(Builder &, unsigned short round)
 {
-    if (round == 2)
+    if (!round)
+    {
+        for (ObjectFileProducer *objectFileProducer : objectFileProducers)
+        {
+            objectFileProducer->addDependencyOnObjectFileProducers(this);
+        }
+    }
+    else if (round == 2)
     {
         RealBTarget &round2 = getRealBTarget(2);
         for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)

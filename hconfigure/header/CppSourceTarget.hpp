@@ -159,7 +159,6 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
-    void addRequirementDepsToBTargetDependencies();
     void populateTransitiveProperties();
     void registerHUInclNode(const InclNode &inclNode);
 

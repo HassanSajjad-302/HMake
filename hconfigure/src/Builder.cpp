@@ -31,7 +31,7 @@ Builder::Builder()
         {
             if (BTarget *bTarget = cTarget->getBTarget(); bTarget)
             {
-                preSortBTargets.emplace_back(bTarget);
+                // preSortBTargets.emplace_back(bTarget);
                 if (cTarget->getSelectiveBuild())
                 {
                     bTarget->selectiveBuild = true;
@@ -45,7 +45,7 @@ Builder::Builder()
 
     updateBTargetsIterator = updateBTargets.begin();
 
-    unsigned int launchThreads = 12;
+    unsigned int launchThreads = settings.maximumBuildThreads;
     numberOfLaunchedThreads = launchThreads;
     while (threads.size() != launchThreads - 1)
     {
@@ -60,14 +60,14 @@ Builder::Builder()
     }
 }
 
-static mutex updateMutex;
+static mutex executeMutex;
 
 std::condition_variable cond;
 
 void Builder::addNewBTargetInFinalBTargets(BTarget *bTarget)
 {
     {
-        std::lock_guard<std::mutex> lk(updateMutex);
+        std::lock_guard<std::mutex> lk(executeMutex);
         updateBTargets.emplace_back(bTarget);
         ++updateBTargetsSizeGoal;
         if (updateBTargetsIterator == updateBTargets.end())
@@ -92,7 +92,7 @@ void Builder::execute()
     RealBTarget *realBTarget = nullptr;
 
     // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-    std::unique_lock<std::mutex> lk(updateMutex);
+    std::unique_lock<std::mutex> lk(executeMutex);
     BuilderMode builderModeLocal = builderMode;
     unsigned short roundLocal = round;
     while (true)
@@ -112,7 +112,7 @@ void Builder::execute()
                     bTarget = *preSortBTargetsIterator;
                     ++preSortBTargetsIterator;
                     // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
-                    updateMutex.unlock();
+                    executeMutex.unlock();
                     cond.notify_all();
                     shouldBreak = true;
                 }
@@ -130,70 +130,86 @@ void Builder::execute()
                        threadCount, numberOfLaunchedThreads, getThreadId()));*/
                     if (threadCount == numberOfLaunchedThreads)
                     {
-                        /*                        printMessage(fmt::format("{} {} {}\n", round, "PRE_SORT threadCount ==
-                           numberOfLaunchThreads", getThreadId()));*/
-                        threadCount = 0;
-                        nextMode = true;
-
-                        auto &k = tarjanNodesBTargets.try_emplace(round, set<TBT>()).first->second;
-                        TBT::tarjanNodes = &(k);
-                        TBT::findSCCS();
-                        TBT::checkForCycle();
-
-                        updateBTargets.clear();
-                        updateBTargetsSizeGoal = 0;
-
-                        size_t topSize = TBT::topologicalSort.size();
-
-                        if (!round && topSize)
+                        if (!errorHappenedInRoundMode)
                         {
-                            for (size_t i = TBT::topologicalSort.size(); i-- > 0;)
+                            /*                        printMessage(fmt::format("{} {} {}\n", round, "PRE_SORT
+                               threadCount == numberOfLaunchThreads", getThreadId()));*/
+                            threadCount = 0;
+                            nextMode = true;
+
+                            auto &k = tarjanNodesBTargets.try_emplace(round, set<TBT>()).first->second;
+                            TBT::tarjanNodes = &(k);
+                            TBT::findSCCS();
+                            TBT::checkForCycle();
+
+                            updateBTargets.clear();
+                            updateBTargetsSizeGoal = 0;
+
+                            size_t topSize = TBT::topologicalSort.size();
+
+                            if (!round && topSize)
                             {
-                                BTarget &localBTarget = *(TBT::topologicalSort[i]);
-                                RealBTarget &localReal = localBTarget.getRealBTarget(0);
-                                if (localBTarget.selectiveBuild)
+                                for (size_t i = TBT::topologicalSort.size(); i-- > 0;)
                                 {
+                                    BTarget &localBTarget = *(TBT::topologicalSort[i]);
+                                    RealBTarget &localReal = localBTarget.getRealBTarget(0);
+
+                                    localReal.indexInTopologicalSort = topSize - (i + 1);
+                                    if (localBTarget.selectiveBuild)
+                                    {
+                                        for (auto &[dependency, bTargetDepType] : localReal.dependencies)
+                                        {
+                                            if (bTargetDepType == BTargetDepType::FULL)
+                                            {
+                                                dependency->selectiveBuild = true;
+                                            }
+                                        }
+                                    }
+
                                     if (!localReal.dependenciesSize)
                                     {
                                         updateBTargets.emplace_front(&localBTarget);
                                     }
-                                    localReal.indexInTopologicalSort = topSize - (i + 1);
-                                    ++updateBTargetsSizeGoal;
-                                    for (auto &[dependency, bTargetDepType] : localReal.dependencies)
+                                }
+
+                                updateBTargetsSizeGoal = TBT::topologicalSort.size();
+                            }
+                            else
+                            {
+                                // In rounds 2 and 1 all the targets will be updated.
+                                // Index is only needed in round zero. Perform only for round one.
+                                for (unsigned i = 0; i < TBT::topologicalSort.size(); ++i)
+                                {
+                                    BTarget *bTarget_ = TBT::topologicalSort[i];
+                                    RealBTarget &r = bTarget_->getRealBTarget(round);
+                                    if (!r.dependenciesSize)
                                     {
-                                        if (bTargetDepType == BTargetDepType::FULL)
-                                        {
-                                            dependency->selectiveBuild = true;
-                                        }
+                                        updateBTargets.emplace_back(TBT::topologicalSort[i]);
                                     }
                                 }
+
+                                updateBTargetsSizeGoal = TBT::topologicalSort.size();
                             }
+                            updateBTargetsIterator = updateBTargets.begin();
+                            builderMode = BuilderMode::UPDATE_BTARGET;
+                            builderModeLocal = builderMode;
+                            counted = false;
                         }
                         else
                         {
-                            // In rounds 2 and 1 all the targets will be updated.
-                            // Index is only needed in round zero. Perform only for round one.
-                            for (unsigned i = 0; i < TBT::topologicalSort.size(); ++i)
-                            {
-                                BTarget *bTarget_ = TBT::topologicalSort[i];
-                                RealBTarget &r = bTarget_->getRealBTarget(round);
-                                if (!r.dependenciesSize)
-                                {
-                                    updateBTargets.emplace_back(TBT::topologicalSort[i]);
-                                }
-                            }
-
-                            updateBTargetsSizeGoal = TBT::topologicalSort.size();
+                            shouldExitAfterRoundMode = true;
                         }
-                        updateBTargetsIterator = updateBTargets.begin();
-                        builderMode = BuilderMode::UPDATE_BTARGET;
-                        builderModeLocal = builderMode;
-                        counted = false;
+
                         // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
-                        updateMutex.unlock();
+                        executeMutex.unlock();
                         cond.notify_all();
                         // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-                        updateMutex.lock();
+                        executeMutex.lock();
+
+                        if (shouldExitAfterRoundMode)
+                        {
+                            return;
+                        }
                     }
                 }
             }
@@ -213,18 +229,12 @@ void Builder::execute()
                     realBTarget = &(bTarget->getRealBTarget(round));
                     ++updateBTargetsIterator;
                     // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
-                    updateMutex.unlock();
+                    executeMutex.unlock();
                     cond.notify_all();
                     shouldBreak = true;
                 }
                 else if (updateBTargets.size() == updateBTargetsSizeGoal && !counted)
                 {
-                    if (!round && threadCount == numberOfLaunchedThreads)
-                    {
-                        // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
-                        return;
-                    }
-
                     ++threadCount;
                     if (round)
                     {
@@ -239,7 +249,7 @@ void Builder::execute()
                                                                          "UPDATE_BTARGET threadCount ==
                            numberOfLaunchThreads", getThreadId()));*/
 
-                        if (round)
+                        if (round && !errorHappenedInRoundMode)
                         {
                             nextMode = true;
                             threadCount = 0;
@@ -249,18 +259,17 @@ void Builder::execute()
                             counted = false;
                             --round;
                             roundLocal = round;
-                            updateMutex.unlock();
-                            cond.notify_all();
-                            updateMutex.lock();
                         }
                         else
                         {
-                            // printMessage("Exiting\n");
-                            // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
-                            updateMutex.unlock();
-                            cond.notify_all();
-                            updateMutex.lock();
-                            // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
+                            shouldExitAfterRoundMode = true;
+                        }
+
+                        executeMutex.unlock();
+                        cond.notify_all();
+                        executeMutex.lock();
+                        if (shouldExitAfterRoundMode)
+                        {
                             return;
                         }
                     }
@@ -284,32 +293,51 @@ void Builder::execute()
                     roundLocal = round;
                     counted = false;
                 }
+                if (shouldExitAfterRoundMode)
+                {
+                    return;
+                }
             }
         }
 
         switch (builderMode)
         {
-        case BuilderMode::PRE_SORT:
-            bTarget->preSort(*this, round);
-            // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-            updateMutex.lock();
-            break;
+        case BuilderMode::PRE_SORT: {
+            try
+            {
+                bTarget->preSort(*this, round);
+                // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
+                executeMutex.lock();
+            }
+            catch (std::exception &ec)
+            {
+                // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
+                executeMutex.lock();
+                string str(ec.what());
+                if (!str.empty())
+                {
+                    printErrorMessage(str);
+                }
+                errorHappenedInRoundMode = true;
+            }
+        }
+        break;
 
         case BuilderMode::UPDATE_BTARGET: {
             try
             {
                 bTarget->updateBTarget(*this, round);
                 // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-                updateMutex.lock();
+                executeMutex.lock();
                 if (realBTarget->exitStatus != EXIT_SUCCESS)
                 {
-                    updateBTargetFailed = true;
+                    errorHappenedInRoundMode = true;
                 }
             }
             catch (std::exception &ec)
             {
                 // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-                updateMutex.lock();
+                executeMutex.lock();
                 realBTarget->exitStatus = EXIT_FAILURE;
                 string str(ec.what());
                 if (!str.empty())
@@ -318,10 +346,11 @@ void Builder::execute()
                 }
                 if (realBTarget->exitStatus != EXIT_SUCCESS)
                 {
-                    updateBTargetFailed = true;
+                    errorHappenedInRoundMode = true;
                 }
             }
 
+            // bTargetDepType is only considered in round 0.
             if (round)
             {
                 for (auto &[dependent, bTargetDepType] : bTarget->getRealBTarget(round).dependents)
@@ -355,7 +384,7 @@ void Builder::execute()
                             dependentRealBTarget.exitStatus = EXIT_FAILURE;
                         }
                         --(dependentRealBTarget.dependenciesSize);
-                        if (!dependentRealBTarget.dependenciesSize && dependent->selectiveBuild)
+                        if (!dependentRealBTarget.dependenciesSize)
                         {
                             updateBTargets.emplace_back(dependent);
                             if (updateBTargetsIterator == updateBTargets.end())
@@ -375,7 +404,7 @@ void Builder::execute()
 bool Builder::addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets)
 {
     {
-        std::lock_guard<std::mutex> lk(updateMutex);
+        std::lock_guard<std::mutex> lk(executeMutex);
         for (CppSourceTarget *target : targets)
         {
             if (target->targetCacheChanged.load(std::memory_order_acquire))

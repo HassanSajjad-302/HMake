@@ -27,17 +27,16 @@ void configurationSpecification(Configuration &configuration)
         .PRIVATE_COMPILE_DEFINITION(
             "HCONFIGURE_STATIC_LIB_DIRECTORY",
             addEscapedQuotes(
-                path(hconfigure.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().generic_string()))
+                path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().generic_string()))
         .PRIVATE_COMPILE_DEFINITION(
             "HCONFIGURE_STATIC_LIB_PATH",
-            addEscapedQuotes(path(hconfigure.prebuiltLinkOrArchiveTarget->getActualOutputPath()).generic_string()))
+            addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).generic_string()))
         .PRIVATE_COMPILE_DEFINITION(
             "FMT_STATIC_LIB_DIRECTORY",
-            addEscapedQuotes(
-                path(fmt.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().generic_string()))
+            addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().generic_string()))
         .PRIVATE_COMPILE_DEFINITION(
             "FMT_STATIC_LIB_PATH",
-            addEscapedQuotes(path(fmt.prebuiltLinkOrArchiveTarget->getActualOutputPath()).generic_string()));
+            addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).generic_string()));
 
     DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
@@ -150,11 +149,21 @@ void buildSpecification()
             debug.linkerFeatures.requirementLinkerFlags += "--target=x86_64-pc-windows-msvc";*/
     // releaseSpeed.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS", "1");
 
-    for (const Configuration &configuration : targets<Configuration>)
+    if (equivalent(path(configureDir), std::filesystem::current_path()))
     {
-        if (const_cast<Configuration &>(configuration).getSelectiveBuild())
+        for (const Configuration &configuration : targets<Configuration>)
         {
             configurationSpecification(const_cast<Configuration &>(configuration));
+        }
+    }
+    else
+    {
+        for (const Configuration &configuration : targets<Configuration>)
+        {
+            if (const_cast<Configuration &>(configuration).getSelectiveBuildChildDir())
+            {
+                configurationSpecification(const_cast<Configuration &>(configuration));
+            }
         }
     }
 

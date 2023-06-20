@@ -148,7 +148,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // is depending on is consuming it another way.
     map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
-    set<SMFile *> allSMFileDependenciesRoundZero;
+    set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
 
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
     bool angle = false;

@@ -201,6 +201,7 @@ class CTarget // Configure Target
     path getTargetFilePath() const;
     string getSubDirForTarget() const;
     bool getSelectiveBuild();
+    bool getSelectiveBuildChildDir();
 
     virtual string getTarjanNodeName() const;
     virtual void setJson();

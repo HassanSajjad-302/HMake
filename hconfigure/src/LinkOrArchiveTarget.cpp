@@ -46,10 +46,7 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
     if (!round)
     {
         buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
-        for (ObjectFileProducer *objectFileProducer : objectFileProducers)
-        {
-            objectFileProducer->addDependencyOnObjectFileProducers(this);
-        }
+        PrebuiltLinkOrArchiveTarget::preSort(builder, round);
     }
     else if (round == 2)
     {
@@ -236,7 +233,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
 {
     RealBTarget &realBTarget = getRealBTarget(round);
-    if (!round && realBTarget.exitStatus == EXIT_SUCCESS)
+    if (!round && realBTarget.exitStatus == EXIT_SUCCESS && BTarget::selectiveBuild)
     {
         setFileStatus(realBTarget);
         if (fileStatus.load(std::memory_order_acquire))

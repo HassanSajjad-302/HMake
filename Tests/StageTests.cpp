@@ -224,6 +224,7 @@ static void setupTest2Default()
 // header-files exclusion and inclusion, libraries exclusion and inclusion, caching in-case of error in
 // file-compilation.
 
+// Haven't noticed recently.
 // Test2 clean build subtest fails sometimes on Linux. While debugging, target HMakeHelper returned 66 EREMOTE error
 // even when the program breakpoint on the line exit(EXIT_SUCCESS).
 TEST(StageTests, Test2)
