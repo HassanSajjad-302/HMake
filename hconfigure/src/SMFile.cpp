@@ -464,6 +464,25 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     iterateRequiresJsonToInitializeNewHeaderUnits(builder);
 }
 
+bool pathContainsFile(const path &dir, path file)
+{
+
+    file.remove_filename();
+
+    // If dir has more components than file, then file can't possibly
+    // reside in dir.
+    auto dir_len = std::distance(dir.begin(), dir.end());
+    auto file_len = std::distance(file.begin(), file.end());
+    if (dir_len > file_len)
+    {
+        return false;
+    }
+
+    // This stops checking when it reaches dir.end(), so it's OK if file
+    // has more directory components afterward. They won't be checked.
+    return std::equal(dir.begin(), dir.end(), file.begin());
+}
+
 void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 {
     ModuleScopeData *moduleScopeData = target->moduleScopeData;
@@ -477,19 +496,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         throw std::exception();
     }
 
-    string headerUnitPath = path(requireJson.at("source-path").get<string>()).lexically_normal().generic_string();
-
-    // lexically_relative in SMFile::initializeNewHeaderUnit does not work otherwise
-    if constexpr (os == OS::NT)
-    {
-        // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
-        // actual paths. Sometimes, it returns normal however.
-        for (char &c : headerUnitPath)
-        {
-            // Warning: assuming paths to be ASCII
-            c = tolower(c);
-        }
-    }
+    Node *headerUnitNode = Node::getNodeFromString(requireJson.at("source-path").get<string>(), true);
 
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
@@ -501,8 +508,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     for (const auto &[inclNode, targetLocal] : moduleScopeData->huDirTarget)
     {
         const InclNode *dirNode = inclNode;
-        path result = path(headerUnitPath).lexically_relative(dirNode->node->filePath).generic_string();
-        if (!result.empty() && !result.generic_string().starts_with(".."))
+        if (pathContainsFile(dirNode->node->filePath, headerUnitNode->filePath))
         {
             if (huDirTarget)
             {
@@ -510,7 +516,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
                     fmt::format(
                         "Module Header Unit\n{}\n belongs to two Target Header Unit Includes\n{}\n{}\nof Module "
                         "Scope\n{}\n",
-                        headerUnitPath, nodeDir->node->filePath, dirNode->node->filePath,
+                        headerUnitNode->filePath, nodeDir->node->filePath, dirNode->node->filePath,
                         target->moduleScope->getTargetPointer()),
                     settings.pcSettings.toolErrorOutput);
                 decrementTotalSMRuleFileCount(builder);
@@ -526,16 +532,38 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 
     if (!huDirTarget)
     {
+        for (const auto &[inclNode, targetLocal] : moduleScopeData->huDirTarget)
+        {
+            const InclNode *dirNode = inclNode;
+            if (pathContainsFile(dirNode->node->filePath, headerUnitNode->filePath))
+            {
+                if (huDirTarget)
+                {
+                    printErrorMessageColor(
+                        fmt::format(
+                            "Module Header Unit\n{}\n belongs to two Target Header Unit Includes\n{}\n{}\nof Module "
+                            "Scope\n{}\n",
+                            headerUnitNode->filePath, nodeDir->node->filePath, dirNode->node->filePath,
+                            target->moduleScope->getTargetPointer()),
+                        settings.pcSettings.toolErrorOutput);
+                    decrementTotalSMRuleFileCount(builder);
+                    throw std::exception();
+                }
+                else
+                {
+                    huDirTarget = targetLocal;
+                    nodeDir = inclNode;
+                }
+            }
+        }
         printErrorMessageColor(
             fmt::format(
                 "Module Header Unit\n{}\n does not belongs to any Target Header Unit Includes of Module Scope\n{}\n",
-                headerUnitPath, target->moduleScope->getTargetPointer()),
+                headerUnitNode->filePath, target->moduleScope->getTargetPointer()),
             settings.pcSettings.toolErrorOutput);
         decrementTotalSMRuleFileCount(builder);
         throw std::exception();
     }
-
-    Node *headerUnitNode = Node::getNodeFromString(headerUnitPath, true);
 
     set<SMFile, CompareSourceNode>::const_iterator headerUnitIt;
 
