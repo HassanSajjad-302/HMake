@@ -23,6 +23,12 @@ using std::string, std::set, std::map, std::mutex, std::vector;
 #define EXPORT __attribute__((visibility("default")))
 #endif
 
+#ifdef _WIN32
+inline char slash = '\\';
+#else
+inline char slash = '/';
+#endif
+
 // TODO
 // Hashing should be used for compile-command as explained here https://aosabook.org/en/posa/ninja.html
 // File paths could be hashed as-well, if impactful. Other formats besides json could be explored for faster loading and

@@ -4,9 +4,7 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T 
 {
     CppSourceTarget &t = target.getSourceTarget();
     string str = t.name.substr(0, t.name.size() - 4); // Removing -cpp from the name
-    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp")
-        .HU_DIRECTORIES("src/" + str + "/")
-        .HU_DIRECTORIES("include/" + str + "/");
+    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp").HU_DIRECTORIES("src/" + str).HU_DIRECTORIES("include/" + str);
 
     if constexpr (sizeof...(targets))
     {
@@ -16,7 +14,7 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T 
 
 void configurationSpecification(Configuration &config)
 {
-    config.compilerFeatures.PRIVATE_INCLUDES("include/");
+    config.compilerFeatures.PRIVATE_INCLUDES("include");
 
     DSC<CppSourceTarget> &stdhu = config.GetCppObjectDSC("stdhu");
 

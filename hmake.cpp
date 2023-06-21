@@ -15,28 +15,26 @@ void configurationSpecification(Configuration &configuration)
 
     DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
     hconfigure.getSourceTarget()
-        .MODULE_DIRECTORIES("hconfigure/src/")
+        .MODULE_DIRECTORIES("hconfigure/src")
         .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include");
 
     DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hhelper.getSourceTarget()
         .MODULE_FILES("hhelper/src/main.cpp")
-        .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header/"))
-        .PRIVATE_COMPILE_DEFINITION("JSON_HEADER", addEscapedQuotes(srcDir + "json/include/"))
-        .PRIVATE_COMPILE_DEFINITION("FMT_HEADER", addEscapedQuotes(srcDir + "fmt/include/"))
+        .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header"))
+        .PRIVATE_COMPILE_DEFINITION("JSON_HEADER", addEscapedQuotes(srcDir + "json/include"))
+        .PRIVATE_COMPILE_DEFINITION("FMT_HEADER", addEscapedQuotes(srcDir + "fmt/include"))
         .PRIVATE_COMPILE_DEFINITION(
             "HCONFIGURE_STATIC_LIB_DIRECTORY",
-            addEscapedQuotes(
-                path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().generic_string()))
+            addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
         .PRIVATE_COMPILE_DEFINITION(
             "HCONFIGURE_STATIC_LIB_PATH",
-            addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).generic_string()))
+            addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).string()))
         .PRIVATE_COMPILE_DEFINITION(
             "FMT_STATIC_LIB_DIRECTORY",
-            addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().generic_string()))
+            addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
         .PRIVATE_COMPILE_DEFINITION(
-            "FMT_STATIC_LIB_PATH",
-            addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).generic_string()));
+            "FMT_STATIC_LIB_PATH", addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).string()));
 
     DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
@@ -89,8 +87,8 @@ struct SizeDifference : public CTarget, public BTarget
         if (!round && realBTarget.exitStatus == EXIT_SUCCESS)
         {
 
-            string sizeDirPath = getSubDirForTarget() + "Size/";
-            string speedDirPath = getSubDirForTarget() + "Speed/";
+            string sizeDirPath = getSubDirForTarget() + "Size";
+            string speedDirPath = getSubDirForTarget() + "Speed";
 
             std::filesystem::create_directories(sizeDirPath);
             std::filesystem::create_directories(speedDirPath);

@@ -87,7 +87,7 @@ BuildTool::BuildTool(BTFamily btFamily_, Version btVersion_, path btPath_)
 void to_json(Json &json, const BuildTool &buildTool)
 {
     json[JConsts::family] = buildTool.bTFamily;
-    json[JConsts::path] = buildTool.bTPath.generic_string();
+    json[JConsts::path] = buildTool.bTPath.string();
     json[JConsts::version] = buildTool.bTVersion;
 }
 

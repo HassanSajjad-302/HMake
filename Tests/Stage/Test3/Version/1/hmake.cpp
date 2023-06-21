@@ -13,21 +13,21 @@ void buildSpecification()
     auto configureFunc = [](Configuration &configuration) {
         DSC<CppSourceTarget> &lib4 = configuration.GetCppStaticDSC("lib4");
         lib4.getSourceTarget()
-            .SOURCE_DIRECTORIES_RG("lib4/private/", ".*cpp")
-            .PUBLIC_INCLUDES("lib4/public/")
-            .PRIVATE_INCLUDES("lib4/private/");
+            .SOURCE_DIRECTORIES_RG("lib4/private", ".*cpp")
+            .PUBLIC_INCLUDES("lib4/public")
+            .PRIVATE_INCLUDES("lib4/private");
 
         DSC<CppSourceTarget> &lib3 = configuration.GetCppStaticDSC("lib3").PUBLIC_LIBRARIES(&lib4);
         lib3.getSourceTarget()
-            .MODULE_DIRECTORIES_RG("lib3/private/", ".*cpp")
+            .MODULE_DIRECTORIES_RG("lib3/private", ".*cpp")
             .setModuleScope()
-            .PUBLIC_HU_INCLUDES("lib3/public/");
+            .PUBLIC_HU_INCLUDES("lib3/public");
 
         DSC<CppSourceTarget> &lib2 = configuration.GetCppStaticDSC("lib2").PRIVATE_LIBRARIES(&lib3);
-        lib2.getSourceTarget().SOURCE_DIRECTORIES_RG("lib2/private/", ".*cpp").PUBLIC_INCLUDES("lib2/public/");
+        lib2.getSourceTarget().SOURCE_DIRECTORIES_RG("lib2/private", ".*cpp").PUBLIC_INCLUDES("lib2/public");
 
         DSC<CppSourceTarget> &lib1 = configuration.GetCppStaticDSC("lib1").PUBLIC_LIBRARIES(&lib2);
-        lib1.getSourceTarget().SOURCE_DIRECTORIES_RG("lib1/private/", ".*cpp").PUBLIC_INCLUDES("lib1/public/");
+        lib1.getSourceTarget().SOURCE_DIRECTORIES_RG("lib1/private", ".*cpp").PUBLIC_INCLUDES("lib1/public");
 
         DSC<CppSourceTarget> &app = configuration.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1);
         app.getSourceTarget().SOURCE_FILES("main.cpp");

@@ -40,7 +40,7 @@ static void removeFilePath(const path &filePath)
     error_code ec;
     if (bool removed = remove(filePath, ec); !removed || ec)
     {
-        print(stderr, "Could Not Remove the filePath {}\nError {}", filePath.generic_string(), ec ? ec.message() : "");
+        print(stderr, "Could Not Remove the filePath {}\nError {}", filePath.string(), ec ? ec.message() : "");
         exit(EXIT_FAILURE);
     }
 }
@@ -50,7 +50,7 @@ static void removeDirectory(const path &filePath)
     error_code ec;
     if (bool removed = remove_all(filePath, ec); !removed || ec)
     {
-        print(stderr, "Could Not Remove the filePath {}\nError {}", filePath.generic_string(), ec ? ec.message() : "");
+        print(stderr, "Could Not Remove the filePath {}\nError {}", filePath.string(), ec ? ec.message() : "");
         exit(EXIT_FAILURE);
     }
 }
@@ -61,8 +61,8 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
     if (bool copied = copy_file(sourceFilePath, destinationFilePath, copy_options::overwrite_existing, ec);
         !copied || ec)
     {
-        print(stderr, "Could Not Copy the filePath {} to {} \nError {}", sourceFilePath.generic_string(),
-              destinationFilePath.generic_string(), ec ? ec.message() : "");
+        print(stderr, "Could Not Copy the filePath {} to {} \nError {}", sourceFilePath.string(),
+              destinationFilePath.string(), ec ? ec.message() : "");
         exit(EXIT_FAILURE);
     }
     if constexpr (os == OS::NT)

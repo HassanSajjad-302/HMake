@@ -10,10 +10,10 @@ void buildSpecification()
         cat.getSourceTarget().INTERFACE_INCLUDES("../Example4/Cat/header");
 
         DSC<CppSourceTarget> &dog = GetCppTargetDSC("Dog" + str, targetType, true, "DOG_EXPORT");
-        dog.PUBLIC_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog/src/Dog.cpp").PUBLIC_INCLUDES("Dog/header/");
+        dog.PUBLIC_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog/src/Dog.cpp").PUBLIC_INCLUDES("Dog/header");
 
         DSC<CppSourceTarget> &dog2 = GetCppTargetDSC("Dog2" + str, targetType, true, "DOG2_EXPORT");
-        dog2.PRIVATE_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog2/src/Dog.cpp").PUBLIC_INCLUDES("Dog2/header/");
+        dog2.PRIVATE_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog2/src/Dog.cpp").PUBLIC_INCLUDES("Dog2/header");
 
         DSC<CppSourceTarget> &app = GetCppExeDSC("App" + str);
         app.getLinkOrArchiveTarget().setOutputName("app");

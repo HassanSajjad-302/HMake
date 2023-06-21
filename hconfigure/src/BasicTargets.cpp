@@ -111,7 +111,7 @@ CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
     }
     if (hasFile)
     {
-        targetFileDir = container.targetFileDir + name + "/";
+        targetFileDir = container.targetFileDir + name + slash;
     }
     else
     {
@@ -135,7 +135,7 @@ CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
 }
 
 CTarget::CTarget(string name_)
-    : name(std::move(name_)), targetFileDir(path(configureDir).generic_string() + "/" + name + "/")
+    : name(std::move(name_)), targetFileDir(path(configureDir).string() + slash + name + slash)
 {
     targetSubDirectories.emplace(getSubDirForTarget());
     initializeCTarget();
@@ -145,7 +145,21 @@ CTarget::~CTarget() = default;
 
 string CTarget::getTargetPointer() const
 {
-    return other ? other->getTargetPointer() + (hasFile ? "" : "/") + name + "/" : targetFileDir;
+    if (other)
+    {
+        if (hasFile)
+        {
+            return other->getTargetPointer() + slash + name + slash;
+        }
+        else
+        {
+            return other->getTargetPointer() + name + slash;
+        }
+    }
+    else
+    {
+        return targetFileDir;
+    }
 }
 
 path CTarget::getTargetFilePath() const
@@ -155,7 +169,7 @@ path CTarget::getTargetFilePath() const
 
 string CTarget::getSubDirForTarget() const
 {
-    return other ? (other->getSubDirForTarget() + name + "/") : targetFileDir;
+    return other ? (other->getSubDirForTarget() + name + slash) : targetFileDir;
 }
 
 // selectiveBuild is set for the children if hbuild is executed in parent directory. Uses by the Builder::Builder

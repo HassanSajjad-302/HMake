@@ -81,13 +81,13 @@ Node::Node(const path &filePath_, bool isFile, bool mayNotExist) : entry(directo
     std::filesystem::file_type nodeType = entry.status().type();
     if (nodeType == (isFile ? file_type::regular : file_type::directory))
     {
-        filePath = filePath_.generic_string();
+        filePath = filePath_.string();
     }
     else
     {
         if (!mayNotExist || nodeType != file_type::not_found)
         {
-            printErrorMessage(fmt::format("{} is not a {} file. File Type is {}\n", filePath_.generic_string(),
+            printErrorMessage(fmt::format("{} is not a {} file. File Type is {}\n", filePath_.string(),
                                           isFile ? "regular" : "directory", getStatusString(filePath_)));
             throw std::exception();
         }
@@ -114,7 +114,7 @@ path Node::getFinalNodePathFromString(const string &str)
     {
         filePath = path(srcDir) / filePath;
     }
-    filePath = filePath.lexically_normal().generic_string();
+    filePath = filePath.lexically_normal().string();
 
     if constexpr (os == OS::NT)
     {
@@ -275,8 +275,7 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
         // cached compile-command would be different
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            sourceJson->at(JConsts::compileCommand) =
-                target->compiler.bTPath.generic_string() + " " + target->compileCommand;
+            sourceJson->at(JConsts::compileCommand) = target->compiler.bTPath.string() + " " + target->compileCommand;
         }
         lock_guard<mutex> lk(printMutex);
         postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
@@ -289,8 +288,7 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
     Node *objectFileNode = Node::getNodeFromString(
         target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ex, true, true);
 
-    if (sourceJson->at(JConsts::compileCommand) !=
-        target->compiler.bTPath.generic_string() + " " + target->compileCommand)
+    if (sourceJson->at(JConsts::compileCommand) != target->compiler.bTPath.string() + " " + target->compileCommand)
     {
         fileStatus.store(true, std::memory_order_release);
         return;
@@ -423,7 +421,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
                 // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
                 // cached compile-command would be different
                 sourceJson->at(JConsts::compileCommand) =
-                    target->compiler.bTPath.generic_string() + " " + target->compileCommand;
+                    target->compiler.bTPath.string() + " " + target->compileCommand;
                 target->targetCacheChanged.store(true, std::memory_order_release);
             }
         }
@@ -685,8 +683,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 
 bool SMFile::generateSMFileInRoundOne()
 {
-    if (sourceJson->at(JConsts::compileCommand) !=
-        target->compiler.bTPath.generic_string() + " " + target->compileCommand)
+    if (sourceJson->at(JConsts::compileCommand) != target->compiler.bTPath.string() + " " + target->compileCommand)
     {
         readJsonFromSMRulesFile = true;
         // This is the only access in round 1. Maybe change to relaxed

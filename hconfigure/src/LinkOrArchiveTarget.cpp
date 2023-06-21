@@ -45,7 +45,7 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
 {
     if (!round)
     {
-        buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
+        buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files" + slash;
         PrebuiltLinkOrArchiveTarget::preSort(builder, round);
     }
     else if (round == 2)
@@ -117,7 +117,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
             set<string> cachedObjectFiles = targetBuildCache.at(JConsts::objectFiles).get<set<string>>();
 
             if (targetBuildCache.at(JConsts::linkCommand) ==
-                linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets)
+                linker.bTPath.string() + " " + linkOrArchiveCommandWithoutTargets)
             {
                 bool needsUpdate = false;
                 if (!EVALUATE(TargetType::LIBRARY_STATIC))
@@ -129,8 +129,8 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                             PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
                                 static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                             path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
-                            if (Node::getNodeFromString(depOutputPath.generic_string(), true)->getLastUpdateTime() >
-                                Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                            if (Node::getNodeFromString(depOutputPath.string(), true)->getLastUpdateTime() >
+                                Node::getNodeFromString(outputPath.string(), true)->getLastUpdateTime())
                             {
                                 needsUpdate = true;
                                 break;
@@ -147,7 +147,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                         break;
                     }
                     if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)->getLastUpdateTime() >
-                        Node::getNodeFromString(outputPath.generic_string(), true)->getLastUpdateTime())
+                        Node::getNodeFromString(outputPath.string(), true)->getLastUpdateTime())
                     {
                         needsUpdate = true;
                         break;
@@ -257,7 +257,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 }
 
                 targetBuildCache.at(JConsts::linkCommand) =
-                    linker.bTPath.generic_string() + " " + linkOrArchiveCommandWithoutTargets;
+                    linker.bTPath.string() + " " + linkOrArchiveCommandWithoutTargets;
                 targetBuildCache.at(JConsts::objectFiles) = std::move(cachedObjectFilesVector);
 
                 lock_guard<mutex> lk(buildCacheMutex);

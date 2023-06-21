@@ -49,7 +49,7 @@ void initializeCache(BSMode bsMode_)
 
         if (configureExists)
         {
-            configureDir = configurePath.parent_path().generic_string();
+            configureDir = configurePath.parent_path().string();
         }
         else
         {
@@ -59,7 +59,7 @@ void initializeCache(BSMode bsMode_)
     }
     else
     {
-        configureDir = current_path().generic_string();
+        configureDir = current_path().string();
     }
 
     cache.initializeCacheVariableFromCacheFile();

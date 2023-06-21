@@ -172,7 +172,7 @@ int main(int argc, char **argv)
             {
                 sourceDirPath = (current_path() / sourceDirPath).lexically_normal();
             }
-            sourceDirPath = sourceDirPath.generic_string();
+            sourceDirPath = sourceDirPath.string();
 
             string srcDirString = "{SOURCE_DIRECTORY}";
             string confDirString = "{CONFIGURE_DIRECTORY}";

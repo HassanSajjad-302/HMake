@@ -702,7 +702,7 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     // override functions.
     if (round == 1)
     {
-        buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files/";
+        buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files" + slash;
         readBuildCacheFile(builder);
         // getCompileCommand will be later on called concurrently therefore need to set this before.
         setCompileCommand();
@@ -836,7 +836,7 @@ C_Target *CppSourceTarget::get_CAPITarget(BSMode)
     setCompileCommand();
 
     c_cppSourceTarget->compileCommand = compileCommand.c_str();
-    auto *compilerPath = new string(compiler.bTPath.generic_string());
+    auto *compilerPath = new string(compiler.bTPath.string());
     c_cppSourceTarget->compilerPath = compilerPath->c_str();
 
     auto *c_Target = new C_Target();
@@ -900,12 +900,11 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, bool recurs
             {
                 if (assignToSourceNodes)
                 {
-                    sourceFileDependencies.emplace(this, Node::getNodeFromString(k.path().generic_string(), true));
+                    sourceFileDependencies.emplace(this, Node::getNodeFromString(k.path().string(), true));
                 }
                 else
                 {
-                    moduleSourceFileDependencies.emplace(this,
-                                                         Node::getNodeFromString(k.path().generic_string(), true));
+                    moduleSourceFileDependencies.emplace(this, Node::getNodeFromString(k.path().string(), true));
                 }
             }
         }

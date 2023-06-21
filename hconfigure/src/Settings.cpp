@@ -188,44 +188,26 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
         return subjectPath;
     }
 
-    auto nthOccurrence = [](const string &str, const string &findMe, size_t nth) -> size_t {
+    auto nthOccurrence = [](const string &str, size_t nth) -> size_t {
         size_t count = 0;
 
         for (size_t i = 0; i < str.size(); ++i)
         {
-            if (str.size() > i + findMe.size())
+            if (str[i] == slash)
             {
-                bool found = true;
-                for (size_t j = 0; j < findMe.size(); ++j)
+                ++count;
+                if (count == nth)
                 {
-                    if (str[i + j] != findMe[j])
-                    {
-                        found = false;
-                        break;
-                    }
+                    return (size_t)i;
                 }
-                if (found)
-                {
-                    ++count;
-                    if (count == nth)
-                    {
-                        return (int)i;
-                    }
-                }
-            }
-            else
-            {
-                break;
             }
         }
         return 0;
     };
 
-    auto countSubstring = [](const string &str, const string &sub) -> size_t {
-        if (sub.length() == 0)
-            return 0;
+    auto countCharacter = [](const string &str) -> size_t {
         size_t count = 0;
-        for (size_t offset = str.find(sub); offset != string::npos; offset = str.find(sub, offset + sub.length()))
+        for (size_t offset = str.find(slash); offset != string::npos; offset = str.find(slash, offset + 1))
         {
             ++count;
         }
@@ -238,19 +220,13 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
     {
         finalDepth += 1;
     }
-    bool toolOnWindows = false;
-#ifdef _WIN32
-    if (pathPrint.isTool)
-    {
-        toolOnWindows = true;
-    }
-#endif
-    size_t count = countSubstring(str, toolOnWindows ? "\\" : "/");
+
+    size_t count = countCharacter(str);
     if (finalDepth >= count)
     {
         return str;
     }
-    size_t index = nthOccurrence(str, toolOnWindows ? "\\" : "/", count - finalDepth);
+    size_t index = nthOccurrence(str, count - finalDepth);
     if (!index)
     {
         return str;

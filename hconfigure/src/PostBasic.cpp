@@ -53,12 +53,11 @@ PostBasic::PostBasic(const BuildTool &buildTool, const string &commandFirstHalf,
 
     path toolPath = buildTool.bTPath;
     string cmdCharLimitMitigateCommand = addQuotes(toolPath.make_preferred().string()) + " @" +
-                                         addQuotes(responseFile.generic_string()) + "> " + addQuotes(outputFileName) +
-                                         " 2>" + addQuotes(errorFileName);
+                                         addQuotes(responseFile.string()) + "> " + addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
     exitStatus = system(addQuotes(cmdCharLimitMitigateCommand).c_str());
 #else
-    string finalCompileCommand = buildTool.bTPath.generic_string() + " " + commandFirstHalf + "> " +
-                                 addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
+    string finalCompileCommand = buildTool.bTPath.string() + " " + commandFirstHalf + "> " + addQuotes(outputFileName) +
+                                 " 2>" + addQuotes(errorFileName);
     exitStatus = system(finalCompileCommand.c_str());
 #endif
     if (exitStatus == EXIT_SUCCESS)
