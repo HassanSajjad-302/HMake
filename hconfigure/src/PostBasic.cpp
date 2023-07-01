@@ -15,18 +15,18 @@ import <fstream>;
 
 using std::ofstream, fmt::format;
 
-string getThreadId()
+pstring getThreadId()
 {
-    string threadId;
+    pstring threadId;
     auto myId = std::this_thread::get_id();
-    std::stringstream ss;
+    pstringstream ss;
     ss << myId;
     threadId = ss.str();
     return threadId;
 }
 
-PostBasic::PostBasic(const BuildTool &buildTool, const string &commandFirstHalf, string printCommandFirstHalf,
-                     const string &buildCacheFilesDirPath, const string &fileName, const PathPrint &pathPrint,
+PostBasic::PostBasic(const BuildTool &buildTool, const pstring &commandFirstHalf, pstring printCommandFirstHalf,
+                     const pstring &buildCacheFilesDirPath, const pstring &fileName, const PathPrint &pathPrint,
                      bool isTarget_)
     : isTarget{isTarget_}
 {
@@ -34,10 +34,10 @@ PostBasic::PostBasic(const BuildTool &buildTool, const string &commandFirstHalf,
     // This does process setup for the output and error stream in a bit costly manner by redirecting it to files and
     // then reading from those files. More native APIS should be used. Also if there could be a way to preserve the
     // coloring of the output.
-    string str = isTarget ? "_t" : "";
+    pstring str = isTarget ? "_t" : "";
 
-    string outputFileName = buildCacheFilesDirPath + fileName + "_output" + str;
-    string errorFileName = buildCacheFilesDirPath + fileName + "_error" + str;
+    pstring outputFileName = buildCacheFilesDirPath + fileName + "_output" + str;
+    pstring errorFileName = buildCacheFilesDirPath + fileName + "_error" + str;
 
     if (pathPrint.printLevel != PathPrintLevel::NO)
     {
@@ -52,23 +52,24 @@ PostBasic::PostBasic(const BuildTool &buildTool, const string &commandFirstHalf,
     ofstream(responseFile) << commandFirstHalf;
 
     path toolPath = buildTool.bTPath;
-    string cmdCharLimitMitigateCommand = addQuotes(toolPath.make_preferred().string()) + " @" +
-                                         addQuotes(responseFile.string()) + "> " + addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
+    pstring cmdCharLimitMitigateCommand = addQuotes((toolPath.make_preferred().*toPStr)()) + " @" +
+                                          addQuotes((responseFile.*toPStr)()) + "> " + addQuotes(outputFileName) +
+                                          " 2>" + addQuotes(errorFileName);
     exitStatus = system(addQuotes(cmdCharLimitMitigateCommand).c_str());
 #else
-    string finalCompileCommand = buildTool.bTPath.string() + " " + commandFirstHalf + "> " + addQuotes(outputFileName) +
-                                 " 2>" + addQuotes(errorFileName);
+    pstring finalCompileCommand = (buildTool.bTPath.*toPStr)() + " " + commandFirstHalf + "> " +
+                                  addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
     exitStatus = system(finalCompileCommand.c_str());
 #endif
     if (exitStatus == EXIT_SUCCESS)
     {
-        commandSuccessOutput = file_to_string(outputFileName);
-        commandErrorOutput = file_to_string(errorFileName);
+        commandSuccessOutput = fileToPString(outputFileName);
+        commandErrorOutput = fileToPString(errorFileName);
     }
     else
     {
-        commandSuccessOutput = file_to_string(outputFileName);
-        commandErrorOutput = file_to_string(errorFileName);
+        commandSuccessOutput = fileToPString(outputFileName);
+        commandErrorOutput = fileToPString(errorFileName);
     }
 }
 
@@ -103,8 +104,8 @@ void PostBasic::executePrintRoutine(uint32_t color, bool printOnlyOnError) const
     }
 }
 
-PostCompile::PostCompile(const CppSourceTarget &target_, const BuildTool &buildTool, const string &commandFirstHalf,
-                         string printCommandFirstHalf, const string &buildCacheFilesDirPath, const string &fileName,
+PostCompile::PostCompile(const CppSourceTarget &target_, const BuildTool &buildTool, const pstring &commandFirstHalf,
+                         pstring printCommandFirstHalf, const pstring &buildCacheFilesDirPath, const pstring &fileName,
                          const PathPrint &pathPrint)
     : PostBasic(buildTool, commandFirstHalf, std::move(printCommandFirstHalf), buildCacheFilesDirPath, fileName,
                 pathPrint, false),
@@ -112,7 +113,7 @@ PostCompile::PostCompile(const CppSourceTarget &target_, const BuildTool &buildT
 {
 }
 
-bool PostCompile::ignoreHeaderFile(const string &str)
+bool PostCompile::ignoreHeaderFile(const pstring &str)
 {
     //  Premature Optimization Hahacd
     // TODO:
@@ -137,10 +138,10 @@ bool PostCompile::ignoreHeaderFile(const string &str)
     return false;
 }
 
-void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &output, Json &headerDepsJson)
+void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &output, Json &headerDepsJson)
 {
-    vector<string> outputLines = split(output, "\n");
-    string includeFileNote = "Note: including file:";
+    vector<pstring> outputLines = split(output, "\n");
+    pstring includeFileNote = "Note: including file:";
 
     if (sourceNode.ignoreHeaderDeps)
     {
@@ -193,7 +194,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
         }
     }
 
-    string treatedOutput; // Output With All information of include files removed.
+    pstring treatedOutput; // Output With All information of include files removed.
     for (const auto &i : outputLines)
     {
         treatedOutput += i + "\n";
@@ -209,9 +210,9 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, Json &heade
 {
     if (!sourceNode.ignoreHeaderDeps)
     {
-        string headerFileContents =
-            file_to_string(target.buildCacheFilesDirPath + path(sourceNode.node->filePath).filename().string() + ".d");
-        vector<string> headerDeps = split(headerFileContents, "\n");
+        pstring headerFileContents = fileToPString(target.buildCacheFilesDirPath +
+                                                   (path(sourceNode.node->filePath).filename().*toPStr)() + ".d");
+        vector<pstring> headerDeps = split(headerFileContents, "\n");
 
         // First 2 lines are skipped as these are .o and .cpp file.
         // If the file is preprocessed, it does not generate the extra line
@@ -219,7 +220,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, Json &heade
         for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
         {
             size_t pos = iter->find_first_not_of(" ");
-            string headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
+            pstring headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
             if (!ignoreHeaderFile(headerDep))
             {
                 headerDepsJson.emplace_back(headerDep);

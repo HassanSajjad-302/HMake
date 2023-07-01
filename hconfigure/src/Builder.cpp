@@ -78,7 +78,7 @@ void Builder::addNewBTargetInFinalBTargets(BTarget *bTarget)
     cond.notify_all();
 }
 
-extern string getThreadId();
+extern pstring getThreadId();
 
 #ifndef NDEBUG
 unsigned short count = 0;
@@ -236,10 +236,8 @@ void Builder::execute()
                 else if (updateBTargets.size() == updateBTargetsSizeGoal && !counted)
                 {
                     ++threadCount;
-                    if (round)
-                    {
-                        counted = true;
-                    }
+                    counted = true;
+
                     /*                     printMessage(fmt::format("{} {} {} {} {}\n", round,
                                                                  "updateBTargets.size() == updateBTargetsSizeGoal",
                        threadCount, numberOfLaunchedThreads, getThreadId()));*/
@@ -313,7 +311,7 @@ void Builder::execute()
             {
                 // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
                 executeMutex.lock();
-                string str(ec.what());
+                pstring str(ec.what());
                 if (!str.empty())
                 {
                     printErrorMessage(str);

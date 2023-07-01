@@ -12,8 +12,8 @@ import "DS.hpp";
 class ObjectFile : public BTarget
 {
   public:
-    virtual string getObjectFileOutputFilePath() const = 0;
-    virtual string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
+    virtual pstring getObjectFileOutputFilePath() const = 0;
+    virtual pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
 };
 
 class ObjectFileProducer : public BTarget

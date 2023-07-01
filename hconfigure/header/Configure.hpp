@@ -63,13 +63,10 @@ import <utility>;
 //  configure.dll on linux is compiled with -fsanitizer=thread but no sanitizer is used on Windows. Choice for
 //  using sanitizer will be optional.
 
-// TODO
-// Instead of target-cache file per target, a central JSON for target caches should be used.
-
 extern "C" EXPORT int func2(BSMode bsMode_);
 
 // Executes the function in try-catch block and also sets the errorMessageStrPtr equal to the exception what message
-// string
+// pstring
 template <typename T> int executeInTryCatchAndSetErrorMessagePtr(std::function<T> funcLocal)
 {
     try
@@ -78,7 +75,7 @@ template <typename T> int executeInTryCatchAndSetErrorMessagePtr(std::function<T
     }
     catch (std::exception &ec)
     {
-        string str(ec.what());
+        pstring str(ec.what());
         if (!str.empty())
         {
             printErrorMessage(str);

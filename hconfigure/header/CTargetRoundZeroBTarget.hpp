@@ -29,11 +29,11 @@ struct RoundZeroUpdateBTarget : public BTarget
 
 struct CTargetRoundZeroBTarget : public RoundZeroUpdateBTarget, public CTarget
 {
-    explicit CTargetRoundZeroBTarget(const string &name_, function<void(Builder &, BTarget &bTarget)> updateFunctor_)
+    explicit CTargetRoundZeroBTarget(const pstring &name_, function<void(Builder &, BTarget &bTarget)> updateFunctor_)
         : RoundZeroUpdateBTarget(std::move(updateFunctor_)), CTarget(name_)
     {
     }
-    CTargetRoundZeroBTarget(const string &name_, CTarget &container, bool hasFile,
+    CTargetRoundZeroBTarget(const pstring &name_, CTarget &container, bool hasFile,
                             function<void(Builder &, BTarget &bTarget)> updateFunctor_)
         : RoundZeroUpdateBTarget(std::move(updateFunctor_)), CTarget(name_, container, hasFile)
     {

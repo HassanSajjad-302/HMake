@@ -6,7 +6,6 @@ import "ObjectFileProducer.hpp";
 import <filesystem>;
 import <list>;
 import <set>;
-import <string>;
 import <utility>;
 import <vector>;
 import <atomic>;
@@ -17,43 +16,49 @@ import <atomic>;
 #include <filesystem>
 #include <list>
 #include <set>
-#include <string>
 #include <utility>
 #include <vector>
 #endif
 
 using Json = nlohmann::json;
-using std::string, std::map, std::set, std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr,
-    std::atomic, std::atomic_flag;
+using std::map, std::set, std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, std::atomic,
+    std::atomic_flag;
 
 class Node;
 struct CompareNode
 {
     using is_transparent = void;
     bool operator()(const Node &lhs, const Node &rhs) const;
-    bool operator()(const string &lhs, const Node &rhs) const;
-    bool operator()(const Node &lhs, const string &rhs) const;
+    bool operator()(const pstring &lhs, const Node &rhs) const;
+    bool operator()(const Node &lhs, const pstring &rhs) const;
 };
 
 class Node
 {
   public:
-    string filePath;
+    pstring filePath;
 
   private:
-    std::filesystem::directory_entry entry;
     std::filesystem::file_time_type lastUpdateTime;
+    atomic<bool> systemCheckCalled{};
+    atomic<bool> systemCheckCompleted{};
 
   public:
-    Node(const path &filePath_, bool isFile, bool mayNotExist = false);
+    Node(const path &filePath_);
     // This keeps info if a file is touched. If it's touched, it's not touched again.
     inline static set<Node, CompareNode> allFiles;
     std::filesystem::file_time_type getLastUpdateTime() const;
-    static path getFinalNodePathFromString(const string &str);
+
+    /*    static path getFinalNodePathFromPath(const pstring &str);
     // Create a node and inserts it into the allFiles if it is not already there
-    static Node *getNodeFromString(const string &str, bool isFile, bool mayNotExist = false);
+    static Node *getNodeFromPath(const pstring &str, bool isFile, bool mayNotExist = false);*/
+
+    static path getFinalNodePathFromPath(path filePath);
+    // Create a node and inserts it into the allFiles if it is not already there
+    static Node *getNodeFromPath(const path &p, bool isFile, bool mayNotExist = false);
 
   private:
+    void performSystemCheck(bool isFile, bool mayNotExist);
     // Because checking for lastUpdateTime is expensive, it is done only once even if file is used in multiple targets.
     bool isUpdated = false;
 
@@ -103,11 +108,11 @@ struct SourceNode : public ObjectFile
     const Node *node;
     bool ignoreHeaderDeps = false;
     SourceNode(CppSourceTarget *target_, Node *node_);
-    string getObjectFileOutputFilePath() const override;
-    string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
-    string getTarjanNodeName() const override;
+    pstring getObjectFileOutputFilePath() const override;
+    pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
+    pstring getTarjanNodeName() const override;
     void updateBTarget(Builder &builder, unsigned short round) override;
-    void setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget);
+    void setSourceNodeFileStatus(const pstring &ex, RealBTarget &realBTarget);
 };
 
 void to_json(Json &j, const SourceNode &sourceNode);
@@ -136,14 +141,14 @@ enum class SM_FILE_TYPE : char
 struct HeaderUnitConsumer
 {
     bool angle;
-    string logicalName;
-    HeaderUnitConsumer(bool angle_, string logicalName_);
+    pstring logicalName;
+    HeaderUnitConsumer(bool angle_, pstring logicalName_);
     auto operator<=>(const HeaderUnitConsumer &headerUnitConsumer) const = default;
 };
 
 struct SMFile : public SourceNode // Scanned Module Rule
 {
-    string logicalName;
+    pstring logicalName;
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // is depending on is consuming it another way.
@@ -165,15 +170,15 @@ struct SMFile : public SourceNode // Scanned Module Rule
     void initializeNewHeaderUnit(const Json &requireJson, Builder &builder);
     void iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder);
     bool generateSMFileInRoundOne();
-    string getObjectFileOutputFilePath() const override;
-    string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
+    pstring getObjectFileOutputFilePath() const override;
+    pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
     void setFileStatusAndPopulateAllDependencies();
-    string getFlag(const string &outputFilesWithoutExtension) const;
-    string getFlagPrint(const string &outputFilesWithoutExtension) const;
-    string getRequireFlag(const SMFile &dependentSMFile) const;
-    string getRequireFlagPrint(const SMFile &logicalName_) const;
-    string getModuleCompileCommandPrintLastHalf();
+    pstring getFlag(const pstring &outputFilesWithoutExtension) const;
+    pstring getFlagPrint(const pstring &outputFilesWithoutExtension) const;
+    pstring getRequireFlag(const SMFile &dependentSMFile) const;
+    pstring getRequireFlagPrint(const SMFile &logicalName_) const;
+    pstring getModuleCompileCommandPrintLastHalf();
 };
 
 /*void to_json(Json &j, const SMFile &smFile);

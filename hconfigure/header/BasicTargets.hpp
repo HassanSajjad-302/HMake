@@ -116,7 +116,7 @@ struct BTarget // BTarget
     explicit BTarget();
     virtual ~BTarget();
 
-    virtual string getTarjanNodeName() const;
+    virtual pstring getTarjanNodeName() const;
 
     RealBTarget &getRealBTarget(unsigned short round);
     virtual BTargetType getBTargetType() const;
@@ -168,13 +168,13 @@ struct CTargetPointerComparator
 
 class CTarget // Configure Target
 {
-    inline static set<std::pair<string, string>> cTargetsSameFileAndNameCheck;
+    inline static set<std::pair<pstring, pstring>> cTargetsSameFileAndNameCheck;
     void initializeCTarget();
 
   public:
-    string name;
+    pstring name;
     // If target has file, this is that file directory. Else, it is the directory of container it is present in.
-    string targetFileDir;
+    pstring targetFileDir;
 
     set<CTarget *, CTargetPointerComparator> elements;
 
@@ -194,16 +194,16 @@ class CTarget // Configure Target
     bool selectiveBuild = false;
 
   public:
-    CTarget(string name_, CTarget &container, bool hasFile_ = true);
-    explicit CTarget(string name_);
+    CTarget(pstring name_, CTarget &container, bool hasFile_ = true);
+    explicit CTarget(pstring name_);
     virtual ~CTarget();
-    string getTargetPointer() const;
+    pstring getTargetPointer() const;
     path getTargetFilePath() const;
-    string getSubDirForTarget() const;
+    pstring getSubDirForTarget() const;
     bool getSelectiveBuild();
     bool getSelectiveBuildChildDir();
 
-    virtual string getTarjanNodeName() const;
+    virtual pstring getTarjanNodeName() const;
     virtual void setJson();
     virtual void writeJsonFile();
     virtual void configure();

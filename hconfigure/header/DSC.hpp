@@ -31,9 +31,9 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
         void assignLinkOrArchiveTargetLib(DSC<U, true> *controller, Dependency dependency, PrebuiltDep prebuiltDep);
     */
 
-    string define;
+    pstring define;
 
-    DSC(T *ptr, PrebuiltBasic *prebuiltBasic_, bool defines = false, string define_ = "")
+    DSC(T *ptr, PrebuiltBasic *prebuiltBasic_, bool defines = false, pstring define_ = "")
     {
         // TODO Remove this later
         if (!ptr || !prebuiltBasic_)
@@ -453,6 +453,6 @@ template <typename T, bool prebuilt> LinkOrArchiveTarget &DSC<T, prebuilt>::getL
 }
 
 template <>
-DSC<CppSourceTarget>::DSC(class CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, string define_);
+DSC<CppSourceTarget>::DSC(class CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, pstring define_);
 
 #endif // HMAKE_DSC_HPP

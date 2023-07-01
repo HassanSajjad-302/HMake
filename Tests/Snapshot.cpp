@@ -1,11 +1,22 @@
 #include "Snapshot.hpp"
+
 #include "BuildSystemFunctions.hpp"
+#include <utility>
 
 using std::filesystem::recursive_directory_iterator;
 
 bool NodeCompare::operator()(const Node *lhs, const Node *rhs) const
 {
     return *lhs < *rhs;
+}
+
+NodeSnap::NodeSnap(path nodePath_, file_time_type time_) : nodePath{std::move(nodePath_)}, lastUpdateTime{time_}
+{
+}
+
+bool operator<(const NodeSnap &lhs, const NodeSnap &rhs)
+{
+    return lhs.nodePath < rhs.nodePath;
 }
 
 Snapshot::Snapshot(const path &directoryPath)
@@ -22,9 +33,8 @@ void Snapshot::before(const path &directoryPath)
     {
         if (f.is_regular_file())
         {
-            Node *node = const_cast<Node *>(Node::getNodeFromString(f.path().string(), true));
-            node->getLastUpdateTime();
-            beforeData.emplace(*node);
+            Node *node = const_cast<Node *>(Node::getNodeFromPath(f.path(), true));
+            beforeData.emplace(node->filePath, node->getLastUpdateTime());
         }
     }
 }
@@ -36,21 +46,21 @@ void Snapshot::after(const path &directoryPath)
     {
         if (f.is_regular_file())
         {
-            Node *node = const_cast<Node *>(Node::getNodeFromString(f.path().string(), true));
+            Node *node = const_cast<Node *>(Node::getNodeFromPath(f.path(), true));
             node->getLastUpdateTime();
-            afterData.emplace(*node);
+            afterData.emplace(node->filePath, node->getLastUpdateTime());
         }
     }
 }
 
 bool Snapshot::snapshotBalances(const Updates &updates)
 {
-    set<const Node *> difference;
-    for (const Node &node : afterData)
+    set<const NodeSnap *> difference;
+    for (const NodeSnap &snap : afterData)
     {
-        if (!beforeData.contains(node) || beforeData.find(node)->getLastUpdateTime() != node.getLastUpdateTime())
+        if (!beforeData.contains(snap) || beforeData.find(snap)->lastUpdateTime != snap.lastUpdateTime)
         {
-            difference.emplace(&node);
+            difference.emplace(&snap);
         }
     }
     unsigned short sum = 0;

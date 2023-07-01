@@ -32,7 +32,7 @@ import <utility>;
 using std::filesystem::directory_entry, std::filesystem::file_type, std::tie, std::ifstream,
     std::filesystem::file_time_type, std::exception, std::lock_guard;
 
-string getStatusString(const path &p)
+pstring getStatusPString(const path &p)
 {
     switch (status(p).type())
     {
@@ -66,33 +66,19 @@ bool CompareNode::operator()(const Node &lhs, const Node &rhs) const
     return lhs.filePath < rhs.filePath;
 }
 
-bool CompareNode::operator()(const string &lhs, const Node &rhs) const
+bool CompareNode::operator()(const pstring &lhs, const Node &rhs) const
 {
     return lhs < rhs.filePath;
 }
 
-bool CompareNode::operator()(const Node &lhs, const string &rhs) const
+bool CompareNode::operator()(const Node &lhs, const pstring &rhs) const
 {
     return lhs.filePath < rhs;
 }
 
-Node::Node(const path &filePath_, bool isFile, bool mayNotExist) : entry(directory_entry(filePath_))
+Node::Node(const path &filePath_)
 {
-    std::filesystem::file_type nodeType = entry.status().type();
-    if (nodeType == (isFile ? file_type::regular : file_type::directory))
-    {
-        filePath = filePath_.string();
-    }
-    else
-    {
-        if (!mayNotExist || nodeType != file_type::not_found)
-        {
-            printErrorMessage(fmt::format("{} is not a {} file. File Type is {}\n", filePath_.string(),
-                                          isFile ? "regular" : "directory", getStatusString(filePath_)));
-            throw std::exception();
-        }
-        doesNotExist = true;
-    }
+    filePath = (filePath_.*toPStr)();
 }
 
 std::mutex fileTimeUpdateMutex;
@@ -107,20 +93,20 @@ std::filesystem::file_time_type Node::getLastUpdateTime() const
     return lastUpdateTime;
 }
 
-path Node::getFinalNodePathFromString(const string &str)
+/*path Node::getFinalNodePathFromString(const pstring &str)
 {
     path filePath{str};
     if (filePath.is_relative())
     {
         filePath = path(srcDir) / filePath;
     }
-    filePath = filePath.lexically_normal().string();
+    filePath = (filePath.lexically_normal().*toPStr)();
 
     if constexpr (os == OS::NT)
     {
         // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
         // actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
-        string lowerCase = filePath.string();
+        pstring lowerCase (= filePath*toPStr)());
         for (char &c : lowerCase)
         {
             // Warning: assuming paths to be ASCII
@@ -132,9 +118,9 @@ path Node::getFinalNodePathFromString(const string &str)
 }
 
 static mutex nodeInsertMutex;
-Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromPath(const pstring &str, bool isFile, bool mayNotExist)
 {
-    path filePath = getFinalNodePathFromString(str);
+    path filePath = getFinalNodePathFromPath(str);
 
     // TODO
     // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
@@ -143,7 +129,7 @@ Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
 
     {
         lock_guard<mutex> lk(nodeInsertMutex);
-        if (auto it = allFiles.find(filePath.string()); it != allFiles.end())
+        if (auto it = allFiles.find((filePath*toPStr)())); it != allFiles.end())
         {
             return const_cast<Node *>(it.operator->());
         }
@@ -151,6 +137,87 @@ Node *Node::getNodeFromString(const string &str, bool isFile, bool mayNotExist)
 
     lock_guard<mutex> lk(nodeInsertMutex);
     return const_cast<Node *>(allFiles.emplace(filePath, isFile, mayNotExist).first.operator->());
+}*/
+
+path Node::getFinalNodePathFromPath(path filePath)
+{
+    if (filePath.is_relative())
+    {
+        filePath = path(srcDir) / filePath;
+    }
+    filePath = filePath.lexically_normal();
+
+    if constexpr (os == OS::NT)
+    {
+        // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
+        // actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
+        auto it = const_cast<path::value_type *>(filePath.c_str());
+        for (; *it != '\0'; ++it)
+        {
+            *it = std::tolower(*it);
+        }
+    }
+    return filePath;
+}
+
+static mutex nodeInsertMutex;
+Node *Node::getNodeFromPath(const path &p, bool isFile, bool mayNotExist)
+{
+    path filePath = getFinalNodePathFromPath(p);
+
+    // TODO
+    // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
+    // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
+    // performed only once.
+
+    Node *node = nullptr;
+    {
+        lock_guard<mutex> lk{nodeInsertMutex};
+        if (auto it = allFiles.find((filePath.*toPStr)()); it != allFiles.end())
+        {
+            node = const_cast<Node *>(it.operator->());
+        }
+        else
+        {
+            node = const_cast<Node *>(allFiles.emplace(filePath).first.operator->());
+        }
+    }
+
+    if (node->systemCheckCompleted.load(std::memory_order_relaxed))
+    {
+        return node;
+    }
+
+    // If systemCheck was not called previously or isn't being called, call it.
+    if (!node->systemCheckCalled.exchange(true))
+    {
+        node->performSystemCheck(isFile, mayNotExist);
+        node->systemCheckCompleted.store(true, std::memory_order_relaxed);
+    }
+
+    // systemCheck is being called for this node by another thread
+    while (!node->systemCheckCompleted.load(std::memory_order_relaxed))
+        ;
+
+    return node;
+}
+
+void Node::performSystemCheck(bool isFile, bool mayNotExist)
+{
+    std::filesystem::file_type nodeType = directory_entry(filePath).status().type();
+    if (nodeType == (isFile ? file_type::regular : file_type::directory))
+    {
+    }
+    else
+    {
+        if (!mayNotExist || nodeType != file_type::not_found)
+        {
+            printErrorMessage(fmt::format("{} is not a {} file. File Type is {}\n", filePath,
+                                          isFile ? "regular" : "directory", getStatusPString(filePath)));
+            throw std::exception();
+        }
+        doesNotExist = true;
+    }
 }
 
 bool operator<(const Node &lhs, const Node &rhs)
@@ -247,17 +314,18 @@ SourceNode::SourceNode(CppSourceTarget *target_, Node *node_) : target(target_),
 {
 }
 
-string SourceNode::getObjectFileOutputFilePath() const
+pstring SourceNode::getObjectFileOutputFilePath() const
 {
-    return target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o";
+    return target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".o";
 }
 
-string SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
+pstring SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
 {
-    return getReducedPath(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".o", pathPrint);
+    return getReducedPath(target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".o",
+                          pathPrint);
 }
 
-string SourceNode::getTarjanNodeName() const
+pstring SourceNode::getTarjanNodeName() const
 {
     return node->filePath;
 }
@@ -275,7 +343,8 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
         // cached compile-command would be different
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            sourceJson->at(JConsts::compileCommand) = target->compiler.bTPath.string() + " " + target->compileCommand;
+            sourceJson->at(JConsts::compileCommand) =
+                (target->compiler.bTPath.*toPStr)() + " " + target->compileCommand;
         }
         lock_guard<mutex> lk(printMutex);
         postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
@@ -283,12 +352,12 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
     }
 }
 
-void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTarget)
+void SourceNode::setSourceNodeFileStatus(const pstring &ex, RealBTarget &realBTarget)
 {
-    Node *objectFileNode = Node::getNodeFromString(
-        target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ex, true, true);
+    Node *objectFileNode = Node::getNodeFromPath(
+        target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ex, true, true);
 
-    if (sourceJson->at(JConsts::compileCommand) != target->compiler.bTPath.string() + " " + target->compileCommand)
+    if (sourceJson->at(JConsts::compileCommand) != (target->compiler.bTPath.*toPStr)() + " " + target->compileCommand)
     {
         fileStatus.store(true, std::memory_order_release);
         return;
@@ -308,7 +377,7 @@ void SourceNode::setSourceNodeFileStatus(const string &ex, RealBTarget &realBTar
 
     for (const Json &str : sourceJson->at(JConsts::headerDependencies))
     {
-        Node *headerNode = Node::getNodeFromString(str, true, true);
+        Node *headerNode = Node::getNodeFromPath(str, true, true);
         if (headerNode->doesNotExist)
         {
             fileStatus.store(true, std::memory_order_release);
@@ -338,7 +407,7 @@ bool operator<(const SourceNode &lhs, const SourceNode &rhs)
     return lhs.node < rhs.node;
 }
 
-HeaderUnitConsumer::HeaderUnitConsumer(bool angle_, string logicalName_)
+HeaderUnitConsumer::HeaderUnitConsumer(bool angle_, pstring logicalName_)
     : angle{angle_}, logicalName{std::move(logicalName_)}
 {
 }
@@ -421,7 +490,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
                 // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
                 // cached compile-command would be different
                 sourceJson->at(JConsts::compileCommand) =
-                    target->compiler.bTPath.string() + " " + target->compileCommand;
+                    (target->compiler.bTPath.*toPStr)() + " " + target->compileCommand;
                 target->targetCacheChanged.store(true, std::memory_order_release);
             }
         }
@@ -432,7 +501,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
 {
     if (readJsonFromSMRulesFile)
     {
-        string smFilePath = target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".smrules";
+        pstring smFilePath = target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".smrules";
         ifstream(smFilePath) >> sourceJson->at(JConsts::smrules);
     }
 
@@ -441,7 +510,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     {
         hasProvide = true;
         // There can be only one provides but can be multiple requires.
-        logicalName = rule.at("provides").get<Json>()[0].at("logical-name").get<string>();
+        logicalName = rule.at("provides").get<Json>()[0].at("logical-name").get<pstring>();
 
         modulescopedata_requirePaths.lock();
         auto [pos, ok] = target->moduleScopeData->requirePaths.try_emplace(logicalName, this);
@@ -484,7 +553,7 @@ bool pathContainsFile(const path &dir, path file)
 void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 {
     ModuleScopeData *moduleScopeData = target->moduleScopeData;
-    string requireLogicalName = requireJson.at("logical-name").get<string>();
+    pstring requireLogicalName = requireJson.at("logical-name").get<pstring>();
     if (requireLogicalName == logicalName)
     {
         printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
@@ -494,7 +563,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         throw std::exception();
     }
 
-    Node *headerUnitNode = Node::getNodeFromString(requireJson.at("source-path").get<string>(), true);
+    Node *headerUnitNode = Node::getNodeFromPath(requireJson.at("source-path").get<pstring>(), true);
 
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
@@ -610,8 +679,8 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 
     auto &headerUnit = const_cast<SMFile &>(*headerUnitIt);
 
-    headerUnitsConsumptionMethods[&headerUnit].emplace(requireJson.at("lookup-method").get<string>() == "include-angle",
-                                                       requireLogicalName);
+    headerUnitsConsumptionMethods[&headerUnit].emplace(
+        requireJson.at("lookup-method").get<pstring>() == "include-angle", requireLogicalName);
     getRealBTarget(0).addDependency(headerUnit);
 }
 
@@ -639,7 +708,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
         {
             for (const Json &requireJson : *it)
             {
-                string requireLogicalName = requireJson.at("logical-name").get<string>();
+                pstring requireLogicalName = requireJson.at("logical-name").get<pstring>();
                 if (requireLogicalName == logicalName)
                 {
                     printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
@@ -683,7 +752,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 
 bool SMFile::generateSMFileInRoundOne()
 {
-    if (sourceJson->at(JConsts::compileCommand) != target->compiler.bTPath.string() + " " + target->compileCommand)
+    if (sourceJson->at(JConsts::compileCommand) != (target->compiler.bTPath.*toPStr)() + " " + target->compileCommand)
     {
         readJsonFromSMRulesFile = true;
         // This is the only access in round 1. Maybe change to relaxed
@@ -692,8 +761,8 @@ bool SMFile::generateSMFileInRoundOne()
     }
 
     bool needsUpdate = false;
-    Node *objectFileNode = Node::getNodeFromString(
-        target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".m.o"), true, true);
+    Node *objectFileNode = Node::getNodeFromPath(
+        target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + (".m.o"), true, true);
 
     if (objectFileNode->doesNotExist)
     {
@@ -709,7 +778,7 @@ bool SMFile::generateSMFileInRoundOne()
         {
             for (const Json &str : sourceJson->at(JConsts::headerDependencies))
             {
-                Node *headerNode = Node::getNodeFromString(str, true, true);
+                Node *headerNode = Node::getNodeFromPath(str, true, true);
                 if (headerNode->doesNotExist)
                 {
                     needsUpdate = true;
@@ -736,8 +805,8 @@ bool SMFile::generateSMFileInRoundOne()
         // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the
         // .m.o file.
 
-        Node *smRuleFileNode = Node::getNodeFromString(
-            target->buildCacheFilesDirPath + path(node->filePath).filename().string() + (".smrules"), true, true);
+        Node *smRuleFileNode = Node::getNodeFromPath(
+            target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + (".smrules"), true, true);
 
         if (smRuleFileNode->doesNotExist)
         {
@@ -753,7 +822,7 @@ bool SMFile::generateSMFileInRoundOne()
             {
                 for (const Json &str : sourceJson->at(JConsts::headerDependencies))
                 {
-                    Node *headerNode = Node::getNodeFromString(str, true, true);
+                    Node *headerNode = Node::getNodeFromPath(str, true, true);
                     if (headerNode->doesNotExist)
                     {
                         return true;
@@ -770,14 +839,14 @@ bool SMFile::generateSMFileInRoundOne()
     return false;
 }
 
-string SMFile::getObjectFileOutputFilePath() const
+pstring SMFile::getObjectFileOutputFilePath() const
 {
-    return target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".m.o";
+    return target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".m.o";
 }
 
-string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
+pstring SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
 {
-    return getReducedPath(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".m.o",
+    return getReducedPath(target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".m.o",
                           pathPrint);
 }
 
@@ -804,12 +873,12 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
 
             if (!fileStatus.load(std::memory_order_acquire))
             {
-                Node *objectFileNode = Node::getNodeFromString(
-                    target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".m.o", true);
+                Node *objectFileNode = Node::getNodeFromPath(
+                    target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".m.o", true);
 
-                string depFileName = path(smFile->node->filePath).filename().string();
+                pstring depFileName = (path(smFile->node->filePath).filename().*toPStr)();
                 Node *depObjectFileNode =
-                    Node::getNodeFromString(smFile->target->buildCacheFilesDirPath + depFileName + ".m.o", true, true);
+                    Node::getNodeFromPath(smFile->target->buildCacheFilesDirPath + depFileName + ".m.o", true, true);
 
                 if (depObjectFileNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
                 {
@@ -834,10 +903,10 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
     }
 }
 
-string SMFile::getFlag(const string &outputFilesWithoutExtension) const
+pstring SMFile::getFlag(const string &outputFilesWithoutExtension) const
 {
-    string str = "/ifcOutput" + addQuotes(outputFilesWithoutExtension + ".ifc") + " " + "/Fo" +
-                 addQuotes(outputFilesWithoutExtension + ".m.o");
+    pstring str = "/ifcOutput" + addQuotes(outputFilesWithoutExtension + ".ifc") + " " + "/Fo" +
+                  addQuotes(outputFilesWithoutExtension + ".m.o");
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
         printErrorMessageColor("Error! In getRequireFlag() type is NOT_ASSIGNED", settings.pcSettings.toolErrorOutput);
@@ -849,7 +918,7 @@ string SMFile::getFlag(const string &outputFilesWithoutExtension) const
     }
     else if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
-        string angleStr = angle ? "angle " : "quote ";
+        pstring angleStr = angle ? "angle " : "quote ";
         return "/exportHeader " + str;
     }
     else
@@ -866,12 +935,12 @@ string SMFile::getFlag(const string &outputFilesWithoutExtension) const
     }
 }
 
-string SMFile::getFlagPrint(const string &outputFilesWithoutExtension) const
+pstring SMFile::getFlagPrint(const pstring &outputFilesWithoutExtension) const
 {
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
     bool infra = ccpSettings.infrastructureFlags;
 
-    string str = infra ? "/ifcOutput" : "";
+    pstring str = infra ? "/ifcOutput" : "";
     if (ccpSettings.ifcOutputFile.printLevel != PathPrintLevel::NO)
     {
         str += getReducedPath(outputFilesWithoutExtension + ".ifc", ccpSettings.ifcOutputFile) + " ";
@@ -909,9 +978,10 @@ string SMFile::getFlagPrint(const string &outputFilesWithoutExtension) const
     }
 }
 
-string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
+pstring SMFile::getRequireFlag(const SMFile &dependentSMFile) const
 {
-    string ifcFilePath = addQuotes(target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".ifc");
+    pstring ifcFilePath =
+        addQuotes(target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".ifc");
 
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
@@ -926,11 +996,11 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
     {
         assert(dependentSMFile.headerUnitsConsumptionMethods.contains(const_cast<SMFile *>(this)) &&
                "SMFile referencing a headerUnit for which there is no consumption method");
-        string str;
+        pstring str;
         for (const HeaderUnitConsumer &headerUnitConsumer :
              dependentSMFile.headerUnitsConsumptionMethods.find(this)->second)
         {
-            string angleStr = headerUnitConsumer.angle ? "angle" : "quote";
+            pstring angleStr = headerUnitConsumer.angle ? "angle" : "quote";
             str += "/headerUnit:";
             str += angleStr + " ";
             str += headerUnitConsumer.logicalName + "=" + ifcFilePath + " ";
@@ -941,11 +1011,11 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
     throw std::exception();
 }
 
-string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
+pstring SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
 {
-    string ifcFilePath = target->buildCacheFilesDirPath + path(node->filePath).filename().string() + ".ifc";
+    pstring ifcFilePath = target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".ifc";
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
-    auto getRequireIFCPathOrLogicalName = [&](const string &logicalName_) {
+    auto getRequireIFCPathOrLogicalName = [&](const pstring &logicalName_) {
         return ccpSettings.onlyLogicalNameOfRequireIFC
                    ? logicalName_
                    : logicalName_ + "=" + getReducedPath(ifcFilePath, ccpSettings.requireIFCs);
@@ -963,7 +1033,7 @@ string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
         }
         else
         {
-            string str;
+            pstring str;
             if (ccpSettings.infrastructureFlags)
             {
                 str += "/reference ";
@@ -981,13 +1051,13 @@ string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
         }
         else
         {
-            string str;
+            pstring str;
             for (const HeaderUnitConsumer &headerUnitConsumer :
                  dependentSMFile.headerUnitsConsumptionMethods.find(this)->second)
             {
                 if (ccpSettings.infrastructureFlags)
                 {
-                    string angleStr = headerUnitConsumer.angle ? "angle" : "quote";
+                    pstring angleStr = headerUnitConsumer.angle ? "angle" : "quote";
                     str += "/headerUnit:" + angleStr + " ";
                 }
                 str += getRequireIFCPathOrLogicalName(headerUnitConsumer.logicalName) + " ";
@@ -999,10 +1069,10 @@ string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
     throw std::exception();
 }
 
-string SMFile::getModuleCompileCommandPrintLastHalf()
+pstring SMFile::getModuleCompileCommandPrintLastHalf()
 {
     CompileCommandPrintSettings ccpSettings = settings.ccpSettings;
-    string moduleCompileCommandPrintLastHalf;
+    pstring moduleCompileCommandPrintLastHalf;
     if (ccpSettings.requireIFCs.printLevel != PathPrintLevel::NO)
     {
         for (const SMFile *smFile : allSMFileDependenciesRoundZero)
@@ -1014,6 +1084,6 @@ string SMFile::getModuleCompileCommandPrintLastHalf()
     moduleCompileCommandPrintLastHalf += ccpSettings.infrastructureFlags ? target->getInfrastructureFlags(false) : "";
     moduleCompileCommandPrintLastHalf += getReducedPath(node->filePath, ccpSettings.sourceFile) + " ";
     moduleCompileCommandPrintLastHalf +=
-        getFlagPrint(target->buildCacheFilesDirPath + path(node->filePath).filename().string());
+        getFlagPrint(target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)());
     return moduleCompileCommandPrintLastHalf;
 }

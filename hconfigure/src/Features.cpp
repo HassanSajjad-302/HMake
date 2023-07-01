@@ -21,7 +21,7 @@ using Json = nlohmann::json;
 
 void to_json(Json &j, const Arch &arch)
 {
-    auto getStringFromArchitectureEnum = [](Arch arch) -> string {
+    auto getPStringFromArchitectureEnum = [](Arch arch) -> pstring {
         switch (arch)
         {
         case Arch::X86:
@@ -61,7 +61,7 @@ void to_json(Json &j, const Arch &arch)
         }
         return "";
     };
-    j = getStringFromArchitectureEnum(arch);
+    j = getPStringFromArchitectureEnum(arch);
 }
 
 void from_json(const Json &j, Arch &arch)
@@ -136,14 +136,14 @@ void from_json(const Json &j, Arch &arch)
     }
     else
     {
-        printErrorMessage("conversion from json string literal to enum class Arch failed\n");
+        printErrorMessage("conversion from json pstring literal to enum class Arch failed\n");
         throw std::exception();
     }
 }
 
 void to_json(Json &j, const AddressModel &am)
 {
-    auto getStringFromArchitectureEnum = [](AddressModel am) -> string {
+    auto getPStringFromArchitectureEnum = [](AddressModel am) -> pstring {
         switch (am)
         {
         case AddressModel::A_16:
@@ -157,7 +157,7 @@ void to_json(Json &j, const AddressModel &am)
         }
         return "";
     };
-    j = getStringFromArchitectureEnum(am);
+    j = getPStringFromArchitectureEnum(am);
 }
 
 void from_json(const Json &j, AddressModel &am)
@@ -180,7 +180,7 @@ void from_json(const Json &j, AddressModel &am)
     }
     else
     {
-        printErrorMessage("conversion from json string literal to enum class AM failed\n");
+        printErrorMessage("conversion from json pstring literal to enum class AM failed\n");
         throw std::exception();
     }
 }
@@ -189,7 +189,7 @@ TemplateDepth::TemplateDepth(unsigned long long templateDepth_) : templateDepth(
 {
 }
 
-Define::Define(string name_, string value_) : name{std::move(name_)}, value{std::move(value_)}
+Define::Define(pstring name_, pstring value_) : name{std::move(name_)}, value{std::move(value_)}
 {
 }
 
@@ -201,8 +201,8 @@ void to_json(Json &j, const Define &cd)
 
 void from_json(const Json &j, Define &cd)
 {
-    cd.name = j.at(JConsts::name).get<string>();
-    cd.value = j.at(JConsts::value).get<string>();
+    cd.name = j.at(JConsts::name).get<pstring>();
+    cd.value = j.at(JConsts::value).get<pstring>();
 }
 
 void to_json(Json &json, const OS &osLocal)
@@ -229,7 +229,7 @@ void from_json(const Json &json, OS &osLocal)
     }
 }
 
-string getActualNameFromTargetName(TargetType bTargetType, const OS osLocal, const string &targetName)
+pstring getActualNameFromTargetName(TargetType bTargetType, const OS osLocal, const pstring &targetName)
 {
     if (bTargetType == TargetType::EXECUTABLE)
     {
@@ -237,7 +237,7 @@ string getActualNameFromTargetName(TargetType bTargetType, const OS osLocal, con
     }
     else if (bTargetType == TargetType::LIBRARY_STATIC || bTargetType == TargetType::PLIBRARY_STATIC)
     {
-        string actualName;
+        pstring actualName;
         actualName = osLocal == OS::NT ? "" : "lib";
         actualName += targetName;
         actualName += osLocal == OS::NT ? ".lib" : ".a";
@@ -245,7 +245,7 @@ string getActualNameFromTargetName(TargetType bTargetType, const OS osLocal, con
     }
     else if (bTargetType == TargetType::LIBRARY_SHARED || bTargetType == TargetType::PLIBRARY_SHARED)
     {
-        string actualName;
+        pstring actualName;
         actualName = osLocal == OS::NT ? "" : "lib";
         actualName += targetName;
         actualName += osLocal == OS::NT ? ".dll" : ".so";
@@ -255,7 +255,7 @@ string getActualNameFromTargetName(TargetType bTargetType, const OS osLocal, con
     throw std::exception();
 }
 
-string getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, const string &actualName)
+pstring getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, const pstring &actualName)
 {
     if (bTargetType == TargetType::EXECUTABLE)
     {
@@ -263,7 +263,7 @@ string getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, con
     }
     else if (bTargetType == TargetType::LIBRARY_STATIC || bTargetType == TargetType::PLIBRARY_STATIC)
     {
-        string libName = actualName;
+        pstring libName = actualName;
         // Removes lib from libName.a
         libName = osLocal == OS::NT ? actualName : libName.erase(0, 3);
         // Removes .a from libName.a or .lib from Name.lib
@@ -273,7 +273,7 @@ string getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, con
     }
     else if (bTargetType == TargetType::LIBRARY_SHARED || bTargetType == TargetType::PLIBRARY_SHARED)
     {
-        string libName = actualName;
+        pstring libName = actualName;
         // Removes lib from libName.so
         libName = osLocal == OS::NT ? actualName : libName.erase(0, 3);
         // Removes .so from libName.so or .dll from Name.dll
@@ -285,7 +285,7 @@ string getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, con
     throw std::exception();
 }
 
-string getSlashedExecutableName(const string &name)
+pstring getSlashedExecutableName(const pstring &name)
 {
     return os == OS::NT ? (name + ".exe") : ("./" + name);
 }
@@ -327,9 +327,9 @@ LinkerFeatures::LinkerFeatures()
 void LinkerFeatures::setLinkerFromVSTools(struct VSTools &vsTools)
 {
     linker = vsTools.linker;
-    for (const string &str : vsTools.libraryDirectories)
+    for (const pstring &str : vsTools.libraryDirectories)
     {
-        LibDirNode::emplaceInList(requirementLibraryDirectories, Node::getNodeFromString(str, false), true);
+        LibDirNode::emplaceInList(requirementLibraryDirectories, Node::getNodeFromPath(str, false), true);
     }
 }
 
@@ -389,18 +389,18 @@ CppCompilerFeatures::CppCompilerFeatures()
 void CppCompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
 {
     compiler = vsTools.compiler;
-    for (const string &str : vsTools.includeDirectories)
+    for (const pstring &str : vsTools.includeDirectories)
     {
-        InclNode::emplaceInList(requirementIncludes, Node::getNodeFromString(str, false), true, true);
+        InclNode::emplaceInList(requirementIncludes, Node::getNodeFromPath(str, false), true, true);
     }
 }
 
 void CppCompilerFeatures::setCompilerFromLinuxTools(LinuxTools &linuxTools)
 {
     compiler = linuxTools.compiler;
-    for (const string &str : linuxTools.includeDirectories)
+    for (const pstring &str : linuxTools.includeDirectories)
     {
-        InclNode::emplaceInList(requirementIncludes, Node::getNodeFromString(str, false), true, true);
+        InclNode::emplaceInList(requirementIncludes, Node::getNodeFromPath(str, false), true, true);
     }
 }
 

@@ -5,36 +5,34 @@
 #ifdef USE_HEADER_UNITS
 import "SMFile.hpp";
 import <set>;
-import <string>;
 #else
 #include "SMFile.hpp"
 #include <set>
-#include <string>
 #endif
 
-using std::set, std::string;
+using std::set;
 
 // CPrebuiltTarget
 struct CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>
 {
     using BaseType = CSourceTarget;
     list<InclNode> usageRequirementIncludes;
-    string usageRequirementCompilerFlags;
+    pstring usageRequirementCompilerFlags;
     set<struct Define> usageRequirementCompileDefinitions;
 
-    template <typename... U> CSourceTarget &INTERFACE_INCLUDES(const string &include, U... includeDirectoryString);
-    CSourceTarget &INTERFACE_COMPILER_FLAGS(const string &compilerFlags);
-    CSourceTarget &INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue = "");
+    template <typename... U> CSourceTarget &INTERFACE_INCLUDES(const pstring &include, U... includeDirectoryPString);
+    CSourceTarget &INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags);
+    CSourceTarget &INTERFACE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue = "");
 };
 bool operator<(const CSourceTarget &lhs, const CSourceTarget &rhs);
 
 template <typename... U>
-CSourceTarget &CSourceTarget::INTERFACE_INCLUDES(const string &include, U... includeDirectoryString)
+CSourceTarget &CSourceTarget::INTERFACE_INCLUDES(const pstring &include, U... includeDirectoryPString)
 {
-    InclNode::emplaceInList(usageRequirementIncludes, Node::getNodeFromString(include, false));
-    if constexpr (sizeof...(includeDirectoryString))
+    InclNode::emplaceInList(usageRequirementIncludes, Node::getNodeFromPath(include, false));
+    if constexpr (sizeof...(includeDirectoryPString))
     {
-        return INTERFACE_INCLUDES(includeDirectoryString...);
+        return INTERFACE_INCLUDES(includeDirectoryPString...);
     }
     else
     {

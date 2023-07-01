@@ -23,19 +23,19 @@ import <utility>;
 
 using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard, std::mutex;
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType)
+LinkOrArchiveTarget::LinkOrArchiveTarget(pstring name_, TargetType targetType)
     : CTarget(std::move(name_)), PrebuiltLinkOrArchiveTarget(name, getSubDirForTarget(), targetType)
 {
     linkTargetType = targetType;
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(string name_, TargetType targetType, CTarget &other, bool hasFile)
+LinkOrArchiveTarget::LinkOrArchiveTarget(pstring name_, TargetType targetType, CTarget &other, bool hasFile)
     : CTarget(std::move(name_), other, hasFile), PrebuiltLinkOrArchiveTarget(name, getSubDirForTarget(), targetType)
 {
     linkTargetType = targetType;
 }
 
-void LinkOrArchiveTarget::setOutputName(string outputName_)
+void LinkOrArchiveTarget::setOutputName(pstring outputName_)
 {
     actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName_);
     outputName = std::move(outputName_);
@@ -114,10 +114,10 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         }
         else
         {
-            set<string> cachedObjectFiles = targetBuildCache.at(JConsts::objectFiles).get<set<string>>();
+            set<pstring> cachedObjectFiles = targetBuildCache.at(JConsts::objectFiles).get<set<pstring>>();
 
             if (targetBuildCache.at(JConsts::linkCommand) ==
-                linker.bTPath.string() + " " + linkOrArchiveCommandWithoutTargets)
+                (linker.bTPath.*toPStr)() + " " + linkOrArchiveCommandWithoutTargets)
             {
                 bool needsUpdate = false;
                 if (!EVALUATE(TargetType::LIBRARY_STATIC))
@@ -129,8 +129,8 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                             PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
                                 static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                             path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
-                            if (Node::getNodeFromString(depOutputPath.string(), true)->getLastUpdateTime() >
-                                Node::getNodeFromString(outputPath.string(), true)->getLastUpdateTime())
+                            if (Node::getNodeFromPath(depOutputPath, true)->getLastUpdateTime() >
+                                Node::getNodeFromPath(outputPath, true)->getLastUpdateTime())
                             {
                                 needsUpdate = true;
                                 break;
@@ -146,8 +146,8 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                         needsUpdate = true;
                         break;
                     }
-                    if (Node::getNodeFromString(objectFile->getObjectFileOutputFilePath(), true)->getLastUpdateTime() >
-                        Node::getNodeFromString(outputPath.string(), true)->getLastUpdateTime())
+                    if (Node::getNodeFromPath(objectFile->getObjectFileOutputFilePath(), true)->getLastUpdateTime() >
+                        Node::getNodeFromPath(outputPath, true)->getLastUpdateTime())
                     {
                         needsUpdate = true;
                         break;
@@ -193,7 +193,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                     {
                         // latest dll exists but it might not have been copied in the previous invocation.
 
-                        Node *copiedDLLNode = const_cast<Node *>(Node::getNodeFromString(
+                        Node *copiedDLLNode = const_cast<Node *>(Node::getNodeFromPath(
                             outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName, true, true));
 
                         if (copiedDLLNode->doesNotExist)
@@ -203,9 +203,9 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                         else
                         {
                             if (copiedDLLNode->getLastUpdateTime() <
-                                Node::getNodeFromString(prebuiltLinkOrArchiveTarget->outputDirectory +
-                                                            prebuiltLinkOrArchiveTarget->actualOutputName,
-                                                        true)
+                                Node::getNodeFromPath(prebuiltLinkOrArchiveTarget->outputDirectory +
+                                                          prebuiltLinkOrArchiveTarget->actualOutputName,
+                                                      true)
                                     ->getLastUpdateTime())
                             {
                                 dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
@@ -250,14 +250,14 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
             if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
             {
-                vector<string> cachedObjectFilesVector;
+                vector<pstring> cachedObjectFilesVector;
                 for (const ObjectFile *objectFile : objectFiles)
                 {
                     cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
                 }
 
                 targetBuildCache.at(JConsts::linkCommand) =
-                    linker.bTPath.string() + " " + linkOrArchiveCommandWithoutTargets;
+                    (linker.bTPath.*toPStr)() + " " + linkOrArchiveCommandWithoutTargets;
                 targetBuildCache.at(JConsts::objectFiles) = std::move(cachedObjectFilesVector);
 
                 lock_guard<mutex> lk(buildCacheMutex);
@@ -336,7 +336,7 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         // all variables in actions are in CAPITALS
 
         // Line 1560
-        string defaultAssembler = EVALUATE(Arch::IA64) ? "ias" : "";
+        pstring defaultAssembler = EVALUATE(Arch::IA64) ? "ias" : "";
         if (EVALUATE(Arch::X86))
         {
             defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "ml64 ", AddressModel::A_32, "ml -coff ");
@@ -345,8 +345,8 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         {
             defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "armasm64 ", AddressModel::A_32, "armasm ");
         }
-        string assemblerFlags = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
-        string assemblerOutputFlag = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
+        pstring assemblerFlags = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
+        pstring assemblerOutputFlag = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
         // Line 1618
 
         flags.DOT_LD_LINK += "/NOLOGO /INCREMENTAL:NO";
@@ -359,7 +359,7 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         // Line 444
         // Only flags effecting latest MSVC tools (14.3) are supported.
 
-        string CPP_FLAGS_COMPILE_CPP = "/wd4675";
+        pstring CPP_FLAGS_COMPILE_CPP = "/wd4675";
         CPP_FLAGS_COMPILE_CPP += "/Zc:throwingNew";
 
         // Line 492
@@ -380,9 +380,9 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
                     flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
                         AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                         R"(/wholearchive:"clang_rt.asan-x86_64.lib /wholearchive:"clang_rt.asan_cxx-x86_64.lib ")");
-                    string FINDLIBS_SA_LINK_DLL =
+                    pstring FINDLIBS_SA_LINK_DLL =
                         GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
-           "clang_rt.asan_dll_thunk-x86_64 "); string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON,
+           "clang_rt.asan_dll_thunk-x86_64 "); pstring LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON,
            RuntimeLink::STATIC), R"(/wholearchive:"clang_rt.asan_dll_thunk-x86_64.lib ")");
                 }
                 else if (EVALUATE(AddressModel::A_32))
@@ -401,9 +401,9 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
                     flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
                         AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                         R"(/wholearchive:"clang_rt.asan-i386.lib /wholearchive:"clang_rt.asan_cxx-i386.lib ")");
-                    string FINDLIBS_SA_LINK_DLL =
+                    pstring FINDLIBS_SA_LINK_DLL =
                         GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386
-           "); string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+           "); pstring LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
                                                                   R"(/wholearchive:"clang_rt.asan_dll_thunk-i386.lib
            ")");
                 }*/
@@ -454,11 +454,13 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         //    is not yet catered here.
         //
 
-        auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const string &str) { flags.OPTIONS_LINK += str; };
-        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const string &str) { flags.OPTIONS_LINK += str; };
+        auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const pstring &str) { flags.OPTIONS_LINK += str; };
+        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const pstring &str) {
+            flags.OPTIONS_LINK += str;
+        };
 
         // FINDLIBS-SA variable is being updated gcc.link rule.
-        string findLibsSA;
+        pstring findLibsSA;
 
         auto isTargetBSD = [&]() { return OR(TargetOS::BSD, TargetOS::FREEBSD, TargetOS::NETBSD, TargetOS::NETBSD); };
         {
@@ -577,7 +579,7 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         // General options, link optimizations
 
         // Sanitizers
-        string sanitizerFlags;
+        pstring sanitizerFlags;
         sanitizerFlags += GET_FLAG_EVALUATE(
             AddressSanitizer::ON, "-fsanitize=address -fno-omit-frame-pointer ", AddressSanitizer::NORECOVER,
             "-fsanitize=address -fno-sanitize-recover=address -fno-omit-frame-pointer ");
@@ -681,8 +683,8 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
 
         flags.RPATH_OPTION_LINK += GET_FLAG_EVALUATE(flags.isRpathOs, "-rpath ");
 
-        string bStatic = "-Wl,-Bstatic ";
-        string bDynamic = "-Wl,-Bdynamic ";
+        pstring bStatic = "-Wl,-Bstatic ";
+        pstring bDynamic = "-Wl,-Bdynamic ";
 
         flags.FINDLIBS_ST_PFX_LINK += GET_FLAG_EVALUATE(AND(isGenericOS(), RuntimeLink::SHARED), bStatic);
         flags.FINDLIBS_SA_PFX_LINK += GET_FLAG_EVALUATE(AND(isGenericOS(), RuntimeLink::SHARED), bDynamic);
@@ -719,7 +721,7 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
             flags.OPTIONS_LINK += GET_FLAG_EVALUATE(RuntimeLink::STATIC, "-static ");
         }
 
-        string str = GET_FLAG_EVALUATE(
+        pstring str = GET_FLAG_EVALUATE(
             AND(Arch::X86, InstructionSet::native), "-march=native ", AND(Arch::X86, InstructionSet::i486),
             "-march=i486 ", AND(Arch::X86, InstructionSet::i586), "-march=i586 ", AND(Arch::X86, InstructionSet::i686),
             "-march=i686 ", AND(Arch::X86, InstructionSet::pentium), "-march=pentium ",
@@ -828,11 +830,11 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
 {
     LinkerFlags flags;
 
-    string localLinkCommand;
+    pstring localLinkCommand;
     if (linkTargetType == TargetType::LIBRARY_STATIC)
     {
         localLinkCommand = archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
-        auto getArchiveOutputFlag = [&]() -> string {
+        auto getArchiveOutputFlag = [&]() -> pstring {
             if (archiver.bTFamily == BTFamily::MSVC)
             {
                 return "/OUT:";
@@ -861,7 +863,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
         }
         else if (linker.bTFamily == BTFamily::MSVC)
         {
-            for (const string &str : split(flags.FINDLIBS_SA_LINK, " "))
+            for (const pstring &str : split(flags.FINDLIBS_SA_LINK, " "))
             {
                 if (str.empty())
                 {
@@ -874,7 +876,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
         localLinkCommand += requirementLinkerFlags + " ";
     }
 
-    auto getLinkFlag = [this](const string &libraryPath, const string &libraryName) {
+    auto getLinkFlag = [this](const pstring &libraryPath, const pstring &libraryName) {
         if (linker.bTFamily == BTFamily::MSVC)
         {
             return addQuotes(libraryPath + libraryName + ".lib") + " ";
@@ -935,7 +937,8 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                         auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                         localLinkCommand +=
                             "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                            addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string()) +
+                            addQuotes(
+                                (path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().*toPStr)()) +
                             " ";
                     }
                     else
@@ -957,7 +960,8 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                         auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                         localLinkCommand +=
                             "-Wl,-rpath-link -Wl," +
-                            addQuotes(path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string()) +
+                            addQuotes(
+                                (path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().*toPStr)()) +
                             " ";
                     }
                     else
@@ -980,9 +984,9 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
     }
 }
 
-string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
+pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
 {
-    string linkOrArchiveCommandPrint;
+    pstring linkOrArchiveCommandPrint;
 
     const ArchiveCommandPrintSettings &acpSettings = settings.acpSettings;
     const LinkCommandPrintSettings &lcpSettings = settings.lcpSettings;
@@ -993,14 +997,14 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         if (acpSettings.tool.printLevel != PathPrintLevel::NO)
         {
             linkOrArchiveCommandPrint +=
-                getReducedPath(archiver.bTPath.make_preferred().string(), acpSettings.tool) + " ";
+                getReducedPath((archiver.bTPath.make_preferred().*toPStr)(), acpSettings.tool) + " ";
         }
 
         if (acpSettings.infrastructureFlags)
         {
             linkOrArchiveCommandPrint += archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
         }
-        auto getArchiveOutputFlag = [&]() -> string {
+        auto getArchiveOutputFlag = [&]() -> pstring {
             if (archiver.bTFamily == BTFamily::MSVC)
             {
                 return "/OUT:";
@@ -1026,7 +1030,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         if (lcpSettings.tool.printLevel != PathPrintLevel::NO)
         {
             linkOrArchiveCommandPrint +=
-                getReducedPath(linker.bTPath.make_preferred().string(), lcpSettings.tool) + " ";
+                getReducedPath((linker.bTPath.make_preferred().*toPStr)(), lcpSettings.tool) + " ";
         }
 
         if (lcpSettings.infrastructureFlags)
@@ -1049,7 +1053,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
             else if (linker.bTFamily == BTFamily::MSVC)
             {
 
-                for (const string &str : split(flags.FINDLIBS_SA_LINK, " "))
+                for (const pstring &str : split(flags.FINDLIBS_SA_LINK, " "))
                 {
                     if (str.empty())
                     {
@@ -1067,7 +1071,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         }
     }
 
-    auto getLinkFlagPrint = [this](const string &libraryPath, const string &libraryName, const PathPrint &pathPrint) {
+    auto getLinkFlagPrint = [this](const pstring &libraryPath, const pstring &libraryName, const PathPrint &pathPrint) {
         if (linker.bTFamily == BTFamily::MSVC)
         {
             return getReducedPath(libraryPath + libraryName + ".lib", pathPrint) + " ";
@@ -1160,7 +1164,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                         linkOrArchiveCommandPrint +=
                             "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
                             getReducedPath(
-                                path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string(),
+                                (path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().*toPStr)(),
                                 lcpSettings.libraryDependencies) +
                             " ";
                     }
@@ -1185,7 +1189,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                         linkOrArchiveCommandPrint +=
                             "-Wl,-rpath-link -Wl," +
                             getReducedPath(
-                                path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().string(),
+                                (path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().*toPStr)(),
                                 lcpSettings.libraryDependencies) +
                             " ";
                     }
@@ -1254,9 +1258,9 @@ BTarget *LinkOrArchiveTarget::getBTarget()
     return this;
 }
 
-string LinkOrArchiveTarget::getTarjanNodeName() const
+pstring LinkOrArchiveTarget::getTarjanNodeName() const
 {
-    string str;
+    pstring str;
     if (linkTargetType == TargetType::LIBRARY_STATIC)
     {
         str = "Static Library";

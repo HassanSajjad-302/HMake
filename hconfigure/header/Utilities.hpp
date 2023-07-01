@@ -2,18 +2,18 @@
 #define HMAKE_UTILITIES_HPP
 
 #ifdef USE_HEADER_UNITS
-import <string>;
+import "PlatformSpecific.hpp";
 import <vector>;
 #else
-#include <string>
+#include "PlatformSpecific.hpp"
 #include <vector>
 #endif
 
-using std::string, std::vector;
-string addQuotes(const string &pathString);
-string addEscapedQuotes(const string &pathString);
-string file_to_string(const string &file_name);
-vector<string> split(string str, const string &token);
+using std::vector;
+string addQuotes(const pstring &pstr);
+string addEscapedQuotes(const pstring &pstr);
+string fileToPString(const pstring &file_name);
+vector<string> split(string str, const pstring &token);
 
 template <typename T> void emplaceInVector(vector<T> &v, T &&t)
 {

@@ -15,17 +15,17 @@ struct PrebuiltDep
 {
     // LF linkerFlags
 
-    string requirementPreLF;
-    string usageRequirementPreLF;
+    pstring requirementPreLF;
+    pstring usageRequirementPreLF;
 
-    string requirementPostLF;
-    string usageRequirementPostLF;
+    pstring requirementPostLF;
+    pstring usageRequirementPostLF;
 
-    string requirementRpathLink;
-    string usageRequirementRpathLink;
+    pstring requirementRpathLink;
+    pstring usageRequirementRpathLink;
 
-    string requirementRpath;
-    string usageRequirementRpath;
+    pstring requirementRpath;
+    pstring usageRequirementRpath;
 
     bool defaultRpath = true;
     bool defaultRpathLink = true;
@@ -34,7 +34,7 @@ struct PrebuiltDep
 class PrebuiltBasic : public BTarget
 {
   public:
-    string outputName;
+    pstring outputName;
     vector<const class ObjectFile *> objectFiles;
 
     map<PrebuiltBasic *, PrebuiltDep> requirementDeps;
@@ -64,8 +64,8 @@ class PrebuiltBasic : public BTarget
 
     void populateRequirementAndUsageRequirementDeps();
 
-    PrebuiltBasic(string outputName_);
-    PrebuiltBasic(string outputName_, TargetType linkTargetType_);
+    PrebuiltBasic(pstring outputName_);
+    PrebuiltBasic(pstring outputName_, TargetType linkTargetType_);
 
     void preSort(class Builder &builder, unsigned short round) override;
     void updateBTarget(Builder &builder, unsigned short round) override;

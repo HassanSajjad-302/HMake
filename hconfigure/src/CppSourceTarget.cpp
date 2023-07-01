@@ -26,15 +26,15 @@ import <utility>;
 using std::filesystem::create_directories, std::filesystem::directory_iterator,
     std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
 
-SourceDirectory::SourceDirectory(const string &sourceDirectory_, string regex_, const bool recursive_)
-    : sourceDirectory{Node::getNodeFromString(sourceDirectory_, false)}, regex{std::move(regex_)}, recursive(recursive_)
+SourceDirectory::SourceDirectory(const pstring &sourceDirectory_, pstring regex_, const bool recursive_)
+    : sourceDirectory{Node::getNodeFromPath(sourceDirectory_, false)}, regex{std::move(regex_)}, recursive(recursive_)
 {
 }
 
 void to_json(Json &j, const SourceDirectory &sourceDirectory)
 {
     j[JConsts::path] = sourceDirectory.sourceDirectory;
-    j[JConsts::regexString] = sourceDirectory.regex;
+    j[JConsts::regexPString] = sourceDirectory.regex;
 }
 
 bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs)
@@ -102,13 +102,13 @@ bool CppSourceTarget::isCpuTypeG7()
               CpuType::AMD64);
 }
 
-CppSourceTarget::CppSourceTarget(string name_, TargetType targetType) : CTarget{std::move(name_)}
+CppSourceTarget::CppSourceTarget(pstring name_, TargetType targetType) : CTarget{std::move(name_)}
 {
     compileTargetType = targetType;
     preSortBTargets.emplace_back(this);
 }
 
-CppSourceTarget::CppSourceTarget(string name_, TargetType targetType, CTarget &other, bool hasFile)
+CppSourceTarget::CppSourceTarget(pstring name_, TargetType targetType, CTarget &other, bool hasFile)
     : CTarget{std::move(name_), other, hasFile}
 {
     compileTargetType = targetType;
@@ -235,7 +235,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         // all variables in actions are in CAPITALS
 
         // Line 1560
-        string defaultAssembler = EVALUATE(Arch::IA64) ? "ias " : "";
+        pstring defaultAssembler = EVALUATE(Arch::IA64) ? "ias " : "";
         if (EVALUATE(Arch::X86))
         {
             defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "ml64 ", AddressModel::A_32, "ml -coff ");
@@ -244,8 +244,8 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         {
             defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "armasm64 ", AddressModel::A_32, "armasm ");
         }
-        string assemblerFlags = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
-        string assemblerOutputFlag = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
+        pstring assemblerFlags = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
+        pstring assemblerOutputFlag = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
         // Line 1618
 
         // Line 1650
@@ -275,31 +275,31 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         if (EVALUATE(AddressModel::A_64))
         {
             // The various 64 bit runtime asan support libraries and related flags.
-            string FINDLIBS_SA_LINK =
+            pstring FINDLIBS_SA_LINK =
                 GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                                   "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64 ");
             FINDLIBS_SA_LINK +=
                 GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                                   "clang_rt.asan-x86_64 clang_rt.asan_cxx-x86_64 ");
-            string FINDLIBS_SA_LINK_DLL =
+            pstring FINDLIBS_SA_LINK_DLL =
                 GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-x86_64 ");
-            string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
-                                                          R"(/wholearchive\:"clang_rt.asan_dll_thunk-x86_64.lib ")");
+            pstring LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+                                                           R"(/wholearchive\:"clang_rt.asan_dll_thunk-x86_64.lib ")");
         }
         else if (EVALUATE(AddressModel::A_32))
         {
             // The various 32 bit runtime asan support libraries and related flags.
 
-            string FINDLIBS_SA_LINK =
+            pstring FINDLIBS_SA_LINK =
                 GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                                   "clang_rt.asan_dynamic-i386 clang_rt.asan_dynamic_runtime_thunk-i386 ");
             FINDLIBS_SA_LINK +=
                 GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                                   "clang_rt.asan-i386 clang_rt.asan_cxx-i386 ");
-            string FINDLIBS_SA_LINK_DLL =
+            pstring FINDLIBS_SA_LINK_DLL =
                 GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386 ");
-            string LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
-                                                          R"(/wholearchive\:"clang_rt.asan_dll_thunk-i386.lib ")");
+            pstring LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+                                                           R"(/wholearchive\:"clang_rt.asan_dll_thunk-i386.lib ")");
         }
 
         // Line 586
@@ -386,13 +386,13 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         //   TODO: flavor is being assigned based on the -dumpmachine argument to the gcc command. But this
         //    is not yet catered here.
 
-        auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const string &str) { flags.OPTIONS_COMPILE += str; };
-        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const string &str) {
+        auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const pstring &str) { flags.OPTIONS_COMPILE += str; };
+        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const pstring &str) {
             flags.OPTIONS_COMPILE_CPP += str;
         };
 
         // FINDLIBS-SA variable is being updated gcc.link rule.
-        string findLibsSA;
+        pstring findLibsSA;
 
         auto isTargetBSD = [&]() { return OR(TargetOS::BSD, TargetOS::FREEBSD, TargetOS::NETBSD, TargetOS::NETBSD); };
         {
@@ -535,7 +535,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         flags.OPTIONS_COMPILE_CPP += GET_FLAG_EVALUATE(RTTI::OFF, "-fno-rtti ");
 
         // Sanitizers
-        string sanitizerFlags;
+        pstring sanitizerFlags;
         sanitizerFlags += GET_FLAG_EVALUATE(
             AddressSanitizer::ON, "-fsanitize=address -fno-omit-frame-pointer ", AddressSanitizer::NORECOVER,
             "-fsanitize=address -fno-sanitize-recover=address -fno-omit-frame-pointer ");
@@ -589,7 +589,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
             }
         }
 
-        string str = GET_FLAG_EVALUATE(
+        pstring str = GET_FLAG_EVALUATE(
             AND(Arch::X86, InstructionSet::native), "-march=native ", AND(Arch::X86, InstructionSet::i486),
             "-march=i486 ", AND(Arch::X86, InstructionSet::i586), "-march=i586 ", AND(Arch::X86, InstructionSet::i686),
             "-march=i686 ", AND(Arch::X86, InstructionSet::pentium), "-march=pentium ",
@@ -761,7 +761,7 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
     targetJson[JConsts::compiler] = compiler;
     targetJson[JConsts::compilerFlags] = requirementCompilerFlags;
     // targetJson[JConsts::linkerFlags] = publicLinkerFlags;
-    string str = "SOURCE_";
+    pstring str = "SOURCE_";
     // TODO
     //  Remove cached nodes from sourceFileDependencies and moduleSourceFileDependencies
     // targetJson[str + JConsts::files] = sourceFileDependencies;
@@ -788,7 +788,7 @@ void CppSourceTarget::writeJsonFile()
     CTarget::writeJsonFile();
 }*/
 
-string CppSourceTarget::getTarjanNodeName() const
+pstring CppSourceTarget::getTarjanNodeName() const
 {
     return "CppSourceTarget " + getSubDirForTarget();
 }
@@ -836,7 +836,7 @@ C_Target *CppSourceTarget::get_CAPITarget(BSMode)
     setCompileCommand();
 
     c_cppSourceTarget->compileCommand = compileCommand.c_str();
-    auto *compilerPath = new string(compiler.bTPath.string());
+    auto *compilerPath = new pstring((compiler.bTPath.*toPStr)());
     c_cppSourceTarget->compilerPath = compilerPath->c_str();
 
     auto *c_Target = new C_Target();
@@ -845,39 +845,39 @@ C_Target *CppSourceTarget::get_CAPITarget(BSMode)
     return c_Target;
 }
 
-CppSourceTarget &CppSourceTarget::PUBLIC_COMPILER_FLAGS(const string &compilerFlags)
+CppSourceTarget &CppSourceTarget::PUBLIC_COMPILER_FLAGS(const pstring &compilerFlags)
 {
     requirementCompilerFlags += compilerFlags;
     usageRequirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::PRIVATE_COMPILER_FLAGS(const string &compilerFlags)
+CppSourceTarget &CppSourceTarget::PRIVATE_COMPILER_FLAGS(const pstring &compilerFlags)
 {
     requirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::INTERFACE_COMPILER_FLAGS(const string &compilerFlags)
+CppSourceTarget &CppSourceTarget::INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags)
 {
     usageRequirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::PUBLIC_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
+CppSourceTarget &CppSourceTarget::PUBLIC_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue)
 {
     requirementCompileDefinitions.emplace(cddName, cddValue);
     usageRequirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::PRIVATE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
+CppSourceTarget &CppSourceTarget::PRIVATE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue)
 {
     requirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
+CppSourceTarget &CppSourceTarget::INTERFACE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue)
 {
     usageRequirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
@@ -896,15 +896,15 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, bool recurs
     auto addNewFile = [&](const auto &k) {
         try
         {
-            if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(dir.regex)))
+            if (k.is_regular_file() && regex_match((k.path().filename().*toPStr)(), std::regex(dir.regex)))
             {
                 if (assignToSourceNodes)
                 {
-                    sourceFileDependencies.emplace(this, Node::getNodeFromString(k.path().string(), true));
+                    sourceFileDependencies.emplace(this, Node::getNodeFromPath(k.path(), true));
                 }
                 else
                 {
-                    moduleSourceFileDependencies.emplace(this, Node::getNodeFromString(k.path().string(), true));
+                    moduleSourceFileDependencies.emplace(this, Node::getNodeFromPath(k.path(), true));
                 }
             }
         }
@@ -932,7 +932,7 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, bool recurs
     }
 }
 
-string &CppSourceTarget::getCompileCommand()
+pstring &CppSourceTarget::getCompileCommand()
 {
     if (compileCommand.empty())
     {
@@ -948,19 +948,19 @@ void CppSourceTarget::setCompileCommand()
 
     if (compiler.bTFamily == BTFamily::GCC)
     {
-        // string str = cSourceTarget == CSourceTarget::YES ? "-xc" : "-xc++";
+        // pstring str = cSourceTarget == CSourceTarget::YES ? "-xc" : "-xc++";
         compileCommand +=
             flags.LANG + flags.OPTIONS + flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP + flags.DEFINES_COMPILE_CPP;
     }
     else if (compiler.bTFamily == BTFamily::MSVC)
     {
-        // string str = cSourceTarget == CSourceTarget::YES ? "-TC" : "-TP";
-        string str = "-TP";
+        // pstring str = cSourceTarget == CSourceTarget::YES ? "-TC" : "-TP";
+        pstring str = "-TP";
         compileCommand += str + " " + flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE + flags.OPTIONS_COMPILE +
                           flags.OPTIONS_COMPILE_CPP;
     }
 
-    string translateIncludeFlag = GET_FLAG_EVALUATE(AND(TranslateInclude::YES, BTFamily::MSVC), "/translateInclude ");
+    pstring translateIncludeFlag = GET_FLAG_EVALUATE(AND(TranslateInclude::YES, BTFamily::MSVC), "/translateInclude ");
     compileCommand += translateIncludeFlag;
 
     auto getIncludeFlag = [this]() {
@@ -1003,14 +1003,14 @@ void CppSourceTarget::setCompileCommand()
         ++it;
     }
 
-    set<string> includes;
+    set<pstring> includes;
 
     for (; it != requirementIncludes.end(); ++it)
     {
         includes.emplace(it->node->filePath);
     }
 
-    for (const string &include : includes)
+    for (const pstring &include : includes)
     {
         compileCommand.append(getIncludeFlag() + addQuotes(include) + " ");
     }
@@ -1023,7 +1023,7 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
     if (ccpSettings.tool.printLevel != PathPrintLevel::NO)
     {
         sourceCompileCommandPrintFirstHalf +=
-            getReducedPath(compiler.bTPath.make_preferred().string(), ccpSettings.tool) + " ";
+            getReducedPath((compiler.bTPath.make_preferred().*toPStr)(), ccpSettings.tool) + " ";
     }
 
     if (ccpSettings.infrastructureFlags)
@@ -1094,7 +1094,7 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
     }
 }
 
-string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
+pstring &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
 {
     if (sourceCompileCommandPrintFirstHalf.empty())
     {
@@ -1136,7 +1136,7 @@ void CppSourceTarget::resolveRequirePaths()
         {
             for (const Json &requireJson : *jsonIt)
             {
-                string requireLogicalName = requireJson.at("logical-name").get<string>();
+                pstring requireLogicalName = requireJson.at("logical-name").get<pstring>();
                 if (requireLogicalName == smFile->logicalName)
                 {
                     printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
@@ -1232,11 +1232,11 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
     }
 }
 
-string CppSourceTarget::getInfrastructureFlags(bool showIncludes)
+pstring CppSourceTarget::getInfrastructureFlags(bool showIncludes)
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        string str = GET_FLAG_EVALUATE(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-P");
+        pstring str = GET_FLAG_EVALUATE(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-P");
         str += " /nologo ";
         if (showIncludes)
         {
@@ -1255,11 +1255,11 @@ string CppSourceTarget::getInfrastructureFlags(bool showIncludes)
     return "";
 }
 
-string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourceNode)
+pstring CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourceNode)
 {
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
 
-    string command;
+    pstring command;
     if (ccpSettings.infrastructureFlags)
     {
         command += getInfrastructureFlags(true) + " ";
@@ -1274,18 +1274,19 @@ string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourc
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
-        command += getReducedPath(buildCacheFilesDirPath + path(sourceNode.node->filePath).filename().string() + ".o",
-                                  ccpSettings.objectFile) +
-                   " ";
+        command +=
+            getReducedPath(buildCacheFilesDirPath + (path(sourceNode.node->filePath).filename().*toPStr)() + ".o",
+                           ccpSettings.objectFile) +
+            " ";
     }
     return command;
 }
 
-string CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &smFile)
+pstring CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &smFile)
 {
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
 
-    string command;
+    pstring command;
 
     if (ccpSettings.sourceFile.printLevel != PathPrintLevel::NO)
     {
@@ -1295,15 +1296,16 @@ string CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &smF
     {
         if (compiler.bTFamily == BTFamily::MSVC)
         {
-            string translateIncludeFlag = GET_FLAG_EVALUATE(TranslateInclude::YES, "/translateInclude ");
+            pstring translateIncludeFlag = GET_FLAG_EVALUATE(TranslateInclude::YES, "/translateInclude ");
             command += translateIncludeFlag + " /nologo /showIncludes /scanDependencies ";
         }
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
-        command += getReducedPath(buildCacheFilesDirPath + path(smFile.node->filePath).filename().string() + ".smrules",
-                                  ccpSettings.objectFile) +
-                   " ";
+        command +=
+            getReducedPath(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
+                           ccpSettings.objectFile) +
+            " ";
     }
 
     return command;
@@ -1311,7 +1313,7 @@ string CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &smF
 
 PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
 {
-    string finalCompileCommand = compileCommand;
+    pstring finalCompileCommand = compileCommand;
 
     for (const SMFile *smFileLocal : smFile.allSMFileDependenciesRoundZero)
     {
@@ -1319,18 +1321,18 @@ PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
     }
     finalCompileCommand += getInfrastructureFlags(false) + addQuotes(smFile.node->filePath) + " ";
 
-    finalCompileCommand += smFile.getFlag(buildCacheFilesDirPath + path(smFile.node->filePath).filename().string());
+    finalCompileCommand += smFile.getFlag(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)());
 
     return PostCompile{*this,
                        compiler,
                        finalCompileCommand,
                        getSourceCompileCommandPrintFirstHalf() + smFile.getModuleCompileCommandPrintLastHalf(),
                        buildCacheFilesDirPath,
-                       path(smFile.node->filePath).filename().string(),
+                       (path(smFile.node->filePath).filename().*toPStr)(),
                        settings.ccpSettings.outputAndErrorFiles};
 }
 
-string CppSourceTarget::getExtension()
+pstring CppSourceTarget::getExtension()
 {
     return GET_FLAG_EVALUATE(TargetType::PREPROCESS, ".ii", TargetType::LIBRARY_OBJECT, ".o");
 }
@@ -1342,9 +1344,9 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
     // Use atomic_flag instead
     targetCacheChanged.store(true, std::memory_order_release);
 
-    string compileFileName = path(sourceNode.node->filePath).filename().string();
+    pstring compileFileName = (path(sourceNode.node->filePath).filename().*toPStr)();
 
-    string finalCompileCommand = getCompileCommand() + " ";
+    pstring finalCompileCommand = getCompileCommand() + " ";
 
     finalCompileCommand += getInfrastructureFlags(true) + " " + addQuotes(sourceNode.node->filePath) + " ";
     if (compiler.bTFamily == BTFamily::MSVC)
@@ -1369,13 +1371,13 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError)
 {
     targetCacheChanged.store(true, std::memory_order_release);
-    string finalCompileCommand = getCompileCommand() + addQuotes(smFile.node->filePath) + " ";
+    pstring finalCompileCommand = getCompileCommand() + addQuotes(smFile.node->filePath) + " ";
 
     if (compiler.bTFamily == BTFamily::MSVC)
     {
         finalCompileCommand +=
             " /nologo /showIncludes /scanDependencies " +
-            addQuotes(buildCacheFilesDirPath + path(smFile.node->filePath).filename().string() + ".smrules") + " ";
+            addQuotes(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)() + ".smrules") + " ";
     }
     else
     {
@@ -1385,11 +1387,11 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
 
     return printOnlyOnError
                ? PostCompile(*this, compiler, finalCompileCommand, "", buildCacheFilesDirPath,
-                             path(smFile.node->filePath).filename().string() + ".smrules",
+                             (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
                              settings.ccpSettings.outputAndErrorFiles)
                : PostCompile(*this, compiler, finalCompileCommand,
                              getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPartSMRule(smFile),
-                             buildCacheFilesDirPath, path(smFile.node->filePath).filename().string() + ".smrules",
+                             buildCacheFilesDirPath, (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
                              settings.ccpSettings.outputAndErrorFiles);
 }
 

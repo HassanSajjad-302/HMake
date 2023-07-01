@@ -16,18 +16,18 @@ import <sstream>;
 
 using std::ifstream, fmt::format;
 
-string addQuotes(const string &pathString)
+pstring addQuotes(const pstring &pstr)
 {
-    return "\"" + pathString + "\"";
+    return "\"" + pstr + "\"";
 }
 
-string addEscapedQuotes(const string &pathString)
+pstring addEscapedQuotes(const pstring &pstr)
 {
-    const string str = R"(\")";
-    return str + pathString + str;
+    const pstring q = R"(\")";
+    return q + pstr + q;
 }
 
-string file_to_string(const string &file_name)
+pstring fileToPString(const pstring &file_name)
 {
     ifstream file_stream{file_name};
 
@@ -38,7 +38,7 @@ string file_to_string(const string &file_name)
         throw std::exception();
     }
 
-    std::ostringstream str_stream;
+    opstringstream str_stream;
     file_stream >> str_stream.rdbuf(); // NOT str_stream << file_stream.rdbuf()
 
     if (file_stream.fail() && !file_stream.eof())
@@ -51,13 +51,13 @@ string file_to_string(const string &file_name)
     return str_stream.str();
 }
 
-vector<string> split(string str, const string &token)
+vector<pstring> split(pstring str, const pstring &token)
 {
-    vector<string> result;
+    vector<pstring> result;
     while (!str.empty())
     {
-        std::string::size_type index = str.find(token);
-        if (index != string::npos)
+        pstring::size_type index = str.find(token);
+        if (index != pstring::npos)
         {
             result.emplace_back(str.substr(0, index));
             str = str.substr(index + token.size());

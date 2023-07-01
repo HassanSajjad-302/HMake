@@ -50,12 +50,12 @@ void PrebuiltBasic::populateRequirementAndUsageRequirementDeps()
     }
 }
 
-PrebuiltBasic::PrebuiltBasic(string outputName_) : outputName{std::move(outputName_)}
+PrebuiltBasic::PrebuiltBasic(pstring outputName_) : outputName{std::move(outputName_)}
 {
     preSortBTargets.emplace_back(this);
 }
 
-PrebuiltBasic::PrebuiltBasic(string outputName_, TargetType linkTargetType_)
+PrebuiltBasic::PrebuiltBasic(pstring outputName_, TargetType linkTargetType_)
     : outputName{std::move(outputName_)}, linkTargetType{linkTargetType_}
 {
     preSortBTargets.emplace_back(this);

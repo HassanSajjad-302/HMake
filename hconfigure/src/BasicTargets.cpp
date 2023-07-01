@@ -35,9 +35,9 @@ BTarget::BTarget()
 
 BTarget::~BTarget() = default;
 
-string BTarget::getTarjanNodeName() const
+pstring BTarget::getTarjanNodeName() const
 {
-    return "BTarget " + std::to_string(id);
+    return "BTarget " + to_pstring(id);
 }
 
 mutex btarget_getrealbtarget;
@@ -99,7 +99,7 @@ void CTarget::initializeCTarget()
     }
 }
 
-CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
+CTarget::CTarget(pstring name_, CTarget &container, const bool hasFile_)
     : name{std::move(name_)}, other(&container), hasFile{hasFile_}
 {
     if (!container.hasFile && hasFile_)
@@ -134,8 +134,8 @@ CTarget::CTarget(string name_, CTarget &container, const bool hasFile_)
     }
 }
 
-CTarget::CTarget(string name_)
-    : name(std::move(name_)), targetFileDir(path(configureDir).string() + slash + name + slash)
+CTarget::CTarget(pstring name_)
+    : name(std::move(name_)), targetFileDir((path(configureDir).*toPStr)() + slash + name + slash)
 {
     targetSubDirectories.emplace(getSubDirForTarget());
     initializeCTarget();
@@ -143,7 +143,7 @@ CTarget::CTarget(string name_)
 
 CTarget::~CTarget() = default;
 
-string CTarget::getTargetPointer() const
+pstring CTarget::getTargetPointer() const
 {
     if (other)
     {
@@ -167,7 +167,7 @@ path CTarget::getTargetFilePath() const
     return path(targetFileDir) / path("target.json");
 }
 
-string CTarget::getSubDirForTarget() const
+pstring CTarget::getSubDirForTarget() const
 {
     return other ? (other->getSubDirForTarget() + name + slash) : targetFileDir;
 }
@@ -215,7 +215,7 @@ bool CTarget::getSelectiveBuildChildDir()
     return selectiveBuild;
 }
 
-string CTarget::getTarjanNodeName() const
+pstring CTarget::getTarjanNodeName() const
 {
     return "CTarget " + getSubDirForTarget();
 }
@@ -263,7 +263,7 @@ BTarget *CTarget::getBTarget()
 C_Target *CTarget::get_CAPITarget(BSMode)
 {
     auto *c_cTarget = new C_CTarget();
-    c_cTarget->dir = (new string(getSubDirForTarget()))->c_str();
+    c_cTarget->dir = (new pstring(getSubDirForTarget()))->c_str();
 
     auto *c_Target = new C_Target();
     c_Target->type = C_TargetType::C_CONFIGURE_TARGET_TYPE;

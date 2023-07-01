@@ -94,11 +94,11 @@ enum class AddressModel : char // AddressModel
 void to_json(Json &j, const AddressModel &am);
 void from_json(const Json &j, AddressModel &am);
 
-struct CxxFlags : string
+struct CxxFlags : pstring
 {
 };
 
-struct LinkFlags : string
+struct LinkFlags : pstring
 {
 };
 
@@ -110,11 +110,11 @@ struct TemplateDepth
 
 struct Define
 {
-    string name;
-    string value;
+    pstring name;
+    pstring value;
     Define() = default;
     auto operator<=>(const Define &) const = default;
-    explicit Define(string name_, string value_ = "");
+    explicit Define(pstring name_, pstring value_ = "");
 };
 
 void to_json(Json &j, const Define &cd);
@@ -257,9 +257,9 @@ enum class RuntimeDebugging : bool
 void to_json(Json &json, const OS &osLocal);
 void from_json(const Json &json, OS &osLocal);
 
-string getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const string &targetName);
-string getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const string &actualName);
-string getSlashedExecutableName(const string &name);
+pstring getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const pstring &targetName);
+pstring getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const pstring &actualName);
+pstring getSlashedExecutableName(const pstring &name);
 
 enum class CxxSTD : char
 {
@@ -711,7 +711,7 @@ struct LinkerFeatures
     Threading threading = Threading::MULTI;
 
     list<LibDirNode> requirementLibraryDirectories;
-    string requirementLinkerFlags;
+    pstring requirementLinkerFlags;
     TargetType libraryType;
     LinkerFeatures();
     void setLinkerFromVSTools(struct VSTools &vsTools);
@@ -774,22 +774,23 @@ struct CppCompilerFeatures
     Threading threading = Threading::MULTI;
 
     list<InclNode> requirementIncludes;
-    string requirementCompilerFlags;
+    pstring requirementCompilerFlags;
     set<Define> requirementCompileDefinitions;
     CppCompilerFeatures();
     void setCompilerFromVSTools(VSTools &vsTools);
     void setCompilerFromLinuxTools(struct LinuxTools &linuxTools);
     void setConfigType(ConfigType configType);
-    template <typename... U> CppCompilerFeatures &PRIVATE_INCLUDES(const string &include, U... includeDirectoryString);
+    template <typename... U>
+    CppCompilerFeatures &PRIVATE_INCLUDES(const pstring &include, U... includeDirectoryPString);
 };
 
 template <typename... U>
-CppCompilerFeatures &CppCompilerFeatures::PRIVATE_INCLUDES(const string &include, U... includeDirectoryString)
+CppCompilerFeatures &CppCompilerFeatures::PRIVATE_INCLUDES(const pstring &include, U... includeDirectoryPString)
 {
-    InclNode::emplaceInList(requirementIncludes, Node::getNodeFromString(include, false));
-    if constexpr (sizeof...(includeDirectoryString))
+    InclNode::emplaceInList(requirementIncludes, Node::getNodeFromPath(include, false));
+    if constexpr (sizeof...(includeDirectoryPString))
     {
-        return PRIVATE_INCLUDES(includeDirectoryString...);
+        return PRIVATE_INCLUDES(includeDirectoryPString...);
     }
     else
     {

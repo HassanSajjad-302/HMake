@@ -4,18 +4,18 @@
 #ifdef USE_HEADER_UNITS
 import "Settings.hpp";
 import "BuildSystemFunctions.hpp";
+import "PlatformSpecific.hpp";
 import <set>;
-import <string>;
 import <vector>;
 #else
 #include "BuildSystemFunctions.hpp"
+#include "PlatformSpecific.hpp"
 #include "Settings.hpp"
 #include <set>
-#include <string>
 #include <vector>
 #endif
 
-using std::vector, std::set, std::string, fmt::format;
+using std::vector, std::set;
 
 template <typename T> class TarjanNode
 {

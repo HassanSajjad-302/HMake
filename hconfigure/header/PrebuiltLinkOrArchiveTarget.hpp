@@ -17,12 +17,12 @@ class PrebuiltLinkOrArchiveTarget;
 class PrebuiltLinkOrArchiveTarget : public PrebuiltBasic, public PrebuiltLinkerFeatures
 {
   public:
-    string outputDirectory;
-    string actualOutputName;
-    string usageRequirementLinkerFlags;
+    pstring outputDirectory;
+    pstring actualOutputName;
+    pstring usageRequirementLinkerFlags;
 
-    PrebuiltLinkOrArchiveTarget(const string &outputName_, const string &directory, TargetType linkTargetType_);
-    string getActualOutputPath() const;
+    PrebuiltLinkOrArchiveTarget(const pstring &outputName_, const pstring &directory, TargetType linkTargetType_);
+    pstring getActualOutputPath() const;
 
     template <Dependency dependency, typename T, typename... Property>
     PrebuiltLinkOrArchiveTarget &ASSIGN(T property, Property... properties);

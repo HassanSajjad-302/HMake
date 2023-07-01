@@ -40,10 +40,18 @@ struct Updates
     unsigned short linkTargetsDebug = 0;
 };
 
+struct NodeSnap
+{
+    path nodePath;
+    file_time_type lastUpdateTime;
+    NodeSnap(path nodePath_, file_time_type time_);
+};
+bool operator<(const NodeSnap &lhs, const NodeSnap &rhs);
+
 class Snapshot
 {
-    set<Node> beforeData;
-    set<Node> afterData;
+    set<NodeSnap> beforeData;
+    set<NodeSnap> afterData;
 
   public:
     explicit Snapshot(const path &directoryPath);

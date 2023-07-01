@@ -6,28 +6,26 @@ import "BuildTools.hpp";
 import "Features.hpp";
 #include "nlohmann/json.hpp";
 import <set>;
-import <string>;
 import <vector>;
 #else
 #include "BuildTools.hpp"
 #include "Features.hpp"
 #include "nlohmann/json.hpp"
 #include <set>
-#include <string>
 #include <vector>
 #endif
 
 using std::vector;
 
-using std::string, std::set;
+using std::set;
 using Json = nlohmann::json;
 
 // On Windows standard libraries and includes are not provided by default. And tools used are different based on
 // Architecture and Address-Model.
 struct VSTools
 {
-    string command;
-    string commandArguments;
+    pstring command;
+    pstring commandArguments;
     Compiler compiler;
     Linker linker;
     Archiver archiver;
@@ -35,13 +33,13 @@ struct VSTools
     AddressModel hostAM;
     Arch targetArch;
     AddressModel targetAM;
-    vector<string> includeDirectories;
-    vector<string> libraryDirectories;
-    VSTools(string batchFile, path toolBinDir, Arch hostArch_, AddressModel hostAM_, Arch targetArch_,
+    vector<pstring> includeDirectories;
+    vector<pstring> libraryDirectories;
+    VSTools(pstring batchFile, path toolBinDir, Arch hostArch_, AddressModel hostAM_, Arch targetArch_,
             AddressModel targetAM_, bool executingFromWSL = false);
     VSTools() = default;
     void initializeFromVSToolBatchCommand(bool executingFromWSL = false);
-    void initializeFromVSToolBatchCommand(const string &command, bool executingFromWSL = false);
+    void initializeFromVSToolBatchCommand(const pstring &command, bool executingFromWSL = false);
 };
 void to_json(Json &j, const VSTools &vsTool);
 void from_json(const Json &j, VSTools &vsTool);
@@ -50,9 +48,9 @@ void from_json(const Json &j, VSTools &vsTool);
 // Architecture and Address-Model.
 struct LinuxTools
 {
-    string command;
+    pstring command;
     Compiler compiler;
-    vector<string> includeDirectories;
+    vector<pstring> includeDirectories;
     LinuxTools(Compiler compiler_);
     LinuxTools() = default;
 };

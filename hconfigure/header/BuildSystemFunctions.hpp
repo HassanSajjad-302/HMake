@@ -3,19 +3,19 @@
 #ifdef USE_HEADER_UNITS
 import "OS.hpp";
 import <map>;
-import <set>;
-import <string>;
 import <mutex>;
+import "PlatformSpecific.hpp";
+import <set>;
 #else
 #include "OS.hpp"
+#include "PlatformSpecific.hpp"
 #include "nlohmann/json.hpp"
 #include <map>
 #include <mutex>
 #include <set>
-#include <string>
 #endif
 
-using std::string, std::set, std::map, std::mutex, std::vector;
+using std::set, std::map, std::mutex, std::vector;
 
 #ifdef _WIN32
 #define EXPORT __declspec(dllexport)
@@ -39,10 +39,10 @@ inline std::mutex buildCacheMutex;
 void writeBuildCache();
 void writeBuildCacheUnlocked();
 
-inline string srcDir;
+inline pstring srcDir;
 
 // path of directory which has configure executable of the project
-inline string configureDir;
+inline pstring configureDir;
 
 enum class BSMode : char // Build System Mode
 {
@@ -54,8 +54,8 @@ enum class BSMode : char // Build System Mode
 // By default, mode is configure, however, if, --build cmd option is passed, it is set to BUILD.
 inline BSMode bsMode = BSMode::CONFIGURE;
 
-// Used for determining the CTarget to build in BSMode::BUILD. The string is of buildTargetFilePaths.
-inline set<string> targetSubDirectories;
+// Used for determining the CTarget to build in BSMode::BUILD. The pstring is of buildTargetFilePaths.
+inline set<pstring> targetSubDirectories;
 
 // Following can be used for holding memory through build-system run and is used for target<CTarget> in GetTarget
 // functions
@@ -77,11 +77,11 @@ inline std::mutex printMutex;
 inline vector<struct BTarget *> preSortBTargets;
 void initializeCache(BSMode bsMode_);
 BSMode getBuildSystemModeFromArguments(int argc, char **argv);
-inline const string dashCpp = "-cpp";
-inline const string dashLink = "-link";
+inline const pstring dashCpp = "-cpp";
+inline const pstring dashLink = "-link";
 
-typedef void (*PrintMessage)(const string &message);
-typedef void (*PrintMessageColor)(const string &message, uint32_t color);
+typedef void (*PrintMessage)(const pstring &message);
+typedef void (*PrintMessageColor)(const pstring &message, uint32_t color);
 
 extern "C" inline EXPORT PrintMessage printMessagePointer = nullptr;
 extern "C" inline EXPORT PrintMessageColor printMessageColorPointer = nullptr;
@@ -89,11 +89,11 @@ extern "C" inline EXPORT PrintMessage printErrorMessagePointer = nullptr;
 extern "C" inline EXPORT PrintMessageColor printErrorMessageColorPointer = nullptr;
 
 // Provide these with extern "C" linkage as well so ide/editor could pipe the logging.
-void printDebugMessage(const string &message);
-void printMessage(const string &message);
-void preintMessageColor(const string &message, uint32_t color);
-void printErrorMessage(const string &message);
-void printErrorMessageColor(const string &message, uint32_t color);
+void printDebugMessage(const pstring &message);
+void printMessage(const pstring &message);
+void preintMessageColor(const pstring &message, uint32_t color);
+void printErrorMessage(const pstring &message);
+void printErrorMessageColor(const pstring &message, uint32_t color);
 
 void configureOrBuild();
 

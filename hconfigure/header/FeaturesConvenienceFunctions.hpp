@@ -3,16 +3,14 @@
 #ifdef USE_HEADER_UNITS
 import "ConfigType.hpp";
 import "Dependency.hpp";
+import "PlatformSpecific.hpp";
 import <concepts>;
-import <string>;
 #else
 #include "ConfigType.hpp"
 #include "Dependency.hpp"
+#include "PlatformSpecific.hpp"
 #include <concepts>
-#include <string>
 #endif
-
-using std::string;
 
 // TODO
 // Write a concept that checks for the presence of EVALUATE() and ASSIGN() functions.
@@ -23,11 +21,11 @@ template <typename U> class FeatureConvenienceFunctions
   protected:
     // returns on first positive condition. space is added.
     template <typename T, typename... Argument>
-    string GET_FLAG_EVALUATE(T condition, const string &flags, Argument... arguments) const;
+    pstring GET_FLAG_EVALUATE(T condition, const pstring &flags, Argument... arguments) const;
 
-    // returns cumulated string for trued conditions. spaces are added
+    // returns cumulated pstring for trued conditions. spaces are added
     template <typename T, typename... Argument>
-    string GET_CUMULATED_FLAG_EVALUATE(T condition, const string &flags, Argument... arguments) const;
+    pstring GET_CUMULATED_FLAG_EVALUATE(T condition, const pstring &flags, Argument... arguments) const;
 
   protected:
     // var left = right;
@@ -66,7 +64,8 @@ template <typename U> class FeatureConvenienceFunctions
 
 template <typename U>
 template <typename T, typename... Argument>
-string FeatureConvenienceFunctions<U>::GET_FLAG_EVALUATE(T condition, const string &flags, Argument... arguments) const
+pstring FeatureConvenienceFunctions<U>::GET_FLAG_EVALUATE(T condition, const pstring &flags,
+                                                          Argument... arguments) const
 {
     if (static_cast<const U &>(*this).EVALUATE(condition))
     {
@@ -84,10 +83,10 @@ string FeatureConvenienceFunctions<U>::GET_FLAG_EVALUATE(T condition, const stri
 
 template <typename U>
 template <typename T, typename... Argument>
-string FeatureConvenienceFunctions<U>::GET_CUMULATED_FLAG_EVALUATE(T condition, const std::string &flags,
-                                                                   Argument... arguments) const
+pstring FeatureConvenienceFunctions<U>::GET_CUMULATED_FLAG_EVALUATE(T condition, const pstring &flags,
+                                                                    Argument... arguments) const
 {
-    string str{};
+    pstring str{};
     if (static_cast<const U &>(*this).EVALUATE(condition))
     {
         str = flags;
@@ -213,4 +212,3 @@ U &FeatureConvenienceFunctions<U>::M_RIGHT(T condition, Condition... conditions)
 }
 
 #endif // HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
-

@@ -177,7 +177,7 @@ void from_json(const Json &json, Settings &settings_)
     settings_.gpcSettings = json.at(JConsts::generalPrintSettings).get<GeneralPrintSettings>();
 }
 
-string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
+pstring getReducedPath(const pstring &subjectPath, const PathPrint &pathPrint)
 {
     assert(pathPrint.printLevel != PathPrintLevel::NO &&
            "HMake Internal Error. Function getReducedPath() should not had been "
@@ -188,7 +188,7 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
         return subjectPath;
     }
 
-    auto nthOccurrence = [](const string &str, size_t nth) -> size_t {
+    auto nthOccurrence = [](const pstring &str, size_t nth) -> size_t {
         size_t count = 0;
 
         for (size_t i = 0; i < str.size(); ++i)
@@ -205,16 +205,16 @@ string getReducedPath(const string &subjectPath, const PathPrint &pathPrint)
         return 0;
     };
 
-    auto countCharacter = [](const string &str) -> size_t {
+    auto countCharacter = [](const pstring &str) -> size_t {
         size_t count = 0;
-        for (size_t offset = str.find(slash); offset != string::npos; offset = str.find(slash, offset + 1))
+        for (size_t offset = str.find(slash); offset != pstring::npos; offset = str.find(slash, offset + 1))
         {
             ++count;
         }
         return count;
     };
 
-    string str = subjectPath;
+    pstring str = subjectPath;
     unsigned int finalDepth = pathPrint.depth;
     if (pathPrint.isDirectory)
     {

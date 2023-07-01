@@ -62,7 +62,7 @@ void Cache::registerCacheVariables()
 
 void to_json(Json &j, const Cache &cacheLocal)
 {
-    j[JConsts::sourceDirectory] = cacheLocal.sourceDirectoryPath.string();
+    j[JConsts::sourceDirectory] = (cacheLocal.sourceDirectoryPath.*toPStr)();
     j[JConsts::configuration] = cacheLocal.configurationType;
     j[JConsts::isCompilerInToolsArray] = cacheLocal.isCompilerInToolsArray;
     j[JConsts::compilerSelectedArrayIndex] = cacheLocal.selectedCompilerArrayIndex;
@@ -83,7 +83,7 @@ void from_json(const Json &j, Cache &cacheLocal)
         cacheLocal.sourceDirectoryPath = (configureDir / cacheLocal.sourceDirectoryPath).lexically_normal();
     }
 
-    srcDir = cacheLocal.sourceDirectoryPath.string();
+    srcDir = (cacheLocal.sourceDirectoryPath.*toPStr)();
 
     cacheLocal.configurationType = j.at(JConsts::configuration).get<ConfigType>();
     cacheLocal.isCompilerInToolsArray = j.at(JConsts::isCompilerInToolsArray).get<bool>();
@@ -100,6 +100,6 @@ void from_json(const Json &j, Cache &cacheLocal)
         throw std::exception();
     }
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();
-    cacheLocal.compileConfigureCommands = j.at(JConsts::compileConfigureCommands).get<vector<string>>();
+    cacheLocal.compileConfigureCommands = j.at(JConsts::compileConfigureCommands).get<vector<pstring>>();
 }
 

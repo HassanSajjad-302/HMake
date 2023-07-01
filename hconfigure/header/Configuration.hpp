@@ -4,13 +4,11 @@
 import "BasicTargets.hpp";
 import "ConfigType.hpp";
 import "DSC.hpp";
-import "Features.hpp";
 import <memory>;
 #else
 #include "BasicTargets.hpp"
 #include "ConfigType.hpp"
 #include "DSC.hpp"
-#include "Features.hpp"
 #include <memory>
 #endif
 
@@ -40,45 +38,45 @@ struct Configuration : public CTarget
     TargetType targetType = TargetType::LIBRARY_STATIC;
     bool archiving = false;
 
-    CppSourceTarget &GetCppPreprocess(const string &name_);
-    CppSourceTarget &GetCppObject(const string &name_);
-    PrebuiltBasic &GetPrebuiltBasic(const string &name_);
-    LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(const string &name_);
-    LinkOrArchiveTarget &GetStaticLinkOrArchiveTarget(const string &name_);
-    LinkOrArchiveTarget &GetSharedLinkOrArchiveTarget(const string &name_);
+    CppSourceTarget &GetCppPreprocess(const pstring &name_);
+    CppSourceTarget &GetCppObject(const pstring &name_);
+    PrebuiltBasic &GetPrebuiltBasic(const pstring &name_);
+    LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(const pstring &name_);
+    LinkOrArchiveTarget &GetStaticLinkOrArchiveTarget(const pstring &name_);
+    LinkOrArchiveTarget &GetSharedLinkOrArchiveTarget(const pstring &name_);
 
-    PrebuiltLinkOrArchiveTarget &GetPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory,
+    PrebuiltLinkOrArchiveTarget &GetPrebuiltLinkOrArchiveTarget(const pstring &name_, const pstring &directory,
                                                                 TargetType linkTargetType_);
-    PrebuiltLinkOrArchiveTarget &GetStaticPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
-    PrebuiltLinkOrArchiveTarget &GetSharedPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
+    PrebuiltLinkOrArchiveTarget &GetStaticPrebuiltLinkOrArchiveTarget(const pstring &name_, const pstring &directory);
+    PrebuiltLinkOrArchiveTarget &GetSharedPrebuiltLinkOrArchiveTarget(const pstring &name_, const pstring &directory);
 
     CSourceTarget &GetCPT();
 
-    DSC<CppSourceTarget> &GetCppExeDSC(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &GetCppTargetDSC(const string &name_, TargetType targetType_ = cache.libraryType,
-                                          bool defines = false, string define = "");
-    DSC<CppSourceTarget> &GetCppStaticDSC(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &GetCppSharedDSC(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &GetCppObjectDSC(const string &name_, bool defines = false, string define = "");
+    DSC<CppSourceTarget> &GetCppExeDSC(const pstring &name_, bool defines = false, pstring define = "");
+    DSC<CppSourceTarget> &GetCppTargetDSC(const pstring &name_, TargetType targetType_ = cache.libraryType,
+                                          bool defines = false, pstring define = "");
+    DSC<CppSourceTarget> &GetCppStaticDSC(const pstring &name_, bool defines = false, pstring define = "");
+    DSC<CppSourceTarget> &GetCppSharedDSC(const pstring &name_, bool defines = false, pstring define = "");
+    DSC<CppSourceTarget> &GetCppObjectDSC(const pstring &name_, bool defines = false, pstring define = "");
 
     // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
 
-    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &directory,
+    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name, const pstring &directory,
                                                   TargetType targetType_ = cache.libraryType, bool defines = false,
-                                                  string define = "");
-    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const string &name, const string &prebuiltName,
-                                                  const string &directory, TargetType targetType_ = cache.libraryType,
-                                                  bool defines = false, string define = "");
-    DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const string &name, const string &directory, bool defines = false,
-                                                  string define = "");
+                                                  pstring define = "");
+    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name, const pstring &prebuiltName,
+                                                  const pstring &directory, TargetType targetType_ = cache.libraryType,
+                                                  bool defines = false, pstring define = "");
+    DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const pstring &name, const pstring &directory, bool defines = false,
+                                                  pstring define = "");
 
-    DSC<CppSourceTarget, true> &GetCppSharedDSC_P(const string &name, const string &directory, bool defines = false,
-                                                  string define = "");
+    DSC<CppSourceTarget, true> &GetCppSharedDSC_P(const pstring &name, const pstring &directory, bool defines = false,
+                                                  pstring define = "");
 
     ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;
 
-    explicit Configuration(const string &name_);
-    Configuration(const string &name, CTarget &other, bool hasFile = true);
+    explicit Configuration(const pstring &name_);
+    Configuration(const pstring &name, CTarget &other, bool hasFile = true);
     void markArchivePoint();
     void setJson() override;
     C_Target *get_CAPITarget(BSMode bsModeLocal) override;

@@ -5,7 +5,8 @@ import "DSC.hpp";
 #include "DSC.hpp"
 #endif
 
-template <> DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, string define_)
+template <>
+DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, pstring define_)
 {
     // TODO Remove this later
     if (!ptr || !prebuiltBasic_)

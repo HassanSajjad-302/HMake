@@ -7,13 +7,13 @@ import "Features.hpp";
 #include "Features.hpp"
 #endif
 
-CSourceTarget &CSourceTarget::INTERFACE_COMPILER_FLAGS(const string &compilerFlags)
+CSourceTarget &CSourceTarget::INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags)
 {
     usageRequirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CSourceTarget &CSourceTarget::INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
+CSourceTarget &CSourceTarget::INTERFACE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue)
 {
     usageRequirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;

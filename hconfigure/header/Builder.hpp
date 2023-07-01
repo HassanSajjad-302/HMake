@@ -3,16 +3,14 @@
 #ifdef USE_HEADER_UNITS
 import "CppSourceTarget.hpp";
 import <vector>;
-import <string>;
 import <list>;
 #else
 #include "CppSourceTarget.hpp"
 #include <list>
-#include <string>
 #include <vector>
 #endif
 
-using std::string, std::vector, std::list;
+using std::vector, std::list;
 
 enum class BuilderMode : char
 {

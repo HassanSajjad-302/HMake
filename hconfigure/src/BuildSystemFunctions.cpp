@@ -49,7 +49,7 @@ void initializeCache(BSMode bsMode_)
 
         if (configureExists)
         {
-            configureDir = configurePath.parent_path().string();
+            configureDir = (configurePath.parent_path().*toPStr)();
         }
         else
         {
@@ -59,7 +59,7 @@ void initializeCache(BSMode bsMode_)
     }
     else
     {
-        configureDir = current_path().string();
+        configureDir = (current_path().*toPStr)();
     }
 
     cache.initializeCacheVariableFromCacheFile();
@@ -81,7 +81,7 @@ BSMode getBuildSystemModeFromArguments(int argc, char **argv)
 {
     if (argc > 1)
     {
-        string argument(argv[1]);
+        pstring argument(argv[1]);
         if (argument == "--build")
         {
             bsMode = BSMode::BUILD;
@@ -95,14 +95,14 @@ BSMode getBuildSystemModeFromArguments(int argc, char **argv)
     return bsMode;
 }
 
-void printDebugMessage(const string &message)
+void printDebugMessage(const pstring &message)
 {
 #ifndef NDEBUG
     printMessage(message);
 #endif
 }
 
-void printMessage(const string &message)
+void printMessage(const pstring &message)
 {
     if (printMessagePointer)
     {
@@ -114,7 +114,7 @@ void printMessage(const string &message)
     }
 }
 
-void preintMessageColor(const string &message, uint32_t color)
+void preintMessageColor(const pstring &message, uint32_t color)
 {
     if (printMessageColorPointer)
     {
@@ -126,7 +126,7 @@ void preintMessageColor(const string &message, uint32_t color)
     }
 }
 
-void printErrorMessage(const string &message)
+void printErrorMessage(const pstring &message)
 {
     if (printErrorMessagePointer)
     {
@@ -138,7 +138,7 @@ void printErrorMessage(const string &message)
     }
 }
 
-void printErrorMessageColor(const string &message, uint32_t color)
+void printErrorMessageColor(const pstring &message, uint32_t color)
 {
     if (printErrorMessageColorPointer)
     {
@@ -155,7 +155,7 @@ void actuallyReadTheCache()
     path p = path(configureDir) / "build-cache.json";
     if (exists(p))
     {
-        ifstream(p.string()) >> buildCache;
+        ifstream((p.*toPStr)()) >> buildCache;
     }
 }
 

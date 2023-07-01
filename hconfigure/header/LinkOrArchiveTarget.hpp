@@ -15,30 +15,30 @@ import "PrebuiltLinkOrArchiveTarget.hpp";
 struct LinkerFlags
 {
     // GCC
-    string OPTIONS;
-    string OPTIONS_LINK;
-    string LANG;
-    string RPATH_OPTION_LINK;
-    string FINDLIBS_ST_PFX_LINK;
-    string FINDLIBS_SA_PFX_LINK;
-    string HAVE_SONAME_LINK;
-    string SONAME_OPTION_LINK;
-    string DOT_IMPLIB_COMMAND_LINK_DLL;
+    pstring OPTIONS;
+    pstring OPTIONS_LINK;
+    pstring LANG;
+    pstring RPATH_OPTION_LINK;
+    pstring FINDLIBS_ST_PFX_LINK;
+    pstring FINDLIBS_SA_PFX_LINK;
+    pstring HAVE_SONAME_LINK;
+    pstring SONAME_OPTION_LINK;
+    pstring DOT_IMPLIB_COMMAND_LINK_DLL;
 
     // Following two are directly used instead of being set
-    string RPATH_LINK;
-    string RPATH_LINK_LINK;
+    pstring RPATH_LINK;
+    pstring RPATH_LINK_LINK;
 
     bool isRpathOs = false;
     // MSVC
-    string FINDLIBS_SA_LINK;
-    string DOT_LD_LINK;
-    string DOT_LD_ARCHIVE;
-    string LINKFLAGS_LINK;
-    string PDB_CFLAG;
-    string ASMFLAGS_ASM;
-    string PDB_LINKFLAG;
-    string LINKFLAGS_MSVC;
+    pstring FINDLIBS_SA_LINK;
+    pstring DOT_LD_LINK;
+    pstring DOT_LD_ARCHIVE;
+    pstring LINKFLAGS_LINK;
+    pstring PDB_CFLAG;
+    pstring ASMFLAGS_ASM;
+    pstring PDB_LINKFLAG;
+    pstring LINKFLAGS_MSVC;
 };
 
 using std::shared_ptr;
@@ -51,18 +51,18 @@ class LinkOrArchiveTarget : public CTarget,
 
   public:
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
-    string linkOrArchiveCommandWithoutTargets;
-    string linkOrArchiveCommandWithTargets;
-    string buildCacheFilesDirPath;
+    pstring linkOrArchiveCommandWithoutTargets;
+    pstring linkOrArchiveCommandWithTargets;
+    pstring buildCacheFilesDirPath;
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
 
     Json targetBuildCache;
     bool archiving = false;
     bool archived = false;
 
-    LinkOrArchiveTarget(string name_, TargetType targetType);
-    LinkOrArchiveTarget(string name_, TargetType targetType, class CTarget &other, bool hasFile = true);
-    void setOutputName(string outputName_);
+    LinkOrArchiveTarget(pstring name_, TargetType targetType);
+    LinkOrArchiveTarget(pstring name_, TargetType targetType, class CTarget &other, bool hasFile = true);
+    void setOutputName(pstring outputName_);
     void preSort(Builder &builder, unsigned short round) override;
     void setFileStatus(RealBTarget &realBTarget);
     void updateBTarget(Builder &builder, unsigned short round) override;
@@ -72,11 +72,11 @@ class LinkOrArchiveTarget : public CTarget,
     */
     C_Target *get_CAPITarget(BSMode bsModeLocal) override;
     BTarget *getBTarget() override;
-    string getTarjanNodeName() const override;
+    pstring getTarjanNodeName() const override;
     PostBasic Archive();
     PostBasic Link();
     void setLinkOrArchiveCommands();
-    string getLinkOrArchiveCommandPrint();
+    pstring getLinkOrArchiveCommandPrint();
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     LinkOrArchiveTarget &ASSIGN(T property, Property... properties);
     template <typename T> bool EVALUATE(T property) const;

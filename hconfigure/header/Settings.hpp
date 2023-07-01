@@ -4,16 +4,15 @@
 #ifdef USE_HEADER_UNITS
 import "fmt/color.h";
 #include "nlohmann/json.hpp";
-import <string>;
+import "PlatformSpecific.hpp";
 import <thread>;
 #else
+#include "PlatformSpecific.hpp"
 #include "fmt/color.h"
 #include "nlohmann/json.hpp"
-#include <string>
 #include <thread>
 #endif
 
-using std::string;
 using Json = nlohmann::json;
 
 enum class PathPrintLevel : char
@@ -145,7 +144,7 @@ struct Settings
 
 void to_json(Json &json, const Settings &settings_);
 void from_json(const Json &json, Settings &settings_);
-string getReducedPath(const string &subjectPath, const PathPrint &pathPrint);
+pstring getReducedPath(const pstring &subjectPath, const PathPrint &pathPrint);
 inline Settings settings;
 #endif // HMAKE_SETTINGS_HPP
 

@@ -2,22 +2,20 @@
 #define HMAKE_CACHE_HPP
 #ifdef USE_HEADER_UNITS
 import "ConfigType.hpp";
+import "PlatformSpecific.hpp";
 import "TargetType.hpp";
 #include "nlohmann/json.hpp";
-import <filesystem>;
-import <string>;
 import <vector>;
 #else
 #include "ConfigType.hpp"
+#include "PlatformSpecific.hpp"
 #include "TargetType.hpp"
 #include "nlohmann/json.hpp"
-#include <filesystem>
-#include <string>
 #include <vector>
 #endif
 
 using Json = nlohmann::json;
-using std::string, std::vector, std::filesystem::path;
+using std::vector, std::filesystem::path;
 struct Cache
 {
     Json cacheFileJson;
@@ -34,7 +32,7 @@ struct Cache
     unsigned selectedArchiverArrayIndex;
     enum TargetType libraryType;
     Json cacheVariables;
-    vector<string> compileConfigureCommands;
+    vector<pstring> compileConfigureCommands;
     Cache();
     // TODO
     // In Executable, Library and Variant, the default properties are initialized from Cache. Few Properties inherited
@@ -50,23 +48,23 @@ inline Cache cache;
 template <typename T> struct CacheVariable
 {
     T value;
-    string jsonString;
-    CacheVariable(string cacheVariableString_, T defaultValue);
+    pstring jsonPString;
+    CacheVariable(pstring cacheVariableString_, T defaultValue);
 };
 
 template <typename T>
-CacheVariable<T>::CacheVariable(string cacheVariableString_, T defaultValue)
-    : jsonString(std::move(cacheVariableString_))
+CacheVariable<T>::CacheVariable(pstring cacheVariableString_, T defaultValue)
+    : jsonPString(std::move(cacheVariableString_))
 {
     Json &cacheVariablesJson = cache.cacheVariables;
-    if (cacheVariablesJson.contains(jsonString))
+    if (cacheVariablesJson.contains(jsonPString))
     {
-        value = cacheVariablesJson.at(jsonString).get<T>();
+        value = cacheVariablesJson.at(jsonPString).get<T>();
     }
     else
     {
         value = defaultValue;
-        cacheVariablesJson[jsonString] = value;
+        cacheVariablesJson[jsonPString] = value;
     }
 }
 
