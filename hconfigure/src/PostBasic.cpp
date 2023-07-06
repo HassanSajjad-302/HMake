@@ -82,12 +82,13 @@ void PostBasic::executePrintRoutine(uint32_t color, bool printOnlyOnError) const
         {
             if (!commandSuccessOutput.empty())
             {
-                preintMessageColor(fmt::format("{}", commandSuccessOutput + "\n"), color);
+                preintMessageColor(fmt::format("{}", commandSuccessOutput + "\n"),
+                                   static_cast<int>(fmt::color::light_green));
             }
             if (!commandErrorOutput.empty())
             {
                 printErrorMessageColor(fmt::format("{}", commandErrorOutput + "\n"),
-                                       settings.pcSettings.toolErrorOutput);
+                                       static_cast<int>(fmt::color::light_green));
             }
         }
     }
