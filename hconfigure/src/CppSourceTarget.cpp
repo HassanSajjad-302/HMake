@@ -162,7 +162,7 @@ void CppSourceTarget::registerHUInclNode(const InclNode &inclNode)
     {
         printErrorMessage(fmt::format("For CppSourceTarget: {}\nmarkInclNodeAsHUNode function should be "
                                       "called after calling setModuleScope function\n",
-                                      getSubDirForTarget()));
+                                      targetSubDir));
         throw std::exception();
     }
     if (const auto &[pos, Ok] = moduleScopeData->huDirTarget.try_emplace(&inclNode, this); !Ok)
@@ -171,8 +171,8 @@ void CppSourceTarget::registerHUInclNode(const InclNode &inclNode)
                                            "targets\n{}\n{}\nThis is not allowed "
                                            "because HMake can't determine the CppSourceTarget to associate with the "
                                            "header-units present in this include-directory.\n",
-                                           moduleScope->getSubDirForTarget(), inclNode.node->filePath,
-                                           getTargetPointer(), pos->second->getTargetPointer()),
+                                           moduleScope->targetSubDir, inclNode.node->filePath, getTargetPointer(),
+                                           pos->second->getTargetPointer()),
                                settings.pcSettings.toolErrorOutput);
         throw std::exception();
     }
@@ -702,7 +702,7 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     // override functions.
     if (round == 1)
     {
-        buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files" + slash;
+        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slash;
         readBuildCacheFile(builder);
         // getCompileCommand will be later on called concurrently therefore need to set this before.
         setCompileCommand();
@@ -790,7 +790,7 @@ void CppSourceTarget::writeJsonFile()
 
 pstring CppSourceTarget::getTarjanNodeName() const
 {
-    return "CppSourceTarget " + getSubDirForTarget();
+    return "CppSourceTarget " + targetSubDir;
 }
 
 BTarget *CppSourceTarget::getBTarget()
@@ -1107,7 +1107,7 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
 {
     buildCacheMutex.lock();
 
-    const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
+    const auto &[iter, Ok] = buildCache.emplace(targetSubDir, Json::object_t{});
 
     if (Ok)
     {
@@ -1140,7 +1140,7 @@ void CppSourceTarget::resolveRequirePaths()
                 if (requireLogicalName == smFile->logicalName)
                 {
                     printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                       moduleScope->getSubDirForTarget(), smFile->node->filePath),
+                                                       moduleScope->targetSubDir, smFile->node->filePath),
                                            settings.pcSettings.toolErrorOutput);
                     throw std::exception();
                 }
@@ -1398,7 +1398,7 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
 void CppSourceTarget::saveBuildCache(bool round)
 {
     lock_guard<mutex> lk{buildCacheMutex};
-    buildCache.at(getSubDirForTarget()) = targetBuildCache;
+    buildCache.at(targetSubDir) = targetBuildCache;
 
     if (round)
     {

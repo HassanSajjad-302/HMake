@@ -522,7 +522,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
             printErrorMessageColor(
                 fmt::format(
                     "In Module-Scope:\n{}\nModule:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
-                    target->moduleScope->getSubDirForTarget(), logicalName, node->filePath, val->node->filePath),
+                    target->moduleScope->targetSubDir, logicalName, node->filePath, val->node->filePath),
                 settings.pcSettings.toolErrorOutput);
             decrementTotalSMRuleFileCount(builder);
             throw std::exception();
@@ -557,7 +557,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
     if (requireLogicalName == logicalName)
     {
         printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                           target->moduleScope->getSubDirForTarget(), node->filePath),
+                                           target->moduleScope->targetSubDir, node->filePath),
                                settings.pcSettings.toolErrorOutput);
         decrementTotalSMRuleFileCount(builder);
         throw std::exception();
@@ -712,7 +712,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
                 if (requireLogicalName == logicalName)
                 {
                     printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                       target->moduleScope->getSubDirForTarget(), node->filePath),
+                                                       target->moduleScope->targetSubDir, node->filePath),
                                            settings.pcSettings.toolErrorOutput);
                     decrementTotalSMRuleFileCount(builder);
                     throw std::exception();

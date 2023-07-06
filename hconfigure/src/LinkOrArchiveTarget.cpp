@@ -24,13 +24,13 @@ import <utility>;
 using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard, std::mutex;
 
 LinkOrArchiveTarget::LinkOrArchiveTarget(pstring name_, TargetType targetType)
-    : CTarget(std::move(name_)), PrebuiltLinkOrArchiveTarget(name, getSubDirForTarget(), targetType)
+    : CTarget(std::move(name_)), PrebuiltLinkOrArchiveTarget(name, targetSubDir, targetType)
 {
     linkTargetType = targetType;
 }
 
 LinkOrArchiveTarget::LinkOrArchiveTarget(pstring name_, TargetType targetType, CTarget &other, bool hasFile)
-    : CTarget(std::move(name_), other, hasFile), PrebuiltLinkOrArchiveTarget(name, getSubDirForTarget(), targetType)
+    : CTarget(std::move(name_), other, hasFile), PrebuiltLinkOrArchiveTarget(name, targetSubDir, targetType)
 {
     linkTargetType = targetType;
 }
@@ -45,7 +45,7 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
 {
     if (!round)
     {
-        buildCacheFilesDirPath = getSubDirForTarget() + "Cache_Build_Files" + slash;
+        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slash;
         PrebuiltLinkOrArchiveTarget::preSort(builder, round);
     }
     else if (round == 2)
@@ -89,7 +89,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     // following operation needs to be guarded by the mutex, otherwise all the targetBuildCache access would have been
     // guarded
     buildCacheMutex.lock();
-    const auto &[iter, Ok] = buildCache.emplace(getSubDirForTarget(), Json::object_t{});
+    const auto &[iter, Ok] = buildCache.emplace(targetSubDir, Json::object_t{});
 
     if (Ok)
     {
@@ -261,7 +261,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 targetBuildCache.at(JConsts::objectFiles) = std::move(cachedObjectFilesVector);
 
                 lock_guard<mutex> lk(buildCacheMutex);
-                buildCache.at(getSubDirForTarget()) = targetBuildCache;
+                buildCache.at(targetSubDir) = targetBuildCache;
                 writeBuildCacheUnlocked();
             }
 
@@ -1273,7 +1273,7 @@ pstring LinkOrArchiveTarget::getTarjanNodeName() const
     {
         str = "Executable";
     }
-    return str + " " + getSubDirForTarget();
+    return str + " " + targetSubDir;
 }
 
 bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs)

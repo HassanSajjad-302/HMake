@@ -176,6 +176,8 @@ class CTarget // Configure Target
     // If target has file, this is that file directory. Else, it is the directory of container it is present in.
     pstring targetFileDir;
 
+    pstring targetSubDir;
+
     set<CTarget *, CTargetPointerComparator> elements;
 
     Json json;
@@ -199,7 +201,6 @@ class CTarget // Configure Target
     virtual ~CTarget();
     pstring getTargetPointer() const;
     path getTargetFilePath() const;
-    pstring getSubDirForTarget() const;
     bool getSelectiveBuild();
     bool getSelectiveBuildChildDir();
 

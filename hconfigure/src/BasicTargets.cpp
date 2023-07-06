@@ -97,6 +97,7 @@ void CTarget::initializeCTarget()
             throw std::exception();
         }
     }
+    targetSubDir = other ? (other->targetSubDir + name + slash) : targetFileDir;
 }
 
 CTarget::CTarget(pstring name_, CTarget &container, const bool hasFile_)
@@ -117,8 +118,8 @@ CTarget::CTarget(pstring name_, CTarget &container, const bool hasFile_)
     {
         targetFileDir = container.targetFileDir;
     }
-    targetSubDirectories.emplace(getSubDirForTarget());
     initializeCTarget();
+    targetSubDirectories.emplace(targetSubDir);
     if (bsMode == BSMode::CONFIGURE)
     {
         if (container.elements.emplace(this).second)
@@ -137,8 +138,8 @@ CTarget::CTarget(pstring name_, CTarget &container, const bool hasFile_)
 CTarget::CTarget(pstring name_)
     : name(std::move(name_)), targetFileDir((path(configureDir).*toPStr)() + slash + name + slash)
 {
-    targetSubDirectories.emplace(getSubDirForTarget());
     initializeCTarget();
+    targetSubDirectories.emplace(targetSubDir);
 }
 
 CTarget::~CTarget() = default;
@@ -167,17 +168,12 @@ path CTarget::getTargetFilePath() const
     return path(targetFileDir) / path("target.json");
 }
 
-pstring CTarget::getSubDirForTarget() const
-{
-    return other ? (other->getSubDirForTarget() + name + slash) : targetFileDir;
-}
-
 // selectiveBuild is set for the children if hbuild is executed in parent directory. Uses by the Builder::Builder
 bool CTarget::getSelectiveBuild()
 {
     if (bsMode == BSMode::BUILD && !selectiveBuildSet)
     {
-        path targetPath = getSubDirForTarget();
+        path targetPath = targetSubDir;
         path compare = current_path();
         for (; targetPath.root_path() != targetPath; targetPath = (targetPath / "..").lexically_normal())
         {
@@ -199,7 +195,7 @@ bool CTarget::getSelectiveBuildChildDir()
 {
     if (bsMode == BSMode::BUILD && !selectiveBuildSet)
     {
-        path targetPath = getSubDirForTarget();
+        path targetPath = targetSubDir;
         path compare = current_path();
         for (; compare.root_path() != compare; compare = (compare / "..").lexically_normal())
         {
@@ -217,7 +213,7 @@ bool CTarget::getSelectiveBuildChildDir()
 
 pstring CTarget::getTarjanNodeName() const
 {
-    return "CTarget " + getSubDirForTarget();
+    return "CTarget " + targetSubDir;
 }
 
 void CTarget::setJson()
@@ -238,7 +234,7 @@ void CTarget::writeJsonFile()
     }
     else
     {
-        create_directories(getSubDirForTarget());
+        create_directories(targetSubDir);
         if (!other->json.is_array())
         {
             printErrorMessage(
@@ -263,7 +259,7 @@ BTarget *CTarget::getBTarget()
 C_Target *CTarget::get_CAPITarget(BSMode)
 {
     auto *c_cTarget = new C_CTarget();
-    c_cTarget->dir = (new pstring(getSubDirForTarget()))->c_str();
+    c_cTarget->dir = targetSubDir.c_str();
 
     auto *c_Target = new C_Target();
     c_Target->type = C_TargetType::C_CONFIGURE_TARGET_TYPE;
