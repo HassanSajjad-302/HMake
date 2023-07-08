@@ -34,7 +34,9 @@ inline char slash = '/';
 // File paths could be hashed as-well, if impactful. Other formats besides json could be explored for faster loading and
 // processing.
 using Json = nlohmann::json; // Unordered json
-inline Json buildCache;
+inline PDocument buildCache(kArrayType);
+inline unique_ptr<char[]> buildCacheFileBuffer;
+inline auto &ralloc = buildCache.GetAllocator();
 inline std::mutex buildCacheMutex;
 void writeBuildCache();
 void writeBuildCacheUnlocked();

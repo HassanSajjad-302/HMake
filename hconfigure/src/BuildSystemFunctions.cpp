@@ -22,12 +22,12 @@ using fmt::print, std::filesystem::current_path, std::filesystem::directory_iter
 void writeBuildCache()
 {
     std::lock_guard<std::mutex> lk(buildCacheMutex);
-    ofstream(configureDir + "/build-cache.json") << buildCache.dump(4);
+    prettyWritePValueToFile(pstring_view(configureDir + "/build-cache.json"), buildCache);
 }
 
 void writeBuildCacheUnlocked()
 {
-    ofstream(configureDir + "/build-cache.json") << buildCache.dump(4);
+    prettyWritePValueToFile(pstring_view(configureDir + "/build-cache.json"), buildCache);
 }
 
 void initializeCache(BSMode bsMode_)
@@ -155,7 +155,8 @@ void actuallyReadTheCache()
     path p = path(configureDir) / "build-cache.json";
     if (exists(p))
     {
-        ifstream((p.*toPStr)()) >> buildCache;
+        pstring str = p.string();
+        buildCacheFileBuffer = readPValueFromFile(str.c_str(), buildCache);
     }
 }
 
@@ -170,6 +171,14 @@ void configureOrBuild()
     if (bsMode == BSMode::BUILD)
     {
         actuallyReadTheCache();
+
+        // This ensures that buildCache has the capacity to to have all the new PValue. Currently, these new PValue are
+        // added in readBuildCacheFile function in CppSourceTarget and LinkOrArchiveTarget. Because, the number can't be
+        // more than the following collective size, we can safely take pointer to the PValue. If not taking pointer,
+        // then an extra copy will need to be performed whenever cache is to be saved and having two copies would entail
+        // similar memory usage. Extra size is being reserved because targets might be already present in cache or they
+        // might not and the cache of other targets which aren't to built in this cycle need to be preserved.
+        buildCache.Reserve(buildCache.Size() + preSortBTargets.size(), ralloc);
         Builder{};
     }
     if (bsMode == BSMode::CONFIGURE)

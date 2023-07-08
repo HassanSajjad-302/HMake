@@ -52,11 +52,15 @@ class LinkOrArchiveTarget : public CTarget,
   public:
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     pstring linkOrArchiveCommandWithoutTargets;
+    pstring commandWithoutTargetsWithTool;
     pstring linkOrArchiveCommandWithTargets;
     pstring buildCacheFilesDirPath;
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
 
-    Json targetBuildCache;
+    PValue *targetBuildCache = nullptr;
+
+    size_t buildCacheIndex = UINT64_MAX;
+
     bool archiving = false;
     bool archived = false;
 

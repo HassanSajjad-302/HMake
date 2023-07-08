@@ -12,7 +12,7 @@ import "DS.hpp";
 class ObjectFile : public BTarget
 {
   public:
-    virtual pstring getObjectFileOutputFilePath() const = 0;
+    pstring objectFileOutputFilePath;
     virtual pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
 };
 

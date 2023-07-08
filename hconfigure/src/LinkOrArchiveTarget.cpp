@@ -78,6 +78,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     }
 
     setLinkOrArchiveCommands();
+    commandWithoutTargetsWithTool += (linker.bTPath.*toPStr)() + " " + linkOrArchiveCommandWithoutTargets;
 
     if (!exists(path(buildCacheFilesDirPath)))
     {
@@ -86,24 +87,23 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     }
 
     // No other thread during BTarget::setFileStatusAndPopulateAllDependencies calls saveBuildCache() i.e. only the
-    // following operation needs to be guarded by the mutex, otherwise all the targetBuildCache access would have been
-    // guarded
+    // following operation needs to be guarded by the mutex, otherwise all the buildCache access would have been
+    // guarded. They are not guarded as those operations only modify the cache of this target.
     buildCacheMutex.lock();
-    const auto &[iter, Ok] = buildCache.emplace(targetSubDir, Json::object_t{});
-
-    if (Ok)
+    size_t it = 0;
+    for (; it < buildCache.Size(); ++it)
     {
-        // Following is needed because of selectedBuild. Because of that a target getSubDirOfTarget might be
-        // saved early in the build-process, without its link-command and object-files getting updated. So,
-        // the following scaffold is created, so that the following nlohmann::json::at command will succeed.
-        iter->emplace(JConsts::linkCommand, Json::string_t{});
-        iter->emplace(JConsts::objectFiles, Json::array_t{});
+        if (buildCache[it][0].GetString() == targetSubDir)
+        {
+            buildCacheIndex = it;
+            break;
+        }
+    }
+    if (buildCacheIndex == UINT64_MAX)
+    {
         fileStatus.store(true, std::memory_order_release);
     }
-
     buildCacheMutex.unlock();
-
-    targetBuildCache = iter.operator*();
 
     if (!fileStatus.load(std::memory_order_acquire))
     {
@@ -114,10 +114,9 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         }
         else
         {
-            set<pstring> cachedObjectFiles = targetBuildCache.at(JConsts::objectFiles).get<set<pstring>>();
-
-            if (targetBuildCache.at(JConsts::linkCommand) ==
-                (linker.bTPath.*toPStr)() + " " + linkOrArchiveCommandWithoutTargets)
+            // If linkOrArchiveCommandWithoutTargets could be stored with linker.btPath.*toPStr, so only PValue of
+            // strings is compared instead of new allocation
+            if (buildCache[it][1].GetString() == commandWithoutTargetsWithTool)
             {
                 bool needsUpdate = false;
                 if (!EVALUATE(TargetType::LIBRARY_STATIC))
@@ -126,7 +125,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                     {
                         if (prebuiltBasic->linkTargetType != TargetType::PREBUILT_BASIC)
                         {
-                            PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
+                            auto *prebuiltLinkOrArchiveTarget =
                                 static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                             path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
                             if (Node::getNodeFromPath(depOutputPath, true)->getLastUpdateTime() >
@@ -141,12 +140,21 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
                 for (const ObjectFile *objectFile : objectFiles)
                 {
-                    if (!cachedObjectFiles.contains(objectFile->getObjectFileOutputFilePath()))
+                    bool contains = false;
+                    for (PValue &o : buildCache[it][2].GetArray())
+                    {
+                        if (o == PTOREF(objectFile->objectFileOutputFilePath))
+                        {
+                            contains = true;
+                            break;
+                        }
+                    }
+                    if (!contains)
                     {
                         needsUpdate = true;
                         break;
                     }
-                    if (Node::getNodeFromPath(objectFile->getObjectFileOutputFilePath(), true)->getLastUpdateTime() >
+                    if (Node::getNodeFromPath(objectFile->objectFileOutputFilePath, true)->getLastUpdateTime() >
                         Node::getNodeFromPath(outputPath, true)->getLastUpdateTime())
                     {
                         needsUpdate = true;
@@ -250,18 +258,32 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
             if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
             {
-                vector<pstring> cachedObjectFilesVector;
-                for (const ObjectFile *objectFile : objectFiles)
-                {
-                    cachedObjectFilesVector.emplace_back(objectFile->getObjectFileOutputFilePath());
-                }
-
-                targetBuildCache.at(JConsts::linkCommand) =
-                    (linker.bTPath.*toPStr)() + " " + linkOrArchiveCommandWithoutTargets;
-                targetBuildCache.at(JConsts::objectFiles) = std::move(cachedObjectFilesVector);
+                PValue *objectFilesPValue;
 
                 lock_guard<mutex> lk(buildCacheMutex);
-                buildCache.at(targetSubDir) = targetBuildCache;
+
+                if (buildCacheIndex == UINT64_MAX)
+                {
+                    buildCache.PushBack(PValue(kArrayType).Move(), ralloc);
+                    PValue &t = *(buildCache.End() - 1);
+                    t.PushBack(PTOREF(targetSubDir), ralloc);
+
+                    t.PushBack(PTOREF(commandWithoutTargetsWithTool), ralloc);
+                    t.PushBack(PValue(kArrayType).Move(), ralloc);
+                    objectFilesPValue = t.End() - 1;
+                }
+                else
+                {
+                    buildCache[buildCacheIndex][1].SetString(PTOREF(commandWithoutTargetsWithTool), ralloc);
+                    objectFilesPValue = &(buildCache[buildCacheIndex][2]);
+                    objectFilesPValue->Clear();
+                }
+
+                objectFilesPValue->Reserve(objectFiles.size(), ralloc);
+                for (const ObjectFile *objectFile : objectFiles)
+                {
+                    objectFilesPValue->PushBack(PTOREF((objectFile->objectFileOutputFilePath)), ralloc);
+                }
                 writeBuildCacheUnlocked();
             }
 
@@ -319,19 +341,19 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
 
         // msvc.jam supports multiple tools such as assembler, compiler, mc-compiler(message-catalogue-compiler),
         // idl-compiler(interface-definition-compiler) and manifest-tool. HMake does not support these and  only
-        // supports link.exe, lib.exe and cl.exe. While the msvc.jam also supports older VS and store and phone Windows
-        // API, HMake only supports the recent Visual Studio version and the Desktop API. Besides these limitation,
-        // msvc.jam is tried to be imitated here.
+        // supports link.exe, lib.exe and cl.exe. While the msvc.jam also supports older VS and store and phone
+        // Windows API, HMake only supports the recent Visual Studio version and the Desktop API. Besides these
+        // limitation, msvc.jam is tried to be imitated here.
 
         // Hassan Sajjad
         // I don't have complete confidence about correctness of following info.
 
         // On Line 2220, auto-detect-toolset-versions calls register-configuration. This call version.set with the
         // version and compiler path(obtained from default-path rule). After that, register toolset registers all
-        // generators. And once msvc toolset is init, configure-relly is called that sets the setup script of previously
-        // set .version/configuration. setup-script captures all of environment-variables set when vcvarsall.bat for a
-        // configuration is run in file "msvc-setup.bat" file. This batch file run before the generator actions. This is
-        // .SETUP variable in actions.
+        // generators. And once msvc toolset is init, configure-relly is called that sets the setup script of
+        // previously set .version/configuration. setup-script captures all of environment-variables set when
+        // vcvarsall.bat for a configuration is run in file "msvc-setup.bat" file. This batch file run before the
+        // generator actions. This is .SETUP variable in actions.
 
         // all variables in actions are in CAPITALS
 
@@ -370,9 +392,8 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
                     // The various 64 bit runtime asan support libraries and related flags.
                     flags.FINDLIBS_SA_LINK =
                         GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
-                                          "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64 ");
-                    flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
-                        AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                                          "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64
+           "); flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE( AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                         R"(/wholearchive:"clang_rt.asan_dynamic-x86_64.lib
            /wholearchive:"clang_rt.asan_dynamic_runtime_thunk-x86_64.lib )"); flags.FINDLIBS_SA_LINK +=
                         GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
@@ -382,8 +403,9 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
                         R"(/wholearchive:"clang_rt.asan-x86_64.lib /wholearchive:"clang_rt.asan_cxx-x86_64.lib ")");
                     pstring FINDLIBS_SA_LINK_DLL =
                         GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
-           "clang_rt.asan_dll_thunk-x86_64 "); pstring LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON,
-           RuntimeLink::STATIC), R"(/wholearchive:"clang_rt.asan_dll_thunk-x86_64.lib ")");
+           "clang_rt.asan_dll_thunk-x86_64 "); pstring LINKFLAGS_LINK_DLL =
+           GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+           R"(/wholearchive:"clang_rt.asan_dll_thunk-x86_64.lib ")");
                 }
                 else if (EVALUATE(AddressModel::A_32))
                 {
@@ -402,7 +424,8 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
                         AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                         R"(/wholearchive:"clang_rt.asan-i386.lib /wholearchive:"clang_rt.asan_cxx-i386.lib ")");
                     pstring FINDLIBS_SA_LINK_DLL =
-                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386
+                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+           "clang_rt.asan_dll_thunk-i386
            "); pstring LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
                                                                   R"(/wholearchive:"clang_rt.asan_dll_thunk-i386.lib
            ")");
@@ -633,7 +656,8 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         }
 
         // Sanitizers
-        // Though sanitizer flags for compiler are assigned at different location, and are for c++, but are exact same
+        // Though sanitizer flags for compiler are assigned at different location, and are for c++, but are exact
+        // same
         flags.OPTIONS_LINK += sanitizerFlags;
         flags.OPTIONS_LINK += GET_FLAG_EVALUATE(Coverage::ON, "--coverage ");
 
@@ -893,7 +917,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
 
     for (const ObjectFile *objectFile : objectFiles)
     {
-        linkOrArchiveCommandWithTargets += addQuotes(objectFile->getObjectFileOutputFilePath()) + " ";
+        linkOrArchiveCommandWithTargets += addQuotes(objectFile->objectFileOutputFilePath) + " ";
     }
 
     if (linkTargetType != TargetType::LIBRARY_STATIC)

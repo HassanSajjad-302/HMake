@@ -706,6 +706,7 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
         readBuildCacheFile(builder);
         // getCompileCommand will be later on called concurrently therefore need to set this before.
         setCompileCommand();
+        compileCommandWithTool = (compiler.bTPath.*toPStr)() + " " + compileCommand;
         setSourceCompileCommandPrintFirstHalf();
         parseModuleSourceFiles(builder);
     }
@@ -932,15 +933,6 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, bool recurs
     }
 }
 
-pstring &CppSourceTarget::getCompileCommand()
-{
-    if (compileCommand.empty())
-    {
-        setCompileCommand();
-    }
-    return compileCommand;
-}
-
 void CppSourceTarget::setCompileCommand()
 {
 
@@ -1105,20 +1097,41 @@ pstring &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
 
 void CppSourceTarget::readBuildCacheFile(Builder &)
 {
-    buildCacheMutex.lock();
+    // The search is not mutex-locked because no new value is added in preSort
 
-    const auto &[iter, Ok] = buildCache.emplace(targetSubDir, Json::object_t{});
-
-    if (Ok)
+    size_t it = 0;
+    for (; it < buildCache.Size(); ++it)
     {
-        iter->emplace(JConsts::sourceDependencies, Json::object_t{});
-        iter->emplace(JConsts::moduleDependencies, Json::object_t{});
-        iter->emplace(JConsts::headerUnits, Json::object_t{});
+        if (buildCache[it][0].GetString() == targetSubDir)
+        {
+            buildCacheIndex = it;
+            break;
+        }
     }
 
-    buildCacheMutex.unlock();
+    if (it == buildCache.Size())
+    {
+        targetBuildCache = make_unique<PValue>(PValue(kArrayType));
 
-    targetBuildCache = iter.operator*();
+        // Maybe store pointers to these in CppSourceTarget
+        targetBuildCache->PushBack(PValue(kArrayType).Move(), cppAllocator);
+        (*targetBuildCache)[0].Reserve(sourceFileDependencies.size(), cppAllocator);
+
+        targetBuildCache->PushBack(PValue(kArrayType).Move(), cppAllocator);
+        (*targetBuildCache)[1].Reserve(moduleSourceFileDependencies.size(), cppAllocator);
+    }
+    else
+    {
+        // This copy is created becasue otherwise all access to the SMFile and SourceNode cache pointers in
+        // targetBuildCache would be mutex-locked. Is this copying actually better than mutex-locking or both are same
+        targetBuildCache = make_unique<PValue>(PValue(buildCache[it][1], cppAllocator));
+
+        PValue &sourceValue = (*targetBuildCache)[0];
+        sourceValue.Reserve(sourceValue.Size() + sourceFileDependencies.size(), cppAllocator);
+
+        PValue &moduleValue = (*targetBuildCache)[1];
+        moduleValue.Reserve(moduleValue.Size() + moduleSourceFileDependencies.size(), cppAllocator);
+    }
 
     if (!std::filesystem::exists(path(buildCacheFilesDirPath)))
     {
@@ -1131,12 +1144,16 @@ void CppSourceTarget::resolveRequirePaths()
 {
     for (SMFile *smFile : moduleScopeData->smFiles)
     {
-        Json &rules = smFile->sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
-        if (auto jsonIt = rules.find(JConsts::requires_); jsonIt != rules.end())
+        PValue &rules = smFile->sourceJson->FindMember(PTOREF(JConsts::smrules))
+                            ->value.FindMember(PTOREF(JConsts::rules))
+                            ->value[0];
+        if (auto jsonIt = rules.FindMember(PTOREF(JConsts::requires_)); jsonIt != rules.MemberEnd())
         {
-            for (const Json &requireJson : *jsonIt)
+            for (const PValue &requireJson : jsonIt->value.GetArray())
             {
-                pstring requireLogicalName = requireJson.at("logical-name").get<pstring>();
+                // TODO
+                // Change smFile->logicalName to PValue to efficiently compare it with requireJson PValue
+                pstring requireLogicalName = requireJson.FindMember(PTOREF(JConsts::logicalName))->value.GetString();
                 if (requireLogicalName == smFile->logicalName)
                 {
                     printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
@@ -1144,7 +1161,7 @@ void CppSourceTarget::resolveRequirePaths()
                                            settings.pcSettings.toolErrorOutput);
                     throw std::exception();
                 }
-                if (requireJson.contains("lookup-method"))
+                if (requireJson.HasMember(PTOREF(JConsts::lookupMethod)))
                 {
                     continue;
                 }
@@ -1167,22 +1184,40 @@ void CppSourceTarget::resolveRequirePaths()
 
 void CppSourceTarget::populateSourceNodes()
 {
-    Json &sourceFilesJson = targetBuildCache.at(JConsts::sourceDependencies);
+    PValue &sourceFilesJson = (*targetBuildCache)[0];
 
     for (auto it = sourceFileDependencies.begin(); it != sourceFileDependencies.end();)
     {
         auto &sourceNode = const_cast<SourceNode &>(*it);
 
-        const auto &[pos, Ok] = sourceFilesJson.emplace(sourceNode.node->filePath, Json::object_t{});
-        if (Ok)
-        {
-            Json &sourceJson = pos.value();
-            sourceJson.emplace(JConsts::compileCommand, Json::string_t{});
-            sourceJson.emplace(JConsts::headerDependencies, Json::array_t{});
-        }
-        sourceNode.sourceJson = pos.operator->();
+        sourceNode.objectFileOutputFilePath =
+            buildCacheFilesDirPath + (path(sourceNode.node->filePath).filename().*toPStr)() + ".o";
 
-        sourceNode.setSourceNodeFileStatus(".o", sourceNode.getRealBTarget(0));
+        size_t fileIt = 0;
+        for (; fileIt < sourceFilesJson.Size(); ++fileIt)
+        {
+            if (sourceFilesJson[fileIt][0].GetString() == sourceNode.node->filePath)
+            {
+                break;
+            }
+        }
+
+        if (fileIt != sourceFilesJson.Size())
+        {
+            sourceNode.sourceJson = &(sourceFilesJson[fileIt]);
+        }
+        else
+        {
+            sourceFilesJson.PushBack(PValue(kArrayType), sourceNode.sourceNodeAllocator);
+            PValue &sourceJson = *(sourceFilesJson.End() - 1);
+            sourceNode.sourceJson = &sourceJson;
+
+            sourceJson.PushBack(PTOREF(sourceNode.node->filePath), sourceNode.sourceNodeAllocator);
+            sourceJson.PushBack(PValue(kStringType), sourceNode.sourceNodeAllocator);
+            sourceJson.PushBack(PValue(kArrayType), sourceNode.sourceNodeAllocator);
+        }
+
+        sourceNode.setSourceNodeFileStatus();
         getRealBTarget(0).addDependency(sourceNode);
 
         ++it;
@@ -1191,11 +1226,14 @@ void CppSourceTarget::populateSourceNodes()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
-    Json &moduleFilesJson = targetBuildCache.at(JConsts::moduleDependencies);
+    PValue &moduleFilesJson = (*targetBuildCache)[1];
 
     for (auto it = moduleSourceFileDependencies.begin(); it != moduleSourceFileDependencies.end();)
     {
         auto &smFile = const_cast<SMFile &>(*it);
+
+        smFile.objectFileOutputFilePath =
+            buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)() + ".m.o";
 
         {
             lock_guard<mutex> lk(modulescopedata_smFiles);
@@ -1218,15 +1256,30 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
 
         getRealBTarget(0).addDependency(smFile);
 
-        const auto &[pos, Ok] = moduleFilesJson.emplace(smFile.node->filePath, Json::object_t{});
-        if (Ok)
+        size_t fileIt = 0;
+        for (; fileIt < moduleFilesJson.Size(); ++fileIt)
         {
-            Json &moduleJson = pos.value();
-            moduleJson.emplace(JConsts::compileCommand, Json::string_t{});
-            moduleJson.emplace(JConsts::headerDependencies, Json::array_t{});
-            moduleJson.emplace(JConsts::smrules, Json::object_t{});
+            if (moduleFilesJson[fileIt][0].GetString() == targetSubDir)
+            {
+                break;
+            }
         }
-        smFile.sourceJson = pos.operator->();
+
+        if (fileIt != moduleFilesJson.Size())
+        {
+            smFile.sourceJson = &(moduleFilesJson[fileIt]);
+        }
+        else
+        {
+            moduleFilesJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
+            PValue &moduleJson = *(moduleFilesJson.End() - 1);
+            smFile.sourceJson = &moduleJson;
+
+            moduleJson.PushBack(PValue(PTOREF(smFile.node->filePath)), smFile.sourceNodeAllocator);
+            moduleJson.PushBack(PValue(kStringType), smFile.sourceNodeAllocator);
+            moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
+            moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
+        }
 
         ++it;
     }
@@ -1274,10 +1327,7 @@ pstring CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sour
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
-        command +=
-            getReducedPath(buildCacheFilesDirPath + (path(sourceNode.node->filePath).filename().*toPStr)() + ".o",
-                           ccpSettings.objectFile) +
-            " ";
+        command += getReducedPath(sourceNode.objectFileOutputFilePath, ccpSettings.objectFile) + " ";
     }
     return command;
 }
@@ -1346,7 +1396,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 
     pstring compileFileName = (path(sourceNode.node->filePath).filename().*toPStr)();
 
-    pstring finalCompileCommand = getCompileCommand() + " ";
+    pstring finalCompileCommand = compileCommand + " ";
 
     finalCompileCommand += getInfrastructureFlags(true) + " " + addQuotes(sourceNode.node->filePath) + " ";
     if (compiler.bTFamily == BTFamily::MSVC)
@@ -1371,7 +1421,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError)
 {
     targetCacheChanged.store(true, std::memory_order_release);
-    pstring finalCompileCommand = getCompileCommand() + addQuotes(smFile.node->filePath) + " ";
+    pstring finalCompileCommand = compileCommand + addQuotes(smFile.node->filePath) + " ";
 
     if (compiler.bTFamily == BTFamily::MSVC)
     {
@@ -1398,7 +1448,18 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
 void CppSourceTarget::saveBuildCache(bool round)
 {
     lock_guard<mutex> lk{buildCacheMutex};
-    buildCache.at(targetSubDir) = targetBuildCache;
+
+    if (buildCacheIndex == UINT64_MAX)
+    {
+        buildCache.PushBack(PValue(kArrayType).Move(), ralloc);
+        PValue &t = *(buildCache.End() - 1);
+        t.PushBack(PTOREF(targetSubDir), ralloc);
+        t.PushBack(PValue(*targetBuildCache, ralloc).Move(), ralloc);
+    }
+    else
+    {
+        buildCache[buildCacheIndex][1].CopyFrom(*targetBuildCache, ralloc);
+    }
 
     if (round)
     {

@@ -401,6 +401,9 @@ void Builder::execute()
 
 bool Builder::addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets)
 {
+    // TODO
+    //  At this point, cache from header-units can be moved to central cache after reserving the space in memory. Before
+    //  that, it will be stored in a separate PValue
     {
         std::lock_guard<std::mutex> lk(executeMutex);
         for (CppSourceTarget *target : targets)

@@ -90,7 +90,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     using BaseType = CSourceTarget;
     // Written mutex locked in round 1 updateBTarget
     mutex headerUnitsMutex;
-    Json targetBuildCache;
+    unique_ptr<PValue> targetBuildCache;
     TargetType compileTargetType;
     CppSourceTarget *moduleScope = nullptr;
     ModuleScopeData *moduleScopeData = nullptr;
@@ -100,9 +100,11 @@ class CppSourceTarget : public CppCompilerFeatures,
     pstring targetFilePath;
     pstring buildCacheFilesDirPath;
 
-    // Some State Variables
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
     pstring compileCommand;
+    // Compile Command including tool. Tool is separated from compile command because on Windows, resource-file needs to
+    // be used.
+    pstring compileCommandWithTool;
     pstring sourceCompileCommandPrintFirstHalf;
 
     set<SourceNode, CompareSourceNode> sourceFileDependencies;
@@ -115,7 +117,6 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     set<const SMFile *> headerUnits;
 
-    pstring &getCompileCommand();
     void setCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
     inline pstring &getSourceCompileCommandPrintFirstHalf();
@@ -139,6 +140,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     // requirementIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
 
+    RAPIDJSON_DEFAULT_ALLOCATOR cppAllocator;
+    size_t buildCacheIndex = UINT64_MAX;
     bool archiving = false;
     bool archived = false;
 

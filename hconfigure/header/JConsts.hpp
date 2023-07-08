@@ -51,6 +51,7 @@ struct JConsts
     inline static const pstring standardLibraryDirectories = "standard-library-directories";
     inline static const pstring executable = "executable";
     inline static const pstring family = "family";
+    inline static const string fileName = "fileName";
     inline static const pstring files = "files";
     inline static const pstring gcc = "gcc";
     inline static const pstring generalPrintSettings = "general-print-settings";
@@ -86,6 +87,7 @@ struct JConsts
     inline static const pstring linuxTools = "linux-tools";
     inline static const pstring linuxUnix = "linux-unix";
     inline static const pstring logicalName = "logical-name";
+    inline static const string lookupMethod = "lookup-method";
     inline static const pstring maximumBuildThreads = "maximum-build-threads";
     inline static const pstring maximumLinkThreads = "maximum-link-threads";
     inline static const pstring moduleDependencies = "module-dependencies";
@@ -118,6 +120,7 @@ struct JConsts
     inline static const pstring preprocess = "preprocess";
     inline static const pstring printColorSettings = "print-color-settings";
     inline static const pstring private_ = "private";
+    inline static const pstring provides = "provides";
     inline static const pstring project = "project";
     inline static const pstring projectIncludeDirectories = "project-include-directories";
     inline static const pstring pruneCompiledSourceFileNameFromMsvcOutput =

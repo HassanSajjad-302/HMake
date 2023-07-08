@@ -47,7 +47,8 @@ add_library(hconfigure STATIC
         hconfigure/src/CTargetRoundZeroBTarget.cpp
         hconfigure/src/PrebuiltLinkOrArchiveTarget.cpp
         hconfigure/src/C_API.cpp
-        hconfigure/src/PrebuiltBasic.cpp)
+        hconfigure/src/PrebuiltBasic.cpp
+        hconfigure/src/PlatformSpecific.cpp)
 
 
 if (UNIX)
@@ -58,6 +59,7 @@ endif ()
 target_link_libraries(hconfigure PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
 target_include_directories(hconfigure
         PUBLIC hconfigure/header
+        PUBLIC rapidjson/include
         )
 
 if(UNIX)
@@ -70,6 +72,7 @@ target_link_libraries(htools PRIVATE hconfigure)
 add_executable(hhelper hhelper/src/main.cpp)
 target_link_libraries(hhelper PRIVATE hconfigure)
 target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/json/include/")
+target_compile_definitions(hhelper PRIVATE RAPIDJSON_HEADER="${CMAKE_SOURCE_DIR}/rapidjson/include/")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure>")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure>")
@@ -81,7 +84,7 @@ add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Projects/SFML/hmake.cpp)
+add_executable(HMakeHelper Examples/Example2/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 
@@ -96,7 +99,7 @@ add_executable(Tests Tests/main.cpp
         Tests/StageTests.cpp
         Tests/Snapshot.cpp
         Tests/C_API_Tests.cpp)
-target_link_libraries(Tests PRIVATE gtest gtest_main nlohmann_json::nlohmann_json fmt::fmt)
+target_link_libraries(Tests PRIVATE gtest gtest_main)
 target_include_directories(Tests PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 target_compile_definitions(Tests PRIVATE SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}/")
 target_link_libraries(Tests PRIVATE hconfigure)

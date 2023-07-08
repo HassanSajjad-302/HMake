@@ -103,16 +103,16 @@ struct CompareSourceNode
 
 struct SourceNode : public ObjectFile
 {
-    Json *sourceJson = nullptr;
+    RAPIDJSON_DEFAULT_ALLOCATOR sourceNodeAllocator;
+    PValue *sourceJson = nullptr;
     class CppSourceTarget *target;
     const Node *node;
     bool ignoreHeaderDeps = false;
     SourceNode(CppSourceTarget *target_, Node *node_);
-    pstring getObjectFileOutputFilePath() const override;
     pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     pstring getTarjanNodeName() const override;
     void updateBTarget(Builder &builder, unsigned short round) override;
-    void setSourceNodeFileStatus(const pstring &ex, RealBTarget &realBTarget);
+    void setSourceNodeFileStatus();
 };
 
 void to_json(Json &j, const SourceNode &sourceNode);
@@ -170,7 +170,6 @@ struct SMFile : public SourceNode // Scanned Module Rule
     void initializeNewHeaderUnit(const Json &requireJson, Builder &builder);
     void iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder);
     bool generateSMFileInRoundOne();
-    pstring getObjectFileOutputFilePath() const override;
     pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
     void setFileStatusAndPopulateAllDependencies();

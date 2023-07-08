@@ -139,6 +139,7 @@ bool PostCompile::ignoreHeaderFile(const pstring &str)
     return false;
 }
 
+/*
 void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &output, Json &headerDepsJson)
 {
     vector<pstring> outputLines = split(output, "\n");
@@ -206,8 +207,104 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
     }
     output = std::move(treatedOutput);
 }
+*/
 
-void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, Json &headerDepsJson)
+void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &output, PValue &headerDepsJson)
+{
+    vector<pstring> outputLines = split(output, "\n");
+    pstring includeFileNote = "Note: including file:";
+
+    if (sourceNode.ignoreHeaderDeps)
+    {
+        for (auto iter = outputLines.begin(); iter != outputLines.end();)
+        {
+            if (iter->contains(includeFileNote))
+            {
+                if (settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
+                {
+                    iter = outputLines.erase(iter);
+                }
+            }
+            else
+            {
+                ++iter;
+            }
+        }
+    }
+    else
+    {
+        for (auto iter = outputLines.begin(); iter != outputLines.end();)
+        {
+            if (iter->contains(includeFileNote))
+            {
+                size_t pos = iter->find_first_not_of(includeFileNote);
+                pos = iter->find_first_not_of(" ", pos);
+                iter->erase(iter->begin(), iter->begin() + (int)pos);
+                if (!ignoreHeaderFile(*iter))
+                {
+                    headerDepsJson.PushBack(
+                        PValue((iter->begin()).operator->(), iter->size(), sourceNode.sourceNodeAllocator).Move(),
+                        sourceNode.sourceNodeAllocator);
+                }
+
+                if (settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
+                {
+                    iter = outputLines.erase(iter);
+                }
+            }
+            else
+            {
+                ++iter;
+            }
+        }
+    }
+
+    if (settings.ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput)
+    {
+        if (!outputLines.empty())
+        {
+            outputLines.erase(outputLines.begin());
+        }
+    }
+
+    pstring treatedOutput; // Output With All information of include files removed.
+    for (const auto &i : outputLines)
+    {
+        treatedOutput += i + "\n";
+    }
+    if (!treatedOutput.empty())
+    {
+        treatedOutput.pop_back();
+    }
+    output = std::move(treatedOutput);
+}
+
+void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &headerDepsJson)
+{
+    if (!sourceNode.ignoreHeaderDeps)
+    {
+        pstring headerFileContents = fileToPString(target.buildCacheFilesDirPath +
+                                                   (path(sourceNode.node->filePath).filename().*toPStr)() + ".d");
+        vector<pstring> headerDeps = split(headerFileContents, "\n");
+
+        // First 2 lines are skipped as these are .o and .cpp file.
+        // If the file is preprocessed, it does not generate the extra line
+        auto endIt = headerDeps.end() - (sourceNode.target->compileTargetType == TargetType::LIBRARY_OBJECT ? 1 : 0);
+        for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
+        {
+            size_t pos = iter->find_first_not_of(" ");
+            pstring headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
+            if (!ignoreHeaderFile(headerDep))
+            {
+                headerDepsJson.PushBack(
+                    PValue(headerDep.c_str(), headerDep.size(), sourceNode.sourceNodeAllocator).Move(),
+                    sourceNode.sourceNodeAllocator);
+            }
+        }
+    }
+}
+
+/*void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, Json &headerDepsJson)
 {
     if (!sourceNode.ignoreHeaderDeps)
     {
@@ -228,12 +325,12 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, Json &heade
             }
         }
     }
-}
+}*/
 
 void PostCompile::parseHeaderDeps(SourceNode &sourceNode, unsigned short round)
 {
-    Json &headerDepsJson = sourceNode.sourceJson->at(JConsts::headerDependencies);
-    headerDepsJson.clear();
+    PValue &headerDepsJson = (*sourceNode.sourceJson)[2];
+    headerDepsJson.Clear();
 
     if (target.compiler.bTFamily == BTFamily::MSVC)
     {

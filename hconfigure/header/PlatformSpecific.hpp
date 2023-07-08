@@ -6,13 +6,22 @@
 import "fmt/format.h";
 import <string>;
 import <filesystem>;
+import "rapidjson/document.h";
+import "rapidjson/encodings.h";
+import <fstream>;
 #else
 #include "fmt/format.h"
+#include "rapidjson/document.h"
+#include "rapidjson/encodings.h"
 #include <filesystem>
+#include <fstream>
 #include <string>
 #endif
 
-using fmt::format, std::string, std::filesystem::path, std::wstring;
+using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique;
+
+using rapidjson::UTF8, rapidjson::UTF16, rapidjson::GenericDocument, rapidjson::GenericValue,
+    rapidjson::GenericStringRef, rapidjson::kArrayType, rapidjson::kStringType;
 
 #ifndef _WIN32
 
@@ -35,6 +44,11 @@ template <typename T> wstring to_pstring(T t)
 using opstringstream = std::basic_ostringstream<wchar_t>;
 using pstringstream = std::basic_stringstream<char>;
 
+using PDocument = GenericDocument<UTF16<>>;
+using PValue = GenericValue<UTF16<>>;
+using PStringRef = GenericStringRef<wchar_t>;
+using pstring_view = std::basic_string_view<wchar_t>;
+
 #else
 
 #define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
@@ -49,6 +63,31 @@ template <typename T> string to_pstring(T t)
 using opstringstream = std::ostringstream;
 using pstringstream = std::stringstream;
 
+using PDocument = GenericDocument<UTF8<>>;
+using PValue = GenericValue<UTF8<>>;
+using PStringRef = GenericStringRef<char>;
+using pstring_view = std::basic_string_view<char>;
+
 #endif
+
+// PString to PStringRef
+#define PTOREF(str) PStringRef((str).c_str(), (str).size())
+
+// PString EXPAND
+#define P_EXPAND(str) str.c_str(), (str).size()
+
+// Rapid Helper PlatformSpecific OStream
+struct RHPOStream
+{
+    unique_ptr<std::basic_ofstream<pchar>> of = nullptr;
+    RHPOStream(pstring_view fileName);
+    typedef pchar Ch;
+    void Put(Ch c) const;
+    void Flush();
+};
+
+void prettyWritePValueToFile(pstring_view fileName, PValue &value);
+void writePValueToFile(pstring_view fileName, PValue &value);
+unique_ptr<pchar[]> readPValueFromFile(pstring_view fileName, PDocument &document);
 
 #endif // HMAKE_PLATFORMSPECIFIC_HPP
