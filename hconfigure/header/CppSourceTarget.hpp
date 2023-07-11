@@ -142,6 +142,7 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     RAPIDJSON_DEFAULT_ALLOCATOR cppAllocator;
     size_t buildCacheIndex = UINT64_MAX;
+    size_t newHeaderUnitsSize = 0;
     bool archiving = false;
     bool archived = false;
 

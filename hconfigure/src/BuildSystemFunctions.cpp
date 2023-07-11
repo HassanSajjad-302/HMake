@@ -27,7 +27,7 @@ void writeBuildCache()
 
 void writeBuildCacheUnlocked()
 {
-    prettyWritePValueToFile(pstring_view(configureDir + "/build-cache.json"), buildCache);
+    writePValueToFile(pstring_view(configureDir + "/build-cache.json"), buildCache);
 }
 
 void initializeCache(BSMode bsMode_)

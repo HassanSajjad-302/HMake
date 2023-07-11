@@ -125,6 +125,12 @@ void RHPOStream::Flush()
 
 void prettyWritePValueToFile(const pstring_view fileName, PValue &value)
 {
+    for (PValue &v : value[0][1][2].GetArray())
+    {
+        const char *p = v[0].GetString();
+        const char *q = v[1].GetString();
+        bool b = false;
+    }
     RHPOStream stream(fileName);
     rapidjson::PrettyWriter<RHPOStream, rapidjson::UTF8<>, rapidjson::UTF8<>> writer(stream, nullptr);
     if (!value.Accept(writer))
@@ -170,4 +176,28 @@ unique_ptr<pchar[]> readPValueFromFile(const pstring_view fileName, PDocument &d
     // In situ parsing the buffer into d, buffer will also be modified
     document.ParseInsitu(buffer.get());
     return buffer;
+}
+
+size_t pvalueIndexInArray(const PValue &pvalue, const PValue &element)
+{
+    for (size_t i = 0; i < pvalue.Size(); ++i)
+    {
+        if (element == pvalue[i])
+        {
+            return i;
+        }
+    }
+    return UINT64_MAX;
+}
+
+size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element)
+{
+    for (size_t i = 0; i < pvalue.Size(); ++i)
+    {
+        if (element == pvalue[i][0])
+        {
+            return i;
+        }
+    }
+    return UINT64_MAX;
 }

@@ -243,7 +243,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
                 if (!ignoreHeaderFile(*iter))
                 {
                     headerDepsJson.PushBack(
-                        PValue((iter->begin()).operator->(), iter->size(), sourceNode.sourceNodeAllocator).Move(),
+                        PValue((iter->begin()).operator->(), iter->size(), sourceNode.sourceNodeAllocator),
                         sourceNode.sourceNodeAllocator);
                 }
 
@@ -296,9 +296,8 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &hea
             pstring headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
             if (!ignoreHeaderFile(headerDep))
             {
-                headerDepsJson.PushBack(
-                    PValue(headerDep.c_str(), headerDep.size(), sourceNode.sourceNodeAllocator).Move(),
-                    sourceNode.sourceNodeAllocator);
+                headerDepsJson.PushBack(PValue(headerDep.c_str(), headerDep.size(), sourceNode.sourceNodeAllocator),
+                                        sourceNode.sourceNodeAllocator);
             }
         }
     }

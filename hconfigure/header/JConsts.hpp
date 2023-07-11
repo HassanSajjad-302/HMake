@@ -65,6 +65,7 @@ struct JConsts
     inline static const pstring hostArddressModel = "host-address-model";
     inline static const pstring huIncludeDirectories = "header-unit-include-directories";
     inline static const pstring ifcOutputFile = "ifc-output-file";
+    inline static const pstring includeAngle = "include-angle";
     inline static const pstring includeDirectories = "include-directories";
     inline static const pstring index = "index";
     inline static const pstring infrastructureFlags = "infrastructure-flags";
@@ -141,6 +142,7 @@ struct JConsts
     inline static const pstring sourceDependencies = "source-dependencies";
     inline static const pstring sourceDirectory = "source-directory";
     inline static const pstring sourceFile = "source-file";
+    inline static const pstring sourcePath = "source-path";
     inline static const pstring srcFile = "src-file";
     inline static const pstring static_ = "static";
     inline static const pstring targetAddressModel = "target-address-model";

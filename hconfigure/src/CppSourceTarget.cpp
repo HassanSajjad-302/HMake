@@ -1099,38 +1099,35 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
 {
     // The search is not mutex-locked because no new value is added in preSort
 
-    size_t it = 0;
-    for (; it < buildCache.Size(); ++it)
-    {
-        if (buildCache[it][0].GetString() == targetSubDir)
-        {
-            buildCacheIndex = it;
-            break;
-        }
-    }
+    buildCacheIndex = pvalueIndexInSubArray(buildCache, PValue(PTOREF(targetSubDir)));
 
-    if (it == buildCache.Size())
+    if (buildCacheIndex == UINT64_MAX)
     {
         targetBuildCache = make_unique<PValue>(PValue(kArrayType));
 
         // Maybe store pointers to these in CppSourceTarget
-        targetBuildCache->PushBack(PValue(kArrayType).Move(), cppAllocator);
+        targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
         (*targetBuildCache)[0].Reserve(sourceFileDependencies.size(), cppAllocator);
 
-        targetBuildCache->PushBack(PValue(kArrayType).Move(), cppAllocator);
+        targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
         (*targetBuildCache)[1].Reserve(moduleSourceFileDependencies.size(), cppAllocator);
+
+        // Header-units size can't be known as these are dynamically discovered.
+        targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
     }
     else
     {
         // This copy is created becasue otherwise all access to the SMFile and SourceNode cache pointers in
         // targetBuildCache would be mutex-locked. Is this copying actually better than mutex-locking or both are same
-        targetBuildCache = make_unique<PValue>(PValue(buildCache[it][1], cppAllocator));
+        targetBuildCache = make_unique<PValue>(PValue(buildCache[buildCacheIndex][1], cppAllocator));
 
         PValue &sourceValue = (*targetBuildCache)[0];
         sourceValue.Reserve(sourceValue.Size() + sourceFileDependencies.size(), cppAllocator);
 
         PValue &moduleValue = (*targetBuildCache)[1];
         moduleValue.Reserve(moduleValue.Size() + moduleSourceFileDependencies.size(), cppAllocator);
+
+        // Header-units size can't be known as these are dynamically discovered.
     }
 
     if (!std::filesystem::exists(path(buildCacheFilesDirPath)))
@@ -1144,39 +1141,38 @@ void CppSourceTarget::resolveRequirePaths()
 {
     for (SMFile *smFile : moduleScopeData->smFiles)
     {
-        PValue &rules = smFile->sourceJson->FindMember(PTOREF(JConsts::smrules))
-                            ->value.FindMember(PTOREF(JConsts::rules))
-                            ->value[0];
-        if (auto jsonIt = rules.FindMember(PTOREF(JConsts::requires_)); jsonIt != rules.MemberEnd())
+        PValue &rules = (*(smFile->sourceJson))[3];
+
+        for (const PValue &require : rules[1].GetArray())
         {
-            for (const PValue &requireJson : jsonIt->value.GetArray())
+            // TODO
+            // Change smFile->logicalName to PValue to efficiently compare it with Value PValue
+            if (require[0] == PValue(PTOREF(smFile->logicalName)))
             {
-                // TODO
-                // Change smFile->logicalName to PValue to efficiently compare it with requireJson PValue
-                pstring requireLogicalName = requireJson.FindMember(PTOREF(JConsts::logicalName))->value.GetString();
-                if (requireLogicalName == smFile->logicalName)
-                {
-                    printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                       moduleScope->targetSubDir, smFile->node->filePath),
-                                           settings.pcSettings.toolErrorOutput);
-                    throw std::exception();
-                }
-                if (requireJson.HasMember(PTOREF(JConsts::lookupMethod)))
-                {
-                    continue;
-                }
-                if (auto it = moduleScopeData->requirePaths.find(requireLogicalName);
-                    it == moduleScopeData->requirePaths.end())
-                {
-                    printErrorMessageColor(fmt::format("No File Provides This {}.\n", requireLogicalName),
-                                           settings.pcSettings.toolErrorOutput);
-                    throw std::exception();
-                }
-                else
-                {
-                    SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
-                    smFile->getRealBTarget(0).addDependency(smFileDep);
-                }
+                printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
+                                                   moduleScope->targetSubDir, smFile->node->filePath),
+                                       settings.pcSettings.toolErrorOutput);
+                throw std::exception();
+            }
+
+            // If the rule source-path key is empty, then it is header-unit
+            if (require[1].GetStringLength() != 0)
+            {
+                continue;
+            }
+            if (auto it =
+                    moduleScopeData->requirePaths.find(pstring(require[0].GetString(), require[0].GetStringLength()));
+                it == moduleScopeData->requirePaths.end())
+            {
+                printErrorMessageColor(fmt::format("No File Provides This {}.\n",
+                                                   pstring(require[0].GetString(), require[0].GetStringLength())),
+                                       settings.pcSettings.toolErrorOutput);
+                throw std::exception();
+            }
+            else
+            {
+                SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
+                smFile->getRealBTarget(0).addDependency(smFileDep);
             }
         }
     }
@@ -1193,16 +1189,9 @@ void CppSourceTarget::populateSourceNodes()
         sourceNode.objectFileOutputFilePath =
             buildCacheFilesDirPath + (path(sourceNode.node->filePath).filename().*toPStr)() + ".o";
 
-        size_t fileIt = 0;
-        for (; fileIt < sourceFilesJson.Size(); ++fileIt)
-        {
-            if (sourceFilesJson[fileIt][0].GetString() == sourceNode.node->filePath)
-            {
-                break;
-            }
-        }
+        size_t fileIt = pvalueIndexInSubArray(sourceFilesJson, PValue(PTOREF(sourceNode.node->filePath)));
 
-        if (fileIt != sourceFilesJson.Size())
+        if (fileIt != UINT64_MAX)
         {
             sourceNode.sourceJson = &(sourceFilesJson[fileIt]);
         }
@@ -1256,16 +1245,9 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
 
         getRealBTarget(0).addDependency(smFile);
 
-        size_t fileIt = 0;
-        for (; fileIt < moduleFilesJson.Size(); ++fileIt)
-        {
-            if (moduleFilesJson[fileIt][0].GetString() == targetSubDir)
-            {
-                break;
-            }
-        }
+        size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(PTOREF(smFile.node->filePath)));
 
-        if (fileIt != moduleFilesJson.Size())
+        if (fileIt != UINT64_MAX)
         {
             smFile.sourceJson = &(moduleFilesJson[fileIt]);
         }
@@ -1363,6 +1345,7 @@ pstring CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &sm
 
 PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
 {
+    targetCacheChanged.store(true, std::memory_order_release);
     pstring finalCompileCommand = compileCommand;
 
     for (const SMFile *smFileLocal : smFile.allSMFileDependenciesRoundZero)
@@ -1391,7 +1374,6 @@ mutex cppSourceTargetDotCpp_TempMutex;
 
 PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 {
-    // Use atomic_flag instead
     targetCacheChanged.store(true, std::memory_order_release);
 
     pstring compileFileName = (path(sourceNode.node->filePath).filename().*toPStr)();
@@ -1451,10 +1433,11 @@ void CppSourceTarget::saveBuildCache(bool round)
 
     if (buildCacheIndex == UINT64_MAX)
     {
-        buildCache.PushBack(PValue(kArrayType).Move(), ralloc);
+        buildCache.PushBack(PValue(kArrayType), ralloc);
         PValue &t = *(buildCache.End() - 1);
         t.PushBack(PTOREF(targetSubDir), ralloc);
-        t.PushBack(PValue(*targetBuildCache, ralloc).Move(), ralloc);
+        t.PushBack(PValue(*targetBuildCache, ralloc), ralloc);
+        buildCacheIndex = buildCache.Size() - 1;
     }
     else
     {

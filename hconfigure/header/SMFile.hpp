@@ -155,9 +155,11 @@ struct SMFile : public SourceNode // Scanned Module Rule
     map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
     set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
 
+    unique_ptr<char[]> smRuleFileBuffer;
+    size_t headerUnitsIndex = UINT64_MAX;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
+
     bool angle = false;
-    bool hasProvide = false;
     bool readJsonFromSMRulesFile = false;
 
     // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
@@ -167,7 +169,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     void decrementTotalSMRuleFileCount(Builder &builder);
     void updateBTarget(Builder &builder, unsigned short round) override;
     void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder);
-    void initializeNewHeaderUnit(const Json &requireJson, Builder &builder);
+    void initializeNewHeaderUnit(const PValue &requirePValue, Builder &builder);
     void iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder);
     bool generateSMFileInRoundOne();
     pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;

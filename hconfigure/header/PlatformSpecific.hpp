@@ -89,5 +89,7 @@ struct RHPOStream
 void prettyWritePValueToFile(pstring_view fileName, PValue &value);
 void writePValueToFile(pstring_view fileName, PValue &value);
 unique_ptr<pchar[]> readPValueFromFile(pstring_view fileName, PDocument &document);
+size_t pvalueIndexInArray(const PValue &pvalue, const PValue &element);
+size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
 
 #endif // HMAKE_PLATFORMSPECIFIC_HPP

@@ -45,7 +45,7 @@ Builder::Builder()
 
     updateBTargetsIterator = updateBTargets.begin();
 
-    unsigned int launchThreads = settings.maximumBuildThreads;
+    unsigned int launchThreads = 1;
     numberOfLaunchedThreads = launchThreads;
     while (threads.size() != launchThreads - 1)
     {
@@ -401,7 +401,6 @@ void Builder::execute()
 
 bool Builder::addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets)
 {
-    // TODO
     //  At this point, cache from header-units can be moved to central cache after reserving the space in memory. Before
     //  that, it will be stored in a separate PValue
     {

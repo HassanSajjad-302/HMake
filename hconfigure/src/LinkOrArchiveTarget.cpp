@@ -90,15 +90,8 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     // following operation needs to be guarded by the mutex, otherwise all the buildCache access would have been
     // guarded. They are not guarded as those operations only modify the cache of this target.
     buildCacheMutex.lock();
-    size_t it = 0;
-    for (; it < buildCache.Size(); ++it)
-    {
-        if (buildCache[it][0].GetString() == targetSubDir)
-        {
-            buildCacheIndex = it;
-            break;
-        }
-    }
+    buildCacheIndex = pvalueIndexInSubArray(buildCache, PValue(PTOREF(targetSubDir)));
+
     if (buildCacheIndex == UINT64_MAX)
     {
         fileStatus.store(true, std::memory_order_release);
@@ -116,7 +109,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         {
             // If linkOrArchiveCommandWithoutTargets could be stored with linker.btPath.*toPStr, so only PValue of
             // strings is compared instead of new allocation
-            if (buildCache[it][1].GetString() == commandWithoutTargetsWithTool)
+            if (buildCache[buildCacheIndex][1].GetString() == commandWithoutTargetsWithTool)
             {
                 bool needsUpdate = false;
                 if (!EVALUATE(TargetType::LIBRARY_STATIC))
@@ -141,7 +134,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 for (const ObjectFile *objectFile : objectFiles)
                 {
                     bool contains = false;
-                    for (PValue &o : buildCache[it][2].GetArray())
+                    for (PValue &o : buildCache[buildCacheIndex][2].GetArray())
                     {
                         if (o == PTOREF(objectFile->objectFileOutputFilePath))
                         {
@@ -264,12 +257,13 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
 
                 if (buildCacheIndex == UINT64_MAX)
                 {
-                    buildCache.PushBack(PValue(kArrayType).Move(), ralloc);
+                    buildCache.PushBack(PValue(kArrayType), ralloc);
+                    buildCacheIndex = buildCache.Size() - 1;
                     PValue &t = *(buildCache.End() - 1);
                     t.PushBack(PTOREF(targetSubDir), ralloc);
 
                     t.PushBack(PTOREF(commandWithoutTargetsWithTool), ralloc);
-                    t.PushBack(PValue(kArrayType).Move(), ralloc);
+                    t.PushBack(PValue(kArrayType), ralloc);
                     objectFilesPValue = t.End() - 1;
                 }
                 else

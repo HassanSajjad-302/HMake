@@ -368,7 +368,7 @@ void SourceNode::setSourceNodeFileStatus()
         return;
     }
 
-    for (PValue &str : sourceJson->operator[](2).GetArray())
+    for (PValue &str : (*sourceJson)[2].GetArray())
     {
         Node *headerNode = Node::getNodeFromPath(str.GetString(), true, true);
         if (headerNode->doesNotExist)
@@ -417,6 +417,43 @@ void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
     --target->moduleScopeData->totalSMRuleFileCount;
     if (!target->moduleScopeData->totalSMRuleFileCount)
     {
+        // All header-units are found, so header-units pvalue array size could be reserved
+
+        for (CppSourceTarget *cppTarget : target->moduleScopeData->targets)
+        {
+            // If a new header-unit was added in this run, sourceJson pointers are adjusted
+            if (cppTarget->newHeaderUnitsSize)
+            {
+                PValue &headerUnitsPValueArray = (*(cppTarget->targetBuildCache))[2];
+                headerUnitsPValueArray.Reserve(headerUnitsPValueArray.Size() + cppTarget->newHeaderUnitsSize,
+                                               cppTarget->cppAllocator);
+
+                for (const SMFile *headerUnit : cppTarget->headerUnits)
+                {
+                    if (headerUnit->headerUnitsIndex == UINT64_MAX)
+                    {
+                        // headerUnit did not exist before in the cache
+                        PValue *oldPtr = headerUnit->sourceJson;
+
+                        // old value is moved
+                        headerUnitsPValueArray.PushBack(*(headerUnit->sourceJson), cppTarget->cppAllocator);
+
+                        // old pointer cleared
+                        delete oldPtr;
+
+                        // Reassigning the old value moved in the array
+                        const_cast<SMFile *>(headerUnit)->sourceJson = (headerUnitsPValueArray.End() - 1);
+                    }
+                    else
+                    {
+                        // headerUnit existed before in the cache but because array size is increased the sourceJson
+                        // pointer is invalidated now. Reassigning the pointer based on previous index.
+                        const_cast<SMFile *>(headerUnit)->sourceJson = &(headerUnitsPValueArray[headerUnitsIndex]);
+                    }
+                }
+            }
+        }
+
         // A smrule file was updated. And all module scope smrule files have been checked. Following is done to
         // write the CppSourceTarget .cache files. So, if because of an error during smrule generation of a file,
         // hmake is exiting after round 1, in next invocation, it won't generate the smrule of successfully
@@ -482,8 +519,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
             {
                 // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
                 // cached compile-command would be different
-                sourceJson->FindMember(PTOREF(JConsts::compileCommand))
-                    ->value.SetString(PTOREF(target->compileCommandWithTool));
+                (*sourceJson)[1].SetString(PTOREF(target->compileCommandWithTool));
             }
         }
     }
@@ -494,16 +530,78 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     if (readJsonFromSMRulesFile)
     {
         pstring smFilePath = target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".smrules";
-        // readPValueFromFile(smFilePath.c_str(), sourceJson->FindMember(PTOREF(JConsts::smrules))->value);
+        PDocument d;
+        smRuleFileBuffer = readPValueFromFile(smFilePath, d);
+
+        PValue &rule = d.FindMember(PTOREF(JConsts::rules))->value[0];
+
+        PValue &prunedRules = (*sourceJson)[3];
+        prunedRules.Clear();
+
+        if (auto it = rule.FindMember(PTOREF(JConsts::provides)); it == rule.MemberEnd())
+        {
+            prunedRules.PushBack(PValue(kStringType), sourceNodeAllocator);
+        }
+        else
+        {
+            PValue &logicalNamePValue = it->value[0].FindMember(PValue(PTOREF(JConsts::logicalName)))->value;
+            prunedRules.PushBack(logicalNamePValue, sourceNodeAllocator);
+        }
+
+        prunedRules.PushBack(PValue(kArrayType), sourceNodeAllocator);
+
+        for (auto it = rule.FindMember(PTOREF(JConsts::requires_)); it != rule.MemberEnd(); ++it)
+        {
+            for (PValue &requirePValue : it->value.GetArray())
+            {
+                prunedRules[1].PushBack(PValue(kArrayType), sourceNodeAllocator);
+                PValue &prunedRequirePValue = *(prunedRules[1].End() - 1);
+
+                prunedRequirePValue.PushBack(requirePValue.FindMember(PValue(PTOREF(JConsts::logicalName)))->value,
+                                             sourceNodeAllocator);
+
+                auto sourcePathIt = requirePValue.FindMember(PValue(PTOREF(JConsts::sourcePath)));
+
+                if (sourcePathIt == requirePValue.MemberEnd())
+                {
+                    // If source-path does not exist, then it is header-unit
+                    prunedRequirePValue.PushBack(PValue(kStringType), sourceNodeAllocator);
+                    prunedRequirePValue.PushBack(PValue(false), sourceNodeAllocator);
+                }
+                else
+                {
+                    // First push source-path, then whether it is header-unit, then lookup-method == include-angle
+                    prunedRequirePValue.PushBack(sourcePathIt->value, sourceNodeAllocator);
+
+                    prunedRequirePValue.PushBack(
+                        requirePValue.FindMember(PValue(PTOREF(JConsts::lookupMethod)))->value ==
+                            PValue(PTOREF(JConsts::includeAngle)),
+                        sourceNodeAllocator);
+                }
+
+                /*                bool isHeaderUnit = requirePValue.HasMember(PValue(PTOREF(JConsts::lookupMethod)));
+                                if (isHeaderUnit)
+                                {
+                                    prunedRequirePValue.PushBack(PValue(true), sourceNodeAllocator);
+
+                                    // true is pushed back if the key "lookup-method" == "include-angle"
+                                    prunedRequirePValue.PushBack(
+                                        requirePValue.FindMember(PValue(PTOREF(JConsts::lookupMethod)))->value ==
+                                            PValue(PTOREF(JConsts::includeAngle)),
+                                        sourceNodeAllocator);
+                                }
+                                else
+                                {
+                                    prunedRequirePValue.PushBack(PValue(false), sourceNodeAllocator);
+                                    prunedRequirePValue.PushBack(PValue(false), sourceNodeAllocator);
+                                }*/
+            }
+        }
     }
 
-    PValue &rule = sourceJson->FindMember(PTOREF(JConsts::smrules))->value.FindMember(PTOREF(JConsts::rules))->value[0];
-    if (rule.HasMember(PTOREF(JConsts::provides)))
+    if ((*sourceJson)[3][0].GetStringLength())
     {
-        hasProvide = true;
-        // There can be only one provides but can be multiple requires.
-        // logicalName = rule.at(JConsts::provides).get<Json>()[0].at(JConsts::logicalName).get<pstring>();
-
+        logicalName = pstring((*sourceJson)[3][0].GetString(), (*sourceJson)[3][0].GetStringLength());
         modulescopedata_requirePaths.lock();
         auto [pos, ok] = target->moduleScopeData->requirePaths.try_emplace(logicalName, this);
         modulescopedata_requirePaths.unlock();
@@ -541,12 +639,10 @@ bool pathContainsFile(const path &dir, path file)
     // has more directory components afterward. They won't be checked.
     return std::equal(dir.begin(), dir.end(), file.begin());
 }
-
-void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
+void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &builder)
 {
     ModuleScopeData *moduleScopeData = target->moduleScopeData;
-    pstring requireLogicalName = requireJson.at(JConsts::logicalName).get<pstring>();
-    if (requireLogicalName == logicalName)
+    if (requirePValue[0] == PValue(PTOREF(logicalName)))
     {
         printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
                                            target->moduleScope->targetSubDir, node->filePath),
@@ -555,7 +651,7 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         throw std::exception();
     }
 
-    Node *headerUnitNode = Node::getNodeFromPath(requireJson.at("source-path").get<pstring>(), true);
+    Node *headerUnitNode = Node::getNodeFromPath(requirePValue[1].GetString(), true);
 
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
@@ -637,23 +733,31 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
         }
 
         auto &headerUnit = const_cast<SMFile &>(*headerUnitIt);
+        headerUnit.objectFileOutputFilePath =
+            huDirTarget->buildCacheFilesDirPath + (path(headerUnit.node->filePath).filename().*toPStr)() + ".m.o";
 
         if (nodeDir->ignoreHeaderDeps)
         {
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }
 
-        /*        Json &headerUnitsJson = huDirTarget->targetBuildCache.at(JConsts::headerUnits);
+        headerUnitsIndex =
+            pvalueIndexInSubArray((*(huDirTarget->targetBuildCache))[2], PValue(PTOREF(headerUnit.node->filePath)));
 
-                const auto &[pos, Ok] = headerUnitsJson.emplace(headerUnit.node->filePath, Json::object_t{});
-                if (Ok)
-                {
-                    Json &moduleJson = pos.value();
-                    moduleJson.emplace(JConsts::compileCommand, Json::string_t{});
-                    moduleJson.emplace(JConsts::headerDependencies, Json::array_t{});
-                    moduleJson.emplace(JConsts::smrules, Json::object_t{});
-                }
-                headerUnit.sourceJson = pos.operator->();*/
+        if (headerUnitsIndex != UINT64_MAX)
+        {
+            headerUnit.sourceJson = &((*(huDirTarget->targetBuildCache))[2][headerUnitsIndex]);
+        }
+        else
+        {
+            headerUnit.sourceJson = new PValue(kArrayType);
+            ++(huDirTarget->newHeaderUnitsSize);
+
+            headerUnit.sourceJson->PushBack(PTOREF(headerUnit.node->filePath), headerUnit.sourceNodeAllocator);
+            headerUnit.sourceJson->PushBack(PValue(kStringType), headerUnit.sourceNodeAllocator);
+            headerUnit.sourceJson->PushBack(PValue(kArrayType), headerUnit.sourceNodeAllocator);
+            headerUnit.sourceJson->PushBack(PValue(kArrayType), headerUnit.sourceNodeAllocator);
+        }
 
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
         {
@@ -671,80 +775,84 @@ void SMFile::initializeNewHeaderUnit(const Json &requireJson, Builder &builder)
 
     auto &headerUnit = const_cast<SMFile &>(*headerUnitIt);
 
-    headerUnitsConsumptionMethods[&headerUnit].emplace(
-        requireJson.at(JConsts::lookupMethod).get<pstring>() == "include-angle", requireLogicalName);
+    // Should be true if JConsts::lookupMetho == "include-angle";
+    headerUnitsConsumptionMethods[&headerUnit].emplace(requirePValue[2].GetBool(), requirePValue[0].GetString());
     getRealBTarget(0).addDependency(headerUnit);
 }
 
 void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 {
-    /*    if (type == SM_FILE_TYPE::HEADER_UNIT)
+    auto checkForColon = [](const PValue &value) {
+        pstring_view str(value.GetString(), value.GetStringLength());
+        return str.contains(':');
+    };
+
+    if (type == SM_FILE_TYPE::HEADER_UNIT)
+    {
+        // Json &rules = sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
+        for (PValue &requirePValue : (*sourceJson)[3][1].GetArray())
         {
-            Json &rules = sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
-            if (auto it = rules.find(JConsts::requires_); it != rules.end())
-            {
-                for (const Json &requireJson : *it)
-                {
-                    initializeNewHeaderUnit(requireJson, builder);
-                }
-            }
+            initializeNewHeaderUnit(requirePValue, builder);
         }
-        else
+    }
+    else
+    {
+        // If following remains false then source is GlobalModuleFragment.
+        bool hasLogicalNameRequireDependency = false;
+        // If following is true then smFile is PartitionImplementation.
+        bool hasPartitionExportDependency = false;
+
+        for (PValue &requirePValue : (*sourceJson)[3][1].GetArray())
         {
-            // If following remains false then source is GlobalModuleFragment.
-            bool hasLogicalNameRequireDependency = false;
-            // If following is true then smFile is PartitionImplementation.
-            bool hasPartitionExportDependency = false;
-            Json &rules = sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
-            if (auto it = rules.find(JConsts::requires_); it != rules.end())
+            int b = requirePValue.GetType();
+            int a = requirePValue[0].GetType();
+            if (requirePValue[0] == PValue(PTOREF(logicalName)))
             {
-                for (const Json &requireJson : *it)
-                {
-                    pstring requireLogicalName = requireJson.at(JConsts::logicalName).get<pstring>();
-                    if (requireLogicalName == logicalName)
-                    {
-                        printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                           target->moduleScope->targetSubDir, node->filePath),
-                                               settings.pcSettings.toolErrorOutput);
-                        decrementTotalSMRuleFileCount(builder);
-                        throw std::exception();
-                    }
-                    if (requireJson.contains(JConsts::lookupMethod))
-                    {
-                        initializeNewHeaderUnit(requireJson, builder);
-                    }
-                    else
-                    {
-                        hasLogicalNameRequireDependency = true;
-                        if (requireLogicalName.contains(':'))
-                        {
-                            hasPartitionExportDependency = true;
-                        }
-                    }
-                }
+                printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
+                                                   target->moduleScope->targetSubDir, node->filePath),
+                                       settings.pcSettings.toolErrorOutput);
+                decrementTotalSMRuleFileCount(builder);
+                throw std::exception();
             }
-            if (hasProvide)
+
+            // It is header-unit if the rule had source-path key
+            if (requirePValue[1].GetStringLength())
             {
-                type = logicalName.contains(':') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
+                initializeNewHeaderUnit(requirePValue, builder);
             }
             else
             {
-                if (hasLogicalNameRequireDependency)
+                hasLogicalNameRequireDependency = true;
+                if (checkForColon(requirePValue[0]))
                 {
-                    type = hasPartitionExportDependency ? SM_FILE_TYPE::PARTITION_IMPLEMENTATION
-                                                        : SM_FILE_TYPE::PRIMARY_IMPLEMENTATION;
-                }
-                else
-                {
-                    type = SM_FILE_TYPE::GLOBAL_MODULE_FRAGMENT;
+                    hasPartitionExportDependency = true;
                 }
             }
-        }*/
+        }
+
+        // Value of provides rule key logical-name
+        if ((*sourceJson)[3][0].GetStringLength())
+        {
+            type = logicalName.contains(':') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
+        }
+        else
+        {
+            if (hasLogicalNameRequireDependency)
+            {
+                type = hasPartitionExportDependency ? SM_FILE_TYPE::PARTITION_IMPLEMENTATION
+                                                    : SM_FILE_TYPE::PRIMARY_IMPLEMENTATION;
+            }
+            else
+            {
+                type = SM_FILE_TYPE::GLOBAL_MODULE_FRAGMENT;
+            }
+        }
+    }
 }
 
 bool SMFile::generateSMFileInRoundOne()
 {
-    /*if (sourceJson->at(JConsts::compileCommand) != target->compileCommandWithTool)
+    if ((*sourceJson)[1] != PValue(PTOREF(target->compileCommandWithTool)))
     {
         readJsonFromSMRulesFile = true;
         // This is the only access in round 1. Maybe change to relaxed
@@ -753,8 +861,7 @@ bool SMFile::generateSMFileInRoundOne()
     }
 
     bool needsUpdate = false;
-    Node *objectFileNode = Node::getNodeFromPath(
-        objectFileOutputFilePath, true, true);
+    Node *objectFileNode = Node::getNodeFromPath(objectFileOutputFilePath, true, true);
 
     if (objectFileNode->doesNotExist)
     {
@@ -768,9 +875,9 @@ bool SMFile::generateSMFileInRoundOne()
         }
         else
         {
-            for (const Json &str : sourceJson->at(JConsts::headerDependencies))
+            for (const PValue &value : (*sourceJson)[2].GetArray())
             {
-                Node *headerNode = Node::getNodeFromPath(str, true, true);
+                Node *headerNode = Node::getNodeFromPath(value.GetString(), true, true);
                 if (headerNode->doesNotExist)
                 {
                     needsUpdate = true;
@@ -812,9 +919,9 @@ bool SMFile::generateSMFileInRoundOne()
             }
             else
             {
-                for (const Json &str : sourceJson->at(JConsts::headerDependencies))
+                for (const PValue &value : (*sourceJson)[2].GetArray())
                 {
-                    Node *headerNode = Node::getNodeFromPath(str, true, true);
+                    Node *headerNode = Node::getNodeFromPath(value.GetString(), true, true);
                     if (headerNode->doesNotExist)
                     {
                         return true;
@@ -827,7 +934,7 @@ bool SMFile::generateSMFileInRoundOne()
                 }
             }
         }
-    }*/
+    }
     return false;
 }
 
@@ -844,8 +951,6 @@ BTargetType SMFile::getBTargetType() const
 
 void SMFile::setFileStatusAndPopulateAllDependencies()
 {
-    path objectFilePath;
-
     auto emplaceInAll = [&](SMFile *smFile) {
         if (const auto &[pos, Ok] = allSMFileDependenciesRoundZero.emplace(smFile); Ok)
         {
@@ -860,7 +965,7 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
 
             if (!fileStatus.load(std::memory_order_acquire))
             {
-                Node *objectFileNode = Node::getNodeFromPath(objectFilePath, true);
+                Node *objectFileNode = Node::getNodeFromPath(objectFileOutputFilePath, true);
 
                 pstring depFileName = (path(smFile->node->filePath).filename().*toPStr)();
                 Node *depObjectFileNode = Node::getNodeFromPath(smFile->objectFileOutputFilePath, true, true);
