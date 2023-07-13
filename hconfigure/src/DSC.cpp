@@ -8,13 +8,6 @@ import "DSC.hpp";
 template <>
 DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, pstring define_)
 {
-    // TODO Remove this later
-    if (!ptr || !prebuiltBasic_)
-    {
-        printErrorMessage("Error in Specialized DSC constructor. One is nullptr\n");
-        throw std::exception{};
-    }
-
     objectFileProducer = ptr;
     prebuiltBasic = prebuiltBasic_;
     if (prebuiltBasic_)

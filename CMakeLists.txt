@@ -48,7 +48,8 @@ add_library(hconfigure STATIC
         hconfigure/src/PrebuiltLinkOrArchiveTarget.cpp
         hconfigure/src/C_API.cpp
         hconfigure/src/PrebuiltBasic.cpp
-        hconfigure/src/PlatformSpecific.cpp)
+        hconfigure/src/PlatformSpecific.cpp
+        hconfigure/src/Node.cpp)
 
 
 if (UNIX)
@@ -84,7 +85,7 @@ add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Examples/Example2/hmake.cpp)
+add_executable(HMakeHelper Projects/SFML/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 

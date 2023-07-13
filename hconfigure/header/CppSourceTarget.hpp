@@ -208,7 +208,7 @@ bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(const pstring &include, U... includeDirectoryPString)
 {
-    Node *node = Node::getNodeFromPath(include, false);
+    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     InclNode::emplaceInList(requirementIncludes, node);
     InclNode::emplaceInList(usageRequirementIncludes, node);
     if constexpr (sizeof...(includeDirectoryPString))
@@ -224,7 +224,7 @@ CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(const pstring &include, U... i
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PRIVATE_INCLUDES(const pstring &include, U... includeDirectoryPString)
 {
-    InclNode::emplaceInList(requirementIncludes, Node::getNodeFromPath(include, false));
+    InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
     if constexpr (sizeof...(includeDirectoryPString))
     {
         return PRIVATE_INCLUDES(includeDirectoryPString...);
@@ -238,7 +238,7 @@ CppSourceTarget &CppSourceTarget::PRIVATE_INCLUDES(const pstring &include, U... 
 template <typename... U>
 CppSourceTarget &CppSourceTarget::INTERFACE_INCLUDES(const pstring &include, U... includeDirectoryPString)
 {
-    InclNode::emplaceInList(usageRequirementIncludes, Node::getNodeFromPath(include, false));
+    InclNode::emplaceInList(usageRequirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
     if constexpr (sizeof...(includeDirectoryPString))
     {
         return INTERFACE_INCLUDES(includeDirectoryPString...);
@@ -252,7 +252,7 @@ CppSourceTarget &CppSourceTarget::INTERFACE_INCLUDES(const pstring &include, U..
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const pstring &include, U... includeDirectoryPString)
 {
-    Node *node = Node::getNodeFromPath(include, false);
+    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     InclNode::emplaceInList(usageRequirementIncludes, node);
     if (bool added = InclNode::emplaceInList(requirementIncludes, node); added)
     {
@@ -272,7 +272,8 @@ CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const pstring &include, U..
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const pstring &include, U... includeDirectoryPString)
 {
-    if (bool added = InclNode::emplaceInList(requirementIncludes, Node::getNodeFromPath(include, false)); added)
+    if (bool added = InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
+        added)
     {
         registerHUInclNode(requirementIncludes.back());
     }
@@ -289,7 +290,7 @@ CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const pstring &include, U.
 template <typename... U>
 CppSourceTarget &CppSourceTarget::HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString)
 {
-    registerHUInclNode(targets<InclNode>.emplace(Node::getNodeFromPath(include, false)).first.operator*());
+    registerHUInclNode(targets<InclNode>.emplace(Node::getNodeFromNonNormalizedPath(include, false)).first.operator*());
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
@@ -303,7 +304,7 @@ CppSourceTarget &CppSourceTarget::HU_DIRECTORIES(const pstring &include, U... in
 
 template <typename... U> CppSourceTarget &CppSourceTarget::SOURCE_FILES(const pstring &srcFile, U... sourceFilePString)
 {
-    sourceFileDependencies.emplace(this, const_cast<Node *>(Node::getNodeFromPath(srcFile, true)));
+    sourceFileDependencies.emplace(this, const_cast<Node *>(Node::getNodeFromNonNormalizedPath(srcFile, true)));
     if constexpr (sizeof...(sourceFilePString))
     {
         return SOURCE_FILES(sourceFilePString...);
@@ -322,7 +323,8 @@ template <typename... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(const ps
     }
     else
     {
-        moduleSourceFileDependencies.emplace(this, const_cast<Node *>(Node::getNodeFromPath(modFile, true)));
+        moduleSourceFileDependencies.emplace(this,
+                                             const_cast<Node *>(Node::getNodeFromNonNormalizedPath(modFile, true)));
         if constexpr (sizeof...(moduleFilePString))
         {
             return MODULE_FILES(moduleFilePString...);

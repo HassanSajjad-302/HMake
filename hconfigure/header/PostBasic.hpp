@@ -39,7 +39,7 @@ struct PostCompile : PostBasic
                          pstring printCommandFirstHalf, const pstring &buildCacheFilesDirPath, const pstring &fileName,
                          const PathPrint &pathPrint);
 
-    bool ignoreHeaderFile(const pstring &str);
+    bool ignoreHeaderFile(pstring_view str);
     void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, pstring &output, PValue &headerDepsJson);
     void parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &headerDepsJson);
     void parseHeaderDeps(SourceNode &sourceNode, unsigned short round);

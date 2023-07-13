@@ -114,7 +114,7 @@ PostCompile::PostCompile(const CppSourceTarget &target_, const BuildTool &buildT
 {
 }
 
-bool PostCompile::ignoreHeaderFile(const pstring &str)
+bool PostCompile::ignoreHeaderFile(pstring_view str)
 {
     //  Premature Optimization Hahacd
     // TODO:
@@ -138,76 +138,6 @@ bool PostCompile::ignoreHeaderFile(const pstring &str)
     }
     return false;
 }
-
-/*
-void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &output, Json &headerDepsJson)
-{
-    vector<pstring> outputLines = split(output, "\n");
-    pstring includeFileNote = "Note: including file:";
-
-    if (sourceNode.ignoreHeaderDeps)
-    {
-        for (auto iter = outputLines.begin(); iter != outputLines.end();)
-        {
-            if (iter->contains(includeFileNote))
-            {
-                if (settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
-                {
-                    iter = outputLines.erase(iter);
-                }
-            }
-            else
-            {
-                ++iter;
-            }
-        }
-    }
-    else
-    {
-        for (auto iter = outputLines.begin(); iter != outputLines.end();)
-        {
-            if (iter->contains(includeFileNote))
-            {
-                size_t pos = iter->find_first_not_of(includeFileNote);
-                pos = iter->find_first_not_of(" ", pos);
-                iter->erase(iter->begin(), iter->begin() + (int)pos);
-                if (!ignoreHeaderFile(*iter))
-                {
-                    headerDepsJson.emplace_back(*iter);
-                }
-
-                if (settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
-                {
-                    iter = outputLines.erase(iter);
-                }
-            }
-            else
-            {
-                ++iter;
-            }
-        }
-    }
-
-    if (settings.ccpSettings.pruneCompiledSourceFileNameFromMSVCOutput)
-    {
-        if (!outputLines.empty())
-        {
-            outputLines.erase(outputLines.begin());
-        }
-    }
-
-    pstring treatedOutput; // Output With All information of include files removed.
-    for (const auto &i : outputLines)
-    {
-        treatedOutput += i + "\n";
-    }
-    if (!treatedOutput.empty())
-    {
-        treatedOutput.pop_back();
-    }
-    output = std::move(treatedOutput);
-}
-*/
 
 void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &output, PValue &headerDepsJson)
 {
@@ -239,11 +169,18 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
             {
                 size_t pos = iter->find_first_not_of(includeFileNote);
                 pos = iter->find_first_not_of(" ", pos);
-                iter->erase(iter->begin(), iter->begin() + (int)pos);
-                if (!ignoreHeaderFile(*iter))
+
+                // TODO
+                // If compile-command is all lower-cased, then this might not be needed
+                if (!ignoreHeaderFile(pstring_view(iter->begin() + (int)pos, iter->end())))
                 {
+                    for (auto it = iter->begin() + (int)pos; it != iter->end(); ++it)
+                    {
+                        *it = tolower(*it);
+                    }
+
                     headerDepsJson.PushBack(
-                        PValue((iter->begin()).operator->(), iter->size(), sourceNode.sourceNodeAllocator),
+                        PValue(PStringRef(iter->c_str() + pos, iter->size()), sourceNode.sourceNodeAllocator),
                         sourceNode.sourceNodeAllocator);
                 }
 
@@ -302,29 +239,6 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &hea
         }
     }
 }
-
-/*void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, Json &headerDepsJson)
-{
-    if (!sourceNode.ignoreHeaderDeps)
-    {
-        pstring headerFileContents = fileToPString(target.buildCacheFilesDirPath +
-                                                   (path(sourceNode.node->filePath).filename().*toPStr)() + ".d");
-        vector<pstring> headerDeps = split(headerFileContents, "\n");
-
-        // First 2 lines are skipped as these are .o and .cpp file.
-        // If the file is preprocessed, it does not generate the extra line
-        auto endIt = headerDeps.end() - (sourceNode.target->compileTargetType == TargetType::LIBRARY_OBJECT ? 1 : 0);
-        for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
-        {
-            size_t pos = iter->find_first_not_of(" ");
-            pstring headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
-            if (!ignoreHeaderFile(headerDep))
-            {
-                headerDepsJson.emplace_back(headerDep);
-            }
-        }
-    }
-}*/
 
 void PostCompile::parseHeaderDeps(SourceNode &sourceNode, unsigned short round)
 {

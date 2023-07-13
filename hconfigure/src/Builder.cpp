@@ -45,7 +45,7 @@ Builder::Builder()
 
     updateBTargetsIterator = updateBTargets.begin();
 
-    unsigned int launchThreads = 1;
+    unsigned int launchThreads = settings.maximumBuildThreads;
     numberOfLaunchedThreads = launchThreads;
     while (threads.size() != launchThreads - 1)
     {

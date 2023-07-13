@@ -22,15 +22,6 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
     template <typename U, bool prebuilt_>
     void assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controller, Dependency dependency, PrebuiltDep prebuiltDep);
 
-    // Overload for prebuilt libraries will always specify the objectFileProducer of the dependency to the
-    // linkOrArchiveTarget because that objectFileProducer can't be consumed by PrebuiltLinkOrArchiveTarget as it is
-    // already built. Necessary for drop-in replacement of header-files with header-units of a
-    // prebuiltLinkorArchiveTarget.
-    /*
-        template <typename U>
-        void assignLinkOrArchiveTargetLib(DSC<U, true> *controller, Dependency dependency, PrebuiltDep prebuiltDep);
-    */
-
     pstring define;
 
     DSC(T *ptr, PrebuiltBasic *prebuiltBasic_, bool defines = false, pstring define_ = "")
@@ -200,46 +191,10 @@ void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controlle
         prebuiltBasic->DEPS(controller->prebuiltBasic, dependency, std::move(prebuiltDep));
     }
 
-    /*    else if (prebuiltBasic)
-        {
-            if (!controller->objectFileProducer)
-            {
-                printErrorMessage(fmt::format("Dependency is nullptr\n"));
-                throw std::exception();
-            }
-            // LinkOrArchiveTarget has ObjectLibrary as dependency.
-            prebuiltBasic->objectFileProducers.emplace(controller->objectFileProducer);
-        }
-        else if (controller->prebuiltBasic)
-        {
-            // ObjectLibrary has LinkOrArchiveTarget as dependency.
-            printErrorMessage(fmt::format(
-                "ObjectLibrary DSC\n{}\ncan't have PrebuiltLinkOrArchiveTarget DSC\n{}\nas dependency.\n",
-                objectFileProducer->getTarjanNodeName(), controller->prebuiltBasic->getTarjanNodeName()));
-            throw std::exception();
-        }
-        else
-        {
-            if (!controller->objectFileProducer)
-            {
-                printErrorMessage(fmt::format("Dependency is nullptr\n"));
-                throw std::exception();
-            }
-            if (!objectFileProducer)
-            {
-                printErrorMessage(fmt::format("Dependent is nullptr\n"));
-                throw std::exception();
-            }
-            // ObjectLibrary has another ObjectLibrary as dependency.
-            objectFileProducer->usageRequirementObjectFileProducers.emplace(controller->objectFileProducer);
-        }*/
-
     // TODO
-    // A limitation is that this might add two different compiledefinitions for two different consumers with different
-    // compilers. A solution is to use a header-file with definitions as CMake does.
+    // A limitation is that this might add two different compile definitions for two different consumers with different
+    // compilers. i.e. gcc and msvc
 
-    // TODO
-    // Comments will be removed from Builder.cpp and DSC.hpp after this.
     if (controller->defineDllInterface == DefineDLLInterface::YES)
     {
         T *ptr = static_cast<T *>(objectFileProducer);
@@ -260,171 +215,6 @@ void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controlle
             c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
         }
     }
-}
-
-/*
-template <typename T, bool prebuilt>
-template <typename U>
-void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U, true> *controller, Dependency dependency,
-                                                    PrebuiltDep prebuiltDep)
-{
-    // If prebuiltLinkOrArchiveTarget does not exists for a DSC, then it is an ObjectLibrary.
-    if (prebuiltBasic && controller->prebuiltBasic)
-    {
-        // None is ObjectLibrary
-        if (prebuiltBasic->linkTargetType == TargetType::LIBRARY_STATIC &&
-            dependency == Dependency::PRIVATE)
-        {
-            // A static library can't have Dependency::PRIVATE deps, it can only have Dependency::INTERFACE. But, the
-            // following PUBLIC_DEPS is done for correct-ordering when static-libs are finally supplied to dynamic-lib
-            // or exe. Static library ignores the deps.
-            prebuiltBasic->PUBLIC_DEPS(controller->prebuiltBasic, std::move(prebuiltDep));
-        }
-        else
-        {
-            prebuiltBasic->DEPS(controller->prebuiltBasic, dependency,
-                                              std::move(prebuiltDep));
-        }
-        prebuiltBasic->objectFileProducers.emplace(controller->objectFileProducer);
-    }
-    else
-    {
-        if (prebuiltBasic)
-        {
-            if (!controller->objectFileProducer)
-            {
-                printErrorMessage(fmt::format("Dependency is nullptr\n"));
-                throw std::exception();
-            }
-            // LinkOrArchiveTarget has ObjectLibrary as dependency.
-            prebuiltBasic->objectFileProducers.emplace(controller->objectFileProducer);
-        }
-        else if (!prebuiltBasic && !controller->prebuiltBasic)
-        {
-            if (!controller->objectFileProducer)
-            {
-                printErrorMessage(fmt::format("Dependency is nullptr\n"));
-                throw std::exception();
-            }
-            if (!objectFileProducer)
-            {
-                printErrorMessage(fmt::format("Dependent is nullptr\n"));
-                throw std::exception();
-            }
-            // ObjectLibrary has another ObjectLibrary as dependency.
-            objectFileProducer->usageRequirementObjectFileProducers.emplace(controller->objectFileProducer);
-        }
-        else
-        {
-            // ObjectLibrary has LinkOrArchiveTarget as dependency.
-            printErrorMessage(fmt::format(
-                "ObjectLibrary DSC\n{}\ncan't have PrebuiltLinkOrArchiveTarget DSC\n{}\nas dependency.\n",
-                objectFileProducer->getTarjanNodeName(), controller->prebuiltBasic->getTarjanNodeName()));
-            throw std::exception();
-        }
-    }
-
-    if (controller->defineDllInterface == DefineDLLInterface::YES)
-    {
-        T *ptr = static_cast<T *>(objectFileProducer);
-        U *c_ptr = static_cast<U *>(controller->objectFileProducer);
-        if (prebuiltBasic &&
-            controller->prebuiltBasic->EVALUATE(TargetType::LIBRARY_SHARED))
-        {
-            if (ptr->compiler.bTFamily == BTFamily::MSVC)
-            {
-                c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, "__declspec(dllimport)"));
-            }
-            else
-            {
-                c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
-            }
-        }
-        else
-        {
-            c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
-        }
-    }
-}
-*/
-
-template <>
-template <typename U, bool prebuilt_>
-void DSC<CSourceTarget>::assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controller, Dependency dependency,
-                                                      PrebuiltDep prebuiltDep)
-{
-    // None is ObjectLibrary
-    if (prebuiltBasic->linkTargetType != TargetType::LIBRARY_SHARED && dependency == Dependency::PRIVATE)
-    {
-        // A static library can't have Dependency::PRIVATE deps, it can only have Dependency::INTERFACE. But, the
-        // following PUBLIC_DEPS is done for correct-ordering when static-libs are finally supplied to dynamic-lib
-        // or exe. Static library ignores the deps.
-        prebuiltBasic->PUBLIC_DEPS(controller->prebuiltBasic, std::move(prebuiltDep));
-    }
-    else
-    {
-        prebuiltBasic->DEPS(controller->prebuiltBasic, dependency, std::move(prebuiltDep));
-    }
-
-    /*    else if (prebuiltBasic && !controller->prebuiltBasic)
-        {
-            if (!controller->objectFileProducer)
-            {
-                printErrorMessage(fmt::format("Dependency is nullptr\n"));
-                throw std::exception();
-            }
-            // LinkOrArchiveTarget has ObjectLibrary as dependency.
-            prebuiltBasic->objectFileProducers.emplace(controller->objectFileProducer);
-        }
-        else if (!prebuiltBasic && !controller->prebuiltBasic)
-        {
-            if (!controller->objectFileProducer)
-            {
-                printErrorMessage(fmt::format("Dependency is nullptr\n"));
-                throw std::exception();
-            }
-            if (!objectFileProducer)
-            {
-                printErrorMessage(fmt::format("Dependent is nullptr\n"));
-                throw std::exception();
-            }
-            // ObjectLibrary has another ObjectLibrary as dependency.
-            objectFileProducer->usageRequirementObjectFileProducers.emplace(controller->objectFileProducer);
-        }
-        else
-        {
-            // ObjectLibrary has LinkOrArchiveTarget as dependency.
-            printErrorMessage(fmt::format(
-                "ObjectLibrary DSC\n{}\ncan't have PrebuiltLinkOrArchiveTarget DSC\n{}\nas dependency.\n",
-                objectFileProducer->getTarjanNodeName(), controller->prebuiltBasic->getTarjanNodeName()));
-            throw std::exception();
-        }*/
-
-    // Because CPT does not has the compiler, so the following is commented. Maybe a new overload which takes a bool can
-    // help in a scenario where an exe has shared prebuilt as dep which has another shared prebuilt as dep Or maybe add
-    // a new field consumer-compiler in CPT
-
-    /*    if (controller->defineDllInterface == DefineDLLInterface::YES)
-        {
-            CPT *ptr = static_cast<CPT *>(objectFileProducer);
-            U *c_ptr = static_cast<U *>(controller->objectFileProducer);
-            if (controller->prebuiltLinkOrArchiveTarget->EVALUATE(TargetType::LIBRARY_SHARED))
-            {
-                if (ptr->compiler.bTFamily == BTFamily::MSVC)
-                {
-                    c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define,
-       "__declspec(dllimport)"));
-                }
-                else
-                {
-                    c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
-                }
-            }
-            else
-            {
-                c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
-            }
-        }*/
 }
 
 template <typename T, bool prebuilt> T &DSC<T, prebuilt>::getSourceTarget()

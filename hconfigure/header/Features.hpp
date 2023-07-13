@@ -787,7 +787,7 @@ struct CppCompilerFeatures
 template <typename... U>
 CppCompilerFeatures &CppCompilerFeatures::PRIVATE_INCLUDES(const pstring &include, U... includeDirectoryPString)
 {
-    InclNode::emplaceInList(requirementIncludes, Node::getNodeFromPath(include, false));
+    InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
     if constexpr (sizeof...(includeDirectoryPString))
     {
         return PRIVATE_INCLUDES(includeDirectoryPString...);

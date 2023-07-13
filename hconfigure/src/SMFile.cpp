@@ -29,206 +29,7 @@ import <utility>;
 #include <utility>
 #endif
 
-using std::filesystem::directory_entry, std::filesystem::file_type, std::tie, std::ifstream,
-    std::filesystem::file_time_type, std::exception, std::lock_guard;
-
-pstring getStatusPString(const path &p)
-{
-    switch (status(p).type())
-    {
-    case file_type::none:
-        return " has `not-evaluated-yet` type";
-    case file_type::not_found:
-        return " does not exist";
-    case file_type::regular:
-        return " is a regular file";
-    case file_type::directory:
-        return " is a directory";
-    case file_type::symlink:
-        return " is a symlink";
-    case file_type::block:
-        return " is a block device";
-    case file_type::character:
-        return " is a character device";
-    case file_type::fifo:
-        return " is a named IPC pipe";
-    case file_type::socket:
-        return " is a named IPC socket";
-    case file_type::unknown:
-        return " has `unknown` type";
-    default:
-        return " has `implementation-defined` type";
-    }
-}
-
-bool CompareNode::operator()(const Node &lhs, const Node &rhs) const
-{
-    return lhs.filePath < rhs.filePath;
-}
-
-bool CompareNode::operator()(const pstring &lhs, const Node &rhs) const
-{
-    return lhs < rhs.filePath;
-}
-
-bool CompareNode::operator()(const Node &lhs, const pstring &rhs) const
-{
-    return lhs.filePath < rhs;
-}
-
-Node::Node(const path &filePath_)
-{
-    filePath = (filePath_.*toPStr)();
-}
-
-std::mutex fileTimeUpdateMutex;
-std::filesystem::file_time_type Node::getLastUpdateTime() const
-{
-    lock_guard<mutex> lk(fileTimeUpdateMutex);
-    if (!isUpdated)
-    {
-        const_cast<std::filesystem::file_time_type &>(lastUpdateTime) = last_write_time(path(filePath));
-        const_cast<bool &>(isUpdated) = true;
-    }
-    return lastUpdateTime;
-}
-
-/*path Node::getFinalNodePathFromString(const pstring &str)
-{
-    path filePath{str};
-    if (filePath.is_relative())
-    {
-        filePath = path(srcDir) / filePath;
-    }
-    filePath = (filePath.lexically_normal().*toPStr)();
-
-    if constexpr (os == OS::NT)
-    {
-        // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
-        // actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
-        pstring lowerCase (= filePath*toPStr)());
-        for (char &c : lowerCase)
-        {
-            // Warning: assuming paths to be ASCII
-            c = tolower(c);
-        }
-        filePath = lowerCase;
-    }
-    return filePath;
-}
-
-static mutex nodeInsertMutex;
-Node *Node::getNodeFromPath(const pstring &str, bool isFile, bool mayNotExist)
-{
-    path filePath = getFinalNodePathFromPath(str);
-
-    // TODO
-    // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
-    // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
-    // performed only once.
-
-    {
-        lock_guard<mutex> lk(nodeInsertMutex);
-        if (auto it = allFiles.find((filePath*toPStr)())); it != allFiles.end())
-        {
-            return const_cast<Node *>(it.operator->());
-        }
-    }
-
-    lock_guard<mutex> lk(nodeInsertMutex);
-    return const_cast<Node *>(allFiles.emplace(filePath, isFile, mayNotExist).first.operator->());
-}*/
-
-path Node::getFinalNodePathFromPath(path filePath)
-{
-    if (filePath.is_relative())
-    {
-        filePath = path(srcDir) / filePath;
-    }
-    filePath = filePath.lexically_normal();
-
-    if constexpr (os == OS::NT)
-    {
-        // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
-        // actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
-        auto it = const_cast<path::value_type *>(filePath.c_str());
-        for (; *it != '\0'; ++it)
-        {
-            *it = std::tolower(*it);
-        }
-    }
-    return filePath;
-}
-
-static mutex nodeInsertMutex;
-Node *Node::getNodeFromPath(const path &p, bool isFile, bool mayNotExist)
-{
-    path filePath = getFinalNodePathFromPath(p);
-
-    // TODO
-    // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
-    // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
-    // performed only once.
-
-    Node *node = nullptr;
-    {
-        lock_guard<mutex> lk{nodeInsertMutex};
-        if (auto it = allFiles.find((filePath.*toPStr)()); it != allFiles.end())
-        {
-            node = const_cast<Node *>(it.operator->());
-        }
-        else
-        {
-            node = const_cast<Node *>(allFiles.emplace(filePath).first.operator->());
-        }
-    }
-
-    if (node->systemCheckCompleted.load(std::memory_order_relaxed))
-    {
-        return node;
-    }
-
-    // If systemCheck was not called previously or isn't being called, call it.
-    if (!node->systemCheckCalled.exchange(true))
-    {
-        node->performSystemCheck(isFile, mayNotExist);
-        node->systemCheckCompleted.store(true, std::memory_order_relaxed);
-    }
-
-    // systemCheck is being called for this node by another thread
-    while (!node->systemCheckCompleted.load(std::memory_order_relaxed))
-        ;
-
-    return node;
-}
-
-void Node::performSystemCheck(bool isFile, bool mayNotExist)
-{
-    std::filesystem::file_type nodeType = directory_entry(filePath).status().type();
-    if (nodeType == (isFile ? file_type::regular : file_type::directory))
-    {
-    }
-    else
-    {
-        if (!mayNotExist || nodeType != file_type::not_found)
-        {
-            printErrorMessage(fmt::format("{} is not a {} file. File Type is {}\n", filePath,
-                                          isFile ? "regular" : "directory", getStatusPString(filePath)));
-            throw std::exception();
-        }
-        doesNotExist = true;
-    }
-}
-
-bool operator<(const Node &lhs, const Node &rhs)
-{
-    return lhs.filePath < rhs.filePath;
-}
-
-void to_json(Json &j, const Node *node)
-{
-    j = node->filePath;
-}
+using std::tie, std::ifstream, std::exception, std::lock_guard;
 
 LibDirNode::LibDirNode(Node *node_, bool isStandard_) : node{node_}, isStandard{isStandard_}
 {
@@ -348,7 +149,7 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
 
 void SourceNode::setSourceNodeFileStatus()
 {
-    Node *objectFileNode = Node::getNodeFromPath(objectFileOutputFilePath, true, true);
+    Node *objectFileNode = Node::getNodeFromNonNormalizedPath(objectFileOutputFilePath, true, true);
 
     if (sourceJson->operator[](1) != PValue(PTOREF(target->compileCommandWithTool)))
     {
@@ -370,7 +171,7 @@ void SourceNode::setSourceNodeFileStatus()
 
     for (PValue &str : (*sourceJson)[2].GetArray())
     {
-        Node *headerNode = Node::getNodeFromPath(str.GetString(), true, true);
+        Node *headerNode = Node::getNodeFromNonNormalizedPath(str.GetString(), true, true);
         if (headerNode->doesNotExist)
         {
             fileStatus.store(true, std::memory_order_release);
@@ -578,23 +379,6 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
                             PValue(PTOREF(JConsts::includeAngle)),
                         sourceNodeAllocator);
                 }
-
-                /*                bool isHeaderUnit = requirePValue.HasMember(PValue(PTOREF(JConsts::lookupMethod)));
-                                if (isHeaderUnit)
-                                {
-                                    prunedRequirePValue.PushBack(PValue(true), sourceNodeAllocator);
-
-                                    // true is pushed back if the key "lookup-method" == "include-angle"
-                                    prunedRequirePValue.PushBack(
-                                        requirePValue.FindMember(PValue(PTOREF(JConsts::lookupMethod)))->value ==
-                                            PValue(PTOREF(JConsts::includeAngle)),
-                                        sourceNodeAllocator);
-                                }
-                                else
-                                {
-                                    prunedRequirePValue.PushBack(PValue(false), sourceNodeAllocator);
-                                    prunedRequirePValue.PushBack(PValue(false), sourceNodeAllocator);
-                                }*/
             }
         }
     }
@@ -621,24 +405,21 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     iterateRequiresJsonToInitializeNewHeaderUnits(builder);
 }
 
-bool pathContainsFile(const path &dir, path file)
+// An invariant is that paths are lexically normalized.
+bool pathContainsFile(const pstring &dir, pstring &file)
 {
+    pstring_view withoutFileName(file.c_str(), file.find_last_of('\\'));
 
-    file.remove_filename();
-
-    // If dir has more components than file, then file can't possibly
-    // reside in dir.
-    auto dir_len = std::distance(dir.begin(), dir.end());
-    auto file_len = std::distance(file.begin(), file.end());
-    if (dir_len > file_len)
+    if (dir.size() > withoutFileName.size())
     {
         return false;
     }
 
     // This stops checking when it reaches dir.end(), so it's OK if file
     // has more directory components afterward. They won't be checked.
-    return std::equal(dir.begin(), dir.end(), file.begin());
+    return std::equal(dir.begin(), dir.end(), withoutFileName.begin());
 }
+
 void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &builder)
 {
     ModuleScopeData *moduleScopeData = target->moduleScopeData;
@@ -651,7 +432,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
         throw std::exception();
     }
 
-    Node *headerUnitNode = Node::getNodeFromPath(requirePValue[1].GetString(), true);
+    Node *headerUnitNode = Node::getNodeFromNonNormalizedPath(requirePValue[1].GetString(), true);
 
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
@@ -687,30 +468,6 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
     if (!huDirTarget)
     {
-        for (const auto &[inclNode, targetLocal] : moduleScopeData->huDirTarget)
-        {
-            const InclNode *dirNode = inclNode;
-            if (pathContainsFile(dirNode->node->filePath, headerUnitNode->filePath))
-            {
-                if (huDirTarget)
-                {
-                    printErrorMessageColor(
-                        fmt::format(
-                            "Module Header Unit\n{}\n belongs to two Target Header Unit Includes\n{}\n{}\nof Module "
-                            "Scope\n{}\n",
-                            headerUnitNode->filePath, nodeDir->node->filePath, dirNode->node->filePath,
-                            target->moduleScope->getTargetPointer()),
-                        settings.pcSettings.toolErrorOutput);
-                    decrementTotalSMRuleFileCount(builder);
-                    throw std::exception();
-                }
-                else
-                {
-                    huDirTarget = targetLocal;
-                    nodeDir = inclNode;
-                }
-            }
-        }
         printErrorMessageColor(
             fmt::format(
                 "Module Header Unit\n{}\n does not belongs to any Target Header Unit Includes of Module Scope\n{}\n",
@@ -861,7 +618,7 @@ bool SMFile::generateSMFileInRoundOne()
     }
 
     bool needsUpdate = false;
-    Node *objectFileNode = Node::getNodeFromPath(objectFileOutputFilePath, true, true);
+    Node *objectFileNode = Node::getNodeFromNonNormalizedPath(objectFileOutputFilePath, true, true);
 
     if (objectFileNode->doesNotExist)
     {
@@ -877,7 +634,7 @@ bool SMFile::generateSMFileInRoundOne()
         {
             for (const PValue &value : (*sourceJson)[2].GetArray())
             {
-                Node *headerNode = Node::getNodeFromPath(value.GetString(), true, true);
+                Node *headerNode = Node::getNodeFromNonNormalizedPath(value.GetString(), true, true);
                 if (headerNode->doesNotExist)
                 {
                     needsUpdate = true;
@@ -904,7 +661,7 @@ bool SMFile::generateSMFileInRoundOne()
         // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the
         // .m.o file.
 
-        Node *smRuleFileNode = Node::getNodeFromPath(
+        Node *smRuleFileNode = Node::getNodeFromNonNormalizedPath(
             target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + (".smrules"), true, true);
 
         if (smRuleFileNode->doesNotExist)
@@ -921,7 +678,7 @@ bool SMFile::generateSMFileInRoundOne()
             {
                 for (const PValue &value : (*sourceJson)[2].GetArray())
                 {
-                    Node *headerNode = Node::getNodeFromPath(value.GetString(), true, true);
+                    Node *headerNode = Node::getNodeFromNonNormalizedPath(value.GetString(), true, true);
                     if (headerNode->doesNotExist)
                     {
                         return true;
@@ -965,10 +722,11 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
 
             if (!fileStatus.load(std::memory_order_acquire))
             {
-                Node *objectFileNode = Node::getNodeFromPath(objectFileOutputFilePath, true);
+                Node *objectFileNode = Node::getNodeFromNonNormalizedPath(objectFileOutputFilePath, true);
 
                 pstring depFileName = (path(smFile->node->filePath).filename().*toPStr)();
-                Node *depObjectFileNode = Node::getNodeFromPath(smFile->objectFileOutputFilePath, true, true);
+                Node *depObjectFileNode =
+                    Node::getNodeFromNonNormalizedPath(smFile->objectFileOutputFilePath, true, true);
 
                 if (depObjectFileNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
                 {

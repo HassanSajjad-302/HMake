@@ -27,7 +27,8 @@ using std::filesystem::create_directories, std::filesystem::directory_iterator,
     std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
 
 SourceDirectory::SourceDirectory(const pstring &sourceDirectory_, pstring regex_, const bool recursive_)
-    : sourceDirectory{Node::getNodeFromPath(sourceDirectory_, false)}, regex{std::move(regex_)}, recursive(recursive_)
+    : sourceDirectory{Node::getNodeFromNonNormalizedPath(sourceDirectory_, false)}, regex{std::move(regex_)},
+      recursive(recursive_)
 {
 }
 
@@ -901,11 +902,11 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, bool recurs
             {
                 if (assignToSourceNodes)
                 {
-                    sourceFileDependencies.emplace(this, Node::getNodeFromPath(k.path(), true));
+                    sourceFileDependencies.emplace(this, Node::getNodeFromNonNormalizedPath(k.path(), true));
                 }
                 else
                 {
-                    moduleSourceFileDependencies.emplace(this, Node::getNodeFromPath(k.path(), true));
+                    moduleSourceFileDependencies.emplace(this, Node::getNodeFromNonNormalizedPath(k.path(), true));
                 }
             }
         }

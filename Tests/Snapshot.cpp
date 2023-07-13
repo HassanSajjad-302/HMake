@@ -33,7 +33,7 @@ void Snapshot::before(const path &directoryPath)
     {
         if (f.is_regular_file())
         {
-            Node *node = const_cast<Node *>(Node::getNodeFromPath(f.path(), true));
+            Node *node = const_cast<Node *>(Node::getNodeFromNonNormalizedPath(f.path(), true));
             beforeData.emplace(node->filePath, node->getLastUpdateTime());
         }
     }
@@ -46,7 +46,7 @@ void Snapshot::after(const path &directoryPath)
     {
         if (f.is_regular_file())
         {
-            Node *node = const_cast<Node *>(Node::getNodeFromPath(f.path(), true));
+            Node *node = const_cast<Node *>(Node::getNodeFromNonNormalizedPath(f.path(), true));
             node->getLastUpdateTime();
             afterData.emplace(node->filePath, node->getLastUpdateTime());
         }

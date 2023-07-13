@@ -121,8 +121,8 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                             auto *prebuiltLinkOrArchiveTarget =
                                 static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                             path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
-                            if (Node::getNodeFromPath(depOutputPath, true)->getLastUpdateTime() >
-                                Node::getNodeFromPath(outputPath, true)->getLastUpdateTime())
+                            if (Node::getNodeFromNonNormalizedPath(depOutputPath, true)->getLastUpdateTime() >
+                                Node::getNodeFromNonNormalizedPath(outputPath, true)->getLastUpdateTime())
                             {
                                 needsUpdate = true;
                                 break;
@@ -147,8 +147,9 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                         needsUpdate = true;
                         break;
                     }
-                    if (Node::getNodeFromPath(objectFile->objectFileOutputFilePath, true)->getLastUpdateTime() >
-                        Node::getNodeFromPath(outputPath, true)->getLastUpdateTime())
+                    if (Node::getNodeFromNonNormalizedPath(objectFile->objectFileOutputFilePath, true)
+                            ->getLastUpdateTime() >
+                        Node::getNodeFromNonNormalizedPath(outputPath, true)->getLastUpdateTime())
                     {
                         needsUpdate = true;
                         break;
@@ -194,7 +195,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                     {
                         // latest dll exists but it might not have been copied in the previous invocation.
 
-                        Node *copiedDLLNode = const_cast<Node *>(Node::getNodeFromPath(
+                        Node *copiedDLLNode = const_cast<Node *>(Node::getNodeFromNonNormalizedPath(
                             outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName, true, true));
 
                         if (copiedDLLNode->doesNotExist)
@@ -204,9 +205,9 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                         else
                         {
                             if (copiedDLLNode->getLastUpdateTime() <
-                                Node::getNodeFromPath(prebuiltLinkOrArchiveTarget->outputDirectory +
-                                                          prebuiltLinkOrArchiveTarget->actualOutputName,
-                                                      true)
+                                Node::getNodeFromNonNormalizedPath(prebuiltLinkOrArchiveTarget->outputDirectory +
+                                                                       prebuiltLinkOrArchiveTarget->actualOutputName,
+                                                                   true)
                                     ->getLastUpdateTime())
                             {
                                 dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);

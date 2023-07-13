@@ -12,7 +12,6 @@ import <set>;
 
 using std::set;
 
-// CPrebuiltTarget
 struct CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>
 {
     using BaseType = CSourceTarget;
@@ -29,7 +28,7 @@ bool operator<(const CSourceTarget &lhs, const CSourceTarget &rhs);
 template <typename... U>
 CSourceTarget &CSourceTarget::INTERFACE_INCLUDES(const pstring &include, U... includeDirectoryPString)
 {
-    InclNode::emplaceInList(usageRequirementIncludes, Node::getNodeFromPath(include, false));
+    InclNode::emplaceInList(usageRequirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
     if constexpr (sizeof...(includeDirectoryPString))
     {
         return INTERFACE_INCLUDES(includeDirectoryPString...);
