@@ -71,7 +71,9 @@ using pstring_view = std::basic_string_view<char>;
 #endif
 
 // PString to PStringRef
-#define PTOREF(str) PStringRef((str).c_str(), (str).size())
+// #define ptoref(str) PStringRef((str).c_str(), (str).size())
+
+PStringRef ptoref(pstring_view c);
 
 // PString EXPAND
 #define P_EXPAND(str) str.c_str(), (str).size()

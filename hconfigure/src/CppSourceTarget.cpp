@@ -811,7 +811,7 @@ C_Target *CppSourceTarget::get_CAPITarget(BSMode)
     unsigned short i = 0;
     for (const SourceNode &sourceNode : sourceFileDependencies)
     {
-        c_cppSourceTarget->sourceFiles[i] = sourceNode.node->filePath.c_str();
+        c_cppSourceTarget->sourceFiles[i] = sourceNode.node->filePath.data();
         ++i;
     }
 
@@ -820,7 +820,7 @@ C_Target *CppSourceTarget::get_CAPITarget(BSMode)
     i = 0;
     for (const SourceNode &sourceNode : moduleSourceFileDependencies)
     {
-        c_cppSourceTarget->sourceFiles[i] = sourceNode.node->filePath.c_str();
+        c_cppSourceTarget->sourceFiles[i] = sourceNode.node->filePath.data();
         ++i;
     }
 
@@ -830,14 +830,14 @@ C_Target *CppSourceTarget::get_CAPITarget(BSMode)
     i = 0;
     for (const InclNode &include : requirementIncludes)
     {
-        c_cppSourceTarget->includeDirs[i] = include.node->filePath.c_str();
+        c_cppSourceTarget->includeDirs[i] = include.node->filePath.data();
         ++i;
     }
 
     // setCompileCommand() is called in round 1. Maybe better to run till round 1 in BSMode::IDE and remove following
     setCompileCommand();
 
-    c_cppSourceTarget->compileCommand = compileCommand.c_str();
+    c_cppSourceTarget->compileCommand = compileCommand.data();
     auto *compilerPath = new pstring((compiler.bTPath.*toPStr)());
     c_cppSourceTarget->compilerPath = compilerPath->c_str();
 
@@ -1100,7 +1100,7 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
 {
     // The search is not mutex-locked because no new value is added in preSort
 
-    buildCacheIndex = pvalueIndexInSubArray(buildCache, PValue(PTOREF(targetSubDir)));
+    buildCacheIndex = pvalueIndexInSubArray(buildCache, PValue(ptoref(targetSubDir)));
 
     if (buildCacheIndex == UINT64_MAX)
     {
@@ -1148,7 +1148,7 @@ void CppSourceTarget::resolveRequirePaths()
         {
             // TODO
             // Change smFile->logicalName to PValue to efficiently compare it with Value PValue
-            if (require[0] == PValue(PTOREF(smFile->logicalName)))
+            if (require[0] == PValue(ptoref(smFile->logicalName)))
             {
                 printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
                                                    moduleScope->targetSubDir, smFile->node->filePath),
@@ -1190,7 +1190,7 @@ void CppSourceTarget::populateSourceNodes()
         sourceNode.objectFileOutputFilePath =
             buildCacheFilesDirPath + (path(sourceNode.node->filePath).filename().*toPStr)() + ".o";
 
-        size_t fileIt = pvalueIndexInSubArray(sourceFilesJson, PValue(PTOREF(sourceNode.node->filePath)));
+        size_t fileIt = pvalueIndexInSubArray(sourceFilesJson, PValue(ptoref(sourceNode.node->filePath)));
 
         if (fileIt != UINT64_MAX)
         {
@@ -1202,7 +1202,7 @@ void CppSourceTarget::populateSourceNodes()
             PValue &sourceJson = *(sourceFilesJson.End() - 1);
             sourceNode.sourceJson = &sourceJson;
 
-            sourceJson.PushBack(PTOREF(sourceNode.node->filePath), sourceNode.sourceNodeAllocator);
+            sourceJson.PushBack(ptoref(sourceNode.node->filePath), sourceNode.sourceNodeAllocator);
             sourceJson.PushBack(PValue(kStringType), sourceNode.sourceNodeAllocator);
             sourceJson.PushBack(PValue(kArrayType), sourceNode.sourceNodeAllocator);
         }
@@ -1246,7 +1246,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
 
         getRealBTarget(0).addDependency(smFile);
 
-        size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(PTOREF(smFile.node->filePath)));
+        size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(ptoref(smFile.node->filePath)));
 
         if (fileIt != UINT64_MAX)
         {
@@ -1258,7 +1258,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
             PValue &moduleJson = *(moduleFilesJson.End() - 1);
             smFile.sourceJson = &moduleJson;
 
-            moduleJson.PushBack(PValue(PTOREF(smFile.node->filePath)), smFile.sourceNodeAllocator);
+            moduleJson.PushBack(PValue(ptoref(smFile.node->filePath)), smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kStringType), smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
@@ -1436,7 +1436,7 @@ void CppSourceTarget::saveBuildCache(bool round)
     {
         buildCache.PushBack(PValue(kArrayType), ralloc);
         PValue &t = *(buildCache.End() - 1);
-        t.PushBack(PTOREF(targetSubDir), ralloc);
+        t.PushBack(ptoref(targetSubDir), ralloc);
         t.PushBack(PValue(*targetBuildCache, ralloc), ralloc);
         buildCacheIndex = buildCache.Size() - 1;
     }

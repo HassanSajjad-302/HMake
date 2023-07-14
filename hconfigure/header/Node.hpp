@@ -11,16 +11,18 @@ import "PlatformSpecific.hpp";
 #include <atomic>
 #endif
 
-using std::atomic;
+using std::atomic, std::lock_guard;
 
 class Node;
 struct CompareNode
 {
     using is_transparent = void;
     bool operator()(const Node &lhs, const Node &rhs) const;
-    bool operator()(const pstring &lhs, const Node &rhs) const;
-    bool operator()(const Node &lhs, const pstring &rhs) const;
+    bool operator()(const pstring_view &lhs, const Node &rhs) const;
+    bool operator()(const Node &lhs, const pstring_view &rhs) const;
 };
+
+inline static mutex nodeInsertMutex;
 
 class Node
 {
@@ -33,7 +35,7 @@ class Node
     atomic<bool> systemCheckCompleted{};
 
   public:
-    Node(const pstring &filePath_);
+    Node(pstring filePath_);
     // This keeps info if a file is touched. If it's touched, it's not touched again.
     inline static set<Node, CompareNode> allFiles;
     std::filesystem::file_time_type getLastUpdateTime() const;
@@ -44,12 +46,13 @@ class Node
 
     static path getFinalNodePathFromPath(path filePath);
 
-    // getNodeFromNonNormalizedPath
-    // Create a node and inserts it into the allFiles if it is not already there
-    static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
+    static Node *getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist = false);
+    static Node *getNodeFromNormalizedString(pstring_view p, bool isFile, bool mayNotExist = false);
 
-    // getNodeFromNormalizedPath
+    static Node *getNodeFromNonNormalizedString(const pstring &p, bool isFile, bool mayNotExist = false);
+
     static Node *getNodeFromNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
+    static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
 
     /*    static Node *getNodeFromPath(const path &p, bool isFile, bool mayNotExist = false);
         static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);*/

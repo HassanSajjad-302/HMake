@@ -16,9 +16,9 @@ import <sstream>;
 
 using std::ifstream, fmt::format;
 
-pstring addQuotes(const pstring &pstr)
+pstring addQuotes(pstring_view pstr)
 {
-    return "\"" + pstr + "\"";
+    return "\"" + pstring(pstr) + "\"";
 }
 
 pstring addEscapedQuotes(const pstring &pstr)

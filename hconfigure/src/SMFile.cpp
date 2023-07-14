@@ -123,7 +123,7 @@ pstring SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
 
 pstring SourceNode::getTarjanNodeName() const
 {
-    return node->filePath;
+    return pstring(node->filePath);
 }
 
 void SourceNode::updateBTarget(Builder &, unsigned short round)
@@ -139,7 +139,7 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
         // cached compile-command would be different
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            (*sourceJson)[1].SetString(PTOREF(target->compileCommandWithTool));
+            (*sourceJson)[1].SetString(ptoref(target->compileCommandWithTool));
         }
         lock_guard<mutex> lk(printMutex);
         postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
@@ -151,7 +151,7 @@ void SourceNode::setSourceNodeFileStatus()
 {
     Node *objectFileNode = Node::getNodeFromNonNormalizedPath(objectFileOutputFilePath, true, true);
 
-    if (sourceJson->operator[](1) != PValue(PTOREF(target->compileCommandWithTool)))
+    if (sourceJson->operator[](1) != PValue(ptoref(target->compileCommandWithTool)))
     {
         fileStatus.store(true, std::memory_order_release);
         return;
@@ -171,7 +171,8 @@ void SourceNode::setSourceNodeFileStatus()
 
     for (PValue &str : (*sourceJson)[2].GetArray())
     {
-        Node *headerNode = Node::getNodeFromNonNormalizedPath(str.GetString(), true, true);
+        Node *headerNode =
+            Node::getNodeFromNormalizedString(pstring_view(str.GetString(), str.GetStringLength()), true, true);
         if (headerNode->doesNotExist)
         {
             fileStatus.store(true, std::memory_order_release);
@@ -320,7 +321,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
             {
                 // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
                 // cached compile-command would be different
-                (*sourceJson)[1].SetString(PTOREF(target->compileCommandWithTool));
+                (*sourceJson)[1].SetString(ptoref(target->compileCommandWithTool));
             }
         }
     }
@@ -334,34 +335,34 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
         PDocument d;
         smRuleFileBuffer = readPValueFromFile(smFilePath, d);
 
-        PValue &rule = d.FindMember(PTOREF(JConsts::rules))->value[0];
+        PValue &rule = d.FindMember(ptoref(JConsts::rules))->value[0];
 
         PValue &prunedRules = (*sourceJson)[3];
         prunedRules.Clear();
 
-        if (auto it = rule.FindMember(PTOREF(JConsts::provides)); it == rule.MemberEnd())
+        if (auto it = rule.FindMember(ptoref(JConsts::provides)); it == rule.MemberEnd())
         {
             prunedRules.PushBack(PValue(kStringType), sourceNodeAllocator);
         }
         else
         {
-            PValue &logicalNamePValue = it->value[0].FindMember(PValue(PTOREF(JConsts::logicalName)))->value;
+            PValue &logicalNamePValue = it->value[0].FindMember(PValue(ptoref(JConsts::logicalName)))->value;
             prunedRules.PushBack(logicalNamePValue, sourceNodeAllocator);
         }
 
         prunedRules.PushBack(PValue(kArrayType), sourceNodeAllocator);
 
-        for (auto it = rule.FindMember(PTOREF(JConsts::requires_)); it != rule.MemberEnd(); ++it)
+        for (auto it = rule.FindMember(ptoref(JConsts::requires_)); it != rule.MemberEnd(); ++it)
         {
             for (PValue &requirePValue : it->value.GetArray())
             {
                 prunedRules[1].PushBack(PValue(kArrayType), sourceNodeAllocator);
                 PValue &prunedRequirePValue = *(prunedRules[1].End() - 1);
 
-                prunedRequirePValue.PushBack(requirePValue.FindMember(PValue(PTOREF(JConsts::logicalName)))->value,
+                prunedRequirePValue.PushBack(requirePValue.FindMember(PValue(ptoref(JConsts::logicalName)))->value,
                                              sourceNodeAllocator);
 
-                auto sourcePathIt = requirePValue.FindMember(PValue(PTOREF(JConsts::sourcePath)));
+                auto sourcePathIt = requirePValue.FindMember(PValue(ptoref(JConsts::sourcePath)));
 
                 if (sourcePathIt == requirePValue.MemberEnd())
                 {
@@ -371,12 +372,19 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
                 }
                 else
                 {
+                    // lower-cased before saving for further use
+                    pstring_view str(sourcePathIt->value.GetString(), sourcePathIt->value.GetStringLength());
+                    for (char c : str)
+                    {
+                        const_cast<char &>(c) = tolower(c);
+                    }
+
                     // First push source-path, then whether it is header-unit, then lookup-method == include-angle
                     prunedRequirePValue.PushBack(sourcePathIt->value, sourceNodeAllocator);
 
                     prunedRequirePValue.PushBack(
-                        requirePValue.FindMember(PValue(PTOREF(JConsts::lookupMethod)))->value ==
-                            PValue(PTOREF(JConsts::includeAngle)),
+                        requirePValue.FindMember(PValue(ptoref(JConsts::lookupMethod)))->value ==
+                            PValue(ptoref(JConsts::includeAngle)),
                         sourceNodeAllocator);
                 }
             }
@@ -406,9 +414,9 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
 }
 
 // An invariant is that paths are lexically normalized.
-bool pathContainsFile(const pstring &dir, pstring &file)
+bool pathContainsFile(pstring_view dir, pstring_view file)
 {
-    pstring_view withoutFileName(file.c_str(), file.find_last_of('\\'));
+    pstring_view withoutFileName(file.data(), file.find_last_of('\\'));
 
     if (dir.size() > withoutFileName.size())
     {
@@ -423,7 +431,7 @@ bool pathContainsFile(const pstring &dir, pstring &file)
 void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &builder)
 {
     ModuleScopeData *moduleScopeData = target->moduleScopeData;
-    if (requirePValue[0] == PValue(PTOREF(logicalName)))
+    if (requirePValue[0] == PValue(ptoref(logicalName)))
     {
         printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
                                            target->moduleScope->targetSubDir, node->filePath),
@@ -432,7 +440,8 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
         throw std::exception();
     }
 
-    Node *headerUnitNode = Node::getNodeFromNonNormalizedPath(requirePValue[1].GetString(), true);
+    Node *headerUnitNode = Node::getNodeFromNormalizedString(
+        pstring_view(requirePValue[1].GetString(), requirePValue[1].GetStringLength()), true);
 
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
@@ -499,7 +508,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
         }
 
         headerUnitsIndex =
-            pvalueIndexInSubArray((*(huDirTarget->targetBuildCache))[2], PValue(PTOREF(headerUnit.node->filePath)));
+            pvalueIndexInSubArray((*(huDirTarget->targetBuildCache))[2], PValue(ptoref(headerUnit.node->filePath)));
 
         if (headerUnitsIndex != UINT64_MAX)
         {
@@ -510,7 +519,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
             headerUnit.sourceJson = new PValue(kArrayType);
             ++(huDirTarget->newHeaderUnitsSize);
 
-            headerUnit.sourceJson->PushBack(PTOREF(headerUnit.node->filePath), headerUnit.sourceNodeAllocator);
+            headerUnit.sourceJson->PushBack(ptoref(headerUnit.node->filePath), headerUnit.sourceNodeAllocator);
             headerUnit.sourceJson->PushBack(PValue(kStringType), headerUnit.sourceNodeAllocator);
             headerUnit.sourceJson->PushBack(PValue(kArrayType), headerUnit.sourceNodeAllocator);
             headerUnit.sourceJson->PushBack(PValue(kArrayType), headerUnit.sourceNodeAllocator);
@@ -563,7 +572,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
         {
             int b = requirePValue.GetType();
             int a = requirePValue[0].GetType();
-            if (requirePValue[0] == PValue(PTOREF(logicalName)))
+            if (requirePValue[0] == PValue(ptoref(logicalName)))
             {
                 printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
                                                    target->moduleScope->targetSubDir, node->filePath),
@@ -609,7 +618,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 
 bool SMFile::generateSMFileInRoundOne()
 {
-    if ((*sourceJson)[1] != PValue(PTOREF(target->compileCommandWithTool)))
+    if ((*sourceJson)[1] != PValue(ptoref(target->compileCommandWithTool)))
     {
         readJsonFromSMRulesFile = true;
         // This is the only access in round 1. Maybe change to relaxed
@@ -634,7 +643,8 @@ bool SMFile::generateSMFileInRoundOne()
         {
             for (const PValue &value : (*sourceJson)[2].GetArray())
             {
-                Node *headerNode = Node::getNodeFromNonNormalizedPath(value.GetString(), true, true);
+                Node *headerNode = Node::getNodeFromNormalizedString(
+                    pstring_view(value.GetString(), value.GetStringLength()), true, true);
                 if (headerNode->doesNotExist)
                 {
                     needsUpdate = true;
@@ -678,7 +688,8 @@ bool SMFile::generateSMFileInRoundOne()
             {
                 for (const PValue &value : (*sourceJson)[2].GetArray())
                 {
-                    Node *headerNode = Node::getNodeFromNonNormalizedPath(value.GetString(), true, true);
+                    Node *headerNode = Node::getNodeFromNormalizedString(
+                        pstring_view(value.GetString(), value.GetStringLength()), true, true);
                     if (headerNode->doesNotExist)
                     {
                         return true;

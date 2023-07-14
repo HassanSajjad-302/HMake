@@ -90,7 +90,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     // following operation needs to be guarded by the mutex, otherwise all the buildCache access would have been
     // guarded. They are not guarded as those operations only modify the cache of this target.
     buildCacheMutex.lock();
-    buildCacheIndex = pvalueIndexInSubArray(buildCache, PValue(PTOREF(targetSubDir)));
+    buildCacheIndex = pvalueIndexInSubArray(buildCache, PValue(ptoref(targetSubDir)));
 
     if (buildCacheIndex == UINT64_MAX)
     {
@@ -136,7 +136,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                     bool contains = false;
                     for (PValue &o : buildCache[buildCacheIndex][2].GetArray())
                     {
-                        if (o == PTOREF(objectFile->objectFileOutputFilePath))
+                        if (o == ptoref(objectFile->objectFileOutputFilePath))
                         {
                             contains = true;
                             break;
@@ -261,15 +261,15 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                     buildCache.PushBack(PValue(kArrayType), ralloc);
                     buildCacheIndex = buildCache.Size() - 1;
                     PValue &t = *(buildCache.End() - 1);
-                    t.PushBack(PTOREF(targetSubDir), ralloc);
+                    t.PushBack(ptoref(targetSubDir), ralloc);
 
-                    t.PushBack(PTOREF(commandWithoutTargetsWithTool), ralloc);
+                    t.PushBack(ptoref(commandWithoutTargetsWithTool), ralloc);
                     t.PushBack(PValue(kArrayType), ralloc);
                     objectFilesPValue = t.End() - 1;
                 }
                 else
                 {
-                    buildCache[buildCacheIndex][1].SetString(PTOREF(commandWithoutTargetsWithTool), ralloc);
+                    buildCache[buildCacheIndex][1].SetString(ptoref(commandWithoutTargetsWithTool), ralloc);
                     objectFilesPValue = &(buildCache[buildCacheIndex][2]);
                     objectFilesPValue->Clear();
                 }
@@ -277,7 +277,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 objectFilesPValue->Reserve(objectFiles.size(), ralloc);
                 for (const ObjectFile *objectFile : objectFiles)
                 {
-                    objectFilesPValue->PushBack(PTOREF((objectFile->objectFileOutputFilePath)), ralloc);
+                    objectFilesPValue->PushBack(ptoref((objectFile->objectFileOutputFilePath)), ralloc);
                 }
                 writeBuildCacheUnlocked();
             }

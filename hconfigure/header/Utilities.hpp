@@ -10,7 +10,7 @@ import <vector>;
 #endif
 
 using std::vector;
-string addQuotes(const pstring &pstr);
+string addQuotes(const pstring_view pstr);
 string addEscapedQuotes(const pstring &pstr);
 string fileToPString(const pstring &file_name);
 vector<string> split(string str, const pstring &token);

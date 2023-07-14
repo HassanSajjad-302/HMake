@@ -46,17 +46,17 @@ bool CompareNode::operator()(const Node &lhs, const Node &rhs) const
     return lhs.filePath < rhs.filePath;
 }
 
-bool CompareNode::operator()(const pstring &lhs, const Node &rhs) const
+bool CompareNode::operator()(const pstring_view &lhs, const Node &rhs) const
 {
     return lhs < rhs.filePath;
 }
 
-bool CompareNode::operator()(const Node &lhs, const pstring &rhs) const
+bool CompareNode::operator()(const Node &lhs, const pstring_view &rhs) const
 {
     return lhs.filePath < rhs;
 }
 
-Node::Node(const pstring &filePath_) : filePath(filePath_)
+Node::Node(pstring filePath_) : filePath(filePath_)
 {
 }
 
@@ -139,11 +139,8 @@ path Node::getFinalNodePathFromPath(path filePath)
     return filePath;
 }
 
-static mutex nodeInsertMutex;
-Node *Node::getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist)
 {
-    path filePath = getFinalNodePathFromPath(p);
-
     // TODO
     // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
     // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
@@ -151,15 +148,14 @@ Node *Node::getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNot
 
     Node *node = nullptr;
     {
-        pstring str = (filePath.*toPStr)();
         lock_guard<mutex> lk{nodeInsertMutex};
-        if (auto it = allFiles.find(str); it != allFiles.end())
+        if (auto it = allFiles.find(pstring_view(p)); it != allFiles.end())
         {
             node = const_cast<Node *>(it.operator->());
         }
         else
         {
-            node = const_cast<Node *>(allFiles.emplace(std::move(str)).first.operator->());
+            node = const_cast<Node *>(allFiles.emplace(std::move(p)).first.operator->());
         }
     }
 
@@ -182,19 +178,25 @@ Node *Node::getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNot
     return node;
 }
 
-Node *Node::getNodeFromNormalizedPath(const path &p, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromNormalizedString(pstring_view p, bool isFile, bool mayNotExist)
 {
+    // TODO
+    // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
+    // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
+    // performed only once.
+
     Node *node = nullptr;
     {
-        pstring str = (p.*toPStr)();
+        auto str = new string(p);
+        pstring_view view(*str);
         lock_guard<mutex> lk{nodeInsertMutex};
-        if (auto it = allFiles.find(str); it != allFiles.end())
+        if (auto it = allFiles.find(view); it != allFiles.end())
         {
             node = const_cast<Node *>(it.operator->());
         }
         else
         {
-            node = const_cast<Node *>(allFiles.emplace(std::move(str)).first.operator->());
+            node = const_cast<Node *>(allFiles.emplace(pstring(view)).first.operator->());
         }
     }
 
@@ -215,6 +217,23 @@ Node *Node::getNodeFromNormalizedPath(const path &p, bool isFile, bool mayNotExi
         ;
 
     return node;
+}
+
+Node *Node::getNodeFromNonNormalizedString(const pstring &p, bool isFile, bool mayNotExist)
+{
+    path filePath = getFinalNodePathFromPath(p);
+    return Node::getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
+}
+
+Node *Node::getNodeFromNormalizedPath(const path &p, bool isFile, bool mayNotExist)
+{
+    return Node::getNodeFromNormalizedString((p.*toPStr)(), isFile, mayNotExist);
+}
+
+Node *Node::getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist)
+{
+    path filePath = getFinalNodePathFromPath(p);
+    return Node::getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }
 
 void Node::performSystemCheck(bool isFile, bool mayNotExist)

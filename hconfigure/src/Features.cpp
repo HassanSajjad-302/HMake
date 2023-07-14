@@ -386,6 +386,8 @@ CppCompilerFeatures::CppCompilerFeatures()
     }
 }
 
+// Use getNodeFromNormalizedPath instead
+
 void CppCompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
 {
     compiler = vsTools.compiler;

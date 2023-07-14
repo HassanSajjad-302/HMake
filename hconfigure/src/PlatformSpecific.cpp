@@ -103,6 +103,11 @@ class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>:
     }
 };
 
+PStringRef ptoref(pstring_view c)
+{
+    return PStringRef(c.data(), c.size());
+}
+
 RHPOStream::RHPOStream(pstring_view fileName)
     : of(make_unique<std::basic_ofstream<pchar>>(fileName.data(), std::ios::binary))
 {
