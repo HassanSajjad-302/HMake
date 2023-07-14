@@ -136,7 +136,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                     bool contains = false;
                     for (PValue &o : buildCache[buildCacheIndex][2].GetArray())
                     {
-                        if (o == ptoref(objectFile->objectFileOutputFilePath))
+                        if (o == ptoref(objectFile->objectFileOutputFilePath->filePath))
                         {
                             contains = true;
                             break;
@@ -147,8 +147,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                         needsUpdate = true;
                         break;
                     }
-                    if (Node::getNodeFromNonNormalizedPath(objectFile->objectFileOutputFilePath, true)
-                            ->getLastUpdateTime() >
+                    if (objectFile->objectFileOutputFilePath->getLastUpdateTime() >
                         Node::getNodeFromNonNormalizedPath(outputPath, true)->getLastUpdateTime())
                     {
                         needsUpdate = true;
@@ -234,7 +233,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
 void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
 {
-    RealBTarget &realBTarget = getRealBTarget(round);
+    RealBTarget &realBTarget = realBTargets[round];
     if (!round && realBTarget.exitStatus == EXIT_SUCCESS && BTarget::selectiveBuild)
     {
         setFileStatus(realBTarget);
@@ -277,7 +276,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 objectFilesPValue->Reserve(objectFiles.size(), ralloc);
                 for (const ObjectFile *objectFile : objectFiles)
                 {
-                    objectFilesPValue->PushBack(ptoref((objectFile->objectFileOutputFilePath)), ralloc);
+                    objectFilesPValue->PushBack(ptoref(objectFile->objectFileOutputFilePath->filePath), ralloc);
                 }
                 writeBuildCacheUnlocked();
             }
@@ -912,7 +911,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
 
     for (const ObjectFile *objectFile : objectFiles)
     {
-        linkOrArchiveCommandWithTargets += addQuotes(objectFile->objectFileOutputFilePath) + " ";
+        linkOrArchiveCommandWithTargets += addQuotes(objectFile->objectFileOutputFilePath->filePath) + " ";
     }
 
     if (linkTargetType != TargetType::LIBRARY_STATIC)

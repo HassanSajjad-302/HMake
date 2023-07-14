@@ -50,15 +50,23 @@ void PrebuiltBasic::populateRequirementAndUsageRequirementDeps()
     }
 }
 
-PrebuiltBasic::PrebuiltBasic(pstring outputName_) : outputName{std::move(outputName_)}
+void PrebuiltBasic::initializePrebuiltBasic()
 {
     preSortBTargets.emplace_back(this);
+    realBTargets.emplace_back(this, 0);
+    realBTargets.emplace_back(this, 1);
+    realBTargets.emplace_back(this, 2);
+}
+
+PrebuiltBasic::PrebuiltBasic(pstring outputName_) : outputName{std::move(outputName_)}
+{
+    initializePrebuiltBasic();
 }
 
 PrebuiltBasic::PrebuiltBasic(pstring outputName_, TargetType linkTargetType_)
     : outputName{std::move(outputName_)}, linkTargetType{linkTargetType_}
 {
-    preSortBTargets.emplace_back(this);
+    initializePrebuiltBasic();
 }
 
 void PrebuiltBasic::preSort(Builder &, unsigned short round)
@@ -72,7 +80,7 @@ void PrebuiltBasic::preSort(Builder &, unsigned short round)
     }
     else if (round == 2)
     {
-        RealBTarget &round2 = getRealBTarget(2);
+        RealBTarget &round2 = realBTargets[2];
         for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
         {
             round2.addDependency(const_cast<PrebuiltBasic &>(*prebuiltLinkOrArchiveTarget));
@@ -97,7 +105,7 @@ void PrebuiltBasic::addRequirementDepsToBTargetDependencies()
 {
     // Access to addDependency() function must be synchronized because set::emplace is not thread-safe
     std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
-    RealBTarget &round0 = getRealBTarget(0);
+    RealBTarget &round0 = realBTargets[0];
     if (EVALUATE(TargetType::LIBRARY_STATIC))
     {
         for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)

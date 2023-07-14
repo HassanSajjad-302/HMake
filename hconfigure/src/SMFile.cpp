@@ -113,6 +113,7 @@ bool CompareSourceNode::operator()(const SourceNode &lhs, Node *rhs) const
 
 SourceNode::SourceNode(CppSourceTarget *target_, Node *node_) : target(target_), node{node_}
 {
+    realBTargets.emplace_back(this, 0);
 }
 
 pstring SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
@@ -130,7 +131,7 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
 {
     if (!round && fileStatus.load(std::memory_order_acquire) && selectiveBuild)
     {
-        RealBTarget &realBTarget = getRealBTarget(round);
+        RealBTarget &realBTarget = realBTargets[round];
         assignFileStatusToDependents(realBTarget);
         PostCompile postCompile = target->updateSourceNodeBTarget(*this);
         postCompile.parseHeaderDeps(*this, round);
@@ -149,7 +150,8 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
 
 void SourceNode::setSourceNodeFileStatus()
 {
-    Node *objectFileNode = Node::getNodeFromNonNormalizedPath(objectFileOutputFilePath, true, true);
+    objectFileOutputFilePath =
+        Node::getNodeFromNormalizedString(target->buildCacheFilesDirPath + node->getFileName() + ".o", true, true);
 
     if (sourceJson->operator[](1) != PValue(ptoref(target->compileCommandWithTool)))
     {
@@ -157,13 +159,13 @@ void SourceNode::setSourceNodeFileStatus()
         return;
     }
 
-    if (objectFileNode->doesNotExist)
+    if (objectFileOutputFilePath->doesNotExist)
     {
         fileStatus.store(true, std::memory_order_release);
         return;
     }
 
-    if (node->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+    if (node->getLastUpdateTime() > objectFileOutputFilePath->getLastUpdateTime())
     {
         fileStatus.store(true, std::memory_order_release);
         return;
@@ -179,7 +181,7 @@ void SourceNode::setSourceNodeFileStatus()
             return;
         }
 
-        if (headerNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+        if (headerNode->getLastUpdateTime() > objectFileOutputFilePath->getLastUpdateTime())
         {
             fileStatus.store(true, std::memory_order_release);
             return;
@@ -209,6 +211,7 @@ HeaderUnitConsumer::HeaderUnitConsumer(bool angle_, pstring logicalName_)
 
 SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node_)
 {
+    realBTargets.emplace_back(this, 1);
 }
 
 static mutex totalSMRuleFileCountMutex; // TODO: atomics should be used instead of this
@@ -267,7 +270,7 @@ void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
 void SMFile::updateBTarget(Builder &builder, unsigned short round)
 {
     // Danger Following is executed concurrently
-    RealBTarget &realBTarget = getRealBTarget(round);
+    RealBTarget &realBTarget = realBTargets[round];
     if (round == 1 && realBTarget.exitStatus == EXIT_SUCCESS)
     {
         if (generateSMFileInRoundOne())
@@ -289,7 +292,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
                 saveRequiresJsonAndInitializeHeaderUnits(builder);
                 assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
             }
-            target->getRealBTarget(0).addDependency(*this);
+            target->realBTargets[0].addDependency(*this);
         }
         decrementTotalSMRuleFileCount(builder);
     }
@@ -416,7 +419,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
 // An invariant is that paths are lexically normalized.
 bool pathContainsFile(pstring_view dir, pstring_view file)
 {
-    pstring_view withoutFileName(file.data(), file.find_last_of('\\'));
+    pstring_view withoutFileName(file.data(), file.find_last_of(slash));
 
     if (dir.size() > withoutFileName.size())
     {
@@ -499,8 +502,6 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
         }
 
         auto &headerUnit = const_cast<SMFile &>(*headerUnitIt);
-        headerUnit.objectFileOutputFilePath =
-            huDirTarget->buildCacheFilesDirPath + (path(headerUnit.node->filePath).filename().*toPStr)() + ".m.o";
 
         if (nodeDir->ignoreHeaderDeps)
         {
@@ -543,7 +544,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
     // Should be true if JConsts::lookupMetho == "include-angle";
     headerUnitsConsumptionMethods[&headerUnit].emplace(requirePValue[2].GetBool(), requirePValue[0].GetString());
-    getRealBTarget(0).addDependency(headerUnit);
+    realBTargets[0].addDependency(headerUnit);
 }
 
 void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
@@ -618,6 +619,10 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 
 bool SMFile::generateSMFileInRoundOne()
 {
+
+    objectFileOutputFilePath =
+        Node::getNodeFromNormalizedString(target->buildCacheFilesDirPath + node->getFileName() + ".m.o", true, true);
+
     if ((*sourceJson)[1] != PValue(ptoref(target->compileCommandWithTool)))
     {
         readJsonFromSMRulesFile = true;
@@ -627,15 +632,14 @@ bool SMFile::generateSMFileInRoundOne()
     }
 
     bool needsUpdate = false;
-    Node *objectFileNode = Node::getNodeFromNonNormalizedPath(objectFileOutputFilePath, true, true);
 
-    if (objectFileNode->doesNotExist)
+    if (objectFileOutputFilePath->doesNotExist)
     {
         needsUpdate = true;
     }
     else
     {
-        if (node->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+        if (node->getLastUpdateTime() > objectFileOutputFilePath->getLastUpdateTime())
         {
             needsUpdate = true;
         }
@@ -651,7 +655,7 @@ bool SMFile::generateSMFileInRoundOne()
                     break;
                 }
 
-                if (headerNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+                if (headerNode->getLastUpdateTime() > objectFileOutputFilePath->getLastUpdateTime())
                 {
                     needsUpdate = true;
                     break;
@@ -733,13 +737,8 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
 
             if (!fileStatus.load(std::memory_order_acquire))
             {
-                Node *objectFileNode = Node::getNodeFromNonNormalizedPath(objectFileOutputFilePath, true);
-
-                pstring depFileName = (path(smFile->node->filePath).filename().*toPStr)();
-                Node *depObjectFileNode =
-                    Node::getNodeFromNonNormalizedPath(smFile->objectFileOutputFilePath, true, true);
-
-                if (depObjectFileNode->getLastUpdateTime() > objectFileNode->getLastUpdateTime())
+                if (smFile->objectFileOutputFilePath->getLastUpdateTime() >
+                    objectFileOutputFilePath->getLastUpdateTime())
                 {
                     fileStatus.store(true, std::memory_order_release);
                     return;
@@ -748,7 +747,7 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
         }
     };
 
-    for (auto &[dependency, ignore] : getRealBTarget(0).dependencies)
+    for (auto &[dependency, ignore] : realBTargets[0].dependencies)
     {
         if (dependency->getBTargetType() == BTargetType::SMFILE)
         {

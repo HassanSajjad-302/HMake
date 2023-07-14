@@ -23,11 +23,20 @@ using std::filesystem::path, std::size_t, std::map, std::mutex, std::lock_guard,
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
 TarjanNode(const struct BTarget *) -> TarjanNode<BTarget>;
 using TBT = TarjanNode<BTarget>;
-inline map<unsigned short, set<TBT>> tarjanNodesBTargets;
+inline vector<set<TBT>> tarjanNodesBTargets;
+inline vector<mutex *> tarjanNodesBTargetsMutexes;
 
 TarjanNode(const class CTarget *) -> TarjanNode<CTarget>;
 using TCT = TarjanNode<CTarget>;
 inline set<TCT> tarjanNodesCTargets;
+
+class StaticInitializationTarjanNodesBTargets
+{
+  public:
+    StaticInitializationTarjanNodesBTargets();
+
+    // provide some way to get at letters_
+};
 
 struct RealBTarget;
 struct IndexInTopologicalSortComparatorRoundZero
@@ -45,14 +54,15 @@ enum class BTargetDepType : bool
     LOOSE,
 };
 
+inline StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
 struct RealBTarget
 {
     map<BTarget *, BTargetDepType> dependents;
     map<BTarget *, BTargetDepType> dependencies;
 
     // This points to the tarjanNodeBTargets set element
-    TBT *bTarjanNode;
-    BTarget *bTarget;
+    TBT *bTarjanNode = nullptr;
+    BTarget *bTarget = nullptr;
 
     unsigned int indexInTopologicalSort = 0;
     unsigned int dependenciesSize = 0;
@@ -84,7 +94,7 @@ struct RealBTarget
     unsigned short round;
 
     explicit RealBTarget(BTarget *bTarget_, unsigned short round);
-
+    void setBTarjanNode();
     template <typename... U> void addDependency(BTarget &dependency, U &...bTargets);
     template <typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
 };
@@ -103,7 +113,7 @@ struct BTarget // BTarget
 {
     inline static size_t total = 0;
 
-    map<unsigned short, RealBTarget> realBTargets;
+    vector<RealBTarget> realBTargets;
 
     size_t id = 0; // unique for every BTarget
 
@@ -118,7 +128,6 @@ struct BTarget // BTarget
 
     virtual pstring getTarjanNodeName() const;
 
-    RealBTarget &getRealBTarget(unsigned short round);
     virtual BTargetType getBTargetType() const;
     void assignFileStatusToDependents(RealBTarget &realBTarget) const;
     virtual void preSort(class Builder &builder, unsigned short round);
@@ -133,9 +142,11 @@ template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U 
         lock_guard<mutex> lk{realbtarget_adddependency};
         if (dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
         {
-            RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
+            RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
             dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::FULL);
             ++dependenciesSize;
+            setBTarjanNode();
+            dependencyRealBTarget.setBTarjanNode();
             bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
         }
     }
@@ -150,8 +161,10 @@ template <typename... U> void RealBTarget::addLooseDependency(BTarget &dependenc
 {
     if (dependencies.try_emplace(&dependency, BTargetDepType::LOOSE).second)
     {
-        RealBTarget &dependencyRealBTarget = dependency.getRealBTarget(round);
+        RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
         dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::LOOSE);
+        setBTarjanNode();
+        dependencyRealBTarget.setBTarjanNode();
         bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
     }
 

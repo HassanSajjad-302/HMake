@@ -16,16 +16,32 @@ import <fstream>;
 #endif
 using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::mutex, std::lock_guard;
 
+StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets()
+{
+    for (unsigned short i = 0; i < 3; ++i)
+    {
+        tarjanNodesBTargets.emplace_back();
+        tarjanNodesBTargetsMutexes.emplace_back(new mutex());
+    }
+}
+
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
 {
-    return const_cast<BTarget *>(lhs)->getRealBTarget(0).indexInTopologicalSort >
-           const_cast<BTarget *>(rhs)->getRealBTarget(0).indexInTopologicalSort;
+    return const_cast<BTarget *>(lhs)->realBTargets[0].indexInTopologicalSort >
+           const_cast<BTarget *>(rhs)->realBTargets[0].indexInTopologicalSort;
 }
 
 RealBTarget::RealBTarget(BTarget *bTarget_, unsigned short round_) : bTarget(bTarget_), round(round_)
 {
-    bTarjanNode = const_cast<TBT *>(
-        tarjanNodesBTargets.emplace(round, set<TBT>()).first->second.emplace(bTarget).first.operator->());
+}
+
+void RealBTarget::setBTarjanNode()
+{
+    std::lock_guard<std::mutex> lk(*(tarjanNodesBTargetsMutexes[round]));
+    if (!bTarjanNode)
+    {
+        bTarjanNode = const_cast<TBT *>(tarjanNodesBTargets[round].emplace(bTarget).first.operator->());
+    }
 }
 
 BTarget::BTarget()
@@ -38,14 +54,6 @@ BTarget::~BTarget() = default;
 pstring BTarget::getTarjanNodeName() const
 {
     return "BTarget " + to_pstring(id);
-}
-
-mutex btarget_getrealbtarget;
-RealBTarget &BTarget::getRealBTarget(unsigned short round)
-{
-    lock_guard<mutex> lk{btarget_getrealbtarget};
-    auto it = realBTargets.try_emplace(round, this, round).first;
-    return const_cast<RealBTarget &>(it->second);
 }
 
 BTargetType BTarget::getBTargetType() const

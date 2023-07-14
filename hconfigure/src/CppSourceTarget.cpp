@@ -721,7 +721,7 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     }
     else if (round == 2)
     {
-        RealBTarget &round2 = getRealBTarget(2);
+        RealBTarget &round2 = realBTargets[2];
         for (CSourceTarget *cppSourceTarget : requirementDeps)
         {
             round2.addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
@@ -743,7 +743,7 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
             saveBuildCache(round);
             if (!round)
             {
-                assignFileStatusToDependents(getRealBTarget(0));
+                assignFileStatusToDependents(realBTargets[0]);
             }
         }
     }
@@ -1173,7 +1173,7 @@ void CppSourceTarget::resolveRequirePaths()
             else
             {
                 SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
-                smFile->getRealBTarget(0).addDependency(smFileDep);
+                smFile->realBTargets[0].addDependency(smFileDep);
             }
         }
     }
@@ -1186,9 +1186,6 @@ void CppSourceTarget::populateSourceNodes()
     for (auto it = sourceFileDependencies.begin(); it != sourceFileDependencies.end();)
     {
         auto &sourceNode = const_cast<SourceNode &>(*it);
-
-        sourceNode.objectFileOutputFilePath =
-            buildCacheFilesDirPath + (path(sourceNode.node->filePath).filename().*toPStr)() + ".o";
 
         size_t fileIt = pvalueIndexInSubArray(sourceFilesJson, PValue(ptoref(sourceNode.node->filePath)));
 
@@ -1208,7 +1205,7 @@ void CppSourceTarget::populateSourceNodes()
         }
 
         sourceNode.setSourceNodeFileStatus();
-        getRealBTarget(0).addDependency(sourceNode);
+        realBTargets[0].addDependency(sourceNode);
 
         ++it;
     }
@@ -1222,16 +1219,13 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
     {
         auto &smFile = const_cast<SMFile &>(*it);
 
-        smFile.objectFileOutputFilePath =
-            buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)() + ".m.o";
-
         {
             lock_guard<mutex> lk(modulescopedata_smFiles);
             if (const auto &[pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
             {
                 ++moduleScopeData->totalSMRuleFileCount;
                 // So, it becomes part of DAG
-                smFile.getRealBTarget(1);
+                smFile.realBTargets[1].setBTarjanNode();
             }
             else
             {
@@ -1244,7 +1238,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
             }
         }
 
-        getRealBTarget(0).addDependency(smFile);
+        realBTargets[0].addDependency(smFile);
 
         size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(ptoref(smFile.node->filePath)));
 
@@ -1310,7 +1304,7 @@ pstring CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sour
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
-        command += getReducedPath(sourceNode.objectFileOutputFilePath, ccpSettings.objectFile) + " ";
+        command += getReducedPath(sourceNode.objectFileOutputFilePath->filePath, ccpSettings.objectFile) + " ";
     }
     return command;
 }
@@ -1453,7 +1447,7 @@ void CppSourceTarget::saveBuildCache(bool round)
     {
         if (archiving)
         {
-            if (getRealBTarget(0).exitStatus == EXIT_SUCCESS)
+            if (realBTargets[0].exitStatus == EXIT_SUCCESS)
             {
                 archived = true;
             }

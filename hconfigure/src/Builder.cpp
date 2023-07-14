@@ -137,8 +137,7 @@ void Builder::execute()
                             threadCount = 0;
                             nextMode = true;
 
-                            auto &k = tarjanNodesBTargets.try_emplace(round, set<TBT>()).first->second;
-                            TBT::tarjanNodes = &(k);
+                            TBT::tarjanNodes = &(tarjanNodesBTargets[round]);
                             TBT::findSCCS();
                             TBT::checkForCycle();
 
@@ -152,7 +151,7 @@ void Builder::execute()
                                 for (size_t i = TBT::topologicalSort.size(); i-- > 0;)
                                 {
                                     BTarget &localBTarget = *(TBT::topologicalSort[i]);
-                                    RealBTarget &localReal = localBTarget.getRealBTarget(0);
+                                    RealBTarget &localReal = localBTarget.realBTargets[0];
 
                                     localReal.indexInTopologicalSort = topSize - (i + 1);
                                     if (localBTarget.selectiveBuild)
@@ -181,7 +180,11 @@ void Builder::execute()
                                 for (unsigned i = 0; i < TBT::topologicalSort.size(); ++i)
                                 {
                                     BTarget *bTarget_ = TBT::topologicalSort[i];
-                                    RealBTarget &r = bTarget_->getRealBTarget(round);
+                                    if (bTarget_->realBTargets.empty())
+                                    {
+                                        bool breakpoint = true;
+                                    }
+                                    RealBTarget &r = bTarget_->realBTargets[round];
                                     if (!r.dependenciesSize)
                                     {
                                         updateBTargets.emplace_back(TBT::topologicalSort[i]);
@@ -226,7 +229,7 @@ void Builder::execute()
                     }
                     // printMessage(fmt::format("{} {} {}\n", round, "update-executing", getThreadId()));
                     bTarget = *updateBTargetsIterator;
-                    realBTarget = &(bTarget->getRealBTarget(round));
+                    realBTarget = &(bTarget->realBTargets[round]);
                     ++updateBTargetsIterator;
                     // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
                     executeMutex.unlock();
@@ -351,9 +354,9 @@ void Builder::execute()
             // bTargetDepType is only considered in round 0.
             if (round)
             {
-                for (auto &[dependent, bTargetDepType] : bTarget->getRealBTarget(round).dependents)
+                for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
                 {
-                    RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
+                    RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
 
                     if (realBTarget->exitStatus != EXIT_SUCCESS)
                     {
@@ -372,9 +375,9 @@ void Builder::execute()
             }
             else
             {
-                for (auto &[dependent, bTargetDepType] : bTarget->getRealBTarget(round).dependents)
+                for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
                 {
-                    RealBTarget &dependentRealBTarget = dependent->getRealBTarget(round);
+                    RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
                     if (bTargetDepType == BTargetDepType::FULL)
                     {
                         if (realBTarget->exitStatus != EXIT_SUCCESS)

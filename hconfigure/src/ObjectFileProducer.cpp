@@ -7,11 +7,16 @@ import "LinkOrArchiveTarget.hpp";
 #include "LinkOrArchiveTarget.hpp"
 #endif
 
+ObjectFileProducer::ObjectFileProducer()
+{
+    realBTargets.emplace_back(this, 0);
+}
+
 void ObjectFileProducer::getObjectFiles(vector<const ObjectFile *> *, class LinkOrArchiveTarget *) const
 {
 }
 
 void ObjectFileProducer::addDependencyOnObjectFileProducers(PrebuiltBasic *prebuiltBasic)
 {
-    prebuiltBasic->getRealBTarget(0).addDependency(*this);
+    prebuiltBasic->realBTargets[0].addDependency(*this);
 }

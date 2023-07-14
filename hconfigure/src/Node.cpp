@@ -60,6 +60,11 @@ Node::Node(pstring filePath_) : filePath(filePath_)
 {
 }
 
+pstring Node::getFileName() const
+{
+    return pstring(filePath.begin() + filePath.find_last_of(slash), filePath.end());
+}
+
 std::mutex fileTimeUpdateMutex;
 std::filesystem::file_time_type Node::getLastUpdateTime() const
 {

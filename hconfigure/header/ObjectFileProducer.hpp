@@ -3,22 +3,25 @@
 #define HMAKE_OBJECTFILEPRODUCER_HPP
 #ifdef USE_HEADER_UNITS
 import "BasicTargets.hpp";
+import "Node.hpp";
 import "DS.hpp";
 #else
 #include "BasicTargets.hpp"
 #include "DS.hpp"
+#include "Node.hpp"
 #endif
 
 class ObjectFile : public BTarget
 {
   public:
-    pstring objectFileOutputFilePath;
+    Node *objectFileOutputFilePath = nullptr;
     virtual pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
 };
 
 class ObjectFileProducer : public BTarget
 {
   public:
+    ObjectFileProducer();
     virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                                 class LinkOrArchiveTarget *linkOrArchiveTarget) const;
     void addDependencyOnObjectFileProducers(class PrebuiltBasic *prebuiltBasic);

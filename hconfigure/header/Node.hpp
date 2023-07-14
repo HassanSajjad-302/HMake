@@ -36,6 +36,8 @@ class Node
 
   public:
     Node(pstring filePath_);
+    pstring getFileName() const;
+
     // This keeps info if a file is touched. If it's touched, it's not touched again.
     inline static set<Node, CompareNode> allFiles;
     std::filesystem::file_time_type getLastUpdateTime() const;

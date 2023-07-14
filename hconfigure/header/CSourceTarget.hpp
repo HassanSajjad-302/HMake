@@ -19,6 +19,7 @@ struct CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>
     pstring usageRequirementCompilerFlags;
     set<struct Define> usageRequirementCompileDefinitions;
 
+    CSourceTarget();
     template <typename... U> CSourceTarget &INTERFACE_INCLUDES(const pstring &include, U... includeDirectoryPString);
     CSourceTarget &INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags);
     CSourceTarget &INTERFACE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue = "");

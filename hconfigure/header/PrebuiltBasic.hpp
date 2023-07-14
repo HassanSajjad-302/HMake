@@ -64,6 +64,10 @@ class PrebuiltBasic : public BTarget
 
     void populateRequirementAndUsageRequirementDeps();
 
+  private:
+    void initializePrebuiltBasic();
+
+  public:
     PrebuiltBasic(pstring outputName_);
     PrebuiltBasic(pstring outputName_, TargetType linkTargetType_);
 
