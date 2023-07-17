@@ -42,8 +42,7 @@ struct PostCompile : PostBasic
     bool ignoreHeaderFile(pstring_view str);
     void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, pstring &output, PValue &headerDepsJson);
     void parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &headerDepsJson);
-    void parseHeaderDeps(SourceNode &sourceNode, unsigned short round);
+    void parseHeaderDeps(SourceNode &sourceNode, bool parseFromErrorOutput);
 };
 
 #endif // HMAKE_POSTBASIC_HPP
-

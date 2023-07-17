@@ -124,7 +124,7 @@ pstring SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint)
 
 pstring SourceNode::getTarjanNodeName() const
 {
-    return pstring(node->filePath);
+    return node->filePath;
 }
 
 void SourceNode::updateBTarget(Builder &, unsigned short round)
@@ -134,7 +134,7 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
         RealBTarget &realBTarget = realBTargets[round];
         assignFileStatusToDependents(realBTarget);
         PostCompile postCompile = target->updateSourceNodeBTarget(*this);
-        postCompile.parseHeaderDeps(*this, round);
+        postCompile.parseHeaderDeps(*this, false);
         realBTarget.exitStatus = postCompile.exitStatus;
         // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
         // cached compile-command would be different
@@ -253,7 +253,8 @@ void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
                     {
                         // headerUnit existed before in the cache but because array size is increased the sourceJson
                         // pointer is invalidated now. Reassigning the pointer based on previous index.
-                        const_cast<SMFile *>(headerUnit)->sourceJson = &(headerUnitsPValueArray[headerUnitsIndex]);
+                        const_cast<SMFile *>(headerUnit)->sourceJson =
+                            &(headerUnitsPValueArray[headerUnit->headerUnitsIndex]);
                     }
                 }
             }
@@ -283,15 +284,15 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
                 postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
                 fflush(stdout);
             }
-            postCompile.parseHeaderDeps(*this, round);
+            postCompile.parseHeaderDeps(*this, true);
             realBTarget.exitStatus = postCompile.exitStatus;
         }
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            {
-                saveRequiresJsonAndInitializeHeaderUnits(builder);
-                assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
-            }
+            (*sourceJson)[1].SetString(ptoref(target->compileCommandWithTool));
+            saveRequiresJsonAndInitializeHeaderUnits(builder);
+            assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
+
             target->realBTargets[0].addDependency(*this);
         }
         decrementTotalSMRuleFileCount(builder);
@@ -300,14 +301,14 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
     {
         setFileStatusAndPopulateAllDependencies();
 
-        // TODO
-        // Add a different compile-command for smrules generation, so that smrules is not regenerated if e.g. the
-        // compile command is changed because module compile-command is saved only when module is recompiled, while
-        // smrule compile-command is saved when smrule is recompiled. The hash will be used and same hash can be used.
+        if (!fileStatus.load(std::memory_order_acquire))
+        {
+            if ((*sourceJson)[4] != PValue(ptoref(target->compileCommandWithTool)))
+            {
+                fileStatus.store(true, std::memory_order_release);
+            }
+        }
 
-        // TODO
-        // Here we will also check whether the module compile-command is changed to decide whether to recompile or not.
-        // Tests might be reverted to older state.
         if (fileStatus.load(std::memory_order_acquire))
         {
             assignFileStatusToDependents(realBTarget);
@@ -324,7 +325,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
             {
                 // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
                 // cached compile-command would be different
-                (*sourceJson)[1].SetString(ptoref(target->compileCommandWithTool));
+                (*sourceJson)[4].SetString(ptoref(target->compileCommandWithTool));
             }
         }
     }
@@ -377,7 +378,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
                 {
                     // lower-cased before saving for further use
                     pstring_view str(sourcePathIt->value.GetString(), sourcePathIt->value.GetStringLength());
-                    for (char c : str)
+                    for (const char &c : str)
                     {
                         const_cast<char &>(c) = tolower(c);
                     }
@@ -458,15 +459,14 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
         const InclNode *dirNode = inclNode;
         if (pathContainsFile(dirNode->node->filePath, headerUnitNode->filePath))
         {
-            if (huDirTarget)
+            if (huDirTarget && huDirTarget != targetLocal)
             {
-                printErrorMessageColor(
-                    fmt::format(
-                        "Module Header Unit\n{}\n belongs to two Target Header Unit Includes\n{}\n{}\nof Module "
-                        "Scope\n{}\n",
-                        headerUnitNode->filePath, nodeDir->node->filePath, dirNode->node->filePath,
-                        target->moduleScope->getTargetPointer()),
-                    settings.pcSettings.toolErrorOutput);
+                printErrorMessageColor(fmt::format("Module Header Unit\n{}\n belongs to two different Target Header "
+                                                   "Unit Includes\n{}\n{}\nof Module "
+                                                   "Scope\n{}\n",
+                                                   headerUnitNode->filePath, nodeDir->node->filePath,
+                                                   dirNode->node->filePath, target->moduleScope->getTargetPointer()),
+                                       settings.pcSettings.toolErrorOutput);
                 decrementTotalSMRuleFileCount(builder);
                 throw std::exception();
             }
@@ -508,12 +508,12 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }
 
-        headerUnitsIndex =
+        headerUnit.headerUnitsIndex =
             pvalueIndexInSubArray((*(huDirTarget->targetBuildCache))[2], PValue(ptoref(headerUnit.node->filePath)));
 
-        if (headerUnitsIndex != UINT64_MAX)
+        if (headerUnit.headerUnitsIndex != UINT64_MAX)
         {
-            headerUnit.sourceJson = &((*(huDirTarget->targetBuildCache))[2][headerUnitsIndex]);
+            headerUnit.sourceJson = &((*(huDirTarget->targetBuildCache))[2][headerUnit.headerUnitsIndex]);
         }
         else
         {
@@ -524,6 +524,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
             headerUnit.sourceJson->PushBack(PValue(kStringType), headerUnit.sourceNodeAllocator);
             headerUnit.sourceJson->PushBack(PValue(kArrayType), headerUnit.sourceNodeAllocator);
             headerUnit.sourceJson->PushBack(PValue(kArrayType), headerUnit.sourceNodeAllocator);
+            headerUnit.sourceJson->PushBack(PValue(kStringType), headerUnit.sourceNodeAllocator);
         }
 
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
@@ -571,8 +572,6 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 
         for (PValue &requirePValue : (*sourceJson)[3][1].GetArray())
         {
-            int b = requirePValue.GetType();
-            int a = requirePValue[0].GetType();
             if (requirePValue[0] == PValue(ptoref(logicalName)))
             {
                 printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",

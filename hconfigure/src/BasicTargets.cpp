@@ -226,7 +226,7 @@ pstring CTarget::getTarjanNodeName() const
 
 void CTarget::setJson()
 {
-    json[0][JConsts::name] = name;
+    // json[0][JConsts::name] = name;
 }
 
 void CTarget::writeJsonFile()

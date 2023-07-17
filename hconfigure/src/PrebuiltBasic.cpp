@@ -15,9 +15,9 @@ void PrebuiltBasic::populateRequirementAndUsageRequirementDeps()
     // Set is copied because new elements are to be inserted in it.
     map<PrebuiltBasic *, PrebuiltDep> localRequirementDeps = requirementDeps;
 
-    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : localRequirementDeps)
+    for (auto &[prebuiltBasic, prebuiltDep] : localRequirementDeps)
     {
-        for (auto &[prebuiltLinkOrArchiveTarget_, prebuilt] : prebuiltLinkOrArchiveTarget->usageRequirementDeps)
+        for (auto &[prebuiltBasic_, prebuilt] : prebuiltBasic->usageRequirementDeps)
         {
             PrebuiltDep prebuiltDep_;
 
@@ -28,13 +28,13 @@ void PrebuiltBasic::populateRequirementAndUsageRequirementDeps()
             prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
             prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
 
-            requirementDeps.emplace(prebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
+            requirementDeps.emplace(prebuiltBasic_, std::move(prebuiltDep_));
         }
     }
 
-    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : usageRequirementDeps)
+    for (auto &[prebuiltBasic, prebuiltDep] : usageRequirementDeps)
     {
-        for (auto &[prebuiltLinkOrArchiveTarget_, prebuilt] : prebuiltLinkOrArchiveTarget->usageRequirementDeps)
+        for (auto &[prebuiltBasic_, prebuilt] : prebuiltBasic->usageRequirementDeps)
         {
             PrebuiltDep prebuiltDep_;
 
@@ -45,7 +45,7 @@ void PrebuiltBasic::populateRequirementAndUsageRequirementDeps()
             prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
             prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
 
-            usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
+            usageRequirementDeps.emplace(prebuiltBasic_, std::move(prebuiltDep_));
         }
     }
 }
@@ -81,13 +81,13 @@ void PrebuiltBasic::preSort(Builder &, unsigned short round)
     else if (round == 2)
     {
         RealBTarget &round2 = realBTargets[2];
-        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
         {
-            round2.addDependency(const_cast<PrebuiltBasic &>(*prebuiltLinkOrArchiveTarget));
+            round2.addDependency(const_cast<PrebuiltBasic &>(*prebuiltBasic));
         }
-        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : usageRequirementDeps)
+        for (auto &[prebuiltBasic, prebuiltDep] : usageRequirementDeps)
         {
-            round2.addDependency(const_cast<PrebuiltBasic &>(*prebuiltLinkOrArchiveTarget));
+            round2.addDependency(const_cast<PrebuiltBasic &>(*prebuiltBasic));
         }
     }
 }
@@ -108,16 +108,16 @@ void PrebuiltBasic::addRequirementDepsToBTargetDependencies()
     RealBTarget &round0 = realBTargets[0];
     if (EVALUATE(TargetType::LIBRARY_STATIC))
     {
-        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
         {
-            round0.addLooseDependency(const_cast<PrebuiltBasic &>(*prebuiltLinkOrArchiveTarget));
+            round0.addLooseDependency(const_cast<PrebuiltBasic &>(*prebuiltBasic));
         }
     }
     else
     {
-        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
         {
-            round0.addDependency(const_cast<PrebuiltBasic &>(*prebuiltLinkOrArchiveTarget));
+            round0.addDependency(const_cast<PrebuiltBasic &>(*prebuiltBasic));
         }
     }
 }
@@ -127,7 +127,7 @@ bool operator<(const PrebuiltBasic &lhs, const PrebuiltBasic &rhs)
     return lhs.id < rhs.id;
 }
 
-void to_json(Json &json, const PrebuiltBasic &prebuiltLinkOrArchiveTarget)
+void to_json(Json &json, const PrebuiltBasic &prebuiltBasic)
 {
-    json = prebuiltLinkOrArchiveTarget.getTarjanNodeName();
+    json = prebuiltBasic.getTarjanNodeName();
 }

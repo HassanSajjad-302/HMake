@@ -95,19 +95,6 @@ int main(int argc, char **argv)
     }
     if (count == 0)
     {
-        if constexpr (os == OS::LINUX)
-        {
-            Version ver{10, 2, 0};
-            // TODO
-            /* compilersDetected.push_back(Compiler{BTFamily::GCC, ver, path("/usr/bin/g++")});
-             linkersDetected.push_back(Linker{
-                 BTFamily::GCC,
-                 ver,
-                 path("/usr/bin/g++"),
-             });
-             archiversDetected.push_back(Archiver{BTFamily::GCC, ver, "/usr/bin/ar"});*/
-        }
-
         path hconfigureHeaderPath = path(HCONFIGURE_HEADER);
         path jsonHeaderPath = path(JSON_HEADER);
         path rapidjsonHeaderPath = path(RAPIDJSON_HEADER);

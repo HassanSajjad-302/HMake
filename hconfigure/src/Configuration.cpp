@@ -25,9 +25,9 @@ void Configuration::markArchivePoint()
 {
     // TODO
     // This functions marks the archive point i.e. the targets before this function should be archived upon successful
-    // build. i.e. some extra info will be saved in target-cache file of these targets.
+    // build. i.e. some extra info will be saved in build-cache.json file of these targets.
     // The goal is that next time when hbuild is invoked, archived targets source-files won't be checked for
-    // existence/rebuilt. Neither will smfiles be generated for such targets module-files. Neither the header-files
+    // existence/rebuilt. Neither the header-files
     // coming from such targets includes will be stored in cache.
     // The use-case is when e.g. a target A dependens on targets B and C, such that these targets source is never meant
     // to be changed e.g. fmt and json source in hmake project.
@@ -184,7 +184,7 @@ DSC<CppSourceTarget> &Configuration::GetCppObjectDSC(const pstring &name_, const
         targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name_ + dashCpp)), &GetPrebuiltBasic(name_), defines, std::move(define)).first.operator*());
 }
 
-DSC<CppSourceTarget, true> &Configuration::GetCppTargetDSC_P(const pstring &name, const pstring &directory,
+DSC<CppSourceTarget, true> &Configuration::GetCppTargetDSC_P(const pstring &name_, const pstring &directory,
                                                              TargetType targetType_, bool defines, pstring define)
 {
     if (targetType_ == TargetType::LIBRARY_STATIC)
@@ -202,7 +202,7 @@ DSC<CppSourceTarget, true> &Configuration::GetCppTargetDSC_P(const pstring &name
     }
 }
 
-DSC<CppSourceTarget, true> &Configuration::GetCppTargetDSC_P(const pstring &name, const pstring &prebuiltName,
+DSC<CppSourceTarget, true> &Configuration::GetCppTargetDSC_P(const pstring &name_, const pstring &prebuiltName,
                                                              const pstring &directory, TargetType targetType_,
                                                              bool defines, pstring define)
 {
@@ -224,7 +224,7 @@ DSC<CppSourceTarget, true> &Configuration::GetCppTargetDSC_P(const pstring &name
     }
 }
 
-DSC<CppSourceTarget, true> &Configuration::GetCppStaticDSC_P(const pstring &name, const pstring &directory,
+DSC<CppSourceTarget, true> &Configuration::GetCppStaticDSC_P(const pstring &name_, const pstring &directory,
                                                              const bool defines, pstring define)
 {
     return const_cast<DSC<CppSourceTarget, true> &>(
@@ -232,7 +232,7 @@ DSC<CppSourceTarget, true> &Configuration::GetCppStaticDSC_P(const pstring &name
                                                     defines, std::move(define)).first.operator*());
 }
 
-DSC<CppSourceTarget, true> &Configuration::GetCppSharedDSC_P(const pstring &name, const pstring &directory,
+DSC<CppSourceTarget, true> &Configuration::GetCppSharedDSC_P(const pstring &name_, const pstring &directory,
                                                              const bool defines, pstring define)
 {
     return const_cast<DSC<CppSourceTarget, true> &>(

@@ -81,6 +81,9 @@ struct ModuleScopeData
     unsigned int totalSMRuleFileCount = 0;
 };
 
+// TODO
+// HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
+// use -TC flag with MSVC
 class CppSourceTarget : public CppCompilerFeatures,
                         public CTarget,
                         public FeatureConvenienceFunctions<CppSourceTarget>,
@@ -148,13 +151,12 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     void preSort(Builder &builder, unsigned short round) override;
     void updateBTarget(Builder &builder, unsigned short round) override;
-    /*    void setJson() override;
-        void writeJsonFile() override;*/
+    /*    void setJson() override; */
     pstring getTarjanNodeName() const override;
     BTarget *getBTarget() override;
     C_Target *get_CAPITarget(BSMode bsMode) override;
     CompilerFlags getCompilerFlags();
-    // TODO
+
   public:
     CppSourceTarget(pstring name_, TargetType targetType);
     CppSourceTarget(pstring name_, TargetType targetType, CTarget &other, bool hasFile = true);
@@ -455,7 +457,11 @@ CppSourceTarget &CppSourceTarget::R_MODULE_DIRECTORIES_RG(const pstring &moduleD
 template <Dependency dependency, typename T, typename... Property>
 CppSourceTarget &CppSourceTarget::ASSIGN(T property, Property... properties)
 {
-    if constexpr (std::is_same_v<decltype(property), Compiler>)
+    if constexpr (std::is_same_v<decltype(property), CSourceTargetEnum>)
+    {
+        cSourceTarget = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Compiler>)
     {
         compiler = property;
     }
@@ -587,7 +593,11 @@ CppSourceTarget &CppSourceTarget::ASSIGN(T property, Property... properties)
 
 template <typename T> bool CppSourceTarget::EVALUATE(T property) const
 {
-    if constexpr (std::is_same_v<decltype(property), Compiler>)
+    if constexpr (std::is_same_v<decltype(property), CSourceTargetEnum>)
+    {
+        return cSourceTarget == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Compiler>)
     {
         return compiler == property;
     }

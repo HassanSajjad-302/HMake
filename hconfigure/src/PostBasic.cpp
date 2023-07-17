@@ -240,7 +240,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &hea
     }
 }
 
-void PostCompile::parseHeaderDeps(SourceNode &sourceNode, unsigned short round)
+void PostCompile::parseHeaderDeps(SourceNode &sourceNode, bool parseFromErrorOutput)
 {
     PValue &headerDepsJson = (*sourceNode.sourceJson)[2];
     headerDepsJson.Clear();
@@ -248,9 +248,13 @@ void PostCompile::parseHeaderDeps(SourceNode &sourceNode, unsigned short round)
     if (target.compiler.bTFamily == BTFamily::MSVC)
     {
         parseDepsFromMSVCTextOutput(sourceNode, commandSuccessOutput, headerDepsJson);
-        // In case of GenerateSMRules header-file info is printed to stderr instead of stout. Just one more wrinkle.
-        // Hahaha
-        parseDepsFromMSVCTextOutput(sourceNode, commandErrorOutput, headerDepsJson);
+
+        if (parseFromErrorOutput)
+        {
+            // In case of GenerateSMRules header-file info is printed to stderr instead of stout. Just one more wrinkle.
+            // Hahaha
+            parseDepsFromMSVCTextOutput(sourceNode, commandErrorOutput, headerDepsJson);
+        }
     }
     else
     {

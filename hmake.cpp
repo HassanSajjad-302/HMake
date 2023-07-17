@@ -10,7 +10,7 @@ struct SizeDifference : public CTarget, public BTarget
     SizeDifference(string name, Configuration &sizeConfiguration_, Configuration &speedConfiguration_)
         : CTarget(std::move(name)), sizeConfiguration(sizeConfiguration_), speedConfiguration(speedConfiguration_)
     {
-        RealBTarget &realBTarget = getRealBTarget(0);
+        RealBTarget &realBTarget = realBTargets[0];
         if (speedConfiguration.getSelectiveBuild() && sizeConfiguration.getSelectiveBuild() && getSelectiveBuild())
         {
             for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
@@ -40,13 +40,12 @@ struct SizeDifference : public CTarget, public BTarget
 
     void updateBTarget(Builder &, unsigned short round) override
     {
-        RealBTarget &realBTarget = getRealBTarget(0);
+        RealBTarget &realBTarget = realBTargets[0];
 
         if (!round && realBTarget.exitStatus == EXIT_SUCCESS)
         {
-
-            string sizeDirPath = getSubDirForTarget() + "Size";
-            string speedDirPath = getSubDirForTarget() + "Speed";
+            string sizeDirPath = targetSubDir + "Size";
+            string speedDirPath = targetSubDir + "Speed";
 
             std::filesystem::create_directories(sizeDirPath);
             std::filesystem::create_directories(speedDirPath);
@@ -93,41 +92,41 @@ void configurationSpecification(Configuration &configuration)
     stdhu.getSourceTarget().setModuleScope().assignStandardIncludesToHUIncludes();
     configuration.moduleScope = stdhu.getSourceTargetPointer();
 
-    /*    DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
-        fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
+    DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
+    fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
 
-        configuration.markArchivePoint();
+    configuration.markArchivePoint();
 
-        DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
-        hconfigure.getSourceTarget()
-            .MODULE_DIRECTORIES("hconfigure/src")
-            .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include");
+    DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
+    hconfigure.getSourceTarget()
+        .MODULE_DIRECTORIES("hconfigure/src")
+        .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include", "rapidjson/include");
 
-        DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
-        hhelper.getSourceTarget()
-            .MODULE_FILES("hhelper/src/main.cpp")
-            .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header"))
-            .PRIVATE_COMPILE_DEFINITION("JSON_HEADER", addEscapedQuotes(srcDir + "json/include"))
-            .PRIVATE_COMPILE_DEFINITION("FMT_HEADER", addEscapedQuotes(srcDir + "fmt/include"))
-            .PRIVATE_COMPILE_DEFINITION(
-                "HCONFIGURE_STATIC_LIB_DIRECTORY",
-                addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
-            .PRIVATE_COMPILE_DEFINITION(
-                "HCONFIGURE_STATIC_LIB_PATH",
-                addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).string()))
-            .PRIVATE_COMPILE_DEFINITION(
-                "FMT_STATIC_LIB_DIRECTORY",
-                addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
-            .PRIVATE_COMPILE_DEFINITION(
-                "FMT_STATIC_LIB_PATH",
-       addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).string()));
+    DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
+    hhelper.getSourceTarget()
+        .MODULE_FILES("hhelper/src/main.cpp")
+        .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header"))
+        .PRIVATE_COMPILE_DEFINITION("JSON_HEADER", addEscapedQuotes(srcDir + "json/include"))
+        .PRIVATE_COMPILE_DEFINITION("RAPIDJSON_HEADER", addEscapedQuotes(srcDir + "rapidjson/include"))
+        .PRIVATE_COMPILE_DEFINITION("FMT_HEADER", addEscapedQuotes(srcDir + "fmt/include"))
+        .PRIVATE_COMPILE_DEFINITION(
+            "HCONFIGURE_STATIC_LIB_DIRECTORY",
+            addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
+        .PRIVATE_COMPILE_DEFINITION(
+            "HCONFIGURE_STATIC_LIB_PATH",
+            addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).string()))
+        .PRIVATE_COMPILE_DEFINITION(
+            "FMT_STATIC_LIB_DIRECTORY",
+            addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
+        .PRIVATE_COMPILE_DEFINITION(
+            "FMT_STATIC_LIB_PATH", addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).string()));
 
-        DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
-        hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
+    DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
+    hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
 
-        DSC<CppSourceTarget> &hmakeHelper =
-            configuration.GetCppExeDSC("HMakeHelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
-        hmakeHelper.getSourceTarget().MODULE_FILES("hmake.cpp").PRIVATE_COMPILE_DEFINITION("EXE");*/
+    DSC<CppSourceTarget> &hmakeHelper =
+        configuration.GetCppExeDSC("HMakeHelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
+    hmakeHelper.getSourceTarget().MODULE_FILES("hmake.cpp").PRIVATE_COMPILE_DEFINITION("EXE");
 
     DSC<CppSourceTarget> &exp = configuration.GetCppExeDSC("exp").PRIVATE_LIBRARIES(&stdhu);
     exp.getSourceTarget().MODULE_FILES("main.cpp").PRIVATE_INCLUDES("rapidjson/include");
@@ -136,20 +135,11 @@ void configurationSpecification(Configuration &configuration)
 void buildSpecification()
 {
     Configuration &releaseSpeed = GetConfiguration("RSpeed");
-    releaseSpeed.compilerFeatures.compiler.bTPath =
-        R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\bin\clang-cl.exe)";
-    releaseSpeed.ASSIGN(TreatModuleAsSource::YES, CxxFlags{"--target=x86_64-pc-windows-msvc "});
+    CxxSTD cxxStd = releaseSpeed.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
+    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
 
     Configuration &releaseSize = GetConfiguration("RSize");
-    releaseSpeed.ASSIGN(TreatModuleAsSource::YES);
-
-    /*    CxxSTD cxxStd = releaseSpeed.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST :
-       CxxSTD::V_2b; releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::YES, TranslateInclude::YES,
-       ConfigType::RELEASE);*/
-
-    /*    Configuration &releaseSize = GetConfiguration("RSize");
-        releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
-        releaseSpeed.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS", "1");*/
+    releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
 
     if (equivalent(path(configureDir), std::filesystem::current_path()))
     {
@@ -157,6 +147,7 @@ void buildSpecification()
         {
             configurationSpecification(const_cast<Configuration &>(configuration));
         }
+        targets<SizeDifference>.emplace("Size-Difference", releaseSize, releaseSpeed);
     }
     else
     {
@@ -168,8 +159,6 @@ void buildSpecification()
             }
         }
     }
-
-    // targets<SizeDifference>.emplace("Size-Difference", releaseSize, releaseSpeed);
 }
 
 #ifdef EXE

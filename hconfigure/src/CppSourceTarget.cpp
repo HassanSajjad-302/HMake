@@ -377,9 +377,6 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
-        // TODO:
-        //-Wl and --start-group options are needed because gcc command-line is used. But the HMake approach has been to
-        // differentiate in compiler and linker
         //  Notes
         //   TODO s
         //   262 Be caustious of this rc-type. It has something to do with Windows resource compiler
@@ -764,31 +761,22 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
     targetJson[JConsts::compilerFlags] = requirementCompilerFlags;
     // targetJson[JConsts::linkerFlags] = publicLinkerFlags;
     pstring str = "SOURCE_";
-    // TODO
     //  Remove cached nodes from sourceFileDependencies and moduleSourceFileDependencies
     // targetJson[str + JConsts::files] = sourceFileDependencies;
     targetJson[str + JConsts::directories] = regexSourceDirs;
     str = "MODULE_";
     // targetJson[str + JConsts::files] = moduleSourceFileDependencies;
     targetJson[str + JConsts::directories] = regexModuleDirs;
-    // TODO
     *//*    targetJson[JConsts::includeDirectories] = requirementIncludes;
         targetJson[JConsts::huIncludeDirectories] = huIncludes;*//*
-    // TODO
     //  Add Module Scope
     targetJson[JConsts::compileDefinitions] = requirementCompileDefinitions;
-    // TODO
     targetJson[JConsts::variant] = JConsts::project;
-    // TODO
     // Should transitive properties be displayed? In that case tranisitve properties be spearated out in
     // addTransitiveProperties Function
     json[0] = std::move(targetJson);
 }
-
-void CppSourceTarget::writeJsonFile()
-{
-    CTarget::writeJsonFile();
-}*/
+*/
 
 pstring CppSourceTarget::getTarjanNodeName() const
 {
@@ -885,9 +873,6 @@ CppSourceTarget &CppSourceTarget::INTERFACE_COMPILE_DEFINITION(const pstring &cd
     return *this;
 }
 
-// TODO
-// This is being called every time DIRECTORY is being parsed. Also does not differentiates between a simple directory
-// and recursive directory
 void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, bool recursive, const SourceDirectory &dir)
 {
     if (EVALUATE(TreatModuleAsSource::YES))
@@ -941,14 +926,13 @@ void CppSourceTarget::setCompileCommand()
 
     if (compiler.bTFamily == BTFamily::GCC)
     {
-        // pstring str = cSourceTarget == CSourceTarget::YES ? "-xc" : "-xc++";
+        // string str = cSourceTarget == CSourceTargetEnum::YES ? "-xc" : "-xc++";
         compileCommand +=
             flags.LANG + flags.OPTIONS + flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP + flags.DEFINES_COMPILE_CPP;
     }
     else if (compiler.bTFamily == BTFamily::MSVC)
     {
-        // pstring str = cSourceTarget == CSourceTarget::YES ? "-TC" : "-TP";
-        pstring str = "-TP";
+        string str = cSourceTarget == CSourceTargetEnum::YES ? "-TC" : "-TP";
         compileCommand += str + " " + flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE + flags.OPTIONS_COMPILE +
                           flags.OPTIONS_COMPILE_CPP;
     }
@@ -1140,52 +1124,54 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
 
 void CppSourceTarget::resolveRequirePaths()
 {
-    for (SMFile *smFile : moduleScopeData->smFiles)
+    if (moduleScope == this)
     {
-        PValue &rules = (*(smFile->sourceJson))[3];
-
-        for (const PValue &require : rules[1].GetArray())
+        for (SMFile *smFile : moduleScopeData->smFiles)
         {
-            // TODO
-            // Change smFile->logicalName to PValue to efficiently compare it with Value PValue
-            if (require[0] == PValue(ptoref(smFile->logicalName)))
-            {
-                printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                   moduleScope->targetSubDir, smFile->node->filePath),
-                                       settings.pcSettings.toolErrorOutput);
-                throw std::exception();
-            }
+            PValue &rules = (*(smFile->sourceJson))[3];
 
-            // If the rule source-path key is empty, then it is header-unit
-            if (require[1].GetStringLength() != 0)
+            for (const PValue &require : rules[1].GetArray())
             {
-                continue;
-            }
-            if (auto it =
-                    moduleScopeData->requirePaths.find(pstring(require[0].GetString(), require[0].GetStringLength()));
-                it == moduleScopeData->requirePaths.end())
-            {
-                printErrorMessageColor(fmt::format("No File Provides This {}.\n",
-                                                   pstring(require[0].GetString(), require[0].GetStringLength())),
-                                       settings.pcSettings.toolErrorOutput);
-                throw std::exception();
-            }
-            else
-            {
-                SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
-                smFile->realBTargets[0].addDependency(smFileDep);
+                // TODO
+                // Change smFile->logicalName to PValue to efficiently compare it with Value PValue
+                if (require[0] == PValue(ptoref(smFile->logicalName)))
+                {
+                    printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
+                                                       moduleScope->targetSubDir, smFile->node->filePath),
+                                           settings.pcSettings.toolErrorOutput);
+                    throw std::exception();
+                }
+
+                // If the rule source-path key is empty, then it is header-unit
+                if (require[1].GetStringLength() != 0)
+                {
+                    continue;
+                }
+                if (auto it = moduleScopeData->requirePaths.find(
+                        pstring(require[0].GetString(), require[0].GetStringLength()));
+                    it == moduleScopeData->requirePaths.end())
+                {
+                    printErrorMessageColor(fmt::format("No File Provides This {}.\n",
+                                                       pstring(require[0].GetString(), require[0].GetStringLength())),
+                                           settings.pcSettings.toolErrorOutput);
+                    throw std::exception();
+                }
+                else
+                {
+                    SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
+                    smFile->realBTargets[0].addDependency(smFileDep);
+                }
             }
         }
     }
 }
-
 void CppSourceTarget::populateSourceNodes()
 {
     PValue &sourceFilesJson = (*targetBuildCache)[0];
 
-    for (auto it = sourceFileDependencies.begin(); it != sourceFileDependencies.end();)
+    for (const SourceNode &sourceNodeConst : sourceFileDependencies)
     {
-        auto &sourceNode = const_cast<SourceNode &>(*it);
+        auto &sourceNode = const_cast<SourceNode &>(sourceNodeConst);
 
         size_t fileIt = pvalueIndexInSubArray(sourceFilesJson, PValue(ptoref(sourceNode.node->filePath)));
 
@@ -1206,8 +1192,6 @@ void CppSourceTarget::populateSourceNodes()
 
         sourceNode.setSourceNodeFileStatus();
         realBTargets[0].addDependency(sourceNode);
-
-        ++it;
     }
 }
 
@@ -1215,10 +1199,9 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
     PValue &moduleFilesJson = (*targetBuildCache)[1];
 
-    for (auto it = moduleSourceFileDependencies.begin(); it != moduleSourceFileDependencies.end();)
+    for (const SMFile &smFileConst : moduleSourceFileDependencies)
     {
-        auto &smFile = const_cast<SMFile &>(*it);
-
+        auto &smFile = const_cast<SMFile &>(smFileConst);
         {
             lock_guard<mutex> lk(modulescopedata_smFiles);
             if (const auto &[pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
@@ -1256,9 +1239,8 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
             moduleJson.PushBack(PValue(kStringType), smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
+            moduleJson.PushBack(PValue(kStringType), smFile.sourceNodeAllocator);
         }
-
-        ++it;
     }
 }
 

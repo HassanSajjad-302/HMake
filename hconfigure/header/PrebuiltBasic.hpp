@@ -80,7 +80,7 @@ class PrebuiltBasic : public BTarget
     template <typename T> bool EVALUATE(T property) const;
 };
 bool operator<(const PrebuiltBasic &lhs, const PrebuiltBasic &rhs);
-void to_json(Json &json, const PrebuiltBasic &prebuiltLinkOrArchiveTarget);
+void to_json(Json &json, const PrebuiltBasic &prebuiltBasic);
 
 template <typename... U>
 PrebuiltBasic &PrebuiltBasic::INTERFACE_DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTarget, U... deps)

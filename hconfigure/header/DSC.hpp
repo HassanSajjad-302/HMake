@@ -26,7 +26,6 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
 
     DSC(T *ptr, PrebuiltBasic *prebuiltBasic_, bool defines = false, pstring define_ = "")
     {
-        // TODO Remove this later
         if (!ptr || !prebuiltBasic_)
         {
             printErrorMessage("Error in General DSC constructor. One is nullptr\n");
@@ -193,7 +192,8 @@ void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controlle
 
     // TODO
     // A limitation is that this might add two different compile definitions for two different consumers with different
-    // compilers. i.e. gcc and msvc
+    // compilers. i.e. if gcc and msvc both are consuming a library on Windows. An alternative of GenerateExportHeader
+    // CMake module like functionality is to be supported as well.
 
     if (controller->defineDllInterface == DefineDLLInterface::YES)
     {

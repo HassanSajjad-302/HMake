@@ -293,6 +293,7 @@ pstring getSlashedExecutableName(const pstring &name)
 LinkerFeatures::LinkerFeatures()
 {
     // TODO
+    // Not Detecting
     addModel = AddressModel::A_64;
     arch = Arch::X86;
     if constexpr (os == OS::NT)
@@ -357,6 +358,7 @@ void LinkerFeatures::setConfigType(ConfigType configType)
 CppCompilerFeatures::CppCompilerFeatures()
 {
     // TODO
+    // Not Detecting
     addModel = AddressModel::A_64;
     arch = Arch::X86;
     if constexpr (os == OS::NT)

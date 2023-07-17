@@ -36,6 +36,12 @@ enum class TreatModuleAsSource : bool
     YES
 };
 
+enum class CSourceTargetEnum
+{
+    NO,
+    YES
+};
+
 enum class CopyDLLToExeDirOnNTOs : bool
 {
     NO,
@@ -766,6 +772,8 @@ struct CppCompilerFeatures
     // AddressModel and Architecture to target for.
     InstructionSet instructionSet = InstructionSet::OFF;
     CpuType cpuType;
+
+    CSourceTargetEnum cSourceTarget = CSourceTargetEnum::NO;
 
     CxxSTD cxxStd = CxxSTD::V_LATEST;
     CxxSTDDialect cxxStdDialect = CxxSTDDialect::ISO;

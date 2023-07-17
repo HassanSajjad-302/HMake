@@ -23,7 +23,8 @@ using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique
 using rapidjson::UTF8, rapidjson::UTF16, rapidjson::GenericDocument, rapidjson::GenericValue,
     rapidjson::GenericStringRef, rapidjson::kArrayType, rapidjson::kStringType;
 
-#ifndef _WIN32
+// Change this _WIN32 to switch to UTF-16 on Windows.
+#ifdef _ASDFKSAJDHFIWSJADNF
 
 #ifdef USE_HEADER_UNITS
 import "fmt/xchar.h";

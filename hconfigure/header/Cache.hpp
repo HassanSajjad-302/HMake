@@ -34,9 +34,6 @@ struct Cache
     Json cacheVariables;
     vector<pstring> compileConfigureCommands;
     Cache();
-    // TODO
-    // In Executable, Library and Variant, the default properties are initialized from Cache. Few Properties inherited
-    // from Features should also be initialized from Cache
     void initializeCacheVariableFromCacheFile();
     void registerCacheVariables();
 };

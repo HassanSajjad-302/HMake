@@ -61,16 +61,16 @@ struct Configuration : public CTarget
 
     // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
 
-    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name, const pstring &directory,
+    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name_, const pstring &directory,
                                                   TargetType targetType_ = cache.libraryType, bool defines = false,
                                                   pstring define = "");
-    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name, const pstring &prebuiltName,
+    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name_, const pstring &prebuiltName,
                                                   const pstring &directory, TargetType targetType_ = cache.libraryType,
                                                   bool defines = false, pstring define = "");
-    DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const pstring &name, const pstring &directory, bool defines = false,
+    DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const pstring &name_, const pstring &directory, bool defines = false,
                                                   pstring define = "");
 
-    DSC<CppSourceTarget, true> &GetCppSharedDSC_P(const pstring &name, const pstring &directory, bool defines = false,
+    DSC<CppSourceTarget, true> &GetCppSharedDSC_P(const pstring &name_, const pstring &directory, bool defines = false,
                                                   pstring define = "");
 
     ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;

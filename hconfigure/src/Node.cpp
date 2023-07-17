@@ -77,52 +77,6 @@ std::filesystem::file_time_type Node::getLastUpdateTime() const
     return lastUpdateTime;
 }
 
-/*path Node::getFinalNodePathFromString(const pstring &str)
-{
-    path filePath{str};
-    if (filePath.is_relative())
-    {
-        filePath = path(srcDir) / filePath;
-    }
-    filePath = (filePath.lexically_normal().*toPStr)();
-
-    if constexpr (os == OS::NT)
-    {
-        // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
-        // actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
-        pstring lowerCase (= filePath*toPStr)());
-        for (char &c : lowerCase)
-        {
-            // Warning: assuming paths to be ASCII
-            c = tolower(c);
-        }
-        filePath = lowerCase;
-    }
-    return filePath;
-}
-
-static mutex nodeInsertMutex;
-Node *Node::getNodeFromNonNormalizedPath(const pstring &str, bool isFile, bool mayNotExist)
-{
-    path filePath = getFinalNodePathFromPath(str);
-
-    // TODO
-    // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
-    // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
-    // performed only once.
-
-    {
-        lock_guard<mutex> lk(nodeInsertMutex);
-        if (auto it = allFiles.find((filePath*toPStr)())); it != allFiles.end())
-        {
-            return const_cast<Node *>(it.operator->());
-        }
-    }
-
-    lock_guard<mutex> lk(nodeInsertMutex);
-    return const_cast<Node *>(allFiles.emplace(filePath, isFile, mayNotExist).first.operator->());
-}*/
-
 path Node::getFinalNodePathFromPath(path filePath)
 {
     if (filePath.is_relative())
@@ -149,7 +103,10 @@ Node *Node::getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist
     // TODO
     // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
     // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
-    // performed only once.
+    // performed only once. One more reason for this to be atomic is that a user might delete a file after it has been
+    // checked for existence and calling last_edit_time will throw causing it be a build-system error instead of
+    // compilation-error.
+    // Also, calling lastEditTime for a Node for which doesNotExists == true should throw
 
     Node *node = nullptr;
     {
@@ -185,11 +142,6 @@ Node *Node::getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist
 
 Node *Node::getNodeFromNormalizedString(pstring_view p, bool isFile, bool mayNotExist)
 {
-    // TODO
-    // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
-    // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
-    // performed only once.
-
     Node *node = nullptr;
     {
         auto str = new string(p);
