@@ -51,6 +51,9 @@ import <utility>;
 #include <utility>
 #endif
 
+// Will return true if all configurations are built
+bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuration));
+
 // TODO
 // HMake in future will only be available as module. Hence configuration will-be a split-second process.
 
@@ -84,5 +87,49 @@ template <typename T> int executeInTryCatchAndSetErrorMessagePtr(std::function<T
     }
     return EXIT_SUCCESS;
 }
+
+#ifdef EXE
+#define MAIN_FUNCTION                                                                                                  \
+    int main(int argc, char **argv)                                                                                    \
+    {                                                                                                                  \
+        try                                                                                                            \
+        {                                                                                                              \
+            initializeCache(getBuildSystemModeFromArguments(argc, argv));                                              \
+            buildSpecification();                                                                                      \
+            configureOrBuild();                                                                                        \
+        }                                                                                                              \
+        catch (std::exception & ec)                                                                                    \
+        {                                                                                                              \
+            string str(ec.what());                                                                                     \
+            if (!str.empty())                                                                                          \
+            {                                                                                                          \
+                printErrorMessage(str);                                                                                \
+            }                                                                                                          \
+            return EXIT_FAILURE;                                                                                       \
+        }                                                                                                              \
+        return EXIT_SUCCESS;                                                                                           \
+    }
+#else
+#define MAIN_FUNCTION                                                                                                  \
+    extern "C" EXPORT int func2(BSMode bsMode_)                                                                        \
+    {                                                                                                                  \
+        try                                                                                                            \
+        {                                                                                                              \
+            initializeCache(bsMode_);                                                                                  \
+            buildSpecification();                                                                                      \
+            configureOrBuild();                                                                                        \
+        }                                                                                                              \
+        catch (std::exception & ec)                                                                                    \
+        {                                                                                                              \
+            string str(ec.what());                                                                                     \
+            if (!str.empty())                                                                                          \
+            {                                                                                                          \
+                printErrorMessage(str);                                                                                \
+            }                                                                                                          \
+            return EXIT_FAILURE;                                                                                       \
+        }                                                                                                              \
+        return EXIT_SUCCESS;                                                                                           \
+    }
+#endif
 
 #endif // HMAKE_CONFIGURE_HPP

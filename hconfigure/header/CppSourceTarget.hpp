@@ -2,7 +2,7 @@
 #define HMAKE_CPPSOURCETARGET_HPP
 #ifdef USE_HEADER_UNITS
 import "BuildTools.hpp";
-import "Prebuilt.hpp";
+import "CSourceTarget.hpp";
 import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
 import "JConsts.hpp";
@@ -59,11 +59,12 @@ struct CompilerFlags
     pstring CPP_FLAGS_COMPILE;
 };
 
-inline mutex modulescopedata_smFiles;
-inline mutex modulescopedata_headerUnits;
-inline mutex modulescopedata_requirePaths;
 struct ModuleScopeData
 {
+    mutex smFilesMutex;
+    mutex headerUnitsMutex;
+    mutex requirePathsMutex;
+
     // Written mutex locked in round 1 preSort.
     set<SMFile *> smFiles;
 
@@ -78,7 +79,7 @@ struct ModuleScopeData
     map<pstring, SMFile *> requirePaths;
 
     set<CppSourceTarget *> targets;
-    unsigned int totalSMRuleFileCount = 0;
+    atomic<unsigned int> totalSMRuleFileCount = 0;
 };
 
 // TODO
@@ -97,7 +98,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     TargetType compileTargetType;
     CppSourceTarget *moduleScope = nullptr;
     ModuleScopeData *moduleScopeData = nullptr;
-    inline static map<const CppSourceTarget *, ModuleScopeData> moduleScopes;
+    inline static map<const CppSourceTarget *, unique_ptr<ModuleScopeData>> moduleScopes;
     friend struct PostCompile;
     // Parsed Info Not Changed Once Read
     pstring targetFilePath;

@@ -214,13 +214,12 @@ SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node
     realBTargets.emplace_back(this, 1);
 }
 
-static mutex totalSMRuleFileCountMutex; // TODO: atomics should be used instead of this
 
 void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
 {
-    lock_guard<mutex> lk(totalSMRuleFileCountMutex);
-    --target->moduleScopeData->totalSMRuleFileCount;
-    if (!target->moduleScopeData->totalSMRuleFileCount)
+    // Subtracts 1 atomically and returns the value held previously
+    unsigned int count = target->moduleScopeData->totalSMRuleFileCount.fetch_sub(1);
+    if (!(count - 1))
     {
         // All header-units are found, so header-units pvalue array size could be reserved
 
@@ -398,9 +397,9 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     if ((*sourceJson)[3][0].GetStringLength())
     {
         logicalName = pstring((*sourceJson)[3][0].GetString(), (*sourceJson)[3][0].GetStringLength());
-        modulescopedata_requirePaths.lock();
+        target->moduleScopeData->requirePathsMutex.lock();
         auto [pos, ok] = target->moduleScopeData->requirePaths.try_emplace(logicalName, this);
-        modulescopedata_requirePaths.unlock();
+        target->moduleScopeData->requirePathsMutex.unlock();
 
         if (!ok)
         {
@@ -420,7 +419,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
 // An invariant is that paths are lexically normalized.
 bool pathContainsFile(pstring_view dir, pstring_view file)
 {
-    pstring_view withoutFileName(file.data(), file.find_last_of(slash));
+    pstring_view withoutFileName(file.data(), file.find_last_of(slashc));
 
     if (dir.size() > withoutFileName.size())
     {
@@ -491,11 +490,11 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
     set<SMFile, CompareSourceNode>::const_iterator headerUnitIt;
 
-    modulescopedata_headerUnits.lock();
+    target->moduleScopeData->headerUnitsMutex.lock();
     if (auto it = moduleScopeData->headerUnits.find(headerUnitNode); it == moduleScopeData->headerUnits.end())
     {
         headerUnitIt = moduleScopeData->headerUnits.emplace(huDirTarget, headerUnitNode).first;
-        modulescopedata_headerUnits.unlock();
+        target->moduleScopeData->headerUnitsMutex.unlock();
         {
             lock_guard<mutex> lk{huDirTarget->headerUnitsMutex};
             huDirTarget->headerUnits.emplace(&(*headerUnitIt));
@@ -529,7 +528,6 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
         {
-            lock_guard<mutex> lk(totalSMRuleFileCountMutex);
             ++target->moduleScopeData->totalSMRuleFileCount;
         }
 
@@ -537,7 +535,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
     }
     else
     {
-        modulescopedata_headerUnits.unlock();
+        target->moduleScopeData->headerUnitsMutex.unlock();
         headerUnitIt = it;
     }
 

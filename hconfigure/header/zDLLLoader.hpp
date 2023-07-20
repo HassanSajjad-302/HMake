@@ -6,10 +6,8 @@
 
 #ifdef USE_HEADER_UNITS
 import <Windows.h>;
-import <PlatformSpecific.hpp>;
-
+import "PlatformSpecific.hpp";
 #else
-
 #include "PlatformSpecific.hpp"
 #include <Windows.h>
 #endif

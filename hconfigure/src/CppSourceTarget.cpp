@@ -184,7 +184,15 @@ CppSourceTarget &CppSourceTarget::setModuleScope(CppSourceTarget *moduleScope_)
     moduleScope = moduleScope_;
     if (!moduleScope->moduleScopeData)
     {
-        moduleScope->moduleScopeData = &(moduleScopes.emplace(moduleScope, ModuleScopeData{}).first->second);
+        if (auto it = moduleScopes.find(moduleScope); it != moduleScopes.end())
+        {
+            moduleScope->moduleScopeData = it->second.get();
+        }
+        else
+        {
+            auto tmp = make_unique<ModuleScopeData>();
+            moduleScope->moduleScopeData = moduleScopes.emplace(moduleScope, std::move(tmp)).first->second.get();
+        }
     }
     moduleScopeData = moduleScope->moduleScopeData;
     moduleScopeData->targets.emplace(this);
@@ -700,7 +708,7 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     // override functions.
     if (round == 1)
     {
-        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slash;
+        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slashc;
         readBuildCacheFile(builder);
         // getCompileCommand will be later on called concurrently therefore need to set this before.
         setCompileCommand();
@@ -1203,7 +1211,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
     {
         auto &smFile = const_cast<SMFile &>(smFileConst);
         {
-            lock_guard<mutex> lk(modulescopedata_smFiles);
+            lock_guard<mutex> lk(moduleScopeData->smFilesMutex);
             if (const auto &[pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
             {
                 ++moduleScopeData->totalSMRuleFileCount;

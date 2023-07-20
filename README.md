@@ -3,8 +3,8 @@
 HMake is a new build system that does not invent a new DSL for its project build specification.
 Currently, it only provides C++ build and C++ API.
 Later on, build support for more programming languages will be added.
-API in other programming languages might be provided as well.
-Tested on Windows 11 with MSVC 19.35.32217.1 and Ubuntu 22.04 LTS with GCC 12.1
+API in other programming languages will be provided as well.
+Tested on Windows 11 with MSVC 19.36.32537 and Ubuntu 22.04 LTS with GCC 12.1
 
 ### Example 1
 
@@ -19,58 +19,16 @@ void buildSpecification()
     GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp");
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION
 ```
 
 </details>
 
-Don't be intimidated by the size of the hmake.cpp file.
-Besides ```buildSpecification``` function other stuff could be a macro, but I prefer this style.
-
 In order to run this first build the hmake project with cmake with CMAKE_BUILD_CONFIGURATION to RELEASE and then,
 create symbolic links for hhelper and hbuild binaries in /usr/local/bin/ or on Windows
 add the build directory in your system Environment Variables Path.
-Project will create 4 binaries hhelper, hbuild, htools, and HMakeHelper and one static-lib hconfigure.
+Project will create 4 binaries hhelper, hbuild, htools, hwrite and HMakeHelper
+and one static-lib hconfigure.
 hhelper and hbuild is to be used frequently for building project while HMakeHelper can be used to debug the
 hmake.cpp of the project itself.
 htools command needs to be run once.
@@ -114,7 +72,7 @@ To run HMakeHelper in ```BSMode::BUILD```,pass the ```--build``` command-line ar
 On Linux HMake builds with ```-fsanitize=thread```
 
 A side note, current CMakeLists.txt builds with address-sanitizer, so you need to copy the respective dll
-in cmake build-dir for debugging.
+in cmake build-dir for debugging on Windows.
 
 This line ```GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp");``` in the file create a
 ```DSC<CppSourceTarget>```. ```DSC<CppSourceTarget>``` manages dependency specification as you will see
@@ -130,7 +88,6 @@ These functions preserve by emplacing the element in ```targets``` template vari
 <summary>hmake.cpp</summary>
 
 ```cpp
-
 #include "Configure.hpp"
 
 void configurationSpecification(Configuration &configuration)
@@ -152,47 +109,7 @@ void buildSpecification()
     configurationSpecification(release);
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION
 ```
 
 </details>
@@ -242,47 +159,7 @@ void buildSpecification()
     }
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION
 ```
 
 </details>
@@ -312,47 +189,7 @@ void buildSpecification()
     GetCppExeDSC("Animal-Shared").PRIVATE_LIBRARIES(&catShared).getSourceTarget().SOURCE_FILES("main.cpp");
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION
 ```
 
 </details>
@@ -388,61 +225,22 @@ void buildSpecification()
     animalShared.getSourceTarget().SOURCE_FILES("../Example4/main.cpp");
 
     GetRoundZeroUpdateBTarget(
-        [&](Builder &builder, unsigned short round, BTarget &bTarget) {
-            if (bTarget.getRealBTarget(0).exitStatus == EXIT_SUCCESS)
+        [&](Builder &builder, BTarget &bTarget) {
+            if (bTarget.getRealBTarget(0).exitStatus == EXIT_SUCCESS &&
+                bTarget.fileStatus.load(std::memory_order_acquire))
             {
-                std::filesystem::copy(catShared.prebuiltLinkOrArchiveTarget->getActualOutputPath(),
-                                      path(animalShared.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path(),
+                std::filesystem::copy(catShared.getLinkOrArchiveTarget().getActualOutputPath(),
+                                      path(animalShared.getLinkOrArchiveTarget().getActualOutputPath()).parent_path(),
                                       std::filesystem::copy_options::overwrite_existing);
-                std::filesystem::remove(catShared.prebuiltLinkOrArchiveTarget->getActualOutputPath());
+                std::filesystem::remove(catShared.getLinkOrArchiveTarget().getActualOutputPath());
                 std::lock_guard<std::mutex> lk(printMutex);
                 printMessage("libCat.so copied to Animal/ and deleted from Cat/\n");
             }
         },
-        *(animalShared.prebuiltLinkOrArchiveTarget), *(catShared.prebuiltLinkOrArchiveTarget));
+        animalShared.getLinkOrArchiveTarget(), catShared.getLinkOrArchiveTarget());
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION
 ```
 
 </details>
@@ -465,10 +263,15 @@ This takes a functor and the dependencies.
 This functor will be called after the dependencies are updated.
 So, we, here have directly injected in the central DAG.
 ```round``` variable specifies what round it is.
-To support all the functionality HMake runs in 4 rounds,
+To support all the functionality HMake runs in 3 rounds.
+In first round,
+it populates dependencies.
+In second round,
+it generates smrules files.
+In third round, it builds the object files.
 and does different things in different rounds.
 ```BTarget``` is the center of all this and will be extended in the last Example.
-Instead of ```GetRoundZeroUpdateBTarget```, ```outputDirectory``` could had been used in this case.
+Instead of ```GetRoundZeroUpdateBTarget```, ```outputDirectory``` could have been used in this case.
 
 Because of Rpath, this is a Linux only example.
 
@@ -485,15 +288,15 @@ void buildSpecification()
     auto makeApps = [](TargetType targetType) {
         string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
-        DSC<CPT> &cat =
-            GetCPTDSC_P("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
+        DSC<CppSourceTarget> &cat =
+            GetCppTargetDSC_P("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
         cat.getSourceTarget().INTERFACE_INCLUDES("../Example4/Cat/header");
 
-        DSC<CppSourceTarget> &dog = GetCppTargetDSC("Dog" + str, true, "DOG_EXPORT", targetType);
-        dog.PUBLIC_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog/src/Dog.cpp").PUBLIC_INCLUDES("Dog/header/");
+        DSC<CppSourceTarget> &dog = GetCppTargetDSC("Dog" + str, targetType, true, "DOG_EXPORT");
+        dog.PUBLIC_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog/src/Dog.cpp").PUBLIC_INCLUDES("Dog/header");
 
-        DSC<CppSourceTarget> &dog2 = GetCppTargetDSC("Dog2" + str, true, "DOG2_EXPORT", targetType);
-        dog2.PRIVATE_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog2/src/Dog.cpp").PUBLIC_INCLUDES("Dog2/header/");
+        DSC<CppSourceTarget> &dog2 = GetCppTargetDSC("Dog2" + str, targetType, true, "DOG2_EXPORT");
+        dog2.PRIVATE_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog2/src/Dog.cpp").PUBLIC_INCLUDES("Dog2/header");
 
         DSC<CppSourceTarget> &app = GetCppExeDSC("App" + str);
         app.getLinkOrArchiveTarget().setOutputName("app");
@@ -508,54 +311,14 @@ void buildSpecification()
     makeApps(TargetType::LIBRARY_SHARED);
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION
 ```
 
 </details>
 
-This example showcases the ```CPT```,```PrebuiltLinkOrArchiveTarget``` and ```DSCPrebuilt<CPT>```.
-Which shows how you can consume a prebuilt C-Library.
-Also showcases the dependency propagation, and the controlling prowess of ```DSC```
+This example showcases the consumption of a prebuilt library.
+Also showcases the dependency propagation,
+and the controlling prowess of ```DSC```
 e.g. if a static-library has another static-library as dependency,
 then this dependency will be propagated above upto the Shared-Library or Exe.
 
@@ -569,51 +332,15 @@ then this dependency will be propagated above upto the Shared-Library or Exe.
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().MODULE_FILES("main.cpp", "std.cpp");
-    GetCppExeDSC("app2").getSourceTarget().MODULE_FILES("main2.cpp").assignStandardIncludesToHUIncludes();
+    GetCppExeDSC("app").getSourceTarget().MODULE_FILES("main.cpp", "std.cpp").setModuleScope();
+    GetCppExeDSC("app2")
+        .getSourceTarget()
+        .MODULE_FILES("main2.cpp")
+        .setModuleScope()
+        .assignStandardIncludesToHUIncludes();
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION
 ```
 
 </details>
@@ -662,50 +389,10 @@ That is showcased in Example 9.
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().MODULE_DIRECTORIES("Mod_Src/");
+    GetCppExeDSC("app").getSourceTarget().MODULE_DIRECTORIES("Mod_Src/").setModuleScope();
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION
 ```
 
 </details>
@@ -722,9 +409,7 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T 
 {
     CppSourceTarget &t = target.getSourceTarget();
     string str = t.name.substr(0, t.name.size() - 4); // Removing -cpp from the name
-    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp")
-        .HU_DIRECTORIES("src/" + str + "/")
-        .HU_DIRECTORIES("include/" + str + "/");
+    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp").HU_DIRECTORIES("src/" + str).HU_DIRECTORIES("include/" + str);
 
     if constexpr (sizeof...(targets))
     {
@@ -732,77 +417,38 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T 
     }
 }
 
-void configurationSpecification(Configuration &configuration)
+void configurationSpecification(Configuration &config)
 {
-    configuration.compilerFeatures.PRIVATE_INCLUDES("include/");
+    config.compilerFeatures.PRIVATE_INCLUDES("include");
 
-    DSC<CppSourceTarget> &stdhu = configuration.GetCppStaticDSC("stdhu");
+    DSC<CppSourceTarget> &stdhu = config.GetCppObjectDSC("stdhu");
 
     stdhu.getSourceTargetPointer()->setModuleScope().assignStandardIncludesToHUIncludes();
-    configuration.moduleScope = stdhu.getSourceTargetPointer();
+    config.moduleScope = stdhu.getSourceTargetPointer();
 
-    DSC<CppSourceTarget> &lib4 = configuration.GetCppStaticDSC("lib4");
-    DSC<CppSourceTarget> &lib3 = configuration.GetCppStaticDSC("lib3").PUBLIC_LIBRARIES(&lib4);
-    DSC<CppSourceTarget> &lib2 = configuration.GetCppStaticDSC("lib2").PRIVATE_LIBRARIES(&lib3);
-    DSC<CppSourceTarget> &lib1 = configuration.GetCppStaticDSC("lib1").PUBLIC_LIBRARIES(&lib2);
-    DSC<CppSourceTarget> &app = configuration.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1, &stdhu);
-
+    DSC<CppSourceTarget> &lib4 = config.GetCppTargetDSC("lib4", config.targetType);
+    DSC<CppSourceTarget> &lib3 = config.GetCppTargetDSC("lib3", config.targetType).PUBLIC_LIBRARIES(&lib4);
+    DSC<CppSourceTarget> &lib2 = config.GetCppTargetDSC("lib2", config.targetType).PRIVATE_LIBRARIES(&lib3);
+    DSC<CppSourceTarget> &lib1 = config.GetCppTargetDSC("lib1", config.targetType).PUBLIC_LIBRARIES(&lib2);
+    DSC<CppSourceTarget> &app = config.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1, &stdhu);
 
     initializeTargets(lib1, lib2, lib3, lib4, app);
 }
 
 void buildSpecification()
 {
-    Configuration &debug = GetConfiguration("Debug");
+    CxxSTD cxxStd = toolsCache.vsTools[0].compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
 
-    CxxSTD cxxStd = debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
+    Configuration &static_ = GetConfiguration("static");
+    static_.ASSIGN(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_STATIC);
+    configurationSpecification(static_);
 
-    debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG);
-
-    configurationSpecification(debug);
+    Configuration &object = GetConfiguration("object");
+    object.ASSIGN(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_OBJECT);
+    configurationSpecification(object);
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION
 ```
 
 </details>
@@ -821,7 +467,19 @@ and ```src/lib1/``` are linked with lib1 and so on.
 <summary>hmake.cpp</summary>
 
 ```cpp
+#include "Configure.hpp"
 
+void buildSpecification()
+{
+    GetCppExeDSC("app")
+        .getSourceTarget()
+        .setModuleScope()
+        .PUBLIC_HU_INCLUDES("3rd_party/olcPixelGameEngine")
+        .R_MODULE_DIRECTORIES("modules/", "src/")
+        .ASSIGN(CxxSTD::V_LATEST);
+}
+
+MAIN_FUNCTION
 ```
 
 </details>
@@ -836,51 +494,6 @@ and ```src/lib1/``` are linked with lib1 and so on.
 
 using std::filesystem::file_size;
 
-void configurationSpecification(Configuration &configuration)
-{
-    DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
-    stdhu.getSourceTarget().setModuleScope().assignStandardIncludesToHUIncludes();
-    configuration.moduleScope = stdhu.getSourceTargetPointer();
-
-    DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
-    fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
-
-    configuration.markArchivePoint();
-
-    DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
-    hconfigure.getSourceTarget()
-        .MODULE_DIRECTORIES("hconfigure/src/")
-        .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include");
-
-    DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
-    hhelper.getSourceTarget()
-        .MODULE_FILES("hhelper/src/main.cpp")
-        .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header/"))
-        .PRIVATE_COMPILE_DEFINITION("JSON_HEADER", addEscapedQuotes(srcDir + "json/include/"))
-        .PRIVATE_COMPILE_DEFINITION("FMT_HEADER", addEscapedQuotes(srcDir + "fmt/include/"))
-        .PRIVATE_COMPILE_DEFINITION(
-            "HCONFIGURE_STATIC_LIB_DIRECTORY",
-            addEscapedQuotes(
-                path(hconfigure.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().generic_string()))
-        .PRIVATE_COMPILE_DEFINITION(
-            "HCONFIGURE_STATIC_LIB_PATH",
-            addEscapedQuotes(path(hconfigure.prebuiltLinkOrArchiveTarget->getActualOutputPath()).generic_string()))
-        .PRIVATE_COMPILE_DEFINITION(
-            "FMT_STATIC_LIB_DIRECTORY",
-            addEscapedQuotes(
-                path(fmt.prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().generic_string()))
-        .PRIVATE_COMPILE_DEFINITION(
-            "FMT_STATIC_LIB_PATH",
-            addEscapedQuotes(path(fmt.prebuiltLinkOrArchiveTarget->getActualOutputPath()).generic_string()));
-
-    DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
-    hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
-
-    DSC<CppSourceTarget> &hmakeHelper =
-        configuration.GetCppExeDSC("HMakeHelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
-    hmakeHelper.getSourceTarget().MODULE_FILES("hmake.cpp").PRIVATE_COMPILE_DEFINITION("EXE");
-}
-
 struct SizeDifference : public CTarget, public BTarget
 {
     Configuration &sizeConfiguration;
@@ -889,10 +502,9 @@ struct SizeDifference : public CTarget, public BTarget
     SizeDifference(string name, Configuration &sizeConfiguration_, Configuration &speedConfiguration_)
         : CTarget(std::move(name)), sizeConfiguration(sizeConfiguration_), speedConfiguration(speedConfiguration_)
     {
-        RealBTarget &realBTarget = getRealBTarget(0);
+        RealBTarget &realBTarget = realBTargets.emplace_back(this, 0);
         if (speedConfiguration.getSelectiveBuild() && sizeConfiguration.getSelectiveBuild() && getSelectiveBuild())
         {
-            realBTarget.fileStatus = FileStatus::NEEDS_UPDATE;
             for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
             {
                 if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
@@ -911,17 +523,21 @@ struct SizeDifference : public CTarget, public BTarget
         }
     }
 
+    BTarget *getBTarget() override
+    {
+        return this;
+    }
+
     virtual ~SizeDifference() = default;
 
     void updateBTarget(Builder &, unsigned short round) override
     {
-        RealBTarget &realBTarget = getRealBTarget(0);
+        RealBTarget &realBTarget = realBTargets[0];
 
-        if (!round && realBTarget.exitStatus == EXIT_SUCCESS && getSelectiveBuild())
+        if (!round && realBTarget.exitStatus == EXIT_SUCCESS)
         {
-
-            string sizeDirPath = getSubDirForTarget() + "Size/";
-            string speedDirPath = getSubDirForTarget() + "Speed/";
+            string sizeDirPath = targetSubDir + "Size";
+            string speedDirPath = targetSubDir + "Speed";
 
             std::filesystem::create_directories(sizeDirPath);
             std::filesystem::create_directories(speedDirPath);
@@ -962,77 +578,69 @@ bool operator<(const SizeDifference &lhs, const SizeDifference &rhs)
     return lhs.CTarget::id < rhs.CTarget::id;
 }
 
+void configurationSpecification(Configuration &configuration)
+{
+    DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
+    stdhu.getSourceTarget().setModuleScope().assignStandardIncludesToHUIncludes();
+    configuration.moduleScope = stdhu.getSourceTargetPointer();
+
+    DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
+    fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
+
+    configuration.markArchivePoint();
+
+    DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
+    hconfigure.getSourceTarget()
+        .MODULE_DIRECTORIES("hconfigure/src")
+        .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include", "rapidjson/include");
+
+    DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
+    hhelper.getSourceTarget()
+        .MODULE_FILES("hhelper/src/main.cpp")
+        .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header"))
+        .PRIVATE_COMPILE_DEFINITION("JSON_HEADER", addEscapedQuotes(srcDir + "json/include"))
+        .PRIVATE_COMPILE_DEFINITION("RAPIDJSON_HEADER", addEscapedQuotes(srcDir + "rapidjson/include"))
+        .PRIVATE_COMPILE_DEFINITION("FMT_HEADER", addEscapedQuotes(srcDir + "fmt/include"))
+        .PRIVATE_COMPILE_DEFINITION(
+            "HCONFIGURE_STATIC_LIB_DIRECTORY",
+            addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
+        .PRIVATE_COMPILE_DEFINITION(
+            "HCONFIGURE_STATIC_LIB_PATH",
+            addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).string()))
+        .PRIVATE_COMPILE_DEFINITION(
+            "FMT_STATIC_LIB_DIRECTORY",
+            addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
+        .PRIVATE_COMPILE_DEFINITION(
+            "FMT_STATIC_LIB_PATH", addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).string()));
+
+    DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
+    hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
+
+    DSC<CppSourceTarget> &hmakeHelper =
+        configuration.GetCppExeDSC("HMakeHelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
+    hmakeHelper.getSourceTarget().MODULE_FILES("hmake.cpp").PRIVATE_COMPILE_DEFINITION("EXE");
+
+    DSC<CppSourceTarget> &exp = configuration.GetCppExeDSC("exp").PRIVATE_LIBRARIES(&stdhu);
+    exp.getSourceTarget().MODULE_FILES("main.cpp").PRIVATE_INCLUDES("rapidjson/include");
+}
+
 void buildSpecification()
 {
-    // Configuration &debug = GetConfiguration("Debug");
     Configuration &releaseSpeed = GetConfiguration("RSpeed");
-    Configuration &releaseSize = GetConfiguration("RSize");
-    //  Configuration &arm = GetConfiguration("arm");
-
     CxxSTD cxxStd = releaseSpeed.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
-    /*    debug.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG, AddressSanitizer::OFF,
-                     RuntimeDebugging::OFF);
-        debug.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS");*/
     releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
-    releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
-    //  arm.ASSIGN(cxxStd, Arch::ARM, TranslateInclude::YES, ConfigType::RELEASE, TreatModuleAsSource::NO);
-    /*        debug.compilerFeatures.requirementCompilerFlags += "--target=x86_64-pc-windows-msvc ";
-            debug.linkerFeatures.requirementLinkerFlags += "--target=x86_64-pc-windows-msvc";*/
     // releaseSpeed.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS", "1");
 
-    for (const Configuration &configuration : targets<Configuration>)
-    {
-        if (const_cast<Configuration &>(configuration).getSelectiveBuild())
-        {
-            configurationSpecification(const_cast<Configuration &>(configuration));
-        }
-    }
+    Configuration &releaseSize = GetConfiguration("RSize");
+    releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
 
-    targets<SizeDifference>.emplace("Size-Difference", releaseSize, releaseSpeed);
+    if (selectiveConfigurationSpecification(&configurationSpecification))
+    {
+        targets<SizeDifference>.emplace("Size-Difference", releaseSize, releaseSpeed);
+    }
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
-
+MAIN_FUNCTION
 ```
 
 </details>
@@ -1047,9 +655,10 @@ will set the module-scope for all the targets declared after this line in the co
 ```markArchivePoint``` function is a WIP. It will be used to specify that fmt, json and stdhu are never
 meant to be changed. So, hbuild can ignore checking object-files of these for rebuild.
 
-This if block ```if (const_cast<Configuration &>(configuration).getSelectiveBuild())```
-means that if hbuild isn't executed in a configuration, then that configuration won't even be
-specified. Thus, a project can have multiple configurations and rebuild speed won't be affected.
+This function call ```selectiveConfigurationSpecification(&configurationSpecification)```
+means that if hbuild isn't executed in a configuration dir,
+then that configuration won't even be specified.
+Thus, a project can have multiple configurations and rebuild speed won't be affected.
 HMake also has a selectiveBuild feature which means that for an app and its dependency, if hbuild
 executed in app, then app and dependency both would be built, but if executed in dependency, then
 only the dependency will be built.
@@ -1058,12 +667,44 @@ only the dependency will be built.
 In the MSVC case, it is ```/translateInclude``` flag specification.
 ```TreatModulesAsSource::YES``` causes the calls to ```MODULE_FILES``` and ```MODULE_DIRECTORIES```
 routed to ```SOURCE_FILES``` and ```SOURCE_DIRECTORIES```.
-Changing this to ```TreatModulesAsSource::NO``` should cause drop-in replacement to header-units.
-But it doesn't. Because using ```/translateInclude``` with MSVC only causes the standard
-header-files to be treated as header-units, but not the project header-files.
-So, the ```USE_HEADER_UNITS``` line needs to be uncommented. This, however, causes the build-failure,
-which I am investigating. However, commenting this line and setting ```TranslateInclude::YES```
-results in successful building i.e. build works fine with standard header-units.
+Changing this to ```TreatModulesAsSource::NO``` will cause drop-in replacement to header-units
+of standard headers and of headers coming from hconfigure directory but not of all
+headers. The reason is ```/translateInclude``` flag checks for ```header-units.json``` file
+in the header-directory and mentions only those in smulres which are mentioned in the file.
+Because this file is not present in external libs include-dirs,
+```USE_HEADER_UNITS``` macro is defined to consume all header-files as header-units.
+
+A limitation of HMake is that macros imported from other header-units can't be used to dictate
+header-units inclusion.
+Basically, [this](https://developercommunity.visualstudio.com/t/scanDependencies-does-not-take-into-acc/10029154?q=header+unit&page=1).
+HMake works by generating smurles in round 1 and then building the module in round 0.
+It can't first scan, then build, then scan the dependents and then build them.
+A workaround is to promote such macros to the build system,
+so these are provided on command-line.
+
+Please notice that HMake does not cache ```HU_DIRECTORIES``` call.
+Neither it stores the contents of ```header-units.json``` file in cache.
+Both of which can impact the header-units to be built.
+So, if you change these when you have already built the project,
+nothing will happen.
+Because, header-units are discovered during the build-process,
+and as no file is compiled, these changes won't be reflected.
+In order to reflect these changes,
+delete the dependents targets build-dir.
+By dependents, I mean those targets which can import a header-unit from such directory.
+Now, when such targets will be rebuilt,
+the changes will be reflected.
+I think, once set, you won't change it often.
+But, it might be cached later on as-well.
+So, if you change it all the dependent targets are completely rebuilt.
+
+Also notice, HMake does not check the .ifc file at all.
+If you externally update the .ifc or delete it,
+Please delete the corresponding .o file as well.
+This is for optimization.
+I think this is an acceptable tradeoff.
+.smrules file is only checked if .o file is newer than source-files.
+So, if you edit it externally, delete the corresponding .o file as-well.
 
 Thus, for drop-in replacement, compiler needs to support P1689R5 and a ```TranslateInclude::YES```
 flag.
@@ -1072,7 +713,7 @@ Clang isn't supported at the moment.
 As per the clang.jam (the b2 build-system Clang file),
 Clang uses GCC command-line on Linux and MSVC command-line on Windows.
 So, you can masquerade it as GCC or MSVC, however, clang.jam also
-sets the ```--target=``` flags which are not set by the HMake.
+sets the ```--target=``` flags on Windows which are not set by the HMake.
 Also ```clang-scan-deps```, a different tool than clang supports P1689R5,
 but this isn't supported in HMake.
 
@@ -1106,8 +747,7 @@ replacement of the other.
 
 I am also trying to expand the build algorithm, so, it can have
 smart thread-allocation for different tasks based on priority and quota.
-TODOs for these are mentioned in ```RealBTarget```, ```Builder.cpp```
-and ```SMFile::setFileStatusAndPopulateAllDependencies```. Help would be appreciated.
+TODOs for these are mentioned in ```BasicTarget.hpp```. Help would be appreciated.
 
 Also, IDE/Editor tools need to parse the source-code for intelligent suggestions.  
 Can this be cached and supplied to compiler backend, when user builds the code,

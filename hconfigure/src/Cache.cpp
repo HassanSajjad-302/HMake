@@ -4,13 +4,13 @@ import "Cache.hpp";
 import "BuildSystemFunctions.hpp";
 import "JConsts.hpp";
 import "Settings.hpp";
-import "fstream";
+import <fstream>;
 #else
-#include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
+#include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
 #include "Settings.hpp"
-#include "fstream"
+#include <fstream>
 #endif
 
 using std::ifstream, std::ofstream;

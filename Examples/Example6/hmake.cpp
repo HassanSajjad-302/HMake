@@ -5,7 +5,7 @@ void buildSpecification()
     auto makeApps = [](TargetType targetType) {
         string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
-        DSC<CppSourceTarget, true> &cat =
+        DSC<CppSourceTarget> &cat =
             GetCppTargetDSC_P("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
         cat.getSourceTarget().INTERFACE_INCLUDES("../Example4/Cat/header");
 
@@ -28,44 +28,4 @@ void buildSpecification()
     makeApps(TargetType::LIBRARY_SHARED);
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION

@@ -11,7 +11,7 @@ void buildSpecification()
 
     GetRoundZeroUpdateBTarget(
         [&](Builder &builder, BTarget &bTarget) {
-            if (bTarget.getRealBTarget(0).exitStatus == EXIT_SUCCESS &&
+            if (bTarget.realBTargets[0].exitStatus == EXIT_SUCCESS &&
                 bTarget.fileStatus.load(std::memory_order_acquire))
             {
                 std::filesystem::copy(catShared.getLinkOrArchiveTarget().getActualOutputPath(),
@@ -25,44 +25,4 @@ void buildSpecification()
         animalShared.getLinkOrArchiveTarget(), catShared.getLinkOrArchiveTarget());
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION

@@ -1,7 +1,7 @@
 #ifndef HMAKE_JCONSTS_H
 #define HMAKE_JCONSTS_H
 #ifdef USE_HEADER_UNITS
-import <PlatformSpecific.hpp>;
+import "PlatformSpecific.hpp";
 #else
 #include "PlatformSpecific.hpp"
 #endif

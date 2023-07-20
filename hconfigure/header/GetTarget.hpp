@@ -61,27 +61,26 @@ DSC<CppSourceTarget> &GetCppObjectDSC(const pstring &name, CTarget &other, bool 
 // GetCppObjectDSC_P and GetCppDSC_P are not provided because if PrebuiltLinkOrArchiveTarget * is nullptr, then the
 // above functions can be used.
 
-DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name, const pstring &directory,
-                                              TargetType targetType = cache.libraryType, bool defines = false,
-                                              pstring define = "");
-DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name, const pstring &directory, CTarget &other,
-                                              TargetType targetType = cache.libraryType, bool defines = false,
-                                              pstring define = "", bool hasFile = true);
-DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name, const pstring &prebuiltName,
-                                              const pstring &directory, TargetType targetType = cache.libraryType,
-                                              bool defines = false, pstring define = "");
-DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name, const pstring &prebuiltName,
-                                              const pstring &directory, CTarget &other,
-                                              TargetType targetType = cache.libraryType, bool defines = false,
-                                              pstring define = "", bool hasFile = true);
-DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const pstring &name, const pstring &directory, bool defines = false,
-                                              pstring define = "");
-DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const pstring &name, const pstring &directory, CTarget &other,
-                                              bool defines = false, pstring define = "", bool hasFile = true);
-DSC<CppSourceTarget, true> &GetCppSharedDSC_P(const pstring &name, const pstring &directory, bool defines = false,
-                                              pstring define = "");
-DSC<CppSourceTarget, true> &GetCppSharedDSC_P(const pstring &name, const pstring &directory, CTarget &other,
-                                              bool defines = false, pstring define = "", bool hasFile = true);
+DSC<CppSourceTarget> &GetCppTargetDSC_P(const pstring &name, const pstring &directory,
+                                        TargetType targetType = cache.libraryType, bool defines = false,
+                                        pstring define = "");
+DSC<CppSourceTarget> &GetCppTargetDSC_P(const pstring &name, const pstring &directory, CTarget &other,
+                                        TargetType targetType = cache.libraryType, bool defines = false,
+                                        pstring define = "", bool hasFile = true);
+DSC<CppSourceTarget> &GetCppTargetDSC_P(const pstring &name, const pstring &prebuiltName, const pstring &directory,
+                                        TargetType targetType = cache.libraryType, bool defines = false,
+                                        pstring define = "");
+DSC<CppSourceTarget> &GetCppTargetDSC_P(const pstring &name, const pstring &prebuiltName, const pstring &directory,
+                                        CTarget &other, TargetType targetType = cache.libraryType, bool defines = false,
+                                        pstring define = "", bool hasFile = true);
+DSC<CppSourceTarget> &GetCppStaticDSC_P(const pstring &name, const pstring &directory, bool defines = false,
+                                        pstring define = "");
+DSC<CppSourceTarget> &GetCppStaticDSC_P(const pstring &name, const pstring &directory, CTarget &other,
+                                        bool defines = false, pstring define = "", bool hasFile = true);
+DSC<CppSourceTarget> &GetCppSharedDSC_P(const pstring &name, const pstring &directory, bool defines = false,
+                                        pstring define = "");
+DSC<CppSourceTarget> &GetCppSharedDSC_P(const pstring &name, const pstring &directory, CTarget &other,
+                                        bool defines = false, pstring define = "", bool hasFile = true);
 
 template <typename... U>
 RoundZeroUpdateBTarget &GetRoundZeroUpdateBTarget(function<void(Builder &, BTarget &bTarget)> func, U &...dependencies)

@@ -104,7 +104,6 @@ void PrebuiltBasic::updateBTarget(Builder &, unsigned short round)
 void PrebuiltBasic::addRequirementDepsToBTargetDependencies()
 {
     // Access to addDependency() function must be synchronized because set::emplace is not thread-safe
-    std::lock_guard<std::mutex> lk(BTargetNamespace::addDependencyMutex);
     RealBTarget &round0 = realBTargets[0];
     if (EVALUATE(TargetType::LIBRARY_STATIC))
     {

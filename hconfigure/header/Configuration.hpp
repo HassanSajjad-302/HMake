@@ -61,24 +61,24 @@ struct Configuration : public CTarget
 
     // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
 
-    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name_, const pstring &directory,
-                                                  TargetType targetType_ = cache.libraryType, bool defines = false,
-                                                  pstring define = "");
-    DSC<CppSourceTarget, true> &GetCppTargetDSC_P(const pstring &name_, const pstring &prebuiltName,
-                                                  const pstring &directory, TargetType targetType_ = cache.libraryType,
-                                                  bool defines = false, pstring define = "");
-    DSC<CppSourceTarget, true> &GetCppStaticDSC_P(const pstring &name_, const pstring &directory, bool defines = false,
-                                                  pstring define = "");
+    DSC<CppSourceTarget> &GetCppTargetDSC_P(const pstring &name_, const pstring &directory,
+                                            TargetType targetType_ = cache.libraryType, bool defines = false,
+                                            pstring define = "");
+    DSC<CppSourceTarget> &GetCppTargetDSC_P(const pstring &name_, const pstring &prebuiltName, const pstring &directory,
+                                            TargetType targetType_ = cache.libraryType, bool defines = false,
+                                            pstring define = "");
+    DSC<CppSourceTarget> &GetCppStaticDSC_P(const pstring &name_, const pstring &directory, bool defines = false,
+                                            pstring define = "");
 
-    DSC<CppSourceTarget, true> &GetCppSharedDSC_P(const pstring &name_, const pstring &directory, bool defines = false,
-                                                  pstring define = "");
+    DSC<CppSourceTarget> &GetCppSharedDSC_P(const pstring &name_, const pstring &directory, bool defines = false,
+                                            pstring define = "");
 
     ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;
 
     explicit Configuration(const pstring &name_);
     Configuration(const pstring &name, CTarget &other, bool hasFile = true);
     void markArchivePoint();
-    void setJson() override;
+    // void setJson() override;
     C_Target *get_CAPITarget(BSMode bsModeLocal) override;
     template <typename T, typename... Property> Configuration &ASSIGN(T property, Property... properties);
 };

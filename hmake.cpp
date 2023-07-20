@@ -10,7 +10,7 @@ struct SizeDifference : public CTarget, public BTarget
     SizeDifference(string name, Configuration &sizeConfiguration_, Configuration &speedConfiguration_)
         : CTarget(std::move(name)), sizeConfiguration(sizeConfiguration_), speedConfiguration(speedConfiguration_)
     {
-        RealBTarget &realBTarget = realBTargets[0];
+        RealBTarget &realBTarget = realBTargets.emplace_back(this, 0);
         if (speedConfiguration.getSelectiveBuild() && sizeConfiguration.getSelectiveBuild() && getSelectiveBuild())
         {
             for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
@@ -137,68 +137,15 @@ void buildSpecification()
     Configuration &releaseSpeed = GetConfiguration("RSpeed");
     CxxSTD cxxStd = releaseSpeed.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
     releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
+    releaseSpeed.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS", "1");
 
     Configuration &releaseSize = GetConfiguration("RSize");
     releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
 
-    if (equivalent(path(configureDir), std::filesystem::current_path()))
+    if (selectiveConfigurationSpecification(&configurationSpecification))
     {
-        for (const Configuration &configuration : targets<Configuration>)
-        {
-            configurationSpecification(const_cast<Configuration &>(configuration));
-        }
         targets<SizeDifference>.emplace("Size-Difference", releaseSize, releaseSpeed);
-    }
-    else
-    {
-        for (const Configuration &configuration : targets<Configuration>)
-        {
-            if (const_cast<Configuration &>(configuration).getSelectiveBuildChildDir())
-            {
-                configurationSpecification(const_cast<Configuration &>(configuration));
-            }
-        }
     }
 }
 
-#ifdef EXE
-int main(int argc, char **argv)
-{
-    try
-    {
-        initializeCache(getBuildSystemModeFromArguments(argc, argv));
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#else
-extern "C" EXPORT int func2(BSMode bsMode_)
-{
-    try
-    {
-        initializeCache(bsMode_);
-        buildSpecification();
-        configureOrBuild();
-    }
-    catch (std::exception &ec)
-    {
-        string str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-#endif
+MAIN_FUNCTION

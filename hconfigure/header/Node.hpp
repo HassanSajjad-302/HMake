@@ -22,7 +22,7 @@ struct CompareNode
     bool operator()(const Node &lhs, const pstring_view &rhs) const;
 };
 
-inline static mutex nodeInsertMutex;
+inline mutex nodeInsertMutex;
 
 class Node
 {

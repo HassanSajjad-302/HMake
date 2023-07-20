@@ -45,7 +45,7 @@ void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
 {
     if (!round)
     {
-        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slash;
+        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slashc;
         PrebuiltLinkOrArchiveTarget::preSort(builder, round);
     }
     else if (round == 2)

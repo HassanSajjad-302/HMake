@@ -193,7 +193,7 @@ pstring getReducedPath(pstring_view subjectPath, const PathPrint &pathPrint)
 
         for (size_t i = 0; i < str.size(); ++i)
         {
-            if (str[i] == slash)
+            if (str[i] == slashc)
             {
                 ++count;
                 if (count == nth)
@@ -207,7 +207,7 @@ pstring getReducedPath(pstring_view subjectPath, const PathPrint &pathPrint)
 
     auto countCharacter = [](const pstring &str) -> size_t {
         size_t count = 0;
-        for (size_t offset = str.find(slash); offset != pstring::npos; offset = str.find(slash, offset + 1))
+        for (size_t offset = str.find(slashc); offset != pstring::npos; offset = str.find(slashc, offset + 1))
         {
             ++count;
         }

@@ -12,15 +12,15 @@ import "CppSourceTarget.hpp";
 #endif
 
 // Dependency Specification Controller. Following declaration is for T = CSourceTarget
-template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
+template <typename T> struct DSC : DSCFeatures
 {
     using BaseType = typename T::BaseType;
     ObjectFileProducerWithDS<BaseType> *objectFileProducer = nullptr;
     PrebuiltBasic *prebuiltBasic = nullptr;
     PrebuiltDep prebuiltDepLocal;
 
-    template <typename U, bool prebuilt_>
-    void assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controller, Dependency dependency, PrebuiltDep prebuiltDep);
+    template <typename U>
+    void assignLinkOrArchiveTargetLib(DSC<U> *controller, Dependency dependency, PrebuiltDep prebuiltDep);
 
     pstring define;
 
@@ -53,10 +53,12 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
         }
     }
 
-    template <typename U, bool prebuilt_, typename... V>
-    DSC &PUBLIC_LIBRARIES(DSC<U, prebuilt_> *controller, const V... libraries)
+    template <typename U, typename... V> DSC &PUBLIC_LIBRARIES(DSC<U> *controller, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::PUBLIC, prebuiltDepLocal);
+        // TODO
+        //  This is an unnecessary if as constructor is already checking for nullptr. Also, this code can be moved in
+        //  assignLinkOrArchiveTarget as well.
         if (objectFileProducer && controller->objectFileProducer)
         {
             objectFileProducer->PUBLIC_DEPS(controller->getSourceTargetPointer());
@@ -71,8 +73,7 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
         }
     }
 
-    template <typename U, bool prebuilt_, typename... V>
-    DSC &PRIVATE_LIBRARIES(DSC<U, prebuilt_> *controller, const V... libraries)
+    template <typename U, typename... V> DSC &PRIVATE_LIBRARIES(DSC<U> *controller, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::PRIVATE, prebuiltDepLocal);
         if (objectFileProducer && controller->objectFileProducer)
@@ -89,8 +90,7 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
         }
     }
 
-    template <typename U, bool prebuilt_, typename... V>
-    DSC &INTERFACE_LIBRARIES(DSC<U, prebuilt_> *controller, const V... libraries)
+    template <typename U, typename... V> DSC &INTERFACE_LIBRARIES(DSC<U> *controller, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::INTERFACE, prebuiltDepLocal);
         if (objectFileProducer && controller->objectFileProducer)
@@ -107,8 +107,8 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
         }
     }
 
-    template <typename U, bool prebuilt_, typename... V>
-    DSC &PUBLIC_LIBRARIES(DSC<U, prebuilt_> *controller, PrebuiltDep prebuiltDep, const V... libraries)
+    template <typename U, typename... V>
+    DSC &PUBLIC_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::PUBLIC, std::move(prebuiltDep));
         if (objectFileProducer && controller->objectFileProducer)
@@ -125,8 +125,8 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
         }
     }
 
-    template <typename U, bool prebuilt_, typename... V>
-    DSC &PRIVATE_LIBRARIES(DSC<U, prebuilt_> *controller, PrebuiltDep prebuiltDep, const V... libraries)
+    template <typename U, typename... V>
+    DSC &PRIVATE_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::PRIVATE, std::move(prebuiltDep));
         if (objectFileProducer && controller->objectFileProducer)
@@ -143,8 +143,8 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
         }
     }
 
-    template <typename U, bool prebuilt_, typename... V>
-    DSC &INTERFACE_LIBRARIES(DSC<U, prebuilt_> *controller, PrebuiltDep prebuiltDep, const V... libraries)
+    template <typename U, typename... V>
+    DSC &INTERFACE_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(controller, Dependency::INTERFACE, std::move(prebuiltDep));
         if (objectFileProducer && controller->objectFileProducer)
@@ -168,15 +168,14 @@ template <typename T, bool prebuilt = false> struct DSC : DSCFeatures
     LinkOrArchiveTarget &getLinkOrArchiveTarget();
 };
 
-template <typename T, bool prebuilt> bool operator<(const DSC<T, prebuilt> &lhs, const DSC<T, prebuilt> &rhs)
+template <typename T> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
 {
     return std::tie(lhs.objectFileProducer, lhs.prebuiltBasic) < std::tie(rhs.objectFileProducer, rhs.prebuiltBasic);
 }
 
-template <typename T, bool prebuilt>
-template <typename U, bool prebuilt_>
-void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controller, Dependency dependency,
-                                                    PrebuiltDep prebuiltDep)
+template <typename T>
+template <typename U>
+void DSC<T>::assignLinkOrArchiveTargetLib(DSC<U> *controller, Dependency dependency, PrebuiltDep prebuiltDep)
 {
     if (prebuiltBasic->linkTargetType != TargetType::LIBRARY_SHARED && dependency == Dependency::PRIVATE)
     {
@@ -217,27 +216,27 @@ void DSC<T, prebuilt>::assignLinkOrArchiveTargetLib(DSC<U, prebuilt_> *controlle
     }
 }
 
-template <typename T, bool prebuilt> T &DSC<T, prebuilt>::getSourceTarget()
+template <typename T> T &DSC<T>::getSourceTarget()
 {
     return static_cast<T &>(*objectFileProducer);
 }
 
-template <typename T, bool prebuilt> T *DSC<T, prebuilt>::getSourceTargetPointer()
+template <typename T> T *DSC<T>::getSourceTargetPointer()
 {
     return static_cast<T *>(objectFileProducer);
 }
 
-template <typename T, bool prebuilt> PrebuiltBasic &DSC<T, prebuilt>::getPrebuiltBasicTarget()
+template <typename T> PrebuiltBasic &DSC<T>::getPrebuiltBasicTarget()
 {
     return *prebuiltBasic;
 }
 
-template <typename T, bool prebuilt> PrebuiltLinkOrArchiveTarget &DSC<T, prebuilt>::getPrebuiltLinkOrArchiveTarget()
+template <typename T> PrebuiltLinkOrArchiveTarget &DSC<T>::getPrebuiltLinkOrArchiveTarget()
 {
     return static_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltBasic);
 }
 
-template <typename T, bool prebuilt> LinkOrArchiveTarget &DSC<T, prebuilt>::getLinkOrArchiveTarget()
+template <typename T> LinkOrArchiveTarget &DSC<T>::getLinkOrArchiveTarget()
 {
     return static_cast<LinkOrArchiveTarget &>(*prebuiltBasic);
 }

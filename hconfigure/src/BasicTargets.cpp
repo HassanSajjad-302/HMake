@@ -105,7 +105,7 @@ void CTarget::initializeCTarget()
             throw std::exception();
         }
     }
-    targetSubDir = other ? (other->targetSubDir + name + slash) : targetFileDir;
+    targetSubDir = other ? (other->targetSubDir + name + slashc) : targetFileDir;
 }
 
 CTarget::CTarget(pstring name_, CTarget &container, const bool hasFile_)
@@ -120,7 +120,7 @@ CTarget::CTarget(pstring name_, CTarget &container, const bool hasFile_)
     }
     if (hasFile)
     {
-        targetFileDir = container.targetFileDir + name + slash;
+        targetFileDir = container.targetFileDir + name + slashc;
     }
     else
     {
@@ -144,7 +144,7 @@ CTarget::CTarget(pstring name_, CTarget &container, const bool hasFile_)
 }
 
 CTarget::CTarget(pstring name_)
-    : name(std::move(name_)), targetFileDir((path(configureDir).*toPStr)() + slash + name + slash)
+    : name(std::move(name_)), targetFileDir((path(configureDir).*toPStr)() + slashc + name + slashc)
 {
     initializeCTarget();
     targetSubDirectories.emplace(targetSubDir);
@@ -158,11 +158,11 @@ pstring CTarget::getTargetPointer() const
     {
         if (hasFile)
         {
-            return other->getTargetPointer() + slash + name + slash;
+            return other->getTargetPointer() + slashc + name + slashc;
         }
         else
         {
-            return other->getTargetPointer() + name + slash;
+            return other->getTargetPointer() + name + slashc;
         }
     }
     else

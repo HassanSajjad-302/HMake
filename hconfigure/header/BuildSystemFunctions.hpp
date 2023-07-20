@@ -5,6 +5,7 @@ import "OS.hpp";
 import <map>;
 import <mutex>;
 import "PlatformSpecific.hpp";
+import "nlohmann/json.hpp";
 import <set>;
 #else
 #include "OS.hpp"
@@ -23,10 +24,12 @@ using std::set, std::map, std::mutex, std::vector;
 #define EXPORT __attribute__((visibility("default")))
 #endif
 
+// Named as slashc to avoid collision with a declaration in nlohmann/json which causes warnings. Will be removed later
+// when nlohmann/json is removed.
 #ifdef _WIN32
-inline char slash = '\\';
+inline char slashc = '\\';
 #else
-inline char slash = '/';
+inline char slashc = '/';
 #endif
 
 // TODO

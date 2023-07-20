@@ -159,6 +159,7 @@ template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U 
 
 template <typename... U> void RealBTarget::addLooseDependency(BTarget &dependency, U &...bTargets)
 {
+    lock_guard<mutex> lk{realbtarget_adddependency};
     if (dependencies.try_emplace(&dependency, BTargetDepType::LOOSE).second)
     {
         RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
