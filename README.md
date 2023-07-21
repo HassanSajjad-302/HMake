@@ -674,6 +674,10 @@ in the header-directory and mentions only those in smulres which are mentioned i
 Because this file is not present in external libs include-dirs,
 ```USE_HEADER_UNITS``` macro is defined to consume all header-files as header-units.
 
+You can use hwrite to write the ```header-units.json``` file.
+Execute the hwrite in the respective directory, and pass it the extension.
+e.g. ```hwrite .hpp```.
+
 A limitation of HMake is that macros imported from other header-units can't be used to dictate
 header-units inclusion.
 Basically, [this](https://developercommunity.visualstudio.com/t/scanDependencies-does-not-take-into-acc/10029154?q=header+unit&page=1).
