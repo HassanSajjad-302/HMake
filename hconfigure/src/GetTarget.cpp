@@ -223,14 +223,14 @@ DSC<CppSourceTarget> &GetCppSharedDSC(const pstring &name, CTarget &other, const
 DSC<CppSourceTarget> &GetCppObjectDSC(const pstring &name, const bool defines, pstring define)
 {
     return const_cast<DSC<CppSourceTarget> &>(
-        targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name + dashCpp)), nullptr, defines, std::move(define)).first.operator*());
+        targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name + dashCpp)), &GetPrebuiltBasic(name), defines, std::move(define)).first.operator*());
 }
 
 DSC<CppSourceTarget> &GetCppObjectDSC(const pstring &name, CTarget &other, const bool defines, pstring define,
                                       bool hasFile)
 {
     return const_cast<DSC<CppSourceTarget> &>(
-        targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name + dashCpp, other, hasFile)), nullptr, defines, std::move(define)).first.operator*());
+        targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name + dashCpp, other, hasFile)), &GetPrebuiltBasic(name), defines, std::move(define)).first.operator*());
 }
 
 DSC<CppSourceTarget> &GetCppTargetDSC_P(const pstring &name, const pstring &directory, TargetType targetType,
