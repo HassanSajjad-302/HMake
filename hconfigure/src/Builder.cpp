@@ -68,12 +68,8 @@ void Builder::addNewBTargetInFinalBTargets(BTarget *bTarget)
 {
     {
         std::lock_guard<std::mutex> lk(executeMutex);
-        updateBTargets.emplace_back(bTarget);
+        updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, bTarget);
         ++updateBTargetsSizeGoal;
-        if (updateBTargetsIterator == updateBTargets.end())
-        {
-            --updateBTargetsIterator;
-        }
     }
     cond.notify_all();
 }
@@ -365,11 +361,7 @@ void Builder::execute()
                     --(dependentRealBTarget.dependenciesSize);
                     if (!dependentRealBTarget.dependenciesSize)
                     {
-                        updateBTargets.emplace_back(dependent);
-                        if (updateBTargetsIterator == updateBTargets.end())
-                        {
-                            --updateBTargetsIterator;
-                        }
+                        updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, dependent);
                     }
                 }
             }
@@ -387,11 +379,7 @@ void Builder::execute()
                         --(dependentRealBTarget.dependenciesSize);
                         if (!dependentRealBTarget.dependenciesSize)
                         {
-                            updateBTargets.emplace_back(dependent);
-                            if (updateBTargetsIterator == updateBTargets.end())
-                            {
-                                --updateBTargetsIterator;
-                            }
+                            updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, dependent);
                         }
                     }
                 }

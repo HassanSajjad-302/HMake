@@ -66,6 +66,7 @@ struct ModuleScopeData
     mutex requirePathsMutex;
 
     // Written mutex locked in round 1 preSort.
+    // TODO This should be with a comparator comparing file paths instead of just pointer comparisons
     set<SMFile *> smFiles;
 
     // Written mutex locked in round 1 updateBTarget
