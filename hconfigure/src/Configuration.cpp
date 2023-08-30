@@ -42,10 +42,6 @@ CppSourceTarget &Configuration::GetCppPreprocess(const pstring &name_)
             operator*());
     cppSourceTargets.emplace_back(&cppSourceTarget);
     static_cast<CppCompilerFeatures &>(cppSourceTarget) = compilerFeatures;
-    if (moduleScope)
-    {
-        cppSourceTarget.setModuleScope(moduleScope);
-    }
     return cppSourceTarget;
 }
 
@@ -58,10 +54,6 @@ CppSourceTarget &Configuration::GetCppObject(const pstring &name_)
             operator*());
     cppSourceTargets.emplace_back(&cppSourceTarget);
     static_cast<CppCompilerFeatures &>(cppSourceTarget) = compilerFeatures;
-    if (moduleScope)
-    {
-        cppSourceTarget.setModuleScope(moduleScope);
-    }
     return cppSourceTarget;
 }
 

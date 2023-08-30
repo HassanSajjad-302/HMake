@@ -20,7 +20,6 @@ void buildSpecification()
         DSC<CppSourceTarget> &lib3 = configuration.GetCppStaticDSC("lib3").PUBLIC_LIBRARIES(&lib4);
         lib3.getSourceTarget()
             .MODULE_DIRECTORIES_RG("lib3/private", ".*cpp")
-            .setModuleScope()
             .PUBLIC_HU_INCLUDES("lib3/public");
 
         DSC<CppSourceTarget> &lib2 = configuration.GetCppStaticDSC("lib2").PRIVATE_LIBRARIES(&lib3);

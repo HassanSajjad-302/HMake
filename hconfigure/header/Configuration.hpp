@@ -34,7 +34,6 @@ struct Configuration : public CTarget
     vector<struct CSourceTarget *> prebuiltTargets;
     CppCompilerFeatures compilerFeatures;
     LinkerFeatures linkerFeatures;
-    CppSourceTarget *moduleScope = nullptr;
     TargetType targetType = TargetType::LIBRARY_STATIC;
     bool archiving = false;
 

@@ -217,43 +217,40 @@ SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node
 void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
 {
     // Subtracts 1 atomically and returns the value held previously
-    unsigned int count = target->moduleScopeData->totalSMRuleFileCountOld.fetch_sub(1);
+    unsigned int count = target->totalSMRuleFileCount.fetch_sub(1);
     if (!(count - 1))
     {
         // All header-units are found, so header-units pvalue array size could be reserved
 
-        for (CppSourceTarget *cppTarget : target->moduleScopeData->targetsOld)
+        // If a new header-unit was added in this run, sourceJson pointers are adjusted
+        if (target->newHeaderUnitsSize)
         {
-            // If a new header-unit was added in this run, sourceJson pointers are adjusted
-            if (cppTarget->newHeaderUnitsSize)
+            PValue &headerUnitsPValueArray = (*(target->targetBuildCache))[2];
+            headerUnitsPValueArray.Reserve(headerUnitsPValueArray.Size() + target->newHeaderUnitsSize,
+                                           target->cppAllocator);
+
+            for (const SMFile *headerUnit : target->headerUnits)
             {
-                PValue &headerUnitsPValueArray = (*(cppTarget->targetBuildCache))[2];
-                headerUnitsPValueArray.Reserve(headerUnitsPValueArray.Size() + cppTarget->newHeaderUnitsSize,
-                                               cppTarget->cppAllocator);
-
-                for (const SMFile *headerUnit : cppTarget->headerUnits)
+                if (headerUnit->headerUnitsIndex == UINT64_MAX)
                 {
-                    if (headerUnit->headerUnitsIndex == UINT64_MAX)
-                    {
-                        // headerUnit did not exist before in the cache
-                        PValue *oldPtr = headerUnit->sourceJson;
+                    // headerUnit did not exist before in the cache
+                    PValue *oldPtr = headerUnit->sourceJson;
 
-                        // old value is moved
-                        headerUnitsPValueArray.PushBack(*(headerUnit->sourceJson), cppTarget->cppAllocator);
+                    // old value is moved
+                    headerUnitsPValueArray.PushBack(*(headerUnit->sourceJson), target->cppAllocator);
 
-                        // old pointer cleared
-                        delete oldPtr;
+                    // old pointer cleared
+                    delete oldPtr;
 
-                        // Reassigning the old value moved in the array
-                        const_cast<SMFile *>(headerUnit)->sourceJson = (headerUnitsPValueArray.End() - 1);
-                    }
-                    else
-                    {
-                        // headerUnit existed before in the cache but because array size is increased the sourceJson
-                        // pointer is invalidated now. Reassigning the pointer based on previous index.
-                        const_cast<SMFile *>(headerUnit)->sourceJson =
-                            &(headerUnitsPValueArray[headerUnit->headerUnitsIndex]);
-                    }
+                    // Reassigning the old value moved in the array
+                    const_cast<SMFile *>(headerUnit)->sourceJson = (headerUnitsPValueArray.End() - 1);
+                }
+                else
+                {
+                    // headerUnit existed before in the cache but because array size is increased the sourceJson
+                    // pointer is invalidated now. Reassigning the pointer based on previous index.
+                    const_cast<SMFile *>(headerUnit)->sourceJson =
+                        &(headerUnitsPValueArray[headerUnit->headerUnitsIndex]);
                 }
             }
         }
@@ -262,7 +259,10 @@ void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
         // write the CppSourceTarget .cache files. So, if because of an error during smrule generation of a file,
         // hmake is exiting after round 1, in next invocation, it won't generate the smrule of successfully
         // generated files.
-        builder.addCppSourceTargetsInFinalBTargets(target->moduleScopeData->targetsOld);
+        if (target->targetCacheChanged.load(std::memory_order_acquire))
+        {
+            builder.addNewBTargetInFinalBTargets(target);
+        }
     }
 }
 
@@ -396,17 +396,16 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     if ((*sourceJson)[3][0].GetStringLength())
     {
         logicalName = pstring((*sourceJson)[3][0].GetString(), (*sourceJson)[3][0].GetStringLength());
-        target->moduleScopeData->requirePathsMutexOld.lock();
-        auto [pos, ok] = target->moduleScopeData->requirePathsOld.try_emplace(logicalName, this);
-        target->moduleScopeData->requirePathsMutexOld.unlock();
+        target->requirePathsMutexOld.lock();
+        auto [pos, ok] = target->requirePaths.try_emplace(logicalName, this);
+        target->requirePathsMutexOld.unlock();
 
         if (!ok)
         {
             const auto &[key, val] = *pos;
             printErrorMessageColor(
-                fmt::format(
-                    "In Module-Scope:\n{}\nModule:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
-                    target->moduleScope->targetSubDir, logicalName, node->filePath, val->node->filePath),
+                fmt::format("In target:\n{}\nModule name:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
+                            target->getTarjanNodeName(), logicalName, node->filePath, val->node->filePath),
                 settings.pcSettings.toolErrorOutput);
             decrementTotalSMRuleFileCount(builder);
             throw std::exception();
@@ -432,11 +431,10 @@ bool pathContainsFile(pstring_view dir, pstring_view file)
 
 void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &builder)
 {
-    ModuleScopeDataOld *moduleScopeData = target->moduleScopeData;
     if (requirePValue[0] == PValue(ptoref(logicalName)))
     {
-        printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                           target->moduleScope->targetSubDir, node->filePath),
+        printErrorMessageColor(fmt::format("In target\n{}\nModule\n{}\n can not depend on itself.\n",
+                                           target->getTarjanNodeName(), node->filePath),
                                settings.pcSettings.toolErrorOutput);
         decrementTotalSMRuleFileCount(builder);
         throw std::exception();
@@ -459,10 +457,9 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
             if (huDirTarget && huDirTarget != targetLocal)
             {
                 printErrorMessageColor(fmt::format("Module Header Unit\n{}\n belongs to two different Target Header "
-                                                   "Unit Includes\n{}\n{}\nof Module "
-                                                   "Scope\n{}\n",
+                                                   "Unit Includes\n{}\n{}\n",
                                                    headerUnitNode->filePath, nodeDir->node->filePath,
-                                                   inclNode->node->filePath, target->moduleScope->getTargetPointer()),
+                                                   inclNode->node->filePath, settings.pcSettings.toolErrorOutput),
                                        settings.pcSettings.toolErrorOutput);
                 decrementTotalSMRuleFileCount(builder);
                 throw std::exception();
@@ -525,7 +522,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
         {
-            ++target->moduleScopeData->totalSMRuleFileCountOld;
+            ++huDirTarget->totalSMRuleFileCount;
         }
 
         builder.addNewBTargetInFinalBTargets(&headerUnit);
@@ -569,8 +566,8 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
         {
             if (requirePValue[0] == PValue(ptoref(logicalName)))
             {
-                printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                   target->moduleScope->targetSubDir, node->filePath),
+                printErrorMessageColor(fmt::format("In target\n{}\nModule\n{}\n can not depend on itself.\n",
+                                                   target->getTarjanNodeName(), node->filePath),
                                        settings.pcSettings.toolErrorOutput);
                 decrementTotalSMRuleFileCount(builder);
                 throw std::exception();
@@ -619,6 +616,7 @@ bool SMFile::generateSMFileInRoundOne()
 
     if ((*sourceJson)[1] != PValue(ptoref(target->compileCommandWithTool)))
     {
+        pstring str((*sourceJson)[1].GetString(), (*sourceJson)[1].GetStringLength());
         readJsonFromSMRulesFile = true;
         // This is the only access in round 1. Maybe change to relaxed
         fileStatus.store(true, std::memory_order_release);

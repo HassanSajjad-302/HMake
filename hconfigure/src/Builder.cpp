@@ -400,12 +400,8 @@ bool Builder::addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets
         {
             if (target->targetCacheChanged.load(std::memory_order_acquire))
             {
-                updateBTargets.emplace_back(target);
+                updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, target);
                 ++updateBTargetsSizeGoal;
-                if (updateBTargetsIterator == updateBTargets.end())
-                {
-                    --updateBTargetsIterator;
-                }
             }
         }
     }

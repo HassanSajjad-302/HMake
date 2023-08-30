@@ -59,7 +59,7 @@ struct CompilerFlags
     pstring CPP_FLAGS_COMPILE;
 };
 
-struct ModuleScopeDataOld
+/*struct ModuleScopeDataOld
 {
     mutex smFilesMutexOld;
     mutex requirePathsMutexOld;
@@ -74,7 +74,7 @@ struct ModuleScopeDataOld
 
     set<CppSourceTarget *> targetsOld;
     atomic<unsigned int> totalSMRuleFileCountOld = 0;
-};
+};*/
 
 // TODO
 // HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
@@ -93,14 +93,21 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     mutex headerUnitsMutexNew;
 
+    // Written mutex locked in round 1 updateBTarget.
+    // Which require is provided by which SMFile
+    map<pstring, SMFile *> requirePaths;
+
+    mutex requirePathsMutexOld;
+
+    atomic<unsigned int> totalSMRuleFileCount = 0;
+
     using BaseType = CSourceTarget;
     // Written mutex locked in round 1 updateBTarget
     mutex headerUnitsMutex;
     unique_ptr<PValue> targetBuildCache;
     TargetType compileTargetType;
-    CppSourceTarget *moduleScope = nullptr;
-    ModuleScopeDataOld *moduleScopeData = nullptr;
-    inline static map<const CppSourceTarget *, unique_ptr<ModuleScopeDataOld>> moduleScopes;
+    /*    ModuleScopeDataOld *moduleScopeData = nullptr;
+        inline static map<const CppSourceTarget *, unique_ptr<ModuleScopeDataOld>> moduleScopes;*/
     friend struct PostCompile;
     // Parsed Info Not Changed Once Read
     pstring targetFilePath;
@@ -148,7 +155,7 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     RAPIDJSON_DEFAULT_ALLOCATOR cppAllocator;
     size_t buildCacheIndex = UINT64_MAX;
-    size_t newHeaderUnitsSize = 0;
+    atomic<size_t> newHeaderUnitsSize = 0;
     bool archiving = false;
     bool archived = false;
 
@@ -169,9 +176,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     void populateTransitiveProperties();
 
     CSourceTargetType getCSourceTargetType() const override;
-
-    CppSourceTarget &setModuleScope(CppSourceTarget *moduleScope_);
-    CppSourceTarget &setModuleScope();
 
     CppSourceTarget &assignStandardIncludesToPublicHUDirectories();
     // TODO

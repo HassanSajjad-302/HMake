@@ -20,8 +20,7 @@ void configurationSpecification(Configuration &config)
 
     DSC<CppSourceTarget> &stdhu = config.GetCppObjectDSC("stdhu");
 
-    stdhu.getSourceTargetPointer()->setModuleScope().assignStandardIncludesToPublicHUDirectories();
-    config.moduleScope = stdhu.getSourceTargetPointer();
+    stdhu.getSourceTargetPointer()->assignStandardIncludesToPublicHUDirectories();
 
     DSC<CppSourceTarget> &lib4 = config.GetCppTargetDSC("lib4", config.targetType);
     DSC<CppSourceTarget> &lib3 = config.GetCppTargetDSC("lib3", config.targetType).PUBLIC_LIBRARIES(&lib4);

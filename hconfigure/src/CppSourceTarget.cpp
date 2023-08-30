@@ -170,32 +170,6 @@ CSourceTargetType CppSourceTarget::getCSourceTargetType() const
     return CSourceTargetType::CppSourceTarget;
 }
 
-CppSourceTarget &CppSourceTarget::setModuleScope(CppSourceTarget *moduleScope_)
-{
-    moduleScope = moduleScope_;
-    if (!moduleScope->moduleScopeData)
-    {
-        if (auto it = moduleScopes.find(moduleScope); it != moduleScopes.end())
-        {
-            moduleScope->moduleScopeData = it->second.get();
-        }
-        else
-        {
-            auto tmp = make_unique<ModuleScopeDataOld>();
-            moduleScope->moduleScopeData = moduleScopes.emplace(moduleScope, std::move(tmp)).first->second.get();
-        }
-    }
-    moduleScopeData = moduleScope->moduleScopeData;
-    moduleScopeData->targetsOld.emplace(this);
-    return *this;
-}
-
-CppSourceTarget &CppSourceTarget::setModuleScope()
-{
-    setModuleScope(this);
-    return *this;
-}
-
 CppSourceTarget &CppSourceTarget::assignStandardIncludesToPublicHUDirectories()
 {
     for (InclNode &include : requirementIncludes)
@@ -711,10 +685,7 @@ void CppSourceTarget::preSort(Builder &builder, unsigned short round)
     else if (!round)
     {
         populateSourceNodes();
-        if (moduleScope == this)
-        {
-            resolveRequirePaths();
-        }
+        resolveRequirePaths();
     }
     else if (round == 2)
     {
@@ -1124,43 +1095,76 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
 
 void CppSourceTarget::resolveRequirePaths()
 {
-    if (moduleScope == this)
+    for (const SMFile &smFile : moduleSourceFileDependencies)
     {
-        for (SMFile *smFile : moduleScopeData->smFilesOld)
+        PValue &rules = (*(smFile.sourceJson))[3];
+
+        for (const PValue &require : rules[1].GetArray())
         {
-            PValue &rules = (*(smFile->sourceJson))[3];
-
-            for (const PValue &require : rules[1].GetArray())
+            // TODO
+            // Change smFile->logicalName to PValue to efficiently compare it with Value PValue
+            if (require[0] == PValue(ptoref(smFile.logicalName)))
             {
-                // TODO
-                // Change smFile->logicalName to PValue to efficiently compare it with Value PValue
-                if (require[0] == PValue(ptoref(smFile->logicalName)))
-                {
-                    printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                       moduleScope->targetSubDir, smFile->node->filePath),
-                                           settings.pcSettings.toolErrorOutput);
-                    throw std::exception();
-                }
+                printErrorMessageColor(fmt::format("In target\n{}\nModule\n{}\n can not depend on itself.\n",
+                                                   getTarjanNodeName(), smFile.node->filePath),
+                                       settings.pcSettings.toolErrorOutput);
+                throw std::exception();
+            }
 
-                // If the rule source-path key is empty, then it is header-unit
-                if (require[1].GetStringLength() != 0)
+            // If the rule source-path key is empty, then it is header-unit
+            if (require[1].GetStringLength() != 0)
+            {
+                continue;
+            }
+
+            const SMFile *found = nullptr;
+
+            // Even if found, we continue the search to ensure that no two files are providing the same module in
+            // the module-files of the target and its dependencies
+            if (auto it = requirePaths.find(pstring(require[0].GetString(), require[0].GetStringLength()));
+                it != requirePaths.end())
+            {
+                found = it->second;
+            }
+
+            for (CSourceTarget *cSourceTarget : requirementDeps)
+            {
+                if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
                 {
-                    continue;
+                    auto *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
+                    if (auto it = cppSourceTarget->requirePaths.find(
+                            pstring(require[0].GetString(), require[0].GetStringLength()));
+                        it != cppSourceTarget->requirePaths.end())
+                    {
+                        if (found)
+                        {
+                            // Module was already found so error-out
+                            printErrorMessageColor(
+                                fmt::format("In target and its dependencies files:\n{}\nModule name:\n {}\n Is Being "
+                                            "Provided By 2 "
+                                            "different files:\n1){}\n2){}\n",
+                                            getTarjanNodeName(),
+                                            pstring(require[0].GetString(), require[0].GetStringLength()),
+                                            it->second->node->filePath, found->node->filePath),
+                                settings.pcSettings.toolErrorOutput);
+                            throw std::exception();
+                        }
+                        found = it->second;
+                    }
                 }
-                if (auto it = moduleScopeData->requirePathsOld.find(
-                        pstring(require[0].GetString(), require[0].GetStringLength()));
-                    it == moduleScopeData->requirePathsOld.end())
-                {
-                    printErrorMessageColor(fmt::format("No File Provides This {}.\n",
-                                                       pstring(require[0].GetString(), require[0].GetStringLength())),
-                                           settings.pcSettings.toolErrorOutput);
-                    throw std::exception();
-                }
-                else
-                {
-                    SMFile &smFileDep = *(const_cast<SMFile *>(it->second));
-                    smFile->realBTargets[0].addDependency(smFileDep);
-                }
+            }
+
+            if (found)
+            {
+                const_cast<SMFile &>(smFile).realBTargets[0].addDependency(const_cast<SMFile &>(*found));
+            }
+            else
+            {
+                printErrorMessageColor(
+                    fmt::format("No File in the target\n{}\n or in its dependencies provides this module {}.\n",
+                                getTarjanNodeName(), pstring(require[0].GetString(), require[0].GetStringLength())),
+                    settings.pcSettings.toolErrorOutput);
+                throw std::exception();
             }
         }
     }
@@ -1203,24 +1207,10 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
     for (const SMFile &smFileConst : moduleSourceFileDependencies)
     {
         auto &smFile = const_cast<SMFile &>(smFileConst);
-        {
-            lock_guard<mutex> lk(moduleScopeData->smFilesMutexOld);
-            if (const auto &[pos, Ok] = moduleScopeData->smFilesOld.emplace(&smFile); Ok)
-            {
-                ++moduleScopeData->totalSMRuleFileCountOld;
-                // So, it becomes part of DAG
-                smFile.realBTargets[1].setBTarjanNode();
-            }
-            else
-            {
-                printErrorMessageColor(
-                    fmt::format("In Module Scope\n{}\nmodule file\n{}\nis being provided by two targets\n{}\n{}\n",
-                                moduleScope->getTargetPointer(), smFile.node->filePath, getTargetPointer(),
-                                (**pos).target->getTargetPointer()),
-                    settings.pcSettings.toolErrorOutput);
-                throw std::exception();
-            }
-        }
+
+        ++totalSMRuleFileCount;
+        // So, it becomes part of DAG
+        smFile.realBTargets[1].setBTarjanNode();
 
         realBTargets[0].addDependency(smFile);
 

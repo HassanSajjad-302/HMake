@@ -14,11 +14,8 @@ void buildSpecification()
         DSC<CppSourceTarget> &lib4 = configuration.GetCppStaticDSC("lib4");
         lib4.getSourceTarget()
             .MODULE_DIRECTORIES_RG("lib4/private", ".*cpp")
-            .setModuleScope()
             .PUBLIC_HU_INCLUDES("lib4/public")
             .PRIVATE_HU_INCLUDES("lib4/private");
-
-        configuration.moduleScope = lib4.getSourceTargetPointer();
 
         DSC<CppSourceTarget> &lib3 = configuration.GetCppStaticDSC("lib3").PUBLIC_LIBRARIES(&lib4);
         lib3.getSourceTarget().MODULE_DIRECTORIES_RG("lib3/private", ".*cpp").PUBLIC_HU_INCLUDES("lib3/public");
