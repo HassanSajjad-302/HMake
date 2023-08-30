@@ -12,6 +12,12 @@ import <set>;
 
 using std::set;
 
+enum class CSourceTargetType : unsigned short
+{
+    CSourceTarget = 1,
+    CppSourceTarget = 2,
+};
+
 struct CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>
 {
     using BaseType = CSourceTarget;
@@ -23,6 +29,7 @@ struct CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>
     template <typename... U> CSourceTarget &INTERFACE_INCLUDES(const pstring &include, U... includeDirectoryPString);
     CSourceTarget &INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags);
     CSourceTarget &INTERFACE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue = "");
+    virtual CSourceTargetType getCSourceTargetType() const;
 };
 bool operator<(const CSourceTarget &lhs, const CSourceTarget &rhs);
 

@@ -214,16 +214,15 @@ SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node
     realBTargets.emplace_back(this, 1);
 }
 
-
 void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
 {
     // Subtracts 1 atomically and returns the value held previously
-    unsigned int count = target->moduleScopeData->totalSMRuleFileCount.fetch_sub(1);
+    unsigned int count = target->moduleScopeData->totalSMRuleFileCountOld.fetch_sub(1);
     if (!(count - 1))
     {
         // All header-units are found, so header-units pvalue array size could be reserved
 
-        for (CppSourceTarget *cppTarget : target->moduleScopeData->targets)
+        for (CppSourceTarget *cppTarget : target->moduleScopeData->targetsOld)
         {
             // If a new header-unit was added in this run, sourceJson pointers are adjusted
             if (cppTarget->newHeaderUnitsSize)
@@ -263,7 +262,7 @@ void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
         // write the CppSourceTarget .cache files. So, if because of an error during smrule generation of a file,
         // hmake is exiting after round 1, in next invocation, it won't generate the smrule of successfully
         // generated files.
-        builder.addCppSourceTargetsInFinalBTargets(target->moduleScopeData->targets);
+        builder.addCppSourceTargetsInFinalBTargets(target->moduleScopeData->targetsOld);
     }
 }
 
@@ -397,9 +396,9 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     if ((*sourceJson)[3][0].GetStringLength())
     {
         logicalName = pstring((*sourceJson)[3][0].GetString(), (*sourceJson)[3][0].GetStringLength());
-        target->moduleScopeData->requirePathsMutex.lock();
-        auto [pos, ok] = target->moduleScopeData->requirePaths.try_emplace(logicalName, this);
-        target->moduleScopeData->requirePathsMutex.unlock();
+        target->moduleScopeData->requirePathsMutexOld.lock();
+        auto [pos, ok] = target->moduleScopeData->requirePathsOld.try_emplace(logicalName, this);
+        target->moduleScopeData->requirePathsMutexOld.unlock();
 
         if (!ok)
         {
@@ -433,7 +432,7 @@ bool pathContainsFile(pstring_view dir, pstring_view file)
 
 void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &builder)
 {
-    ModuleScopeData *moduleScopeData = target->moduleScopeData;
+    ModuleScopeDataOld *moduleScopeData = target->moduleScopeData;
     if (requirePValue[0] == PValue(ptoref(logicalName)))
     {
         printErrorMessageColor(fmt::format("In Scope\n{}\nModule\n{}\n can not depend on itself.\n",
@@ -453,10 +452,9 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
     // Iterating over all header-unit-directories of the module-scope to find out which header-unit
     // directory this header-unit comes from and which target that header-unit-directory belongs to
     // if any
-    for (const auto &[inclNode, targetLocal] : moduleScopeData->huDirTarget)
+    for (const auto &[inclNode, targetLocal] : target->requirementHuDirs)
     {
-        const InclNode *dirNode = inclNode;
-        if (pathContainsFile(dirNode->node->filePath, headerUnitNode->filePath))
+        if (pathContainsFile(inclNode->node->filePath, headerUnitNode->filePath))
         {
             if (huDirTarget && huDirTarget != targetLocal)
             {
@@ -464,7 +462,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
                                                    "Unit Includes\n{}\n{}\nof Module "
                                                    "Scope\n{}\n",
                                                    headerUnitNode->filePath, nodeDir->node->filePath,
-                                                   dirNode->node->filePath, target->moduleScope->getTargetPointer()),
+                                                   inclNode->node->filePath, target->moduleScope->getTargetPointer()),
                                        settings.pcSettings.toolErrorOutput);
                 decrementTotalSMRuleFileCount(builder);
                 throw std::exception();
@@ -480,9 +478,8 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
     if (!huDirTarget)
     {
         printErrorMessageColor(
-            fmt::format(
-                "Module Header Unit\n{}\n does not belongs to any Target Header Unit Includes of Module Scope\n{}\n",
-                headerUnitNode->filePath, target->moduleScope->getTargetPointer()),
+            fmt::format("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin Target\n{}\n",
+                        headerUnitNode->filePath, node->filePath, target->getTargetPointer()),
             settings.pcSettings.toolErrorOutput);
         decrementTotalSMRuleFileCount(builder);
         throw std::exception();
@@ -490,11 +487,11 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
     set<SMFile, CompareSourceNode>::const_iterator headerUnitIt;
 
-    target->moduleScopeData->headerUnitsMutex.lock();
-    if (auto it = moduleScopeData->headerUnits.find(headerUnitNode); it == moduleScopeData->headerUnits.end())
+    huDirTarget->headerUnitsMutexNew.lock();
+    if (auto it = huDirTarget->headerUnitsNew.find(headerUnitNode); it == huDirTarget->headerUnitsNew.end())
     {
-        headerUnitIt = moduleScopeData->headerUnits.emplace(huDirTarget, headerUnitNode).first;
-        target->moduleScopeData->headerUnitsMutex.unlock();
+        headerUnitIt = huDirTarget->headerUnitsNew.emplace(huDirTarget, headerUnitNode).first;
+        huDirTarget->headerUnitsMutexNew.unlock();
         {
             lock_guard<mutex> lk{huDirTarget->headerUnitsMutex};
             huDirTarget->headerUnits.emplace(&(*headerUnitIt));
@@ -528,14 +525,14 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
         {
-            ++target->moduleScopeData->totalSMRuleFileCount;
+            ++target->moduleScopeData->totalSMRuleFileCountOld;
         }
 
         builder.addNewBTargetInFinalBTargets(&headerUnit);
     }
     else
     {
-        target->moduleScopeData->headerUnitsMutex.unlock();
+        huDirTarget->headerUnitsMutexNew.unlock();
         headerUnitIt = it;
     }
 

@@ -4,7 +4,9 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T 
 {
     CppSourceTarget &t = target.getSourceTarget();
     string str = t.name.substr(0, t.name.size() - 4); // Removing -cpp from the name
-    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp").HU_DIRECTORIES("src/" + str).HU_DIRECTORIES("include/" + str);
+    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp")
+        .PRIVATE_HU_DIRECTORIES("src/" + str)
+        .PUBLIC_HU_DIRECTORIES("include/" + str);
 
     if constexpr (sizeof...(targets))
     {
@@ -18,14 +20,15 @@ void configurationSpecification(Configuration &config)
 
     DSC<CppSourceTarget> &stdhu = config.GetCppObjectDSC("stdhu");
 
-    stdhu.getSourceTargetPointer()->setModuleScope().assignStandardIncludesToHUIncludes();
+    stdhu.getSourceTargetPointer()->setModuleScope().assignStandardIncludesToPublicHUDirectories();
     config.moduleScope = stdhu.getSourceTargetPointer();
 
     DSC<CppSourceTarget> &lib4 = config.GetCppTargetDSC("lib4", config.targetType);
     DSC<CppSourceTarget> &lib3 = config.GetCppTargetDSC("lib3", config.targetType).PUBLIC_LIBRARIES(&lib4);
-    DSC<CppSourceTarget> &lib2 = config.GetCppTargetDSC("lib2", config.targetType).PRIVATE_LIBRARIES(&lib3);
+    DSC<CppSourceTarget> &lib2 =
+        config.GetCppTargetDSC("lib2", config.targetType).PUBLIC_LIBRARIES(&stdhu).PRIVATE_LIBRARIES(&lib3);
     DSC<CppSourceTarget> &lib1 = config.GetCppTargetDSC("lib1", config.targetType).PUBLIC_LIBRARIES(&lib2);
-    DSC<CppSourceTarget> &app = config.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1, &stdhu);
+    DSC<CppSourceTarget> &app = config.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1);
 
     initializeTargets(lib1, lib2, lib3, lib4, app);
 }

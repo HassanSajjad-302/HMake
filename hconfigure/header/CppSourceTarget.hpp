@@ -59,28 +59,21 @@ struct CompilerFlags
     pstring CPP_FLAGS_COMPILE;
 };
 
-struct ModuleScopeData
+struct ModuleScopeDataOld
 {
-    mutex smFilesMutex;
-    mutex headerUnitsMutex;
-    mutex requirePathsMutex;
+    mutex smFilesMutexOld;
+    mutex requirePathsMutexOld;
 
     // Written mutex locked in round 1 preSort.
     // TODO This should be with a comparator comparing file paths instead of just pointer comparisons
-    set<SMFile *> smFiles;
-
-    // Written mutex locked in round 1 updateBTarget
-    set<SMFile, CompareSourceNode> headerUnits;
-
-    // Which header unit directory come from which target
-    map<const InclNode *, CppSourceTarget *> huDirTarget;
+    set<SMFile *> smFilesOld;
 
     // Written mutex locked in round 1 updateBTarget.
     // Which require is provided by which SMFile
-    map<pstring, SMFile *> requirePaths;
+    map<pstring, SMFile *> requirePathsOld;
 
-    set<CppSourceTarget *> targets;
-    atomic<unsigned int> totalSMRuleFileCount = 0;
+    set<CppSourceTarget *> targetsOld;
+    atomic<unsigned int> totalSMRuleFileCountOld = 0;
 };
 
 // TODO
@@ -92,14 +85,22 @@ class CppSourceTarget : public CppCompilerFeatures,
                         public CSourceTarget
 {
   public:
+    // Written mutex locked in round 1 updateBTarget
+    set<SMFile, CompareSourceNode> headerUnitsNew;
+
+    set<const InclNode *> usageRequirementHuDirs;
+    map<const InclNode *, CppSourceTarget *> requirementHuDirs;
+
+    mutex headerUnitsMutexNew;
+
     using BaseType = CSourceTarget;
     // Written mutex locked in round 1 updateBTarget
     mutex headerUnitsMutex;
     unique_ptr<PValue> targetBuildCache;
     TargetType compileTargetType;
     CppSourceTarget *moduleScope = nullptr;
-    ModuleScopeData *moduleScopeData = nullptr;
-    inline static map<const CppSourceTarget *, unique_ptr<ModuleScopeData>> moduleScopes;
+    ModuleScopeDataOld *moduleScopeData = nullptr;
+    inline static map<const CppSourceTarget *, unique_ptr<ModuleScopeDataOld>> moduleScopes;
     friend struct PostCompile;
     // Parsed Info Not Changed Once Read
     pstring targetFilePath;
@@ -166,12 +167,13 @@ class CppSourceTarget : public CppCompilerFeatures,
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
     void populateTransitiveProperties();
-    void registerHUInclNode(const InclNode &inclNode);
+
+    CSourceTargetType getCSourceTargetType() const override;
 
     CppSourceTarget &setModuleScope(CppSourceTarget *moduleScope_);
     CppSourceTarget &setModuleScope();
 
-    CppSourceTarget &assignStandardIncludesToHUIncludes();
+    CppSourceTarget &assignStandardIncludesToPublicHUDirectories();
     // TODO
     // Also provide function overload for functions like PUBLIC_INCLUDES here and in CPT
     template <typename... U> CppSourceTarget &PUBLIC_INCLUDES(const pstring &include, U... includeDirectoryPString);
@@ -179,7 +181,14 @@ class CppSourceTarget : public CppCompilerFeatures,
     template <typename... U> CppSourceTarget &INTERFACE_INCLUDES(const pstring &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &PUBLIC_HU_INCLUDES(const pstring &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &PRIVATE_HU_INCLUDES(const pstring &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &INTERFACE_HU_INCLUDES(const pstring &include, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &PUBLIC_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &PRIVATE_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &INTERFACE_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString);
     CppSourceTarget &PUBLIC_COMPILER_FLAGS(const pstring &compilerFlags);
     CppSourceTarget &PRIVATE_COMPILER_FLAGS(const pstring &compilerFlags);
     CppSourceTarget &INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags);
@@ -257,10 +266,13 @@ template <typename... U>
 CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const pstring &include, U... includeDirectoryPString)
 {
     Node *node = Node::getNodeFromNonNormalizedPath(include, false);
-    InclNode::emplaceInList(usageRequirementIncludes, node);
+    if (bool added = InclNode::emplaceInList(usageRequirementIncludes, node); added)
+    {
+        usageRequirementHuDirs.emplace(&(usageRequirementIncludes.back()));
+    }
     if (bool added = InclNode::emplaceInList(requirementIncludes, node); added)
     {
-        registerHUInclNode(requirementIncludes.back());
+        requirementHuDirs.emplace(&(requirementIncludes.back()), this);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -279,7 +291,7 @@ CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const pstring &include, U.
     if (bool added = InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
         added)
     {
-        registerHUInclNode(requirementIncludes.back());
+        requirementHuDirs.emplace(&(requirementIncludes.back()), this);
     }
     if constexpr (sizeof...(includeDirectoryPString))
     {
@@ -292,13 +304,67 @@ CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const pstring &include, U.
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::INTERFACE_HU_INCLUDES(const pstring &include, U... includeDirectoryPString)
 {
-    registerHUInclNode(targets<InclNode>.emplace(Node::getNodeFromNonNormalizedPath(include, false)).first.operator*());
+    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
+    if (bool added = InclNode::emplaceInList(usageRequirementIncludes, node); added)
+    {
+        usageRequirementHuDirs.emplace(&(usageRequirementIncludes.back()));
+    }
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return HU_DIRECTORIES(includeDirectoryPString...);
+        return INTERFACE_HU_INCLUDES(includeDirectoryPString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::PUBLIC_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString)
+{
+    requirementHuDirs.emplace(
+        targets<InclNode>.emplace(Node::getNodeFromNonNormalizedPath(include, false)).first.operator->(), this);
+    usageRequirementHuDirs.emplace(
+        targets<InclNode>.emplace(Node::getNodeFromNonNormalizedPath(include, false)).first.operator->());
+
+    if constexpr (sizeof...(includeDirectoryPString))
+    {
+        return PUBLIC_HU_DIRECTORIES(includeDirectoryPString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::PRIVATE_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString)
+{
+    requirementHuDirs.emplace(
+        targets<InclNode>.emplace(Node::getNodeFromNonNormalizedPath(include, false)).first.operator->(), this);
+
+    if constexpr (sizeof...(includeDirectoryPString))
+    {
+        return PRIVATE_HU_DIRECTORIES(includeDirectoryPString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::INTERFACE_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString)
+{
+    usageRequirementHuDirs.emplace(
+        targets<InclNode>.emplace(Node::getNodeFromNonNormalizedPath(include, false)).first.operator->());
+
+    if constexpr (sizeof...(includeDirectoryPString))
+    {
+        return INTERFACE_HU_DIRECTORIES(includeDirectoryPString...);
     }
     else
     {

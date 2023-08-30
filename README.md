@@ -337,7 +337,7 @@ void buildSpecification()
         .getSourceTarget()
         .MODULE_FILES("main2.cpp")
         .setModuleScope()
-        .assignStandardIncludesToHUIncludes();
+        .assignStandardIncludesToPublicHUDirectories();
 }
 
 MAIN_FUNCTION
@@ -353,7 +353,7 @@ This .smrule file is specified by the compiler according to the P1689R5 paper.
 In round 3, HMake also determines the dependencies between different modules,
 and then in round 4, will build them accordingly.
 ```app2``` marks all the ```requirementIncludes``` for which ```isStandard = true```
-as header-unit-includes by calling the function ```assignStandardIncludesToHUIncludes```.
+as header-unit-includes by calling the function ```assignStandardIncludesToPublicHUDirectories```.
 Any directory which has header-units should be marked by at-least one and only one
 target as hu-include(header-unit-include) in same module-scope.
 So, HMake can decide what target to associate with this header-unit.
@@ -370,10 +370,10 @@ if it isn't already.
 Generally, in a build-specification,
 all ```CppSourceTarget```should have the same module-scope.
 
-```CppSourceTarget``` member functions ```HU_DIRECTORIES```,
+```CppSourceTarget``` member functions ```PRIVATE_HU_DIRECTORIES```,
 ```PUBLIC_HU_INCLUDES``` and ```PRIVATE_HU_INCLUDES```
 are used for registering an include-directory for header-units.
-The reason for ```HU_DIRECTORIES``` besides
+The reason for ```PRIVATE_HU_DIRECTORIES``` besides
 ```PUBLIC_HU_INCLUDES``` and ```PRIVATE_HU_INCLUDES```
 is that sometimes general include-directories are less specialized
 while header-unit-include-directories are more specialized.
@@ -409,7 +409,7 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T 
 {
     CppSourceTarget &t = target.getSourceTarget();
     string str = t.name.substr(0, t.name.size() - 4); // Removing -cpp from the name
-    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp").HU_DIRECTORIES("src/" + str).HU_DIRECTORIES("include/" + str);
+    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp").HU_DIRECTORIES("src/" + str).PRIVATE_HU_DIRECTORIES("include/" + str);
 
     if constexpr (sizeof...(targets))
     {
@@ -423,7 +423,7 @@ void configurationSpecification(Configuration &config)
 
     DSC<CppSourceTarget> &stdhu = config.GetCppObjectDSC("stdhu");
 
-    stdhu.getSourceTargetPointer()->setModuleScope().assignStandardIncludesToHUIncludes();
+    stdhu.getSourceTargetPointer()->setModuleScope().assignStandardIncludesToPublicHUDirectories();
     config.moduleScope = stdhu.getSourceTargetPointer();
 
     DSC<CppSourceTarget> &lib4 = config.GetCppTargetDSC("lib4", config.targetType);
@@ -453,12 +453,12 @@ MAIN_FUNCTION
 
 </details>
 
-This example showcases usage of ```HU_DIRECTORIES```.
+This example showcases usage of ```PRIVATE_HU_DIRECTORIES```.
 In this example, if we had used ```HU_INCLUDES``` functions instead,
 then this would have been a configuration error.
 Because twp targets would have the same header-unit-include,
 and HMake won't have been able to decide which target to associate with the header-unit.
-Using ```HU_DIRECTORIES``` ensure that header-units from ```include/lib1/```
+Using ```PRIVATE_HU_DIRECTORIES``` ensure that header-units from ```include/lib1/```
 and ```src/lib1/``` are linked with lib1 and so on.
 
 ### Example 10
@@ -581,7 +581,7 @@ bool operator<(const SizeDifference &lhs, const SizeDifference &rhs)
 void configurationSpecification(Configuration &configuration)
 {
     DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
-    stdhu.getSourceTarget().setModuleScope().assignStandardIncludesToHUIncludes();
+    stdhu.getSourceTarget().setModuleScope().assignStandardIncludesToPublicHUDirectories();
     configuration.moduleScope = stdhu.getSourceTargetPointer();
 
     DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
@@ -686,7 +686,7 @@ It can't first scan, then build, then scan the dependents and then build them.
 A workaround is to promote such macros to the build system,
 so these are provided on command-line.
 
-Please notice that HMake does not cache ```HU_DIRECTORIES``` call.
+Please notice that HMake does not cache ```PRIVATE_HU_DIRECTORIES``` call.
 Neither it stores the contents of ```header-units.json``` file in cache.
 Both of which can impact the header-units to be built.
 So, if you change these when you have already built the project,

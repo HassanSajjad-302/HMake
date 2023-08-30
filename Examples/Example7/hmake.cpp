@@ -7,7 +7,7 @@ void buildSpecification()
         .getSourceTarget()
         .MODULE_FILES("main2.cpp")
         .setModuleScope()
-        .assignStandardIncludesToHUIncludes();
+        .assignStandardIncludesToPublicHUDirectories();
 }
 
 MAIN_FUNCTION

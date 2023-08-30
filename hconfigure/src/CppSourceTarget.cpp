@@ -142,41 +142,32 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
 
 void CppSourceTarget::populateTransitiveProperties()
 {
-    for (CSourceTarget *cppSourceTarget : requirementDeps)
+    for (CSourceTarget *cSourceTarget : requirementDeps)
     {
-        for (InclNode &include : cppSourceTarget->usageRequirementIncludes)
+        for (InclNode &include : cSourceTarget->usageRequirementIncludes)
         {
             InclNode::emplaceInList(requirementIncludes, include);
         }
-        requirementCompilerFlags += cppSourceTarget->usageRequirementCompilerFlags;
-        for (const Define &define : cppSourceTarget->usageRequirementCompileDefinitions)
+        requirementCompilerFlags += cSourceTarget->usageRequirementCompilerFlags;
+        for (const Define &define : cSourceTarget->usageRequirementCompileDefinitions)
         {
             requirementCompileDefinitions.emplace(define);
         }
-        requirementCompilerFlags += cppSourceTarget->usageRequirementCompilerFlags;
+        requirementCompilerFlags += cSourceTarget->usageRequirementCompilerFlags;
+        if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
+        {
+            auto *cppSourceTarget = static_cast<const CppSourceTarget *>(cSourceTarget);
+            for (const InclNode *inclNode : cppSourceTarget->usageRequirementHuDirs)
+            {
+                requirementHuDirs.emplace(inclNode, const_cast<CppSourceTarget *>(cppSourceTarget));
+            }
+        }
     }
 }
 
-void CppSourceTarget::registerHUInclNode(const InclNode &inclNode)
+CSourceTargetType CppSourceTarget::getCSourceTargetType() const
 {
-    if (!moduleScopeData)
-    {
-        printErrorMessage(fmt::format("For CppSourceTarget: {}\nmarkInclNodeAsHUNode function should be "
-                                      "called after calling setModuleScope function\n",
-                                      targetSubDir));
-        throw std::exception();
-    }
-    if (const auto &[pos, Ok] = moduleScopeData->huDirTarget.try_emplace(&inclNode, this); !Ok)
-    {
-        printErrorMessageColor(fmt::format("In ModuleScope {}\nhu-include-directory\n{}\n is being twice by "
-                                           "targets\n{}\n{}\nThis is not allowed "
-                                           "because HMake can't determine the CppSourceTarget to associate with the "
-                                           "header-units present in this include-directory.\n",
-                                           moduleScope->targetSubDir, inclNode.node->filePath, getTargetPointer(),
-                                           pos->second->getTargetPointer()),
-                               settings.pcSettings.toolErrorOutput);
-        throw std::exception();
-    }
+    return CSourceTargetType::CppSourceTarget;
 }
 
 CppSourceTarget &CppSourceTarget::setModuleScope(CppSourceTarget *moduleScope_)
@@ -190,12 +181,12 @@ CppSourceTarget &CppSourceTarget::setModuleScope(CppSourceTarget *moduleScope_)
         }
         else
         {
-            auto tmp = make_unique<ModuleScopeData>();
+            auto tmp = make_unique<ModuleScopeDataOld>();
             moduleScope->moduleScopeData = moduleScopes.emplace(moduleScope, std::move(tmp)).first->second.get();
         }
     }
     moduleScopeData = moduleScope->moduleScopeData;
-    moduleScopeData->targets.emplace(this);
+    moduleScopeData->targetsOld.emplace(this);
     return *this;
 }
 
@@ -205,13 +196,14 @@ CppSourceTarget &CppSourceTarget::setModuleScope()
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::assignStandardIncludesToHUIncludes()
+CppSourceTarget &CppSourceTarget::assignStandardIncludesToPublicHUDirectories()
 {
     for (InclNode &include : requirementIncludes)
     {
         if (include.isStandard)
         {
-            registerHUInclNode(include);
+            requirementHuDirs.emplace(&include, this);
+            usageRequirementHuDirs.emplace(&include);
         }
     }
     return *this;
@@ -1134,7 +1126,7 @@ void CppSourceTarget::resolveRequirePaths()
 {
     if (moduleScope == this)
     {
-        for (SMFile *smFile : moduleScopeData->smFiles)
+        for (SMFile *smFile : moduleScopeData->smFilesOld)
         {
             PValue &rules = (*(smFile->sourceJson))[3];
 
@@ -1155,9 +1147,9 @@ void CppSourceTarget::resolveRequirePaths()
                 {
                     continue;
                 }
-                if (auto it = moduleScopeData->requirePaths.find(
+                if (auto it = moduleScopeData->requirePathsOld.find(
                         pstring(require[0].GetString(), require[0].GetStringLength()));
-                    it == moduleScopeData->requirePaths.end())
+                    it == moduleScopeData->requirePathsOld.end())
                 {
                     printErrorMessageColor(fmt::format("No File Provides This {}.\n",
                                                        pstring(require[0].GetString(), require[0].GetStringLength())),
@@ -1173,6 +1165,7 @@ void CppSourceTarget::resolveRequirePaths()
         }
     }
 }
+
 void CppSourceTarget::populateSourceNodes()
 {
     PValue &sourceFilesJson = (*targetBuildCache)[0];
@@ -1211,10 +1204,10 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
     {
         auto &smFile = const_cast<SMFile &>(smFileConst);
         {
-            lock_guard<mutex> lk(moduleScopeData->smFilesMutex);
-            if (const auto &[pos, Ok] = moduleScopeData->smFiles.emplace(&smFile); Ok)
+            lock_guard<mutex> lk(moduleScopeData->smFilesMutexOld);
+            if (const auto &[pos, Ok] = moduleScopeData->smFilesOld.emplace(&smFile); Ok)
             {
-                ++moduleScopeData->totalSMRuleFileCount;
+                ++moduleScopeData->totalSMRuleFileCountOld;
                 // So, it becomes part of DAG
                 smFile.realBTargets[1].setBTarjanNode();
             }

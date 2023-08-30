@@ -128,7 +128,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     void decrementTotalSMRuleFileCount(Builder &builder);
     void updateBTarget(Builder &builder, unsigned short round) override;
     void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder);
-    void initializeNewHeaderUnit(const PValue &requirePValue, Builder &builder);
+    void initializeNewHeaderUnit(const PValue &inclNodes, Builder &builder);
     void iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder);
     bool generateSMFileInRoundOne();
     pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;

@@ -25,6 +25,11 @@ CSourceTarget &CSourceTarget::INTERFACE_COMPILE_DEFINITION(const pstring &cddNam
     return *this;
 }
 
+CSourceTargetType CSourceTarget::getCSourceTargetType() const
+{
+    return CSourceTargetType::CSourceTarget;
+}
+
 bool operator<(const CSourceTarget &lhs, const CSourceTarget &rhs)
 {
     return lhs.id < rhs.id;
