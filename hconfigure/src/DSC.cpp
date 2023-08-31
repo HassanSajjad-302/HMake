@@ -52,3 +52,29 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, b
         }
     }
 }
+
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::push(CppSourceTarget *ptr)
+{
+    if (!pushed)
+    {
+        pushed = static_cast<CppSourceTarget *>(objectFileProducer);
+    }
+    objectFileProducer = ptr;
+    return *this;
+}
+
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::pushAndInitialize(CppSourceTarget *ptr)
+{
+    push(ptr);
+    for (const SMFile &smFile : pushed->moduleSourceFileDependencies)
+    {
+        ptr->moduleSourceFileDependencies.emplace(ptr, const_cast<Node *>(smFile.node));
+    }
+    return *this;
+}
+
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::pop()
+{
+    objectFileProducer = pushed;
+    return *this;
+}
