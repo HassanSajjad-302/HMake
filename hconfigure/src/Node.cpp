@@ -121,7 +121,7 @@ Node *Node::getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist
         }
     }
 
-    if (node->systemCheckCompleted.load(std::memory_order_relaxed))
+    if (node->systemCheckCompleted.load())
     {
         return node;
     }
@@ -130,11 +130,11 @@ Node *Node::getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist
     if (!node->systemCheckCalled.exchange(true))
     {
         node->performSystemCheck(isFile, mayNotExist);
-        node->systemCheckCompleted.store(true, std::memory_order_relaxed);
+        node->systemCheckCompleted.store(true);
     }
 
     // systemCheck is being called for this node by another thread
-    while (!node->systemCheckCompleted.load(std::memory_order_relaxed))
+    while (!node->systemCheckCompleted.load())
         ;
 
     return node;
@@ -157,7 +157,7 @@ Node *Node::getNodeFromNormalizedString(pstring_view p, bool isFile, bool mayNot
         }
     }
 
-    if (node->systemCheckCompleted.load(std::memory_order_relaxed))
+    if (node->systemCheckCompleted.load())
     {
         return node;
     }
@@ -166,11 +166,11 @@ Node *Node::getNodeFromNormalizedString(pstring_view p, bool isFile, bool mayNot
     if (!node->systemCheckCalled.exchange(true))
     {
         node->performSystemCheck(isFile, mayNotExist);
-        node->systemCheckCompleted.store(true, std::memory_order_relaxed);
+        node->systemCheckCompleted.store(true);
     }
 
     // systemCheck is being called for this node by another thread
-    while (!node->systemCheckCompleted.load(std::memory_order_relaxed))
+    while (!node->systemCheckCompleted.load())
         ;
 
     return node;

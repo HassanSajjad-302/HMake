@@ -129,7 +129,7 @@ pstring SourceNode::getTarjanNodeName() const
 
 void SourceNode::updateBTarget(Builder &, unsigned short round)
 {
-    if (!round && fileStatus.load(std::memory_order_acquire) && selectiveBuild)
+    if (!round && fileStatus.load() && selectiveBuild)
     {
         RealBTarget &realBTarget = realBTargets[round];
         assignFileStatusToDependents(realBTarget);
@@ -155,19 +155,19 @@ void SourceNode::setSourceNodeFileStatus()
 
     if (sourceJson->operator[](1) != PValue(ptoref(target->compileCommandWithTool)))
     {
-        fileStatus.store(true, std::memory_order_release);
+        fileStatus.store(true);
         return;
     }
 
     if (objectFileOutputFilePath->doesNotExist)
     {
-        fileStatus.store(true, std::memory_order_release);
+        fileStatus.store(true);
         return;
     }
 
     if (node->getLastUpdateTime() > objectFileOutputFilePath->getLastUpdateTime())
     {
-        fileStatus.store(true, std::memory_order_release);
+        fileStatus.store(true);
         return;
     }
 
@@ -177,13 +177,13 @@ void SourceNode::setSourceNodeFileStatus()
             Node::getNodeFromNormalizedString(pstring_view(str.GetString(), str.GetStringLength()), true, true);
         if (headerNode->doesNotExist)
         {
-            fileStatus.store(true, std::memory_order_release);
+            fileStatus.store(true);
             return;
         }
 
         if (headerNode->getLastUpdateTime() > objectFileOutputFilePath->getLastUpdateTime())
         {
-            fileStatus.store(true, std::memory_order_release);
+            fileStatus.store(true);
             return;
         }
     }
@@ -216,52 +216,32 @@ SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node
 
 void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
 {
-    // Subtracts 1 atomically and returns the value held previously
-    unsigned int count = target->totalSMRuleFileCount.fetch_sub(1);
-    if (!(count - 1))
+    if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
-        // All header-units are found, so header-units pvalue array size could be reserved
-
-        // If a new header-unit was added in this run, sourceJson pointers are adjusted
-        if (target->newHeaderUnitsSize)
+        assert(target->totalHeaderUnitCount.load() > 0);
+        if (target->totalHeaderUnitCount.fetch_sub(1) == 1 && !target->inclNodeRecordSize.load())
         {
-            PValue &headerUnitsPValueArray = (*(target->targetBuildCache))[2];
-            headerUnitsPValueArray.Reserve(headerUnitsPValueArray.Size() + target->newHeaderUnitsSize,
-                                           target->cppAllocator);
-
-            for (const SMFile *headerUnit : target->headerUnits)
+            target->adjustheaderUnitsPValueArrayPointers(builder);
+        }
+    }
+    else
+    {
+        assert(target->totalNonHuModuleFileCount.load() > 0);
+        if (target->totalNonHuModuleFileCount.fetch_sub(1) == 1)
+        {
+            for (auto &[inclNode, cppSourceTarget] : target->requirementHuDirs)
             {
-                if (headerUnit->headerUnitsIndex == UINT64_MAX)
+                assert(cppSourceTarget->inclNodeRecord.find(inclNode.node)->second.load() > 0);
+                if (cppSourceTarget->inclNodeRecord.find(inclNode.node)->second.fetch_sub(1) == 1)
                 {
-                    // headerUnit did not exist before in the cache
-                    PValue *oldPtr = headerUnit->sourceJson;
-
-                    // old value is moved
-                    headerUnitsPValueArray.PushBack(*(headerUnit->sourceJson), target->cppAllocator);
-
-                    // old pointer cleared
-                    delete oldPtr;
-
-                    // Reassigning the old value moved in the array
-                    const_cast<SMFile *>(headerUnit)->sourceJson = (headerUnitsPValueArray.End() - 1);
-                }
-                else
-                {
-                    // headerUnit existed before in the cache but because array size is increased the sourceJson
-                    // pointer is invalidated now. Reassigning the pointer based on previous index.
-                    const_cast<SMFile *>(headerUnit)->sourceJson =
-                        &(headerUnitsPValueArray[headerUnit->headerUnitsIndex]);
+                    assert(cppSourceTarget->inclNodeRecordSize.load() > 0);
+                    if (cppSourceTarget->inclNodeRecordSize.fetch_sub(1) == 1 &&
+                        !cppSourceTarget->totalHeaderUnitCount.load())
+                    {
+                        cppSourceTarget->adjustheaderUnitsPValueArrayPointers(builder);
+                    }
                 }
             }
-        }
-
-        // A smrule file was updated. And all module scope smrule files have been checked. Following is done to
-        // write the CppSourceTarget .cache files. So, if because of an error during smrule generation of a file,
-        // hmake is exiting after round 1, in next invocation, it won't generate the smrule of successfully
-        // generated files.
-        if (target->targetCacheChanged.load(std::memory_order_acquire))
-        {
-            builder.addNewBTargetInFinalBTargets(target);
         }
     }
 }
@@ -299,15 +279,15 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
     {
         setFileStatusAndPopulateAllDependencies();
 
-        if (!fileStatus.load(std::memory_order_acquire))
+        if (!fileStatus.load())
         {
             if ((*sourceJson)[4] != PValue(ptoref(target->compileCommandWithTool)))
             {
-                fileStatus.store(true, std::memory_order_release);
+                fileStatus.store(true);
             }
         }
 
-        if (fileStatus.load(std::memory_order_acquire))
+        if (fileStatus.load())
         {
             assignFileStatusToDependents(realBTarget);
             PostCompile postCompile = target->CompileSMFile(*this);
@@ -396,9 +376,9 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
     if ((*sourceJson)[3][0].GetStringLength())
     {
         logicalName = pstring((*sourceJson)[3][0].GetString(), (*sourceJson)[3][0].GetStringLength());
-        target->requirePathsMutexOld.lock();
+        target->requirePathsMutex.lock();
         auto [pos, ok] = target->requirePaths.try_emplace(logicalName, this);
-        target->requirePathsMutexOld.unlock();
+        target->requirePathsMutex.unlock();
 
         if (!ok)
         {
@@ -452,14 +432,14 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
     // if any
     for (const auto &[inclNode, targetLocal] : target->requirementHuDirs)
     {
-        if (pathContainsFile(inclNode->node->filePath, headerUnitNode->filePath))
+        if (pathContainsFile(inclNode.node->filePath, headerUnitNode->filePath))
         {
             if (huDirTarget && huDirTarget != targetLocal)
             {
                 printErrorMessageColor(fmt::format("Module Header Unit\n{}\n belongs to two different Target Header "
                                                    "Unit Includes\n{}\n{}\n",
                                                    headerUnitNode->filePath, nodeDir->node->filePath,
-                                                   inclNode->node->filePath, settings.pcSettings.toolErrorOutput),
+                                                   inclNode.node->filePath, settings.pcSettings.toolErrorOutput),
                                        settings.pcSettings.toolErrorOutput);
                 decrementTotalSMRuleFileCount(builder);
                 throw std::exception();
@@ -467,7 +447,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
             else
             {
                 huDirTarget = targetLocal;
-                nodeDir = inclNode;
+                nodeDir = &inclNode;
             }
         }
     }
@@ -484,15 +464,11 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
     set<SMFile, CompareSourceNode>::const_iterator headerUnitIt;
 
-    huDirTarget->headerUnitsMutexNew.lock();
-    if (auto it = huDirTarget->headerUnitsNew.find(headerUnitNode); it == huDirTarget->headerUnitsNew.end())
+    huDirTarget->headerUnitsMutex.lock();
+    if (auto it = huDirTarget->headerUnits.find(headerUnitNode); it == huDirTarget->headerUnits.end())
     {
-        headerUnitIt = huDirTarget->headerUnitsNew.emplace(huDirTarget, headerUnitNode).first;
-        huDirTarget->headerUnitsMutexNew.unlock();
-        {
-            lock_guard<mutex> lk{huDirTarget->headerUnitsMutex};
-            huDirTarget->headerUnits.emplace(&(*headerUnitIt));
-        }
+        headerUnitIt = huDirTarget->headerUnits.emplace(huDirTarget, headerUnitNode).first;
+        huDirTarget->headerUnitsMutex.unlock();
 
         auto &headerUnit = const_cast<SMFile &>(*headerUnitIt);
 
@@ -522,14 +498,14 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
         headerUnit.type = SM_FILE_TYPE::HEADER_UNIT;
         {
-            ++huDirTarget->totalSMRuleFileCount;
+            ++huDirTarget->totalHeaderUnitCount;
         }
 
         builder.addNewBTargetInFinalBTargets(&headerUnit);
     }
     else
     {
-        huDirTarget->headerUnitsMutexNew.unlock();
+        huDirTarget->headerUnitsMutex.unlock();
         headerUnitIt = it;
     }
 
@@ -619,7 +595,7 @@ bool SMFile::generateSMFileInRoundOne()
         pstring str((*sourceJson)[1].GetString(), (*sourceJson)[1].GetStringLength());
         readJsonFromSMRulesFile = true;
         // This is the only access in round 1. Maybe change to relaxed
-        fileStatus.store(true, std::memory_order_release);
+        fileStatus.store(true);
         return true;
     }
 
@@ -659,7 +635,7 @@ bool SMFile::generateSMFileInRoundOne()
     if (needsUpdate)
     {
         // This is the only access in round 1. Maybe change to relaxed
-        fileStatus.store(true, std::memory_order_release);
+        fileStatus.store(true);
 
         readJsonFromSMRulesFile = true;
 
@@ -727,12 +703,12 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
                 }
             }
 
-            if (!fileStatus.load(std::memory_order_acquire))
+            if (!fileStatus.load())
             {
                 if (smFile->objectFileOutputFilePath->getLastUpdateTime() >
                     objectFileOutputFilePath->getLastUpdateTime())
                 {
-                    fileStatus.store(true, std::memory_order_release);
+                    fileStatus.store(true);
                     return;
                 }
             }

@@ -59,22 +59,17 @@ struct CompilerFlags
     pstring CPP_FLAGS_COMPILE;
 };
 
-/*struct ModuleScopeDataOld
+struct InclNodePointerComparator
 {
-    mutex smFilesMutexOld;
-    mutex requirePathsMutexOld;
+    bool operator()(const InclNode &lhs, const InclNode &rhs) const;
+};
 
-    // Written mutex locked in round 1 preSort.
-    // TODO This should be with a comparator comparing file paths instead of just pointer comparisons
-    set<SMFile *> smFilesOld;
-
-    // Written mutex locked in round 1 updateBTarget.
-    // Which require is provided by which SMFile
-    map<pstring, SMFile *> requirePathsOld;
-
-    set<CppSourceTarget *> targetsOld;
-    atomic<unsigned int> totalSMRuleFileCountOld = 0;
-};*/
+struct InclNodeRecord
+{
+    Node *node = nullptr;
+    atomic<unsigned short> numOfTargets = 0;
+    InclNodeRecord(Node *node_);
+};
 
 // TODO
 // HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
@@ -85,25 +80,28 @@ class CppSourceTarget : public CppCompilerFeatures,
                         public CSourceTarget
 {
   public:
+    map<Node *, atomic<unsigned short>> inclNodeRecord;
+    atomic<unsigned short> inclNodeRecordSize = 0;
+
     // Written mutex locked in round 1 updateBTarget
-    set<SMFile, CompareSourceNode> headerUnitsNew;
+    set<SMFile, CompareSourceNode> headerUnits;
 
-    set<const InclNode *> usageRequirementHuDirs;
-    map<const InclNode *, CppSourceTarget *> requirementHuDirs;
+    map<InclNode, CppSourceTarget *, InclNodePointerComparator> usageRequirementHuDirs;
+    map<InclNode, CppSourceTarget *, InclNodePointerComparator> requirementHuDirs;
 
-    mutex headerUnitsMutexNew;
+    // Written mutex locked in round 1 updateBTarget
+    mutex headerUnitsMutex;
 
     // Written mutex locked in round 1 updateBTarget.
     // Which require is provided by which SMFile
     map<pstring, SMFile *> requirePaths;
 
-    mutex requirePathsMutexOld;
+    mutex requirePathsMutex;
 
-    atomic<unsigned int> totalSMRuleFileCount = 0;
+    atomic<unsigned int> totalHeaderUnitCount = 0;
+    atomic<unsigned int> totalNonHuModuleFileCount = 0;
 
     using BaseType = CSourceTarget;
-    // Written mutex locked in round 1 updateBTarget
-    mutex headerUnitsMutex;
     unique_ptr<PValue> targetBuildCache;
     TargetType compileTargetType;
     /*    ModuleScopeDataOld *moduleScopeData = nullptr;
@@ -127,8 +125,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     std::atomic<bool> targetCacheChanged = false;
     void setCpuType();
     bool isCpuTypeG7();
-
-    set<const SMFile *> headerUnits;
 
     void setCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
@@ -174,7 +170,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
     void populateTransitiveProperties();
-
+    void adjustheaderUnitsPValueArrayPointers(Builder &builder);
     CSourceTargetType getCSourceTargetType() const override;
 
     CppSourceTarget &assignStandardIncludesToPublicHUDirectories();
@@ -272,11 +268,11 @@ CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const pstring &include, U..
     Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     if (bool added = InclNode::emplaceInList(usageRequirementIncludes, node); added)
     {
-        usageRequirementHuDirs.emplace(&(usageRequirementIncludes.back()));
+        usageRequirementHuDirs.emplace(usageRequirementIncludes.back(), this);
     }
     if (bool added = InclNode::emplaceInList(requirementIncludes, node); added)
     {
-        requirementHuDirs.emplace(&(requirementIncludes.back()), this);
+        requirementHuDirs.emplace(requirementIncludes.back(), this);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -295,7 +291,7 @@ CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const pstring &include, U.
     if (bool added = InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
         added)
     {
-        requirementHuDirs.emplace(&(requirementIncludes.back()), this);
+        requirementHuDirs.emplace(requirementIncludes.back(), this);
     }
     if constexpr (sizeof...(includeDirectoryPString))
     {
@@ -313,7 +309,7 @@ CppSourceTarget &CppSourceTarget::INTERFACE_HU_INCLUDES(const pstring &include, 
     Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     if (bool added = InclNode::emplaceInList(usageRequirementIncludes, node); added)
     {
-        usageRequirementHuDirs.emplace(&(usageRequirementIncludes.back()));
+        usageRequirementHuDirs.emplace(usageRequirementIncludes.back(), this);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -329,10 +325,8 @@ CppSourceTarget &CppSourceTarget::INTERFACE_HU_INCLUDES(const pstring &include, 
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PUBLIC_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString)
 {
-    requirementHuDirs.emplace(
-        targets<InclNode>.emplace(Node::getNodeFromNonNormalizedPath(include, false)).first.operator->(), this);
-    usageRequirementHuDirs.emplace(
-        targets<InclNode>.emplace(Node::getNodeFromNonNormalizedPath(include, false)).first.operator->());
+    requirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
+    usageRequirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
@@ -347,8 +341,7 @@ CppSourceTarget &CppSourceTarget::PUBLIC_HU_DIRECTORIES(const pstring &include, 
 template <typename... U>
 CppSourceTarget &CppSourceTarget::PRIVATE_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString)
 {
-    requirementHuDirs.emplace(
-        targets<InclNode>.emplace(Node::getNodeFromNonNormalizedPath(include, false)).first.operator->(), this);
+    requirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
@@ -363,8 +356,7 @@ CppSourceTarget &CppSourceTarget::PRIVATE_HU_DIRECTORIES(const pstring &include,
 template <typename... U>
 CppSourceTarget &CppSourceTarget::INTERFACE_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString)
 {
-    usageRequirementHuDirs.emplace(
-        targets<InclNode>.emplace(Node::getNodeFromNonNormalizedPath(include, false)).first.operator->());
+    usageRequirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
 
     if constexpr (sizeof...(includeDirectoryPString))
     {

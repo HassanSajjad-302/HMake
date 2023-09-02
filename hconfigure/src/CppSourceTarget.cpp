@@ -43,6 +43,15 @@ bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs)
     return std::tie(lhs.sourceDirectory, lhs.regex) < std::tie(rhs.sourceDirectory, rhs.regex);
 }
 
+bool InclNodePointerComparator::operator()(const InclNode &lhs, const InclNode &rhs) const
+{
+    return lhs.node < rhs.node;
+}
+
+InclNodeRecord::InclNodeRecord(Node *node_)
+{
+}
+
 void CppSourceTarget::setCpuType()
 {
     // Based on msvc.jam Line 2141
@@ -124,9 +133,9 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
     {
         sortedSMFileDependencies.emplace(&objectFile);
     }
-    for (const SMFile *headerUnit : headerUnits)
+    for (const SMFile &headerUnit : headerUnits)
     {
-        sortedSMFileDependencies.emplace(headerUnit);
+        sortedSMFileDependencies.emplace(&headerUnit);
     }
 
     for (const SMFile *objectFile : sortedSMFileDependencies)
@@ -142,6 +151,10 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
 
 void CppSourceTarget::populateTransitiveProperties()
 {
+    for (auto &[inclNode, _] : requirementHuDirs)
+    {
+        inclNodeRecord.emplace(inclNode.node, 0).first->second.operator++();
+    }
     for (CSourceTarget *cSourceTarget : requirementDeps)
     {
         for (InclNode &include : cSourceTarget->usageRequirementIncludes)
@@ -156,12 +169,67 @@ void CppSourceTarget::populateTransitiveProperties()
         requirementCompilerFlags += cSourceTarget->usageRequirementCompilerFlags;
         if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
         {
-            auto *cppSourceTarget = static_cast<const CppSourceTarget *>(cSourceTarget);
-            for (const InclNode *inclNode : cppSourceTarget->usageRequirementHuDirs)
+            for (auto &[inclNode, cppSourceTarget] :
+                 static_cast<const CppSourceTarget *>(cSourceTarget)->usageRequirementHuDirs)
             {
-                requirementHuDirs.emplace(inclNode, const_cast<CppSourceTarget *>(cppSourceTarget));
+                if (auto [itr, ok] = requirementHuDirs.emplace(inclNode, cppSourceTarget); !ok)
+                {
+                    printErrorMessageColor(
+                        fmt::format("Include Directory\n{}\nbelongs to two different target\n{}\nand\n{}\n",
+                                    inclNode.node->filePath, getTarjanNodeName(), cppSourceTarget->getTarjanNodeName()),
+                        settings.pcSettings.toolErrorOutput);
+                    throw std::exception();
+                    // Print Error Message that same include-directory belongs to two targets.
+                }
+                // Increment the number of targets dependent on the header-units of that particular InclNode
+                cppSourceTarget->inclNodeRecord.emplace(inclNode.node, 0).first->second.operator++();
             }
         }
+    }
+    inclNodeRecordSize = inclNodeRecord.size();
+}
+
+void CppSourceTarget::adjustheaderUnitsPValueArrayPointers(Builder &builder)
+{
+    // All header-units are found, so header-units pvalue array size could be reserved
+    // If a new header-unit was added in this run, sourceJson pointers are adjusted
+    if (newHeaderUnitsSize)
+    {
+        PValue &headerUnitsPValueArray = (*targetBuildCache)[2];
+        headerUnitsPValueArray.Reserve(headerUnitsPValueArray.Size() + newHeaderUnitsSize, cppAllocator);
+
+        for (const SMFile &headerUnit : headerUnits)
+        {
+            if (headerUnit.headerUnitsIndex == UINT64_MAX)
+            {
+                // headerUnit did not exist before in the cache
+                PValue *oldPtr = headerUnit.sourceJson;
+
+                // old value is moved
+                headerUnitsPValueArray.PushBack(*(headerUnit.sourceJson), cppAllocator);
+
+                // old pointer cleared
+                delete oldPtr;
+
+                // Reassigning the old value moved in the array
+                const_cast<SMFile &>(headerUnit).sourceJson = (headerUnitsPValueArray.End() - 1);
+            }
+            else
+            {
+                // headerUnit existed before in the cache but because array size is increased the sourceJson
+                // pointer is invalidated now. Reassigning the pointer based on previous index.
+                const_cast<SMFile &>(headerUnit).sourceJson = &(headerUnitsPValueArray[headerUnit.headerUnitsIndex]);
+            }
+        }
+    }
+
+    // A smrule file was updated. And all module scope smrule files have been checked. Following is done to
+    // write the CppSourceTarget .cache files. So, if because of an error during smrule generation of a file,
+    // hmake is exiting after round 1, in next invocation, it won't generate the smrule of successfully
+    // generated files.
+    if (targetCacheChanged.load())
+    {
+        builder.addNewBTargetInFinalBTargets(this);
     }
 }
 
@@ -176,8 +244,8 @@ CppSourceTarget &CppSourceTarget::assignStandardIncludesToPublicHUDirectories()
     {
         if (include.isStandard)
         {
-            requirementHuDirs.emplace(&include, this);
-            usageRequirementHuDirs.emplace(&include);
+            requirementHuDirs.emplace(include, this);
+            usageRequirementHuDirs.emplace(include, this);
         }
     }
     return *this;
@@ -705,9 +773,9 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
 {
     if (!round || round == 1)
     {
-        if (targetCacheChanged.load(std::memory_order_acquire))
+        if (targetCacheChanged.load())
         {
-            targetCacheChanged.store(false, std::memory_order_release);
+            targetCacheChanged.store(false);
             saveBuildCache(round);
             if (!round)
             {
@@ -1208,7 +1276,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
     {
         auto &smFile = const_cast<SMFile &>(smFileConst);
 
-        ++totalSMRuleFileCount;
+        ++totalNonHuModuleFileCount;
         // So, it becomes part of DAG
         smFile.realBTargets[1].setBTarjanNode();
 
@@ -1231,6 +1299,19 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
             moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kStringType), smFile.sourceNodeAllocator);
+        }
+    }
+
+    if (!totalNonHuModuleFileCount)
+    {
+        for (auto &[inclNode, cppSourceTarget] : requirementHuDirs)
+        {
+            assert(cppSourceTarget->inclNodeRecord.find(inclNode.node)->second.load() > 0);
+            if (cppSourceTarget->inclNodeRecord.find(inclNode.node)->second.fetch_sub(1) == 1)
+            {
+                assert(cppSourceTarget->inclNodeRecordSize.load() > 0);
+                cppSourceTarget->inclNodeRecordSize.fetch_sub(1);
+            }
         }
     }
 }
@@ -1313,7 +1394,7 @@ pstring CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &sm
 
 PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
 {
-    targetCacheChanged.store(true, std::memory_order_release);
+    targetCacheChanged.store(true);
     pstring finalCompileCommand = compileCommand;
 
     for (const SMFile *smFileLocal : smFile.allSMFileDependenciesRoundZero)
@@ -1342,7 +1423,7 @@ mutex cppSourceTargetDotCpp_TempMutex;
 
 PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 {
-    targetCacheChanged.store(true, std::memory_order_release);
+    targetCacheChanged.store(true);
 
     pstring compileFileName = (path(sourceNode.node->filePath).filename().*toPStr)();
 
@@ -1370,7 +1451,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
 
 PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError)
 {
-    targetCacheChanged.store(true, std::memory_order_release);
+    targetCacheChanged.store(true);
     pstring finalCompileCommand = compileCommand + addQuotes(smFile.node->filePath) + " ";
 
     if (compiler.bTFamily == BTFamily::MSVC)

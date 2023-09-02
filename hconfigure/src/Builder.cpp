@@ -398,7 +398,7 @@ bool Builder::addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets
         std::lock_guard<std::mutex> lk(executeMutex);
         for (CppSourceTarget *target : targets)
         {
-            if (target->targetCacheChanged.load(std::memory_order_acquire))
+            if (target->targetCacheChanged.load())
             {
                 updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, target);
                 ++updateBTargetsSizeGoal;

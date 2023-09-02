@@ -83,7 +83,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     if (!exists(path(buildCacheFilesDirPath)))
     {
         create_directories(buildCacheFilesDirPath);
-        fileStatus.store(true, std::memory_order_release);
+        fileStatus.store(true);
     }
 
     // No other thread during BTarget::setFileStatusAndPopulateAllDependencies calls saveBuildCache() i.e. only the
@@ -94,16 +94,16 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
     if (buildCacheIndex == UINT64_MAX)
     {
-        fileStatus.store(true, std::memory_order_release);
+        fileStatus.store(true);
     }
     buildCacheMutex.unlock();
 
-    if (!fileStatus.load(std::memory_order_acquire))
+    if (!fileStatus.load())
     {
         path outputPath = path(getActualOutputPath());
         if (!std::filesystem::exists(outputPath))
         {
-            fileStatus.store(true, std::memory_order_release);
+            fileStatus.store(true);
         }
         else
         {
@@ -156,19 +156,19 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 }
                 if (needsUpdate)
                 {
-                    fileStatus.store(true, std::memory_order_release);
+                    fileStatus.store(true);
                 }
             }
             else
             {
-                fileStatus.store(true, std::memory_order_release);
+                fileStatus.store(true);
             }
         }
     }
 
     if constexpr (os == OS::NT)
     {
-        if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && fileStatus.load(std::memory_order_acquire))
+        if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && fileStatus.load())
         {
             set<PrebuiltBasic *> checked;
             stack<PrebuiltBasic *> allDeps;
@@ -185,7 +185,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 {
                     auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
 
-                    if (prebuiltLinkOrArchiveTarget->fileStatus.load(std::memory_order_acquire))
+                    if (prebuiltLinkOrArchiveTarget->fileStatus.load())
                     {
                         // latest dll will be built and copied
                         dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
@@ -225,7 +225,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         }
     }
 
-    if (fileStatus.load(std::memory_order_acquire))
+    if (fileStatus.load())
     {
         assignFileStatusToDependents(realBTarget);
     }
@@ -237,7 +237,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
     if (!round && realBTarget.exitStatus == EXIT_SUCCESS && BTarget::selectiveBuild)
     {
         setFileStatus(realBTarget);
-        if (fileStatus.load(std::memory_order_acquire))
+        if (fileStatus.load())
         {
             shared_ptr<PostBasic> postBasicLinkOrArchive;
             if (linkTargetType == TargetType::LIBRARY_STATIC)
