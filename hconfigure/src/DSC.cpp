@@ -53,28 +53,44 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, b
     }
 }
 
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::push(CppSourceTarget *ptr)
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget *ptr)
 {
-    if (!pushed)
+    if (!stored)
     {
-        pushed = static_cast<CppSourceTarget *>(objectFileProducer);
+        stored = static_cast<CppSourceTarget *>(objectFileProducer);
     }
     objectFileProducer = ptr;
     return *this;
 }
 
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::pushAndInitialize(CppSourceTarget *ptr)
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget *ptr)
 {
-    push(ptr);
-    for (const SMFile &smFile : pushed->moduleSourceFileDependencies)
+    save(ptr);
+    for (const SMFile &smFile : stored->moduleSourceFileDependencies)
     {
-        ptr->moduleSourceFileDependencies.emplace(ptr, const_cast<Node *>(smFile.node));
+        if (smFile.isInterface)
+        {
+            ptr->moduleSourceFileDependencies.emplace(ptr, const_cast<Node *>(smFile.node));
+        }
     }
+    for (auto &[inclNode, cppSourceTarget] : stored->requirementHuDirs)
+    {
+        ptr->requirementHuDirs.emplace(inclNode, ptr);
+    }
+    for (auto &[inclNode, cppSourceTarget] : stored->usageRequirementHuDirs)
+    {
+        ptr->usageRequirementHuDirs.emplace(inclNode, ptr);
+    }
+    ptr->requirementCompileDefinitions = stored->requirementCompileDefinitions;
+    ptr->requirementIncludes = stored->requirementIncludes;
+
+    ptr->usageRequirementCompileDefinitions = stored->usageRequirementCompileDefinitions;
+    ptr->usageRequirementIncludes = stored->usageRequirementIncludes;
     return *this;
 }
 
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::pop()
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::restore()
 {
-    objectFileProducer = pushed;
+    objectFileProducer = stored;
     return *this;
 }

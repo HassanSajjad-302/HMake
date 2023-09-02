@@ -332,12 +332,8 @@ then this dependency will be propagated above upto the Shared-Library or Exe.
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().MODULE_FILES("main.cpp", "std.cpp").setModuleScope();
-    GetCppExeDSC("app2")
-        .getSourceTarget()
-        .MODULE_FILES("main2.cpp")
-        .setModuleScope()
-        .assignStandardIncludesToPublicHUDirectories();
+    GetCppExeDSC("app").getSourceTarget().MODULE_FILES("main.cpp", "std.cpp");
+    GetCppExeDSC("app2").getSourceTarget().MODULE_FILES("main2.cpp").assignStandardIncludesToPublicHUDirectories();
 }
 
 MAIN_FUNCTION
@@ -346,29 +342,19 @@ MAIN_FUNCTION
 </details>
 
 This example showcases the HMake Modules Support.
-In ```round == 1```, i.e. in the second-last / third round,
+In ```round == 1```, i.e. in the second-last / second round,
 HMake generates the .smrule file for all the module-files and the header-units,
 if any are being included by these module-files.
 This .smrule file is specified by the compiler according to the P1689R5 paper.
-In round 3, HMake also determines the dependencies between different modules,
-and then in round 4, will build them accordingly.
+In round 2, HMake also determines the dependencies between different modules,
+and then in round 3, will build them accordingly.
 ```app2``` marks all the ```requirementIncludes``` for which ```isStandard = true```
 as header-unit-includes by calling the function ```assignStandardIncludesToPublicHUDirectories```.
 Any directory which has header-units should be marked by at-least one and only one
-target as hu-include(header-unit-include) in same module-scope.
-So, HMake can decide what target to associate with this header-unit.
-Module-scope is used to combine different CppSourceTarget's.
-So, the modules from one ```CppSourceTarget``` can use modules from another ```CppSourceTarget```,
+target as hu-include(header-unit-include) in a target or its dependencies.
+So, HMake can decide what target to associate with this header-units from that directory.
+Modules from a ```CppSourceTarget``` can use modules from a dependency ```CppSourceTarget```,
 while at the same time being compiled by a different compile-command.
-module-scope of a ```CppSourceTarget``` defaults to itself.
-
-```setModuleScope()``` sets the module-scope to itself.
-While its overload ```setModuleScope(CppSourceTarget *cppSourceTarget)``` sets
-the scope to the respective target.
-One of these functions must be called to initialize the moduleScopeData of the module-scope,
-if it isn't already.
-Generally, in a build-specification,
-all ```CppSourceTarget```should have the same module-scope.
 
 ```CppSourceTarget``` member functions ```PRIVATE_HU_DIRECTORIES```,
 ```PUBLIC_HU_INCLUDES``` and ```PRIVATE_HU_INCLUDES```
@@ -389,7 +375,7 @@ That is showcased in Example 9.
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().MODULE_DIRECTORIES("Mod_Src/").setModuleScope();
+    GetCppExeDSC("app").getSourceTarget().MODULE_DIRECTORIES("Mod_Src/");
 }
 
 MAIN_FUNCTION
@@ -409,7 +395,9 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T 
 {
     CppSourceTarget &t = target.getSourceTarget();
     string str = t.name.substr(0, t.name.size() - 4); // Removing -cpp from the name
-    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp").HU_DIRECTORIES("src/" + str).PRIVATE_HU_DIRECTORIES("include/" + str);
+    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp")
+        .PRIVATE_HU_DIRECTORIES("src/" + str)
+        .PUBLIC_HU_DIRECTORIES("include/" + str);
 
     if constexpr (sizeof...(targets))
     {
@@ -423,14 +411,14 @@ void configurationSpecification(Configuration &config)
 
     DSC<CppSourceTarget> &stdhu = config.GetCppObjectDSC("stdhu");
 
-    stdhu.getSourceTargetPointer()->setModuleScope().assignStandardIncludesToPublicHUDirectories();
-    config.moduleScope = stdhu.getSourceTargetPointer();
+    stdhu.getSourceTargetPointer()->assignStandardIncludesToPublicHUDirectories();
 
     DSC<CppSourceTarget> &lib4 = config.GetCppTargetDSC("lib4", config.targetType);
     DSC<CppSourceTarget> &lib3 = config.GetCppTargetDSC("lib3", config.targetType).PUBLIC_LIBRARIES(&lib4);
-    DSC<CppSourceTarget> &lib2 = config.GetCppTargetDSC("lib2", config.targetType).PRIVATE_LIBRARIES(&lib3);
+    DSC<CppSourceTarget> &lib2 =
+        config.GetCppTargetDSC("lib2", config.targetType).PUBLIC_LIBRARIES(&stdhu).PRIVATE_LIBRARIES(&lib3);
     DSC<CppSourceTarget> &lib1 = config.GetCppTargetDSC("lib1", config.targetType).PUBLIC_LIBRARIES(&lib2);
-    DSC<CppSourceTarget> &app = config.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1, &stdhu);
+    DSC<CppSourceTarget> &app = config.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1);
 
     initializeTargets(lib1, lib2, lib3, lib4, app);
 }
@@ -473,7 +461,6 @@ void buildSpecification()
 {
     GetCppExeDSC("app")
         .getSourceTarget()
-        .setModuleScope()
         .PUBLIC_HU_INCLUDES("3rd_party/olcPixelGameEngine")
         .R_MODULE_DIRECTORIES("modules/", "src/")
         .ASSIGN(CxxSTD::V_LATEST);
@@ -581,10 +568,9 @@ bool operator<(const SizeDifference &lhs, const SizeDifference &rhs)
 void configurationSpecification(Configuration &configuration)
 {
     DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
-    stdhu.getSourceTarget().setModuleScope().assignStandardIncludesToPublicHUDirectories();
-    configuration.moduleScope = stdhu.getSourceTargetPointer();
+    stdhu.getSourceTarget().assignStandardIncludesToPublicHUDirectories();
 
-    DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
+    DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt").PUBLIC_LIBRARIES(&stdhu);
     fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
 
     configuration.markArchivePoint();
@@ -649,8 +635,6 @@ This example showcases HMake extensibility and support for drop-in replacement o
 header-files with header-units.
 ```GetCppObjectDSC``` is used for a target for which there is no link-target i.e. header-only cpp-target.
 In this case header-unit only.
-This line ```configuration.moduleScope = stdhu.getSourceTargetPointer();```
-will set the module-scope for all the targets declared after this line in the configuration.
 
 ```markArchivePoint``` function is a WIP. It will be used to specify that fmt, json and stdhu are never
 meant to be changed. So, hbuild can ignore checking object-files of these for rebuild.

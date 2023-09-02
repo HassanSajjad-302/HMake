@@ -197,6 +197,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     CppSourceTarget &INTERFACE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue = "");
     template <typename... U> CppSourceTarget &SOURCE_FILES(const pstring &srcFile, U... sourceFilePString);
     template <typename... U> CppSourceTarget &MODULE_FILES(const pstring &modFile, U... moduleFilePString);
+    template <typename... U> CppSourceTarget &INTERFACE_FILES(const pstring &modFile, U... moduleFilePString);
     void parseRegexSourceDirs(bool assignToSourceNodes, bool recursive, const SourceDirectory &dir);
     template <typename... U> CppSourceTarget &SOURCE_DIRECTORIES(const pstring &sourceDirectory, U... directories);
     template <typename... U> CppSourceTarget &MODULE_DIRECTORIES(const pstring &moduleDirectory, U... directories);
@@ -394,6 +395,31 @@ template <typename... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(const ps
         if constexpr (sizeof...(moduleFilePString))
         {
             return MODULE_FILES(moduleFilePString...);
+        }
+        else
+        {
+            return *this;
+        }
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::INTERFACE_FILES(const pstring &modFile, U... moduleFilePString)
+{
+    if (EVALUATE(TreatModuleAsSource::YES))
+    {
+        return SOURCE_FILES(modFile, moduleFilePString...);
+    }
+    else
+    {
+        const SMFile &smFile = moduleSourceFileDependencies
+                                   .emplace(this, const_cast<Node *>(Node::getNodeFromNonNormalizedPath(modFile, true)))
+                                   .first.
+                                   operator*();
+        const_cast<SMFile &>(smFile).isInterface = true;
+        if constexpr (sizeof...(moduleFilePString))
+        {
+            return INTERFACE_FILES(moduleFilePString...);
         }
         else
         {

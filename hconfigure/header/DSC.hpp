@@ -16,7 +16,7 @@ template <typename T> struct DSC : DSCFeatures
 {
     using BaseType = typename T::BaseType;
     // Pointer is unused beside CppSourceTarget *
-    T *pushed = nullptr;
+    T *stored = nullptr;
     // These pointers are assigned in the constructor. An invariant is that these can not nullptr.
     ObjectFileProducerWithDS<BaseType> *objectFileProducer = nullptr;
     PrebuiltBasic *prebuiltBasic = nullptr;
@@ -30,9 +30,9 @@ template <typename T> struct DSC : DSCFeatures
 
     template <typename U, typename... V>
     void assignLinkOrArchiveTargetLib(Dependency dependency, DSC<U> *controller, V... args);
-    DSC &push(CppSourceTarget *ptr);
-    DSC &pushAndInitialize(CppSourceTarget *ptr);
-    DSC &pop();
+    DSC &save(CppSourceTarget *ptr);
+    DSC &saveAndReplace(CppSourceTarget *ptr);
+    DSC &restore();
 
     pstring define;
 
@@ -208,8 +208,8 @@ template <typename T> LinkOrArchiveTarget &DSC<T>::getLinkOrArchiveTarget()
 template <>
 DSC<CppSourceTarget>::DSC(class CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, pstring define_);
 
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::push(CppSourceTarget *ptr);
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::pushAndInitialize(CppSourceTarget *ptr);
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::pop();
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget *ptr);
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget *ptr);
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::restore();
 
 #endif // HMAKE_DSC_HPP

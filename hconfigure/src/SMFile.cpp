@@ -427,9 +427,8 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
     CppSourceTarget *huDirTarget = nullptr;
     const InclNode *nodeDir = nullptr;
 
-    // Iterating over all header-unit-directories of the module-scope to find out which header-unit
-    // directory this header-unit comes from and which target that header-unit-directory belongs to
-    // if any
+    // Iterating over all header-unit-directories of the target to find out which header-unit directory this header-unit
+    // comes from and which target that header-unit-directory belongs to if any
     for (const auto &[inclNode, targetLocal] : target->requirementHuDirs)
     {
         if (pathContainsFile(inclNode.node->filePath, headerUnitNode->filePath))

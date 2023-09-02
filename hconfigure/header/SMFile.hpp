@@ -120,6 +120,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
 
     bool angle = false;
     bool readJsonFromSMRulesFile = false;
+    bool isInterface = false;
 
     // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
     // ignoreHeaderDeps is true

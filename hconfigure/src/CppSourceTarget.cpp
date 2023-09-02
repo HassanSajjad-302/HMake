@@ -223,10 +223,10 @@ void CppSourceTarget::adjustheaderUnitsPValueArrayPointers(Builder &builder)
         }
     }
 
-    // A smrule file was updated. And all module scope smrule files have been checked. Following is done to
-    // write the CppSourceTarget .cache files. So, if because of an error during smrule generation of a file,
-    // hmake is exiting after round 1, in next invocation, it won't generate the smrule of successfully
-    // generated files.
+    // A smrule file was updated. And all smrule files of dependent targets have been checked. No new header-unit will
+    // be discovered for this target. Following is done to write the CppSourceTarget .cache files. So, if because of an
+    // error during smrule generation of a file, hmake is exiting after round 1, in next invocation, it won't generate
+    // the smrule of successfully generated files.
     if (targetCacheChanged.load())
     {
         builder.addNewBTargetInFinalBTargets(this);

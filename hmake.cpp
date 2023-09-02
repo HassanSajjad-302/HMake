@@ -89,10 +89,9 @@ bool operator<(const SizeDifference &lhs, const SizeDifference &rhs)
 void configurationSpecification(Configuration &configuration)
 {
     DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
-    stdhu.getSourceTarget().setModuleScope().assignStandardIncludesToHUIncludes();
-    configuration.moduleScope = stdhu.getSourceTargetPointer();
+    stdhu.getSourceTarget().assignStandardIncludesToPublicHUDirectories();
 
-    DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt");
+    DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt").PUBLIC_LIBRARIES(&stdhu);
     fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
 
     configuration.markArchivePoint();
@@ -137,7 +136,7 @@ void buildSpecification()
     Configuration &releaseSpeed = GetConfiguration("RSpeed");
     CxxSTD cxxStd = releaseSpeed.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
     releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
-    releaseSpeed.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS", "1");
+    // releaseSpeed.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS", "1");
 
     Configuration &releaseSize = GetConfiguration("RSize");
     releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
