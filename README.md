@@ -759,4 +759,5 @@ Please feel free to approach.
 
 I have been working on this project, on and off, for close to two years.
 Please consider donating.
-Contact here if you want to donate hassan.sajjad069@gmail.com. Thanks.
+Contact here if you want to donate hassan.sajjad069@gmail.com
+or you can donate me through Patreon. Thanks.
