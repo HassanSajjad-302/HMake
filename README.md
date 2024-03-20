@@ -4,7 +4,7 @@ HMake is a new build system that does not invent a new DSL for its project build
 Currently, it only provides C++ build and C++ API.
 Later on, build support for more programming languages will be added.
 API in other programming languages will be provided as well.
-Tested on Windows 11 with MSVC 19.36.32537 and Ubuntu 22.04 LTS with GCC 12.1
+Tested on Windows 11 with MSVC 14.39.33519 (Visual Studio 17.9.4) and Ubuntu 22.04 LTS with GCC 12.1
 
 ### Example 1
 
