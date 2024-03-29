@@ -113,7 +113,6 @@ bool CompareSourceNode::operator()(const SourceNode &lhs, Node *rhs) const
 
 SourceNode::SourceNode(CppSourceTarget *target_, Node *node_) : target(target_), node{node_}
 {
-    realBTargets.emplace_back(this, 0);
 }
 
 pstring SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
@@ -211,7 +210,6 @@ HeaderUnitConsumer::HeaderUnitConsumer(bool angle_, pstring logicalName_)
 
 SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node_)
 {
-    realBTargets.emplace_back(this, 1);
 }
 
 void SMFile::decrementTotalSMRuleFileCount(Builder &builder)

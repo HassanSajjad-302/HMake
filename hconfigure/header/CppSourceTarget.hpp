@@ -371,7 +371,11 @@ CppSourceTarget &CppSourceTarget::INTERFACE_HU_DIRECTORIES(const pstring &includ
 
 template <typename... U> CppSourceTarget &CppSourceTarget::SOURCE_FILES(const pstring &srcFile, U... sourceFilePString)
 {
-    sourceFileDependencies.emplace(this, const_cast<Node *>(Node::getNodeFromNonNormalizedPath(srcFile, true)));
+    Node *node = Node::getNodeFromNonNormalizedPath(srcFile, true);
+    if (!sourceFileDependencies.contains(node))
+    {
+        sourceFileDependencies.emplace(this, node);
+    }
     if constexpr (sizeof...(sourceFilePString))
     {
         return SOURCE_FILES(sourceFilePString...);
@@ -390,8 +394,11 @@ template <typename... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(const ps
     }
     else
     {
-        moduleSourceFileDependencies.emplace(this,
-                                             const_cast<Node *>(Node::getNodeFromNonNormalizedPath(modFile, true)));
+        Node *node = Node::getNodeFromNonNormalizedPath(modFile, true);
+        if (!moduleSourceFileDependencies.contains(node))
+        {
+            moduleSourceFileDependencies.emplace(this, node);
+        }
         if constexpr (sizeof...(moduleFilePString))
         {
             return MODULE_FILES(moduleFilePString...);

@@ -1278,7 +1278,6 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
 
         ++totalNonHuModuleFileCount;
         // So, it becomes part of DAG
-        smFile.realBTargets[1].setBTarjanNode();
 
         realBTargets[0].addDependency(smFile);
 

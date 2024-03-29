@@ -21,7 +21,7 @@ template <typename T> class TarjanNode
 {
     // Following 4 are reset in findSCCS();
     inline static int index = 0;
-    inline static vector<TarjanNode *> stack;
+    inline static vector<TarjanNode *> nodesStack;
 
     // Output
     inline static vector<T *> cycle;
@@ -31,7 +31,7 @@ template <typename T> class TarjanNode
     inline static vector<T *> topologicalSort;
 
     // Input
-    inline static set<TarjanNode> *tarjanNodes;
+    inline static vector<TarjanNode *> *tarjanNodes;
 
     mutable set<TarjanNode *> deps;
 
@@ -62,15 +62,13 @@ template <typename T> void TarjanNode<T>::findSCCS()
     index = 0;
     cycleExists = false;
     cycle.clear();
-    stack.clear();
+    nodesStack.clear();
     topologicalSort.clear();
-    for (auto it = tarjanNodes->begin(); it != tarjanNodes->end(); ++it)
+    for (TarjanNode *tarjanNode : *tarjanNodes)
     {
-        auto &b = *it;
-        auto &tarjanNode = const_cast<TarjanNode<T> &>(b);
-        if (!tarjanNode.initialized)
+        if (!tarjanNode->initialized)
         {
-            tarjanNode.strongConnect();
+            tarjanNode->strongConnect();
         }
     }
 }
@@ -81,7 +79,7 @@ template <typename T> void TarjanNode<T>::strongConnect()
     nodeIndex = TarjanNode<T>::index;
     lowLink = TarjanNode<T>::index;
     ++TarjanNode<T>::index;
-    stack.emplace_back(this);
+    nodesStack.emplace_back(this);
     onStack = true;
 
     for (TarjanNode<T> *tarjandep : deps)
@@ -102,8 +100,8 @@ template <typename T> void TarjanNode<T>::strongConnect()
     {
         while (true)
         {
-            TarjanNode<T> *tarjanTemp = stack.back();
-            stack.pop_back();
+            TarjanNode<T> *tarjanTemp = nodesStack.back();
+            nodesStack.pop_back();
             tarjanTemp->onStack = false;
             tempCycle.emplace_back(tarjanTemp);
             if (tarjanTemp->id == this->id)

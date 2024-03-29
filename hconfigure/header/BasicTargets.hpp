@@ -4,6 +4,7 @@
 import "C_API.hpp";
 import "TargetType.hpp";
 import "TarjanNode.hpp";
+import <array>;
 import <atomic>;
 import <filesystem>;
 import <map>;
@@ -12,23 +13,24 @@ import <mutex>;
 #include "C_API.hpp"
 #include "TargetType.hpp"
 #include "TarjanNode.hpp"
+#include <array>
 #include <atomic>
 #include <filesystem>
 #include <map>
 #include <mutex>
 #endif
 
-using std::filesystem::path, std::size_t, std::map, std::mutex, std::lock_guard, std::atomic_flag;
+using std::filesystem::path, std::size_t, std::map, std::mutex, std::lock_guard, std::atomic_flag, std::array;
 
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
 TarjanNode(const struct BTarget *) -> TarjanNode<BTarget>;
 using TBT = TarjanNode<BTarget>;
-inline vector<set<TBT>> tarjanNodesBTargets;
+inline vector<vector<TBT *>> tarjanNodesBTargets;
 inline vector<mutex *> tarjanNodesBTargetsMutexes;
 
 TarjanNode(const class CTarget *) -> TarjanNode<CTarget>;
 using TCT = TarjanNode<CTarget>;
-inline set<TCT> tarjanNodesCTargets;
+inline vector<TCT *> tarjanNodesCTargets;
 
 class StaticInitializationTarjanNodesBTargets
 {
@@ -50,18 +52,16 @@ enum class BTargetDepType : bool
 
     // Following specifies a dependency only for ordering. That dependency won't be considered for selectiveBuild, and,
     // won't be updated when the dependencies are updated, and, will still be updated even if dependency exitStatus ==
-    // EXIT_FAILURE. Only useable in round 0.
+    // EXIT_FAILURE. Only usable in round 0.
     LOOSE,
 };
 
 inline StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
-struct RealBTarget
+struct RealBTarget : public TBT
 {
     map<BTarget *, BTargetDepType> dependents;
     map<BTarget *, BTargetDepType> dependencies;
 
-    // This points to the tarjanNodeBTargets set element
-    TBT *bTarjanNode = nullptr;
     BTarget *bTarget = nullptr;
 
     unsigned int indexInTopologicalSort = 0;
@@ -94,7 +94,6 @@ struct RealBTarget
     unsigned short round;
 
     explicit RealBTarget(BTarget *bTarget_, unsigned short round);
-    void setBTarjanNode();
     template <typename... U> void addDependency(BTarget &dependency, U &...bTargets);
     template <typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
 };
@@ -113,7 +112,7 @@ struct BTarget // BTarget
 {
     inline static size_t total = 0;
 
-    vector<RealBTarget> realBTargets;
+    array<RealBTarget, 3> realBTargets;
 
     size_t id = 0; // unique for every BTarget
 
@@ -124,6 +123,10 @@ struct BTarget // BTarget
     std::atomic<bool> fileStatus = false;
 
     explicit BTarget();
+    BTarget(const BTarget &) = delete;
+    BTarget &operator=(const BTarget &) = delete;
+    BTarget &operator=(BTarget &&) = delete;
+    BTarget(BTarget &&) = delete;
     virtual ~BTarget();
 
     virtual pstring getTarjanNodeName() const;
@@ -145,9 +148,7 @@ template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U 
             RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
             dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::FULL);
             ++dependenciesSize;
-            setBTarjanNode();
-            dependencyRealBTarget.setBTarjanNode();
-            bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
+            deps.emplace(&dependencyRealBTarget);
         }
     }
 
@@ -164,9 +165,7 @@ template <typename... U> void RealBTarget::addLooseDependency(BTarget &dependenc
     {
         RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
         dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::LOOSE);
-        setBTarjanNode();
-        dependencyRealBTarget.setBTarjanNode();
-        bTarjanNode->deps.emplace(dependencyRealBTarget.bTarjanNode);
+        deps.emplace(&dependencyRealBTarget);
     }
 
     if constexpr (sizeof...(bTargets))
@@ -180,7 +179,7 @@ struct CTargetPointerComparator
     bool operator()(const CTarget *lhs, const CTarget *rhs) const;
 };
 
-class CTarget // Configure Target
+class CTarget : public TCT // Configure Target
 {
     inline static set<std::pair<pstring, pstring>> cTargetsSameFileAndNameCheck;
     void initializeCTarget();
@@ -200,8 +199,7 @@ class CTarget // Configure Target
 
     // If constructor with other target is used, the pointer to the other target
     CTarget *other = nullptr;
-    // This points to the tarjanNodeCTargets set element
-    TCT *cTarjanNode = nullptr;
+
     const bool hasFile = true;
     bool selectiveBuildSet = false;
     bool callPreSort = true;

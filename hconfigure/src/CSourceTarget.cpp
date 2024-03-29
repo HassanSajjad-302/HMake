@@ -9,8 +9,6 @@ import "Features.hpp";
 
 CSourceTarget::CSourceTarget()
 {
-    realBTargets.emplace_back(this, 1);
-    realBTargets.emplace_back(this, 2);
 }
 
 CSourceTarget &CSourceTarget::INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags)

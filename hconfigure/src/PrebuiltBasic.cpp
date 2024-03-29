@@ -53,9 +53,6 @@ void PrebuiltBasic::populateRequirementAndUsageRequirementDeps()
 void PrebuiltBasic::initializePrebuiltBasic()
 {
     preSortBTargets.emplace_back(this);
-    realBTargets.emplace_back(this, 0);
-    realBTargets.emplace_back(this, 1);
-    realBTargets.emplace_back(this, 2);
 }
 
 PrebuiltBasic::PrebuiltBasic(pstring outputName_) : outputName{std::move(outputName_)}

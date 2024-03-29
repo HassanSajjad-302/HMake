@@ -11,13 +11,18 @@ void configurationSpecification(Configuration &configuration)
 
 void buildSpecification()
 {
-    Configuration &debug = GetConfiguration("Debug");
-    debug.ASSIGN(ConfigType::DEBUG);
-    Configuration &release = GetConfiguration("Release");
-    release.ASSIGN(LTO::ON);
-
-    configurationSpecification(debug);
-    configurationSpecification(release);
+    if (CacheVariable("Debug", true).value)
+    {
+        Configuration &debug = GetConfiguration("Debug");
+        debug.ASSIGN(ConfigType::DEBUG);
+        configurationSpecification(debug);
+    }
+    if (CacheVariable("Release", false).value)
+    {
+        Configuration &release = GetConfiguration("Release");
+        release.ASSIGN(LTO::ON);
+        configurationSpecification(release);
+    }
 }
 
 MAIN_FUNCTION

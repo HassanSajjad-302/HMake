@@ -16,7 +16,6 @@ struct RoundZeroUpdateBTarget : public BTarget
     explicit RoundZeroUpdateBTarget(function<void(Builder &, BTarget &bTarget)> updateFunctor_)
         : updateFunctor(std::move(updateFunctor_))
     {
-        realBTargets.emplace_back(this, 0);
     }
 
     void updateBTarget(class Builder &builder, unsigned short round) override

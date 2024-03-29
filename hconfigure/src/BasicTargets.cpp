@@ -31,25 +31,34 @@ bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, c
            const_cast<BTarget *>(rhs)->realBTargets[0].indexInTopologicalSort;
 }
 
-RealBTarget::RealBTarget(BTarget *bTarget_, unsigned short round_) : bTarget(bTarget_), round(round_)
-{
-}
-
-void RealBTarget::setBTarjanNode()
+RealBTarget::RealBTarget(BTarget *bTarget_, unsigned short round_) : TBT{bTarget_}, bTarget(bTarget_), round(round_)
 {
     std::lock_guard<std::mutex> lk(*(tarjanNodesBTargetsMutexes[round]));
-    if (!bTarjanNode)
-    {
-        bTarjanNode = const_cast<TBT *>(tarjanNodesBTargets[round].emplace(bTarget).first.operator->());
-    }
+
+    // Memory Not Released
+    tarjanNodesBTargets[round].emplace_back(this);
 }
 
-BTarget::BTarget()
+/*void RealBTarget::addInGlobalTarjanNodes()
+{
+    std::lock_guard<std::mutex> lk(*(tarjanNodesBTargetsMutexes[round]));
+    if (!addedInGlobalTarjanNodes)
+    {
+        addedInGlobalTarjanNodes = true;
+        // Memory Not Released
+        tarjanNodesBTargets[round].emplace_back(this);
+    }
+}*/
+
+BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}
 {
     id = total++;
 }
 
-BTarget::~BTarget() = default;
+BTarget::~BTarget()
+{
+    int a = 3;
+}
 
 pstring BTarget::getTarjanNodeName() const
 {
@@ -94,7 +103,8 @@ void CTarget::initializeCTarget()
 {
     id = total++;
     targetPointers<CTarget>.emplace(this);
-    cTarjanNode = const_cast<TCT *>(tarjanNodesCTargets.emplace(this).first.operator->());
+    // Memory Not Released
+    tarjanNodesCTargets.emplace_back(this);
     if (hasFile)
     {
         const auto &[pos, Ok] = cTargetsSameFileAndNameCheck.emplace(name, targetFileDir);
@@ -109,7 +119,7 @@ void CTarget::initializeCTarget()
 }
 
 CTarget::CTarget(pstring name_, CTarget &container, const bool hasFile_)
-    : name{std::move(name_)}, other(&container), hasFile{hasFile_}
+    : TCT{this}, name{std::move(name_)}, other(&container), hasFile{hasFile_}
 {
     if (!container.hasFile && hasFile_)
     {
@@ -132,7 +142,7 @@ CTarget::CTarget(pstring name_, CTarget &container, const bool hasFile_)
     {
         if (container.elements.emplace(this).second)
         {
-            cTarjanNode->deps.emplace(container.cTarjanNode);
+            deps.emplace(&container);
         }
         else
         {
@@ -144,7 +154,7 @@ CTarget::CTarget(pstring name_, CTarget &container, const bool hasFile_)
 }
 
 CTarget::CTarget(pstring name_)
-    : name(std::move(name_)), targetFileDir((path(configureDir).*toPStr)() + slashc + name + slashc)
+    : TCT{this}, name(std::move(name_)), targetFileDir((path(configureDir).*toPStr)() + slashc + name + slashc)
 {
     initializeCTarget();
     targetSubDirectories.emplace(targetSubDir);

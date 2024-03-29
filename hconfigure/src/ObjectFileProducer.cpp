@@ -9,7 +9,6 @@ import "LinkOrArchiveTarget.hpp";
 
 ObjectFileProducer::ObjectFileProducer()
 {
-    realBTargets.emplace_back(this, 0);
 }
 
 void ObjectFileProducer::getObjectFiles(vector<const ObjectFile *> *, class LinkOrArchiveTarget *) const
