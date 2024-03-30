@@ -1,9 +1,11 @@
 #ifdef USE_HEADER_UNITS
+import "BuildSystemFunctions.hpp";
 import "Builder.hpp";
 import "PrebuiltLinkOrArchiveTarget.hpp";
 import "SMFile.hpp";
 #else
 #include "PrebuiltLinkOrArchiveTarget.hpp"
+#include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "SMFile.hpp"
 #endif
@@ -13,7 +15,7 @@ import "SMFile.hpp";
 // by LinkOrArchiveTarget.
 PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const pstring &outputName_, const pstring &directory,
                                                          TargetType linkTargetType_)
-    : outputDirectory((Node::getFinalNodePathFromPath(directory).*toPStr)()),
+    : outputDirectory((Node::getFinalNodePathFromPath(directory + slashc).*toPStr)()),
       actualOutputName(getActualNameFromTargetName(linkTargetType_, os, outputName_)),
       PrebuiltBasic(outputName_, linkTargetType_)
 {
