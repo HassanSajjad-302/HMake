@@ -139,7 +139,8 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
         // cached compile-command would be different
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            (*sourceJson)[1].SetString(ptoref(target->compileCommandWithTool));
+            (*sourceJson)[Indices::TargetBuildCache::SourceFiles::compileCommandWithTool].SetString(
+                ptoref(target->compileCommandWithTool));
         }
         lock_guard<mutex> lk(printMutex);
         postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
@@ -149,10 +150,12 @@ void SourceNode::updateBTarget(Builder &, unsigned short round)
 
 void SourceNode::setSourceNodeFileStatus()
 {
+    using SourceFiles = Indices::TargetBuildCache::SourceFiles;
+
     objectFileOutputFilePath =
         Node::getNodeFromNormalizedString(target->buildCacheFilesDirPath + node->getFileName() + ".o", true, true);
 
-    if (sourceJson->operator[](1) != PValue(ptoref(target->compileCommandWithTool)))
+    if ((*sourceJson)[SourceFiles::compileCommandWithTool] != PValue(ptoref(target->compileCommandWithTool)))
     {
         fileStatus.store(true);
         return;
@@ -170,7 +173,7 @@ void SourceNode::setSourceNodeFileStatus()
         return;
     }
 
-    for (PValue &str : (*sourceJson)[2].GetArray())
+    for (PValue &str : (*sourceJson)[SourceFiles::headerFiles].GetArray())
     {
         Node *headerNode =
             Node::getNodeFromNormalizedString(pstring_view(str.GetString(), str.GetStringLength()), true, true);
@@ -246,6 +249,9 @@ void SMFile::decrementTotalSMRuleFileCount(Builder &builder)
 
 void SMFile::updateBTarget(Builder &builder, unsigned short round)
 {
+
+    using ModuleFiles = Indices::TargetBuildCache::ModuleFiles;
+
     // Danger Following is executed concurrently
     RealBTarget &realBTarget = realBTargets[round];
     if (round == 1 && realBTarget.exitStatus == EXIT_SUCCESS)
@@ -265,7 +271,8 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
         }
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            (*sourceJson)[1].SetString(ptoref(target->compileCommandWithTool));
+            (*sourceJson)[Indices::TargetBuildCache::ModuleFiles::scanningCommandWithTool].SetString(
+                ptoref(target->compileCommandWithTool));
             saveRequiresJsonAndInitializeHeaderUnits(builder);
             assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
 
@@ -279,9 +286,12 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
 
         if (!fileStatus.load())
         {
-            if ((*sourceJson)[4] != PValue(ptoref(target->compileCommandWithTool)))
+            if ((*sourceJson)[ModuleFiles::compileCommandWithTool] != PValue(ptoref(target->compileCommandWithTool)))
             {
                 fileStatus.store(true);
+            }
+            else
+            {
             }
         }
 
@@ -301,7 +311,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
             {
                 // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
                 // cached compile-command would be different
-                (*sourceJson)[4].SetString(ptoref(target->compileCommandWithTool));
+                (*sourceJson)[ModuleFiles::compileCommandWithTool].SetString(ptoref(target->compileCommandWithTool));
             }
         }
     }
@@ -409,7 +419,9 @@ bool pathContainsFile(pstring_view dir, pstring_view file)
 
 void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &builder)
 {
-    if (requirePValue[0] == PValue(ptoref(logicalName)))
+    using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::ModuleDeps::SingleModuleDep;
+
+    if (requirePValue[SingleModuleDep::logicalName] == PValue(ptoref(logicalName)))
     {
         printErrorMessageColor(fmt::format("In target\n{}\nModule\n{}\n can not depend on itself.\n",
                                            target->getTarjanNodeName(), node->filePath),
@@ -418,8 +430,10 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
         throw std::exception();
     }
 
-    Node *headerUnitNode = Node::getNodeFromNormalizedString(
-        pstring_view(requirePValue[1].GetString(), requirePValue[1].GetStringLength()), true);
+    Node *headerUnitNode =
+        Node::getNodeFromNormalizedString(pstring_view(requirePValue[SingleModuleDep::fullPath].GetString(),
+                                                       requirePValue[SingleModuleDep::fullPath].GetStringLength()),
+                                          true);
 
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
@@ -475,11 +489,13 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
         }
 
         headerUnit.headerUnitsIndex =
-            pvalueIndexInSubArray((*(huDirTarget->targetBuildCache))[2], PValue(ptoref(headerUnit.node->filePath)));
+            pvalueIndexInSubArray((*(huDirTarget->targetBuildCache))[Indices::TargetBuildCache::headerUnits],
+                                  PValue(ptoref(headerUnit.node->filePath)));
 
         if (headerUnit.headerUnitsIndex != UINT64_MAX)
         {
-            headerUnit.sourceJson = &((*(huDirTarget->targetBuildCache))[2][headerUnit.headerUnitsIndex]);
+            headerUnit.sourceJson = &((
+                *(huDirTarget->targetBuildCache))[Indices::TargetBuildCache::headerUnits][headerUnit.headerUnitsIndex]);
         }
         else
         {
@@ -509,7 +525,8 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
     auto &headerUnit = const_cast<SMFile &>(*headerUnitIt);
 
     // Should be true if JConsts::lookupMetho == "include-angle";
-    headerUnitsConsumptionMethods[&headerUnit].emplace(requirePValue[2].GetBool(), requirePValue[0].GetString());
+    headerUnitsConsumptionMethods[&headerUnit].emplace(requirePValue[SingleModuleDep::boolean].GetBool(),
+                                                       requirePValue[SingleModuleDep::logicalName].GetString());
     realBTargets[0].addDependency(headerUnit);
 }
 
@@ -520,10 +537,13 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
         return str.contains(':');
     };
 
+    using ModuleFiles = Indices::TargetBuildCache::ModuleFiles;
+
     if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
         // Json &rules = sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
-        for (PValue &requirePValue : (*sourceJson)[3][1].GetArray())
+        for (PValue &requirePValue :
+             (*sourceJson)[ModuleFiles::moduleDeps][ModuleFiles::ModuleDeps::singleModuleDep].GetArray())
         {
             initializeNewHeaderUnit(requirePValue, builder);
         }
@@ -535,9 +555,11 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
         // If following is true then smFile is PartitionImplementation.
         bool hasPartitionExportDependency = false;
 
-        for (PValue &requirePValue : (*sourceJson)[3][1].GetArray())
+        for (PValue &requirePValue :
+             (*sourceJson)[ModuleFiles::moduleDeps][ModuleFiles::ModuleDeps::singleModuleDep].GetArray())
         {
-            if (requirePValue[0] == PValue(ptoref(logicalName)))
+            using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::ModuleDeps::SingleModuleDep;
+            if (requirePValue[SingleModuleDep::logicalName] == PValue(ptoref(logicalName)))
             {
                 printErrorMessageColor(fmt::format("In target\n{}\nModule\n{}\n can not depend on itself.\n",
                                                    target->getTarjanNodeName(), node->filePath),
@@ -547,14 +569,14 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
             }
 
             // It is header-unit if the rule had source-path key
-            if (requirePValue[1].GetStringLength())
+            if (requirePValue[SingleModuleDep::fullPath].GetStringLength())
             {
                 initializeNewHeaderUnit(requirePValue, builder);
             }
             else
             {
                 hasLogicalNameRequireDependency = true;
-                if (checkForColon(requirePValue[0]))
+                if (checkForColon(requirePValue[SingleModuleDep::logicalName]))
                 {
                     hasPartitionExportDependency = true;
                 }
@@ -562,7 +584,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
         }
 
         // Value of provides rule key logical-name
-        if ((*sourceJson)[3][0].GetStringLength())
+        if ((*sourceJson)[ModuleFiles::moduleDeps][ModuleFiles::ModuleDeps::exportName].GetStringLength())
         {
             type = logicalName.contains(':') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
         }
@@ -584,12 +606,15 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 bool SMFile::generateSMFileInRoundOne()
 {
 
+    using ModuleFiles = Indices::TargetBuildCache::ModuleFiles;
+
     objectFileOutputFilePath =
         Node::getNodeFromNormalizedString(target->buildCacheFilesDirPath + node->getFileName() + ".m.o", true, true);
 
-    if ((*sourceJson)[1] != PValue(ptoref(target->compileCommandWithTool)))
+    if ((*sourceJson)[ModuleFiles::scanningCommandWithTool] != PValue(ptoref(target->compileCommandWithTool)))
     {
-        pstring str((*sourceJson)[1].GetString(), (*sourceJson)[1].GetStringLength());
+        pstring str((*sourceJson)[ModuleFiles::scanningCommandWithTool].GetString(),
+                    (*sourceJson)[ModuleFiles::scanningCommandWithTool].GetStringLength());
         readJsonFromSMRulesFile = true;
         // This is the only access in round 1. Maybe change to relaxed
         fileStatus.store(true);
@@ -610,7 +635,7 @@ bool SMFile::generateSMFileInRoundOne()
         }
         else
         {
-            for (const PValue &value : (*sourceJson)[2].GetArray())
+            for (const PValue &value : (*sourceJson)[ModuleFiles::headerFiles].GetArray())
             {
                 Node *headerNode = Node::getNodeFromNormalizedString(
                     pstring_view(value.GetString(), value.GetStringLength()), true, true);
@@ -655,7 +680,7 @@ bool SMFile::generateSMFileInRoundOne()
             }
             else
             {
-                for (const PValue &value : (*sourceJson)[2].GetArray())
+                for (const PValue &value : (*sourceJson)[ModuleFiles::headerFiles].GetArray())
                 {
                     Node *headerNode = Node::getNodeFromNormalizedString(
                         pstring_view(value.GetString(), value.GetStringLength()), true, true);

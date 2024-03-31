@@ -95,4 +95,47 @@ unique_ptr<pchar[]> readPValueFromFile(pstring_view fileName, PDocument &documen
 size_t pvalueIndexInArray(const PValue &pvalue, const PValue &element);
 size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
 
+struct Indices
+{
+
+    inline constexpr static unsigned targetBuildCache = 1;
+
+    struct TargetBuildCache
+    {
+
+        inline constexpr static unsigned sourceFiles = 0;
+        inline constexpr static unsigned moduleFiles = 1;
+        inline constexpr static unsigned headerUnits = 2;
+
+        struct SourceFiles
+        {
+            inline constexpr static unsigned fullPath = 0;
+            inline constexpr static unsigned compileCommandWithTool = 1;
+            inline constexpr static unsigned headerFiles = 2;
+        };
+
+        struct ModuleFiles : public SourceFiles
+        {
+            inline constexpr static unsigned fullPath = 0;
+            inline constexpr static unsigned scanningCommandWithTool = 1;
+            inline constexpr static unsigned headerFiles = 2;
+            inline constexpr static unsigned moduleDeps = 3;
+            struct ModuleDeps
+            {
+                inline constexpr static unsigned exportName = 0;
+                inline constexpr static unsigned singleModuleDep = 1;
+
+                struct SingleModuleDep
+                {
+                    inline constexpr static unsigned logicalName = 0;
+                    inline constexpr static unsigned fullPath = 1;
+                    inline constexpr static unsigned boolean = 2;
+                };
+            };
+
+            inline constexpr static unsigned compileCommandWithTool = 4;
+        };
+    };
+};
+
 #endif // HMAKE_PLATFORMSPECIFIC_HPP

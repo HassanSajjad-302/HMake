@@ -156,7 +156,7 @@ void actuallyReadTheCache()
     if (exists(p))
     {
         pstring str = p.string();
-        buildCacheFileBuffer = readPValueFromFile(str.c_str(), buildCache);
+        buildCacheFileBuffer = readPValueFromFile(str, buildCache);
     }
 }
 

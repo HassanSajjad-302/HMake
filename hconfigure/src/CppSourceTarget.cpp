@@ -1131,10 +1131,12 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
 
         // Maybe store pointers to these in CppSourceTarget
         targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
-        (*targetBuildCache)[0].Reserve(sourceFileDependencies.size(), cppAllocator);
+        (*targetBuildCache)[Indices::TargetBuildCache::sourceFiles].Reserve(sourceFileDependencies.size(),
+                                                                            cppAllocator);
 
         targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
-        (*targetBuildCache)[1].Reserve(moduleSourceFileDependencies.size(), cppAllocator);
+        (*targetBuildCache)[Indices::TargetBuildCache::moduleFiles].Reserve(moduleSourceFileDependencies.size(),
+                                                                            cppAllocator);
 
         // Header-units size can't be known as these are dynamically discovered.
         targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
@@ -1143,12 +1145,13 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
     {
         // This copy is created becasue otherwise all access to the SMFile and SourceNode cache pointers in
         // targetBuildCache would be mutex-locked. Is this copying actually better than mutex-locking or both are same
-        targetBuildCache = make_unique<PValue>(PValue(buildCache[buildCacheIndex][1], cppAllocator));
+        targetBuildCache =
+            make_unique<PValue>(PValue(buildCache[buildCacheIndex][Indices::targetBuildCache], cppAllocator));
 
-        PValue &sourceValue = (*targetBuildCache)[0];
+        PValue &sourceValue = (*targetBuildCache)[Indices::TargetBuildCache::sourceFiles];
         sourceValue.Reserve(sourceValue.Size() + sourceFileDependencies.size(), cppAllocator);
 
-        PValue &moduleValue = (*targetBuildCache)[1];
+        PValue &moduleValue = (*targetBuildCache)[Indices::TargetBuildCache::moduleFiles];
         moduleValue.Reserve(moduleValue.Size() + moduleSourceFileDependencies.size(), cppAllocator);
 
         // Header-units size can't be known as these are dynamically discovered.
@@ -1165,13 +1168,16 @@ void CppSourceTarget::resolveRequirePaths()
 {
     for (const SMFile &smFile : moduleSourceFileDependencies)
     {
-        PValue &rules = (*(smFile.sourceJson))[3];
+        using ModuleFiles = Indices::TargetBuildCache::ModuleFiles;
 
-        for (const PValue &require : rules[1].GetArray())
+        for (const PValue &require :
+             (*(smFile.sourceJson))[ModuleFiles::moduleDeps][ModuleFiles::ModuleDeps::singleModuleDep].GetArray())
         {
+            using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::ModuleDeps::SingleModuleDep;
+
             // TODO
             // Change smFile->logicalName to PValue to efficiently compare it with Value PValue
-            if (require[0] == PValue(ptoref(smFile.logicalName)))
+            if (require[SingleModuleDep::logicalName] == PValue(ptoref(smFile.logicalName)))
             {
                 printErrorMessageColor(fmt::format("In target\n{}\nModule\n{}\n can not depend on itself.\n",
                                                    getTarjanNodeName(), smFile.node->filePath),
@@ -1180,7 +1186,7 @@ void CppSourceTarget::resolveRequirePaths()
             }
 
             // If the rule source-path key is empty, then it is header-unit
-            if (require[1].GetStringLength() != 0)
+            if (require[SingleModuleDep::fullPath].GetStringLength() != 0)
             {
                 continue;
             }
@@ -1189,7 +1195,8 @@ void CppSourceTarget::resolveRequirePaths()
 
             // Even if found, we continue the search to ensure that no two files are providing the same module in
             // the module-files of the target and its dependencies
-            if (auto it = requirePaths.find(pstring(require[0].GetString(), require[0].GetStringLength()));
+            if (auto it = requirePaths.find(pstring(require[SingleModuleDep::logicalName].GetString(),
+                                                    require[SingleModuleDep::logicalName].GetStringLength()));
                 it != requirePaths.end())
             {
                 found = it->second;
@@ -1201,7 +1208,8 @@ void CppSourceTarget::resolveRequirePaths()
                 {
                     auto *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
                     if (auto it = cppSourceTarget->requirePaths.find(
-                            pstring(require[0].GetString(), require[0].GetStringLength()));
+                            pstring(require[SingleModuleDep::logicalName].GetString(),
+                                    require[SingleModuleDep::logicalName].GetStringLength()));
                         it != cppSourceTarget->requirePaths.end())
                     {
                         if (found)
@@ -1212,7 +1220,8 @@ void CppSourceTarget::resolveRequirePaths()
                                             "Provided By 2 "
                                             "different files:\n1){}\n2){}\n",
                                             getTarjanNodeName(),
-                                            pstring(require[0].GetString(), require[0].GetStringLength()),
+                                            pstring(require[SingleModuleDep::logicalName].GetString(),
+                                                    require[SingleModuleDep::logicalName].GetStringLength()),
                                             it->second->node->filePath, found->node->filePath),
                                 settings.pcSettings.toolErrorOutput);
                             throw std::exception();
@@ -1230,7 +1239,9 @@ void CppSourceTarget::resolveRequirePaths()
             {
                 printErrorMessageColor(
                     fmt::format("No File in the target\n{}\n or in its dependencies provides this module {}.\n",
-                                getTarjanNodeName(), pstring(require[0].GetString(), require[0].GetStringLength())),
+                                getTarjanNodeName(),
+                                pstring(require[SingleModuleDep::logicalName].GetString(),
+                                        require[SingleModuleDep::logicalName].GetStringLength())),
                     settings.pcSettings.toolErrorOutput);
                 throw std::exception();
             }
@@ -1240,7 +1251,7 @@ void CppSourceTarget::resolveRequirePaths()
 
 void CppSourceTarget::populateSourceNodes()
 {
-    PValue &sourceFilesJson = (*targetBuildCache)[0];
+    PValue &sourceFilesJson = (*targetBuildCache)[Indices::TargetBuildCache::sourceFiles];
 
     for (const SourceNode &sourceNodeConst : sourceFileDependencies)
     {
@@ -1270,7 +1281,7 @@ void CppSourceTarget::populateSourceNodes()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
-    PValue &moduleFilesJson = (*targetBuildCache)[1];
+    PValue &moduleFilesJson = (*targetBuildCache)[Indices::TargetBuildCache::moduleFiles];
 
     for (const SMFile &smFileConst : moduleSourceFileDependencies)
     {
