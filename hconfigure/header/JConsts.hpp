@@ -70,6 +70,7 @@ struct JConsts
     inline static const pstring index = "index";
     inline static const pstring infrastructureFlags = "infrastructure-flags";
     inline static const pstring interface_ = "interface";
+    inline static const pstring isInterface = "is-interface";
     inline static const pstring isCompilerInToolsArray = "is-compiler-in-tools-array";
     inline static const pstring isLinkerInToolsArray = "is-linker-in-tools-array";
     inline static const pstring isArchiverInToolsArray = "is-archiver-in-tools-array";

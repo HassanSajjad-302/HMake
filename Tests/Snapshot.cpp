@@ -55,35 +55,35 @@ void Snapshot::after(const path &directoryPath)
 
 bool Snapshot::snapshotBalances(const Updates &updates)
 {
-    set<const NodeSnap *> difference;
+    set<const NodeSnap *> actual;
     for (const NodeSnap &snap : afterData)
     {
         if (!beforeData.contains(snap) || beforeData.find(snap)->lastUpdateTime != snap.lastUpdateTime)
         {
-            difference.emplace(&snap);
+            actual.emplace(&snap);
         }
     }
-    unsigned short sum = 0;
+    unsigned short expected = 0;
     unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 6 : 3; // No response file on Linux
     unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 4 : 3;
 
     // Output, Error, .smrules, Respone File on Windows / Deps Output File on Linux
-    sum += 4 * updates.smruleFiles;
+    expected += 4 * updates.smruleFiles;
     // Output, Error, .o, Respone File on Windows / Deps Output File on Linux
-    sum += 4 * updates.sourceFiles;
+    expected += 4 * updates.sourceFiles;
 
-    sum += 3 * updates.errorFiles;
-    sum += 5 * updates.moduleFiles;
+    expected += 3 * updates.errorFiles;
+    expected += 5 * updates.moduleFiles;
 
-    sum += updates.linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
-    sum += updates.linkTargetsDebug * debugLinkTargetsMultiplier;
+    expected += updates.linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
+    expected += updates.linkTargetsDebug * debugLinkTargetsMultiplier;
     if (updates.cppTargets || updates.linkTargetsNoDebug || updates.linkTargetsDebug)
     {
-        sum += 1; // build-cache.jon
+        expected += 1; // build-cache.jon
     }
-    if (difference.size() != sum)
+    if (actual.size() != expected)
     {
         bool breakpoint = true;
     }
-    return difference.size() == sum;
+    return actual.size() == expected;
 }

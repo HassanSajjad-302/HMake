@@ -119,11 +119,12 @@ struct Indices
             inline constexpr static unsigned fullPath = 0;
             inline constexpr static unsigned scanningCommandWithTool = 1;
             inline constexpr static unsigned headerFiles = 2;
-            inline constexpr static unsigned moduleDeps = 3;
-            struct ModuleDeps
+            inline constexpr static unsigned smRules = 3;
+            struct SmRules
             {
                 inline constexpr static unsigned exportName = 0;
-                inline constexpr static unsigned singleModuleDep = 1;
+                inline constexpr static unsigned isInterface = 1;
+                inline constexpr static unsigned requireArray = 2;
 
                 struct SingleModuleDep
                 {

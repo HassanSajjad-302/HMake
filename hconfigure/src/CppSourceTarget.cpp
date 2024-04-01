@@ -1171,9 +1171,9 @@ void CppSourceTarget::resolveRequirePaths()
         using ModuleFiles = Indices::TargetBuildCache::ModuleFiles;
 
         for (const PValue &require :
-             (*(smFile.sourceJson))[ModuleFiles::moduleDeps][ModuleFiles::ModuleDeps::singleModuleDep].GetArray())
+             (*(smFile.sourceJson))[ModuleFiles::smRules][ModuleFiles::SmRules::requireArray].GetArray())
         {
-            using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::ModuleDeps::SingleModuleDep;
+            using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
 
             // TODO
             // Change smFile->logicalName to PValue to efficiently compare it with Value PValue
@@ -1409,7 +1409,7 @@ PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
 
     for (const SMFile *smFileLocal : smFile.allSMFileDependenciesRoundZero)
     {
-        finalCompileCommand += smFileLocal->getRequireFlag(smFile) + " ";
+        finalCompileCommand += smFileLocal->getRequireFlag(smFile);
     }
     finalCompileCommand += getInfrastructureFlags(false) + addQuotes(smFile.node->filePath) + " ";
 

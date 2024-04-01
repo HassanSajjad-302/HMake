@@ -319,6 +319,10 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
 
 void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
 {
+
+    using ModuleFile = Indices::TargetBuildCache::ModuleFiles;
+    using SMRules = ModuleFile::SmRules;
+
     if (readJsonFromSMRulesFile)
     {
         pstring smFilePath = target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".smrules";
@@ -327,17 +331,21 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
 
         PValue &rule = d.FindMember(ptoref(JConsts::rules))->value[0];
 
-        PValue &prunedRules = (*sourceJson)[3];
+        PValue &prunedRules = (*sourceJson)[ModuleFile::smRules];
         prunedRules.Clear();
 
         if (auto it = rule.FindMember(ptoref(JConsts::provides)); it == rule.MemberEnd())
         {
             prunedRules.PushBack(PValue(kStringType), sourceNodeAllocator);
+            prunedRules.PushBack(PValue(false), sourceNodeAllocator);
         }
         else
         {
-            PValue &logicalNamePValue = it->value[0].FindMember(PValue(ptoref(JConsts::logicalName)))->value;
+            PValue &provideJson = it->value[0];
+            PValue &logicalNamePValue = provideJson.FindMember(PValue(ptoref(JConsts::logicalName)))->value;
+            PValue &isInterfacePValue = provideJson.FindMember((PValue(ptoref(JConsts::isInterface))))->value;
             prunedRules.PushBack(logicalNamePValue, sourceNodeAllocator);
+            prunedRules.PushBack(isInterfacePValue, sourceNodeAllocator);
         }
 
         prunedRules.PushBack(PValue(kArrayType), sourceNodeAllocator);
@@ -346,8 +354,8 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
         {
             for (PValue &requirePValue : it->value.GetArray())
             {
-                prunedRules[1].PushBack(PValue(kArrayType), sourceNodeAllocator);
-                PValue &prunedRequirePValue = *(prunedRules[1].End() - 1);
+                prunedRules[SMRules::requireArray].PushBack(PValue(kArrayType), sourceNodeAllocator);
+                PValue &prunedRequirePValue = *(prunedRules[SMRules::requireArray].End() - 1);
 
                 prunedRequirePValue.PushBack(requirePValue.FindMember(PValue(ptoref(JConsts::logicalName)))->value,
                                              sourceNodeAllocator);
@@ -381,9 +389,10 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder)
         }
     }
 
-    if ((*sourceJson)[3][0].GetStringLength())
+    if ((*sourceJson)[ModuleFile::smRules][SMRules::exportName].GetStringLength())
     {
-        logicalName = pstring((*sourceJson)[3][0].GetString(), (*sourceJson)[3][0].GetStringLength());
+        logicalName = pstring((*sourceJson)[ModuleFile::smRules][SMRules::exportName].GetString(),
+                              (*sourceJson)[ModuleFile::smRules][SMRules::exportName].GetStringLength());
         target->requirePathsMutex.lock();
         auto [pos, ok] = target->requirePaths.try_emplace(logicalName, this);
         target->requirePathsMutex.unlock();
@@ -419,7 +428,7 @@ bool pathContainsFile(pstring_view dir, pstring_view file)
 
 void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &builder)
 {
-    using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::ModuleDeps::SingleModuleDep;
+    using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
 
     if (requirePValue[SingleModuleDep::logicalName] == PValue(ptoref(logicalName)))
     {
@@ -542,8 +551,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
     if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
         // Json &rules = sourceJson->at(JConsts::smrules).at(JConsts::rules)[0];
-        for (PValue &requirePValue :
-             (*sourceJson)[ModuleFiles::moduleDeps][ModuleFiles::ModuleDeps::singleModuleDep].GetArray())
+        for (PValue &requirePValue : (*sourceJson)[ModuleFiles::smRules][ModuleFiles::SmRules::requireArray].GetArray())
         {
             initializeNewHeaderUnit(requirePValue, builder);
         }
@@ -553,12 +561,11 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
         // If following remains false then source is GlobalModuleFragment.
         bool hasLogicalNameRequireDependency = false;
         // If following is true then smFile is PartitionImplementation.
-        bool hasPartitionExportDependency = false;
+        // bool hasPartitionExportDependency = false;
 
-        for (PValue &requirePValue :
-             (*sourceJson)[ModuleFiles::moduleDeps][ModuleFiles::ModuleDeps::singleModuleDep].GetArray())
+        for (PValue &requirePValue : (*sourceJson)[ModuleFiles::smRules][ModuleFiles::SmRules::requireArray].GetArray())
         {
-            using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::ModuleDeps::SingleModuleDep;
+            using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
             if (requirePValue[SingleModuleDep::logicalName] == PValue(ptoref(logicalName)))
             {
                 printErrorMessageColor(fmt::format("In target\n{}\nModule\n{}\n can not depend on itself.\n",
@@ -578,26 +585,27 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
                 hasLogicalNameRequireDependency = true;
                 if (checkForColon(requirePValue[SingleModuleDep::logicalName]))
                 {
-                    hasPartitionExportDependency = true;
+                    // hasPartitionExportDependency = true;
                 }
             }
         }
 
-        // Value of provides rule key logical-name
-        if ((*sourceJson)[ModuleFiles::moduleDeps][ModuleFiles::ModuleDeps::exportName].GetStringLength())
+        if ((*sourceJson)[ModuleFiles::smRules][ModuleFiles::SmRules::isInterface].GetBool())
         {
-            type = logicalName.contains(':') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
+            if ((*sourceJson)[ModuleFiles::smRules][ModuleFiles::SmRules::exportName].GetStringLength())
+            {
+                type = logicalName.contains(':') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
+            }
         }
         else
         {
-            if (hasLogicalNameRequireDependency)
+            if ((*sourceJson)[ModuleFiles::smRules][ModuleFiles::SmRules::exportName].GetStringLength())
             {
-                type = hasPartitionExportDependency ? SM_FILE_TYPE::PARTITION_IMPLEMENTATION
-                                                    : SM_FILE_TYPE::PRIMARY_IMPLEMENTATION;
+                type = SM_FILE_TYPE::PARTITION_IMPLEMENTATION;
             }
             else
             {
-                type = SM_FILE_TYPE::GLOBAL_MODULE_FRAGMENT;
+                type = SM_FILE_TYPE::PRIMARY_IMPLEMENTATION;
             }
         }
     }
@@ -753,8 +761,7 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
 
 pstring SMFile::getFlag(const string &outputFilesWithoutExtension) const
 {
-    pstring str = "/ifcOutput" + addQuotes(outputFilesWithoutExtension + ".ifc") + " " + "/Fo" +
-                  addQuotes(outputFilesWithoutExtension + ".m.o");
+    pstring str;
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
         printErrorMessageColor("Error! In getRequireFlag() type is NOT_ASSIGNED", settings.pcSettings.toolErrorOutput);
@@ -762,25 +769,25 @@ pstring SMFile::getFlag(const string &outputFilesWithoutExtension) const
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
     {
-        return "/interface " + str;
+        str = "/interface ";
     }
     else if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
-        pstring angleStr = angle ? "angle " : "quote ";
-        return "/exportHeader " + str;
+        str = "/exportHeader ";
     }
-    else
+    else if (type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
     {
-        str = "/Fo" + addQuotes(outputFilesWithoutExtension + ".m.o");
-        if (type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
-        {
-            return "/internalPartition " + str;
-        }
-        else
-        {
-            return str;
-        }
+        str = "/internalPartition ";
     }
+
+    if (type != SM_FILE_TYPE::PRIMARY_IMPLEMENTATION)
+    {
+        str += "/ifcOutput" + addQuotes(outputFilesWithoutExtension + ".ifc") + " ";
+    }
+
+    str += "/Fo" + addQuotes(outputFilesWithoutExtension + ".m.o ");
+
+    return str;
 }
 
 pstring SMFile::getFlagPrint(const pstring &outputFilesWithoutExtension) const
@@ -788,16 +795,7 @@ pstring SMFile::getFlagPrint(const pstring &outputFilesWithoutExtension) const
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
     bool infra = ccpSettings.infrastructureFlags;
 
-    pstring str = infra ? "/ifcOutput" : "";
-    if (ccpSettings.ifcOutputFile.printLevel != PathPrintLevel::NO)
-    {
-        str += getReducedPath(outputFilesWithoutExtension + ".ifc", ccpSettings.ifcOutputFile) + " ";
-    }
-    str += infra ? "/Fo" : "";
-    if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
-    {
-        str += getReducedPath(outputFilesWithoutExtension + ".m.o", ccpSettings.objectFile);
-    }
+    pstring str;
 
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
@@ -806,24 +804,34 @@ pstring SMFile::getFlagPrint(const pstring &outputFilesWithoutExtension) const
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
     {
-        return (infra ? "/interface " : "") + str;
+        str = (infra ? "/interface " : "");
     }
     else if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
-        return (infra ? "/exportHeader " : "") + str;
+        str = (infra ? "/exportHeader " : "");
     }
-    else
+    else if (type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
     {
-        str = infra ? "/Fo" : "" + getReducedPath(outputFilesWithoutExtension + ".m.o", ccpSettings.objectFile);
-        if (type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
+        str = (infra ? "/internalPartition " : "") + str;
+    }
+
+    if (type != SM_FILE_TYPE::PRIMARY_IMPLEMENTATION)
+    {
+        str += infra ? "/ifcOutput" : "";
+
+        if (ccpSettings.ifcOutputFile.printLevel != PathPrintLevel::NO)
         {
-            return (infra ? "/internalPartition " : "") + str;
-        }
-        else
-        {
-            return str;
+            str += getReducedPath(outputFilesWithoutExtension + ".ifc", ccpSettings.ifcOutputFile) + " ";
         }
     }
+
+    str += infra ? "/Fo" : "";
+    if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
+    {
+        str += getReducedPath(outputFilesWithoutExtension + ".m.o", ccpSettings.objectFile) + " ";
+    }
+
+    return str;
 }
 
 pstring SMFile::getRequireFlag(const SMFile &dependentSMFile) const
@@ -831,20 +839,22 @@ pstring SMFile::getRequireFlag(const SMFile &dependentSMFile) const
     pstring ifcFilePath =
         addQuotes(target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".ifc");
 
+    string str;
+
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
-        printErrorMessage("HMake Error! In getRequireFlag() type is NOT_ASSIGNED");
+        printErrorMessage("HMake Error! In getRequireFlag() unknown type");
         throw std::exception();
     }
-    else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
+    else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT ||
+             type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
     {
-        return "/reference " + logicalName + "=" + ifcFilePath;
+        str = "/reference " + logicalName + "=" + ifcFilePath + " ";
     }
     else if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
         assert(dependentSMFile.headerUnitsConsumptionMethods.contains(const_cast<SMFile *>(this)) &&
                "SMFile referencing a headerUnit for which there is no consumption method");
-        pstring str;
         for (const HeaderUnitConsumer &headerUnitConsumer :
              dependentSMFile.headerUnitsConsumptionMethods.find(this)->second)
         {
@@ -853,10 +863,13 @@ pstring SMFile::getRequireFlag(const SMFile &dependentSMFile) const
             str += angleStr + " ";
             str += headerUnitConsumer.logicalName + "=" + ifcFilePath + " ";
         }
-        return str;
     }
-    printErrorMessage("HMake Error! In getRequireFlag() unknown type");
-    throw std::exception();
+    else
+    {
+        printErrorMessage("HMake Error! In getRequireFlag() unknown type");
+        throw std::exception();
+    }
+    return str;
 }
 
 pstring SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
@@ -868,25 +881,27 @@ pstring SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
                    ? logicalName_
                    : logicalName_ + "=" + getReducedPath(ifcFilePath, ccpSettings.requireIFCs);
     };
+
+    pstring str;
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
         printErrorMessage("HMake Error! In getRequireFlag() type is NOT_ASSIGNED");
         throw std::exception();
     }
-    else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
+    else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT ||
+             type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
     {
         if (ccpSettings.requireIFCs.printLevel == PathPrintLevel::NO)
         {
-            return "";
+            str = "";
         }
         else
         {
-            pstring str;
             if (ccpSettings.infrastructureFlags)
             {
                 str += "/reference ";
             }
-            return str + getRequireIFCPathOrLogicalName(logicalName) + " ";
+            str += getRequireIFCPathOrLogicalName(logicalName) + " ";
         }
     }
     else if (type == SM_FILE_TYPE::HEADER_UNIT)
@@ -895,11 +910,10 @@ pstring SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
                "SMFile referencing a headerUnit for which there is no consumption method");
         if (ccpSettings.requireIFCs.printLevel == PathPrintLevel::NO)
         {
-            return "";
+            str = "";
         }
         else
         {
-            pstring str;
             for (const HeaderUnitConsumer &headerUnitConsumer :
                  dependentSMFile.headerUnitsConsumptionMethods.find(this)->second)
             {
@@ -910,11 +924,10 @@ pstring SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
                 }
                 str += getRequireIFCPathOrLogicalName(headerUnitConsumer.logicalName) + " ";
             }
-            return str;
         }
     }
-    printErrorMessage("HMake Error! In getRequireFlag() unknown type");
-    throw std::exception();
+
+    return str;
 }
 
 pstring SMFile::getModuleCompileCommandPrintLastHalf()
