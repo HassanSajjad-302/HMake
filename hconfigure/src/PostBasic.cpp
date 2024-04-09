@@ -227,14 +227,18 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &hea
         // First 2 lines are skipped as these are .o and .cpp file.
         // If the file is preprocessed, it does not generate the extra line
         auto endIt = headerDeps.end() - (sourceNode.target->compileTargetType == TargetType::LIBRARY_OBJECT ? 1 : 0);
-        for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
+
+        if (headerDeps.size() > 2)
         {
-            size_t pos = iter->find_first_not_of(" ");
-            pstring headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
-            if (!ignoreHeaderFile(headerDep))
+            for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
             {
-                headerDepsJson.PushBack(PValue(headerDep.c_str(), headerDep.size(), sourceNode.sourceNodeAllocator),
-                                        sourceNode.sourceNodeAllocator);
+                size_t pos = iter->find_first_not_of(" ");
+                pstring headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
+                if (!ignoreHeaderFile(headerDep))
+                {
+                    headerDepsJson.PushBack(PValue(headerDep.c_str(), headerDep.size(), sourceNode.sourceNodeAllocator),
+                                            sourceNode.sourceNodeAllocator);
+                }
             }
         }
     }

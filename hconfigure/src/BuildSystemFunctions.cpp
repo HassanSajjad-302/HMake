@@ -122,6 +122,10 @@ void preintMessageColor(const pstring &message, uint32_t color)
     }
     else
     {
+        if (color == (uint32_t)fmt::color::white)
+        {
+            bool breakpoint = true;
+        }
         print(fg(static_cast<fmt::color>(color)), "{}", message);
     }
 }

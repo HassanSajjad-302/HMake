@@ -30,6 +30,8 @@ struct Cache
     unsigned selectedLinkerArrayIndex;
     bool isArchiverInToolsArray;
     unsigned selectedArchiverArrayIndex;
+    bool isScannerInToolsArray;
+    unsigned selectedScannerArrayIndex;
     enum TargetType libraryType;
     Json cacheVariables;
     vector<pstring> compileConfigureCommands;

@@ -66,31 +66,15 @@ PrebuiltBasic::PrebuiltBasic(pstring outputName_, TargetType linkTargetType_)
     initializePrebuiltBasic();
 }
 
-void PrebuiltBasic::preSort(Builder &, unsigned short round)
+void PrebuiltBasic::updateBTarget(Builder &, unsigned short round)
 {
-    if (!round)
+    if (round == 1)
     {
         for (ObjectFileProducer *objectFileProducer : objectFileProducers)
         {
-            objectFileProducer->addDependencyOnObjectFileProducers(this);
+            realBTargets[0].addDependency(*objectFileProducer);
         }
     }
-    else if (round == 2)
-    {
-        RealBTarget &round2 = realBTargets[2];
-        for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
-        {
-            round2.addDependency(const_cast<PrebuiltBasic &>(*prebuiltBasic));
-        }
-        for (auto &[prebuiltBasic, prebuiltDep] : usageRequirementDeps)
-        {
-            round2.addDependency(const_cast<PrebuiltBasic &>(*prebuiltBasic));
-        }
-    }
-}
-
-void PrebuiltBasic::updateBTarget(Builder &, unsigned short round)
-{
     if (round == 2)
     {
         populateRequirementAndUsageRequirementDeps();

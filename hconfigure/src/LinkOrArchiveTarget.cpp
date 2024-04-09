@@ -41,19 +41,6 @@ void LinkOrArchiveTarget::setOutputName(pstring outputName_)
     outputName = std::move(outputName_);
 }
 
-void LinkOrArchiveTarget::preSort(Builder &builder, unsigned short round)
-{
-    if (!round)
-    {
-        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slashc;
-        PrebuiltLinkOrArchiveTarget::preSort(builder, round);
-    }
-    else if (round == 2)
-    {
-        PrebuiltLinkOrArchiveTarget::preSort(builder, round);
-    }
-}
-
 void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 {
     for (auto &[pre, dep] : requirementDeps)
@@ -308,6 +295,11 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 }
             }
         }
+    }
+    else if (round == 1)
+    {
+        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slashc;
+        PrebuiltLinkOrArchiveTarget::updateBTarget(builder, 1);
     }
     else if (round == 2)
     {

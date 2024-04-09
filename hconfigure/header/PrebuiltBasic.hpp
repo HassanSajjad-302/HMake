@@ -71,7 +71,6 @@ class PrebuiltBasic : public BTarget
     PrebuiltBasic(pstring outputName_);
     PrebuiltBasic(pstring outputName_, TargetType linkTargetType_);
 
-    void preSort(class Builder &builder, unsigned short round) override;
     void updateBTarget(Builder &builder, unsigned short round) override;
     void addRequirementDepsToBTargetDependencies();
 
@@ -86,6 +85,7 @@ template <typename... U>
 PrebuiltBasic &PrebuiltBasic::INTERFACE_DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTarget, U... deps)
 {
     usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+    realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
         return INTERFACE_DEPS(deps...);
@@ -97,6 +97,7 @@ template <typename... U>
 PrebuiltBasic &PrebuiltBasic::PRIVATE_DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTarget, U... deps)
 {
     requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+    realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
         return PRIVATE_DEPS(deps...);
@@ -109,6 +110,7 @@ PrebuiltBasic &PrebuiltBasic::PUBLIC_DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTa
 {
     requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
     usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+    realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
         return PUBLIC_DEPS(deps...);
@@ -123,14 +125,17 @@ PrebuiltBasic &PrebuiltBasic::DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTarget, D
     {
         requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
         usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+        realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     }
     else if (dependency == Dependency::PRIVATE)
     {
         requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+        realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     }
     else
     {
         usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+        realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     }
     if constexpr (sizeof...(deps))
     {
@@ -144,6 +149,7 @@ PrebuiltBasic &PrebuiltBasic::INTERFACE_DEPS(PrebuiltBasic *prebuiltLinkOrArchiv
                                              U... deps)
 {
     usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
         return INTERFACE_DEPS(deps...);
@@ -156,6 +162,7 @@ PrebuiltBasic &PrebuiltBasic::PRIVATE_DEPS(PrebuiltBasic *prebuiltLinkOrArchiveT
                                            U... deps)
 {
     requirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
         return PRIVATE_DEPS(deps...);
@@ -169,6 +176,7 @@ PrebuiltBasic &PrebuiltBasic::PUBLIC_DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTa
 {
     requirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
     usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
         return PUBLIC_DEPS(deps...);
@@ -184,14 +192,17 @@ PrebuiltBasic &PrebuiltBasic::DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTarget, D
     {
         requirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
         usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+        realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     }
     else if (dependency == Dependency::PRIVATE)
     {
         requirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+        realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     }
     else
     {
         usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+        realBTargets[2].addDependency(*prebuiltLinkOrArchiveTarget);
     }
     if constexpr (sizeof...(deps))
     {

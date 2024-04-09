@@ -104,9 +104,18 @@ struct HeaderUnitConsumer
     auto operator<=>(const HeaderUnitConsumer &headerUnitConsumer) const = default;
 };
 
+struct PValueObjectFileMapping
+{
+    PValue *requireJson;
+    Node *objectFileOutputFilePath;
+
+    PValueObjectFileMapping(PValue *requireJson_, Node *objectFileOutputFilePath_);
+};
+
 struct SMFile : public SourceNode // Scanned Module Rule
 {
     pstring logicalName;
+    vector<PValueObjectFileMapping> pValueObjectFileMapping;
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // is depending on is consuming it another way.
@@ -125,12 +134,12 @@ struct SMFile : public SourceNode // Scanned Module Rule
     // ignoreHeaderDeps is true
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
     SMFile(CppSourceTarget *target_, Node *node_);
-    void decrementTotalSMRuleFileCount(Builder &builder);
     void updateBTarget(Builder &builder, unsigned short round) override;
-    void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder);
+    void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder, pstring &smrulesFileOutputClang);
     void initializeNewHeaderUnit(const PValue &inclNodes, Builder &builder);
+    void addNewBTargetInFinalBTargets(Builder &builder);
     void iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder);
-    bool generateSMFileInRoundOne();
+    bool shouldGenerateSMFileInRoundOne();
     pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
     void setFileStatusAndPopulateAllDependencies();

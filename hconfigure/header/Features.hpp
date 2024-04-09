@@ -778,6 +778,8 @@ struct CppCompilerFeatures
     CxxSTD cxxStd = CxxSTD::V_LATEST;
     CxxSTDDialect cxxStdDialect = CxxSTDDialect::ISO;
     Compiler compiler;
+    ScannerTool scanner;
+
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 

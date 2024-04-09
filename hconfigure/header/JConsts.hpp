@@ -71,9 +71,10 @@ struct JConsts
     inline static const pstring infrastructureFlags = "infrastructure-flags";
     inline static const pstring interface_ = "interface";
     inline static const pstring isInterface = "is-interface";
+    inline static const pstring isArchiverInToolsArray = "is-archiver-in-tools-array";
     inline static const pstring isCompilerInToolsArray = "is-compiler-in-tools-array";
     inline static const pstring isLinkerInToolsArray = "is-linker-in-tools-array";
-    inline static const pstring isArchiverInToolsArray = "is-archiver-in-tools-array";
+    inline static const string isScannerInToolsArray = "is-scanner-in-tools-array";
     inline static const pstring libraryDependencies = "library-dependencies";
     inline static const pstring libraryDirectories = "library-directories";
     inline static const pstring libraryType = "library-type";
@@ -136,6 +137,9 @@ struct JConsts
     inline static const pstring requires_ = "requires";
     inline static const pstring rules = "rules";
     inline static const pstring run = "run";
+    inline static const string scanner = "scanner";
+    inline static const string scannerSelectedArrayIndex = "scanner-selected-array-index";
+    inline static const string scannerArray = "scanner-array";
     inline static const pstring shared = "shared";
     inline static const pstring showPercentage = "show-percentage";
     inline static const pstring smFileType = "smfile-type";

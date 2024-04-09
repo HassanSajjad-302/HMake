@@ -29,6 +29,7 @@ struct VSTools
     Compiler compiler;
     Linker linker;
     Archiver archiver;
+    ScannerTool scanner;
     Arch hostArch;
     AddressModel hostAM;
     Arch targetArch;
@@ -66,6 +67,7 @@ struct ToolsCache
     vector<Compiler> compilers;
     vector<Linker> linkers;
     vector<Archiver> archivers;
+    vector<ScannerTool> scanners;
     ToolsCache();
     void detectToolsAndInitialize();
     void initializeToolsCacheVariableFromToolsCacheFile();

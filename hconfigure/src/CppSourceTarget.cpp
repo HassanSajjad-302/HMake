@@ -52,6 +52,46 @@ InclNodeRecord::InclNodeRecord(Node *node_)
 {
 }
 
+ResolveRequirePathBTarget::ResolveRequirePathBTarget(CppSourceTarget *target_) : target(target_)
+{
+}
+
+void ResolveRequirePathBTarget::updateBTarget(Builder &builder, unsigned short round)
+{
+    if (round == 1 && realBTargets[1].exitStatus == EXIT_SUCCESS)
+    {
+        target->resolveRequirePaths();
+    }
+}
+
+pstring ResolveRequirePathBTarget::getTarjanNodeName() const
+{
+    return "ResolveRequirePath " + target->name;
+}
+
+AdjustHeaderUnitsBTarget::AdjustHeaderUnitsBTarget(CppSourceTarget *target_) : target(target_)
+{
+}
+
+void AdjustHeaderUnitsBTarget::updateBTarget(Builder &builder, unsigned short round)
+{
+    if (round == 1)
+    {
+        target->adjustHeaderUnitsPValueArrayPointers(builder);
+
+        if (target->targetCacheChanged.load())
+        {
+            target->targetCacheChanged.store(false);
+            target->saveBuildCache(true);
+        }
+    }
+}
+
+pstring AdjustHeaderUnitsBTarget::getTarjanNodeName() const
+{
+    return "AdjustHeaderUnitsBTarget " + target->name;
+}
+
 void CppSourceTarget::setCpuType()
 {
     // Based on msvc.jam Line 2141
@@ -151,10 +191,6 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
 
 void CppSourceTarget::populateTransitiveProperties()
 {
-    for (auto &[inclNode, _] : requirementHuDirs)
-    {
-        inclNodeRecord.emplace(inclNode.node, 0).first->second.operator++();
-    }
     for (CSourceTarget *cSourceTarget : requirementDeps)
     {
         for (InclNode &include : cSourceTarget->usageRequirementIncludes)
@@ -169,27 +205,29 @@ void CppSourceTarget::populateTransitiveProperties()
         requirementCompilerFlags += cSourceTarget->usageRequirementCompilerFlags;
         if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
         {
-            for (auto &[inclNode, cppSourceTarget] :
-                 static_cast<const CppSourceTarget *>(cSourceTarget)->usageRequirementHuDirs)
+            CppSourceTarget *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
+            for (auto &[inclNode, cppSourceTarget_] : cppSourceTarget->usageRequirementHuDirs)
             {
-                if (auto [itr, ok] = requirementHuDirs.emplace(inclNode, cppSourceTarget); !ok)
+                if (auto [itr, ok] = requirementHuDirs.emplace(inclNode, cppSourceTarget_); !ok)
                 {
                     printErrorMessageColor(
                         fmt::format("Include Directory\n{}\nbelongs to two different target\n{}\nand\n{}\n",
-                                    inclNode.node->filePath, getTarjanNodeName(), cppSourceTarget->getTarjanNodeName()),
+                                    inclNode.node->filePath, getTarjanNodeName(),
+                                    cppSourceTarget_->getTarjanNodeName()),
                         settings.pcSettings.toolErrorOutput);
                     throw std::exception();
                     // Print Error Message that same include-directory belongs to two targets.
                 }
-                // Increment the number of targets dependent on the header-units of that particular InclNode
-                cppSourceTarget->inclNodeRecord.emplace(inclNode.node, 0).first->second.operator++();
+            }
+            if (!cppSourceTarget->usageRequirementHuDirs.empty())
+            {
+                cppSourceTarget->adjustHeaderUnitsBTarget.realBTargets[1].addDependency(adjustHeaderUnitsBTarget);
             }
         }
     }
-    inclNodeRecordSize = inclNodeRecord.size();
 }
 
-void CppSourceTarget::adjustheaderUnitsPValueArrayPointers(Builder &builder)
+void CppSourceTarget::adjustHeaderUnitsPValueArrayPointers(Builder &builder)
 {
     // All header-units are found, so header-units pvalue array size could be reserved
     // If a new header-unit was added in this run, sourceJson pointers are adjusted
@@ -221,15 +259,6 @@ void CppSourceTarget::adjustheaderUnitsPValueArrayPointers(Builder &builder)
                 const_cast<SMFile &>(headerUnit).sourceJson = &(headerUnitsPValueArray[headerUnit.headerUnitsIndex]);
             }
         }
-    }
-
-    // A smrule file was updated. And all smrule files of dependent targets have been checked. No new header-unit will
-    // be discovered for this target. Following is done to write the CppSourceTarget .cache files. So, if because of an
-    // error during smrule generation of a file, hmake is exiting after round 1, in next invocation, it won't generate
-    // the smrule of successfully generated files.
-    if (targetCacheChanged.load())
-    {
-        builder.addNewBTargetInFinalBTargets(this);
     }
 }
 
@@ -734,44 +763,13 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
     return flags;
 }
 
-void CppSourceTarget::preSort(Builder &builder, unsigned short round)
+void CppSourceTarget::updateRound1()
 {
-    // Try moving following all except round 3 to updateBTarget, so it can be called concurrently as well. Similar in
-    // LinkOrArchiveTarget. Then the preSort function is called only once, when configureOrBuild() function is called
-    // instead of calling it every round. Also builder can be a global object instead of passing it to all BTarget
-    // override functions.
-    if (round == 1)
-    {
-        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slashc;
-        readBuildCacheFile(builder);
-        // getCompileCommand will be later on called concurrently therefore need to set this before.
-        setCompileCommand();
-        compileCommandWithTool = (compiler.bTPath.*toPStr)() + " " + compileCommand;
-        setSourceCompileCommandPrintFirstHalf();
-        parseModuleSourceFiles(builder);
-    }
-    else if (!round)
-    {
-        populateSourceNodes();
-        resolveRequirePaths();
-    }
-    else if (round == 2)
-    {
-        RealBTarget &round2 = realBTargets[2];
-        for (CSourceTarget *cppSourceTarget : requirementDeps)
-        {
-            round2.addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
-        }
-        for (CSourceTarget *cppSourceTarget : usageRequirementDeps)
-        {
-            round2.addDependency(const_cast<CSourceTarget &>(*cppSourceTarget));
-        }
-    }
 }
 
-void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
+void CppSourceTarget::updateBTarget(Builder &builder, unsigned short round)
 {
-    if (!round || round == 1)
+    if (!round)
     {
         if (targetCacheChanged.load())
         {
@@ -783,12 +781,25 @@ void CppSourceTarget::updateBTarget(Builder &, unsigned short round)
             }
         }
     }
+    else if (round == 1)
+    {
+        populateSourceNodes();
+    }
     else if (round == 2)
     {
         populateRequirementAndUsageRequirementDeps();
         // Needed to maintain ordering between different includes specification.
         reqIncSizeBeforePopulate = requirementIncludes.size();
         populateTransitiveProperties();
+
+        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slashc;
+        readBuildCacheFile(builder);
+        // getCompileCommand will be later on called concurrently therefore need to set this before.
+        setCompileCommand();
+        compileCommandWithTool = (compiler.bTPath.*toPStr)() + " " + compileCommand;
+        setSourceCompileCommandPrintFirstHalf();
+        parseModuleSourceFiles(builder);
+        populateResolveRequirePathDependencies();
     }
 }
 
@@ -1170,7 +1181,7 @@ void CppSourceTarget::resolveRequirePaths()
     {
         using ModuleFiles = Indices::TargetBuildCache::ModuleFiles;
 
-        for (const PValue &require :
+        for (PValue &require :
              (*(smFile.sourceJson))[ModuleFiles::smRules][ModuleFiles::SmRules::requireArray].GetArray())
         {
             using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
@@ -1185,8 +1196,7 @@ void CppSourceTarget::resolveRequirePaths()
                 throw std::exception();
             }
 
-            // If the rule source-path key is empty, then it is header-unit
-            if (require[SingleModuleDep::fullPath].GetStringLength() != 0)
+            if (require[SingleModuleDep::isHeaderUnit].GetBool())
             {
                 continue;
             }
@@ -1234,6 +1244,15 @@ void CppSourceTarget::resolveRequirePaths()
             if (found)
             {
                 const_cast<SMFile &>(smFile).realBTargets[0].addDependency(const_cast<SMFile &>(*found));
+                if (!smFile.fileStatus.load())
+                {
+                    if (require[SingleModuleDep::fullPath].GetString() != found->objectFileOutputFilePath->filePath)
+                    {
+                        const_cast<SMFile &>(smFile).fileStatus.store(true);
+                    }
+                }
+                const_cast<SMFile &>(smFile).pValueObjectFileMapping.emplace_back(&require,
+                                                                                  found->objectFileOutputFilePath);
             }
             else
             {
@@ -1287,10 +1306,9 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
     {
         auto &smFile = const_cast<SMFile &>(smFileConst);
 
-        ++totalNonHuModuleFileCount;
-        // So, it becomes part of DAG
-
         realBTargets[0].addDependency(smFile);
+        resolveRequirePathBTarget.realBTargets[1].addDependency(smFile);
+        adjustHeaderUnitsBTarget.realBTargets[1].addDependency(smFile);
 
         size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(ptoref(smFile.node->filePath)));
 
@@ -1311,16 +1329,18 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
             moduleJson.PushBack(PValue(kStringType), smFile.sourceNodeAllocator);
         }
     }
+}
 
-    if (!totalNonHuModuleFileCount)
+void CppSourceTarget::populateResolveRequirePathDependencies()
+{
+    for (CSourceTarget *target : requirementDeps)
     {
-        for (auto &[inclNode, cppSourceTarget] : requirementHuDirs)
+        if (target->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
         {
-            assert(cppSourceTarget->inclNodeRecord.find(inclNode.node)->second.load() > 0);
-            if (cppSourceTarget->inclNodeRecord.find(inclNode.node)->second.fetch_sub(1) == 1)
+            CppSourceTarget *cppSourceTarget = static_cast<CppSourceTarget *>(target);
+            if (!cppSourceTarget->moduleSourceFileDependencies.empty())
             {
-                assert(cppSourceTarget->inclNodeRecordSize.load() > 0);
-                cppSourceTarget->inclNodeRecordSize.fetch_sub(1);
+                resolveRequirePathBTarget.realBTargets[1].addDependency(cppSourceTarget->resolveRequirePathBTarget);
             }
         }
     }
@@ -1411,7 +1431,7 @@ PostCompile CppSourceTarget::CompileSMFile(SMFile &smFile)
     {
         finalCompileCommand += smFileLocal->getRequireFlag(smFile);
     }
-    finalCompileCommand += getInfrastructureFlags(false) + addQuotes(smFile.node->filePath) + " ";
+    finalCompileCommand += getInfrastructureFlags(false) + " " + addQuotes(smFile.node->filePath) + " ";
 
     finalCompileCommand += smFile.getFlag(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)());
 
@@ -1469,21 +1489,35 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, bool prin
         finalCompileCommand +=
             " /nologo /showIncludes /scanDependencies " +
             addQuotes(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)() + ".smrules") + " ";
-    }
-    else
-    {
-        printErrorMessageColor("Modules supported only on MSVC\n", settings.pcSettings.toolErrorOutput);
-        throw std::exception();
-    }
 
-    return printOnlyOnError
-               ? PostCompile(*this, compiler, finalCompileCommand, "", buildCacheFilesDirPath,
-                             (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
-                             settings.ccpSettings.outputAndErrorFiles)
-               : PostCompile(*this, compiler, finalCompileCommand,
-                             getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPartSMRule(smFile),
-                             buildCacheFilesDirPath, (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
-                             settings.ccpSettings.outputAndErrorFiles);
+        return printOnlyOnError
+                   ? PostCompile(*this, compiler, finalCompileCommand, "", buildCacheFilesDirPath,
+                                 (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
+                                 settings.ccpSettings.outputAndErrorFiles)
+                   : PostCompile(
+                         *this, compiler, finalCompileCommand,
+                         getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPartSMRule(smFile),
+                         buildCacheFilesDirPath, (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
+                         settings.ccpSettings.outputAndErrorFiles);
+    }
+    else if (compiler.bTFamily == BTFamily::GCC)
+    {
+        // clang flags. gcc not yet supported.
+        finalCompileCommand =
+            "-format=p1689 -- " + compiler.bTPath.string() + " " + finalCompileCommand + " -c -MMD -MF ";
+        finalCompileCommand +=
+            addQuotes(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)() + ".d");
+
+        return printOnlyOnError
+                   ? PostCompile(*this, scanner, finalCompileCommand, "", buildCacheFilesDirPath,
+                                 (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
+                                 settings.ccpSettings.outputAndErrorFiles)
+                   : PostCompile(
+                         *this, scanner, finalCompileCommand,
+                         getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPartSMRule(smFile),
+                         buildCacheFilesDirPath, (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
+                         settings.ccpSettings.outputAndErrorFiles);
+    }
 }
 
 void CppSourceTarget::saveBuildCache(bool round)

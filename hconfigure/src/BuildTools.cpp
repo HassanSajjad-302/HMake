@@ -109,3 +109,8 @@ Archiver::Archiver(BTFamily btFamily_, Version btVersion_, path btPath_)
     : BuildTool(btFamily_, btVersion_, std::move(btPath_))
 {
 }
+
+ScannerTool::ScannerTool(BTFamily btFamily_, Version btVersion_, path btPath_)
+    : BuildTool(btFamily_, btVersion_, std::move(btPath_))
+{
+}

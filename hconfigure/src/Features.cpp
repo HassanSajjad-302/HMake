@@ -386,6 +386,8 @@ CppCompilerFeatures::CppCompilerFeatures()
     {
         compiler = toolsCache.compilers[cache.selectedCompilerArrayIndex];
     }
+
+    scanner.bTPath = compiler.bTPath.parent_path() / "clang-scan-deps";
 }
 
 // Use getNodeFromNormalizedPath instead

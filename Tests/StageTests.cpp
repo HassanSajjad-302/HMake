@@ -564,6 +564,38 @@ TEST(StageTests, Test3)
                                     .linkTargetsDebug = 1});
 }
 
+static void setupTest4Default()
+{
+    path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
+    copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
+}
+
+TEST(StageTests, Test4)
+{
+    path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
+    current_path(testSourcePath);
+    setupTest4Default();
+
+    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    current_path("app/");
+    ExamplesTestHelper::runAppWithExpectedOutput(
+        "app",
+        "Cat.cpp compiled with /std:c++latest with dependency on std.cpp compiled with /std:c++latest as well\n");
+    current_path("../");
+
+    executeSnapshotBalances(Updates{});
+
+    copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
+
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(Updates{}, "cat-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1}, "app");
+
+    // TODO
+    // Expand test further and maybe merge with the above test.
+    // Add test where scanning fails. Both for modules and header-unit.
+}
+
 #endif
 
 // TODO

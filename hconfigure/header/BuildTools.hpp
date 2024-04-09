@@ -68,5 +68,11 @@ struct Archiver : BuildTool
     Archiver() = default;
 };
 
+struct ScannerTool : BuildTool
+{
+    ScannerTool(BTFamily btFamily_, Version btVersion_, path btPath_);
+    ScannerTool() = default;
+};
+
 #endif // HMAKE_BUILDTOOLS_HPP
 

@@ -67,7 +67,6 @@ class LinkOrArchiveTarget : public CTarget,
     LinkOrArchiveTarget(pstring name_, TargetType targetType);
     LinkOrArchiveTarget(pstring name_, TargetType targetType, class CTarget &other, bool hasFile = true);
     void setOutputName(pstring outputName_);
-    void preSort(Builder &builder, unsigned short round) override;
     void setFileStatus(RealBTarget &realBTarget);
     void updateBTarget(Builder &builder, unsigned short round) override;
     LinkerFlags getLinkerFlags();

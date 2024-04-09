@@ -81,10 +81,6 @@ void BTarget::assignFileStatusToDependents(RealBTarget &realBTarget) const
     }
 }
 
-void BTarget::preSort(Builder &, unsigned short)
-{
-}
-
 void BTarget::updateBTarget(Builder &, unsigned short)
 {
 }

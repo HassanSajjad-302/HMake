@@ -42,15 +42,28 @@ template <typename T> class TarjanNode
 
     static void checkForCycle();
 
+    static void clearTarjanNodes();
+
     const T *const id;
 
   private:
     void strongConnect();
-    int nodeIndex;
-    int lowLink;
+    int nodeIndex = 0;
+    int lowLink = 0;
     bool initialized = false;
-    bool onStack;
+    bool onStack = false;
 };
+
+template <typename T> void TarjanNode<T>::clearTarjanNodes()
+{
+    for (TarjanNode<T> *i : *tarjanNodes)
+    {
+        i->nodeIndex = 0;
+        i->lowLink = 0;
+        i->initialized = false;
+        i->onStack = false;
+    }
+}
 template <typename T> bool operator<(const TarjanNode<T> &lhs, const TarjanNode<T> &rhs);
 
 template <typename T> TarjanNode<T>::TarjanNode(const T *const id_) : id{id_}

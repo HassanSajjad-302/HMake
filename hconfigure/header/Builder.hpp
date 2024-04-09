@@ -2,21 +2,17 @@
 #define HMAKE_BUILDER_HPP
 #ifdef USE_HEADER_UNITS
 import "CppSourceTarget.hpp";
+import <condition_variable>;
 import <vector>;
 import <list>;
 #else
 #include "CppSourceTarget.hpp"
+#include <condition_variable>
 #include <list>
 #include <vector>
 #endif
 
 using std::vector, std::list;
-
-enum class BuilderMode : char
-{
-    PRE_SORT,
-    UPDATE_BTARGET,
-};
 
 class Builder
 {
@@ -24,28 +20,28 @@ class Builder
     list<BTarget *> updateBTargets;
     size_t updateBTargetsSizeGoal = 0;
 
-  private:
     list<BTarget *>::iterator updateBTargetsIterator;
-    vector<BTarget *>::iterator preSortBTargetsIterator;
+
+  public:
+    mutex executeMutex;
+    std::condition_variable cond;
+
     unsigned short threadCount = 0;
     unsigned short numberOfLaunchedThreads = 0;
+    atomic<unsigned short> numberOfSleepingThreads = 0;
     unsigned short round = 0;
 
   public:
-    BuilderMode builderMode = BuilderMode::PRE_SORT;
     bool updateBTargetFailed = false;
 
   private:
-    bool shouldExitAfterRoundMode = false;
+    bool returnAfterWakeup = false;
     bool errorHappenedInRoundMode = false;
 
   public:
     explicit Builder();
-
-    void addNewBTargetInFinalBTargets(BTarget *bTarget);
     void execute();
-
-    bool addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets);
+    void incrementNumberOfSleepingThreads(bool counted);
 };
 
 #endif // HMAKE_BUILDER_HPP

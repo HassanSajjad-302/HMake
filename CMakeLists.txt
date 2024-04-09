@@ -40,7 +40,6 @@ add_library(hconfigure STATIC
         hconfigure/src/ConfigType.cpp
         hconfigure/src/DSC.cpp
         hconfigure/src/ObjectFileProducer.cpp
-        hconfigure/src/DS.cpp
         hconfigure/src/CSourceTarget.cpp
         hconfigure/src/DLLLoader.cpp
         hconfigure/src/Configure.cpp

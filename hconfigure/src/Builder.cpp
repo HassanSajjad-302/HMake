@@ -3,8 +3,6 @@
 import "Builder.hpp";
 import "BasicTargets.hpp";
 import "Utilities.hpp";
-import <condition_variable>;
-import <fstream>;
 import <mutex>;
 import <stack>;
 import <thread>;
@@ -12,8 +10,6 @@ import <thread>;
 #include "Builder.hpp"
 #include "BasicTargets.hpp"
 #include "Utilities.hpp"
-#include <condition_variable>
-#include <fstream>
 #include <mutex>
 #include <stack>
 #include <thread>
@@ -39,11 +35,23 @@ Builder::Builder()
             }
         }
     }
-    preSortBTargetsIterator = preSortBTargets.begin();
 
-    vector<thread *> threads;
+    TBT::tarjanNodes = &(tarjanNodesBTargets[round]);
+    TBT::findSCCS();
+    TBT::checkForCycle();
+
+    for (BTarget *target : TBT::topologicalSort)
+    {
+        if (!target->realBTargets[round].dependenciesSize)
+        {
+            updateBTargets.emplace_back(target);
+        }
+    }
 
     updateBTargetsIterator = updateBTargets.begin();
+    updateBTargetsSizeGoal = TBT::topologicalSort.size();
+
+    vector<thread *> threads;
 
     unsigned int launchThreads = settings.maximumBuildThreads;
     numberOfLaunchedThreads = launchThreads;
@@ -58,20 +66,6 @@ Builder::Builder()
         t->join();
         delete t;
     }
-}
-
-static mutex executeMutex;
-
-std::condition_variable cond;
-
-void Builder::addNewBTargetInFinalBTargets(BTarget *bTarget)
-{
-    {
-        std::lock_guard<std::mutex> lk(executeMutex);
-        updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, bTarget);
-        ++updateBTargetsSizeGoal;
-    }
-    cond.notify_all();
 }
 
 extern pstring getThreadId();
@@ -89,61 +83,61 @@ void Builder::execute()
 
     // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
     std::unique_lock<std::mutex> lk(executeMutex);
-    BuilderMode builderModeLocal = builderMode;
-    unsigned short roundLocal = round;
     while (true)
     {
         bool counted = false;
         while (true)
         {
+            unsigned short roundLocal = round;
             bool shouldBreak = false;
-            bool nextMode = false;
 
-            switch (builderMode)
+            if (updateBTargetsIterator != updateBTargets.end())
             {
-            case BuilderMode::PRE_SORT: {
-                if (preSortBTargetsIterator != preSortBTargets.end())
+                // This can be true when a thread has already added in threadCount but then later a new btarget was
+                // appended to the updateBTargets by function like addNewBTargetInFinalBTargets
+                if (counted)
                 {
-                    // printMessage(fmt::format("{} {} {}\n", round, "presort-executing", getThreadId()));
-                    bTarget = *preSortBTargetsIterator;
-                    ++preSortBTargetsIterator;
-                    // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
-                    executeMutex.unlock();
-                    cond.notify_all();
-                    shouldBreak = true;
+                    --threadCount;
+                    counted = false;
                 }
-                else if (!counted && preSortBTargetsIterator == preSortBTargets.end())
+                // printMessage(fmt::format("{} {} {}\n", round, "update-executing", getThreadId()));
+                bTarget = *updateBTargetsIterator;
+                realBTarget = &(bTarget->realBTargets[round]);
+                ++updateBTargetsIterator;
+                // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
+                executeMutex.unlock();
+                cond.notify_all();
+                shouldBreak = true;
+            }
+            else if (updateBTargets.size() == updateBTargetsSizeGoal && !counted)
+            {
+                ++threadCount;
+                counted = true;
+
+                /* printMessage(fmt::format("{} {} {} {} {}\n", round, "updateBTargets.size() ==
+                   updateBTargetsSizeGoal", threadCount, numberOfLaunchedThreads, getThreadId()));*/
+                if (threadCount == numberOfLaunchedThreads)
                 {
-                    ++threadCount;
-                    counted = true;
-                    if (!round)
-                    {
-                        threadIds.emplace_back(std::this_thread::get_id());
-                    }
+                    /*printMessage(fmt::format("{} {} {}\n", round, "UPDATE_BTARGET threadCount ==
+                       numberOfLaunchThreads", getThreadId()));*/
 
-                    /*                    printMessage(fmt::format("{} {} {} {} {}\n", round,
-                                                                 "preSotBTargetIterator == preSortBTargets.end()",
-                       threadCount, numberOfLaunchedThreads, getThreadId()));*/
-                    if (threadCount == numberOfLaunchedThreads)
+                    if (round && !errorHappenedInRoundMode)
                     {
-                        if (!errorHappenedInRoundMode)
+                        --round;
+                        threadCount = 0;
+                        TBT::tarjanNodes = &(tarjanNodesBTargets[round]);
+                        TBT::findSCCS();
+                        TBT::checkForCycle();
+
+                        updateBTargets.clear();
+                        updateBTargetsSizeGoal = 0;
+
+                        if (!round)
                         {
-                            /*                        printMessage(fmt::format("{} {} {}\n", round, "PRE_SORT
-                               threadCount == numberOfLaunchThreads", getThreadId()));*/
-                            threadCount = 0;
-                            nextMode = true;
-
-                            TBT::tarjanNodes = &(tarjanNodesBTargets[round]);
-                            TBT::findSCCS();
-                            TBT::checkForCycle();
-
-                            updateBTargets.clear();
-                            updateBTargetsSizeGoal = 0;
-
                             size_t topSize = TBT::topologicalSort.size();
-
-                            if (!round && topSize)
+                            if (topSize)
                             {
+
                                 for (size_t i = TBT::topologicalSort.size(); i-- > 0;)
                                 {
                                     BTarget &localBTarget = *(TBT::topologicalSort[i]);
@@ -166,113 +160,40 @@ void Builder::execute()
                                         updateBTargets.emplace_front(&localBTarget);
                                     }
                                 }
-
-                                updateBTargetsSizeGoal = TBT::topologicalSort.size();
                             }
-                            else
-                            {
-                                // In rounds 2 and 1 all the targets will be updated.
-                                // Index is only needed in round zero. Perform only for round one.
-                                for (unsigned i = 0; i < TBT::topologicalSort.size(); ++i)
-                                {
-                                    BTarget *bTarget_ = TBT::topologicalSort[i];
-                                    if (bTarget_->realBTargets.empty())
-                                    {
-                                        bool breakpoint = true;
-                                    }
-                                    RealBTarget &r = bTarget_->realBTargets[round];
-                                    if (!r.dependenciesSize)
-                                    {
-                                        updateBTargets.emplace_back(TBT::topologicalSort[i]);
-                                    }
-                                }
 
-                                updateBTargetsSizeGoal = TBT::topologicalSort.size();
-                            }
-                            updateBTargetsIterator = updateBTargets.begin();
-                            builderMode = BuilderMode::UPDATE_BTARGET;
-                            builderModeLocal = builderMode;
-                            counted = false;
+                            updateBTargetsSizeGoal = TBT::topologicalSort.size();
                         }
                         else
                         {
-                            shouldExitAfterRoundMode = true;
+                            // In rounds 2 and 1 all the targets will be updated.
+                            // Index is only needed in round zero. Perform only for round one.
+                            for (BTarget *target : TBT::topologicalSort)
+                            {
+                                if (!target->realBTargets[round].dependenciesSize)
+                                {
+                                    updateBTargets.emplace_back(target);
+                                }
+                            }
                         }
 
-                        // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
-                        executeMutex.unlock();
-                        cond.notify_all();
-                        // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-                        executeMutex.lock();
-
-                        if (shouldExitAfterRoundMode)
-                        {
-                            return;
-                        }
-                    }
-                }
-            }
-            break;
-            case BuilderMode::UPDATE_BTARGET: {
-                if (updateBTargetsIterator != updateBTargets.end())
-                {
-                    // This can be true when a thread has already added in threadCount but then later a new btarget was
-                    // appended to the updateBTargets by function like addNewBTargetInFinalBTargets
-                    if (counted)
-                    {
-                        --threadCount;
+                        updateBTargetsSizeGoal = TBT::topologicalSort.size();
+                        updateBTargetsIterator = updateBTargets.begin();
                         counted = false;
                     }
-                    // printMessage(fmt::format("{} {} {}\n", round, "update-executing", getThreadId()));
-                    bTarget = *updateBTargetsIterator;
-                    realBTarget = &(bTarget->realBTargets[round]);
-                    ++updateBTargetsIterator;
-                    // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
+                    else
+                    {
+                        returnAfterWakeup = true;
+                    }
+
                     executeMutex.unlock();
                     cond.notify_all();
-                    shouldBreak = true;
-                }
-                else if (updateBTargets.size() == updateBTargetsSizeGoal && !counted)
-                {
-                    ++threadCount;
-                    counted = true;
-
-                    /*                     printMessage(fmt::format("{} {} {} {} {}\n", round,
-                                                                 "updateBTargets.size() == updateBTargetsSizeGoal",
-                       threadCount, numberOfLaunchedThreads, getThreadId()));*/
-                    if (threadCount == numberOfLaunchedThreads)
+                    executeMutex.lock();
+                    if (returnAfterWakeup)
                     {
-                        /*                        printMessage(fmt::format("{} {} {}\n", round,
-                                                                         "UPDATE_BTARGET threadCount ==
-                           numberOfLaunchThreads", getThreadId()));*/
-
-                        if (round && !errorHappenedInRoundMode)
-                        {
-                            nextMode = true;
-                            threadCount = 0;
-                            preSortBTargetsIterator = preSortBTargets.begin();
-                            builderMode = BuilderMode::PRE_SORT;
-                            builderModeLocal = builderMode;
-                            counted = false;
-                            --round;
-                            roundLocal = round;
-                        }
-                        else
-                        {
-                            shouldExitAfterRoundMode = true;
-                        }
-
-                        executeMutex.unlock();
-                        cond.notify_all();
-                        executeMutex.lock();
-                        if (shouldExitAfterRoundMode)
-                        {
-                            return;
-                        }
+                        return;
                     }
                 }
-            }
-            break;
             }
 
             if (shouldBreak)
@@ -280,80 +201,77 @@ void Builder::execute()
                 break;
             }
 
-            if (!nextMode)
+            if (roundLocal == round)
             {
                 // printMessage(fmt::format("{} {} {}\n", round, "Locking", getThreadId()));
+                incrementNumberOfSleepingThreads(counted);
                 cond.wait(lk);
-                if (builderModeLocal != builderMode || roundLocal != round)
+                if (!counted)
                 {
-                    builderModeLocal = builderMode;
-                    roundLocal = round;
+                    --numberOfSleepingThreads;
+                }
+                if (roundLocal != round)
+                {
                     counted = false;
                 }
-                if (shouldExitAfterRoundMode)
+                if (returnAfterWakeup)
                 {
                     return;
                 }
             }
         }
 
-        switch (builderMode)
+        try
         {
-        case BuilderMode::PRE_SORT: {
-            try
+            bTarget->updateBTarget(*this, round);
+            // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
+            executeMutex.lock();
+            if (realBTarget->exitStatus != EXIT_SUCCESS)
             {
-                bTarget->preSort(*this, round);
-                // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-                executeMutex.lock();
-            }
-            catch (std::exception &ec)
-            {
-                // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-                executeMutex.lock();
-                pstring str(ec.what());
-                if (!str.empty())
-                {
-                    printErrorMessage(str);
-                }
                 errorHappenedInRoundMode = true;
             }
         }
-        break;
-
-        case BuilderMode::UPDATE_BTARGET: {
-            try
+        catch (std::exception &ec)
+        {
+            // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
+            executeMutex.lock();
+            realBTarget->exitStatus = EXIT_FAILURE;
+            string str(ec.what());
+            if (!str.empty())
             {
-                bTarget->updateBTarget(*this, round);
-                // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-                executeMutex.lock();
+                printErrorMessage(str);
+            }
+            if (realBTarget->exitStatus != EXIT_SUCCESS)
+            {
+                errorHappenedInRoundMode = true;
+            }
+        }
+
+        // bTargetDepType is only considered in round 0.
+        if (round)
+        {
+            for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
+            {
+                RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
+
                 if (realBTarget->exitStatus != EXIT_SUCCESS)
                 {
-                    errorHappenedInRoundMode = true;
+                    dependentRealBTarget.exitStatus = EXIT_FAILURE;
+                }
+                --(dependentRealBTarget.dependenciesSize);
+                if (!dependentRealBTarget.dependenciesSize)
+                {
+                    updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, dependent);
                 }
             }
-            catch (std::exception &ec)
+        }
+        else
+        {
+            for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
             {
-                // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-                executeMutex.lock();
-                realBTarget->exitStatus = EXIT_FAILURE;
-                string str(ec.what());
-                if (!str.empty())
+                RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
+                if (bTargetDepType == BTargetDepType::FULL)
                 {
-                    printErrorMessage(str);
-                }
-                if (realBTarget->exitStatus != EXIT_SUCCESS)
-                {
-                    errorHappenedInRoundMode = true;
-                }
-            }
-
-            // bTargetDepType is only considered in round 0.
-            if (round)
-            {
-                for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
-                {
-                    RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
-
                     if (realBTarget->exitStatus != EXIT_SUCCESS)
                     {
                         dependentRealBTarget.exitStatus = EXIT_FAILURE;
@@ -365,46 +283,37 @@ void Builder::execute()
                     }
                 }
             }
-            else
-            {
-                for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
-                {
-                    RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
-                    if (bTargetDepType == BTargetDepType::FULL)
-                    {
-                        if (realBTarget->exitStatus != EXIT_SUCCESS)
-                        {
-                            dependentRealBTarget.exitStatus = EXIT_FAILURE;
-                        }
-                        --(dependentRealBTarget.dependenciesSize);
-                        if (!dependentRealBTarget.dependenciesSize)
-                        {
-                            updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, dependent);
-                        }
-                    }
-                }
-            }
-        }
-        break;
         }
     }
 }
 
-bool Builder::addCppSourceTargetsInFinalBTargets(set<CppSourceTarget *> &targets)
+void Builder::incrementNumberOfSleepingThreads(bool counted)
 {
-    //  At this point, cache from header-units can be moved to central cache after reserving the space in memory. Before
-    //  that, it will be stored in a separate PValue
+    if (!counted)
     {
-        std::lock_guard<std::mutex> lk(executeMutex);
-        for (CppSourceTarget *target : targets)
+        ++numberOfSleepingThreads;
+    }
+    if (numberOfSleepingThreads == numberOfLaunchedThreads)
+    {
+        try
         {
-            if (target->targetCacheChanged.load())
+            TBT::clearTarjanNodes();
+            TBT::findSCCS();
+
+            // If a cycle happened this will throw an error, otherwise following exception will be thrown.
+            TBT::checkForCycle();
+
+            throw std::runtime_error("HMake API misuse.\n");
+        }
+        catch (std::exception &ec)
+        {
+            // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
+            string str(ec.what());
+            if (!str.empty())
             {
-                updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, target);
-                ++updateBTargetsSizeGoal;
+                printErrorMessage(str);
             }
+            exit(EXIT_FAILURE);
         }
     }
-    cond.notify_all();
-    return false;
 }

@@ -20,7 +20,8 @@ import <mutex>;
 #include <mutex>
 #endif
 
-using std::filesystem::path, std::size_t, std::map, std::mutex, std::lock_guard, std::atomic_flag, std::array;
+using std::filesystem::path, std::size_t, std::map, std::mutex, std::lock_guard, std::atomic_flag, std::array,
+    std::atomic;
 
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
 TarjanNode(const struct BTarget *) -> TarjanNode<BTarget>;
@@ -65,7 +66,7 @@ struct RealBTarget : public TBT
     BTarget *bTarget = nullptr;
 
     unsigned int indexInTopologicalSort = 0;
-    unsigned int dependenciesSize = 0;
+    atomic<unsigned int> dependenciesSize = 0;
 
     // TODO
     //  Following describes the time taken for the completion of this task. Currently unused. how to determine cpu time
@@ -133,8 +134,7 @@ struct BTarget // BTarget
 
     virtual BTargetType getBTargetType() const;
     void assignFileStatusToDependents(RealBTarget &realBTarget) const;
-    virtual void preSort(class Builder &builder, unsigned short round);
-    virtual void updateBTarget(Builder &builder, unsigned short round);
+    virtual void updateBTarget(class Builder &builder, unsigned short round);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
@@ -143,6 +143,7 @@ template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U 
 {
     {
         lock_guard<mutex> lk{realbtarget_adddependency};
+        // adding in both dependencies and deps is duplicating. One should be removed.
         if (dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
         {
             RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];

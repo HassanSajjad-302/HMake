@@ -14,8 +14,3 @@ ObjectFileProducer::ObjectFileProducer()
 void ObjectFileProducer::getObjectFiles(vector<const ObjectFile *> *, class LinkOrArchiveTarget *) const
 {
 }
-
-void ObjectFileProducer::addDependencyOnObjectFileProducers(PrebuiltBasic *prebuiltBasic)
-{
-    prebuiltBasic->realBTargets[0].addDependency(*this);
-}

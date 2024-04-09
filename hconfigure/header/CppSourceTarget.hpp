@@ -71,6 +71,24 @@ struct InclNodeRecord
     InclNodeRecord(Node *node_);
 };
 
+struct ResolveRequirePathBTarget : public BTarget
+{
+    CppSourceTarget *target;
+    explicit ResolveRequirePathBTarget(CppSourceTarget *target_);
+    void updateBTarget(Builder &builder, unsigned short round) override;
+    /*    void setJson() override; */
+    pstring getTarjanNodeName() const override;
+};
+
+struct AdjustHeaderUnitsBTarget : public BTarget
+{
+    CppSourceTarget *target;
+    explicit AdjustHeaderUnitsBTarget(CppSourceTarget *target_);
+    void updateBTarget(Builder &builder, unsigned short round) override;
+    /*    void setJson() override; */
+    pstring getTarjanNodeName() const override;
+};
+
 // TODO
 // HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
 // use -TC flag with MSVC
@@ -79,9 +97,12 @@ class CppSourceTarget : public CppCompilerFeatures,
                         public FeatureConvenienceFunctions<CppSourceTarget>,
                         public CSourceTarget
 {
+    friend struct ResolveRequirePathBTarget;
+
   public:
-    map<Node *, atomic<unsigned short>> inclNodeRecord;
-    atomic<unsigned short> inclNodeRecordSize = 0;
+    mutex headerUnitsMutex;
+    mutex requirePathsMutex;
+    mutex moduleDepsAccessMutex;
 
     // Written mutex locked in round 1 updateBTarget
     set<SMFile, CompareSourceNode> headerUnits;
@@ -89,17 +110,9 @@ class CppSourceTarget : public CppCompilerFeatures,
     map<InclNode, CppSourceTarget *, InclNodePointerComparator> usageRequirementHuDirs;
     map<InclNode, CppSourceTarget *, InclNodePointerComparator> requirementHuDirs;
 
-    // Written mutex locked in round 1 updateBTarget
-    mutex headerUnitsMutex;
-
     // Written mutex locked in round 1 updateBTarget.
     // Which require is provided by which SMFile
     map<pstring, SMFile *> requirePaths;
-
-    mutex requirePathsMutex;
-
-    atomic<unsigned int> totalHeaderUnitCount = 0;
-    atomic<unsigned int> totalNonHuModuleFileCount = 0;
 
     using BaseType = CSourceTarget;
     unique_ptr<PValue> targetBuildCache;
@@ -121,8 +134,13 @@ class CppSourceTarget : public CppCompilerFeatures,
     set<SourceNode, CompareSourceNode> sourceFileDependencies;
     // Comparator used is same as for SourceNode
     set<SMFile, CompareSourceNode> moduleSourceFileDependencies;
+
+    ResolveRequirePathBTarget resolveRequirePathBTarget{this};
+    AdjustHeaderUnitsBTarget adjustHeaderUnitsBTarget{this};
+
     // Set to true if a source or smrule is updated so that latest cache could be stored.
     std::atomic<bool> targetCacheChanged = false;
+
     void setCpuType();
     bool isCpuTypeG7();
 
@@ -134,6 +152,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     void resolveRequirePaths();
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);
+    void populateResolveRequirePathDependencies();
     pstring getInfrastructureFlags(bool showIncludes);
     pstring getCompileCommandPrintSecondPart(const SourceNode &sourceNode);
     pstring getCompileCommandPrintSecondPartSMRule(const SMFile &smFile);
@@ -146,6 +165,7 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     set<SourceDirectory> regexSourceDirs;
     set<SourceDirectory> regexModuleDirs;
+
     // requirementIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
 
@@ -155,7 +175,9 @@ class CppSourceTarget : public CppCompilerFeatures,
     bool archiving = false;
     bool archived = false;
 
-    void preSort(Builder &builder, unsigned short round) override;
+    // This function is called in SMFile::decrementTotalSMRuleFileCount once all module files and header-units of our
+    // target and dependent targets have been scanned
+    void updateRound1();
     void updateBTarget(Builder &builder, unsigned short round) override;
     /*    void setJson() override; */
     pstring getTarjanNodeName() const override;
@@ -170,7 +192,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
     void populateTransitiveProperties();
-    void adjustheaderUnitsPValueArrayPointers(Builder &builder);
+    void adjustHeaderUnitsPValueArrayPointers(Builder &builder);
     CSourceTargetType getCSourceTargetType() const override;
 
     CppSourceTarget &assignStandardIncludesToPublicHUDirectories();

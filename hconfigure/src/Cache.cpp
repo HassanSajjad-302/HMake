@@ -25,6 +25,8 @@ Cache::Cache()
     selectedLinkerArrayIndex = 0;
     isArchiverInToolsArray = isPresentInTools;
     selectedArchiverArrayIndex = 0;
+    isScannerInToolsArray = isPresentInTools;
+    selectedScannerArrayIndex = 0;
     libraryType = TargetType::LIBRARY_STATIC;
     configurationType = ConfigType::RELEASE;
 }
@@ -70,6 +72,8 @@ void to_json(Json &j, const Cache &cacheLocal)
     j[JConsts::linkerSelectedArrayIndex] = cacheLocal.selectedLinkerArrayIndex;
     j[JConsts::isArchiverInToolsArray] = cacheLocal.isArchiverInToolsArray;
     j[JConsts::archiverSelectedArrayIndex] = cacheLocal.selectedArchiverArrayIndex;
+    j[JConsts::isScannerInToolsArray] = cacheLocal.isScannerInToolsArray;
+    j[JConsts::scannerSelectedArrayIndex] = cacheLocal.selectedScannerArrayIndex;
     j[JConsts::libraryType] = cacheLocal.libraryType;
     j[JConsts::cacheVariables] = cacheLocal.cacheVariables;
     j[JConsts::compileConfigureCommands] = cacheLocal.compileConfigureCommands;
@@ -92,6 +96,8 @@ void from_json(const Json &j, Cache &cacheLocal)
     cacheLocal.selectedLinkerArrayIndex = j.at(JConsts::linkerSelectedArrayIndex).get<int>();
     cacheLocal.isArchiverInToolsArray = j.at(JConsts::isArchiverInToolsArray).get<bool>();
     cacheLocal.selectedArchiverArrayIndex = j.at(JConsts::archiverSelectedArrayIndex).get<int>();
+    cacheLocal.isScannerInToolsArray = j.at(JConsts::isScannerInToolsArray).get<bool>();
+    cacheLocal.selectedScannerArrayIndex = j.at(JConsts::scannerSelectedArrayIndex).get<int>();
     cacheLocal.libraryType = j.at(JConsts::libraryType).get<TargetType>();
     if (cacheLocal.libraryType != TargetType::LIBRARY_STATIC && cacheLocal.libraryType != TargetType::LIBRARY_SHARED &&
         cache.libraryType != TargetType::LIBRARY_OBJECT)

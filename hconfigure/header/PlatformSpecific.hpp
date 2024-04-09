@@ -129,8 +129,12 @@ struct Indices
                 struct SingleModuleDep
                 {
                     inline constexpr static unsigned logicalName = 0;
-                    inline constexpr static unsigned fullPath = 1;
-                    inline constexpr static unsigned boolean = 2;
+                    inline constexpr static unsigned isHeaderUnit = 1;
+                    // Points to different things in-case of header-unit and module. In-case of header-unit, it is the
+                    // value of the source-path key, while in-case of module it is assigned before saving. So, in next
+                    // build in resolveRequiePaths, we check that whether we are resolving to the same module.
+                    inline constexpr static unsigned fullPath = 2;
+                    inline constexpr static unsigned boolean = 3;
                 };
             };
 
