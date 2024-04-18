@@ -225,6 +225,10 @@ void CppSourceTarget::populateTransitiveProperties()
             }
         }
     }
+    for (auto &[node, target] : requirementHuDirs)
+    {
+        InclNode::emplaceInList(requirementIncludes, const_cast<InclNode &>(node));
+    }
 }
 
 void CppSourceTarget::adjustHeaderUnitsPValueArrayPointers(Builder &builder)
