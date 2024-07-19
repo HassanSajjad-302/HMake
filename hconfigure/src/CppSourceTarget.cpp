@@ -938,10 +938,6 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const bool 
             {
                 if (assignToSourceNodes)
                 {
-                    if (k.path().generic_string().contains("string.cpp"))
-                    {
-                        bool breakpoint = true;
-                    }
                     sourceFileDependencies.emplace(this, Node::getNodeFromNonNormalizedPath(k.path(), true));
                 }
                 else

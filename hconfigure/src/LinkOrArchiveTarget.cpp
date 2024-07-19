@@ -288,9 +288,9 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short r
                     for (const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : dllsToBeCopied)
                     {
                         copy_file(prebuiltLinkOrArchiveTarget->outputDirectory +
-                                                       prebuiltLinkOrArchiveTarget->actualOutputName,
-                                                   outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName,
-                                                   std::filesystem::copy_options::overwrite_existing);
+                                      prebuiltLinkOrArchiveTarget->actualOutputName,
+                                  outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName,
+                                  std::filesystem::copy_options::overwrite_existing);
                     }
                 }
             }

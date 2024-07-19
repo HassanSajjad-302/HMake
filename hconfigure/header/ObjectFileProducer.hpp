@@ -105,7 +105,7 @@ template <typename T> void ObjectFileProducerWithDS<T>::populateRequirementAndUs
 {
     // Set is copied because new elements are to be inserted in it.
 
-    for (set<T *> localRequirementDeps = requirementDeps; T *t : localRequirementDeps)
+    for (set<T *> localRequirementDeps = requirementDeps; T * t : localRequirementDeps)
     {
         for (T *t_ : t->usageRequirementDeps)
         {
