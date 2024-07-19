@@ -44,7 +44,7 @@ TEST(ExamplesTest, Example3)
 
     Json cacheFileJson;
     ifstream("cache.json") >> cacheFileJson;
-    bool file1 = cacheFileJson.at("cache-variables").get<Json>().at("FILE1").get<bool>();
+    const bool file1 = cacheFileJson.at("cache-variables").get<Json>().at("FILE1").get<bool>();
     ASSERT_EQ(file1, true) << "Cache does not has the Cache-Variable or this variable is not of right value";
     cacheFileJson["cache-variables"]["FILE1"] = false;
     ofstream("cache.json") << cacheFileJson.dump(4);

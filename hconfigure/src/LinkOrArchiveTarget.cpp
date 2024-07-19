@@ -23,13 +23,13 @@ import <utility>;
 
 using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard, std::mutex;
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(pstring name_, TargetType targetType)
+LinkOrArchiveTarget::LinkOrArchiveTarget(pstring name_, const TargetType targetType)
     : CTarget(std::move(name_)), PrebuiltLinkOrArchiveTarget(name, targetSubDir, targetType)
 {
     linkTargetType = targetType;
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(pstring name_, TargetType targetType, CTarget &other, bool hasFile)
+LinkOrArchiveTarget::LinkOrArchiveTarget(pstring name_, const TargetType targetType, CTarget &other, const bool hasFile)
     : CTarget(std::move(name_), other, hasFile), PrebuiltLinkOrArchiveTarget(name, targetSubDir, targetType)
 {
     linkTargetType = targetType;
@@ -87,8 +87,8 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
     if (!fileStatus.load())
     {
-        path outputPath = path(getActualOutputPath());
-        if (!std::filesystem::exists(outputPath))
+        const path outputPath = path(getActualOutputPath());
+        if (!exists(outputPath))
         {
             fileStatus.store(true);
         }
@@ -105,7 +105,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                     {
                         if (prebuiltBasic->linkTargetType != TargetType::PREBUILT_BASIC)
                         {
-                            auto *prebuiltLinkOrArchiveTarget =
+                            const auto *prebuiltLinkOrArchiveTarget =
                                 static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                             path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
                             if (Node::getNodeFromNonNormalizedPath(depOutputPath, true)->getLastUpdateTime() >
@@ -181,7 +181,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                     {
                         // latest dll exists but it might not have been copied in the previous invocation.
 
-                        Node *copiedDLLNode = const_cast<Node *>(Node::getNodeFromNonNormalizedPath(
+                        const Node *copiedDLLNode = const_cast<Node *>(Node::getNodeFromNonNormalizedPath(
                             outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName, true, true));
 
                         if (copiedDLLNode->doesNotExist)
@@ -218,7 +218,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     }
 }
 
-void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
+void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short round)
 {
     RealBTarget &realBTarget = realBTargets[round];
     if (!round && realBTarget.exitStatus == EXIT_SUCCESS && BTarget::selectiveBuild)
@@ -285,9 +285,9 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             {
                 if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && realBTarget.exitStatus == EXIT_SUCCESS)
                 {
-                    for (PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : dllsToBeCopied)
+                    for (const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : dllsToBeCopied)
                     {
-                        std::filesystem::copy_file(prebuiltLinkOrArchiveTarget->outputDirectory +
+                        copy_file(prebuiltLinkOrArchiveTarget->outputDirectory +
                                                        prebuiltLinkOrArchiveTarget->actualOutputName,
                                                    outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName,
                                                    std::filesystem::copy_options::overwrite_existing);
@@ -310,7 +310,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             {
                 if (!prebuiltBasic->EVALUATE(TargetType::PREBUILT_BASIC))
                 {
-                    PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
+                    const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
                         static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                     requirementLinkerFlags += prebuiltLinkOrArchiveTarget->usageRequirementLinkerFlags;
                 }
@@ -527,10 +527,10 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
             }
         }
         {
-            auto setCppStdAndDialectCompilerAndLinkerFlags = [&](CxxSTD cxxStdLocal) {
+            auto setCppStdAndDialectCompilerAndLinkerFlags = [&](const CxxSTD cxxStdLocal) {
                 addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(cxxStdDialect == CxxSTDDialect::GNU ? "-std=gnu++"
                                                                                                   : "-std=c++");
-                CxxSTD temp = cxxStd;
+                const CxxSTD temp = cxxStd;
                 const_cast<CxxSTD &>(cxxStd) = cxxStdLocal;
                 addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(
                     GET_FLAG_EVALUATE(CxxSTD::V_98, "98 ", CxxSTD::V_03, "03 ", CxxSTD::V_0x, "0x ", CxxSTD::V_11,
@@ -849,7 +849,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             {
                 return "/OUT:";
             }
-            else if (archiver.bTFamily == BTFamily::GCC)
+            if (archiver.bTFamily == BTFamily::GCC)
             {
                 return " rcs ";
             }
@@ -891,10 +891,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
         {
             return addQuotes(libraryPath + libraryName + ".lib") + " ";
         }
-        else
-        {
-            return "-L" + addQuotes(libraryPath) + " -l" + addQuotes(libraryName) + " ";
-        }
+        return "-L" + addQuotes(libraryPath) + " -l" + addQuotes(libraryName) + " ";
     };
 
     linkOrArchiveCommandWithoutTargets = localLinkCommand;
@@ -925,10 +922,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             {
                 return "/LIBPATH:";
             }
-            else
-            {
-                return "-L";
-            }
+            return "-L";
         };
 
         for (const LibDirNode &libDirNode : requirementLibraryDirectories)
@@ -1019,7 +1013,7 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
             {
                 return "/OUT:";
             }
-            else if (archiver.bTFamily == BTFamily::GCC)
+            if (archiver.bTFamily == BTFamily::GCC)
             {
                 return " rcs ";
             }
@@ -1086,10 +1080,7 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         {
             return getReducedPath(libraryPath + libraryName + ".lib", pathPrint) + " ";
         }
-        else
-        {
-            return "-L" + getReducedPath(libraryPath, pathPrint) + " -l" + getReducedPath(libraryName, pathPrint) + " ";
-        }
+        return "-L" + getReducedPath(libraryPath, pathPrint) + " -l" + getReducedPath(libraryName, pathPrint) + " ";
     };
 
     {
@@ -1134,10 +1125,7 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
             {
                 return "/LIBPATH:";
             }
-            else
-            {
-                return "-L";
-            }
+            return "-L";
         };
 
         for (const LibDirNode &libDirNode : requirementLibraryDirectories)
@@ -1251,14 +1239,14 @@ void LinkOrArchiveTarget::setJson()
 }
 */
 
-C_Target *LinkOrArchiveTarget::get_CAPITarget(BSMode bsModeLocal)
+C_Target *LinkOrArchiveTarget::get_CAPITarget(const BSMode bsModeLocal)
 {
     auto *c_configuration = new C_LinkOrArchiveTarget();
 
     c_configuration->parent = reinterpret_cast<C_CTarget *>(CTarget::get_CAPITarget(bsModeLocal)->object);
 
     auto *c_Target = new C_Target();
-    c_Target->type = C_TargetType::C_LOA_TARGET_TYPE;
+    c_Target->type = C_LOA_TARGET_TYPE;
     c_Target->object = c_configuration;
     return c_Target;
 }

@@ -38,7 +38,7 @@ static void touchFile(const path &filePath)
 static void removeFilePath(const path &filePath)
 {
     error_code ec;
-    if (bool removed = remove(filePath, ec); !removed || ec)
+    if (const bool removed = remove(filePath, ec); !removed || ec)
     {
         print(stderr, "Could Not Remove the filePath {}\nError {}", filePath.string(), ec ? ec.message() : "");
         exit(EXIT_FAILURE);
@@ -48,7 +48,7 @@ static void removeFilePath(const path &filePath)
 static void removeDirectory(const path &filePath)
 {
     error_code ec;
-    if (bool removed = remove_all(filePath, ec); !removed || ec)
+    if (const bool removed = remove_all(filePath, ec); !removed || ec)
     {
         print(stderr, "Could Not Remove the filePath {}\nError {}", filePath.string(), ec ? ec.message() : "");
         exit(EXIT_FAILURE);
@@ -58,7 +58,7 @@ static void removeDirectory(const path &filePath)
 static void copyFilePath(const path &sourceFilePath, const path &destinationFilePath)
 {
     error_code ec;
-    if (bool copied = copy_file(sourceFilePath, destinationFilePath, copy_options::overwrite_existing, ec);
+    if (const bool copied = copy_file(sourceFilePath, destinationFilePath, copy_options::overwrite_existing, ec);
         !copied || ec)
     {
         print(stderr, "Could Not Copy the filePath {} to {} \nError {}", sourceFilePath.string(),
@@ -76,10 +76,10 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
 static void executeSnapshotBalances(const Updates &updates, const path &hbuildExecutionPath = current_path())
 {
     // Running configure.exe --build should not update any file
-    path p = current_path();
+    const path p = current_path();
     current_path(hbuildExecutionPath);
     Snapshot snapshot(p);
-    int exitCode = system(hbuildBuildStr.c_str());
+    const int exitCode = system(hbuildBuildStr.c_str());
     ASSERT_EQ(exitCode, 0) << hbuildBuildStr + " command failed.";
     snapshot.after(p);
     ASSERT_EQ(snapshot.snapshotBalances(updates), true);
@@ -95,10 +95,10 @@ static void executeTwoSnapshotBalances(const Updates &updates1, const Updates &u
                                        const path &hbuildExecutionPath = current_path())
 {
     // Running configure.exe --build should not update any file
-    path p = current_path();
+    const path p = current_path();
     current_path(hbuildExecutionPath);
     Snapshot snapshot(p);
-    int exitCode = system(hbuildBuildStr.c_str());
+    const int exitCode = system(hbuildBuildStr.c_str());
     ASSERT_EQ(exitCode, 0) << hbuildBuildStr + " command failed.";
     snapshot.after(p);
     ASSERT_EQ(snapshot.snapshotBalances(updates1), true);
@@ -113,7 +113,7 @@ static void executeTwoSnapshotBalances(const Updates &updates1, const Updates &u
 static void executeErroneousSnapshotBalances(const Updates &updates, const path &hbuildExecutionPath = current_path())
 {
     // Running configure.exe --build should not update any file
-    path p = current_path();
+    const path p = current_path();
     current_path(hbuildExecutionPath);
     Snapshot snapshot(p);
     system(hbuildBuildStr.c_str());
@@ -125,7 +125,7 @@ static void executeErroneousSnapshotBalances(const Updates &updates, const path 
 // Tests Hello-World and rebuild in different directories on touching file.
 TEST(StageTests, Test1)
 {
-    path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
+    const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
     current_path(testSourcePath);
     copyFilePath(testSourcePath / "Version/hmake0.cpp", testSourcePath / "hmake.cpp");
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
@@ -136,7 +136,7 @@ TEST(StageTests, Test1)
     executeSnapshotBalances(Updates{});
 
     // Touching main.cpp.
-    path mainFilePath = testSourcePath / "main.cpp";
+    const path mainFilePath = testSourcePath / "main.cpp";
     touchFile(mainFilePath);
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1});
 
@@ -152,7 +152,7 @@ TEST(StageTests, Test1)
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1}, "app/");
 
     // Deleting app.exe
-    path appExeFilePath =
+    const path appExeFilePath =
         testSourcePath / "Build/app" / path(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"));
     removeFilePath(appExeFilePath);
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
@@ -163,7 +163,7 @@ TEST(StageTests, Test1)
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "app/");
 
     // Deleting app-cpp directory
-    path appCppDirectory = testSourcePath / "Build/app-cpp/";
+    const path appCppDirectory = testSourcePath / "Build/app-cpp/";
     removeDirectory(appCppDirectory);
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1});
 
@@ -172,7 +172,7 @@ TEST(StageTests, Test1)
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1}, "app/");
 
     // Deleting main.cpp.o
-    path mainDotCppDotOFilePath = testSourcePath / "Build/app-cpp/Cache_Build_Files/main.cpp.o";
+    const path mainDotCppDotOFilePath = testSourcePath / "Build/app-cpp/Cache_Build_Files/main.cpp.o";
     removeFilePath(mainDotCppDotOFilePath);
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1});
 
@@ -201,19 +201,19 @@ TEST(StageTests, Test1)
 
 static void setupTest2Default()
 {
-    path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test2");
+    const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test2");
     copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
     copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/0/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
     copyFilePath(testSourcePath / "Version/0/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
     copyFilePath(testSourcePath / "Version/0/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
 
-    path extraIncludeFilePath = testSourcePath / "lib1/public/extra-include.hpp";
+    const path extraIncludeFilePath = testSourcePath / "lib1/public/extra-include.hpp";
     if (exists(extraIncludeFilePath))
     {
         removeFilePath(extraIncludeFilePath);
     }
-    path tempLib4Path = testSourcePath / "lib4/private/temp.cpp";
+    const path tempLib4Path = testSourcePath / "lib4/private/temp.cpp";
     if (exists(tempLib4Path))
     {
         removeFilePath(tempLib4Path);
@@ -416,18 +416,18 @@ TEST(StageTests, Test2)
 
 static void setupTest3Default()
 {
-    path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test3");
+    const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test3");
     copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
     copyFilePath(testSourcePath / "Version/0/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
     copyFilePath(testSourcePath / "Version/0/lib3.cpp", testSourcePath / "lib3/private/lib3.cpp");
     copyFilePath(testSourcePath / "Version/0/lib2.cpp", testSourcePath / "lib2/private/lib2.cpp");
 
-    path extraIncludeFilePath = testSourcePath / "lib1/public/extra-include.hpp";
+    const path extraIncludeFilePath = testSourcePath / "lib1/public/extra-include.hpp";
     if (exists(extraIncludeFilePath))
     {
         removeFilePath(extraIncludeFilePath);
     }
-    path tempLib4Path = testSourcePath / "lib4/private/temp.cpp";
+    const path tempLib4Path = testSourcePath / "lib4/private/temp.cpp";
     if (exists(tempLib4Path))
     {
         removeFilePath(tempLib4Path);
@@ -443,7 +443,7 @@ static void setupTest3Default()
 
 TEST(StageTests, Test3)
 {
-    path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test3");
+    const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test3");
     current_path(testSourcePath);
     setupTest3Default();
 
@@ -465,7 +465,7 @@ TEST(StageTests, Test3)
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib3.hpp
-    path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
+    const path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
     touchFile(publicLib3DotHpp);
     executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib4-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .cppTargets = 1}, "Debug/lib3-cpp");
@@ -473,7 +473,7 @@ TEST(StageTests, Test3)
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib4.hpp
-    path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
+    const path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
     touchFile(publicLib4DotHpp);
     executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib1-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib2-cpp");
@@ -526,7 +526,7 @@ TEST(StageTests, Test3)
                                     .linkTargetsNoDebug = 2,
                                     .linkTargetsDebug = 1});
     executeSnapshotBalances(Updates{});
-    path cacheFile = testSourcePath / "Build/cache.json";
+    const path cacheFile = testSourcePath / "Build/cache.json";
     Json cacheJson;
     ifstream(cacheFile) >> cacheJson;
     // Moving from module to source, lib4.cpp will be recompiled because lib4.cpp.o was not compiled with latest
@@ -566,13 +566,13 @@ TEST(StageTests, Test3)
 
 static void setupTest4Default()
 {
-    path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
+    const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
     copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
 }
 
 TEST(StageTests, Test4)
 {
-    path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
+    const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
     current_path(testSourcePath);
     setupTest4Default();
 

@@ -27,7 +27,7 @@ class ObjectFileProducer : public BTarget
 };
 
 // Dependency Specification CRTP
-template <typename T> struct ObjectFileProducerWithDS : public ObjectFileProducer
+template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
 {
     set<T *> requirementDeps;
     set<T *> usageRequirementDeps;
@@ -76,7 +76,7 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::P
 
 template <typename T>
 template <typename... U>
-T &ObjectFileProducerWithDS<T>::DEPS(T *dep, Dependency dependency, const U... deps)
+T &ObjectFileProducerWithDS<T>::DEPS(T *dep, const Dependency dependency, const U... deps)
 {
     if (dependency == Dependency::PUBLIC)
     {
@@ -104,9 +104,8 @@ T &ObjectFileProducerWithDS<T>::DEPS(T *dep, Dependency dependency, const U... d
 template <typename T> void ObjectFileProducerWithDS<T>::populateRequirementAndUsageRequirementDeps()
 {
     // Set is copied because new elements are to be inserted in it.
-    set<T *> localRequirementDeps = requirementDeps;
 
-    for (T *t : localRequirementDeps)
+    for (set<T *> localRequirementDeps = requirementDeps; T *t : localRequirementDeps)
     {
         for (T *t_ : t->usageRequirementDeps)
         {

@@ -53,7 +53,7 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    unsigned int launchThreads = settings.maximumBuildThreads;
+    const unsigned int launchThreads = settings.maximumBuildThreads;
     numberOfLaunchedThreads = launchThreads;
     while (threads.size() != launchThreads - 1)
     {
@@ -88,7 +88,7 @@ void Builder::execute()
         bool counted = false;
         while (true)
         {
-            unsigned short roundLocal = round;
+            const unsigned short roundLocal = round;
             bool shouldBreak = false;
 
             if (updateBTargetsIterator != updateBTargets.end())
@@ -134,7 +134,7 @@ void Builder::execute()
 
                         if (!round)
                         {
-                            size_t topSize = TBT::topologicalSort.size();
+                            const size_t topSize = TBT::topologicalSort.size();
                             if (topSize)
                             {
 
@@ -287,7 +287,7 @@ void Builder::execute()
     }
 }
 
-void Builder::incrementNumberOfSleepingThreads(bool counted)
+void Builder::incrementNumberOfSleepingThreads(const bool counted)
 {
     if (!counted)
     {
@@ -308,7 +308,7 @@ void Builder::incrementNumberOfSleepingThreads(bool counted)
         catch (std::exception &ec)
         {
             // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-            string str(ec.what());
+            const string str(ec.what());
             if (!str.empty())
             {
                 printErrorMessage(str);

@@ -17,7 +17,7 @@ Configuration::Configuration(const pstring &name_) : CTarget{name_}
 {
 }
 
-Configuration::Configuration(const pstring &name_, CTarget &other, bool hasFile) : CTarget{name_, other, hasFile}
+Configuration::Configuration(const pstring &name_, CTarget &other, const bool hasFile) : CTarget{name_, other, hasFile}
 {
 }
 
@@ -139,7 +139,8 @@ DSC<CppSourceTarget> &Configuration::GetCppExeDSC(const pstring &name_, const bo
                                                                                std::move(define)).first.operator*());
 }
 
-DSC<CppSourceTarget> &Configuration::GetCppTargetDSC(const pstring &name_, TargetType targetType_, bool defines,
+DSC<CppSourceTarget> &Configuration::GetCppTargetDSC(const pstring &name_, const TargetType targetType_,
+                                                     const bool defines,
                                                      pstring define)
 {
     if (targetType_ == TargetType::LIBRARY_STATIC)
@@ -177,7 +178,7 @@ DSC<CppSourceTarget> &Configuration::GetCppObjectDSC(const pstring &name_, const
 }
 
 DSC<CppSourceTarget> &Configuration::GetCppTargetDSC_P(const pstring &name_, const pstring &directory,
-                                                       TargetType targetType_, bool defines, pstring define)
+                                                       const TargetType targetType_, const bool defines, pstring define)
 {
     if (targetType_ == TargetType::LIBRARY_STATIC)
     {
@@ -195,7 +196,7 @@ DSC<CppSourceTarget> &Configuration::GetCppTargetDSC_P(const pstring &name_, con
 }
 
 DSC<CppSourceTarget> &Configuration::GetCppTargetDSC_P(const pstring &name_, const pstring &prebuiltName,
-                                                       const pstring &directory, TargetType targetType_, bool defines,
+                                                       const pstring &directory, const TargetType targetType_, bool defines,
                                                        pstring define)
 {
     CppSourceTarget *cppSourceTarget = &(GetCppObject(name_ + dashCpp));
@@ -247,14 +248,14 @@ DSC<CppSourceTarget> &Configuration::GetCppSharedDSC_P(const pstring &name_, con
     json[0] = std::move(variantJson);
 }*/
 
-C_Target *Configuration::get_CAPITarget(BSMode bsModeLocal)
+C_Target *Configuration::get_CAPITarget(const BSMode bsModeLocal)
 {
     auto *c_configuration = new C_Configuration();
 
     c_configuration->parent = reinterpret_cast<C_CTarget *>(CTarget::get_CAPITarget(bsModeLocal)->object);
 
     auto *c_Target = new C_Target();
-    c_Target->type = C_TargetType::C_CONFIGURATION_TARGET_TYPE;
+    c_Target->type = C_CONFIGURATION_TARGET_TYPE;
     c_Target->object = c_configuration;
     return c_Target;
 }

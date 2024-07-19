@@ -9,7 +9,7 @@ import <utility>;
 #include <utility>
 #endif
 
-Version::Version(unsigned int majorVersion_, unsigned int minorVersion_, unsigned int patchVersion_)
+Version::Version(const unsigned int majorVersion_, const unsigned int minorVersion_, const unsigned int patchVersion_)
     : majorVersion{majorVersion_}, minorVersion{minorVersion_}, patchVersion{patchVersion_}
 {
 }
@@ -21,8 +21,8 @@ void to_json(Json &j, const Version &p)
 
 void from_json(const Json &j, Version &v)
 {
-    pstring jString = j;
-    char delim = '.';
+    const pstring jString = j;
+    const char delim = '.';
     pstringstream ss(jString);
     pstring item;
     int count = 0;
@@ -76,7 +76,7 @@ void from_json(const Json &json, BTFamily &bTFamily)
     }
 }
 
-BuildTool::BuildTool(BTFamily btFamily_, Version btVersion_, path btPath_)
+BuildTool::BuildTool(const BTFamily btFamily_, const Version btVersion_, path btPath_)
     : bTFamily(btFamily_), bTVersion(btVersion_), bTPath(std::move(btPath_))
 {
 }
@@ -95,22 +95,22 @@ void from_json(const Json &json, BuildTool &buildTool)
     buildTool.bTVersion = json.at(JConsts::version).get<Version>();
 }
 
-Compiler::Compiler(BTFamily btFamily_, Version btVersion_, path btPath_)
+Compiler::Compiler(const BTFamily btFamily_, const Version btVersion_, path btPath_)
     : BuildTool(btFamily_, btVersion_, std::move(btPath_))
 {
 }
 
-Linker::Linker(BTFamily btFamily_, Version btVersion_, path btPath_)
+Linker::Linker(const BTFamily btFamily_, const Version btVersion_, path btPath_)
     : BuildTool(btFamily_, btVersion_, std::move(btPath_))
 {
 }
 
-Archiver::Archiver(BTFamily btFamily_, Version btVersion_, path btPath_)
+Archiver::Archiver(const BTFamily btFamily_, const Version btVersion_, path btPath_)
     : BuildTool(btFamily_, btVersion_, std::move(btPath_))
 {
 }
 
-ScannerTool::ScannerTool(BTFamily btFamily_, Version btVersion_, path btPath_)
+ScannerTool::ScannerTool(const BTFamily btFamily_, const Version btVersion_, path btPath_)
     : BuildTool(btFamily_, btVersion_, std::move(btPath_))
 {
 }

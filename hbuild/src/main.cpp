@@ -18,11 +18,11 @@ import <string>;
 
 using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::filesystem::path,
     std::filesystem::exists, std::string, fmt::format;
-int main(int argc, char **argv)
+int main(const int argc, char **argv)
 {
     if (argc == 2)
     {
-        std::string filePath = argv[1];
+        const std::string filePath = argv[1];
         path buildFilePath = filePath;
         if (buildFilePath.is_relative())
         {
@@ -56,7 +56,7 @@ int main(int argc, char **argv)
         {
             DLLLoader loader(configureSharedLibPath.string().c_str());
             typedef int (*Func2)(BSMode bsMode);
-            auto func2 = loader.getSymbol<Func2>("func2");
+            const auto func2 = loader.getSymbol<Func2>("func2");
             if (!func2)
             {
                 printErrorMessage("Symbol func2 could not be loaded from configure dynamic library\n");
@@ -64,11 +64,8 @@ int main(int argc, char **argv)
             }
             return func2(BSMode::BUILD);
         }
-        else
-        {
-            printErrorMessage(
-                fmt::format("{} File could not be found in current directory and directories above\n", configureName));
-            exit(EXIT_FAILURE);
-        }
+        printErrorMessage(
+            fmt::format("{} File could not be found in current directory and directories above\n", configureName));
+        exit(EXIT_FAILURE);
     }
 }

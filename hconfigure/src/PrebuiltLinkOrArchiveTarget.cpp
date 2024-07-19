@@ -14,7 +14,7 @@ import "SMFile.hpp";
 // public constructor should check the existence of library but the protected constructor shouldn't which will be used
 // by LinkOrArchiveTarget.
 PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const pstring &outputName_, const pstring &directory,
-                                                         TargetType linkTargetType_)
+                                                         const TargetType linkTargetType_)
     : outputDirectory((Node::getFinalNodePathFromPath(directory + slashc).*toPStr)()),
       actualOutputName(getActualNameFromTargetName(linkTargetType_, os, outputName_)),
       PrebuiltBasic(outputName_, linkTargetType_)

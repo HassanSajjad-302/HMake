@@ -21,7 +21,7 @@ using Json = nlohmann::json;
 
 void to_json(Json &j, const Arch &arch)
 {
-    auto getPStringFromArchitectureEnum = [](Arch arch) -> pstring {
+    auto getPStringFromArchitectureEnum = [](const Arch arch) -> pstring {
         switch (arch)
         {
         case Arch::X86:
@@ -143,7 +143,7 @@ void from_json(const Json &j, Arch &arch)
 
 void to_json(Json &j, const AddressModel &am)
 {
-    auto getPStringFromArchitectureEnum = [](AddressModel am) -> pstring {
+    auto getPStringFromArchitectureEnum = [](const AddressModel am) -> pstring {
         switch (am)
         {
         case AddressModel::A_16:
@@ -185,7 +185,7 @@ void from_json(const Json &j, AddressModel &am)
     }
 }
 
-TemplateDepth::TemplateDepth(unsigned long long templateDepth_) : templateDepth(templateDepth_)
+TemplateDepth::TemplateDepth(const unsigned long long templateDepth_) : templateDepth(templateDepth_)
 {
 }
 
@@ -229,7 +229,7 @@ void from_json(const Json &json, OS &osLocal)
     }
 }
 
-pstring getActualNameFromTargetName(TargetType bTargetType, const OS osLocal, const pstring &targetName)
+pstring getActualNameFromTargetName(const TargetType bTargetType, const OS osLocal, const pstring &targetName)
 {
     if (bTargetType == TargetType::EXECUTABLE)
     {
@@ -255,7 +255,7 @@ pstring getActualNameFromTargetName(TargetType bTargetType, const OS osLocal, co
     throw std::exception();
 }
 
-pstring getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, const pstring &actualName)
+pstring getTargetNameFromActualName(const TargetType bTargetType, const OS osLocal, const pstring &actualName)
 {
     if (bTargetType == TargetType::EXECUTABLE)
     {
@@ -267,7 +267,7 @@ pstring getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, co
         // Removes lib from libName.a
         libName = osLocal == OS::NT ? actualName : libName.erase(0, 3);
         // Removes .a from libName.a or .lib from Name.lib
-        unsigned short eraseCount = osLocal == OS::NT ? 4 : 2;
+        const unsigned short eraseCount = osLocal == OS::NT ? 4 : 2;
         libName = libName.erase(libName.find('.'), eraseCount);
         return libName;
     }
@@ -277,7 +277,7 @@ pstring getTargetNameFromActualName(TargetType bTargetType, const OS osLocal, co
         // Removes lib from libName.so
         libName = osLocal == OS::NT ? actualName : libName.erase(0, 3);
         // Removes .so from libName.so or .dll from Name.dll
-        unsigned short eraseCount = osLocal == OS::NT ? 4 : 3;
+        const unsigned short eraseCount = osLocal == OS::NT ? 4 : 3;
         libName = libName.erase(libName.find('.'), eraseCount);
         return libName;
     }
@@ -334,7 +334,7 @@ void LinkerFeatures::setLinkerFromVSTools(struct VSTools &vsTools)
     }
 }
 
-void LinkerFeatures::setConfigType(ConfigType configType)
+void LinkerFeatures::setConfigType(const ConfigType configType)
 {
     // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
     // variant is set runtime-debugging is not set though. Here it is set, however.
@@ -410,7 +410,7 @@ void CppCompilerFeatures::setCompilerFromLinuxTools(LinuxTools &linuxTools)
     }
 }
 
-void CppCompilerFeatures::setConfigType(ConfigType configType)
+void CppCompilerFeatures::setConfigType(const ConfigType configType)
 {
     // Value is set according to Comment about variant in variant-feature.jam. But, actually in builtin.jam where
     // variant is set runtime-debugging is not set though. Here it is set, however.

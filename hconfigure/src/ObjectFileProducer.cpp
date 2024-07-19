@@ -11,6 +11,6 @@ ObjectFileProducer::ObjectFileProducer()
 {
 }
 
-void ObjectFileProducer::getObjectFiles(vector<const ObjectFile *> *, class LinkOrArchiveTarget *) const
+void ObjectFileProducer::getObjectFiles(vector<const ObjectFile *> *, LinkOrArchiveTarget *) const
 {
 }

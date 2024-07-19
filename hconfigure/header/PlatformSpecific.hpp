@@ -36,7 +36,7 @@ import "fmt/xchar.h";
 
 using pstring = std::wstring;
 using pchar = wchar_t;
-inline wstring (path::*toPStr)() const = &path::wstring;
+wstring (path::*toPStr)() const = &path::wstring;
 
 template <typename T> wstring to_pstring(T t)
 {
@@ -98,47 +98,47 @@ size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
 struct Indices
 {
 
-    inline constexpr static unsigned targetBuildCache = 1;
+    constexpr static unsigned targetBuildCache = 1;
 
     struct TargetBuildCache
     {
 
-        inline constexpr static unsigned sourceFiles = 0;
-        inline constexpr static unsigned moduleFiles = 1;
-        inline constexpr static unsigned headerUnits = 2;
+        constexpr static unsigned sourceFiles = 0;
+        constexpr static unsigned moduleFiles = 1;
+        constexpr static unsigned headerUnits = 2;
 
         struct SourceFiles
         {
-            inline constexpr static unsigned fullPath = 0;
-            inline constexpr static unsigned compileCommandWithTool = 1;
-            inline constexpr static unsigned headerFiles = 2;
+            constexpr static unsigned fullPath = 0;
+            constexpr static unsigned compileCommandWithTool = 1;
+            constexpr static unsigned headerFiles = 2;
         };
 
-        struct ModuleFiles : public SourceFiles
+        struct ModuleFiles : SourceFiles
         {
-            inline constexpr static unsigned fullPath = 0;
-            inline constexpr static unsigned scanningCommandWithTool = 1;
-            inline constexpr static unsigned headerFiles = 2;
-            inline constexpr static unsigned smRules = 3;
+            constexpr static unsigned fullPath = 0;
+            constexpr static unsigned scanningCommandWithTool = 1;
+            constexpr static unsigned headerFiles = 2;
+            constexpr static unsigned smRules = 3;
             struct SmRules
             {
-                inline constexpr static unsigned exportName = 0;
-                inline constexpr static unsigned isInterface = 1;
-                inline constexpr static unsigned requireArray = 2;
+                constexpr static unsigned exportName = 0;
+                constexpr static unsigned isInterface = 1;
+                constexpr static unsigned requireArray = 2;
 
                 struct SingleModuleDep
                 {
-                    inline constexpr static unsigned logicalName = 0;
-                    inline constexpr static unsigned isHeaderUnit = 1;
+                    constexpr static unsigned logicalName = 0;
+                    constexpr static unsigned isHeaderUnit = 1;
                     // Points to different things in-case of header-unit and module. In-case of header-unit, it is the
                     // value of the source-path key, while in-case of module it is assigned before saving. So, in next
                     // build in resolveRequiePaths, we check that whether we are resolving to the same module.
-                    inline constexpr static unsigned fullPath = 2;
-                    inline constexpr static unsigned boolean = 3;
+                    constexpr static unsigned fullPath = 2;
+                    constexpr static unsigned boolean = 3;
                 };
             };
 
-            inline constexpr static unsigned compileCommandWithTool = 4;
+            constexpr static unsigned compileCommandWithTool = 4;
         };
     };
 };

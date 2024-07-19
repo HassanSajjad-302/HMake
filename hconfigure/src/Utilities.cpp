@@ -16,7 +16,7 @@ import <sstream>;
 
 using std::ifstream, fmt::format;
 
-pstring addQuotes(pstring_view pstr)
+pstring addQuotes(const pstring_view pstr)
 {
     return "\"" + pstring(pstr) + "\"";
 }
@@ -38,7 +38,7 @@ pstring fileToPString(const pstring &file_name)
         throw std::exception();
     }
 
-    opstringstream str_stream;
+    const opstringstream str_stream;
     file_stream >> str_stream.rdbuf(); // NOT str_stream << file_stream.rdbuf()
 
     if (file_stream.fail() && !file_stream.eof())
@@ -56,7 +56,7 @@ vector<pstring> split(pstring str, const pstring &token)
     vector<pstring> result;
     while (!str.empty())
     {
-        pstring::size_type index = str.find(token);
+        const pstring::size_type index = str.find(token);
         if (index != pstring::npos)
         {
             result.emplace_back(str.substr(0, index));

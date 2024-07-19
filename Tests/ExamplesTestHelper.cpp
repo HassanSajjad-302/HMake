@@ -11,7 +11,7 @@ using std::cout, std::endl, std::filesystem::create_directory, std::filesystem::
 
 void ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject()
 {
-    if (std::filesystem::exists(path("Build")))
+    if (exists(path("Build")))
     {
         remove_all(path("Build"));
     }
@@ -19,7 +19,7 @@ void ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject()
     current_path("Build");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << "First " + hhelperStr + " command failed.";
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << "Second " + hhelperStr + " command failed.";
-    int exitCode = system(hbuildBuildStr.c_str());
+    const int exitCode = system(hbuildBuildStr.c_str());
     ASSERT_EQ(exitCode, 0) << hbuildBuildStr + " command failed.";
 }
 
@@ -35,7 +35,7 @@ void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const s
 
 void ExamplesTestHelper::recreateBuildDir()
 {
-    if (std::filesystem::exists(path("Build")))
+    if (exists(path("Build")))
     {
         remove_all(path("Build"));
     }

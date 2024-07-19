@@ -31,13 +31,13 @@ import <utility>;
 
 using std::tie, std::ifstream, std::exception, std::lock_guard;
 
-LibDirNode::LibDirNode(Node *node_, bool isStandard_) : node{node_}, isStandard{isStandard_}
+LibDirNode::LibDirNode(Node *node_, const bool isStandard_) : node{node_}, isStandard{isStandard_}
 {
 }
 
 void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, LibDirNode &libDirNode)
 {
-    for (LibDirNode &libDirNode_ : libDirNodes)
+    for (const LibDirNode &libDirNode_ : libDirNodes)
     {
         if (libDirNode_.node == libDirNode.node)
         {
@@ -49,7 +49,7 @@ void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, LibDirNode &libDir
 
 void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, Node *node_, bool isStandard_)
 {
-    for (LibDirNode &libDirNode : libDirNodes)
+    for (const LibDirNode &libDirNode : libDirNodes)
     {
         if (libDirNode.node == node_)
         {
@@ -59,14 +59,14 @@ void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, Node *node_, bool 
     libDirNodes.emplace_back(node_, isStandard_);
 }
 
-InclNode::InclNode(Node *node_, bool isStandard_, bool ignoreHeaderDeps_)
+InclNode::InclNode(Node *node_, const bool isStandard_, const bool ignoreHeaderDeps_)
     : LibDirNode(node_, isStandard_), ignoreHeaderDeps{ignoreHeaderDeps_}
 {
 }
 
 bool InclNode::emplaceInList(list<InclNode> &includes, InclNode &libDirNode)
 {
-    for (InclNode &include : includes)
+    for (const InclNode &include : includes)
     {
         if (include.node == libDirNode.node)
         {
@@ -79,7 +79,7 @@ bool InclNode::emplaceInList(list<InclNode> &includes, InclNode &libDirNode)
 
 bool InclNode::emplaceInList(list<InclNode> &includes, Node *node_, bool isStandard_, bool ignoreHeaderDeps_)
 {
-    for (InclNode &include : includes)
+    for (const InclNode &include : includes)
     {
         if (include.node == node_)
         {
@@ -101,12 +101,12 @@ bool CompareSourceNode::operator()(const SourceNode &lhs, const SourceNode &rhs)
     return lhs.node < rhs.node;
 }
 
-bool CompareSourceNode::operator()(Node *lhs, const SourceNode &rhs) const
+bool CompareSourceNode::operator()(const Node *lhs, const SourceNode &rhs) const
 {
     return lhs < rhs.node;
 }
 
-bool CompareSourceNode::operator()(const SourceNode &lhs, Node *rhs) const
+bool CompareSourceNode::operator()(const SourceNode &lhs, const Node *rhs) const
 {
     return lhs.node < rhs;
 }
@@ -126,7 +126,7 @@ pstring SourceNode::getTarjanNodeName() const
     return node->filePath;
 }
 
-void SourceNode::updateBTarget(Builder &, unsigned short round)
+void SourceNode::updateBTarget(Builder &, const unsigned short round)
 {
     if (!round && fileStatus.load() && selectiveBuild)
     {
@@ -175,7 +175,7 @@ void SourceNode::setSourceNodeFileStatus()
 
     for (PValue &str : (*sourceJson)[SourceFiles::headerFiles].GetArray())
     {
-        Node *headerNode =
+        const Node *headerNode =
             Node::getNodeFromNormalizedString(pstring_view(str.GetString(), str.GetStringLength()), true, true);
         if (headerNode->doesNotExist)
         {
@@ -206,7 +206,7 @@ bool operator<(const SourceNode &lhs, const SourceNode &rhs)
     return lhs.node < rhs.node;
 }
 
-HeaderUnitConsumer::HeaderUnitConsumer(bool angle_, pstring logicalName_)
+HeaderUnitConsumer::HeaderUnitConsumer(const bool angle_, pstring logicalName_)
     : angle{angle_}, logicalName{std::move(logicalName_)}
 {
 }
@@ -220,7 +220,7 @@ SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node
 {
 }
 
-void SMFile::updateBTarget(Builder &builder, unsigned short round)
+void SMFile::updateBTarget(Builder &builder, const unsigned short round)
 {
 
     using ModuleFiles = Indices::TargetBuildCache::ModuleFiles;
@@ -237,7 +237,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
             PostCompile postCompile = target->GenerateSMRulesFile(*this, true);
             postCompile.parseHeaderDeps(*this, true);
             {
-                lock_guard<mutex> lk(printMutex);
+                lock_guard lk(printMutex);
                 postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
                 fflush(stdout);
             }
@@ -248,7 +248,8 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
         {
             (*sourceJson)[Indices::TargetBuildCache::ModuleFiles::scanningCommandWithTool].SetString(
                 ptoref(target->compileCommandWithTool));
-            saveRequiresJsonAndInitializeHeaderUnits(builder, smrulesFileOutputClang);
+            saveSMRulesJsonToSourceJson(smrulesFileOutputClang);
+            iterateRequiresJsonToInitializeNewHeaderUnits(builder);
             assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
 
             target->realBTargets[0].addDependency(*this);
@@ -269,11 +270,11 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
         if (fileStatus.load())
         {
             assignFileStatusToDependents(realBTarget);
-            PostCompile postCompile = target->CompileSMFile(*this);
+            const PostCompile postCompile = target->CompileSMFile(*this);
             realBTarget.exitStatus = postCompile.exitStatus;
 
             {
-                lock_guard<mutex> lk(printMutex);
+                lock_guard lk(printMutex);
                 postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
                 fflush(stdout);
             }
@@ -284,10 +285,10 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
                 // cached compile-command would be different
                 (*sourceJson)[ModuleFiles::compileCommandWithTool].SetString(ptoref(target->compileCommandWithTool));
 
-                for (PValueObjectFileMapping &mapping : pValueObjectFileMapping)
+                for (const PValueObjectFileMapping &mapping : pValueObjectFileMapping)
                 {
                     using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
-                    (*(mapping.requireJson))[SingleModuleDep::fullPath] =
+                    (*mapping.requireJson)[SingleModuleDep::fullPath] =
                         PValue(mapping.objectFileOutputFilePath->filePath.c_str(),
                                mapping.objectFileOutputFilePath->filePath.size());
                 }
@@ -296,7 +297,7 @@ void SMFile::updateBTarget(Builder &builder, unsigned short round)
     }
 }
 
-void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder, pstring &smrulesFileOutputClang)
+void SMFile::saveSMRulesJsonToSourceJson(const pstring &smrulesFileOutputClang)
 {
 
     using ModuleFile = Indices::TargetBuildCache::ModuleFiles;
@@ -304,7 +305,8 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder, pstring 
 
     if (readJsonFromSMRulesFile)
     {
-        pstring smFilePath = target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".smrules";
+        const pstring smFilePath =
+            target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".smrules";
         PDocument d;
         // The assumptions is that clang only outputs scanning data during scanning on output while MSVC outputs
         // nothing.
@@ -323,7 +325,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder, pstring 
         PValue &prunedRules = (*sourceJson)[ModuleFile::smRules];
         prunedRules.Clear();
 
-        if (auto it = rule.FindMember(ptoref(JConsts::provides)); it == rule.MemberEnd())
+        if (const auto it = rule.FindMember(ptoref(JConsts::provides)); it == rule.MemberEnd())
         {
             prunedRules.PushBack(PValue(kStringType), sourceNodeAllocator);
             prunedRules.PushBack(PValue(false), sourceNodeAllocator);
@@ -332,7 +334,7 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder, pstring 
         {
             PValue &provideJson = it->value[0];
             PValue &logicalNamePValue = provideJson.FindMember(PValue(ptoref(JConsts::logicalName)))->value;
-            PValue &isInterfacePValue = provideJson.FindMember((PValue(ptoref(JConsts::isInterface))))->value;
+            PValue &isInterfacePValue = provideJson.FindMember(PValue(ptoref(JConsts::isInterface)))->value;
             prunedRules.PushBack(logicalNamePValue, sourceNodeAllocator);
             prunedRules.PushBack(isInterfacePValue, sourceNodeAllocator);
         }
@@ -400,11 +402,10 @@ void SMFile::saveRequiresJsonAndInitializeHeaderUnits(Builder &builder, pstring 
             throw std::exception();
         }
     }
-    iterateRequiresJsonToInitializeNewHeaderUnits(builder);
 }
 
 // An invariant is that paths are lexically normalized.
-bool pathContainsFile(pstring_view dir, pstring_view file)
+bool pathContainsFile(pstring_view dir, const pstring_view file)
 {
     pstring_view withoutFileName(file.data(), file.find_last_of(slashc));
 
@@ -454,11 +455,8 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
                                        settings.pcSettings.toolErrorOutput);
                 throw std::exception();
             }
-            else
-            {
-                huDirTarget = targetLocal;
-                nodeDir = &inclNode;
-            }
+            huDirTarget = targetLocal;
+            nodeDir = &inclNode;
         }
     }
 
@@ -474,7 +472,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
     set<SMFile, CompareSourceNode>::const_iterator headerUnitIt;
 
     huDirTarget->headerUnitsMutex.lock();
-    if (auto it = huDirTarget->headerUnits.find(headerUnitNode); it == huDirTarget->headerUnits.end())
+    if (const auto it = huDirTarget->headerUnits.find(headerUnitNode); it == huDirTarget->headerUnits.end())
     {
         headerUnitIt = huDirTarget->headerUnits.emplace(huDirTarget, headerUnitNode).first;
         huDirTarget->headerUnitsMutex.unlock();
@@ -487,18 +485,18 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
         }
 
         headerUnit.headerUnitsIndex =
-            pvalueIndexInSubArray((*(huDirTarget->targetBuildCache))[Indices::TargetBuildCache::headerUnits],
+            pvalueIndexInSubArray((*huDirTarget->targetBuildCache)[Indices::TargetBuildCache::headerUnits],
                                   PValue(ptoref(headerUnit.node->filePath)));
 
         if (headerUnit.headerUnitsIndex != UINT64_MAX)
         {
-            headerUnit.sourceJson = &((
-                *(huDirTarget->targetBuildCache))[Indices::TargetBuildCache::headerUnits][headerUnit.headerUnitsIndex]);
+            headerUnit.sourceJson =
+                &(*huDirTarget->targetBuildCache)[Indices::TargetBuildCache::headerUnits][headerUnit.headerUnitsIndex];
         }
         else
         {
             headerUnit.sourceJson = new PValue(kArrayType);
-            ++(huDirTarget->newHeaderUnitsSize);
+            ++huDirTarget->newHeaderUnitsSize;
 
             headerUnit.sourceJson->PushBack(ptoref(headerUnit.node->filePath), headerUnit.sourceNodeAllocator);
             headerUnit.sourceJson->PushBack(PValue(kStringType), headerUnit.sourceNodeAllocator);
@@ -519,7 +517,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
     auto &headerUnit = const_cast<SMFile &>(*headerUnitIt);
 
-    // Should be true if JConsts::lookupMetho == "include-angle";
+    // Should be true if JConsts::lookupMethod == "include-angle";
     headerUnitsConsumptionMethods[&headerUnit].emplace(requirePValue[SingleModuleDep::boolean].GetBool(),
                                                        requirePValue[SingleModuleDep::logicalName].GetString());
     realBTargets[0].addDependency(headerUnit);
@@ -528,7 +526,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 void SMFile::addNewBTargetInFinalBTargets(Builder &builder)
 {
     {
-        std::lock_guard<std::mutex> lk(builder.executeMutex);
+        std::lock_guard lk(builder.executeMutex);
         builder.updateBTargetsIterator = builder.updateBTargets.emplace(builder.updateBTargetsIterator, this);
         target->adjustHeaderUnitsBTarget.realBTargets[1].addDependency(*this);
         builder.updateBTargetsSizeGoal += 1;
@@ -622,7 +620,7 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
         {
             for (const PValue &value : (*sourceJson)[ModuleFiles::headerFiles].GetArray())
             {
-                Node *headerNode = Node::getNodeFromNormalizedString(
+                const Node *headerNode = Node::getNodeFromNormalizedString(
                     pstring_view(value.GetString(), value.GetStringLength()), true, true);
                 if (headerNode->doesNotExist)
                 {
@@ -650,10 +648,9 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
         // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the
         // .m.o file.
 
-        Node *smRuleFileNode = Node::getNodeFromNonNormalizedPath(
-            target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + (".smrules"), true, true);
-
-        if (smRuleFileNode->doesNotExist)
+        if (const Node *smRuleFileNode = Node::getNodeFromNonNormalizedPath(
+                target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".smrules", true, true);
+            smRuleFileNode->doesNotExist)
         {
             return true;
         }
@@ -663,21 +660,19 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
             {
                 return true;
             }
-            else
-            {
-                for (const PValue &value : (*sourceJson)[ModuleFiles::headerFiles].GetArray())
-                {
-                    Node *headerNode = Node::getNodeFromNormalizedString(
-                        pstring_view(value.GetString(), value.GetStringLength()), true, true);
-                    if (headerNode->doesNotExist)
-                    {
-                        return true;
-                    }
 
-                    if (headerNode->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
-                    {
-                        return true;
-                    }
+            for (const PValue &value : (*sourceJson)[ModuleFiles::headerFiles].GetArray())
+            {
+                const Node *headerNode = Node::getNodeFromNormalizedString(
+                    pstring_view(value.GetString(), value.GetStringLength()), true, true);
+                if (headerNode->doesNotExist)
+                {
+                    return true;
+                }
+
+                if (headerNode->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
+                {
+                    return true;
                 }
             }
         }
@@ -747,7 +742,7 @@ pstring SMFile::getFlag(const string &outputFilesWithoutExtension) const
                                    settings.pcSettings.toolErrorOutput);
             throw std::exception();
         }
-        else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
+        if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
             str = "/interface ";
         }
@@ -805,7 +800,7 @@ pstring SMFile::getFlag(const string &outputFilesWithoutExtension) const
 pstring SMFile::getFlagPrint(const pstring &outputFilesWithoutExtension) const
 {
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
-    bool infra = ccpSettings.infrastructureFlags;
+    const bool infra = ccpSettings.infrastructureFlags;
 
     pstring str;
 
@@ -817,7 +812,8 @@ pstring SMFile::getFlagPrint(const pstring &outputFilesWithoutExtension) const
                                    settings.pcSettings.toolErrorOutput);
             throw std::exception();
         }
-        else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
+
+        if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
             str = (infra ? "/interface " : "");
         }
@@ -890,7 +886,7 @@ pstring SMFile::getFlagPrint(const pstring &outputFilesWithoutExtension) const
 
 pstring SMFile::getRequireFlag(const SMFile &dependentSMFile) const
 {
-    pstring ifcFilePath =
+    const pstring ifcFilePath =
         addQuotes(target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".ifc");
 
     string str;
@@ -900,8 +896,8 @@ pstring SMFile::getRequireFlag(const SMFile &dependentSMFile) const
         printErrorMessage("HMake Error! In getRequireFlag() unknown type");
         throw std::exception();
     }
-    else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT ||
-             type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
+    if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT ||
+        type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
     {
         str = "/reference " + logicalName + "=" + ifcFilePath + " ";
     }
@@ -928,7 +924,7 @@ pstring SMFile::getRequireFlag(const SMFile &dependentSMFile) const
 
 pstring SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
 {
-    pstring ifcFilePath = target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".ifc";
+    const pstring ifcFilePath = target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".ifc";
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
     auto getRequireIFCPathOrLogicalName = [&](const pstring &logicalName_) {
         return ccpSettings.onlyLogicalNameOfRequireIFC
@@ -942,8 +938,8 @@ pstring SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
         printErrorMessage("HMake Error! In getRequireFlag() type is NOT_ASSIGNED");
         throw std::exception();
     }
-    else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT ||
-             type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
+    if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT ||
+        type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
     {
         if (ccpSettings.requireIFCs.printLevel == PathPrintLevel::NO)
         {
@@ -984,9 +980,9 @@ pstring SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
     return str;
 }
 
-pstring SMFile::getModuleCompileCommandPrintLastHalf()
+pstring SMFile::getModuleCompileCommandPrintLastHalf() const
 {
-    CompileCommandPrintSettings ccpSettings = settings.ccpSettings;
+    const CompileCommandPrintSettings ccpSettings = settings.ccpSettings;
     pstring moduleCompileCommandPrintLastHalf;
     if (ccpSettings.requireIFCs.printLevel != PathPrintLevel::NO)
     {

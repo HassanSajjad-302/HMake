@@ -99,7 +99,7 @@ void configurationSpecification(Configuration &configuration)
     DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
     hconfigure.getSourceTarget()
         .MODULE_DIRECTORIES("hconfigure/src")
-        .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include", "rapidjson/include");
+        .PUBLIC_HU_INCLUDES("hconfigure/header", "json/include", "rapidjson/include");
 
     DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
     hhelper.getSourceTarget()
@@ -132,11 +132,11 @@ void buildSpecification()
 {
     Configuration &releaseSpeed = GetConfiguration("RSpeed");
     CxxSTD cxxStd = releaseSpeed.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
-    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::YES, TranslateInclude::YES, ConfigType::RELEASE);
+    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
     // releaseSpeed.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS", "1");
 
     Configuration &releaseSize = GetConfiguration("RSize");
-    releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
+    releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::DEBUG, Optimization::SPACE, AddressSanitizer::ON);
 
     if (selectiveConfigurationSpecification(&configurationSpecification))
     {

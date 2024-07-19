@@ -60,13 +60,13 @@ PrebuiltBasic::PrebuiltBasic(pstring outputName_) : outputName{std::move(outputN
     initializePrebuiltBasic();
 }
 
-PrebuiltBasic::PrebuiltBasic(pstring outputName_, TargetType linkTargetType_)
+PrebuiltBasic::PrebuiltBasic(pstring outputName_, const TargetType linkTargetType_)
     : outputName{std::move(outputName_)}, linkTargetType{linkTargetType_}
 {
     initializePrebuiltBasic();
 }
 
-void PrebuiltBasic::updateBTarget(Builder &, unsigned short round)
+void PrebuiltBasic::updateBTarget(Builder &, const unsigned short round)
 {
     if (round == 1)
     {

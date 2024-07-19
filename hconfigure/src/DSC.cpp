@@ -6,7 +6,7 @@ import "DSC.hpp";
 #endif
 
 template <>
-DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, pstring define_)
+DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, const bool defines, pstring define_)
 {
     objectFileProducer = ptr;
     prebuiltBasic = prebuiltBasic_;
@@ -18,7 +18,7 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, b
     if (define_.empty() && !prebuiltBasic->EVALUATE(TargetType::PREBUILT_BASIC))
     {
         define = prebuiltBasic->outputName;
-        transform(define.begin(), define.end(), define.begin(), ::toupper);
+        transform(define.begin(), define.end(), define.begin(), toupper);
         define += "_EXPORT";
     }
     else

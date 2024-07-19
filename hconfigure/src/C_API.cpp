@@ -5,7 +5,7 @@ import "C_API.hpp";
 #include "BasicTargets.hpp"
 #endif
 
-extern "C" EXPORT C_TargetContainer *getCTargetContainer(BSMode bsModeLocal)
+extern "C" EXPORT C_TargetContainer *getCTargetContainer(const BSMode bsModeLocal)
 {
     auto *c_cTargetContainer = new C_TargetContainer();
     c_cTargetContainer->size = static_cast<unsigned short>(targetPointers<CTarget>.size());

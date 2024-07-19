@@ -18,7 +18,7 @@ using std::ofstream, fmt::format;
 pstring getThreadId()
 {
     pstring threadId;
-    auto myId = std::this_thread::get_id();
+    const auto myId = std::this_thread::get_id();
     pstringstream ss;
     ss << myId;
     threadId = ss.str();
@@ -61,19 +61,11 @@ PostBasic::PostBasic(const BuildTool &buildTool, const pstring &commandFirstHalf
                                   addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
     exitStatus = system(finalCompileCommand.c_str());
 #endif
-    if (exitStatus == EXIT_SUCCESS)
-    {
-        commandSuccessOutput = fileToPString(outputFileName);
-        commandErrorOutput = fileToPString(errorFileName);
-    }
-    else
-    {
-        commandSuccessOutput = fileToPString(outputFileName);
-        commandErrorOutput = fileToPString(errorFileName);
-    }
+    commandSuccessOutput = fileToPString(outputFileName);
+    commandErrorOutput = fileToPString(errorFileName);
 }
 
-void PostBasic::executePrintRoutine(uint32_t color, bool printOnlyOnError) const
+void PostBasic::executePrintRoutine(const uint32_t color, const bool printOnlyOnError) const
 {
     if (!printOnlyOnError)
     {
@@ -114,7 +106,7 @@ PostCompile::PostCompile(const CppSourceTarget &target_, const BuildTool &buildT
 {
 }
 
-bool PostCompile::ignoreHeaderFile(pstring_view str)
+bool PostCompile::ignoreHeaderFile(const pstring_view str)
 {
     //  Premature Optimization Hahacd
     // TODO:
@@ -142,7 +134,7 @@ bool PostCompile::ignoreHeaderFile(pstring_view str)
 void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &output, PValue &headerDepsJson)
 {
     vector<pstring> outputLines = split(output, "\n");
-    pstring includeFileNote = "Note: including file:";
+    const pstring includeFileNote = "Note: including file:";
 
     if (sourceNode.ignoreHeaderDeps)
     {
@@ -220,19 +212,20 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &hea
 {
     if (!sourceNode.ignoreHeaderDeps)
     {
-        pstring headerFileContents = fileToPString(target.buildCacheFilesDirPath +
-                                                   (path(sourceNode.node->filePath).filename().*toPStr)() + ".d");
+        const pstring headerFileContents = fileToPString(target.buildCacheFilesDirPath +
+                                                         (path(sourceNode.node->filePath).filename().*toPStr)() + ".d");
         vector<pstring> headerDeps = split(headerFileContents, "\n");
 
         // First 2 lines are skipped as these are .o and .cpp file.
         // If the file is preprocessed, it does not generate the extra line
-        auto endIt = headerDeps.end() - (sourceNode.target->compileTargetType == TargetType::LIBRARY_OBJECT ? 1 : 0);
+        const auto endIt =
+            headerDeps.end() - (sourceNode.target->compileTargetType == TargetType::LIBRARY_OBJECT ? 1 : 0);
 
         if (headerDeps.size() > 2)
         {
             for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
             {
-                size_t pos = iter->find_first_not_of(" ");
+                const size_t pos = iter->find_first_not_of(" ");
                 pstring headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
                 if (!ignoreHeaderFile(headerDep))
                 {
@@ -244,7 +237,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &hea
     }
 }
 
-void PostCompile::parseHeaderDeps(SourceNode &sourceNode, bool parseFromErrorOutput)
+void PostCompile::parseHeaderDeps(SourceNode &sourceNode, const bool parseFromErrorOutput)
 {
     PValue &headerDepsJson = (*sourceNode.sourceJson)[2];
     headerDepsJson.Clear();

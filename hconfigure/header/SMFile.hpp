@@ -56,11 +56,11 @@ struct CompareSourceNode
     using is_transparent = void; // for example with void,
                                  // but could be int or struct CanSearchOnId;
     bool operator()(const SourceNode &lhs, const SourceNode &rhs) const;
-    bool operator()(Node *lhs, const SourceNode &rhs) const;
-    bool operator()(const SourceNode &lhs, Node *rhs) const;
+    bool operator()(const Node *lhs, const SourceNode &rhs) const;
+    bool operator()(const SourceNode &lhs, const Node *rhs) const;
 };
 
-struct SourceNode : public ObjectFile
+struct SourceNode : ObjectFile
 {
     RAPIDJSON_DEFAULT_ALLOCATOR sourceNodeAllocator;
     PValue *sourceJson = nullptr;
@@ -112,7 +112,7 @@ struct PValueObjectFileMapping
     PValueObjectFileMapping(PValue *requireJson_, Node *objectFileOutputFilePath_);
 };
 
-struct SMFile : public SourceNode // Scanned Module Rule
+struct SMFile : SourceNode // Scanned Module Rule
 {
     pstring logicalName;
     vector<PValueObjectFileMapping> pValueObjectFileMapping;
@@ -135,7 +135,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
     SMFile(CppSourceTarget *target_, Node *node_);
     void updateBTarget(Builder &builder, unsigned short round) override;
-    void saveRequiresJsonAndInitializeHeaderUnits(Builder &builder, pstring &smrulesFileOutputClang);
+    void saveSMRulesJsonToSourceJson(const pstring &smrulesFileOutputClang);
     void initializeNewHeaderUnit(const PValue &inclNodes, Builder &builder);
     void addNewBTargetInFinalBTargets(Builder &builder);
     void iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder);
@@ -147,7 +147,7 @@ struct SMFile : public SourceNode // Scanned Module Rule
     pstring getFlagPrint(const pstring &outputFilesWithoutExtension) const;
     pstring getRequireFlag(const SMFile &dependentSMFile) const;
     pstring getRequireFlagPrint(const SMFile &logicalName_) const;
-    pstring getModuleCompileCommandPrintLastHalf();
+    pstring getModuleCompileCommandPrintLastHalf() const;
 };
 
 /*void to_json(Json &j, const SMFile &smFile);

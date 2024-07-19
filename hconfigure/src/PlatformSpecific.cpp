@@ -19,8 +19,8 @@ import <cstdio>;
 class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>::state_type>
 {
     typedef std::codecvt<wchar_t, char, std::char_traits<wchar_t>::state_type> MyType;
-    typedef MyType::state_type state_type;
-    typedef MyType::result result;
+    typedef state_type state_type;
+    typedef result result;
 
     /* This function deals with converting data from the input stream into the internal stream.*/
     /*
@@ -103,12 +103,12 @@ class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>:
     }
 };
 
-PStringRef ptoref(pstring_view c)
+PStringRef ptoref(const pstring_view c)
 {
     return PStringRef(c.data(), c.size());
 }
 
-RHPOStream::RHPOStream(pstring_view fileName)
+RHPOStream::RHPOStream(const pstring_view fileName)
     : of(make_unique<std::basic_ofstream<pchar>>(fileName.data(), std::ios::binary))
 {
     if constexpr (std::same_as<pchar, wchar_t>)
@@ -119,7 +119,7 @@ RHPOStream::RHPOStream(pstring_view fileName)
     }
 }
 
-void RHPOStream::Put(Ch c) const
+void RHPOStream::Put(const Ch c) const
 {
     of->put(c);
 }
@@ -131,7 +131,7 @@ void RHPOStream::Flush()
 void prettyWritePValueToFile(const pstring_view fileName, PValue &value)
 {
     RHPOStream stream(fileName);
-    rapidjson::PrettyWriter<RHPOStream, rapidjson::UTF8<>, rapidjson::UTF8<>> writer(stream, nullptr);
+    rapidjson::PrettyWriter<RHPOStream, UTF8<>, UTF8<>> writer(stream, nullptr);
     if (!value.Accept(writer))
     {
         // TODO Check what error
@@ -143,7 +143,7 @@ void prettyWritePValueToFile(const pstring_view fileName, PValue &value)
 void writePValueToFile(const pstring_view fileName, PValue &value)
 {
     RHPOStream stream(fileName);
-    rapidjson::Writer<RHPOStream, rapidjson::UTF8<>, rapidjson::UTF8<>> writer(stream, nullptr);
+    rapidjson::Writer<RHPOStream, UTF8<>, UTF8<>> writer(stream, nullptr);
     if (!value.Accept(writer))
     {
         // TODO Check what error
@@ -162,10 +162,10 @@ unique_ptr<pchar[]> readPValueFromFile(const pstring_view fileName, PDocument &d
     FILE *fp;
     fopen_s(&fp, fileName.data(), "r");
     fseek(fp, 0, SEEK_END);
-    size_t filesize = (size_t)ftell(fp);
+    const size_t filesize = (size_t)ftell(fp);
     fseek(fp, 0, SEEK_SET);
     unique_ptr<pchar[]> buffer = std::make_unique<pchar[]>(filesize + 1);
-    size_t readLength = fread(buffer.get(), 1, filesize, fp);
+    const size_t readLength = fread(buffer.get(), 1, filesize, fp);
     fclose(fp);
 
     // TODO

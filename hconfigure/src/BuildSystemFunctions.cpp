@@ -30,7 +30,7 @@ void writeBuildCacheUnlocked()
     writePValueToFile(pstring_view(configureDir + "/build-cache.json"), buildCache);
 }
 
-void initializeCache(BSMode bsMode_)
+void initializeCache(const BSMode bsMode_)
 {
     bsMode = bsMode_;
     if (bsMode != BSMode::CONFIGURE)
@@ -77,11 +77,11 @@ void initializeCache(BSMode bsMode_)
     }
 }
 
-BSMode getBuildSystemModeFromArguments(int argc, char **argv)
+BSMode getBuildSystemModeFromArguments(const int argc, char **argv)
 {
     if (argc > 1)
     {
-        pstring argument(argv[1]);
+        const pstring argument(argv[1]);
         if (argument == "--build")
         {
             bsMode = BSMode::BUILD;
@@ -156,10 +156,10 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
 
 void actuallyReadTheCache()
 {
-    path p = path(configureDir) / "build-cache.json";
+    const path p = path(configureDir) / "build-cache.json";
     if (exists(p))
     {
-        pstring str = p.string();
+        const pstring str = p.string();
         buildCacheFileBuffer = readPValueFromFile(str, buildCache);
     }
 }

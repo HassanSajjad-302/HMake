@@ -31,7 +31,7 @@ bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, c
            const_cast<BTarget *>(rhs)->realBTargets[0].indexInTopologicalSort;
 }
 
-RealBTarget::RealBTarget(BTarget *bTarget_, unsigned short round_) : TBT{bTarget_}, bTarget(bTarget_), round(round_)
+RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : TBT{bTarget_}, bTarget(bTarget_), round(round_)
 {
     std::lock_guard<std::mutex> lk(*(tarjanNodesBTargetsMutexes[round]));
 
@@ -166,15 +166,9 @@ pstring CTarget::getTargetPointer() const
         {
             return other->getTargetPointer() + slashc + name + slashc;
         }
-        else
-        {
-            return other->getTargetPointer() + name + slashc;
-        }
+        return other->getTargetPointer() + name + slashc;
     }
-    else
-    {
-        return targetFileDir;
-    }
+    return targetFileDir;
 }
 
 path CTarget::getTargetFilePath() const
@@ -188,7 +182,7 @@ bool CTarget::getSelectiveBuild()
     if (bsMode == BSMode::BUILD && !selectiveBuildSet)
     {
         path targetPath = targetSubDir;
-        path compare = current_path();
+        const path compare = current_path();
         for (; targetPath.root_path() != targetPath; targetPath = (targetPath / "..").lexically_normal())
         {
             std::error_code ec;
@@ -209,7 +203,7 @@ bool CTarget::getSelectiveBuildChildDir()
 {
     if (bsMode == BSMode::BUILD && !selectiveBuildSet)
     {
-        path targetPath = targetSubDir;
+        const path targetPath = targetSubDir;
         path compare = current_path();
         for (; compare.root_path() != compare; compare = (compare / "..").lexically_normal())
         {
@@ -242,7 +236,7 @@ void CTarget::writeJsonFile()
         create_directories(targetFileDir);
         if (!json.empty())
         {
-            path p = getTargetFilePath();
+            const path p = getTargetFilePath();
             ofstream(p) << json.dump(4);
         }
     }
@@ -276,7 +270,7 @@ C_Target *CTarget::get_CAPITarget(BSMode)
     c_cTarget->dir = targetSubDir.c_str();
 
     auto *c_Target = new C_Target();
-    c_Target->type = C_TargetType::C_CONFIGURE_TARGET_TYPE;
+    c_Target->type = C_CONFIGURE_TARGET_TYPE;
     c_Target->object = c_cTarget;
     return c_Target;
 }

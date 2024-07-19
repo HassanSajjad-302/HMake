@@ -13,8 +13,8 @@ int main()
     toolsCache.detectToolsAndInitialize();
     if (!exists(toolsCache.toolsCacheFilePath))
     {
-        std::filesystem::create_directories(toolsCache.toolsCacheFilePath.parent_path());
+        create_directories(toolsCache.toolsCacheFilePath.parent_path());
     }
-    Json toolsCacheJson = toolsCache;
+    const Json toolsCacheJson = toolsCache;
     ofstream(toolsCache.toolsCacheFilePath) << toolsCacheJson.dump(4);
 }

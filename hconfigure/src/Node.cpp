@@ -66,12 +66,12 @@ pstring Node::getFileName() const
 }
 
 std::mutex fileTimeUpdateMutex;
-std::filesystem::file_time_type Node::getLastUpdateTime() const
+file_time_type Node::getLastUpdateTime() const
 {
-    lock_guard<mutex> lk(fileTimeUpdateMutex);
+    lock_guard lk(fileTimeUpdateMutex);
     if (!isUpdated)
     {
-        const_cast<std::filesystem::file_time_type &>(lastUpdateTime) = last_write_time(path(filePath));
+        const_cast<file_time_type &>(lastUpdateTime) = last_write_time(path(filePath));
         const_cast<bool &>(isUpdated) = true;
     }
     return lastUpdateTime;
@@ -89,8 +89,7 @@ path Node::getFinalNodePathFromPath(path filePath)
     {
         // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
         // actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
-        auto it = const_cast<path::value_type *>(filePath.c_str());
-        for (; *it != '\0'; ++it)
+        for (auto it = const_cast<path::value_type *>(filePath.c_str()); *it != '\0'; ++it)
         {
             *it = std::tolower(*it);
         }
@@ -98,7 +97,7 @@ path Node::getFinalNodePathFromPath(path filePath)
     return filePath;
 }
 
-Node *Node::getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool mayNotExist)
 {
     // TODO
     // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
@@ -111,7 +110,7 @@ Node *Node::getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist
     Node *node = nullptr;
     {
         lock_guard<mutex> lk{nodeInsertMutex};
-        if (auto it = allFiles.find(pstring_view(p)); it != allFiles.end())
+        if (const auto it = allFiles.find(pstring_view(p)); it != allFiles.end())
         {
             node = const_cast<Node *>(it.operator->());
         }
@@ -140,14 +139,14 @@ Node *Node::getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist
     return node;
 }
 
-Node *Node::getNodeFromNormalizedString(pstring_view p, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile, const bool mayNotExist)
 {
     Node *node = nullptr;
     {
-        auto str = new string(p);
-        pstring_view view(*str);
+        const auto str = new string(p);
+        const pstring_view view(*str);
         lock_guard<mutex> lk{nodeInsertMutex};
-        if (auto it = allFiles.find(view); it != allFiles.end())
+        if (const auto it = allFiles.find(view); it != allFiles.end())
         {
             node = const_cast<Node *>(it.operator->());
         }
@@ -176,27 +175,27 @@ Node *Node::getNodeFromNormalizedString(pstring_view p, bool isFile, bool mayNot
     return node;
 }
 
-Node *Node::getNodeFromNonNormalizedString(const pstring &p, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromNonNormalizedString(const pstring &p, const bool isFile, const bool mayNotExist)
 {
-    path filePath = getFinalNodePathFromPath(p);
-    return Node::getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
+    const path filePath = getFinalNodePathFromPath(p);
+    return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }
 
-Node *Node::getNodeFromNormalizedPath(const path &p, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromNormalizedPath(const path &p, const bool isFile, const bool mayNotExist)
 {
-    return Node::getNodeFromNormalizedString((p.*toPStr)(), isFile, mayNotExist);
+    return getNodeFromNormalizedString((p.*toPStr)(), isFile, mayNotExist);
 }
 
-Node *Node::getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const bool mayNotExist)
 {
-    path filePath = getFinalNodePathFromPath(p);
-    return Node::getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
+    const path filePath = getFinalNodePathFromPath(p);
+    return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }
 
-void Node::performSystemCheck(bool isFile, bool mayNotExist)
+void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
 {
-    std::filesystem::file_type nodeType = directory_entry(filePath).status().type();
-    if (nodeType == (isFile ? file_type::regular : file_type::directory))
+    if (const file_type nodeType = directory_entry(filePath).status().type();
+        nodeType == (isFile ? file_type::regular : file_type::directory))
     {
     }
     else

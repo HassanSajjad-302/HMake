@@ -71,21 +71,19 @@ struct InclNodeRecord
     InclNodeRecord(Node *node_);
 };
 
-struct ResolveRequirePathBTarget : public BTarget
+struct ResolveRequirePathBTarget final : BTarget
 {
     CppSourceTarget *target;
     explicit ResolveRequirePathBTarget(CppSourceTarget *target_);
     void updateBTarget(Builder &builder, unsigned short round) override;
-    /*    void setJson() override; */
     pstring getTarjanNodeName() const override;
 };
 
-struct AdjustHeaderUnitsBTarget : public BTarget
+struct AdjustHeaderUnitsBTarget final : BTarget
 {
     CppSourceTarget *target;
     explicit AdjustHeaderUnitsBTarget(CppSourceTarget *target_);
     void updateBTarget(Builder &builder, unsigned short round) override;
-    /*    void setJson() override; */
     pstring getTarjanNodeName() const override;
 };
 
@@ -153,11 +151,11 @@ class CppSourceTarget : public CppCompilerFeatures,
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);
     void populateResolveRequirePathDependencies();
-    pstring getInfrastructureFlags(bool showIncludes);
-    pstring getCompileCommandPrintSecondPart(const SourceNode &sourceNode);
-    pstring getCompileCommandPrintSecondPartSMRule(const SMFile &smFile);
-    PostCompile CompileSMFile(SMFile &smFile);
-    pstring getExtension();
+    pstring getInfrastructureFlags(bool showIncludes) const;
+    pstring getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
+    pstring getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
+    PostCompile CompileSMFile(const SMFile &smFile);
+    pstring getExtension() const;
     PostCompile updateSourceNodeBTarget(SourceNode &sourceNode);
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
@@ -177,7 +175,7 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     // This function is called in SMFile::decrementTotalSMRuleFileCount once all module files and header-units of our
     // target and dependent targets have been scanned
-    void updateRound1();
+    static void updateRound1();
     void updateBTarget(Builder &builder, unsigned short round) override;
     /*    void setJson() override; */
     pstring getTarjanNodeName() const override;
@@ -185,14 +183,13 @@ class CppSourceTarget : public CppCompilerFeatures,
     C_Target *get_CAPITarget(BSMode bsMode) override;
     CompilerFlags getCompilerFlags();
 
-  public:
     CppSourceTarget(pstring name_, TargetType targetType);
     CppSourceTarget(pstring name_, TargetType targetType, CTarget &other, bool hasFile = true);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
     void populateTransitiveProperties();
-    void adjustHeaderUnitsPValueArrayPointers(Builder &builder);
+    void adjustHeaderUnitsPValueArrayPointers();
     CSourceTargetType getCSourceTargetType() const override;
 
     CppSourceTarget &assignStandardIncludesToPublicHUDirectories();
@@ -414,21 +411,18 @@ template <typename... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(const ps
     {
         return SOURCE_FILES(modFile, moduleFilePString...);
     }
+
+    if (Node *node = Node::getNodeFromNonNormalizedPath(modFile, true); !moduleSourceFileDependencies.contains(node))
+    {
+        moduleSourceFileDependencies.emplace(this, node);
+    }
+    if constexpr (sizeof...(moduleFilePString))
+    {
+        return MODULE_FILES(moduleFilePString...);
+    }
     else
     {
-        Node *node = Node::getNodeFromNonNormalizedPath(modFile, true);
-        if (!moduleSourceFileDependencies.contains(node))
-        {
-            moduleSourceFileDependencies.emplace(this, node);
-        }
-        if constexpr (sizeof...(moduleFilePString))
-        {
-            return MODULE_FILES(moduleFilePString...);
-        }
-        else
-        {
-            return *this;
-        }
+        return *this;
     }
 }
 

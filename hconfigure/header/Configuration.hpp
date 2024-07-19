@@ -26,12 +26,12 @@ enum class ConfigTargetHaveFile : bool
 // TODO
 // HollowConfiguration type which is very similar to Configuration except it does not inherit from CTarget which means
 // CppSourceTarget etc could be created with a properties preset but a new Configuration Directory will not be created
-struct Configuration : public CTarget
+struct Configuration : CTarget
 {
     vector<CppSourceTarget *> cppSourceTargets;
     vector<LinkOrArchiveTarget *> linkOrArchiveTargets;
     vector<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;
-    vector<struct CSourceTarget *> prebuiltTargets;
+    vector<CSourceTarget *> prebuiltTargets;
     CppCompilerFeatures compilerFeatures;
     LinkerFeatures linkerFeatures;
     TargetType targetType = TargetType::LIBRARY_STATIC;

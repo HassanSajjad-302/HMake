@@ -19,14 +19,14 @@ import <utility>;
 
 using std::ofstream, std::filesystem::remove;
 
-VSTools::VSTools(pstring batchFile, path toolBinDir, Arch hostArch_, AddressModel hostAM_, Arch targetArch_,
-                 AddressModel targetAM_, bool executingFromWSL)
+VSTools::VSTools(pstring batchFile, path toolBinDir, const Arch hostArch_, const AddressModel hostAM_,
+                 const Arch targetArch_, const AddressModel targetAM_, const bool executingFromWSL)
     : command(std::move(batchFile)), hostArch(hostArch_), hostAM(hostAM_), targetArch(targetArch_), targetAM(targetAM_)
 {
     bool hostSupported = false;
     bool targetSupported = false;
-    vector<pstring> vec = split(toolBinDir.parent_path().filename().string(), ".");
-    Version toolVersion(atol(vec[0].c_str()), atoi(vec[1].c_str()), atoi(vec[2].c_str()));
+    const vector<pstring> vec = split(toolBinDir.parent_path().filename().string(), ".");
+    const Version toolVersion(atol(vec[0].c_str()), atoi(vec[1].c_str()), atoi(vec[2].c_str()));
     if (hostArch_ == Arch::X86)
     {
         if (hostAM == AddressModel::A_32)
@@ -72,22 +72,22 @@ VSTools::VSTools(pstring batchFile, path toolBinDir, Arch hostArch_, AddressMode
     initializeFromVSToolBatchCommand(executingFromWSL);
 }
 
-void VSTools::initializeFromVSToolBatchCommand(bool executingFromWSL)
+void VSTools::initializeFromVSToolBatchCommand(const bool executingFromWSL)
 {
     initializeFromVSToolBatchCommand(command + " " + commandArguments, executingFromWSL);
 }
 
 void VSTools::initializeFromVSToolBatchCommand(const pstring &finalCommand, bool executingFromWSL)
 {
-    pstring temporaryIncludeFilename = "temporaryInclude.txt";
-    pstring temporaryLibFilename = "temporaryLib.txt";
-    pstring temporaryBatchFilename = "temporaryBatch.bat";
-    pstring cmdExe = executingFromWSL ? "cmd.exe /c " : "";
-    pstring batchCommand = "call " + finalCommand + "\n" + cmdExe + "echo %INCLUDE% > " + temporaryIncludeFilename +
+    const pstring temporaryIncludeFilename = "temporaryInclude.txt";
+    const pstring temporaryLibFilename = "temporaryLib.txt";
+    const pstring temporaryBatchFilename = "temporaryBatch.bat";
+    const pstring cmdExe = executingFromWSL ? "cmd.exe /c " : "";
+    const pstring batchCommand = "call " + finalCommand + "\n" + cmdExe + "echo %INCLUDE% > " + temporaryIncludeFilename +
                            "\n" + cmdExe + "echo %LIB%;%LIBPATH% > " + temporaryLibFilename;
     ofstream(temporaryBatchFilename) << batchCommand;
 
-    if (int code = system((cmdExe + temporaryBatchFilename).c_str()); code != EXIT_SUCCESS)
+    if (const int code = system((cmdExe + temporaryBatchFilename).c_str()); code != EXIT_SUCCESS)
     {
         printErrorMessage("Error in Initializing Environment\n");
         throw std::exception();
@@ -117,7 +117,7 @@ void VSTools::initializeFromVSToolBatchCommand(const pstring &finalCommand, bool
             const pstring s = "\\";
             const pstring t = "/";
 
-            vector<pstring> vec2 = std::move(vec);
+            const vector<pstring> vec2 = std::move(vec);
             vec.clear();
             for (const pstring &str : vec2)
             {
@@ -185,12 +185,12 @@ void from_json(const Json &j, VSTools &vsTool)
 
 LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
 {
-    pstring temporaryIncludeFilename = "temporaryInclude.txt";
+    const pstring temporaryIncludeFilename = "temporaryInclude.txt";
 
-    pstring temporaryCppFile = "temporary-main.cpp";
+    const pstring temporaryCppFile = "temporary-main.cpp";
     ofstream(temporaryCppFile) << "";
     command = (compiler.bTPath.*toPStr)() + " " + temporaryCppFile + " -E -v> " + temporaryIncludeFilename + " 2>&1";
-    int code = system(command.c_str());
+    const int code = system(command.c_str());
     remove(temporaryCppFile);
     if (code != EXIT_SUCCESS)
     {
@@ -200,7 +200,7 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
 
     pstring accumulatedPaths = fileToPString(temporaryIncludeFilename);
     remove(temporaryIncludeFilename);
-    vector<pstring> lines = split(std::move(accumulatedPaths), "\n");
+    const vector<pstring> lines = split(std::move(accumulatedPaths), "\n");
 
     size_t foundIndex = 0;
     for (size_t i = 0; i < lines.size(); ++i)
@@ -259,7 +259,7 @@ void from_json(const Json &j, LinuxTools &linuxTools)
 
 ToolsCache::ToolsCache()
 {
-    pstring toolsCacheFile = "toolsCache.json";
+    const pstring toolsCacheFile = "toolsCache.json";
     if constexpr (os == OS::LINUX)
     {
         if (const char *homedir = getenv("HOME"); homedir)

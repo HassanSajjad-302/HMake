@@ -58,7 +58,7 @@ enum class BTargetDepType : bool
 };
 
 inline StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
-struct RealBTarget : public TBT
+struct RealBTarget : TBT
 {
     map<BTarget *, BTargetDepType> dependents;
     map<BTarget *, BTargetDepType> dependencies;
@@ -142,7 +142,7 @@ inline std::mutex realbtarget_adddependency;
 template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U &...bTargets)
 {
     {
-        lock_guard<mutex> lk{realbtarget_adddependency};
+        lock_guard lk{realbtarget_adddependency};
         // adding in both dependencies and deps is duplicating. One should be removed.
         if (dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
         {

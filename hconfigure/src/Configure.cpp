@@ -10,15 +10,12 @@ bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuratio
         }
         return true;
     }
-    else
+    for (const Configuration &configuration : targets<Configuration>)
     {
-        for (const Configuration &configuration : targets<Configuration>)
+        if (const_cast<Configuration &>(configuration).getSelectiveBuildChildDir())
         {
-            if (const_cast<Configuration &>(configuration).getSelectiveBuildChildDir())
-            {
-                (*ptr)(const_cast<Configuration &>(configuration));
-            }
+            (*ptr)(const_cast<Configuration &>(configuration));
         }
-        return false;
     }
+    return false;
 }

@@ -10,7 +10,7 @@ bool NodeCompare::operator()(const Node *lhs, const Node *rhs) const
     return *lhs < *rhs;
 }
 
-NodeSnap::NodeSnap(path nodePath_, file_time_type time_) : nodePath{std::move(nodePath_)}, lastUpdateTime{time_}
+NodeSnap::NodeSnap(path nodePath_, const file_time_type time_) : nodePath{std::move(nodePath_)}, lastUpdateTime{time_}
 {
 }
 
@@ -64,8 +64,8 @@ bool Snapshot::snapshotBalances(const Updates &updates)
         }
     }
     unsigned short expected = 0;
-    unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 6 : 3; // No response file on Linux
-    unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 4 : 3;
+    const unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 6 : 3; // No response file on Linux
+    const unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 4 : 3;
 
     // Output, Error, .smrules, Respone File on Windows / Deps Output File on Linux
     expected += 4 * updates.smruleFiles;
