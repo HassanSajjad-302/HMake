@@ -1,147 +1,269 @@
-#include <utility>
+
+// This successfully compiles SFML with C++20 header units. Except header units from prebuilt libraries vulkan, glad and
+// minimp3, and, from directories as src/Win32/, all header units were successfully compiled. Adding  a header-unit from
+// one of these causes compilation error. Not investigating for now.
 
 #include "Configure.hpp"
-#include "iostream"
 
-using std::filesystem::directory_iterator, std::filesystem::exists;
+using std::filesystem::directory_iterator;
 
-class cxxflag : string
+enum class EXAMPLES
 {
+    YES,
+    NO
 };
 
-// In Boost, except Math no library is using pch
-// And except math, regex and json no library is using obj either.
-
-int main()
+enum class TESTS
 {
-    Variant variant("Checking");
+    YES,
+    NO
+};
 
-    variant.privateIncludes.emplace_back(Node::getNodeFromString(".", false));
-    variant.privateCompileDefinitions.emplace_back("BOOST_ALL_NO_LIB", "1");
+enum class LEAF_RELEASE_LEAF_HPP
+{
+    YES,
+    NO
+};
 
-    for (const auto &it : directory_iterator(srcDir / path("libs")))
+void configurationSpecification(Configuration &configuration)
+{
+    TESTS tests = TESTS::YES;
+    EXAMPLES examples = EXAMPLES::YES;
+    configuration.compilerFeatures.requirementIncludes.emplace_back(
+        Node::getNodeFromNonNormalizedString(path(srcDir).parent_path().string(), false));
+    DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
+    stdhu.getSourceTarget().assignStandardIncludesToPublicHUDirectories();
+
+    /*
+     * 1 - callable_traits
+     * 2 - compatibility
+     * 3 - config
+     * 4 - headers
+     * 5 - hof
+     * 6 - lambda2
+     *
+     * 7 - leaf
+     * 8 - mp11
+     * 9 - pfr
+     * 10 - predef
+     * 11 - preprocessor
+     * 12 - qvm
+     * 13 - ratio
+     */
+
+    // callable_traits
+    DSC<CppSourceTarget> &callableTraits = configuration.GetCppObjectDSC("callable_traits");
+    if (tests == TESTS::YES)
     {
-        if (it.is_directory() &&
-            (exists(it.path() / path("build/Jamfile")) || exists(it.path() / path("build/Jamfile.v2"))))
+        for (const auto &k : directory_iterator(path(srcDir + "/libs/callable_traits/test")))
         {
-            variant.addLibrary(it.path().filename().string());
-            std::cout << it.path().filename();
+            // All targets are just being compiled instead of being run as well.
+            if (k.path().extension() == ".cpp")
+            {
+                DSC<CppSourceTarget> &target =
+                    configuration.GetCppExeDSC("test_callable_traits_" + k.path().filename().string());
+                target.getSourceTarget().MODULE_FILES(k.path().string());
+
+                DSC<CppSourceTarget> &target2 =
+                    configuration.GetCppExeDSC("test_callable_traits_" + k.path().filename().string() + "__lazy");
+                target2.getSourceTarget().MODULE_FILES(k.path().string()).PRIVATE_COMPILE_DEFINITION("USE_LAZY_TYPES");
+            }
         }
     }
 
-    CxxFlags W_NO_LONG_LONG{"-Wno-long-long"};
-    CxxFlags W_NO_VARIADIC_MACROS{"-Wno-variadic-macros"};
-    CxxFlags PEDANTIC{"-pedantic"};
-    CxxFlags F_DIAGNOSTICS_SHOW_OPTION{"-fdiagnostics-show-option"};
-    CxxFlags W_EXTRA{"-Wextra"};
-    CxxFlags W_PEDANTIC{"-pedantic"};
-    CxxFlags W_UNUSED_FUNCTIONS{"-Wunused-function"};
-    CxxFlags W_NO_UNUSED_PARAMETER{"-Wno-unused-parameter"};
-    CxxFlags F_PERMISSIVE{"-fpermissive"};
-    CxxFlags W_NO_DELETE_NO_VIRTUAL_DTOR{"-Wno-delete-non-virtual-dtor"};
-    LinkFlags ENABLE_AUTO_IMPORT{"--enable-auto-import"};
-
-    // Variables used in Boost Thread
-    Define BOOST_THREAD_BUILD_LIB{"BOOST_THREAD_BUILD_LIB", "1"};
-    Define BOOST_THREAD_BUILD_DLL{"BOOST_THREAD_BUILD_DLL", "1"};
-    Define WIN32_LEAN_AND_MEAN_{"WIN32_LEAN_AND_MEAN"};
-    Define BOOST_USE_WINDOWS_H_{"BOOST_USE_WINDOWS_H"};
-
-    string chrono = "chrono";
-    string atomic = "atomic";
-    string thread = "boost_thread";
-    Library &libChrono = variant.findLibrary(chrono);
-    Library &libAtomic = variant.findLibrary(atomic);
-    Library &libThread = variant.findLibrary(thread);
-
-    // TODO: chrono
-    // TODO: default-build properties of are not handled yet.
-    // TODO: sources not supplied
-
-    // TODO
-    // AND and OR funcitons removed. Will define GAND, GOR in global namespace with mutex locked mechanism for setting
-    // the global targets that work for both CppSourceTarget and LinkAndArchiveTarget
-    libChrono.setTargetForAndOr()
-        .M_LEFT_OR(TargetOS::FREEBSD, TS::PGI, LinkFlags{"-lrt"})
-        .SINGLE(TargetOS::LINUX_, LinkFlags{"-lrt -lpthread"})
-        .SINGLE(TS::SUN, Define{"__typeof__", "__typeof__"})
-        .ASSIGN(Warnings::ALL)
-        .M_LEFT_OR(TS::GCC, TS::DARWIN, TS::PATHSCALE, TS::CLANG, W_NO_LONG_LONG)
-        .M_LEFT_OR(TS::GCC_4, TS::GCC_5, TS::DARWIN_4, TS::DARWIN_5, TS::CLANG, W_NO_VARIADIC_MACROS)
-        .M_LEFT_OR(TS::DARWIN, TS::CLANG, Warnings::PEDANTIC)
-        .SINGLE(TS::PATHSCALE, PEDANTIC)
-        .ASSIGN(AND(TS::GCC_4_4_0, TargetOS::WINDOWS) || AND(TS::GCC_4_5_0, TargetOS::WINDOWS) ||
-                    AND(TS::GCC_4_6_0, TargetOS::WINDOWS) || AND(TS::GCC_4_6_3, TargetOS::WINDOWS) ||
-                    AND(TS::GCC_4_7_0, TargetOS::WINDOWS) || AND(TS::GCC_4_8_0, TargetOS::WINDOWS),
-                F_DIAGNOSTICS_SHOW_OPTION)
-        .SINGLE(TS::MSVC, CxxFlags{"/wd4512"})
-        .SINGLE(TS::INTEL, CxxFlags{"-wd193,304,383,444,593,981,1418,2415"});
-
-    // Note: Some of the remarks from the Intel compiler are disabled
-    // remark #193: zero used for undefined preprocessing identifier "XXX"
-    // remark #304: access control not specified ("public" by default)
-    // remark #383: value copied to temporary, reference to temporary used
-    // remark #444: destructor for base class "XXX" (declared at line YYY") is not virtual
-    // remark #593: variable "XXX" was set but never used
-    // remark #981: operands are evaluated in unspecified order
-    // remark #1418: external function definition with no prior declaration
-    // remark #2415: variable "XXX" of static storage duration was declared but never referenced
-
-    // usage-requirements conditions are producer-based and not consumer-based.
-    libChrono.SINGLE_I(Threading::SINGLE, Define{"BOOST_CHRONO_THREAD_DISABLED"})
-        .SINGLE_I(TS::VACPP, Define{"BOOST_TYPEOF_EMULATION"})
-        .SINGLE_I(TS::SUN, Define{"__typeof__", "__typeof__"})
-        .SINGLE_I(Link::SHARED, Define{"BOOST_CHRONO_DYN_LINK", "1"})
-        .SINGLE_I(Link::STATIC, Define("BOOST_CHRONO_STATIC_LINK", "1"))
-        .M_LEFT_OR_I(TS::GCC_3_4_4, TS::GCC_4_3_4, ENABLE_AUTO_IMPORT)
-        .ASSIGN_I(AND(TS::GCC_4_4_0, TargetOS::WINDOWS) || AND(TS::GCC_4_5_0, TargetOS::WINDOWS), ENABLE_AUTO_IMPORT);
-
-    // BOOST atomic starts here
-    // libAtomic.ASSIGN()
-
-    // BOOST thread starts here
-    Executable &hasAtiomicFlagLockFree = variant.addExecutable("has_atomic_flag_lockfree");
-
-    // TODO: thread
-    // TODO: executable hasAtomicFlagLockFree sources not supplied.
-    // TODO: Libraries naming not handled yet. These use <tag> property
-    libThread.SINGLE(Link::SHARED, W_NO_LONG_LONG);
-    libThread.setTargetForAndOr()
-        .ASSIGN(Threading::MULTI)
-        .SINGLE(Link::STATIC, BOOST_THREAD_BUILD_LIB)
-        .SINGLE(Link::SHARED, BOOST_THREAD_BUILD_DLL)
-        .ASSIGN(Warnings::ALL)
-        .ASSIGN(OR(TS::GCC, TS::DARWIN, TS::CLANG), W_NO_LONG_LONG, W_EXTRA, W_UNUSED_FUNCTIONS, W_NO_UNUSED_PARAMETER)
-        .M_LEFT_OR(TS::GCC, TS::DARWIN, PEDANTIC)
-        .SINGLE(TS::DARWIN, F_PERMISSIVE)
-        .SINGLE(TS::CLANG, Warnings::ON)
-        .M_LEFT_OR(TS::GCC_4, TS::GCC_5, TS::DARWIN_4, TS::DARWIN_5, TS::CLANG, W_NO_VARIADIC_MACROS)
-        .M_LEFT_OR(TS::DARWIN_4_6_2, TS::DARWIN_4_7_0, TS::CLANG_3_0, W_NO_DELETE_NO_VIRTUAL_DTOR)
-        .SINGLE(TS::INTEL, CxxFlags{"-wd193,304,383,444,593,981,1418,2415"})
-        .SINGLE(TS::MSVC, CxxFlags{"/wd4100 /wd4512 /wd6246"})
-        .M_RIGHT(TargetOS::WINDOWS, WIN32_LEAN_AND_MEAN_, BOOST_USE_WINDOWS_H_);
-
-    // Note: Some of the remarks from the Intel compiler are disabled
-    // remark #193: zero used for undefined preprocessing identifier "XXX"
-    // remark #304: access control not specified ("public" by default)
-    // remark #593: variable "XXX" was set but never used
-    // remark #1418: external function definition with no prior declaration
-    // remark #2415: variable "XXX" of static storage duration was declared but never referenced
-
-    libThread.SINGLE_I(Link::STATIC, BOOST_THREAD_BUILD_LIB).SINGLE_I(Link::SHARED, BOOST_THREAD_BUILD_DLL);
-
-    path PTW32_INCLUDE;
-    path PTW32_LIB;
-    if (!(PTW32_INCLUDE.empty() && !PTW32_LIB.empty()))
+    if (examples == EXAMPLES::YES)
     {
-        string libName;
-        if (libThread.toolSet.ts == TS::MSVC)
+        for (const auto &k : directory_iterator(path(srcDir + "/libs/callable_traits/example")))
         {
-            libName = "pthreadVC2.lib";
+            // All targets are being compiled instead of being run as well
+            if (k.path().extension() == ".cpp")
+            {
+                DSC<CppSourceTarget> &target =
+                    configuration.GetCppExeDSC("example_callable_traits_" + k.path().filename().string());
+                target.getSourceTarget().MODULE_FILES(k.path().string());
+            }
         }
-        if (libThread.toolSet.ts == TS::GCC)
+    }
+
+    // compatibility
+    DSC<CppSourceTarget> &compatibility = configuration.GetCppObjectDSC("compatibility");
+    // compatibility.getSourceTarget().PUBLIC_HU_INCLUDES("libs/");
+
+    // config
+    DSC<CppSourceTarget> &config = configuration.GetCppObjectDSC("config");
+    // Skipping test and check for now
+
+    // headers
+    DSC<CppSourceTarget> &headers = configuration.GetCppObjectDSC("headers");
+    // This is a fake library for installing headers
+
+    DSC<CppSourceTarget> &hof = configuration.GetCppObjectDSC("hof");
+    if (tests == TESTS::YES)
+    {
+        for (const auto &k : directory_iterator(path(srcDir + "/libs/hof/test")))
         {
-            libName = "libpthreadGC2.a";
+            // All targets are just being compiled instead of being run as well.
+            // Not all tests are passing, hence skipping
+            /*if (k.path().extension() == ".cpp")
+            {
+                DSC<CppSourceTarget> &target =
+                    configuration.GetCppExeDSC("test_hof_" + k.path().filename().string());
+                target.getSourceTarget().MODULE_FILES(k.path().string());
+            }*/
+        }
+    }
+    // hof example has no Jamfile
+
+    DSC<CppSourceTarget> &lambda2 = configuration.GetCppObjectDSC("lambda2");
+    if (tests == TESTS::YES)
+    {
+        for (const auto &k : directory_iterator(path(srcDir + "/libs/lambda2/test")))
+        {
+            // All targets are just being compiled instead of being run as well.
+            if (k.path().extension() == ".cpp")
+            {
+                DSC<CppSourceTarget> &target =
+                    configuration.GetCppExeDSC("test_lambda2_" + k.path().filename().string());
+                target.getSourceTarget().MODULE_FILES(k.path().string());
+            }
+        }
+    }
+
+    DSC<CppSourceTarget> &leaf = configuration.GetCppObjectDSC("leaf");
+    if (tests == TESTS::YES)
+    {
+        // test/Jamfile.v2 has compile, run, exe and configuration based selection and target specification
+        /*for (const auto &k : directory_iterator(path(srcDir + "/libs/leaf/test")))
+        {
+            // All targets are just being compiled instead of being run as well.
+            // Those tests that should fail to compile are not being dealt yet
+            if (k.path().extension() == ".cpp" && !k.path().string().contains("fail"))
+            {
+                DSC<CppSourceTarget> &target =
+                    configuration.GetCppExeDSC("test_leaf_" + k.path().filename().string());
+                target.getSourceTarget().MODULE_FILES(k.path().string());
+            }
+        }*/
+    }
+
+    DSC<CppSourceTarget> &mp11 = configuration.GetCppObjectDSC("mp11");
+    if (tests == TESTS::YES)
+    {
+        // test/Jamfile.v2 has compile, run, exe and configuration based selection and target specification
+        for (const auto &k : directory_iterator(path(srcDir + "/libs/mp11/test")))
+        {
+            // All targets are just being compiled instead of being run as well.
+            // mp_compose_sf.cpp is a static lib
+            if (k.path().extension() == ".cpp")
+            {
+                if (!k.path().string().contains("compose_sf"))
+                {
+                    DSC<CppSourceTarget> &target =
+                        configuration.GetCppExeDSC("test_mp11_" + k.path().filename().string());
+                    target.getSourceTarget().MODULE_FILES(k.path().string());
+                }
+                else
+                {
+                    DSC<CppSourceTarget> &target = configuration.GetCppObjectDSC("test_mp11_mp_compose_sf");
+                    target.getSourceTarget().MODULE_FILES("libs/mp11/test/mp_compose_sf.cpp");
+                }
+            }
+        }
+    }
+
+    // skipping pfr. header-only library with not that many tests but lots of
+    // configuration.
+
+    // skipping predef. header-only library with not that many tests but lots of
+    // configurations.
+
+    DSC<CppSourceTarget> &preprocessor = configuration.GetCppObjectDSC("preprocessor");
+    if (tests == TESTS::YES)
+    {
+        vector<string> vec{"arithmetic.cpp", "array.cpp",     "comparison.cpp", "control.cpp", "debug.cpp",
+                           "facilities.cpp", "iteration.cpp", "list.cpp",       "logical.cpp", "punctuation.cpp",
+                           "repetition.cpp", "selection.cpp", "seq.cpp",        "slot.cpp",    "stringize.cpp",
+                           "tuple.cpp",      "variadic.cpp"};
+
+        for (string &str : vec)
+        {
+            DSC<CppSourceTarget> &preprocessorTests = configuration.GetCppExeDSC("test_preprocessor_" + str);
+            preprocessorTests.getSourceTarget().MODULE_FILES(srcDir + "libs/preprocessor/test/" + str);
+            DSC<CppSourceTarget> &preprocessorNumber512Tests =
+                configuration.GetCppExeDSC("test_preprocessor_number_512_" + str);
+            preprocessorNumber512Tests.getSourceTarget()
+                .MODULE_FILES(srcDir + "libs/preprocessor/test/" + str)
+                .PRIVATE_COMPILE_DEFINITION("BOOST_PP_LIMIT_MAG=512");
+            DSC<CppSourceTarget> &preprocessorNumber1024Tests =
+                configuration.GetCppExeDSC("test_preprocessor_number_1024_" + str);
+            preprocessorNumber1024Tests.getSourceTarget()
+                .MODULE_FILES(srcDir + "libs/preprocessor/test/" + str)
+                .PRIVATE_COMPILE_DEFINITION("BOOST_PP_LIMIT_MAG=1024");
+            // Incomplete
+        }
+    }
+
+    // callable_traits
+    DSC<CppSourceTarget> &qvm = configuration.GetCppObjectDSC("qvm");
+    if (tests == TESTS::YES)
+    {
+        for (const auto &k : directory_iterator(path(srcDir + "/libs/qvm/test")))
+        {
+            // All targets are just being compiled instead of being run as well.
+            // Fail tests are not being considered
+            if (k.path().extension() == ".cpp" && !k.path().string().contains("fail") &&
+                !k.path().string().contains("header-test.cpp"))
+            {
+                DSC<CppSourceTarget> &qvmTest = configuration.GetCppExeDSC("test_qvm_" + k.path().filename().string());
+                qvmTest.getSourceTarget().MODULE_FILES(k.path().string());
+
+                DSC<CppSourceTarget> &qvmTestHpp =
+                    configuration.GetCppExeDSC("test_qvm_hpp_" + k.path().filename().string());
+                qvmTestHpp.getSourceTarget()
+                    .MODULE_FILES(k.path().string())
+                    .PRIVATE_COMPILE_DEFINITION("BOOST_QVM_TEST_SINGLE_HEADER",
+                                                addEscapedQuotes("libs/qvm/include/boost/qvm.hpp"));
+
+                // Commented out because lite tests do not pass
+                /*
+                DSC<CppSourceTarget> &qvmTestLiteHpp =
+                    configuration.GetCppExeDSC("test_qvm_lite_hpp_" + k.path().filename().string());
+                qvmTestLiteHpp.getSourceTarget()
+                    .MODULE_FILES(k.path().string())
+                    .PRIVATE_COMPILE_DEFINITION("BOOST_QVM_TEST_SINGLE_HEADER",
+                                                addEscapedQuotes("libs/qvm/include/boost/qvm_lite.hpp"));
+                                                */
+
+                /*DSC<CppSourceTarget> &target2 =
+                    configuration.GetCppExeDSC("test_qvm_" + k.path().filename().string() + "__lazy");
+                target2.getSourceTarget().MODULE_FILES(k.path().string()).PRIVATE_COMPILE_DEFINITION("USE_LAZY_TYPES");*/
+            }
+        }
+    }
+
+    // Level 1
+    DSC<CppSourceTarget> &assert = configuration.GetCppObjectDSC("assert");
+    if (tests == TESTS::YES)
+    {
+        for (const auto &k : directory_iterator(path(srcDir + "/libs/assert/test")))
+        {
+            // All targets are just being compiled instead of being run as well.
+            if (k.path().extension() == ".cpp")
+            {
+                DSC<CppSourceTarget> &target =
+                    configuration.GetCppExeDSC("test_assert_" + k.path().filename().string());
+                target.getSourceTarget().MODULE_FILES(k.path().string());
+            }
         }
     }
 }
+
+void buildSpecification()
+{
+    // This tries to build SFML similar to the current CMakeLists.txt. Currently, only Windows build is supported.
+    GetConfiguration("conventional").ASSIGN(CxxSTD::V_LATEST, TargetType::LIBRARY_SHARED, TreatModuleAsSource::YES);
+
+    selectiveConfigurationSpecification(&configurationSpecification);
+}
+
+MAIN_FUNCTION
