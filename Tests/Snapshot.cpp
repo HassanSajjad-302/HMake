@@ -47,7 +47,6 @@ void Snapshot::after(const path &directoryPath)
         if (f.is_regular_file())
         {
             Node *node = const_cast<Node *>(Node::getNodeFromNonNormalizedPath(f.path(), true));
-            node->getLastUpdateTime();
             afterData.emplace(node->filePath, node->getLastUpdateTime());
         }
     }

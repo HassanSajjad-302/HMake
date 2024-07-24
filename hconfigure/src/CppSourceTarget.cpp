@@ -248,19 +248,19 @@ void CppSourceTarget::adjustHeaderUnitsPValueArrayPointers()
                 const PValue *oldPtr = headerUnit.sourceJson;
 
                 // old value is moved
-                headerUnitsPValueArray.PushBack(*(headerUnit.sourceJson), cppAllocator);
+                headerUnitsPValueArray.PushBack(*headerUnit.sourceJson, cppAllocator);
 
                 // old pointer cleared
                 delete oldPtr;
 
                 // Reassigning the old value moved in the array
-                const_cast<SMFile &>(headerUnit).sourceJson = (headerUnitsPValueArray.End() - 1);
+                const_cast<SMFile &>(headerUnit).sourceJson = headerUnitsPValueArray.End() - 1;
             }
             else
             {
                 // headerUnit existed before in the cache but because array size is increased the sourceJson
                 // pointer is invalidated now. Reassigning the pointer based on previous index.
-                const_cast<SMFile &>(headerUnit).sourceJson = &(headerUnitsPValueArray[headerUnit.headerUnitsIndex]);
+                const_cast<SMFile &>(headerUnit).sourceJson = &headerUnitsPValueArray[headerUnit.headerUnitsIndex];
             }
         }
     }
@@ -797,7 +797,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         readBuildCacheFile(builder);
         // getCompileCommand will be later on called concurrently therefore need to set this before.
         setCompileCommand();
-        compileCommandWithTool = (compiler.bTPath.*toPStr)() + " " + compileCommand;
+        compileCommandWithTool.setCommand((compiler.bTPath.*toPStr)() + " " + compileCommand);
         setSourceCompileCommandPrintFirstHalf();
         parseModuleSourceFiles(builder);
         populateResolveRequirePathDependencies();
@@ -1274,7 +1274,7 @@ void CppSourceTarget::populateSourceNodes()
 
         if (fileIt != UINT64_MAX)
         {
-            sourceNode.sourceJson = &(sourceFilesJson[fileIt]);
+            sourceNode.sourceJson = &sourceFilesJson[fileIt];
         }
         else
         {
@@ -1307,7 +1307,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
         if (const size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(ptoref(smFile.node->filePath)));
             fileIt != UINT64_MAX)
         {
-            smFile.sourceJson = &(moduleFilesJson[fileIt]);
+            smFile.sourceJson = &moduleFilesJson[fileIt];
         }
         else
         {
@@ -1516,7 +1516,7 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const boo
 
 void CppSourceTarget::saveBuildCache(const bool round)
 {
-    lock_guard<mutex> lk{buildCacheMutex};
+    lock_guard lk{buildCacheMutex};
 
     if (buildCacheIndex == UINT64_MAX)
     {

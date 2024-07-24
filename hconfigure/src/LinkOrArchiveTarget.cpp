@@ -45,7 +45,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 {
     for (auto &[pre, dep] : requirementDeps)
     {
-        sortedPrebuiltDependencies.emplace(pre, &(dep));
+        sortedPrebuiltDependencies.emplace(pre, &dep);
     }
 
     for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
@@ -65,7 +65,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     }
 
     setLinkOrArchiveCommands();
-    commandWithoutTargetsWithTool += (linker.bTPath.*toPStr)() + " " + linkOrArchiveCommandWithoutTargets;
+    commandWithoutTargetsWithTool.setCommand((linker.bTPath.*toPStr)() + " " + linkOrArchiveCommandWithoutTargets);
 
     if (!exists(path(buildCacheFilesDirPath)))
     {
@@ -96,7 +96,8 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         {
             // If linkOrArchiveCommandWithoutTargets could be stored with linker.btPath.*toPStr, so only PValue of
             // strings is compared instead of new allocation
-            if (buildCache[buildCacheIndex][1].GetString() == commandWithoutTargetsWithTool)
+            if (buildCache[buildCacheIndex][Indices::LinkTargetBuildCache::commandWithoutArgumentsWithTools] ==
+                commandWithoutTargetsWithTool.getHash())
             {
                 bool needsUpdate = false;
                 if (!EVALUATE(TargetType::LIBRARY_STATIC))
@@ -121,7 +122,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 for (const ObjectFile *objectFile : objectFiles)
                 {
                     bool contains = false;
-                    for (PValue &o : buildCache[buildCacheIndex][2].GetArray())
+                    for (PValue &o : buildCache[buildCacheIndex][Indices::LinkTargetBuildCache::objectFiles].GetArray())
                     {
                         if (o == ptoref(objectFile->objectFileOutputFilePath->filePath))
                         {
@@ -240,7 +241,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short r
             {
                 PValue *objectFilesPValue;
 
-                lock_guard<mutex> lk(buildCacheMutex);
+                lock_guard lk(buildCacheMutex);
 
                 if (buildCacheIndex == UINT64_MAX)
                 {
@@ -249,14 +250,15 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short r
                     PValue &t = *(buildCache.End() - 1);
                     t.PushBack(ptoref(targetSubDir), ralloc);
 
-                    t.PushBack(ptoref(commandWithoutTargetsWithTool), ralloc);
+                    t.PushBack(commandWithoutTargetsWithTool.getHash(), ralloc);
                     t.PushBack(PValue(kArrayType), ralloc);
                     objectFilesPValue = t.End() - 1;
                 }
                 else
                 {
-                    buildCache[buildCacheIndex][1].SetString(ptoref(commandWithoutTargetsWithTool), ralloc);
-                    objectFilesPValue = &(buildCache[buildCacheIndex][2]);
+                    buildCache[buildCacheIndex][Indices::LinkTargetBuildCache::commandWithoutArgumentsWithTools] =
+                        commandWithoutTargetsWithTool.getHash();
+                    objectFilesPValue = &buildCache[buildCacheIndex][Indices::LinkTargetBuildCache::objectFiles];
                     objectFilesPValue->Clear();
                 }
 
@@ -269,7 +271,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short r
             }
 
             {
-                lock_guard<mutex> lk(printMutex);
+                lock_guard lk(printMutex);
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
                 {
                     postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
@@ -1087,11 +1089,11 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         const PathPrint *pathPrint;
         if (linkTargetType == TargetType::LIBRARY_STATIC)
         {
-            pathPrint = &(acpSettings.objectFiles);
+            pathPrint = &acpSettings.objectFiles;
         }
         else
         {
-            pathPrint = &(lcpSettings.objectFiles);
+            pathPrint = &lcpSettings.objectFiles;
         }
         if (pathPrint->printLevel != PathPrintLevel::NO)
         {

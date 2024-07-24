@@ -21,7 +21,7 @@ using fmt::print, std::filesystem::current_path, std::filesystem::directory_iter
 
 void writeBuildCache()
 {
-    std::lock_guard<std::mutex> lk(buildCacheMutex);
+    std::lock_guard lk(buildCacheMutex);
     prettyWritePValueToFile(pstring_view(configureDir + "/build-cache.json"), buildCache);
 }
 

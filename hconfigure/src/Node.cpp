@@ -109,7 +109,7 @@ Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool
 
     Node *node = nullptr;
     {
-        lock_guard<mutex> lk{nodeInsertMutex};
+        lock_guard lk{nodeInsertMutex};
         if (const auto it = allFiles.find(pstring_view(p)); it != allFiles.end())
         {
             node = const_cast<Node *>(it.operator->());
@@ -145,7 +145,7 @@ Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile,
     {
         const auto str = new string(p);
         const pstring_view view(*str);
-        lock_guard<mutex> lk{nodeInsertMutex};
+        lock_guard lk{nodeInsertMutex};
         if (const auto it = allFiles.find(view); it != allFiles.end())
         {
             node = const_cast<Node *>(it.operator->());

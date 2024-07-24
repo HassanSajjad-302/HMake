@@ -134,8 +134,8 @@ CSourceTarget &Configuration::GetCPT()
 DSC<CppSourceTarget> &Configuration::GetCppExeDSC(const pstring &name_, const bool defines, pstring define)
 {
     return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(
-                                                                               &(GetCppObject(name_ + dashCpp)),
-                                                                               &(GetExeLinkOrArchiveTarget(name_)), defines,
+                                                                               &GetCppObject(name_ + dashCpp),
+                                                                               &GetExeLinkOrArchiveTarget(name_), defines,
                                                                                std::move(define)).first.operator*());
 }
 
@@ -159,22 +159,22 @@ DSC<CppSourceTarget> &Configuration::GetCppTargetDSC(const pstring &name_, const
 
 DSC<CppSourceTarget> &Configuration::GetCppStaticDSC(const pstring &name_, const bool defines, pstring define)
 {
-    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name_ + dashCpp)),
-                                                                                    &(GetStaticLinkOrArchiveTarget(name_)), defines,
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(&GetCppObject(name_ + dashCpp),
+                                                                                    &GetStaticLinkOrArchiveTarget(name_), defines,
                                                                                     std::move(define)).first.operator*());
 }
 
 DSC<CppSourceTarget> &Configuration::GetCppSharedDSC(const pstring &name_, const bool defines, pstring define)
 {
-    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name_ + dashCpp)),
-                                                                                    &(GetSharedLinkOrArchiveTarget(name_)), defines,
+    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(&GetCppObject(name_ + dashCpp),
+                                                                                    &GetSharedLinkOrArchiveTarget(name_), defines,
                                                                                     std::move(define)).first.operator*());
 }
 
 DSC<CppSourceTarget> &Configuration::GetCppObjectDSC(const pstring &name_, const bool defines, pstring define)
 {
     return const_cast<DSC<CppSourceTarget> &>(
-        targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name_ + dashCpp)), &GetPrebuiltBasic(name_), defines, std::move(define)).first.operator*());
+        targets<DSC<CppSourceTarget>>.emplace(&GetCppObject(name_ + dashCpp), &GetPrebuiltBasic(name_), defines, std::move(define)).first.operator*());
 }
 
 DSC<CppSourceTarget> &Configuration::GetCppTargetDSC_P(const pstring &name_, const pstring &directory,
@@ -199,16 +199,16 @@ DSC<CppSourceTarget> &Configuration::GetCppTargetDSC_P(const pstring &name_, con
                                                        const pstring &directory, const TargetType targetType_, bool defines,
                                                        pstring define)
 {
-    CppSourceTarget *cppSourceTarget = &(GetCppObject(name_ + dashCpp));
+    CppSourceTarget *cppSourceTarget = &GetCppObject(name_ + dashCpp);
     if (targetType_ == TargetType::LIBRARY_STATIC)
     {
         return const_cast<DSC<CppSourceTarget> &>(
-            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &(GetStaticPrebuiltLinkOrArchiveTarget(prebuiltName, directory)), defines, std::move(define)).first.operator*());
+            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &GetStaticPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines, std::move(define)).first.operator*());
     }
     else if (targetType_ == TargetType::LIBRARY_SHARED)
     {
         return const_cast<DSC<CppSourceTarget> &>(
-            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &(GetSharedPrebuiltLinkOrArchiveTarget(prebuiltName, directory)), defines, std::move(define)).first.operator*());
+            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &GetSharedPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines, std::move(define)).first.operator*());
     }
     else
     {
@@ -221,7 +221,7 @@ DSC<CppSourceTarget> &Configuration::GetCppStaticDSC_P(const pstring &name_, con
                                                        const bool defines, pstring define)
 {
     return const_cast<DSC<CppSourceTarget> &>(
-        targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name_ + dashCpp)), &(GetStaticPrebuiltLinkOrArchiveTarget(name_, directory)),
+        targets<DSC<CppSourceTarget>>.emplace(&GetCppObject(name_ + dashCpp), &GetStaticPrebuiltLinkOrArchiveTarget(name_, directory),
                                                     defines, std::move(define)).first.operator*());
 }
 
@@ -229,7 +229,7 @@ DSC<CppSourceTarget> &Configuration::GetCppSharedDSC_P(const pstring &name_, con
                                                        const bool defines, pstring define)
 {
     return const_cast<DSC<CppSourceTarget> &>(
-        targets<DSC<CppSourceTarget>>.emplace(&(GetCppObject(name_ + dashCpp)), &(GetSharedPrebuiltLinkOrArchiveTarget(name_, directory)),
+        targets<DSC<CppSourceTarget>>.emplace(&GetCppObject(name_ + dashCpp), &GetSharedPrebuiltLinkOrArchiveTarget(name_, directory),
                                                     defines, std::move(define)).first.operator*());
 }
 

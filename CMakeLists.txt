@@ -28,6 +28,7 @@ add_library(hconfigure STATIC
         hconfigure/src/Builder.cpp
         hconfigure/src/BuildSystemFunctions.cpp
         hconfigure/src/Cache.cpp
+        hconfigure/src/HashedCommand.cpp
         hconfigure/src/SMFile.cpp
         hconfigure/src/Configuration.cpp
         hconfigure/src/CppSourceTarget.cpp
@@ -60,7 +61,10 @@ target_link_libraries(hconfigure PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
 target_include_directories(hconfigure
         PUBLIC hconfigure/header
         PUBLIC rapidjson/include
+        PUBLIC komihash
         )
+# Comment out the following to switch from compile-command to hash in the build-log.
+target_compile_definitions(hconfigure PUBLIC USE_COMMAND_HASH)
 
 if(UNIX)
 target_compile_options(hconfigure PRIVATE -fvisibility=hidden)
@@ -73,6 +77,7 @@ add_executable(hhelper hhelper/src/main.cpp)
 target_link_libraries(hhelper PRIVATE hconfigure)
 target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/json/include/")
 target_compile_definitions(hhelper PRIVATE RAPIDJSON_HEADER="${CMAKE_SOURCE_DIR}/rapidjson/include/")
+target_compile_definitions(hhelper PRIVATE KOMIHASH_HEADER="${CMAKE_SOURCE_DIR}/komihash/")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure>")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure>")
@@ -84,7 +89,7 @@ add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Projects/blend2d/hmake.cpp)
+add_executable(HMakeHelper Examples/Example1/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 

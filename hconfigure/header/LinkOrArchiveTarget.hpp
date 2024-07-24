@@ -3,11 +3,13 @@
 #ifdef USE_HEADER_UNITS
 import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
+import "HashedCommand";
 import "PostBasic.hpp";
 import "PrebuiltLinkOrArchiveTarget.hpp";
 #else
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
+#include "HashedCommand.hpp"
 #include "PostBasic.hpp"
 #include "PrebuiltLinkOrArchiveTarget.hpp"
 #endif
@@ -50,11 +52,13 @@ class LinkOrArchiveTarget : public CTarget,
     using BaseType = PrebuiltLinkOrArchiveTarget;
 
   public:
-    // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
-    pstring linkOrArchiveCommandWithoutTargets;
-    pstring commandWithoutTargetsWithTool;
-    pstring linkOrArchiveCommandWithTargets;
     pstring buildCacheFilesDirPath;
+
+    pstring linkOrArchiveCommandWithoutTargets;
+    pstring linkOrArchiveCommandWithTargets;
+    // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
+    HashedCommand commandWithoutTargetsWithTool;
+
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
 
     PValue *targetBuildCache = nullptr;

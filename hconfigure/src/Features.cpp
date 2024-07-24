@@ -287,7 +287,7 @@ pstring getTargetNameFromActualName(const TargetType bTargetType, const OS osLoc
 
 pstring getSlashedExecutableName(const pstring &name)
 {
-    return os == OS::NT ? (name + ".exe") : ("./" + name);
+    return os == OS::NT ? name + ".exe" : "./" + name;
 }
 
 LinkerFeatures::LinkerFeatures()

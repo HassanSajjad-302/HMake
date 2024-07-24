@@ -42,14 +42,14 @@ class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>:
                  wchar_t *to_limit, wchar_t *&to_next) const override
     {
         // Loop over both the input and output array/
-        for (; (from < from_end) && (to < to_limit); from += 2, ++to)
+        for (; from < from_end && to < to_limit; from += 2, ++to)
         {
             /*Input the Data*/
             /* As the input 16 bits may not fill the wchar_t object
              * Initialise it so that zero out all its bit's. This
              * is important on systems with 32bit wchar_t objects.
              */
-            (*to) = L'\0';
+            *to = L'\0';
 
             /* Next read the data from the input stream into
              * wchar_t object. Remember that we need to copy
@@ -62,7 +62,7 @@ class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>:
         from_next = from;
         to_next = to;
 
-        return ((from > from_end) ? partial : ok);
+        return from > from_end ? partial : ok;
     }
 
     /* This function deals with converting data from the internal stream to a C/C++ file stream.*/
@@ -84,7 +84,7 @@ class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>:
     result do_out(state_type &state, const wchar_t *from, const wchar_t *from_end, const wchar_t *&from_next, char *to,
                   char *to_limit, char *&to_next) const override
     {
-        for (; (from < from_end) && (to < to_limit); ++from, to += 2)
+        for (; from < from_end && to < to_limit; ++from, to += 2)
         {
             /* Output the Data */
             /* NB I am assuming the characters are encoded as UTF-16.
@@ -99,7 +99,7 @@ class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>:
         from_next = from;
         to_next = to;
 
-        return ((to > to_limit) ? partial : ok);
+        return to > to_limit ? partial : ok;
     }
 };
 

@@ -49,7 +49,7 @@ TEST(ExamplesTest, Example3)
     cacheFileJson["cache-variables"]["FILE1"] = false;
     ofstream("cache.json") << cacheFileJson.dump(4);
 
-    ASSERT_EQ(system((hhelperStr + " --configure").c_str()), 0) << (hhelperStr + " --configure") + " command failed.";
+    ASSERT_EQ(system((hhelperStr + " --configure").c_str()), 0) << hhelperStr + " --configure" + " command failed.";
     ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
 
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app/" +

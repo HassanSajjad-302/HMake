@@ -13,3 +13,6 @@
 [submodule "rapidjson"]
 	path = rapidjson
 	url = https://github.com/Tencent/rapidjson
+[submodule "komihash"]
+	path = komihash
+	url = https://github.com/avaneev/komihash

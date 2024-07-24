@@ -5,6 +5,7 @@ import "BuildTools.hpp";
 import "CSourceTarget.hpp";
 import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
+import "HashedCommand.hpp";
 import "JConsts.hpp";
 import "PostBasic.hpp";
 import "ToolsCache.hpp";
@@ -15,6 +16,7 @@ import <set>;
 #include "CSourceTarget.hpp"
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
+#include "HashedCommand.hpp"
 #include "JConsts.hpp"
 #include "PostBasic.hpp"
 #include "ToolsCache.hpp"
@@ -124,10 +126,11 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
     pstring compileCommand;
+    pstring sourceCompileCommandPrintFirstHalf;
+
     // Compile Command including tool. Tool is separated from compile command because on Windows, resource-file needs to
     // be used.
-    pstring compileCommandWithTool;
-    pstring sourceCompileCommandPrintFirstHalf;
+    HashedCommand compileCommandWithTool;
 
     set<SourceNode, CompareSourceNode> sourceFileDependencies;
     // Comparator used is same as for SourceNode

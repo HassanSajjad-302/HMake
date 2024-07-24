@@ -139,10 +139,10 @@ void SourceNode::updateBTarget(Builder &, const unsigned short round)
         // cached compile-command would be different
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            (*sourceJson)[Indices::TargetBuildCache::SourceFiles::compileCommandWithTool].SetString(
-                ptoref(target->compileCommandWithTool));
+            (*sourceJson)[Indices::TargetBuildCache::SourceFiles::compileCommandWithTool] =
+                target->compileCommandWithTool.getHash();
         }
-        lock_guard<mutex> lk(printMutex);
+        lock_guard lk(printMutex);
         postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
         fflush(stdout);
     }
@@ -155,7 +155,7 @@ void SourceNode::setSourceNodeFileStatus()
     objectFileOutputFilePath =
         Node::getNodeFromNormalizedString(target->buildCacheFilesDirPath + node->getFileName() + ".o", true, true);
 
-    if ((*sourceJson)[SourceFiles::compileCommandWithTool] != PValue(ptoref(target->compileCommandWithTool)))
+    if ((*sourceJson)[SourceFiles::compileCommandWithTool] != target->compileCommandWithTool.getHash())
     {
         fileStatus.store(true);
         return;
@@ -246,8 +246,8 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
         }
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            (*sourceJson)[Indices::TargetBuildCache::ModuleFiles::scanningCommandWithTool].SetString(
-                ptoref(target->compileCommandWithTool));
+            (*sourceJson)[Indices::TargetBuildCache::ModuleFiles::scanningCommandWithTool] =
+                target->compileCommandWithTool.getHash();
             saveSMRulesJsonToSourceJson(smrulesFileOutputClang);
             iterateRequiresJsonToInitializeNewHeaderUnits(builder);
             assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
@@ -261,7 +261,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
 
         if (!fileStatus.load())
         {
-            if ((*sourceJson)[ModuleFiles::compileCommandWithTool] != PValue(ptoref(target->compileCommandWithTool)))
+            if ((*sourceJson)[ModuleFiles::compileCommandWithTool] != target->compileCommandWithTool.getHash())
             {
                 fileStatus.store(true);
             }
@@ -283,7 +283,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             {
                 // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
                 // cached compile-command would be different
-                (*sourceJson)[ModuleFiles::compileCommandWithTool].SetString(ptoref(target->compileCommandWithTool));
+                (*sourceJson)[ModuleFiles::compileCommandWithTool] = target->compileCommandWithTool.getHash();
 
                 for (const PValueObjectFileMapping &mapping : pValueObjectFileMapping)
                 {
@@ -594,7 +594,7 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
     objectFileOutputFilePath =
         Node::getNodeFromNormalizedString(target->buildCacheFilesDirPath + node->getFileName() + ".m.o", true, true);
 
-    if ((*sourceJson)[ModuleFiles::scanningCommandWithTool] != PValue(ptoref(target->compileCommandWithTool)))
+    if ((*sourceJson)[ModuleFiles::scanningCommandWithTool] != target->compileCommandWithTool.getHash())
     {
         pstring str((*sourceJson)[ModuleFiles::scanningCommandWithTool].GetString(),
                     (*sourceJson)[ModuleFiles::scanningCommandWithTool].GetStringLength());
@@ -711,7 +711,6 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
                     objectFileOutputFilePath->getLastUpdateTime())
                 {
                     fileStatus.store(true);
-                    return;
                 }
             }
         }
@@ -815,11 +814,11 @@ pstring SMFile::getFlagPrint(const pstring &outputFilesWithoutExtension) const
 
         if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
-            str = (infra ? "/interface " : "");
+            str = infra ? "/interface " : "";
         }
         else if (type == SM_FILE_TYPE::HEADER_UNIT)
         {
-            str = (infra ? "/exportHeader " : "");
+            str = infra ? "/exportHeader " : "";
         }
         else if (type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
         {

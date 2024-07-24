@@ -1,6 +1,11 @@
 #ifndef HMAKE_CONFIGURE_HPP
 #define HMAKE_CONFIGURE_HPP
 
+// Uncommenting following line will cause compile command to be logged instead of hashing.
+// This can be declared in the HMakeHelper's hmake.cpp file.
+
+// #define USE_COMPILE_COMMAND 1
+
 #ifdef USE_HEADER_UNITS
 import "BasicTargets.hpp";
 import "BuildSystemFunctions.hpp";

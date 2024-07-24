@@ -51,6 +51,9 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
 #ifndef HCONFIGURE_STATIC_LIB_PATH
 #define THROW true
 #endif
+#ifndef KOMIHASH_HEADER
+#define THROW true
+#endif
 
 int main(int argc, char **argv)
 {
@@ -98,6 +101,7 @@ int main(int argc, char **argv)
         path hconfigureHeaderPath = path(HCONFIGURE_HEADER);
         path jsonHeaderPath = path(JSON_HEADER);
         path rapidjsonHeaderPath = path(RAPIDJSON_HEADER);
+        path komihashHeaderPath = path(KOMIHASH_HEADER);
         path fmtHeaderPath = path(FMT_HEADER);
         path hconfigureStaticLibDirectoryPath = path(HCONFIGURE_STATIC_LIB_DIRECTORY);
         path fmtStaticLibDirectoryPath = path(FMT_STATIC_LIB_DIRECTORY);
@@ -106,9 +110,18 @@ int main(int argc, char **argv)
 
         if constexpr (os == OS::LINUX)
         {
+
+#ifdef USE_COMMAND_HASH
+            string commandHashCompileDef = " -D USE_COMMAND_HASH ";
+#else
+            string commandHashCompileDef = "";
+#endif
+
             string compileCommand =
-                "c++ -std=c++2b -fvisibility=hidden -fsanitize=thread -fno-omit-frame-pointer -fPIC "
+                "c++ -std=c++2b -fvisibility=hidden -fsanitize=thread -fno-omit-frame-pointer -fPIC " +
+                commandHashCompileDef +
                 " -I " HCONFIGURE_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER "  -I " FMT_HEADER
+                "  -I " KOMIHASH_HEADER
                 " {SOURCE_DIRECTORY}/hmake.cpp -shared -Wl,--whole-archive -L " HCONFIGURE_STATIC_LIB_DIRECTORY
                 " -l hconfigure -Wl,--no-whole-archive -L " FMT_STATIC_LIB_DIRECTORY
                 " -l fmt -o {CONFIGURE_DIRECTORY}/" +
@@ -117,6 +130,13 @@ int main(int argc, char **argv)
         }
         else
         {
+
+#ifdef USE_COMMAND_HASH
+            string commandHashCompileDef = " /D USE_COMMAND_HASH ";
+#else
+            string commandHashCompileDef = "";
+#endif
+
             toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
             if (toolsCache.vsTools.empty() && toolsCache.compilers.empty())
             {
@@ -131,9 +151,10 @@ int main(int argc, char **argv)
             {
                 compileCommand += "/I " + addQuotes(str) + " ";
             }
+            compileCommand += commandHashCompileDef;
             compileCommand += "/I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() + " /I " +
-                              rapidjsonHeaderPath.string() + " /I " + fmtHeaderPath.string() +
-                              " /std:c++latest /GL /EHsc /MD /nologo " +
+                              rapidjsonHeaderPath.string() + " /I " + fmtHeaderPath.string() + " /I " +
+                              komihashHeaderPath.string() + " /std:c++latest /GL /EHsc /MD /nologo " +
                               "{SOURCE_DIRECTORY}/hmake.cpp /link /SUBSYSTEM:CONSOLE /NOLOGO /DLL ";
             for (const string &str : toolsCache.vsTools[0].libraryDirectories)
             {

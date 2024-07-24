@@ -33,7 +33,7 @@ bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, c
 
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : TBT{bTarget_}, bTarget(bTarget_), round(round_)
 {
-    std::lock_guard<std::mutex> lk(*(tarjanNodesBTargetsMutexes[round]));
+    std::lock_guard lk(*tarjanNodesBTargetsMutexes[round]);
 
     // Memory Not Released
     tarjanNodesBTargets[round].emplace_back(this);
@@ -111,7 +111,7 @@ void CTarget::initializeCTarget()
             throw std::exception();
         }
     }
-    targetSubDir = other ? (other->targetSubDir + name + slashc) : targetFileDir;
+    targetSubDir = other ? other->targetSubDir + name + slashc : targetFileDir;
 }
 
 CTarget::CTarget(pstring name_, CTarget &container, const bool hasFile_)

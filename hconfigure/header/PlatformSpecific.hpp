@@ -141,6 +141,13 @@ struct Indices
             constexpr static unsigned compileCommandWithTool = 4;
         };
     };
+
+    struct LinkTargetBuildCache
+    {
+        constexpr static unsigned commandWithoutArgumentsWithTools = 1;
+        constexpr static unsigned objectFiles = 2;
+    };
+
 };
 
 #endif // HMAKE_PLATFORMSPECIFIC_HPP

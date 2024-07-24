@@ -36,7 +36,7 @@ Builder::Builder()
         }
     }
 
-    TBT::tarjanNodes = &(tarjanNodesBTargets[round]);
+    TBT::tarjanNodes = &tarjanNodesBTargets[round];
     TBT::findSCCS();
     TBT::checkForCycle();
 
@@ -82,7 +82,7 @@ void Builder::execute()
     RealBTarget *realBTarget = nullptr;
 
     // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-    std::unique_lock<std::mutex> lk(executeMutex);
+    std::unique_lock lk(executeMutex);
     while (true)
     {
         bool counted = false;
@@ -102,7 +102,7 @@ void Builder::execute()
                 }
                 // printMessage(fmt::format("{} {} {}\n", round, "update-executing", getThreadId()));
                 bTarget = *updateBTargetsIterator;
-                realBTarget = &(bTarget->realBTargets[round]);
+                realBTarget = &bTarget->realBTargets[round];
                 ++updateBTargetsIterator;
                 // printMessage(fmt::format("UnLocking Update Mutex {}\n", __LINE__));
                 executeMutex.unlock();
@@ -125,7 +125,7 @@ void Builder::execute()
                     {
                         --round;
                         threadCount = 0;
-                        TBT::tarjanNodes = &(tarjanNodesBTargets[round]);
+                        TBT::tarjanNodes = &tarjanNodesBTargets[round];
                         TBT::findSCCS();
                         TBT::checkForCycle();
 
@@ -140,7 +140,7 @@ void Builder::execute()
 
                                 for (size_t i = TBT::topologicalSort.size(); i-- > 0;)
                                 {
-                                    BTarget &localBTarget = *(TBT::topologicalSort[i]);
+                                    BTarget &localBTarget = *TBT::topologicalSort[i];
                                     RealBTarget &localReal = localBTarget.realBTargets[0];
 
                                     localReal.indexInTopologicalSort = topSize - (i + 1);
@@ -258,7 +258,7 @@ void Builder::execute()
                 {
                     dependentRealBTarget.exitStatus = EXIT_FAILURE;
                 }
-                --(dependentRealBTarget.dependenciesSize);
+                --dependentRealBTarget.dependenciesSize;
                 if (!dependentRealBTarget.dependenciesSize)
                 {
                     updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, dependent);
@@ -276,7 +276,7 @@ void Builder::execute()
                     {
                         dependentRealBTarget.exitStatus = EXIT_FAILURE;
                     }
-                    --(dependentRealBTarget.dependenciesSize);
+                    --dependentRealBTarget.dependenciesSize;
                     if (!dependentRealBTarget.dependenciesSize)
                     {
                         updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, dependent);
