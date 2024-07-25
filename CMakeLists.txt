@@ -89,7 +89,7 @@ add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Examples/Example1/hmake.cpp)
+add_executable(HMakeHelper Projects/Boost/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 
@@ -114,3 +114,5 @@ add_dependencies(Tests hbuild)
 
 add_executable(hwrite hwrite/main.cpp)
 target_link_libraries(hwrite PRIVATE hconfigure)
+
+set_property(TARGET HMakeHelper PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")

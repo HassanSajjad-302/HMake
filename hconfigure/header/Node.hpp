@@ -6,14 +6,32 @@
 import <atomic>;
 import "BuildSystemFunctions.hpp";
 import "PlatformSpecific.hpp";
+import <unordered_set>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include <atomic>
+#include <unordered_set>
 #endif
 
-using std::atomic, std::lock_guard;
+using std::atomic, std::lock_guard, std::unordered_set;
 
 class Node;
+struct NodeEqual
+{
+    using is_transparent = void;
+
+    bool operator()(const Node &lhs, const Node &rhs) const;
+    bool operator()(const Node &lhs, const pstring_view &rhs) const;
+    bool operator()(const pstring_view &lhs, const Node &rhs) const;
+};
+
+struct NodeHash
+{
+    using is_transparent = void; // or std::equal_to<>
+
+    std::size_t operator()(const Node &node) const;
+    std::size_t operator()(const pstring_view &str) const;
+};
 struct CompareNode
 {
     using is_transparent = void;
@@ -22,8 +40,6 @@ struct CompareNode
     bool operator()(const Node &lhs, const pstring_view &rhs) const;
 };
 
-inline mutex nodeInsertMutex;
-
 class Node
 {
   public:
@@ -31,15 +47,15 @@ class Node
 
   private:
     std::filesystem::file_time_type lastUpdateTime;
-    atomic<bool> systemCheckCalled{};
-    atomic<bool> systemCheckCompleted{};
+    atomic<bool> systemCheckCalled{false};
+    atomic<bool> systemCheckCompleted{false};
 
   public:
     Node(pstring filePath_);
     pstring getFileName() const;
 
     // This keeps info if a file is touched. If it's touched, it's not touched again.
-    inline static set<Node, CompareNode> allFiles;
+    inline static unordered_set<Node, NodeHash, NodeEqual> allFiles{10000};
     std::filesystem::file_time_type getLastUpdateTime() const;
 
     /*    static path getFinalNodePathFromPath(const pstring &str);
@@ -62,7 +78,7 @@ class Node
   private:
     void performSystemCheck(bool isFile, bool mayNotExist);
     // Because checking for lastUpdateTime is expensive, it is done only once even if file is used in multiple targets.
-    bool isUpdated = false;
+    atomic<bool> isUpdated = false;
 
   public:
     bool doesNotExist = false;

@@ -41,6 +41,31 @@ pstring getStatusPString(const path &p)
     }
 }
 
+bool NodeEqual::operator()(const Node &lhs, const Node &rhs) const
+{
+    return lhs.filePath == rhs.filePath;
+}
+
+bool NodeEqual::operator()(const Node &lhs, const pstring_view &rhs) const
+{
+    return lhs.filePath == rhs;
+}
+
+bool NodeEqual::operator()(const pstring_view &lhs, const Node &rhs) const
+{
+    return lhs == rhs.filePath;
+}
+#include "komihash.h"
+std::size_t NodeHash::operator()(const Node &node) const
+{
+    return komihash(node.filePath.c_str(), node.filePath.size(), 0);
+}
+
+std::size_t NodeHash::operator()(const pstring_view &str) const
+{
+    return komihash(str.data(), str.size(), 0);
+}
+
 bool CompareNode::operator()(const Node &lhs, const Node &rhs) const
 {
     return lhs.filePath < rhs.filePath;
@@ -65,15 +90,13 @@ pstring Node::getFileName() const
     return pstring(filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end());
 }
 
-std::mutex fileTimeUpdateMutex;
 file_time_type Node::getLastUpdateTime() const
 {
-    lock_guard lk(fileTimeUpdateMutex);
-    if (!isUpdated)
+    /*if (!isUpdated.load())
     {
         const_cast<file_time_type &>(lastUpdateTime) = last_write_time(path(filePath));
-        const_cast<bool &>(isUpdated) = true;
-    }
+        const_cast<atomic<bool> &>(isUpdated).store(true);
+    }*/
     return lastUpdateTime;
 }
 
@@ -97,6 +120,26 @@ path Node::getFinalNodePathFromPath(path filePath)
     return filePath;
 }
 
+class SpinLock
+{
+    std::atomic_flag locked = ATOMIC_FLAG_INIT;
+
+  public:
+    void lock()
+    {
+        while (locked.test_and_set(std::memory_order_acquire))
+        {
+        }
+    }
+    void unlock()
+    {
+        locked.clear(std::memory_order_release);
+    }
+};
+
+static mutex nodeInsertMutex;
+
+// static SpinLock nodeInsertMutex;
 Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool mayNotExist)
 {
     // TODO
@@ -107,7 +150,7 @@ Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool
     // compilation-error.
     // Also, calling lastEditTime for a Node for which doesNotExists == true should throw
 
-    Node *node = nullptr;
+    Node *node;
     {
         lock_guard lk{nodeInsertMutex};
         if (const auto it = allFiles.find(pstring_view(p)); it != allFiles.end())
@@ -130,6 +173,7 @@ Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool
     {
         node->performSystemCheck(isFile, mayNotExist);
         node->systemCheckCompleted.store(true);
+        return node;
     }
 
     // systemCheck is being called for this node by another thread
@@ -141,7 +185,7 @@ Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool
 
 Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile, const bool mayNotExist)
 {
-    Node *node = nullptr;
+    Node *node;
     {
         const auto str = new string(p);
         const pstring_view view(*str);
@@ -166,6 +210,7 @@ Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile,
     {
         node->performSystemCheck(isFile, mayNotExist);
         node->systemCheckCompleted.store(true);
+        return node;
     }
 
     // systemCheck is being called for this node by another thread
@@ -194,13 +239,14 @@ Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const
 
 void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
 {
-    if (const file_type nodeType = directory_entry(filePath).status().type();
-        nodeType == (isFile ? file_type::regular : file_type::directory))
+    if (const directory_entry entry = directory_entry(filePath);
+        entry.status().type() == (isFile ? file_type::regular : file_type::directory))
     {
+        lastUpdateTime = entry.last_write_time();
     }
     else
     {
-        if (!mayNotExist || nodeType != file_type::not_found)
+        if (!mayNotExist || entry.status().type() != file_type::not_found)
         {
             printErrorMessage(fmt::format("{} is not a {} file. File Type is {}\n", filePath,
                                           isFile ? "regular" : "directory", getStatusPString(filePath)));
