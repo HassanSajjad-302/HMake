@@ -121,7 +121,7 @@ class CppSourceTarget : public CppCompilerFeatures,
         inline static map<const CppSourceTarget *, unique_ptr<ModuleScopeDataOld>> moduleScopes;*/
     friend struct PostCompile;
     // Parsed Info Not Changed Once Read
-    pstring targetFilePath;
+   // pstring targetFilePath;
     pstring buildCacheFilesDirPath;
 
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
@@ -687,6 +687,10 @@ CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
     {
         treatModuleAsSource = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), StaticSourceDirs>)
+    {
+        staticSourceDirs = property;
+    }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
         property;
@@ -850,6 +854,10 @@ template <typename T> bool CppSourceTarget::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
     {
         return treatModuleAsSource == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), StaticSourceDirs>)
+    {
+        return staticSourceDirs == property;
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {

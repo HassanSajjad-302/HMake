@@ -19,12 +19,6 @@ import <fstream>;
 
 using fmt::print, std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
 
-void writeBuildCache()
-{
-    std::lock_guard lk(buildCacheMutex);
-    prettyWritePValueToFile(pstring_view(configureDir + "/build-cache.json"), buildCache);
-}
-
 void writeBuildCacheUnlocked()
 {
     writePValueToFile(pstring_view(configureDir + "/build-cache.json"), buildCache);
@@ -74,6 +68,16 @@ void initializeCache(const BSMode bsMode_)
         };
 
         initializeSettings(path(configureDir) / "settings.json");
+        if (const path p = path(configureDir) / "src-dir-cache.json"; exists(p))
+        {
+            const pstring str = p.string();
+            sourceDirectoryCacheBuffer = readPValueFromFile(str, sourceDirectoryCache);
+        }
+        else
+        {
+            printErrorMessage("src-dir-cache.json does not exist. Exiting\n");
+            exit(EXIT_FAILURE);
+        }
     }
 }
 
@@ -154,10 +158,9 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
     }
 }
 
-void actuallyReadTheCache()
+void loadBuildCache()
 {
-    const path p = path(configureDir) / "build-cache.json";
-    if (exists(p))
+    if (const path p = path(configureDir) / "build-cache.json"; exists(p))
     {
         const pstring str = p.string();
         buildCacheFileBuffer = readPValueFromFile(str, buildCache);
@@ -174,7 +177,7 @@ void configureOrBuild()
     }
     if (bsMode == BSMode::BUILD)
     {
-        actuallyReadTheCache();
+        loadBuildCache();
 
         // This ensures that buildCache has the capacity to to have all the new PValue. Currently, these new PValue are
         // added in readBuildCacheFile function in CppSourceTarget and LinkOrArchiveTarget. Because, the number can't be
@@ -197,5 +200,6 @@ void configureOrBuild()
             it.operator*()->writeJsonFile();
         }
         cache.registerCacheVariables();
+        writePValueToFile(pstring_view(configureDir + "/src-dir-cache.json"), sourceDirectoryCache);
     }
 }

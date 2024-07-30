@@ -257,6 +257,14 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         compilerFeatures.treatModuleAsSource = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), StaticSourceDirs>)
+    {
+        compilerFeatures.staticSourceDirs = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Define>)
+    {
+        compilerFeatures.requirementCompileDefinitions.emplace(property);
+    }
     // Linker Features
     else if constexpr (std::is_same_v<decltype(property), LinkFlags>)
     {
@@ -270,10 +278,7 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         linkerFeatures.strip = property;
     }
-    else if constexpr (std::is_same_v<decltype(property), Define>)
-    {
-        compilerFeatures.requirementCompileDefinitions.emplace(property);
-    }
+
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
         property;

@@ -128,7 +128,7 @@ void RHPOStream::Flush()
 {
 }
 
-void prettyWritePValueToFile(const pstring_view fileName, PValue &value)
+void prettyWritePValueToFile(const pstring_view fileName, const PValue &value)
 {
     RHPOStream stream(fileName);
     rapidjson::PrettyWriter<RHPOStream, UTF8<>, UTF8<>> writer(stream, nullptr);
@@ -140,10 +140,10 @@ void prettyWritePValueToFile(const pstring_view fileName, PValue &value)
     }
 }
 
-void writePValueToFile(const pstring_view fileName, PValue &value)
+void writePValueToFile(const pstring_view fileName, const PValue &value)
 {
     RHPOStream stream(fileName);
-    rapidjson::Writer<RHPOStream, UTF8<>, UTF8<>> writer(stream, nullptr);
+    rapidjson::Writer<RHPOStream> writer(stream, nullptr);
     if (!value.Accept(writer))
     {
         // TODO Check what error

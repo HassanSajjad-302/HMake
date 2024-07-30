@@ -931,41 +931,180 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const bool 
         assignToSourceNodes = true;
     }
 
-    auto addNewFile = [&](const auto &k) {
-        try
-        {
-            if (k.is_regular_file() && regex_match((k.path().filename().*toPStr)(), std::regex(dir.regex)))
+    if (bsMode == BSMode::CONFIGURE)
+    {
+        vector<Node *> nodes;
+        auto addNewFile = [&](const auto &k) {
+            try
             {
-                if (assignToSourceNodes)
+                if (k.is_regular_file() && regex_match((k.path().filename().*toPStr)(), std::regex(dir.regex)))
                 {
-                    sourceFileDependencies.emplace(this, Node::getNodeFromNonNormalizedPath(k.path(), true));
-                }
-                else
-                {
-                    moduleSourceFileDependencies.emplace(this, Node::getNodeFromNonNormalizedPath(k.path(), true));
+                    Node *node = Node::getNodeFromNonNormalizedPath(k.path(), true);
+                    if (assignToSourceNodes)
+                    {
+                        sourceFileDependencies.emplace(this, node);
+                    }
+                    else
+                    {
+                        moduleSourceFileDependencies.emplace(this, node);
+                    }
+                    nodes.emplace_back(node);
                 }
             }
-        }
-        catch (const std::regex_error &e)
-        {
-            printErrorMessage(fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
-                                          e.what(), dir.regex, getTargetPointer()));
-            throw std::exception();
-        }
-    };
+            catch (const std::regex_error &e)
+            {
+                printErrorMessage(fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
+                                              e.what(), dir.regex, getTargetPointer()));
+                throw std::exception();
+            }
+        };
 
-    if (recursive)
-    {
-        for (const auto &k : recursive_directory_iterator(path(dir.sourceDirectory->filePath)))
+        if (recursive)
         {
-            addNewFile(k);
+            for (const auto &k : recursive_directory_iterator(path(dir.sourceDirectory->filePath)))
+            {
+                addNewFile(k);
+            }
+        }
+        else
+        {
+            for (const auto &k : directory_iterator(path(dir.sourceDirectory->filePath)))
+            {
+                addNewFile(k);
+            }
+        }
+
+        if (evaluate(StaticSourceDirs::YES))
+        {
+            // It is assumed that the same file can not be in source and module. So, this info is not recorded.
+            PValue *targetSourceCacheDirectoryPointer;
+            if (const size_t it = pvalueIndexInSubArray(sourceDirectoryCache, PValue(ptoref(targetSubDir)));
+                it == UINT64_MAX)
+            {
+                sourceDirectoryCache.PushBack(kArrayType, ralloc);
+                targetSourceCacheDirectoryPointer = &sourceDirectoryCache[sourceDirectoryCache.Size() - 1];
+                targetSourceCacheDirectoryPointer->PushBack(ptoref(targetSubDir), ralloc);
+                targetSourceCacheDirectoryPointer->PushBack(kArrayType, ralloc);
+            }
+            else
+            {
+                targetSourceCacheDirectoryPointer = &sourceDirectoryCache[it];
+            }
+
+            PValue &targetSourceDirectoryCache = (*targetSourceCacheDirectoryPointer)[1];
+
+            const pstring *regexPlusDirFilePath = new pstring{dir.sourceDirectory->filePath + dir.regex};
+            if (const size_t it =
+                    pvalueIndexInSubArray(targetSourceDirectoryCache, PValue(ptoref(*regexPlusDirFilePath)));
+                it == UINT64_MAX)
+            {
+                targetSourceDirectoryCache.PushBack(kArrayType, ralloc);
+                auto &sourceDirectoryCache = targetSourceDirectoryCache[targetSourceDirectoryCache.Size() - 1];
+                sourceDirectoryCache.PushBack(PValue(ptoref(*regexPlusDirFilePath)), ralloc);
+
+                for (const Node *node : nodes)
+                {
+                    sourceDirectoryCache.PushBack(PValue(ptoref(node->filePath)), ralloc);
+                }
+            }
+            else
+            {
+                printErrorMessage(fmt::format("SourceDirectory {} with regex {} already exists in target {}\n",
+                                              dir.sourceDirectory->filePath, dir.regex, targetSubDir));
+            }
         }
     }
     else
     {
-        for (const auto &k : directory_iterator(path(dir.sourceDirectory->filePath)))
+        if (evaluate(StaticSourceDirs::YES))
         {
-            addNewFile(k);
+            // It is assumed that the same file can not be in source and module. So, this info is not recorded.
+            PValue *targetSourceDirectoryCachePointer;
+            if (const size_t it = pvalueIndexInSubArray(sourceDirectoryCache, PValue(ptoref(targetSubDir)));
+                it == UINT64_MAX)
+            {
+                printErrorMessage(fmt::format(
+                    "Target {} with static source directories not found in src-dir-cache.json ", targetSubDir));
+                exit(EXIT_FAILURE);
+            }
+            else
+            {
+                targetSourceDirectoryCachePointer = &sourceDirectoryCache[it];
+            }
+
+            PValue &targetSourceDirectoryCache = (*targetSourceDirectoryCachePointer)[1];
+
+            const string regexPlusDirFilePath = dir.sourceDirectory->filePath + dir.regex;
+            if (const size_t it =
+                    pvalueIndexInSubArray(targetSourceDirectoryCache, PValue(ptoref(regexPlusDirFilePath)));
+                it == UINT64_MAX)
+            {
+                printErrorMessage(fmt::format("Static SourceDirectory {} with regex {} of Target {} not found in the "
+                                              "target's cache in src-dir-cache.json\n",
+                                              dir.sourceDirectory->filePath, dir.regex, targetSubDir));
+            }
+            else
+            {
+                if (!targetSourceDirectoryCache[it].Empty())
+                {
+                    for (uint64_t i = 1; i < targetSourceDirectoryCache[it].Size(); ++i)
+                    {
+                        PValue &value = targetSourceDirectoryCache[it][i];
+                        Node *node = Node::getNodeFromNormalizedString(
+                            pstring_view(value.GetString(), value.GetStringLength()), true);
+                        if (assignToSourceNodes)
+                        {
+                            sourceFileDependencies.emplace(this, node);
+                        }
+                        else
+                        {
+                            moduleSourceFileDependencies.emplace(this, node);
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            auto addNewFile = [&](const auto &k) {
+                try
+                {
+                    if (k.is_regular_file() && regex_match((k.path().filename().*toPStr)(), std::regex(dir.regex)))
+                    {
+                        if (assignToSourceNodes)
+                        {
+                            sourceFileDependencies.emplace(this, Node::getNodeFromNonNormalizedPath(k.path(), true));
+                        }
+                        else
+                        {
+                            moduleSourceFileDependencies.emplace(this,
+                                                                 Node::getNodeFromNonNormalizedPath(k.path(), true));
+                        }
+                    }
+                }
+                catch (const std::regex_error &e)
+                {
+                    printErrorMessage(
+                        fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n", e.what(),
+                                    dir.regex, getTargetPointer()));
+                    throw std::exception();
+                }
+            };
+
+            if (recursive)
+            {
+                for (const auto &k : recursive_directory_iterator(path(dir.sourceDirectory->filePath)))
+                {
+                    addNewFile(k);
+                }
+            }
+            else
+            {
+                for (const auto &k : directory_iterator(path(dir.sourceDirectory->filePath)))
+                {
+                    addNewFile(k);
+                }
+            }
         }
     }
 }

@@ -250,7 +250,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 target->compileCommandWithTool.getHash();
             saveSMRulesJsonToSourceJson(smrulesFileOutputClang);
             iterateRequiresJsonToInitializeNewHeaderUnits(builder);
-            assert(type != SM_FILE_TYPE::NOT_assignED && "Type Not Assigned");
+            assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
 
             target->realBTargets[0].addDependency(*this);
         }

@@ -86,13 +86,12 @@ struct RHPOStream
     RHPOStream(pstring_view fileName);
     typedef pchar Ch;
     void Put(Ch c) const;
-    void Flush();
+    static void Flush();
 };
 
-void prettyWritePValueToFile(pstring_view fileName, PValue &value);
-void writePValueToFile(pstring_view fileName, PValue &value);
+void prettyWritePValueToFile(pstring_view fileName, const PValue &value);
+void writePValueToFile(pstring_view fileName, const PValue &value);
 unique_ptr<pchar[]> readPValueFromFile(pstring_view fileName, PDocument &document);
-size_t pvalueIndexInArray(const PValue &pvalue, const PValue &element);
 size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
 
 struct Indices

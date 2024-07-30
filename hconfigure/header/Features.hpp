@@ -24,6 +24,12 @@ using std::map, std::set;
 
 using std::vector;
 
+enum class StaticSourceDirs : bool
+{
+    NO,
+    YES,
+};
+
 enum class TranslateInclude : bool
 {
     NO,
@@ -764,6 +770,7 @@ struct CppCompilerFeatures
     RTTI rtti = RTTI::ON;
     TranslateInclude translateInclude = TranslateInclude::NO;
     TreatModuleAsSource treatModuleAsSource = TreatModuleAsSource::NO;
+    StaticSourceDirs staticSourceDirs = StaticSourceDirs::NO;
 
     // Used only for GCC
     TemplateDepth templateDepth{1024};
@@ -790,8 +797,7 @@ struct CppCompilerFeatures
     void setCompilerFromVSTools(VSTools &vsTools);
     void setCompilerFromLinuxTools(struct LinuxTools &linuxTools);
     void setConfigType(ConfigType configType);
-    template <typename... U>
-    CppCompilerFeatures &privateIncludes(const pstring &include, U... includeDirectoryPString);
+    template <typename... U> CppCompilerFeatures &privateIncludes(const pstring &include, U... includeDirectoryPString);
 };
 
 template <typename... U>

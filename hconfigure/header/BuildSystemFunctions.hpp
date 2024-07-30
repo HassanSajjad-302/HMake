@@ -39,9 +39,10 @@ inline char slashc = '/';
 using Json = nlohmann::json; // Unordered json
 inline PDocument buildCache(kArrayType);
 inline unique_ptr<char[]> buildCacheFileBuffer;
+inline PDocument sourceDirectoryCache(kArrayType);
+inline unique_ptr<char[]> sourceDirectoryCacheBuffer;
 inline auto &ralloc = buildCache.GetAllocator();
 inline std::mutex buildCacheMutex;
-void writeBuildCache();
 void writeBuildCacheUnlocked();
 
 inline pstring srcDir;
