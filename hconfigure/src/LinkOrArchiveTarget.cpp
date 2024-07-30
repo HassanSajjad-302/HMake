@@ -55,7 +55,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
     for (auto &[pre, dep] : sortedPrebuiltDependencies)
     {
-        if (pre->EVALUATE(TargetType::PREBUILT_BASIC))
+        if (pre->evaluate(TargetType::PREBUILT_BASIC))
         {
             for (const ObjectFileProducer *objectFileProducer : pre->objectFileProducers)
             {
@@ -100,7 +100,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 commandWithoutTargetsWithTool.getHash())
             {
                 bool needsUpdate = false;
-                if (!EVALUATE(TargetType::LIBRARY_STATIC))
+                if (!evaluate(TargetType::LIBRARY_STATIC))
                 {
                     for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
                     {
@@ -109,8 +109,8 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                             const auto *prebuiltLinkOrArchiveTarget =
                                 static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                             path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
-                            if (Node::getNodeFromNonNormalizedPath(depOutputPath, true)->getLastUpdateTime() >
-                                Node::getNodeFromNonNormalizedPath(outputPath, true)->getLastUpdateTime())
+                            if (Node::getNodeFromNonNormalizedPath(depOutputPath, true)->lastWriteTime >
+                                Node::getNodeFromNonNormalizedPath(outputPath, true)->lastWriteTime)
                             {
                                 needsUpdate = true;
                                 break;
@@ -135,8 +135,8 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                         needsUpdate = true;
                         break;
                     }
-                    if (objectFile->objectFileOutputFilePath->getLastUpdateTime() >
-                        Node::getNodeFromNonNormalizedPath(outputPath, true)->getLastUpdateTime())
+                    if (objectFile->objectFileOutputFilePath->lastWriteTime >
+                        Node::getNodeFromNonNormalizedPath(outputPath, true)->lastWriteTime)
                     {
                         needsUpdate = true;
                         break;
@@ -169,7 +169,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
             {
                 PrebuiltBasic *prebuiltBasic = allDeps.top();
                 allDeps.pop();
-                if (prebuiltBasic->EVALUATE(TargetType::LIBRARY_SHARED))
+                if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
 
@@ -191,11 +191,11 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                         }
                         else
                         {
-                            if (copiedDLLNode->getLastUpdateTime() <
+                            if (copiedDLLNode->lastWriteTime <
                                 Node::getNodeFromNonNormalizedPath(prebuiltLinkOrArchiveTarget->outputDirectory +
                                                                        prebuiltLinkOrArchiveTarget->actualOutputName,
                                                                    true)
-                                    ->getLastUpdateTime())
+                                    ->lastWriteTime)
                             {
                                 dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
                             }
@@ -306,11 +306,11 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short r
     else if (round == 2)
     {
         PrebuiltLinkOrArchiveTarget::updateBTarget(builder, 2);
-        if (!EVALUATE(TargetType::LIBRARY_STATIC))
+        if (!evaluate(TargetType::LIBRARY_STATIC))
         {
             for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
             {
-                if (!prebuiltBasic->EVALUATE(TargetType::PREBUILT_BASIC))
+                if (!prebuiltBasic->evaluate(TargetType::PREBUILT_BASIC))
                 {
                     const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
                         static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
@@ -346,23 +346,23 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         // all variables in actions are in CAPITALS
 
         // Line 1560
-        pstring defaultAssembler = EVALUATE(Arch::IA64) ? "ias" : "";
-        if (EVALUATE(Arch::X86))
+        pstring defaultAssembler = evaluate(Arch::IA64) ? "ias" : "";
+        if (evaluate(Arch::X86))
         {
-            defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "ml64 ", AddressModel::A_32, "ml -coff ");
+            defaultAssembler += GET_FLAG_evaluate(AddressModel::A_64, "ml64 ", AddressModel::A_32, "ml -coff ");
         }
-        else if (EVALUATE(Arch::ARM))
+        else if (evaluate(Arch::ARM))
         {
-            defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "armasm64 ", AddressModel::A_32, "armasm ");
+            defaultAssembler += GET_FLAG_evaluate(AddressModel::A_64, "armasm64 ", AddressModel::A_32, "armasm ");
         }
-        pstring assemblerFlags = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
-        pstring assemblerOutputFlag = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
+        pstring assemblerFlags = GET_FLAG_evaluate(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
+        pstring assemblerOutputFlag = GET_FLAG_evaluate(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
         // Line 1618
 
         flags.DOT_LD_LINK += "/NOLOGO /INCREMENTAL:NO";
         flags.DOT_LD_ARCHIVE += "lib /NOLOGO";
 
-        flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(LTO::ON, "/LTCG ");
+        flags.LINKFLAGS_LINK += GET_FLAG_evaluate(LTO::ON, "/LTCG ");
         // End-Line 1682
 
         // Function completed. Jumping to rule configure-version-specific.
@@ -373,62 +373,62 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         CPP_FLAGS_COMPILE_CPP += "/Zc:throwingNew";
 
         // Line 492
-        flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(AddressSanitizer::ON, "-incremental:no ");
+        flags.LINKFLAGS_LINK += GET_FLAG_evaluate(AddressSanitizer::ON, "-incremental:no ");
 
-        /*        if (EVALUATE(AddressModel::A_64))
+        /*        if (evaluate(AddressModel::A_64))
                 {
                     // The various 64 bit runtime asan support libraries and related flags.
                     flags.FINDLIBS_SA_LINK =
-                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                        GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                                           "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64
-           "); flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE( AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+           "); flags.LINKFLAGS_LINK += GET_FLAG_evaluate( AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                         R"(/wholearchive:"clang_rt.asan_dynamic-x86_64.lib
            /wholearchive:"clang_rt.asan_dynamic_runtime_thunk-x86_64.lib )"); flags.FINDLIBS_SA_LINK +=
-                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                        GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                                           "clang_rt.asan-x86_64 clang_rt.asan_cxx-x86_64 ");
-                    flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
+                    flags.LINKFLAGS_LINK += GET_FLAG_evaluate(
                         AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                         R"(/wholearchive:"clang_rt.asan-x86_64.lib /wholearchive:"clang_rt.asan_cxx-x86_64.lib ")");
                     pstring FINDLIBS_SA_LINK_DLL =
-                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+                        GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
            "clang_rt.asan_dll_thunk-x86_64 "); pstring LINKFLAGS_LINK_DLL =
-           GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+           GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
            R"(/wholearchive:"clang_rt.asan_dll_thunk-x86_64.lib ")");
                 }
-                else if (EVALUATE(AddressModel::A_32))
+                else if (evaluate(AddressModel::A_32))
                 {
                     // The various 32 bit runtime asan support libraries and related flags.
 
                     flags.FINDLIBS_SA_LINK =
-                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                        GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                                           "clang_rt.asan_dynamic-i386 clang_rt.asan_dynamic_runtime_thunk-i386 ");
-                    flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
+                    flags.LINKFLAGS_LINK += GET_FLAG_evaluate(
                         AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                         R"(/wholearchive:"clang_rt.asan_dynamic-i386.lib
            /wholearchive:"clang_rt.asan_dynamic_runtime_thunk-i386.lib )"); flags.FINDLIBS_SA_LINK +=
-                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                        GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                                           "clang_rt.asan-i386 clang_rt.asan_cxx-i386 ");
-                    flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(
+                    flags.LINKFLAGS_LINK += GET_FLAG_evaluate(
                         AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                         R"(/wholearchive:"clang_rt.asan-i386.lib /wholearchive:"clang_rt.asan_cxx-i386.lib ")");
                     pstring FINDLIBS_SA_LINK_DLL =
-                        GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+                        GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
            "clang_rt.asan_dll_thunk-i386
-           "); pstring LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+           "); pstring LINKFLAGS_LINK_DLL = GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
                                                                   R"(/wholearchive:"clang_rt.asan_dll_thunk-i386.lib
            ")");
                 }*/
 
-        flags.LINKFLAGS_LINK += GET_FLAG_EVALUATE(Arch::IA64, "/MACHINE:IA64 ");
-        if (EVALUATE(Arch::X86))
+        flags.LINKFLAGS_LINK += GET_FLAG_evaluate(Arch::IA64, "/MACHINE:IA64 ");
+        if (evaluate(Arch::X86))
         {
             flags.LINKFLAGS_LINK +=
-                GET_FLAG_EVALUATE(AddressModel::A_64, "/MACHINE:X64 ", AddressModel::A_32, "/MACHINE:X86 ");
+                GET_FLAG_evaluate(AddressModel::A_64, "/MACHINE:X64 ", AddressModel::A_32, "/MACHINE:X86 ");
         }
-        else if (EVALUATE(Arch::ARM))
+        else if (evaluate(Arch::ARM))
         {
             flags.LINKFLAGS_LINK +=
-                GET_FLAG_EVALUATE(AddressModel::A_64, "/MACHINE:ARM64 ", AddressModel::A_32, "/MACHINE:ARM ");
+                GET_FLAG_evaluate(AddressModel::A_64, "/MACHINE:ARM64 ", AddressModel::A_32, "/MACHINE:ARM ");
         }
 
         // Rule register-toolset-really on Line 1852
@@ -441,19 +441,19 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         // TODO:
         // Line 1927 - 1930 skipped because of cpu-type
 
-        flags.PDB_CFLAG += GET_FLAG_EVALUATE(AND(DebugSymbols::ON, DebugStore::DATABASE), "/Fd ");
+        flags.PDB_CFLAG += GET_FLAG_evaluate(AND(DebugSymbols::ON, DebugStore::DATABASE), "/Fd ");
 
         // TODO// Line 1971
         //  There are variables UNDEFS and FORCE_INCLUDES
 
-        if (EVALUATE(DebugSymbols::ON))
+        if (evaluate(DebugSymbols::ON))
         {
-            flags.PDB_LINKFLAG += GET_FLAG_EVALUATE(DebugStore::DATABASE, "/PDB: ");
+            flags.PDB_LINKFLAG += GET_FLAG_evaluate(DebugStore::DATABASE, "/PDB: ");
             flags.LINKFLAGS_LINK += "/DEBUG ";
-            flags.LINKFLAGS_MSVC += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/OPT:REF,ICF  ");
+            flags.LINKFLAGS_MSVC += GET_FLAG_evaluate(RuntimeDebugging::OFF, "/OPT:REF,ICF  ");
         }
         flags.LINKFLAGS_MSVC +=
-            GET_FLAG_EVALUATE(UserInterface::CONSOLE, "/subsystem:console ", UserInterface::GUI, "/subsystem:windows ",
+            GET_FLAG_evaluate(UserInterface::CONSOLE, "/subsystem:console ", UserInterface::GUI, "/subsystem:windows ",
                               UserInterface::WINCE, "/subsystem:windowsce ", UserInterface::NATIVE,
                               "/subsystem:native ", UserInterface::AUTO, "/subsystem:posix ");
     }
@@ -505,7 +505,7 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         }
         {
             // Handle threading
-            if (EVALUATE(Threading::MULTI))
+            if (evaluate(Threading::MULTI))
             {
                 if (OR(TargetOS::WINDOWS, TargetOS::CYGWIN, TargetOS::SOLARIS))
                 {
@@ -515,7 +515,7 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
                 {
                     addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-pthread ");
                 }
-                else if (EVALUATE(TargetOS::SOLARIS))
+                else if (evaluate(TargetOS::SOLARIS))
                 {
                     addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-pthreads ");
                     findLibsSA += "rt";
@@ -535,14 +535,14 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
                 const CxxSTD temp = cxxStd;
                 const_cast<CxxSTD &>(cxxStd) = cxxStdLocal;
                 addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(
-                    GET_FLAG_EVALUATE(CxxSTD::V_98, "98 ", CxxSTD::V_03, "03 ", CxxSTD::V_0x, "0x ", CxxSTD::V_11,
+                    GET_FLAG_evaluate(CxxSTD::V_98, "98 ", CxxSTD::V_03, "03 ", CxxSTD::V_0x, "0x ", CxxSTD::V_11,
                                       "11 ", CxxSTD::V_1y, "1y ", CxxSTD::V_14, "14 ", CxxSTD::V_1z, "1z ",
                                       CxxSTD::V_17, "17 ", CxxSTD::V_2a, "2a ", CxxSTD::V_20, "20 ", CxxSTD::V_2b,
                                       "2b ", CxxSTD::V_23, "23 ", CxxSTD::V_2c, "2c ", CxxSTD::V_26, "26 "));
                 const_cast<CxxSTD &>(cxxStd) = temp;
             };
 
-            if (EVALUATE(CxxSTD::V_LATEST))
+            if (evaluate(CxxSTD::V_LATEST))
             {
                 // Rule at Line 429
                 if (linker.bTVersion >= Version{10})
@@ -591,24 +591,24 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
 
         // Sanitizers
         pstring sanitizerFlags;
-        sanitizerFlags += GET_FLAG_EVALUATE(
+        sanitizerFlags += GET_FLAG_evaluate(
             AddressSanitizer::ON, "-fsanitize=address -fno-omit-frame-pointer ", AddressSanitizer::NORECOVER,
             "-fsanitize=address -fno-sanitize-recover=address -fno-omit-frame-pointer ");
         sanitizerFlags +=
-            GET_FLAG_EVALUATE(LeakSanitizer::ON, "-fsanitize=leak -fno-omit-frame-pointer ", LeakSanitizer::NORECOVER,
+            GET_FLAG_evaluate(LeakSanitizer::ON, "-fsanitize=leak -fno-omit-frame-pointer ", LeakSanitizer::NORECOVER,
                               "-fsanitize=leak -fno-sanitize-recover=leak -fno-omit-frame-pointer ");
-        sanitizerFlags += GET_FLAG_EVALUATE(ThreadSanitizer::ON, "-fsanitize=thread -fno-omit-frame-pointer ",
+        sanitizerFlags += GET_FLAG_evaluate(ThreadSanitizer::ON, "-fsanitize=thread -fno-omit-frame-pointer ",
                                             ThreadSanitizer::NORECOVER,
                                             "-fsanitize=thread -fno-sanitize-recover=thread -fno-omit-frame-pointer ");
-        sanitizerFlags += GET_FLAG_EVALUATE(
+        sanitizerFlags += GET_FLAG_evaluate(
             UndefinedSanitizer::ON, "-fsanitize=undefined -fno-omit-frame-pointer ", UndefinedSanitizer::NORECOVER,
             "-fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer ");
-        sanitizerFlags += GET_FLAG_EVALUATE(Coverage::ON, "--coverage ");
+        sanitizerFlags += GET_FLAG_evaluate(Coverage::ON, "--coverage ");
 
         // LTO
-        if (EVALUATE(LTO::ON))
+        if (evaluate(LTO::ON))
         {
-            flags.OPTIONS_LINK += GET_FLAG_EVALUATE(LTOMode::FULL, "-flto ");
+            flags.OPTIONS_LINK += GET_FLAG_evaluate(LTOMode::FULL, "-flto ");
         }
 
         {
@@ -617,9 +617,9 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
             {
                 noStaticLink = false;
             }
-            if (noStaticLink && EVALUATE(RuntimeLink::STATIC))
+            if (noStaticLink && evaluate(RuntimeLink::STATIC))
             {
-                if (EVALUATE(TargetType::LIBRARY_SHARED))
+                if (evaluate(TargetType::LIBRARY_SHARED))
                 {
                     printMessage("WARNING: On gcc, DLLs can not be built with <runtime-link>static\n ");
                 }
@@ -633,24 +633,24 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
 
         // Linker Flags
 
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(DebugSymbols::ON, "-g ");
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(Profiling::ON, "-pg ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(DebugSymbols::ON, "-g ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(Profiling::ON, "-pg ");
 
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(Visibility::HIDDEN, "-fvisibility=hidden -fvisibility-inlines-hidden ",
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(Visibility::HIDDEN, "-fvisibility=hidden -fvisibility-inlines-hidden ",
                                                 Visibility::GLOBAL, "-fvisibility=default ");
-        if (!EVALUATE(TargetOS::DARWIN))
+        if (!evaluate(TargetOS::DARWIN))
         {
-            flags.OPTIONS_LINK += GET_FLAG_EVALUATE(Visibility::PROTECTED, "-fvisibility=protected ");
+            flags.OPTIONS_LINK += GET_FLAG_evaluate(Visibility::PROTECTED, "-fvisibility=protected ");
         }
 
         // Sanitizers
         // Though sanitizer flags for compiler are assigned at different location, and are for c++, but are exact
         // same
         flags.OPTIONS_LINK += sanitizerFlags;
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(Coverage::ON, "--coverage ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(Coverage::ON, "--coverage ");
 
         flags.DOT_IMPLIB_COMMAND_LINK_DLL =
-            GET_FLAG_EVALUATE(OR(TargetOS::WINDOWS, TargetOS::CYGWIN), "-Wl,--out-implib");
+            GET_FLAG_evaluate(OR(TargetOS::WINDOWS, TargetOS::CYGWIN), "-Wl,--out-implib");
         // Target Specific Flags
         // AIX
         /* On AIX we *have* to use the native linker.
@@ -672,34 +672,34 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
        AIX 4.x and AIX 6.x. For details about the AIX linker see:
        http://download.boulder.ibm.com/ibmdl/pub/software/dw/aix/es-aix_ll.pdf
        */
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(TargetOS::AIX, "-Wl -bnoipath -Wl -bbigtoc ");
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(AND(TargetOS::AIX, RuntimeLink::STATIC), "-static ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(TargetOS::AIX, "-Wl -bnoipath -Wl -bbigtoc ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(AND(TargetOS::AIX, RuntimeLink::STATIC), "-static ");
         //  On Darwin, the -s option to ld does not work unless we pass -static,
         // and passing -static unconditionally is a bad idea. So, do not pass -s
         // at all and darwin.jam will use a separate 'strip' invocation.
 
-        flags.RPATH_OPTION_LINK += GET_FLAG_EVALUATE(AND(TargetOS::DARWIN, RuntimeLink::STATIC), "-static ");
+        flags.RPATH_OPTION_LINK += GET_FLAG_evaluate(AND(TargetOS::DARWIN, RuntimeLink::STATIC), "-static ");
 
         // For TargetOS::VSWORKS, Environment Variables are also considered, but here they aren't
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(AND(TargetOS::VXWORKS, Strip::ON), "-Wl,--strip-all ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(AND(TargetOS::VXWORKS, Strip::ON), "-Wl,--strip-all ");
 
         auto isGenericOS = [&]() {
             return !OR(TargetOS::AIX, TargetOS::DARWIN, TargetOS::VXWORKS, TargetOS::SOLARIS, TargetOS::OSF,
                        TargetOS::HPUX, TargetOS::IPHONE, TargetOS::APPLETV);
         };
 
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(AND(isGenericOS(), Strip::ON), "-Wl,--strip-all ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(AND(isGenericOS(), Strip::ON), "-Wl,--strip-all ");
 
         flags.isRpathOs = !OR(TargetOS::AIX, TargetOS::DARWIN, TargetOS::VXWORKS, TargetOS::SOLARIS, TargetOS::OSF,
                               TargetOS::HPUX, TargetOS::WINDOWS);
 
-        flags.RPATH_OPTION_LINK += GET_FLAG_EVALUATE(flags.isRpathOs, "-rpath ");
+        flags.RPATH_OPTION_LINK += GET_FLAG_evaluate(flags.isRpathOs, "-rpath ");
 
         pstring bStatic = "-Wl,-Bstatic ";
         pstring bDynamic = "-Wl,-Bdynamic ";
 
-        flags.FINDLIBS_ST_PFX_LINK += GET_FLAG_EVALUATE(AND(isGenericOS(), RuntimeLink::SHARED), bStatic);
-        flags.FINDLIBS_SA_PFX_LINK += GET_FLAG_EVALUATE(AND(isGenericOS(), RuntimeLink::SHARED), bDynamic);
+        flags.FINDLIBS_ST_PFX_LINK += GET_FLAG_evaluate(AND(isGenericOS(), RuntimeLink::SHARED), bStatic);
+        flags.FINDLIBS_SA_PFX_LINK += GET_FLAG_evaluate(AND(isGenericOS(), RuntimeLink::SHARED), bDynamic);
 
         if (AND(TargetOS::WINDOWS, RuntimeLink::STATIC))
         {
@@ -707,33 +707,33 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
             flags.FINDLIBS_SA_PFX_LINK += bDynamic;
             flags.OPTIONS_LINK += bStatic;
         }
-        flags.SONAME_OPTION_LINK += GET_FLAG_EVALUATE(isGenericOS(), "-h ");
+        flags.SONAME_OPTION_LINK += GET_FLAG_evaluate(isGenericOS(), "-h ");
 
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(AND(isGenericOS(), RuntimeLink::STATIC), "-static ");
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(AND(TargetOS::HPUX, Strip::ON), "-Wl,-s ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(AND(isGenericOS(), RuntimeLink::STATIC), "-static ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(AND(TargetOS::HPUX, Strip::ON), "-Wl,-s ");
 
-        flags.SONAME_OPTION_LINK += GET_FLAG_EVALUATE(TargetOS::HPUX, "+h ");
+        flags.SONAME_OPTION_LINK += GET_FLAG_evaluate(TargetOS::HPUX, "+h ");
 
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(AND(TargetOS::OSF, Strip::ON), "-Wl,-s ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(AND(TargetOS::OSF, Strip::ON), "-Wl,-s ");
 
-        flags.RPATH_OPTION_LINK += GET_FLAG_EVALUATE(TargetOS::OSF, "-rpath ");
+        flags.RPATH_OPTION_LINK += GET_FLAG_evaluate(TargetOS::OSF, "-rpath ");
         if (flags.RPATH_OPTION_LINK.empty())
         {
             // RPATH_OPTION is assigned in action if it wasn't already assigned in gcc.jam
             flags.RPATH_OPTION_LINK = "-R";
         }
 
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(AND(TargetOS::OSF, RuntimeLink::STATIC), "-static ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(AND(TargetOS::OSF, RuntimeLink::STATIC), "-static ");
 
-        flags.OPTIONS_LINK += GET_FLAG_EVALUATE(AND(TargetOS::SOLARIS, Strip::ON), "-Wl,-s ");
+        flags.OPTIONS_LINK += GET_FLAG_evaluate(AND(TargetOS::SOLARIS, Strip::ON), "-Wl,-s ");
 
-        if (EVALUATE(TargetOS::SOLARIS))
+        if (evaluate(TargetOS::SOLARIS))
         {
             flags.OPTIONS_LINK += "-mimpure-text ";
-            flags.OPTIONS_LINK += GET_FLAG_EVALUATE(RuntimeLink::STATIC, "-static ");
+            flags.OPTIONS_LINK += GET_FLAG_evaluate(RuntimeLink::STATIC, "-static ");
         }
 
-        pstring str = GET_FLAG_EVALUATE(
+        pstring str = GET_FLAG_evaluate(
             AND(Arch::X86, InstructionSet::native), "-march=native ", AND(Arch::X86, InstructionSet::i486),
             "-march=i486 ", AND(Arch::X86, InstructionSet::i586), "-march=i586 ", AND(Arch::X86, InstructionSet::i686),
             "-march=i686 ", AND(Arch::X86, InstructionSet::pentium), "-march=pentium ",
@@ -909,7 +909,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
     {
         for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
         {
-            if (!prebuiltBasic->EVALUATE(TargetType::PREBUILT_BASIC))
+            if (!prebuiltBasic->evaluate(TargetType::PREBUILT_BASIC))
             {
                 auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                 linkOrArchiveCommandWithTargets += prebuiltDep->requirementPreLF;
@@ -932,11 +932,11 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             localLinkCommand += getLibraryDirectoryFlag() + addQuotes(libDirNode.node->filePath) + " ";
         }
 
-        if (EVALUATE(BTFamily::GCC))
+        if (evaluate(BTFamily::GCC))
         {
             for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                if (prebuiltBasic->EVALUATE(TargetType::LIBRARY_SHARED))
+                if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     if (prebuiltDep->defaultRpath)
                     {
@@ -959,7 +959,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
         {
             for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                if (prebuiltBasic->EVALUATE(TargetType::LIBRARY_SHARED))
+                if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     if (prebuiltDep->defaultRpathLink)
                     {
@@ -1110,7 +1110,7 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         {
             for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                if (!prebuiltBasic->EVALUATE(TargetType::PREBUILT_BASIC))
+                if (!prebuiltBasic->evaluate(TargetType::PREBUILT_BASIC))
                 {
                     auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                     linkOrArchiveCommandPrint += prebuiltDep->requirementPreLF;
@@ -1152,11 +1152,11 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
             }
         }
 
-        if (EVALUATE(BTFamily::GCC) && lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
+        if (evaluate(BTFamily::GCC) && lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
         {
             for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                if (prebuiltBasic->EVALUATE(TargetType::LIBRARY_SHARED))
+                if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     if (prebuiltDep->defaultRpath)
                     {
@@ -1181,7 +1181,7 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         {
             for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                if (prebuiltBasic->EVALUATE(TargetType::LIBRARY_SHARED))
+                if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     if (prebuiltDep->defaultRpathLink)
                     {

@@ -167,7 +167,7 @@ void SourceNode::setSourceNodeFileStatus()
         return;
     }
 
-    if (node->getLastUpdateTime() > objectFileOutputFilePath->getLastUpdateTime())
+    if (node->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
     {
         fileStatus.store(true);
         return;
@@ -183,7 +183,7 @@ void SourceNode::setSourceNodeFileStatus()
             return;
         }
 
-        if (headerNode->getLastUpdateTime() > objectFileOutputFilePath->getLastUpdateTime())
+        if (headerNode->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
         {
             fileStatus.store(true);
             return;
@@ -250,7 +250,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 target->compileCommandWithTool.getHash();
             saveSMRulesJsonToSourceJson(smrulesFileOutputClang);
             iterateRequiresJsonToInitializeNewHeaderUnits(builder);
-            assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
+            assert(type != SM_FILE_TYPE::NOT_assignED && "Type Not Assigned");
 
             target->realBTargets[0].addDependency(*this);
         }
@@ -596,8 +596,6 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
 
     if ((*sourceJson)[ModuleFiles::scanningCommandWithTool] != target->compileCommandWithTool.getHash())
     {
-        pstring str((*sourceJson)[ModuleFiles::scanningCommandWithTool].GetString(),
-                    (*sourceJson)[ModuleFiles::scanningCommandWithTool].GetStringLength());
         readJsonFromSMRulesFile = true;
         // This is the only access in round 1. Maybe change to relaxed
         fileStatus.store(true);
@@ -612,7 +610,7 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
     }
     else
     {
-        if (node->getLastUpdateTime() > objectFileOutputFilePath->getLastUpdateTime())
+        if (node->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
         {
             needsUpdate = true;
         }
@@ -628,7 +626,7 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
                     break;
                 }
 
-                if (headerNode->getLastUpdateTime() > objectFileOutputFilePath->getLastUpdateTime())
+                if (headerNode->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
                 {
                     needsUpdate = true;
                     break;
@@ -656,7 +654,7 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
         }
         else
         {
-            if (node->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
+            if (node->lastWriteTime > smRuleFileNode->lastWriteTime)
             {
                 return true;
             }
@@ -670,7 +668,7 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
                     return true;
                 }
 
-                if (headerNode->getLastUpdateTime() > smRuleFileNode->getLastUpdateTime())
+                if (headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
                 {
                     return true;
                 }
@@ -707,8 +705,7 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
 
             if (!fileStatus.load())
             {
-                if (smFile->objectFileOutputFilePath->getLastUpdateTime() >
-                    objectFileOutputFilePath->getLastUpdateTime())
+                if (smFile->objectFileOutputFilePath->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
                 {
                     fileStatus.store(true);
                 }
@@ -733,7 +730,7 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
 pstring SMFile::getFlag(const string &outputFilesWithoutExtension) const
 {
     pstring str;
-    if (target->EVALUATE(BTFamily::MSVC))
+    if (target->evaluate(BTFamily::MSVC))
     {
         if (type == SM_FILE_TYPE::NOT_ASSIGNED)
         {
@@ -761,7 +758,7 @@ pstring SMFile::getFlag(const string &outputFilesWithoutExtension) const
 
         str += "/Fo" + addQuotes(outputFilesWithoutExtension + ".m.o ");
     }
-    else if (target->EVALUATE(BTFamily::GCC))
+    else if (target->evaluate(BTFamily::GCC))
     {
         // Flags are for clang. I don't know GCC flags at the moment but clang is masqueraded as gcc in HMake so
         // modifying this temporarily on Linux.
@@ -803,7 +800,7 @@ pstring SMFile::getFlagPrint(const pstring &outputFilesWithoutExtension) const
 
     pstring str;
 
-    if (target->EVALUATE(BTFamily::MSVC))
+    if (target->evaluate(BTFamily::MSVC))
     {
         if (type == SM_FILE_TYPE::NOT_ASSIGNED)
         {
@@ -841,7 +838,7 @@ pstring SMFile::getFlagPrint(const pstring &outputFilesWithoutExtension) const
             str += getReducedPath(outputFilesWithoutExtension + ".m.o", ccpSettings.objectFile) + " ";
         }
     }
-    else if (target->EVALUATE(BTFamily::GCC))
+    else if (target->evaluate(BTFamily::GCC))
     {
 
         if (type == SM_FILE_TYPE::NOT_ASSIGNED)

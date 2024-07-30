@@ -42,7 +42,7 @@ template <typename T> struct DSC : DSCFeatures
         prebuiltBasic = prebuiltBasic_;
         prebuiltBasic->objectFileProducers.emplace(objectFileProducer);
 
-        if (define_.empty() && !prebuiltBasic->EVALUATE(TargetType::PREBUILT_BASIC))
+        if (define_.empty() && !prebuiltBasic->evaluate(TargetType::PREBUILT_BASIC))
         {
             define = prebuiltBasic->outputName;
             transform(define.begin(), define.end(), define.begin(), ::toupper);
@@ -60,13 +60,13 @@ template <typename T> struct DSC : DSCFeatures
         }
     }
 
-    template <typename U, typename... V> DSC &PUBLIC_LIBRARIES(DSC<U> *controller, const V... libraries)
+    template <typename U, typename... V> DSC &publicLibraries(DSC<U> *controller, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(Dependency::PUBLIC, controller, libraries...);
         return *this;
     }
 
-    template <typename U, typename... V> DSC &PRIVATE_LIBRARIES(DSC<U> *controller, const V... libraries)
+    template <typename U, typename... V> DSC &privateLibraries(DSC<U> *controller, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(Dependency::PRIVATE, controller, libraries...);
         return *this;
@@ -79,14 +79,14 @@ template <typename T> struct DSC : DSCFeatures
     }
 
     template <typename U, typename... V>
-    DSC &PUBLIC_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
+    DSC &publicLibraries(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(Dependency::PUBLIC, controller, std::move(prebuiltDep), libraries...);
         return *this;
     }
 
     template <typename U, typename... V>
-    DSC &PRIVATE_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
+    DSC &privateLibraries(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
     {
         assignLinkOrArchiveTargetLib(Dependency::PRIVATE, controller, std::move(prebuiltDep), libraries...);
         return *this;
@@ -126,7 +126,7 @@ void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *control
     {
         T *ptr = static_cast<T *>(objectFileProducer);
         U *c_ptr = static_cast<U *>(controller->objectFileProducer);
-        if (controller->prebuiltBasic->EVALUATE(TargetType::LIBRARY_SHARED))
+        if (controller->prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
         {
             if (ptr->compiler.bTFamily == BTFamily::MSVC)
             {

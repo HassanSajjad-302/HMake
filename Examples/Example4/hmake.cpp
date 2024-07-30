@@ -2,15 +2,15 @@
 
 void buildSpecification()
 {
-    DSC<CppSourceTarget> &catStatic = GetCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
-    catStatic.getSourceTarget().SOURCE_FILES("Cat/src/Cat.cpp").PUBLIC_INCLUDES("Cat/header");
+    DSC<CppSourceTarget> &catStatic = getCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
+    catStatic.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
 
-    GetCppExeDSC("Animal-Static").PRIVATE_LIBRARIES(&catStatic).getSourceTarget().SOURCE_FILES("main.cpp");
+    getCppExeDSC("Animal-Static").privateLibraries(&catStatic).getSourceTarget().sourceFiles("main.cpp");
 
-    DSC<CppSourceTarget> &catShared = GetCppSharedDSC("Cat-Shared", true, "CAT_EXPORT");
-    catShared.getSourceTarget().SOURCE_FILES("Cat/src/Cat.cpp").PUBLIC_INCLUDES("Cat/header");
+    DSC<CppSourceTarget> &catShared = getCppSharedDSC("Cat-Shared", true, "CAT_EXPORT");
+    catShared.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
 
-    GetCppExeDSC("Animal-Shared").PRIVATE_LIBRARIES(&catShared).getSourceTarget().SOURCE_FILES("main.cpp");
+    getCppExeDSC("Animal-Shared").privateLibraries(&catShared).getSourceTarget().sourceFiles("main.cpp");
 }
 
 MAIN_FUNCTION

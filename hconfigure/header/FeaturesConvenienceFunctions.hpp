@@ -13,19 +13,19 @@ import <concepts>;
 #endif
 
 // TODO
-// Write a concept that checks for the presence of EVALUATE() and ASSIGN() functions.
+// Write a concept that checks for the presence of evaluate() and assign() functions.
 // CRTP Pattern Used for defining Convenience Features that are used with CppCompilerFeatures and LinkerFeatures.
-// EVALUATE() and ASSIGN() are defined in the derived class.
+// evaluate() and assign() are defined in the derived class.
 template <typename U> class FeatureConvenienceFunctions
 {
   protected:
     // returns on first positive condition. space is added.
     template <typename T, typename... Argument>
-    pstring GET_FLAG_EVALUATE(T condition, const pstring &flags, Argument... arguments) const;
+    pstring GET_FLAG_evaluate(T condition, const pstring &flags, Argument... arguments) const;
 
     // returns cumulated pstring for trued conditions. spaces are added
     template <typename T, typename... Argument>
-    pstring GET_CUMULATED_FLAG_EVALUATE(T condition, const pstring &flags, Argument... arguments) const;
+    pstring GET_CUMULATED_FLAG_evaluate(T condition, const pstring &flags, Argument... arguments) const;
 
   protected:
     // var left = right;
@@ -36,8 +36,8 @@ template <typename U> class FeatureConvenienceFunctions
   public:
     // Properties are assigned if assign bool is true.
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
-    U &ASSIGN(bool assign, T property, Condition... conditions);
-#define ASSIGN_I ASSIGN<Dependency::INTERFACE>
+    U &assign(bool assign, T property, Condition... conditions);
+#define assign_I assign<Dependency::INTERFACE>
     template <typename T, typename... Condition> bool AND(T condition, Condition... conditions);
     template <typename T, typename... Condition> bool OR(T condition, Condition... conditions);
 
@@ -64,16 +64,16 @@ template <typename U> class FeatureConvenienceFunctions
 
 template <typename U>
 template <typename T, typename... Argument>
-pstring FeatureConvenienceFunctions<U>::GET_FLAG_EVALUATE(T condition, const pstring &flags,
+pstring FeatureConvenienceFunctions<U>::GET_FLAG_evaluate(T condition, const pstring &flags,
                                                           Argument... arguments) const
 {
-    if (static_cast<const U &>(*this).EVALUATE(condition))
+    if (static_cast<const U &>(*this).evaluate(condition))
     {
         return flags;
     }
     if constexpr (sizeof...(arguments))
     {
-        return GET_FLAG_EVALUATE(arguments...);
+        return GET_FLAG_evaluate(arguments...);
     }
     else
     {
@@ -83,17 +83,17 @@ pstring FeatureConvenienceFunctions<U>::GET_FLAG_EVALUATE(T condition, const pst
 
 template <typename U>
 template <typename T, typename... Argument>
-pstring FeatureConvenienceFunctions<U>::GET_CUMULATED_FLAG_EVALUATE(T condition, const pstring &flags,
+pstring FeatureConvenienceFunctions<U>::GET_CUMULATED_FLAG_evaluate(T condition, const pstring &flags,
                                                                     Argument... arguments) const
 {
     pstring str{};
-    if (static_cast<const U &>(*this).EVALUATE(condition))
+    if (static_cast<const U &>(*this).evaluate(condition))
     {
         str = flags;
     }
     if constexpr (sizeof...(arguments))
     {
-        str += GET_FLAG_EVALUATE(arguments...);
+        str += GET_FLAG_evaluate(arguments...);
     }
     return str;
 }
@@ -108,22 +108,22 @@ void FeatureConvenienceFunctions<U>::RIGHT_MOST(T condition, Condition... condit
     }
     else
     {
-        static_cast<U &>(*this).ASSIGN(condition);
+        static_cast<U &>(*this).assign(condition);
     }
 }
 
 template <typename U>
 template <Dependency dependency, typename T, typename... Condition>
-U &FeatureConvenienceFunctions<U>::ASSIGN(bool assign, T property, Condition... conditions)
+U &FeatureConvenienceFunctions<U>::assign(bool assign, T property, Condition... conditions)
 {
-    return assign ? static_cast<U &>(*this).ASSIGN(property, conditions...) : static_cast<U &>(*this);
+    return assign ? static_cast<U &>(*this).assign(property, conditions...) : static_cast<U &>(*this);
 }
 
 template <typename U>
 template <typename T, typename... Condition>
 bool FeatureConvenienceFunctions<U>::AND(T condition, Condition... conditions)
 {
-    if (!static_cast<U &>(*this).EVALUATE(condition))
+    if (!static_cast<U &>(*this).evaluate(condition))
     {
         return false;
     }
@@ -141,7 +141,7 @@ template <typename U>
 template <typename T, typename... Condition>
 bool FeatureConvenienceFunctions<U>::OR(T condition, Condition... conditions)
 {
-    if (static_cast<U &>(*this).EVALUATE(condition))
+    if (static_cast<U &>(*this).evaluate(condition))
     {
         return true;
     }
@@ -161,11 +161,11 @@ U &FeatureConvenienceFunctions<U>::M_LEFT_AND(T condition, Condition... conditio
 {
     if constexpr (sizeof...(conditions))
     {
-        return static_cast<U &>(*this).EVALUATE(condition) ? M_LEFT_AND(conditions...) : *this;
+        return static_cast<U &>(*this).evaluate(condition) ? M_LEFT_AND(conditions...) : *this;
     }
     else
     {
-        static_cast<U &>(*this).ASSIGN(condition);
+        static_cast<U &>(*this).assign(condition);
         return static_cast<U &>(*this);
     }
 }
@@ -174,9 +174,9 @@ template <typename U>
 template <Dependency dependency, typename T, typename P>
 U &FeatureConvenienceFunctions<U>::SINGLE(T condition, P property)
 {
-    if (static_cast<U &>(*this).EVALUATE(condition))
+    if (static_cast<U &>(*this).evaluate(condition))
     {
-        static_cast<U &>(*this).template ASSIGN<dependency>(property);
+        static_cast<U &>(*this).template assign<dependency>(property);
     }
     return static_cast<U &>(*this);
 }
@@ -187,7 +187,7 @@ U &FeatureConvenienceFunctions<U>::M_LEFT_OR(T condition, Condition... condition
 {
     if constexpr (sizeof...(conditions))
     {
-        if (static_cast<U &>(*this).EVALUATE(condition))
+        if (static_cast<U &>(*this).evaluate(condition))
         {
             RIGHT_MOST(conditions...);
             return static_cast<U &>(*this);
@@ -204,9 +204,9 @@ template <typename U>
 template <Dependency dependency, typename T, typename... Condition>
 U &FeatureConvenienceFunctions<U>::M_RIGHT(T condition, Condition... conditions)
 {
-    if (static_cast<U &>(*this).EVALUATE(condition))
+    if (static_cast<U &>(*this).evaluate(condition))
     {
-        static_cast<U &>(*this).ASSIGN(conditions...);
+        static_cast<U &>(*this).assign(conditions...);
     }
     return static_cast<U &>(*this);
 }

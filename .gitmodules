@@ -5,14 +5,17 @@
 	path = googletest
 	url = https://github.com/google/googletest
 [submodule "fmt"]
-	path = fmt
+	path = 3rdParty/fmt
 	url = https://github.com/fmtlib/fmt
 [submodule "json"]
-	path = json
+	path = 3rdParty/json
 	url = https://www.github.com/nlohmann/json
 [submodule "rapidjson"]
-	path = rapidjson
+	path = 3rdParty/rapidjson
 	url = https://github.com/Tencent/rapidjson
-[submodule "komihash"]
-	path = komihash
-	url = https://github.com/avaneev/komihash
+[submodule "3rdParty/parallel-hashmap"]
+	path = 3rdParty/parallel-hashmap
+	url = https://github.com/greg7mdp/parallel-hashmap
+[submodule "3rdParty/rapidhash"]
+	path = 3rdParty/rapidhash
+	url = https://github.com/Nicoshev/rapidhash

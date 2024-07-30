@@ -2,7 +2,7 @@
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp").ASSIGN(RTTI::OFF);
+    getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp").assign(RTTI::OFF);
 }
 
 MAIN_FUNCTION

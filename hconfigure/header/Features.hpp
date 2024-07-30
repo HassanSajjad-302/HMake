@@ -791,16 +791,16 @@ struct CppCompilerFeatures
     void setCompilerFromLinuxTools(struct LinuxTools &linuxTools);
     void setConfigType(ConfigType configType);
     template <typename... U>
-    CppCompilerFeatures &PRIVATE_INCLUDES(const pstring &include, U... includeDirectoryPString);
+    CppCompilerFeatures &privateIncludes(const pstring &include, U... includeDirectoryPString);
 };
 
 template <typename... U>
-CppCompilerFeatures &CppCompilerFeatures::PRIVATE_INCLUDES(const pstring &include, U... includeDirectoryPString)
+CppCompilerFeatures &CppCompilerFeatures::privateIncludes(const pstring &include, U... includeDirectoryPString)
 {
     InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return PRIVATE_INCLUDES(includeDirectoryPString...);
+        return privateIncludes(includeDirectoryPString...);
     }
     else
     {

@@ -2,14 +2,14 @@
 
 void buildSpecification()
 {
-    DSC<CppSourceTarget> &catShared = GetCppSharedDSC("Cat", true);
-    catShared.getSourceTarget().SOURCE_FILES("../Example4/Cat/src/Cat.cpp").PUBLIC_INCLUDES("../Example4/Cat/header");
+    DSC<CppSourceTarget> &catShared = getCppSharedDSC("Cat", true);
+    catShared.getSourceTarget().sourceFiles("../Example4/Cat/src/Cat.cpp").publicIncludes("../Example4/Cat/header");
 
-    DSC<CppSourceTarget> &animalShared = GetCppExeDSC("Animal").PRIVATE_LIBRARIES(
+    DSC<CppSourceTarget> &animalShared = getCppExeDSC("Animal").privateLibraries(
         &catShared, PrebuiltDep{.requirementRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false});
-    animalShared.getSourceTarget().SOURCE_FILES("../Example4/main.cpp");
+    animalShared.getSourceTarget().sourceFiles("../Example4/main.cpp");
 
-    GetRoundZeroUpdateBTarget(
+    getRoundZeroUpdateBTarget(
         [&](Builder &builder, BTarget &bTarget) {
             if (bTarget.realBTargets[0].exitStatus == EXIT_SUCCESS &&
                 bTarget.fileStatus.load(std::memory_order_acquire))

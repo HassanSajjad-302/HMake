@@ -30,7 +30,7 @@ void from_json(const Json &j, Version &v);
 
 enum class BTFamily : char
 {
-    NOT_ASSIGNED,
+    NOT_assignED,
     GCC,
     MSVC,
     CLANG,
@@ -40,7 +40,7 @@ void from_json(const Json &json, BTFamily &bTFamily);
 
 struct BuildTool
 {
-    BTFamily bTFamily = BTFamily::NOT_ASSIGNED;
+    BTFamily bTFamily = BTFamily::NOT_assignED;
     Version bTVersion;
     path bTPath;
     BuildTool(BTFamily btFamily_, Version btVersion_, path btPath_);

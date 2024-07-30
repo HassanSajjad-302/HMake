@@ -85,13 +85,13 @@ class LinkOrArchiveTarget : public CTarget,
     void setLinkOrArchiveCommands();
     pstring getLinkOrArchiveCommandPrint();
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
-    LinkOrArchiveTarget &ASSIGN(T property, Property... properties);
-    template <typename T> bool EVALUATE(T property) const;
+    LinkOrArchiveTarget &assign(T property, Property... properties);
+    template <typename T> bool evaluate(T property) const;
 };
 bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs);
 
 template <Dependency dependency, typename T, typename... Property>
-LinkOrArchiveTarget &LinkOrArchiveTarget::ASSIGN(T property, Property... properties)
+LinkOrArchiveTarget &LinkOrArchiveTarget::assign(T property, Property... properties)
 {
     if constexpr (std::is_same_v<decltype(property), Linker>)
     {
@@ -223,11 +223,11 @@ LinkOrArchiveTarget &LinkOrArchiveTarget::ASSIGN(T property, Property... propert
     }
     else
     {
-        PrebuiltLinkOrArchiveTarget::ASSIGN(property);
+        PrebuiltLinkOrArchiveTarget::assign(property);
     }
     if constexpr (sizeof...(properties))
     {
-        return ASSIGN(properties...);
+        return assign(properties...);
     }
     else
     {
@@ -235,7 +235,7 @@ LinkOrArchiveTarget &LinkOrArchiveTarget::ASSIGN(T property, Property... propert
     }
 }
 
-template <typename T> bool LinkOrArchiveTarget::EVALUATE(T property) const
+template <typename T> bool LinkOrArchiveTarget::evaluate(T property) const
 {
     if constexpr (std::is_same_v<decltype(property), Linker>)
     {
@@ -347,7 +347,7 @@ template <typename T> bool LinkOrArchiveTarget::EVALUATE(T property) const
     }
     else
     {
-        return PrebuiltLinkOrArchiveTarget::EVALUATE(property);
+        return PrebuiltLinkOrArchiveTarget::evaluate(property);
     }
 }
 

@@ -57,7 +57,7 @@ class Snapshot
     explicit Snapshot(const path &directoryPath);
     void before(const path &directoryPath);
     void after(const path &directoryPath);
-    bool snapshotBalances(const Updates &updates);
+    bool snapshotBalances(const Updates &updates) const;
 };
 
 #endif // HMAKE_SNAPSHOT_HPP

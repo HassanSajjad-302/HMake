@@ -100,6 +100,8 @@ void preintMessageColor(const pstring &message, uint32_t color);
 void printErrorMessage(const pstring &message);
 void printErrorMessageColor(const pstring &message, uint32_t color);
 
+#define HMAKE_HMAKE_INTERNAL_ERROR printErrorMessage(fmt::format("HMake Internal Error {} {}", __FILE__, __LINE__));
+
 void configureOrBuild();
 
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

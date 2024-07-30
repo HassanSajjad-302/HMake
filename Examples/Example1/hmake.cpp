@@ -2,7 +2,7 @@
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp");
+    getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp");
 }
 
 MAIN_FUNCTION

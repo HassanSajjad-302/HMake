@@ -13,9 +13,9 @@
 #include <string>
 
 using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::create_directories,
-    std::filesystem::path, std::filesystem::current_path, std::cout, fmt::format, std::filesystem::remove_all,
-    std::ifstream, std::ofstream, std::filesystem::remove, std::filesystem::remove_all, std::filesystem::copy_file,
-    std::error_code, std::filesystem::copy_options, fmt::print;
+    std::filesystem::path, std::cout, fmt::format, std::filesystem::remove_all, std::ifstream, std::ofstream,
+    std::filesystem::remove, std::filesystem::remove_all, std::filesystem::copy_file, std::error_code,
+    std::filesystem::copy_options, fmt::print;
 
 static void touchFile(const path &filePath)
 {

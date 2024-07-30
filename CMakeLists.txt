@@ -17,8 +17,8 @@ endif ()
 
 set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 0)
 
-add_subdirectory(fmt)
-add_subdirectory(json)
+add_subdirectory(3rdParty/fmt)
+add_subdirectory(3rdParty/json)
 
 add_library(hconfigure STATIC
         hconfigure/src/Settings.cpp
@@ -60,28 +60,30 @@ endif ()
 target_link_libraries(hconfigure PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
 target_include_directories(hconfigure
         PUBLIC hconfigure/header
-        PUBLIC rapidjson/include
-        PUBLIC komihash
-        )
+        PUBLIC 3rdParty/rapidjson/include
+        PUBLIC 3rdParty/rapidhash
+        PUBLIC 3rdParty/parallel-hashmap/parallel_hashmap
+)
 # Comment out the following to switch from compile-command to hash in the build-log.
 target_compile_definitions(hconfigure PUBLIC USE_COMMAND_HASH)
 
-if(UNIX)
-target_compile_options(hconfigure PRIVATE -fvisibility=hidden)
-endif()
+if (UNIX)
+    target_compile_options(hconfigure PRIVATE -fvisibility=hidden)
+endif ()
 
 add_executable(htools htools/main.cpp)
 target_link_libraries(htools PRIVATE hconfigure)
 
 add_executable(hhelper hhelper/src/main.cpp)
 target_link_libraries(hhelper PRIVATE hconfigure)
-target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/json/include/")
-target_compile_definitions(hhelper PRIVATE RAPIDJSON_HEADER="${CMAKE_SOURCE_DIR}/rapidjson/include/")
-target_compile_definitions(hhelper PRIVATE KOMIHASH_HEADER="${CMAKE_SOURCE_DIR}/komihash/")
+target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/json/include/")
+target_compile_definitions(hhelper PRIVATE RAPIDJSON_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/rapidjson/include/")
+target_compile_definitions(hhelper PRIVATE RAPIDHASH_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/rapidhash/")
+target_compile_definitions(hhelper PRIVATE PARALLEL_HASHMAP="${CMAKE_SOURCE_DIR}/3rdParty/parallel-hashmap/parallel_hashmap")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure>")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure>")
-target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/fmt/include/")
+target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/fmt/include/")
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:fmt::fmt>")
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_PATH="$<TARGET_FILE:fmt>")
 

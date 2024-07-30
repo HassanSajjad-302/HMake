@@ -31,7 +31,7 @@ void configurationSpecification(Configuration &configuration)
     EXAMPLES examples = EXAMPLES::YES;
     configuration.compilerFeatures.requirementIncludes.emplace_back(
         Node::getNodeFromNonNormalizedString(path(srcDir).parent_path().string(), false));
-    DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
+    DSC<CppSourceTarget> &stdhu = configuration.getCppObjectDSC("stdhu");
     stdhu.getSourceTarget().assignStandardIncludesToPublicHUDirectories();
 
     /*
@@ -52,7 +52,7 @@ void configurationSpecification(Configuration &configuration)
      */
 
     // callable_traits
-    DSC<CppSourceTarget> &callableTraits = configuration.GetCppObjectDSC("callable_traits");
+    DSC<CppSourceTarget> &callableTraits = configuration.getCppObjectDSC("callable_traits");
     if (tests == TESTS::YES)
     {
         for (const auto &k : directory_iterator(path(srcDir + "/libs/callable_traits/test")))
@@ -61,12 +61,12 @@ void configurationSpecification(Configuration &configuration)
             if (k.path().extension() == ".cpp")
             {
                 DSC<CppSourceTarget> &target =
-                    configuration.GetCppExeDSC("test_callable_traits_" + k.path().filename().string());
-                target.getSourceTarget().MODULE_FILES(k.path().string());
+                    configuration.getCppExeDSC("test_callable_traits_" + k.path().filename().string());
+                target.getSourceTarget().moduleFiles(k.path().string());
 
                 DSC<CppSourceTarget> &target2 =
-                    configuration.GetCppExeDSC("test_callable_traits_" + k.path().filename().string() + "__lazy");
-                target2.getSourceTarget().MODULE_FILES(k.path().string()).PRIVATE_COMPILE_DEFINITION("USE_LAZY_TYPES");
+                    configuration.getCppExeDSC("test_callable_traits_" + k.path().filename().string() + "__lazy");
+                target2.getSourceTarget().moduleFiles(k.path().string()).privateCompileDefinition("USE_LAZY_TYPES");
             }
         }
     }
@@ -79,25 +79,25 @@ void configurationSpecification(Configuration &configuration)
             if (k.path().extension() == ".cpp")
             {
                 DSC<CppSourceTarget> &target =
-                    configuration.GetCppExeDSC("example_callable_traits_" + k.path().filename().string());
-                target.getSourceTarget().MODULE_FILES(k.path().string());
+                    configuration.getCppExeDSC("example_callable_traits_" + k.path().filename().string());
+                target.getSourceTarget().moduleFiles(k.path().string());
             }
         }
     }
 
     // compatibility
-    DSC<CppSourceTarget> &compatibility = configuration.GetCppObjectDSC("compatibility");
-    // compatibility.getSourceTarget().PUBLIC_HU_INCLUDES("libs/");
+    DSC<CppSourceTarget> &compatibility = configuration.getCppObjectDSC("compatibility");
+    // compatibility.getSourceTarget().publicHUIncludes("libs/");
 
     // config
-    DSC<CppSourceTarget> &config = configuration.GetCppObjectDSC("config");
+    DSC<CppSourceTarget> &config = configuration.getCppObjectDSC("config");
     // Skipping test and check for now
 
     // headers
-    DSC<CppSourceTarget> &headers = configuration.GetCppObjectDSC("headers");
+    DSC<CppSourceTarget> &headers = configuration.getCppObjectDSC("headers");
     // This is a fake library for installing headers
 
-    DSC<CppSourceTarget> &hof = configuration.GetCppObjectDSC("hof");
+    DSC<CppSourceTarget> &hof = configuration.getCppObjectDSC("hof");
     if (tests == TESTS::YES)
     {
         for (const auto &k : directory_iterator(path(srcDir + "/libs/hof/test")))
@@ -107,14 +107,14 @@ void configurationSpecification(Configuration &configuration)
             /*if (k.path().extension() == ".cpp")
             {
                 DSC<CppSourceTarget> &target =
-                    configuration.GetCppExeDSC("test_hof_" + k.path().filename().string());
-                target.getSourceTarget().MODULE_FILES(k.path().string());
+                    configuration.getCppExeDSC("test_hof_" + k.path().filename().string());
+                target.getSourceTarget().moduleFiles(k.path().string());
             }*/
         }
     }
     // hof example has no Jamfile
 
-    DSC<CppSourceTarget> &lambda2 = configuration.GetCppObjectDSC("lambda2");
+    DSC<CppSourceTarget> &lambda2 = configuration.getCppObjectDSC("lambda2");
     if (tests == TESTS::YES)
     {
         for (const auto &k : directory_iterator(path(srcDir + "/libs/lambda2/test")))
@@ -123,13 +123,13 @@ void configurationSpecification(Configuration &configuration)
             if (k.path().extension() == ".cpp")
             {
                 DSC<CppSourceTarget> &target =
-                    configuration.GetCppExeDSC("test_lambda2_" + k.path().filename().string());
-                target.getSourceTarget().MODULE_FILES(k.path().string());
+                    configuration.getCppExeDSC("test_lambda2_" + k.path().filename().string());
+                target.getSourceTarget().moduleFiles(k.path().string());
             }
         }
     }
 
-    DSC<CppSourceTarget> &leaf = configuration.GetCppObjectDSC("leaf");
+    DSC<CppSourceTarget> &leaf = configuration.getCppObjectDSC("leaf");
     if (tests == TESTS::YES)
     {
         // test/Jamfile.v2 has compile, run, exe and configuration based selection and target specification
@@ -140,13 +140,13 @@ void configurationSpecification(Configuration &configuration)
             if (k.path().extension() == ".cpp" && !k.path().string().contains("fail"))
             {
                 DSC<CppSourceTarget> &target =
-                    configuration.GetCppExeDSC("test_leaf_" + k.path().filename().string());
-                target.getSourceTarget().MODULE_FILES(k.path().string());
+                    configuration.getCppExeDSC("test_leaf_" + k.path().filename().string());
+                target.getSourceTarget().moduleFiles(k.path().string());
             }
         }*/
     }
 
-    DSC<CppSourceTarget> &mp11 = configuration.GetCppObjectDSC("mp11");
+    DSC<CppSourceTarget> &mp11 = configuration.getCppObjectDSC("mp11");
     if (tests == TESTS::YES)
     {
         // test/Jamfile.v2 has compile, run, exe and configuration based selection and target specification
@@ -159,13 +159,13 @@ void configurationSpecification(Configuration &configuration)
                 if (!k.path().string().contains("compose_sf"))
                 {
                     DSC<CppSourceTarget> &target =
-                        configuration.GetCppExeDSC("test_mp11_" + k.path().filename().string());
-                    target.getSourceTarget().MODULE_FILES(k.path().string());
+                        configuration.getCppExeDSC("test_mp11_" + k.path().filename().string());
+                    target.getSourceTarget().moduleFiles(k.path().string());
                 }
                 else
                 {
-                    DSC<CppSourceTarget> &target = configuration.GetCppObjectDSC("test_mp11_mp_compose_sf");
-                    target.getSourceTarget().MODULE_FILES("libs/mp11/test/mp_compose_sf.cpp");
+                    DSC<CppSourceTarget> &target = configuration.getCppObjectDSC("test_mp11_mp_compose_sf");
+                    target.getSourceTarget().moduleFiles("libs/mp11/test/mp_compose_sf.cpp");
                 }
             }
         }
@@ -177,7 +177,7 @@ void configurationSpecification(Configuration &configuration)
     // skipping predef. header-only library with not that many tests but lots of
     // configurations.
 
-    DSC<CppSourceTarget> &preprocessor = configuration.GetCppObjectDSC("preprocessor");
+    DSC<CppSourceTarget> &preprocessor = configuration.getCppObjectDSC("preprocessor");
     if (tests == TESTS::YES)
     {
         vector<string> vec{"arithmetic.cpp", "array.cpp",     "comparison.cpp", "control.cpp", "debug.cpp",
@@ -187,24 +187,24 @@ void configurationSpecification(Configuration &configuration)
 
         for (string &str : vec)
         {
-            DSC<CppSourceTarget> &preprocessorTests = configuration.GetCppExeDSC("test_preprocessor_" + str);
-            preprocessorTests.getSourceTarget().MODULE_FILES(srcDir + "libs/preprocessor/test/" + str);
+            DSC<CppSourceTarget> &preprocessorTests = configuration.getCppExeDSC("test_preprocessor_" + str);
+            preprocessorTests.getSourceTarget().moduleFiles(srcDir + "libs/preprocessor/test/" + str);
             DSC<CppSourceTarget> &preprocessorNumber512Tests =
-                configuration.GetCppExeDSC("test_preprocessor_number_512_" + str);
+                configuration.getCppExeDSC("test_preprocessor_number_512_" + str);
             preprocessorNumber512Tests.getSourceTarget()
-                .MODULE_FILES(srcDir + "libs/preprocessor/test/" + str)
-                .PRIVATE_COMPILE_DEFINITION("BOOST_PP_LIMIT_MAG=512");
+                .moduleFiles(srcDir + "libs/preprocessor/test/" + str)
+                .privateCompileDefinition("BOOST_PP_LIMIT_MAG=512");
             DSC<CppSourceTarget> &preprocessorNumber1024Tests =
-                configuration.GetCppExeDSC("test_preprocessor_number_1024_" + str);
+                configuration.getCppExeDSC("test_preprocessor_number_1024_" + str);
             preprocessorNumber1024Tests.getSourceTarget()
-                .MODULE_FILES(srcDir + "libs/preprocessor/test/" + str)
-                .PRIVATE_COMPILE_DEFINITION("BOOST_PP_LIMIT_MAG=1024");
+                .moduleFiles(srcDir + "libs/preprocessor/test/" + str)
+                .privateCompileDefinition("BOOST_PP_LIMIT_MAG=1024");
             // Incomplete
         }
     }
 
     // callable_traits
-    DSC<CppSourceTarget> &qvm = configuration.GetCppObjectDSC("qvm");
+    DSC<CppSourceTarget> &qvm = configuration.getCppObjectDSC("qvm");
     if (tests == TESTS::YES)
     {
         for (const auto &k : directory_iterator(path(srcDir + "/libs/qvm/test")))
@@ -214,35 +214,35 @@ void configurationSpecification(Configuration &configuration)
             if (k.path().extension() == ".cpp" && !k.path().string().contains("fail") &&
                 !k.path().string().contains("header-test.cpp"))
             {
-                DSC<CppSourceTarget> &qvmTest = configuration.GetCppExeDSC("test_qvm_" + k.path().filename().string());
-                qvmTest.getSourceTarget().MODULE_FILES(k.path().string());
+                DSC<CppSourceTarget> &qvmTest = configuration.getCppExeDSC("test_qvm_" + k.path().filename().string());
+                qvmTest.getSourceTarget().moduleFiles(k.path().string());
 
                 DSC<CppSourceTarget> &qvmTestHpp =
-                    configuration.GetCppExeDSC("test_qvm_hpp_" + k.path().filename().string());
+                    configuration.getCppExeDSC("test_qvm_hpp_" + k.path().filename().string());
                 qvmTestHpp.getSourceTarget()
-                    .MODULE_FILES(k.path().string())
-                    .PRIVATE_COMPILE_DEFINITION("BOOST_QVM_TEST_SINGLE_HEADER",
-                                                addEscapedQuotes("libs/qvm/include/boost/qvm.hpp"));
+                    .moduleFiles(k.path().string())
+                    .privateCompileDefinition("BOOST_QVM_TEST_SINGLE_HEADER",
+                                              addEscapedQuotes("libs/qvm/include/boost/qvm.hpp"));
 
                 // Commented out because lite tests do not pass
                 /*
                 DSC<CppSourceTarget> &qvmTestLiteHpp =
-                    configuration.GetCppExeDSC("test_qvm_lite_hpp_" + k.path().filename().string());
+                    configuration.getCppExeDSC("test_qvm_lite_hpp_" + k.path().filename().string());
                 qvmTestLiteHpp.getSourceTarget()
-                    .MODULE_FILES(k.path().string())
-                    .PRIVATE_COMPILE_DEFINITION("BOOST_QVM_TEST_SINGLE_HEADER",
+                    .moduleFiles(k.path().string())
+                    .privateCompileDefinition("BOOST_QVM_TEST_SINGLE_HEADER",
                                                 addEscapedQuotes("libs/qvm/include/boost/qvm_lite.hpp"));
                                                 */
 
                 /*DSC<CppSourceTarget> &target2 =
-                    configuration.GetCppExeDSC("test_qvm_" + k.path().filename().string() + "__lazy");
-                target2.getSourceTarget().MODULE_FILES(k.path().string()).PRIVATE_COMPILE_DEFINITION("USE_LAZY_TYPES");*/
+                    configuration.getCppExeDSC("test_qvm_" + k.path().filename().string() + "__lazy");
+                target2.getSourceTarget().moduleFiles(k.path().string()).privateCompileDefinition("USE_LAZY_TYPES");*/
             }
         }
     }
 
     // Level 1
-    DSC<CppSourceTarget> &assert = configuration.GetCppObjectDSC("assert");
+    DSC<CppSourceTarget> &assert = configuration.getCppObjectDSC("assert");
     if (tests == TESTS::YES)
     {
         for (const auto &k : directory_iterator(path(srcDir + "/libs/assert/test")))
@@ -251,8 +251,8 @@ void configurationSpecification(Configuration &configuration)
             if (k.path().extension() == ".cpp")
             {
                 DSC<CppSourceTarget> &target =
-                    configuration.GetCppExeDSC("test_assert_" + k.path().filename().string());
-                target.getSourceTarget().MODULE_FILES(k.path().string());
+                    configuration.getCppExeDSC("test_assert_" + k.path().filename().string());
+                target.getSourceTarget().moduleFiles(k.path().string());
             }
         }
     }
@@ -261,7 +261,7 @@ void configurationSpecification(Configuration &configuration)
 void buildSpecification()
 {
     // This tries to build SFML similar to the current CMakeLists.txt. Currently, only Windows build is supported.
-    GetConfiguration("conventional").ASSIGN(CxxSTD::V_LATEST, TargetType::LIBRARY_SHARED, TreatModuleAsSource::YES);
+    getConfiguration("conventional").assign(CxxSTD::V_LATEST, TargetType::LIBRARY_SHARED, TreatModuleAsSource::YES);
 
     selectiveConfigurationSpecification(&configurationSpecification);
 }

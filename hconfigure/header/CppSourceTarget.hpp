@@ -197,59 +197,57 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     CppSourceTarget &assignStandardIncludesToPublicHUDirectories();
     // TODO
-    // Also provide function overload for functions like PUBLIC_INCLUDES here and in CPT
-    template <typename... U> CppSourceTarget &PUBLIC_INCLUDES(const pstring &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &PRIVATE_INCLUDES(const pstring &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &INTERFACE_INCLUDES(const pstring &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &PUBLIC_HU_INCLUDES(const pstring &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &PRIVATE_HU_INCLUDES(const pstring &include, U... includeDirectoryPString);
+    // Also provide function overload for functions like publicIncludes here and in CPT
+    template <typename... U> CppSourceTarget &publicIncludes(const pstring &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &privateIncludes(const pstring &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &interfaceIncludes(const pstring &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &publicHUIncludes(const pstring &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &privateHUIncludes(const pstring &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &interfaceHUIncludes(const pstring &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &publicHUDirectories(const pstring &include, U... includeDirectoryPString);
     template <typename... U>
-    CppSourceTarget &INTERFACE_HU_INCLUDES(const pstring &include, U... includeDirectoryPString);
+    CppSourceTarget &privateHUDirectories(const pstring &include, U... includeDirectoryPString);
     template <typename... U>
-    CppSourceTarget &PUBLIC_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString);
-    template <typename... U>
-    CppSourceTarget &PRIVATE_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString);
-    template <typename... U>
-    CppSourceTarget &INTERFACE_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString);
-    CppSourceTarget &PUBLIC_COMPILER_FLAGS(const pstring &compilerFlags);
-    CppSourceTarget &PRIVATE_COMPILER_FLAGS(const pstring &compilerFlags);
-    CppSourceTarget &INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags);
-    CppSourceTarget &PUBLIC_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue = "");
-    CppSourceTarget &PRIVATE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue = "");
-    CppSourceTarget &INTERFACE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue = "");
-    template <typename... U> CppSourceTarget &SOURCE_FILES(const pstring &srcFile, U... sourceFilePString);
-    template <typename... U> CppSourceTarget &MODULE_FILES(const pstring &modFile, U... moduleFilePString);
-    template <typename... U> CppSourceTarget &INTERFACE_FILES(const pstring &modFile, U... moduleFilePString);
+    CppSourceTarget &interfaceHUDirectories(const pstring &include, U... includeDirectoryPString);
+    CppSourceTarget &publicCompilerFlags(const pstring &compilerFlags);
+    CppSourceTarget &privateCompilerFlags(const pstring &compilerFlags);
+    CppSourceTarget &interfaceCompilerFlags(const pstring &compilerFlags);
+    CppSourceTarget &publicCompileDefinition(const pstring &cddName, const pstring &cddValue = "");
+    CppSourceTarget &privateCompileDefinition(const pstring &cddName, const pstring &cddValue = "");
+    CppSourceTarget &interfaceCompileDefinition(const pstring &cddName, const pstring &cddValue = "");
+    template <typename... U> CppSourceTarget &sourceFiles(const pstring &srcFile, U... sourceFilePString);
+    template <typename... U> CppSourceTarget &moduleFiles(const pstring &modFile, U... moduleFilePString);
+    template <typename... U> CppSourceTarget &interfaceFiles(const pstring &modFile, U... moduleFilePString);
     void parseRegexSourceDirs(bool assignToSourceNodes, bool recursive, const SourceDirectory &dir);
-    template <typename... U> CppSourceTarget &SOURCE_DIRECTORIES(const pstring &sourceDirectory, U... directories);
-    template <typename... U> CppSourceTarget &MODULE_DIRECTORIES(const pstring &moduleDirectory, U... directories);
+    template <typename... U> CppSourceTarget &sourceDirectories(const pstring &sourceDirectory, U... directories);
+    template <typename... U> CppSourceTarget &moduleDirectories(const pstring &moduleDirectory, U... directories);
     template <typename... U>
-    CppSourceTarget &SOURCE_DIRECTORIES_RG(const pstring &sourceDirectory, const pstring &regex, U... directories);
+    CppSourceTarget &sourceDirectoriesRE(const pstring &sourceDirectory, const pstring &regex, U... directories);
     template <typename... U>
-    CppSourceTarget &MODULE_DIRECTORIES_RG(const pstring &moduleDirectory, const pstring &regex, U... directories);
-    template <typename... U> CppSourceTarget &R_SOURCE_DIRECTORIES(const pstring &sourceDirectory, U... directories);
-    template <typename... U> CppSourceTarget &R_MODULE_DIRECTORIES(const pstring &moduleDirectory, U... directories);
+    CppSourceTarget &moduleDirectoriesRE(const pstring &moduleDirectory, const pstring &regex, U... directories);
+    template <typename... U> CppSourceTarget &rSourceDirectories(const pstring &sourceDirectory, U... directories);
+    template <typename... U> CppSourceTarget &rModuleDirectories(const pstring &moduleDirectory, U... directories);
     template <typename... U>
-    CppSourceTarget &R_SOURCE_DIRECTORIES_RG(const pstring &sourceDirectory, const pstring &regex, U... directories);
+    CppSourceTarget &rSourceDirectoriesRE(const pstring &sourceDirectory, const pstring &regex, U... directories);
     template <typename... U>
-    CppSourceTarget &R_MODULE_DIRECTORIES_RG(const pstring &moduleDirectory, const pstring &regex, U... directories);
+    CppSourceTarget &rModuleDirectoriesRE(const pstring &moduleDirectory, const pstring &regex, U... directories);
     //
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
-    CppSourceTarget &ASSIGN(T property, Property... properties);
-    template <typename T> bool EVALUATE(T property) const;
+    CppSourceTarget &assign(T property, Property... properties);
+    template <typename T> bool evaluate(T property) const;
     template <Dependency dependency = Dependency::PRIVATE, typename T> void assignCommonFeature(T property);
 }; // class Target
 bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::publicIncludes(const pstring &include, U... includeDirectoryPString)
 {
     Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     InclNode::emplaceInList(requirementIncludes, node);
     InclNode::emplaceInList(usageRequirementIncludes, node);
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return PUBLIC_INCLUDES(includeDirectoryPString...);
+        return publicIncludes(includeDirectoryPString...);
     }
     else
     {
@@ -258,12 +256,12 @@ CppSourceTarget &CppSourceTarget::PUBLIC_INCLUDES(const pstring &include, U... i
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::PRIVATE_INCLUDES(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::privateIncludes(const pstring &include, U... includeDirectoryPString)
 {
     InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return PRIVATE_INCLUDES(includeDirectoryPString...);
+        return privateIncludes(includeDirectoryPString...);
     }
     else
     {
@@ -272,12 +270,12 @@ CppSourceTarget &CppSourceTarget::PRIVATE_INCLUDES(const pstring &include, U... 
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::INTERFACE_INCLUDES(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::interfaceIncludes(const pstring &include, U... includeDirectoryPString)
 {
     InclNode::emplaceInList(usageRequirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return INTERFACE_INCLUDES(includeDirectoryPString...);
+        return interfaceIncludes(includeDirectoryPString...);
     }
     else
     {
@@ -286,7 +284,7 @@ CppSourceTarget &CppSourceTarget::INTERFACE_INCLUDES(const pstring &include, U..
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::publicHUIncludes(const pstring &include, U... includeDirectoryPString)
 {
     Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     if (bool added = InclNode::emplaceInList(usageRequirementIncludes, node); added)
@@ -300,7 +298,7 @@ CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const pstring &include, U..
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return PUBLIC_HU_INCLUDES(includeDirectoryPString...);
+        return publicHUIncludes(includeDirectoryPString...);
     }
     else
     {
@@ -309,7 +307,7 @@ CppSourceTarget &CppSourceTarget::PUBLIC_HU_INCLUDES(const pstring &include, U..
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::privateHUIncludes(const pstring &include, U... includeDirectoryPString)
 {
     if (bool added = InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
         added)
@@ -318,7 +316,7 @@ CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const pstring &include, U.
     }
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return PRIVATE_HU_INCLUDES(includeDirectoryPString...);
+        return privateHUIncludes(includeDirectoryPString...);
     }
     else
     {
@@ -327,7 +325,7 @@ CppSourceTarget &CppSourceTarget::PRIVATE_HU_INCLUDES(const pstring &include, U.
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::INTERFACE_HU_INCLUDES(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const pstring &include, U... includeDirectoryPString)
 {
     Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     if (bool added = InclNode::emplaceInList(usageRequirementIncludes, node); added)
@@ -337,7 +335,7 @@ CppSourceTarget &CppSourceTarget::INTERFACE_HU_INCLUDES(const pstring &include, 
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return INTERFACE_HU_INCLUDES(includeDirectoryPString...);
+        return interfaceHUIncludes(includeDirectoryPString...);
     }
     else
     {
@@ -346,14 +344,14 @@ CppSourceTarget &CppSourceTarget::INTERFACE_HU_INCLUDES(const pstring &include, 
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::PUBLIC_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::publicHUDirectories(const pstring &include, U... includeDirectoryPString)
 {
     requirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
     usageRequirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return PUBLIC_HU_DIRECTORIES(includeDirectoryPString...);
+        return publicHUDirectories(includeDirectoryPString...);
     }
     else
     {
@@ -362,13 +360,13 @@ CppSourceTarget &CppSourceTarget::PUBLIC_HU_DIRECTORIES(const pstring &include, 
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::PRIVATE_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::privateHUDirectories(const pstring &include, U... includeDirectoryPString)
 {
     requirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return PRIVATE_HU_DIRECTORIES(includeDirectoryPString...);
+        return privateHUDirectories(includeDirectoryPString...);
     }
     else
     {
@@ -377,13 +375,13 @@ CppSourceTarget &CppSourceTarget::PRIVATE_HU_DIRECTORIES(const pstring &include,
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::INTERFACE_HU_DIRECTORIES(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const pstring &include, U... includeDirectoryPString)
 {
     usageRequirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return INTERFACE_HU_DIRECTORIES(includeDirectoryPString...);
+        return interfaceHUDirectories(includeDirectoryPString...);
     }
     else
     {
@@ -391,7 +389,7 @@ CppSourceTarget &CppSourceTarget::INTERFACE_HU_DIRECTORIES(const pstring &includ
     }
 }
 
-template <typename... U> CppSourceTarget &CppSourceTarget::SOURCE_FILES(const pstring &srcFile, U... sourceFilePString)
+template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const pstring &srcFile, U... sourceFilePString)
 {
     Node *node = Node::getNodeFromNonNormalizedPath(srcFile, true);
     if (!sourceFileDependencies.contains(node))
@@ -400,7 +398,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::SOURCE_FILES(const ps
     }
     if constexpr (sizeof...(sourceFilePString))
     {
-        return SOURCE_FILES(sourceFilePString...);
+        return sourceFiles(sourceFilePString...);
     }
     else
     {
@@ -408,11 +406,11 @@ template <typename... U> CppSourceTarget &CppSourceTarget::SOURCE_FILES(const ps
     }
 }
 
-template <typename... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(const pstring &modFile, U... moduleFilePString)
+template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const pstring &modFile, U... moduleFilePString)
 {
-    if (EVALUATE(TreatModuleAsSource::YES))
+    if (evaluate(TreatModuleAsSource::YES))
     {
-        return SOURCE_FILES(modFile, moduleFilePString...);
+        return sourceFiles(modFile, moduleFilePString...);
     }
 
     if (Node *node = Node::getNodeFromNonNormalizedPath(modFile, true); !moduleSourceFileDependencies.contains(node))
@@ -421,7 +419,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(const ps
     }
     if constexpr (sizeof...(moduleFilePString))
     {
-        return MODULE_FILES(moduleFilePString...);
+        return moduleFiles(moduleFilePString...);
     }
     else
     {
@@ -430,11 +428,11 @@ template <typename... U> CppSourceTarget &CppSourceTarget::MODULE_FILES(const ps
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::INTERFACE_FILES(const pstring &modFile, U... moduleFilePString)
+CppSourceTarget &CppSourceTarget::interfaceFiles(const pstring &modFile, U... moduleFilePString)
 {
-    if (EVALUATE(TreatModuleAsSource::YES))
+    if (evaluate(TreatModuleAsSource::YES))
     {
-        return SOURCE_FILES(modFile, moduleFilePString...);
+        return sourceFiles(modFile, moduleFilePString...);
     }
     else
     {
@@ -445,7 +443,7 @@ CppSourceTarget &CppSourceTarget::INTERFACE_FILES(const pstring &modFile, U... m
         const_cast<SMFile &>(smFile).isInterface = true;
         if constexpr (sizeof...(moduleFilePString))
         {
-            return INTERFACE_FILES(moduleFilePString...);
+            return interfaceFiles(moduleFilePString...);
         }
         else
         {
@@ -455,7 +453,7 @@ CppSourceTarget &CppSourceTarget::INTERFACE_FILES(const pstring &modFile, U... m
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::SOURCE_DIRECTORIES(const pstring &sourceDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::sourceDirectories(const pstring &sourceDirectory, U... directories)
 {
     if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, ".*"); Ok)
     {
@@ -463,13 +461,13 @@ CppSourceTarget &CppSourceTarget::SOURCE_DIRECTORIES(const pstring &sourceDirect
     }
     if constexpr (sizeof...(directories))
     {
-        return SOURCE_DIRECTORIES(directories...);
+        return sourceDirectories(directories...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::MODULE_DIRECTORIES(const pstring &moduleDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::moduleDirectories(const pstring &moduleDirectory, U... directories)
 {
     if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, ".*"); Ok)
     {
@@ -477,14 +475,14 @@ CppSourceTarget &CppSourceTarget::MODULE_DIRECTORIES(const pstring &moduleDirect
     }
     if constexpr (sizeof...(directories))
     {
-        return MODULE_DIRECTORIES(directories...);
+        return moduleDirectories(directories...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::SOURCE_DIRECTORIES_RG(const pstring &sourceDirectory, const pstring &regex,
-                                                        U... directories)
+CppSourceTarget &CppSourceTarget::sourceDirectoriesRE(const pstring &sourceDirectory, const pstring &regex,
+                                                      U... directories)
 {
     if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, regex); Ok)
     {
@@ -492,14 +490,14 @@ CppSourceTarget &CppSourceTarget::SOURCE_DIRECTORIES_RG(const pstring &sourceDir
     }
     if constexpr (sizeof...(directories))
     {
-        return SOURCE_DIRECTORIES_RG(directories...);
+        return sourceDirectoriesRE(directories...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::MODULE_DIRECTORIES_RG(const pstring &moduleDirectory, const pstring &regex,
-                                                        U... directories)
+CppSourceTarget &CppSourceTarget::moduleDirectoriesRE(const pstring &moduleDirectory, const pstring &regex,
+                                                      U... directories)
 {
     if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, regex); Ok)
     {
@@ -507,13 +505,13 @@ CppSourceTarget &CppSourceTarget::MODULE_DIRECTORIES_RG(const pstring &moduleDir
     }
     if constexpr (sizeof...(directories))
     {
-        return MODULE_DIRECTORIES_RG(directories...);
+        return moduleDirectoriesRE(directories...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::R_SOURCE_DIRECTORIES(const pstring &sourceDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::rSourceDirectories(const pstring &sourceDirectory, U... directories)
 {
     if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, ".*", true); Ok)
     {
@@ -521,13 +519,13 @@ CppSourceTarget &CppSourceTarget::R_SOURCE_DIRECTORIES(const pstring &sourceDire
     }
     if constexpr (sizeof...(directories))
     {
-        return R_SOURCE_DIRECTORIES(directories...);
+        return rSourceDirectories(directories...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::R_MODULE_DIRECTORIES(const pstring &moduleDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::rModuleDirectories(const pstring &moduleDirectory, U... directories)
 {
     if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, ".*", true); Ok)
     {
@@ -535,14 +533,14 @@ CppSourceTarget &CppSourceTarget::R_MODULE_DIRECTORIES(const pstring &moduleDire
     }
     if constexpr (sizeof...(directories))
     {
-        return R_MODULE_DIRECTORIES(directories...);
+        return rModuleDirectories(directories...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::R_SOURCE_DIRECTORIES_RG(const pstring &sourceDirectory, const pstring &regex,
-                                                          U... directories)
+CppSourceTarget &CppSourceTarget::rSourceDirectoriesRE(const pstring &sourceDirectory, const pstring &regex,
+                                                       U... directories)
 {
     if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, regex, true); Ok)
     {
@@ -550,14 +548,14 @@ CppSourceTarget &CppSourceTarget::R_SOURCE_DIRECTORIES_RG(const pstring &sourceD
     }
     if constexpr (sizeof...(directories))
     {
-        return R_SOURCE_DIRECTORIES_RG(directories...);
+        return R_sourceDirectoriesRE(directories...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::R_MODULE_DIRECTORIES_RG(const pstring &moduleDirectory, const pstring &regex,
-                                                          U... directories)
+CppSourceTarget &CppSourceTarget::rModuleDirectoriesRE(const pstring &moduleDirectory, const pstring &regex,
+                                                       U... directories)
 {
     if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, regex, true); Ok)
     {
@@ -565,13 +563,13 @@ CppSourceTarget &CppSourceTarget::R_MODULE_DIRECTORIES_RG(const pstring &moduleD
     }
     if constexpr (sizeof...(directories))
     {
-        return R_MODULE_DIRECTORIES_RG(directories...);
+        return R_moduleDirectoriesRE(directories...);
     }
     return *this;
 }
 
 template <Dependency dependency, typename T, typename... Property>
-CppSourceTarget &CppSourceTarget::ASSIGN(T property, Property... properties)
+CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
 {
     if constexpr (std::is_same_v<decltype(property), CSourceTargetEnum>)
     {
@@ -699,7 +697,7 @@ CppSourceTarget &CppSourceTarget::ASSIGN(T property, Property... properties)
     }
     if constexpr (sizeof...(properties))
     {
-        return ASSIGN(properties...);
+        return assign(properties...);
     }
     else
     {
@@ -707,7 +705,7 @@ CppSourceTarget &CppSourceTarget::ASSIGN(T property, Property... properties)
     }
 }
 
-template <typename T> bool CppSourceTarget::EVALUATE(T property) const
+template <typename T> bool CppSourceTarget::evaluate(T property) const
 {
     if constexpr (std::is_same_v<decltype(property), CSourceTargetEnum>)
     {

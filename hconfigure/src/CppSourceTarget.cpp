@@ -311,17 +311,17 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         // all variables in actions are in CAPITALS
 
         // Line 1560
-        pstring defaultAssembler = EVALUATE(Arch::IA64) ? "ias " : "";
-        if (EVALUATE(Arch::X86))
+        pstring defaultAssembler = evaluate(Arch::IA64) ? "ias " : "";
+        if (evaluate(Arch::X86))
         {
-            defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "ml64 ", AddressModel::A_32, "ml -coff ");
+            defaultAssembler += GET_FLAG_evaluate(AddressModel::A_64, "ml64 ", AddressModel::A_32, "ml -coff ");
         }
-        else if (EVALUATE(Arch::ARM))
+        else if (evaluate(Arch::ARM))
         {
-            defaultAssembler += GET_FLAG_EVALUATE(AddressModel::A_64, "armasm64 ", AddressModel::A_32, "armasm ");
+            defaultAssembler += GET_FLAG_evaluate(AddressModel::A_64, "armasm64 ", AddressModel::A_32, "armasm ");
         }
-        pstring assemblerFlags = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
-        pstring assemblerOutputFlag = GET_FLAG_EVALUATE(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
+        pstring assemblerFlags = GET_FLAG_evaluate(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
+        pstring assemblerOutputFlag = GET_FLAG_evaluate(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
         // Line 1618
 
         // Line 1650
@@ -331,7 +331,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         flags.DOT_LD_ARCHIVE += "lib /NOLOGO ";
 
         // Line 1670
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(LTO::ON, "/GL ");
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(LTO::ON, "/GL ");
         // End-Line 1682
 
         // Function completed. Jumping to rule configure-version-specific.
@@ -340,41 +340,41 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
 
         flags.OPTIONS_COMPILE += "/Zc:forScope /Zc:wchar_t ";
         flags.CPP_FLAGS_COMPILE_CPP = "/wd4675 ";
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Warnings::OFF, "/wd4996 ");
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(Warnings::OFF, "/wd4996 ");
         flags.OPTIONS_COMPILE += "/Zc:inline ";
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(OR(Optimization::SPEED, Optimization::SPACE), "/Gw ");
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(OR(Optimization::SPEED, Optimization::SPACE), "/Gw ");
         flags.CPP_FLAGS_COMPILE_CPP += "/Zc:throwingNew ";
 
         // Line 492
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(AddressSanitizer::ON, "/fsanitize=address /FS ");
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(AddressSanitizer::ON, "/fsanitize=address /FS ");
 
-        if (EVALUATE(AddressModel::A_64))
+        if (evaluate(AddressModel::A_64))
         {
             // The various 64 bit runtime asan support libraries and related flags.
             pstring FINDLIBS_SA_LINK =
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                                   "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64 ");
             FINDLIBS_SA_LINK +=
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                                   "clang_rt.asan-x86_64 clang_rt.asan_cxx-x86_64 ");
             pstring FINDLIBS_SA_LINK_DLL =
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-x86_64 ");
-            pstring LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+                GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-x86_64 ");
+            pstring LINKFLAGS_LINK_DLL = GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
                                                            R"(/wholearchive\:"clang_rt.asan_dll_thunk-x86_64.lib ")");
         }
-        else if (EVALUATE(AddressModel::A_32))
+        else if (evaluate(AddressModel::A_32))
         {
             // The various 32 bit runtime asan support libraries and related flags.
 
             pstring FINDLIBS_SA_LINK =
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
+                GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                                   "clang_rt.asan_dynamic-i386 clang_rt.asan_dynamic_runtime_thunk-i386 ");
             FINDLIBS_SA_LINK +=
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
+                GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                                   "clang_rt.asan-i386 clang_rt.asan_cxx-i386 ");
             pstring FINDLIBS_SA_LINK_DLL =
-                GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386 ");
-            pstring LINKFLAGS_LINK_DLL = GET_FLAG_EVALUATE(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+                GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386 ");
+            pstring LINKFLAGS_LINK_DLL = GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
                                                            R"(/wholearchive\:"clang_rt.asan_dll_thunk-i386.lib ")");
         }
 
@@ -383,11 +383,11 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         {
             flags.OPTIONS_COMPILE += "/favor:blend ";
             flags.OPTIONS_COMPILE +=
-                GET_FLAG_EVALUATE(CpuType::EM64T, "/favor:EM64T ", CpuType::AMD64, "/favor:AMD64 ");
+                GET_FLAG_evaluate(CpuType::EM64T, "/favor:EM64T ", CpuType::AMD64, "/favor:AMD64 ");
         }
         if (AND(Threading::SINGLE, RuntimeLink::STATIC))
         {
-            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MT ", RuntimeDebugging::ON, "/MTd ");
+            flags.OPTIONS_COMPILE += GET_FLAG_evaluate(RuntimeDebugging::OFF, "/MT ", RuntimeDebugging::ON, "/MTd ");
         }
 
         // Rule register-toolset-really on Line 1852
@@ -397,56 +397,56 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
 
         // TODO Line 1916 PCH Related Variables are not being set
 
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Optimization::SPEED, "/O2 ", Optimization::SPACE, "/O1 ");
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(Optimization::SPEED, "/O2 ", Optimization::SPACE, "/O1 ");
         // TODO:
         // Line 1927 - 1930 skipped because of cpu-type
-        if (EVALUATE(Arch::IA64))
+        if (evaluate(Arch::IA64))
         {
-            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(CpuType::ITANIUM, "/G1 ", CpuType::ITANIUM2, "/G2 ");
+            flags.OPTIONS_COMPILE += GET_FLAG_evaluate(CpuType::ITANIUM, "/G1 ", CpuType::ITANIUM2, "/G2 ");
         }
 
         // Line 1930
-        if (EVALUATE(DebugSymbols::ON))
+        if (evaluate(DebugSymbols::ON))
         {
-            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(DebugStore::OBJECT, "/Z7 ", DebugStore::DATABASE, "/Zi ");
+            flags.OPTIONS_COMPILE += GET_FLAG_evaluate(DebugStore::OBJECT, "/Z7 ", DebugStore::DATABASE, "/Zi ");
         }
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Optimization::OFF, "/Od ", Inlining::OFF, "/Ob0 ", Inlining::ON,
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(Optimization::OFF, "/Od ", Inlining::OFF, "/Ob0 ", Inlining::ON,
                                                    "/Ob1 ", Inlining::FULL, "/Ob2 ");
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Warnings::ON, "/W3 ", Warnings::OFF, "/W0 ",
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(Warnings::ON, "/W3 ", Warnings::OFF, "/W0 ",
                                                    OR(Warnings::ALL, Warnings::EXTRA, Warnings::PEDANTIC), "/W4 ",
                                                    WarningsAsErrors::ON, "/WX ");
-        if (EVALUATE(ExceptionHandling::ON))
+        if (evaluate(ExceptionHandling::ON))
         {
-            if (EVALUATE(AsyncExceptions::OFF))
+            if (evaluate(AsyncExceptions::OFF))
             {
                 flags.CPP_FLAGS_COMPILE +=
-                    GET_FLAG_EVALUATE(ExternCNoThrow::OFF, "/EHs ", ExternCNoThrow::ON, "/EHsc ");
+                    GET_FLAG_evaluate(ExternCNoThrow::OFF, "/EHs ", ExternCNoThrow::ON, "/EHsc ");
             }
-            else if (EVALUATE(AsyncExceptions::ON))
+            else if (evaluate(AsyncExceptions::ON))
             {
-                flags.CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(ExternCNoThrow::OFF, "/EHa ", ExternCNoThrow::ON, "EHac ");
+                flags.CPP_FLAGS_COMPILE += GET_FLAG_evaluate(ExternCNoThrow::OFF, "/EHa ", ExternCNoThrow::ON, "EHac ");
             }
         }
-        flags.CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(CxxSTD::V_14, "/std:c++14 ", CxxSTD::V_17, "/std:c++17 ",
+        flags.CPP_FLAGS_COMPILE += GET_FLAG_evaluate(CxxSTD::V_14, "/std:c++14 ", CxxSTD::V_17, "/std:c++17 ",
                                                      CxxSTD::V_20, "/std:c++20 ", CxxSTD::V_LATEST, "/std:c++latest ");
-        flags.CPP_FLAGS_COMPILE += GET_FLAG_EVALUATE(RTTI::ON, "/GR ", RTTI::OFF, "/GR- ");
-        if (EVALUATE(RuntimeLink::SHARED))
+        flags.CPP_FLAGS_COMPILE += GET_FLAG_evaluate(RTTI::ON, "/GR ", RTTI::OFF, "/GR- ");
+        if (evaluate(RuntimeLink::SHARED))
         {
-            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MD ", RuntimeDebugging::ON, "/MDd ");
+            flags.OPTIONS_COMPILE += GET_FLAG_evaluate(RuntimeDebugging::OFF, "/MD ", RuntimeDebugging::ON, "/MDd ");
         }
         else if (AND(RuntimeLink::STATIC, Threading::MULTI))
         {
-            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(RuntimeDebugging::OFF, "/MT ", RuntimeDebugging::ON, "/MTd ");
+            flags.OPTIONS_COMPILE += GET_FLAG_evaluate(RuntimeDebugging::OFF, "/MT ", RuntimeDebugging::ON, "/MTd ");
         }
 
-        flags.PDB_CFLAG += GET_FLAG_EVALUATE(AND(DebugSymbols::ON, DebugStore::DATABASE), "/Fd ");
+        flags.PDB_CFLAG += GET_FLAG_evaluate(AND(DebugSymbols::ON, DebugStore::DATABASE), "/Fd ");
 
         // TODO// Line 1971
         //  There are variables UNDEFS and FORCE_INCLUDES
 
-        if (EVALUATE(Arch::X86))
+        if (evaluate(Arch::X86))
         {
-            flags.ASMFLAGS_ASM = GET_FLAG_EVALUATE(Warnings::ON, "/W3 ", Warnings::OFF, "/W0 ", Warnings::ALL, "/W4 ",
+            flags.ASMFLAGS_ASM = GET_FLAG_evaluate(Warnings::ON, "/W3 ", Warnings::OFF, "/W0 ", Warnings::ALL, "/W4 ",
                                                    WarningsAsErrors::ON, "/WX ");
         }
     }
@@ -497,7 +497,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         }
         {
             // Handle threading
-            if (EVALUATE(Threading::MULTI))
+            if (evaluate(Threading::MULTI))
             {
                 if (OR(TargetOS::WINDOWS, TargetOS::CYGWIN, TargetOS::SOLARIS))
                 {
@@ -507,7 +507,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
                 {
                     addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-pthread ");
                 }
-                else if (EVALUATE(TargetOS::SOLARIS))
+                else if (evaluate(TargetOS::SOLARIS))
                 {
                     addToBothCOMPILE_FLAGS_and_LINK_FLAGS("-pthreads ");
                     findLibsSA += "rt";
@@ -527,14 +527,14 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
                 const CxxSTD temp = cxxStd;
                 const_cast<CxxSTD &>(cxxStd) = cxxStdLocal;
                 addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(
-                    GET_FLAG_EVALUATE(CxxSTD::V_98, "98 ", CxxSTD::V_03, "03 ", CxxSTD::V_0x, "0x ", CxxSTD::V_11,
+                    GET_FLAG_evaluate(CxxSTD::V_98, "98 ", CxxSTD::V_03, "03 ", CxxSTD::V_0x, "0x ", CxxSTD::V_11,
                                       "11 ", CxxSTD::V_1y, "1y ", CxxSTD::V_14, "14 ", CxxSTD::V_1z, "1z ",
                                       CxxSTD::V_17, "17 ", CxxSTD::V_2a, "2a ", CxxSTD::V_20, "20 ", CxxSTD::V_2b,
                                       "2b ", CxxSTD::V_23, "23 ", CxxSTD::V_2c, "2c ", CxxSTD::V_26, "26 "));
                 const_cast<CxxSTD &>(cxxStd) = temp;
             };
 
-            if (EVALUATE(CxxSTD::V_LATEST))
+            if (evaluate(CxxSTD::V_LATEST))
             {
                 // Rule at Line 429
                 if (compiler.bTVersion >= Version{10})
@@ -582,65 +582,65 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         // General options, link optimizations
 
         flags.OPTIONS_COMPILE +=
-            GET_FLAG_EVALUATE(Optimization::OFF, "-O0 ", Optimization::SPEED, "-O3 ", Optimization::SPACE, "-Os ",
+            GET_FLAG_evaluate(Optimization::OFF, "-O0 ", Optimization::SPEED, "-O3 ", Optimization::SPACE, "-Os ",
                               Optimization::MINIMAL, "-O1 ", Optimization::DEBUG, "-Og ");
 
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Inlining::OFF, "-fno-inline ", Inlining::ON, "-Wno-inline ",
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(Inlining::OFF, "-fno-inline ", Inlining::ON, "-Wno-inline ",
                                                    Inlining::FULL, "-finline-functions -Wno-inline ");
 
         flags.OPTIONS_COMPILE +=
-            GET_FLAG_EVALUATE(Warnings::OFF, "-w ", Warnings::ON, "-Wall ", Warnings::ALL, "-Wall ", Warnings::EXTRA,
+            GET_FLAG_evaluate(Warnings::OFF, "-w ", Warnings::ON, "-Wall ", Warnings::ALL, "-Wall ", Warnings::EXTRA,
                               "-Wall -Wextra ", Warnings::PEDANTIC, "-Wall -Wextra -pedantic ");
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(WarningsAsErrors::ON, "-Werror ");
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(WarningsAsErrors::ON, "-Werror ");
 
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(DebugSymbols::ON, "-g ");
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Profiling::ON, "-pg ");
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(DebugSymbols::ON, "-g ");
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(Profiling::ON, "-pg ");
 
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Visibility::HIDDEN, "-fvisibility=hidden ");
-        flags.OPTIONS_COMPILE_CPP += GET_FLAG_EVALUATE(Visibility::HIDDEN, "-fvisibility-inlines-hidden ");
-        if (!EVALUATE(TargetOS::DARWIN))
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(Visibility::HIDDEN, "-fvisibility=hidden ");
+        flags.OPTIONS_COMPILE_CPP += GET_FLAG_evaluate(Visibility::HIDDEN, "-fvisibility-inlines-hidden ");
+        if (!evaluate(TargetOS::DARWIN))
         {
-            flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Visibility::PROTECTED, "-fvisibility=protected ");
+            flags.OPTIONS_COMPILE += GET_FLAG_evaluate(Visibility::PROTECTED, "-fvisibility=protected ");
         }
-        flags.OPTIONS_COMPILE += GET_FLAG_EVALUATE(Visibility::GLOBAL, "-fvisibility=default ");
+        flags.OPTIONS_COMPILE += GET_FLAG_evaluate(Visibility::GLOBAL, "-fvisibility=default ");
 
-        flags.OPTIONS_COMPILE_CPP += GET_FLAG_EVALUATE(ExceptionHandling::OFF, "-fno-exceptions ");
-        flags.OPTIONS_COMPILE_CPP += GET_FLAG_EVALUATE(RTTI::OFF, "-fno-rtti ");
+        flags.OPTIONS_COMPILE_CPP += GET_FLAG_evaluate(ExceptionHandling::OFF, "-fno-exceptions ");
+        flags.OPTIONS_COMPILE_CPP += GET_FLAG_evaluate(RTTI::OFF, "-fno-rtti ");
 
         // Sanitizers
         pstring sanitizerFlags;
-        sanitizerFlags += GET_FLAG_EVALUATE(
+        sanitizerFlags += GET_FLAG_evaluate(
             AddressSanitizer::ON, "-fsanitize=address -fno-omit-frame-pointer ", AddressSanitizer::NORECOVER,
             "-fsanitize=address -fno-sanitize-recover=address -fno-omit-frame-pointer ");
         sanitizerFlags +=
-            GET_FLAG_EVALUATE(LeakSanitizer::ON, "-fsanitize=leak -fno-omit-frame-pointer ", LeakSanitizer::NORECOVER,
+            GET_FLAG_evaluate(LeakSanitizer::ON, "-fsanitize=leak -fno-omit-frame-pointer ", LeakSanitizer::NORECOVER,
                               "-fsanitize=leak -fno-sanitize-recover=leak -fno-omit-frame-pointer ");
-        sanitizerFlags += GET_FLAG_EVALUATE(ThreadSanitizer::ON, "-fsanitize=thread -fno-omit-frame-pointer ",
+        sanitizerFlags += GET_FLAG_evaluate(ThreadSanitizer::ON, "-fsanitize=thread -fno-omit-frame-pointer ",
                                             ThreadSanitizer::NORECOVER,
                                             "-fsanitize=thread -fno-sanitize-recover=thread -fno-omit-frame-pointer ");
-        sanitizerFlags += GET_FLAG_EVALUATE(
+        sanitizerFlags += GET_FLAG_evaluate(
             UndefinedSanitizer::ON, "-fsanitize=undefined -fno-omit-frame-pointer ", UndefinedSanitizer::NORECOVER,
             "-fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer ");
-        sanitizerFlags += GET_FLAG_EVALUATE(Coverage::ON, "--coverage ");
+        sanitizerFlags += GET_FLAG_evaluate(Coverage::ON, "--coverage ");
 
         flags.OPTIONS_COMPILE_CPP += sanitizerFlags;
 
-        if (EVALUATE(TargetOS::VXWORKS))
+        if (evaluate(TargetOS::VXWORKS))
         {
-            flags.DEFINES_COMPILE_CPP += GET_FLAG_EVALUATE(RTTI::OFF, "_NO_RTTI ");
-            flags.DEFINES_COMPILE_CPP += GET_FLAG_EVALUATE(ExceptionHandling::OFF, "_NO_EX=1 ");
+            flags.DEFINES_COMPILE_CPP += GET_FLAG_evaluate(RTTI::OFF, "_NO_RTTI ");
+            flags.DEFINES_COMPILE_CPP += GET_FLAG_evaluate(ExceptionHandling::OFF, "_NO_EX=1 ");
         }
 
         // LTO
-        if (EVALUATE(LTO::ON))
+        if (evaluate(LTO::ON))
         {
             flags.OPTIONS_COMPILE +=
-                GET_FLAG_EVALUATE(LTOMode::FULL, "-flto ", LTOMode::FAT, "-flto -ffat-lto-objects ");
+                GET_FLAG_evaluate(LTOMode::FULL, "-flto ", LTOMode::FAT, "-flto -ffat-lto-objects ");
         }
 
         // ABI selection
         flags.DEFINES_COMPILE_CPP +=
-            GET_FLAG_EVALUATE(StdLib::GNU, "_GLIBCXX_USE_CXX11_ABI=0 ", StdLib::GNU11, "_GLIBCXX_USE_CXX11_ABI=1 ");
+            GET_FLAG_evaluate(StdLib::GNU, "_GLIBCXX_USE_CXX11_ABI=0 ", StdLib::GNU11, "_GLIBCXX_USE_CXX11_ABI=1 ");
 
         {
             bool noStaticLink = true;
@@ -648,9 +648,9 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
             {
                 noStaticLink = false;
             }
-            if (noStaticLink && EVALUATE(RuntimeLink::STATIC))
+            if (noStaticLink && evaluate(RuntimeLink::STATIC))
             {
-                if (EVALUATE(TargetType::LIBRARY_SHARED))
+                if (evaluate(TargetType::LIBRARY_SHARED))
                 {
                     printMessage("WARNING: On gcc, DLLs can not be built with <runtime-link>static\n ");
                 }
@@ -662,7 +662,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
             }
         }
 
-        pstring str = GET_FLAG_EVALUATE(
+        pstring str = GET_FLAG_evaluate(
             AND(Arch::X86, InstructionSet::native), "-march=native ", AND(Arch::X86, InstructionSet::i486),
             "-march=i486 ", AND(Arch::X86, InstructionSet::i586), "-march=i586 ", AND(Arch::X86, InstructionSet::i686),
             "-march=i686 ", AND(Arch::X86, InstructionSet::pentium), "-march=pentium ",
@@ -886,39 +886,39 @@ C_Target *CppSourceTarget::get_CAPITarget(BSMode)
     return c_Target;
 }
 
-CppSourceTarget &CppSourceTarget::PUBLIC_COMPILER_FLAGS(const pstring &compilerFlags)
+CppSourceTarget &CppSourceTarget::publicCompilerFlags(const pstring &compilerFlags)
 {
     requirementCompilerFlags += compilerFlags;
     usageRequirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::PRIVATE_COMPILER_FLAGS(const pstring &compilerFlags)
+CppSourceTarget &CppSourceTarget::privateCompilerFlags(const pstring &compilerFlags)
 {
     requirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags)
+CppSourceTarget &CppSourceTarget::interfaceCompilerFlags(const pstring &compilerFlags)
 {
     usageRequirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::PUBLIC_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue)
+CppSourceTarget &CppSourceTarget::publicCompileDefinition(const pstring &cddName, const pstring &cddValue)
 {
     requirementCompileDefinitions.emplace(cddName, cddValue);
     usageRequirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::PRIVATE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue)
+CppSourceTarget &CppSourceTarget::privateCompileDefinition(const pstring &cddName, const pstring &cddValue)
 {
     requirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::INTERFACE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue)
+CppSourceTarget &CppSourceTarget::interfaceCompileDefinition(const pstring &cddName, const pstring &cddValue)
 {
     usageRequirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
@@ -926,7 +926,7 @@ CppSourceTarget &CppSourceTarget::INTERFACE_COMPILE_DEFINITION(const pstring &cd
 
 void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const bool recursive, const SourceDirectory &dir)
 {
-    if (EVALUATE(TreatModuleAsSource::YES))
+    if (evaluate(TreatModuleAsSource::YES))
     {
         assignToSourceNodes = true;
     }
@@ -989,7 +989,7 @@ void CppSourceTarget::setCompileCommand()
     }
 
     const pstring translateIncludeFlag =
-        GET_FLAG_EVALUATE(AND(TranslateInclude::YES, BTFamily::MSVC), "/translateInclude ");
+        GET_FLAG_evaluate(AND(TranslateInclude::YES, BTFamily::MSVC), "/translateInclude ");
     compileCommand += translateIncludeFlag;
 
     auto getIncludeFlag = [this]() {
@@ -1343,7 +1343,7 @@ pstring CppSourceTarget::getInfrastructureFlags(const bool showIncludes) const
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        pstring str = GET_FLAG_EVALUATE(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-P");
+        pstring str = GET_FLAG_evaluate(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-P");
         str += " /nologo ";
         if (showIncludes)
         {
@@ -1358,7 +1358,7 @@ pstring CppSourceTarget::getInfrastructureFlags(const bool showIncludes) const
         // prints 2 header deps in one line and no space in them so no way of
         // knowing whether this is a space in path or 2 different headers. Which
         // then breaks when last_write_time is checked for that path.
-        return GET_FLAG_EVALUATE(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-E") + " -MMD";
+        return GET_FLAG_evaluate(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-E") + " -MMD";
     }
     return "";
 }
@@ -1378,7 +1378,7 @@ pstring CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sour
     }
     if (ccpSettings.infrastructureFlags)
     {
-        command += compiler.bTFamily == BTFamily::MSVC ? EVALUATE(TargetType::LIBRARY_OBJECT) ? "/Fo" : "/Fi" : "-o ";
+        command += compiler.bTFamily == BTFamily::MSVC ? evaluate(TargetType::LIBRARY_OBJECT) ? "/Fo" : "/Fi" : "-o ";
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
@@ -1401,7 +1401,7 @@ pstring CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &sm
     {
         if (compiler.bTFamily == BTFamily::MSVC)
         {
-            const pstring translateIncludeFlag = GET_FLAG_EVALUATE(TranslateInclude::YES, "/translateInclude ");
+            const pstring translateIncludeFlag = GET_FLAG_evaluate(TranslateInclude::YES, "/translateInclude ");
             command += translateIncludeFlag + " /nologo /showIncludes /scanDependencies ";
         }
     }
@@ -1440,7 +1440,7 @@ PostCompile CppSourceTarget::CompileSMFile(const SMFile &smFile)
 
 pstring CppSourceTarget::getExtension() const
 {
-    return GET_FLAG_EVALUATE(TargetType::PREPROCESS, ".ii", TargetType::LIBRARY_OBJECT, ".o");
+    return GET_FLAG_evaluate(TargetType::PREPROCESS, ".ii", TargetType::LIBRARY_OBJECT, ".o");
 }
 
 mutex cppSourceTargetDotCpp_TempMutex;
@@ -1456,7 +1456,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
     finalCompileCommand += getInfrastructureFlags(true) + " " + addQuotes(sourceNode.node->filePath) + " ";
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        finalCompileCommand += (EVALUATE(TargetType::LIBRARY_OBJECT) ? "/Fo" : "/Fi") +
+        finalCompileCommand += (evaluate(TargetType::LIBRARY_OBJECT) ? "/Fo" : "/Fi") +
                                addQuotes(buildCacheFilesDirPath + compileFileName + getExtension()) + " ";
     }
     else if (compiler.bTFamily == BTFamily::GCC)

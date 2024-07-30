@@ -25,13 +25,13 @@ class PrebuiltLinkOrArchiveTarget : public PrebuiltBasic, public PrebuiltLinkerF
     pstring getActualOutputPath() const;
 
     template <Dependency dependency, typename T, typename... Property>
-    PrebuiltLinkOrArchiveTarget &ASSIGN(T property, Property... properties);
-    template <typename T> bool EVALUATE(T property) const;
+    PrebuiltLinkOrArchiveTarget &assign(T property, Property... properties);
+    template <typename T> bool evaluate(T property) const;
 };
 void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget);
 
 template <Dependency dependency, typename T, typename... Property>
-PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::ASSIGN(T property, Property... properties)
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::assign(T property, Property... properties)
 {
     if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
     {
@@ -47,7 +47,7 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::ASSIGN(T property, Pro
     }
     if constexpr (sizeof...(properties))
     {
-        return ASSIGN(properties...);
+        return assign(properties...);
     }
     else
     {
@@ -55,7 +55,7 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::ASSIGN(T property, Pro
     }
 }
 
-template <typename T> bool PrebuiltLinkOrArchiveTarget::EVALUATE(T property) const
+template <typename T> bool PrebuiltLinkOrArchiveTarget::evaluate(T property) const
 {
     if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
     {

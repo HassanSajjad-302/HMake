@@ -3,13 +3,13 @@
 
 void configurationSpecification(Configuration &configuration)
 {
-    configuration.GetCppExeDSC("app").getSourceTarget().SOURCE_DIRECTORIES_RG(".", "file[1-4]\\.cpp|main\\.cpp");
+    configuration.getCppExeDSC("app").getSourceTarget().sourceDirectoriesRE(".", "file[1-4]\\.cpp|main\\.cpp");
 }
 
 void buildSpecification()
 {
     auto custom = targets<CTarget>.emplace("Custom");
-    configurationSpecification(GetConfiguration("Debug"));
+    configurationSpecification(getConfiguration("Debug"));
 }
 
 #ifdef EXE

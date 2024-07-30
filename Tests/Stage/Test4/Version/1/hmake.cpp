@@ -5,27 +5,27 @@ void buildSpecification()
     // DSC constructor has this line         prebuiltBasic->objectFileProducers.emplace(objectFileProducer);
     // which specifies std CppSourceTarget (and transitively its object-files) as a dependency of std
     // LinkOrArchiveTarget.
-    DSC<CppSourceTarget> &std = GetCppObjectDSC("std");
-    std.getSourceTarget().INTERFACE_FILES("std/std.cpp").ASSIGN(CxxSTD::V_20);
+    DSC<CppSourceTarget> &std = getCppObjectDSC("std");
+    std.getSourceTarget().interfaceFiles("std/std.cpp").assign(CxxSTD::V_20);
 
-    DSC<CppSourceTarget> &cat = GetCppObjectDSC("cat");
+    DSC<CppSourceTarget> &cat = getCppObjectDSC("cat");
     cat.getSourceTarget()
-        .INTERFACE_FILES("cat/cat.ixx")
-        .MODULE_FILES("cat/cat.cpp")
-        .ASSIGN(CxxSTD::V_20)
-        .PUBLIC_HU_INCLUDES("cat");
+        .interfaceFiles("cat/cat.ixx")
+        .moduleFiles("cat/cat.cpp")
+        .assign(CxxSTD::V_20)
+        .publicHUIncludes("cat");
 
-    cat.PRIVATE_LIBRARIES(&std);
+    cat.privateLibraries(&std);
 
-    DSC<CppSourceTarget> &app = GetCppExeDSC("app");
-    app.getSourceTarget().MODULE_FILES("main.cpp");
+    DSC<CppSourceTarget> &app = getCppExeDSC("app");
+    app.getSourceTarget().moduleFiles("main.cpp");
 
     // This will define two new CppSourceTargets. saveAndReplace will save the older CppSourceTargets in the
-    // DSC<CppSourceTarget> while replacing it with these newer ones to be used in PRIVATE_LIBRARIES function. This new
+    // DSC<CppSourceTarget> while replacing it with these newer ones to be used in privateLibraries function. This new
     // target is compiled with the default value /std:c++latest same as the main.cpp. saveAndReplace will also populate
     // the module files of these newer targets with similar values to the older targets. assignObjectFileProducerDeps
-    // is used instead of PRIVATE_LIBRARIES because besides adding std CppSourceTarget as a dependency of cat
-    // CppSourceTarget, PRIVATE_LIBRARIES also adds std LinkOrArchiveTarget as a dependency of cat LinkOrArchiveTarget
+    // is used instead of privateLibraries because besides adding std CppSourceTarget as a dependency of cat
+    // CppSourceTarget, privateLibraries also adds std LinkOrArchiveTarget as a dependency of cat LinkOrArchiveTarget
     // which has already been done. Please notice that the older CppSourceTargets that we are replacing in the
     // following, we had already specified them (and transitively their object files) as the dependency of the
     // respective LinkOrArchiveTargets in the DSC constructor. The newer, following declared, CppSourceTargets are not
@@ -34,12 +34,12 @@ void buildSpecification()
 
     // If the following 4 lines are commented out, two warnings of incompatible ifcs  are printed as
     // there is bmi incompatibility introduced because of differences in language versions.
-/*    CppSourceTarget &std1 = GetCppObject("std1-cpp");
-    CppSourceTarget &cat1 = GetCppObject("cat1-cpp");
+/*    CppSourceTarget &std1 = getCppObject("std1-cpp");
+    CppSourceTarget &cat1 = getCppObject("cat1-cpp");
     std.saveAndReplace(&std1);
     cat.saveAndReplace(&cat1);*/
 
-    app.PRIVATE_LIBRARIES(&cat, &std);
+    app.privateLibraries(&cat, &std);
 
     // Please notice that saveAndReplace() function stores the older pointer in that respective DSC and populates the
     // module files of the newer target with only the interface-file of the  older target. This means that cat.ixx and

@@ -3,18 +3,18 @@
 
 void configurationSpecification(Configuration &configuration)
 {
-    configuration.GetCppExeDSC("app")
+    configuration.getCppExeDSC("app")
         .getSourceTarget()
-        .SOURCE_DIRECTORIES_RG(".", "file[1-4]\\.cpp|main\\.cpp")
+        .sourceDirectoriesRE(".", "file[1-4]\\.cpp|main\\.cpp")
         .SINGLE(LTO::ON, Optimization::SPACE);
 }
 
 void buildSpecification()
 {
-    Configuration &debug = GetConfiguration("Debug");
-    debug.ASSIGN(ConfigType::DEBUG);
-    Configuration &release = GetConfiguration("Release");
-    release.ASSIGN(LTO::ON);
+    Configuration &debug = getConfiguration("Debug");
+    debug.assign(ConfigType::DEBUG);
+    Configuration &release = getConfiguration("Release");
+    release.assign(LTO::ON);
 
     configurationSpecification(debug);
     configurationSpecification(release);

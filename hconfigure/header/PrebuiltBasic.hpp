@@ -75,8 +75,8 @@ class PrebuiltBasic : public BTarget
     void addRequirementDepsToBTargetDependencies();
 
     template <Dependency dependency, typename T, typename... Property>
-    PrebuiltBasic &ASSIGN(T property, Property... properties);
-    template <typename T> bool EVALUATE(T property) const;
+    PrebuiltBasic &assign(T property, Property... properties);
+    template <typename T> bool evaluate(T property) const;
 };
 bool operator<(const PrebuiltBasic &lhs, const PrebuiltBasic &rhs);
 void to_json(Json &json, const PrebuiltBasic &prebuiltBasic);
@@ -212,7 +212,7 @@ PrebuiltBasic &PrebuiltBasic::DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTarget, D
 }
 
 template <Dependency dependency, typename T, typename... Property>
-PrebuiltBasic &PrebuiltBasic::ASSIGN(T property, Property... properties)
+PrebuiltBasic &PrebuiltBasic::assign(T property, Property... properties)
 {
     if constexpr (std::is_same_v<decltype(property), TargetType>)
     {
@@ -225,7 +225,7 @@ PrebuiltBasic &PrebuiltBasic::ASSIGN(T property, Property... properties)
 
     if constexpr (sizeof...(properties))
     {
-        return ASSIGN(properties...);
+        return assign(properties...);
     }
     else
     {
@@ -233,7 +233,7 @@ PrebuiltBasic &PrebuiltBasic::ASSIGN(T property, Property... properties)
     }
 }
 
-template <typename T> bool PrebuiltBasic::EVALUATE(T property) const
+template <typename T> bool PrebuiltBasic::evaluate(T property) const
 {
     if constexpr (std::is_same_v<decltype(property), TargetType>)
     {

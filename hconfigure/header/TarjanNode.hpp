@@ -108,12 +108,12 @@ template <typename T> void TarjanNode<T>::strongConnect()
         }
     }
 
-    vector<TarjanNode<T> *> tempCycle;
     if (lowLink == nodeIndex)
     {
+        vector<TarjanNode *> tempCycle;
         while (true)
         {
-            TarjanNode<T> *tarjanTemp = nodesStack.back();
+            TarjanNode *tarjanTemp = nodesStack.back();
             nodesStack.pop_back();
             tarjanTemp->onStack = false;
             tempCycle.emplace_back(tarjanTemp);
@@ -124,7 +124,7 @@ template <typename T> void TarjanNode<T>::strongConnect()
         }
         if (tempCycle.size() > 1)
         {
-            for (TarjanNode<T> *c : tempCycle)
+            for (TarjanNode *c : tempCycle)
             {
                 cycle.emplace_back(const_cast<T *>(c->id));
             }

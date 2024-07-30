@@ -449,7 +449,7 @@ This might hang or HMake might detect and print ```HMake API misuse```.
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp");
+    getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp");
 }
 
 MAIN_FUNCTION
@@ -507,7 +507,7 @@ On Linux HMake builds with ```-fsanitize=thread```
 A side note, current CMakeLists.txt builds with address sanitizer, so you need to copy the respective dll
 in cmake build-dir for debugging on Windows.
 
-This line ```GetCppExeDSC("app").getSourceTarget().SOURCE_FILES("main.cpp");``` in the file create a
+This line ```getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp");``` in the file create a
 ```DSC<CppSourceTarget>```. ```DSC<CppSourceTarget>``` manages dependency specification as you will see
 later on.
 It has pointers to ```CppSourceTarget``` and ```LinkOrArchiveTarget```.
@@ -525,18 +525,18 @@ These functions preserve by emplacing the element in ```targets``` template vari
 
 void configurationSpecification(Configuration &configuration)
 {
-    configuration.GetCppExeDSC("app")
+    configuration.getCppExeDSC("app")
         .getSourceTarget()
-        .SOURCE_DIRECTORIES_RG(".", "file[1-4]\\.cpp|main\\.cpp")
+        .sourceDirectoriesRE(".", "file[1-4]\\.cpp|main\\.cpp")
         .SINGLE(LTO::ON, Optimization::SPACE);
 }
 
 void buildSpecification()
 {
-    Configuration &debug = GetConfiguration("Debug");
-    debug.ASSIGN(ConfigType::DEBUG);
-    Configuration &release = GetConfiguration("Release");
-    release.ASSIGN(LTO::ON);
+    Configuration &debug = getConfiguration("Debug");
+    debug.assign(ConfigType::DEBUG);
+    Configuration &release = getConfiguration("Release");
+    release.assign(LTO::ON);
 
     configurationSpecification(debug);
     configurationSpecification(release);
@@ -551,17 +551,17 @@ Building this example will create two directories ```Debug``` and ```Release```,
 ```GetConfiguraion``` line in ```buildSpecification```.
 In both of these directories the target ```app``` will be built with the respective configuration
 properties, because,
-we set these properties in ```ASSIGN``` call.
+we set these properties in ```assign``` call.
 These features and the flags they result in are modeled on the Boost build-system b2.
 A complete list of such features can be found in ```Features.hpp```.
-```ASSIGN``` can assign more than one feature because it is a variadic template.
+```assign``` can assign more than one feature because it is a variadic template.
 ```Configuration``` has ```Get*``` like functions.
 These functions will return the respective element but with the properties of Configuration.
 In ```configurationSpecification```, ```Optimization::SPACE``` is set based on the ```LTO``` feature.
 More functions like ```SINGLE``` are available in the ```CppSourceTarget``` and ```LinkOrArchiveTarget```,
 as these are inheriting from the ```FeatureConvenienceFunctions.hpp```.
 These functions allow more concise conditional property specification.
-```SOURCE_DIRECTORIES_RG``` function also takes the ```regex``` argument,
+```sourceDirectoriesRE``` function also takes the ```regex``` argument,
 which otherwise is defaulted to ```.*``` in ```SOURCE_DIRECTORIES```
 while ```R_SOURCE_DIRECTORIES``` uses a recursive directory iterator.
 
@@ -575,8 +575,8 @@ while ```R_SOURCE_DIRECTORIES``` uses a recursive directory iterator.
 
 void buildSpecification()
 {
-    CppSourceTarget &app = GetCppExeDSC("app").getSourceTarget();
-    app.SOURCE_FILES("main.cpp");
+    CppSourceTarget &app = getCppExeDSC("app").getSourceTarget();
+    app.sourceFiles("main.cpp");
 
     // Change the value of "FILE1" in cache.hmake to false and then run configure again.
     // Then run hbuild. Now file2.cpp will be used.
@@ -584,11 +584,11 @@ void buildSpecification()
     // exist for that type. See nlohmann/json for details. I guess mostly bool will be used.
     if (CacheVariable("FILE1", true).value)
     {
-        app.SOURCE_FILES("file1.cpp");
+        app.sourceFiles("file1.cpp");
     }
     else
     {
-        app.SOURCE_FILES("file2.cpp");
+        app.sourceFiles("file2.cpp");
     }
 }
 
@@ -611,15 +611,15 @@ because file2 will be used this time.
 
 void buildSpecification()
 {
-    DSC<CppSourceTarget> &catStatic = GetCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
-    catStatic.getSourceTarget().SOURCE_FILES("Cat/src/Cat.cpp").PUBLIC_INCLUDES("Cat/header");
+    DSC<CppSourceTarget> &catStatic = getCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
+    catStatic.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
 
-    GetCppExeDSC("Animal-Static").PRIVATE_LIBRARIES(&catStatic).getSourceTarget().SOURCE_FILES("main.cpp");
+    getCppExeDSC("Animal-Static").privateLibraries(&catStatic).getSourceTarget().sourceFiles("main.cpp");
 
-    DSC<CppSourceTarget> &catShared = GetCppSharedDSC("Cat-Shared", true, "CAT_EXPORT");
-    catShared.getSourceTarget().SOURCE_FILES("Cat/src/Cat.cpp").PUBLIC_INCLUDES("Cat/header");
+    DSC<CppSourceTarget> &catShared = getCppSharedDSC("Cat-Shared", true, "CAT_EXPORT");
+    catShared.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
 
-    GetCppExeDSC("Animal-Shared").PRIVATE_LIBRARIES(&catShared).getSourceTarget().SOURCE_FILES("main.cpp");
+    getCppExeDSC("Animal-Shared").privateLibraries(&catShared).getSourceTarget().sourceFiles("main.cpp");
 }
 
 MAIN_FUNCTION
@@ -628,7 +628,7 @@ MAIN_FUNCTION
 </details>
 
 This example showcases dependency specification.
-Also, ```GetCppStatic``` and ```GetCppShared``` are called with two optional arguments besides
+Also, ```getCppStatic``` and ```getCppShared``` are called with two optional arguments besides
 the mandatory ```name``` argument.
 The ```true``` means that the code would be compiled with the suitable compile-definition and
 suitable compile-definition will also be propagated above,
@@ -637,7 +637,7 @@ based on whether the ```DSC``` is a static-library or a shared-library.
 The third argument specifies what compile-definition to use.
 By default ```name + "_EXPORT"``` compile-definition will be used.
 On Windows, HMake by default, copies the shared library dependencies to the build-dir.
-You can change that by ```ASSIGN(CopyDLLToExeDirOnNTOs::NO)``` call to the
+You can change that by ```assign(CopyDLLToExeDirOnNTOs::NO)``` call to the
 ```prebuiltLinkOrArchiveTarget``` of the ```DSC```.
 
 ### Example 5
@@ -650,14 +650,14 @@ You can change that by ```ASSIGN(CopyDLLToExeDirOnNTOs::NO)``` call to the
 
 void buildSpecification()
 {
-    DSC<CppSourceTarget> &catShared = GetCppSharedDSC("Cat", true);
-    catShared.getSourceTarget().SOURCE_FILES("../Example4/Cat/src/Cat.cpp").PUBLIC_INCLUDES("../Example4/Cat/header");
+    DSC<CppSourceTarget> &catShared = getCppSharedDSC("Cat", true);
+    catShared.getSourceTarget().sourceFiles("../Example4/Cat/src/Cat.cpp").publicIncludes("../Example4/Cat/header");
 
-    DSC<CppSourceTarget> &animalShared = GetCppExeDSC("Animal").PRIVATE_LIBRARIES(
+    DSC<CppSourceTarget> &animalShared = getCppExeDSC("Animal").privateLibraries(
         &catShared, PrebuiltDep{.requirementRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false});
-    animalShared.getSourceTarget().SOURCE_FILES("../Example4/main.cpp");
+    animalShared.getSourceTarget().sourceFiles("../Example4/main.cpp");
 
-    GetRoundZeroUpdateBTarget(
+    getRoundZeroUpdateBTarget(
         [&](Builder &builder, BTarget &bTarget) {
             if (bTarget.getRealBTarget(0).exitStatus == EXIT_SUCCESS &&
                 bTarget.fileStatus.load(std::memory_order_acquire))
@@ -691,7 +691,7 @@ won't be used, and, instead the value of ```requirementRpath``` will be used.
 another target depends on Animal, and, Cat is propagated to that target.
 Generally, if ```defaultRpath``` is set to false, then, both should be set.
 
-This example also showcases ```GetRoundZeroUpdateBTarget```.
+This example also showcases ```getRoundZeroUpdateBTarget```.
 This takes a functor and the dependencies.
 This functor will be called after the dependencies are updated.
 So, we, here have directly injected in the central DAG.
@@ -704,7 +704,7 @@ it generates smrules files.
 In the third round, it builds the object files.
 and does different things in different rounds.
 ```BTarget``` is the center of all this and will be extended in the last Example.
-Instead of ```GetRoundZeroUpdateBTarget```, ```outputDirectory``` could have been used in this case.
+Instead of ```getRoundZeroUpdateBTarget```, ```outputDirectory``` could have been used in this case.
 
 Because of Rpath, this is a Linux-only example.
 
@@ -722,22 +722,22 @@ void buildSpecification()
         string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
         DSC<CppSourceTarget> &cat =
-            GetCppTargetDSC_P("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
-        cat.getSourceTarget().INTERFACE_INCLUDES("../Example4/Cat/header");
+            getCppTargetDSC_P("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");
+        cat.getSourceTarget().interfaceIncludes("../Example4/Cat/header");
 
-        DSC<CppSourceTarget> &dog = GetCppTargetDSC("Dog" + str, targetType, true, "DOG_EXPORT");
-        dog.PUBLIC_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog/src/Dog.cpp").PUBLIC_INCLUDES("Dog/header");
+        DSC<CppSourceTarget> &dog = getCppTargetDSC("Dog" + str, targetType, true, "DOG_EXPORT");
+        dog.publicLibraries(&cat).getSourceTarget().sourceFiles("Dog/src/Dog.cpp").publicIncludes("Dog/header");
 
-        DSC<CppSourceTarget> &dog2 = GetCppTargetDSC("Dog2" + str, targetType, true, "DOG2_EXPORT");
-        dog2.PRIVATE_LIBRARIES(&cat).getSourceTarget().SOURCE_FILES("Dog2/src/Dog.cpp").PUBLIC_INCLUDES("Dog2/header");
+        DSC<CppSourceTarget> &dog2 = getCppTargetDSC("Dog2" + str, targetType, true, "DOG2_EXPORT");
+        dog2.privateLibraries(&cat).getSourceTarget().sourceFiles("Dog2/src/Dog.cpp").publicIncludes("Dog2/header");
 
-        DSC<CppSourceTarget> &app = GetCppExeDSC("App" + str);
+        DSC<CppSourceTarget> &app = getCppExeDSC("App" + str);
         app.getLinkOrArchiveTarget().setOutputName("app");
-        app.PRIVATE_LIBRARIES(&dog).getSourceTarget().SOURCE_FILES("main.cpp");
+        app.privateLibraries(&dog).getSourceTarget().sourceFiles("main.cpp");
 
-        DSC<CppSourceTarget> &app2 = GetCppExeDSC("App2" + str);
+        DSC<CppSourceTarget> &app2 = getCppExeDSC("App2" + str);
         app2.getLinkOrArchiveTarget().setOutputName("app");
-        app2.PRIVATE_LIBRARIES(&dog2).getSourceTarget().SOURCE_FILES("main2.cpp");
+        app2.privateLibraries(&dog2).getSourceTarget().sourceFiles("main2.cpp");
     };
 
     makeApps(TargetType::LIBRARY_STATIC);
@@ -765,8 +765,8 @@ then this dependency will be propagated above up to the Shared-Library or Exe.
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().MODULE_FILES("main.cpp", "std.cpp");
-    GetCppExeDSC("app2").getSourceTarget().MODULE_FILES("main2.cpp").assignStandardIncludesToPublicHUDirectories();
+    getCppExeDSC("app").getSourceTarget().moduleFiles("main.cpp", "std.cpp");
+    getCppExeDSC("app2").getSourceTarget().moduleFiles("main2.cpp").assignStandardIncludesToPublicHUDirectories();
 }
 
 MAIN_FUNCTION
@@ -789,11 +789,11 @@ So, HMake can decide what target to associate with these header-units from that 
 Modules from a ```CppSourceTarget``` can use modules from a dependency ```CppSourceTarget```,
 while at the same time being compiled by a different compile-command.
 
-```CppSourceTarget``` member functions ```PRIVATE_HU_DIRECTORIES```,
-```PUBLIC_HU_INCLUDES``` and ```PRIVATE_HU_INCLUDES```
+```CppSourceTarget``` member functions ```privateHUDirectories```,
+```publicHUIncludes``` and ```privateHUIncludes```
 are used for registering an include-directory for header-units.
-The reason for ```PRIVATE_HU_DIRECTORIES``` besides
-```PUBLIC_HU_INCLUDES``` and ```PRIVATE_HU_INCLUDES```
+The reason for ```privateHUDirectories``` besides
+```publicHUIncludes``` and ```privateHUIncludes```
 is that sometimes general include-directories are less specialized
 while header-unit-include-directories are more specialized.
 That is showcased in Example 9.
@@ -808,7 +808,7 @@ That is showcased in Example 9.
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().MODULE_DIRECTORIES("Mod_Src/");
+    getCppExeDSC("app").getSourceTarget().moduleDirectories("Mod_Src/");
 }
 
 MAIN_FUNCTION
@@ -828,9 +828,9 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T 
 {
     CppSourceTarget &t = target.getSourceTarget();
     string str = t.name.substr(0, t.name.size() - 4); // Removing -cpp from the name
-    t.MODULE_DIRECTORIES_RG("src/" + str + "/", ".*cpp")
-        .PRIVATE_HU_DIRECTORIES("src/" + str)
-        .PUBLIC_HU_DIRECTORIES("include/" + str);
+    t.moduleDirectoriesRE("src/" + str + "/", ".*cpp")
+        .privateHUDirectories("src/" + str)
+        .publicHUDirectories("include/" + str);
 
     if constexpr (sizeof...(targets))
     {
@@ -840,18 +840,18 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T 
 
 void configurationSpecification(Configuration &config)
 {
-    config.compilerFeatures.PRIVATE_INCLUDES("include");
+    config.compilerFeatures.privateIncludes("include");
 
-    DSC<CppSourceTarget> &stdhu = config.GetCppObjectDSC("stdhu");
+    DSC<CppSourceTarget> &stdhu = config.getCppObjectDSC("stdhu");
 
     stdhu.getSourceTargetPointer()->assignStandardIncludesToPublicHUDirectories();
 
-    DSC<CppSourceTarget> &lib4 = config.GetCppTargetDSC("lib4", config.targetType);
-    DSC<CppSourceTarget> &lib3 = config.GetCppTargetDSC("lib3", config.targetType).PUBLIC_LIBRARIES(&lib4);
+    DSC<CppSourceTarget> &lib4 = config.getCppTargetDSC("lib4", config.targetType);
+    DSC<CppSourceTarget> &lib3 = config.getCppTargetDSC("lib3", config.targetType).publicLibraries(&lib4);
     DSC<CppSourceTarget> &lib2 =
-        config.GetCppTargetDSC("lib2", config.targetType).PUBLIC_LIBRARIES(&stdhu).PRIVATE_LIBRARIES(&lib3);
-    DSC<CppSourceTarget> &lib1 = config.GetCppTargetDSC("lib1", config.targetType).PUBLIC_LIBRARIES(&lib2);
-    DSC<CppSourceTarget> &app = config.GetCppExeDSC("app").PRIVATE_LIBRARIES(&lib1);
+        config.getCppTargetDSC("lib2", config.targetType).publicLibraries(&stdhu).privateLibraries(&lib3);
+    DSC<CppSourceTarget> &lib1 = config.getCppTargetDSC("lib1", config.targetType).publicLibraries(&lib2);
+    DSC<CppSourceTarget> &app = config.getCppExeDSC("app").privateLibraries(&lib1);
 
     initializeTargets(lib1, lib2, lib3, lib4, app);
 }
@@ -860,12 +860,12 @@ void buildSpecification()
 {
     CxxSTD cxxStd = toolsCache.vsTools[0].compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
 
-    Configuration &static_ = GetConfiguration("static");
-    static_.ASSIGN(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_STATIC);
+    Configuration &static_ = getConfiguration("static");
+    static_.assign(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_STATIC);
     configurationSpecification(static_);
 
-    Configuration &object = GetConfiguration("object");
-    object.ASSIGN(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_OBJECT);
+    Configuration &object = getConfiguration("object");
+    object.assign(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_OBJECT);
     configurationSpecification(object);
 }
 
@@ -874,12 +874,12 @@ MAIN_FUNCTION
 
 </details>
 
-This example showcases the usage of ```PRIVATE_HU_DIRECTORIES```.
+This example showcases the usage of ```privateHUDirectories```.
 In this example, if we had used ```HU_INCLUDES``` functions instead,
 then this would have been a configuration error.
 Because twp targets would have the same header-unit-include,
 HMake won't have been able to decide which target to associate with the header-units.
-Using ```PRIVATE_HU_DIRECTORIES``` ensure that header-units from ```include/lib1/```
+Using ```privateHUDirectories``` ensure that header-units from ```include/lib1/```
 and ```src/lib1/``` are linked with lib1 and so on.
 
 ### Example 10
@@ -892,11 +892,11 @@ and ```src/lib1/``` are linked with lib1 and so on.
 
 void buildSpecification()
 {
-    GetCppExeDSC("app")
+    getCppExeDSC("app")
         .getSourceTarget()
-        .PUBLIC_HU_INCLUDES("3rd_party/olcPixelGameEngine")
-        .R_MODULE_DIRECTORIES("modules/", "src/")
-        .ASSIGN(CxxSTD::V_LATEST);
+        .publicHUIncludes("3rd_party/olcPixelGameEngine")
+        .R_moduleDirectories("modules/", "src/")
+        .assign(CxxSTD::V_LATEST);
 }
 
 MAIN_FUNCTION
@@ -927,7 +927,7 @@ struct SizeDifference : public CTarget, public BTarget
         {
             for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
             {
-                if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+                if (linkOrArchiveTarget->evaluate(TargetType::EXECUTABLE))
                 {
                     realBTarget.addDependency(*linkOrArchiveTarget);
                 }
@@ -935,7 +935,7 @@ struct SizeDifference : public CTarget, public BTarget
 
             for (LinkOrArchiveTarget *linkOrArchiveTarget : speedConfiguration.linkOrArchiveTargets)
             {
-                if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+                if (linkOrArchiveTarget->evaluate(TargetType::EXECUTABLE))
                 {
                     realBTarget.addDependency(*linkOrArchiveTarget);
                 }
@@ -966,7 +966,7 @@ struct SizeDifference : public CTarget, public BTarget
             unsigned long long sizeSize = 0;
             for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
             {
-                if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+                if (linkOrArchiveTarget->evaluate(TargetType::EXECUTABLE))
                 {
                     sizeSize += file_size(linkOrArchiveTarget->getActualOutputPath());
                     std::filesystem::copy(linkOrArchiveTarget->getActualOutputPath(),
@@ -977,7 +977,7 @@ struct SizeDifference : public CTarget, public BTarget
 
             for (LinkOrArchiveTarget *linkOrArchiveTarget : speedConfiguration.linkOrArchiveTargets)
             {
-                if (linkOrArchiveTarget->EVALUATE(TargetType::EXECUTABLE))
+                if (linkOrArchiveTarget->evaluate(TargetType::EXECUTABLE))
                 {
                     speedSize += file_size(linkOrArchiveTarget->getActualOutputPath());
                     std::filesystem::copy(linkOrArchiveTarget->getActualOutputPath(),
@@ -1000,58 +1000,58 @@ bool operator<(const SizeDifference &lhs, const SizeDifference &rhs)
 
 void configurationSpecification(Configuration &configuration)
 {
-    DSC<CppSourceTarget> &stdhu = configuration.GetCppObjectDSC("stdhu");
+    DSC<CppSourceTarget> &stdhu = configuration.getCppObjectDSC("stdhu");
     stdhu.getSourceTarget().assignStandardIncludesToPublicHUDirectories();
 
-    DSC<CppSourceTarget> &fmt = configuration.GetCppStaticDSC("fmt").PUBLIC_LIBRARIES(&stdhu);
-    fmt.getSourceTarget().MODULE_FILES("fmt/src/format.cc", "fmt/src/os.cc").PUBLIC_HU_INCLUDES("fmt/include");
+    DSC<CppSourceTarget> &fmt = configuration.getCppStaticDSC("fmt").publicLibraries(&stdhu);
+    fmt.getSourceTarget().moduleFiles("fmt/src/format.cc", "fmt/src/os.cc").publicHUIncludes("fmt/include");
 
     configuration.markArchivePoint();
 
-    DSC<CppSourceTarget> &hconfigure = configuration.GetCppStaticDSC("hconfigure").PUBLIC_LIBRARIES(&fmt);
+    DSC<CppSourceTarget> &hconfigure = configuration.getCppStaticDSC("hconfigure").publicLibraries(&fmt);
     hconfigure.getSourceTarget()
-        .MODULE_DIRECTORIES("hconfigure/src")
-        .PUBLIC_HU_INCLUDES("hconfigure/header", "cxxopts/include", "json/include", "rapidjson/include");
+        .moduleDirectories("hconfigure/src")
+        .publicHUIncludes("hconfigure/header", "cxxopts/include", "json/include", "rapidjson/include");
 
-    DSC<CppSourceTarget> &hhelper = configuration.GetCppExeDSC("hhelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
+    DSC<CppSourceTarget> &hhelper = configuration.getCppExeDSC("hhelper").privateLibraries(&hconfigure, &stdhu);
     hhelper.getSourceTarget()
-        .MODULE_FILES("hhelper/src/main.cpp")
-        .PRIVATE_COMPILE_DEFINITION("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header"))
-        .PRIVATE_COMPILE_DEFINITION("JSON_HEADER", addEscapedQuotes(srcDir + "json/include"))
-        .PRIVATE_COMPILE_DEFINITION("RAPIDJSON_HEADER", addEscapedQuotes(srcDir + "rapidjson/include"))
-        .PRIVATE_COMPILE_DEFINITION("FMT_HEADER", addEscapedQuotes(srcDir + "fmt/include"))
-        .PRIVATE_COMPILE_DEFINITION(
+        .moduleFiles("hhelper/src/main.cpp")
+        .privateCompileDefinition("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header"))
+        .privateCompileDefinition("JSON_HEADER", addEscapedQuotes(srcDir + "json/include"))
+        .privateCompileDefinition("RAPIDJSON_HEADER", addEscapedQuotes(srcDir + "rapidjson/include"))
+        .privateCompileDefinition("FMT_HEADER", addEscapedQuotes(srcDir + "fmt/include"))
+        .privateCompileDefinition(
             "HCONFIGURE_STATIC_LIB_DIRECTORY",
             addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
-        .PRIVATE_COMPILE_DEFINITION(
+        .privateCompileDefinition(
             "HCONFIGURE_STATIC_LIB_PATH",
             addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).string()))
-        .PRIVATE_COMPILE_DEFINITION(
+        .privateCompileDefinition(
             "FMT_STATIC_LIB_DIRECTORY",
             addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
-        .PRIVATE_COMPILE_DEFINITION(
+        .privateCompileDefinition(
             "FMT_STATIC_LIB_PATH", addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).string()));
 
-    DSC<CppSourceTarget> &hbuild = configuration.GetCppExeDSC("hbuild").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
-    hbuild.getSourceTarget().MODULE_FILES("hbuild/src/main.cpp");
+    DSC<CppSourceTarget> &hbuild = configuration.getCppExeDSC("hbuild").privateLibraries(&hconfigure, &stdhu);
+    hbuild.getSourceTarget().moduleFiles("hbuild/src/main.cpp");
 
     DSC<CppSourceTarget> &hmakeHelper =
-        configuration.GetCppExeDSC("HMakeHelper").PRIVATE_LIBRARIES(&hconfigure, &stdhu);
-    hmakeHelper.getSourceTarget().MODULE_FILES("hmake.cpp").PRIVATE_COMPILE_DEFINITION("EXE");
+        configuration.getCppExeDSC("HMakeHelper").privateLibraries(&hconfigure, &stdhu);
+    hmakeHelper.getSourceTarget().moduleFiles("hmake.cpp").privateCompileDefinition("EXE");
 
-    DSC<CppSourceTarget> &exp = configuration.GetCppExeDSC("exp").PRIVATE_LIBRARIES(&stdhu);
-    exp.getSourceTarget().MODULE_FILES("main.cpp").PRIVATE_INCLUDES("rapidjson/include");
+    DSC<CppSourceTarget> &exp = configuration.getCppExeDSC("exp").privateLibraries(&stdhu);
+    exp.getSourceTarget().moduleFiles("main.cpp").privateIncludes("rapidjson/include");
 }
 
 void buildSpecification()
 {
-    Configuration &releaseSpeed = GetConfiguration("RSpeed");
+    Configuration &releaseSpeed = getConfiguration("RSpeed");
     CxxSTD cxxStd = releaseSpeed.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
-    releaseSpeed.ASSIGN(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
+    releaseSpeed.assign(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
     // releaseSpeed.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS", "1");
 
-    Configuration &releaseSize = GetConfiguration("RSize");
-    releaseSize.ASSIGN(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
+    Configuration &releaseSize = getConfiguration("RSize");
+    releaseSize.assign(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);
 
     if (selectiveConfigurationSpecification(&configurationSpecification))
     {
@@ -1066,7 +1066,7 @@ MAIN_FUNCTION
 
 This example showcases HMake's extensibility and support for drop-in replacement of
 header-files with header-units.
-```GetCppObjectDSC``` is used for a target for which there is no link-target i.e. header-only cpp-target.
+```getCppObjectDSC``` is used for a target for which there is no link-target i.e. header-only cpp-target.
 In this case, header-unit only.
 
 ```markArchivePoint``` function is a WIP. It will be used to specify that fmt, json, and stdhu are never
@@ -1082,8 +1082,8 @@ only the dependency will be built.
 
 ```TranslateInclude::YES``` will result in treating ```#include``` as ```import```.
 In the MSVC case, it is ```/translateInclude``` flag specification.
-```TreatModulesAsSource::YES``` causes the calls to ```MODULE_FILES``` and ```MODULE_DIRECTORIES```
-routed to ```SOURCE_FILES``` and ```SOURCE_DIRECTORIES```.
+```TreatModulesAsSource::YES``` causes the calls to ```moduleFiles``` and ```moduleDirectories```
+routed to ```sourceFiles``` and ```SOURCE_DIRECTORIES```.
 Changing this to ```TreatModulesAsSource::NO``` will cause drop-in replacement to header-units
 of standard headers and headers coming from hconfigure directory but not of all
 headers. The reason is ```/translateInclude``` flag checks for ```header-units.json``` file
@@ -1095,7 +1095,7 @@ You can use hwrite to write the ```header-units.json``` file.
 Execute the hwrite in the respective directory, and pass it the extension.
 e.g. ```hwrite .hpp```.
 
-Please notice that HMake does not cache ```PRIVATE_HU_DIRECTORIES``` call.
+Please notice that HMake does not cache ```privateHUDirectories``` call.
 Neither it stores the contents of ```header-units.json``` file in cache.
 Both of which can impact the header-units to be built.
 So, if you change these when you have already built the project,

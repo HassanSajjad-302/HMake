@@ -28,31 +28,32 @@ void Snapshot::before(const path &directoryPath)
 {
     beforeData.clear();
     afterData.clear();
-    Node::allFiles.clear();
+    nodeAllFiles.clear();
     for (auto &f : recursive_directory_iterator(directoryPath))
     {
         if (f.is_regular_file())
         {
-            Node *node = const_cast<Node *>(Node::getNodeFromNonNormalizedPath(f.path(), true));
-            beforeData.emplace(node->filePath, node->getLastUpdateTime());
+            Node *node = Node::getNodeFromNonNormalizedPath(f.path(), true);
+            beforeData.emplace(node->filePath, node->lastWriteTime);
         }
     }
 }
 
 void Snapshot::after(const path &directoryPath)
 {
-    Node::allFiles.clear();
+    nodeAllFiles.clear();
     for (auto &f : recursive_directory_iterator(directoryPath))
     {
         if (f.is_regular_file())
         {
-            Node *node = const_cast<Node *>(Node::getNodeFromNonNormalizedPath(f.path(), true));
-            afterData.emplace(node->filePath, node->getLastUpdateTime());
+            Node *node = Node::getNodeFromNonNormalizedPath(f.path(), true);
+            node->lastWriteTime = last_write_time(path(node->filePath));
+            afterData.emplace(node->filePath, node->lastWriteTime);
         }
     }
 }
 
-bool Snapshot::snapshotBalances(const Updates &updates)
+bool Snapshot::snapshotBalances(const Updates &updates) const
 {
     set<const NodeSnap *> actual;
     for (const NodeSnap &snap : afterData)
@@ -63,8 +64,8 @@ bool Snapshot::snapshotBalances(const Updates &updates)
         }
     }
     unsigned short expected = 0;
-    const unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 6 : 3; // No response file on Linux
-    const unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 4 : 3;
+    constexpr unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 6 : 3; // No response file on Linux
+    constexpr unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 4 : 3;
 
     // Output, Error, .smrules, Respone File on Windows / Deps Output File on Linux
     expected += 4 * updates.smruleFiles;

@@ -39,17 +39,6 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : TBT{b
     tarjanNodesBTargets[round].emplace_back(this);
 }
 
-/*void RealBTarget::addInGlobalTarjanNodes()
-{
-    std::lock_guard<std::mutex> lk(*(tarjanNodesBTargetsMutexes[round]));
-    if (!addedInGlobalTarjanNodes)
-    {
-        addedInGlobalTarjanNodes = true;
-        // Memory Not Released
-        tarjanNodesBTargets[round].emplace_back(this);
-    }
-}*/
-
 BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}
 {
     id = total++;

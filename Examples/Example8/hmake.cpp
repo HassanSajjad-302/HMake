@@ -2,7 +2,7 @@
 
 void buildSpecification()
 {
-    GetCppExeDSC("app").getSourceTarget().MODULE_DIRECTORIES("Mod_Src/");
+    getCppExeDSC("app").getSourceTarget().moduleDirectories("Mod_Src/");
 }
 
 MAIN_FUNCTION

@@ -15,7 +15,7 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, c
         prebuiltBasic->objectFileProducers.emplace(objectFileProducer);
     }
 
-    if (define_.empty() && !prebuiltBasic->EVALUATE(TargetType::PREBUILT_BASIC))
+    if (define_.empty() && !prebuiltBasic->evaluate(TargetType::PREBUILT_BASIC))
     {
         define = prebuiltBasic->outputName;
         transform(define.begin(), define.end(), define.begin(), toupper);
@@ -34,7 +34,7 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, c
 
     if (defineDllPrivate == DefineDLLPrivate::YES)
     {
-        if (prebuiltBasic->EVALUATE(TargetType::LIBRARY_SHARED))
+        if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
         {
             if (ptr->compiler.bTFamily == BTFamily::MSVC)
             {

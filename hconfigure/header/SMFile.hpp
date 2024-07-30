@@ -80,7 +80,7 @@ bool operator<(const SourceNode &lhs, const SourceNode &rhs);
 
 enum class SM_REQUIRE_TYPE : char
 {
-    NOT_ASSIGNED = 0,
+    NOT_assignED = 0,
     PRIMARY_EXPORT = 1,
     PARTITION_EXPORT = 2,
     HEADER_UNIT = 3,

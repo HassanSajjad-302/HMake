@@ -86,7 +86,7 @@ void PrebuiltBasic::addRequirementDepsToBTargetDependencies()
 {
     // Access to addDependency() function must be synchronized because set::emplace is not thread-safe
     RealBTarget &round0 = realBTargets[0];
-    if (EVALUATE(TargetType::LIBRARY_STATIC))
+    if (evaluate(TargetType::LIBRARY_STATIC))
     {
         for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
         {

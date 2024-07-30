@@ -1,12 +1,15 @@
 
 #ifdef USE_HEADER_UNITS
 import <atomic>;
+import "rapidhash.h";
 import "Node.hpp";
 import <mutex>;
 #else
 
 #include "Node.hpp"
+#include "rapidhash.h"
 #include <mutex>
+#include <utility>
 #endif
 
 using std::filesystem::directory_entry, std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard,
@@ -55,15 +58,15 @@ bool NodeEqual::operator()(const pstring_view &lhs, const Node &rhs) const
 {
     return lhs == rhs.filePath;
 }
-#include "komihash.h"
+
 std::size_t NodeHash::operator()(const Node &node) const
 {
-    return komihash(node.filePath.c_str(), node.filePath.size(), 0);
+    return rapidhash(node.filePath.c_str(), node.filePath.size());
 }
 
 std::size_t NodeHash::operator()(const pstring_view &str) const
 {
-    return komihash(str.data(), str.size(), 0);
+    return rapidhash(str.data(), str.size());
 }
 
 bool CompareNode::operator()(const Node &lhs, const Node &rhs) const
@@ -81,23 +84,13 @@ bool CompareNode::operator()(const Node &lhs, const pstring_view &rhs) const
     return lhs.filePath < rhs;
 }
 
-Node::Node(pstring filePath_) : filePath(filePath_)
+Node::Node(pstring filePath_) : filePath(std::move(filePath_))
 {
 }
 
 pstring Node::getFileName() const
 {
     return pstring(filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end());
-}
-
-file_time_type Node::getLastUpdateTime() const
-{
-    /*if (!isUpdated.load())
-    {
-        const_cast<file_time_type &>(lastUpdateTime) = last_write_time(path(filePath));
-        const_cast<atomic<bool> &>(isUpdated).store(true);
-    }*/
-    return lastUpdateTime;
 }
 
 path Node::getFinalNodePathFromPath(path filePath)
@@ -137,85 +130,53 @@ class SpinLock
     }
 };
 
-static mutex nodeInsertMutex;
-
 // static SpinLock nodeInsertMutex;
 Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool mayNotExist)
 {
-    // TODO
-    // getLastEditTime() also makes a system-call. Is it faster if this data is also fetched with following
-    // Check for std::filesystem::file_type of std::filesystem::path in Node constructor is a system-call and hence
-    // performed only once. One more reason for this to be atomic is that a user might delete a file after it has been
-    // checked for existence and calling last_edit_time will throw causing it be a build-system error instead of
-    // compilation-error.
-    // Also, calling lastEditTime for a Node for which doesNotExists == true should throw
+    Node *node = nullptr;
 
-    Node *node;
-    {
-        lock_guard lk{nodeInsertMutex};
-        if (const auto it = allFiles.find(pstring_view(p)); it != allFiles.end())
-        {
-            node = const_cast<Node *>(it.operator->());
-        }
-        else
-        {
-            node = const_cast<Node *>(allFiles.emplace(std::move(p)).first.operator->());
-        }
-    }
+    using Map = decltype(nodeAllFiles);
 
-    if (node->systemCheckCompleted.load())
+    if (nodeAllFiles.lazy_emplace_l(
+            pstring_view(p), [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const Map::constructor &constructor) { constructor(p); }))
     {
-        return node;
-    }
-
-    // If systemCheck was not called previously or isn't being called, call it.
-    if (!node->systemCheckCalled.exchange(true))
-    {
+        nodeAllFiles.if_contains(pstring_view(p), [&](const Node &node_) { node = const_cast<Node *>(&node_); });
         node->performSystemCheck(isFile, mayNotExist);
-        node->systemCheckCompleted.store(true);
-        return node;
+        reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).store(true);
     }
-
-    // systemCheck is being called for this node by another thread
-    while (!node->systemCheckCompleted.load())
-        ;
+    else
+    {
+        while (!reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
 
     return node;
 }
 
 Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile, const bool mayNotExist)
 {
-    Node *node;
-    {
-        const auto str = new string(p);
-        const pstring_view view(*str);
-        lock_guard lk{nodeInsertMutex};
-        if (const auto it = allFiles.find(view); it != allFiles.end())
-        {
-            node = const_cast<Node *>(it.operator->());
-        }
-        else
-        {
-            node = const_cast<Node *>(allFiles.emplace(pstring(view)).first.operator->());
-        }
-    }
+    Node *node = nullptr;
 
-    if (node->systemCheckCompleted.load())
-    {
-        return node;
-    }
+    using Map = decltype(nodeAllFiles);
 
-    // If systemCheck was not called previously or isn't being called, call it.
-    if (!node->systemCheckCalled.exchange(true))
+    if (nodeAllFiles.lazy_emplace_l(
+            p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const Map::constructor &constructor) { constructor(pstring(p)); }))
     {
+        nodeAllFiles.if_contains(p, [&](const Node &node_) { node = const_cast<Node *>(&node_); });
         node->performSystemCheck(isFile, mayNotExist);
-        node->systemCheckCompleted.store(true);
-        return node;
+        reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).store(true);
     }
-
-    // systemCheck is being called for this node by another thread
-    while (!node->systemCheckCompleted.load())
-        ;
+    else
+    {
+        while (!reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
 
     return node;
 }
@@ -239,10 +200,17 @@ Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const
 
 void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
 {
+    // TODO
+    // nodeAllFiles is initialized with 10000. This may not be enough. Either have a counter which is incremented here
+    // which warns on 90% usage and errors out at 100% Or warn the user at the end if 80% is used. Or do both
+    if (systemCheckCompleted)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+    }
     if (const directory_entry entry = directory_entry(filePath);
         entry.status().type() == (isFile ? file_type::regular : file_type::directory))
     {
-        lastUpdateTime = entry.last_write_time();
+        lastWriteTime = entry.last_write_time();
     }
     else
     {
