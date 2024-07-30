@@ -59,6 +59,28 @@ void initializeCache(const BSMode bsMode_)
     cache.initializeCacheVariableFromCacheFile();
     toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
 
+    nodesCache.Reserve(10000, ralloc);
+    if (const path p = path(configureDir) / "nodes.json"; exists(p))
+    {
+        const pstring str = p.string();
+        nodesCacheBuffer = readPValueFromFile(str, nodesCache);
+
+        // node is constructed from cache. It is emplaced in the hash set and also in nodeIndices.
+        // However performSystemCheck is not called and is called in multi-threaded fashion.
+        for (PValue &value : nodesCache.GetArray())
+        {
+            pstring normalizedFilePath(value.GetString(), value.GetStringLength());
+
+            if (const auto &[it, ok] = nodeAllFiles.emplace(std::move(normalizedFilePath)); ok)
+            {
+                // Why do atomic when it is executed single threaded
+                const_cast<Node &>(*it).myId = reinterpret_cast<uint32_t &>(Node::idCount)++;
+                Node::nodeIndices[it->myId] = it.operator->();
+                const_cast<Node &>(*it).loadedFromNodesCache = true;
+            }
+        }
+    }
+
     if (bsMode != BSMode::CONFIGURE)
     {
         auto initializeSettings = [](const path &settingsFilePath) {
@@ -202,4 +224,5 @@ void configureOrBuild()
         cache.registerCacheVariables();
         writePValueToFile(pstring_view(configureDir + "/src-dir-cache.json"), sourceDirectoryCache);
     }
+    writePValueToFile(pstring_view(configureDir + "/nodes.json"), nodesCache);
 }

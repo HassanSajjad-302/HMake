@@ -77,6 +77,8 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
 
     expected += updates.linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
     expected += updates.linkTargetsDebug * debugLinkTargetsMultiplier;
+    // nodes.json
+    expected += 1;
     if (updates.cppTargets || updates.linkTargetsNoDebug || updates.linkTargetsDebug)
     {
         expected += 1; // build-cache.jon

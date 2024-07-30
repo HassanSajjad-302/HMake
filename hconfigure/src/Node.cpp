@@ -142,15 +142,24 @@ Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool
             [&](const Map::constructor &constructor) { constructor(p); }))
     {
         nodeAllFiles.if_contains(pstring_view(p), [&](const Node &node_) { node = const_cast<Node *>(&node_); });
+    }
+
+    if (reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
+    {
+        return node;
+    }
+
+    // If systemCheck was not called previously or isn't being called, call it.
+    if (!reinterpret_cast<atomic<bool> &>(node->systemCheckCalled).exchange(true))
+    {
         node->performSystemCheck(isFile, mayNotExist);
         reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).store(true);
     }
-    else
+
+    // systemCheck is being called for this node by another thread
+    while (!reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
     {
-        while (!reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
+        std::this_thread::sleep_for(std::chrono::nanoseconds(100));
     }
 
     return node;
@@ -167,15 +176,24 @@ Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile,
             [&](const Map::constructor &constructor) { constructor(pstring(p)); }))
     {
         nodeAllFiles.if_contains(p, [&](const Node &node_) { node = const_cast<Node *>(&node_); });
+    }
+
+    if (reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
+    {
+        return node;
+    }
+
+    // If systemCheck was not called previously or isn't being called, call it.
+    if (!reinterpret_cast<atomic<bool> &>(node->systemCheckCalled).exchange(true))
+    {
         node->performSystemCheck(isFile, mayNotExist);
         reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).store(true);
     }
-    else
+
+    // systemCheck is being called for this node by another thread
+    while (!reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
     {
-        while (!reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
+        std::this_thread::sleep_for(std::chrono::nanoseconds(100));
     }
 
     return node;
@@ -221,6 +239,13 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
             throw std::exception();
         }
         doesNotExist = true;
+    }
+
+    if (!loadedFromNodesCache)
+    {
+        myId = idCount.fetch_add(1);
+        nodeIndices[myId] = this;
+        nodesCache.PushBack(PValue(ptoref(filePath)), ralloc);
     }
 }
 

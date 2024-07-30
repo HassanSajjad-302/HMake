@@ -41,6 +41,8 @@ inline PDocument buildCache(kArrayType);
 inline unique_ptr<char[]> buildCacheFileBuffer;
 inline PDocument sourceDirectoryCache(kArrayType);
 inline unique_ptr<char[]> sourceDirectoryCacheBuffer;
+inline PDocument nodesCache(kArrayType);
+inline unique_ptr<char[]> nodesCacheBuffer;
 inline auto &ralloc = buildCache.GetAllocator();
 inline std::mutex buildCacheMutex;
 void writeBuildCacheUnlocked();

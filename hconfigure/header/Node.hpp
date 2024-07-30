@@ -48,10 +48,16 @@ class Node
 
     file_time_type lastWriteTime;
 
+    inline static atomic<uint32_t> idCount = 0;
+    // Used in multi-threading context. So, can not emplace_back. size should be same as size of nodeAllFiles
+    inline static vector<const Node *> nodeIndices{10000};
+    uint32_t myId;
+
   private:
     // While following are not atomic to keep Node copyable and moveable, all operations on these bools are done
     // atomically.
     bool systemCheckCompleted{false};
+    bool systemCheckCalled = false;
 
   public:
     explicit Node(pstring filePath_);
@@ -75,6 +81,7 @@ class Node
 
   public:
     bool doesNotExist = false;
+    bool loadedFromNodesCache = false;
 };
 bool operator<(const Node &lhs, const Node &rhs);
 void to_json(Json &j, const Node *node);
