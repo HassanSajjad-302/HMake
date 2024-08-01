@@ -200,3 +200,19 @@ size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element)
     }
     return UINT64_MAX;
 }
+
+bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs)
+{
+    if (lhs.size() != rhs.size())
+    {
+        return false;
+    }
+    for (int64_t j = lhs.size() - 1; j >= 0; --j)
+    {
+        if (lhs[j] != rhs[j])
+        {
+            return false;
+        }
+    }
+    return true;
+}

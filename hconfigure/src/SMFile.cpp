@@ -175,8 +175,14 @@ void SourceNode::setSourceNodeFileStatus()
 
     for (PValue &str : (*sourceJson)[SourceFiles::headerFiles].GetArray())
     {
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+        Node *headerNode = Node::nodeIndices[str.GetUint64()];
+        headerNode->ensureSystemCheckCalled(true, true);
+#else
         const Node *headerNode =
             Node::getNodeFromNormalizedString(pstring_view(str.GetString(), str.GetStringLength()), true, true);
+#endif
+
         if (headerNode->doesNotExist)
         {
             fileStatus.store(true);
@@ -484,9 +490,16 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }
 
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+        headerUnit.headerUnitsIndex = pvalueIndexInSubArray(
+            (*huDirTarget->targetBuildCache)[Indices::TargetBuildCache::headerUnits], PValue(headerUnit.node->myId));
+
+#else
         headerUnit.headerUnitsIndex =
             pvalueIndexInSubArray((*huDirTarget->targetBuildCache)[Indices::TargetBuildCache::headerUnits],
                                   PValue(ptoref(headerUnit.node->filePath)));
+
+#endif
 
         if (headerUnit.headerUnitsIndex != UINT64_MAX)
         {
@@ -498,7 +511,12 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
             headerUnit.sourceJson = new PValue(kArrayType);
             ++huDirTarget->newHeaderUnitsSize;
 
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+            headerUnit.sourceJson->PushBack(PValue(headerUnit.node->myId), headerUnit.sourceNodeAllocator);
+#else
             headerUnit.sourceJson->PushBack(ptoref(headerUnit.node->filePath), headerUnit.sourceNodeAllocator);
+#endif
+
             headerUnit.sourceJson->PushBack(PValue(kStringType), headerUnit.sourceNodeAllocator);
             headerUnit.sourceJson->PushBack(PValue(kArrayType), headerUnit.sourceNodeAllocator);
             headerUnit.sourceJson->PushBack(PValue(kArrayType), headerUnit.sourceNodeAllocator);
@@ -618,8 +636,14 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
         {
             for (const PValue &value : (*sourceJson)[ModuleFiles::headerFiles].GetArray())
             {
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+                Node *headerNode = Node::nodeIndices[value.GetUint64()];
+                headerNode->ensureSystemCheckCalled(true, true);
+#else
                 const Node *headerNode = Node::getNodeFromNormalizedString(
                     pstring_view(value.GetString(), value.GetStringLength()), true, true);
+#endif
+
                 if (headerNode->doesNotExist)
                 {
                     needsUpdate = true;
@@ -661,8 +685,14 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
 
             for (const PValue &value : (*sourceJson)[ModuleFiles::headerFiles].GetArray())
             {
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+                Node *headerNode = Node::nodeIndices[value.GetUint64()];
+                headerNode->ensureSystemCheckCalled(true, true);
+#else
                 const Node *headerNode = Node::getNodeFromNormalizedString(
                     pstring_view(value.GetString(), value.GetStringLength()), true, true);
+#endif
+
                 if (headerNode->doesNotExist)
                 {
                     return true;

@@ -75,7 +75,7 @@ void initializeCache(const BSMode bsMode_)
             {
                 // Why do atomic when it is executed single threaded
                 const_cast<Node &>(*it).myId = reinterpret_cast<uint32_t &>(Node::idCount)++;
-                Node::nodeIndices[it->myId] = it.operator->();
+                Node::nodeIndices[it->myId] = const_cast<Node *>(it.operator->());
                 const_cast<Node &>(*it).loadedFromNodesCache = true;
             }
         }

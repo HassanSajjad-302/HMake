@@ -124,12 +124,18 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                     bool contains = false;
                     for (PValue &o : buildCache[buildCacheIndex][Indices::LinkTargetBuildCache::objectFiles].GetArray())
                     {
-                        if (o == ptoref(objectFile->objectFileOutputFilePath->filePath))
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+                        contains = o.GetUint64() == objectFile->objectFileOutputFilePath->myId;
+#else
+                        contains = compareStringsFromEnd(pstring_view(o.GetString(), o.GetStringLength()),
+                                                         objectFile->objectFileOutputFilePath->filePath);
+#endif
+                        if (contains)
                         {
-                            contains = true;
                             break;
                         }
                     }
+
                     if (!contains)
                     {
                         needsUpdate = true;
@@ -265,7 +271,11 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short r
                 objectFilesPValue->Reserve(objectFiles.size(), ralloc);
                 for (const ObjectFile *objectFile : objectFiles)
                 {
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+                    objectFilesPValue->PushBack(objectFile->objectFileOutputFilePath->myId, ralloc);
+#else
                     objectFilesPValue->PushBack(ptoref(objectFile->objectFileOutputFilePath->filePath), ralloc);
+#endif
                 }
                 writeBuildCacheUnlocked();
             }

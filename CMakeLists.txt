@@ -64,8 +64,11 @@ target_include_directories(hconfigure
         PUBLIC 3rdParty/rapidhash
         PUBLIC 3rdParty/parallel-hashmap/parallel_hashmap
 )
-# Comment out the following to switch from compile-command to hash in the build-log.
+# Comment out the following to switch from hash to compile-command in the build-log.
 target_compile_definitions(hconfigure PUBLIC USE_COMMAND_HASH)
+
+# Comment out the following to switch from nodes.json numbers reflected in build-cache.json to full normalized paths in build-cache.json
+target_compile_definitions(hconfigure PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
 
 if (UNIX)
     target_compile_options(hconfigure PRIVATE -fvisibility=hidden)

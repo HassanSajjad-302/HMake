@@ -50,7 +50,7 @@ class Node
 
     inline static atomic<uint32_t> idCount = 0;
     // Used in multi-threading context. So, can not emplace_back. size should be same as size of nodeAllFiles
-    inline static vector<const Node *> nodeIndices{10000};
+    inline static vector<Node *> nodeIndices{10000};
     uint32_t myId;
 
   private:
@@ -65,6 +65,7 @@ class Node
 
     static path getFinalNodePathFromPath(path filePath);
 
+    void ensureSystemCheckCalled(bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNormalizedString(pstring_view p, bool isFile, bool mayNotExist = false);
 
@@ -82,11 +83,10 @@ class Node
   public:
     bool doesNotExist = false;
     bool loadedFromNodesCache = false;
+    static void clearNodes();
 };
 bool operator<(const Node &lhs, const Node &rhs);
 void to_json(Json &j, const Node *node);
-
-inline std::chrono::nanoseconds hashTableTime(0);
 
 //  This keeps info if a file is touched. If it's touched, it's not touched again.
 inline phmap::parallel_flat_hash_set_m<Node, NodeHash, NodeEqual> nodeAllFiles{10000};

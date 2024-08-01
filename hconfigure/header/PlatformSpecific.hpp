@@ -93,6 +93,7 @@ void prettyWritePValueToFile(pstring_view fileName, const PValue &value);
 void writePValueToFile(pstring_view fileName, const PValue &value);
 unique_ptr<pchar[]> readPValueFromFile(pstring_view fileName, PDocument &document);
 size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
+bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs);
 
 struct Indices
 {

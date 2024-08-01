@@ -130,6 +130,27 @@ class SpinLock
     }
 };
 
+void Node::ensureSystemCheckCalled(bool isFile, bool mayNotExist)
+{
+    if (reinterpret_cast<atomic<bool> &>(systemCheckCompleted).load())
+    {
+        return;
+    }
+
+    // If systemCheck was not called previously or isn't being called, call it.
+    if (!reinterpret_cast<atomic<bool> &>(systemCheckCalled).exchange(true))
+    {
+        performSystemCheck(isFile, mayNotExist);
+        reinterpret_cast<atomic<bool> &>(systemCheckCompleted).store(true);
+    }
+
+    // systemCheck is being called for this node by another thread
+    while (!reinterpret_cast<atomic<bool> &>(systemCheckCompleted).load())
+    {
+        std::this_thread::sleep_for(std::chrono::nanoseconds(100));
+    }
+}
+
 // static SpinLock nodeInsertMutex;
 Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool mayNotExist)
 {
@@ -144,24 +165,7 @@ Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool
         nodeAllFiles.if_contains(pstring_view(p), [&](const Node &node_) { node = const_cast<Node *>(&node_); });
     }
 
-    if (reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
-    {
-        return node;
-    }
-
-    // If systemCheck was not called previously or isn't being called, call it.
-    if (!reinterpret_cast<atomic<bool> &>(node->systemCheckCalled).exchange(true))
-    {
-        node->performSystemCheck(isFile, mayNotExist);
-        reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).store(true);
-    }
-
-    // systemCheck is being called for this node by another thread
-    while (!reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
-    {
-        std::this_thread::sleep_for(std::chrono::nanoseconds(100));
-    }
-
+    node->ensureSystemCheckCalled(isFile, mayNotExist);
     return node;
 }
 
@@ -178,24 +182,7 @@ Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile,
         nodeAllFiles.if_contains(p, [&](const Node &node_) { node = const_cast<Node *>(&node_); });
     }
 
-    if (reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
-    {
-        return node;
-    }
-
-    // If systemCheck was not called previously or isn't being called, call it.
-    if (!reinterpret_cast<atomic<bool> &>(node->systemCheckCalled).exchange(true))
-    {
-        node->performSystemCheck(isFile, mayNotExist);
-        reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).store(true);
-    }
-
-    // systemCheck is being called for this node by another thread
-    while (!reinterpret_cast<atomic<bool> &>(node->systemCheckCompleted).load())
-    {
-        std::this_thread::sleep_for(std::chrono::nanoseconds(100));
-    }
-
+    node->ensureSystemCheckCalled(isFile, mayNotExist);
     return node;
 }
 
@@ -246,6 +233,16 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
         myId = idCount.fetch_add(1);
         nodeIndices[myId] = this;
         nodesCache.PushBack(PValue(ptoref(filePath)), ralloc);
+    }
+}
+
+void Node::clearNodes()
+{
+    nodeAllFiles.clear();
+    idCount = 0;
+    for(Node *& node :nodeIndices)
+    {
+        node = nullptr;
     }
 }
 

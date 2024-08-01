@@ -121,9 +121,15 @@ int main(int argc, char **argv)
             string commandHashCompileDef = "";
 #endif
 
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+            string useNodesCacheIndicesInCacheDef = " -D USE_NODES_CACHE_INDICES_IN_CACHE ";
+#else
+            string useNodesCacheIndicesInCacheDef = "";
+#endif
+
             string compileCommand =
                 "c++ -std=c++2b -fvisibility=hidden -fsanitize=thread -fno-omit-frame-pointer -fPIC " +
-                commandHashCompileDef +
+                commandHashCompileDef + useNodesCacheIndicesInCacheDef +
                 " -I " HCONFIGURE_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER "  -I " FMT_HEADER
                 "  -I " RAPIDHASH_HEADER " -I " PARALLEL_HASHMAP
                 " {SOURCE_DIRECTORY}/hmake.cpp -shared -Wl,--whole-archive -L " HCONFIGURE_STATIC_LIB_DIRECTORY
@@ -141,6 +147,12 @@ int main(int argc, char **argv)
             string commandHashCompileDef = "";
 #endif
 
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+            string useNodesCacheIndicesInCacheDef = " /D USE_NODES_CACHE_INDICES_IN_CACHE ";
+#else
+            string useNodesCacheIndicesInCacheDef = "";
+#endif
+
             toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
             if (toolsCache.vsTools.empty() && toolsCache.compilers.empty())
             {
@@ -155,7 +167,7 @@ int main(int argc, char **argv)
             {
                 compileCommand += "/I " + addQuotes(str) + " ";
             }
-            compileCommand += commandHashCompileDef;
+            compileCommand += commandHashCompileDef + useNodesCacheIndicesInCacheDef;
             compileCommand += "/I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() + " /I " +
                               rapidjsonHeaderPath.string() + " /I " + fmtHeaderPath.string() + " /I " +
                               rapidHashHeaderPath.string() + " /I " + parallelHashMap.string() +

@@ -1409,7 +1409,11 @@ void CppSourceTarget::populateSourceNodes()
     {
         auto &sourceNode = const_cast<SourceNode &>(sourceNodeConst);
 
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+        const size_t fileIt = pvalueIndexInSubArray(sourceFilesJson, PValue(sourceNode.node->myId));
+#else
         const size_t fileIt = pvalueIndexInSubArray(sourceFilesJson, PValue(ptoref(sourceNode.node->filePath)));
+#endif
 
         if (fileIt != UINT64_MAX)
         {
@@ -1421,7 +1425,12 @@ void CppSourceTarget::populateSourceNodes()
             PValue &sourceJson = *(sourceFilesJson.End() - 1);
             sourceNode.sourceJson = &sourceJson;
 
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+            sourceJson.PushBack(PValue(sourceNode.node->myId), sourceNode.sourceNodeAllocator);
+#else
             sourceJson.PushBack(ptoref(sourceNode.node->filePath), sourceNode.sourceNodeAllocator);
+#endif
+
             sourceJson.PushBack(PValue(kStringType), sourceNode.sourceNodeAllocator);
             sourceJson.PushBack(PValue(kArrayType), sourceNode.sourceNodeAllocator);
         }
@@ -1443,8 +1452,13 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
         resolveRequirePathBTarget.realBTargets[1].addDependency(smFile);
         adjustHeaderUnitsBTarget.realBTargets[1].addDependency(smFile);
 
-        if (const size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(ptoref(smFile.node->filePath)));
-            fileIt != UINT64_MAX)
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+        const size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(smFile.node->myId));
+#else
+        const size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(ptoref(smFile.node->filePath)));
+#endif
+
+        if (fileIt != UINT64_MAX)
         {
             smFile.sourceJson = &moduleFilesJson[fileIt];
         }
@@ -1454,7 +1468,12 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
             PValue &moduleJson = *(moduleFilesJson.End() - 1);
             smFile.sourceJson = &moduleJson;
 
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+            moduleJson.PushBack(PValue(smFile.node->myId), smFile.sourceNodeAllocator);
+#else
             moduleJson.PushBack(PValue(ptoref(smFile.node->filePath)), smFile.sourceNodeAllocator);
+#endif
+
             moduleJson.PushBack(PValue(kStringType), smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);

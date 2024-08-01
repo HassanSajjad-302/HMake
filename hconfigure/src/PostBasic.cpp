@@ -106,7 +106,7 @@ PostCompile::PostCompile(const CppSourceTarget &target_, const BuildTool &buildT
 {
 }
 
-bool PostCompile::ignoreHeaderFile(const pstring_view str)
+bool PostCompile::ignoreHeaderFile(const pstring_view child) const
 {
     //  Premature Optimization Hahacd
     // TODO:
@@ -121,11 +121,25 @@ bool PostCompile::ignoreHeaderFile(const pstring_view str)
     // includes is related(equivalent, subdirectory) with any of normal includes
     // or vice-versa.
 
+    // std::path::equivalent is not used as it is slow
+    // It is assumed that both paths are normalized strings
     for (const InclNode &inclNode : target.requirementIncludes)
     {
-        if (inclNode.ignoreHeaderDeps && equivalent(inclNode.node->filePath, path(str).parent_path()))
+        if (inclNode.ignoreHeaderDeps)
         {
-            return true;
+            if (inclNode.node->filePath.size() > child.size())
+            {
+                continue;
+            }
+            if (uint64_t i = child.find_last_of(slashc); i != pstring::npos)
+            {
+                // parent + one for slash + one for the last character where the search finished
+
+                if (compareStringsFromEnd(inclNode.node->filePath, pstring_view(child.data(), i)))
+                {
+                    return true;
+                }
+            }
         }
     }
     return false;
@@ -157,23 +171,56 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
     {
         for (auto iter = outputLines.begin(); iter != outputLines.end();)
         {
-            if (iter->contains(includeFileNote))
+            if (size_t pos = iter->find(includeFileNote); pos != pstring::npos)
             {
-                size_t pos = iter->find_first_not_of(includeFileNote);
-                pos = iter->find_first_not_of(" ", pos);
+                pos = iter->find_first_not_of(' ', includeFileNote.size());
+
+                pstring_view headerView(iter->begin() + pos, iter->end());
 
                 // TODO
                 // If compile-command is all lower-cased, then this might not be needed
-                if (!ignoreHeaderFile(pstring_view(iter->begin() + (int)pos, iter->end())))
+                if (!ignoreHeaderFile(headerView))
                 {
-                    for (auto it = iter->begin() + (int)pos; it != iter->end(); ++it)
+                    for (auto it = headerView.begin(); it != headerView.end(); ++it)
                     {
-                        *it = tolower(*it);
+                        const_cast<char &>(*it) = tolower(*it);
                     }
 
-                    headerDepsJson.PushBack(
-                        PValue(PStringRef(iter->c_str() + pos, iter->size()), sourceNode.sourceNodeAllocator),
-                        sourceNode.sourceNodeAllocator);
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+                    Node *node = Node::getNodeFromNormalizedString(headerView, true, false);
+                    bool found = false;
+                    for (const PValue &value : headerDepsJson.GetArray())
+                    {
+                        if (value.GetUint64() == node->myId)
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        headerDepsJson.PushBack(PValue(node->myId), ralloc);
+                    }
+
+#else
+
+                    bool found = false;
+                    for (const PValue &value : headerDepsJson.GetArray())
+                    {
+                        if (compareStringsFromEnd(pstring_view(value.GetString(), value.GetStringLength()), headerView))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        headerDepsJson.PushBack(
+                            PValue(PStringRef(headerView.data(), headerView.size()), sourceNode.sourceNodeAllocator),
+                            sourceNode.sourceNodeAllocator);
+                    }
+
+#endif
                 }
 
                 if (settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)

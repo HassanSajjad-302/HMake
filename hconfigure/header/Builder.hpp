@@ -22,7 +22,6 @@ class Builder
 
     list<BTarget *>::iterator updateBTargetsIterator;
 
-  public:
     mutex executeMutex;
     std::condition_variable cond;
 
@@ -31,7 +30,6 @@ class Builder
     atomic<unsigned short> numberOfSleepingThreads = 0;
     unsigned short round = 0;
 
-  public:
     bool updateBTargetFailed = false;
 
   private:

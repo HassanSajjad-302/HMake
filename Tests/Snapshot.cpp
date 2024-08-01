@@ -28,7 +28,7 @@ void Snapshot::before(const path &directoryPath)
 {
     beforeData.clear();
     afterData.clear();
-    nodeAllFiles.clear();
+    Node::clearNodes();
     for (auto &f : recursive_directory_iterator(directoryPath))
     {
         if (f.is_regular_file())
@@ -41,7 +41,7 @@ void Snapshot::before(const path &directoryPath)
 
 void Snapshot::after(const path &directoryPath)
 {
-    nodeAllFiles.clear();
+    Node::clearNodes();
     for (auto &f : recursive_directory_iterator(directoryPath))
     {
         if (f.is_regular_file())
@@ -81,7 +81,7 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     expected += 1;
     if (updates.cppTargets || updates.linkTargetsNoDebug || updates.linkTargetsDebug)
     {
-        expected += 1; // build-cache.jon
+        expected += 1; // build-cache.json
     }
     if (actual.size() != expected)
     {
