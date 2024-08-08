@@ -24,7 +24,7 @@ add_library(hconfigure STATIC
         hconfigure/src/Settings.cpp
         hconfigure/src/Features.cpp
         hconfigure/src/TargetType.cpp
-        hconfigure/src/BasicTargets.cpp
+        hconfigure/src/BTarget.cpp
         hconfigure/src/Builder.cpp
         hconfigure/src/BuildSystemFunctions.cpp
         hconfigure/src/Cache.cpp
@@ -46,7 +46,6 @@ add_library(hconfigure STATIC
         hconfigure/src/Configure.cpp
         hconfigure/src/CTargetRoundZeroBTarget.cpp
         hconfigure/src/PrebuiltLinkOrArchiveTarget.cpp
-        hconfigure/src/C_API.cpp
         hconfigure/src/PrebuiltBasic.cpp
         hconfigure/src/PlatformSpecific.cpp
         hconfigure/src/Node.cpp)
@@ -94,7 +93,7 @@ add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Projects/Boost/hmake.cpp)
+add_executable(HMakeHelper Examples/Example9/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 
@@ -107,8 +106,7 @@ add_executable(Tests Tests/main.cpp
         Tests/Test_Examples.cpp
         Tests/Test_hconfigure.cpp
         Tests/StageTests.cpp
-        Tests/Snapshot.cpp
-        Tests/C_API_Tests.cpp)
+        Tests/Snapshot.cpp)
 target_link_libraries(Tests PRIVATE gtest gtest_main)
 target_include_directories(Tests PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 target_compile_definitions(Tests PRIVATE SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}/")

@@ -1,7 +1,6 @@
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
 #ifdef USE_HEADER_UNITS
-import "C_API.hpp";
 import "TargetType.hpp";
 import "TarjanNode.hpp";
 import <array>;
@@ -10,7 +9,6 @@ import <filesystem>;
 import <map>;
 import <mutex>;
 #else
-#include "C_API.hpp"
 #include "TargetType.hpp"
 #include "TarjanNode.hpp"
 #include <array>
@@ -24,14 +22,10 @@ using std::filesystem::path, std::size_t, std::map, std::mutex, std::lock_guard,
     std::atomic;
 
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
-TarjanNode(const struct BTarget *) -> TarjanNode<BTarget>;
+TarjanNode(const BTarget *) -> TarjanNode<BTarget>;
 using TBT = TarjanNode<BTarget>;
 inline vector<vector<TBT *>> tarjanNodesBTargets;
 inline vector<mutex *> tarjanNodesBTargetsMutexes;
-
-TarjanNode(const class CTarget *) -> TarjanNode<CTarget>;
-using TCT = TarjanNode<CTarget>;
-inline vector<TCT *> tarjanNodesCTargets;
 
 class StaticInitializationTarjanNodesBTargets
 {
@@ -115,6 +109,7 @@ struct BTarget // BTarget
 
     array<RealBTarget, 3> realBTargets;
 
+    pstring targetSubDir;
     size_t id = 0; // unique for every BTarget
 
     // TODO
@@ -124,16 +119,20 @@ struct BTarget // BTarget
     std::atomic<bool> fileStatus = false;
 
     explicit BTarget();
+    explicit BTarget(pstring name_, bool buildExplicit, bool makeDirectory);
     BTarget(const BTarget &) = delete;
     BTarget &operator=(const BTarget &) = delete;
     BTarget &operator=(BTarget &&) = delete;
     BTarget(BTarget &&) = delete;
     virtual ~BTarget();
 
+    void setSelectiveBuild();
+    bool getSelectiveBuildChildDir();
+
     virtual pstring getTarjanNodeName() const;
 
     virtual BTargetType getBTargetType() const;
-    void assignFileStatusToDependents(RealBTarget &realBTarget) const;
+    static void assignFileStatusToDependents(RealBTarget &realBTarget);
     virtual void updateBTarget(class Builder &builder, unsigned short round);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
@@ -174,57 +173,5 @@ template <typename... U> void RealBTarget::addLooseDependency(BTarget &dependenc
         addDependency(bTargets...);
     }
 }
-
-struct CTargetPointerComparator
-{
-    bool operator()(const CTarget *lhs, const CTarget *rhs) const;
-};
-
-class CTarget : public TCT // Configure Target
-{
-    inline static set<std::pair<pstring, pstring>> cTargetsSameFileAndNameCheck;
-    void initializeCTarget();
-
-  public:
-    pstring name;
-    // If target has file, this is that file directory. Else, it is the directory of container it is present in.
-    pstring targetFileDir;
-
-    pstring targetSubDir;
-
-    set<CTarget *, CTargetPointerComparator> elements;
-
-    Json json;
-    inline static size_t total = 0;
-    size_t id = 0; // unique for every BTarget
-
-    // If constructor with other target is used, the pointer to the other target
-    CTarget *other = nullptr;
-
-    const bool hasFile = true;
-    bool selectiveBuildSet = false;
-    bool callPreSort = true;
-
-  private:
-    bool selectiveBuild = false;
-
-  public:
-    CTarget(pstring name_, CTarget &container, bool hasFile_ = true);
-    explicit CTarget(pstring name_);
-    virtual ~CTarget();
-    pstring getTargetPointer() const;
-    path getTargetFilePath() const;
-    bool getSelectiveBuild();
-    bool getSelectiveBuildChildDir();
-
-    virtual pstring getTarjanNodeName() const;
-    virtual void setJson();
-    virtual void writeJsonFile();
-    virtual void configure();
-    virtual BTarget *getBTarget();
-    virtual C_Target *get_CAPITarget(BSMode bsMode);
-};
-void to_json(Json &j, const CTarget *tar);
-bool operator<(const CTarget &lhs, const CTarget &rhs);
 
 #endif // HMAKE_BASICTARGETS_HPP

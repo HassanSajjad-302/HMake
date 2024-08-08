@@ -66,6 +66,18 @@ PrebuiltBasic::PrebuiltBasic(pstring outputName_, const TargetType linkTargetTyp
     initializePrebuiltBasic();
 }
 
+PrebuiltBasic::PrebuiltBasic(pstring outputName_, pstring name_, bool buildExplicit, bool makeDirectory)
+    : BTarget(std::move(name_), buildExplicit, makeDirectory), outputName(std::move(outputName_))
+{
+}
+
+PrebuiltBasic::PrebuiltBasic(pstring outputName_, TargetType linkTargetType_, pstring name_, bool buildExplicit,
+                             bool makeDirectory)
+    : BTarget(std::move(name_), buildExplicit, makeDirectory), outputName(std::move(outputName_)),
+      linkTargetType(linkTargetType_)
+{
+}
+
 void PrebuiltBasic::updateBTarget(Builder &, const unsigned short round)
 {
     if (round == 1)

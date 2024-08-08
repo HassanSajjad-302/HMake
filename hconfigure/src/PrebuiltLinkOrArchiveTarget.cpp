@@ -15,9 +15,18 @@ import "SMFile.hpp";
 // by LinkOrArchiveTarget.
 PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const pstring &outputName_, const pstring &directory,
                                                          const TargetType linkTargetType_)
-    : outputDirectory((Node::getFinalNodePathFromPath(directory + slashc).*toPStr)()),
-      actualOutputName(getActualNameFromTargetName(linkTargetType_, os, outputName_)),
-      PrebuiltBasic(outputName_, linkTargetType_)
+    : PrebuiltBasic(outputName_, linkTargetType_),
+      outputDirectory((Node::getFinalNodePathFromPath(directory + slashc).*toPStr)()),
+      actualOutputName(getActualNameFromTargetName(linkTargetType_, os, outputName_))
+{
+}
+
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const pstring &outputName_, const pstring &directory,
+                                                         TargetType linkTargetType_, pstring name_, bool buildExplicit,
+                                                         bool makeDirectory)
+    : PrebuiltBasic(outputName_, linkTargetType_, std::move(name_), buildExplicit, makeDirectory),
+      outputDirectory((Node::getFinalNodePathFromPath(directory + slashc).*toPStr)()),
+      actualOutputName(getActualNameFromTargetName(linkTargetType_, os, outputName_))
 {
 }
 

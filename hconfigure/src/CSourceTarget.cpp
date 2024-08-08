@@ -7,7 +7,8 @@ import "Features.hpp";
 #include "Features.hpp"
 #endif
 
-CSourceTarget::CSourceTarget()
+CSourceTarget::CSourceTarget(bool buildExplicit, pstring name_)
+    : ObjectFileProducerWithDS(std::move(name_), buildExplicit, false)
 {
 }
 

@@ -23,14 +23,16 @@ import <utility>;
 
 using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard, std::mutex;
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(pstring name_, const TargetType targetType)
-    : CTarget(std::move(name_)), PrebuiltLinkOrArchiveTarget(name, targetSubDir, targetType)
+LinkOrArchiveTarget::LinkOrArchiveTarget(const pstring &name_, const TargetType targetType)
+    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
+                                  name_, false, false)
 {
     linkTargetType = targetType;
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(pstring name_, const TargetType targetType, CTarget &other, const bool hasFile)
-    : CTarget(std::move(name_), other, hasFile), PrebuiltLinkOrArchiveTarget(name, targetSubDir, targetType)
+LinkOrArchiveTarget::LinkOrArchiveTarget(bool buildExplicit, const pstring &name_, const TargetType targetType)
+    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
+                                  name_, buildExplicit, false)
 {
     linkTargetType = targetType;
 }
@@ -67,10 +69,9 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     setLinkOrArchiveCommands();
     commandWithoutTargetsWithTool.setCommand((linker.bTPath.*toPStr)() + " " + linkOrArchiveCommandWithoutTargets);
 
-    if (!exists(path(buildCacheFilesDirPath)))
+    if (bsMode == BSMode::CONFIGURE)
     {
         create_directories(buildCacheFilesDirPath);
-        fileStatus.store(true);
     }
 
     // No other thread during BTarget::setFileStatusAndPopulateAllDependencies calls saveBuildCache() i.e. only the
@@ -310,7 +311,6 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short r
     }
     else if (round == 1)
     {
-        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slashc;
         PrebuiltLinkOrArchiveTarget::updateBTarget(builder, 1);
     }
     else if (round == 2)
@@ -327,6 +327,12 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short r
                     requirementLinkerFlags += prebuiltLinkOrArchiveTarget->usageRequirementLinkerFlags;
                 }
             }
+        }
+
+        buildCacheFilesDirPath = configureNode->filePath + slashc + targetSubDir + slashc + "cf" + slashc;
+        if (bsMode == BSMode::CONFIGURE)
+        {
+            create_directories(buildCacheFilesDirPath);
         }
     }
 }
@@ -1229,45 +1235,6 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
     return linkOrArchiveCommandPrint;
 }
 
-/*
-void LinkOrArchiveTarget::setJson()
-{
-    Json targetJson;
-    targetJson[JConsts::targetType] = linkTargetType;
-    targetJson[JConsts::outputName] = outputName;
-    targetJson[JConsts::outputDirectory] = outputDirectory;
-    targetJson[JConsts::linker] = linker;
-    targetJson[JConsts::archiver] = archiver;
-    targetJson[JConsts::linkerFlags] = requirementLinkerFlags;
-    vector<Json> requirementDepsJson;
-    requirementDepsJson.reserve(requirementDeps.size());
-    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
-    {
-        requirementDepsJson.emplace_back(
-            static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltLinkOrArchiveTarget)->getTarjanNodeName());
-    }
-    targetJson[JConsts::libraryDependencies] = requirementDepsJson;
-    json[0] = std::move(targetJson);
-}
-*/
-
-C_Target *LinkOrArchiveTarget::get_CAPITarget(const BSMode bsModeLocal)
-{
-    auto *c_configuration = new C_LinkOrArchiveTarget();
-
-    c_configuration->parent = reinterpret_cast<C_CTarget *>(CTarget::get_CAPITarget(bsModeLocal)->object);
-
-    auto *c_Target = new C_Target();
-    c_Target->type = C_LOA_TARGET_TYPE;
-    c_Target->object = c_configuration;
-    return c_Target;
-}
-
-BTarget *LinkOrArchiveTarget::getBTarget()
-{
-    return this;
-}
-
 pstring LinkOrArchiveTarget::getTarjanNodeName() const
 {
     pstring str;
@@ -1283,22 +1250,22 @@ pstring LinkOrArchiveTarget::getTarjanNodeName() const
     {
         str = "Executable";
     }
-    return str + " " + targetSubDir;
+    return str + " " + configureNode->filePath + slashc + targetSubDir;
 }
 
 bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs)
 {
-    return lhs.CTarget::id < rhs.CTarget::id;
+    return lhs.targetSubDir < rhs.targetSubDir;
 }
 
 PostBasic LinkOrArchiveTarget::Archive()
 {
     return PostBasic(archiver, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), buildCacheFilesDirPath,
-                     name, settings.acpSettings.outputAndErrorFiles, true);
+                     outputName, settings.acpSettings.outputAndErrorFiles, true);
 }
 
 PostBasic LinkOrArchiveTarget::Link()
 {
     return PostBasic(linker, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), buildCacheFilesDirPath,
-                     name, settings.lcpSettings.outputAndErrorFiles, true);
+                     outputName, settings.lcpSettings.outputAndErrorFiles, true);
 }

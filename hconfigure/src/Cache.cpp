@@ -3,12 +3,14 @@
 import "Cache.hpp";
 import "BuildSystemFunctions.hpp";
 import "JConsts.hpp";
+import "Node.hpp";
 import "Settings.hpp";
 import <fstream>;
 #else
 #include "Cache.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
+#include "Node.hpp";
 #include "Settings.hpp"
 #include <fstream>
 #endif
@@ -18,7 +20,7 @@ using std::ifstream, std::ofstream;
 Cache::Cache()
 {
     constexpr bool isPresentInTools = os == OS::NT ? true : false;
-    sourceDirectoryPath = "../";
+    sourceDirectoryPath = "..";
     isCompilerInToolsArray = true;
     selectedCompilerArrayIndex = 0;
     isLinkerInToolsArray = isPresentInTools;
@@ -35,7 +37,7 @@ void Cache::initializeCacheVariableFromCacheFile()
 {
     // Cache from cacheFileJson is read in both of build system modes but is saved only in CONFIGURE mode.
 
-    const path filePath = path(configureDir) / "cache.json";
+    const path filePath = path(configureNode->filePath + slashc + "cache.json");
     Json cacheFileJsonLocal;
     ifstream(filePath) >> cacheFileJsonLocal;
     *this = cacheFileJsonLocal;
@@ -43,10 +45,10 @@ void Cache::initializeCacheVariableFromCacheFile()
     // Settings are saved only if mode is configure.
     if (bsMode == BSMode::CONFIGURE)
     {
-        if (!exists(path(configureDir) / path("settings.json")))
+        if (const path p = path(configureNode->filePath + slashc + "settings.json"); !exists(p))
         {
             const Json settingsJson = Settings{};
-            ofstream(path(configureDir) / path("settings.json")) << settingsJson.dump(4);
+            ofstream(p) << settingsJson.dump(4);
         }
     }
 }
@@ -56,7 +58,7 @@ void Cache::registerCacheVariables()
     // Cache is saved only if mode is configure
     if (bsMode == BSMode::CONFIGURE)
     {
-        const path filePath = path(configureDir) / "cache.json";
+        const path filePath = path(configureNode->filePath + slashc + "cache.json");
         cacheFileJson[JConsts::cacheVariables] = cacheVariables;
         ofstream(filePath) << cacheFileJson.dump(4);
     }
@@ -64,7 +66,7 @@ void Cache::registerCacheVariables()
 
 void to_json(Json &j, const Cache &cacheLocal)
 {
-    j[JConsts::sourceDirectory] = (cacheLocal.sourceDirectoryPath.*toPStr)();
+    j[JConsts::sourceDirectory] = cacheLocal.sourceDirectoryPath;
     j[JConsts::configuration] = cacheLocal.configurationType;
     j[JConsts::isCompilerInToolsArray] = cacheLocal.isCompilerInToolsArray;
     j[JConsts::compilerSelectedArrayIndex] = cacheLocal.selectedCompilerArrayIndex;
@@ -81,13 +83,16 @@ void to_json(Json &j, const Cache &cacheLocal)
 
 void from_json(const Json &j, Cache &cacheLocal)
 {
-    cacheLocal.sourceDirectoryPath = j.at(JConsts::sourceDirectory).get<path>();
-    if (cacheLocal.sourceDirectoryPath.is_relative())
+    cacheLocal.sourceDirectoryPath = j.at(JConsts::sourceDirectory).get<pstring>();
+    path srcPath = path(cacheLocal.sourceDirectoryPath);
+    if (srcPath.is_relative())
     {
-        cacheLocal.sourceDirectoryPath = (configureDir / cacheLocal.sourceDirectoryPath).lexically_normal();
+        srcPath = path(configureNode->filePath + slashc + cacheLocal.sourceDirectoryPath);
+        srcPath = srcPath.lexically_normal();
+        srcPath = srcPath.parent_path();
     }
 
-    srcDir = (cacheLocal.sourceDirectoryPath.*toPStr)();
+    srcNode = Node::getNodeFromNonNormalizedPath(srcPath, false);
 
     cacheLocal.configurationType = j.at(JConsts::configuration).get<ConfigType>();
     cacheLocal.isCompilerInToolsArray = j.at(JConsts::isCompilerInToolsArray).get<bool>();
@@ -108,4 +113,3 @@ void from_json(const Json &j, Cache &cacheLocal)
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();
     cacheLocal.compileConfigureCommands = j.at(JConsts::compileConfigureCommands).get<vector<pstring>>();
 }
-

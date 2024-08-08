@@ -66,7 +66,7 @@ void ResolveRequirePathBTarget::updateBTarget(Builder &builder, const unsigned s
 
 pstring ResolveRequirePathBTarget::getTarjanNodeName() const
 {
-    return "ResolveRequirePath " + target->name;
+    return "ResolveRequirePath " + target->targetSubDir;
 }
 
 AdjustHeaderUnitsBTarget::AdjustHeaderUnitsBTarget(CppSourceTarget *target_) : target(target_)
@@ -89,7 +89,7 @@ void AdjustHeaderUnitsBTarget::updateBTarget(Builder &builder, const unsigned sh
 
 pstring AdjustHeaderUnitsBTarget::getTarjanNodeName() const
 {
-    return "AdjustHeaderUnitsBTarget " + target->name;
+    return "AdjustHeaderUnitsBTarget " + target->targetSubDir;
 }
 
 void CppSourceTarget::setCpuType()
@@ -152,14 +152,14 @@ bool CppSourceTarget::isCpuTypeG7()
               CpuType::AMD64);
 }
 
-CppSourceTarget::CppSourceTarget(pstring name_, const TargetType targetType) : CTarget{std::move(name_)}
+CppSourceTarget::CppSourceTarget(pstring name_, const TargetType targetType) : CSourceTarget{false, std::move(name_)}
 {
     compileTargetType = targetType;
     preSortBTargets.emplace_back(this);
 }
 
-CppSourceTarget::CppSourceTarget(pstring name_, const TargetType targetType, CTarget &other, const bool hasFile)
-    : CTarget{std::move(name_), other, hasFile}
+CppSourceTarget::CppSourceTarget(bool buildExplicit, pstring name_, const TargetType targetType)
+    : CSourceTarget{buildExplicit, std::move(name_)}
 {
     compileTargetType = targetType;
     preSortBTargets.emplace_back(this);
@@ -793,7 +793,12 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         reqIncSizeBeforePopulate = requirementIncludes.size();
         populateTransitiveProperties();
 
-        buildCacheFilesDirPath = targetSubDir + "Cache_Build_Files" + slashc;
+        buildCacheFilesDirPath = configureNode->filePath + slashc + targetSubDir + slashc + "cf" + slashc;
+        if (bsMode == BSMode::CONFIGURE)
+        {
+            create_directories(buildCacheFilesDirPath);
+        }
+
         readBuildCacheFile(builder);
         // getCompileCommand will be later on called concurrently therefore need to set this before.
         setCompileCommand();
@@ -831,59 +836,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
 
 pstring CppSourceTarget::getTarjanNodeName() const
 {
-    return "CppSourceTarget " + targetSubDir;
-}
-
-BTarget *CppSourceTarget::getBTarget()
-{
-    return this;
-}
-
-C_Target *CppSourceTarget::get_CAPITarget(BSMode)
-{
-    auto *c_cppSourceTarget = new C_CppSourceTarget();
-
-    c_cppSourceTarget->parent = static_cast<C_CTarget *>(CTarget::get_CAPITarget(bsMode)->object);
-
-    c_cppSourceTarget->sourceFilesCount = sourceFileDependencies.size();
-    c_cppSourceTarget->sourceFiles = new const char *[sourceFileDependencies.size()];
-    unsigned short i = 0;
-    for (const SourceNode &sourceNode : sourceFileDependencies)
-    {
-        c_cppSourceTarget->sourceFiles[i] = sourceNode.node->filePath.data();
-        ++i;
-    }
-
-    c_cppSourceTarget->moduleFilesCount = moduleSourceFileDependencies.size();
-    c_cppSourceTarget->moduleFiles = new const char *[moduleSourceFileDependencies.size()];
-    i = 0;
-    for (const SourceNode &sourceNode : moduleSourceFileDependencies)
-    {
-        c_cppSourceTarget->sourceFiles[i] = sourceNode.node->filePath.data();
-        ++i;
-    }
-
-    c_cppSourceTarget->includeDirsCount = requirementIncludes.size();
-    c_cppSourceTarget->includeDirs = new const char *[requirementIncludes.size()];
-
-    i = 0;
-    for (const InclNode &include : requirementIncludes)
-    {
-        c_cppSourceTarget->includeDirs[i] = include.node->filePath.data();
-        ++i;
-    }
-
-    // setCompileCommand() is called in round 1. Maybe better to run till round 1 in BSMode::IDE and remove following
-    setCompileCommand();
-
-    c_cppSourceTarget->compileCommand = compileCommand.data();
-    const auto *compilerPath = new pstring((compiler.bTPath.*toPStr)());
-    c_cppSourceTarget->compilerPath = compilerPath->c_str();
-
-    auto *c_Target = new C_Target();
-    c_Target->type = C_CPP_TARGET_TYPE;
-    c_Target->object = c_cppSourceTarget;
-    return c_Target;
+    return "CppSourceTarget " + configureNode->filePath + slashc + targetSubDir;
 }
 
 CppSourceTarget &CppSourceTarget::publicCompilerFlags(const pstring &compilerFlags)
@@ -954,7 +907,7 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const bool 
             catch (const std::regex_error &e)
             {
                 printErrorMessage(fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
-                                              e.what(), dir.regex, getTargetPointer()));
+                                              e.what(), dir.regex, targetSubDir));
                 throw std::exception();
             }
         };
@@ -1086,7 +1039,7 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const bool 
                 {
                     printErrorMessage(
                         fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n", e.what(),
-                                    dir.regex, getTargetPointer()));
+                                    dir.regex, targetSubDir));
                     throw std::exception();
                 }
             };
@@ -1300,11 +1253,6 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
         moduleValue.Reserve(moduleValue.Size() + moduleSourceFileDependencies.size(), cppAllocator);
 
         // Header-units size can't be known as these are dynamically discovered.
-    }
-
-    if (!exists(path(buildCacheFilesDirPath)))
-    {
-        create_directories(buildCacheFilesDirPath);
     }
 }
 
@@ -1708,5 +1656,5 @@ void CppSourceTarget::saveBuildCache(const bool round)
 
 bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs)
 {
-    return lhs.CTarget::id < rhs.CTarget::id;
+    return lhs.targetSubDir < rhs.targetSubDir;
 }

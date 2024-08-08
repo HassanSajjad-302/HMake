@@ -97,12 +97,13 @@ path Node::getFinalNodePathFromPath(path filePath)
 {
     if (filePath.is_relative())
     {
-        filePath = path(srcDir) / filePath;
+        filePath = path(srcNode->filePath) / filePath;
     }
     filePath = filePath.lexically_normal();
 
     if constexpr (os == OS::NT)
     {
+        // TODO
         // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
         // actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
         for (auto it = const_cast<path::value_type *>(filePath.c_str()); *it != '\0'; ++it)
@@ -240,7 +241,7 @@ void Node::clearNodes()
 {
     nodeAllFiles.clear();
     idCount = 0;
-    for(Node *& node :nodeIndices)
+    for (Node *&node : nodeIndices)
     {
         node = nullptr;
     }

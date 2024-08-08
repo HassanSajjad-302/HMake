@@ -1,9 +1,10 @@
 #include "Configure.hpp"
 
-template <typename... T> void initializeTargets(DSC<CppSourceTarget> &target, T &...targets)
+template <typename... T> void initializeTargets(DSC<CppSourceTarget> *target, T... targets)
 {
-    CppSourceTarget &t = target.getSourceTarget();
-    string str = t.name.substr(0, t.name.size() - 4); // Removing -cpp from the name
+    CppSourceTarget &t = target->getSourceTarget();
+    string s = getLastNameAfterSlash(t.targetSubDir);
+    string str = s.substr(0, s.size() - 4); // Removing -cpp from the name
     t.moduleDirectoriesRE("src/" + str + "/", ".*cpp")
         .privateHUDirectories("src/" + str)
         .publicHUDirectories("include/" + str);
@@ -29,7 +30,7 @@ void configurationSpecification(Configuration &config)
     DSC<CppSourceTarget> &lib1 = config.getCppTargetDSC("lib1", config.targetType).publicLibraries(&lib2);
     DSC<CppSourceTarget> &app = config.getCppExeDSC("app").privateLibraries(&lib1);
 
-    initializeTargets(lib1, lib2, lib3, lib4, app);
+    initializeTargets(&lib1, &lib2, &lib3, &lib4, &app);
 }
 
 void buildSpecification()

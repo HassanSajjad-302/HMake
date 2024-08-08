@@ -1,12 +1,12 @@
 #ifndef HMAKE_CONFIGURATION_HPP
 #define HMAKE_CONFIGURATION_HPP
 #ifdef USE_HEADER_UNITS
-import "BasicTargets.hpp";
+import "BTarget.hpp";
 import "ConfigType.hpp";
 import "DSC.hpp";
 import <memory>;
 #else
-#include "BasicTargets.hpp"
+#include "BTarget.hpp"
 #include "ConfigType.hpp"
 #include "DSC.hpp"
 #include <memory>
@@ -17,16 +17,10 @@ using std::shared_ptr;
 class LinkOrArchiveTarget;
 class CppSourceTarget;
 
-enum class ConfigTargetHaveFile : bool
-{
-    YES,
-    NO,
-};
-
 // TODO
 // HollowConfiguration type which is very similar to Configuration except it does not inherit from CTarget which means
 // CppSourceTarget etc could be created with a properties preset but a new Configuration Directory will not be created
-struct Configuration : CTarget
+struct Configuration : BTarget
 {
     vector<CppSourceTarget *> cppSourceTargets;
     vector<LinkOrArchiveTarget *> linkOrArchiveTargets;
@@ -49,7 +43,7 @@ struct Configuration : CTarget
     PrebuiltLinkOrArchiveTarget &getStaticPrebuiltLinkOrArchiveTarget(const pstring &name_, const pstring &directory);
     PrebuiltLinkOrArchiveTarget &getSharedPrebuiltLinkOrArchiveTarget(const pstring &name_, const pstring &directory);
 
-    CSourceTarget &GetCPT();
+    // CSourceTarget &GetCPT();
 
     DSC<CppSourceTarget> &getCppExeDSC(const pstring &name_, bool defines = false, pstring define = "");
     DSC<CppSourceTarget> &getCppTargetDSC(const pstring &name_, TargetType targetType_ = cache.libraryType,
@@ -72,25 +66,15 @@ struct Configuration : CTarget
     DSC<CppSourceTarget> &getCppSharedDSC_P(const pstring &name_, const pstring &directory, bool defines = false,
                                             pstring define = "");
 
-    ConfigTargetHaveFile configTargetHaveFile = ConfigTargetHaveFile::YES;
-
     explicit Configuration(const pstring &name_);
-    Configuration(const pstring &name, CTarget &other, bool hasFile = true);
-    void markArchivePoint();
-    // void setJson() override;
-    C_Target *get_CAPITarget(BSMode bsModeLocal) override;
+    static void markArchivePoint();
     template <typename T, typename... Property> Configuration &assign(T property, Property... properties);
 };
 bool operator<(const Configuration &lhs, const Configuration &rhs);
 
 template <typename T, typename... Property> Configuration &Configuration::assign(T property, Property... properties)
 {
-    // ConfigTargetHaveFile property of Configuration class itself
-    if constexpr (std::is_same_v<decltype(property), ConfigTargetHaveFile>)
-    {
-        configTargetHaveFile = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TargetType>)
+    if constexpr (std::is_same_v<decltype(property), TargetType>)
     {
         targetType = property;
     }

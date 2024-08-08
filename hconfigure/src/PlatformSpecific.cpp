@@ -216,3 +216,41 @@ bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs)
     }
     return true;
 }
+
+void lowerCasePString(pstring &str)
+{
+    for (char &c : str)
+    {
+        c = tolower(c);
+    }
+}
+
+bool childInParentPathRecursiveNormalized(pstring_view parent, pstring_view child)
+{
+    // Adding +1 so we -1 in while loop find_las_not_of so we always give one position before the last found slashc,
+    // otherwise it will return same index and it will be a forever loop.
+    uint64_t i = child.size() + 1;
+    if (compareStringsFromEnd(parent, pstring_view(child.data(), i - 1)))
+    {
+        return true;
+    }
+    while (true)
+    {
+        if (parent.size() > i)
+        {
+            return false;
+        }
+        i = child.find_last_of(slashc, i - 1);
+        if (i != pstring::npos)
+        {
+            if (compareStringsFromEnd(parent, pstring_view(child.data(), i)))
+            {
+                return true;
+            }
+        }
+        else
+        {
+            i = 0;
+        }
+    }
+}

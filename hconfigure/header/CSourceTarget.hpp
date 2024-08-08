@@ -18,14 +18,14 @@ enum class CSourceTargetType : unsigned short
     CppSourceTarget = 2,
 };
 
-struct CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>
+struct CSourceTarget : ObjectFileProducerWithDS<CSourceTarget>
 {
     using BaseType = CSourceTarget;
     list<InclNode> usageRequirementIncludes;
     pstring usageRequirementCompilerFlags;
     set<struct Define> usageRequirementCompileDefinitions;
 
-    CSourceTarget();
+    explicit CSourceTarget(bool buildExplicit, pstring name);
     template <typename... U> CSourceTarget &interfaceIncludes(const pstring &include, U... includeDirectoryPString);
     CSourceTarget &INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags);
     CSourceTarget &INTERFACE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue = "");

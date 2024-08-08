@@ -15,11 +15,11 @@ import <vector>;
 #endif
 
 using Json = nlohmann::json;
-using std::vector, std::filesystem::path;
+using std::vector;
 struct Cache
 {
     Json cacheFileJson;
-    path sourceDirectoryPath = "../";
+    string sourceDirectoryPath;
     ConfigType configurationType;
     // isToolInVSToolsArray to be used only on Windows. Determines if the index of tool is in VSTools array or is in
     // plain array. In VSTools array, compiler and linker also have include-directories and library-directories with

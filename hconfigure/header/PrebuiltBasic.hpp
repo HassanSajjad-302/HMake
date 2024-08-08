@@ -2,11 +2,11 @@
 #define HMAKE_PREBUILTBASIC_HPP
 
 #ifdef USE_HEADER_UNITS
-import "BasicTargets.hpp";
+import "BTarget.hpp";
 import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
 #else
-#include "BasicTargets.hpp"
+#include "BTarget.hpp"
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #endif
@@ -70,6 +70,8 @@ class PrebuiltBasic : public BTarget
   public:
     PrebuiltBasic(pstring outputName_);
     PrebuiltBasic(pstring outputName_, TargetType linkTargetType_);
+    PrebuiltBasic(pstring outputName_, pstring name_, bool buildExplicit, bool makeDirectory);
+    PrebuiltBasic(pstring outputName_, TargetType linkTargetType_, pstring name_, bool buildExplicit, bool makeDirectory);
 
     void updateBTarget(Builder &builder, unsigned short round) override;
     void addRequirementDepsToBTargetDependencies();

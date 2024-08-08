@@ -63,6 +63,10 @@ PostBasic::PostBasic(const BuildTool &buildTool, const pstring &commandFirstHalf
 #endif
     commandSuccessOutput = fileToPString(outputFileName);
     commandErrorOutput = fileToPString(errorFileName);
+    if (exitStatus == EXIT_FAILURE)
+    {
+        bool breakpoint = true;
+    }
 }
 
 void PostBasic::executePrintRoutine(const uint32_t color, const bool printOnlyOnError) const
@@ -127,18 +131,9 @@ bool PostCompile::ignoreHeaderFile(const pstring_view child) const
     {
         if (inclNode.ignoreHeaderDeps)
         {
-            if (inclNode.node->filePath.size() > child.size())
+            if (childInParentPathRecursiveNormalized(inclNode.node->filePath, child))
             {
-                continue;
-            }
-            if (uint64_t i = child.find_last_of(slashc); i != pstring::npos)
-            {
-                // parent + one for slash + one for the last character where the search finished
-
-                if (compareStringsFromEnd(inclNode.node->filePath, pstring_view(child.data(), i)))
-                {
-                    return true;
-                }
+                return true;
             }
         }
     }

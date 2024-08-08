@@ -3,13 +3,13 @@
 #define HMAKE_CTARGETROUNDZEROBTARGET_HPP
 
 #ifdef USE_HEADER_UNITS
-import "BasicTargets.hpp";
+import "BTarget.hpp";
 #else
-#include "BasicTargets.hpp"
+#include "BTarget.hpp"
 #endif
 
 using std::function;
-struct RoundZeroUpdateBTarget : public BTarget
+struct RoundZeroUpdateBTarget : BTarget
 {
     function<void(Builder &, BTarget &bTarget)> updateFunctor = nullptr;
 
@@ -18,25 +18,12 @@ struct RoundZeroUpdateBTarget : public BTarget
     {
     }
 
-    void updateBTarget(class Builder &builder, unsigned short round) override
+    void updateBTarget(Builder &builder, unsigned short round) override
     {
         if (!round)
         {
             updateFunctor(builder, *this);
         }
-    }
-};
-
-struct CTargetRoundZeroBTarget : public RoundZeroUpdateBTarget, public CTarget
-{
-    explicit CTargetRoundZeroBTarget(const pstring &name_, function<void(Builder &, BTarget &bTarget)> updateFunctor_)
-        : RoundZeroUpdateBTarget(std::move(updateFunctor_)), CTarget(name_)
-    {
-    }
-    CTargetRoundZeroBTarget(const pstring &name_, CTarget &container, bool hasFile,
-                            function<void(Builder &, BTarget &bTarget)> updateFunctor_)
-        : RoundZeroUpdateBTarget(std::move(updateFunctor_)), CTarget(name_, container, hasFile)
-    {
     }
 };
 

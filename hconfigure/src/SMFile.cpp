@@ -470,7 +470,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
     {
         printErrorMessageColor(
             fmt::format("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin Target\n{}\n",
-                        headerUnitNode->filePath, node->filePath, target->getTargetPointer()),
+                        headerUnitNode->filePath, node->filePath, target->targetSubDir),
             settings.pcSettings.toolErrorOutput);
         throw std::exception();
     }

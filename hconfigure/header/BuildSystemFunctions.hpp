@@ -47,10 +47,13 @@ inline auto &ralloc = buildCache.GetAllocator();
 inline std::mutex buildCacheMutex;
 void writeBuildCacheUnlocked();
 
-inline pstring srcDir;
+// Node representing source directory
+inline class Node *srcNode;
 
-// path of directory which has configure executable of the project
-inline pstring configureDir;
+// Node representing configure directory
+inline Node *configureNode;
+
+inline Node *currentNode;
 
 enum class BSMode : char // Build System Mode
 {
@@ -61,9 +64,6 @@ enum class BSMode : char // Build System Mode
 
 // By default, mode is configure, however, if, --build cmd option is passed, it is set to BUILD.
 inline BSMode bsMode = BSMode::CONFIGURE;
-
-// Used for determining the CTarget to build in BSMode::BUILD. The pstring is of buildTargetFilePaths.
-inline set<pstring> targetSubDirectories;
 
 // Following can be used for holding memory through build-system run and is used for target<CTarget> in GetTarget
 // functions
@@ -105,6 +105,7 @@ void printErrorMessageColor(const pstring &message, uint32_t color);
 
 #define HMAKE_HMAKE_INTERNAL_ERROR printErrorMessage(fmt::format("HMake Internal Error {} {}", __FILE__, __LINE__));
 
+pstring getLastNameAfterSlash(pstring name);
 void configureOrBuild();
 
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

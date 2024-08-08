@@ -2,7 +2,7 @@
 
 bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuration))
 {
-    if (equivalent(path(configureDir), std::filesystem::current_path()))
+    if (equivalent(path(configureNode->filePath), std::filesystem::current_path()))
     {
         for (const Configuration &configuration : targets<Configuration>)
         {

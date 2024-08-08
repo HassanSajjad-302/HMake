@@ -93,7 +93,6 @@ struct AdjustHeaderUnitsBTarget final : BTarget
 // HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
 // use -TC flag with MSVC
 class CppSourceTarget : public CppCompilerFeatures,
-                        public CTarget,
                         public FeatureConvenienceFunctions<CppSourceTarget>,
                         public CSourceTarget
 {
@@ -121,7 +120,7 @@ class CppSourceTarget : public CppCompilerFeatures,
         inline static map<const CppSourceTarget *, unique_ptr<ModuleScopeDataOld>> moduleScopes;*/
     friend struct PostCompile;
     // Parsed Info Not Changed Once Read
-   // pstring targetFilePath;
+    // pstring targetFilePath;
     pstring buildCacheFilesDirPath;
 
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
@@ -182,12 +181,10 @@ class CppSourceTarget : public CppCompilerFeatures,
     void updateBTarget(Builder &builder, unsigned short round) override;
     /*    void setJson() override; */
     pstring getTarjanNodeName() const override;
-    BTarget *getBTarget() override;
-    C_Target *get_CAPITarget(BSMode bsMode) override;
     CompilerFlags getCompilerFlags();
 
     CppSourceTarget(pstring name_, TargetType targetType);
-    CppSourceTarget(pstring name_, TargetType targetType, CTarget &other, bool hasFile = true);
+    CppSourceTarget(bool buildExplicit, pstring name_, TargetType targetType);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;

@@ -1,14 +1,14 @@
 
 #ifdef USE_HEADER_UNITS
 import "Builder.hpp";
-import "BasicTargets.hpp";
+import "BTarget.hpp";
 import "Utilities.hpp";
 import <mutex>;
 import <stack>;
 import <thread>;
 #else
 #include "Builder.hpp"
-#include "BasicTargets.hpp"
+#include "BTarget.hpp"
 #include "Utilities.hpp"
 #include <mutex>
 #include <stack>
@@ -20,21 +20,7 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 Builder::Builder()
 {
     round = 2;
-
-    for (CTarget *cTarget : targetPointers<CTarget>)
-    {
-        if (cTarget->callPreSort)
-        {
-            if (BTarget *bTarget = cTarget->getBTarget(); bTarget)
-            {
-                // preSortBTargets.emplace_back(bTarget);
-                if (cTarget->getSelectiveBuild())
-                {
-                    bTarget->selectiveBuild = true;
-                }
-            }
-        }
-    }
+    roundGoal = bsMode == BSMode::BUILD ? 0 : 2;
 
     TBT::tarjanNodes = &tarjanNodesBTargets[round];
     TBT::findSCCS();
@@ -46,6 +32,7 @@ Builder::Builder()
         {
             updateBTargets.emplace_back(target);
         }
+        target->setSelectiveBuild();
     }
 
     updateBTargetsIterator = updateBTargets.begin();
@@ -121,7 +108,7 @@ void Builder::execute()
                     /*printMessage(fmt::format("{} {} {}\n", round, "UPDATE_BTARGET threadCount ==
                        numberOfLaunchThreads", getThreadId()));*/
 
-                    if (round && !errorHappenedInRoundMode)
+                    if (round > roundGoal && !errorHappenedInRoundMode)
                     {
                         --round;
                         threadCount = 0;

@@ -44,8 +44,7 @@ struct LinkerFlags
 };
 
 using std::shared_ptr;
-class LinkOrArchiveTarget : public CTarget,
-                            public PrebuiltLinkOrArchiveTarget,
+class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
                             public LinkerFeatures,
                             public FeatureConvenienceFunctions<LinkOrArchiveTarget>
 {
@@ -68,17 +67,12 @@ class LinkOrArchiveTarget : public CTarget,
     bool archiving = false;
     bool archived = false;
 
-    LinkOrArchiveTarget(pstring name_, TargetType targetType);
-    LinkOrArchiveTarget(pstring name_, TargetType targetType, class CTarget &other, bool hasFile = true);
+    LinkOrArchiveTarget(const pstring &name_, TargetType targetType);
+    LinkOrArchiveTarget(bool buildExplicit, const pstring &name_, TargetType targetType);
     void setOutputName(pstring outputName_);
     void setFileStatus(RealBTarget &realBTarget);
     void updateBTarget(Builder &builder, unsigned short round) override;
     LinkerFlags getLinkerFlags();
-    /*
-        void setJson() override;
-    */
-    C_Target *get_CAPITarget(BSMode bsModeLocal) override;
-    BTarget *getBTarget() override;
     pstring getTarjanNodeName() const override;
     PostBasic Archive();
     PostBasic Link();

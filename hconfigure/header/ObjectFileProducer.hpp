@@ -2,11 +2,11 @@
 #ifndef HMAKE_OBJECTFILEPRODUCER_HPP
 #define HMAKE_OBJECTFILEPRODUCER_HPP
 #ifdef USE_HEADER_UNITS
-import "BasicTargets.hpp";
+import "BTarget.hpp";
 import "Dependency.hpp";
 import "Node.hpp";
 #else
-#include "BasicTargets.hpp"
+#include "BTarget.hpp"
 #include "Dependency.hpp"
 #include "Node.hpp"
 #endif
@@ -22,6 +22,7 @@ class ObjectFileProducer : public BTarget
 {
   public:
     ObjectFileProducer();
+    ObjectFileProducer(pstring name_, bool buildExplicit, bool makeDirectory);
     virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                                 class LinkOrArchiveTarget *linkOrArchiveTarget) const;
 };
@@ -29,6 +30,8 @@ class ObjectFileProducer : public BTarget
 // Dependency Specification CRTP
 template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
 {
+    ObjectFileProducerWithDS();
+    ObjectFileProducerWithDS(pstring name_, bool buildExplicit, bool makeDirectory);
     set<T *> requirementDeps;
     set<T *> usageRequirementDeps;
     template <typename... U> T &PUBLIC_DEPS(T *dep, const U... deps);
@@ -60,6 +63,14 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::P
         return PRIVATE_DEPS(deps...);
     }
     return static_cast<T &>(*this);
+}
+
+template <typename T> ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS() = default;
+
+template <typename T>
+ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS(pstring name_, bool buildExplicit, bool makeDirectory)
+    : ObjectFileProducer(std::move(name_), buildExplicit, makeDirectory)
+{
 }
 
 template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::PUBLIC_DEPS(T *dep, const U... deps)

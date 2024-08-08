@@ -165,14 +165,16 @@ TEST(StageTests, Test1)
     // Deleting app-cpp directory
     const path appCppDirectory = testSourcePath / "Build/app-cpp/";
     removeDirectory(appCppDirectory);
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1});
 
     // Deleting app-cpp directory but executing hbuild in app
     removeDirectory(appCppDirectory);
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1}, "app/");
 
     // Deleting main.cpp.o
-    const path mainDotCppDotOFilePath = testSourcePath / "Build/app-cpp/Cache_Build_Files/main.cpp.o";
+    const path mainDotCppDotOFilePath = testSourcePath / "Build/app-cpp/cf/main.cpp.o";
     removeFilePath(mainDotCppDotOFilePath);
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1});
 
@@ -269,6 +271,7 @@ TEST(StageTests, Test2)
     // Deleting lib3-cpp directory
     path lib3CppDirectory = testSourcePath / "Build/Debug/lib3-cpp/";
     removeDirectory(lib3CppDirectory);
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Deleting lib4 and lib2-cpp directory
@@ -277,6 +280,7 @@ TEST(StageTests, Test2)
     path lib2CppDirectory = testSourcePath / "Build/Debug/lib2-cpp/";
     removeFilePath(lib4);
     removeDirectory(lib2CppDirectory);
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Touching main.cpp lib1.cpp lib1.hpp-public lib4.hpp-public

@@ -94,6 +94,8 @@ void writePValueToFile(pstring_view fileName, const PValue &value);
 unique_ptr<pchar[]> readPValueFromFile(pstring_view fileName, PDocument &document);
 size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
 bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs);
+void lowerCasePString(pstring &str);
+bool childInParentPathRecursiveNormalized(pstring_view parent, pstring_view child);
 
 struct Indices
 {
@@ -147,7 +149,6 @@ struct Indices
         constexpr static unsigned commandWithoutArgumentsWithTools = 1;
         constexpr static unsigned objectFiles = 2;
     };
-
 };
 
 #endif // HMAKE_PLATFORMSPECIFIC_HPP

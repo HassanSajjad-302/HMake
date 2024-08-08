@@ -29,8 +29,7 @@ void configurationSpecification(Configuration &configuration)
 {
     TESTS tests = TESTS::YES;
     EXAMPLES examples = EXAMPLES::YES;
-    configuration.compilerFeatures.requirementIncludes.emplace_back(
-        Node::getNodeFromNonNormalizedString(path(srcDir).parent_path().string(), false));
+    configuration.compilerFeatures.requirementIncludes.emplace_back(srcNode);
     DSC<CppSourceTarget> &stdhu = configuration.getCppObjectDSC("stdhu");
     stdhu.getSourceTarget().assignStandardIncludesToPublicHUDirectories();
 
@@ -55,7 +54,7 @@ void configurationSpecification(Configuration &configuration)
     DSC<CppSourceTarget> &callableTraits = configuration.getCppObjectDSC("callable_traits");
     if (tests == TESTS::YES)
     {
-        for (const auto &k : directory_iterator(path(srcDir + "/libs/callable_traits/test")))
+        for (const auto &k : directory_iterator(path(srcNode->filePath + "/libs/callable_traits/test")))
         {
             // All targets are just being compiled instead of being run as well.
             if (k.path().extension() == ".cpp")
@@ -73,7 +72,7 @@ void configurationSpecification(Configuration &configuration)
 
     if (examples == EXAMPLES::YES)
     {
-        for (const auto &k : directory_iterator(path(srcDir + "/libs/callable_traits/example")))
+        for (const auto &k : directory_iterator(path(srcNode->filePath + "/libs/callable_traits/example")))
         {
             // All targets are being compiled instead of being run as well
             if (k.path().extension() == ".cpp")
@@ -100,7 +99,7 @@ void configurationSpecification(Configuration &configuration)
     DSC<CppSourceTarget> &hof = configuration.getCppObjectDSC("hof");
     if (tests == TESTS::YES)
     {
-        for (const auto &k : directory_iterator(path(srcDir + "/libs/hof/test")))
+        for (const auto &k : directory_iterator(path(srcNode->filePath + "/libs/hof/test")))
         {
             // All targets are just being compiled instead of being run as well.
             // Not all tests are passing, hence skipping
@@ -117,7 +116,7 @@ void configurationSpecification(Configuration &configuration)
     DSC<CppSourceTarget> &lambda2 = configuration.getCppObjectDSC("lambda2");
     if (tests == TESTS::YES)
     {
-        for (const auto &k : directory_iterator(path(srcDir + "/libs/lambda2/test")))
+        for (const auto &k : directory_iterator(path(srcNode->filePath + "/libs/lambda2/test")))
         {
             // All targets are just being compiled instead of being run as well.
             if (k.path().extension() == ".cpp")
@@ -150,7 +149,7 @@ void configurationSpecification(Configuration &configuration)
     if (tests == TESTS::YES)
     {
         // test/Jamfile.v2 has compile, run, exe and configuration based selection and target specification
-        for (const auto &k : directory_iterator(path(srcDir + "/libs/mp11/test")))
+        for (const auto &k : directory_iterator(path(srcNode->filePath + "/libs/mp11/test")))
         {
             // All targets are just being compiled instead of being run as well.
             // mp_compose_sf.cpp is a static lib
@@ -188,16 +187,16 @@ void configurationSpecification(Configuration &configuration)
         for (string &str : vec)
         {
             DSC<CppSourceTarget> &preprocessorTests = configuration.getCppExeDSC("test_preprocessor_" + str);
-            preprocessorTests.getSourceTarget().moduleFiles(srcDir + "libs/preprocessor/test/" + str);
+            preprocessorTests.getSourceTarget().moduleFiles(srcNode->filePath + "/libs/preprocessor/test/" + str);
             DSC<CppSourceTarget> &preprocessorNumber512Tests =
                 configuration.getCppExeDSC("test_preprocessor_number_512_" + str);
             preprocessorNumber512Tests.getSourceTarget()
-                .moduleFiles(srcDir + "libs/preprocessor/test/" + str)
+                .moduleFiles(srcNode->filePath + "/libs/preprocessor/test/" + str)
                 .privateCompileDefinition("BOOST_PP_LIMIT_MAG=512");
             DSC<CppSourceTarget> &preprocessorNumber1024Tests =
                 configuration.getCppExeDSC("test_preprocessor_number_1024_" + str);
             preprocessorNumber1024Tests.getSourceTarget()
-                .moduleFiles(srcDir + "libs/preprocessor/test/" + str)
+                .moduleFiles(srcNode->filePath + "/libs/preprocessor/test/" + str)
                 .privateCompileDefinition("BOOST_PP_LIMIT_MAG=1024");
             // Incomplete
         }
@@ -207,7 +206,7 @@ void configurationSpecification(Configuration &configuration)
     DSC<CppSourceTarget> &qvm = configuration.getCppObjectDSC("qvm");
     if (tests == TESTS::YES)
     {
-        for (const auto &k : directory_iterator(path(srcDir + "/libs/qvm/test")))
+        for (const auto &k : directory_iterator(path(srcNode->filePath + "/libs/qvm/test")))
         {
             // All targets are just being compiled instead of being run as well.
             // Fail tests are not being considered
@@ -245,7 +244,7 @@ void configurationSpecification(Configuration &configuration)
     DSC<CppSourceTarget> &assert = configuration.getCppObjectDSC("assert");
     if (tests == TESTS::YES)
     {
-        for (const auto &k : directory_iterator(path(srcDir + "/libs/assert/test")))
+        for (const auto &k : directory_iterator(path(srcNode->filePath + "/libs/assert/test")))
         {
             // All targets are just being compiled instead of being run as well.
             if (k.path().extension() == ".cpp")

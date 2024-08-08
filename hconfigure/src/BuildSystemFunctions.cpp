@@ -21,12 +21,13 @@ using fmt::print, std::filesystem::current_path, std::filesystem::directory_iter
 
 void writeBuildCacheUnlocked()
 {
-    writePValueToFile(pstring_view(configureDir + "/build-cache.json"), buildCache);
+    writePValueToFile(configureNode->filePath + slashc + "build-cache.json", buildCache);
 }
 
 void initializeCache(const BSMode bsMode_)
 {
     bsMode = bsMode_;
+    pstring configurePathString;
     if (bsMode != BSMode::CONFIGURE)
     {
         path configurePath;
@@ -43,7 +44,7 @@ void initializeCache(const BSMode bsMode_)
 
         if (configureExists)
         {
-            configureDir = (configurePath.parent_path().*toPStr)();
+            configurePathString = (configurePath.parent_path().*toPStr)();
         }
         else
         {
@@ -53,14 +54,17 @@ void initializeCache(const BSMode bsMode_)
     }
     else
     {
-        configureDir = (current_path().*toPStr)();
+        configurePathString = (current_path().*toPStr)();
     }
+
+    lowerCasePString(configurePathString);
+    configureNode = Node::getNodeFromNormalizedString(configurePathString, false);
 
     cache.initializeCacheVariableFromCacheFile();
     toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
 
     nodesCache.Reserve(10000, ralloc);
-    if (const path p = path(configureDir) / "nodes.json"; exists(p))
+    if (const path p = path(configureNode->filePath + slashc + "nodes.json"); exists(p))
     {
         const pstring str = p.string();
         nodesCacheBuffer = readPValueFromFile(str, nodesCache);
@@ -81,6 +85,7 @@ void initializeCache(const BSMode bsMode_)
         }
     }
 
+    currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
     if (bsMode != BSMode::CONFIGURE)
     {
         auto initializeSettings = [](const path &settingsFilePath) {
@@ -89,8 +94,8 @@ void initializeCache(const BSMode bsMode_)
             settings = outputSettingsJson;
         };
 
-        initializeSettings(path(configureDir) / "settings.json");
-        if (const path p = path(configureDir) / "src-dir-cache.json"; exists(p))
+        initializeSettings(path(configureNode->filePath + slashc + "settings.json"));
+        if (const path p = path(configureNode->filePath + slashc + "src-dir-cache.json"); exists(p))
         {
             const pstring str = p.string();
             sourceDirectoryCacheBuffer = readPValueFromFile(str, sourceDirectoryCache);
@@ -182,7 +187,7 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
 
 void loadBuildCache()
 {
-    if (const path p = path(configureDir) / "build-cache.json"; exists(p))
+    if (const path p = path(configureNode->filePath + slashc + "build-cache.json"); exists(p))
     {
         const pstring str = p.string();
         buildCacheFileBuffer = readPValueFromFile(str, buildCache);
@@ -191,12 +196,6 @@ void loadBuildCache()
 
 void configureOrBuild()
 {
-    if (bsMode == BSMode::CONFIGURE)
-    {
-        TCT::tarjanNodes = &tarjanNodesCTargets;
-        TCT::findSCCS();
-        TCT::checkForCycle();
-    }
     if (bsMode == BSMode::BUILD)
     {
         loadBuildCache();
@@ -212,17 +211,18 @@ void configureOrBuild()
     }
     if (bsMode == BSMode::CONFIGURE)
     {
-        vector<CTarget *> &cTargetsSortedForConfigure = TCT::topologicalSort;
-        for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
-        {
-            it.operator*()->setJson();
-        }
-        for (auto it = cTargetsSortedForConfigure.rbegin(); it != cTargetsSortedForConfigure.rend(); ++it)
-        {
-            it.operator*()->writeJsonFile();
-        }
+        Builder{};
         cache.registerCacheVariables();
-        writePValueToFile(pstring_view(configureDir + "/src-dir-cache.json"), sourceDirectoryCache);
+        writePValueToFile(configureNode->filePath + slashc + "src-dir-cache.json", sourceDirectoryCache);
     }
-    writePValueToFile(pstring_view(configureDir + "/nodes.json"), nodesCache);
+    writePValueToFile(configureNode->filePath + slashc + "nodes.json", nodesCache);
+}
+
+pstring getLastNameAfterSlash(pstring name)
+{
+    if (const uint64_t i = name.find_last_of(slashc); i != pstring::npos)
+    {
+        return {name.begin() + i + 1, name.end()};
+    }
+    return name;
 }

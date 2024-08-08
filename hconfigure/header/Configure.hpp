@@ -7,7 +7,7 @@
 // #define USE_COMPILE_COMMAND 1
 
 #ifdef USE_HEADER_UNITS
-import "BasicTargets.hpp";
+import "BTarget.hpp";
 import "BuildSystemFunctions.hpp";
 import "BuildTools.hpp";
 import "Builder.hpp";
@@ -31,7 +31,7 @@ import <stack>;
 import <thread>;
 import <utility>;
 #else
-#include "BasicTargets.hpp"
+#include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
 #include "Builder.hpp"

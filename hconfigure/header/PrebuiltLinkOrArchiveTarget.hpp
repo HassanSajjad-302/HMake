@@ -3,11 +3,11 @@
 #define HMAKE_PREBUILTLINKORARCHIVETARGET_HPP
 
 #ifdef USE_HEADER_UNITS
-import "BasicTargets.hpp";
+import "BTarget.hpp";
 import "Features.hpp";
 import "PrebuiltBasic.hpp";
 #else
-#include "BasicTargets.hpp"
+#include "BTarget.hpp"
 #include "Features.hpp"
 #include "PrebuiltBasic.hpp"
 #endif
@@ -22,6 +22,8 @@ class PrebuiltLinkOrArchiveTarget : public PrebuiltBasic, public PrebuiltLinkerF
     pstring usageRequirementLinkerFlags;
 
     PrebuiltLinkOrArchiveTarget(const pstring &outputName_, const pstring &directory, TargetType linkTargetType_);
+    PrebuiltLinkOrArchiveTarget(const pstring &outputName_, const pstring &directory, TargetType linkTargetType_,
+                                pstring name_, bool buildExplicit, bool makeDirectory);
     pstring getActualOutputPath() const;
 
     template <Dependency dependency, typename T, typename... Property>
