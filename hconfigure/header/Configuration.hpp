@@ -4,17 +4,18 @@
 import "BTarget.hpp";
 import "ConfigType.hpp";
 import "DSC.hpp";
+import "LinkOrArchiveTarget.hpp";
 import <memory>;
 #else
 #include "BTarget.hpp"
 #include "ConfigType.hpp"
 #include "DSC.hpp"
+#include "LinkOrArchiveTarget.hpp"
 #include <memory>
 #endif
 
 using std::shared_ptr;
 
-class LinkOrArchiveTarget;
 class CppSourceTarget;
 
 // TODO
@@ -23,7 +24,7 @@ class CppSourceTarget;
 struct Configuration : BTarget
 {
     vector<CppSourceTarget *> cppSourceTargets;
-    vector<LinkOrArchiveTarget *> linkOrArchiveTargets;
+    vector<LinkOrArchiveTarget<> *> linkOrArchiveTargets;
     vector<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;
     vector<CSourceTarget *> prebuiltTargets;
     CppCompilerFeatures compilerFeatures;
@@ -34,9 +35,9 @@ struct Configuration : BTarget
     CppSourceTarget &getCppPreprocess(const pstring &name_);
     CppSourceTarget &getCppObject(const pstring &name_);
     PrebuiltBasic &getPrebuiltBasic(const pstring &name_);
-    LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(const pstring &name_);
-    LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(const pstring &name_);
-    LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(const pstring &name_);
+    LinkOrArchiveTarget<> &GetExeLinkOrArchiveTarget(const pstring &name_);
+    LinkOrArchiveTarget<> &getStaticLinkOrArchiveTarget(const pstring &name_);
+    LinkOrArchiveTarget<> &getSharedLinkOrArchiveTarget(const pstring &name_);
 
     PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTarget(const pstring &name_, const pstring &directory,
                                                                 TargetType linkTargetType_);

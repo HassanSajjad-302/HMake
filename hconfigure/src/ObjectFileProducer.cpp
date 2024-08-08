@@ -17,6 +17,6 @@ ObjectFileProducer::ObjectFileProducer(pstring name_, bool buildExplicit, bool m
 {
 }
 
-void ObjectFileProducer::getObjectFiles(vector<const ObjectFile *> *, LinkOrArchiveTarget *) const
+void ObjectFileProducer::getObjectFiles(vector<const ObjectFile *> *, LinkOrArchiveTarget<> *) const
 {
 }

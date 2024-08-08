@@ -15,7 +15,6 @@ import <mutex>;
 import <utility>;
 #else
 #include "SMFile.hpp"
-
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "CppSourceTarget.hpp"
@@ -30,65 +29,6 @@ import <utility>;
 #endif
 
 using std::tie, std::ifstream, std::exception, std::lock_guard;
-
-LibDirNode::LibDirNode(Node *node_, const bool isStandard_) : node{node_}, isStandard{isStandard_}
-{
-}
-
-void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, LibDirNode &libDirNode)
-{
-    for (const LibDirNode &libDirNode_ : libDirNodes)
-    {
-        if (libDirNode_.node == libDirNode.node)
-        {
-            return;
-        }
-    }
-    libDirNodes.emplace_back(libDirNode);
-}
-
-void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, Node *node_, bool isStandard_)
-{
-    for (const LibDirNode &libDirNode : libDirNodes)
-    {
-        if (libDirNode.node == node_)
-        {
-            return;
-        }
-    }
-    libDirNodes.emplace_back(node_, isStandard_);
-}
-
-InclNode::InclNode(Node *node_, const bool isStandard_, const bool ignoreHeaderDeps_)
-    : LibDirNode(node_, isStandard_), ignoreHeaderDeps{ignoreHeaderDeps_}
-{
-}
-
-bool InclNode::emplaceInList(list<InclNode> &includes, InclNode &libDirNode)
-{
-    for (const InclNode &include : includes)
-    {
-        if (include.node == libDirNode.node)
-        {
-            return false;
-        }
-    }
-    includes.emplace_back(libDirNode);
-    return true;
-}
-
-bool InclNode::emplaceInList(list<InclNode> &includes, Node *node_, bool isStandard_, bool ignoreHeaderDeps_)
-{
-    for (const InclNode &include : includes)
-    {
-        if (include.node == node_)
-        {
-            return false;
-        }
-    }
-    includes.emplace_back(node_, isStandard_, ignoreHeaderDeps_);
-    return true;
-}
 
 bool operator<(const InclNode &lhs, const InclNode &rhs)
 {

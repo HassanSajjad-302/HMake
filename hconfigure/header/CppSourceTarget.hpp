@@ -8,6 +8,7 @@ import "FeaturesConvenienceFunctions.hpp";
 import "HashedCommand.hpp";
 import "JConsts.hpp";
 import "PostBasic.hpp";
+import "SMFile.hpp";
 import "ToolsCache.hpp";
 import <concepts>;
 import <set>;
@@ -19,6 +20,7 @@ import <set>;
 #include "HashedCommand.hpp"
 #include "JConsts.hpp"
 #include "PostBasic.hpp"
+#include "SMFile.hpp"
 #include "ToolsCache.hpp"
 #include <concepts>
 #include <set>
@@ -187,7 +189,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     CppSourceTarget(bool buildExplicit, pstring name_, TargetType targetType);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
-                        LinkOrArchiveTarget *linkOrArchiveTarget) const override;
+                        LinkOrArchiveTarget<> *linkOrArchiveTarget) const override;
     void populateTransitiveProperties();
     void adjustHeaderUnitsPValueArrayPointers();
     CSourceTargetType getCSourceTargetType() const override;

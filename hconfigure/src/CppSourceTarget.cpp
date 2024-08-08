@@ -166,7 +166,7 @@ CppSourceTarget::CppSourceTarget(bool buildExplicit, pstring name_, const Target
 }
 
 void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
-                                     LinkOrArchiveTarget *linkOrArchiveTarget) const
+                                     LinkOrArchiveTarget<> *linkOrArchiveTarget) const
 {
     set<const SMFile *, IndexInTopologicalSortComparatorRoundZero> sortedSMFileDependencies;
     for (const SMFile &objectFile : moduleSourceFileDependencies)

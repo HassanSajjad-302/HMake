@@ -25,13 +25,13 @@ CppSourceTarget &getCppPreprocess(bool buildExplicit, const pstring &name);
 CppSourceTarget &getCppObject(const pstring &name);
 CppSourceTarget &getCppObject(bool buildExplicit, const pstring &name);
 
-LinkOrArchiveTarget &GetExe(const pstring &name);
-LinkOrArchiveTarget &GetExe(bool buildExplicit, const pstring &name);
+LinkOrArchiveTarget<> &GetExe(const pstring &name);
+LinkOrArchiveTarget<> &GetExe(bool buildExplicit, const pstring &name);
 PrebuiltBasic &getPrebuiltBasic(const pstring &name_);
-LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(const pstring &name);
-LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(bool buildExplicit, const pstring &name);
-LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(const pstring &name);
-LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(bool buildExplicit, const pstring &name);
+LinkOrArchiveTarget<> &getStaticLinkOrArchiveTarget(const pstring &name);
+LinkOrArchiveTarget<> &getStaticLinkOrArchiveTarget(bool buildExplicit, const pstring &name);
+LinkOrArchiveTarget<> &getSharedLinkOrArchiveTarget(const pstring &name);
+LinkOrArchiveTarget<> &getSharedLinkOrArchiveTarget(bool buildExplicit, const pstring &name);
 
 PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTarget(const pstring &name, const pstring &directory,
                                                             TargetType linkTargetType_);
@@ -82,8 +82,7 @@ DSC<CppSourceTarget> &getCppSharedDSC_P(bool buildExplicit, const pstring &name,
                                         bool defines = false, pstring define = "");
 
 template <typename... U>
-RoundZeroUpdateBTarget &getRoundZeroUpdateBTarget(function<void(class Builder &, BTarget &bTarget)> func,
-                                                  U &...dependencies)
+RoundZeroUpdateBTarget &getRoundZeroUpdateBTarget(function<void(Builder &, BTarget &bTarget)> func, U &...dependencies)
 {
     RoundZeroUpdateBTarget &roundZeroUpdateBTarget = const_cast<RoundZeroUpdateBTarget &>(
         targets<RoundZeroUpdateBTarget>.emplace(std::move(func)).first.operator*());

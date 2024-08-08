@@ -68,16 +68,16 @@ CppSourceTarget &getCppObject(bool buildExplicit, const pstring &name)
         targets<CppSourceTarget>.emplace(buildExplicit, name, TargetType::LIBRARY_OBJECT).first.operator*());
 }
 
-LinkOrArchiveTarget &GetExe(const pstring &name)
+LinkOrArchiveTarget<> &GetExe(const pstring &name)
 {
-    return const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(name, TargetType::EXECUTABLE).first.operator*());
+    return const_cast<LinkOrArchiveTarget<> &>(
+        targets<LinkOrArchiveTarget<>>.emplace(name, TargetType::EXECUTABLE).first.operator*());
 }
 
-LinkOrArchiveTarget &GetExe(bool buildExplicit, const pstring &name)
+LinkOrArchiveTarget<> &GetExe(bool buildExplicit, const pstring &name)
 {
-    return const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(buildExplicit, name, TargetType::EXECUTABLE).first.operator*());
+    return const_cast<LinkOrArchiveTarget<> &>(
+        targets<LinkOrArchiveTarget<>>.emplace(buildExplicit, name, TargetType::EXECUTABLE).first.operator*());
 }
 
 PrebuiltBasic &getPrebuiltBasic(const pstring &name_)
@@ -85,28 +85,28 @@ PrebuiltBasic &getPrebuiltBasic(const pstring &name_)
     return const_cast<PrebuiltBasic &>(targets<PrebuiltBasic>.emplace(name_).first.operator*());
 }
 
-LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(const pstring &name)
+LinkOrArchiveTarget<> &getStaticLinkOrArchiveTarget(const pstring &name)
 {
-    return const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(name, TargetType::LIBRARY_STATIC).first.operator*());
+    return const_cast<LinkOrArchiveTarget<> &>(
+        targets<LinkOrArchiveTarget<>>.emplace(name, TargetType::LIBRARY_STATIC).first.operator*());
 }
 
-LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(bool buildExplicit, const pstring &name)
+LinkOrArchiveTarget<> &getStaticLinkOrArchiveTarget(bool buildExplicit, const pstring &name)
 {
-    return const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(buildExplicit, name, TargetType::LIBRARY_STATIC).first.operator*());
+    return const_cast<LinkOrArchiveTarget<> &>(
+        targets<LinkOrArchiveTarget<>>.emplace(buildExplicit, name, TargetType::LIBRARY_STATIC).first.operator*());
 }
 
-LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(const pstring &name)
+LinkOrArchiveTarget<> &getSharedLinkOrArchiveTarget(const pstring &name)
 {
-    return const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(name, TargetType::LIBRARY_SHARED).first.operator*());
+    return const_cast<LinkOrArchiveTarget<> &>(
+        targets<LinkOrArchiveTarget<>>.emplace(name, TargetType::LIBRARY_SHARED).first.operator*());
 }
 
-LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(bool buildExplicit, const pstring &name)
+LinkOrArchiveTarget<> &getSharedLinkOrArchiveTarget(bool buildExplicit, const pstring &name)
 {
-    return const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(buildExplicit, name, TargetType::LIBRARY_SHARED).first.operator*());
+    return const_cast<LinkOrArchiveTarget<> &>(
+        targets<LinkOrArchiveTarget<>>.emplace(buildExplicit, name, TargetType::LIBRARY_SHARED).first.operator*());
 }
 
 PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTarget(const pstring &name, const pstring &directory,
@@ -278,16 +278,14 @@ DSC<CppSourceTarget> &getCppTargetDSC_P(const pstring &name, const pstring &preb
         return const_cast<DSC<CppSourceTarget> &>(
             targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &getStaticPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines, std::move(define)).first.operator*());
     }
-    else if (targetType == TargetType::LIBRARY_SHARED)
+    if (targetType == TargetType::LIBRARY_SHARED)
     {
         return const_cast<DSC<CppSourceTarget> &>(
             targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &getSharedPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines, std::move(define)).first.operator*());
     }
-    else
-    {
-        printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-        throw std::exception{};
-    }
+
+    printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
+    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &getCppTargetDSC_P(bool buildExplicit, const pstring &name, const pstring &prebuiltName,
@@ -300,16 +298,15 @@ DSC<CppSourceTarget> &getCppTargetDSC_P(bool buildExplicit, const pstring &name,
         return const_cast<DSC<CppSourceTarget> &>(
             targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &getStaticPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines, std::move(define)).first.operator*());
     }
-    else if (targetType == TargetType::LIBRARY_SHARED)
+
+    if (targetType == TargetType::LIBRARY_SHARED)
     {
         return const_cast<DSC<CppSourceTarget> &>(
             targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &getSharedPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines, std::move(define)).first.operator*());
     }
-    else
-    {
-        printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-        throw std::exception{};
-    }
+
+    printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
+    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &getCppStaticDSC_P(const pstring &name, const pstring &directory, const bool defines,

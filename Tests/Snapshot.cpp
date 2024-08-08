@@ -1,14 +1,8 @@
 #include "Snapshot.hpp"
-
 #include "BuildSystemFunctions.hpp"
 #include <utility>
 
 using std::filesystem::recursive_directory_iterator;
-
-bool NodeCompare::operator()(const Node *lhs, const Node *rhs) const
-{
-    return *lhs < *rhs;
-}
 
 NodeSnap::NodeSnap(path nodePath_, const file_time_type time_) : nodePath{std::move(nodePath_)}, lastUpdateTime{time_}
 {

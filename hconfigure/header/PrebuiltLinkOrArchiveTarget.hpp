@@ -3,12 +3,8 @@
 #define HMAKE_PREBUILTLINKORARCHIVETARGET_HPP
 
 #ifdef USE_HEADER_UNITS
-import "BTarget.hpp";
-import "Features.hpp";
 import "PrebuiltBasic.hpp";
 #else
-#include "BTarget.hpp"
-#include "Features.hpp"
 #include "PrebuiltBasic.hpp"
 #endif
 

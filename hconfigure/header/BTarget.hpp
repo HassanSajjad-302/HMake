@@ -5,7 +5,6 @@ import "TargetType.hpp";
 import "TarjanNode.hpp";
 import <array>;
 import <atomic>;
-import <filesystem>;
 import <map>;
 import <mutex>;
 #else
@@ -13,13 +12,11 @@ import <mutex>;
 #include "TarjanNode.hpp"
 #include <array>
 #include <atomic>
-#include <filesystem>
 #include <map>
 #include <mutex>
 #endif
 
-using std::filesystem::path, std::size_t, std::map, std::mutex, std::lock_guard, std::atomic_flag, std::array,
-    std::atomic;
+using std::size_t, std::map, std::mutex, std::lock_guard, std::atomic_flag, std::array, std::atomic;
 
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
 TarjanNode(const BTarget *) -> TarjanNode<BTarget>;
@@ -160,7 +157,7 @@ template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U 
 
 template <typename... U> void RealBTarget::addLooseDependency(BTarget &dependency, U &...bTargets)
 {
-    lock_guard<mutex> lk{realbtarget_adddependency};
+    lock_guard lk{realbtarget_adddependency};
     if (dependencies.try_emplace(&dependency, BTargetDepType::LOOSE).second)
     {
         RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];

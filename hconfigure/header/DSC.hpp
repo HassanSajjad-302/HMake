@@ -103,7 +103,7 @@ template <typename T> struct DSC : DSCFeatures
     T *getSourceTargetPointer();
     PrebuiltBasic &getPrebuiltBasicTarget();
     PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTarget();
-    LinkOrArchiveTarget &getLinkOrArchiveTarget();
+    LinkOrArchiveTarget<> &getLinkOrArchiveTarget();
 };
 
 template <typename T> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
@@ -200,9 +200,9 @@ template <typename T> PrebuiltLinkOrArchiveTarget &DSC<T>::getPrebuiltLinkOrArch
     return static_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltBasic);
 }
 
-template <typename T> LinkOrArchiveTarget &DSC<T>::getLinkOrArchiveTarget()
+template <typename T> LinkOrArchiveTarget<> &DSC<T>::getLinkOrArchiveTarget()
 {
-    return static_cast<LinkOrArchiveTarget &>(*prebuiltBasic);
+    return static_cast<LinkOrArchiveTarget<> &>(*prebuiltBasic);
 }
 
 template <>

@@ -3,10 +3,12 @@
 #define HMAKE_CSOURCETARGET_HPP
 
 #ifdef USE_HEADER_UNITS
-import "SMFile.hpp";
+import "ObjectFileProducer.hpp";
+import "SpecialNodes.hpp";
 import <set>;
 #else
-#include "SMFile.hpp"
+#include "ObjectFileProducer.hpp"
+#include "SpecialNodes.hpp"
 #include <set>
 #endif
 

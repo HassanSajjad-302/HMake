@@ -5,6 +5,7 @@ import "OS.hpp";
 import "BuildTools.hpp";
 import "Cache.hpp";
 import "SMFile.hpp";
+import "SpecialNodes.hpp";
 import "TargetType.hpp";
 import <map>;
 import <set>;
@@ -13,7 +14,7 @@ import <vector>;
 #include "BuildTools.hpp"
 #include "Cache.hpp"
 #include "OS.hpp"
-#include "SMFile.hpp"
+#include "SpecialNodes.hpp"
 #include "TargetType.hpp"
 #include <map>
 #include <set>
@@ -23,6 +24,13 @@ import <vector>;
 using std::map, std::set;
 
 using std::vector;
+
+enum class MiniTargets : char
+{
+    BASE,
+    MINI,
+    FULL
+};
 
 enum class StaticSourceDirs : bool
 {
@@ -668,7 +676,7 @@ struct DSCPrebuiltFeatures
     DefineDLLInterface defineDllInterface = DefineDLLInterface::NO;
 };
 
-struct DSCFeatures : public DSCPrebuiltFeatures
+struct DSCFeatures : DSCPrebuiltFeatures
 {
     DefineDLLPrivate defineDllPrivate = DefineDLLPrivate::NO;
 };

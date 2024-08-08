@@ -52,28 +52,28 @@ PrebuiltBasic &Configuration::getPrebuiltBasic(const pstring &name_)
     return const_cast<PrebuiltBasic &>(targets<PrebuiltBasic>.emplace(targetSubDir + slashc + name_).first.operator*());
 }
 
-LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(const pstring &name_)
+LinkOrArchiveTarget<> &Configuration::GetExeLinkOrArchiveTarget(const pstring &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(targetSubDir + slashc + name_, TargetType::EXECUTABLE).first.operator*());
+    LinkOrArchiveTarget<> &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget<> &>(
+        targets<LinkOrArchiveTarget<>>.emplace(targetSubDir + slashc + name_, TargetType::EXECUTABLE).first.operator*());
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
 
-LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(const pstring &name_)
+LinkOrArchiveTarget<> &Configuration::getStaticLinkOrArchiveTarget(const pstring &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(targetSubDir + slashc + name_, TargetType::LIBRARY_STATIC).first.operator*());
+    LinkOrArchiveTarget<> &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget<> &>(
+        targets<LinkOrArchiveTarget<>>.emplace(targetSubDir + slashc + name_, TargetType::LIBRARY_STATIC).first.operator*());
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
 }
 
-LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTarget(const pstring &name_)
+LinkOrArchiveTarget<> &Configuration::getSharedLinkOrArchiveTarget(const pstring &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(targetSubDir + slashc + name_, TargetType::LIBRARY_SHARED).first.operator*());
+    LinkOrArchiveTarget<> &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget<> &>(
+        targets<LinkOrArchiveTarget<>>.emplace(targetSubDir + slashc + name_, TargetType::LIBRARY_SHARED).first.operator*());
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     return linkOrArchiveTarget;
