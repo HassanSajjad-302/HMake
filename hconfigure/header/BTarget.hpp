@@ -5,7 +5,6 @@ import "TargetType.hpp";
 import "TarjanNode.hpp";
 import <array>;
 import <atomic>;
-import <filesystem>;
 import <map>;
 import <mutex>;
 #else
@@ -13,16 +12,14 @@ import <mutex>;
 #include "TarjanNode.hpp"
 #include <array>
 #include <atomic>
-#include <filesystem>
 #include <map>
 #include <mutex>
 #endif
 
-using std::filesystem::path, std::size_t, std::map, std::mutex, std::lock_guard, std::atomic_flag, std::array,
-    std::atomic;
+using std::size_t, std::map, std::mutex, std::lock_guard, std::atomic_flag, std::array, std::atomic, std::atomic_ref;
 
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
-TarjanNode(const BTarget *) -> TarjanNode<BTarget>;
+TarjanNode(const class BTarget *) -> TarjanNode<BTarget>;
 using TBT = TarjanNode<BTarget>;
 inline vector<vector<TBT *>> tarjanNodesBTargets;
 inline vector<mutex *> tarjanNodesBTargetsMutexes;
@@ -37,6 +34,11 @@ class StaticInitializationTarjanNodesBTargets
 
 struct RealBTarget;
 struct IndexInTopologicalSortComparatorRoundZero
+{
+    bool operator()(const BTarget *lhs, const BTarget *rhs) const;
+};
+
+struct IndexInTopologicalSortComparatorRoundTwo
 {
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
 };
@@ -60,7 +62,7 @@ struct RealBTarget : TBT
     BTarget *bTarget = nullptr;
 
     unsigned int indexInTopologicalSort = 0;
-    atomic<unsigned int> dependenciesSize = 0;
+    unsigned int dependenciesSize = 0;
 
     // TODO
     //  Following describes the time taken for the completion of this task. Currently unused. how to determine cpu time
@@ -116,14 +118,10 @@ struct BTarget // BTarget
     // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
     float totalTimeTaken = 0.0f;
     bool selectiveBuild = false;
-    std::atomic<bool> fileStatus = false;
+    bool fileStatus = false;
 
     explicit BTarget();
     explicit BTarget(pstring name_, bool buildExplicit, bool makeDirectory);
-    BTarget(const BTarget &) = delete;
-    BTarget &operator=(const BTarget &) = delete;
-    BTarget &operator=(BTarget &&) = delete;
-    BTarget(BTarget &&) = delete;
     virtual ~BTarget();
 
     void setSelectiveBuild();
@@ -147,7 +145,7 @@ template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U 
         {
             RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
             dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::FULL);
-            ++dependenciesSize;
+            ++atomic_ref(dependenciesSize);
             deps.emplace(&dependencyRealBTarget);
         }
     }
@@ -160,7 +158,7 @@ template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U 
 
 template <typename... U> void RealBTarget::addLooseDependency(BTarget &dependency, U &...bTargets)
 {
-    lock_guard<mutex> lk{realbtarget_adddependency};
+    lock_guard lk{realbtarget_adddependency};
     if (dependencies.try_emplace(&dependency, BTargetDepType::LOOSE).second)
     {
         RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];

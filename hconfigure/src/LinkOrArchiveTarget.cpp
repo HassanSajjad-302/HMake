@@ -23,23 +23,32 @@ import <utility>;
 
 using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard, std::mutex;
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(const pstring &name_, const TargetType targetType)
+bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs)
+{
+    return lhs.targetSubDir < rhs.targetSubDir;
+}
+
+LinkOrArchiveTarget::LinkOrArchiveTarget(const pstring &name_, TargetType targetType)
     : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
                                   name_, false, false)
 {
     linkTargetType = targetType;
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(bool buildExplicit, const pstring &name_, const TargetType targetType)
+LinkOrArchiveTarget::LinkOrArchiveTarget(bool buildExplicit, const pstring &name_, TargetType targetType)
     : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
                                   name_, buildExplicit, false)
 {
     linkTargetType = targetType;
 }
 
+pstring LinkOrArchiveTarget::getLinkOrArchiveCommandWithoutTargets()
+{
+    return "";
+}
+
 void LinkOrArchiveTarget::setOutputName(pstring outputName_)
 {
-    actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName_);
     outputName = std::move(outputName_);
 }
 
@@ -52,16 +61,16 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
     for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
     {
-        objectFileProducer->getObjectFiles(&objectFiles, this);
+        objectFileProducer->getObjectFiles(&(objectFiles), this);
     }
 
     for (auto &[pre, dep] : sortedPrebuiltDependencies)
     {
-        if (pre->evaluate(TargetType::PREBUILT_BASIC))
+        if (pre->evaluate(TargetType::LIBRARY_OBJECT))
         {
             for (const ObjectFileProducer *objectFileProducer : pre->objectFileProducers)
             {
-                objectFileProducer->getObjectFiles(&objectFiles, this);
+                objectFileProducer->getObjectFiles(&(objectFiles), this);
             }
         }
     }
@@ -82,16 +91,15 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
     if (buildCacheIndex == UINT64_MAX)
     {
-        fileStatus.store(true);
+        atomic_ref(fileStatus).store(true);
     }
     buildCacheMutex.unlock();
 
-    if (!fileStatus.load())
+    if (!atomic_ref(fileStatus).load())
     {
-        const path outputPath = path(getActualOutputPath());
-        if (!exists(outputPath))
+        if (outputFileNode->doesNotExist)
         {
-            fileStatus.store(true);
+            atomic_ref(fileStatus).store(true);
         }
         else
         {
@@ -105,13 +113,12 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 {
                     for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
                     {
-                        if (prebuiltBasic->linkTargetType != TargetType::PREBUILT_BASIC)
+                        if (prebuiltBasic->linkTargetType != TargetType::LIBRARY_OBJECT)
                         {
                             const auto *prebuiltLinkOrArchiveTarget =
                                 static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                            path depOutputPath = path(prebuiltLinkOrArchiveTarget->getActualOutputPath());
-                            if (Node::getNodeFromNonNormalizedPath(depOutputPath, true)->lastWriteTime >
-                                Node::getNodeFromNonNormalizedPath(outputPath, true)->lastWriteTime)
+                            if (prebuiltLinkOrArchiveTarget->outputFileNode->lastWriteTime >
+                                outputFileNode->lastWriteTime)
                             {
                                 needsUpdate = true;
                                 break;
@@ -142,8 +149,8 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                         needsUpdate = true;
                         break;
                     }
-                    if (objectFile->objectFileOutputFilePath->lastWriteTime >
-                        Node::getNodeFromNonNormalizedPath(outputPath, true)->lastWriteTime)
+
+                    if (objectFile->objectFileOutputFilePath->lastWriteTime > outputFileNode->lastWriteTime)
                     {
                         needsUpdate = true;
                         break;
@@ -151,19 +158,19 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 }
                 if (needsUpdate)
                 {
-                    fileStatus.store(true);
+                    atomic_ref(fileStatus).store(true);
                 }
             }
             else
             {
-                fileStatus.store(true);
+                atomic_ref(fileStatus).store(true);
             }
         }
     }
 
     if constexpr (os == OS::NT)
     {
-        if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && fileStatus.load())
+        if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && atomic_ref(fileStatus).load())
         {
             set<PrebuiltBasic *> checked;
             stack<PrebuiltBasic *> allDeps;
@@ -180,7 +187,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 {
                     auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
 
-                    if (prebuiltLinkOrArchiveTarget->fileStatus.load())
+                    if (atomic_ref(prebuiltLinkOrArchiveTarget->fileStatus).load())
                     {
                         // latest dll will be built and copied
                         dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
@@ -189,20 +196,17 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                     {
                         // latest dll exists but it might not have been copied in the previous invocation.
 
-                        const Node *copiedDLLNode = const_cast<Node *>(Node::getNodeFromNonNormalizedPath(
-                            outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName, true, true));
-
-                        if (copiedDLLNode->doesNotExist)
+                        if (const Node *copiedDLLNode = Node::getNodeFromNormalizedString(
+                                outputDirectoryNode->filePath + slashc + prebuiltLinkOrArchiveTarget->actualOutputName,
+                                true, true);
+                            copiedDLLNode->doesNotExist)
                         {
                             dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
                         }
                         else
                         {
                             if (copiedDLLNode->lastWriteTime <
-                                Node::getNodeFromNonNormalizedPath(prebuiltLinkOrArchiveTarget->outputDirectory +
-                                                                       prebuiltLinkOrArchiveTarget->actualOutputName,
-                                                                   true)
-                                    ->lastWriteTime)
+                                prebuiltLinkOrArchiveTarget->outputFileNode->lastWriteTime)
                             {
                                 dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
                             }
@@ -220,19 +224,20 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         }
     }
 
-    if (fileStatus.load())
+    if (atomic_ref(fileStatus).load())
     {
         assignFileStatusToDependents(realBTarget);
     }
 }
 
-void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short round)
+void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
 {
+    PrebuiltLinkOrArchiveTarget::updateBTarget(builder, round);
     RealBTarget &realBTarget = realBTargets[round];
-    if (!round && realBTarget.exitStatus == EXIT_SUCCESS && BTarget::selectiveBuild)
+    if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
     {
         setFileStatus(realBTarget);
-        if (fileStatus.load())
+        if (atomic_ref(fileStatus).load())
         {
             shared_ptr<PostBasic> postBasicLinkOrArchive;
             if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -272,11 +277,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short r
                 objectFilesPValue->Reserve(objectFiles.size(), ralloc);
                 for (const ObjectFile *objectFile : objectFiles)
                 {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-                    objectFilesPValue->PushBack(objectFile->objectFileOutputFilePath->myId, ralloc);
-#else
-                    objectFilesPValue->PushBack(ptoref(objectFile->objectFileOutputFilePath->filePath), ralloc);
-#endif
+                    Node::emplaceNodeInPValue(objectFile->objectFileOutputFilePath, *objectFilesPValue);
                 }
                 writeBuildCacheUnlocked();
             }
@@ -300,27 +301,26 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short r
                 {
                     for (const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : dllsToBeCopied)
                     {
-                        copy_file(prebuiltLinkOrArchiveTarget->outputDirectory +
+                        copy_file(prebuiltLinkOrArchiveTarget->outputFileNode->filePath,
+                                  outputDirectoryNode->filePath + slashc +
                                       prebuiltLinkOrArchiveTarget->actualOutputName,
-                                  outputDirectory + prebuiltLinkOrArchiveTarget->actualOutputName,
                                   std::filesystem::copy_options::overwrite_existing);
                     }
                 }
             }
         }
     }
-    else if (round == 1)
-    {
-        PrebuiltLinkOrArchiveTarget::updateBTarget(builder, 1);
-    }
     else if (round == 2)
     {
-        PrebuiltLinkOrArchiveTarget::updateBTarget(builder, 2);
+        if (bsMode == BSMode::BUILD && evaluate(UseMiniTarget::YES))
+        {
+            readConfigCacheAtBuildTime();
+        }
         if (!evaluate(TargetType::LIBRARY_STATIC))
         {
             for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
             {
-                if (!prebuiltBasic->evaluate(TargetType::PREBUILT_BASIC))
+                if (!prebuiltBasic->evaluate(TargetType::LIBRARY_OBJECT))
                 {
                     const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
                         static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
@@ -333,7 +333,30 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, const unsigned short r
         if (bsMode == BSMode::CONFIGURE)
         {
             create_directories(buildCacheFilesDirPath);
+            if (evaluate(UseMiniTarget::YES))
+            {
+                writeTargetConfigCacheAtConfigureTime();
+            }
         }
+    }
+}
+
+void LinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime() const
+{
+    targetConfigCache->PushBack(kArrayType, ralloc);
+    PValue &libDirectoriesConfigCache = targetConfigCache[0][Indices::LinkTargetConfigCache::librariesDirectoriesArray];
+    for (const LibDirNode &libDirNode : requirementLibraryDirectories)
+    {
+        libDirectoriesConfigCache.PushBack(libDirNode.node->getPValue(), ralloc);
+    }
+}
+
+void LinkOrArchiveTarget::readConfigCacheAtBuildTime()
+{
+    for (const PValue &pValue :
+         targetConfigCache[0][Indices::LinkTargetConfigCache::librariesDirectoriesArray].GetArray())
+    {
+        requirementLibraryDirectories.emplace_back(Node::getNodeFromPValue(pValue, false), true);
     }
 }
 
@@ -854,6 +877,36 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
     return flags;
 }
 
+pstring LinkOrArchiveTarget::getTarjanNodeName() const
+{
+    pstring str;
+    if (linkTargetType == TargetType::LIBRARY_STATIC)
+    {
+        str = "Static Library";
+    }
+    else if (linkTargetType == TargetType::LIBRARY_SHARED)
+    {
+        str = "Shared Library";
+    }
+    else
+    {
+        str = "Executable";
+    }
+    return str + " " + configureNode->filePath + slashc + targetSubDir;
+}
+
+PostBasic LinkOrArchiveTarget::Archive()
+{
+    return PostBasic(archiver, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), buildCacheFilesDirPath,
+                     outputName, settings.acpSettings.outputAndErrorFiles, true);
+}
+
+PostBasic LinkOrArchiveTarget::Link()
+{
+    return PostBasic(linker, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), buildCacheFilesDirPath,
+                     outputName, settings.lcpSettings.outputAndErrorFiles, true);
+}
+
 void LinkOrArchiveTarget::setLinkOrArchiveCommands()
 {
     LinkerFlags flags;
@@ -874,7 +927,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             return "";
         };
         localLinkCommand += getArchiveOutputFlag();
-        localLinkCommand += addQuotes(getActualOutputPath()) + " ";
+        localLinkCommand += addQuotes(outputFileNode->filePath) + " ";
     }
     else
     {
@@ -907,7 +960,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
     auto getLinkFlag = [this](const pstring &libraryPath, const pstring &libraryName) {
         if (linker.bTFamily == BTFamily::MSVC)
         {
-            return addQuotes(libraryPath + libraryName + ".lib") + " ";
+            return addQuotes(libraryPath + slashc + libraryName + ".lib") + " ";
         }
         return "-L" + addQuotes(libraryPath) + " -l" + addQuotes(libraryName) + " ";
     };
@@ -925,17 +978,18 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
     {
         for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
         {
-            if (!prebuiltBasic->evaluate(TargetType::PREBUILT_BASIC))
+            if (!prebuiltBasic->evaluate(TargetType::LIBRARY_OBJECT))
             {
                 auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                 linkOrArchiveCommandWithTargets += prebuiltDep->requirementPreLF;
                 linkOrArchiveCommandWithTargets +=
-                    getLinkFlag(prebuiltLinkOrArchiveTarget->outputDirectory, prebuiltLinkOrArchiveTarget->outputName);
+                    getLinkFlag(prebuiltLinkOrArchiveTarget->outputDirectoryNode->filePath,
+                                prebuiltLinkOrArchiveTarget->outputName);
                 linkOrArchiveCommandWithTargets += prebuiltDep->requirementPostLF;
             }
         }
 
-        auto getLibraryDirectoryFlag = [this]() {
+        auto getLibraryDirectoryFlag = [this] {
             if (linker.bTFamily == BTFamily::MSVC)
             {
                 return "/LIBPATH:";
@@ -957,11 +1011,8 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                     if (prebuiltDep->defaultRpath)
                     {
                         auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                        localLinkCommand +=
-                            "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                            addQuotes(
-                                (path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().*toPStr)()) +
-                            " ";
+                        localLinkCommand += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
+                                            addQuotes(prebuiltLinkOrArchiveTarget->outputDirectoryNode->filePath) + " ";
                     }
                     else
                     {
@@ -980,11 +1031,8 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                     if (prebuiltDep->defaultRpathLink)
                     {
                         auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                        localLinkCommand +=
-                            "-Wl,-rpath-link -Wl," +
-                            addQuotes(
-                                (path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().*toPStr)()) +
-                            " ";
+                        localLinkCommand += "-Wl,-rpath-link -Wl," +
+                                            addQuotes(prebuiltLinkOrArchiveTarget->outputDirectoryNode->filePath) + " ";
                     }
                     else
                     {
@@ -994,7 +1042,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             }
         }
         localLinkCommand += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
-        localLinkCommand += addQuotes(getActualOutputPath()) + " ";
+        localLinkCommand += addQuotes(outputFileNode->filePath) + " ";
 
         if (linkTargetType == TargetType::LIBRARY_SHARED)
         {
@@ -1044,7 +1092,7 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
 
         if (acpSettings.archive.printLevel != PathPrintLevel::NO)
         {
-            linkOrArchiveCommandPrint += getReducedPath(getActualOutputPath(), acpSettings.archive) + " ";
+            linkOrArchiveCommandPrint += getReducedPath(outputFileNode->filePath, acpSettings.archive) + " ";
         }
     }
     else
@@ -1096,7 +1144,7 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
     auto getLinkFlagPrint = [this](const pstring &libraryPath, const pstring &libraryName, const PathPrint &pathPrint) {
         if (linker.bTFamily == BTFamily::MSVC)
         {
-            return getReducedPath(libraryPath + libraryName + ".lib", pathPrint) + " ";
+            return getReducedPath(libraryPath + slashc + libraryName + ".lib", pathPrint) + " ";
         }
         return "-L" + getReducedPath(libraryPath, pathPrint) + " -l" + getReducedPath(libraryName, pathPrint) + " ";
     };
@@ -1126,12 +1174,12 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         {
             for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                if (!prebuiltBasic->evaluate(TargetType::PREBUILT_BASIC))
+                if (!prebuiltBasic->evaluate(TargetType::LIBRARY_OBJECT))
                 {
                     auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                     linkOrArchiveCommandPrint += prebuiltDep->requirementPreLF;
                     linkOrArchiveCommandPrint +=
-                        getLinkFlagPrint(prebuiltLinkOrArchiveTarget->outputDirectory,
+                        getLinkFlagPrint(prebuiltLinkOrArchiveTarget->outputDirectoryNode->filePath,
                                          prebuiltLinkOrArchiveTarget->outputName, lcpSettings.libraryDependencies);
                     linkOrArchiveCommandPrint += prebuiltDep->requirementPostLF;
                 }
@@ -1179,9 +1227,8 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                         auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                         linkOrArchiveCommandPrint +=
                             "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                            getReducedPath(
-                                (path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().*toPStr)(),
-                                lcpSettings.libraryDependencies) +
+                            getReducedPath(prebuiltLinkOrArchiveTarget->outputDirectoryNode->filePath,
+                                           lcpSettings.libraryDependencies) +
                             " ";
                     }
                     else
@@ -1204,9 +1251,8 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                         auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                         linkOrArchiveCommandPrint +=
                             "-Wl,-rpath-link -Wl," +
-                            getReducedPath(
-                                (path(prebuiltLinkOrArchiveTarget->getActualOutputPath()).parent_path().*toPStr)(),
-                                lcpSettings.libraryDependencies) +
+                            getReducedPath(prebuiltLinkOrArchiveTarget->outputDirectoryNode->filePath,
+                                           lcpSettings.libraryDependencies) +
                             " ";
                     }
                     else
@@ -1224,7 +1270,7 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
 
         if (lcpSettings.binary.printLevel != PathPrintLevel::NO)
         {
-            linkOrArchiveCommandPrint += getReducedPath(getActualOutputPath(), lcpSettings.binary) + " ";
+            linkOrArchiveCommandPrint += getReducedPath(outputFileNode->filePath, lcpSettings.binary) + " ";
         }
 
         if (lcpSettings.infrastructureFlags && linkTargetType == TargetType::LIBRARY_SHARED)
@@ -1235,37 +1281,74 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
     return linkOrArchiveCommandPrint;
 }
 
-pstring LinkOrArchiveTarget::getTarjanNodeName() const
+/*
+LinkOrArchiveTarget<MiniTarget::MINI>::LinkOrArchiveTarget(const pstring &name_, TargetType targetType)
+    : LinkOrArchiveTarget<MiniTarget::BASE>(name_, targetType)
 {
-    pstring str;
-    if (linkTargetType == TargetType::LIBRARY_STATIC)
+    assert(bsMode == BSMode::BUILD && "Mini targets should not exist at configure mode");
+    uint64_t index = pvalueIndexInSubArray(configCache, PValue(ptoref(targetSubDir)));
+    if (index != UINT64_MAX)
     {
-        str = "Static Library";
-    }
-    else if (linkTargetType == TargetType::LIBRARY_SHARED)
-    {
-        str = "Shared Library";
+        targetConfigCache = &configCache[index];
     }
     else
     {
-        str = "Executable";
+        printErrorMessage(fmt::format("Mini-Target not found in config-cache\n"));
+        exit(EXIT_FAILURE);
     }
-    return str + " " + configureNode->filePath + slashc + targetSubDir;
+}
+LinkOrArchiveTarget<MiniTarget::MINI>::LinkOrArchiveTarget(bool buildExplicit, const pstring &name_,
+                                                           TargetType targetType)
+    : LinkOrArchiveTarget<MiniTarget::BASE>(buildExplicit, name_, targetType)
+{
+    assert(bsMode == BSMode::BUILD && "Mini targets should not exist at configure mode");
+    uint64_t index = pvalueIndexInSubArray(configCache, PValue(ptoref(targetSubDir)));
+    if (index != UINT64_MAX)
+    {
+        targetConfigCache = &configCache[index];
+    }
+    else
+    {
+        printErrorMessage(fmt::format("Mini-Target not found in config-cache\n"));
+        exit(EXIT_FAILURE);
+    }
 }
 
-bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs)
+pstring LinkOrArchiveTarget<MiniTarget::MINI>::getLinkOrArchiveCommandWithoutTargets()
 {
-    return lhs.targetSubDir < rhs.targetSubDir;
+    return "dsd";
 }
 
-PostBasic LinkOrArchiveTarget::Archive()
+LinkOrArchiveTarget<MiniTarget::FULL>::LinkOrArchiveTarget(const pstring &name_, TargetType targetType)
+    : LinkOrArchiveTarget<MiniTarget::BASE>(name_, targetType)
 {
-    return PostBasic(archiver, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), buildCacheFilesDirPath,
-                     outputName, settings.acpSettings.outputAndErrorFiles, true);
+    if (bsMode == BSMode::CONFIGURE && useMiniTarget == UseMiniTarget::YES)
+    {
+        configCache.PushBack(kArrayType, ralloc);
+        targetConfigCache = configCache.End() - 1;
+        targetConfigCache->PushBack(ptoref(targetSubDir), ralloc);
+    }
 }
 
-PostBasic LinkOrArchiveTarget::Link()
+LinkOrArchiveTarget<MiniTarget::FULL>::LinkOrArchiveTarget(bool buildExplicit, const pstring &name_,
+                                                           TargetType targetType)
+    : LinkOrArchiveTarget<MiniTarget::BASE>(buildExplicit, name_, targetType)
 {
-    return PostBasic(linker, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), buildCacheFilesDirPath,
-                     outputName, settings.lcpSettings.outputAndErrorFiles, true);
+    if (bsMode == BSMode::CONFIGURE && useMiniTarget == UseMiniTarget::YES)
+    {
+        configCache.PushBack(kArrayType, ralloc);
+        targetConfigCache = configCache.End() - 1;
+        targetConfigCache->PushBack(ptoref(targetSubDir), ralloc);
+    }
 }
+
+pstring LinkOrArchiveTarget<MiniTarget::FULL>::getLinkOrArchiveCommandWithoutTargets()
+{
+    return "dsd";
+}
+
+void LinkOrArchiveTarget<MiniTarget::FULL>::updateBTarget(Builder &builder, unsigned short round)
+{
+    LinkOrArchiveTarget<>::updateBTarget(builder, round);
+}
+*/

@@ -10,6 +10,25 @@ import "Features.hpp";
 CSourceTarget::CSourceTarget(bool buildExplicit, pstring name_)
     : ObjectFileProducerWithDS(std::move(name_), buildExplicit, false)
 {
+    if (bsMode == BSMode::CONFIGURE && useMiniTarget == UseMiniTarget::YES)
+    {
+        targetConfigCache = new PValue(kArrayType);
+        targetConfigCache->PushBack(ptoref(targetSubDir), ralloc);
+        targetConfigCaches.emplace_back(targetConfigCache);
+    }
+    else
+    {
+        uint64_t index = pvalueIndexInSubArray(configCache, PValue(ptoref(targetSubDir)));
+        if (index != UINT64_MAX)
+        {
+            targetConfigCache = &configCache[index];
+        }
+        else
+        {
+            printErrorMessage(fmt::format("Target {} not found in config-cache\n", targetSubDir));
+            exit(EXIT_FAILURE);
+        }
+    }
 }
 
 CSourceTarget &CSourceTarget::INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags)

@@ -15,7 +15,7 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, c
         prebuiltBasic->objectFileProducers.emplace(objectFileProducer);
     }
 
-    if (define_.empty() && !prebuiltBasic->evaluate(TargetType::PREBUILT_BASIC))
+    if (define_.empty() && !prebuiltBasic->evaluate(TargetType::LIBRARY_OBJECT))
     {
         define = prebuiltBasic->outputName;
         transform(define.begin(), define.end(), define.begin(), toupper);
@@ -66,20 +66,42 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget *pt
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget *ptr)
 {
     save(ptr);
-    for (const SMFile &smFile : stored->moduleSourceFileDependencies)
+
+    if (ptr->evaluate(UseMiniTarget::YES))
     {
-        if (smFile.isInterface)
+        if (bsMode == BSMode::CONFIGURE)
         {
-            ptr->moduleSourceFileDependencies.emplace(ptr, const_cast<Node *>(smFile.node));
+            const PValue &modulesConfigCache = stored->targetConfigCache[0][Indices::CppTargetConfigCache::moduleFiles];
+            for (uint64_t i = 0; i < modulesConfigCache.Size(); i = i + 2)
+            {
+                if (modulesConfigCache[i + 1].GetBool())
+                {
+                    ptr->moduleFiles(Node::getNodeFromPValue(modulesConfigCache[i], true)->filePath);
+                }
+            }
+        }
+        // Initialized in CppSourceTarget round 2
+    }
+    else
+    {
+        for (const SMFile &smFile : stored->moduleSourceFileDependencies)
+        {
+            if (smFile.isInterface)
+            {
+                ptr->moduleFiles(smFile.node->filePath);
+            }
         }
     }
+
     for (auto &[inclNode, cppSourceTarget] : stored->requirementHuDirs)
     {
-        ptr->requirementHuDirs.emplace(inclNode, ptr);
+        CppCompilerFeatures::actuallyAddInclude(ptr->requirementHuDirs, inclNode.node->filePath, inclNode.isStandard,
+                                                ptr);
     }
     for (auto &[inclNode, cppSourceTarget] : stored->usageRequirementHuDirs)
     {
-        ptr->usageRequirementHuDirs.emplace(inclNode, ptr);
+        CppCompilerFeatures::actuallyAddInclude(ptr->usageRequirementHuDirs, inclNode.node->filePath,
+                                                inclNode.isStandard, ptr);
     }
     ptr->requirementCompileDefinitions = stored->requirementCompileDefinitions;
     ptr->requirementIncludes = stored->requirementIncludes;

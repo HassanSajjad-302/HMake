@@ -4,15 +4,21 @@
 import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
 import "HashedCommand";
-import "PostBasic.hpp";
+import "Node.hpp" import "PostBasic.hpp";
 import "PrebuiltLinkOrArchiveTarget.hpp";
+import "Utilities.hpp";
+import <stack>;
 #else
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "HashedCommand.hpp"
 #include "PostBasic.hpp"
 #include "PrebuiltLinkOrArchiveTarget.hpp"
+#include <stack>
 #endif
+#include <ObjectFile.hpp>
+
+using std::stack, std::filesystem::create_directories, std::shared_ptr;
 
 struct LinkerFlags
 {
@@ -43,7 +49,6 @@ struct LinkerFlags
     pstring LINKFLAGS_MSVC;
 };
 
-using std::shared_ptr;
 class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
                             public LinkerFeatures,
                             public FeatureConvenienceFunctions<LinkOrArchiveTarget>
@@ -69,9 +74,16 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
 
     LinkOrArchiveTarget(const pstring &name_, TargetType targetType);
     LinkOrArchiveTarget(bool buildExplicit, const pstring &name_, TargetType targetType);
+
+    virtual pstring getLinkOrArchiveCommandWithoutTargets();
+
     void setOutputName(pstring outputName_);
     void setFileStatus(RealBTarget &realBTarget);
     void updateBTarget(Builder &builder, unsigned short round) override;
+private:
+    void writeTargetConfigCacheAtConfigureTime() const;
+    void readConfigCacheAtBuildTime();
+public:
     LinkerFlags getLinkerFlags();
     pstring getTarjanNodeName() const override;
     PostBasic Archive();
@@ -82,6 +94,7 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
     LinkOrArchiveTarget &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
 };
+
 bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs);
 
 template <Dependency dependency, typename T, typename... Property>
@@ -107,6 +120,7 @@ LinkOrArchiveTarget &LinkOrArchiveTarget::assign(T property, Property... propert
         }
         else if constexpr (dependency == Dependency::INTERFACE)
         {
+
             usageRequirementLinkerFlags += property;
         }
         else
@@ -213,11 +227,11 @@ LinkOrArchiveTarget &LinkOrArchiveTarget::assign(T property, Property... propert
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
-        property;
+        return property;
     }
     else
     {
-        PrebuiltLinkOrArchiveTarget::assign(property);
+        return PrebuiltLinkOrArchiveTarget::assign(property);
     }
     if constexpr (sizeof...(properties))
     {

@@ -52,23 +52,32 @@ void PrebuiltBasic::populateRequirementAndUsageRequirementDeps()
 
 void PrebuiltBasic::initializePrebuiltBasic()
 {
-    preSortBTargets.emplace_back(this);
+    if (bsMode == BSMode::CONFIGURE && useMiniTarget == UseMiniTarget::YES)
+    {
+        targetConfigCache = new PValue(kArrayType);
+        targetConfigCache->PushBack(ptoref(targetSubDir), ralloc);
+        targetConfigCaches.emplace_back(targetConfigCache);
+    }
+    else
+    {
+        uint64_t index = pvalueIndexInSubArray(configCache, PValue(ptoref(targetSubDir)));
+        if (index != UINT64_MAX)
+        {
+            targetConfigCache = &configCache[index];
+        }
+        else
+        {
+            printErrorMessage(fmt::format("Target {} not found in config-cache\n", targetSubDir));
+            exit(EXIT_FAILURE);
+        }
+    }
 }
 
-PrebuiltBasic::PrebuiltBasic(pstring outputName_) : outputName{std::move(outputName_)}
+PrebuiltBasic::PrebuiltBasic(const pstring &outputName_, const TargetType linkTargetType_)
+    : BTarget(outputName_, false, false), outputName{getLastNameAfterSlash(outputName_)},
+      linkTargetType{linkTargetType_}
 {
     initializePrebuiltBasic();
-}
-
-PrebuiltBasic::PrebuiltBasic(pstring outputName_, const TargetType linkTargetType_)
-    : outputName{std::move(outputName_)}, linkTargetType{linkTargetType_}
-{
-    initializePrebuiltBasic();
-}
-
-PrebuiltBasic::PrebuiltBasic(pstring outputName_, pstring name_, bool buildExplicit, bool makeDirectory)
-    : BTarget(std::move(name_), buildExplicit, makeDirectory), outputName(std::move(outputName_))
-{
 }
 
 PrebuiltBasic::PrebuiltBasic(pstring outputName_, TargetType linkTargetType_, pstring name_, bool buildExplicit,
@@ -76,6 +85,7 @@ PrebuiltBasic::PrebuiltBasic(pstring outputName_, TargetType linkTargetType_, ps
     : BTarget(std::move(name_), buildExplicit, makeDirectory), outputName(std::move(outputName_)),
       linkTargetType(linkTargetType_)
 {
+    initializePrebuiltBasic();
 }
 
 void PrebuiltBasic::updateBTarget(Builder &, const unsigned short round)
@@ -89,6 +99,8 @@ void PrebuiltBasic::updateBTarget(Builder &, const unsigned short round)
     }
     if (round == 2)
     {
+        // TODO
+        //  Should be done in Round 1
         populateRequirementAndUsageRequirementDeps();
         addRequirementDepsToBTargetDependencies();
     }
@@ -96,7 +108,6 @@ void PrebuiltBasic::updateBTarget(Builder &, const unsigned short round)
 
 void PrebuiltBasic::addRequirementDepsToBTargetDependencies()
 {
-    // Access to addDependency() function must be synchronized because set::emplace is not thread-safe
     RealBTarget &round0 = realBTargets[0];
     if (evaluate(TargetType::LIBRARY_STATIC))
     {

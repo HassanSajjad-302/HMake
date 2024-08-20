@@ -3,36 +3,34 @@
 #define HMAKE_PREBUILTLINKORARCHIVETARGET_HPP
 
 #ifdef USE_HEADER_UNITS
-import "BTarget.hpp";
-import "Features.hpp";
 import "PrebuiltBasic.hpp";
 #else
-#include "BTarget.hpp"
-#include "Features.hpp"
 #include "PrebuiltBasic.hpp"
 #endif
-
-class PrebuiltLinkOrArchiveTarget;
 
 class PrebuiltLinkOrArchiveTarget : public PrebuiltBasic, public PrebuiltLinkerFeatures
 {
   public:
-    pstring outputDirectory;
+    pstring outputDirectoryString;
     pstring actualOutputName;
     pstring usageRequirementLinkerFlags;
+    Node *outputDirectoryNode = nullptr;
+    Node *outputFileNode = nullptr;
 
-    PrebuiltLinkOrArchiveTarget(const pstring &outputName_, const pstring &directory, TargetType linkTargetType_);
-    PrebuiltLinkOrArchiveTarget(const pstring &outputName_, const pstring &directory, TargetType linkTargetType_,
+    PrebuiltLinkOrArchiveTarget(const pstring &outputName_, pstring directory, TargetType linkTargetType_);
+    PrebuiltLinkOrArchiveTarget(const pstring &outputName_, pstring directory, TargetType linkTargetType_,
                                 pstring name_, bool buildExplicit, bool makeDirectory);
-    pstring getActualOutputPath() const;
 
-    template <Dependency dependency, typename T, typename... Property>
-    PrebuiltLinkOrArchiveTarget &assign(T property, Property... properties);
+    template <typename T, typename... Property> PrebuiltLinkOrArchiveTarget &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
-};
-void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget);
+    void updateBTarget(Builder &builder, unsigned short round) override;
 
-template <Dependency dependency, typename T, typename... Property>
+private:
+    void writeTargetConfigCacheAtConfigureTime() const;
+    void readConfigCacheAtBuildTime();
+};
+
+template <typename T, typename... Property>
 PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::assign(T property, Property... properties)
 {
     if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
@@ -45,7 +43,7 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::assign(T property, Pro
     }
     else
     {
-        outputDirectory = property; // Just to fail the compilation. Ensures that all properties are handled.
+        outputDirectoryNode = property; // Just to fail the compilation. Ensures that all properties are handled.
     }
     if constexpr (sizeof...(properties))
     {
@@ -67,9 +65,13 @@ template <typename T> bool PrebuiltLinkOrArchiveTarget::evaluate(T property) con
     {
         return linkTargetType == property;
     }
+    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
+    {
+        return useMiniTarget == property;
+    }
     else
     {
-        outputDirectory = property; // Just to fail the compilation. Ensures that all properties are handled.
+        outputDirectoryNode = property; // Just to fail the compilation. Ensures that all properties are handled.
     }
 }
 

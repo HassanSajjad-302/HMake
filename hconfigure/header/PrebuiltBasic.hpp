@@ -44,7 +44,8 @@ class PrebuiltBasic : public BTarget
 
     set<class ObjectFileProducer *> objectFileProducers;
 
-    TargetType linkTargetType = TargetType::PREBUILT_BASIC;
+    PValue *targetConfigCache;
+    TargetType linkTargetType = TargetType::LIBRARY_OBJECT;
 
     template <typename... U> PrebuiltBasic &PUBLIC_DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTarget, U... deps);
     template <typename... U> PrebuiltBasic &PRIVATE_DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTarget, U... deps);
@@ -63,14 +64,9 @@ class PrebuiltBasic : public BTarget
     PrebuiltBasic &DEPS(PrebuiltBasic *dep, Dependency dependency, PrebuiltDep prebuiltDep, U... deps);
 
     void populateRequirementAndUsageRequirementDeps();
-
-  private:
     void initializePrebuiltBasic();
 
-  public:
-    PrebuiltBasic(pstring outputName_);
-    PrebuiltBasic(pstring outputName_, TargetType linkTargetType_);
-    PrebuiltBasic(pstring outputName_, pstring name_, bool buildExplicit, bool makeDirectory);
+    PrebuiltBasic(const pstring &outputName_, TargetType linkTargetType_);
     PrebuiltBasic(pstring outputName_, TargetType linkTargetType_, pstring name_, bool buildExplicit, bool makeDirectory);
 
     void updateBTarget(Builder &builder, unsigned short round) override;

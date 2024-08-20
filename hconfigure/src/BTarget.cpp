@@ -32,6 +32,12 @@ bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, c
            const_cast<BTarget *>(rhs)->realBTargets[0].indexInTopologicalSort;
 }
 
+bool IndexInTopologicalSortComparatorRoundTwo::operator()(const BTarget *lhs, const BTarget *rhs) const
+{
+    return const_cast<BTarget *>(lhs)->realBTargets[2].indexInTopologicalSort >
+           const_cast<BTarget *>(rhs)->realBTargets[2].indexInTopologicalSort;
+}
+
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_)
     : TBT{bTarget_}, bTarget(bTarget_), round(round_)
 {
@@ -46,10 +52,19 @@ BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), Re
     id = total++;
 }
 
-BTarget::BTarget(pstring name_, bool buildExplicit, bool makeDirectory)
-    : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}, targetSubDir(std::move(name_))
+static pstring lowerCase(pstring str)
 {
-    lowerCasePString(targetSubDir);
+    for (char &c : str)
+    {
+        c = tolower(c);
+    }
+    return str;
+}
+
+BTarget::BTarget(pstring name_, bool buildExplicit, bool makeDirectory)
+    : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)},
+      targetSubDir(lowerCase(std::move(name_)))
+{
 }
 
 BTarget::~BTarget()
@@ -72,7 +87,7 @@ void BTarget::assignFileStatusToDependents(RealBTarget &realBTarget)
     {
         if (bTargetDepType == BTargetDepType::FULL)
         {
-            dependent->fileStatus.store(true);
+            atomic_ref(dependent->fileStatus).store(true);
         }
     }
 }

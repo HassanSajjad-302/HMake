@@ -2,21 +2,14 @@
 #ifndef HMAKE_OBJECTFILEPRODUCER_HPP
 #define HMAKE_OBJECTFILEPRODUCER_HPP
 #ifdef USE_HEADER_UNITS
-import "BTarget.hpp";
 import "Dependency.hpp";
-import "Node.hpp";
+import "LinkOrArchiveTarget.hpp";
+import "ObjectFile.hpp";
 #else
-#include "BTarget.hpp"
 #include "Dependency.hpp"
-#include "Node.hpp"
+#include "LinkOrArchiveTarget.hpp"
+#include "ObjectFile.hpp"
 #endif
-
-class ObjectFile : public BTarget
-{
-  public:
-    Node *objectFileOutputFilePath = nullptr;
-    virtual pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
-};
 
 class ObjectFileProducer : public BTarget
 {
@@ -24,7 +17,7 @@ class ObjectFileProducer : public BTarget
     ObjectFileProducer();
     ObjectFileProducer(pstring name_, bool buildExplicit, bool makeDirectory);
     virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles,
-                                class LinkOrArchiveTarget *linkOrArchiveTarget) const;
+                                LinkOrArchiveTarget *linkOrArchiveTarget) const;
 };
 
 // Dependency Specification CRTP

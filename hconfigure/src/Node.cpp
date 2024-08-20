@@ -93,6 +93,15 @@ pstring Node::getFileName() const
     return pstring(filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end());
 }
 
+PValue Node::getPValue() const
+{
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+    return PValue(myId);
+#else
+    return PValue(ptoref(node->filePath));
+#endif
+}
+
 path Node::getFinalNodePathFromPath(path filePath)
 {
     if (filePath.is_relative())
@@ -204,6 +213,54 @@ Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const
     return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }
 
+Node *Node::getHalfNodeFromNormalizedString(pstring normalizedFilePath)
+{
+    if (const auto &[it, ok] = nodeAllFiles.emplace(std::move(normalizedFilePath)); ok)
+    {
+        // Why do atomic when it is executed single threaded
+        const_cast<Node &>(*it).myId = reinterpret_cast<uint32_t &>(idCount)++;
+        nodeIndices[it->myId] = const_cast<Node *>(it.operator->());
+        const_cast<Node &>(*it).loadedFromNodesCache = true;
+        return const_cast<Node *>(it.operator->());
+    }
+    else
+    {
+        return const_cast<Node *>(it.operator->());
+    }
+}
+
+void Node::emplaceNodeInPValue(const Node *node, PValue &pValue)
+{
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+    pValue.PushBack(PValue(node->myId), ralloc);
+#else
+    pValue.PushBack(ptoref(node->filePath), ralloc);
+#endif
+}
+
+void Node::emplaceNodeInPValue(const Node *node, PValue &pValue, decltype(ralloc) alloc)
+{
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+    pValue.PushBack(PValue(node->myId), alloc);
+#else
+    pValue.PushBack(ptoref(node->filePath), alloc);
+#endif
+}
+
+Node *Node::getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist)
+{
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+    Node *node = nodeIndices[pValue.GetUint64()];
+    node->ensureSystemCheckCalled(isFile, mayNotExist);
+#else
+    Node *node =
+        Node::getNodeFromNormalizedString(pstring_view(str.GetString(), str.GetStringLength()), isFile, mayNotExist);
+#endif
+    return node;
+}
+
+#include "Windows.h"
+
 void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
 {
     // TODO
@@ -213,21 +270,71 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
     }
-    if (const directory_entry entry = directory_entry(filePath);
-        entry.status().type() == (isFile ? file_type::regular : file_type::directory))
+
     {
-        lastWriteTime = entry.last_write_time();
-    }
-    else
-    {
-        if (!mayNotExist || entry.status().type() != file_type::not_found)
+        if (const directory_entry entry = directory_entry(filePath);
+            entry.status().type() == (isFile ? file_type::regular : file_type::directory))
         {
+            lastWriteTime = entry.last_write_time();
+        }
+        else
+        {
+            if (!mayNotExist || entry.status().type() != file_type::not_found)
+            {
+                printErrorMessage(fmt::format("{} is not a {} file. File Type is {}\n", filePath,
+                                              isFile ? "regular" : "directory", getStatusPString(filePath)));
+                throw std::exception();
+            }
+            doesNotExist = true;
+        }
+    }
+
+    /////////////////////////////////
+    /*WIN32_FIND_DATA findFileData;
+    HANDLE hFind = FindFirstFileEx((isFile ? filePath : filePath + "\\*").c_str(), FindExInfoBasic, &findFileData,
+                                   FindExSearchNameMatch, nullptr, 0);
+
+    if (hFind == INVALID_HANDLE_VALUE)
+    {
+        if (mayNotExist)
+        {
+            doesNotExist = true;
+        }
+        else
+        {
+            printErrorMessage(fmt::format("FindFirstFileEx failed {}\n", GetLastError()));
             printErrorMessage(fmt::format("{} is not a {} file. File Type is {}\n", filePath,
                                           isFile ? "regular" : "directory", getStatusPString(filePath)));
             throw std::exception();
         }
-        doesNotExist = true;
     }
+
+    if (isFile)
+    {
+        auto [dwLowDateTime, dwHighDateTime] = findFileData.ftLastWriteTime;
+        const uint64_t a = static_cast<__int64>(dwHighDateTime) << 32 | dwLowDateTime;
+        lastWriteTime = file_time_type(file_time_type::duration(a));
+    }
+    else
+    {
+        if (findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        {
+            auto [dwLowDateTime, dwHighDateTime] = findFileData.ftLastWriteTime;
+            const uint64_t a = static_cast<__int64>(dwHighDateTime) << 32 | dwLowDateTime;
+            lastWriteTime = file_time_type(file_time_type::duration(a));
+        }
+        else
+        {
+            printErrorMessage(fmt::format("FindFirstFileEx failed {}\n", GetLastError()));
+            printErrorMessage(
+                fmt::format("{} is not a directory file. File Type is {}\n", filePath, getStatusPString(filePath)));
+            throw std::exception();
+        }
+    }
+
+    FindClose(hFind)*/
+    ;
+    /////////////////////////////////////
 
     if (!loadedFromNodesCache)
     {
@@ -245,14 +352,4 @@ void Node::clearNodes()
     {
         node = nullptr;
     }
-}
-
-bool operator<(const Node &lhs, const Node &rhs)
-{
-    return lhs.filePath < rhs.filePath;
-}
-
-void to_json(Json &j, const Node *node)
-{
-    j = node->filePath;
 }

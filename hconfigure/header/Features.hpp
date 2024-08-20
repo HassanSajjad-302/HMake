@@ -5,6 +5,8 @@ import "OS.hpp";
 import "BuildTools.hpp";
 import "Cache.hpp";
 import "SMFile.hpp";
+import "InclNodeTargetMap.hpp";
+import "SpecialNodes.hpp";
 import "TargetType.hpp";
 import <map>;
 import <set>;
@@ -12,8 +14,9 @@ import <vector>;
 #else
 #include "BuildTools.hpp"
 #include "Cache.hpp"
+#include "InclNodeTargetMap.hpp"
 #include "OS.hpp"
-#include "SMFile.hpp"
+#include "SpecialNodes.hpp"
 #include "TargetType.hpp"
 #include <map>
 #include <set>
@@ -24,10 +27,21 @@ using std::map, std::set;
 
 using std::vector;
 
-enum class StaticSourceDirs : bool
+enum class UseMiniTarget : bool
 {
     NO,
     YES,
+};
+
+inline UseMiniTarget useMiniTarget = UseMiniTarget::YES;
+
+enum class MiniTarget : char
+{
+    BASE,
+    MINI,
+    FULL,
+    BASEMINI = BASE,
+    BASEFULL = BASE,
 };
 
 enum class TranslateInclude : bool
@@ -668,7 +682,7 @@ struct DSCPrebuiltFeatures
     DefineDLLInterface defineDllInterface = DefineDLLInterface::NO;
 };
 
-struct DSCFeatures : public DSCPrebuiltFeatures
+struct DSCFeatures : DSCPrebuiltFeatures
 {
     DefineDLLPrivate defineDllPrivate = DefineDLLPrivate::NO;
 };
@@ -679,6 +693,7 @@ struct DSCFeatures : public DSCPrebuiltFeatures
 struct PrebuiltLinkerFeatures
 {
     CopyDLLToExeDirOnNTOs copyToExeDirOnNtOs = CopyDLLToExeDirOnNTOs::YES;
+    UseMiniTarget useMiniTarget = UseMiniTarget::YES;
 };
 
 struct LinkerFeatures
@@ -722,11 +737,12 @@ struct LinkerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 
-    list<LibDirNode> requirementLibraryDirectories;
+
+    vector<LibDirNode> requirementLibraryDirectories;
     pstring requirementLinkerFlags;
     TargetType libraryType;
     LinkerFeatures();
-    void setLinkerFromVSTools(struct VSTools &vsTools);
+    void setLinkerFromVSTools(const struct VSTools &vsTools);
     void setConfigType(ConfigType configType);
 };
 
@@ -770,7 +786,6 @@ struct CppCompilerFeatures
     RTTI rtti = RTTI::ON;
     TranslateInclude translateInclude = TranslateInclude::NO;
     TreatModuleAsSource treatModuleAsSource = TreatModuleAsSource::NO;
-    StaticSourceDirs staticSourceDirs = StaticSourceDirs::NO;
 
     // Used only for GCC
     TemplateDepth templateDepth{1024};
@@ -789,21 +804,33 @@ struct CppCompilerFeatures
 
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
+    UseMiniTarget useMiniTarget = UseMiniTarget::YES;
 
-    list<InclNode> requirementIncludes;
+    vector<InclNode> requirementIncludes;
     pstring requirementCompilerFlags;
     set<Define> requirementCompileDefinitions;
     CppCompilerFeatures();
-    void setCompilerFromVSTools(VSTools &vsTools);
-    void setCompilerFromLinuxTools(struct LinuxTools &linuxTools);
+    void setCompilerFromVSTools(const VSTools &vsTools);
+    void setCompilerFromLinuxTools(const struct LinuxTools &linuxTools);
     void setConfigType(ConfigType configType);
     template <typename... U> CppCompilerFeatures &privateIncludes(const pstring &include, U... includeDirectoryPString);
+    static bool actuallyAddInclude(vector<InclNode> &inclNodes, pstring include, bool isStandard);
+    static bool actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, pstring include, bool isStandard,
+                                   CppSourceTarget *target);
 };
 
 template <typename... U>
 CppCompilerFeatures &CppCompilerFeatures::privateIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    {
+        // Initialized in CppSourceTarget round 2
+    }
+    else
+    {
+        actuallyAddInclude(requirementIncludes, include, false);
+    }
+
     if constexpr (sizeof...(includeDirectoryPString))
     {
         return privateIncludes(includeDirectoryPString...);

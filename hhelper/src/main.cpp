@@ -57,6 +57,9 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
 #ifndef PARALLEL_HASHMAP
 #define THROW true
 #endif
+#ifndef LZ4_HEADER
+#define THROW true
+#endif
 
 int main(int argc, char **argv)
 {
@@ -65,7 +68,7 @@ int main(int argc, char **argv)
         d.AddMember(PValue("Foo").Move(), PValue("Bar").Move(), ralloc)
             .AddMember(PValue("Bar").Move(), PValue("Foo").Move(), ralloc);
 
-        writePValueToFile("check.json", d);
+        writePValueToCompressedFile("check.json", d);
 
         return 0;*/
 
@@ -106,6 +109,7 @@ int main(int argc, char **argv)
         path rapidjsonHeaderPath = path(RAPIDJSON_HEADER);
         path rapidHashHeaderPath = path(RAPIDHASH_HEADER);
         path parallelHashMap = path(PARALLEL_HASHMAP);
+        path lz4Header = path(LZ4_HEADER);
         path fmtHeaderPath = path(FMT_HEADER);
         path hconfigureStaticLibDirectoryPath = path(HCONFIGURE_STATIC_LIB_DIRECTORY);
         path fmtStaticLibDirectoryPath = path(FMT_STATIC_LIB_DIRECTORY);
@@ -116,9 +120,9 @@ int main(int argc, char **argv)
         {
 
 #ifdef USE_COMMAND_HASH
-            string commandHashCompileDef = " -D USE_COMMAND_HASH ";
+            string useCommandHashDef = " -D USE_COMMAND_HASH ";
 #else
-            string commandHashCompileDef = "";
+            string useCommandHashDef = "";
 #endif
 
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
@@ -127,11 +131,17 @@ int main(int argc, char **argv)
             string useNodesCacheIndicesInCacheDef = "";
 #endif
 
+#ifdef USE_JSON_FILE_COMPRESSION
+            string useJsonFileCompressionDef = " -D USE_JSON_FILE_COMPRESSION ";
+#else
+            string useJsonFileCompressionDef = "";
+#endif
+
             string compileCommand =
                 "c++ -std=c++2b -fvisibility=hidden -fsanitize=thread -fno-omit-frame-pointer -fPIC " +
-                commandHashCompileDef + useNodesCacheIndicesInCacheDef +
+                useCommandHashDef + useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef +
                 " -I " HCONFIGURE_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER "  -I " FMT_HEADER
-                "  -I " RAPIDHASH_HEADER " -I " PARALLEL_HASHMAP
+                "  -I " RAPIDHASH_HEADER " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
                 " {SOURCE_DIRECTORY}/hmake.cpp -shared -Wl,--whole-archive -L " HCONFIGURE_STATIC_LIB_DIRECTORY
                 " -l hconfigure -Wl,--no-whole-archive -L " FMT_STATIC_LIB_DIRECTORY
                 " -l fmt -o {CONFIGURE_DIRECTORY}/" +
@@ -142,15 +152,21 @@ int main(int argc, char **argv)
         {
 
 #ifdef USE_COMMAND_HASH
-            string commandHashCompileDef = " /D USE_COMMAND_HASH ";
+            string useCommandHashDef = " /D USE_COMMAND_HASH ";
 #else
-            string commandHashCompileDef = "";
+            string useCommandHashDef = "";
 #endif
 
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
             string useNodesCacheIndicesInCacheDef = " /D USE_NODES_CACHE_INDICES_IN_CACHE ";
 #else
             string useNodesCacheIndicesInCacheDef = "";
+#endif
+
+#ifdef USE_JSON_FILE_COMPRESSION
+            string useJsonFileCompressionDef = " /D USE_JSON_FILE_COMPRESSION ";
+#else
+            string useJsonFileCompressionDef = "";
 #endif
 
             toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
@@ -167,11 +183,11 @@ int main(int argc, char **argv)
             {
                 compileCommand += "/I " + addQuotes(str) + " ";
             }
-            compileCommand += commandHashCompileDef + useNodesCacheIndicesInCacheDef;
+            compileCommand += useCommandHashDef + useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef;
             compileCommand += "/I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() + " /I " +
                               rapidjsonHeaderPath.string() + " /I " + fmtHeaderPath.string() + " /I " +
-                              rapidHashHeaderPath.string() + " /I " + parallelHashMap.string() +
-                              " /std:c++latest /GL /EHsc /MD /nologo " +
+                              rapidHashHeaderPath.string() + " /I " + parallelHashMap.string() + " /I " +
+                              lz4Header.string() + " /std:c++latest /GL /EHsc /MD /nologo " +
                               "{SOURCE_DIRECTORY}/hmake.cpp /link /SUBSYSTEM:CONSOLE /NOLOGO /DLL ";
             for (const string &str : toolsCache.vsTools[0].libraryDirectories)
             {

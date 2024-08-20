@@ -3,10 +3,14 @@
 #define HMAKE_CSOURCETARGET_HPP
 
 #ifdef USE_HEADER_UNITS
-import "SMFile.hpp";
+impoert "Features.hpp";
+import "ObjectFileProducer.hpp";
+import "SpecialNodes.hpp";
 import <set>;
 #else
-#include "SMFile.hpp"
+#include "Features.hpp"
+#include "ObjectFileProducer.hpp"
+#include "SpecialNodes.hpp"
 #include <set>
 #endif
 
@@ -21,9 +25,10 @@ enum class CSourceTargetType : unsigned short
 struct CSourceTarget : ObjectFileProducerWithDS<CSourceTarget>
 {
     using BaseType = CSourceTarget;
-    list<InclNode> usageRequirementIncludes;
+    vector<InclNode> usageRequirementIncludes;
     pstring usageRequirementCompilerFlags;
-    set<struct Define> usageRequirementCompileDefinitions;
+    set<Define> usageRequirementCompileDefinitions;
+    PValue *targetConfigCache = nullptr;
 
     explicit CSourceTarget(bool buildExplicit, pstring name);
     template <typename... U> CSourceTarget &interfaceIncludes(const pstring &include, U... includeDirectoryPString);
@@ -36,7 +41,15 @@ bool operator<(const CSourceTarget &lhs, const CSourceTarget &rhs);
 template <typename... U>
 CSourceTarget &CSourceTarget::interfaceIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    InclNode::emplaceInList(usageRequirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    {
+        // Initialized in CppSourceTarget round 2
+    }
+    else
+    {
+        CppCompilerFeatures::actuallyAddInclude(usageRequirementIncludes, include, false);
+    }
+
     if constexpr (sizeof...(includeDirectoryPString))
     {
         return interfaceIncludes(includeDirectoryPString...);

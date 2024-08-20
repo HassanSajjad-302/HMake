@@ -15,7 +15,6 @@ import <mutex>;
 import <utility>;
 #else
 #include "SMFile.hpp"
-
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "CppSourceTarget.hpp"
@@ -30,65 +29,6 @@ import <utility>;
 #endif
 
 using std::tie, std::ifstream, std::exception, std::lock_guard;
-
-LibDirNode::LibDirNode(Node *node_, const bool isStandard_) : node{node_}, isStandard{isStandard_}
-{
-}
-
-void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, LibDirNode &libDirNode)
-{
-    for (const LibDirNode &libDirNode_ : libDirNodes)
-    {
-        if (libDirNode_.node == libDirNode.node)
-        {
-            return;
-        }
-    }
-    libDirNodes.emplace_back(libDirNode);
-}
-
-void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, Node *node_, bool isStandard_)
-{
-    for (const LibDirNode &libDirNode : libDirNodes)
-    {
-        if (libDirNode.node == node_)
-        {
-            return;
-        }
-    }
-    libDirNodes.emplace_back(node_, isStandard_);
-}
-
-InclNode::InclNode(Node *node_, const bool isStandard_, const bool ignoreHeaderDeps_)
-    : LibDirNode(node_, isStandard_), ignoreHeaderDeps{ignoreHeaderDeps_}
-{
-}
-
-bool InclNode::emplaceInList(list<InclNode> &includes, InclNode &libDirNode)
-{
-    for (const InclNode &include : includes)
-    {
-        if (include.node == libDirNode.node)
-        {
-            return false;
-        }
-    }
-    includes.emplace_back(libDirNode);
-    return true;
-}
-
-bool InclNode::emplaceInList(list<InclNode> &includes, Node *node_, bool isStandard_, bool ignoreHeaderDeps_)
-{
-    for (const InclNode &include : includes)
-    {
-        if (include.node == node_)
-        {
-            return false;
-        }
-    }
-    includes.emplace_back(node_, isStandard_, ignoreHeaderDeps_);
-    return true;
-}
 
 bool operator<(const InclNode &lhs, const InclNode &rhs)
 {
@@ -128,7 +68,7 @@ pstring SourceNode::getTarjanNodeName() const
 
 void SourceNode::updateBTarget(Builder &, const unsigned short round)
 {
-    if (!round && fileStatus.load() && selectiveBuild)
+    if (!round && atomic_ref(fileStatus).load() && selectiveBuild)
     {
         RealBTarget &realBTarget = realBTargets[0];
         assignFileStatusToDependents(realBTarget);
@@ -139,7 +79,7 @@ void SourceNode::updateBTarget(Builder &, const unsigned short round)
         // cached compile-command would be different
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            (*sourceJson)[Indices::TargetBuildCache::SourceFiles::compileCommandWithTool] =
+            (*sourceJson)[Indices::CppTargetBuildCache::SourceFiles::compileCommandWithTool] =
                 target->compileCommandWithTool.getHash();
         }
         lock_guard lk(printMutex);
@@ -150,48 +90,42 @@ void SourceNode::updateBTarget(Builder &, const unsigned short round)
 
 void SourceNode::setSourceNodeFileStatus()
 {
-    using SourceFiles = Indices::TargetBuildCache::SourceFiles;
+    using SourceFiles = Indices::CppTargetBuildCache::SourceFiles;
 
     objectFileOutputFilePath =
         Node::getNodeFromNormalizedString(target->buildCacheFilesDirPath + node->getFileName() + ".o", true, true);
 
     if ((*sourceJson)[SourceFiles::compileCommandWithTool] != target->compileCommandWithTool.getHash())
     {
-        fileStatus.store(true);
+        atomic_ref(fileStatus).store(true);
         return;
     }
 
     if (objectFileOutputFilePath->doesNotExist)
     {
-        fileStatus.store(true);
+        atomic_ref(fileStatus).store(true);
         return;
     }
 
     if (node->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
     {
-        fileStatus.store(true);
+        atomic_ref(fileStatus).store(true);
         return;
     }
 
-    for (PValue &str : (*sourceJson)[SourceFiles::headerFiles].GetArray())
+    for (PValue &pValue : (*sourceJson)[SourceFiles::headerFiles].GetArray())
     {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-        Node *headerNode = Node::nodeIndices[str.GetUint64()];
-        headerNode->ensureSystemCheckCalled(true, true);
-#else
-        const Node *headerNode =
-            Node::getNodeFromNormalizedString(pstring_view(str.GetString(), str.GetStringLength()), true, true);
-#endif
+        const Node *headerNode = Node::getNodeFromPValue(pValue, true, true);
 
         if (headerNode->doesNotExist)
         {
-            fileStatus.store(true);
+            atomic_ref(fileStatus).store(true);
             return;
         }
 
         if (headerNode->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
         {
-            fileStatus.store(true);
+            atomic_ref(fileStatus).store(true);
             return;
         }
     }
@@ -229,7 +163,7 @@ SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node
 void SMFile::updateBTarget(Builder &builder, const unsigned short round)
 {
 
-    using ModuleFiles = Indices::TargetBuildCache::ModuleFiles;
+    using ModuleFiles = Indices::CppTargetBuildCache::ModuleFiles;
 
     // Danger Following is executed concurrently
     RealBTarget &realBTarget = realBTargets[round];
@@ -252,7 +186,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
         }
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            (*sourceJson)[Indices::TargetBuildCache::ModuleFiles::scanningCommandWithTool] =
+            (*sourceJson)[Indices::CppTargetBuildCache::ModuleFiles::scanningCommandWithTool] =
                 target->compileCommandWithTool.getHash();
             saveSMRulesJsonToSourceJson(smrulesFileOutputClang);
             iterateRequiresJsonToInitializeNewHeaderUnits(builder);
@@ -265,15 +199,15 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
     {
         setFileStatusAndPopulateAllDependencies();
 
-        if (!fileStatus.load())
+        if (!atomic_ref(fileStatus).load())
         {
             if ((*sourceJson)[ModuleFiles::compileCommandWithTool] != target->compileCommandWithTool.getHash())
             {
-                fileStatus.store(true);
+                atomic_ref(fileStatus).store(true);
             }
         }
 
-        if (fileStatus.load())
+        if (atomic_ref(fileStatus).load())
         {
             assignFileStatusToDependents(realBTarget);
             const PostCompile postCompile = target->CompileSMFile(*this);
@@ -293,7 +227,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
 
                 for (const PValueObjectFileMapping &mapping : pValueObjectFileMapping)
                 {
-                    using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
+                    using SingleModuleDep = Indices::CppTargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
                     (*mapping.requireJson)[SingleModuleDep::fullPath] =
                         PValue(mapping.objectFileOutputFilePath->filePath.c_str(),
                                mapping.objectFileOutputFilePath->filePath.size());
@@ -306,7 +240,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
 void SMFile::saveSMRulesJsonToSourceJson(const pstring &smrulesFileOutputClang)
 {
 
-    using ModuleFile = Indices::TargetBuildCache::ModuleFiles;
+    using ModuleFile = Indices::CppTargetBuildCache::ModuleFiles;
     using SMRules = ModuleFile::SmRules;
 
     if (readJsonFromSMRulesFile)
@@ -427,7 +361,7 @@ bool pathContainsFile(pstring_view dir, const pstring_view file)
 
 void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &builder)
 {
-    using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
+    using SingleModuleDep = Indices::CppTargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
 
     if (requirePValue[SingleModuleDep::logicalName] == PValue(ptoref(logicalName)))
     {
@@ -490,32 +424,20 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
             headerUnit.ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
         }
 
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
         headerUnit.headerUnitsIndex = pvalueIndexInSubArray(
-            (*huDirTarget->targetBuildCache)[Indices::TargetBuildCache::headerUnits], PValue(headerUnit.node->myId));
-
-#else
-        headerUnit.headerUnitsIndex =
-            pvalueIndexInSubArray((*huDirTarget->targetBuildCache)[Indices::TargetBuildCache::headerUnits],
-                                  PValue(ptoref(headerUnit.node->filePath)));
-
-#endif
+            (*huDirTarget->targetBuildCache)[Indices::CppTargetBuildCache::headerUnits], headerUnit.node->getPValue());
 
         if (headerUnit.headerUnitsIndex != UINT64_MAX)
         {
-            headerUnit.sourceJson =
-                &(*huDirTarget->targetBuildCache)[Indices::TargetBuildCache::headerUnits][headerUnit.headerUnitsIndex];
+            headerUnit.sourceJson = &(
+                *huDirTarget->targetBuildCache)[Indices::CppTargetBuildCache::headerUnits][headerUnit.headerUnitsIndex];
         }
         else
         {
             headerUnit.sourceJson = new PValue(kArrayType);
             ++huDirTarget->newHeaderUnitsSize;
 
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-            headerUnit.sourceJson->PushBack(PValue(headerUnit.node->myId), headerUnit.sourceNodeAllocator);
-#else
-            headerUnit.sourceJson->PushBack(ptoref(headerUnit.node->filePath), headerUnit.sourceNodeAllocator);
-#endif
+            Node::emplaceNodeInPValue(headerUnit.node, *headerUnit.sourceJson, headerUnit.sourceNodeAllocator);
 
             headerUnit.sourceJson->PushBack(PValue(kStringType), headerUnit.sourceNodeAllocator);
             headerUnit.sourceJson->PushBack(PValue(kArrayType), headerUnit.sourceNodeAllocator);
@@ -554,7 +476,7 @@ void SMFile::addNewBTargetInFinalBTargets(Builder &builder)
 
 void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 {
-    using ModuleFiles = Indices::TargetBuildCache::ModuleFiles;
+    using ModuleFiles = Indices::CppTargetBuildCache::ModuleFiles;
 
     if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
@@ -567,7 +489,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
     {
         for (PValue &requirePValue : (*sourceJson)[ModuleFiles::smRules][ModuleFiles::SmRules::requireArray].GetArray())
         {
-            using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
+            using SingleModuleDep = Indices::CppTargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
             if (requirePValue[SingleModuleDep::logicalName] == PValue(ptoref(logicalName)))
             {
                 printErrorMessageColor(fmt::format("In target\n{}\nModule\n{}\n can not depend on itself.\n",
@@ -607,7 +529,7 @@ void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)
 bool SMFile::shouldGenerateSMFileInRoundOne()
 {
 
-    using ModuleFiles = Indices::TargetBuildCache::ModuleFiles;
+    using ModuleFiles = Indices::CppTargetBuildCache::ModuleFiles;
 
     objectFileOutputFilePath =
         Node::getNodeFromNormalizedString(target->buildCacheFilesDirPath + node->getFileName() + ".m.o", true, true);
@@ -616,7 +538,7 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
     {
         readJsonFromSMRulesFile = true;
         // This is the only access in round 1. Maybe change to relaxed
-        fileStatus.store(true);
+        atomic_ref(fileStatus).store(true);
         return true;
     }
 
@@ -636,13 +558,7 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
         {
             for (const PValue &value : (*sourceJson)[ModuleFiles::headerFiles].GetArray())
             {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-                Node *headerNode = Node::nodeIndices[value.GetUint64()];
-                headerNode->ensureSystemCheckCalled(true, true);
-#else
-                const Node *headerNode = Node::getNodeFromNormalizedString(
-                    pstring_view(value.GetString(), value.GetStringLength()), true, true);
-#endif
+                const Node *headerNode = Node::getNodeFromPValue(value, true, true);
 
                 if (headerNode->doesNotExist)
                 {
@@ -662,7 +578,7 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
     if (needsUpdate)
     {
         // This is the only access in round 1. Maybe change to relaxed
-        fileStatus.store(true);
+        atomic_ref(fileStatus).store(true);
 
         readJsonFromSMRulesFile = true;
 
@@ -685,13 +601,7 @@ bool SMFile::shouldGenerateSMFileInRoundOne()
 
             for (const PValue &value : (*sourceJson)[ModuleFiles::headerFiles].GetArray())
             {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-                Node *headerNode = Node::nodeIndices[value.GetUint64()];
-                headerNode->ensureSystemCheckCalled(true, true);
-#else
-                const Node *headerNode = Node::getNodeFromNormalizedString(
-                    pstring_view(value.GetString(), value.GetStringLength()), true, true);
-#endif
+                const Node *headerNode = Node::getNodeFromPValue(value, true, true);
 
                 if (headerNode->doesNotExist)
                 {
@@ -733,11 +643,11 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
                 }
             }
 
-            if (!fileStatus.load())
+            if (!atomic_ref(fileStatus).load())
             {
                 if (smFile->objectFileOutputFilePath->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
                 {
-                    fileStatus.store(true);
+                    atomic_ref(fileStatus).store(true);
                 }
             }
         }

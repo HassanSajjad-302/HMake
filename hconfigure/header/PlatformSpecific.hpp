@@ -9,6 +9,7 @@ import <filesystem>;
 import "rapidjson/document.h";
 import "rapidjson/encodings.h";
 import <fstream>;
+import <vector>;
 #else
 #include "fmt/format.h"
 #include "rapidjson/document.h"
@@ -16,9 +17,10 @@ import <fstream>;
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 #endif
 
-using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique;
+using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector;
 
 using rapidjson::UTF8, rapidjson::UTF16, rapidjson::GenericDocument, rapidjson::GenericValue,
     rapidjson::GenericStringRef, rapidjson::kArrayType, rapidjson::kStringType;
@@ -89,9 +91,15 @@ struct RHPOStream
     static void Flush();
 };
 
+// While decompressing lz4 file, we allocate following + 1 the buffer size.
+// So, we have compressed filee * bufferMultiplier times the space.
+// Also, while storing we check that the original file size / compresseed file size
+// is not equal to or greater than bufferMultiplier. Hence validating our assumption.
 void prettyWritePValueToFile(pstring_view fileName, const PValue &value);
+unique_ptr<vector<pchar>> readPValueFromFile(pstring_view fileName, PDocument &document);
 void writePValueToFile(pstring_view fileName, const PValue &value);
-unique_ptr<pchar[]> readPValueFromFile(pstring_view fileName, PDocument &document);
+unique_ptr<vector<pchar>> readPValueFromCompressedFile(pstring_view fileName, PDocument &document);
+void writePValueToCompressedFile(pstring_view fileName, const PValue &value);
 size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
 bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs);
 void lowerCasePString(pstring &str);
@@ -102,7 +110,7 @@ struct Indices
 
     constexpr static unsigned targetBuildCache = 1;
 
-    struct TargetBuildCache
+    struct CppTargetBuildCache
     {
 
         constexpr static unsigned sourceFiles = 0;
@@ -148,6 +156,24 @@ struct Indices
     {
         constexpr static unsigned commandWithoutArgumentsWithTools = 1;
         constexpr static unsigned objectFiles = 2;
+        constexpr static unsigned localLinkCommandWithoutTargets = 3;
+    };
+
+    struct LinkTargetConfigCache
+    {
+        constexpr static unsigned outputDirectoryNode = 1;
+        constexpr static unsigned outputFileNode = 2;
+        constexpr static unsigned librariesDirectoriesArray = 3;
+    };
+
+    struct CppTargetConfigCache
+    {
+        constexpr static unsigned requriementIncludesArray = 1;
+        constexpr static unsigned usageRequirementIncludesArray = 2;
+        constexpr static unsigned requirementHUDirArray = 3;
+        constexpr static unsigned usageRequirementHUDirArray = 4;
+        constexpr static unsigned sourceFiles = 5;
+        constexpr static unsigned moduleFiles = 6;
     };
 };
 

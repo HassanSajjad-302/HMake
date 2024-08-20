@@ -3,8 +3,7 @@
 
 #ifdef USE_HEADER_UNITS
 import "nlohmann/json.hpp";
-import "Node.hpp";
-import "ObjectFileProducer.hpp";
+import "ObjectFile.hpp";
 import <filesystem>;
 import <list>;
 import <set>;
@@ -12,8 +11,7 @@ import <utility>;
 import <vector>;
 import <atomic>;
 #else
-#include "Node.hpp"
-#include "ObjectFileProducer.hpp"
+#include "ObjectFile.hpp"
 #include "nlohmann/json.hpp"
 #include <atomic>
 #include <filesystem>
@@ -26,29 +24,6 @@ import <atomic>;
 using Json = nlohmann::json;
 using std::map, std::set, std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, std::atomic,
     std::atomic_flag;
-
-class LibDirNode
-{
-  public:
-    Node *node = nullptr;
-    bool isStandard = false;
-    explicit LibDirNode(Node *node_, bool isStandard_ = false);
-    static void emplaceInList(list<LibDirNode> &libDirNodes, LibDirNode &libDirNode);
-    static void emplaceInList(list<LibDirNode> &libDirNodes, Node *node_, bool isStandard_ = false);
-};
-
-class InclNode : public LibDirNode
-{
-  public:
-    // Used with includeDirectories to specify whether to ignore include-files from these directories from being stored
-    // in target-cache file
-    bool ignoreHeaderDeps = false;
-    explicit InclNode(Node *node_, bool isStandard_ = false, bool ignoreHeaderDeps_ = false);
-    static bool emplaceInList(list<InclNode> &includes, InclNode &libDirNode);
-    static bool emplaceInList(list<InclNode> &includes, Node *node_, bool isStandard_ = false,
-                              bool ignoreHeaderDeps_ = false);
-};
-bool operator<(const InclNode &lhs, const InclNode &rhs);
 
 struct SourceNode;
 struct CompareSourceNode
@@ -122,7 +97,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
     set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
 
-    unique_ptr<char[]> smRuleFileBuffer;
+    unique_ptr<vector<pchar>> smRuleFileBuffer;
     size_t headerUnitsIndex = UINT64_MAX;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 

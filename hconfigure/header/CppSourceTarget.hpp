@@ -3,22 +3,22 @@
 #ifdef USE_HEADER_UNITS
 import "BuildTools.hpp";
 import "CSourceTarget.hpp";
-import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
 import "HashedCommand.hpp";
 import "JConsts.hpp";
 import "PostBasic.hpp";
+import "SMFile.hpp";
 import "ToolsCache.hpp";
 import <concepts>;
 import <set>;
 #else
 #include "BuildTools.hpp"
 #include "CSourceTarget.hpp"
-#include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "HashedCommand.hpp"
 #include "JConsts.hpp"
 #include "PostBasic.hpp"
+#include "SMFile.hpp"
 #include "ToolsCache.hpp"
 #include <concepts>
 #include <set>
@@ -31,11 +31,8 @@ struct SourceDirectory
     const Node *sourceDirectory;
     pstring regex;
     bool recursive;
-    SourceDirectory() = default;
     SourceDirectory(const pstring &sourceDirectory_, pstring regex_, bool recursive_ = false);
 };
-void to_json(Json &j, const SourceDirectory &sourceDirectory);
-bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs);
 
 struct CompilerFlags
 {
@@ -70,7 +67,7 @@ struct InclNodeRecord
 {
     Node *node = nullptr;
     atomic<unsigned short> numOfTargets = 0;
-    InclNodeRecord(Node *node_);
+    explicit InclNodeRecord(Node *node_);
 };
 
 struct ResolveRequirePathBTarget final : BTarget
@@ -106,8 +103,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     // Written mutex locked in round 1 updateBTarget
     set<SMFile, CompareSourceNode> headerUnits;
 
-    map<InclNode, CppSourceTarget *, InclNodePointerComparator> usageRequirementHuDirs;
-    map<InclNode, CppSourceTarget *, InclNodePointerComparator> requirementHuDirs;
+    vector<InclNodeTargetMap> usageRequirementHuDirs;
+    vector<InclNodeTargetMap> requirementHuDirs;
 
     // Written mutex locked in round 1 updateBTarget.
     // Which require is provided by which SMFile
@@ -131,9 +128,9 @@ class CppSourceTarget : public CppCompilerFeatures,
     // be used.
     HashedCommand compileCommandWithTool;
 
-    set<SourceNode, CompareSourceNode> sourceFileDependencies;
+    vector<SourceNode> sourceFileDependencies;
     // Comparator used is same as for SourceNode
-    set<SMFile, CompareSourceNode> moduleSourceFileDependencies;
+    vector<SMFile> moduleSourceFileDependencies;
 
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
     AdjustHeaderUnitsBTarget adjustHeaderUnitsBTarget{this};
@@ -158,13 +155,10 @@ class CppSourceTarget : public CppCompilerFeatures,
     pstring getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
     PostCompile CompileSMFile(const SMFile &smFile);
     pstring getExtension() const;
-    PostCompile updateSourceNodeBTarget(SourceNode &sourceNode);
+    PostCompile updateSourceNodeBTarget(const SourceNode &sourceNode);
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void saveBuildCache(bool round);
-
-    set<SourceDirectory> regexSourceDirs;
-    set<SourceDirectory> regexModuleDirs;
 
     // requirementIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
@@ -179,12 +173,14 @@ class CppSourceTarget : public CppCompilerFeatures,
     // target and dependent targets have been scanned
     static void updateRound1();
     void updateBTarget(Builder &builder, unsigned short round) override;
-    /*    void setJson() override; */
+    void writeTargetConfigCacheAtConfigureTime(bool before) const;
+    void readConfigCacheAtBuildTime();
     pstring getTarjanNodeName() const override;
     CompilerFlags getCompilerFlags();
 
     CppSourceTarget(pstring name_, TargetType targetType);
     CppSourceTarget(bool buildExplicit, pstring name_, TargetType targetType);
+    void initializeCppSourceTarget(TargetType targetType);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
@@ -193,6 +189,12 @@ class CppSourceTarget : public CppCompilerFeatures,
     CSourceTargetType getCSourceTargetType() const override;
 
     CppSourceTarget &assignStandardIncludesToPublicHUDirectories();
+    static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, const pstring &sourceFile,
+                                      CppSourceTarget *target);
+    static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Node *sourceFileNode, CppSourceTarget *target);
+    static bool actuallyAddModuleFile(vector<SMFile> &smFiles, const pstring &moduleFile, CppSourceTarget *target);
+    static bool actuallyAddModuleFile(vector<SMFile> &smFiles, Node *moduleFileNode, CppSourceTarget *target);
+
     // TODO
     // Also provide function overload for functions like publicIncludes here and in CPT
     template <typename... U> CppSourceTarget &publicIncludes(const pstring &include, U... includeDirectoryPString);
@@ -215,7 +217,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     template <typename... U> CppSourceTarget &sourceFiles(const pstring &srcFile, U... sourceFilePString);
     template <typename... U> CppSourceTarget &moduleFiles(const pstring &modFile, U... moduleFilePString);
     template <typename... U> CppSourceTarget &interfaceFiles(const pstring &modFile, U... moduleFilePString);
-    void parseRegexSourceDirs(bool assignToSourceNodes, bool recursive, const SourceDirectory &dir);
+    void parseRegexSourceDirs(bool assignToSourceNodes, const pstring &sourceDirectory, pstring regex, bool recursive);
     template <typename... U> CppSourceTarget &sourceDirectories(const pstring &sourceDirectory, U... directories);
     template <typename... U> CppSourceTarget &moduleDirectories(const pstring &moduleDirectory, U... directories);
     template <typename... U>
@@ -239,9 +241,16 @@ bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
 template <typename... U>
 CppSourceTarget &CppSourceTarget::publicIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
-    InclNode::emplaceInList(requirementIncludes, node);
-    InclNode::emplaceInList(usageRequirementIncludes, node);
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    {
+        // Initialized in CppSourceTarget round 2
+    }
+    else
+    {
+        actuallyAddInclude(requirementIncludes, include, false);
+        actuallyAddInclude(usageRequirementIncludes, include, false);
+    }
+
     if constexpr (sizeof...(includeDirectoryPString))
     {
         return publicIncludes(includeDirectoryPString...);
@@ -255,7 +264,15 @@ CppSourceTarget &CppSourceTarget::publicIncludes(const pstring &include, U... in
 template <typename... U>
 CppSourceTarget &CppSourceTarget::privateIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    {
+        // Initialized in CppSourceTarget round 2
+    }
+    else
+    {
+        actuallyAddInclude(requirementIncludes, include, false);
+    }
+
     if constexpr (sizeof...(includeDirectoryPString))
     {
         return privateIncludes(includeDirectoryPString...);
@@ -269,7 +286,15 @@ CppSourceTarget &CppSourceTarget::privateIncludes(const pstring &include, U... i
 template <typename... U>
 CppSourceTarget &CppSourceTarget::interfaceIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    InclNode::emplaceInList(usageRequirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    {
+        // Initialized in CppSourceTarget round 2
+    }
+    else
+    {
+        actuallyAddInclude(usageRequirementIncludes, include, false);
+    }
+
     if constexpr (sizeof...(includeDirectoryPString))
     {
         return interfaceIncludes(includeDirectoryPString...);
@@ -283,14 +308,20 @@ CppSourceTarget &CppSourceTarget::interfaceIncludes(const pstring &include, U...
 template <typename... U>
 CppSourceTarget &CppSourceTarget::publicHUIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
-    if (bool added = InclNode::emplaceInList(usageRequirementIncludes, node); added)
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
     {
-        usageRequirementHuDirs.emplace(usageRequirementIncludes.back(), this);
+        // Initialized in CppSourceTarget round 2
     }
-    if (bool added = InclNode::emplaceInList(requirementIncludes, node); added)
+    else
     {
-        requirementHuDirs.emplace(requirementIncludes.back(), this);
+        if (const bool added = actuallyAddInclude(requirementIncludes, include, false); added)
+        {
+            actuallyAddInclude(requirementHuDirs, include, false, this);
+        }
+        if (const bool added = actuallyAddInclude(usageRequirementIncludes, include, false); added)
+        {
+            actuallyAddInclude(usageRequirementHuDirs, include, false, this);
+        }
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -306,11 +337,18 @@ CppSourceTarget &CppSourceTarget::publicHUIncludes(const pstring &include, U... 
 template <typename... U>
 CppSourceTarget &CppSourceTarget::privateHUIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    if (bool added = InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(include, false));
-        added)
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
     {
-        requirementHuDirs.emplace(requirementIncludes.back(), this);
+        // Initialized in CppSourceTarget round 2
     }
+    else
+    {
+        if (const bool added = actuallyAddInclude(requirementIncludes, include, false); added)
+        {
+            actuallyAddInclude(requirementHuDirs, include, false, this);
+        }
+    }
+
     if constexpr (sizeof...(includeDirectoryPString))
     {
         return privateHUIncludes(includeDirectoryPString...);
@@ -324,10 +362,16 @@ CppSourceTarget &CppSourceTarget::privateHUIncludes(const pstring &include, U...
 template <typename... U>
 CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
-    if (bool added = InclNode::emplaceInList(usageRequirementIncludes, node); added)
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
     {
-        usageRequirementHuDirs.emplace(usageRequirementIncludes.back(), this);
+        // Initialized in CppSourceTarget round 2
+    }
+    else
+    {
+        if (const bool added = actuallyAddInclude(usageRequirementIncludes, include, false); added)
+        {
+            actuallyAddInclude(usageRequirementHuDirs, include, false, this);
+        }
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -343,8 +387,15 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const pstring &include, U.
 template <typename... U>
 CppSourceTarget &CppSourceTarget::publicHUDirectories(const pstring &include, U... includeDirectoryPString)
 {
-    requirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
-    usageRequirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    {
+        // Initialized in CppSourceTarget round 2
+    }
+    else
+    {
+        actuallyAddInclude(requirementHuDirs, include, false, this);
+        actuallyAddInclude(usageRequirementHuDirs, include, false, this);
+    }
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
@@ -359,7 +410,14 @@ CppSourceTarget &CppSourceTarget::publicHUDirectories(const pstring &include, U.
 template <typename... U>
 CppSourceTarget &CppSourceTarget::privateHUDirectories(const pstring &include, U... includeDirectoryPString)
 {
-    requirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    {
+        // Initialized in CppSourceTarget round 2
+    }
+    else
+    {
+        actuallyAddInclude(requirementHuDirs, include, false, this);
+    }
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
@@ -374,7 +432,14 @@ CppSourceTarget &CppSourceTarget::privateHUDirectories(const pstring &include, U
 template <typename... U>
 CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const pstring &include, U... includeDirectoryPString)
 {
-    usageRequirementHuDirs.emplace(Node::getNodeFromNonNormalizedPath(include, false), this);
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    {
+        // Initialized in CppSourceTarget round 2
+    }
+    else
+    {
+        actuallyAddInclude(usageRequirementHuDirs, include, false, this);
+    }
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
@@ -388,11 +453,20 @@ CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const pstring &include,
 
 template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const pstring &srcFile, U... sourceFilePString)
 {
-    Node *node = Node::getNodeFromNonNormalizedPath(srcFile, true);
-    if (!sourceFileDependencies.contains(node))
+    if (evaluate(UseMiniTarget::YES))
     {
-        sourceFileDependencies.emplace(this, node);
+        if (bsMode == BSMode::CONFIGURE)
+        {
+            const Node *node = Node::getNodeFromNonNormalizedPath(srcFile, true);
+            targetConfigCache[0][Indices::CppTargetConfigCache::sourceFiles].PushBack(node->getPValue(), ralloc);
+        }
+        // Initialized in CppSourceTarget round 2
     }
+    else
+    {
+        actuallyAddSourceFile(sourceFileDependencies, srcFile, this);
+    }
+
     if constexpr (sizeof...(sourceFilePString))
     {
         return sourceFiles(sourceFilePString...);
@@ -410,10 +484,22 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const pst
         return sourceFiles(modFile, moduleFilePString...);
     }
 
-    if (Node *node = Node::getNodeFromNonNormalizedPath(modFile, true); !moduleSourceFileDependencies.contains(node))
+    if (evaluate(UseMiniTarget::YES))
     {
-        moduleSourceFileDependencies.emplace(this, node);
+        if (bsMode == BSMode::CONFIGURE)
+        {
+            const Node *node = Node::getNodeFromNonNormalizedPath(modFile, true);
+            targetConfigCache[0][Indices::CppTargetConfigCache::moduleFiles].PushBack(node->getPValue(), ralloc);
+            // isInterface is false
+            targetConfigCache[0][Indices::CppTargetConfigCache::moduleFiles].PushBack(PValue(false), ralloc);
+        }
+        // Initialized in CppSourceTarget round 2
     }
+    else
+    {
+        actuallyAddModuleFile(moduleSourceFileDependencies, modFile, this);
+    }
+
     if constexpr (sizeof...(moduleFilePString))
     {
         return moduleFiles(moduleFilePString...);
@@ -431,31 +517,38 @@ CppSourceTarget &CppSourceTarget::interfaceFiles(const pstring &modFile, U... mo
     {
         return sourceFiles(modFile, moduleFilePString...);
     }
+
+    if (evaluate(UseMiniTarget::YES))
+    {
+        if (bsMode == BSMode::CONFIGURE)
+        {
+            const Node *node = Node::getNodeFromNonNormalizedPath(modFile, true);
+            targetConfigCache[0][Indices::CppTargetConfigCache::moduleFiles].PushBack(node->getPValue(), ralloc);
+            // isInterface is false
+            targetConfigCache[0][Indices::CppTargetConfigCache::moduleFiles].PushBack(PValue(true), ralloc);
+        }
+        // Initialized in CppSourceTarget round 2
+    }
     else
     {
-        const SMFile &smFile = moduleSourceFileDependencies
-                                   .emplace(this, const_cast<Node *>(Node::getNodeFromNonNormalizedPath(modFile, true)))
-                                   .first.
-                                   operator*();
-        const_cast<SMFile &>(smFile).isInterface = true;
-        if constexpr (sizeof...(moduleFilePString))
-        {
-            return interfaceFiles(moduleFilePString...);
-        }
-        else
-        {
-            return *this;
-        }
+        actuallyAddModuleFile(moduleSourceFileDependencies, modFile, this);
+        moduleSourceFileDependencies.end()->isInterface = true;
+    }
+
+    if constexpr (sizeof...(moduleFilePString))
+    {
+        return interfaceFiles(moduleFilePString...);
+    }
+    else
+    {
+        return *this;
     }
 }
 
 template <typename... U>
 CppSourceTarget &CppSourceTarget::sourceDirectories(const pstring &sourceDirectory, U... directories)
 {
-    if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, ".*"); Ok)
-    {
-        parseRegexSourceDirs(true, false, *pos);
-    }
+    parseRegexSourceDirs(true, sourceDirectory, ".*", false);
     if constexpr (sizeof...(directories))
     {
         return sourceDirectories(directories...);
@@ -466,10 +559,7 @@ CppSourceTarget &CppSourceTarget::sourceDirectories(const pstring &sourceDirecto
 template <typename... U>
 CppSourceTarget &CppSourceTarget::moduleDirectories(const pstring &moduleDirectory, U... directories)
 {
-    if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, ".*"); Ok)
-    {
-        parseRegexSourceDirs(false, false, *pos);
-    }
+    parseRegexSourceDirs(false, moduleDirectory, ".*", false);
     if constexpr (sizeof...(directories))
     {
         return moduleDirectories(directories...);
@@ -481,10 +571,7 @@ template <typename... U>
 CppSourceTarget &CppSourceTarget::sourceDirectoriesRE(const pstring &sourceDirectory, const pstring &regex,
                                                       U... directories)
 {
-    if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, regex); Ok)
-    {
-        parseRegexSourceDirs(true, false, *pos);
-    }
+    parseRegexSourceDirs(true, sourceDirectory, regex, false);
     if constexpr (sizeof...(directories))
     {
         return sourceDirectoriesRE(directories...);
@@ -496,10 +583,7 @@ template <typename... U>
 CppSourceTarget &CppSourceTarget::moduleDirectoriesRE(const pstring &moduleDirectory, const pstring &regex,
                                                       U... directories)
 {
-    if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, regex); Ok)
-    {
-        parseRegexSourceDirs(false, false, *pos);
-    }
+    parseRegexSourceDirs(false, moduleDirectory, regex, false);
     if constexpr (sizeof...(directories))
     {
         return moduleDirectoriesRE(directories...);
@@ -510,10 +594,7 @@ CppSourceTarget &CppSourceTarget::moduleDirectoriesRE(const pstring &moduleDirec
 template <typename... U>
 CppSourceTarget &CppSourceTarget::rSourceDirectories(const pstring &sourceDirectory, U... directories)
 {
-    if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, ".*", true); Ok)
-    {
-        parseRegexSourceDirs(true, true, *pos);
-    }
+    parseRegexSourceDirs(true, sourceDirectory, ".*", true);
     if constexpr (sizeof...(directories))
     {
         return rSourceDirectories(directories...);
@@ -524,10 +605,7 @@ CppSourceTarget &CppSourceTarget::rSourceDirectories(const pstring &sourceDirect
 template <typename... U>
 CppSourceTarget &CppSourceTarget::rModuleDirectories(const pstring &moduleDirectory, U... directories)
 {
-    if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, ".*", true); Ok)
-    {
-        parseRegexSourceDirs(false, true, *pos);
-    }
+    parseRegexSourceDirs(false, moduleDirectory, ".*", true);
     if constexpr (sizeof...(directories))
     {
         return rModuleDirectories(directories...);
@@ -539,10 +617,7 @@ template <typename... U>
 CppSourceTarget &CppSourceTarget::rSourceDirectoriesRE(const pstring &sourceDirectory, const pstring &regex,
                                                        U... directories)
 {
-    if (const auto &[pos, Ok] = regexSourceDirs.emplace(sourceDirectory, regex, true); Ok)
-    {
-        parseRegexSourceDirs(true, true, *pos);
-    }
+    parseRegexSourceDirs(true, sourceDirectory, regex, true);
     if constexpr (sizeof...(directories))
     {
         return R_sourceDirectoriesRE(directories...);
@@ -554,10 +629,7 @@ template <typename... U>
 CppSourceTarget &CppSourceTarget::rModuleDirectoriesRE(const pstring &moduleDirectory, const pstring &regex,
                                                        U... directories)
 {
-    if (const auto &[pos, Ok] = regexModuleDirs.emplace(moduleDirectory, regex, true); Ok)
-    {
-        parseRegexSourceDirs(false, true, *pos);
-    }
+    parseRegexSourceDirs(false, moduleDirectory, regex, true);
     if constexpr (sizeof...(directories))
     {
         return R_moduleDirectoriesRE(directories...);
@@ -683,10 +755,6 @@ CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
     else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
     {
         treatModuleAsSource = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), StaticSourceDirs>)
-    {
-        staticSourceDirs = property;
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
@@ -852,9 +920,9 @@ template <typename T> bool CppSourceTarget::evaluate(T property) const
     {
         return treatModuleAsSource == property;
     }
-    else if constexpr (std::is_same_v<decltype(property), StaticSourceDirs>)
+    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
     {
-        return staticSourceDirs == property;
+        return useMiniTarget == property;
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {

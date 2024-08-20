@@ -358,6 +358,7 @@ TEST(StageTests, Test2)
     // Moving lib4.cpp code to temp.cpp in lib4/
     removeFilePath(testSourcePath / "lib4/private/lib4.cpp");
     copyFilePath(testSourcePath / "Version/4/temp.cpp", testSourcePath / "lib4/private/temp.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1}, "Debug/lib4");
     executeSnapshotBalances(Updates{.linkTargetsDebug = 1});
@@ -367,6 +368,7 @@ TEST(StageTests, Test2)
     touchFile(testSourcePath / "lib4/private/temp.cpp");
     removeFilePath(testSourcePath / "Build/Debug/lib3/" /
                    getActualNameFromTargetName(TargetType::LIBRARY_STATIC, os, "lib3"));
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeErroneousSnapshotBalances(
         Updates{.errorFiles = 1, .sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1});
     executeErroneousSnapshotBalances(Updates{.errorFiles = 1, .cppTargets = 1});
@@ -413,6 +415,7 @@ TEST(StageTests, Test2)
     // Changing the cache variable to false should cause only the relinking, but not the recompilation of temp.cpp.
     cacheJson["cache-variables"]["use-lib4.cpp"] = false;
     ofstream(cacheFile) << cacheJson.dump(4);
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
     executeSnapshotBalances(Updates{});
@@ -538,6 +541,7 @@ TEST(StageTests, Test3)
     // of change of compile-command due to removal of compile-definition.
     cacheJson["cache-variables"]["use-module"] = false;
     ofstream(cacheFile) << cacheJson.dump(4);
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.smruleFiles = 1,
                                     .sourceFiles = 2,
                                     .moduleFiles = 1,
@@ -547,6 +551,7 @@ TEST(StageTests, Test3)
 
     cacheJson["cache-variables"]["use-module"] = true;
     ofstream(cacheFile) << cacheJson.dump(4);
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib3");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
 
@@ -560,6 +565,7 @@ TEST(StageTests, Test3)
     // object-files, now it is module-file object-files.
     cacheJson["cache-variables"]["use-module"] = false;
     ofstream(cacheFile) << cacheJson.dump(4);
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.smruleFiles = 1,
                                     .sourceFiles = 1,
                                     .moduleFiles = 1,

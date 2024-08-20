@@ -42,7 +42,7 @@ template <typename T> struct DSC : DSCFeatures
         prebuiltBasic = prebuiltBasic_;
         prebuiltBasic->objectFileProducers.emplace(objectFileProducer);
 
-        if (define_.empty() && !prebuiltBasic->evaluate(TargetType::PREBUILT_BASIC))
+        if (define_.empty() && !prebuiltBasic->evaluate(TargetType::LIBRARY_OBJECT))
         {
             define = prebuiltBasic->outputName;
             transform(define.begin(), define.end(), define.begin(), ::toupper);

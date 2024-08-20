@@ -8,10 +8,10 @@ import "JConsts.hpp";
 import "ToolsCache.hpp";
 import "nlohmann/json.hpp";
 #else
+#include "Features.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
 #include "CppSourceTarget.hpp"
-#include "Features.hpp"
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
 #include "nlohmann/json.hpp"
@@ -235,18 +235,16 @@ pstring getActualNameFromTargetName(const TargetType bTargetType, const OS osLoc
     {
         return targetName + (osLocal == OS::NT ? ".exe" : "");
     }
-    else if (bTargetType == TargetType::LIBRARY_STATIC || bTargetType == TargetType::PLIBRARY_STATIC)
+    if (bTargetType == TargetType::LIBRARY_STATIC || bTargetType == TargetType::PLIBRARY_STATIC)
     {
-        pstring actualName;
-        actualName = osLocal == OS::NT ? "" : "lib";
+        pstring actualName = osLocal == OS::NT ? "" : "lib";
         actualName += targetName;
         actualName += osLocal == OS::NT ? ".lib" : ".a";
         return actualName;
     }
-    else if (bTargetType == TargetType::LIBRARY_SHARED || bTargetType == TargetType::PLIBRARY_SHARED)
+    if (bTargetType == TargetType::LIBRARY_SHARED || bTargetType == TargetType::PLIBRARY_SHARED)
     {
-        pstring actualName;
-        actualName = osLocal == OS::NT ? "" : "lib";
+        pstring actualName = osLocal == OS::NT ? "" : "lib";
         actualName += targetName;
         actualName += osLocal == OS::NT ? ".dll" : ".so";
         return actualName;
@@ -261,7 +259,7 @@ pstring getTargetNameFromActualName(const TargetType bTargetType, const OS osLoc
     {
         return osLocal == OS::NT ? actualName + ".exe" : actualName;
     }
-    else if (bTargetType == TargetType::LIBRARY_STATIC || bTargetType == TargetType::PLIBRARY_STATIC)
+    if (bTargetType == TargetType::LIBRARY_STATIC || bTargetType == TargetType::PLIBRARY_STATIC)
     {
         pstring libName = actualName;
         // Removes lib from libName.a
@@ -271,7 +269,7 @@ pstring getTargetNameFromActualName(const TargetType bTargetType, const OS osLoc
         libName = libName.erase(libName.find('.'), eraseCount);
         return libName;
     }
-    else if (bTargetType == TargetType::LIBRARY_SHARED || bTargetType == TargetType::PLIBRARY_SHARED)
+    if (bTargetType == TargetType::LIBRARY_SHARED || bTargetType == TargetType::PLIBRARY_SHARED)
     {
         pstring libName = actualName;
         // Removes lib from libName.so
@@ -325,12 +323,30 @@ LinkerFeatures::LinkerFeatures()
     libraryType = cache.libraryType;
 }
 
-void LinkerFeatures::setLinkerFromVSTools(struct VSTools &vsTools)
+void LinkerFeatures::setLinkerFromVSTools(const VSTools &vsTools)
 {
     linker = vsTools.linker;
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    {
+        // Initialized in LinkOrArchiveTarget round 2
+        return;
+    }
     for (const pstring &str : vsTools.libraryDirectories)
     {
-        LibDirNode::emplaceInList(requirementLibraryDirectories, Node::getNodeFromNonNormalizedPath(str, false), true);
+        Node *node = Node::getNodeFromNonNormalizedPath(str, false);
+        bool found = false;
+        for (const LibDirNode &libDirNode : requirementLibraryDirectories)
+        {
+            if (libDirNode.node == node)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            requirementLibraryDirectories.emplace_back(node, true);
+        }
     }
 }
 
@@ -392,21 +408,32 @@ CppCompilerFeatures::CppCompilerFeatures()
 
 // Use getNodeFromNormalizedPath instead
 
-void CppCompilerFeatures::setCompilerFromVSTools(VSTools &vsTools)
+void CppCompilerFeatures::setCompilerFromVSTools(const VSTools &vsTools)
 {
     compiler = vsTools.compiler;
+
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    {
+        // Initialized in CppSourceTarget round 2
+        return;
+    }
     for (const pstring &str : vsTools.includeDirectories)
     {
-        InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(str, false), true, true);
+        actuallyAddInclude(requirementIncludes, str, true);
     }
 }
 
-void CppCompilerFeatures::setCompilerFromLinuxTools(LinuxTools &linuxTools)
+void CppCompilerFeatures::setCompilerFromLinuxTools(const LinuxTools &linuxTools)
 {
     compiler = linuxTools.compiler;
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    {
+        // Initialized in CppSourceTarget round 2
+        return;
+    }
     for (const pstring &str : linuxTools.includeDirectories)
     {
-        InclNode::emplaceInList(requirementIncludes, Node::getNodeFromNonNormalizedPath(str, false), true, true);
+        actuallyAddInclude(requirementIncludes, str, true);
     }
 }
 
@@ -442,4 +469,45 @@ void CppCompilerFeatures::setConfigType(const ConfigType configType)
         debugSymbols = DebugSymbols::ON;
         profiling = Profiling::ON;
     }
+}
+
+bool CppCompilerFeatures::actuallyAddInclude(vector<InclNode> &inclNodes, pstring include, bool isStandard)
+{
+    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
+    bool found = false;
+    for (const InclNode &inclNode : inclNodes)
+    {
+        if (inclNode.node == node)
+        {
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+    {
+        inclNodes.emplace_back(node, isStandard);
+        return true;
+    }
+    return false;
+}
+
+bool CppCompilerFeatures::actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, pstring include, bool isStandard,
+                                             CppSourceTarget *target)
+{
+    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
+    bool found = false;
+    for (const InclNodeTargetMap &inclNode : inclNodes)
+    {
+        if (inclNode.inclNode.node == node)
+        {
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+    {
+        inclNodes.emplace_back(InclNode(node, isStandard), target);
+        return true;
+    }
+    return false;
 }

@@ -4,17 +4,18 @@
 import "BTarget.hpp";
 import "ConfigType.hpp";
 import "DSC.hpp";
+import "LinkOrArchiveTarget.hpp";
 import <memory>;
 #else
 #include "BTarget.hpp"
 #include "ConfigType.hpp"
 #include "DSC.hpp"
+#include "LinkOrArchiveTarget.hpp"
 #include <memory>
 #endif
 
 using std::shared_ptr;
 
-class LinkOrArchiveTarget;
 class CppSourceTarget;
 
 // TODO
@@ -27,13 +28,14 @@ struct Configuration : BTarget
     vector<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;
     vector<CSourceTarget *> prebuiltTargets;
     CppCompilerFeatures compilerFeatures;
+    PrebuiltLinkerFeatures prebuiltLinkOrArchiveTargetFeatures;
     LinkerFeatures linkerFeatures;
     TargetType targetType = TargetType::LIBRARY_STATIC;
     bool archiving = false;
 
     CppSourceTarget &getCppPreprocess(const pstring &name_);
     CppSourceTarget &getCppObject(const pstring &name_);
-    PrebuiltBasic &getPrebuiltBasic(const pstring &name_);
+    PrebuiltBasic &getPrebuiltBasic(const pstring &name_) const;
     LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(const pstring &name_);
     LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(const pstring &name_);
     LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(const pstring &name_);
@@ -69,6 +71,8 @@ struct Configuration : BTarget
     explicit Configuration(const pstring &name_);
     static void markArchivePoint();
     template <typename T, typename... Property> Configuration &assign(T property, Property... properties);
+    template <typename T> bool evaluate(T property) const;
+    bool getUseMiniTarget() const;
 };
 bool operator<(const Configuration &lhs, const Configuration &rhs);
 
@@ -84,6 +88,11 @@ template <typename T, typename... Property> Configuration &Configuration::assign
         linkerFeatures.setConfigType(property);
     }
     // CommonFeatures
+    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
+    {
+        prebuiltLinkOrArchiveTargetFeatures.useMiniTarget = property;
+        useMiniTarget = property;
+    }
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {
         compilerFeatures.targetOs = property;
@@ -241,13 +250,13 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         compilerFeatures.treatModuleAsSource = property;
     }
-    else if constexpr (std::is_same_v<decltype(property), StaticSourceDirs>)
-    {
-        compilerFeatures.staticSourceDirs = property;
-    }
     else if constexpr (std::is_same_v<decltype(property), Define>)
     {
         compilerFeatures.requirementCompileDefinitions.emplace(property);
+    }
+    else if constexpr(std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
+    {
+        prebuiltLinkOrArchiveTargetFeatures.copyToExeDirOnNtOs = property;
     }
     // Linker Features
     else if constexpr (std::is_same_v<decltype(property), LinkFlags>)
@@ -278,6 +287,22 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     else
     {
         return *this;
+    }
+}
+
+template <typename T> bool Configuration::evaluate(T property) const
+{
+    if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
+    {
+        return useMiniTarget == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), bool>)
+    {
+        return property;
+    }
+    else
+    {
+        useMiniTarget = property; // Just to fail the compilation. Ensures that all properties are handled.
     }
 }
 

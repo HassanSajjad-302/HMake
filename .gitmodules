@@ -19,3 +19,6 @@
 [submodule "3rdParty/rapidhash"]
 	path = 3rdParty/rapidhash
 	url = https://github.com/Nicoshev/rapidhash
+[submodule "3rdParty/lz4"]
+	path = 3rdParty/lz4
+	url = https://github.com/lz4/lz4

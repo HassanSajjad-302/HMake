@@ -3,12 +3,14 @@
 #include "BuildSystemFunctions.hpp"
 import <iostream>;
 import "PlatformSpecific.hpp";
+import "lz4.h";
 import "rapidjson/prettywriter.h";
 import "rapidjson/writer.h";
 import <cstdio>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "PlatformSpecific.hpp"
+#include "lz4.h"
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/writer.h"
 #include <cstdio>
@@ -140,7 +142,44 @@ void prettyWritePValueToFile(const pstring_view fileName, const PValue &value)
     }
 }
 
-void writePValueToFile(const pstring_view fileName, const PValue &value)
+size_t pvalueIndexInArray(const PValue &pvalue, const PValue &element)
+{
+    for (size_t i = 0; i < pvalue.Size(); ++i)
+    {
+        if (element == pvalue[i])
+        {
+            return i;
+        }
+    }
+    return UINT64_MAX;
+}
+
+#ifndef _WIN32
+#define fopen_s(pFile, filename, mode) ((*(pFile)) = fopen((filename), (mode))) == NULL
+#endif
+
+unique_ptr<vector<pchar>> readPValueFromFile(const pstring_view fileName, PDocument &document)
+{
+    // Read whole file into a buffer
+    FILE *fp;
+    fopen_s(&fp, fileName.data(), "r");
+    fseek(fp, 0, SEEK_END);
+    const size_t filesize = (size_t)ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    unique_ptr<vector<pchar>> buffer = std::make_unique<vector<pchar>>(filesize + 1);
+    const size_t readLength = fread(buffer->begin().operator->(), 1, filesize, fp);
+    fclose(fp);
+
+    // TODO
+    //  What should this be for wchar_t
+    (*buffer)[readLength] = '\0';
+
+    // In situ parsing the buffer into d, buffer will also be modified
+    document.ParseInsitu(buffer->begin().operator->());
+    return buffer;
+}
+
+void writePValueToFile(pstring_view fileName, const PValue &value)
 {
     RHPOStream stream(fileName);
     rapidjson::Writer<RHPOStream> writer(stream, nullptr);
@@ -152,41 +191,85 @@ void writePValueToFile(const pstring_view fileName, const PValue &value)
     }
 }
 
-#ifndef _WIN32
-#define fopen_s(pFile, filename, mode) ((*(pFile)) = fopen((filename), (mode))) == NULL
-#endif
-
-unique_ptr<pchar[]> readPValueFromFile(const pstring_view fileName, PDocument &document)
+unique_ptr<vector<pchar>> readPValueFromCompressedFile(const pstring_view fileName, PDocument &document)
 {
+#ifndef USE_JSON_FILE_COMPRESSION
+    return readPValueFromFile(fileName, document);
+#else
     // Read whole file into a buffer
-    FILE *fp;
-    fopen_s(&fp, fileName.data(), "r");
-    fseek(fp, 0, SEEK_END);
-    const size_t filesize = (size_t)ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    unique_ptr<pchar[]> buffer = std::make_unique<pchar[]>(filesize + 1);
-    const size_t readLength = fread(buffer.get(), 1, filesize, fp);
-    fclose(fp);
+    unique_ptr<vector<pchar>> fileBuffer;
+    uint64_t readLength;
+    {
+        FILE *fp;
+        fopen_s(&fp, fileName.data(), "rb");
+        fseek(fp, 0, SEEK_END);
+        const size_t filesize = (size_t)ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        fileBuffer = std::make_unique<vector<pchar>>(filesize);
+        readLength = fread(fileBuffer->begin().operator->(), 1, filesize, fp);
+        fclose(fp);
+    }
+
+    uint64_t decompressedSize = *reinterpret_cast<uint64_t *>(&(*fileBuffer)[0]);
+    unique_ptr<vector<pchar>> decompressedBuffer = std::make_unique<vector<pchar>>(decompressedSize + 1);
+
+    int decompressSize =
+        LZ4_decompress_safe(&(*fileBuffer)[8], &(*decompressedBuffer)[0], readLength - 8, decompressedSize);
+
+    if (decompressSize < 0)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+        exit(EXIT_FAILURE);
+    }
+
+    if (decompressedSize != decompressSize)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+        exit(EXIT_FAILURE);
+    }
 
     // TODO
     //  What should this be for wchar_t
-    buffer[readLength] = '\0';
+    // Neccessary for in-situ parsing
+    (*decompressedBuffer)[decompressSize] = '\0';
 
     // In situ parsing the buffer into d, buffer will also be modified
-    document.ParseInsitu(buffer.get());
-    return buffer;
+    document.ParseInsitu(&(*decompressedBuffer)[0]);
+    return decompressedBuffer;
+#endif
 }
 
-size_t pvalueIndexInArray(const PValue &pvalue, const PValue &element)
+void writePValueToCompressedFile(const pstring_view fileName, const PValue &value)
 {
-    for (size_t i = 0; i < pvalue.Size(); ++i)
+#ifndef USE_JSON_FILE_COMPRESSION
+    writePValueToFile(fileName, value);
+#else
+    rapidjson::StringBuffer buffer;
+    rapidjson::Writer writer(buffer);
+    value.Accept(writer);
+
+    // printMessage(fmt::format("file {} \n{}\n", fileName, pstring(buffer.GetString(), buffer.GetLength())));
+    pstring compressed;
+    const uint64_t maxCompressedSize = LZ4_compressBound(buffer.GetLength());
+    // first eight bytes for the compressed size
+    compressed.reserve(maxCompressedSize + 8);
+
+    int compressedSize = LZ4_compress_default(buffer.GetString(), const_cast<char *>(compressed.c_str()) + 8,
+                                              buffer.GetLength(), maxCompressedSize);
+
+    // printMessage(fmt::format("\n{}\n{}\n", buffer.GetLength(), compressedSize + 8));
+    if (!compressedSize)
     {
-        if (element == pvalue[i])
-        {
-            return i;
-        }
+        HMAKE_HMAKE_INTERNAL_ERROR
+        exit(EXIT_FAILURE);
     }
-    return UINT64_MAX;
+    *reinterpret_cast<uint64_t *>(const_cast<char *>(compressed.c_str())) = buffer.GetLength();
+
+    std::fstream file;
+    file.open(fileName.data(), std::ios::out | std::ios::binary);
+    file.write(compressed.c_str(), compressedSize + 8);
+    file.close();
+#endif
 }
 
 size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element)

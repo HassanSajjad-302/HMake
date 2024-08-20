@@ -3,7 +3,6 @@
 import "CppSourceTarget.hpp";
 import "BuildSystemFunctions.hpp";
 import "Builder.hpp";
-import "Cache.hpp";
 import "LinkOrArchiveTarget.hpp";
 import "Utilities.hpp";
 import <filesystem>;
@@ -14,7 +13,6 @@ import <utility>;
 #include "CppSourceTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
-#include "Cache.hpp"
 #include "LinkOrArchiveTarget.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
@@ -30,17 +28,6 @@ SourceDirectory::SourceDirectory(const pstring &sourceDirectory_, pstring regex_
     : sourceDirectory{Node::getNodeFromNonNormalizedPath(sourceDirectory_, false)}, regex{std::move(regex_)},
       recursive(recursive_)
 {
-}
-
-void to_json(Json &j, const SourceDirectory &sourceDirectory)
-{
-    j[JConsts::path] = sourceDirectory.sourceDirectory;
-    j[JConsts::regexPString] = sourceDirectory.regex;
-}
-
-bool operator<(const SourceDirectory &lhs, const SourceDirectory &rhs)
-{
-    return std::tie(lhs.sourceDirectory, lhs.regex) < std::tie(rhs.sourceDirectory, rhs.regex);
 }
 
 bool InclNodePointerComparator::operator()(const InclNode &lhs, const InclNode &rhs) const
@@ -154,15 +141,24 @@ bool CppSourceTarget::isCpuTypeG7()
 
 CppSourceTarget::CppSourceTarget(pstring name_, const TargetType targetType) : CSourceTarget{false, std::move(name_)}
 {
-    compileTargetType = targetType;
-    preSortBTargets.emplace_back(this);
+    initializeCppSourceTarget(targetType);
 }
 
 CppSourceTarget::CppSourceTarget(bool buildExplicit, pstring name_, const TargetType targetType)
     : CSourceTarget{buildExplicit, std::move(name_)}
 {
+    initializeCppSourceTarget(targetType);
+}
+
+void CppSourceTarget::initializeCppSourceTarget(TargetType targetType)
+{
     compileTargetType = targetType;
-    preSortBTargets.emplace_back(this);
+    targetConfigCache->PushBack(kArrayType, ralloc)
+        .PushBack(kArrayType, ralloc)
+        .PushBack(kArrayType, ralloc)
+        .PushBack(kArrayType, ralloc)
+        .PushBack(kArrayType, ralloc)
+        .PushBack(kArrayType, ralloc);
 }
 
 void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
@@ -193,9 +189,9 @@ void CppSourceTarget::populateTransitiveProperties()
 {
     for (CSourceTarget *cSourceTarget : requirementDeps)
     {
-        for (InclNode &include : cSourceTarget->usageRequirementIncludes)
+        for (const InclNode &inclNode : cSourceTarget->usageRequirementIncludes)
         {
-            InclNode::emplaceInList(requirementIncludes, include);
+            actuallyAddInclude(requirementIncludes, inclNode.node->filePath, false);
         }
         requirementCompilerFlags += cSourceTarget->usageRequirementCompilerFlags;
         for (const Define &define : cSourceTarget->usageRequirementCompileDefinitions)
@@ -208,7 +204,16 @@ void CppSourceTarget::populateTransitiveProperties()
             CppSourceTarget *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
             for (auto &[inclNode, cppSourceTarget_] : cppSourceTarget->usageRequirementHuDirs)
             {
-                if (auto [itr, ok] = requirementHuDirs.emplace(inclNode, cppSourceTarget_); !ok)
+                bool found = false;
+                for (InclNodeTargetMap &inclNodeTargetMap : requirementHuDirs)
+                {
+                    if (inclNodeTargetMap.inclNode.node == inclNode.node)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found)
                 {
                     printErrorMessageColor(
                         fmt::format("Include Directory\n{}\nbelongs to two different target\n{}\nand\n{}\n",
@@ -218,6 +223,7 @@ void CppSourceTarget::populateTransitiveProperties()
                     throw std::exception();
                     // Print Error Message that same include-directory belongs to two targets.
                 }
+                requirementHuDirs.emplace_back(inclNode, cppSourceTarget_);
             }
             if (!cppSourceTarget->usageRequirementHuDirs.empty())
             {
@@ -227,7 +233,7 @@ void CppSourceTarget::populateTransitiveProperties()
     }
     for (auto &[node, target] : requirementHuDirs)
     {
-        InclNode::emplaceInList(requirementIncludes, const_cast<InclNode &>(node));
+        actuallyAddInclude(requirementIncludes, node.node->filePath, false);
     }
 }
 
@@ -273,15 +279,75 @@ CSourceTargetType CppSourceTarget::getCSourceTargetType() const
 
 CppSourceTarget &CppSourceTarget::assignStandardIncludesToPublicHUDirectories()
 {
-    for (InclNode &include : requirementIncludes)
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
     {
-        if (include.isStandard)
+        // Initialized in CppSourceTarget round 2
+    }
+    else
+    {
+        for (const InclNode &include : requirementIncludes)
         {
-            requirementHuDirs.emplace(include, this);
-            usageRequirementHuDirs.emplace(include, this);
+            if (include.isStandard)
+            {
+                actuallyAddInclude(requirementHuDirs, include.node->filePath, true, this);
+                actuallyAddInclude(usageRequirementHuDirs, include.node->filePath, true, this);
+            }
         }
     }
+
     return *this;
+}
+
+bool CppSourceTarget::actuallyAddSourceFile(vector<SourceNode> &sourceFiles, const pstring &sourceFile,
+                                            CppSourceTarget *target)
+{
+    Node *node = Node::getNodeFromNonNormalizedPath(sourceFile, true);
+    return actuallyAddSourceFile(sourceFiles, node, target);
+}
+
+bool CppSourceTarget::actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Node *sourceFileNode,
+                                            CppSourceTarget *target)
+{
+    bool found = false;
+    for (const SourceNode &source : sourceFiles)
+    {
+        if (source.node == sourceFileNode)
+        {
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+    {
+        sourceFiles.emplace_back(target, sourceFileNode);
+        return true;
+    }
+    return false;
+}
+
+bool CppSourceTarget::actuallyAddModuleFile(vector<SMFile> &smFiles, const pstring &moduleFile, CppSourceTarget *target)
+{
+    Node *node = Node::getNodeFromNonNormalizedPath(moduleFile, true);
+    return actuallyAddModuleFile(smFiles, node, target);
+}
+
+bool CppSourceTarget::actuallyAddModuleFile(vector<SMFile> &smFiles, Node *moduleFileNode, CppSourceTarget *target)
+{
+    bool found = false;
+    for (const SMFile &smFile : smFiles)
+    {
+        if (smFile.node == moduleFileNode)
+        {
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+    {
+        smFiles.emplace_back(target, moduleFileNode);
+        return true;
+    }
+    return false;
 }
 
 // For some features the resultant object-file is same these are termed incidental. Change these does not result in
@@ -788,6 +854,18 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     }
     else if (round == 2)
     {
+        if (bsMode == BSMode::CONFIGURE)
+        {
+            if (evaluate(UseMiniTarget::YES))
+            {
+                writeTargetConfigCacheAtConfigureTime(true);
+            }
+        }
+
+        if (bsMode == BSMode::BUILD && evaluate(UseMiniTarget::YES))
+        {
+            readConfigCacheAtBuildTime();
+        }
         populateRequirementAndUsageRequirementDeps();
         // Needed to maintain ordering between different includes specification.
         reqIncSizeBeforePopulate = requirementIncludes.size();
@@ -806,6 +884,104 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         setSourceCompileCommandPrintFirstHalf();
         parseModuleSourceFiles(builder);
         populateResolveRequirePathDependencies();
+        if (bsMode == BSMode::CONFIGURE)
+        {
+            create_directories(buildCacheFilesDirPath);
+            if (evaluate(UseMiniTarget::YES))
+            {
+                writeTargetConfigCacheAtConfigureTime(false);
+            }
+        }
+    }
+}
+
+void CppSourceTarget::writeTargetConfigCacheAtConfigureTime(bool before) const
+{
+    if (before)
+    {
+        using CppTargetConfigCache = Indices::CppTargetConfigCache;
+
+        PValue &reqInclDirectoriesConfigCache = targetConfigCache[0][CppTargetConfigCache::requriementIncludesArray];
+        for (const InclNode &inclNode : requirementIncludes)
+        {
+            Node::emplaceNodeInPValue(inclNode.node, reqInclDirectoriesConfigCache, ralloc);
+            reqInclDirectoriesConfigCache.PushBack(inclNode.isStandard, ralloc);
+        }
+
+        PValue &useReqInclDirectoriesConfigCache =
+            targetConfigCache[0][CppTargetConfigCache::usageRequirementIncludesArray];
+        for (const InclNode &inclNode : usageRequirementIncludes)
+        {
+            Node::emplaceNodeInPValue(inclNode.node, useReqInclDirectoriesConfigCache);
+            useReqInclDirectoriesConfigCache.PushBack(inclNode.isStandard, ralloc);
+        }
+
+        PValue &reqHUDirConfigCache = targetConfigCache[0][CppTargetConfigCache::requirementHUDirArray];
+        for (const auto &[inclNode, target] : requirementHuDirs)
+        {
+            Node::emplaceNodeInPValue(inclNode.node, reqHUDirConfigCache);
+            reqHUDirConfigCache.PushBack(inclNode.isStandard, ralloc);
+        }
+
+        PValue &useReqHUDirConfigCache = targetConfigCache[0][CppTargetConfigCache::usageRequirementHUDirArray];
+        for (const auto &[inclNode, target] : usageRequirementHuDirs)
+        {
+            Node::emplaceNodeInPValue(inclNode.node, useReqHUDirConfigCache);
+            useReqHUDirConfigCache.PushBack(inclNode.isStandard, ralloc);
+        }
+    }
+}
+
+void CppSourceTarget::readConfigCacheAtBuildTime()
+{
+    using CppTargetConfigCache = Indices::CppTargetConfigCache;
+
+    PValue &reqInclCache = targetConfigCache[0][CppTargetConfigCache::requriementIncludesArray];
+    PValue &useReqInclCache = targetConfigCache[0][CppTargetConfigCache::usageRequirementIncludesArray];
+    PValue &reqHUDirCache = targetConfigCache[0][CppTargetConfigCache::requirementHUDirArray];
+    PValue &useReqHUDirCache = targetConfigCache[0][CppTargetConfigCache::usageRequirementHUDirArray];
+    PValue &sourceNodesCache = targetConfigCache[0][CppTargetConfigCache::sourceFiles];
+    PValue &moduleNodesCache = targetConfigCache[0][CppTargetConfigCache::moduleFiles];
+
+    requirementIncludes.reserve(reqInclCache.Size() / 2);
+    for (uint64_t i = 0; i < reqInclCache.Size(); i = i + 2)
+    {
+        requirementIncludes.emplace_back(Node::getNodeFromPValue(reqInclCache[i], false),
+                                         reqInclCache[i + 1].GetBool());
+    }
+
+    usageRequirementIncludes.reserve(useReqInclCache.Size() / 2);
+    for (uint64_t i = 0; i < useReqInclCache.Size(); i = i + 2)
+    {
+        usageRequirementIncludes.emplace_back(Node::getNodeFromPValue(useReqInclCache[i], false),
+                                              useReqInclCache[i + 1].GetBool());
+    }
+
+    requirementHuDirs.reserve(reqHUDirCache.Size() / 2);
+    for (uint64_t i = 0; i < reqHUDirCache.Size(); i = i + 2)
+    {
+        requirementHuDirs.emplace_back(
+            InclNode(Node::getNodeFromPValue(reqHUDirCache[i], false), reqHUDirCache[i + 1].GetBool()), this);
+    }
+
+    usageRequirementHuDirs.reserve(useReqHUDirCache.Size() / 2);
+    for (uint64_t i = 0; i < useReqHUDirCache.Size(); i = i + 2)
+    {
+        usageRequirementHuDirs.emplace_back(
+            InclNode(Node::getNodeFromPValue(useReqHUDirCache[i], false), useReqHUDirCache[i + 1].GetBool()), this);
+    }
+
+    sourceFileDependencies.reserve(sourceNodesCache.Size());
+    for (PValue &pValue : sourceNodesCache.GetArray())
+    {
+        sourceFileDependencies.emplace_back(this, Node::getNodeFromPValue(pValue, true));
+    }
+
+    moduleSourceFileDependencies.reserve(moduleNodesCache.Size() / 2);
+    for (uint64_t i = 0; i < moduleNodesCache.Size(); i = i + 2)
+    {
+        moduleSourceFileDependencies.emplace_back(this, Node::getNodeFromPValue(moduleNodesCache[i], true));
+        moduleSourceFileDependencies[i / 2].isInterface = moduleNodesCache[i + 1].GetBool();
     }
 }
 
@@ -877,187 +1053,76 @@ CppSourceTarget &CppSourceTarget::interfaceCompileDefinition(const pstring &cddN
     return *this;
 }
 
-void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const bool recursive, const SourceDirectory &dir)
+void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const pstring &sourceDirectory, pstring regex,
+                                           const bool recursive)
 {
     if (evaluate(TreatModuleAsSource::YES))
     {
         assignToSourceNodes = true;
     }
 
-    if (bsMode == BSMode::CONFIGURE)
+    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
     {
-        vector<Node *> nodes;
-        auto addNewFile = [&](const auto &k) {
-            try
+        // Initialized in CppSourceTarget round 2
+        return;
+    }
+
+    const SourceDirectory dir{sourceDirectory, std::move(regex), recursive};
+    auto addNewFile = [&](const auto &k) {
+        try
+        {
+            if (k.is_regular_file() && regex_match((k.path().filename().*toPStr)(), std::regex(dir.regex)))
             {
-                if (k.is_regular_file() && regex_match((k.path().filename().*toPStr)(), std::regex(dir.regex)))
+                Node *node = Node::getNodeFromNonNormalizedPath(k.path(), true);
+                if (assignToSourceNodes)
                 {
-                    Node *node = Node::getNodeFromNonNormalizedPath(k.path(), true);
-                    if (assignToSourceNodes)
+                    if (evaluate(UseMiniTarget::YES))
                     {
-                        sourceFileDependencies.emplace(this, node);
+                        targetConfigCache[0][Indices::CppTargetConfigCache::sourceFiles].PushBack(node->getPValue(),
+                                                                                                  ralloc);
                     }
                     else
                     {
-                        moduleSourceFileDependencies.emplace(this, node);
+                        actuallyAddSourceFile(sourceFileDependencies, node, this);
                     }
-                    nodes.emplace_back(node);
                 }
-            }
-            catch (const std::regex_error &e)
-            {
-                printErrorMessage(fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
-                                              e.what(), dir.regex, targetSubDir));
-                throw std::exception();
-            }
-        };
-
-        if (recursive)
-        {
-            for (const auto &k : recursive_directory_iterator(path(dir.sourceDirectory->filePath)))
-            {
-                addNewFile(k);
-            }
-        }
-        else
-        {
-            for (const auto &k : directory_iterator(path(dir.sourceDirectory->filePath)))
-            {
-                addNewFile(k);
-            }
-        }
-
-        if (evaluate(StaticSourceDirs::YES))
-        {
-            // It is assumed that the same file can not be in source and module. So, this info is not recorded.
-            PValue *targetSourceCacheDirectoryPointer;
-            if (const size_t it = pvalueIndexInSubArray(sourceDirectoryCache, PValue(ptoref(targetSubDir)));
-                it == UINT64_MAX)
-            {
-                sourceDirectoryCache.PushBack(kArrayType, ralloc);
-                targetSourceCacheDirectoryPointer = &sourceDirectoryCache[sourceDirectoryCache.Size() - 1];
-                targetSourceCacheDirectoryPointer->PushBack(ptoref(targetSubDir), ralloc);
-                targetSourceCacheDirectoryPointer->PushBack(kArrayType, ralloc);
-            }
-            else
-            {
-                targetSourceCacheDirectoryPointer = &sourceDirectoryCache[it];
-            }
-
-            PValue &targetSourceDirectoryCache = (*targetSourceCacheDirectoryPointer)[1];
-
-            const pstring *regexPlusDirFilePath = new pstring{dir.sourceDirectory->filePath + dir.regex};
-            if (const size_t it =
-                    pvalueIndexInSubArray(targetSourceDirectoryCache, PValue(ptoref(*regexPlusDirFilePath)));
-                it == UINT64_MAX)
-            {
-                targetSourceDirectoryCache.PushBack(kArrayType, ralloc);
-                auto &sourceDirectoryCache = targetSourceDirectoryCache[targetSourceDirectoryCache.Size() - 1];
-                sourceDirectoryCache.PushBack(PValue(ptoref(*regexPlusDirFilePath)), ralloc);
-
-                for (const Node *node : nodes)
+                else
                 {
-                    sourceDirectoryCache.PushBack(PValue(ptoref(node->filePath)), ralloc);
+                    if (evaluate(UseMiniTarget::YES))
+                    {
+                        targetConfigCache[0][Indices::CppTargetConfigCache::moduleFiles].PushBack(node->getPValue(),
+                                                                                                  ralloc);
+                        // isInterface is false
+                        targetConfigCache[0][Indices::CppTargetConfigCache::moduleFiles].PushBack(PValue(false),
+                                                                                                  ralloc);
+                    }
+                    else
+                    {
+                        actuallyAddModuleFile(moduleSourceFileDependencies, node, this);
+                    }
                 }
             }
-            else
-            {
-                printErrorMessage(fmt::format("SourceDirectory {} with regex {} already exists in target {}\n",
-                                              dir.sourceDirectory->filePath, dir.regex, targetSubDir));
-            }
+        }
+        catch (const std::regex_error &e)
+        {
+            printErrorMessage(fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
+                                          e.what(), dir.regex, targetSubDir));
+            throw std::exception();
+        }
+    };
+
+    if (recursive)
+    {
+        for (const auto &k : recursive_directory_iterator(path(dir.sourceDirectory->filePath)))
+        {
+            addNewFile(k);
         }
     }
     else
     {
-        if (evaluate(StaticSourceDirs::YES))
+        for (const auto &k : directory_iterator(path(dir.sourceDirectory->filePath)))
         {
-            // It is assumed that the same file can not be in source and module. So, this info is not recorded.
-            PValue *targetSourceDirectoryCachePointer;
-            if (const size_t it = pvalueIndexInSubArray(sourceDirectoryCache, PValue(ptoref(targetSubDir)));
-                it == UINT64_MAX)
-            {
-                printErrorMessage(fmt::format(
-                    "Target {} with static source directories not found in src-dir-cache.json ", targetSubDir));
-                exit(EXIT_FAILURE);
-            }
-            else
-            {
-                targetSourceDirectoryCachePointer = &sourceDirectoryCache[it];
-            }
-
-            PValue &targetSourceDirectoryCache = (*targetSourceDirectoryCachePointer)[1];
-
-            const string regexPlusDirFilePath = dir.sourceDirectory->filePath + dir.regex;
-            if (const size_t it =
-                    pvalueIndexInSubArray(targetSourceDirectoryCache, PValue(ptoref(regexPlusDirFilePath)));
-                it == UINT64_MAX)
-            {
-                printErrorMessage(fmt::format("Static SourceDirectory {} with regex {} of Target {} not found in the "
-                                              "target's cache in src-dir-cache.json\n",
-                                              dir.sourceDirectory->filePath, dir.regex, targetSubDir));
-            }
-            else
-            {
-                if (!targetSourceDirectoryCache[it].Empty())
-                {
-                    for (uint64_t i = 1; i < targetSourceDirectoryCache[it].Size(); ++i)
-                    {
-                        PValue &value = targetSourceDirectoryCache[it][i];
-                        Node *node = Node::getNodeFromNormalizedString(
-                            pstring_view(value.GetString(), value.GetStringLength()), true);
-                        if (assignToSourceNodes)
-                        {
-                            sourceFileDependencies.emplace(this, node);
-                        }
-                        else
-                        {
-                            moduleSourceFileDependencies.emplace(this, node);
-                        }
-                    }
-                }
-            }
-        }
-        else
-        {
-            auto addNewFile = [&](const auto &k) {
-                try
-                {
-                    if (k.is_regular_file() && regex_match((k.path().filename().*toPStr)(), std::regex(dir.regex)))
-                    {
-                        if (assignToSourceNodes)
-                        {
-                            sourceFileDependencies.emplace(this, Node::getNodeFromNonNormalizedPath(k.path(), true));
-                        }
-                        else
-                        {
-                            moduleSourceFileDependencies.emplace(this,
-                                                                 Node::getNodeFromNonNormalizedPath(k.path(), true));
-                        }
-                    }
-                }
-                catch (const std::regex_error &e)
-                {
-                    printErrorMessage(
-                        fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n", e.what(),
-                                    dir.regex, targetSubDir));
-                    throw std::exception();
-                }
-            };
-
-            if (recursive)
-            {
-                for (const auto &k : recursive_directory_iterator(path(dir.sourceDirectory->filePath)))
-                {
-                    addNewFile(k);
-                }
-            }
-            else
-            {
-                for (const auto &k : directory_iterator(path(dir.sourceDirectory->filePath)))
-                {
-                    addNewFile(k);
-                }
-            }
+            addNewFile(k);
         }
     }
 }
@@ -1229,12 +1294,12 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
 
         // Maybe store pointers to these in CppSourceTarget
         targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
-        (*targetBuildCache)[Indices::TargetBuildCache::sourceFiles].Reserve(sourceFileDependencies.size(),
-                                                                            cppAllocator);
+        (*targetBuildCache)[Indices::CppTargetBuildCache::sourceFiles].Reserve(sourceFileDependencies.size(),
+                                                                               cppAllocator);
 
         targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
-        (*targetBuildCache)[Indices::TargetBuildCache::moduleFiles].Reserve(moduleSourceFileDependencies.size(),
-                                                                            cppAllocator);
+        (*targetBuildCache)[Indices::CppTargetBuildCache::moduleFiles].Reserve(moduleSourceFileDependencies.size(),
+                                                                               cppAllocator);
 
         // Header-units size can't be known as these are dynamically discovered.
         targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
@@ -1246,10 +1311,10 @@ void CppSourceTarget::readBuildCacheFile(Builder &)
         targetBuildCache =
             make_unique<PValue>(PValue(buildCache[buildCacheIndex][Indices::targetBuildCache], cppAllocator));
 
-        PValue &sourceValue = (*targetBuildCache)[Indices::TargetBuildCache::sourceFiles];
+        PValue &sourceValue = (*targetBuildCache)[Indices::CppTargetBuildCache::sourceFiles];
         sourceValue.Reserve(sourceValue.Size() + sourceFileDependencies.size(), cppAllocator);
 
-        PValue &moduleValue = (*targetBuildCache)[Indices::TargetBuildCache::moduleFiles];
+        PValue &moduleValue = (*targetBuildCache)[Indices::CppTargetBuildCache::moduleFiles];
         moduleValue.Reserve(moduleValue.Size() + moduleSourceFileDependencies.size(), cppAllocator);
 
         // Header-units size can't be known as these are dynamically discovered.
@@ -1260,12 +1325,12 @@ void CppSourceTarget::resolveRequirePaths()
 {
     for (const SMFile &smFile : moduleSourceFileDependencies)
     {
-        using ModuleFiles = Indices::TargetBuildCache::ModuleFiles;
+        using ModuleFiles = Indices::CppTargetBuildCache::ModuleFiles;
 
         for (PValue &require :
              (*smFile.sourceJson)[ModuleFiles::smRules][ModuleFiles::SmRules::requireArray].GetArray())
         {
-            using SingleModuleDep = Indices::TargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
+            using SingleModuleDep = Indices::CppTargetBuildCache::ModuleFiles::SmRules::SingleModuleDep;
 
             // TODO
             // Change smFile->logicalName to PValue to efficiently compare it with Value PValue
@@ -1325,11 +1390,11 @@ void CppSourceTarget::resolveRequirePaths()
             if (found)
             {
                 const_cast<SMFile &>(smFile).realBTargets[0].addDependency(const_cast<SMFile &>(*found));
-                if (!smFile.fileStatus.load())
+                if (!atomic_ref(smFile.fileStatus).load())
                 {
                     if (require[SingleModuleDep::fullPath].GetString() != found->objectFileOutputFilePath->filePath)
                     {
-                        const_cast<SMFile &>(smFile).fileStatus.store(true);
+                        atomic_ref(const_cast<SMFile &>(smFile).fileStatus).store(true);
                     }
                 }
                 const_cast<SMFile &>(smFile).pValueObjectFileMapping.emplace_back(&require,
@@ -1351,17 +1416,13 @@ void CppSourceTarget::resolveRequirePaths()
 
 void CppSourceTarget::populateSourceNodes()
 {
-    PValue &sourceFilesJson = (*targetBuildCache)[Indices::TargetBuildCache::sourceFiles];
+    PValue &sourceFilesJson = (*targetBuildCache)[Indices::CppTargetBuildCache::sourceFiles];
 
     for (const SourceNode &sourceNodeConst : sourceFileDependencies)
     {
         auto &sourceNode = const_cast<SourceNode &>(sourceNodeConst);
 
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-        const size_t fileIt = pvalueIndexInSubArray(sourceFilesJson, PValue(sourceNode.node->myId));
-#else
-        const size_t fileIt = pvalueIndexInSubArray(sourceFilesJson, PValue(ptoref(sourceNode.node->filePath)));
-#endif
+        const size_t fileIt = pvalueIndexInSubArray(sourceFilesJson, PValue(sourceNode.node->getPValue()));
 
         if (fileIt != UINT64_MAX)
         {
@@ -1372,13 +1433,7 @@ void CppSourceTarget::populateSourceNodes()
             sourceFilesJson.PushBack(PValue(kArrayType), sourceNode.sourceNodeAllocator);
             PValue &sourceJson = *(sourceFilesJson.End() - 1);
             sourceNode.sourceJson = &sourceJson;
-
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-            sourceJson.PushBack(PValue(sourceNode.node->myId), sourceNode.sourceNodeAllocator);
-#else
-            sourceJson.PushBack(ptoref(sourceNode.node->filePath), sourceNode.sourceNodeAllocator);
-#endif
-
+            Node::emplaceNodeInPValue(sourceNode.node, sourceJson, sourceNode.sourceNodeAllocator);
             sourceJson.PushBack(PValue(kStringType), sourceNode.sourceNodeAllocator);
             sourceJson.PushBack(PValue(kArrayType), sourceNode.sourceNodeAllocator);
         }
@@ -1390,7 +1445,7 @@ void CppSourceTarget::populateSourceNodes()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
-    PValue &moduleFilesJson = (*targetBuildCache)[Indices::TargetBuildCache::moduleFiles];
+    PValue &moduleFilesJson = (*targetBuildCache)[Indices::CppTargetBuildCache::moduleFiles];
 
     for (const SMFile &smFileConst : moduleSourceFileDependencies)
     {
@@ -1400,11 +1455,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
         resolveRequirePathBTarget.realBTargets[1].addDependency(smFile);
         adjustHeaderUnitsBTarget.realBTargets[1].addDependency(smFile);
 
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-        const size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(smFile.node->myId));
-#else
-        const size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(ptoref(smFile.node->filePath)));
-#endif
+        const size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(smFile.node->getPValue()));
 
         if (fileIt != UINT64_MAX)
         {
@@ -1415,13 +1466,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
             moduleFilesJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
             PValue &moduleJson = *(moduleFilesJson.End() - 1);
             smFile.sourceJson = &moduleJson;
-
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-            moduleJson.PushBack(PValue(smFile.node->myId), smFile.sourceNodeAllocator);
-#else
-            moduleJson.PushBack(PValue(ptoref(smFile.node->filePath)), smFile.sourceNodeAllocator);
-#endif
-
+            Node::emplaceNodeInPValue(smFile.node, moduleJson, smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kStringType), smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
             moduleJson.PushBack(PValue(kArrayType), smFile.sourceNodeAllocator);
@@ -1551,7 +1596,7 @@ pstring CppSourceTarget::getExtension() const
 
 mutex cppSourceTargetDotCpp_TempMutex;
 
-PostCompile CppSourceTarget::updateSourceNodeBTarget(SourceNode &sourceNode)
+PostCompile CppSourceTarget::updateSourceNodeBTarget(const SourceNode &sourceNode)
 {
     targetCacheChanged.store(true);
 

@@ -31,8 +31,8 @@ void Configuration::markArchivePoint()
 
 CppSourceTarget &Configuration::getCppPreprocess(const pstring &name_)
 {
-    CppSourceTarget &cppSourceTarget = const_cast<CppSourceTarget &>(
-        targets<CppSourceTarget>.emplace(targetSubDir + slashc + name_, TargetType::PREPROCESS).first.operator*());
+    CppSourceTarget &cppSourceTarget =
+        targets2<CppSourceTarget>.emplace_back(targetSubDir + slashc + name_, TargetType::PREPROCESS);
     cppSourceTargets.emplace_back(&cppSourceTarget);
     static_cast<CppCompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
@@ -40,42 +40,45 @@ CppSourceTarget &Configuration::getCppPreprocess(const pstring &name_)
 
 CppSourceTarget &Configuration::getCppObject(const pstring &name_)
 {
-    CppSourceTarget &cppSourceTarget = const_cast<CppSourceTarget &>(
-        targets<CppSourceTarget>.emplace(targetSubDir + slashc + name_, TargetType::LIBRARY_OBJECT).first.operator*());
+    CppSourceTarget &cppSourceTarget =
+        targets2<CppSourceTarget>.emplace_back(targetSubDir + slashc + name_, TargetType::LIBRARY_OBJECT);
     cppSourceTargets.emplace_back(&cppSourceTarget);
     static_cast<CppCompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
 }
 
-PrebuiltBasic &Configuration::getPrebuiltBasic(const pstring &name_)
+PrebuiltBasic &Configuration::getPrebuiltBasic(const pstring &name_) const
 {
-    return const_cast<PrebuiltBasic &>(targets<PrebuiltBasic>.emplace(targetSubDir + slashc + name_).first.operator*());
+    return targets2<PrebuiltBasic>.emplace_back(targetSubDir + slashc + name_, TargetType::LIBRARY_OBJECT);
 }
 
 LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(const pstring &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(targetSubDir + slashc + name_, TargetType::EXECUTABLE).first.operator*());
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
+    LinkOrArchiveTarget &linkOrArchiveTarget =
+        targets2<LinkOrArchiveTarget>.emplace_back(targetSubDir + slashc + name_, TargetType::EXECUTABLE);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
+    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
 
 LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(const pstring &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(targetSubDir + slashc + name_, TargetType::LIBRARY_STATIC).first.operator*());
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
+    LinkOrArchiveTarget &linkOrArchiveTarget =
+        targets2<LinkOrArchiveTarget>.emplace_back(targetSubDir + slashc + name_, TargetType::LIBRARY_STATIC);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
+    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
 
 LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTarget(const pstring &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = const_cast<LinkOrArchiveTarget &>(
-        targets<LinkOrArchiveTarget>.emplace(targetSubDir + slashc + name_, TargetType::LIBRARY_SHARED).first.operator*());
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
+    LinkOrArchiveTarget &linkOrArchiveTarget =
+        targets2<LinkOrArchiveTarget>.emplace_back(targetSubDir + slashc + name_, TargetType::LIBRARY_SHARED);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
+    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
 
@@ -83,28 +86,31 @@ PrebuiltLinkOrArchiveTarget &Configuration::getPrebuiltLinkOrArchiveTarget(const
                                                                            const pstring &directory,
                                                                            TargetType linkTargetType_)
 {
-    PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget = const_cast<PrebuiltLinkOrArchiveTarget &>(
-        targets<PrebuiltLinkOrArchiveTarget>.emplace(targetSubDir + slashc + name_, directory, linkTargetType_).first.operator*());
-    prebuiltLinkOrArchiveTargets.emplace_back(&prebuiltLinkOrArchiveTarget);
-    return prebuiltLinkOrArchiveTarget;
+    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
+        targets2<PrebuiltLinkOrArchiveTarget>.emplace_back(targetSubDir + slashc + name_, directory, linkTargetType_);
+    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
+    return linkOrArchiveTarget;
 }
 
 PrebuiltLinkOrArchiveTarget &Configuration::getStaticPrebuiltLinkOrArchiveTarget(const pstring &name_,
                                                                                  const pstring &directory)
 {
-    PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget = const_cast<PrebuiltLinkOrArchiveTarget &>(
-        targets<PrebuiltLinkOrArchiveTarget>.emplace(targetSubDir + slashc + name_, directory, TargetType::LIBRARY_STATIC).first.operator*());
-    prebuiltLinkOrArchiveTargets.emplace_back(&prebuiltLinkOrArchiveTarget);
-    return prebuiltLinkOrArchiveTarget;
+    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget = targets2<PrebuiltLinkOrArchiveTarget>.emplace_back(
+        targetSubDir + slashc + name_, directory, TargetType::LIBRARY_STATIC);
+    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
+    return linkOrArchiveTarget;
 }
 
 PrebuiltLinkOrArchiveTarget &Configuration::getSharedPrebuiltLinkOrArchiveTarget(const pstring &name_,
                                                                                  const pstring &directory)
 {
-    PrebuiltLinkOrArchiveTarget &prebuiltLinkOrArchiveTarget = const_cast<PrebuiltLinkOrArchiveTarget &>(
-        targets<PrebuiltLinkOrArchiveTarget>.emplace(targetSubDir + slashc + name_, directory, TargetType::LIBRARY_SHARED).first.operator*());
-    prebuiltLinkOrArchiveTargets.emplace_back(&prebuiltLinkOrArchiveTarget);
-    return prebuiltLinkOrArchiveTarget;
+    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget = targets2<PrebuiltLinkOrArchiveTarget>.emplace_back(
+        targetSubDir + slashc + name_, directory, TargetType::LIBRARY_SHARED);
+    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
+    return linkOrArchiveTarget;
 }
 
 /*
@@ -118,10 +124,8 @@ CSourceTarget &Configuration::GetCPT()
 
 DSC<CppSourceTarget> &Configuration::getCppExeDSC(const pstring &name_, const bool defines, pstring define)
 {
-    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(
-                                                                               &getCppObject( name_ + dashCpp),
-                                                                               &GetExeLinkOrArchiveTarget( name_), defines,
-                                                                               std::move(define)).first.operator*());
+    return targets2<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp),
+                                                       &GetExeLinkOrArchiveTarget(name_), defines, std::move(define));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const pstring &name_, const TargetType targetType_,
@@ -131,34 +135,29 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const pstring &name_, const
     {
         return getCppStaticDSC(name_, defines, std::move(define));
     }
-    else if (targetType_ == TargetType::LIBRARY_SHARED)
+    if (targetType_ == TargetType::LIBRARY_SHARED)
     {
         return getCppSharedDSC(name_, defines, std::move(define));
     }
-    else
-    {
-        return getCppObjectDSC(name_, defines, std::move(define));
-    }
+    return getCppObjectDSC(name_, defines, std::move(define));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC(const pstring &name_, const bool defines, pstring define)
 {
-    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(&getCppObject(name_ + dashCpp),
-                                                                                    &getStaticLinkOrArchiveTarget(name_), defines,
-                                                                                    std::move(define)).first.operator*());
+    return targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(name_ + dashCpp), &getStaticLinkOrArchiveTarget(name_), defines, std::move(define));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppSharedDSC(const pstring &name_, const bool defines, pstring define)
 {
-    return const_cast<DSC<CppSourceTarget> &>(targets<DSC<CppSourceTarget>>.emplace(&getCppObject(name_ + dashCpp),
-                                                                                    &getSharedLinkOrArchiveTarget(name_), defines,
-                                                                                    std::move(define)).first.operator*());
+    return targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(name_ + dashCpp), &getSharedLinkOrArchiveTarget(name_), defines, std::move(define));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppObjectDSC(const pstring &name_, const bool defines, pstring define)
 {
-    return const_cast<DSC<CppSourceTarget> &>(
-        targets<DSC<CppSourceTarget>>.emplace(&getCppObject(name_ + dashCpp), &getPrebuiltBasic(name_), defines, std::move(define)).first.operator*());
+    return targets2<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp), &getPrebuiltBasic(name_),
+                                                       defines, std::move(define));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const pstring &name_, const pstring &directory,
@@ -168,15 +167,12 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const pstring &name_, con
     {
         return getCppStaticDSC_P(name_, directory, defines, define);
     }
-    else if (targetType_ == TargetType::LIBRARY_SHARED)
+    if (targetType_ == TargetType::LIBRARY_SHARED)
     {
         return getCppSharedDSC_P(name_, directory, defines, define);
     }
-    else
-    {
-        printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-        throw std::exception{};
-    }
+    printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
+    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const pstring &name_, const pstring &prebuiltName,
@@ -186,35 +182,44 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const pstring &name_, con
     CppSourceTarget *cppSourceTarget = &getCppObject(name_ + dashCpp);
     if (targetType_ == TargetType::LIBRARY_STATIC)
     {
-        return const_cast<DSC<CppSourceTarget> &>(
-            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &getStaticPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines, std::move(define)).first.operator*());
+        return targets2<DSC<CppSourceTarget>>.emplace_back(
+            cppSourceTarget, &getStaticPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines);
     }
-    else if (targetType_ == TargetType::LIBRARY_SHARED)
+    if (targetType_ == TargetType::LIBRARY_SHARED)
     {
-        return const_cast<DSC<CppSourceTarget> &>(
-            targets<DSC<CppSourceTarget>>.emplace(cppSourceTarget, &getSharedPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines, std::move(define)).first.operator*());
+        return targets2<DSC<CppSourceTarget>>.emplace_back(
+            cppSourceTarget, &getSharedPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines);
     }
-    else
-    {
-        printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-        throw std::exception{};
-    }
+    printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
+    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC_P(const pstring &name_, const pstring &directory,
                                                        const bool defines, pstring define)
 {
-    return const_cast<DSC<CppSourceTarget> &>(
-        targets<DSC<CppSourceTarget>>.emplace(&getCppObject(name_ + dashCpp), &getStaticPrebuiltLinkOrArchiveTarget(name_, directory),
-                                                    defines, std::move(define)).first.operator*());
+    return targets2<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp),
+                                                       &getStaticPrebuiltLinkOrArchiveTarget(name_, directory), defines,
+                                                       std::move(define));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppSharedDSC_P(const pstring &name_, const pstring &directory,
                                                        const bool defines, pstring define)
 {
-    return const_cast<DSC<CppSourceTarget> &>(
-        targets<DSC<CppSourceTarget>>.emplace(&getCppObject(name_ + dashCpp), &getSharedPrebuiltLinkOrArchiveTarget(name_, directory),
-                                                    defines, std::move(define)).first.operator*());
+    return targets2<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp),
+                                                       &getSharedPrebuiltLinkOrArchiveTarget(name_, directory), defines,
+                                                       std::move(define));
+}
+
+bool Configuration::getUseMiniTarget() const
+{
+    if (bsMode == BSMode::BUILD)
+    {
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool operator<(const Configuration &lhs, const Configuration &rhs)

@@ -82,8 +82,7 @@ DSC<CppSourceTarget> &getCppSharedDSC_P(bool buildExplicit, const pstring &name,
                                         bool defines = false, pstring define = "");
 
 template <typename... U>
-RoundZeroUpdateBTarget &getRoundZeroUpdateBTarget(function<void(class Builder &, BTarget &bTarget)> func,
-                                                  U &...dependencies)
+RoundZeroUpdateBTarget &getRoundZeroUpdateBTarget(function<void(Builder &, BTarget &bTarget)> func, U &...dependencies)
 {
     RoundZeroUpdateBTarget &roundZeroUpdateBTarget = const_cast<RoundZeroUpdateBTarget &>(
         targets<RoundZeroUpdateBTarget>.emplace(std::move(func)).first.operator*());

@@ -62,6 +62,7 @@ class Node
   public:
     explicit Node(pstring filePath_);
     pstring getFileName() const;
+    PValue getPValue() const;
 
     static path getFinalNodePathFromPath(path filePath);
 
@@ -74,8 +75,10 @@ class Node
     static Node *getNodeFromNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
 
-    /*    static Node *getNodeFromPath(const path &p, bool isFile, bool mayNotExist = false);
-        static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);*/
+    static Node *getHalfNodeFromNormalizedString(pstring normalizedFilePath);
+    static void emplaceNodeInPValue(const Node *node, PValue &pValue);
+    static void emplaceNodeInPValue(const Node *node, PValue &pValue, decltype(ralloc) alloc);
+    static Node *getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist = false);
 
   private:
     void performSystemCheck(bool isFile, bool mayNotExist);
@@ -85,8 +88,6 @@ class Node
     bool loadedFromNodesCache = false;
     static void clearNodes();
 };
-bool operator<(const Node &lhs, const Node &rhs);
-void to_json(Json &j, const Node *node);
 
 //  This keeps info if a file is touched. If it's touched, it's not touched again.
 inline phmap::parallel_flat_hash_set_m<Node, NodeHash, NodeEqual> nodeAllFiles{10000};

@@ -2,6 +2,7 @@
 #define HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 #ifdef USE_HEADER_UNITS
 import "OS.hpp";
+import <deque>;
 import <map>;
 import <mutex>;
 import "PlatformSpecific.hpp";
@@ -11,12 +12,13 @@ import <set>;
 #include "OS.hpp"
 #include "PlatformSpecific.hpp"
 #include "nlohmann/json.hpp"
+#include <deque>
 #include <map>
 #include <mutex>
 #include <set>
 #endif
 
-using std::set, std::map, std::mutex, std::vector;
+using std::set, std::map, std::mutex, std::vector, std::deque;
 
 #ifdef _WIN32
 #define EXPORT __declspec(dllexport)
@@ -38,14 +40,19 @@ inline char slashc = '/';
 // processing.
 using Json = nlohmann::json; // Unordered json
 inline PDocument buildCache(kArrayType);
-inline unique_ptr<char[]> buildCacheFileBuffer;
-inline PDocument sourceDirectoryCache(kArrayType);
-inline unique_ptr<char[]> sourceDirectoryCacheBuffer;
+inline unique_ptr<vector<pchar>> buildCacheFileBuffer;
 inline PDocument nodesCache(kArrayType);
-inline unique_ptr<char[]> nodesCacheBuffer;
+inline unique_ptr<vector<pchar>> nodesCacheBuffer;
+inline PDocument configCache(kArrayType);
+inline unique_ptr<vector<pchar>> configCacheBuffer;
+
+inline vector<PValue *> targetConfigCaches;
+
 inline auto &ralloc = buildCache.GetAllocator();
 inline std::mutex buildCacheMutex;
 void writeBuildCacheUnlocked();
+
+inline uint64_t nodesCacheSizeBefore = 0;
 
 // Node representing source directory
 inline class Node *srcNode;
@@ -69,6 +76,8 @@ inline BSMode bsMode = BSMode::CONFIGURE;
 // functions
 template <typename T> inline set<T> targets;
 
+template <typename T> inline deque<T> targets2;
+
 // Following can be used to hold pointers for all targets in the build system. It is used by CTarget and BTarget
 // constructor.
 template <typename T> inline set<T *> targetPointers;
@@ -81,8 +90,6 @@ inline constexpr OS os = OS::LINUX;
 
 inline std::mutex printMutex;
 
-// presort will be called for such targets in 3 rounds. Currently, CppSourceTarget and PrebuiltBasic is added.
-inline vector<struct BTarget *> preSortBTargets;
 void initializeCache(BSMode bsMode_);
 BSMode getBuildSystemModeFromArguments(int argc, char **argv);
 inline const pstring dashCpp = "-cpp";

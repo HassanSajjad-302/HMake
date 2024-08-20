@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21.0)
 
-project(HMake LANGUAGES CXX)
+project(HMake)
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GCC")
 
@@ -48,7 +48,12 @@ add_library(hconfigure STATIC
         hconfigure/src/PrebuiltLinkOrArchiveTarget.cpp
         hconfigure/src/PrebuiltBasic.cpp
         hconfigure/src/PlatformSpecific.cpp
-        hconfigure/src/Node.cpp)
+        hconfigure/src/Node.cpp
+        hconfigure/src/ObjectFile.cpp
+        hconfigure/src/SpecialNodes.cpp
+        hconfigure/src/InclNodeTargetMap.cpp
+
+        3rdParty/lz4/lib/lz4.c)
 
 
 if (UNIX)
@@ -62,12 +67,23 @@ target_include_directories(hconfigure
         PUBLIC 3rdParty/rapidjson/include
         PUBLIC 3rdParty/rapidhash
         PUBLIC 3rdParty/parallel-hashmap/parallel_hashmap
+        PUBLIC 3rdParty/lz4/lib
 )
-# Comment out the following to switch from hash to compile-command in the build-log.
-target_compile_definitions(hconfigure PUBLIC USE_COMMAND_HASH)
 
-# Comment out the following to switch from nodes.json numbers reflected in build-cache.json to full normalized paths in build-cache.json
-target_compile_definitions(hconfigure PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
+set(HMAKE_USE_FULL_FILE OFF CACHE BOOL "use full file or smaller file(compressed, indices, hashed).")
+
+if ("${HMAKE_USE_FULL_FILE}" MATCHES OFF)
+
+    # Comment out the following to switch from hash to compile-command in the build-log.
+    target_compile_definitions(hconfigure PUBLIC USE_COMMAND_HASH)
+
+    # Comment out the following to switch from nodes.json numbers reflected in build-cache.json to full normalized paths in build-cache.json
+    target_compile_definitions(hconfigure PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
+
+    # Comment out the following to switch from json files stored as compressed vs stored as-it-is
+    target_compile_definitions(hconfigure PUBLIC USE_JSON_FILE_COMPRESSION)
+
+endif ()
 
 if (UNIX)
     target_compile_options(hconfigure PRIVATE -fvisibility=hidden)
@@ -82,6 +98,7 @@ target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/3rdP
 target_compile_definitions(hhelper PRIVATE RAPIDJSON_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/rapidjson/include/")
 target_compile_definitions(hhelper PRIVATE RAPIDHASH_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/rapidhash/")
 target_compile_definitions(hhelper PRIVATE PARALLEL_HASHMAP="${CMAKE_SOURCE_DIR}/3rdParty/parallel-hashmap/parallel_hashmap")
+target_compile_definitions(hhelper PRIVATE LZ4_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/lz4/lib")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure>")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure>")
@@ -89,11 +106,12 @@ target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/3rdPa
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:fmt::fmt>")
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_PATH="$<TARGET_FILE:fmt>")
 
-add_executable(hbuild hbuild/src/main.cpp)
+add_executable(hbuild hbuild/src/main.cpp
+        hconfigure/header/SpecialNodes.hpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Examples/Example9/hmake.cpp)
+add_executable(HMakeHelper Projects/Boost/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 

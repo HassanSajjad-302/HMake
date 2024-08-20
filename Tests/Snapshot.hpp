@@ -2,15 +2,10 @@
 #ifndef HMAKE_SNAPSHOT_HPP
 #define HMAKE_SNAPSHOT_HPP
 
-#include "SMFile.hpp"
+#include "Node.hpp"
 #include <filesystem>
 
 using std::filesystem::path, std::filesystem::file_time_type, std::filesystem::current_path;
-
-struct NodeCompare
-{
-    bool operator()(const Node *lhs, const Node *rhs) const;
-};
 
 struct Setup
 {
