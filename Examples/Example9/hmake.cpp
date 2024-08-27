@@ -3,8 +3,7 @@
 template <typename... T> void initializeTargets(DSC<CppSourceTarget> *target, T... targets)
 {
     CppSourceTarget &t = target->getSourceTarget();
-    string s = getLastNameAfterSlash(t.targetSubDir);
-    string str = s.substr(0, s.size() - 4); // Removing -cpp from the name
+    string str = removeDashCppFromName(getLastNameAfterSlash(t.name));
     t.moduleDirectoriesRE("src/" + str + "/", ".*cpp")
         .privateHUDirectories("src/" + str)
         .publicHUDirectories("include/" + str);
@@ -17,18 +16,25 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> *target, T.
 
 void configurationSpecification(Configuration &config)
 {
-    config.compilerFeatures.privateIncludes("include");
-
     DSC<CppSourceTarget> &stdhu = config.getCppObjectDSC("stdhu");
 
-    stdhu.getSourceTargetPointer()->assignStandardIncludesToPublicHUDirectories();
+    stdhu.getSourceTargetPointer()->makeReqInclsUseable().interfaceIncludes("include");
+    stdhu.getLinkOrArchiveTarget().usageRequirementLibraryDirectories =
+        stdhu.getLinkOrArchiveTarget().requirementLibraryDirectories;
 
-    DSC<CppSourceTarget> &lib4 = config.getCppTargetDSC("lib4", config.targetType);
-    DSC<CppSourceTarget> &lib3 = config.getCppTargetDSC("lib3", config.targetType).publicLibraries(&lib4);
-    DSC<CppSourceTarget> &lib2 =
-        config.getCppTargetDSC("lib2", config.targetType).publicLibraries(&stdhu).privateLibraries(&lib3);
-    DSC<CppSourceTarget> &lib1 = config.getCppTargetDSC("lib1", config.targetType).publicLibraries(&lib2);
-    DSC<CppSourceTarget> &app = config.getCppExeDSC("app").privateLibraries(&lib1);
+    config.compilerFeatures.reqIncls.clear();
+    config.prebuiltBasicFeatures.requirementLibraryDirectories.clear();
+
+    DSC<CppSourceTarget> &lib4 = config.getCppTargetDSC("lib4", config.targetType).privateLibraries(&stdhu);
+    DSC<CppSourceTarget> &lib3 =
+        config.getCppTargetDSC("lib3", config.targetType).publicLibraries(&lib4).privateLibraries(&stdhu);
+    DSC<CppSourceTarget> &lib2 = config.getCppTargetDSC("lib2", config.targetType)
+                                     .publicLibraries(&stdhu)
+                                     .privateLibraries(&lib3)
+                                     .privateLibraries(&stdhu);
+    DSC<CppSourceTarget> &lib1 =
+        config.getCppTargetDSC("lib1", config.targetType).publicLibraries(&lib2).privateLibraries(&stdhu);
+    DSC<CppSourceTarget> &app = config.getCppExeDSC("app").privateLibraries(&lib1).privateLibraries(&stdhu);
 
     initializeTargets(&lib1, &lib2, &lib3, &lib4, &app);
 }

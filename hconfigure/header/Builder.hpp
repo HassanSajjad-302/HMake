@@ -27,7 +27,8 @@ class Builder
 
     unsigned short threadCount = 0;
     unsigned short numberOfLaunchedThreads = 0;
-    atomic<unsigned short> numberOfSleepingThreads = 0;
+    unsigned short numberOfSleepingThreads = 0;
+    unsigned short numberOfSleepingThreadsCounted = 0;
     unsigned short round = 0;
     unsigned short roundGoal = 0;
 
@@ -41,6 +42,7 @@ class Builder
     explicit Builder();
     void execute();
     void incrementNumberOfSleepingThreads(bool counted);
+    void decrementNumberOfSleepingThreads(bool counted);
 };
 
 #endif // HMAKE_BUILDER_HPP

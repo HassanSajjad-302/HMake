@@ -84,7 +84,7 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSource
     }
     else
     {
-        for (const SMFile &smFile : stored->moduleSourceFileDependencies)
+        for (const SMFile &smFile : stored->modFileDeps)
         {
             if (smFile.isInterface)
             {
@@ -93,21 +93,21 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSource
         }
     }
 
-    for (auto &[inclNode, cppSourceTarget] : stored->requirementHuDirs)
+    for (auto &[inclNode, cppSourceTarget] : stored->reqHuDirs)
     {
-        CppCompilerFeatures::actuallyAddInclude(ptr->requirementHuDirs, inclNode.node->filePath, inclNode.isStandard,
-                                                ptr);
+        CppCompilerFeatures::actuallyAddInclude(ptr, ptr->reqHuDirs, inclNode.node->filePath,
+                                                inclNode.isStandard, inclNode.ignoreHeaderDeps);
     }
-    for (auto &[inclNode, cppSourceTarget] : stored->usageRequirementHuDirs)
+    for (auto &[inclNode, cppSourceTarget] : stored->useReqHuDirs)
     {
-        CppCompilerFeatures::actuallyAddInclude(ptr->usageRequirementHuDirs, inclNode.node->filePath,
-                                                inclNode.isStandard, ptr);
+        CppCompilerFeatures::actuallyAddInclude(ptr, ptr->useReqHuDirs, inclNode.node->filePath,
+                                                inclNode.isStandard, inclNode.ignoreHeaderDeps);
     }
     ptr->requirementCompileDefinitions = stored->requirementCompileDefinitions;
-    ptr->requirementIncludes = stored->requirementIncludes;
+    ptr->reqIncls = stored->reqIncls;
 
     ptr->usageRequirementCompileDefinitions = stored->usageRequirementCompileDefinitions;
-    ptr->usageRequirementIncludes = stored->usageRequirementIncludes;
+    ptr->useReqIncls = stored->useReqIncls;
     return *this;
 }
 

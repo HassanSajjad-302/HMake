@@ -102,7 +102,7 @@ unique_ptr<vector<pchar>> readPValueFromCompressedFile(pstring_view fileName, PD
 void writePValueToCompressedFile(pstring_view fileName, const PValue &value);
 size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
 bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs);
-void lowerCasePString(pstring &str);
+void lowerCasePStringOnWindows(pchar *ptr, uint64_t size);
 bool childInParentPathRecursiveNormalized(pstring_view parent, pstring_view child);
 
 struct Indices
@@ -161,17 +161,18 @@ struct Indices
 
     struct LinkTargetConfigCache
     {
-        constexpr static unsigned outputDirectoryNode = 1;
-        constexpr static unsigned outputFileNode = 2;
-        constexpr static unsigned librariesDirectoriesArray = 3;
+        constexpr static unsigned requirementLibraryDirectoriesArray = 1;
+        constexpr static unsigned usageRequirementLibraryDirectoriesArray = 2;
+        constexpr static unsigned outputDirectoryNode = 3;
+        constexpr static unsigned outputFileNode = 4;
     };
 
     struct CppTargetConfigCache
     {
-        constexpr static unsigned requriementIncludesArray = 1;
-        constexpr static unsigned usageRequirementIncludesArray = 2;
-        constexpr static unsigned requirementHUDirArray = 3;
-        constexpr static unsigned usageRequirementHUDirArray = 4;
+        constexpr static unsigned reqInclsArray = 1;
+        constexpr static unsigned useReqInclsArray = 2;
+        constexpr static unsigned reqHUDirsArray = 3;
+        constexpr static unsigned useReqHUDirsArray = 4;
         constexpr static unsigned sourceFiles = 5;
         constexpr static unsigned moduleFiles = 6;
     };

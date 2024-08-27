@@ -63,7 +63,7 @@ PostBasic::PostBasic(const BuildTool &buildTool, const pstring &commandFirstHalf
 #endif
     commandSuccessOutput = fileToPString(outputFileName);
     commandErrorOutput = fileToPString(errorFileName);
-    if (exitStatus == EXIT_FAILURE)
+    if (exitStatus != EXIT_SUCCESS)
     {
         bool breakpoint = true;
     }
@@ -127,7 +127,7 @@ bool PostCompile::ignoreHeaderFile(const pstring_view child) const
 
     // std::path::equivalent is not used as it is slow
     // It is assumed that both paths are normalized strings
-    for (const InclNode &inclNode : target.requirementIncludes)
+    for (const InclNode &inclNode : target.reqIncls)
     {
         if (inclNode.ignoreHeaderDeps)
         {
@@ -176,10 +176,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
                 // If compile-command is all lower-cased, then this might not be needed
                 if (!ignoreHeaderFile(headerView))
                 {
-                    for (auto it = headerView.begin(); it != headerView.end(); ++it)
-                    {
-                        const_cast<char &>(*it) = tolower(*it);
-                    }
+                    lowerCasePStringOnWindows(const_cast<pchar *>(headerView.data()), headerView.size());
 
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
                     Node *node = Node::getNodeFromNormalizedString(headerView, true, false);

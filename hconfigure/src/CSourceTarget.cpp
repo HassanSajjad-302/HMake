@@ -13,19 +13,19 @@ CSourceTarget::CSourceTarget(bool buildExplicit, pstring name_)
     if (bsMode == BSMode::CONFIGURE && useMiniTarget == UseMiniTarget::YES)
     {
         targetConfigCache = new PValue(kArrayType);
-        targetConfigCache->PushBack(ptoref(targetSubDir), ralloc);
+        targetConfigCache->PushBack(ptoref(name), ralloc);
         targetConfigCaches.emplace_back(targetConfigCache);
     }
     else
     {
-        uint64_t index = pvalueIndexInSubArray(configCache, PValue(ptoref(targetSubDir)));
+        uint64_t index = pvalueIndexInSubArray(configCache, PValue(ptoref(name)));
         if (index != UINT64_MAX)
         {
             targetConfigCache = &configCache[index];
         }
         else
         {
-            printErrorMessage(fmt::format("Target {} not found in config-cache\n", targetSubDir));
+            printErrorMessage(fmt::format("Target {} not found in config-cache\n", name));
             exit(EXIT_FAILURE);
         }
     }

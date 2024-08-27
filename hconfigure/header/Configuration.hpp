@@ -29,6 +29,7 @@ struct Configuration : BTarget
     vector<CSourceTarget *> prebuiltTargets;
     CppCompilerFeatures compilerFeatures;
     PrebuiltLinkerFeatures prebuiltLinkOrArchiveTargetFeatures;
+    PrebuiltBasicFeatures prebuiltBasicFeatures;
     LinkerFeatures linkerFeatures;
     TargetType targetType = TargetType::LIBRARY_STATIC;
     bool archiving = false;
@@ -90,7 +91,7 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     // CommonFeatures
     else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
     {
-        prebuiltLinkOrArchiveTargetFeatures.useMiniTarget = property;
+        prebuiltBasicFeatures.useMiniTarget = property;
         useMiniTarget = property;
     }
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)

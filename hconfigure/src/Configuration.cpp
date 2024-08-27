@@ -32,7 +32,7 @@ void Configuration::markArchivePoint()
 CppSourceTarget &Configuration::getCppPreprocess(const pstring &name_)
 {
     CppSourceTarget &cppSourceTarget =
-        targets2<CppSourceTarget>.emplace_back(targetSubDir + slashc + name_, TargetType::PREPROCESS);
+        targets2<CppSourceTarget>.emplace_back(name + slashc + name_, TargetType::PREPROCESS);
     cppSourceTargets.emplace_back(&cppSourceTarget);
     static_cast<CppCompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
@@ -41,7 +41,7 @@ CppSourceTarget &Configuration::getCppPreprocess(const pstring &name_)
 CppSourceTarget &Configuration::getCppObject(const pstring &name_)
 {
     CppSourceTarget &cppSourceTarget =
-        targets2<CppSourceTarget>.emplace_back(targetSubDir + slashc + name_, TargetType::LIBRARY_OBJECT);
+        targets2<CppSourceTarget>.emplace_back(name + slashc + name_, TargetType::LIBRARY_OBJECT);
     cppSourceTargets.emplace_back(&cppSourceTarget);
     static_cast<CppCompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
@@ -49,15 +49,19 @@ CppSourceTarget &Configuration::getCppObject(const pstring &name_)
 
 PrebuiltBasic &Configuration::getPrebuiltBasic(const pstring &name_) const
 {
-    return targets2<PrebuiltBasic>.emplace_back(targetSubDir + slashc + name_, TargetType::LIBRARY_OBJECT);
+    PrebuiltBasic &prebuiltBasic =
+        targets2<PrebuiltBasic>.emplace_back(name + slashc + name_, TargetType::LIBRARY_OBJECT);
+    static_cast<PrebuiltBasicFeatures &>(prebuiltBasic) = prebuiltBasicFeatures;
+    return prebuiltBasic;
 }
 
 LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(const pstring &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets2<LinkOrArchiveTarget>.emplace_back(targetSubDir + slashc + name_, TargetType::EXECUTABLE);
+        targets2<LinkOrArchiveTarget>.emplace_back(name + slashc + name_, TargetType::EXECUTABLE);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -65,9 +69,10 @@ LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(const pstring &nam
 LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(const pstring &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets2<LinkOrArchiveTarget>.emplace_back(targetSubDir + slashc + name_, TargetType::LIBRARY_STATIC);
+        targets2<LinkOrArchiveTarget>.emplace_back(name + slashc + name_, TargetType::LIBRARY_STATIC);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -75,9 +80,10 @@ LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(const pstring &
 LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTarget(const pstring &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets2<LinkOrArchiveTarget>.emplace_back(targetSubDir + slashc + name_, TargetType::LIBRARY_SHARED);
+        targets2<LinkOrArchiveTarget>.emplace_back(name + slashc + name_, TargetType::LIBRARY_SHARED);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -87,8 +93,9 @@ PrebuiltLinkOrArchiveTarget &Configuration::getPrebuiltLinkOrArchiveTarget(const
                                                                            TargetType linkTargetType_)
 {
     PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets2<PrebuiltLinkOrArchiveTarget>.emplace_back(targetSubDir + slashc + name_, directory, linkTargetType_);
+        targets2<PrebuiltLinkOrArchiveTarget>.emplace_back(name + slashc + name_, directory, linkTargetType_);
     static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
     prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -97,8 +104,9 @@ PrebuiltLinkOrArchiveTarget &Configuration::getStaticPrebuiltLinkOrArchiveTarget
                                                                                  const pstring &directory)
 {
     PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget = targets2<PrebuiltLinkOrArchiveTarget>.emplace_back(
-        targetSubDir + slashc + name_, directory, TargetType::LIBRARY_STATIC);
+        name + slashc + name_, directory, TargetType::LIBRARY_STATIC);
     static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
     prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -107,8 +115,9 @@ PrebuiltLinkOrArchiveTarget &Configuration::getSharedPrebuiltLinkOrArchiveTarget
                                                                                  const pstring &directory)
 {
     PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget = targets2<PrebuiltLinkOrArchiveTarget>.emplace_back(
-        targetSubDir + slashc + name_, directory, TargetType::LIBRARY_SHARED);
+        name + slashc + name_, directory, TargetType::LIBRARY_SHARED);
     static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
     prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -224,5 +233,5 @@ bool Configuration::getUseMiniTarget() const
 
 bool operator<(const Configuration &lhs, const Configuration &rhs)
 {
-    return lhs.targetSubDir < rhs.targetSubDir;
+    return lhs.name < rhs.name;
 }

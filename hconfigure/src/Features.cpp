@@ -288,6 +288,36 @@ pstring getSlashedExecutableName(const pstring &name)
     return os == OS::NT ? name + ".exe" : "./" + name;
 }
 
+PrebuiltBasicFeatures::PrebuiltBasicFeatures()
+{
+    if (cache.isLinkerInToolsArray)
+    {
+        VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
+        if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+        {
+            // Initialized in LinkOrArchiveTarget round 2
+            return;
+        }
+        for (const pstring &str : vsTools.libraryDirectories)
+        {
+            Node *node = Node::getNodeFromNonNormalizedPath(str, false);
+            bool found = false;
+            for (const LibDirNode &libDirNode : requirementLibraryDirectories)
+            {
+                if (libDirNode.node == node)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                requirementLibraryDirectories.emplace_back(node, true);
+            }
+        }
+    }
+}
+
 LinkerFeatures::LinkerFeatures()
 {
     // TODO
@@ -306,7 +336,7 @@ LinkerFeatures::LinkerFeatures()
     setConfigType(configurationType);
     if (cache.isLinkerInToolsArray)
     {
-        setLinkerFromVSTools(toolsCache.vsTools[cache.selectedLinkerArrayIndex]);
+        linker = toolsCache.vsTools[cache.selectedLinkerArrayIndex].linker;
     }
     else
     {
@@ -321,33 +351,6 @@ LinkerFeatures::LinkerFeatures()
         archiver = toolsCache.archivers[cache.selectedArchiverArrayIndex];
     }
     libraryType = cache.libraryType;
-}
-
-void LinkerFeatures::setLinkerFromVSTools(const VSTools &vsTools)
-{
-    linker = vsTools.linker;
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
-    {
-        // Initialized in LinkOrArchiveTarget round 2
-        return;
-    }
-    for (const pstring &str : vsTools.libraryDirectories)
-    {
-        Node *node = Node::getNodeFromNonNormalizedPath(str, false);
-        bool found = false;
-        for (const LibDirNode &libDirNode : requirementLibraryDirectories)
-        {
-            if (libDirNode.node == node)
-            {
-                found = true;
-                break;
-            }
-        }
-        if (!found)
-        {
-            requirementLibraryDirectories.emplace_back(node, true);
-        }
-    }
 }
 
 void LinkerFeatures::setConfigType(const ConfigType configType)
@@ -419,7 +422,7 @@ void CppCompilerFeatures::setCompilerFromVSTools(const VSTools &vsTools)
     }
     for (const pstring &str : vsTools.includeDirectories)
     {
-        actuallyAddInclude(requirementIncludes, str, true);
+        actuallyAddInclude(reqIncls, str, true, true);
     }
 }
 
@@ -433,7 +436,7 @@ void CppCompilerFeatures::setCompilerFromLinuxTools(const LinuxTools &linuxTools
     }
     for (const pstring &str : linuxTools.includeDirectories)
     {
-        actuallyAddInclude(requirementIncludes, str, true);
+        actuallyAddInclude(reqIncls, str, true, true);
     }
 }
 
@@ -471,36 +474,40 @@ void CppCompilerFeatures::setConfigType(const ConfigType configType)
     }
 }
 
-bool CppCompilerFeatures::actuallyAddInclude(vector<InclNode> &inclNodes, pstring include, bool isStandard)
+bool CppCompilerFeatures::actuallyAddInclude(vector<InclNode> &inclNodes, const pstring &include, bool isStandard,
+                                             bool ignoreHeaderDeps)
 {
     Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     bool found = false;
     for (const InclNode &inclNode : inclNodes)
     {
-        if (inclNode.node == node)
+        if (inclNode.node->myId == node->myId)
         {
             found = true;
+            printErrorMessage(fmt::format("Include {} is already added.\n", node->filePath));
             break;
         }
     }
     if (!found)
     {
-        inclNodes.emplace_back(node, isStandard);
+        inclNodes.emplace_back(node, isStandard, ignoreHeaderDeps);
         return true;
     }
     return false;
 }
 
-bool CppCompilerFeatures::actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, pstring include, bool isStandard,
-                                             CppSourceTarget *target)
+bool CppCompilerFeatures::actuallyAddInclude(CppSourceTarget *target, vector<InclNodeTargetMap> &inclNodes,
+                                             const pstring &include, bool isStandard, bool ignoreHeaderDeps)
 {
     Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     bool found = false;
     for (const InclNodeTargetMap &inclNode : inclNodes)
     {
-        if (inclNode.inclNode.node == node)
+        if (inclNode.inclNode.node->myId == node->myId)
         {
             found = true;
+            printErrorMessage(
+                fmt::format("Header-unit include {} already exists in target {}.\n", node->filePath, target->name));
             break;
         }
     }

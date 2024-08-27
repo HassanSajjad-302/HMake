@@ -111,7 +111,7 @@ struct BTarget // BTarget
 
     array<RealBTarget, 3> realBTargets;
 
-    pstring targetSubDir;
+    pstring name;
     size_t id = 0; // unique for every BTarget
 
     // TODO

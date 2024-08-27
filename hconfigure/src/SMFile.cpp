@@ -68,8 +68,13 @@ pstring SourceNode::getTarjanNodeName() const
 
 void SourceNode::updateBTarget(Builder &, const unsigned short round)
 {
-    if (!round && atomic_ref(fileStatus).load() && selectiveBuild)
+    if (!round && selectiveBuild)
     {
+        setSourceNodeFileStatus();
+        if (!atomic_ref(fileStatus).load())
+        {
+            return;
+        }
         RealBTarget &realBTarget = realBTargets[0];
         assignFileStatusToDependents(realBTarget);
         PostCompile postCompile = target->updateSourceNodeBTarget(*this);
@@ -113,20 +118,69 @@ void SourceNode::setSourceNodeFileStatus()
         return;
     }
 
+    vector<Node *> headerFilesUnChecked;
+    headerFilesUnChecked.reserve((*sourceJson)[SourceFiles::headerFiles].GetArray().Size());
+
     for (PValue &pValue : (*sourceJson)[SourceFiles::headerFiles].GetArray())
     {
-        const Node *headerNode = Node::getNodeFromPValue(pValue, true, true);
-
-        if (headerNode->doesNotExist)
+        bool systemCheckCompleted = false;
+        Node *headerNode = Node::tryGetNodeFromPValue(systemCheckCompleted, pValue, true, true);
+        if (systemCheckCompleted)
         {
-            atomic_ref(fileStatus).store(true);
-            return;
+            if (headerNode->doesNotExist)
+            {
+                atomic_ref(fileStatus).store(true);
+                return;
+            }
+
+            if (headerNode->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
+            {
+                atomic_ref(fileStatus).store(true);
+                return;
+            }
         }
-
-        if (headerNode->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
+        else
         {
-            atomic_ref(fileStatus).store(true);
-            return;
+            headerFilesUnChecked.emplace_back(headerNode);
+        }
+    }
+
+    if (!headerFilesUnChecked.empty())
+    {
+        vector<Node *> stillUnchecked;
+        stillUnchecked.reserve(headerFilesUnChecked.size());
+
+        while (true)
+        {
+            bool zeroLeft = true;
+            for (Node *headerNode : headerFilesUnChecked)
+            {
+                if (atomic_ref(headerNode->systemCheckCompleted).load())
+                {
+                    if (headerNode->doesNotExist)
+                    {
+                        atomic_ref(fileStatus).store(true);
+                        return;
+                    }
+
+                    if (headerNode->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
+                    {
+                        atomic_ref(fileStatus).store(true);
+                        return;
+                    }
+                }
+                else
+                {
+                    stillUnchecked.emplace_back(headerNode);
+                    zeroLeft = false;
+                }
+            }
+            if (zeroLeft)
+            {
+                break;
+            }
+            headerFilesUnChecked.swap(stillUnchecked);
+            stillUnchecked.clear();
         }
     }
 }
@@ -307,10 +361,7 @@ void SMFile::saveSMRulesJsonToSourceJson(const pstring &smrulesFileOutputClang)
                     prunedRequirePValue.PushBack(PValue(true), sourceNodeAllocator);
                     // lower-cased before saving for further use
                     pstring_view str(sourcePathIt->value.GetString(), sourcePathIt->value.GetStringLength());
-                    for (const char &c : str)
-                    {
-                        const_cast<char &>(c) = tolower(c);
-                    }
+                    lowerCasePStringOnWindows(const_cast<pchar *>(str.data()), str.size());
 
                     // First push source-path, then whether it is header-unit, then lookup-method == include-angle
                     prunedRequirePValue.PushBack(sourcePathIt->value, sourceNodeAllocator);
@@ -382,7 +433,7 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
     // Iterating over all header-unit-directories of the target to find out which header-unit directory this header-unit
     // comes from and which target that header-unit-directory belongs to if any
-    for (const auto &[inclNode, targetLocal] : target->requirementHuDirs)
+    for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
     {
         if (pathContainsFile(inclNode.node->filePath, headerUnitNode->filePath))
         {
@@ -402,10 +453,14 @@ void SMFile::initializeNewHeaderUnit(const PValue &requirePValue, Builder &build
 
     if (!huDirTarget)
     {
-        printErrorMessageColor(
-            fmt::format("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin Target\n{}\n",
-                        headerUnitNode->filePath, node->filePath, target->targetSubDir),
-            settings.pcSettings.toolErrorOutput);
+        printErrorMessageColor(fmt::format("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin "
+                                           "Target\n{}.\nSearched for header-unit target in the following reqHuDirs.\n",
+                                           headerUnitNode->filePath, node->filePath, target->name),
+                               settings.pcSettings.toolErrorOutput);
+        for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
+        {
+            printErrorMessage(fmt::format("HuDirTarget {} inclNode {}\n", targetLocal->name, inclNode.node->filePath));
+        }
         throw std::exception();
     }
 
@@ -471,7 +526,7 @@ void SMFile::addNewBTargetInFinalBTargets(Builder &builder)
         target->adjustHeaderUnitsBTarget.realBTargets[1].addDependency(*this);
         builder.updateBTargetsSizeGoal += 1;
     }
-    builder.cond.notify_all();
+    builder.cond.notify_one();
 }
 
 void SMFile::iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder)

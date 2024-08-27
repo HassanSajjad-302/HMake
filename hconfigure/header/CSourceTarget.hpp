@@ -25,7 +25,7 @@ enum class CSourceTargetType : unsigned short
 struct CSourceTarget : ObjectFileProducerWithDS<CSourceTarget>
 {
     using BaseType = CSourceTarget;
-    vector<InclNode> usageRequirementIncludes;
+    vector<InclNode> useReqIncls;
     pstring usageRequirementCompilerFlags;
     set<Define> usageRequirementCompileDefinitions;
     PValue *targetConfigCache = nullptr;
@@ -47,7 +47,7 @@ CSourceTarget &CSourceTarget::interfaceIncludes(const pstring &include, U... inc
     }
     else
     {
-        CppCompilerFeatures::actuallyAddInclude(usageRequirementIncludes, include, false);
+        CppCompilerFeatures::actuallyAddInclude(useReqIncls, include, false);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))

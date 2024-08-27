@@ -235,6 +235,11 @@ unique_ptr<vector<pchar>> readPValueFromCompressedFile(const pstring_view fileNa
 
     // In situ parsing the buffer into d, buffer will also be modified
     document.ParseInsitu(&(*decompressedBuffer)[0]);
+
+    /*rapidjson::StringBuffer buffer;
+    rapidjson::Writer writer(buffer);
+    document.Accept(writer);
+    std::ofstream("nodes2.json") << pstring(buffer.GetString(), buffer.GetLength());*/
     return decompressedBuffer;
 #endif
 }
@@ -300,11 +305,11 @@ bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs)
     return true;
 }
 
-void lowerCasePString(pstring &str)
+void lowerCasePStringOnWindows(pchar *ptr, uint64_t size)
 {
-    for (char &c : str)
+    for (uint64_t i = 0; i < size; ++i)
     {
-        c = tolower(c);
+        ptr[i] = tolower(ptr[i]);
     }
 }
 

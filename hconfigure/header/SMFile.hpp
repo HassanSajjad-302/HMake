@@ -101,7 +101,6 @@ struct SMFile : SourceNode // Scanned Module Rule
     size_t headerUnitsIndex = UINT64_MAX;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 
-    bool angle = false;
     bool readJsonFromSMRulesFile = false;
     bool isInterface = false;
 

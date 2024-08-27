@@ -53,10 +53,11 @@ class Node
     inline static vector<Node *> nodeIndices{10000};
     uint32_t myId;
 
-  private:
     // While following are not atomic to keep Node copyable and moveable, all operations on these bools are done
     // atomically.
     bool systemCheckCompleted{false};
+
+  private:
     bool systemCheckCalled = false;
 
   public:
@@ -67,6 +68,11 @@ class Node
     static path getFinalNodePathFromPath(path filePath);
 
     void ensureSystemCheckCalled(bool isFile, bool mayNotExist = false);
+
+    // This function does not do the while looping waiting for the other threads to call performSystemCheck. It either
+    // calls performSystemCheck or returns.
+    bool trySystemCheck(bool isFile, bool mayNotExist = false);
+
     static Node *getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNormalizedString(pstring_view p, bool isFile, bool mayNotExist = false);
 
@@ -79,6 +85,9 @@ class Node
     static void emplaceNodeInPValue(const Node *node, PValue &pValue);
     static void emplaceNodeInPValue(const Node *node, PValue &pValue, decltype(ralloc) alloc);
     static Node *getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist = false);
+
+    static Node *tryGetNodeFromPValue(bool &systemCheckSucceeded, const PValue &pValue, bool isFile,
+                                      bool mayNotExist = false);
 
   private:
     void performSystemCheck(bool isFile, bool mayNotExist);

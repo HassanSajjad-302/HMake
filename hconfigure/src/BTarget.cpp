@@ -54,16 +54,13 @@ BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), Re
 
 static pstring lowerCase(pstring str)
 {
-    for (char &c : str)
-    {
-        c = tolower(c);
-    }
+    lowerCasePStringOnWindows(const_cast<pchar *>(str.c_str()), str.size());
     return str;
 }
 
 BTarget::BTarget(pstring name_, bool buildExplicit, bool makeDirectory)
     : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)},
-      targetSubDir(lowerCase(std::move(name_)))
+      name(lowerCase(std::move(name_)))
 {
 }
 
@@ -105,12 +102,12 @@ bool operator<(const BTarget &lhs, const BTarget &rhs)
 void BTarget::setSelectiveBuild()
 {
     selectiveBuild =
-        childInParentPathRecursiveNormalized(currentNode->filePath, configureNode->filePath + slashc + targetSubDir);
+        childInParentPathRecursiveNormalized(currentNode->filePath, configureNode->filePath + slashc + name);
 }
 
 // selectiveBuild is set for the parent if hbuild is executed in child directory. Used in hmake.cpp to rule out other
 // configurations specifications
 bool BTarget::getSelectiveBuildChildDir()
 {
-    return childInParentPathRecursiveNormalized(configureNode->filePath + slashc + targetSubDir, currentNode->filePath);
+    return childInParentPathRecursiveNormalized(configureNode->filePath + slashc + name, currentNode->filePath);
 }

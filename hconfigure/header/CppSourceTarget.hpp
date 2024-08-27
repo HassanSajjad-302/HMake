@@ -103,8 +103,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     // Written mutex locked in round 1 updateBTarget
     set<SMFile, CompareSourceNode> headerUnits;
 
-    vector<InclNodeTargetMap> usageRequirementHuDirs;
-    vector<InclNodeTargetMap> requirementHuDirs;
+    vector<InclNodeTargetMap> useReqHuDirs;
+    vector<InclNodeTargetMap> reqHuDirs;
 
     // Written mutex locked in round 1 updateBTarget.
     // Which require is provided by which SMFile
@@ -128,9 +128,9 @@ class CppSourceTarget : public CppCompilerFeatures,
     // be used.
     HashedCommand compileCommandWithTool;
 
-    vector<SourceNode> sourceFileDependencies;
+    vector<SourceNode> srcFileDeps;
     // Comparator used is same as for SourceNode
-    vector<SMFile> moduleSourceFileDependencies;
+    vector<SMFile> modFileDeps;
 
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
     AdjustHeaderUnitsBTarget adjustHeaderUnitsBTarget{this};
@@ -188,12 +188,14 @@ class CppSourceTarget : public CppCompilerFeatures,
     void adjustHeaderUnitsPValueArrayPointers();
     CSourceTargetType getCSourceTargetType() const override;
 
-    CppSourceTarget &assignStandardIncludesToPublicHUDirectories();
+    CppSourceTarget &makeReqInclsUseable();
     static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, const pstring &sourceFile,
                                       CppSourceTarget *target);
     static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Node *sourceFileNode, CppSourceTarget *target);
     static bool actuallyAddModuleFile(vector<SMFile> &smFiles, const pstring &moduleFile, CppSourceTarget *target);
     static bool actuallyAddModuleFile(vector<SMFile> &smFiles, Node *moduleFileNode, CppSourceTarget *target);
+    CppSourceTarget &removeSourceFile(const pstring &sourceFile);
+    CppSourceTarget &removeModuleFile(const pstring &moduleFile);
 
     // TODO
     // Also provide function overload for functions like publicIncludes here and in CPT
@@ -236,6 +238,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     template <typename T> bool evaluate(T property) const;
     template <Dependency dependency = Dependency::PRIVATE, typename T> void assignCommonFeature(T property);
 }; // class Target
+
 bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
 
 template <typename... U>
@@ -247,8 +250,8 @@ CppSourceTarget &CppSourceTarget::publicIncludes(const pstring &include, U... in
     }
     else
     {
-        actuallyAddInclude(requirementIncludes, include, false);
-        actuallyAddInclude(usageRequirementIncludes, include, false);
+        actuallyAddInclude(reqIncls, include);
+        actuallyAddInclude(useReqIncls, include);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -270,7 +273,7 @@ CppSourceTarget &CppSourceTarget::privateIncludes(const pstring &include, U... i
     }
     else
     {
-        actuallyAddInclude(requirementIncludes, include, false);
+        actuallyAddInclude(reqIncls, include);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -292,7 +295,7 @@ CppSourceTarget &CppSourceTarget::interfaceIncludes(const pstring &include, U...
     }
     else
     {
-        actuallyAddInclude(usageRequirementIncludes, include, false);
+        actuallyAddInclude(useReqIncls, include);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -314,13 +317,17 @@ CppSourceTarget &CppSourceTarget::publicHUIncludes(const pstring &include, U... 
     }
     else
     {
-        if (const bool added = actuallyAddInclude(requirementIncludes, include, false); added)
+        if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(requirementHuDirs, include, false, this);
+            actuallyAddInclude(this, reqHuDirs, include);
+            actuallyAddInclude(this, useReqHuDirs, include);
+            actuallyAddInclude(reqIncls, include);
+            actuallyAddInclude(useReqIncls, include);
         }
-        if (const bool added = actuallyAddInclude(usageRequirementIncludes, include, false); added)
+        else
         {
-            actuallyAddInclude(usageRequirementHuDirs, include, false, this);
+            actuallyAddInclude(reqIncls, include);
+            actuallyAddInclude(useReqIncls, include);
         }
     }
 
@@ -343,9 +350,14 @@ CppSourceTarget &CppSourceTarget::privateHUIncludes(const pstring &include, U...
     }
     else
     {
-        if (const bool added = actuallyAddInclude(requirementIncludes, include, false); added)
+        if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(requirementHuDirs, include, false, this);
+            actuallyAddInclude(this, reqHuDirs, include);
+            actuallyAddInclude(reqIncls, include);
+        }
+        else
+        {
+            actuallyAddInclude(reqIncls, include);
         }
     }
 
@@ -368,9 +380,14 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const pstring &include, U.
     }
     else
     {
-        if (const bool added = actuallyAddInclude(usageRequirementIncludes, include, false); added)
+        if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(usageRequirementHuDirs, include, false, this);
+            actuallyAddInclude(this, useReqHuDirs, include);
+            actuallyAddInclude(useReqIncls, include);
+        }
+        else
+        {
+            actuallyAddInclude(useReqIncls, include);
         }
     }
 
@@ -393,8 +410,11 @@ CppSourceTarget &CppSourceTarget::publicHUDirectories(const pstring &include, U.
     }
     else
     {
-        actuallyAddInclude(requirementHuDirs, include, false, this);
-        actuallyAddInclude(usageRequirementHuDirs, include, false, this);
+        if (evaluate(TreatModuleAsSource::NO))
+        {
+            actuallyAddInclude(this, reqHuDirs, include);
+            actuallyAddInclude(this, useReqHuDirs, include);
+        }
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -416,7 +436,10 @@ CppSourceTarget &CppSourceTarget::privateHUDirectories(const pstring &include, U
     }
     else
     {
-        actuallyAddInclude(requirementHuDirs, include, false, this);
+        if (evaluate(TreatModuleAsSource::NO))
+        {
+            actuallyAddInclude(this, reqHuDirs, include);
+        }
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -438,7 +461,10 @@ CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const pstring &include,
     }
     else
     {
-        actuallyAddInclude(usageRequirementHuDirs, include, false, this);
+        if (evaluate(TreatModuleAsSource::NO))
+        {
+            actuallyAddInclude(this, useReqHuDirs, include);
+        }
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -464,7 +490,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const pst
     }
     else
     {
-        actuallyAddSourceFile(sourceFileDependencies, srcFile, this);
+        actuallyAddSourceFile(srcFileDeps, srcFile, this);
     }
 
     if constexpr (sizeof...(sourceFilePString))
@@ -497,7 +523,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const pst
     }
     else
     {
-        actuallyAddModuleFile(moduleSourceFileDependencies, modFile, this);
+        actuallyAddModuleFile(modFileDeps, modFile, this);
     }
 
     if constexpr (sizeof...(moduleFilePString))
@@ -531,8 +557,8 @@ CppSourceTarget &CppSourceTarget::interfaceFiles(const pstring &modFile, U... mo
     }
     else
     {
-        actuallyAddModuleFile(moduleSourceFileDependencies, modFile, this);
-        moduleSourceFileDependencies.end()->isInterface = true;
+        actuallyAddModuleFile(modFileDeps, modFile, this);
+        modFileDeps.end()->isInterface = true;
     }
 
     if constexpr (sizeof...(moduleFilePString))

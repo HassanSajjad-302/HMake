@@ -74,7 +74,7 @@ void initializeCache(const BSMode bsMode_)
         configurePathString = (current_path().*toPStr)();
     }
 
-    lowerCasePString(configurePathString);
+    lowerCasePStringOnWindows(const_cast<pchar *>(configurePathString.c_str()), configurePathString.size());
     configureNode = Node::getNodeFromNormalizedString(configurePathString, false);
 
     cache.initializeCacheVariableFromCacheFile();
@@ -237,10 +237,10 @@ void configureOrBuild()
     writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCache);
     /*if (nodesCache.Size() != nodesCacheSizeBefore)
     {
-        writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes.json"), nodesCache);
-    }
+        writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCache);
+    }*/
     assert(nodesCache.Size() >= nodesCacheSizeBefore &&
-           "nodes cache size can not be less than the originally loaded file");*/
+           "nodes cache size can not be less than the originally loaded file");
 }
 
 pstring getLastNameAfterSlash(pstring name)
@@ -250,4 +250,9 @@ pstring getLastNameAfterSlash(pstring name)
         return {name.begin() + i + 1, name.end()};
     }
     return name;
+}
+
+pstring removeDashCppFromName(pstring name)
+{
+    return name.substr(0, name.size() - 4); // Removing -cpp from the name
 }

@@ -11,10 +11,9 @@ import "PrebuiltBasic.hpp";
 class PrebuiltLinkOrArchiveTarget : public PrebuiltBasic, public PrebuiltLinkerFeatures
 {
   public:
-    pstring outputDirectoryString;
     pstring actualOutputName;
     pstring usageRequirementLinkerFlags;
-    Node *outputDirectoryNode = nullptr;
+    pstring outputDirectory;
     Node *outputFileNode = nullptr;
 
     PrebuiltLinkOrArchiveTarget(const pstring &outputName_, pstring directory, TargetType linkTargetType_);
@@ -41,10 +40,15 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::assign(T property, Pro
     {
         linkTargetType = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), bool>)
+    {
+        return property;
+    }
     else
     {
-        outputDirectoryNode = property; // Just to fail the compilation. Ensures that all properties are handled.
+        return PrebuiltBasic::assign(property);
     }
+
     if constexpr (sizeof...(properties))
     {
         return assign(properties...);
@@ -65,13 +69,9 @@ template <typename T> bool PrebuiltLinkOrArchiveTarget::evaluate(T property) con
     {
         return linkTargetType == property;
     }
-    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
-    {
-        return useMiniTarget == property;
-    }
     else
     {
-        outputDirectoryNode = property; // Just to fail the compilation. Ensures that all properties are handled.
+        return PrebuiltBasic::evaluate(property);
     }
 }
 

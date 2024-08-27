@@ -27,11 +27,12 @@ struct PrebuiltDep
     pstring requirementRpath;
     pstring usageRequirementRpath;
 
+    vector<LibDirNode> usageRequirementLibraryDirectories;
     bool defaultRpath = true;
     bool defaultRpathLink = true;
 };
 
-class PrebuiltBasic : public BTarget
+class PrebuiltBasic : public BTarget, public PrebuiltBasicFeatures
 {
   public:
     pstring outputName;
@@ -43,6 +44,8 @@ class PrebuiltBasic : public BTarget
     map<PrebuiltBasic *, const PrebuiltDep *, IndexInTopologicalSortComparatorRoundZero> sortedPrebuiltDependencies;
 
     set<class ObjectFileProducer *> objectFileProducers;
+
+    vector<LibDirNode> usageRequirementLibraryDirectories;
 
     PValue *targetConfigCache;
     TargetType linkTargetType = TargetType::LIBRARY_OBJECT;
@@ -67,13 +70,17 @@ class PrebuiltBasic : public BTarget
     void initializePrebuiltBasic();
 
     PrebuiltBasic(const pstring &outputName_, TargetType linkTargetType_);
-    PrebuiltBasic(pstring outputName_, TargetType linkTargetType_, pstring name_, bool buildExplicit, bool makeDirectory);
+    PrebuiltBasic(pstring outputName_, TargetType linkTargetType_, pstring name_, bool buildExplicit,
+                  bool makeDirectory);
 
     void updateBTarget(Builder &builder, unsigned short round) override;
+
+    void writeTargetConfigCacheAtConfigureTime() const;
+    void readConfigCacheAtBuildTime();
+
     void addRequirementDepsToBTargetDependencies();
 
-    template <Dependency dependency, typename T, typename... Property>
-    PrebuiltBasic &assign(T property, Property... properties);
+    template <typename T, typename... Property> PrebuiltBasic &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
 };
 bool operator<(const PrebuiltBasic &lhs, const PrebuiltBasic &rhs);
@@ -209,12 +216,19 @@ PrebuiltBasic &PrebuiltBasic::DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTarget, D
     return *this;
 }
 
-template <Dependency dependency, typename T, typename... Property>
-PrebuiltBasic &PrebuiltBasic::assign(T property, Property... properties)
+template <typename T, typename... Property> PrebuiltBasic &PrebuiltBasic::assign(T property, Property... properties)
 {
     if constexpr (std::is_same_v<decltype(property), TargetType>)
     {
         linkTargetType = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
+    {
+        useMiniTarget = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), bool>)
+    {
+        return property;
     }
     else
     {
@@ -236,6 +250,10 @@ template <typename T> bool PrebuiltBasic::evaluate(T property) const
     if constexpr (std::is_same_v<decltype(property), TargetType>)
     {
         return linkTargetType == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
+    {
+        return useMiniTarget == property;
     }
     else
     {

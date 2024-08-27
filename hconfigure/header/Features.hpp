@@ -690,10 +690,19 @@ struct DSCFeatures : DSCPrebuiltFeatures
 // TODO
 // Add another feature "CanBeUpdated", that suggests that whether the prebuilt target can be updated so its timestamp is
 // not checked by-default.
+
+struct PrebuiltBasicFeatures
+{
+    // TODO
+    // NO API in to assign this in LinkOrArchiveTarget, neither is their API like actuallyInclude.
+    vector<LibDirNode> requirementLibraryDirectories;
+    UseMiniTarget useMiniTarget = UseMiniTarget::YES;
+    PrebuiltBasicFeatures();
+};
+
 struct PrebuiltLinkerFeatures
 {
     CopyDLLToExeDirOnNTOs copyToExeDirOnNtOs = CopyDLLToExeDirOnNTOs::YES;
-    UseMiniTarget useMiniTarget = UseMiniTarget::YES;
 };
 
 struct LinkerFeatures
@@ -737,12 +746,9 @@ struct LinkerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 
-
-    vector<LibDirNode> requirementLibraryDirectories;
     pstring requirementLinkerFlags;
     TargetType libraryType;
     LinkerFeatures();
-    void setLinkerFromVSTools(const struct VSTools &vsTools);
     void setConfigType(ConfigType configType);
 };
 
@@ -806,17 +812,18 @@ struct CppCompilerFeatures
     Threading threading = Threading::MULTI;
     UseMiniTarget useMiniTarget = UseMiniTarget::YES;
 
-    vector<InclNode> requirementIncludes;
+    vector<InclNode> reqIncls;
     pstring requirementCompilerFlags;
     set<Define> requirementCompileDefinitions;
     CppCompilerFeatures();
-    void setCompilerFromVSTools(const VSTools &vsTools);
+    void setCompilerFromVSTools(const struct VSTools &vsTools);
     void setCompilerFromLinuxTools(const struct LinuxTools &linuxTools);
     void setConfigType(ConfigType configType);
     template <typename... U> CppCompilerFeatures &privateIncludes(const pstring &include, U... includeDirectoryPString);
-    static bool actuallyAddInclude(vector<InclNode> &inclNodes, pstring include, bool isStandard);
-    static bool actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, pstring include, bool isStandard,
-                                   CppSourceTarget *target);
+    static bool actuallyAddInclude(vector<InclNode> &inclNodes, const pstring &include, bool isStandard = false,
+                                   bool ignoreHeaderDeps = false);
+    static bool actuallyAddInclude(CppSourceTarget *target, vector<InclNodeTargetMap> &inclNodes,
+                                   const pstring &include, bool isStandard = false, bool ignoreHeaderDeps = false);
 };
 
 template <typename... U>
@@ -828,7 +835,7 @@ CppCompilerFeatures &CppCompilerFeatures::privateIncludes(const pstring &include
     }
     else
     {
-        actuallyAddInclude(requirementIncludes, include, false);
+        actuallyAddInclude(reqIncls, include, false);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))

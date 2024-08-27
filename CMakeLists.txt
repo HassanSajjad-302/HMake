@@ -52,8 +52,8 @@ add_library(hconfigure STATIC
         hconfigure/src/ObjectFile.cpp
         hconfigure/src/SpecialNodes.cpp
         hconfigure/src/InclNodeTargetMap.cpp
-
-        3rdParty/lz4/lib/lz4.c)
+        3rdParty/lz4/lib/lz4.c
+        hconfigure/src/ConfigHelpers.cpp)
 
 
 if (UNIX)
@@ -70,10 +70,10 @@ target_include_directories(hconfigure
         PUBLIC 3rdParty/lz4/lib
 )
 
-set(HMAKE_USE_FULL_FILE OFF CACHE BOOL "use full file or smaller file(compressed, indices, hashed).")
+set(HMAKE_USE_FULL_FILE OFF BOOL "use full file or smaller file(compressed, indices, hashed).")
 
 if ("${HMAKE_USE_FULL_FILE}" MATCHES OFF)
-
+    message("HMAKE_USE_FULL_FILE set")
     # Comment out the following to switch from hash to compile-command in the build-log.
     target_compile_definitions(hconfigure PUBLIC USE_COMMAND_HASH)
 
@@ -124,7 +124,8 @@ add_executable(Tests Tests/main.cpp
         Tests/Test_Examples.cpp
         Tests/Test_hconfigure.cpp
         Tests/StageTests.cpp
-        Tests/Snapshot.cpp)
+        Tests/Snapshot.cpp
+        Tests/IgnoreHeaderDeps.cpp)
 target_link_libraries(Tests PRIVATE gtest gtest_main)
 target_include_directories(Tests PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 target_compile_definitions(Tests PRIVATE SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}/")

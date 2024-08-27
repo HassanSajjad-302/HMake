@@ -98,7 +98,7 @@ PValue Node::getPValue() const
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     return PValue(myId);
 #else
-    return PValue(ptoref(node->filePath));
+    return PValue(ptoref(filePath));
 #endif
 }
 
@@ -113,8 +113,10 @@ path Node::getFinalNodePathFromPath(path filePath)
     if constexpr (os == OS::NT)
     {
         // TODO
-        // Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
-        // actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
+        //  This is illegal
+        //  TODO
+        //  Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
+        //  actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
         for (auto it = const_cast<path::value_type *>(filePath.c_str()); *it != '\0'; ++it)
         {
             *it = std::tolower(*it);
@@ -157,8 +159,26 @@ void Node::ensureSystemCheckCalled(bool isFile, bool mayNotExist)
     // systemCheck is being called for this node by another thread
     while (!reinterpret_cast<atomic<bool> &>(systemCheckCompleted).load())
     {
-        std::this_thread::sleep_for(std::chrono::nanoseconds(100));
+        // std::this_thread::sleep_for(std::chrono::nanoseconds(100));
     }
+}
+
+bool Node::trySystemCheck(const bool isFile, const bool mayNotExist)
+{
+    // If systemCheck was not called previously or isn't being called, call it.
+    if (!reinterpret_cast<atomic<bool> &>(systemCheckCalled).exchange(true))
+    {
+        performSystemCheck(isFile, mayNotExist);
+        reinterpret_cast<atomic<bool> &>(systemCheckCompleted).store(true);
+        return true;
+    }
+
+    if (reinterpret_cast<atomic<bool> &>(systemCheckCompleted).load())
+    {
+        return true;
+    }
+
+    return false;
 }
 
 // static SpinLock nodeInsertMutex;
@@ -198,6 +218,10 @@ Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile,
 
 Node *Node::getNodeFromNonNormalizedString(const pstring &p, const bool isFile, const bool mayNotExist)
 {
+    if (bsMode == BSMode::BUILD)
+    {
+        // printMessage("Called\n");
+    }
     const path filePath = getFinalNodePathFromPath(p);
     return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }
@@ -209,6 +233,10 @@ Node *Node::getNodeFromNormalizedPath(const path &p, const bool isFile, const bo
 
 Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const bool mayNotExist)
 {
+    if (bsMode == BSMode::BUILD)
+    {
+        // printMessage("Called\n");
+    }
     const path filePath = getFinalNodePathFromPath(p);
     return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }
@@ -253,8 +281,21 @@ Node *Node::getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExis
     Node *node = nodeIndices[pValue.GetUint64()];
     node->ensureSystemCheckCalled(isFile, mayNotExist);
 #else
-    Node *node =
-        Node::getNodeFromNormalizedString(pstring_view(str.GetString(), str.GetStringLength()), isFile, mayNotExist);
+    Node *node = Node::getNodeFromNormalizedString(pstring_view(pValue.GetString(), pValue.GetStringLength()), isFile,
+                                                   mayNotExist);
+#endif
+    return node;
+}
+
+Node *Node::tryGetNodeFromPValue(bool &systemCheckSucceeded, const PValue &pValue, bool isFile, bool mayNotExist)
+{
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+    Node *node = nodeIndices[pValue.GetUint64()];
+    systemCheckSucceeded = node->trySystemCheck(isFile, mayNotExist);
+#else
+    Node *node = Node::getNodeFromNormalizedString(pstring_view(pValue.GetString(), pValue.GetStringLength()), isFile,
+                                                   mayNotExist);
+    systemCheckSucceeded = true;
 #endif
     return node;
 }

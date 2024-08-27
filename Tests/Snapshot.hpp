@@ -33,6 +33,7 @@ struct Updates
     unsigned short cppTargets = 0;
     unsigned short linkTargetsNoDebug = 0;
     unsigned short linkTargetsDebug = 0;
+    bool nodesFile = true;
 };
 
 struct NodeSnap

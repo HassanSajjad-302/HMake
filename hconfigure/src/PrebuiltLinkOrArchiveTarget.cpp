@@ -14,7 +14,7 @@ import "SMFile.hpp";
 
 PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const pstring &outputName_, pstring directory,
                                                          TargetType linkTargetType_)
-    : PrebuiltBasic(outputName_, linkTargetType_), outputDirectoryString(std::move(directory))
+    : PrebuiltBasic(outputName_, linkTargetType_), outputDirectory(std::move(directory))
 {
 }
 
@@ -22,7 +22,7 @@ PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const pstring &outputNa
                                                          TargetType linkTargetType_, pstring name_, bool buildExplicit,
                                                          bool makeDirectory)
     : PrebuiltBasic(outputName_, linkTargetType_, std::move(name_), buildExplicit, makeDirectory),
-      outputDirectoryString(std::move(directory))
+      outputDirectory(std::move(directory))
 
 {
 }
@@ -36,18 +36,31 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
         if (bsMode == BSMode::BUILD && evaluate(UseMiniTarget::YES))
         {
             readConfigCacheAtBuildTime();
-            return;
+        }
+        else
+        {
+            outputDirectory = Node::getNodeFromNonNormalizedString(outputDirectory, false, true)->filePath;
+            outputFileNode = Node::getNodeFromNormalizedString(outputDirectory + slashc + actualOutputName, true, true);
+
+            if (bsMode == BSMode::CONFIGURE)
+            {
+                if (evaluate(UseMiniTarget::YES))
+                {
+                    writeTargetConfigCacheAtConfigureTime();
+                }
+            }
         }
 
-        outputDirectoryNode = Node::getNodeFromNonNormalizedString(outputDirectoryString, false, true);
-        outputFileNode =
-            Node::getNodeFromNormalizedString(outputDirectoryNode->filePath + slashc + actualOutputName, true, true);
-
-        if (bsMode == BSMode::CONFIGURE)
+        for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
         {
-            if (evaluate(UseMiniTarget::YES))
+            if (!prebuiltBasic->evaluate(TargetType::LIBRARY_OBJECT))
             {
-                writeTargetConfigCacheAtConfigureTime();
+                for (const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
+                         static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
+                     const LibDirNode &libDirNode : prebuiltLinkOrArchiveTarget->usageRequirementLibraryDirectories)
+                {
+                    requirementLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
+                }
             }
         }
     }
@@ -55,14 +68,14 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
 
 void PrebuiltLinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime() const
 {
-    targetConfigCache->PushBack(outputDirectoryNode->getPValue(), ralloc);
+    targetConfigCache->PushBack(PValue(ptoref(outputDirectory)), ralloc);
     targetConfigCache->PushBack(outputFileNode->getPValue(), ralloc);
 }
 
 void PrebuiltLinkOrArchiveTarget::readConfigCacheAtBuildTime()
 {
-    outputDirectoryNode =
-        Node::getNodeFromPValue(targetConfigCache[0][Indices::LinkTargetConfigCache::outputDirectoryNode], false, true);
+    const PValue &v = targetConfigCache[0][Indices::LinkTargetConfigCache::outputDirectoryNode];
+    outputDirectory = pstring(v.GetString(), v.GetStringLength());
     outputFileNode =
         Node::getNodeFromPValue(targetConfigCache[0][Indices::LinkTargetConfigCache::outputFileNode], true, true);
 }
