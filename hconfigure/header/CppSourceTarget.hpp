@@ -24,6 +24,7 @@ import <set>;
 #include <set>
 #endif
 
+#include "phmap.h"
 using std::set, std::same_as;
 
 struct SourceDirectory
@@ -63,13 +64,6 @@ struct InclNodePointerComparator
     bool operator()(const InclNode &lhs, const InclNode &rhs) const;
 };
 
-struct InclNodeRecord
-{
-    Node *node = nullptr;
-    atomic<unsigned short> numOfTargets = 0;
-    explicit InclNodeRecord(Node *node_);
-};
-
 struct ResolveRequirePathBTarget final : BTarget
 {
     CppSourceTarget *target;
@@ -93,6 +87,23 @@ class CppSourceTarget : public CppCompilerFeatures,
                         public FeatureConvenienceFunctions<CppSourceTarget>,
                         public CSourceTarget
 {
+    struct SMFileEqual
+    {
+        using is_transparent = void;
+
+        bool operator()(const SMFile *lhs, const SMFile *rhs) const;
+        bool operator()(const SMFile *lhs, const Node *rhs) const;
+        bool operator()(const Node *lhs, const SMFile *rhs) const;
+    };
+
+    struct SMFileHash
+    {
+        using is_transparent = void; // or std::equal_to<>
+
+        std::size_t operator()(const SMFile *node) const;
+        std::size_t operator()(const Node *node) const;
+    };
+
     friend struct ResolveRequirePathBTarget;
 
   public:
@@ -101,7 +112,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     mutex moduleDepsAccessMutex;
 
     // Written mutex locked in round 1 updateBTarget
-    set<SMFile, CompareSourceNode> headerUnits;
+    phmap::flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnits;
 
     vector<InclNodeTargetMap> useReqHuDirs;
     vector<InclNodeTargetMap> reqHuDirs;
@@ -112,6 +123,7 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     using BaseType = CSourceTarget;
     unique_ptr<PValue> targetBuildCache;
+
     TargetType compileTargetType;
     /*    ModuleScopeDataOld *moduleScopeData = nullptr;
         inline static map<const CppSourceTarget *, unique_ptr<ModuleScopeDataOld>> moduleScopes;*/
@@ -132,11 +144,13 @@ class CppSourceTarget : public CppCompilerFeatures,
     // Comparator used is same as for SourceNode
     vector<SMFile> modFileDeps;
 
+    vector<SMFile> oldHeaderUnits;
+
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
     AdjustHeaderUnitsBTarget adjustHeaderUnitsBTarget{this};
 
     // Set to true if a source or smrule is updated so that latest cache could be stored.
-    std::atomic<bool> targetCacheChanged = false;
+    std::atomic<bool> buildCacheChanged = false;
 
     void setCpuType();
     bool isCpuTypeG7();
@@ -145,7 +159,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     void setSourceCompileCommandPrintFirstHalf();
     inline pstring &getSourceCompileCommandPrintFirstHalf();
 
-    void readBuildCacheFile(Builder &);
     void resolveRequirePaths();
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);
@@ -164,23 +177,21 @@ class CppSourceTarget : public CppCompilerFeatures,
     unsigned short reqIncSizeBeforePopulate = 0;
 
     RAPIDJSON_DEFAULT_ALLOCATOR cppAllocator;
-    size_t buildCacheIndex = UINT64_MAX;
     atomic<size_t> newHeaderUnitsSize = 0;
     bool archiving = false;
     bool archived = false;
 
-    // This function is called in SMFile::decrementTotalSMRuleFileCount once all module files and header-units of our
-    // target and dependent targets have been scanned
-    static void updateRound1();
     void updateBTarget(Builder &builder, unsigned short round) override;
     void writeTargetConfigCacheAtConfigureTime(bool before) const;
     void readConfigCacheAtBuildTime();
     pstring getTarjanNodeName() const override;
     CompilerFlags getCompilerFlags();
 
-    CppSourceTarget(pstring name_, TargetType targetType);
-    CppSourceTarget(bool buildExplicit, pstring name_, TargetType targetType);
-    void initializeCppSourceTarget(TargetType targetType);
+    CppSourceTarget(const pstring &name_, TargetType targetType);
+    CppSourceTarget(bool buildExplicit, const pstring &name_, TargetType targetType);
+    CppSourceTarget(const pstring &name_, TargetType targetType, Configuration *configuration_);
+    CppSourceTarget(bool buildExplicit, const pstring &name_, TargetType targetType, Configuration *configuration_);
+    void initializeCppSourceTarget(TargetType targetType, const pstring &name_);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
@@ -483,8 +494,10 @@ template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const pst
     {
         if (bsMode == BSMode::CONFIGURE)
         {
+            namespace CppTarget = Indices::CppTarget;
             const Node *node = Node::getNodeFromNonNormalizedPath(srcFile, true);
-            targetConfigCache[0][Indices::CppTargetConfigCache::sourceFiles].PushBack(node->getPValue(), ralloc);
+            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::sourceFiles].PushBack(node->getPValue(),
+                                                                                                     ralloc);
         }
         // Initialized in CppSourceTarget round 2
     }
@@ -514,10 +527,13 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const pst
     {
         if (bsMode == BSMode::CONFIGURE)
         {
+            namespace CppTarget = Indices::CppTarget;
             const Node *node = Node::getNodeFromNonNormalizedPath(modFile, true);
-            targetConfigCache[0][Indices::CppTargetConfigCache::moduleFiles].PushBack(node->getPValue(), ralloc);
+            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(node->getPValue(),
+                                                                                                     ralloc);
             // isInterface is false
-            targetConfigCache[0][Indices::CppTargetConfigCache::moduleFiles].PushBack(PValue(false), ralloc);
+            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(PValue(false),
+                                                                                                     ralloc);
         }
         // Initialized in CppSourceTarget round 2
     }
@@ -548,10 +564,13 @@ CppSourceTarget &CppSourceTarget::interfaceFiles(const pstring &modFile, U... mo
     {
         if (bsMode == BSMode::CONFIGURE)
         {
+            namespace CppTarget = Indices::CppTarget;
             const Node *node = Node::getNodeFromNonNormalizedPath(modFile, true);
-            targetConfigCache[0][Indices::CppTargetConfigCache::moduleFiles].PushBack(node->getPValue(), ralloc);
+            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(node->getPValue(),
+                                                                                                     ralloc);
             // isInterface is false
-            targetConfigCache[0][Indices::CppTargetConfigCache::moduleFiles].PushBack(PValue(true), ralloc);
+            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(PValue(true),
+                                                                                                     ralloc);
         }
         // Initialized in CppSourceTarget round 2
     }

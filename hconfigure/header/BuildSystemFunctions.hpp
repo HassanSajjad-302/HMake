@@ -35,24 +35,21 @@ inline char slashc = '/';
 #endif
 
 // TODO
-// Hashing should be used for compile-command as explained here https://aosabook.org/en/posa/ninja.html
-// File paths could be hashed as-well, if impactful. Other formats besides json could be explored for faster loading and
-// processing.
+// Explore
 using Json = nlohmann::json; // Unordered json
-inline PDocument buildCache(kArrayType);
+inline PDocument tempCache(kArrayType);
 inline unique_ptr<vector<pchar>> buildCacheFileBuffer;
 inline PDocument nodesCache(kArrayType);
 inline unique_ptr<vector<pchar>> nodesCacheBuffer;
-inline PDocument configCache(kArrayType);
-inline unique_ptr<vector<pchar>> configCacheBuffer;
 
-inline vector<PValue *> targetConfigCaches;
+// inline vector<PValue *> targetConfigCaches;
 
-inline auto &ralloc = buildCache.GetAllocator();
+inline auto &ralloc = tempCache.GetAllocator();
 inline std::mutex buildCacheMutex;
 void writeBuildCacheUnlocked();
 
 inline uint64_t nodesCacheSizeBefore = 0;
+inline uint64_t currentTargetIndex = 0;
 
 // Node representing source directory
 inline class Node *srcNode;
@@ -112,8 +109,9 @@ void printErrorMessageColor(const pstring &message, uint32_t color);
 
 #define HMAKE_HMAKE_INTERNAL_ERROR printErrorMessage(fmt::format("HMake Internal Error {} {}", __FILE__, __LINE__));
 
-pstring getLastNameAfterSlash(pstring name);
-pstring removeDashCppFromName(pstring name);
+pstring getLastNameAfterSlash(pstring_view name);
+pstring_view getLastNameAfterSlashView(pstring_view name);
+pstring removeDashCppFromName(pstring_view name);
 void configureOrBuild();
 
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

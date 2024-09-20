@@ -140,13 +140,18 @@ bool PostCompile::ignoreHeaderFile(const pstring_view child) const
     return false;
 }
 
-void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &output, PValue &headerDepsJson)
+void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &output, PValue &headerDepsJson,
+                                              const bool mustConsiderHeaderDeps) const
 {
+    // TODO
+    //  Maybe use pstring_view instead
     vector<pstring> outputLines = split(output, "\n");
     const pstring includeFileNote = "Note: including file:";
 
-    if (sourceNode.ignoreHeaderDeps)
+    if (!mustConsiderHeaderDeps && sourceNode.ignoreHeaderDeps)
     {
+        // TODO
+        // Unroll this loop.
         for (auto iter = outputLines.begin(); iter != outputLines.end();)
         {
             if (iter->contains(includeFileNote))
@@ -174,7 +179,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
 
                 // TODO
                 // If compile-command is all lower-cased, then this might not be needed
-                if (!ignoreHeaderFile(headerView))
+                if (mustConsiderHeaderDeps || !ignoreHeaderFile(headerView))
                 {
                     lowerCasePStringOnWindows(const_cast<pchar *>(headerView.data()), headerView.size());
 
@@ -247,9 +252,10 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
     output = std::move(treatedOutput);
 }
 
-void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &headerDepsJson)
+void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &headerDepsJson,
+                                             const bool mustConsiderHeaderDeps)
 {
-    if (!sourceNode.ignoreHeaderDeps)
+    if (mustConsiderHeaderDeps || !sourceNode.ignoreHeaderDeps)
     {
         const pstring headerFileContents = fileToPString(target.buildCacheFilesDirPath +
                                                          (path(sourceNode.node->filePath).filename().*toPStr)() + ".d");
@@ -266,7 +272,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &hea
             {
                 const size_t pos = iter->find_first_not_of(" ");
                 pstring headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
-                if (!ignoreHeaderFile(headerDep))
+                if (mustConsiderHeaderDeps || !ignoreHeaderFile(headerDep))
                 {
                     headerDepsJson.PushBack(PValue(headerDep.c_str(), headerDep.size(), sourceNode.sourceNodeAllocator),
                                             sourceNode.sourceNodeAllocator);
@@ -276,27 +282,27 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &hea
     }
 }
 
-void PostCompile::parseHeaderDeps(SourceNode &sourceNode, const bool parseFromErrorOutput)
+void PostCompile::parseHeaderDeps(SourceNode &sourceNode, const bool parseFromErrorOutput, bool mustConsiderHeaderDeps)
 {
     PValue &headerDepsJson = (*sourceNode.sourceJson)[2];
     headerDepsJson.Clear();
 
     if (target.compiler.bTFamily == BTFamily::MSVC)
     {
-        parseDepsFromMSVCTextOutput(sourceNode, commandSuccessOutput, headerDepsJson);
+        parseDepsFromMSVCTextOutput(sourceNode, commandSuccessOutput, headerDepsJson, mustConsiderHeaderDeps);
 
         if (parseFromErrorOutput)
         {
             // In case of GenerateSMRules header-file info is printed to stderr instead of stout. Just one more wrinkle.
             // Hahaha
-            parseDepsFromMSVCTextOutput(sourceNode, commandErrorOutput, headerDepsJson);
+            parseDepsFromMSVCTextOutput(sourceNode, commandErrorOutput, headerDepsJson, mustConsiderHeaderDeps);
         }
     }
     else
     {
         if (exitStatus == EXIT_SUCCESS)
         {
-            parseDepsFromGCCDepsOutput(sourceNode, headerDepsJson);
+            parseDepsFromGCCDepsOutput(sourceNode, headerDepsJson, mustConsiderHeaderDeps);
         }
     }
 }

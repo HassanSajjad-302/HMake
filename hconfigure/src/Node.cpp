@@ -69,21 +69,6 @@ std::size_t NodeHash::operator()(const pstring_view &str) const
     return rapidhash(str.data(), str.size());
 }
 
-bool CompareNode::operator()(const Node &lhs, const Node &rhs) const
-{
-    return lhs.filePath < rhs.filePath;
-}
-
-bool CompareNode::operator()(const pstring_view &lhs, const Node &rhs) const
-{
-    return lhs < rhs.filePath;
-}
-
-bool CompareNode::operator()(const Node &lhs, const pstring_view &rhs) const
-{
-    return lhs.filePath < rhs;
-}
-
 Node::Node(pstring filePath_) : filePath(std::move(filePath_))
 {
 }
@@ -241,20 +226,41 @@ Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const
     return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }
 
-Node *Node::getHalfNodeFromNormalizedString(pstring normalizedFilePath)
+Node *Node::getHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath)
 {
     if (const auto &[it, ok] = nodeAllFiles.emplace(std::move(normalizedFilePath)); ok)
     {
+        Node &node = const_cast<Node &>(*it);
         // Why do atomic when it is executed single threaded
-        const_cast<Node &>(*it).myId = reinterpret_cast<uint32_t &>(idCount)++;
-        nodeIndices[it->myId] = const_cast<Node *>(it.operator->());
-        const_cast<Node &>(*it).loadedFromNodesCache = true;
-        return const_cast<Node *>(it.operator->());
+        node.myId = reinterpret_cast<uint32_t &>(idCount)++;
+        nodeIndices[node.myId] = &node;
+        node.halfNode = true;
+        return &node;
     }
     else
     {
         return const_cast<Node *>(it.operator->());
     }
+}
+
+Node *Node::getHalfNodeFromNormalizedString(pstring_view p)
+{
+    Node *node = nullptr;
+
+    using Map = decltype(nodeAllFiles);
+
+    if (nodeAllFiles.lazy_emplace_l(
+            p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const Map::constructor &constructor) { constructor(pstring(p)); }))
+    {
+        nodeAllFiles.if_contains(p, [&](const Node &node_) { node = const_cast<Node *>(&node_); });
+        node->myId = idCount.fetch_add(1);
+        nodeIndices[node->myId] = node;
+        nodesCache.PushBack(PValue(ptoref(node->filePath)), ralloc);
+        node->halfNode = true;
+    }
+
+    return node;
 }
 
 void Node::emplaceNodeInPValue(const Node *node, PValue &pValue)
@@ -287,6 +293,20 @@ Node *Node::getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExis
     return node;
 }
 
+Node *Node::getNotSystemCheckCalledNodeFromPValue(const PValue &pValue)
+{
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+    Node *node = nodeIndices[pValue.GetUint64()];
+    if(node == nullptr)
+    {
+        bool debug = true;
+    }
+#else
+    Node *node = getNodeFromNormalizedString(pstring_view(pValue.GetString(), pValue.GetStringLength()), true, false);
+#endif
+    return node;
+}
+
 Node *Node::tryGetNodeFromPValue(bool &systemCheckSucceeded, const PValue &pValue, bool isFile, bool mayNotExist)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
@@ -298,6 +318,16 @@ Node *Node::tryGetNodeFromPValue(bool &systemCheckSucceeded, const PValue &pValu
     systemCheckSucceeded = true;
 #endif
     return node;
+}
+
+rapidjson::Type Node::getType()
+{
+
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+    return rapidjson::kNumberType;
+#else
+    return rapidjson::kStringType;
+#endif
 }
 
 #include "Windows.h"
@@ -377,7 +407,7 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
     ;
     /////////////////////////////////////
 
-    if (!loadedFromNodesCache)
+    if (!halfNode)
     {
         myId = idCount.fetch_add(1);
         nodeIndices[myId] = this;

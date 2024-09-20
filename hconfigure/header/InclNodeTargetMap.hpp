@@ -16,4 +16,11 @@ struct InclNodeTargetMap
     InclNodeTargetMap(InclNode inclNode_, CppSourceTarget *cppSourceTarget_);
 };
 
+struct InclNodePointerTargetMap
+{
+    const InclNode *inclNode;
+    CppSourceTarget *cppSourceTarget;
+    InclNodePointerTargetMap(const InclNode *inclNode_, CppSourceTarget *cppSourceTarget_);
+};
+
 #endif //INCLNODETARGETMAP_HPP

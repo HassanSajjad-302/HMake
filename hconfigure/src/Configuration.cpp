@@ -32,18 +32,16 @@ void Configuration::markArchivePoint()
 CppSourceTarget &Configuration::getCppPreprocess(const pstring &name_)
 {
     CppSourceTarget &cppSourceTarget =
-        targets2<CppSourceTarget>.emplace_back(name + slashc + name_, TargetType::PREPROCESS);
+        targets2<CppSourceTarget>.emplace_back(name + slashc + name_, TargetType::PREPROCESS, this);
     cppSourceTargets.emplace_back(&cppSourceTarget);
-    static_cast<CppCompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
 }
 
 CppSourceTarget &Configuration::getCppObject(const pstring &name_)
 {
     CppSourceTarget &cppSourceTarget =
-        targets2<CppSourceTarget>.emplace_back(name + slashc + name_, TargetType::LIBRARY_OBJECT);
+        targets2<CppSourceTarget>.emplace_back(name + slashc + name_, TargetType::LIBRARY_OBJECT, this);
     cppSourceTargets.emplace_back(&cppSourceTarget);
-    static_cast<CppCompilerFeatures &>(cppSourceTarget) = compilerFeatures;
     return cppSourceTarget;
 }
 

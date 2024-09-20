@@ -90,9 +90,9 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     // following operation needs to be guarded by the mutex, otherwise all the buildCache access would have been
     // guarded. They are not guarded as those operations only modify the cache of this target.
     buildCacheMutex.lock();
-    buildCacheIndex = pvalueIndexInSubArray(buildCache, PValue(ptoref(name)));
 
-    if (buildCacheIndex == UINT64_MAX)
+    namespace LinkTarget = Indices::LinkTarget;
+    if ((*targetTempCache)[LinkTarget::buildCache].Empty())
     {
         atomic_ref(fileStatus).store(true);
     }
@@ -108,7 +108,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         {
             // If linkOrArchiveCommandWithoutTargets could be stored with linker.btPath.*toPStr, so only PValue of
             // strings is compared instead of new allocation
-            if (buildCache[buildCacheIndex][Indices::LinkTargetBuildCache::commandWithoutArgumentsWithTools] ==
+            if ((*targetTempCache)[LinkTarget::buildCache][LinkTarget::BuildCache::commandWithoutArgumentsWithTools] ==
                 commandWithoutTargetsWithTool.getHash())
             {
                 bool needsUpdate = false;
@@ -133,7 +133,8 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 for (const ObjectFile *objectFile : objectFiles)
                 {
                     bool contains = false;
-                    for (PValue &o : buildCache[buildCacheIndex][Indices::LinkTargetBuildCache::objectFiles].GetArray())
+                    for (PValue &o :
+                         (*targetTempCache)[LinkTarget::buildCache][LinkTarget::BuildCache::objectFiles].GetArray())
                     {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
                         contains = o.GetUint64() == objectFile->objectFileOutputFilePath->myId;
@@ -175,8 +176,10 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     {
         if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && atomic_ref(fileStatus).load())
         {
+            // TODO:
+            // Use Parallel HashMap
             set<PrebuiltBasic *> checked;
-            stack<PrebuiltBasic *> allDeps;
+            stack<PrebuiltBasic *, vector<PrebuiltBasic*>> allDeps;
             for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
             {
                 checked.emplace(prebuiltBasic);
@@ -257,11 +260,9 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
 
                 lock_guard lk(buildCacheMutex);
 
-                if (buildCacheIndex == UINT64_MAX)
+                namespace LinkTarget = Indices::LinkTarget;
+                if (PValue &t = (*targetTempCache)[LinkTarget::buildCache]; t.Empty())
                 {
-                    buildCache.PushBack(PValue(kArrayType), ralloc);
-                    buildCacheIndex = buildCache.Size() - 1;
-                    PValue &t = *(buildCache.End() - 1);
                     t.PushBack(ptoref(name), ralloc);
 
                     t.PushBack(commandWithoutTargetsWithTool.getHash(), ralloc);
@@ -270,9 +271,9 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 }
                 else
                 {
-                    buildCache[buildCacheIndex][Indices::LinkTargetBuildCache::commandWithoutArgumentsWithTools] =
-                        commandWithoutTargetsWithTool.getHash();
-                    objectFilesPValue = &buildCache[buildCacheIndex][Indices::LinkTargetBuildCache::objectFiles];
+                    namespace BuildCache = LinkTarget::BuildCache;
+                    t[BuildCache::commandWithoutArgumentsWithTools] = commandWithoutTargetsWithTool.getHash();
+                    objectFilesPValue = &t[BuildCache::objectFiles];
                     objectFilesPValue->Clear();
                 }
 

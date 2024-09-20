@@ -55,6 +55,12 @@ Builder::Builder()
     }
 }
 
+static void printBuilderDebug(const string &p)
+{
+    /*printBuilderDebug(p);
+    fflush(stdout);*/
+}
+
 extern pstring getThreadId();
 
 #ifndef NDEBUG
@@ -68,11 +74,11 @@ void Builder::execute()
     BTarget *bTarget = nullptr;
     RealBTarget *realBTarget = nullptr;
 
-    // printMessage(fmt::format("{} Locking Update Mutex {} {}\n", round, __LINE__, getThreadId()));
+    printBuilderDebug(fmt::format("{} Locking Update Mutex {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(),
+                                  getThreadId()));
     std::unique_lock lk(executeMutex);
     while (true)
     {
-        bool counted = false;
         while (true)
         {
             const unsigned short roundLocal = round;
@@ -80,29 +86,23 @@ void Builder::execute()
 
             if (updateBTargetsIterator != updateBTargets.end())
             {
-                // This can be true when a thread has already added in threadCount but then later a new btarget was
-                // appended to the updateBTargets by function like addNewBTargetInFinalBTargets
-                counted = false;
-                // printMessage(fmt::format("{} update-executing {} {}\n", round, __LINE__, getThreadId()));
+                printBuilderDebug(fmt::format("{} update-executing {} {}\n", round, __LINE__, getThreadId()));
                 bTarget = *updateBTargetsIterator;
                 realBTarget = &bTarget->realBTargets[round];
                 ++updateBTargetsIterator;
-                // printMessage(fmt::format("{} UnLocking Update Mutex {} {}\n", round, __LINE__, getThreadId()));
+                printBuilderDebug(fmt::format("{} UnLocking Update Mutex {} {}\n", round, __LINE__, getThreadId()));
                 executeMutex.unlock();
                 cond.notify_one();
                 shouldBreak = true;
             }
-            else if (updateBTargets.size() == updateBTargetsSizeGoal && !counted)
+            else if (updateBTargets.size() == updateBTargetsSizeGoal)
             {
-                counted = true;
-
-                // printMessage(fmt::format("{} updateBTargets.size() == updateBTargetsSizeGoal {} {} {}\n", round,
-                //  numberOfSleepingThreadsCounted.load() + numberOfSleepingThreads.load(),
-                // numberOfLaunchedThreads, getThreadId()));
-                if (numberOfSleepingThreadsCounted + numberOfSleepingThreads == numberOfLaunchedThreads - 1)
+                printBuilderDebug(fmt::format("{} updateBTargets.size() == updateBTargetsSizeGoal {} {} {}\n", round,
+                                              numberOfSleepingThreads.load(), numberOfLaunchedThreads, getThreadId()));
+                if (numberOfSleepingThreads.load() == numberOfLaunchedThreads - 1)
                 {
-                    /*// printMessage(fmt::format("{} {} {}\n", round, "UPDATE_BTARGET threadCount ==
-                       numberOfLaunchThreads", getThreadId()));*/
+                    printBuilderDebug(fmt::format(
+                        "{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
 
                     if (round > roundGoal && !errorHappenedInRoundMode)
                     {
@@ -167,7 +167,6 @@ void Builder::execute()
 
                         updateBTargetsSizeGoal = TBT::topologicalSort.size();
                         updateBTargetsIterator = updateBTargets.begin();
-                        counted = false;
                     }
                     else
                     {
@@ -176,13 +175,13 @@ void Builder::execute()
 
                     executeMutex.unlock();
                     cond.notify_one();
-                    // printMessage(fmt::format("{} Locking after notifying one after round decrement {} {}\n", round,
-                    // __LINE__, getThreadId()));
+                    printBuilderDebug(fmt::format("{} Locking after notifying one after round decrement {} {}\n", round,
+                                                  __LINE__, getThreadId()));
                     executeMutex.lock();
                     if (returnAfterWakeup)
                     {
-                        // printMessage(fmt::format("{} Returning after roundGoal Achieved{} {}\n", round, __LINE__,
-                        // getThreadId()));
+                        printBuilderDebug(fmt::format("{} Returning after roundGoal Achieved{} {}\n", round, __LINE__,
+                                                      getThreadId()));
                         return;
                     }
                 }
@@ -195,21 +194,18 @@ void Builder::execute()
 
             if (roundLocal == round)
             {
-                incrementNumberOfSleepingThreads(counted);
-                // printMessage(fmt::format("{} Condition waiting {} {}\n", round, __LINE__, getThreadId()));
+                printBuilderDebug(fmt::format("{} Condition waiting {} {} {}\n", round, __LINE__,
+                                              numberOfSleepingThreads.load(), getThreadId()));
+                incrementNumberOfSleepingThreads();
                 cond.wait(lk);
-                decrementNumberOfSleepingThreads(counted);
-                // printMessage(fmt::format("{} Wakeup after condition waiting {} {}\n", round, __LINE__,
-                // getThreadId()));
-                if (roundLocal != round)
-                {
-                    counted = false;
-                }
+                decrementNumberOfSleepingThreads();
+                printBuilderDebug(fmt::format("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__,
+                                              numberOfSleepingThreads.load(), getThreadId()));
                 if (returnAfterWakeup)
                 {
                     cond.notify_one();
-                    // printMessage(fmt::format("{} returning after wakeup from condition variable {} {}\n", round,
-                    // __LINE__, getThreadId()));
+                    printBuilderDebug(fmt::format("{} returning after wakeup from condition variable {} {}\n", round,
+                                                  __LINE__, getThreadId()));
                     return;
                 }
             }
@@ -218,7 +214,7 @@ void Builder::execute()
         try
         {
             bTarget->updateBTarget(*this, round);
-            // printMessage(fmt::format("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
+            printBuilderDebug(fmt::format("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
             executeMutex.lock();
             if (realBTarget->exitStatus != EXIT_SUCCESS)
             {
@@ -227,11 +223,10 @@ void Builder::execute()
         }
         catch (std::exception &ec)
         {
-            // printMessage(fmt::format("{} Locking in catch block {} {}\n", round, __LINE__, getThreadId()));
+            printBuilderDebug(fmt::format("{} Locking in catch block {} {}\n", round, __LINE__, getThreadId()));
             executeMutex.lock();
             realBTarget->exitStatus = EXIT_FAILURE;
-            string str(ec.what());
-            if (!str.empty())
+            if (string str(ec.what()); !str.empty())
             {
                 printErrorMessage(str);
             }
@@ -242,6 +237,10 @@ void Builder::execute()
         }
 
         // bTargetDepType is only considered in round 0.
+        if (!realBTarget->isUpdated)
+        {
+            continue;
+        }
         if (round)
         {
             for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
@@ -278,20 +277,15 @@ void Builder::execute()
                 }
             }
         }
+
+        printBuilderDebug(fmt::format("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round,
+                                      __LINE__, updateBTargets.size(), updateBTargetsSizeGoal, getThreadId()));
     }
 }
 
-void Builder::incrementNumberOfSleepingThreads(const bool counted)
+void Builder::incrementNumberOfSleepingThreads()
 {
-    if (!counted)
-    {
-        ++numberOfSleepingThreads;
-    }
-    else
-    {
-        ++numberOfSleepingThreadsCounted;
-    }
-    if (numberOfSleepingThreads == numberOfLaunchedThreads)
+    if (numberOfSleepingThreads.fetch_add(1) + 1 == numberOfLaunchedThreads)
     {
         try
         {
@@ -305,9 +299,8 @@ void Builder::incrementNumberOfSleepingThreads(const bool counted)
         }
         catch (std::exception &ec)
         {
-            // printMessage(fmt::format("Locking Update Mutex {}\n", __LINE__));
-            const string str(ec.what());
-            if (!str.empty())
+            printBuilderDebug(fmt::format("Locking Update Mutex {}\n", __LINE__));
+            if (const string str(ec.what()); !str.empty())
             {
                 printErrorMessage(str);
             }
@@ -316,14 +309,7 @@ void Builder::incrementNumberOfSleepingThreads(const bool counted)
     }
 }
 
-void Builder::decrementNumberOfSleepingThreads(bool counted)
+void Builder::decrementNumberOfSleepingThreads()
 {
-    if (!counted)
-    {
-        --numberOfSleepingThreads;
-    }
-    else
-    {
-        --numberOfSleepingThreadsCounted;
-    }
+    --numberOfSleepingThreads;
 }

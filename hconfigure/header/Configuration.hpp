@@ -18,6 +18,18 @@ using std::shared_ptr;
 
 class CppSourceTarget;
 
+enum class GenerateModuleData
+{
+    NO,
+    YES,
+};
+
+enum class UseModuleData
+{
+    NO,
+    YES,
+};
+
 // TODO
 // HollowConfiguration type which is very similar to Configuration except it does not inherit from CTarget which means
 // CppSourceTarget etc could be created with a properties preset but a new Configuration Directory will not be created
@@ -32,6 +44,7 @@ struct Configuration : BTarget
     PrebuiltBasicFeatures prebuiltBasicFeatures;
     LinkerFeatures linkerFeatures;
     TargetType targetType = TargetType::LIBRARY_STATIC;
+    GenerateModuleData generateModuleData = GenerateModuleData::NO;
     bool archiving = false;
 
     CppSourceTarget &getCppPreprocess(const pstring &name_);
@@ -87,6 +100,14 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         compilerFeatures.setConfigType(property);
         linkerFeatures.setConfigType(property);
+    }
+    else if constexpr (std::is_same_v<decltype(property), GenerateModuleData>)
+    {
+        generateModuleData = property;
+        if (generateModuleData == GenerateModuleData::YES)
+        {
+            assign(TreatModuleAsSource::YES);
+        }
     }
     // CommonFeatures
     else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
@@ -255,7 +276,7 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         compilerFeatures.requirementCompileDefinitions.emplace(property);
     }
-    else if constexpr(std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
+    else if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
     {
         prebuiltLinkOrArchiveTargetFeatures.copyToExeDirOnNtOs = property;
     }
@@ -296,6 +317,10 @@ template <typename T> bool Configuration::evaluate(T property) const
     if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
     {
         return useMiniTarget == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), GenerateModuleData>)
+    {
+        return generateModuleData == property;
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {

@@ -100,82 +100,110 @@ unique_ptr<vector<pchar>> readPValueFromFile(pstring_view fileName, PDocument &d
 void writePValueToFile(pstring_view fileName, const PValue &value);
 unique_ptr<vector<pchar>> readPValueFromCompressedFile(pstring_view fileName, PDocument &document);
 void writePValueToCompressedFile(pstring_view fileName, const PValue &value);
-size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
+uint64_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
+// This will consider the currentCacheIndex in its search
+uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &element);
 bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs);
 void lowerCasePStringOnWindows(pchar *ptr, uint64_t size);
 bool childInParentPathRecursiveNormalized(pstring_view parent, pstring_view child);
 
-struct Indices
+// TODO
+// Optimize this
+inline vector<class CppSourceTarget *> cppSourceTargets{1000};
+namespace Indices
 {
 
-    constexpr static unsigned targetBuildCache = 1;
+namespace CppTarget
+{
+constexpr static unsigned name = 0;
+constexpr static unsigned configCache = 1;
+constexpr static unsigned buildCache = 2;
 
-    struct CppTargetBuildCache
-    {
+namespace ConfigCache
+{
+constexpr static unsigned reqInclsArray = 0;
+constexpr static unsigned useReqInclsArray = 1;
+constexpr static unsigned reqHUDirsArray = 2;
+constexpr static unsigned useReqHUDirsArray = 3;
+constexpr static unsigned sourceFiles = 4;
+constexpr static unsigned moduleFiles = 5;
+}; // namespace ConfigCache
 
-        constexpr static unsigned sourceFiles = 0;
-        constexpr static unsigned moduleFiles = 1;
-        constexpr static unsigned headerUnits = 2;
+namespace BuildCache
+{
+constexpr static unsigned sourceFiles = 0;
+constexpr static unsigned moduleFiles = 1;
+constexpr static unsigned headerUnits = 2;
 
-        struct SourceFiles
-        {
-            constexpr static unsigned fullPath = 0;
-            constexpr static unsigned compileCommandWithTool = 1;
-            constexpr static unsigned headerFiles = 2;
-        };
+namespace SourceFiles
+{
+constexpr static unsigned fullPath = 0;
+constexpr static unsigned compileCommandWithTool = 1;
+constexpr static unsigned headerFiles = 2;
+// Used only in GenerateModuleData::YES mode
+constexpr static unsigned moduleData = 3;
+namespace ModuleData
+{
+constexpr static unsigned exportName = 0;
+constexpr static unsigned isInterface = 1;
+constexpr static unsigned headerUnitArray = 2;
+constexpr static unsigned moduleArray = 3;
 
-        struct ModuleFiles : SourceFiles
-        {
-            constexpr static unsigned fullPath = 0;
-            constexpr static unsigned scanningCommandWithTool = 1;
-            constexpr static unsigned headerFiles = 2;
-            constexpr static unsigned smRules = 3;
-            struct SmRules
-            {
-                constexpr static unsigned exportName = 0;
-                constexpr static unsigned isInterface = 1;
-                constexpr static unsigned requireArray = 2;
+namespace SingleHeaderUnitDep
+{
+constexpr static unsigned fullPath = 0;
+constexpr static unsigned logicalName = 1;
+// Maybe store this info in logicalName and extract it from there
+constexpr static unsigned angle = 2;
+constexpr static unsigned targetIndex = 3;
+constexpr static unsigned myIndex = 4;
+}; // namespace SingleHeaderUnitDep
 
-                struct SingleModuleDep
-                {
-                    constexpr static unsigned logicalName = 0;
-                    constexpr static unsigned isHeaderUnit = 1;
-                    // Points to different things in-case of header-unit and module. In-case of header-unit, it is the
-                    // value of the source-path key, while in-case of module it is assigned before saving. So, in next
-                    // build in resolveRequiePaths, we check that whether we are resolving to the same module.
-                    constexpr static unsigned fullPath = 2;
-                    constexpr static unsigned boolean = 3;
-                };
-            };
+namespace SingleModuleDep
+{
+// This is the value of the source-path key and is assigned before saving. So, in next build in
+// resolveRequirePaths, we check that whether we are resolving to the same module.
+constexpr static unsigned fullPath = 0;
+constexpr static unsigned logicalName = 1;
+}; // namespace SingleModuleDep
+}; // namespace ModuleData
+}; // namespace SourceFiles
 
-            constexpr static unsigned compileCommandWithTool = 4;
-        };
-    };
+namespace ModuleFiles
+{
+using namespace SourceFiles;
+constexpr static unsigned fullPath = 0;
+constexpr static unsigned scanningCommandWithTool = 1;
+constexpr static unsigned headerFiles = 2;
+constexpr static unsigned smRules = 3;
+namespace SmRules = ModuleData;
 
-    struct LinkTargetBuildCache
-    {
-        constexpr static unsigned commandWithoutArgumentsWithTools = 1;
-        constexpr static unsigned objectFiles = 2;
-        constexpr static unsigned localLinkCommandWithoutTargets = 3;
-    };
+constexpr static unsigned compileCommandWithTool = 4;
+}; // namespace ModuleFiles
+}; // namespace BuildCache
+}; // namespace CppTarget
 
-    struct LinkTargetConfigCache
-    {
-        constexpr static unsigned requirementLibraryDirectoriesArray = 1;
-        constexpr static unsigned usageRequirementLibraryDirectoriesArray = 2;
-        constexpr static unsigned outputDirectoryNode = 3;
-        constexpr static unsigned outputFileNode = 4;
-    };
+namespace LinkTarget
+{
+constexpr static unsigned name = 0;
+constexpr static unsigned configCache = 1;
+constexpr static unsigned buildCache = 2;
 
-    struct CppTargetConfigCache
-    {
-        constexpr static unsigned reqInclsArray = 1;
-        constexpr static unsigned useReqInclsArray = 2;
-        constexpr static unsigned reqHUDirsArray = 3;
-        constexpr static unsigned useReqHUDirsArray = 4;
-        constexpr static unsigned sourceFiles = 5;
-        constexpr static unsigned moduleFiles = 6;
-    };
-};
+namespace ConfigCache
+{
+constexpr static unsigned requirementLibraryDirectoriesArray = 0;
+constexpr static unsigned usageRequirementLibraryDirectoriesArray = 1;
+constexpr static unsigned outputDirectoryNode = 2;
+constexpr static unsigned outputFileNode = 3;
+}; // namespace ConfigCache
+
+namespace BuildCache
+{
+constexpr static unsigned commandWithoutArgumentsWithTools = 1;
+constexpr static unsigned objectFiles = 2;
+constexpr static unsigned localLinkCommandWithoutTargets = 3;
+}; // namespace BuildCache
+}; // namespace LinkTarget
+}; // namespace Indices
 
 #endif // HMAKE_PLATFORMSPECIFIC_HPP

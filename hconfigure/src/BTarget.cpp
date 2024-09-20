@@ -21,8 +21,8 @@ StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets
 {
     for (unsigned short i = 0; i < 3; ++i)
     {
-        tarjanNodesBTargets.emplace_back();
-        tarjanNodesBTargetsMutexes.emplace_back(new mutex());
+        tarjanNodesBTargets.emplace_back(10000);
+        tarjanNodesCount.emplace_back(0);
     }
 }
 
@@ -41,15 +41,24 @@ bool IndexInTopologicalSortComparatorRoundTwo::operator()(const BTarget *lhs, co
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_)
     : TBT{bTarget_}, bTarget(bTarget_), round(round_)
 {
-    std::lock_guard lk(*tarjanNodesBTargetsMutexes[round]);
-
-    // Memory Not Released
-    tarjanNodesBTargets[round].emplace_back(this);
+    const uint32_t i = atomic_ref(tarjanNodesCount[round]).fetch_add(1);
+    tarjanNodesBTargets[round][i] = this;
 }
 
-BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}
+RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const bool add)
+    : TBT{bTarget_}, bTarget(bTarget_), round(round_)
 {
-    id = total++;
+    if (add)
+    {
+        const uint32_t i = atomic_ref(tarjanNodesCount[round]).fetch_add(1);
+        tarjanNodesBTargets[round][i] = this;
+    }
+}
+
+void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
+{
+    const uint32_t i = atomic_ref(tarjanNodesCount[round_]).fetch_add(1);
+    tarjanNodesBTargets[round_][i] = this;
 }
 
 static pstring lowerCase(pstring str)
@@ -58,10 +67,28 @@ static pstring lowerCase(pstring str)
     return str;
 }
 
+BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}
+{
+    id = atomic_ref(total).fetch_add(1);
+}
 BTarget::BTarget(pstring name_, bool buildExplicit, bool makeDirectory)
-    : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)},
+    : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}, name(lowerCase(std::move(name_)))
+{
+    id = atomic_ref(total).fetch_add(1);
+}
+
+BTarget::BTarget(const bool add0, const bool add1, const bool add2)
+    : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)}
+{
+    id = atomic_ref(total).fetch_add(1);
+}
+
+BTarget::BTarget(pstring name_, bool buildExplicit, bool makeDirectory, const bool add0, const bool add1,
+                 const bool add2)
+    : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)},
       name(lowerCase(std::move(name_)))
 {
+    id = atomic_ref(total).fetch_add(1);
 }
 
 BTarget::~BTarget()

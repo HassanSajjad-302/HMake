@@ -11,6 +11,8 @@ import "BTarget.hpp";
 class ObjectFile : public BTarget
 {
 public:
+    ObjectFile();
+    ObjectFile(bool add0, bool add1, bool add2);
     Node *objectFileOutputFilePath = nullptr;
     virtual pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
 };

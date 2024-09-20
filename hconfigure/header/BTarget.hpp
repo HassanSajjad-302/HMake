@@ -22,7 +22,7 @@ using std::size_t, std::map, std::mutex, std::lock_guard, std::atomic_flag, std:
 TarjanNode(const class BTarget *) -> TarjanNode<BTarget>;
 using TBT = TarjanNode<BTarget>;
 inline vector<vector<TBT *>> tarjanNodesBTargets;
-inline vector<mutex *> tarjanNodesBTargetsMutexes;
+inline vector<uint32_t> tarjanNodesCount;
 
 class StaticInitializationTarjanNodesBTargets
 {
@@ -90,7 +90,13 @@ struct RealBTarget : TBT
 
     unsigned short round;
 
-    explicit RealBTarget(BTarget *bTarget_, unsigned short round);
+    // Set it to false, and build-system will not decrement dependenciesSize of the dependents RealBTargets
+    bool isUpdated = true;
+
+    RealBTarget(BTarget *bTarget_, unsigned short round_);
+    RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
+    void addInTarjanNodeBTarget(unsigned short round_);
+
     template <typename... U> void addDependency(BTarget &dependency, U &...bTargets);
     template <typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
 };
@@ -120,8 +126,11 @@ struct BTarget // BTarget
     bool selectiveBuild = false;
     bool fileStatus = false;
 
-    explicit BTarget();
-    explicit BTarget(pstring name_, bool buildExplicit, bool makeDirectory);
+    BTarget();
+    BTarget(pstring name_, bool buildExplicit, bool makeDirectory);
+    BTarget(bool add0, bool add1, bool add2);
+    BTarget(pstring name_, bool buildExplicit, bool makeDirectory, bool add0, bool add1, bool add2);
+
     virtual ~BTarget();
 
     void setSelectiveBuild();

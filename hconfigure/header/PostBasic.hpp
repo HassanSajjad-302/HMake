@@ -40,9 +40,9 @@ struct PostCompile : PostBasic
                          const PathPrint &pathPrint);
 
     bool ignoreHeaderFile(pstring_view child) const;
-    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, pstring &output, PValue &headerDepsJson);
-    void parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &headerDepsJson);
-    void parseHeaderDeps(SourceNode &sourceNode, bool parseFromErrorOutput);
+    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, pstring &output, PValue &headerDepsJson, bool mustConsiderHeaderDeps) const;
+    void parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &headerDepsJson, bool mustConsiderHeaderDeps);
+    void parseHeaderDeps(SourceNode &sourceNode, bool parseFromErrorOutput, bool mustConsiderHeaderDeps);
 };
 
 #endif // HMAKE_POSTBASIC_HPP

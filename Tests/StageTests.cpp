@@ -474,7 +474,7 @@ TEST(StageTests, Test3)
     // Touching public-lib3.hpp
     const path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
     touchFile(publicLib3DotHpp);
-    executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.smruleFiles = 2, .cppTargets = 1}, "Debug/lib4-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .cppTargets = 1}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
@@ -482,7 +482,7 @@ TEST(StageTests, Test3)
     // Touching public-lib4.hpp
     const path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
     touchFile(publicLib4DotHpp);
-    executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib1-cpp");
+    executeSnapshotBalances(Updates{.smruleFiles = 2, .cppTargets = 1}, "Debug/lib1-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib2-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .cppTargets = 1}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
@@ -510,13 +510,19 @@ TEST(StageTests, Test3)
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib4-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
-    // Touching public-lib4.hpp.
-    // lib3.cpp has a header-unit dep on public-lib3.hpp which has a header-dep on public-lib4.hpp, i.e. public-lib3.hpp
-    // will be recompiled and its dependent lib3.cpp will also be recompiled but public-lib4.hpp is itself a header-unit
-    // in lib4.cpp, so its smrule will also be generated.
+    //  Touching public-lib4.hpp.
+    //  lib3.cpp has a header-unit dep on public-lib3.hpp which has a header-dep on public-lib4.hpp, i.e.
+    //  public-lib3.hpp will be recompiled and its dependent lib3.cpp will also be recompiled but public-lib4.hpp is
+    //  itself a header-unit in lib4.cpp, so its smrule will also be generated.
     touchFile(testSourcePath / "lib4/public/public-lib4.hpp");
-    executeSnapshotBalances(Updates{.smruleFiles = 2, .sourceFiles = 1, .moduleFiles = 1, .cppTargets = 2},
-                            "Debug/lib3-cpp");
+    // TODO
+    // This test is incorrect since 5 smruleFiles should be generated. lib2.cpp, lib3.cpp, lib4.cpp, public-lib3.hpp,
+    // public-lib4.hpp. This does not generate lib3.cpp.smrules which has an import dependency on public-lib3.hpp which
+    // has an include dependency on public-lib4.hpp. But this include is not outputted in /showIncludes flag in first
+    // round. So the bug is that /showIncludes only show the direct header-files includes and not of those which are
+    // included by the header-units we are importing.
+    executeSnapshotBalances(Updates{.smruleFiles = 5, .cppTargets = 2}, "Debug/lib1-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .cppTargets = 2}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{}, "Debug/lib1-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1}, "Debug/lib4-cpp");
@@ -526,7 +532,7 @@ TEST(StageTests, Test3)
     copyFilePath(testSourcePath / "Version/4/hmake.cpp", testSourcePath / "hmake.cpp");
     copyFilePath(testSourcePath / "Version/4/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.smruleFiles = 3,
+    executeSnapshotBalances(Updates{.smruleFiles = 4,
                                     .sourceFiles = 2,
                                     .moduleFiles = 2,
                                     .cppTargets = 1,
@@ -542,7 +548,7 @@ TEST(StageTests, Test3)
     cacheJson["cache-variables"]["use-module"] = false;
     ofstream(cacheFile) << cacheJson.dump(4);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.smruleFiles = 1,
+    executeSnapshotBalances(Updates{.smruleFiles = 2,
                                     .sourceFiles = 2,
                                     .moduleFiles = 1,
                                     .cppTargets = 1,
@@ -552,12 +558,12 @@ TEST(StageTests, Test3)
     cacheJson["cache-variables"]["use-module"] = true;
     ofstream(cacheFile) << cacheJson.dump(4);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "Debug/lib3");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
 
-    // linker prints "fatal error" but still builds the lib fine and snapshot balances. Just to be safe the module
-    // object-files are now specified in order. This shouldn't be needed as object-files ordering specification should
-    // not matter to linker. Changes in this commit will probably be reverted.
+    // 3 smrules file include lib4.cpp, public-lib4.hpp and lib2.cpp. private-lib4.hpp is saved with same old
+    // compile-command. But the public-lib4.hpp is imported in lib2.cpp, so it was recompiled when USE_MODULE definition
+    // was removed.
+    executeSnapshotBalances(Updates{.smruleFiles = 3, .cppTargets = 1}, "Debug/lib3");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Moving back to source from module. lib4.cpp.o should not be rebuilt because lib4.cpp with the same
@@ -566,7 +572,7 @@ TEST(StageTests, Test3)
     cacheJson["cache-variables"]["use-module"] = false;
     ofstream(cacheFile) << cacheJson.dump(4);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.smruleFiles = 1,
+    executeSnapshotBalances(Updates{.smruleFiles = 2,
                                     .sourceFiles = 1,
                                     .moduleFiles = 1,
                                     .cppTargets = 1,
@@ -598,7 +604,7 @@ TEST(StageTests, Test4)
     copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
 
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{}, "cat-cpp");
+    executeSnapshotBalances(Updates{.smruleFiles = 1, .cppTargets = 1}, "cat-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .cppTargets = 1, .linkTargetsNoDebug = 1}, "app");
 
     // TODO

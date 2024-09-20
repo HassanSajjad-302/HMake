@@ -68,14 +68,15 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
 
 void PrebuiltLinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime() const
 {
-    targetConfigCache->PushBack(PValue(ptoref(outputDirectory)), ralloc);
-    targetConfigCache->PushBack(outputFileNode->getPValue(), ralloc);
+    (*targetTempCache)[Indices::LinkTarget::configCache].PushBack(PValue(ptoref(outputDirectory)), ralloc);
+    (*targetTempCache)[Indices::LinkTarget::configCache].PushBack(outputFileNode->getPValue(), ralloc);
 }
 
 void PrebuiltLinkOrArchiveTarget::readConfigCacheAtBuildTime()
 {
-    const PValue &v = targetConfigCache[0][Indices::LinkTargetConfigCache::outputDirectoryNode];
+    namespace LinkTarget = Indices::LinkTarget;
+    const PValue &v = (*targetTempCache)[LinkTarget::configCache][LinkTarget::ConfigCache::outputDirectoryNode];
     outputDirectory = pstring(v.GetString(), v.GetStringLength());
-    outputFileNode =
-        Node::getNodeFromPValue(targetConfigCache[0][Indices::LinkTargetConfigCache::outputFileNode], true, true);
+    outputFileNode = Node::getNodeFromPValue(
+        (*targetTempCache)[LinkTarget::configCache][LinkTarget::ConfigCache::outputFileNode], true, true);
 }

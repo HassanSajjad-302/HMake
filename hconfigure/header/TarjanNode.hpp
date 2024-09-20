@@ -79,7 +79,7 @@ template <typename T> void TarjanNode<T>::findSCCS()
     topologicalSort.clear();
     for (TarjanNode *tarjanNode : *tarjanNodes)
     {
-        if (!tarjanNode->initialized)
+        if (tarjanNode && !tarjanNode->initialized)
         {
             tarjanNode->strongConnect();
         }

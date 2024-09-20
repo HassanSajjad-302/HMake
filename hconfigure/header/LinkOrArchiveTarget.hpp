@@ -65,10 +65,6 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
 
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
 
-    PValue *targetBuildCache = nullptr;
-
-    size_t buildCacheIndex = UINT64_MAX;
-
     bool archiving = false;
     bool archived = false;
 

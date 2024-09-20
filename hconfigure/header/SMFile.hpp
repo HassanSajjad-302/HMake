@@ -3,6 +3,7 @@
 
 #ifdef USE_HEADER_UNITS
 import "nlohmann/json.hpp";
+import "InclNodeTargetMap.hpp";
 import "ObjectFile.hpp";
 import <filesystem>;
 import <list>;
@@ -11,6 +12,7 @@ import <utility>;
 import <vector>;
 import <atomic>;
 #else
+#include "InclNodeTargetMap.hpp"
 #include "ObjectFile.hpp"
 #include "nlohmann/json.hpp"
 #include <atomic>
@@ -25,7 +27,7 @@ using Json = nlohmann::json;
 using std::map, std::set, std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, std::atomic,
     std::atomic_flag;
 
-struct SourceNode;
+class SourceNode;
 struct CompareSourceNode
 {
     using is_transparent = void; // for example with void,
@@ -35,17 +37,36 @@ struct CompareSourceNode
     bool operator()(const SourceNode &lhs, const Node *rhs) const;
 };
 
-struct SourceNode : ObjectFile
+struct HeaderUnitIndexInfo
 {
+    uint64_t targetIndex;
+    uint64_t myIndex;
+    HeaderUnitIndexInfo(uint64_t targetIndex_, uint64_t myIndex_);
+    PValue &getSingleHeaderUnitDep() const;
+};
+
+class SourceNode : public ObjectFile
+{
+  public:
     RAPIDJSON_DEFAULT_ALLOCATOR sourceNodeAllocator;
     PValue *sourceJson = nullptr;
-    class CppSourceTarget *target;
+    CppSourceTarget *target;
     const Node *node;
     bool ignoreHeaderDeps = false;
     SourceNode(CppSourceTarget *target_, Node *node_);
+
+  protected:
+    SourceNode(CppSourceTarget *target_, const Node *node_, bool add0, bool add1, bool add2);
+
+  public:
     pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     pstring getTarjanNodeName() const override;
+    void initializeSourceJson();
     void updateBTarget(Builder &builder, unsigned short round) override;
+    void populateModuleData(Builder &builder);
+    bool checkHeaderFiles2(const Node *compareNode, bool alsoCheckHeaderUnit) const;
+    bool checkHeaderFiles(const Node *compareNode, bool alsoCheckHeaderUnit) const;
+    InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode);
     void setSourceNodeFileStatus();
 };
 
@@ -69,6 +90,8 @@ enum class SM_FILE_TYPE : char
     PARTITION_IMPLEMENTATION = 3,
     HEADER_UNIT = 4,
     PRIMARY_IMPLEMENTATION = 5,
+    // Used only in GenerateModuleData
+    HEADER_UNIT_DISABLED = 6,
 };
 
 struct HeaderUnitConsumer
@@ -76,7 +99,6 @@ struct HeaderUnitConsumer
     bool angle;
     pstring logicalName;
     HeaderUnitConsumer(bool angle_, pstring logicalName_);
-    auto operator<=>(const HeaderUnitConsumer &headerUnitConsumer) const = default;
 };
 
 struct PValueObjectFileMapping
@@ -94,26 +116,43 @@ struct SMFile : SourceNode // Scanned Module Rule
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // is depending on is consuming it another way.
-    map<const SMFile *, set<HeaderUnitConsumer>> headerUnitsConsumptionMethods;
+    map<const SMFile *, HeaderUnitConsumer> headerUnitsConsumptionData;
     set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
 
     unique_ptr<vector<pchar>> smRuleFileBuffer;
-    size_t headerUnitsIndex = UINT64_MAX;
+    // TODO: 4-bytes enough or maybe 2bytes
+    uint64_t headerUnitsIndex = UINT64_MAX;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 
-    bool readJsonFromSMRulesFile = false;
     bool isInterface = false;
+    bool isSMRulesJsonSet = false;
+    bool foundFromCache = false;
+    bool isObjectFileOutdated = false;
+    bool isSMRuleFileOutdated = false;
+
+    // atomic
+    bool isObjectFileOutdatedCallCompleted = false;
+    bool isSMRuleFileOutdatedCallCompleted = false;
+    bool addedForRoundOne = false;
 
     // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
     // ignoreHeaderDeps is true
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
     SMFile(CppSourceTarget *target_, Node *node_);
+    SMFile(CppSourceTarget *target_, Node *node_, SM_FILE_TYPE type_);
+    SMFile(CppSourceTarget *target_, Node *node_, SM_FILE_TYPE type_, bool olderHeaderUnit);
+    void setSMRulesJson(pstring_view smRulesJson);
+    void checkHeaderFilesIfSMRulesJsonSet();
+    void setLogicalNameAndAddToRequirePath();
     void updateBTarget(Builder &builder, unsigned short round) override;
+    bool calledOnce = false;
     void saveSMRulesJsonToSourceJson(const pstring &smrulesFileOutputClang);
-    void initializeNewHeaderUnit(const PValue &inclNodes, Builder &builder);
+    void initializeModuleJson();
+    void initializeHeaderUnits(Builder &builder);
     void addNewBTargetInFinalBTargets(Builder &builder);
-    void iterateRequiresJsonToInitializeNewHeaderUnits(Builder &builder);
-    bool shouldGenerateSMFileInRoundOne();
+    void setSMFileType(Builder &builder);
+    void isObjectFileOutdatedComparedToSourceFileAndItsDeps();
+    void isSMRulesFileOutdatedComparedToSourceFileAndItsDeps();
     pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
     void setFileStatusAndPopulateAllDependencies();

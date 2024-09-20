@@ -9,3 +9,8 @@ InclNodeTargetMap::InclNodeTargetMap(InclNode inclNode_, CppSourceTarget *cppSou
     : inclNode(inclNode_), cppSourceTarget(cppSourceTarget_)
 {
 }
+
+InclNodePointerTargetMap::InclNodePointerTargetMap(const InclNode *inclNode_, CppSourceTarget *cppSourceTarget_)
+    : inclNode(inclNode_), cppSourceTarget(cppSourceTarget_)
+{
+}

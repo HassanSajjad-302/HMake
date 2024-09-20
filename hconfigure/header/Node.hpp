@@ -33,13 +33,6 @@ struct NodeHash
     std::size_t operator()(const Node &node) const;
     std::size_t operator()(const pstring_view &str) const;
 };
-struct CompareNode
-{
-    using is_transparent = void;
-    bool operator()(const Node &lhs, const Node &rhs) const;
-    bool operator()(const pstring_view &lhs, const Node &rhs) const;
-    bool operator()(const Node &lhs, const pstring_view &rhs) const;
-};
 
 class Node
 {
@@ -81,23 +74,29 @@ class Node
     static Node *getNodeFromNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
 
-    static Node *getHalfNodeFromNormalizedString(pstring normalizedFilePath);
+    static Node *getHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath);
+    static Node *getHalfNodeFromNormalizedString(pstring_view p);
+    // TODO
+    // Following two functions should be removed and instead json.pushback(node.getPValue) be used.
     static void emplaceNodeInPValue(const Node *node, PValue &pValue);
     static void emplaceNodeInPValue(const Node *node, PValue &pValue, decltype(ralloc) alloc);
     static Node *getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist = false);
-
+    static Node *getNotSystemCheckCalledNodeFromPValue(const PValue &pValue);
     static Node *tryGetNodeFromPValue(bool &systemCheckSucceeded, const PValue &pValue, bool isFile,
                                       bool mayNotExist = false);
+
+    static rapidjson::Type getType();
 
   private:
     void performSystemCheck(bool isFile, bool mayNotExist);
 
   public:
     bool doesNotExist = false;
-    bool loadedFromNodesCache = false;
+    bool halfNode = false;
     static void clearNodes();
 };
 
+// flat_hash_set is used for speed but maybe we
 //  This keeps info if a file is touched. If it's touched, it's not touched again.
-inline phmap::parallel_flat_hash_set_m<Node, NodeHash, NodeEqual> nodeAllFiles{10000};
+inline phmap::parallel_node_hash_set_m<Node, NodeHash, NodeEqual> nodeAllFiles{10000};
 #endif // HMAKE_NODE_HPP

@@ -277,15 +277,38 @@ void writePValueToCompressedFile(const pstring_view fileName, const PValue &valu
 #endif
 }
 
-size_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element)
+uint64_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element)
 {
-    for (size_t i = 0; i < pvalue.Size(); ++i)
+    for (uint64_t i = 0; i < pvalue.Size(); ++i)
     {
         if (element == pvalue[i][0])
         {
             return i;
         }
     }
+    return UINT64_MAX;
+}
+
+uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &element)
+{
+    const uint64_t old = currentTargetIndex;
+    for (uint64_t i = currentTargetIndex; i < pvalue.Size(); ++i)
+    {
+        if (element == pvalue[i][0])
+        {
+            currentTargetIndex = i;
+            return i;
+        }
+    }
+    for (uint64_t i = 0; i < currentTargetIndex; ++i)
+    {
+        if (element == pvalue[i][0])
+        {
+            currentTargetIndex = i;
+            return i;
+        }
+    }
+    currentTargetIndex = old;
     return UINT64_MAX;
 }
 

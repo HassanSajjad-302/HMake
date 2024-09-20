@@ -21,7 +21,7 @@ import <fstream>;
 
 using fmt::print, std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
 
-static pstring getName(pstring name)
+static pstring getName(const pstring &name)
 {
 #ifdef USE_JSON_FILE_COMPRESSION
     return name + ".out";
@@ -32,7 +32,7 @@ static pstring getName(pstring name)
 
 void writeBuildCacheUnlocked()
 {
-    writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), buildCache);
+    writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), tempCache);
 }
 
 void initializeCache(const BSMode bsMode_)
@@ -90,22 +90,22 @@ void initializeCache(const BSMode bsMode_)
         // However performSystemCheck is not called and is called in multi-threaded fashion.
         for (PValue &value : nodesCache.GetArray())
         {
-            Node::getHalfNodeFromNormalizedString(pstring(value.GetString(), value.GetStringLength()));
+            Node::getHalfNodeFromNormalizedStringSingleThreaded(pstring(value.GetString(), value.GetStringLength()));
         }
         nodesCacheSizeBefore = nodesCache.Size();
     }
 
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
-    if (bsMode == BSMode::BUILD)
+    if (const path p = path(configureNode->filePath + slashc + getName("build-cache")); exists(p))
     {
-        if (const path p = path(configureNode->filePath + slashc + getName("config-cache")); exists(p))
+        const pstring str = p.string();
+        buildCacheFileBuffer = readPValueFromCompressedFile(str, tempCache);
+    }
+    else
+    {
+        if (bsMode == BSMode::BUILD)
         {
-            const pstring str = p.string();
-            configCacheBuffer = readPValueFromCompressedFile(str, configCache);
-        }
-        else
-        {
-            printErrorMessage("config-cache.json.lz4 does not exist. Exiting\n");
+            printErrorMessage(fmt::format("{} does not exist. Exiting\n", p.string().c_str()));
             exit(EXIT_FAILURE);
         }
     }
@@ -156,6 +156,7 @@ void printMessage(const pstring &message)
     else
     {
         print("{}", message);
+        fflush(stdout);
     }
 }
 
@@ -199,40 +200,17 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
     }
 }
 
-void loadBuildCache()
-{
-    if (const path p = path(configureNode->filePath + slashc + getName("build-cache")); exists(p))
-    {
-        const pstring str = p.string();
-        buildCacheFileBuffer = readPValueFromCompressedFile(str, buildCache);
-    }
-}
-
 void configureOrBuild()
 {
     if (bsMode == BSMode::BUILD)
     {
-        loadBuildCache();
-
-        // This ensures that buildCache has the capacity to to have all the new PValue. Currently, these new PValue are
-        // added in readBuildCacheFile function in CppSourceTarget and LinkOrArchiveTarget. Because, the number can't be
-        // more than the following collective size, we can safely take pointer to the PValue. If not taking pointer,
-        // then an extra copy will need to be performed whenever cache is to be saved and having two copies would entail
-        // similar memory usage. Extra size is being reserved because targets might be already present in cache or they
-        // might not and the cache of other targets which aren't to built in this cycle need to be preserved.
-
-        buildCache.Reserve(buildCache.Size() + configCache.Size(), ralloc);
         Builder{};
     }
     if (bsMode == BSMode::CONFIGURE)
     {
         Builder{};
         cache.registerCacheVariables();
-        for (const PValue *pValue : targetConfigCaches)
-        {
-            configCache.PushBack(PValue().CopyFrom(*pValue, ralloc), ralloc);
-        }
-        writePValueToCompressedFile(configureNode->filePath + slashc + getName("config-cache"), configCache);
+        writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), tempCache);
     }
     writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCache);
     /*if (nodesCache.Size() != nodesCacheSizeBefore)
@@ -243,7 +221,16 @@ void configureOrBuild()
            "nodes cache size can not be less than the originally loaded file");
 }
 
-pstring getLastNameAfterSlash(pstring name)
+pstring getLastNameAfterSlash(pstring_view name)
+{
+    if (const uint64_t i = name.find_last_of(slashc); i != pstring::npos)
+    {
+        return {name.begin() + i + 1, name.end()};
+    }
+    return pstring(name);
+}
+
+pstring_view getLastNameAfterSlashView(pstring_view name)
 {
     if (const uint64_t i = name.find_last_of(slashc); i != pstring::npos)
     {
@@ -252,7 +239,7 @@ pstring getLastNameAfterSlash(pstring name)
     return name;
 }
 
-pstring removeDashCppFromName(pstring name)
+pstring removeDashCppFromName(pstring_view name)
 {
-    return name.substr(0, name.size() - 4); // Removing -cpp from the name
+    return pstring(name.substr(0, name.size() - 4)); // Removing -cpp from the name
 }
