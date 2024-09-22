@@ -5,12 +5,18 @@
 import "BTarget.hpp";
 import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
+import "btree.h";
 #else
 #include "BTarget.hpp"
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
+#include "btree.h"
 #endif
 
+using phmap::node_hash_map, phmap::btree_map;
+
+// TODO
+//  This is a memory hog.
 struct PrebuiltDep
 {
     // LF linkerFlags
@@ -38,12 +44,13 @@ class PrebuiltBasic : public BTarget, public PrebuiltBasicFeatures
     pstring outputName;
     vector<const class ObjectFile *> objectFiles;
 
-    map<PrebuiltBasic *, PrebuiltDep> requirementDeps;
-    map<PrebuiltBasic *, PrebuiltDep> usageRequirementDeps;
+    node_hash_map<PrebuiltBasic *, PrebuiltDep> requirementDeps;
+    node_hash_map<PrebuiltBasic *, PrebuiltDep> usageRequirementDeps;
 
-    map<PrebuiltBasic *, const PrebuiltDep *, IndexInTopologicalSortComparatorRoundZero> sortedPrebuiltDependencies;
+    btree_map<PrebuiltBasic *, const PrebuiltDep *, IndexInTopologicalSortComparatorRoundZero>
+        sortedPrebuiltDependencies;
 
-    set<class ObjectFileProducer *> objectFileProducers;
+    flat_hash_set<class ObjectFileProducer *> objectFileProducers;
 
     vector<LibDirNode> usageRequirementLibraryDirectories;
 
@@ -190,8 +197,8 @@ PrebuiltBasic &PrebuiltBasic::PUBLIC_DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTa
 }
 
 template <typename... U>
-PrebuiltBasic &PrebuiltBasic::DEPS(PrebuiltBasic *prebuiltTarget, Dependency dependency,
-                                   PrebuiltDep prebuiltDep, U... deps)
+PrebuiltBasic &PrebuiltBasic::DEPS(PrebuiltBasic *prebuiltTarget, Dependency dependency, PrebuiltDep prebuiltDep,
+                                   U... deps)
 {
     if (dependency == Dependency::PUBLIC)
     {

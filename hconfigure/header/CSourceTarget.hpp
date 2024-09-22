@@ -6,15 +6,12 @@
 impoert "Features.hpp";
 import "ObjectFileProducer.hpp";
 import "SpecialNodes.hpp";
-import <set>;
 #else
 #include "Features.hpp"
 #include "ObjectFileProducer.hpp"
 #include "SpecialNodes.hpp"
-#include <set>
 #endif
 
-using std::set;
 
 enum class CSourceTargetType : unsigned short
 {
@@ -28,7 +25,7 @@ class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>
     using BaseType = CSourceTarget;
     vector<InclNode> useReqIncls;
     pstring usageRequirementCompilerFlags;
-    set<Define> usageRequirementCompileDefinitions;
+    flat_hash_set<Define> usageRequirementCompileDefinitions;
     PValue *targetTempCache = nullptr;
     // TODO:
     // Could be 4 bytes instead

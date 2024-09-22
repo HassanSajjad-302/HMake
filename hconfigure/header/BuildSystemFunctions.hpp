@@ -1,24 +1,22 @@
 #ifndef HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 #define HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 #ifdef USE_HEADER_UNITS
+import "HashValues.hpp";
 import "OS.hpp";
-import <deque>;
-import <map>;
-import <mutex>;
+import "phmap.h";
 import "PlatformSpecific.hpp";
 import "nlohmann/json.hpp";
-import <set>;
 #else
+#include "HashValues.hpp"
 #include "OS.hpp"
+#include "phmap.h"
 #include "PlatformSpecific.hpp"
 #include "nlohmann/json.hpp"
 #include <deque>
-#include <map>
 #include <mutex>
-#include <set>
 #endif
 
-using std::set, std::map, std::mutex, std::vector, std::deque;
+using std::mutex, std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set;
 
 #ifdef _WIN32
 #define EXPORT __declspec(dllexport)
@@ -71,13 +69,13 @@ inline BSMode bsMode = BSMode::CONFIGURE;
 
 // Following can be used for holding memory through build-system run and is used for target<CTarget> in GetTarget
 // functions
-template <typename T> inline set<T> targets;
+template <typename T> inline node_hash_set<T> targets;
 
 template <typename T> inline deque<T> targets2;
 
 // Following can be used to hold pointers for all targets in the build system. It is used by CTarget and BTarget
 // constructor.
-template <typename T> inline set<T *> targetPointers;
+template <typename T> inline flat_hash_set<T *> targetPointers;
 
 #ifdef _WIN32
 inline constexpr OS os = OS::NT;

@@ -1,5 +1,6 @@
 #include "Snapshot.hpp"
 #include "BuildSystemFunctions.hpp"
+#include "rapidhash.h"
 #include <utility>
 
 using std::filesystem::recursive_directory_iterator;
@@ -8,9 +9,24 @@ NodeSnap::NodeSnap(path nodePath_, const file_time_type time_) : nodePath{std::m
 {
 }
 
-bool operator<(const NodeSnap &lhs, const NodeSnap &rhs)
+consteval uint64_t pathCharSize()
 {
-    return lhs.nodePath < rhs.nodePath;
+    path p;
+    if constexpr (std::is_same<path::string_type, string>::value)
+    {
+        return 1;
+    }
+    return 2;
+}
+
+uint64_t hash_value(const NodeSnap &p)
+{
+    return rapidhash(p.nodePath.native().c_str(), pathCharSize() * p.nodePath.native().size());
+}
+
+bool operator==(const NodeSnap &lhs, const NodeSnap &rhs)
+{
+    return lhs.nodePath == rhs.nodePath;
 }
 
 Snapshot::Snapshot(const path &directoryPath)
@@ -22,34 +38,29 @@ void Snapshot::before(const path &directoryPath)
 {
     beforeData.clear();
     afterData.clear();
-    Node::clearNodes();
     for (auto &f : recursive_directory_iterator(directoryPath))
     {
         if (f.is_regular_file())
         {
-            Node *node = Node::getNodeFromNonNormalizedPath(f.path(), true);
-            beforeData.emplace(node->filePath, node->lastWriteTime);
+            beforeData.emplace(f.path(), last_write_time(f));
         }
     }
 }
 
 void Snapshot::after(const path &directoryPath)
 {
-    Node::clearNodes();
     for (auto &f : recursive_directory_iterator(directoryPath))
     {
         if (f.is_regular_file())
         {
-            Node *node = Node::getNodeFromNonNormalizedPath(f.path(), true);
-            node->lastWriteTime = last_write_time(path(node->filePath));
-            afterData.emplace(node->filePath, node->lastWriteTime);
+            afterData.emplace(f.path(), last_write_time(f));
         }
     }
 }
 
 bool Snapshot::snapshotBalances(const Updates &updates) const
 {
-    set<const NodeSnap *> actual;
+    flat_hash_set<const NodeSnap *> actual;
     for (const NodeSnap &snap : afterData)
     {
         if (!beforeData.contains(snap) || beforeData.find(snap)->lastUpdateTime != snap.lastUpdateTime)

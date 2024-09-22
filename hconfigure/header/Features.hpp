@@ -1,15 +1,12 @@
 #ifndef HMAKE_FEATURES_HPP
 #define HMAKE_FEATURES_HPP
 #ifdef USE_HEADER_UNITS
-import "OS.hpp";
 import "BuildTools.hpp";
 import "Cache.hpp";
-import "SMFile.hpp";
 import "InclNodeTargetMap.hpp";
+import "OS.hpp";
 import "SpecialNodes.hpp";
 import "TargetType.hpp";
-import <map>;
-import <set>;
 import <vector>;
 #else
 #include "BuildTools.hpp"
@@ -18,12 +15,8 @@ import <vector>;
 #include "OS.hpp"
 #include "SpecialNodes.hpp"
 #include "TargetType.hpp"
-#include <map>
-#include <set>
 #include <vector>
 #endif
-
-using std::map, std::set;
 
 using std::vector;
 
@@ -139,7 +132,6 @@ struct Define
     pstring name;
     pstring value;
     Define() = default;
-    auto operator<=>(const Define &) const = default;
     explicit Define(pstring name_, pstring value_ = "");
 };
 
@@ -814,7 +806,7 @@ struct CppCompilerFeatures
 
     vector<InclNode> reqIncls;
     pstring requirementCompilerFlags;
-    set<Define> requirementCompileDefinitions;
+    flat_hash_set<Define> requirementCompileDefinitions;
     CppCompilerFeatures();
     void setCompilerFromVSTools(const struct VSTools &vsTools);
     void setCompilerFromLinuxTools(const struct LinuxTools &linuxTools);

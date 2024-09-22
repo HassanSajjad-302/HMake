@@ -53,7 +53,8 @@ add_library(hconfigure STATIC
         hconfigure/src/SpecialNodes.cpp
         hconfigure/src/InclNodeTargetMap.cpp
         3rdParty/lz4/lib/lz4.c
-        hconfigure/src/ConfigHelpers.cpp)
+        hconfigure/src/ConfigHelpers.cpp
+        hconfigure/src/HashValues.cpp)
 
 
 if (UNIX)

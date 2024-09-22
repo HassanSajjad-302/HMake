@@ -5,17 +5,15 @@
 import "Settings.hpp";
 import "BuildSystemFunctions.hpp";
 import "PlatformSpecific.hpp";
-import <set>;
 import <vector>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "PlatformSpecific.hpp"
 #include "Settings.hpp"
-#include <set>
 #include <vector>
 #endif
 
-using std::vector, std::set;
+using std::vector;
 
 template <typename T> class TarjanNode
 {
@@ -33,7 +31,7 @@ template <typename T> class TarjanNode
     // Input
     inline static vector<TarjanNode *> *tarjanNodes;
 
-    mutable set<TarjanNode *> deps;
+    mutable flat_hash_set<TarjanNode *> deps;
 
     explicit TarjanNode(const T *id_);
 

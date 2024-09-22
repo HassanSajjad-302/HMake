@@ -176,10 +176,10 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     {
         if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && atomic_ref(fileStatus).load())
         {
+            flat_hash_set<PrebuiltBasic *> checked;
             // TODO:
-            // Use Parallel HashMap
-            set<PrebuiltBasic *> checked;
-            stack<PrebuiltBasic *, vector<PrebuiltBasic*>> allDeps;
+            // Use vector instead and call reserve before
+            stack<PrebuiltBasic *, vector<PrebuiltBasic *>> allDeps;
             for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
             {
                 checked.emplace(prebuiltBasic);

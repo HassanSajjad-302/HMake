@@ -2,10 +2,10 @@
 #ifndef HMAKE_SNAPSHOT_HPP
 #define HMAKE_SNAPSHOT_HPP
 
-#include "Node.hpp"
 #include <filesystem>
+#include "phmap.h"
 
-using std::filesystem::path, std::filesystem::file_time_type, std::filesystem::current_path;
+using std::filesystem::path, std::filesystem::file_time_type, std::filesystem::current_path, phmap::flat_hash_set;
 
 struct Setup
 {
@@ -42,12 +42,13 @@ struct NodeSnap
     file_time_type lastUpdateTime;
     NodeSnap(path nodePath_, file_time_type time_);
 };
-bool operator<(const NodeSnap &lhs, const NodeSnap &rhs);
+uint64_t hash_value(const NodeSnap &p);
+bool operator==(const NodeSnap &lhs, const NodeSnap &rhs);
 
 class Snapshot
 {
-    set<NodeSnap> beforeData;
-    set<NodeSnap> afterData;
+    flat_hash_set<NodeSnap> beforeData;
+    flat_hash_set<NodeSnap> afterData;
 
   public:
     explicit Snapshot(const path &directoryPath);

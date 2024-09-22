@@ -5,19 +5,16 @@
 import "BuildTools.hpp";
 import "Features.hpp";
 #include "nlohmann/json.hpp";
-import <set>;
 import <vector>;
 #else
 #include "BuildTools.hpp"
 #include "Features.hpp"
 #include "nlohmann/json.hpp"
-#include <set>
 #include <vector>
 #endif
 
 using std::vector;
 
-using std::set;
 using Json = nlohmann::json;
 
 // On Windows standard libraries and includes are not provided by default. And tools used are different based on

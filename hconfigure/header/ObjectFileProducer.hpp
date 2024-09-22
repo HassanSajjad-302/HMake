@@ -25,8 +25,8 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
 {
     ObjectFileProducerWithDS();
     ObjectFileProducerWithDS(pstring name_, bool buildExplicit, bool makeDirectory);
-    set<T *> requirementDeps;
-    set<T *> usageRequirementDeps;
+    flat_hash_set<T *> requirementDeps;
+    flat_hash_set<T *> usageRequirementDeps;
     template <typename... U> T &PUBLIC_DEPS(T *dep, const U... deps);
     template <typename... U> T &PRIVATE_DEPS(T *dep, const U... deps);
     template <typename... U> T &INTERFACE_DEPS(T *dep, const U... deps);
@@ -109,7 +109,7 @@ template <typename T> void ObjectFileProducerWithDS<T>::populateRequirementAndUs
 {
     // Set is copied because new elements are to be inserted in it.
 
-    for (set<T *> localRequirementDeps = requirementDeps; T * t : localRequirementDeps)
+    for (flat_hash_set<T *> localRequirementDeps = requirementDeps; T * t : localRequirementDeps)
     {
         for (T *t_ : t->usageRequirementDeps)
         {

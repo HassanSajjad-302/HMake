@@ -21,11 +21,9 @@ import <set>;
 #include "SMFile.hpp"
 #include "ToolsCache.hpp"
 #include <concepts>
-#include <set>
 #endif
 
-#include "phmap.h"
-using std::set, std::same_as;
+using std::same_as;
 
 struct SourceDirectory
 {
@@ -80,6 +78,20 @@ struct AdjustHeaderUnitsBTarget final : BTarget
     pstring getTarjanNodeName() const override;
 };
 
+struct RequireNameTargetId
+{
+    uint64_t id;
+    pstring requireName;
+    RequireNameTargetId(uint64_t id_, pstring requirePath_);
+    bool operator==(const RequireNameTargetId &other) const;
+};
+
+struct RequireNameTargetIdHash
+{
+    uint64_t operator()(const RequireNameTargetId &req) const;
+};
+inline phmap::parallel_flat_hash_map_m<RequireNameTargetId, SMFile *, RequireNameTargetIdHash> requirePaths2;
+
 // TODO
 // HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
 // use -TC flag with MSVC
@@ -108,7 +120,6 @@ class CppSourceTarget : public CppCompilerFeatures,
 
   public:
     mutex headerUnitsMutex;
-    mutex requirePathsMutex;
     mutex moduleDepsAccessMutex;
 
     // Written mutex locked in round 1 updateBTarget
@@ -116,10 +127,6 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     vector<InclNodeTargetMap> useReqHuDirs;
     vector<InclNodeTargetMap> reqHuDirs;
-
-    // Written mutex locked in round 1 updateBTarget.
-    // Which require is provided by which SMFile
-    map<pstring, SMFile *> requirePaths;
 
     using BaseType = CSourceTarget;
     unique_ptr<PValue> targetBuildCache;

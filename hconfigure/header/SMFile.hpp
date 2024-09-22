@@ -7,7 +7,6 @@ import "InclNodeTargetMap.hpp";
 import "ObjectFile.hpp";
 import <filesystem>;
 import <list>;
-import <set>;
 import <utility>;
 import <vector>;
 import <atomic>;
@@ -15,17 +14,17 @@ import <atomic>;
 #include "InclNodeTargetMap.hpp"
 #include "ObjectFile.hpp"
 #include "nlohmann/json.hpp"
+#include "btree.h"
 #include <atomic>
 #include <filesystem>
 #include <list>
-#include <set>
 #include <utility>
 #include <vector>
 #endif
 
 using Json = nlohmann::json;
-using std::map, std::set, std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, std::atomic,
-    std::atomic_flag;
+using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, std::atomic,
+    std::atomic_flag, phmap::btree_set, phmap::flat_hash_map;
 
 class SourceNode;
 struct CompareSourceNode
@@ -116,8 +115,8 @@ struct SMFile : SourceNode // Scanned Module Rule
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // is depending on is consuming it another way.
-    map<const SMFile *, HeaderUnitConsumer> headerUnitsConsumptionData;
-    set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
+    flat_hash_map<const SMFile *, HeaderUnitConsumer> headerUnitsConsumptionData;
+    btree_set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
 
     unique_ptr<vector<pchar>> smRuleFileBuffer;
     // TODO: 4-bytes enough or maybe 2bytes

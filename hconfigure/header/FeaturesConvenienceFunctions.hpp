@@ -1,15 +1,9 @@
 #ifndef HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
 #define HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
 #ifdef USE_HEADER_UNITS
-import "ConfigType.hpp";
 import "Dependency.hpp";
-import "PlatformSpecific.hpp";
-import <concepts>;
 #else
-#include "ConfigType.hpp"
 #include "Dependency.hpp"
-#include "PlatformSpecific.hpp"
-#include <concepts>
 #endif
 
 // TODO

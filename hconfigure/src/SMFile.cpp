@@ -676,13 +676,17 @@ void SMFile::setLogicalNameAndAddToRequirePath()
     {
         logicalName = pstring((*sourceJson)[ModuleFile::smRules][SMRules::exportName].GetString(),
                               (*sourceJson)[ModuleFile::smRules][SMRules::exportName].GetStringLength());
-        target->requirePathsMutex.lock();
-        auto [pos, ok] = target->requirePaths.try_emplace(logicalName, this);
-        target->requirePathsMutex.unlock();
 
-        if (!ok)
+        using Map = decltype(requirePaths2);
+
+        const RequireNameTargetId req(this->target->id, logicalName);
+        if (const SMFile *val = nullptr; requirePaths2.lazy_emplace_l(
+                req, [&](const Map::value_type &val_) { val = const_cast<SMFile *>(val_.second); },
+                [&](const Map::constructor &constructor) { constructor(req, this); }))
         {
-            const auto &[key, val] = *pos;
+        }
+        else
+        {
             printErrorMessageColor(
                 fmt::format("In target:\n{}\nModule name:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
                             target->getTarjanNodeName(), logicalName, node->filePath, val->node->filePath),
@@ -1179,33 +1183,51 @@ BTargetType SMFile::getBTargetType() const
 
 void SMFile::setFileStatusAndPopulateAllDependencies()
 {
-    auto emplaceInAll = [&](SMFile *smFile) {
+    auto emplaceInAll = [&](SMFile *smFile) -> bool {
         if (const auto &[pos, Ok] = allSMFileDependenciesRoundZero.emplace(smFile); Ok)
         {
             for (auto &h : smFile->headerUnitsConsumptionData)
             {
                 headerUnitsConsumptionData.emplace(h);
             }
+            return true;
+        }
+        return false;
+    };
 
-            if (!atomic_ref(fileStatus).load())
+    if (!atomic_ref(fileStatus).load())
+    {
+        for (auto &[dependency, ignore] : realBTargets[0].dependencies)
+        {
+            if (dependency->getBTargetType() == BTargetType::SMFILE)
             {
-                if (smFile->objectFileOutputFilePath->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
+                if (auto *smFile = static_cast<SMFile *>(dependency); emplaceInAll(smFile))
                 {
-                    atomic_ref(fileStatus).store(true);
+                    for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
+                    {
+                        emplaceInAll(smFileDep);
+                    }
+                    if (smFile->objectFileOutputFilePath->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
+                    {
+                        atomic_ref(fileStatus).store(true);
+                    }
                 }
             }
         }
-    };
-
-    for (auto &[dependency, ignore] : realBTargets[0].dependencies)
+    }
+    else
     {
-        if (dependency->getBTargetType() == BTargetType::SMFILE)
+        for (auto &[dependency, ignore] : realBTargets[0].dependencies)
         {
-            auto *smFile = static_cast<SMFile *>(dependency);
-            emplaceInAll(smFile);
-            for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
+            if (dependency->getBTargetType() == BTargetType::SMFILE)
             {
-                emplaceInAll(smFileDep);
+                if (auto *smFile = static_cast<SMFile *>(dependency); emplaceInAll(smFile))
+                {
+                    for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
+                    {
+                        emplaceInAll(smFileDep);
+                    }
+                }
             }
         }
     }

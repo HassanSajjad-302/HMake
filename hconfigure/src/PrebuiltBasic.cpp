@@ -13,7 +13,7 @@ import "SMFile.hpp";
 void PrebuiltBasic::populateRequirementAndUsageRequirementDeps()
 {
     // Set is copied because new elements are to be inserted in it.
-    map<PrebuiltBasic *, PrebuiltDep> localRequirementDeps = requirementDeps;
+    node_hash_map<PrebuiltBasic *, PrebuiltDep> localRequirementDeps = requirementDeps;
 
     for (auto &[prebuiltBasic, prebuiltDep] : localRequirementDeps)
     {
@@ -192,14 +192,14 @@ void PrebuiltBasic::addRequirementDepsToBTargetDependencies()
     {
         for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
         {
-            round0.addLooseDependency(const_cast<PrebuiltBasic &>(*prebuiltBasic));
+            round0.addLooseDependency(*prebuiltBasic);
         }
     }
     else
     {
         for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
         {
-            round0.addDependency(const_cast<PrebuiltBasic &>(*prebuiltBasic));
+            round0.addDependency(*prebuiltBasic);
         }
     }
 }

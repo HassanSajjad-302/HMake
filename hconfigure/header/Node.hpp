@@ -6,15 +6,13 @@
 import "BuildSystemFunctions.hpp";
 import "parallel_hashmap/phmap.h";
 import <atomic>;
-import <unordered_set>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "phmap.h"
 #include <atomic>
-#include <unordered_set>
 #endif
 
-using std::atomic, std::lock_guard, std::unordered_set, std::filesystem::file_time_type;
+using std::atomic, std::lock_guard, std::filesystem::file_time_type;
 
 class Node;
 struct NodeEqual

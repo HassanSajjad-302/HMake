@@ -5,18 +5,17 @@ import "TargetType.hpp";
 import "TarjanNode.hpp";
 import <array>;
 import <atomic>;
-import <map>;
 import <mutex>;
 #else
 #include "TargetType.hpp"
 #include "TarjanNode.hpp"
 #include <array>
 #include <atomic>
-#include <map>
 #include <mutex>
 #endif
 
-using std::size_t, std::map, std::mutex, std::lock_guard, std::atomic_flag, std::array, std::atomic, std::atomic_ref;
+using std::size_t, phmap::flat_hash_map, std::mutex, std::lock_guard, std::atomic_flag, std::array, std::atomic,
+    std::atomic_ref;
 
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
 TarjanNode(const class BTarget *) -> TarjanNode<BTarget>;
@@ -56,8 +55,8 @@ enum class BTargetDepType : bool
 inline StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
 struct RealBTarget : TBT
 {
-    map<BTarget *, BTargetDepType> dependents;
-    map<BTarget *, BTargetDepType> dependencies;
+    flat_hash_map<BTarget *, BTargetDepType> dependents;
+    flat_hash_map<BTarget *, BTargetDepType> dependencies;
 
     BTarget *bTarget = nullptr;
 

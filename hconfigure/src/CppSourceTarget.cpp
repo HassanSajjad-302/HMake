@@ -86,6 +86,22 @@ pstring AdjustHeaderUnitsBTarget::getTarjanNodeName() const
     return "AdjustHeaderUnitsBTarget " + target->name;
 }
 
+RequireNameTargetId::RequireNameTargetId(const uint64_t id_, pstring requirePath_)
+    : id(id_), requireName(std::move(requirePath_))
+{
+}
+
+bool RequireNameTargetId::operator==(const RequireNameTargetId &other) const
+{
+    return id == other.id && requireName == other.requireName;
+}
+
+uint64_t RequireNameTargetIdHash::operator()(const RequireNameTargetId &req) const
+{
+    const uint64_t hash[2] = {rapidhash(req.requireName.c_str(), req.requireName.size()), req.id};
+    return rapidhash(&hash, sizeof(hash));
+}
+
 bool CppSourceTarget::SMFileEqual::operator()(const SMFile *lhs, const SMFile *rhs) const
 {
     return lhs->node == rhs->node;
@@ -280,7 +296,7 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
 {
     if (!(configuration && configuration->evaluate(GenerateModuleData::YES)))
     {
-        set<const SMFile *, IndexInTopologicalSortComparatorRoundZero> sortedSMFileDependencies;
+        btree_set<const SMFile *, IndexInTopologicalSortComparatorRoundZero> sortedSMFileDependencies;
         for (const SMFile &objectFile : modFileDeps)
         {
             sortedSMFileDependencies.emplace(&objectFile);
@@ -1361,7 +1377,7 @@ void CppSourceTarget::setCompileCommand()
         ++it;
     }
 
-    set<pstring> includes;
+    btree_set<pstring> includes;
 
     for (; it != reqIncls.end(); ++it)
     {
@@ -1480,22 +1496,25 @@ void CppSourceTarget::resolveRequirePaths()
 
             // Even if found, we continue the search to ensure that no two files are providing the same module in
             // the module-files of the target and its dependencies
-            if (auto it = requirePaths.find(pstring(require[SingleModuleDep::logicalName].GetString(),
-                                                    require[SingleModuleDep::logicalName].GetStringLength()));
-                it != requirePaths.end())
+            RequireNameTargetId req(id, pstring(require[SingleModuleDep::logicalName].GetString(),
+                                                require[SingleModuleDep::logicalName].GetStringLength()));
+
+            using Map = decltype(requirePaths2);
+            if (requirePaths2.if_contains(
+                    req, [&](const Map::value_type &value) { found = const_cast<SMFile *>(value.second); }))
             {
-                found = it->second;
             }
 
+            const SMFile *found2 = nullptr;
             for (CSourceTarget *cSourceTarget : requirementDeps)
             {
                 if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
                 {
-                    auto *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
-                    if (auto it = cppSourceTarget->requirePaths.find(
-                            pstring(require[SingleModuleDep::logicalName].GetString(),
-                                    require[SingleModuleDep::logicalName].GetStringLength()));
-                        it != cppSourceTarget->requirePaths.end())
+                    const auto *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
+                    req.id = cppSourceTarget->id;
+
+                    if (requirePaths2.if_contains(
+                            req, [&](const Map::value_type &value) { found2 = const_cast<SMFile *>(value.second); }))
                     {
                         if (found)
                         {
@@ -1507,11 +1526,11 @@ void CppSourceTarget::resolveRequirePaths()
                                             getTarjanNodeName(),
                                             pstring(require[SingleModuleDep::logicalName].GetString(),
                                                     require[SingleModuleDep::logicalName].GetStringLength()),
-                                            it->second->node->filePath, found->node->filePath),
+                                            found->node->filePath, found->node->filePath),
                                 settings.pcSettings.toolErrorOutput);
                             throw std::exception();
                         }
-                        found = it->second;
+                        found = found2;
                     }
                 }
             }
