@@ -117,7 +117,7 @@ template <typename T> void ObjectFileProducerWithDS<T>::populateRequirementAndUs
         }
     }
 
-    for (T *t : usageRequirementDeps)
+    for (flat_hash_set<T *> localUsageRequirementDeps = usageRequirementDeps; T *t : localUsageRequirementDeps)
     {
         for (T *t_ : t->usageRequirementDeps)
         {

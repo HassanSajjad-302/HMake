@@ -1,13 +1,13 @@
 
 #ifdef USE_HEADER_UNITS
 import <atomic>;
-import "rapidhash.h";
+import "rapidhash/rapidhash.h";
 import "Node.hpp";
 import <mutex>;
 #else
 
 #include "Node.hpp"
-#include "rapidhash.h"
+#include "rapidhash/rapidhash.h"
 #include <mutex>
 #include <utility>
 #endif

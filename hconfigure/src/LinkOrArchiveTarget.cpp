@@ -244,14 +244,14 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
         setFileStatus(realBTarget);
         if (atomic_ref(fileStatus).load())
         {
-            shared_ptr<PostBasic> postBasicLinkOrArchive;
+            shared_ptr<RunCommand> postBasicLinkOrArchive;
             if (linkTargetType == TargetType::LIBRARY_STATIC)
             {
-                postBasicLinkOrArchive = std::make_shared<PostBasic>(Archive());
+                postBasicLinkOrArchive = std::make_shared<RunCommand>(Archive());
             }
             else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
             {
-                postBasicLinkOrArchive = std::make_shared<PostBasic>(Link());
+                postBasicLinkOrArchive = std::make_shared<RunCommand>(Link());
             }
             realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
             if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
@@ -882,16 +882,14 @@ pstring LinkOrArchiveTarget::getTarjanNodeName() const
     return str + " " + configureNode->filePath + slashc + name;
 }
 
-PostBasic LinkOrArchiveTarget::Archive()
+RunCommand LinkOrArchiveTarget::Archive()
 {
-    return PostBasic(archiver, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), buildCacheFilesDirPath,
-                     outputName, settings.acpSettings.outputAndErrorFiles, true);
+    return {archiver.bTPath, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), true};
 }
 
-PostBasic LinkOrArchiveTarget::Link()
+RunCommand LinkOrArchiveTarget::Link()
 {
-    return PostBasic(linker, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), buildCacheFilesDirPath,
-                     outputName, settings.lcpSettings.outputAndErrorFiles, true);
+    return {linker.bTPath, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), true};
 }
 
 void LinkOrArchiveTarget::setLinkOrArchiveCommands()

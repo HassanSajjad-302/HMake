@@ -51,7 +51,7 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
 #ifndef HCONFIGURE_STATIC_LIB_PATH
 #define THROW true
 #endif
-#ifndef RAPIDHASH_HEADER
+#ifndef THIRD_PARTY_HEADER
 #define THROW true
 #endif
 #ifndef PARALLEL_HASHMAP
@@ -107,7 +107,7 @@ int main(int argc, char **argv)
         path hconfigureHeaderPath = path(HCONFIGURE_HEADER);
         path jsonHeaderPath = path(JSON_HEADER);
         path rapidjsonHeaderPath = path(RAPIDJSON_HEADER);
-        path rapidHashHeaderPath = path(RAPIDHASH_HEADER);
+        path thirdPartyHeaderPath = path(THIRD_PARTY_HEADER);
         path parallelHashMap = path(PARALLEL_HASHMAP);
         path lz4Header = path(LZ4_HEADER);
         path fmtHeaderPath = path(FMT_HEADER);
@@ -140,8 +140,8 @@ int main(int argc, char **argv)
             string compileCommand =
                 "c++ -std=c++2b -fvisibility=hidden -fsanitize=thread -fno-omit-frame-pointer -fPIC " +
                 useCommandHashDef + useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef +
-                " -I " HCONFIGURE_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER "  -I " FMT_HEADER
-                "  -I " RAPIDHASH_HEADER " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
+                " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
+                "  -I " FMT_HEADER " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
                 " {SOURCE_DIRECTORY}/hmake.cpp -shared -Wl,--whole-archive -L " HCONFIGURE_STATIC_LIB_DIRECTORY
                 " -l hconfigure -Wl,--no-whole-archive -L " FMT_STATIC_LIB_DIRECTORY
                 " -l fmt -o {CONFIGURE_DIRECTORY}/" +
@@ -184,17 +184,20 @@ int main(int argc, char **argv)
                 compileCommand += "/I " + addQuotes(str) + " ";
             }
             compileCommand += useCommandHashDef + useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef;
-            compileCommand += "/I " + hconfigureHeaderPath.string() + " /I " + jsonHeaderPath.string() + " /I " +
-                              rapidjsonHeaderPath.string() + " /I " + fmtHeaderPath.string() + " /I " +
-                              rapidHashHeaderPath.string() + " /I " + parallelHashMap.string() + " /I " +
-                              lz4Header.string() + " /std:c++latest /GL /EHsc /MD /nologo " +
+            compileCommand += "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
+                              jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " +
+                              fmtHeaderPath.string() + " /I " + parallelHashMap.string() + " /I " + lz4Header.string() +
+                              " /std:c++latest /GL /EHsc /MD /nologo " +
                               "{SOURCE_DIRECTORY}/hmake.cpp /link /SUBSYSTEM:CONSOLE /NOLOGO /DLL ";
             for (const string &str : toolsCache.vsTools[0].libraryDirectories)
             {
                 compileCommand += "/LIBPATH:" + addQuotes(str) + " ";
             }
             compileCommand += "/WHOLEARCHIVE:" + addQuotes(hconfigureStaticLibPath.string()) + " " +
-                              addQuotes(fmtStaticLibPath.string()) + " /OUT:{CONFIGURE_DIRECTORY}/" +
+                              addQuotes(fmtStaticLibPath.string()) +
+                              " kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib "
+                              "uuid.lib comdlg32.lib advapi32.lib" +
+                              " /OUT:{CONFIGURE_DIRECTORY}/" +
                               getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure");
             compileCommand = addQuotes(compileCommand);
             cache.compileConfigureCommands.push_back(compileCommand);

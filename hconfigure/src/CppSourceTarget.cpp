@@ -20,7 +20,7 @@ import <utility>;
 #include "Configuration.hpp"
 #include "LinkOrArchiveTarget.hpp"
 #include "Utilities.hpp"
-#include "rapidhash.h"
+#include "rapidhash/rapidhash.h"
 #include <filesystem>
 #include <fstream>
 #include <regex>
@@ -1723,13 +1723,12 @@ PostCompile CppSourceTarget::CompileSMFile(const SMFile &smFile)
 
     finalCompileCommand += smFile.getFlag(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)());
 
-    return PostCompile{*this,
-                       compiler,
-                       finalCompileCommand,
-                       getSourceCompileCommandPrintFirstHalf() + smFile.getModuleCompileCommandPrintLastHalf(),
-                       buildCacheFilesDirPath,
-                       (path(smFile.node->filePath).filename().*toPStr)(),
-                       settings.ccpSettings.outputAndErrorFiles};
+    return PostCompile{
+        *this,
+        compiler.bTPath,
+        finalCompileCommand,
+        getSourceCompileCommandPrintFirstHalf() + smFile.getModuleCompileCommandPrintLastHalf(),
+    };
 }
 
 pstring CppSourceTarget::getExtension() const
@@ -1751,20 +1750,19 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(const SourceNode &sourceNod
     if (compiler.bTFamily == BTFamily::MSVC)
     {
         finalCompileCommand += (evaluate(TargetType::LIBRARY_OBJECT) ? "/Fo" : "/Fi") +
-                               addQuotes(buildCacheFilesDirPath + compileFileName + getExtension()) + " ";
+                               addQuotes(buildCacheFilesDirPath + compileFileName + getExtension());
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
-        finalCompileCommand += "-o " + addQuotes(buildCacheFilesDirPath + compileFileName + getExtension()) + " ";
+        finalCompileCommand += "-o " + addQuotes(buildCacheFilesDirPath + compileFileName + getExtension());
     }
 
-    return PostCompile{*this,
-                       compiler,
-                       finalCompileCommand,
-                       getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPart(sourceNode),
-                       buildCacheFilesDirPath,
-                       compileFileName,
-                       settings.ccpSettings.outputAndErrorFiles};
+    return PostCompile{
+        *this,
+        compiler.bTPath,
+        finalCompileCommand,
+        getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPart(sourceNode),
+    };
 }
 
 PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const bool printOnlyOnError)
@@ -1784,15 +1782,10 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const boo
             "/nologo /showIncludes /scanDependencies " +
             addQuotes(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)() + ".smrules") + " ";
 
-        return printOnlyOnError
-                   ? PostCompile(*this, compiler, finalCompileCommand, "", buildCacheFilesDirPath,
-                                 (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
-                                 settings.ccpSettings.outputAndErrorFiles)
-                   : PostCompile(
-                         *this, compiler, finalCompileCommand,
-                         getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPartSMRule(smFile),
-                         buildCacheFilesDirPath, (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
-                         settings.ccpSettings.outputAndErrorFiles);
+        return printOnlyOnError ? PostCompile(*this, compiler.bTPath, finalCompileCommand, "")
+                                : PostCompile(*this, compiler.bTPath, finalCompileCommand,
+                                              getSourceCompileCommandPrintFirstHalf() +
+                                                  getCompileCommandPrintSecondPartSMRule(smFile));
     }
     if (compiler.bTFamily == BTFamily::GCC)
     {
@@ -1802,15 +1795,10 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const boo
         finalCompileCommand +=
             addQuotes(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)() + ".d");
 
-        return printOnlyOnError
-                   ? PostCompile(*this, scanner, finalCompileCommand, "", buildCacheFilesDirPath,
-                                 (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
-                                 settings.ccpSettings.outputAndErrorFiles)
-                   : PostCompile(
-                         *this, scanner, finalCompileCommand,
-                         getSourceCompileCommandPrintFirstHalf() + getCompileCommandPrintSecondPartSMRule(smFile),
-                         buildCacheFilesDirPath, (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
-                         settings.ccpSettings.outputAndErrorFiles);
+        return printOnlyOnError ? PostCompile(*this, scanner.bTPath, finalCompileCommand, "")
+                                : PostCompile(*this, scanner.bTPath, finalCompileCommand,
+                                              getSourceCompileCommandPrintFirstHalf() +
+                                                  getCompileCommandPrintSecondPartSMRule(smFile));
     }
 }
 

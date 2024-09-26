@@ -1,17 +1,15 @@
 
-#ifndef HMAKE_POSTBASIC_HPP
-#define HMAKE_POSTBASIC_HPP
+#ifndef HMAKE_RUNCOMMAND_HPP
+#define HMAKE_RUNCOMMAND_HPP
 
 #ifdef USE_HEADER_UNITS
-import "BuildTools.hpp";
 import "Settings.hpp";
 #else
-#include "BuildTools.hpp"
 #include "Settings.hpp"
 #endif
 
 // Maybe use CRTP and inherit both SourceNode and LinkOrArchiveTarget from it. exitStatus is being copied currently.
-struct PostBasic
+struct RunCommand
 {
     pstring printCommand;
     pstring commandSuccessOutput;
@@ -23,26 +21,24 @@ struct PostBasic
 
     // command is 3 parts. 1) tool path 2) command without output and error files 3) output and error files.
     // while print is 2 parts. 1) tool path and command without output and error files. 2) output and error files.
-    explicit PostBasic(const BuildTool &buildTool, const pstring &commandFirstHalf, pstring printCommandFirstHalf,
-                       const pstring &buildCacheFilesDirPath, const pstring &fileName, const PathPrint &pathPrint,
-                       bool isTarget_);
+    RunCommand(path toolPath, const pstring &runCommand, pstring printCommand_, bool isTarget_);
 
     void executePrintRoutine(uint32_t color, bool printOnlyOnError) const;
 };
 
 class CppSourceTarget;
-struct PostCompile : PostBasic
+struct PostCompile : RunCommand
 {
     CppSourceTarget &target;
 
-    explicit PostCompile(const CppSourceTarget &target_, const BuildTool &buildTool, const pstring &commandFirstHalf,
-                         pstring printCommandFirstHalf, const pstring &buildCacheFilesDirPath, const pstring &fileName,
-                         const PathPrint &pathPrint);
+    explicit PostCompile(const CppSourceTarget &target_, const path &toolPath, const pstring &commandFirstHalf,
+                         pstring printCommandFirstHalf);
 
     bool ignoreHeaderFile(pstring_view child) const;
-    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, pstring &output, PValue &headerDepsJson, bool mustConsiderHeaderDeps) const;
+    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, pstring &output, PValue &headerDepsJson,
+                                     bool mustConsiderHeaderDeps) const;
     void parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &headerDepsJson, bool mustConsiderHeaderDeps);
     void parseHeaderDeps(SourceNode &sourceNode, bool parseFromErrorOutput, bool mustConsiderHeaderDeps);
 };
 
-#endif // HMAKE_POSTBASIC_HPP
+#endif // HMAKE_RUNCOMMAND_HPP

@@ -1,6 +1,6 @@
 #include "Snapshot.hpp"
 #include "BuildSystemFunctions.hpp"
-#include "rapidhash.h"
+#include "rapidhash/rapidhash.h"
 #include <utility>
 
 using std::filesystem::recursive_directory_iterator;
@@ -69,16 +69,16 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
         }
     }
     unsigned short expected = 0;
-    constexpr unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 6 : 3; // No response file on Linux
-    constexpr unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 4 : 3;
+    constexpr unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 3 : 3; // No response file on Linux
+    constexpr unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 1 : 3;
 
-    // Output, Error, .smrules, Respone File on Windows / Deps Output File on Linux
-    expected += 4 * updates.smruleFiles;
-    // Output, Error, .o, Respone File on Windows / Deps Output File on Linux
-    expected += 4 * updates.sourceFiles;
+    // .smrules, on Windows / Deps Output File on Linux
+    expected += 1 * updates.smruleFiles;
+    // .o, on Windows / Deps Output File on Linux
+    expected += 1 * updates.sourceFiles;
 
-    expected += 3 * updates.errorFiles;
-    expected += 5 * updates.moduleFiles;
+   // expected += 3 * updates.errorFiles;
+    expected += 2 * updates.moduleFiles;
 
     expected += updates.linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
     expected += updates.linkTargetsDebug * debugLinkTargetsMultiplier;

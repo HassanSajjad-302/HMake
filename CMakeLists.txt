@@ -35,7 +35,7 @@ add_library(hconfigure STATIC
         hconfigure/src/LinkOrArchiveTarget.cpp
         hconfigure/src/BuildTools.cpp
         hconfigure/src/ToolsCache.cpp
-        hconfigure/src/PostBasic.cpp
+        hconfigure/src/RunCommand.cpp
         hconfigure/src/Utilities.cpp
         hconfigure/src/GetTarget.cpp
         hconfigure/src/ConfigType.cpp
@@ -65,8 +65,8 @@ endif ()
 target_link_libraries(hconfigure PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
 target_include_directories(hconfigure
         PUBLIC hconfigure/header
+        PUBLIC 3rdParty
         PUBLIC 3rdParty/rapidjson/include
-        PUBLIC 3rdParty/rapidhash
         PUBLIC 3rdParty/parallel-hashmap/parallel_hashmap
         PUBLIC 3rdParty/lz4/lib
 )
@@ -95,9 +95,9 @@ target_link_libraries(htools PRIVATE hconfigure)
 
 add_executable(hhelper hhelper/src/main.cpp)
 target_link_libraries(hhelper PRIVATE hconfigure)
+target_compile_definitions(hhelper PRIVATE THIRD_PARTY_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/")
 target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/json/include/")
 target_compile_definitions(hhelper PRIVATE RAPIDJSON_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/rapidjson/include/")
-target_compile_definitions(hhelper PRIVATE RAPIDHASH_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/rapidhash/")
 target_compile_definitions(hhelper PRIVATE PARALLEL_HASHMAP="${CMAKE_SOURCE_DIR}/3rdParty/parallel-hashmap/parallel_hashmap")
 target_compile_definitions(hhelper PRIVATE LZ4_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/lz4/lib")
 target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")

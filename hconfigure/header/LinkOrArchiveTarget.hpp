@@ -4,7 +4,8 @@
 import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
 import "HashedCommand";
-import "Node.hpp" import "PostBasic.hpp";
+import "Node.hpp";
+import "RunCommand.hpp";
 import "PrebuiltLinkOrArchiveTarget.hpp";
 import "Utilities.hpp";
 import <stack>;
@@ -12,7 +13,7 @@ import <stack>;
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "HashedCommand.hpp"
-#include "PostBasic.hpp"
+#include "RunCommand.hpp"
 #include "PrebuiltLinkOrArchiveTarget.hpp"
 #include <stack>
 #endif
@@ -82,8 +83,8 @@ private:
 public:
     LinkerFlags getLinkerFlags();
     pstring getTarjanNodeName() const override;
-    PostBasic Archive();
-    PostBasic Link();
+    RunCommand Archive();
+    RunCommand Link();
     void setLinkOrArchiveCommands();
     pstring getLinkOrArchiveCommandPrint();
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>

@@ -32,7 +32,8 @@ void PrebuiltBasic::populateRequirementAndUsageRequirementDeps()
         }
     }
 
-    for (auto &[prebuiltBasic, prebuiltDep] : usageRequirementDeps)
+    for (auto localUsageRequirements = usageRequirementDeps;
+         auto &[prebuiltBasic, prebuiltDep] : localUsageRequirements)
     {
         for (auto &[prebuiltBasic_, prebuilt] : prebuiltBasic->usageRequirementDeps)
         {

@@ -1,75 +1,182 @@
 
 #ifdef USE_HEADER_UNITS
-import "PostBasic.hpp";
+import "RunCommand.hpp";
 import "BuildSystemFunctions.hpp";
 import "CppSourceTarget.hpp";
+import "subprocess/subprocess.h";
 import "Utilities.hpp";
-import <fstream>;
 #else
-#include "PostBasic.hpp"
+#include "RunCommand.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
 #include "Utilities.hpp"
-#include <fstream>
 #endif
+#include <Windows.h>
+
+// Copied From Ninja code-base.
+/// Wraps a synchronous execution of a CL subprocess.
+struct CLWrapper
+{
+    CLWrapper() : env_block_(NULL)
+    {
+    }
+
+    /// Set the environment block (as suitable for CreateProcess) to be used
+    /// by Run().
+    void SetEnvBlock(void *env_block)
+    {
+        env_block_ = env_block;
+    }
+
+    /// Start a process and gather its raw output.  Returns its exit code.
+    /// Crashes (calls Fatal()) on error.
+    int Run(const std::string &command, std::string *output) const;
+
+    void *env_block_;
+};
+void Fatal(const char *msg, ...)
+{
+    va_list ap;
+    fprintf(stderr, "ninja: fatal: ");
+    va_start(ap, msg);
+    vfprintf(stderr, msg, ap);
+    va_end(ap);
+    fprintf(stderr, "\n");
+#ifdef _WIN32
+    // On Windows, some tools may inject extra threads.
+    // exit() may block on locks held by those threads, so forcibly exit.
+    fflush(stderr);
+    fflush(stdout);
+    ExitProcess(1);
+#else
+    exit(1);
+#endif
+}
+string GetLastErrorString()
+{
+    DWORD err = GetLastError();
+
+    char *msg_buf;
+    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
+                   err, MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT), (char *)&msg_buf, 0, NULL);
+
+    if (msg_buf == nullptr)
+    {
+        char fallback_msg[128] = {0};
+        snprintf(fallback_msg, sizeof(fallback_msg), "GetLastError() = %d", err);
+        return fallback_msg;
+    }
+
+    string msg = msg_buf;
+    LocalFree(msg_buf);
+    return msg;
+}
+
+void Win32Fatal(const char *function, const char *hint = nullptr)
+{
+    if (hint)
+    {
+        Fatal("%s: %s (%s)", function, GetLastErrorString().c_str(), hint);
+    }
+    else
+    {
+        Fatal("%s: %s", function, GetLastErrorString().c_str());
+    }
+}
+
+int CLWrapper::Run(const string &command, string *output) const
+{
+    SECURITY_ATTRIBUTES security_attributes = {};
+    security_attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+    security_attributes.bInheritHandle = TRUE;
+
+    HANDLE stdout_read, stdout_write;
+    if (!CreatePipe(&stdout_read, &stdout_write, &security_attributes, 0))
+        Win32Fatal("CreatePipe");
+
+    if (!SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0))
+        Win32Fatal("SetHandleInformation");
+
+    PROCESS_INFORMATION process_info = {};
+    STARTUPINFOA startup_info = {};
+    startup_info.cb = sizeof(STARTUPINFOA);
+    startup_info.hStdError = stdout_write;
+    startup_info.hStdOutput = stdout_write;
+    startup_info.dwFlags |= STARTF_USESTDHANDLES;
+
+    if (!CreateProcessA(NULL, (char *)command.c_str(), NULL, NULL,
+                        /* inherit handles */ TRUE, 0, env_block_, NULL, &startup_info, &process_info))
+    {
+        Win32Fatal("CreateProcess");
+    }
+
+    if (!CloseHandle(stdout_write))
+    {
+        Win32Fatal("CloseHandle");
+    }
+
+    // Read all output of the subprocess.
+    DWORD read_len = 1;
+    while (read_len)
+    {
+        char buf[64 << 10];
+        read_len = 0;
+        if (!::ReadFile(stdout_read, buf, sizeof(buf), &read_len, NULL) && GetLastError() != ERROR_BROKEN_PIPE)
+        {
+            Win32Fatal("ReadFile");
+        }
+        output->append(buf, read_len);
+    }
+
+    // Wait for it to exit and grab its exit code.
+    if (WaitForSingleObject(process_info.hProcess, INFINITE) == WAIT_FAILED)
+        Win32Fatal("WaitForSingleObject");
+    DWORD exit_code = 0;
+    if (!GetExitCodeProcess(process_info.hProcess, &exit_code))
+        Win32Fatal("GetExitCodeProcess");
+
+    if (!CloseHandle(stdout_read) || !CloseHandle(process_info.hProcess) || !CloseHandle(process_info.hThread))
+    {
+        Win32Fatal("CloseHandle");
+    }
+
+    return exit_code;
+}
 
 using std::ofstream, fmt::format;
 
 pstring getThreadId()
 {
-    pstring threadId;
     const auto myId = std::this_thread::get_id();
     pstringstream ss;
     ss << myId;
-    threadId = ss.str();
+    pstring threadId = ss.str();
     return threadId;
 }
 
-PostBasic::PostBasic(const BuildTool &buildTool, const pstring &commandFirstHalf, pstring printCommandFirstHalf,
-                     const pstring &buildCacheFilesDirPath, const pstring &fileName, const PathPrint &pathPrint,
-                     bool isTarget_)
-    : isTarget{isTarget_}
+RunCommand::RunCommand(path toolPath, const pstring &runCommand, pstring printCommand_, bool isTarget_)
+    : printCommand(std::move(printCommand_))
 {
-    // TODO
-    // This does process setup for the output and error stream in a bit costly manner by redirecting it to files and
-    // then reading from those files. More native APIS should be used. Also if there could be a way to preserve the
-    // coloring of the output.
-    pstring str = isTarget ? "_t" : "";
-
-    pstring outputFileName = buildCacheFilesDirPath + fileName + "_output" + str;
-    pstring errorFileName = buildCacheFilesDirPath + fileName + "_error" + str;
-
-    if (pathPrint.printLevel != PathPrintLevel::NO)
-    {
-        printCommandFirstHalf +=
-            "> " + getReducedPath(outputFileName, pathPrint) + " 2>" + getReducedPath(errorFileName, pathPrint);
-    }
-
-    printCommand = std::move(printCommandFirstHalf);
 
 #ifdef _WIN32
-    path responseFile = path(buildCacheFilesDirPath + fileName + ".response");
-    ofstream(responseFile) << commandFirstHalf;
 
-    path toolPath = buildTool.bTPath;
-    pstring cmdCharLimitMitigateCommand = addQuotes((toolPath.make_preferred().*toPStr)()) + " @" +
-                                          addQuotes((responseFile.*toPStr)()) + "> " + addQuotes(outputFileName) +
-                                          " 2>" + addQuotes(errorFileName);
-    exitStatus = system(addQuotes(cmdCharLimitMitigateCommand).c_str());
+    pstring j = addQuotes(toolPath.make_preferred().string()) + ' ' + runCommand;
+    {
+        exitStatus = CLWrapper{}.Run(j, &commandSuccessOutput);
+    }
+
 #else
     pstring finalCompileCommand = (buildTool.bTPath.*toPStr)() + " " + commandFirstHalf + "> " +
                                   addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
     exitStatus = system(finalCompileCommand.c_str());
 #endif
-    commandSuccessOutput = fileToPString(outputFileName);
-    commandErrorOutput = fileToPString(errorFileName);
     if (exitStatus != EXIT_SUCCESS)
     {
         bool breakpoint = true;
     }
 }
 
-void PostBasic::executePrintRoutine(const uint32_t color, const bool printOnlyOnError) const
+void RunCommand::executePrintRoutine(const uint32_t color, const bool printOnlyOnError) const
 {
     if (!printOnlyOnError)
     {
@@ -101,11 +208,9 @@ void PostBasic::executePrintRoutine(const uint32_t color, const bool printOnlyOn
     }
 }
 
-PostCompile::PostCompile(const CppSourceTarget &target_, const BuildTool &buildTool, const pstring &commandFirstHalf,
-                         pstring printCommandFirstHalf, const pstring &buildCacheFilesDirPath, const pstring &fileName,
-                         const PathPrint &pathPrint)
-    : PostBasic(buildTool, commandFirstHalf, std::move(printCommandFirstHalf), buildCacheFilesDirPath, fileName,
-                pathPrint, false),
+PostCompile::PostCompile(const CppSourceTarget &target_, const path &toolPath, const pstring &commandFirstHalf,
+                         pstring printCommandFirstHalf)
+    : RunCommand(toolPath, commandFirstHalf, std::move(printCommandFirstHalf), false),
       target{const_cast<CppSourceTarget &>(target_)}
 {
 }
@@ -175,49 +280,57 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
             {
                 pos = iter->find_first_not_of(' ', includeFileNote.size());
 
-                pstring_view headerView(iter->begin() + pos, iter->end());
-
-                // TODO
-                // If compile-command is all lower-cased, then this might not be needed
-                if (mustConsiderHeaderDeps || !ignoreHeaderFile(headerView))
+                if (iter->size() >= pos + 1)
                 {
-                    lowerCasePStringOnWindows(const_cast<pchar *>(headerView.data()), headerView.size());
+                    pstring_view headerView(iter->begin() + pos, iter->end() - 1);
+
+                    // TODO
+                    // If compile-command is all lower-cased, then this might not be needed
+                    if (mustConsiderHeaderDeps || !ignoreHeaderFile(headerView))
+                    {
+                        lowerCasePStringOnWindows(const_cast<pchar *>(headerView.data()), headerView.size());
 
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-                    Node *node = Node::getNodeFromNormalizedString(headerView, true, false);
-                    bool found = false;
-                    for (const PValue &value : headerDepsJson.GetArray())
-                    {
-                        if (value.GetUint64() == node->myId)
+                        Node *node = Node::getNodeFromNormalizedString(headerView, true, false);
+                        bool found = false;
+                        for (const PValue &value : headerDepsJson.GetArray())
                         {
-                            found = true;
-                            break;
+                            if (value.GetUint64() == node->myId)
+                            {
+                                found = true;
+                                break;
+                            }
                         }
-                    }
-                    if (!found)
-                    {
-                        headerDepsJson.PushBack(PValue(node->myId), ralloc);
-                    }
+                        if (!found)
+                        {
+                            headerDepsJson.PushBack(PValue(node->myId), ralloc);
+                        }
 
 #else
 
-                    bool found = false;
-                    for (const PValue &value : headerDepsJson.GetArray())
-                    {
-                        if (compareStringsFromEnd(pstring_view(value.GetString(), value.GetStringLength()), headerView))
+                        bool found = false;
+                        for (const PValue &value : headerDepsJson.GetArray())
                         {
-                            found = true;
-                            break;
+                            if (compareStringsFromEnd(pstring_view(value.GetString(), value.GetStringLength()),
+                                                      headerView))
+                            {
+                                found = true;
+                                break;
+                            }
                         }
-                    }
-                    if (!found)
-                    {
-                        headerDepsJson.PushBack(
-                            PValue(PStringRef(headerView.data(), headerView.size()), sourceNode.sourceNodeAllocator),
-                            sourceNode.sourceNodeAllocator);
-                    }
+                        if (!found)
+                        {
+                            headerDepsJson.PushBack(PValue(PStringRef(headerView.data(), headerView.size()),
+                                                           sourceNode.sourceNodeAllocator),
+                                                    sourceNode.sourceNodeAllocator);
+                        }
 
 #endif
+                    }
+                }
+                else
+                {
+                    printErrorMessage(fmt::format("Empty Header Include {}\n", *iter));
                 }
 
                 if (settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)

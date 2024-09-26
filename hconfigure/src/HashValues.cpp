@@ -10,7 +10,7 @@ import "rapidhash.h";
 #include "Configuration.hpp"
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
-#include "rapidhash.h"
+#include "rapidhash/rapidhash.h"
 #endif
 #include <CTargetRoundZeroBTarget.hpp>
 
@@ -24,8 +24,6 @@ uint64_t hash_value(const DSC<CppSourceTarget> &p)
     uint64_t arr[2];
     arr[0] = p.prebuiltBasic->id;
     arr[1] = p.objectFileProducer->id;
-    int a = sizeof(arr);
-    printMessage(fmt::format("{}", a));
     return rapidhash(&arr, sizeof(arr));
 }
 
