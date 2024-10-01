@@ -7,17 +7,17 @@ import "Features.hpp";
 #include "Features.hpp"
 #endif
 
-CSourceTarget::CSourceTarget(const pstring &name_) : ObjectFileProducerWithDS(name_, false, false),TargetCache(name_)
+CSourceTarget::CSourceTarget(const pstring &name_) : ObjectFileProducerWithDS(name_, false, false), TargetCache(name_)
 {
 }
 
 CSourceTarget::CSourceTarget(const bool buildExplicit, const pstring &name_)
-    : ObjectFileProducerWithDS(name_, buildExplicit, false),TargetCache(name_)
+    : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name_)
 {
 }
 
 CSourceTarget::CSourceTarget(const pstring &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, false, false),TargetCache(name_), configuration(configuration_)
+    : ObjectFileProducerWithDS(name_, false, false), TargetCache(name_), configuration(configuration_)
 {
 }
 
