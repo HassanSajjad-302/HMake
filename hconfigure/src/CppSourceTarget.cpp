@@ -1272,7 +1272,8 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const pstri
                 {
                     if (evaluate(UseMiniTarget::YES))
                     {
-                        buildOrConfigCacheCopy[CppTarget::ConfigCache::moduleFiles].PushBack(node->getPValue(), cacheAlloc);
+                        buildOrConfigCacheCopy[CppTarget::ConfigCache::moduleFiles].PushBack(node->getPValue(),
+                                                                                             cacheAlloc);
                         // isInterface is false
                         buildOrConfigCacheCopy[CppTarget::ConfigCache::moduleFiles].PushBack(PValue(false), cacheAlloc);
                     }

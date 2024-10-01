@@ -85,19 +85,18 @@ void initializeCache(const BSMode bsMode_)
     cache.initializeCacheVariableFromCacheFile();
     toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
 
-    nodesCache.Reserve(10000, ralloc);
     if (const path p = path(configureNode->filePath + slashc + getName("nodes")); exists(p))
     {
         const pstring str = p.string();
-        nodesCacheBuffer = readPValueFromCompressedFile(str, nodesCache);
+        nodesCacheBuffer = readPValueFromCompressedFile(str, nodesCacheJson);
 
         // node is constructed from cache. It is emplaced in the hash set and also in nodeIndices.
         // However performSystemCheck is not called and is called in multi-threaded fashion.
-        for (PValue &value : nodesCache.GetArray())
+        for (PValue &value : nodesCacheJson.GetArray())
         {
             Node::getHalfNodeFromNormalizedStringSingleThreaded(pstring(value.GetString(), value.GetStringLength()));
         }
-        nodesCacheSizeBefore = nodesCache.Size();
+        nodesCacheSizeBefore = nodesCacheJson.Size();
     }
 
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
@@ -217,12 +216,16 @@ void configureOrBuild()
         cache.registerCacheVariables();
         writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), targetCache);
     }
-    writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCache);
+    for(uint64_t i = nodesCacheSizeBefore; i < Node::idCount; ++i)
+    {
+       nodesCacheJson.PushBack(PValue(nodesCacheVector[i].data(), nodesCacheVector[i].size()), ralloc);
+    }
+    writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCacheJson);
     /*if (nodesCache.Size() != nodesCacheSizeBefore)
     {
         writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCache);
     }*/
-    assert(nodesCache.Size() >= nodesCacheSizeBefore &&
+    assert(nodesCacheJson.Size() >= nodesCacheSizeBefore &&
            "nodes cache size can not be less than the originally loaded file");
 }
 
