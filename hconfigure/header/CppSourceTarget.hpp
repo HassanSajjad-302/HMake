@@ -129,7 +129,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     vector<InclNodeTargetMap> reqHuDirs;
 
     using BaseType = CSourceTarget;
-    unique_ptr<PValue> targetBuildCache;
 
     TargetType compileTargetType;
     /*    ModuleScopeDataOld *moduleScopeData = nullptr;
@@ -189,7 +188,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     bool archived = false;
 
     void updateBTarget(Builder &builder, unsigned short round) override;
-    void writeTargetConfigCacheAtConfigureTime(bool before) const;
+    void writeTargetConfigCacheAtConfigureTime(bool before);
     void readConfigCacheAtBuildTime();
     pstring getTarjanNodeName() const override;
     CompilerFlags getCompilerFlags();
@@ -501,10 +500,9 @@ template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const pst
     {
         if (bsMode == BSMode::CONFIGURE)
         {
-            namespace CppTarget = Indices::CppTarget;
-            const Node *node = Node::getNodeFromNonNormalizedPath(srcFile, true);
-            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::sourceFiles].PushBack(node->getPValue(),
-                                                                                                     ralloc);
+            namespace ConfigCache = Indices::CppTarget::ConfigCache;
+            buildOrConfigCacheCopy[ConfigCache::sourceFiles].PushBack(
+                Node::getNodeFromNonNormalizedPath(srcFile, true)->getPValue(), cacheAlloc);
         }
         // Initialized in CppSourceTarget round 2
     }
@@ -534,13 +532,11 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const pst
     {
         if (bsMode == BSMode::CONFIGURE)
         {
-            namespace CppTarget = Indices::CppTarget;
-            const Node *node = Node::getNodeFromNonNormalizedPath(modFile, true);
-            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(node->getPValue(),
-                                                                                                     ralloc);
+            namespace ConfigCache = Indices::CppTarget::ConfigCache;
+            buildOrConfigCacheCopy[ConfigCache::moduleFiles].PushBack(
+                Node::getNodeFromNonNormalizedPath(modFile, true)->getPValue(), cacheAlloc);
             // isInterface is false
-            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(PValue(false),
-                                                                                                     ralloc);
+            buildOrConfigCacheCopy[ConfigCache::moduleFiles].PushBack(PValue(false), cacheAlloc);
         }
         // Initialized in CppSourceTarget round 2
     }
@@ -571,13 +567,11 @@ CppSourceTarget &CppSourceTarget::interfaceFiles(const pstring &modFile, U... mo
     {
         if (bsMode == BSMode::CONFIGURE)
         {
-            namespace CppTarget = Indices::CppTarget;
-            const Node *node = Node::getNodeFromNonNormalizedPath(modFile, true);
-            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(node->getPValue(),
-                                                                                                     ralloc);
+            namespace ConfigCache = Indices::CppTarget::ConfigCache;
+            buildOrConfigCacheCopy[ConfigCache::moduleFiles].PushBack(
+                Node::getNodeFromNonNormalizedPath(modFile, true)->getPValue(), cacheAlloc);
             // isInterface is false
-            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(PValue(true),
-                                                                                                     ralloc);
+            buildOrConfigCacheCopy[ConfigCache::moduleFiles].PushBack(PValue(true), cacheAlloc);
         }
         // Initialized in CppSourceTarget round 2
     }

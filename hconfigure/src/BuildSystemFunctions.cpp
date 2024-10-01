@@ -21,6 +21,11 @@ import <fstream>;
 
 using fmt::print, std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
 
+PrintMessage printMessagePointer = nullptr;
+PrintMessageColor printMessageColorPointer = nullptr;
+PrintMessage printErrorMessagePointer = nullptr;
+PrintMessageColor printErrorMessageColorPointer = nullptr;
+
 static pstring getName(const pstring &name)
 {
 #ifdef USE_JSON_FILE_COMPRESSION
@@ -32,7 +37,7 @@ static pstring getName(const pstring &name)
 
 void writeBuildCacheUnlocked()
 {
-    writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), tempCache);
+    writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), targetCache);
 }
 
 void initializeCache(const BSMode bsMode_)
@@ -99,7 +104,7 @@ void initializeCache(const BSMode bsMode_)
     if (const path p = path(configureNode->filePath + slashc + getName("build-cache")); exists(p))
     {
         const pstring str = p.string();
-        buildCacheFileBuffer = readPValueFromCompressedFile(str, tempCache);
+        buildCacheFileBuffer = readPValueFromCompressedFile(str, targetCache);
     }
     else
     {
@@ -210,7 +215,7 @@ void configureOrBuild()
     {
         Builder{};
         cache.registerCacheVariables();
-        writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), tempCache);
+        writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), targetCache);
     }
     writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCache);
     /*if (nodesCache.Size() != nodesCacheSizeBefore)

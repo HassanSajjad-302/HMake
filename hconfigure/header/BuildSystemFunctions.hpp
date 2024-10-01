@@ -35,19 +35,18 @@ inline char slashc = '/';
 // TODO
 // Explore
 using Json = nlohmann::json; // Unordered json
-inline PDocument tempCache(kArrayType);
+inline PDocument targetCache(kArrayType);
+inline mutex buildOrConfigCacheMutex;
 inline unique_ptr<vector<pchar>> buildCacheFileBuffer;
 inline PDocument nodesCache(kArrayType);
 inline unique_ptr<vector<pchar>> nodesCacheBuffer;
 
 // inline vector<PValue *> targetConfigCaches;
 
-inline auto &ralloc = tempCache.GetAllocator();
-inline std::mutex buildCacheMutex;
+inline auto &ralloc = targetCache.GetAllocator();
 void writeBuildCacheUnlocked();
 
 inline uint64_t nodesCacheSizeBefore = 0;
-inline uint64_t currentTargetIndex = 0;
 
 // Node representing source directory
 inline class Node *srcNode;
@@ -93,10 +92,10 @@ inline const pstring dashLink = "-link";
 typedef void (*PrintMessage)(const pstring &message);
 typedef void (*PrintMessageColor)(const pstring &message, uint32_t color);
 
-extern "C" inline EXPORT PrintMessage printMessagePointer = nullptr;
-extern "C" inline EXPORT PrintMessageColor printMessageColorPointer = nullptr;
-extern "C" inline EXPORT PrintMessage printErrorMessagePointer = nullptr;
-extern "C" inline EXPORT PrintMessageColor printErrorMessageColorPointer = nullptr;
+extern "C" inline EXPORT PrintMessage printMessagePointer;
+extern "C" inline EXPORT PrintMessageColor printMessageColorPointer;
+extern "C" inline EXPORT PrintMessage printErrorMessagePointer;
+extern "C" inline EXPORT PrintMessageColor printErrorMessageColorPointer;
 
 // Provide these with extern "C" linkage as well so ide/editor could pipe the logging.
 void printDebugMessage(const pstring &message);

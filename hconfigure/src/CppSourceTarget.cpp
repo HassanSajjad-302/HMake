@@ -187,26 +187,26 @@ bool CppSourceTarget::isCpuTypeG7()
               CpuType::AMD64);
 }
 
-CppSourceTarget::CppSourceTarget(const pstring &name_, const TargetType targetType) : CSourceTarget{false, name_, false}
+CppSourceTarget::CppSourceTarget(const pstring &name_, const TargetType targetType) : CSourceTarget{false, name_}
 {
     initializeCppSourceTarget(targetType, name_);
 }
 
 CppSourceTarget::CppSourceTarget(const bool buildExplicit, const pstring &name_, const TargetType targetType)
-    : CSourceTarget{buildExplicit, name_, false}
+    : CSourceTarget{buildExplicit, name_}
 {
     initializeCppSourceTarget(targetType, name_);
 }
 
 CppSourceTarget::CppSourceTarget(const pstring &name_, const TargetType targetType, Configuration *configuration_)
-    : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(false, name_, configuration_, false)
+    : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(false, name_, configuration_)
 {
     initializeCppSourceTarget(targetType, name_);
 }
 
 CppSourceTarget::CppSourceTarget(const bool buildExplicit, const pstring &name_, const TargetType targetType,
                                  Configuration *configuration_)
-    : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(buildExplicit, name_, configuration_, false)
+    : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(buildExplicit, name_, configuration_)
 {
     initializeCppSourceTarget(targetType, name_);
 }
@@ -215,37 +215,45 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
 {
     compileTargetType = targetType;
 
-    initializeCSourceTarget(name_);
     if (bsMode == BSMode::CONFIGURE)
     {
         if (evaluate(UseMiniTarget::YES))
         {
-            (*targetTempCache)[Indices::CppTarget::configCache]
-                .PushBack(kArrayType, ralloc)
-                .PushBack(kArrayType, ralloc)
-                .PushBack(kArrayType, ralloc)
-                .PushBack(kArrayType, ralloc)
-                .PushBack(kArrayType, ralloc)
-                .PushBack(kArrayType, ralloc);
+            buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc)
+                .PushBack(kArrayType, cacheAlloc)
+                .PushBack(kArrayType, cacheAlloc)
+                .PushBack(kArrayType, cacheAlloc)
+                .PushBack(kArrayType, cacheAlloc)
+                .PushBack(kArrayType, cacheAlloc);
         }
 
-        if (bsMode == BSMode::CONFIGURE)
+        namespace CppTarget = Indices::CppTarget;
+        if (PValue &targetBuildCache = getBuildCache(); targetBuildCache.Empty())
         {
+            // Maybe store pointers to these in CppSourceTarget
+            targetBuildCache.PushBack(PValue(kArrayType), cppAllocator);
+            targetBuildCache[CppTarget::BuildCache::sourceFiles].Reserve(srcFileDeps.size(), cppAllocator);
 
-            if (configuration && configuration->evaluate(GenerateModuleData::YES))
-            {
-                assert(evaluate(TreatModuleAsSource::YES) &&
-                       "TreatModuleAsSource should be YES for GenerateModuleData::YES");
-            }
+            targetBuildCache.PushBack(PValue(kArrayType), cppAllocator);
+            targetBuildCache[CppTarget::BuildCache::moduleFiles].Reserve(modFileDeps.size(), cppAllocator);
+
+            // Header-units size can't be known as these are dynamically discovered.
+            targetBuildCache.PushBack(PValue(kArrayType), cppAllocator);
+        }
+
+        if (configuration && configuration->evaluate(GenerateModuleData::YES))
+        {
+            assert(evaluate(TreatModuleAsSource::YES) &&
+                   "TreatModuleAsSource should be YES for GenerateModuleData::YES");
         }
     }
 
+    namespace CppTarget = Indices::CppTarget;
     if (bsMode == BSMode::BUILD)
     {
-        cppSourceTargets[tempCacheIndex] = this;
-        namespace CppTarget = Indices::CppTarget;
-        PValue &sourceNodesCache = (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::sourceFiles];
-        PValue &moduleNodesCache = (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles];
+        cppSourceTargets[targetCacheIndex] = this;
+        PValue &sourceNodesCache = getConfigCache()[CppTarget::ConfigCache::sourceFiles];
+        PValue &moduleNodesCache = getConfigCache()[CppTarget::ConfigCache::moduleFiles];
 
         srcFileDeps.reserve(sourceNodesCache.Size());
         for (PValue &pValue : sourceNodesCache.GetArray())
@@ -260,34 +268,13 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
             modFileDeps[i / 2].isInterface = moduleNodesCache[i + 1].GetBool();
         }
 
-        if ((*targetTempCache)[CppTarget::buildCache].Empty())
-        {
-            targetBuildCache = make_unique<PValue>(kArrayType);
-            // Maybe store pointers to these in CppSourceTarget
-            targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
-            (*targetBuildCache)[CppTarget::BuildCache::sourceFiles].Reserve(srcFileDeps.size(), cppAllocator);
+        PValue &sourceValue = buildOrConfigCacheCopy[CppTarget::BuildCache::sourceFiles];
+        sourceValue.Reserve(sourceValue.Size() + srcFileDeps.size(), cppAllocator);
 
-            targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
-            (*targetBuildCache)[CppTarget::BuildCache::moduleFiles].Reserve(modFileDeps.size(), cppAllocator);
+        PValue &moduleValue = buildOrConfigCacheCopy[CppTarget::BuildCache::moduleFiles];
+        moduleValue.Reserve(moduleValue.Size() + modFileDeps.size(), cppAllocator);
 
-            // Header-units size can't be known as these are dynamically discovered.
-            targetBuildCache->PushBack(PValue(kArrayType), cppAllocator);
-        }
-        else
-        {
-            // This copy is created becasue otherwise all access to the SMFile and SourceNode cache pointers in
-            // targetBuildCache would be mutex-locked. Is this copying actually better than mutex-locking or both are
-            // same
-            targetBuildCache = make_unique<PValue>(PValue((*targetTempCache)[CppTarget::buildCache], cppAllocator));
-
-            PValue &sourceValue = (*targetBuildCache)[CppTarget::BuildCache::sourceFiles];
-            sourceValue.Reserve(sourceValue.Size() + srcFileDeps.size(), cppAllocator);
-
-            PValue &moduleValue = (*targetBuildCache)[CppTarget::BuildCache::moduleFiles];
-            moduleValue.Reserve(moduleValue.Size() + modFileDeps.size(), cppAllocator);
-
-            // Header-units size can't be known as these are dynamically discovered.
-        }
+        // Header-units size can't be known as these are dynamically discovered.
     }
 }
 
@@ -373,11 +360,11 @@ void CppSourceTarget::adjustHeaderUnitsPValueArrayPointers()
     // If a new header-unit was added in this run, sourceJson pointers will point to the newly allocated array if any
     if (newHeaderUnitsSize)
     {
-        PValue &headerUnitsPValueArray = (*targetBuildCache)[Indices::CppTarget::BuildCache::headerUnits];
+        PValue &headerUnitsPValueArray = buildOrConfigCacheCopy[Indices::CppTarget::BuildCache::headerUnits];
         const uint64_t olderSize = headerUnitsPValueArray.Size() + newHeaderUnitsSize;
         for (uint64_t i = 0; i < olderSize; ++i)
         {
-            headerUnitsPValueArray.PushBack(kArrayType, ralloc);
+            headerUnitsPValueArray.PushBack(kArrayType, cacheAlloc);
         }
         headerUnitsPValueArray.Reserve(headerUnitsPValueArray.Size() + newHeaderUnitsSize, cppAllocator);
 
@@ -503,7 +490,7 @@ CppSourceTarget &CppSourceTarget::removeSourceFile(const pstring &sourceFile)
     {
         namespace CppTarget = Indices::CppTarget;
         const Node *node = Node::getNodeFromNonNormalizedPath(sourceFile, true);
-        PValue &value = (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::sourceFiles].GetArray();
+        PValue &value = buildOrConfigCacheCopy[CppTarget::ConfigCache::sourceFiles].GetArray();
         bool removed = false;
         for (auto it = value.Begin(); it != value.End(); ++it)
         {
@@ -537,7 +524,7 @@ CppSourceTarget &CppSourceTarget::removeModuleFile(const pstring &moduleFile)
     {
         namespace CppTarget = Indices::CppTarget;
         const Node *node = Node::getNodeFromNonNormalizedPath(moduleFile, true);
-        PValue &value = (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].GetArray();
+        PValue &value = buildOrConfigCacheCopy[CppTarget::ConfigCache::moduleFiles].GetArray();
         bool removed = false;
         for (auto it = value.Begin(); it != value.End(); it = it + 2)
         {
@@ -1084,7 +1071,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             setCompileCommand();
             compileCommandWithTool.setCommand((compiler.bTPath.*toPStr)() + " " + compileCommand);
 
-            PValue &headerUnitsPValue = (*targetBuildCache)[Indices::CppTarget::BuildCache::headerUnits];
+            PValue &headerUnitsPValue = buildOrConfigCacheCopy[Indices::CppTarget::BuildCache::headerUnits];
             oldHeaderUnits.reserve(headerUnitsPValue.Size());
             for (uint64_t i = 0; i < headerUnitsPValue.Size(); ++i)
             {
@@ -1135,39 +1122,42 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     }
 }
 
-void CppSourceTarget::writeTargetConfigCacheAtConfigureTime(bool before) const
+void CppSourceTarget::writeTargetConfigCacheAtConfigureTime(bool before)
 {
     if (before)
     {
-        using namespace Indices::CppTarget;
+        namespace ConfigCache = Indices::CppTarget::ConfigCache;
 
-        PValue &targetConfigCache = (*targetTempCache)[configCache];
+        writeIncDirsAtConfigTime(reqIncls, buildOrConfigCacheCopy[ConfigCache::reqInclsArray], cppAllocator);
+        writeIncDirsAtConfigTime(useReqIncls, buildOrConfigCacheCopy[ConfigCache::useReqInclsArray], cppAllocator);
+        writeIncDirsAtConfigTime(reqHuDirs, buildOrConfigCacheCopy[ConfigCache::reqHUDirsArray], cppAllocator);
+        writeIncDirsAtConfigTime(useReqHuDirs, buildOrConfigCacheCopy[ConfigCache::useReqHUDirsArray], cppAllocator);
 
-        writeIncDirsAtConfigTime(reqIncls, targetConfigCache[ConfigCache::reqInclsArray]);
-        writeIncDirsAtConfigTime(useReqIncls, targetConfigCache[ConfigCache::useReqInclsArray]);
-        writeIncDirsAtConfigTime(reqHuDirs, targetConfigCache[ConfigCache::reqHUDirsArray]);
-        writeIncDirsAtConfigTime(useReqHuDirs, targetConfigCache[ConfigCache::useReqHUDirsArray]);
-
-        testVectorHasUniqueElementsIncrement(targetConfigCache[ConfigCache::sourceFiles].GetArray(), "srcFileDeps", 1);
-        testVectorHasUniqueElementsIncrement(targetConfigCache[ConfigCache::moduleFiles].GetArray(), "modFileDeps", 2);
+        testVectorHasUniqueElementsIncrement(buildOrConfigCacheCopy[ConfigCache::sourceFiles].GetArray(), "srcFileDeps",
+                                             1);
+        testVectorHasUniqueElementsIncrement(buildOrConfigCacheCopy[ConfigCache::moduleFiles].GetArray(), "modFileDeps",
+                                             2);
         testVectorHasUniqueElements(reqIncls, "reqIncls");
         testVectorHasUniqueElements(useReqIncls, "useReqIncls");
         testVectorHasUniqueElements(reqHuDirs, "reqHuDirs");
         testVectorHasUniqueElements(useReqHuDirs, "useReqHuDirs");
+
+        copyBackConfigCacheMutexLocked();
     }
 }
 
 void CppSourceTarget::readConfigCacheAtBuildTime()
 {
-    namespace CppTarget = Indices::CppTarget;
+    namespace ConfigCache = Indices::CppTarget::ConfigCache;
 
     // TODO
     // use-template
 
-    PValue &reqInclCache = (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::reqInclsArray];
-    PValue &useReqInclCache = (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::useReqInclsArray];
-    PValue &reqHUDirCache = (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::reqHUDirsArray];
-    PValue &useReqHUDirCache = (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::useReqHUDirsArray];
+
+    PValue &reqInclCache = getConfigCache()[ConfigCache::reqInclsArray];
+    PValue &useReqInclCache = getConfigCache()[ConfigCache::useReqInclsArray];
+    PValue &reqHUDirCache = getConfigCache()[ConfigCache::reqHUDirsArray];
+    PValue &useReqHUDirCache = getConfigCache()[ConfigCache::useReqHUDirsArray];
 
     constexpr uint8_t numOfElem = 3;
     reqIncls.reserve(reqInclCache.Size() / numOfElem);
@@ -1270,8 +1260,8 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const pstri
                 {
                     if (evaluate(UseMiniTarget::YES))
                     {
-                        (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::sourceFiles].PushBack(
-                            node->getPValue(), ralloc);
+                        buildOrConfigCacheCopy[CppTarget::ConfigCache::sourceFiles]
+                            .PushBack(node->getPValue(), cacheAlloc);
                     }
                     else
                     {
@@ -1282,11 +1272,11 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const pstri
                 {
                     if (evaluate(UseMiniTarget::YES))
                     {
-                        (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(
-                            node->getPValue(), ralloc);
+                        buildOrConfigCacheCopy[CppTarget::ConfigCache::moduleFiles]
+                            .PushBack(node->getPValue(), cacheAlloc);
                         // isInterface is false
-                        (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(
-                            PValue(false), ralloc);
+                        buildOrConfigCacheCopy[CppTarget::ConfigCache::moduleFiles]
+                            .PushBack(PValue(false), cacheAlloc);
                     }
                     else
                     {
@@ -1564,7 +1554,7 @@ void CppSourceTarget::resolveRequirePaths()
 
 void CppSourceTarget::populateSourceNodes()
 {
-    PValue &sourceFilesJson = (*targetBuildCache)[Indices::CppTarget::BuildCache::sourceFiles];
+    PValue &sourceFilesJson = buildOrConfigCacheCopy[Indices::CppTarget::BuildCache::sourceFiles];
 
     for (const SourceNode &sourceNodeConst : srcFileDeps)
     {
@@ -1593,7 +1583,7 @@ void CppSourceTarget::populateSourceNodes()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
-    PValue &moduleFilesJson = (*targetBuildCache)[Indices::CppTarget::BuildCache::moduleFiles];
+    PValue &moduleFilesJson = buildOrConfigCacheCopy[Indices::CppTarget::BuildCache::moduleFiles];
 
     for (const SMFile &smFileConst : modFileDeps)
     {
@@ -1800,13 +1790,12 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const boo
                                               getSourceCompileCommandPrintFirstHalf() +
                                                   getCompileCommandPrintSecondPartSMRule(smFile));
     }
+    throw std::runtime_error("Generate SMRules not supported for this compiler\n");
 }
 
 void CppSourceTarget::saveBuildCache(const bool round)
 {
-    lock_guard lk{buildCacheMutex};
-
-    (*targetTempCache)[Indices::CppTarget::buildCache].CopyFrom(*targetBuildCache, ralloc);
+    copyBackBuildCacheMutexLocked();
 
     if (round)
     {

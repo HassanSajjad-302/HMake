@@ -6,12 +6,13 @@
 impoert "Features.hpp";
 import "ObjectFileProducer.hpp";
 import "SpecialNodes.hpp";
+import "TargetCache.hpp";
 #else
 #include "Features.hpp"
 #include "ObjectFileProducer.hpp"
 #include "SpecialNodes.hpp"
+#include "TargetCache.hpp"
 #endif
-
 
 enum class CSourceTargetType : unsigned short
 {
@@ -19,32 +20,29 @@ enum class CSourceTargetType : unsigned short
     CppSourceTarget = 2,
 };
 
-class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>
+class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget> , public TargetCache
 {
   public:
     using BaseType = CSourceTarget;
     vector<InclNode> useReqIncls;
     pstring usageRequirementCompilerFlags;
     flat_hash_set<Define> usageRequirementCompileDefinitions;
-    PValue *targetTempCache = nullptr;
     // TODO:
     // Could be 4 bytes instead
-    uint64_t tempCacheIndex = UINT64_MAX;
-    struct Configuration *configuration = nullptr;
+    Configuration *configuration = nullptr;
 
-    void initializeCSourceTarget(const pstring &name_);
-    explicit CSourceTarget(const pstring& name_);
-    CSourceTarget(bool buildExplicit, const pstring& name_);
-    CSourceTarget(const pstring& name_, Configuration *configuration);
-    CSourceTarget(bool buildExplicit, const pstring& name_, Configuration *configuration_);
+    explicit CSourceTarget(const pstring &name_);
+    CSourceTarget(bool buildExplicit, const pstring &name_);
+    CSourceTarget(const pstring &name_, Configuration *configuration);
+    CSourceTarget(bool buildExplicit, const pstring &name_, Configuration *configuration_);
 
-  protected:
+  /*protected:
     // This parameter noTargetCacheInitialization is here so CSourceTarget does not call CSourceTarget and not call
     // initializeCSourceTarget, as targetConfigCache could potentailly be set by the derived class
     explicit CSourceTarget(pstring name_, bool noTargetCacheInitialization);
     CSourceTarget(bool buildExplicit, pstring name_, bool noTargetCacheInitialization);
     CSourceTarget(pstring name_, Configuration *configuration_, bool noTargetCacheInitialization);
-    CSourceTarget(bool buildExplicit, pstring name_, Configuration *configuration_, bool noTargetCacheInitialization);
+    CSourceTarget(bool buildExplicit, pstring name_, Configuration *configuration_, bool noTargetCacheInitialization);*/
 
   public:
     template <typename... U> CSourceTarget &interfaceIncludes(const pstring &include, U... includeDirectoryPString);

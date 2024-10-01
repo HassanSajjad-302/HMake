@@ -187,6 +187,7 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
 {
     const pstring temporaryIncludeFilename = "temporaryInclude.txt";
 
+    const pstring str = std::filesystem::current_path().string();
     const pstring temporaryCppFile = "temporary-main.cpp";
     ofstream(temporaryCppFile) << "";
     command = (compiler.bTPath.*toPStr)() + " " + temporaryCppFile + " -E -v> " + temporaryIncludeFilename + " 2>&1";
@@ -296,8 +297,6 @@ void ToolsCache::detectToolsAndInitialize()
     }
     else if constexpr (os == OS::LINUX)
     {
-        linuxTools.emplace_back(
-            Compiler(BTFamily::GCC, Version(12, 2, 0), "/home/hassan/llvm-project/llvm/Build/bin/clang++"));
         linuxTools.emplace_back(Compiler(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/c++"));
         linkers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/c++");
         archivers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/ar");

@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.21.0)
+cmake_minimum_required(VERSION 3.28.0)
 
 project(HMake)
 
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GCC")
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 
     add_compile_options(-fsanitize=thread -std=c++2b)
     add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
@@ -54,7 +54,8 @@ add_library(hconfigure STATIC
         hconfigure/src/InclNodeTargetMap.cpp
         3rdParty/lz4/lib/lz4.c
         hconfigure/src/ConfigHelpers.cpp
-        hconfigure/src/HashValues.cpp)
+        hconfigure/src/HashValues.cpp
+        hconfigure/src/TargetCache.cpp)
 
 
 if (UNIX)

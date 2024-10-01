@@ -74,10 +74,6 @@ class Node
 
     static Node *getHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath);
     static Node *getHalfNodeFromNormalizedString(pstring_view p);
-    // TODO
-    // Following two functions should be removed and instead json.pushback(node.getPValue) be used.
-    static void emplaceNodeInPValue(const Node *node, PValue &pValue);
-    static void emplaceNodeInPValue(const Node *node, PValue &pValue, decltype(ralloc) alloc);
     static Node *getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist = false);
     static Node *getNotSystemCheckCalledNodeFromPValue(const PValue &pValue);
     static Node *tryGetNodeFromPValue(bool &systemCheckSucceeded, const PValue &pValue, bool isFile,

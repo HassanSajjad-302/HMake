@@ -289,6 +289,7 @@ uint64_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element)
     return UINT64_MAX;
 }
 
+inline uint64_t currentTargetIndex = 0;
 uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &element)
 {
     const uint64_t old = currentTargetIndex;
@@ -330,9 +331,12 @@ bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs)
 
 void lowerCasePStringOnWindows(pchar *ptr, uint64_t size)
 {
-    for (uint64_t i = 0; i < size; ++i)
+    if constexpr (os == OS::NT)
     {
-        ptr[i] = tolower(ptr[i]);
+        for (uint64_t i = 0; i < size; ++i)
+        {
+            ptr[i] = tolower(ptr[i]);
+        }
     }
 }
 

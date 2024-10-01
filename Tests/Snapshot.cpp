@@ -11,7 +11,6 @@ NodeSnap::NodeSnap(path nodePath_, const file_time_type time_) : nodePath{std::m
 
 consteval uint64_t pathCharSize()
 {
-    path p;
     if constexpr (std::is_same<path::string_type, string>::value)
     {
         return 1;

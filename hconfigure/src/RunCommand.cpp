@@ -11,6 +11,8 @@ import "Utilities.hpp";
 #include "CppSourceTarget.hpp"
 #include "Utilities.hpp"
 #endif
+
+#ifdef WIN32
 #include <Windows.h>
 
 // Copied From Ninja code-base.
@@ -34,6 +36,9 @@ struct CLWrapper
 
     void *env_block_;
 };
+
+// TODO
+//  Error should throw and not exit
 void Fatal(const char *msg, ...)
 {
     va_list ap;
@@ -143,6 +148,111 @@ int CLWrapper::Run(const string &command, string *output) const
     return exit_code;
 }
 
+#else
+
+#include <sys/wait.h>
+#include <unistd.h>
+struct CLWrapper
+{
+    CLWrapper() : env_block_(NULL)
+    {
+    }
+
+    /// Set the environment block (as suitable for CreateProcess) to be used
+    /// by Run().
+    void SetEnvBlock(void *env_block)
+    {
+        env_block_ = env_block;
+    }
+
+    /// Start a process and gather its raw output.  Returns its exit code.
+    /// Crashes (calls Fatal()) on error.
+    static int Run(const std::string &command, std::string *output)
+    {
+        int stdout_pipe[2], stderr_pipe[2];
+        int status;
+
+        // Create pipes for stdout and stderr
+        if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1)
+        {
+            printErrorMessage("Error Creating Pipes\n");
+            throw std::runtime_error("Error Creating Pipes");
+        }
+
+        if (const pid_t pid = fork(); pid == -1)
+        {
+            printErrorMessage("fork");
+            throw std::runtime_error("fork");
+        }
+        else
+        {
+            if (pid == 0)
+            {
+                // Child process
+
+                // Redirect stdout and stderr to the pipes
+                dup2(stdout_pipe[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
+                dup2(stderr_pipe[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
+
+                // Close unused pipe ends
+                close(stdout_pipe[0]);
+                close(stderr_pipe[0]);
+                close(stdout_pipe[1]);
+                close(stderr_pipe[1]);
+
+                // Execute a command (e.g., "ls" or any other)
+                _Exit(system(command.c_str()));
+            }
+
+            // Parent process
+            // Close unused pipe ends
+            close(stdout_pipe[1]);
+            close(stderr_pipe[1]);
+
+            if (waitpid(pid, &status, 0) < 0)
+            {
+                throw std::runtime_error("waitpid");
+            }
+
+            char buffer[4096];
+            while (true)
+            {
+                const uint64_t readSize = read(stdout_pipe[0], buffer, sizeof(buffer) - 1);
+                if (readSize)
+                {
+                    output->append(buffer, readSize);
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            while (true)
+            {
+                const uint64_t readSize = read(stderr_pipe[0], buffer, sizeof(buffer) - 1);
+                if (readSize)
+                {
+                    output->append(buffer, readSize);
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            // Close the read ends of the pipes
+            close(stdout_pipe[0]);
+            close(stderr_pipe[0]);
+        }
+        return status;
+    }
+
+    void *env_block_;
+};
+
+#endif
+
 using std::ofstream, fmt::format;
 
 pstring getThreadId()
@@ -166,9 +276,8 @@ RunCommand::RunCommand(path toolPath, const pstring &runCommand, pstring printCo
     }
 
 #else
-    pstring finalCompileCommand = (buildTool.bTPath.*toPStr)() + " " + commandFirstHalf + "> " +
-                                  addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
-    exitStatus = system(finalCompileCommand.c_str());
+    pstring j = addQuotes(toolPath.make_preferred().string()) + ' ' + runCommand;
+    exitStatus = CLWrapper::Run(j, &commandSuccessOutput);
 #endif
     if (exitStatus != EXIT_SUCCESS)
     {
@@ -303,7 +412,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
                         }
                         if (!found)
                         {
-                            headerDepsJson.PushBack(PValue(node->myId), ralloc);
+                            headerDepsJson.PushBack(PValue(node->myId), sourceNode.sourceNodeAllocator);
                         }
 
 #else

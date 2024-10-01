@@ -61,7 +61,7 @@ HeaderUnitIndexInfo::HeaderUnitIndexInfo(const uint64_t targetIndex_, const uint
 PValue &HeaderUnitIndexInfo::getSingleHeaderUnitDep() const
 {
     namespace CppTarget = Indices::CppTarget;
-    return tempCache[targetIndex][CppTarget::buildCache][CppTarget::BuildCache::headerUnits][myIndex];
+    return targetCache[targetIndex][CppTarget::buildCache][CppTarget::BuildCache::headerUnits][myIndex];
 }
 
 SourceNode::SourceNode(CppSourceTarget *target_, Node *node_) : target(target_), node{node_}
@@ -186,11 +186,6 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
     }*/
 }
 
-static bool fileInIncludes(vector<pstring_view> &files, pstring_view file, bool &angle)
-{
-    constexpr uint64_t s = pstring("#include ").size();
-}
-
 void SourceNode::populateModuleData(Builder &builder)
 {
     const vector<pstring> source = split(fileToPString(node->filePath), "\n");
@@ -244,13 +239,13 @@ void SourceNode::populateModuleData(Builder &builder)
                         }
 
                         headerUnit->headerUnitsIndex = pvalueIndexInSubArray(
-                            (*huDirTarget->targetBuildCache)[Indices::CppTarget::BuildCache::headerUnits],
+                            huDirTarget->getBuildCache()[Indices::CppTarget::BuildCache::headerUnits],
                             headerUnit->node->getPValue());
 
                         if (headerUnit->headerUnitsIndex != UINT64_MAX)
                         {
                             headerUnit->sourceJson =
-                                &(*huDirTarget->targetBuildCache)[Indices::CppTarget::BuildCache::headerUnits]
+                                &huDirTarget->getBuildCache()[Indices::CppTarget::BuildCache::headerUnits]
                                                                  [headerUnit->headerUnitsIndex];
                         }
                         else
@@ -706,7 +701,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
     {
         const_cast<Node *>(node)->ensureSystemCheckCalled(true, true);
 
-        sourceJson = &(*target->targetBuildCache)[Indices::CppTarget::BuildCache::headerUnits][headerUnitsIndex];
+        sourceJson = &target->getBuildCache()[Indices::CppTarget::BuildCache::headerUnits][headerUnitsIndex];
 
         objectFileOutputFilePath = Node::getNodeFromNormalizedString(
             target->buildCacheFilesDirPath + node->getFileName() + ".m.o", true, true);
@@ -937,9 +932,9 @@ void SMFile::saveSMRulesJsonToSourceJson(const pstring &smrulesFileOutputClang)
 
                 // These values are initialized later in initializeHeaderUnits.
                 // targetIndex
-                headerUnitDepPValue.PushBack(PValue(UINT64_MAX), ralloc);
+                headerUnitDepPValue.PushBack(PValue(UINT64_MAX), sourceNodeAllocator);
                 // myIndex
-                headerUnitDepPValue.PushBack(PValue(UINT64_MAX), ralloc);
+                headerUnitDepPValue.PushBack(PValue(UINT64_MAX), sourceNodeAllocator);
             }
         }
     }
@@ -1029,7 +1024,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
             // We ourselves initialized and set headerUnitIndex
         }
 
-        requirePValue[SingleHeaderUnitDep::targetIndex] = huDirTarget->tempCacheIndex;
+        requirePValue[SingleHeaderUnitDep::targetIndex] = huDirTarget->targetCacheIndex;
         requirePValue[SingleHeaderUnitDep::myIndex] = headerUnit->headerUnitsIndex;
     }
 }

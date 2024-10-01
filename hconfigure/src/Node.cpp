@@ -263,24 +263,6 @@ Node *Node::getHalfNodeFromNormalizedString(pstring_view p)
     return node;
 }
 
-void Node::emplaceNodeInPValue(const Node *node, PValue &pValue)
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    pValue.PushBack(PValue(node->myId), ralloc);
-#else
-    pValue.PushBack(ptoref(node->filePath), ralloc);
-#endif
-}
-
-void Node::emplaceNodeInPValue(const Node *node, PValue &pValue, decltype(ralloc) alloc)
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    pValue.PushBack(PValue(node->myId), alloc);
-#else
-    pValue.PushBack(ptoref(node->filePath), alloc);
-#endif
-}
-
 Node *Node::getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
@@ -329,8 +311,6 @@ rapidjson::Type Node::getType()
     return rapidjson::kStringType;
 #endif
 }
-
-#include "Windows.h"
 
 void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
 {
