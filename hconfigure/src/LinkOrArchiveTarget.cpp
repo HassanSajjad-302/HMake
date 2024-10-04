@@ -61,7 +61,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
     for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
     {
-        objectFileProducer->getObjectFiles(&(objectFiles), this);
+        objectFileProducer->getObjectFiles(&objectFiles, this);
     }
 
     if (!evaluate(TargetType::LIBRARY_STATIC))

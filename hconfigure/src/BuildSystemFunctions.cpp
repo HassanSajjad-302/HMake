@@ -206,19 +206,15 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
 
 void configureOrBuild()
 {
-    if (bsMode == BSMode::BUILD)
-    {
-        Builder{};
-    }
+    Builder{};
     if (bsMode == BSMode::CONFIGURE)
     {
-        Builder{};
         cache.registerCacheVariables();
         writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), targetCache);
     }
-    for(uint64_t i = nodesCacheSizeBefore; i < Node::idCount; ++i)
+    for (uint64_t i = nodesCacheSizeBefore; i < Node::idCount; ++i)
     {
-       nodesCacheJson.PushBack(PValue(nodesCacheVector[i].data(), nodesCacheVector[i].size()), ralloc);
+        nodesCacheJson.PushBack(PValue(nodesCacheVector[i].data(), nodesCacheVector[i].size()), ralloc);
     }
     writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCacheJson);
     /*if (nodesCache.Size() != nodesCacheSizeBefore)

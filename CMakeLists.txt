@@ -72,7 +72,7 @@ target_include_directories(hconfigure
         PUBLIC 3rdParty/lz4/lib
 )
 
-set(HMAKE_USE_FULL_FILE OFF BOOL "use full file or smaller file(compressed, indices, hashed).")
+set(HMAKE_USE_FULL_FILE ON BOOL "use full file or smaller file(compressed, indices, hashed).")
 
 if ("${HMAKE_USE_FULL_FILE}" MATCHES OFF)
     message("HMAKE_USE_FULL_FILE set")
@@ -113,7 +113,7 @@ add_executable(hbuild hbuild/src/main.cpp
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Projects/Boost/hmake.cpp)
+add_executable(HMakeHelper Examples/Example2/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 
