@@ -289,12 +289,12 @@ void RunCommand::executePrintRoutine(const uint32_t color, const bool printOnlyO
 {
     if (!printOnlyOnError)
     {
-        preintMessageColor(fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color);
+        printMessageColor(fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color);
         if (exitStatus == EXIT_SUCCESS)
         {
             if (!commandSuccessOutput.empty())
             {
-                preintMessageColor(fmt::format("{}", commandSuccessOutput + "\n"),
+                printMessageColor(fmt::format("{}", commandSuccessOutput + "\n"),
                                    static_cast<int>(fmt::color::light_green));
             }
             if (!commandErrorOutput.empty())
@@ -506,7 +506,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &hea
 
 void PostCompile::parseHeaderDeps(SourceNode &sourceNode, const bool parseFromErrorOutput, bool mustConsiderHeaderDeps)
 {
-    PValue &headerDepsJson = (*sourceNode.sourceJson)[2];
+    PValue &headerDepsJson = sourceNode.sourceJson[Indices::CppTarget::BuildCache::SourceFiles::headerFiles];
     headerDepsJson.Clear();
 
     if (target.compiler.bTFamily == BTFamily::MSVC)

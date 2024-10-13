@@ -5,6 +5,7 @@ import "Builder.hpp";
 import "Cache.hpp";
 import <DSC.hpp>;
 import "CppSourceTarget.hpp";
+import "TargetCacheDiskWriteManager.hpp";
 import "fmt/format.h";
 import <filesystem>;
 import <fstream>;
@@ -13,6 +14,7 @@ import <fstream>;
 #include "Builder.hpp"
 #include "Cache.hpp"
 #include "CppSourceTarget.hpp"
+#include "TargetCacheDiskWriteManager.hpp"
 #include "fmt/format.h"
 #include <DSC.hpp>
 #include <filesystem>
@@ -21,12 +23,7 @@ import <fstream>;
 
 using fmt::print, std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
 
-PrintMessage printMessagePointer = nullptr;
-PrintMessageColor printMessageColorPointer = nullptr;
-PrintMessage printErrorMessagePointer = nullptr;
-PrintMessageColor printErrorMessageColorPointer = nullptr;
-
-static pstring getName(const pstring &name)
+pstring getFileNameJsonOrOut(const pstring &name)
 {
 #ifdef USE_JSON_FILE_COMPRESSION
     return name + ".out";
@@ -35,9 +32,14 @@ static pstring getName(const pstring &name)
 #endif
 }
 
+PrintMessage printMessagePointer = nullptr;
+PrintMessageColor printMessageColorPointer = nullptr;
+PrintMessage printErrorMessagePointer = nullptr;
+PrintMessageColor printErrorMessageColorPointer = nullptr;
+
 void writeBuildCacheUnlocked()
 {
-    writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), targetCache);
+    writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"), targetCache);
 }
 
 void initializeCache(const BSMode bsMode_)
@@ -85,7 +87,7 @@ void initializeCache(const BSMode bsMode_)
     cache.initializeCacheVariableFromCacheFile();
     toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
 
-    if (const path p = path(configureNode->filePath + slashc + getName("nodes")); exists(p))
+    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes")); exists(p))
     {
         const pstring str = p.string();
         nodesCacheBuffer = readPValueFromCompressedFile(str, nodesCacheJson);
@@ -100,7 +102,7 @@ void initializeCache(const BSMode bsMode_)
     }
 
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
-    if (const path p = path(configureNode->filePath + slashc + getName("build-cache")); exists(p))
+    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache")); exists(p))
     {
         const pstring str = p.string();
         buildCacheFileBuffer = readPValueFromCompressedFile(str, targetCache);
@@ -164,7 +166,7 @@ void printMessage(const pstring &message)
     }
 }
 
-void preintMessageColor(const pstring &message, uint32_t color)
+void printMessageColor(const pstring &message, uint32_t color)
 {
     if (printMessageColorPointer)
     {
@@ -206,23 +208,30 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
 
 void configureOrBuild()
 {
+    if (bsMode == BSMode::BUILD)
+    {
+        targetCacheDiskWriteManager.startOperations();
+    }
     Builder{};
     if (bsMode == BSMode::CONFIGURE)
     {
         cache.registerCacheVariables();
-        writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), targetCache);
+        writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
+                                    targetCache);
     }
     for (uint64_t i = nodesCacheSizeBefore; i < Node::idCount; ++i)
     {
         nodesCacheJson.PushBack(PValue(nodesCacheVector[i].data(), nodesCacheVector[i].size()), ralloc);
     }
-    writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCacheJson);
-    /*if (nodesCache.Size() != nodesCacheSizeBefore)
+
+    if (bsMode == BSMode::BUILD)
     {
-        writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCache);
-    }*/
+        targetCacheDiskWriteManager.endOperations();
+    }
+    /*
     assert(nodesCacheJson.Size() >= nodesCacheSizeBefore &&
            "nodes cache size can not be less than the originally loaded file");
+*/
 }
 
 pstring getLastNameAfterSlash(pstring_view name)

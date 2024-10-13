@@ -120,6 +120,10 @@ void BTarget::updateBTarget(Builder &, unsigned short)
 {
 }
 
+void BTarget::endOfRound(Builder &builder, unsigned short round)
+{
+}
+
 bool operator<(const BTarget &lhs, const BTarget &rhs)
 {
     return lhs.id < rhs.id;

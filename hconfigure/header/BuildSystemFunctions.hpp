@@ -9,9 +9,9 @@ import "nlohmann/json.hpp";
 #else
 #include "HashValues.hpp"
 #include "OS.hpp"
-#include "phmap.h"
 #include "PlatformSpecific.hpp"
 #include "nlohmann/json.hpp"
+#include "phmap.h"
 #include <deque>
 #include <mutex>
 #endif
@@ -42,7 +42,8 @@ inline PDocument nodesCacheJson(kArrayType);
 inline unique_ptr<vector<pchar>> nodesCacheBuffer;
 inline vector<pstring_view> nodesCacheVector{10000};
 
-// inline vector<PValue *> targetConfigCaches;
+inline vector<struct BTarget *> endStageTargets{10};
+inline std::atomic<uint64_t> endStageTargetsCount = 0;
 
 inline auto &ralloc = targetCache.GetAllocator();
 void writeBuildCacheUnlocked();
@@ -93,6 +94,7 @@ inline const pstring dashLink = "-link";
 typedef void (*PrintMessage)(const pstring &message);
 typedef void (*PrintMessageColor)(const pstring &message, uint32_t color);
 
+pstring getFileNameJsonOrOut(const pstring &name);
 extern "C" inline EXPORT PrintMessage printMessagePointer;
 extern "C" inline EXPORT PrintMessageColor printMessageColorPointer;
 extern "C" inline EXPORT PrintMessage printErrorMessagePointer;
@@ -101,7 +103,7 @@ extern "C" inline EXPORT PrintMessageColor printErrorMessageColorPointer;
 // Provide these with extern "C" linkage as well so ide/editor could pipe the logging.
 void printDebugMessage(const pstring &message);
 void printMessage(const pstring &message);
-void preintMessageColor(const pstring &message, uint32_t color);
+void printMessageColor(const pstring &message, uint32_t color);
 void printErrorMessage(const pstring &message);
 void printErrorMessageColor(const pstring &message, uint32_t color);
 

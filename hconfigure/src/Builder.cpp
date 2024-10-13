@@ -40,7 +40,7 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    const unsigned int launchThreads = 1;
+    const unsigned int launchThreads = settings.maximumBuildThreads;
     numberOfLaunchedThreads = launchThreads;
     while (threads.size() != launchThreads - 1)
     {

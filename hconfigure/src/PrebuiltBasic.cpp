@@ -59,7 +59,7 @@ PrebuiltBasic::PrebuiltBasic(const pstring &outputName_, const TargetType linkTa
 
 PrebuiltBasic::PrebuiltBasic(const pstring &outputName_, const TargetType linkTargetType_, const pstring &name_,
                              const bool buildExplicit, const bool makeDirectory)
-    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(outputName_), outputName(outputName_),
+    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), outputName(outputName_),
       linkTargetType(linkTargetType_)
 {
 }

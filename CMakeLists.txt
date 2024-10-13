@@ -55,7 +55,8 @@ add_library(hconfigure STATIC
         3rdParty/lz4/lib/lz4.c
         hconfigure/src/ConfigHelpers.cpp
         hconfigure/src/HashValues.cpp
-        hconfigure/src/TargetCache.cpp)
+        hconfigure/src/TargetCache.cpp
+        hconfigure/src/TargetCacheDiskWriteManager.cpp)
 
 
 if (UNIX)
@@ -108,8 +109,7 @@ target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/3rdPa
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:fmt::fmt>")
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_PATH="$<TARGET_FILE:fmt>")
 
-add_executable(hbuild hbuild/src/main.cpp
-        hconfigure/header/SpecialNodes.hpp)
+add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused

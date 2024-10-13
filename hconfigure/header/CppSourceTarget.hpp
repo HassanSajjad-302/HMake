@@ -158,6 +158,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     // Set to true if a source or smrule is updated so that latest cache could be stored.
     std::atomic<bool> buildCacheChanged = false;
 
+    bool doCopyTargetJson = false;
+
     void setCpuType();
     bool isCpuTypeG7();
 
@@ -168,6 +170,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     void resolveRequirePaths();
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);
+    void populateSourceNodesConfigureTime();
+    void parseModuleSourceFilesConfigureTime(Builder &builder);
     void populateResolveRequirePathDependencies();
     pstring getInfrastructureFlags(bool showIncludes) const;
     pstring getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
@@ -182,7 +186,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     // requirementIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
 
-    RAPIDJSON_DEFAULT_ALLOCATOR cppAllocator;
     atomic<size_t> newHeaderUnitsSize = 0;
     bool archiving = false;
     bool archived = false;
@@ -211,6 +214,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Node *sourceFileNode, CppSourceTarget *target);
     static bool actuallyAddModuleFile(vector<SMFile> &smFiles, const pstring &moduleFile, CppSourceTarget *target);
     static bool actuallyAddModuleFile(vector<SMFile> &smFiles, Node *moduleFileNode, CppSourceTarget *target);
+    void actuallyAddSourceFileConfigTime(Node *node);
+    void actuallyAddModuleFileConfigTime(Node *ndoe, bool isInterface);
     CppSourceTarget &removeSourceFile(const pstring &sourceFile);
     CppSourceTarget &removeModuleFile(const pstring &moduleFile);
 
@@ -501,8 +506,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const pst
         if (bsMode == BSMode::CONFIGURE)
         {
             namespace ConfigCache = Indices::CppTarget::ConfigCache;
-            buildOrConfigCacheCopy[ConfigCache::sourceFiles].PushBack(
-                Node::getNodeFromNonNormalizedPath(srcFile, true)->getPValue(), cacheAlloc);
+            actuallyAddSourceFileConfigTime(Node::getNodeFromNonNormalizedPath(srcFile, true));
         }
         // Initialized in CppSourceTarget round 2
     }

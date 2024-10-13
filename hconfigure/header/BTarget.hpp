@@ -140,6 +140,7 @@ struct BTarget // BTarget
     virtual BTargetType getBTargetType() const;
     static void assignFileStatusToDependents(RealBTarget &realBTarget);
     virtual void updateBTarget(class Builder &builder, unsigned short round);
+    virtual void endOfRound(Builder &builder, unsigned short round);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 

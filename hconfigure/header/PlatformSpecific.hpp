@@ -109,7 +109,7 @@ bool childInParentPathRecursiveNormalized(pstring_view parent, pstring_view chil
 
 // TODO
 // Optimize this
-inline vector<class CppSourceTarget *> cppSourceTargets{1000};
+inline vector<class CppSourceTarget *> cppSourceTargets{10000};
 namespace Indices
 {
 
