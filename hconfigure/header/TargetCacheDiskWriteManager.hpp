@@ -4,11 +4,11 @@
 #define TARGETCACHEDISKWRITEMANAGER_HPP
 
 #ifdef USE_HEADER_UNITS
+import <condition_variable>;
 import "BTarget.hpp";
 #else
-#include <utility>
-
 #include "BTarget.hpp"
+#include <condition_variable>
 #endif
 
 struct ColoredStringForPrint
@@ -44,10 +44,17 @@ class TargetCacheDiskWriteManager : public BTarget
     vector<PValueAndIndices> pValueCacheLocal;
     RAPIDJSON_DEFAULT_ALLOCATOR writeBuildCacheAllocator;
     std::thread diskWriteManagerThread;
+    uint64_t nodesSizeBefore = 0;
     bool exitAfterThis = false;
+    vector<BTarget *> copyJsonBTargets;
+    atomic<uint64_t> copyJsonBTargetsCount = 0;
 
   public:
     TargetCacheDiskWriteManager();
+    void addNewBTargetInCopyJsonBTargetsCount(BTarget *bTarget);
+    void writeNodesCacheIfNewNodesAdded();
+    ~TargetCacheDiskWriteManager();
+    void initialize();
     void start();
     void delayPrintAndAddPValue(pstring &str, PValue _pValue, uint64_t _index0 = UINT64_MAX,
                                 uint64_t _index1 = UINT64_MAX, uint64_t _index2 = UINT64_MAX,

@@ -42,13 +42,11 @@ inline PDocument nodesCacheJson(kArrayType);
 inline unique_ptr<vector<pchar>> nodesCacheBuffer;
 inline vector<pstring_view> nodesCacheVector{10000};
 
-inline vector<struct BTarget *> endStageTargets{10};
-inline std::atomic<uint64_t> endStageTargetsCount = 0;
+inline vector<struct BTarget *> roundEndTargets{10};
+inline std::atomic<uint64_t> roundEndTargetsCount = 0;
 
 inline auto &ralloc = targetCache.GetAllocator();
 void writeBuildCacheUnlocked();
-
-inline uint64_t nodesCacheSizeBefore = 0;
 
 // Node representing source directory
 inline class Node *srcNode;

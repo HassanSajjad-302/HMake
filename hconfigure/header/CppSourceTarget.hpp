@@ -70,6 +70,8 @@ struct ResolveRequirePathBTarget final : BTarget
     pstring getTarjanNodeName() const override;
 };
 
+// TODO
+// Remove this. Instead use CppSourceTarget itself.
 struct AdjustHeaderUnitsBTarget final : BTarget
 {
     CppSourceTarget *target;
@@ -158,8 +160,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     // Set to true if a source or smrule is updated so that latest cache could be stored.
     std::atomic<bool> buildCacheChanged = false;
 
-    bool doCopyTargetJson = false;
-
     void setCpuType();
     bool isCpuTypeG7();
 
@@ -186,11 +186,12 @@ class CppSourceTarget : public CppCompilerFeatures,
     // requirementIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
 
-    atomic<size_t> newHeaderUnitsSize = 0;
+    atomic<uint64_t> newHeaderUnitsSize = 0;
     bool archiving = false;
     bool archived = false;
 
     void updateBTarget(Builder &builder, unsigned short round) override;
+    void copyJson() override;
     void writeTargetConfigCacheAtConfigureTime(bool before);
     void readConfigCacheAtBuildTime();
     pstring getTarjanNodeName() const override;

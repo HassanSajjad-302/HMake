@@ -124,6 +124,10 @@ void BTarget::endOfRound(Builder &builder, unsigned short round)
 {
 }
 
+void BTarget::copyJson()
+{
+}
+
 bool operator<(const BTarget &lhs, const BTarget &rhs)
 {
     return lhs.id < rhs.id;

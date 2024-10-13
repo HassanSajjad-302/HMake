@@ -7,6 +7,7 @@ import "ConfigHelpers.hpp";
 import "Configuration.hpp";
 import "LinkOrArchiveTarget.hpp";
 import "rapidhash.h";
+import "TargetCacheDiskWriteManager.hpp";
 import "Utilities.hpp";
 import <filesystem>;
 import <fstream>;
@@ -19,6 +20,7 @@ import <utility>;
 #include "ConfigHelpers.hpp"
 #include "Configuration.hpp"
 #include "LinkOrArchiveTarget.hpp"
+#include "TargetCacheDiskWriteManager.hpp"
 #include "Utilities.hpp"
 #include "rapidhash/rapidhash.h"
 #include <filesystem>
@@ -73,13 +75,16 @@ void AdjustHeaderUnitsBTarget::updateBTarget(Builder &builder, const unsigned sh
     {
         target->adjustHeaderUnitsPValueArrayPointers();
 
-        if (target->doCopyTargetJson)
+        if (target->evaluate(UseMiniTarget::YES))
         {
-            // TODO
-            // Maybe instead of locking, do this in TargetCacheDiskWriteManager
-            std::lock_guard _(buildOrConfigCacheMutex);
-            targetCache[target->targetCacheIndex][Indices::CppTarget::buildCache].CopyFrom(
-                target->buildOrConfigCacheCopy, target->cacheAlloc);
+            targetCacheDiskWriteManager.addNewBTargetInCopyJsonBTargetsCount(this);
+        }
+        else
+        {
+            if (target->newHeaderUnitsSize)
+            {
+                targetCacheDiskWriteManager.addNewBTargetInCopyJsonBTargetsCount(this);
+            }
         }
     }
 }
@@ -1144,7 +1149,24 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     }
 }
 
-void CppSourceTarget::writeTargetConfigCacheAtConfigureTime(bool before)
+void CppSourceTarget::copyJson()
+{
+    namespace CppTarget = Indices::CppTarget;
+    if (evaluate(UseMiniTarget::YES))
+    {
+        // copy only header-units json. following does not need to be atomic since this is called single-threaded in
+        // TargetCacheDiskWriteManager::endOfRound.
+        targetCache[targetCacheIndex][CppTarget::buildCache][CppTarget::BuildCache::headerUnits].CopyFrom(
+            buildOrConfigCacheCopy[CppTarget::BuildCache::headerUnits], ralloc);
+    }
+    else
+    {
+        // Copy full json since there could be new source-files or modules or header-units
+        targetCache[targetCacheIndex][CppTarget::buildCache].CopyFrom(buildOrConfigCacheCopy, ralloc);
+    }
+}
+
+void CppSourceTarget::writeTargetConfigCacheAtConfigureTime(const bool before)
 {
     if (before)
     {
@@ -1592,7 +1614,8 @@ void CppSourceTarget::populateSourceNodes()
         }
         else
         {
-            doCopyTargetJson = true;
+            // TODO
+            // If Mini-Target, then initialize the json else error out. Should not happen for full-targets.
         }
     }
 }
@@ -1616,7 +1639,8 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
         }
         else
         {
-            doCopyTargetJson = true;
+            // TODO
+            // If Mini-Target, then initialize the json else error out. Should not happen for full-targets.
         }
     }
 }

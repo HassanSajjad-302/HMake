@@ -104,6 +104,7 @@ void Builder::execute()
                     printBuilderDebug(fmt::format(
                         "{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
 
+                    runEndOfRoundTargets();
                     if (round > roundGoal && !errorHappenedInRoundMode)
                     {
                         --round;
@@ -156,13 +157,6 @@ void Builder::execute()
                                 }
                                 TBT::topologicalSort[i]->realBTargets[round].indexInTopologicalSort = i;
                             }
-                            /*for (BTarget *target : TBT::topologicalSort)
-                            {
-                                if (!target->realBTargets[round].dependenciesSize)
-                                {
-                                    updateBTargets.emplace_back(target);
-                                }
-                            }*/
                         }
 
                         updateBTargetsSizeGoal = TBT::topologicalSort.size();
@@ -312,4 +306,17 @@ void Builder::incrementNumberOfSleepingThreads()
 void Builder::decrementNumberOfSleepingThreads()
 {
     --numberOfSleepingThreads;
+}
+
+void Builder::runEndOfRoundTargets()
+{
+    for (BTarget *&t : roundEndTargets)
+    {
+        if (t != nullptr)
+        {
+            t->endOfRound(*this, round);
+            t = nullptr;
+        }
+    }
+    roundEndTargetsCount = 0;
 }

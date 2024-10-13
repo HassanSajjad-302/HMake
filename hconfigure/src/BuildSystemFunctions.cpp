@@ -98,7 +98,7 @@ void initializeCache(const BSMode bsMode_)
         {
             Node::getHalfNodeFromNormalizedStringSingleThreaded(pstring(value.GetString(), value.GetStringLength()));
         }
-        nodesCacheSizeBefore = nodesCacheJson.Size();
+        targetCacheDiskWriteManager.initialize();
     }
 
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
@@ -208,10 +208,6 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
 
 void configureOrBuild()
 {
-    if (bsMode == BSMode::BUILD)
-    {
-        targetCacheDiskWriteManager.startOperations();
-    }
     Builder{};
     if (bsMode == BSMode::CONFIGURE)
     {
@@ -219,19 +215,11 @@ void configureOrBuild()
         writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
                                     targetCache);
     }
-    for (uint64_t i = nodesCacheSizeBefore; i < Node::idCount; ++i)
-    {
-        nodesCacheJson.PushBack(PValue(nodesCacheVector[i].data(), nodesCacheVector[i].size()), ralloc);
-    }
 
     if (bsMode == BSMode::BUILD)
     {
         targetCacheDiskWriteManager.endOperations();
     }
-    /*
-    assert(nodesCacheJson.Size() >= nodesCacheSizeBefore &&
-           "nodes cache size can not be less than the originally loaded file");
-*/
 }
 
 pstring getLastNameAfterSlash(pstring_view name)

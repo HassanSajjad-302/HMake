@@ -52,8 +52,49 @@ PValue &PValueAndIndices::getTargetPValue() const
 
 TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
 {
-    strCache.reserve(1000);
-    strCacheLocal.reserve(1000);
+}
+
+void TargetCacheDiskWriteManager::addNewBTargetInCopyJsonBTargetsCount(BTarget *bTarget)
+{
+    const uint64_t i = copyJsonBTargetsCount.fetch_add(1);
+    copyJsonBTargets[i] = bTarget;
+}
+
+void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
+{
+    if (const uint64_t newNodesSize = Node::idCount.load(); newNodesSize != nodesSizeBefore)
+    {
+        for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
+        {
+            nodesCacheJson.PushBack(PValue(nodesCacheVector[i].data(), nodesCacheVector[i].size()), ralloc);
+        }
+        nodesSizeBefore = newNodesSize;
+        writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheJson);
+    }
+}
+
+TargetCacheDiskWriteManager::~TargetCacheDiskWriteManager()
+{
+    if (bsMode == BSMode::CONFIGURE)
+    {
+        writeNodesCacheIfNewNodesAdded();
+    }
+}
+
+void TargetCacheDiskWriteManager::initialize()
+{
+    if (bsMode == BSMode::BUILD)
+    {
+        // TODO
+        // Allocate this and all the other globals in one function call.
+        strCache.reserve(1000);
+        strCacheLocal.reserve(1000);
+        pValueCache.reserve(1000);
+        pValueCacheLocal.reserve(1000);
+        copyJsonBTargets.reserve(1000);
+    }
+
+    nodesSizeBefore = nodesCacheJson.Size();
 }
 
 void TargetCacheDiskWriteManager::start()
@@ -64,15 +105,14 @@ void TargetCacheDiskWriteManager::start()
         vecCond.wait(vecLock);
         if (!strCache.empty())
         {
-            PDocument nodesCacheLocal, targetCacheLocal;
             // Should be based on if a new node is entered.
-            nodesCacheLocal.CopyFrom(nodesCacheJson, writeBuildCacheAllocator);
-            targetCacheLocal.CopyFrom(targetCache, writeBuildCacheAllocator);
             strCacheLocal = std::move(strCache);
             pValueCacheLocal = std::move(pValueCache);
             strCache.clear();
             pValueCache.clear();
             vecLock.unlock();
+
+            writeNodesCacheIfNewNodesAdded();
 
             // Copying pvalue from array to central pvalue
             for (PValueAndIndices &p : pValueCacheLocal)
@@ -80,10 +120,9 @@ void TargetCacheDiskWriteManager::start()
                 p.getTargetPValue() = std::move(p.pValue);
             }
 
-            writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"),
-                                        nodesCacheLocal);
             writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
-                                        targetCacheLocal);
+                                        targetCache);
+
             for (ColoredStringForPrint &c : strCacheLocal)
             {
                 if (c.isColored)
@@ -150,17 +189,34 @@ void TargetCacheDiskWriteManager::delayPrintColor(pstring &str, uint32_t color)
     strCache.emplace_back(str, color, true);
 }
 
-void TargetCacheDiskWriteManager::updateBTarget(Builder &builder, unsigned short round)
+void TargetCacheDiskWriteManager::updateBTarget(Builder &builder, const unsigned short round)
 {
     if (round == 2)
     {
-        uint64_t i = endStageTargetsCount.fetch_add(1);
-        endStageTargets[i] = this;
+        const uint64_t i = roundEndTargetsCount.fetch_add(1);
+        roundEndTargets[i] = this;
     }
 }
 
 void TargetCacheDiskWriteManager::endOfRound(Builder &builder, unsigned short round)
 {
-    // TODO
-    // If targetCache is modified, write the nodes.cache and then target-cache.json.
+    // This will still copy even if an error has happened.
+    if (round == 1)
+    {
+        writeNodesCacheIfNewNodesAdded();
+
+        const uint64_t s = roundEndTargetsCount.load();
+        for (uint64_t i = 0; i < s; ++i)
+        {
+            roundEndTargets[i]->copyJson();
+            roundEndTargets[i] = nullptr;
+        }
+        writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
+                                    targetCache);
+
+        if (bsMode == BSMode::BUILD)
+        {
+            targetCacheDiskWriteManager.startOperations();
+        }
+    }
 }
