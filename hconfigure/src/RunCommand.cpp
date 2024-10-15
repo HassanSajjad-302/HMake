@@ -274,12 +274,12 @@ RunCommand::RunCommand(path toolPath, const pstring &runCommand, pstring printCo
 
     pstring j = addQuotes(toolPath.make_preferred().string()) + ' ' + runCommand;
     {
-        exitStatus = CLWrapper{}.Run(j, &commandSuccessOutput);
+        exitStatus = CLWrapper{}.Run(j, &commandOutput);
     }
 
 #else
     pstring j = addQuotes(toolPath.make_preferred().string()) + ' ' + runCommand;
-    exitStatus = CLWrapper::Run(j, &commandSuccessOutput);
+    exitStatus = CLWrapper::Run(j, &commandOutput);
 #endif
     if (exitStatus != EXIT_SUCCESS)
     {
@@ -293,25 +293,29 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
 
     targetCacheDiskWriteManager->pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2, _index3,
                                                           _index4);
-    if (!printOnlyOnError)
+    if (printOnlyOnError)
     {
         targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", printCommand + " " + getThreadId() + "\n"),
                                                            color, true);
-        if (exitStatus == EXIT_SUCCESS)
+        if (exitStatus != EXIT_SUCCESS)
         {
-            if (!commandSuccessOutput.empty())
+            if (!commandOutput.empty())
             {
-                targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", commandSuccessOutput + "\n"),
-                                                                   static_cast<int>(fmt::color::light_green), true);
+                targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
+                                                                   settings.pcSettings.toolErrorOutput, true);
             }
         }
     }
-    if (exitStatus != EXIT_SUCCESS)
+    else
     {
-        if (!commandSuccessOutput.empty())
+
+        targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", printCommand + " " + getThreadId() + "\n"),
+                                                           color, true);
+
+        if (!commandOutput.empty())
         {
-            targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", commandSuccessOutput + "\n"),
-                                                               settings.pcSettings.toolErrorOutput, true);
+            targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
+                                                               static_cast<int>(fmt::color::light_green), true);
         }
     }
 }
@@ -510,7 +514,7 @@ void PostCompile::parseHeaderDeps(SourceNode &sourceNode, const bool mustConside
 
     if (target.compiler.bTFamily == BTFamily::MSVC)
     {
-        parseDepsFromMSVCTextOutput(sourceNode, commandSuccessOutput, headerDepsJson, mustConsiderHeaderDeps);
+        parseDepsFromMSVCTextOutput(sourceNode, commandOutput, headerDepsJson, mustConsiderHeaderDeps);
     }
     else
     {

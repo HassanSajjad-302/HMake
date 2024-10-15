@@ -57,7 +57,7 @@ TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
     std::memset(copyJsonBTargets.data(), 0, 10000 * sizeof(void *));
 #else
     // satisify the sanitizer and iterator based debuggerr
-    for(int i = 0; i<10000; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         copyJsonBTargets.emplace_back(nullptr);
     }
@@ -115,8 +115,8 @@ void TargetCacheDiskWriteManager::start()
         if (!strCache.empty())
         {
             // Should be based on if a new node is entered.
-            strCacheLocal = std::move(strCache);
-            pValueCacheLocal = std::move(pValueCache);
+            strCacheLocal.swap(strCache);
+            pValueCacheLocal.swap(pValueCache);
             strCache.clear();
             pValueCache.clear();
             vecLock.unlock();
@@ -143,15 +143,15 @@ void TargetCacheDiskWriteManager::start()
                     printMessage(c.msg);
                 }
             }
-
-            if (exitAfterThis)
-            {
-                break;
-            }
         }
         else
         {
             vecLock.unlock();
+        }
+
+        if (exitAfterThis)
+        {
+            break;
         }
     }
 }

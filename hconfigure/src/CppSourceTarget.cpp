@@ -1063,7 +1063,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         if (buildCacheChanged.load())
         {
             buildCacheChanged.store(false);
-            saveBuildCache(round);
+            //saveBuildCache(round);
             assignFileStatusToDependents(realBTargets[0]);
         }
     }

@@ -12,7 +12,7 @@ import "Settings.hpp";
 struct RunCommand
 {
     pstring printCommand;
-    pstring commandSuccessOutput;
+    pstring commandOutput;
     int exitStatus;
 
     /* Could be a target or a file. For target (link and archive), we add extra _t at the end of the target name.*/

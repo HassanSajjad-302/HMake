@@ -252,19 +252,19 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 PValue *objectFilesPValue;
 
                 namespace LinkTarget = Indices::LinkTarget;
-                if (PValue &t = getBuildCache(); t.Empty())
+                if (buildOrConfigCacheCopy.Empty())
                 {
-                    t.PushBack(ptoref(name), cacheAlloc);
+                    buildOrConfigCacheCopy.PushBack(ptoref(name), cacheAlloc);
 
-                    t.PushBack(commandWithoutTargetsWithTool.getHash(), cacheAlloc);
-                    t.PushBack(PValue(kArrayType), cacheAlloc);
-                    objectFilesPValue = t.End() - 1;
+                    buildOrConfigCacheCopy.PushBack(commandWithoutTargetsWithTool.getHash(), cacheAlloc);
+                    buildOrConfigCacheCopy.PushBack(PValue(kArrayType), cacheAlloc);
+                    objectFilesPValue = buildOrConfigCacheCopy.End() - 1;
                 }
                 else
                 {
                     namespace BuildCache = LinkTarget::BuildCache;
-                    t[BuildCache::commandWithoutArgumentsWithTools] = commandWithoutTargetsWithTool.getHash();
-                    objectFilesPValue = &t[BuildCache::objectFiles];
+                    buildOrConfigCacheCopy[BuildCache::commandWithoutArgumentsWithTools] = commandWithoutTargetsWithTool.getHash();
+                    objectFilesPValue = &buildOrConfigCacheCopy[BuildCache::objectFiles];
                     objectFilesPValue->Clear();
                 }
 
@@ -273,19 +273,21 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 {
                     objectFilesPValue->PushBack(objectFile->objectFileOutputFilePath->getPValue(), cacheAlloc);
                 }
-
-                copyBackBuildCacheMutexLocked();
             }
 
             {
                 lock_guard lk(printMutex);
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
                 {
-                   // postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
+                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false,
+                                                                std::move(buildOrConfigCacheCopy), targetCacheIndex,
+                                                                Indices::LinkTarget::buildCache);
                 }
                 else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
                 {
-                   // postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
+                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false,
+                                                                std::move(buildOrConfigCacheCopy), targetCacheIndex,
+                                                                Indices::LinkTarget::buildCache);
                 }
                 fflush(stdout);
             }

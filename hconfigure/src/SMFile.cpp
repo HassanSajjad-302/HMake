@@ -782,7 +782,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 fflush(stdout);
             }
             realBTarget.exitStatus = postCompile.exitStatus;
-            smrulesFileOutputClang = std::move(postCompile.commandSuccessOutput);
+            smrulesFileOutputClang = std::move(postCompile.commandOutput);
         }
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
