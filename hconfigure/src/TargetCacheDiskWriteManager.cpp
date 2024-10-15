@@ -52,6 +52,7 @@ PValue &PValueAndIndices::getTargetPValue() const
 
 TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
 {
+    copyJsonBTargets.reserve(10000);
 }
 
 void TargetCacheDiskWriteManager::addNewBTargetInCopyJsonBTargetsCount(BTarget *bTarget)
@@ -91,7 +92,6 @@ void TargetCacheDiskWriteManager::initialize()
         strCacheLocal.reserve(1000);
         pValueCache.reserve(1000);
         pValueCacheLocal.reserve(1000);
-        copyJsonBTargets.reserve(1000);
     }
 
     nodesSizeBefore = nodesCacheJson.Size();
@@ -167,13 +167,13 @@ void TargetCacheDiskWriteManager::delayPrintColorAndAddPValue(pstring &str, uint
 
 void TargetCacheDiskWriteManager::startOperations()
 {
-    diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, &targetCacheDiskWriteManager);
+    diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, targetCacheDiskWriteManager);
 }
 
 void TargetCacheDiskWriteManager::endOperations()
 {
-    targetCacheDiskWriteManager.exitAfterThis = true;
-    targetCacheDiskWriteManager.vecCond.notify_one();
+    targetCacheDiskWriteManager->exitAfterThis = true;
+    targetCacheDiskWriteManager->vecCond.notify_one();
     diskWriteManagerThread.join();
 }
 
@@ -217,6 +217,6 @@ void TargetCacheDiskWriteManager::endOfRound(Builder &builder, unsigned short ro
                                         targetCache);
         }
 
-        targetCacheDiskWriteManager.startOperations();
+        targetCacheDiskWriteManager->startOperations();
     }
 }

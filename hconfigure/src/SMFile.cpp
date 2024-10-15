@@ -158,7 +158,7 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
                     }
                 }
 
-                targetCacheDiskWriteManager.delayPrintAndAddPValue(
+                targetCacheDiskWriteManager->delayPrintAndAddPValue(
                     postCompile.commandSuccessOutput, std::move(sourceJson), target->targetCacheIndex,
                     CppTarget::buildCache, CppTarget::BuildCache::sourceFiles, indexInBuildCache);
 

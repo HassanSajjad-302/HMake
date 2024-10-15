@@ -7,7 +7,6 @@ import "fmt/format.h";
 import "JConsts.hpp";
 import "ToolsCache.hpp";
 import "Utilities.hpp";
-import "zDLLLoader.hpp";
 import <filesystem>;
 import <fstream>;
 #else
@@ -18,7 +17,6 @@ import <fstream>;
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"
 #include "fmt/format.h"
-#include "zDLLLoader.hpp"
 #include <filesystem>
 #include <fstream>
 #endif
@@ -188,7 +186,7 @@ int main(int argc, char **argv)
                               jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " +
                               fmtHeaderPath.string() + " /I " + parallelHashMap.string() + " /I " + lz4Header.string() +
                               " /std:c++latest /GL /EHsc /MD /nologo " +
-                              "{SOURCE_DIRECTORY}/hmake.cpp /link /SUBSYSTEM:CONSOLE /NOLOGO /DLL ";
+                              "{SOURCE_DIRECTORY}/hmake.cpp /link /SUBSYSTEM:CONSOLE /NOLOGO ";
             for (const string &str : toolsCache.vsTools[0].libraryDirectories)
             {
                 compileCommand += "/LIBPATH:" + addQuotes(str) + " ";
@@ -198,7 +196,7 @@ int main(int argc, char **argv)
                               " kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib "
                               "uuid.lib comdlg32.lib advapi32.lib" +
                               " /OUT:{CONFIGURE_DIRECTORY}/" +
-                              getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure");
+                              getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
             compileCommand = addQuotes(compileCommand);
             cache.compileConfigureCommands.push_back(compileCommand);
         }
@@ -208,11 +206,11 @@ int main(int argc, char **argv)
     }
     else
     {
-        string configureSharedLibPath =
-            (current_path() / getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure")).string();
+        string configureExePath =
+            (current_path() / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure")).string();
         if (onlyConfigure)
         {
-            if (!exists(path(configureSharedLibPath)))
+            if (!exists(path(configureExePath)))
             {
                 exit(EXIT_FAILURE);
             }
@@ -249,21 +247,12 @@ int main(int argc, char **argv)
                     compileConfigureCommand.replace(position, confDirString.size(), current_path().string());
                 }
                 printMessage(fmt::format("{}\n", compileConfigureCommand));
-                int code = system(compileConfigureCommand.c_str());
-                if (code != EXIT_SUCCESS)
+                if (int code = system(compileConfigureCommand.c_str()); code != EXIT_SUCCESS)
                 {
                     exit(code);
                 }
             }
         }
-        DLLLoader loader(configureSharedLibPath.c_str());
-        typedef int (*Func2)(BSMode bsMode);
-        /*auto func2 = loader.getSymbol<Func2>("func2");
-        if (!func2)
-        {
-            printErrorMessage("Symbol func2 could not be loaded from configure dynamic library\n");
-            exit(EXIT_FAILURE);
-        }
-        return func2(BSMode::CONFIGURE)*/;
+        return std::system(configureExePath.c_str());
     }
 }

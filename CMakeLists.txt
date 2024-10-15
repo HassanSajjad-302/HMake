@@ -42,7 +42,6 @@ add_library(hconfigure STATIC
         hconfigure/src/DSC.cpp
         hconfigure/src/ObjectFileProducer.cpp
         hconfigure/src/CSourceTarget.cpp
-        hconfigure/src/DLLLoader.cpp
         hconfigure/src/Configure.cpp
         hconfigure/src/CTargetRoundZeroBTarget.cpp
         hconfigure/src/PrebuiltLinkOrArchiveTarget.cpp
@@ -113,7 +112,7 @@ add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Examples/Example2/hmake.cpp)
+add_executable(HMakeHelper Examples/Example1/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 

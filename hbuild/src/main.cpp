@@ -11,7 +11,6 @@ import <string>;
 #include "Features.hpp"
 #include "TargetType.hpp"
 #include "fmt/format.h"
-#include "zDLLLoader.hpp"
 #include <filesystem>
 #include <string>
 #endif
@@ -40,29 +39,22 @@ int main(const int argc, char **argv)
     }
     else
     {
-        path configureSharedLibPath;
-        bool configureSharedLibExists = false;
-        string configureName = getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure");
+        path configureExecutablePath;
+        bool configuredExecutableExists = false;
+        string configureName = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
         for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
         {
-            configureSharedLibPath = p / configureName;
-            if (exists(configureSharedLibPath))
+            configureExecutablePath = p / configureName;
+            if (exists(configureExecutablePath))
             {
-                configureSharedLibExists = true;
+                configuredExecutableExists = true;
                 break;
             }
         }
-        if (configureSharedLibExists)
+        if (configuredExecutableExists)
         {
-            DLLLoader loader(configureSharedLibPath.string().c_str());
-            typedef int (*Func2)(BSMode bsMode);
-            const auto func2 = loader.getSymbol<Func2>("func2");
-            if (!func2)
-            {
-                printErrorMessage("Symbol func2 could not be loaded from configure dynamic library\n");
-                exit(EXIT_FAILURE);
-            }
-            return func2(BSMode::BUILD);
+            const string str = configureExecutablePath.string() + " --build";
+            return system(str.c_str());
         }
         printErrorMessage(
             fmt::format("{} File could not be found in current directory and directories above\n", configureName));

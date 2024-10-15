@@ -32,11 +32,6 @@ pstring getFileNameJsonOrOut(const pstring &name)
 #endif
 }
 
-PrintMessage printMessagePointer = nullptr;
-PrintMessageColor printMessageColorPointer = nullptr;
-PrintMessage printErrorMessagePointer = nullptr;
-PrintMessageColor printErrorMessageColorPointer = nullptr;
-
 void writeBuildCacheUnlocked()
 {
     writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"), targetCache);
@@ -58,7 +53,7 @@ void initializeCache(const BSMode bsMode_)
         bool configureExists = false;
         for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
         {
-            configurePath = p / getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure");
+            configurePath = p / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
             if (exists(configurePath))
             {
                 configureExists = true;
@@ -98,7 +93,7 @@ void initializeCache(const BSMode bsMode_)
         {
             Node::getHalfNodeFromNormalizedStringSingleThreaded(pstring(value.GetString(), value.GetStringLength()));
         }
-        targetCacheDiskWriteManager.initialize();
+        targetCacheDiskWriteManager->initialize();
     }
 
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
@@ -128,7 +123,7 @@ void initializeCache(const BSMode bsMode_)
     }
 }
 
-BSMode getBuildSystemModeFromArguments(const int argc, char **argv)
+void setBuildSystemModeFromArguments(const int argc, char **argv)
 {
     if (argc > 1)
     {
@@ -143,7 +138,6 @@ BSMode getBuildSystemModeFromArguments(const int argc, char **argv)
             throw std::exception();
         }
     }
-    return bsMode;
 }
 
 void printDebugMessage(const pstring &message)
@@ -218,7 +212,15 @@ void configureOrBuild()
 
     if (bsMode == BSMode::BUILD)
     {
-        targetCacheDiskWriteManager.endOperations();
+        targetCacheDiskWriteManager->endOperations();
+    }
+}
+
+void initializeGlobals()
+{
+    if (bsMode == BSMode::BUILD)
+    {
+        targetCacheDiskWriteManager = new TargetCacheDiskWriteManager();
     }
 }
 

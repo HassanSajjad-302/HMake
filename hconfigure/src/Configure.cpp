@@ -19,3 +19,25 @@ bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuratio
     }
     return false;
 }
+
+int main2(int argc, char **argv)
+{
+    printMessage("Reachedn");
+    try
+    {
+        setBuildSystemModeFromArguments(argc, argv);
+        initializeGlobals();
+        initializeCache(bsMode);
+        (*buildSpecificationFuncPtr)();
+        configureOrBuild();
+    }
+    catch (std::exception &ec)
+    {
+        if (const string str(ec.what()); !str.empty())
+        {
+            printErrorMessage(str);
+        }
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}

@@ -18,11 +18,6 @@ import "nlohmann/json.hpp";
 
 using std::mutex, std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set;
 
-#ifdef _WIN32
-#define EXPORT __declspec(dllexport)
-#else
-#define EXPORT __attribute__((visibility("default")))
-#endif
 
 // Named as slashc to avoid collision with a declaration in nlohmann/json which causes warnings. Will be removed later
 // when nlohmann/json is removed.
@@ -85,7 +80,7 @@ inline constexpr OS os = OS::LINUX;
 inline std::mutex printMutex;
 
 void initializeCache(BSMode bsMode_);
-BSMode getBuildSystemModeFromArguments(int argc, char **argv);
+void setBuildSystemModeFromArguments(int argc, char **argv);
 inline const pstring dashCpp = "-cpp";
 inline const pstring dashLink = "-link";
 
@@ -93,10 +88,10 @@ typedef void (*PrintMessage)(const pstring &message);
 typedef void (*PrintMessageColor)(const pstring &message, uint32_t color);
 
 pstring getFileNameJsonOrOut(const pstring &name);
-extern "C" inline EXPORT PrintMessage printMessagePointer;
-extern "C" inline EXPORT PrintMessageColor printMessageColorPointer;
-extern "C" inline EXPORT PrintMessage printErrorMessagePointer;
-extern "C" inline EXPORT PrintMessageColor printErrorMessageColorPointer;
+inline PrintMessage printMessagePointer = nullptr;
+inline PrintMessageColor printMessageColorPointer = nullptr;
+inline PrintMessage printErrorMessagePointer = nullptr;
+inline PrintMessageColor printErrorMessageColorPointer = nullptr;
 
 // Provide these with extern "C" linkage as well so ide/editor could pipe the logging.
 void printDebugMessage(const pstring &message);
@@ -111,5 +106,6 @@ pstring getLastNameAfterSlash(pstring_view name);
 pstring_view getLastNameAfterSlashView(pstring_view name);
 pstring removeDashCppFromName(pstring_view name);
 void configureOrBuild();
+void initializeGlobals();
 
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

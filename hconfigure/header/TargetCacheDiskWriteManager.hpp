@@ -48,14 +48,14 @@ class TargetCacheDiskWriteManager : public BTarget
     bool exitAfterThis = false;
     // TODO
     // Make this global
-    vector<BTarget *> copyJsonBTargets{10000};
+    vector<BTarget *> copyJsonBTargets;
     atomic<uint64_t> copyJsonBTargetsCount = 0;
 
   public:
     TargetCacheDiskWriteManager();
     void addNewBTargetInCopyJsonBTargetsCount(BTarget *bTarget);
     void writeNodesCacheIfNewNodesAdded();
-    ~TargetCacheDiskWriteManager();
+    ~TargetCacheDiskWriteManager() override;
     void initialize();
     void start();
     void delayPrintAndAddPValue(pstring &str, PValue _pValue, uint64_t _index0 = UINT64_MAX,
@@ -72,6 +72,6 @@ class TargetCacheDiskWriteManager : public BTarget
     void endOfRound(Builder &builder, unsigned short round) override;
 };
 
-inline TargetCacheDiskWriteManager targetCacheDiskWriteManager;
+inline TargetCacheDiskWriteManager *targetCacheDiskWriteManager;
 
 #endif // TARGETCACHEDISKWRITEMANAGER_HPP
