@@ -191,7 +191,7 @@ void TargetCacheDiskWriteManager::delayPrintColor(pstring &str, uint32_t color)
 
 void TargetCacheDiskWriteManager::updateBTarget(Builder &builder, const unsigned short round)
 {
-    if (round == 2)
+    if (round == 1)
     {
         const uint64_t i = roundEndTargetsCount.fetch_add(1);
         roundEndTargets[i] = this;
@@ -201,22 +201,22 @@ void TargetCacheDiskWriteManager::updateBTarget(Builder &builder, const unsigned
 void TargetCacheDiskWriteManager::endOfRound(Builder &builder, unsigned short round)
 {
     // This will still copy even if an error has happened.
+    // This will only copy only in round 1 hence only in BSMode::BUILD.
     if (round == 1)
     {
         writeNodesCacheIfNewNodesAdded();
 
-        const uint64_t s = roundEndTargetsCount.load();
-        for (uint64_t i = 0; i < s; ++i)
+        if (const uint64_t s = copyJsonBTargetsCount.load())
         {
-            roundEndTargets[i]->copyJson();
-            roundEndTargets[i] = nullptr;
+            for (uint64_t i = 0; i < s; ++i)
+            {
+                copyJsonBTargets[i]->copyJson();
+                copyJsonBTargets[i] = nullptr;
+            }
+            writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
+                                        targetCache);
         }
-        writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
-                                    targetCache);
 
-        if (bsMode == BSMode::BUILD)
-        {
-            targetCacheDiskWriteManager.startOperations();
-        }
+        targetCacheDiskWriteManager.startOperations();
     }
 }

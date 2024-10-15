@@ -23,7 +23,7 @@ DLLLoader::DLLLoader(const char *path)
     if (!handle)
     {
         // Handle the error if the library fails to load
-        printErrorMessage(format("Could Not Load DLL {}", path));
+        printErrorMessage(format("Could Not Load DLL {}\n", path));
     }
 }
 

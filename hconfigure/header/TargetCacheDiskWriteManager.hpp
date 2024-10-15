@@ -46,7 +46,9 @@ class TargetCacheDiskWriteManager : public BTarget
     std::thread diskWriteManagerThread;
     uint64_t nodesSizeBefore = 0;
     bool exitAfterThis = false;
-    vector<BTarget *> copyJsonBTargets;
+    // TODO
+    // Make this global
+    vector<BTarget *> copyJsonBTargets{10000};
     atomic<uint64_t> copyJsonBTargetsCount = 0;
 
   public:

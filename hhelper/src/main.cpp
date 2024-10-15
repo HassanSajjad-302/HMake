@@ -258,12 +258,12 @@ int main(int argc, char **argv)
         }
         DLLLoader loader(configureSharedLibPath.c_str());
         typedef int (*Func2)(BSMode bsMode);
-        auto func2 = loader.getSymbol<Func2>("func2");
+        /*auto func2 = loader.getSymbol<Func2>("func2");
         if (!func2)
         {
             printErrorMessage("Symbol func2 could not be loaded from configure dynamic library\n");
             exit(EXIT_FAILURE);
         }
-        return func2(BSMode::CONFIGURE);
+        return func2(BSMode::CONFIGURE)*/;
     }
 }
