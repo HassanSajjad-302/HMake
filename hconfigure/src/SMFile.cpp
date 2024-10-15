@@ -150,21 +150,17 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
                         target->compileCommandWithTool.getHash();
                     if (target->configuration && target->configuration->evaluate(GenerateModuleData::YES))
                     {
-                        postCompile.parseHeaderDeps(*this, false, true);
+                        postCompile.parseHeaderDeps(*this, true);
                     }
                     else
                     {
-                        postCompile.parseHeaderDeps(*this, false, false);
+                        postCompile.parseHeaderDeps(*this, false);
                     }
                 }
 
-                targetCacheDiskWriteManager->delayPrintAndAddPValue(
-                    postCompile.commandSuccessOutput, std::move(sourceJson), target->targetCacheIndex,
-                    CppTarget::buildCache, CppTarget::BuildCache::sourceFiles, indexInBuildCache);
-
-                lock_guard lk(printMutex);
-                postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
-                fflush(stdout);
+                postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false, std::move(sourceJson),
+                                                target->targetCacheIndex, CppTarget::buildCache,
+                                                CppTarget::BuildCache::sourceFiles, indexInBuildCache);
             }
         }
 
@@ -778,11 +774,11 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             if (realBTarget.exitStatus == EXIT_SUCCESS)
             {
                 sourceJson[ModuleFiles::scanningCommandWithTool] = target->compileCommandWithTool.getHash();
-                postCompile.parseHeaderDeps(*this, true, false);
+                postCompile.parseHeaderDeps(*this, false);
             }
             {
                 lock_guard lk(printMutex);
-                postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
+                // postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
                 fflush(stdout);
             }
             realBTarget.exitStatus = postCompile.exitStatus;
@@ -839,7 +835,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
 
             {
                 lock_guard lk(printMutex);
-                postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
+                // postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false);
                 fflush(stdout);
             }
 

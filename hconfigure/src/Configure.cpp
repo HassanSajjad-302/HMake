@@ -22,7 +22,6 @@ bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuratio
 
 int main2(int argc, char **argv)
 {
-    printMessage("Reachedn");
     try
     {
         setBuildSystemModeFromArguments(argc, argv);

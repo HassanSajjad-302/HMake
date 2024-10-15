@@ -281,11 +281,11 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 lock_guard lk(printMutex);
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
                 {
-                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
+                   // postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
                 }
                 else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
                 {
-                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
+                   // postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
                 }
                 fflush(stdout);
             }

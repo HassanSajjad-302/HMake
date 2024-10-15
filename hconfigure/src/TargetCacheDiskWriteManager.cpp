@@ -53,6 +53,15 @@ PValue &PValueAndIndices::getTargetPValue() const
 TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
 {
     copyJsonBTargets.reserve(10000);
+#ifdef NDEBUG
+    std::memset(copyJsonBTargets.data(), 0, 10000 * sizeof(void *));
+#else
+    // satisify the sanitizer and iterator based debuggerr
+    for(int i = 0; i<10000; ++i)
+    {
+        copyJsonBTargets.emplace_back(nullptr);
+    }
+#endif
 }
 
 void TargetCacheDiskWriteManager::addNewBTargetInCopyJsonBTargetsCount(BTarget *bTarget)
@@ -147,24 +156,6 @@ void TargetCacheDiskWriteManager::start()
     }
 }
 
-void TargetCacheDiskWriteManager::delayPrintAndAddPValue(pstring &str, PValue _pValue, uint64_t _index0,
-                                                         uint64_t _index1, uint64_t _index2, uint64_t _index3,
-                                                         uint64_t _index4)
-{
-    lock_guard _{vecMutex};
-    pValueCache.emplace_back(std::move(_pValue), _index0, _index1, _index2, _index3, _index4);
-    strCache.emplace_back(str, 0, false);
-}
-
-void TargetCacheDiskWriteManager::delayPrintColorAndAddPValue(pstring &str, uint32_t color, PValue _pValue,
-                                                              uint64_t _index0, uint64_t _index1, uint64_t _index2,
-                                                              uint64_t _index3, uint64_t _index4)
-{
-    lock_guard _{vecMutex};
-    pValueCache.emplace_back(std::move(_pValue), _index0, _index1, _index2, _index3, _index4);
-    strCache.emplace_back(str, color, true);
-}
-
 void TargetCacheDiskWriteManager::startOperations()
 {
     diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, targetCacheDiskWriteManager);
@@ -175,18 +166,6 @@ void TargetCacheDiskWriteManager::endOperations()
     targetCacheDiskWriteManager->exitAfterThis = true;
     targetCacheDiskWriteManager->vecCond.notify_one();
     diskWriteManagerThread.join();
-}
-
-void TargetCacheDiskWriteManager::delayPrint(pstring &str)
-{
-    lock_guard _{vecMutex};
-    strCache.emplace_back(str, 0, false);
-}
-
-void TargetCacheDiskWriteManager::delayPrintColor(pstring &str, uint32_t color)
-{
-    lock_guard _{vecMutex};
-    strCache.emplace_back(str, color, true);
 }
 
 void TargetCacheDiskWriteManager::updateBTarget(Builder &builder, const unsigned short round)

@@ -1611,6 +1611,7 @@ void CppSourceTarget::populateSourceNodes()
             fileIt != UINT64_MAX)
         {
             sourceNode.sourceJson.CopyFrom(sourceFilesJson[fileIt], cacheAlloc);
+            sourceNode.indexInBuildCache = fileIt;
         }
         else
         {

@@ -35,13 +35,18 @@ struct PValueAndIndices
 
 class TargetCacheDiskWriteManager : public BTarget
 {
+  public:
     mutex vecMutex;
     std::condition_variable vecCond{};
     std::unique_lock<std::mutex> vecLock{vecMutex, std::defer_lock_t{}};
     vector<ColoredStringForPrint> strCache;
-    vector<ColoredStringForPrint> strCacheLocal;
     vector<PValueAndIndices> pValueCache;
+
+  private:
+    vector<ColoredStringForPrint> strCacheLocal;
     vector<PValueAndIndices> pValueCacheLocal;
+
+  public:
     RAPIDJSON_DEFAULT_ALLOCATOR writeBuildCacheAllocator;
     std::thread diskWriteManagerThread;
     uint64_t nodesSizeBefore = 0;
@@ -51,23 +56,15 @@ class TargetCacheDiskWriteManager : public BTarget
     vector<BTarget *> copyJsonBTargets;
     atomic<uint64_t> copyJsonBTargetsCount = 0;
 
-  public:
     TargetCacheDiskWriteManager();
     void addNewBTargetInCopyJsonBTargetsCount(BTarget *bTarget);
     void writeNodesCacheIfNewNodesAdded();
     ~TargetCacheDiskWriteManager() override;
     void initialize();
     void start();
-    void delayPrintAndAddPValue(pstring &str, PValue _pValue, uint64_t _index0 = UINT64_MAX,
-                                uint64_t _index1 = UINT64_MAX, uint64_t _index2 = UINT64_MAX,
-                                uint64_t _index3 = UINT64_MAX, uint64_t _index4 = UINT64_MAX);
-    void delayPrintColorAndAddPValue(pstring &str, uint32_t color, PValue _pValue, uint64_t _index0 = UINT64_MAX,
-                                     uint64_t _index1 = UINT64_MAX, uint64_t _index2 = UINT64_MAX,
-                                     uint64_t _index3 = UINT64_MAX, uint64_t _index4 = UINT64_MAX);
     void startOperations();
     void endOperations();
-    void delayPrint(pstring &str);
-    void delayPrintColor(pstring &str, uint32_t color);
+
     void updateBTarget(Builder &builder, unsigned short round) override;
     void endOfRound(Builder &builder, unsigned short round) override;
 };

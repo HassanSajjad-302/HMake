@@ -3,12 +3,14 @@
 import "RunCommand.hpp";
 import "BuildSystemFunctions.hpp";
 import "CppSourceTarget.hpp";
+import "TargetCacheDiskWriteManager.hpp";
 import "subprocess/subprocess.h";
 import "Utilities.hpp";
 #else
 #include "RunCommand.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
+#include "TargetCacheDiskWriteManager.hpp"
 #include "Utilities.hpp"
 #endif
 
@@ -284,23 +286,23 @@ RunCommand::RunCommand(path toolPath, const pstring &runCommand, pstring printCo
         bool breakpoint = true;
     }
 }
-
-void RunCommand::executePrintRoutine(const uint32_t color, const bool printOnlyOnError) const
+void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError, PValue sourceJson, uint64_t _index0,
+                                     uint64_t _index1, uint64_t _index2, uint64_t _index3, uint64_t _index4) const
 {
+    lock_guard _(targetCacheDiskWriteManager->vecMutex);
+
+    targetCacheDiskWriteManager->pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2, _index3,
+                                                          _index4);
     if (!printOnlyOnError)
     {
-        printMessageColor(fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color);
+        targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", printCommand + " " + getThreadId() + "\n"),
+                                                           color, true);
         if (exitStatus == EXIT_SUCCESS)
         {
             if (!commandSuccessOutput.empty())
             {
-                printMessageColor(fmt::format("{}", commandSuccessOutput + "\n"),
-                                   static_cast<int>(fmt::color::light_green));
-            }
-            if (!commandErrorOutput.empty())
-            {
-                printErrorMessageColor(fmt::format("{}", commandErrorOutput + "\n"),
-                                       static_cast<int>(fmt::color::light_green));
+                targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", commandSuccessOutput + "\n"),
+                                                                   static_cast<int>(fmt::color::light_green), true);
             }
         }
     }
@@ -308,11 +310,8 @@ void RunCommand::executePrintRoutine(const uint32_t color, const bool printOnlyO
     {
         if (!commandSuccessOutput.empty())
         {
-            printErrorMessageColor(fmt::format("{}", commandSuccessOutput + "\n"), settings.pcSettings.toolErrorOutput);
-        }
-        if (!commandErrorOutput.empty())
-        {
-            printErrorMessageColor(fmt::format("{}", commandErrorOutput + "\n"), settings.pcSettings.toolErrorOutput);
+            targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", commandSuccessOutput + "\n"),
+                                                               settings.pcSettings.toolErrorOutput, true);
         }
     }
 }
@@ -504,7 +503,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &hea
     }
 }
 
-void PostCompile::parseHeaderDeps(SourceNode &sourceNode, const bool parseFromErrorOutput, bool mustConsiderHeaderDeps)
+void PostCompile::parseHeaderDeps(SourceNode &sourceNode, const bool mustConsiderHeaderDeps)
 {
     PValue &headerDepsJson = sourceNode.sourceJson[Indices::CppTarget::BuildCache::SourceFiles::headerFiles];
     headerDepsJson.Clear();
@@ -512,13 +511,6 @@ void PostCompile::parseHeaderDeps(SourceNode &sourceNode, const bool parseFromEr
     if (target.compiler.bTFamily == BTFamily::MSVC)
     {
         parseDepsFromMSVCTextOutput(sourceNode, commandSuccessOutput, headerDepsJson, mustConsiderHeaderDeps);
-
-        if (parseFromErrorOutput)
-        {
-            // In case of GenerateSMRules header-file info is printed to stderr instead of stout. Just one more wrinkle.
-            // Hahaha
-            parseDepsFromMSVCTextOutput(sourceNode, commandErrorOutput, headerDepsJson, mustConsiderHeaderDeps);
-        }
     }
     else
     {
