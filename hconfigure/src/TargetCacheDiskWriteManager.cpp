@@ -124,14 +124,16 @@ void TargetCacheDiskWriteManager::start()
 
             writeNodesCacheIfNewNodesAdded();
 
-            // Copying pvalue from array to central pvalue
-            for (PValueAndIndices &p : pValueCacheLocal)
+            if (!pValueCacheLocal.empty())
             {
-                p.getTargetPValue() = std::move(p.pValue);
+                for (PValueAndIndices &p : pValueCacheLocal)
+                {
+                    p.getTargetPValue() = std::move(p.pValue);
+                }
+                writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
+                                            targetCache);
             }
-
-            writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
-                                        targetCache);
+            // Copying pvalue from array to central pvalue
 
             for (ColoredStringForPrint &c : strCacheLocal)
             {

@@ -291,8 +291,12 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
 {
     lock_guard _(targetCacheDiskWriteManager->vecMutex);
 
-    targetCacheDiskWriteManager->pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2, _index3,
-                                                          _index4);
+    if (exitStatus == EXIT_SUCCESS)
+    {
+        targetCacheDiskWriteManager->pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2, _index3,
+                                                              _index4);
+    }
+
     if (printOnlyOnError)
     {
         targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", printCommand + " " + getThreadId() + "\n"),
