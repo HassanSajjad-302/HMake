@@ -108,10 +108,11 @@ void TargetCacheDiskWriteManager::initialize()
 
 void TargetCacheDiskWriteManager::start()
 {
+
+    vecLock.lock();
+
     while (true)
     {
-        vecLock.lock();
-        vecCond.wait(vecLock);
         if (!strCache.empty())
         {
             // Should be based on if a new node is entered.
@@ -153,17 +154,23 @@ void TargetCacheDiskWriteManager::start()
         {
             break;
         }
+        vecLock.lock();
+
+        vecCond.wait(vecLock);
     }
 }
 
 void TargetCacheDiskWriteManager::startOperations()
 {
     diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, targetCacheDiskWriteManager);
+    // std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
 void TargetCacheDiskWriteManager::endOperations()
 {
+    targetCacheDiskWriteManager->vecMutex.lock();
     targetCacheDiskWriteManager->exitAfterThis = true;
+    targetCacheDiskWriteManager->vecMutex.unlock();
     targetCacheDiskWriteManager->vecCond.notify_one();
     diskWriteManagerThread.join();
 }

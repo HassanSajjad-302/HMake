@@ -12,16 +12,7 @@ void buildSpecification()
 
     auto configureFunc = [](Configuration &configuration) {
         DSC<CppSourceTarget> &lib4 = configuration.getCppStaticDSC("lib4");
-        lib4.getSourceTarget().publicIncludes("lib4/public");
-        bool useLib4Cpp = CacheVariable<bool>("use-lib4.cpp", true).value;
-        if (useLib4Cpp)
-        {
-            lib4.getSourceTarget().sourceFiles("lib4/private/lib4.cpp");
-        }
-        else
-        {
-            lib4.getSourceTarget().sourceFiles("lib4/private/temp.cpp");
-        }
+        lib4.getSourceTarget().sourceDirectoriesRE("lib4/private", ".*cpp").publicIncludes("lib4/public");
 
         DSC<CppSourceTarget> &lib3 = configuration.getCppStaticDSC("lib3").publicLibraries(&lib4);
         lib3.getSourceTarget().sourceDirectoriesRE("lib3/private", ".*cpp").publicIncludes("lib3/public");

@@ -76,7 +76,7 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     // .o, on Windows / Deps Output File on Linux
     expected += 1 * updates.sourceFiles;
 
-   // expected += 3 * updates.errorFiles;
+    // expected += 3 * updates.errorFiles;
     expected += 2 * updates.moduleFiles;
 
     expected += updates.linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
@@ -88,7 +88,8 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
         expected += 1;
     }
 
-    if (updates.cppTargets || updates.linkTargetsNoDebug || updates.linkTargetsDebug)
+    if (updates.sourceFiles || updates.moduleFiles || updates.smruleFiles || updates.linkTargetsNoDebug ||
+        updates.linkTargetsDebug)
     {
         expected += 1; // build-cache.json
     }

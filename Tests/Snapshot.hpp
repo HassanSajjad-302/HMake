@@ -30,10 +30,9 @@ struct Updates
     // module-files which don't have .ifc file generated are also considered sourceFiles
     unsigned short sourceFiles = 0;
     unsigned short moduleFiles = 0;
-    unsigned short cppTargets = 0;
     unsigned short linkTargetsNoDebug = 0;
     unsigned short linkTargetsDebug = 0;
-    bool nodesFile = true;
+    bool nodesFile = false;
 };
 
 struct NodeSnap

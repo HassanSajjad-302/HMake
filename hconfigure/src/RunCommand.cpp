@@ -394,6 +394,8 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
 
                 if (iter->size() >= pos + 1)
                 {
+                    // Last character is \r for some reason.
+                    iter->back() = '\0';
                     pstring_view headerView(iter->begin() + pos, iter->end() - 1);
 
                     // TODO
@@ -420,11 +422,13 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
 
 #else
 
+                        // We need node so that it gets registered in the central nodes.cache
+                        const Node *headerNode = Node::getNodeFromNormalizedString(headerView, true, false);
                         bool found = false;
                         for (const PValue &value : headerDepsJson.GetArray())
                         {
                             if (compareStringsFromEnd(pstring_view(value.GetString(), value.GetStringLength()),
-                                                      headerView))
+                                                      headerNode->filePath))
                             {
                                 found = true;
                                 break;

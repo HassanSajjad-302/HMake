@@ -263,7 +263,8 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 else
                 {
                     namespace BuildCache = LinkTarget::BuildCache;
-                    buildOrConfigCacheCopy[BuildCache::commandWithoutArgumentsWithTools] = commandWithoutTargetsWithTool.getHash();
+                    buildOrConfigCacheCopy[BuildCache::commandWithoutArgumentsWithTools] =
+                        commandWithoutTargetsWithTool.getHash();
                     objectFilesPValue = &buildOrConfigCacheCopy[BuildCache::objectFiles];
                     objectFilesPValue->Clear();
                 }

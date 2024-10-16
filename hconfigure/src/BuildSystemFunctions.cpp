@@ -93,7 +93,10 @@ void initializeCache(const BSMode bsMode_)
         {
             Node::getHalfNodeFromNormalizedStringSingleThreaded(pstring(value.GetString(), value.GetStringLength()));
         }
-        targetCacheDiskWriteManager->initialize();
+        if (bsMode == BSMode::BUILD)
+        {
+            targetCacheDiskWriteManager->initialize();
+        }
     }
 
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);

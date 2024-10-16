@@ -77,14 +77,14 @@ void AdjustHeaderUnitsBTarget::updateBTarget(Builder &builder, const unsigned sh
 
         if (target->evaluate(UseMiniTarget::YES))
         {
-            targetCacheDiskWriteManager->addNewBTargetInCopyJsonBTargetsCount(this);
-        }
-        else
-        {
             if (target->newHeaderUnitsSize)
             {
                 targetCacheDiskWriteManager->addNewBTargetInCopyJsonBTargetsCount(this);
             }
+        }
+        else
+        {
+            targetCacheDiskWriteManager->addNewBTargetInCopyJsonBTargetsCount(this);
         }
     }
 }
@@ -1063,7 +1063,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         if (buildCacheChanged.load())
         {
             buildCacheChanged.store(false);
-            //saveBuildCache(round);
+            // saveBuildCache(round);
             assignFileStatusToDependents(realBTargets[0]);
         }
     }
