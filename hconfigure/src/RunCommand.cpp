@@ -296,15 +296,15 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
 
         if (exitStatus == EXIT_SUCCESS)
         {
-            targetCacheDiskWriteManager->pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2, _index3,
-                                                                  _index4);
+            targetCacheDiskWriteManager->pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2,
+                                                                  _index3, _index4);
             notify = true;
         }
 
         if (printOnlyOnError)
         {
-            targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", printCommand + " " + getThreadId() + "\n"),
-                                                               color, true);
+            targetCacheDiskWriteManager->strCache.emplace_back(
+                fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color, true);
             notify = true;
             if (exitStatus != EXIT_SUCCESS)
             {
@@ -319,8 +319,8 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
         else
         {
 
-            targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", printCommand + " " + getThreadId() + "\n"),
-                                                               color, true);
+            targetCacheDiskWriteManager->strCache.emplace_back(
+                fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color, true);
 
             if (!commandOutput.empty())
             {
