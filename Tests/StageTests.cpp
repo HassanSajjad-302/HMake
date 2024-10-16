@@ -384,10 +384,12 @@ TEST(StageTests, Test2)
 
     create_directories("Release/lib3/");
     create_directories("Release/lib4/");
-    executeErroneousSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .nodesFile = true}, "Release/lib3/");
+    executeErroneousSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .nodesFile = true},
+                                     "Release/lib3/");
     executeErroneousSnapshotBalances(Updates{}, "Release/lib3/");
     executeErroneousSnapshotBalances(Updates{.errorFiles = 1, .sourceFiles = 1, .nodesFile = true}, "Release/lib4/");
-    executeErroneousSnapshotBalances(Updates{.errorFiles = 1, .sourceFiles = 3, .linkTargetsNoDebug = 2, .nodesFile = true});
+    executeErroneousSnapshotBalances(
+        Updates{.errorFiles = 1, .sourceFiles = 3, .linkTargetsNoDebug = 2, .nodesFile = true});
     executeErroneousSnapshotBalances(Updates{.errorFiles = 1});
 
     // Copying Empty lib4.cpp

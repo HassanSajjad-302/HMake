@@ -289,38 +289,51 @@ RunCommand::RunCommand(path toolPath, const pstring &runCommand, pstring printCo
 void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError, PValue sourceJson, uint64_t _index0,
                                      uint64_t _index1, uint64_t _index2, uint64_t _index3, uint64_t _index4) const
 {
-    lock_guard _(targetCacheDiskWriteManager->vecMutex);
-
-    if (exitStatus == EXIT_SUCCESS)
+    bool notify = false;
     {
-        targetCacheDiskWriteManager->pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2, _index3,
-                                                              _index4);
-    }
 
-    if (printOnlyOnError)
-    {
-        targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", printCommand + " " + getThreadId() + "\n"),
-                                                           color, true);
-        if (exitStatus != EXIT_SUCCESS)
+        lock_guard _(targetCacheDiskWriteManager->vecMutex);
+
+        if (exitStatus == EXIT_SUCCESS)
         {
+            targetCacheDiskWriteManager->pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2, _index3,
+                                                                  _index4);
+            notify = true;
+        }
+
+        if (printOnlyOnError)
+        {
+            targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", printCommand + " " + getThreadId() + "\n"),
+                                                               color, true);
+            notify = true;
+            if (exitStatus != EXIT_SUCCESS)
+            {
+                if (!commandOutput.empty())
+                {
+                    targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
+                                                                       settings.pcSettings.toolErrorOutput, true);
+                    notify = true;
+                }
+            }
+        }
+        else
+        {
+
+            targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", printCommand + " " + getThreadId() + "\n"),
+                                                               color, true);
+
             if (!commandOutput.empty())
             {
                 targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
-                                                                   settings.pcSettings.toolErrorOutput, true);
+                                                                   static_cast<int>(fmt::color::light_green), true);
+                notify = true;
             }
         }
     }
-    else
+
+    if (notify)
     {
-
-        targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", printCommand + " " + getThreadId() + "\n"),
-                                                           color, true);
-
-        if (!commandOutput.empty())
-        {
-            targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
-                                                               static_cast<int>(fmt::color::light_green), true);
-        }
+        targetCacheDiskWriteManager->vecCond.notify_one();
     }
 }
 
