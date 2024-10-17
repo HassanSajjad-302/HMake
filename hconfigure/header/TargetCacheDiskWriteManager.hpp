@@ -69,6 +69,6 @@ class TargetCacheDiskWriteManager : public BTarget
     void endOfRound(Builder &builder, unsigned short round) override;
 };
 
-inline TargetCacheDiskWriteManager *targetCacheDiskWriteManager;
+GLOBAL_VARIABLE(TargetCacheDiskWriteManager, targetCacheDiskWriteManager)
 
 #endif // TARGETCACHEDISKWRITEMANAGER_HPP

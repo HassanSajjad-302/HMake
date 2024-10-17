@@ -15,7 +15,9 @@ import <cstdio>;
 #include "rapidjson/writer.h"
 #include <cstdio>
 #include <iostream>
+#include <utility>
 #endif
+#include <corecrt_io.h>
 
 // Copied from https://stackoverflow.com/a/208431
 class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>::state_type>
@@ -179,16 +181,21 @@ unique_ptr<vector<pchar>> readPValueFromFile(const pstring_view fileName, PDocum
     return buffer;
 }
 
-void writePValueToFile(pstring_view fileName, const PValue &value)
+#include <Windows.h>
+void writePValueToFile(pstring fileName, const PValue &value)
 {
-    RHPOStream stream(fileName);
-    rapidjson::Writer<RHPOStream> writer(stream, nullptr);
-    if (!value.Accept(writer))
+    const pstring str = fileName + ".tmp";
     {
-        // TODO Check what error
-        printErrorMessage(FORMAT("Error Happened in parsing file {}\n", fileName.data()));
-        throw std::exception{};
+        RHPOStream stream(str);
+        if (rapidjson::Writer<RHPOStream> writer(stream, nullptr); !value.Accept(writer))
+        {
+            // TODO Check what error
+            printErrorMessage(FORMAT("Error Happened in parsing file {}\n", fileName.data()));
+            throw std::exception{};
+        }
     }
+
+    MoveFileEx(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING);
 }
 
 unique_ptr<vector<pchar>> readPValueFromCompressedFile(const pstring_view fileName, PDocument &document)
@@ -244,10 +251,10 @@ unique_ptr<vector<pchar>> readPValueFromCompressedFile(const pstring_view fileNa
 #endif
 }
 
-void writePValueToCompressedFile(const pstring_view fileName, const PValue &value)
+void writePValueToCompressedFile(pstring fileName, const PValue &value)
 {
 #ifndef USE_JSON_FILE_COMPRESSION
-    writePValueToFile(fileName, value);
+    writePValueToFile(std::move(fileName), value);
 #else
     rapidjson::StringBuffer buffer;
     rapidjson::Writer writer(buffer);
@@ -270,10 +277,12 @@ void writePValueToCompressedFile(const pstring_view fileName, const PValue &valu
     }
     *reinterpret_cast<uint64_t *>(const_cast<char *>(compressed.c_str())) = buffer.GetLength();
 
+    std::string str = fileName + ".tmp";
     std::fstream file;
-    file.open(fileName.data(), std::ios::out | std::ios::binary);
+    file.open(str.data(), std::ios::out | std::ios::binary);
     file.write(compressed.c_str(), compressedSize + 8);
     file.close();
+    MoveFileEx(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING);
 #endif
 }
 

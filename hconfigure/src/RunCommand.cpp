@@ -292,25 +292,25 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
     bool notify = false;
     {
 
-        lock_guard _(targetCacheDiskWriteManager->vecMutex);
+        lock_guard _(targetCacheDiskWriteManager.vecMutex);
 
         if (exitStatus == EXIT_SUCCESS)
         {
-            targetCacheDiskWriteManager->pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2,
+            targetCacheDiskWriteManager.pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2,
                                                                   _index3, _index4);
             notify = true;
         }
 
         if (printOnlyOnError)
         {
-            targetCacheDiskWriteManager->strCache.emplace_back(
+            targetCacheDiskWriteManager.strCache.emplace_back(
                 fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color, true);
             notify = true;
             if (exitStatus != EXIT_SUCCESS)
             {
                 if (!commandOutput.empty())
                 {
-                    targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
+                    targetCacheDiskWriteManager.strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
                                                                        settings.pcSettings.toolErrorOutput, true);
                     notify = true;
                 }
@@ -319,12 +319,12 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
         else
         {
 
-            targetCacheDiskWriteManager->strCache.emplace_back(
+            targetCacheDiskWriteManager.strCache.emplace_back(
                 fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color, true);
 
             if (!commandOutput.empty())
             {
-                targetCacheDiskWriteManager->strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
+                targetCacheDiskWriteManager.strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
                                                                    static_cast<int>(fmt::color::light_green), true);
                 notify = true;
             }
@@ -333,9 +333,12 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
 
     if (notify)
     {
-        targetCacheDiskWriteManager->vecCond.notify_one();
+        targetCacheDiskWriteManager.vecCond.notify_one();
     }
 }
+
+char a[sizeof(TargetCacheDiskWriteManager)];
+TargetCacheDiskWriteManager &b = reinterpret_cast<TargetCacheDiskWriteManager &>(*reinterpret_cast<char *>(&a));
 
 PostCompile::PostCompile(const CppSourceTarget &target_, const path &toolPath, const pstring &commandFirstHalf,
                          pstring printCommandFirstHalf)

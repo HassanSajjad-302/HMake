@@ -88,7 +88,7 @@ struct RHPOStream
     RHPOStream(pstring_view fileName);
     typedef pchar Ch;
     void Put(Ch c) const;
-    static void Flush();
+    void Flush();
 };
 
 // While decompressing lz4 file, we allocate following + 1 the buffer size.
@@ -97,9 +97,9 @@ struct RHPOStream
 // is not equal to or greater than bufferMultiplier. Hence validating our assumption.
 void prettyWritePValueToFile(pstring_view fileName, const PValue &value);
 unique_ptr<vector<pchar>> readPValueFromFile(pstring_view fileName, PDocument &document);
-void writePValueToFile(pstring_view fileName, const PValue &value);
+void writePValueToFile(pstring fileName, const PValue &value);
 unique_ptr<vector<pchar>> readPValueFromCompressedFile(pstring_view fileName, PDocument &document);
-void writePValueToCompressedFile(pstring_view fileName, const PValue &value);
+void writePValueToCompressedFile(pstring fileName, const PValue &value);
 uint64_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
 // This will consider the currentCacheIndex in its search
 uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &element);

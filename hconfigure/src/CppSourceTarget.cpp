@@ -79,12 +79,12 @@ void AdjustHeaderUnitsBTarget::updateBTarget(Builder &builder, const unsigned sh
         {
             if (target->newHeaderUnitsSize)
             {
-                targetCacheDiskWriteManager->addNewBTargetInCopyJsonBTargetsCount(this);
+                targetCacheDiskWriteManager.addNewBTargetInCopyJsonBTargetsCount(this);
             }
         }
         else
         {
-            targetCacheDiskWriteManager->addNewBTargetInCopyJsonBTargetsCount(this);
+            targetCacheDiskWriteManager.addNewBTargetInCopyJsonBTargetsCount(this);
         }
     }
 }

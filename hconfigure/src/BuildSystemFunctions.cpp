@@ -95,7 +95,7 @@ void initializeCache(const BSMode bsMode_)
         }
         if (bsMode == BSMode::BUILD)
         {
-            targetCacheDiskWriteManager->initialize();
+            targetCacheDiskWriteManager.initialize();
         }
     }
 
@@ -215,7 +215,7 @@ void configureOrBuild()
 
     if (bsMode == BSMode::BUILD)
     {
-        targetCacheDiskWriteManager->endOperations();
+        targetCacheDiskWriteManager.endOperations();
     }
 }
 
@@ -223,7 +223,7 @@ void initializeGlobals()
 {
     if (bsMode == BSMode::BUILD)
     {
-        targetCacheDiskWriteManager = new TargetCacheDiskWriteManager();
+        std::construct_at(&targetCacheDiskWriteManager);
     }
 }
 

@@ -108,4 +108,13 @@ pstring removeDashCppFromName(pstring_view name);
 void configureOrBuild();
 void initializeGlobals();
 
+
+#define GLOBAL_VARIABLE(type, var) \
+inline char _##var [ sizeof(type) ]; \
+inline type &var = reinterpret_cast<type &>( _##var );
+
+#define STATIC_VARIABLE(type, var) \
+static inline char _##var [ sizeof(type) ]; \
+static inline type &var = reinterpret_cast<type &>( _##var );
+
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

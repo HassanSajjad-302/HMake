@@ -164,16 +164,16 @@ void TargetCacheDiskWriteManager::start()
 
 void TargetCacheDiskWriteManager::startOperations()
 {
-    diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, targetCacheDiskWriteManager);
+    diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, &targetCacheDiskWriteManager);
     // std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
 void TargetCacheDiskWriteManager::endOperations()
 {
-    targetCacheDiskWriteManager->vecMutex.lock();
-    targetCacheDiskWriteManager->exitAfterThis = true;
-    targetCacheDiskWriteManager->vecMutex.unlock();
-    targetCacheDiskWriteManager->vecCond.notify_one();
+    targetCacheDiskWriteManager.vecMutex.lock();
+    targetCacheDiskWriteManager.exitAfterThis = true;
+    targetCacheDiskWriteManager.vecMutex.unlock();
+    targetCacheDiskWriteManager.vecCond.notify_one();
     diskWriteManagerThread.join();
 }
 
@@ -205,6 +205,18 @@ void TargetCacheDiskWriteManager::endOfRound(Builder &builder, unsigned short ro
                                         targetCache);
         }
 
-        targetCacheDiskWriteManager->startOperations();
+        targetCacheDiskWriteManager.startOperations();
+    }
+}
+// inline vector<vector<TBT *>> tarjanNodesBTargets;
+
+STATIC_VARIABLE(vector<vector<TBT *>>, tarjanNodesB)
+
+
+void func()
+{
+    for(uint64_t i = 0; i< 3; ++i)
+    {
+        tarjanNodesB.emplace_back(1000);
     }
 }
