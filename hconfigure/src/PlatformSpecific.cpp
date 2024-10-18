@@ -113,23 +113,50 @@ PStringRef ptoref(const pstring_view c)
 }
 
 RHPOStream::RHPOStream(const pstring_view fileName)
-    : of(make_unique<std::basic_ofstream<pchar>>(fileName.data(), std::ios::binary))
 {
+    fopen_s(&fp, fileName.data(), "wb");
+    /*/* multiple fputs() calls like: #1#
+
+    /* get fd of the FILE pointer #1#
+    int fd = _fileno(fp);
+#ifndef WIN32
+    ret = fsync(fd);
+#else
+    ret = _commit(fd);
+    fclose(fp);*/
+
     if constexpr (std::same_as<pchar, wchar_t>)
     {
         auto *unicodeFacet = new UTF16Facet();
         const std::locale unicodeLocale(std::cout.getloc(), unicodeFacet);
-        of->imbue(unicodeLocale);
+        // of->imbue(unicodeLocale);
+    }
+}
+RHPOStream::~RHPOStream()
+{
+    int result = _commit(_fileno(fp));
+    if (result != 0)
+    {
+        printErrorMessage("Error commiting the file \n");
+    }
+    result = fclose(fp);
+    if (result != 0)
+    {
+        printErrorMessage("Error closing the file \n");
     }
 }
 
 void RHPOStream::Put(const Ch c) const
 {
-    of->put(c);
+    fputc(c, fp);
 }
 
 void RHPOStream::Flush()
 {
+    if (int result = fflush(fp); result != 0)
+    {
+        printErrorMessage("Error flushing the file \n");
+    }
 }
 
 void prettyWritePValueToFile(const pstring_view fileName, const PValue &value)
@@ -181,11 +208,26 @@ unique_ptr<vector<pchar>> readPValueFromFile(const pstring_view fileName, PDocum
     return buffer;
 }
 
+using rapidjson::StringBuffer, rapidjson::Writer;
+
+extern string GetLastErrorString();
 #include <Windows.h>
+
+std::atomic<uint64_t> callCount = 0;
 void writePValueToFile(pstring fileName, const PValue &value)
 {
+    if (callCount.fetch_add(1))
+    {
+        printErrorMessage("Function being called twice\n\n");
+    }
     const pstring str = fileName + ".tmp";
     {
+        StringBuffer buffer;
+        Writer writer(buffer);
+        value.Accept(writer);
+        std::string s(buffer.GetString(), buffer.GetSize());
+        std::ofstream(str) << s;
+        /*
         RHPOStream stream(str);
         if (rapidjson::Writer<RHPOStream> writer(stream, nullptr); !value.Accept(writer))
         {
@@ -193,9 +235,33 @@ void writePValueToFile(pstring fileName, const PValue &value)
             printErrorMessage(FORMAT("Error Happened in parsing file {}\n", fileName.data()));
             throw std::exception{};
         }
+    */
     }
 
-    MoveFileEx(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING);
+    const bool result = MoveFileEx(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING);
+    // bool result = ReplaceFile(fileName.c_str(), str.c_str(), nullptr, 0, 0, 0);
+    if (!result)
+    {
+        printErrorMessage(fileName + " Error happened " + GetLastErrorString());
+        fflush(stdout);
+        bool result = MoveFileEx(str.c_str(), fileName.c_str(),
+                                 MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED | MOVEFILE_WRITE_THROUGH);
+        if (!result)
+        {
+            printErrorMessage(fileName + " Error happened second time " + GetLastErrorString());
+            fflush(stdout);
+        }
+    }
+    /*try
+    {
+        DeleteFile(fileName.data());
+        std::filesystem::rename(str, fileName);
+    }
+    catch (std::exception &e)
+    {
+        printErrorMessage(fmt::format("{}\n", e.what()));
+    }*/
+    --callCount;
 }
 
 unique_ptr<vector<pchar>> readPValueFromCompressedFile(const pstring_view fileName, PDocument &document)

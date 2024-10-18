@@ -297,7 +297,7 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
         if (exitStatus == EXIT_SUCCESS)
         {
             targetCacheDiskWriteManager.pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2,
-                                                                  _index3, _index4);
+                                                                 _index3, _index4);
             notify = true;
         }
 
@@ -311,7 +311,7 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
                 if (!commandOutput.empty())
                 {
                     targetCacheDiskWriteManager.strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
-                                                                       settings.pcSettings.toolErrorOutput, true);
+                                                                      settings.pcSettings.toolErrorOutput, true);
                     notify = true;
                 }
             }
@@ -325,7 +325,7 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
             if (!commandOutput.empty())
             {
                 targetCacheDiskWriteManager.strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
-                                                                   static_cast<int>(fmt::color::light_green), true);
+                                                                  static_cast<int>(fmt::color::light_green), true);
                 notify = true;
             }
         }

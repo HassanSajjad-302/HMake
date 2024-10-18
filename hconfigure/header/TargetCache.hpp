@@ -16,6 +16,5 @@ struct TargetCache
     PValue &getConfigCache() const;
     PValue &getBuildCache() const;
     void copyBackConfigCacheMutexLocked() const;
-    void copyBackBuildCacheMutexLocked() const;
 };
 #endif // TARGETCACHE_HPP

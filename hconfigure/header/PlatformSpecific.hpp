@@ -84,8 +84,9 @@ PStringRef ptoref(pstring_view c);
 // Rapid Helper PlatformSpecific OStream
 struct RHPOStream
 {
-    unique_ptr<std::basic_ofstream<pchar>> of = nullptr;
+    FILE *fp = nullptr;
     RHPOStream(pstring_view fileName);
+    ~RHPOStream();
     typedef pchar Ch;
     void Put(Ch c) const;
     void Flush();

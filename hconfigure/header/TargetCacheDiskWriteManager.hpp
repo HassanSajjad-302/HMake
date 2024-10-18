@@ -50,6 +50,7 @@ class TargetCacheDiskWriteManager : public BTarget
     RAPIDJSON_DEFAULT_ALLOCATOR writeBuildCacheAllocator;
     std::thread diskWriteManagerThread;
     uint64_t nodesSizeBefore = 0;
+    uint64_t nodesSizeStart = 0;
     bool exitAfterThis = false;
     // TODO
     // Make this global

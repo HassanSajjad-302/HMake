@@ -32,11 +32,6 @@ pstring getFileNameJsonOrOut(const pstring &name)
 #endif
 }
 
-void writeBuildCacheUnlocked()
-{
-    writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"), targetCache);
-}
-
 void initializeCache(const BSMode bsMode_)
 {
     /*targets2<CppSourceTarget>.resize(1000);

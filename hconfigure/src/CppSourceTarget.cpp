@@ -1841,11 +1841,9 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const boo
 
 void CppSourceTarget::saveBuildCache(const bool round)
 {
-    copyBackBuildCacheMutexLocked();
-
     if (round)
     {
-        writeBuildCacheUnlocked();
+        //writeBuildCacheUnlocked();
     }
     else
     {
@@ -1856,7 +1854,7 @@ void CppSourceTarget::saveBuildCache(const bool round)
                 archived = true;
             }
         }
-        writeBuildCacheUnlocked();
+        //writeBuildCacheUnlocked();
     }
 }
 

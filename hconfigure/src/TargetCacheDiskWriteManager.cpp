@@ -74,6 +74,8 @@ void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
 {
     if (const uint64_t newNodesSize = Node::idCount.load(); newNodesSize != nodesSizeBefore)
     {
+        printMessage(fmt::format("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
+                                 nodesSizeBefore, newNodesSize));
         for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
         {
             nodesCacheJson.PushBack(PValue(nodesCacheVector[i].data(), nodesCacheVector[i].size()), ralloc);
@@ -104,6 +106,7 @@ void TargetCacheDiskWriteManager::initialize()
     }
 
     nodesSizeBefore = nodesCacheJson.Size();
+    nodesSizeStart = nodesSizeBefore;
 }
 
 void TargetCacheDiskWriteManager::start()
@@ -156,6 +159,7 @@ void TargetCacheDiskWriteManager::start()
         {
             break;
         }
+        //std::this_thread::sleep_for(std::chrono::milliseconds(10));
         vecLock.lock();
 
         vecCond.wait(vecLock);
@@ -201,6 +205,8 @@ void TargetCacheDiskWriteManager::endOfRound(Builder &builder, unsigned short ro
                 copyJsonBTargets[i]->copyJson();
                 copyJsonBTargets[i] = nullptr;
             }
+            printMessage("Function Called");
+
             writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
                                         targetCache);
         }
@@ -212,10 +218,9 @@ void TargetCacheDiskWriteManager::endOfRound(Builder &builder, unsigned short ro
 
 STATIC_VARIABLE(vector<vector<TBT *>>, tarjanNodesB)
 
-
 void func()
 {
-    for(uint64_t i = 0; i< 3; ++i)
+    for (uint64_t i = 0; i < 3; ++i)
     {
         tarjanNodesB.emplace_back(1000);
     }

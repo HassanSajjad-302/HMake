@@ -56,9 +56,3 @@ void TargetCache::copyBackConfigCacheMutexLocked() const
     std::lock_guard _(buildOrConfigCacheMutex);
     getConfigCache().CopyFrom(buildOrConfigCacheCopy, ralloc);
 }
-
-void TargetCache::copyBackBuildCacheMutexLocked() const
-{
-    std::lock_guard _(buildOrConfigCacheMutex);
-    getBuildCache().CopyFrom(buildOrConfigCacheCopy, ralloc);
-}
