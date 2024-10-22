@@ -203,7 +203,7 @@ struct CLWrapper
                 close(stderr_pipe[1]);
 
                 // Execute a command (e.g., "ls" or any other)
-                _Exit(system(command.c_str()));
+                exit(WEXITSTATUS(system(command.c_str())));
             }
 
             // Parent process
@@ -247,7 +247,7 @@ struct CLWrapper
             close(stdout_pipe[0]);
             close(stderr_pipe[0]);
         }
-        return status;
+        return WEXITSTATUS(status);
     }
 
     void *env_block_;

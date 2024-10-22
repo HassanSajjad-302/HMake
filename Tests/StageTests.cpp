@@ -245,7 +245,7 @@ TEST(StageTests, Test2)
     // Touching main.cpp
     path mainFilePath = testSourcePath / "main.cpp";
     touchFile(mainFilePath);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsDebug = 1});
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsDebug = 1, .nodesFile = true});
 
     // Touching public-lib3.hpp
     path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
@@ -329,8 +329,8 @@ TEST(StageTests, Test2)
     copyFilePath(testSourcePath / "Version/2/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
     copyFilePath(testSourcePath / "Version/2/extra-include.hpp", testSourcePath / "lib1/public/extra-include.hpp");
     executeSnapshotBalances(Updates{.nodesFile = true}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .nodesFile = true}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib1-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1, .nodesFile = true});
 
     // Resorting to the default-version for the project
     setupTest2Default();
@@ -361,7 +361,7 @@ TEST(StageTests, Test2)
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .nodesFile = true}, "Debug/lib4");
     executeSnapshotBalances(Updates{.linkTargetsDebug = 1});
 
-    // Copying an erroneous lib4.cpp to lib4/private. Also touching temp.cpp and removing lib3.cpp
+    // Copying an erroneous lib4.cpp to lib4/private. Also touching temp.cpp and removing liblib3.lib
     copyFilePath(testSourcePath / "Version/5/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
     touchFile(testSourcePath / "lib4/private/temp.cpp");
     removeFilePath(testSourcePath / "Build/Debug/lib3/" /

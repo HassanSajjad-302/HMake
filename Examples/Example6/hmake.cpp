@@ -2,8 +2,8 @@
 
 void buildSpecification()
 {
-    auto makeApps = [](TargetType targetType) {
-        string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
+    auto makeApps = [](const TargetType targetType) {
+        const string str = targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
         DSC<CppSourceTarget> &cat =
             getCppTargetDSC_P("Cat" + str, "../Example4/Build/Cat" + str + "/", targetType, true, "CAT_EXPORT");

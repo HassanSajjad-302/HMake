@@ -36,7 +36,9 @@ TargetCache::TargetCache(const pstring &name)
         }
         else
         {
-            printErrorMessage(fmt::format("Target {} not found in build-cache\n", name));
+            printErrorMessage(fmt::format(
+                "Target {} not found in target-cache.\nMaybe you need to run hhelper first to update the target-cache.",
+                name));
             exit(EXIT_FAILURE);
         }
     }

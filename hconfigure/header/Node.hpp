@@ -40,6 +40,7 @@ class Node
     file_time_type lastWriteTime;
 
     inline static atomic<uint32_t> idCount = 0;
+    inline static atomic<uint32_t> idCountCompleted = 0;
     // Used in multi-threading context. So, can not emplace_back. size should be same as size of nodeAllFiles
     inline static vector<Node *> nodeIndices{10000};
     uint32_t myId = UINT32_MAX;

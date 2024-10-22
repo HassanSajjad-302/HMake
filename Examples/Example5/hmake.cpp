@@ -10,15 +10,17 @@ void buildSpecification()
     animalShared.getSourceTarget().sourceFiles("../Example4/main.cpp");
 
     getRoundZeroUpdateBTarget(
-        [&](Builder &builder, BTarget &bTarget) {
-            if (bTarget.realBTargets[0].exitStatus == EXIT_SUCCESS &&
-                bTarget.fileStatus.load(std::memory_order_acquire))
+        [&](Builder &, BTarget &bTarget) {
+            if (bTarget.realBTargets[0].exitStatus == EXIT_SUCCESS && atomic_ref(bTarget.fileStatus).load())
             {
-                std::filesystem::copy(catShared.getLinkOrArchiveTarget().getActualOutputPath(),
-                                      path(animalShared.getLinkOrArchiveTarget().getActualOutputPath()).parent_path(),
-                                      std::filesystem::copy_options::overwrite_existing);
-                std::filesystem::remove(catShared.getLinkOrArchiveTarget().getActualOutputPath());
-                std::lock_guard<std::mutex> lk(printMutex);
+                const LinkOrArchiveTarget &catSharedLink = catShared.getLinkOrArchiveTarget();
+                const LinkOrArchiveTarget &animalSharedLink = animalShared.getLinkOrArchiveTarget();
+                copy(catSharedLink.outputFileNode->filePath,
+                     path(animalSharedLink.outputFileNode->filePath).parent_path(),
+                     std::filesystem::copy_options::overwrite_existing);
+                std::filesystem::remove(catSharedLink.outputFileNode->filePath);
+
+                std::lock_guard lk(printMutex);
                 printMessage("libCat.so copied to Animal/ and deleted from Cat/\n");
             }
         },

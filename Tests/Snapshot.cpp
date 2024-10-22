@@ -68,13 +68,13 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
         }
     }
     unsigned short expected = 0;
-    constexpr unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 3 : 3; // No response file on Linux
-    constexpr unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 1 : 3;
+    constexpr unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 3 : 1;
+    constexpr unsigned short noDebugLinkTargetsMultiplier = 1;
 
     // .smrules, on Windows / Deps Output File on Linux
-    expected += 1 * updates.smruleFiles;
+    expected += (os == OS::NT ? 1 : 2) * updates.smruleFiles;
     // .o, on Windows / Deps Output File on Linux
-    expected += 1 * updates.sourceFiles;
+    expected += (os == OS::NT ? 1 : 2) * updates.sourceFiles;
 
     // expected += 3 * updates.errorFiles;
     expected += 2 * updates.moduleFiles;
@@ -93,9 +93,17 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     {
         expected += 1; // build-cache.json
     }
+
     if (actual.size() != expected)
     {
         bool breakpoint = true;
+        printMessage(fmt::format("Actual {}\tExpected {}\n",actual.size(), expected));
+
+        for(const NodeSnap *nodeSnap : actual)
+        {
+           printMessage(nodeSnap->nodePath.string() + '\n');
+        }
+         breakpoint = true;
     }
     return actual.size() == expected;
 }

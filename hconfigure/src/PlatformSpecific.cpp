@@ -17,7 +17,6 @@ import <cstdio>;
 #include <iostream>
 #include <utility>
 #endif
-#include <corecrt_io.h>
 
 // Copied from https://stackoverflow.com/a/208431
 class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>::state_type>
@@ -114,7 +113,7 @@ PStringRef ptoref(const pstring_view c)
 
 RHPOStream::RHPOStream(const pstring_view fileName)
 {
-    fopen_s(&fp, fileName.data(), "wb");
+    fp = fopen(fileName.data(), "wb");
     /*/* multiple fputs() calls like: #1#
 
     /* get fd of the FILE pointer #1#
@@ -134,12 +133,7 @@ RHPOStream::RHPOStream(const pstring_view fileName)
 }
 RHPOStream::~RHPOStream()
 {
-    int result = _commit(_fileno(fp));
-    if (result != 0)
-    {
-        printErrorMessage("Error commiting the file \n");
-    }
-    result = fclose(fp);
+    int result = fclose(fp);
     if (result != 0)
     {
         printErrorMessage("Error closing the file \n");
@@ -211,7 +205,7 @@ unique_ptr<vector<pchar>> readPValueFromFile(const pstring_view fileName, PDocum
 using rapidjson::StringBuffer, rapidjson::Writer;
 
 extern string GetLastErrorString();
-#include <Windows.h>
+// #include <Windows.h>
 
 std::atomic<uint64_t> callCount = 0;
 void writePValueToFile(pstring fileName, const PValue &value)
@@ -238,9 +232,16 @@ void writePValueToFile(pstring fileName, const PValue &value)
     */
     }
 
-    const bool result = MoveFileEx(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING);
+    /*uint64_t t = getpid();
+    string handles = "handles.txt";
+    std::string s = "lsof -P -n -p " + std::to_string(t) + " > " + handles;
+    std::system(s.c_str());*/
+
+    rename(str.c_str(), fileName.c_str());
+
+    //  const bool result = MoveFileEx(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING);
     // bool result = ReplaceFile(fileName.c_str(), str.c_str(), nullptr, 0, 0, 0);
-    if (!result)
+    /*if (!result)
     {
         printErrorMessage(fileName + " Error happened " + GetLastErrorString());
         fflush(stdout);
@@ -251,7 +252,7 @@ void writePValueToFile(pstring fileName, const PValue &value)
             printErrorMessage(fileName + " Error happened second time " + GetLastErrorString());
             fflush(stdout);
         }
-    }
+    }*/
     /*try
     {
         DeleteFile(fileName.data());

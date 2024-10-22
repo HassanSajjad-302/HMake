@@ -236,6 +236,7 @@ Node *Node::getHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFile
         nodeIndices[node.myId] = &node;
         nodesCacheVector[node.myId] = node.filePath;
         node.halfNode = true;
+        ++reinterpret_cast<uint32_t &>(idCountCompleted);
         return &node;
     }
     else
@@ -259,6 +260,7 @@ Node *Node::getHalfNodeFromNormalizedString(pstring_view p)
         nodeIndices[node->myId] = node;
         nodesCacheVector[node->myId] = node->filePath;
         node->halfNode = true;
+        ++idCountCompleted;
     }
 
     return node;
@@ -393,6 +395,7 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
         myId = idCount.fetch_add(1);
         nodeIndices[myId] = this;
         nodesCacheVector[myId] = filePath;
+        ++idCountCompleted;
     }
 }
 
@@ -400,6 +403,7 @@ void Node::clearNodes()
 {
     nodeAllFiles.clear();
     idCount = 0;
+    idCountCompleted = 0;
     for (Node *&node : nodeIndices)
     {
         node = nullptr;

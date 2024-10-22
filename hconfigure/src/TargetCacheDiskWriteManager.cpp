@@ -72,7 +72,7 @@ void TargetCacheDiskWriteManager::addNewBTargetInCopyJsonBTargetsCount(BTarget *
 
 void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
 {
-    if (const uint64_t newNodesSize = Node::idCount.load(); newNodesSize != nodesSizeBefore)
+    if (const uint64_t newNodesSize = Node::idCountCompleted.load(); newNodesSize != nodesSizeBefore)
     {
         printMessage(fmt::format("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
                                  nodesSizeBefore, newNodesSize));
@@ -155,13 +155,12 @@ void TargetCacheDiskWriteManager::start()
             vecLock.unlock();
         }
 
+        // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        vecLock.lock();
         if (exitAfterThis)
         {
             break;
         }
-        //std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        vecLock.lock();
-
         vecCond.wait(vecLock);
     }
 }

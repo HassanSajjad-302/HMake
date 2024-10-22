@@ -136,14 +136,14 @@ int main(int argc, char **argv)
 #endif
 
             string compileCommand =
-                "c++ -std=c++2b -fvisibility=hidden -fsanitize=thread -fno-omit-frame-pointer -fPIC " +
+                "c++ -std=c++2b -fvisibility=hidden -fsanitize=thread -fno-omit-frame-pointer " +
                 useCommandHashDef + useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef +
                 " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
                 "  -I " FMT_HEADER " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
-                " {SOURCE_DIRECTORY}/hmake.cpp -shared -Wl,--whole-archive -L " HCONFIGURE_STATIC_LIB_DIRECTORY
+                " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_STATIC_LIB_DIRECTORY
                 " -l hconfigure -Wl,--no-whole-archive -L " FMT_STATIC_LIB_DIRECTORY
                 " -l fmt -o {CONFIGURE_DIRECTORY}/" +
-                getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure");
+                getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
             cache.compileConfigureCommands.push_back(compileCommand);
         }
         else
