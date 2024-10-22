@@ -79,6 +79,8 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     // expected += 3 * updates.errorFiles;
     expected += 2 * updates.moduleFiles;
 
+    expected += (os == OS::NT ? 0 : 1) * updates.errorFiles;
+
     expected += updates.linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
     expected += updates.linkTargetsDebug * debugLinkTargetsMultiplier;
 

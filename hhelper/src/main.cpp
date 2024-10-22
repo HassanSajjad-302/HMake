@@ -135,9 +135,15 @@ int main(int argc, char **argv)
             string useJsonFileCompressionDef = "";
 #endif
 
+#ifdef USE_THREAD_SANITIZER
+            string tsan = "-fsanitize=thread -fno-omit-frame-pointer ";
+#else
+            string tsan = "";
+#endif
+
             string compileCommand =
-                "c++ -std=c++2b -fvisibility=hidden -fsanitize=thread -fno-omit-frame-pointer " +
-                useCommandHashDef + useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef +
+                "c++ -std=c++2b -fvisibility=hidden " + tsan + useCommandHashDef + useNodesCacheIndicesInCacheDef +
+                useJsonFileCompressionDef +
                 " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
                 "  -I " FMT_HEADER " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
                 " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_STATIC_LIB_DIRECTORY

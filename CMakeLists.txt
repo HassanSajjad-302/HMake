@@ -2,10 +2,12 @@ cmake_minimum_required(VERSION 3.28.0)
 
 project(HMake)
 
+set(HMAKE_USE_THREAD_SANITIZER OFF BOOL "Whether to use thread-sanitizer on Linux or not.")
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 
-    add_compile_options(-fsanitize=thread -std=c++2b)
-    add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
+    if ("${HMAKE_USE_THREAD_SANITIZER}" MATCHES ON)
+        add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
+    endif ()
 
     add_compile_options(-std=c++2b)
 elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
@@ -107,6 +109,10 @@ target_compile_definitions(hhelper PRIVATE HCONFIGURE_STATIC_LIB_PATH="$<TARGET_
 target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/fmt/include/")
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:fmt::fmt>")
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_PATH="$<TARGET_FILE:fmt>")
+
+if ("${HMAKE_USE_THREAD_SANITIZER}" MATCHES ON)
+    target_compile_definitions(hhelper PRIVATE USE_THREAD_SANITIZER)
+endif ()
 
 add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
