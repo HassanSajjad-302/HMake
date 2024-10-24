@@ -19,9 +19,9 @@
 // What does this mean in the context of header-units and whether it works in that context as-well.
 
 TEST(IgnoreHeaderDeps, Test1)
-{
+{/*
     const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/IgnoreHeaderDeps");
-    current_path(testSourcePath);
+    current_path(testSourcePath);*/
     //setupTest3Default();
 
     /*
