@@ -13,8 +13,8 @@ import <atomic>;
 #else
 #include "InclNodeTargetMap.hpp"
 #include "ObjectFile.hpp"
-#include "nlohmann/json.hpp"
 #include "btree.h"
+#include "nlohmann/json.hpp"
 #include <atomic>
 #include <filesystem>
 #include <list>
@@ -23,8 +23,8 @@ import <atomic>;
 #endif
 
 using Json = nlohmann::json;
-using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, std::atomic,
-    std::atomic_flag, phmap::btree_set, phmap::flat_hash_map;
+using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, std::atomic, std::atomic_flag,
+    phmap::btree_set, phmap::flat_hash_map;
 
 class SourceNode;
 struct CompareSourceNode
@@ -48,9 +48,11 @@ class SourceNode : public ObjectFile
 {
   public:
     RAPIDJSON_DEFAULT_ALLOCATOR sourceNodeAllocator;
-    PValue *sourceJson = nullptr;
+    PValue sourceJson{kArrayType};
     CppSourceTarget *target;
     const Node *node;
+    // TODO: 4-bytes enough or maybe 2bytes
+    uint64_t indexInBuildCache = UINT64_MAX;
     bool ignoreHeaderDeps = false;
     SourceNode(CppSourceTarget *target_, Node *node_);
 
@@ -60,11 +62,12 @@ class SourceNode : public ObjectFile
   public:
     pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     pstring getTarjanNodeName() const override;
-    void initializeSourceJson();
+    static void initializeSourceJson(PValue &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
+                                     const CppSourceTarget &target);
     void updateBTarget(Builder &builder, unsigned short round) override;
     void populateModuleData(Builder &builder);
     bool checkHeaderFiles2(const Node *compareNode, bool alsoCheckHeaderUnit) const;
-    bool checkHeaderFiles(const Node *compareNode, bool alsoCheckHeaderUnit) const;
+    bool checkHeaderFiles(const Node *compareNode) const;
     InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode);
     void setSourceNodeFileStatus();
 };
@@ -102,6 +105,7 @@ struct HeaderUnitConsumer
 
 struct PValueObjectFileMapping
 {
+    // should be const
     PValue *requireJson;
     Node *objectFileOutputFilePath;
 
@@ -114,13 +118,11 @@ struct SMFile : SourceNode // Scanned Module Rule
     vector<PValueObjectFileMapping> pValueObjectFileMapping;
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
-    // is depending on is consuming it another way.
+    // depends on is consuming it another way.
     flat_hash_map<const SMFile *, HeaderUnitConsumer> headerUnitsConsumptionData;
     btree_set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
 
     unique_ptr<vector<pchar>> smRuleFileBuffer;
-    // TODO: 4-bytes enough or maybe 2bytes
-    uint64_t headerUnitsIndex = UINT64_MAX;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 
     bool isInterface = false;
@@ -132,6 +134,8 @@ struct SMFile : SourceNode // Scanned Module Rule
     // atomic
     bool isObjectFileOutdatedCallCompleted = false;
     bool isSMRuleFileOutdatedCallCompleted = false;
+    // This is used to prevent header-unit addition in BTargets list more than once since the same header-unit could be
+    // potentially discovered more than once.
     bool addedForRoundOne = false;
 
     // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
@@ -146,7 +150,8 @@ struct SMFile : SourceNode // Scanned Module Rule
     void updateBTarget(Builder &builder, unsigned short round) override;
     bool calledOnce = false;
     void saveSMRulesJsonToSourceJson(const pstring &smrulesFileOutputClang);
-    void initializeModuleJson();
+    static void initializeModuleJson(PValue &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
+                                     const CppSourceTarget &target);
     void initializeHeaderUnits(Builder &builder);
     void addNewBTargetInFinalBTargets(Builder &builder);
     void setSMFileType(Builder &builder);

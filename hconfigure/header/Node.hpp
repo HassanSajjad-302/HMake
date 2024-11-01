@@ -40,9 +40,10 @@ class Node
     file_time_type lastWriteTime;
 
     inline static atomic<uint32_t> idCount = 0;
+    inline static atomic<uint32_t> idCountCompleted = 0;
     // Used in multi-threading context. So, can not emplace_back. size should be same as size of nodeAllFiles
     inline static vector<Node *> nodeIndices{10000};
-    uint32_t myId;
+    uint32_t myId = UINT32_MAX;
 
     // While following are not atomic to keep Node copyable and moveable, all operations on these bools are done
     // atomically.
@@ -74,10 +75,6 @@ class Node
 
     static Node *getHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath);
     static Node *getHalfNodeFromNormalizedString(pstring_view p);
-    // TODO
-    // Following two functions should be removed and instead json.pushback(node.getPValue) be used.
-    static void emplaceNodeInPValue(const Node *node, PValue &pValue);
-    static void emplaceNodeInPValue(const Node *node, PValue &pValue, decltype(ralloc) alloc);
     static Node *getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist = false);
     static Node *getNotSystemCheckCalledNodeFromPValue(const PValue &pValue);
     static Node *tryGetNodeFromPValue(bool &systemCheckSucceeded, const PValue &pValue, bool isFile,

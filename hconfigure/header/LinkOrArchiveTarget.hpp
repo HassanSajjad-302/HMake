@@ -77,10 +77,7 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
     void setOutputName(pstring outputName_);
     void setFileStatus(RealBTarget &realBTarget);
     void updateBTarget(Builder &builder, unsigned short round) override;
-private:
-    void writeTargetConfigCacheAtConfigureTime() const;
-    void readConfigCacheAtBuildTime();
-public:
+
     LinkerFlags getLinkerFlags();
     pstring getTarjanNodeName() const override;
     RunCommand Archive();

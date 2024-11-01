@@ -1,11 +1,6 @@
 #ifndef HMAKE_CONFIGURE_HPP
 #define HMAKE_CONFIGURE_HPP
 
-// Uncommenting following line will cause compile command to be logged instead of hashing.
-// This can be declared in the HMakeHelper's hmake.cpp file.
-
-// #define USE_COMPILE_COMMAND 1
-
 #ifdef USE_HEADER_UNITS
 import "BTarget.hpp";
 import "BuildSystemFunctions.hpp";
@@ -70,70 +65,14 @@ bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuratio
 //  configure.dll on linux is compiled with -fsanitizer=thread but no sanitizer is used on Windows. Choice for
 //  using sanitizer will be optional.
 
-extern "C" EXPORT int func2(BSMode bsMode_);
+inline void (*buildSpecificationFuncPtr)();
+int main2(int argc, char **argv);
 
-// Executes the function in try-catch block and also sets the errorMessageStrPtr equal to the exception what message
-// pstring
-template <typename T> int executeInTryCatchAndSetErrorMessagePtr(std::function<T> funcLocal)
-{
-    try
-    {
-        funcLocal();
-    }
-    catch (std::exception &ec)
-    {
-        pstring str(ec.what());
-        if (!str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-
-#ifdef EXE
 #define MAIN_FUNCTION                                                                                                  \
     int main(int argc, char **argv)                                                                                    \
     {                                                                                                                  \
-        try                                                                                                            \
-        {                                                                                                              \
-            initializeCache(getBuildSystemModeFromArguments(argc, argv));                                              \
-            buildSpecification();                                                                                      \
-            configureOrBuild();                                                                                        \
-        }                                                                                                              \
-        catch (std::exception & ec)                                                                                    \
-        {                                                                                                              \
-            string str(ec.what());                                                                                     \
-            if (!str.empty())                                                                                          \
-            {                                                                                                          \
-                printErrorMessage(str);                                                                                \
-            }                                                                                                          \
-            return EXIT_FAILURE;                                                                                       \
-        }                                                                                                              \
-        return EXIT_SUCCESS;                                                                                           \
+        buildSpecificationFuncPtr = &buildSpecification;                                                               \
+        return main2(argc, argv);                                                                                      \
     }
-#else
-#define MAIN_FUNCTION                                                                                                  \
-    extern "C" EXPORT int func2(BSMode bsMode_)                                                                        \
-    {                                                                                                                  \
-        try                                                                                                            \
-        {                                                                                                              \
-            initializeCache(bsMode_);                                                                                  \
-            buildSpecification();                                                                                      \
-            configureOrBuild();                                                                                        \
-        }                                                                                                              \
-        catch (std::exception & ec)                                                                                    \
-        {                                                                                                              \
-            string str(ec.what());                                                                                     \
-            if (!str.empty())                                                                                          \
-            {                                                                                                          \
-                printErrorMessage(str);                                                                                \
-            }                                                                                                          \
-            return EXIT_FAILURE;                                                                                       \
-        }                                                                                                              \
-        return EXIT_SUCCESS;                                                                                           \
-    }
-#endif
 
 #endif // HMAKE_CONFIGURE_HPP

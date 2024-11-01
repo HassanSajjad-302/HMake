@@ -9,20 +9,15 @@ import "nlohmann/json.hpp";
 #else
 #include "HashValues.hpp"
 #include "OS.hpp"
-#include "phmap.h"
 #include "PlatformSpecific.hpp"
 #include "nlohmann/json.hpp"
+#include "phmap.h"
 #include <deque>
 #include <mutex>
 #endif
 
 using std::mutex, std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set;
 
-#ifdef _WIN32
-#define EXPORT __declspec(dllexport)
-#else
-#define EXPORT __attribute__((visibility("default")))
-#endif
 
 // Named as slashc to avoid collision with a declaration in nlohmann/json which causes warnings. Will be removed later
 // when nlohmann/json is removed.
@@ -35,19 +30,17 @@ inline char slashc = '/';
 // TODO
 // Explore
 using Json = nlohmann::json; // Unordered json
-inline PDocument tempCache(kArrayType);
+inline PDocument targetCache(kArrayType);
+inline mutex buildOrConfigCacheMutex;
 inline unique_ptr<vector<pchar>> buildCacheFileBuffer;
-inline PDocument nodesCache(kArrayType);
+inline PDocument nodesCacheJson(kArrayType);
 inline unique_ptr<vector<pchar>> nodesCacheBuffer;
+inline vector<pstring_view> nodesCacheVector{10000};
 
-// inline vector<PValue *> targetConfigCaches;
+inline vector<struct BTarget *> roundEndTargets{10};
+inline std::atomic<uint64_t> roundEndTargetsCount = 0;
 
-inline auto &ralloc = tempCache.GetAllocator();
-inline std::mutex buildCacheMutex;
-void writeBuildCacheUnlocked();
-
-inline uint64_t nodesCacheSizeBefore = 0;
-inline uint64_t currentTargetIndex = 0;
+inline auto &ralloc = targetCache.GetAllocator();
 
 // Node representing source directory
 inline class Node *srcNode;
@@ -86,22 +79,23 @@ inline constexpr OS os = OS::LINUX;
 inline std::mutex printMutex;
 
 void initializeCache(BSMode bsMode_);
-BSMode getBuildSystemModeFromArguments(int argc, char **argv);
+void setBuildSystemModeFromArguments(int argc, char **argv);
 inline const pstring dashCpp = "-cpp";
 inline const pstring dashLink = "-link";
 
 typedef void (*PrintMessage)(const pstring &message);
 typedef void (*PrintMessageColor)(const pstring &message, uint32_t color);
 
-extern "C" inline EXPORT PrintMessage printMessagePointer = nullptr;
-extern "C" inline EXPORT PrintMessageColor printMessageColorPointer = nullptr;
-extern "C" inline EXPORT PrintMessage printErrorMessagePointer = nullptr;
-extern "C" inline EXPORT PrintMessageColor printErrorMessageColorPointer = nullptr;
+pstring getFileNameJsonOrOut(const pstring &name);
+inline PrintMessage printMessagePointer = nullptr;
+inline PrintMessageColor printMessageColorPointer = nullptr;
+inline PrintMessage printErrorMessagePointer = nullptr;
+inline PrintMessageColor printErrorMessageColorPointer = nullptr;
 
 // Provide these with extern "C" linkage as well so ide/editor could pipe the logging.
 void printDebugMessage(const pstring &message);
 void printMessage(const pstring &message);
-void preintMessageColor(const pstring &message, uint32_t color);
+void printMessageColor(const pstring &message, uint32_t color);
 void printErrorMessage(const pstring &message);
 void printErrorMessageColor(const pstring &message, uint32_t color);
 
@@ -111,5 +105,15 @@ pstring getLastNameAfterSlash(pstring_view name);
 pstring_view getLastNameAfterSlashView(pstring_view name);
 pstring removeDashCppFromName(pstring_view name);
 void configureOrBuild();
+void constructGlobals();
+void destructGlobals();
+
+#define GLOBAL_VARIABLE(type, var)                                                                                     \
+    inline char _##var[sizeof(type)];                                                                                  \
+    inline type &var = reinterpret_cast<type &>(_##var);
+
+#define STATIC_VARIABLE(type, var)                                                                                     \
+    static inline char _##var[sizeof(type)];                                                                           \
+    static inline type &var = reinterpret_cast<type &>(_##var);
 
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

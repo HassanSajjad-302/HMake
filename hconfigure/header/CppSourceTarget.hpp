@@ -70,6 +70,8 @@ struct ResolveRequirePathBTarget final : BTarget
     pstring getTarjanNodeName() const override;
 };
 
+// TODO
+// Remove this. Instead use CppSourceTarget itself.
 struct AdjustHeaderUnitsBTarget final : BTarget
 {
     CppSourceTarget *target;
@@ -129,7 +131,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     vector<InclNodeTargetMap> reqHuDirs;
 
     using BaseType = CSourceTarget;
-    unique_ptr<PValue> targetBuildCache;
 
     TargetType compileTargetType;
     /*    ModuleScopeDataOld *moduleScopeData = nullptr;
@@ -156,8 +157,17 @@ class CppSourceTarget : public CppCompilerFeatures,
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
     AdjustHeaderUnitsBTarget adjustHeaderUnitsBTarget{this};
 
-    // Set to true if a source or smrule is updated so that latest cache could be stored.
-    std::atomic<bool> buildCacheChanged = false;
+    // requirementIncludes size before populateTransitiveProperties function is called
+    unsigned short reqIncSizeBeforePopulate = 0;
+
+    atomic<uint64_t> newHeaderUnitsSize = 0;
+    bool archiving = false;
+    bool archived = false;
+
+    // Set to true if a source or smrule of a module is updated so that latest cache could be stored.
+    bool moduleFileScanned = false;
+    // set to true if a source or smrule of a header-unit is updated so that latest cache could be stored.
+    bool headerUnitScanned = false;
 
     void setCpuType();
     bool isCpuTypeG7();
@@ -169,6 +179,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     void resolveRequirePaths();
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);
+    void populateSourceNodesConfigureTime();
+    void parseModuleSourceFilesConfigureTime(Builder &builder);
     void populateResolveRequirePathDependencies();
     pstring getInfrastructureFlags(bool showIncludes) const;
     pstring getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
@@ -179,17 +191,9 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void saveBuildCache(bool round);
-
-    // requirementIncludes size before populateTransitiveProperties function is called
-    unsigned short reqIncSizeBeforePopulate = 0;
-
-    RAPIDJSON_DEFAULT_ALLOCATOR cppAllocator;
-    atomic<size_t> newHeaderUnitsSize = 0;
-    bool archiving = false;
-    bool archived = false;
-
     void updateBTarget(Builder &builder, unsigned short round) override;
-    void writeTargetConfigCacheAtConfigureTime(bool before) const;
+    void copyJson() override;
+    void writeTargetConfigCacheAtConfigureTime(bool before);
     void readConfigCacheAtBuildTime();
     pstring getTarjanNodeName() const override;
     CompilerFlags getCompilerFlags();
@@ -212,6 +216,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Node *sourceFileNode, CppSourceTarget *target);
     static bool actuallyAddModuleFile(vector<SMFile> &smFiles, const pstring &moduleFile, CppSourceTarget *target);
     static bool actuallyAddModuleFile(vector<SMFile> &smFiles, Node *moduleFileNode, CppSourceTarget *target);
+    void actuallyAddSourceFileConfigTime(const Node *node);
+    void actuallyAddModuleFileConfigTime(const Node *node, bool isInterface);
     CppSourceTarget &removeSourceFile(const pstring &sourceFile);
     CppSourceTarget &removeModuleFile(const pstring &moduleFile);
 
@@ -501,10 +507,8 @@ template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const pst
     {
         if (bsMode == BSMode::CONFIGURE)
         {
-            namespace CppTarget = Indices::CppTarget;
-            const Node *node = Node::getNodeFromNonNormalizedPath(srcFile, true);
-            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::sourceFiles].PushBack(node->getPValue(),
-                                                                                                     ralloc);
+            namespace ConfigCache = Indices::CppTarget::ConfigCache;
+            actuallyAddSourceFileConfigTime(Node::getNodeFromNonNormalizedString(srcFile, true));
         }
         // Initialized in CppSourceTarget round 2
     }
@@ -534,13 +538,8 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const pst
     {
         if (bsMode == BSMode::CONFIGURE)
         {
-            namespace CppTarget = Indices::CppTarget;
-            const Node *node = Node::getNodeFromNonNormalizedPath(modFile, true);
-            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(node->getPValue(),
-                                                                                                     ralloc);
-            // isInterface is false
-            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(PValue(false),
-                                                                                                     ralloc);
+            namespace ConfigCache = Indices::CppTarget::ConfigCache;
+            actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), false);
         }
         // Initialized in CppSourceTarget round 2
     }
@@ -571,13 +570,8 @@ CppSourceTarget &CppSourceTarget::interfaceFiles(const pstring &modFile, U... mo
     {
         if (bsMode == BSMode::CONFIGURE)
         {
-            namespace CppTarget = Indices::CppTarget;
-            const Node *node = Node::getNodeFromNonNormalizedPath(modFile, true);
-            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(node->getPValue(),
-                                                                                                     ralloc);
-            // isInterface is false
-            (*targetTempCache)[CppTarget::configCache][CppTarget::ConfigCache::moduleFiles].PushBack(PValue(true),
-                                                                                                     ralloc);
+            namespace ConfigCache = Indices::CppTarget::ConfigCache;
+            actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), true);
         }
         // Initialized in CppSourceTarget round 2
     }

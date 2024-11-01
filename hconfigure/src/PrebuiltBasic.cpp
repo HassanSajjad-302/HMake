@@ -51,52 +51,17 @@ void PrebuiltBasic::populateRequirementAndUsageRequirementDeps()
     }
 }
 
-void PrebuiltBasic::initializePrebuiltBasic(const pstring &name_)
-{
-    const uint64_t index = pvalueIndexInSubArrayConsidered(tempCache, PValue(ptoref(name_)));
-
-    if (bsMode == BSMode::CONFIGURE)
-    {
-        if (index == UINT64_MAX)
-        {
-            tempCache.PushBack(PValue(kArrayType), ralloc);
-            targetTempCache = &tempCache[tempCache.Size() - 1];
-            targetTempCache->PushBack(PValue(kStringType).SetString(name_.c_str(), name_.size(), ralloc), ralloc);
-            targetTempCache->PushBack(PValue(kArrayType), ralloc);
-            targetTempCache->PushBack(PValue(kArrayType), ralloc);
-        }
-        else
-        {
-            targetTempCache = &tempCache[index];
-            (*targetTempCache)[Indices::CppTarget::configCache].Clear();
-        }
-    }
-    else
-    {
-        if (index != UINT64_MAX)
-        {
-            targetTempCache = &tempCache[index];
-        }
-        else
-        {
-            printErrorMessage(fmt::format("Target {} not found in build-cache\n", name));
-            exit(EXIT_FAILURE);
-        }
-    }
-}
-
 PrebuiltBasic::PrebuiltBasic(const pstring &outputName_, const TargetType linkTargetType_)
-    : BTarget(outputName_, false, false), outputName{getLastNameAfterSlash(outputName_)},
+    : BTarget(outputName_, false, false), TargetCache(outputName_), outputName{getLastNameAfterSlash(outputName_)},
       linkTargetType{linkTargetType_}
 {
-    initializePrebuiltBasic(outputName_);
 }
 
-PrebuiltBasic::PrebuiltBasic(pstring outputName_, const TargetType linkTargetType_, const pstring &name_,
+PrebuiltBasic::PrebuiltBasic(const pstring &outputName_, const TargetType linkTargetType_, const pstring &name_,
                              const bool buildExplicit, const bool makeDirectory)
-    : BTarget(name_, buildExplicit, makeDirectory), outputName(std::move(outputName_)), linkTargetType(linkTargetType_)
+    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), outputName(outputName_),
+      linkTargetType(linkTargetType_)
 {
-    initializePrebuiltBasic(name_);
 }
 
 void PrebuiltBasic::updateBTarget(Builder &, const unsigned short round)
@@ -140,45 +105,43 @@ void PrebuiltBasic::updateBTarget(Builder &, const unsigned short round)
     }
 }
 
-void PrebuiltBasic::writeTargetConfigCacheAtConfigureTime() const
+void PrebuiltBasic::writeTargetConfigCacheAtConfigureTime()
 {
-    namespace LinkTarget = Indices::LinkTarget;
-    PValue &targetConfigCache = (*targetTempCache)[LinkTarget::configCache];
+    namespace ConfigCache = Indices::LinkTarget::ConfigCache;
 
-    targetConfigCache.PushBack(kArrayType, ralloc);
-    PValue &libDirectoriesConfigCache = targetConfigCache[LinkTarget::ConfigCache::requirementLibraryDirectoriesArray];
-    libDirectoriesConfigCache.Reserve(requirementLibraryDirectories.size(), ralloc);
+    buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
+    PValue &libDirectoriesConfigCache = buildOrConfigCacheCopy[ConfigCache::requirementLibraryDirectoriesArray];
+    libDirectoriesConfigCache.Reserve(requirementLibraryDirectories.size(), cacheAlloc);
 
     for (const LibDirNode &libDirNode : requirementLibraryDirectories)
     {
-        libDirectoriesConfigCache.PushBack(libDirNode.node->getPValue(), ralloc);
+        libDirectoriesConfigCache.PushBack(libDirNode.node->getPValue(), cacheAlloc);
     }
 
-    targetConfigCache.PushBack(kArrayType, ralloc);
-    PValue &useLibDirectoriesConfigCache =
-        targetConfigCache[LinkTarget::ConfigCache::usageRequirementLibraryDirectoriesArray];
-    useLibDirectoriesConfigCache.Reserve(usageRequirementLibraryDirectories.size(), ralloc);
+    buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
+    PValue &useLibDirectoriesConfigCache = buildOrConfigCacheCopy[ConfigCache::usageRequirementLibraryDirectoriesArray];
+    useLibDirectoriesConfigCache.Reserve(usageRequirementLibraryDirectories.size(), cacheAlloc);
 
     for (const LibDirNode &libDirNode : usageRequirementLibraryDirectories)
     {
-        useLibDirectoriesConfigCache.PushBack(libDirNode.node->getPValue(), ralloc);
+        useLibDirectoriesConfigCache.PushBack(libDirNode.node->getPValue(), cacheAlloc);
     }
+
+    copyBackConfigCacheMutexLocked();
 }
 
 void PrebuiltBasic::readConfigCacheAtBuildTime()
 {
-    namespace LinkTarget = Indices::LinkTarget;
-    PValue &targetConfigCache = (*targetTempCache)[LinkTarget::configCache];
+    namespace ConfigCache = Indices::LinkTarget::ConfigCache;
 
-    PValue &reqLibDirsConfigCache = targetConfigCache[LinkTarget::ConfigCache::requirementLibraryDirectoriesArray];
+    PValue &reqLibDirsConfigCache = getConfigCache()[ConfigCache::requirementLibraryDirectoriesArray];
     requirementLibraryDirectories.reserve(reqLibDirsConfigCache.Size());
     for (const PValue &pValue : reqLibDirsConfigCache.GetArray())
     {
         requirementLibraryDirectories.emplace_back(Node::getNodeFromPValue(pValue, false), true);
     }
 
-    PValue &useReqLibDirsConfigCache =
-        targetConfigCache[LinkTarget::ConfigCache::usageRequirementLibraryDirectoriesArray];
+    PValue &useReqLibDirsConfigCache = getConfigCache()[ConfigCache::usageRequirementLibraryDirectoriesArray];
     usageRequirementLibraryDirectories.reserve(useReqLibDirsConfigCache.Size());
     for (const PValue &pValue : useReqLibDirsConfigCache.GetArray())
     {

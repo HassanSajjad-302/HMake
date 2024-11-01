@@ -11,7 +11,6 @@ NodeSnap::NodeSnap(path nodePath_, const file_time_type time_) : nodePath{std::m
 
 consteval uint64_t pathCharSize()
 {
-    path p;
     if constexpr (std::is_same<path::string_type, string>::value)
     {
         return 1;
@@ -69,16 +68,18 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
         }
     }
     unsigned short expected = 0;
-    constexpr unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 3 : 3; // No response file on Linux
-    constexpr unsigned short noDebugLinkTargetsMultiplier = os == OS::NT ? 1 : 3;
+    constexpr unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 3 : 1;
+    constexpr unsigned short noDebugLinkTargetsMultiplier = 1;
 
     // .smrules, on Windows / Deps Output File on Linux
-    expected += 1 * updates.smruleFiles;
+    expected += (os == OS::NT ? 1 : 2) * updates.smruleFiles;
     // .o, on Windows / Deps Output File on Linux
-    expected += 1 * updates.sourceFiles;
+    expected += (os == OS::NT ? 1 : 2) * updates.sourceFiles;
 
-   // expected += 3 * updates.errorFiles;
+    // expected += 3 * updates.errorFiles;
     expected += 2 * updates.moduleFiles;
+
+    expected += (os == OS::NT ? 0 : 1) * updates.errorFiles;
 
     expected += updates.linkTargetsNoDebug * noDebugLinkTargetsMultiplier;
     expected += updates.linkTargetsDebug * debugLinkTargetsMultiplier;
@@ -89,13 +90,22 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
         expected += 1;
     }
 
-    if (updates.cppTargets || updates.linkTargetsNoDebug || updates.linkTargetsDebug)
+    if (updates.sourceFiles || updates.moduleFiles || updates.smruleFiles || updates.linkTargetsNoDebug ||
+        updates.linkTargetsDebug)
     {
         expected += 1; // build-cache.json
     }
+
     if (actual.size() != expected)
     {
         bool breakpoint = true;
+        printMessage(fmt::format("Actual {}\tExpected {}\n",actual.size(), expected));
+
+        for(const NodeSnap *nodeSnap : actual)
+        {
+           printMessage(nodeSnap->nodePath.string() + '\n');
+        }
+         breakpoint = true;
     }
     return actual.size() == expected;
 }

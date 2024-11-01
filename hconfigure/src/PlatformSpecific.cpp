@@ -7,6 +7,9 @@ import "lz4.h";
 import "rapidjson/prettywriter.h";
 import "rapidjson/writer.h";
 import <cstdio>;
+#ifdef WIN32
+import <Windows.h>;
+#endif
 #else
 #include "BuildSystemFunctions.hpp"
 #include "PlatformSpecific.hpp"
@@ -15,6 +18,10 @@ import <cstdio>;
 #include "rapidjson/writer.h"
 #include <cstdio>
 #include <iostream>
+#include <utility>
+#ifdef WIN32
+#include <Windows.h>
+#endif
 #endif
 
 // Copied from https://stackoverflow.com/a/208431
@@ -111,23 +118,45 @@ PStringRef ptoref(const pstring_view c)
 }
 
 RHPOStream::RHPOStream(const pstring_view fileName)
-    : of(make_unique<std::basic_ofstream<pchar>>(fileName.data(), std::ios::binary))
 {
+    fp = fopen(fileName.data(), "wb");
+    /*/* multiple fputs() calls like: #1#
+
+    /* get fd of the FILE pointer #1#
+    int fd = _fileno(fp);
+#ifndef WIN32
+    ret = fsync(fd);
+#else
+    ret = _commit(fd);
+    fclose(fp);*/
+
     if constexpr (std::same_as<pchar, wchar_t>)
     {
         auto *unicodeFacet = new UTF16Facet();
         const std::locale unicodeLocale(std::cout.getloc(), unicodeFacet);
-        of->imbue(unicodeLocale);
+        // of->imbue(unicodeLocale);
+    }
+}
+RHPOStream::~RHPOStream()
+{
+    int result = fclose(fp);
+    if (result != 0)
+    {
+        printErrorMessage("Error closing the file \n");
     }
 }
 
 void RHPOStream::Put(const Ch c) const
 {
-    of->put(c);
+    fputc(c, fp);
 }
 
 void RHPOStream::Flush()
 {
+    if (int result = fflush(fp); result != 0)
+    {
+        printErrorMessage("Error flushing the file \n");
+    }
 }
 
 void prettyWritePValueToFile(const pstring_view fileName, const PValue &value)
@@ -168,7 +197,10 @@ unique_ptr<vector<pchar>> readPValueFromFile(const pstring_view fileName, PDocum
     fseek(fp, 0, SEEK_SET);
     unique_ptr<vector<pchar>> buffer = std::make_unique<vector<pchar>>(filesize + 1);
     const size_t readLength = fread(buffer->begin().operator->(), 1, filesize, fp);
-    fclose(fp);
+    if (fclose(fp) != 0)
+    {
+        printErrorMessage("Error closing the file \n");
+    }
 
     // TODO
     //  What should this be for wchar_t
@@ -179,16 +211,114 @@ unique_ptr<vector<pchar>> readPValueFromFile(const pstring_view fileName, PDocum
     return buffer;
 }
 
-void writePValueToFile(pstring_view fileName, const PValue &value)
+using rapidjson::StringBuffer, rapidjson::Writer;
+
+extern string GetLastErrorString();
+
+// In configure mode only 2 files target-cache.json and nodes.json are written which are written at the end.
+// While in build-mode TargetCacheDisWriteManager asynchronously writes these files multiple times as the data is
+// updated. Hence these file write is atomic in build mode
+static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize, bool binary)
 {
-    RHPOStream stream(fileName);
-    rapidjson::Writer<RHPOStream> writer(stream, nullptr);
-    if (!value.Accept(writer))
+    const pstring str = fileName + ".tmp";
+    if (bsMode == BSMode::BUILD)
     {
-        // TODO Check what error
-        printErrorMessage(FORMAT("Error Happened in parsing file {}\n", fileName.data()));
-        throw std::exception{};
+#ifdef WIN32
+        // Open the existing file for writing, replacing its content
+        HANDLE hFile = CreateFile(str.c_str(),
+                                  GENERIC_WRITE,         // Open for writing
+                                  0,                     // Do not share
+                                  NULL,                  // Default security
+                                  CREATE_ALWAYS,         // Always create a new file (replace if exists)
+                                  FILE_ATTRIBUTE_NORMAL, // Normal file
+                                  NULL                   // No template
+        );
+
+        // Check if the file handle is valid
+        if (hFile == INVALID_HANDLE_VALUE)
+        {
+            printErrorMessage(fmt::format("Failed to open file for writing. Error: {}\n", GetLastErrorString()));
+            throw std::exception{};
+        }
+
+        // Content to write to the file
+        DWORD bytesWritten;
+
+        // Write to the file
+        if (!WriteFile(hFile, buffer, bufferSize, &bytesWritten, NULL))
+        {
+            printErrorMessage(fmt::format("Failed to write to file. Error: {}\n", GetLastErrorString()));
+            CloseHandle(hFile);
+            throw std::exception{};
+        }
+
+        if (bytesWritten != bufferSize)
+        {
+            printErrorMessage("Failed to write the full file\n");
+            throw std::exception{};
+        }
+
+        // Close the file handle
+        CloseHandle(hFile);
+
+#else
+        // For some reason, this does not work in Windows.
+        if (binary)
+        {
+            std::ofstream f(fileName, std::ios::binary);
+            f.write(buffer, bufferSize);
+        }
+        else
+        {
+            std::ofstream(fileName) << buffer;
+        }
+#endif
     }
+
+    else if (bsMode == BSMode::CONFIGURE)
+    {
+        if (binary)
+        {
+            std::ofstream f(fileName, std::ios::binary);
+            f.write(buffer, bufferSize);
+        }
+        else
+        {
+            std::ofstream(fileName) << buffer;
+        }
+    }
+
+    if (bsMode == BSMode::BUILD)
+    {
+        if constexpr (os == OS::LINUX)
+        {
+            if (rename(str.c_str(), fileName.c_str()) != 0)
+            {
+                printMessage(
+                    fmt::format("Renaming File from {} to {} Not Successful\n", str.c_str(), fileName.c_str()));
+            }
+        }
+        else
+        {
+#ifdef WIN32
+            if (const bool result =
+                    MoveFileExA(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+                !result)
+            {
+                printErrorMessage(fmt::format("Error:{}\n while writing file {}\n", GetLastErrorString(), fileName));
+                fflush(stdout);
+            }
+#endif
+        }
+    }
+}
+
+void writePValueToFile(pstring fileName, const PValue &value)
+{
+    StringBuffer buffer;
+    Writer writer(buffer);
+    value.Accept(writer);
+    writeFile(std::move(fileName), buffer.GetString(), buffer.GetSize(), false);
 }
 
 unique_ptr<vector<pchar>> readPValueFromCompressedFile(const pstring_view fileName, PDocument &document)
@@ -244,10 +374,10 @@ unique_ptr<vector<pchar>> readPValueFromCompressedFile(const pstring_view fileNa
 #endif
 }
 
-void writePValueToCompressedFile(const pstring_view fileName, const PValue &value)
+void writePValueToCompressedFile(pstring fileName, const PValue &value)
 {
 #ifndef USE_JSON_FILE_COMPRESSION
-    writePValueToFile(fileName, value);
+    writePValueToFile(std::move(fileName), value);
 #else
     rapidjson::StringBuffer buffer;
     rapidjson::Writer writer(buffer);
@@ -270,10 +400,7 @@ void writePValueToCompressedFile(const pstring_view fileName, const PValue &valu
     }
     *reinterpret_cast<uint64_t *>(const_cast<char *>(compressed.c_str())) = buffer.GetLength();
 
-    std::fstream file;
-    file.open(fileName.data(), std::ios::out | std::ios::binary);
-    file.write(compressed.c_str(), compressedSize + 8);
-    file.close();
+    writeFile(std::move(fileName), compressed.c_str(), compressedSize + 8, true);
 #endif
 }
 
@@ -289,6 +416,7 @@ uint64_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element)
     return UINT64_MAX;
 }
 
+inline uint64_t currentTargetIndex = 0;
 uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &element)
 {
     const uint64_t old = currentTargetIndex;
@@ -330,9 +458,12 @@ bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs)
 
 void lowerCasePStringOnWindows(pchar *ptr, uint64_t size)
 {
-    for (uint64_t i = 0; i < size; ++i)
+    if constexpr (os == OS::NT)
     {
-        ptr[i] = tolower(ptr[i]);
+        for (uint64_t i = 0; i < size; ++i)
+        {
+            ptr[i] = tolower(ptr[i]);
+        }
     }
 }
 

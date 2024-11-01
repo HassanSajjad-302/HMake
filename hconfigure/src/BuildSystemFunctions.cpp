@@ -5,6 +5,7 @@ import "Builder.hpp";
 import "Cache.hpp";
 import <DSC.hpp>;
 import "CppSourceTarget.hpp";
+import "TargetCacheDiskWriteManager.hpp";
 import "fmt/format.h";
 import <filesystem>;
 import <fstream>;
@@ -13,6 +14,7 @@ import <fstream>;
 #include "Builder.hpp"
 #include "Cache.hpp"
 #include "CppSourceTarget.hpp"
+#include "TargetCacheDiskWriteManager.hpp"
 #include "fmt/format.h"
 #include <DSC.hpp>
 #include <filesystem>
@@ -21,18 +23,13 @@ import <fstream>;
 
 using fmt::print, std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
 
-static pstring getName(const pstring &name)
+pstring getFileNameJsonOrOut(const pstring &name)
 {
 #ifdef USE_JSON_FILE_COMPRESSION
     return name + ".out";
 #else
     return name + ".json";
 #endif
-}
-
-void writeBuildCacheUnlocked()
-{
-    writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), tempCache);
 }
 
 void initializeCache(const BSMode bsMode_)
@@ -51,7 +48,7 @@ void initializeCache(const BSMode bsMode_)
         bool configureExists = false;
         for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
         {
-            configurePath = p / getActualNameFromTargetName(TargetType::LIBRARY_SHARED, os, "configure");
+            configurePath = p / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
             if (exists(configurePath))
             {
                 configureExists = true;
@@ -80,26 +77,25 @@ void initializeCache(const BSMode bsMode_)
     cache.initializeCacheVariableFromCacheFile();
     toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
 
-    nodesCache.Reserve(10000, ralloc);
-    if (const path p = path(configureNode->filePath + slashc + getName("nodes")); exists(p))
+    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes")); exists(p))
     {
         const pstring str = p.string();
-        nodesCacheBuffer = readPValueFromCompressedFile(str, nodesCache);
+        nodesCacheBuffer = readPValueFromCompressedFile(str, nodesCacheJson);
 
         // node is constructed from cache. It is emplaced in the hash set and also in nodeIndices.
         // However performSystemCheck is not called and is called in multi-threaded fashion.
-        for (PValue &value : nodesCache.GetArray())
+        for (PValue &value : nodesCacheJson.GetArray())
         {
             Node::getHalfNodeFromNormalizedStringSingleThreaded(pstring(value.GetString(), value.GetStringLength()));
         }
-        nodesCacheSizeBefore = nodesCache.Size();
+        targetCacheDiskWriteManager.initialize();
     }
 
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
-    if (const path p = path(configureNode->filePath + slashc + getName("build-cache")); exists(p))
+    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache")); exists(p))
     {
         const pstring str = p.string();
-        buildCacheFileBuffer = readPValueFromCompressedFile(str, tempCache);
+        buildCacheFileBuffer = readPValueFromCompressedFile(str, targetCache);
     }
     else
     {
@@ -122,7 +118,7 @@ void initializeCache(const BSMode bsMode_)
     }
 }
 
-BSMode getBuildSystemModeFromArguments(const int argc, char **argv)
+void setBuildSystemModeFromArguments(const int argc, char **argv)
 {
     if (argc > 1)
     {
@@ -137,7 +133,6 @@ BSMode getBuildSystemModeFromArguments(const int argc, char **argv)
             throw std::exception();
         }
     }
-    return bsMode;
 }
 
 void printDebugMessage(const pstring &message)
@@ -160,7 +155,7 @@ void printMessage(const pstring &message)
     }
 }
 
-void preintMessageColor(const pstring &message, uint32_t color)
+void printMessageColor(const pstring &message, uint32_t color)
 {
     if (printMessageColorPointer)
     {
@@ -202,23 +197,23 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
 
 void configureOrBuild()
 {
-    if (bsMode == BSMode::BUILD)
-    {
-        Builder{};
-    }
+    Builder{};
     if (bsMode == BSMode::CONFIGURE)
     {
-        Builder{};
         cache.registerCacheVariables();
-        writePValueToCompressedFile(configureNode->filePath + slashc + getName("build-cache"), tempCache);
+        writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
+                                    targetCache);
     }
-    writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCache);
-    /*if (nodesCache.Size() != nodesCacheSizeBefore)
-    {
-        writePValueToCompressedFile(configureNode->filePath + slashc + getName("nodes"), nodesCache);
-    }*/
-    assert(nodesCache.Size() >= nodesCacheSizeBefore &&
-           "nodes cache size can not be less than the originally loaded file");
+}
+
+void constructGlobals()
+{
+    std::construct_at(&targetCacheDiskWriteManager);
+}
+
+void destructGlobals()
+{
+    std::destroy_at(&targetCacheDiskWriteManager);
 }
 
 pstring getLastNameAfterSlash(pstring_view name)

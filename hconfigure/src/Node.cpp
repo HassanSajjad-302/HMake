@@ -13,7 +13,7 @@ import <mutex>;
 #endif
 
 using std::filesystem::directory_entry, std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard,
-    std::mutex;
+    std::mutex, std::atomic_ref;
 
 pstring getStatusPString(const path &p)
 {
@@ -127,22 +127,23 @@ class SpinLock
     }
 };
 
-void Node::ensureSystemCheckCalled(bool isFile, bool mayNotExist)
+void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
 {
-    if (reinterpret_cast<atomic<bool> &>(systemCheckCompleted).load())
+    if (atomic_ref(systemCheckCompleted).load())
     {
         return;
     }
 
     // If systemCheck was not called previously or isn't being called, call it.
-    if (!reinterpret_cast<atomic<bool> &>(systemCheckCalled).exchange(true))
+    if (!atomic_ref(systemCheckCalled).exchange(true))
     {
         performSystemCheck(isFile, mayNotExist);
-        reinterpret_cast<atomic<bool> &>(systemCheckCompleted).store(true);
+        atomic_ref(systemCheckCompleted).store(true);
+        return;
     }
 
     // systemCheck is being called for this node by another thread
-    while (!reinterpret_cast<atomic<bool> &>(systemCheckCompleted).load())
+    while (!atomic_ref(systemCheckCompleted).load())
     {
         // std::this_thread::sleep_for(std::chrono::nanoseconds(100));
     }
@@ -151,14 +152,14 @@ void Node::ensureSystemCheckCalled(bool isFile, bool mayNotExist)
 bool Node::trySystemCheck(const bool isFile, const bool mayNotExist)
 {
     // If systemCheck was not called previously or isn't being called, call it.
-    if (!reinterpret_cast<atomic<bool> &>(systemCheckCalled).exchange(true))
+    if (!atomic_ref(systemCheckCalled).exchange(true))
     {
         performSystemCheck(isFile, mayNotExist);
-        reinterpret_cast<atomic<bool> &>(systemCheckCompleted).store(true);
+        atomic_ref(systemCheckCompleted).store(true);
         return true;
     }
 
-    if (reinterpret_cast<atomic<bool> &>(systemCheckCompleted).load())
+    if (atomic_ref(systemCheckCompleted).load())
     {
         return true;
     }
@@ -166,7 +167,6 @@ bool Node::trySystemCheck(const bool isFile, const bool mayNotExist)
     return false;
 }
 
-// static SpinLock nodeInsertMutex;
 Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool mayNotExist)
 {
     Node *node = nullptr;
@@ -234,7 +234,9 @@ Node *Node::getHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFile
         // Why do atomic when it is executed single threaded
         node.myId = reinterpret_cast<uint32_t &>(idCount)++;
         nodeIndices[node.myId] = &node;
+        nodesCacheVector[node.myId] = node.filePath;
         node.halfNode = true;
+        ++reinterpret_cast<uint32_t &>(idCountCompleted);
         return &node;
     }
     else
@@ -256,29 +258,12 @@ Node *Node::getHalfNodeFromNormalizedString(pstring_view p)
         nodeAllFiles.if_contains(p, [&](const Node &node_) { node = const_cast<Node *>(&node_); });
         node->myId = idCount.fetch_add(1);
         nodeIndices[node->myId] = node;
-        nodesCache.PushBack(PValue(ptoref(node->filePath)), ralloc);
+        nodesCacheVector[node->myId] = node->filePath;
         node->halfNode = true;
+        ++idCountCompleted;
     }
 
     return node;
-}
-
-void Node::emplaceNodeInPValue(const Node *node, PValue &pValue)
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    pValue.PushBack(PValue(node->myId), ralloc);
-#else
-    pValue.PushBack(ptoref(node->filePath), ralloc);
-#endif
-}
-
-void Node::emplaceNodeInPValue(const Node *node, PValue &pValue, decltype(ralloc) alloc)
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    pValue.PushBack(PValue(node->myId), alloc);
-#else
-    pValue.PushBack(ptoref(node->filePath), alloc);
-#endif
 }
 
 Node *Node::getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist)
@@ -329,8 +314,6 @@ rapidjson::Type Node::getType()
     return rapidjson::kStringType;
 #endif
 }
-
-#include "Windows.h"
 
 void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
 {
@@ -411,7 +394,8 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
     {
         myId = idCount.fetch_add(1);
         nodeIndices[myId] = this;
-        nodesCache.PushBack(PValue(ptoref(filePath)), ralloc);
+        nodesCacheVector[myId] = filePath;
+        ++idCountCompleted;
     }
 }
 
@@ -419,6 +403,7 @@ void Node::clearNodes()
 {
     nodeAllFiles.clear();
     idCount = 0;
+    idCountCompleted = 0;
     for (Node *&node : nodeIndices)
     {
         node = nullptr;

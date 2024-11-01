@@ -24,15 +24,15 @@ template <typename T> static const InclNode &getNode(const T &t)
     }
 }
 
-template <typename T> void writeIncDirsAtConfigTime(const vector<T> &include, PValue &pValue)
+template <typename T> void writeIncDirsAtConfigTime(const vector<T> &include, PValue &pValue, auto &rapidJsonAllocator)
 {
-    pValue.Reserve(include.size(), ralloc);
+    pValue.Reserve(include.size(), rapidJsonAllocator);
     for (auto &elem : include)
     {
         const InclNode &inclNode = getNode(elem);
-        Node::emplaceNodeInPValue(inclNode.node, pValue);
-        pValue.PushBack(inclNode.isStandard, ralloc);
-        pValue.PushBack(inclNode.ignoreHeaderDeps, ralloc);
+        pValue.PushBack(inclNode.node->getPValue(), rapidJsonAllocator);
+        pValue.PushBack(inclNode.isStandard, rapidJsonAllocator);
+        pValue.PushBack(inclNode.ignoreHeaderDeps, rapidJsonAllocator);
     }
 }
 

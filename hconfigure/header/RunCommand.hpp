@@ -12,8 +12,7 @@ import "Settings.hpp";
 struct RunCommand
 {
     pstring printCommand;
-    pstring commandSuccessOutput;
-    pstring commandErrorOutput;
+    pstring commandOutput;
     int exitStatus;
 
     /* Could be a target or a file. For target (link and archive), we add extra _t at the end of the target name.*/
@@ -22,8 +21,9 @@ struct RunCommand
     // command is 3 parts. 1) tool path 2) command without output and error files 3) output and error files.
     // while print is 2 parts. 1) tool path and command without output and error files. 2) output and error files.
     RunCommand(path toolPath, const pstring &runCommand, pstring printCommand_, bool isTarget_);
-
-    void executePrintRoutine(uint32_t color, bool printOnlyOnError) const;
+    void executePrintRoutine(uint32_t color, bool printOnlyOnError, PValue sourceJson, uint64_t _index0 = UINT64_MAX,
+                             uint64_t _index1 = UINT64_MAX, uint64_t _index2 = UINT64_MAX,
+                             uint64_t _index3 = UINT64_MAX, uint64_t _index4 = UINT64_MAX) const;
 };
 
 class CppSourceTarget;
@@ -38,7 +38,7 @@ struct PostCompile : RunCommand
     void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, pstring &output, PValue &headerDepsJson,
                                      bool mustConsiderHeaderDeps) const;
     void parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &headerDepsJson, bool mustConsiderHeaderDeps);
-    void parseHeaderDeps(SourceNode &sourceNode, bool parseFromErrorOutput, bool mustConsiderHeaderDeps);
+    void parseHeaderDeps(SourceNode &sourceNode, bool mustConsiderHeaderDeps);
 };
 
 #endif // HMAKE_RUNCOMMAND_HPP

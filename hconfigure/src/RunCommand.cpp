@@ -3,14 +3,18 @@
 import "RunCommand.hpp";
 import "BuildSystemFunctions.hpp";
 import "CppSourceTarget.hpp";
+import "TargetCacheDiskWriteManager.hpp";
 import "subprocess/subprocess.h";
 import "Utilities.hpp";
 #else
 #include "RunCommand.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
+#include "TargetCacheDiskWriteManager.hpp"
 #include "Utilities.hpp"
 #endif
+
+#ifdef WIN32
 #include <Windows.h>
 
 // Copied From Ninja code-base.
@@ -34,6 +38,9 @@ struct CLWrapper
 
     void *env_block_;
 };
+
+// TODO
+//  Error should throw and not exit
 void Fatal(const char *msg, ...)
 {
     va_list ap;
@@ -143,6 +150,111 @@ int CLWrapper::Run(const string &command, string *output) const
     return exit_code;
 }
 
+#else
+
+#include <sys/wait.h>
+#include <unistd.h>
+struct CLWrapper
+{
+    CLWrapper() : env_block_(NULL)
+    {
+    }
+
+    /// Set the environment block (as suitable for CreateProcess) to be used
+    /// by Run().
+    void SetEnvBlock(void *env_block)
+    {
+        env_block_ = env_block;
+    }
+
+    /// Start a process and gather its raw output.  Returns its exit code.
+    /// Crashes (calls Fatal()) on error.
+    static int Run(const std::string &command, std::string *output)
+    {
+        int stdout_pipe[2], stderr_pipe[2];
+        int status;
+
+        // Create pipes for stdout and stderr
+        if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1)
+        {
+            printErrorMessage("Error Creating Pipes\n");
+            throw std::runtime_error("Error Creating Pipes");
+        }
+
+        if (const pid_t pid = fork(); pid == -1)
+        {
+            printErrorMessage("fork");
+            throw std::runtime_error("fork");
+        }
+        else
+        {
+            if (pid == 0)
+            {
+                // Child process
+
+                // Redirect stdout and stderr to the pipes
+                dup2(stdout_pipe[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
+                dup2(stderr_pipe[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
+
+                // Close unused pipe ends
+                close(stdout_pipe[0]);
+                close(stderr_pipe[0]);
+                close(stdout_pipe[1]);
+                close(stderr_pipe[1]);
+
+                // Execute a command (e.g., "ls" or any other)
+                exit(WEXITSTATUS(system(command.c_str())));
+            }
+
+            // Parent process
+            // Close unused pipe ends
+            close(stdout_pipe[1]);
+            close(stderr_pipe[1]);
+
+            if (waitpid(pid, &status, 0) < 0)
+            {
+                throw std::runtime_error("waitpid");
+            }
+
+            char buffer[4096];
+            while (true)
+            {
+                const uint64_t readSize = read(stdout_pipe[0], buffer, sizeof(buffer) - 1);
+                if (readSize)
+                {
+                    output->append(buffer, readSize);
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            while (true)
+            {
+                const uint64_t readSize = read(stderr_pipe[0], buffer, sizeof(buffer) - 1);
+                if (readSize)
+                {
+                    output->append(buffer, readSize);
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            // Close the read ends of the pipes
+            close(stdout_pipe[0]);
+            close(stderr_pipe[0]);
+        }
+        return WEXITSTATUS(status);
+    }
+
+    void *env_block_;
+};
+
+#endif
+
 using std::ofstream, fmt::format;
 
 pstring getThreadId()
@@ -162,49 +274,66 @@ RunCommand::RunCommand(path toolPath, const pstring &runCommand, pstring printCo
 
     pstring j = addQuotes(toolPath.make_preferred().string()) + ' ' + runCommand;
     {
-        exitStatus = CLWrapper{}.Run(j, &commandSuccessOutput);
+        exitStatus = CLWrapper{}.Run(j, &commandOutput);
     }
 
 #else
-    pstring finalCompileCommand = (buildTool.bTPath.*toPStr)() + " " + commandFirstHalf + "> " +
-                                  addQuotes(outputFileName) + " 2>" + addQuotes(errorFileName);
-    exitStatus = system(finalCompileCommand.c_str());
+    pstring j = addQuotes(toolPath.make_preferred().string()) + ' ' + runCommand;
+    exitStatus = CLWrapper::Run(j, &commandOutput);
 #endif
     if (exitStatus != EXIT_SUCCESS)
     {
         bool breakpoint = true;
     }
 }
-
-void RunCommand::executePrintRoutine(const uint32_t color, const bool printOnlyOnError) const
+void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError, PValue sourceJson, uint64_t _index0,
+                                     uint64_t _index1, uint64_t _index2, uint64_t _index3, uint64_t _index4) const
 {
-    if (!printOnlyOnError)
+    bool notify = false;
     {
-        preintMessageColor(fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color);
+
+        lock_guard _(targetCacheDiskWriteManager.vecMutex);
+
         if (exitStatus == EXIT_SUCCESS)
         {
-            if (!commandSuccessOutput.empty())
+            targetCacheDiskWriteManager.pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2,
+                                                                 _index3, _index4);
+            notify = true;
+        }
+
+        if (printOnlyOnError)
+        {
+            targetCacheDiskWriteManager.strCache.emplace_back(
+                fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color, true);
+            notify = true;
+            if (exitStatus != EXIT_SUCCESS)
             {
-                preintMessageColor(fmt::format("{}", commandSuccessOutput + "\n"),
-                                   static_cast<int>(fmt::color::light_green));
+                if (!commandOutput.empty())
+                {
+                    targetCacheDiskWriteManager.strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
+                                                                      settings.pcSettings.toolErrorOutput, true);
+                    notify = true;
+                }
             }
-            if (!commandErrorOutput.empty())
+        }
+        else
+        {
+
+            targetCacheDiskWriteManager.strCache.emplace_back(
+                fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color, true);
+
+            if (!commandOutput.empty())
             {
-                printErrorMessageColor(fmt::format("{}", commandErrorOutput + "\n"),
-                                       static_cast<int>(fmt::color::light_green));
+                targetCacheDiskWriteManager.strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
+                                                                  static_cast<int>(fmt::color::light_green), true);
+                notify = true;
             }
         }
     }
-    if (exitStatus != EXIT_SUCCESS)
+
+    if (notify)
     {
-        if (!commandSuccessOutput.empty())
-        {
-            printErrorMessageColor(fmt::format("{}", commandSuccessOutput + "\n"), settings.pcSettings.toolErrorOutput);
-        }
-        if (!commandErrorOutput.empty())
-        {
-            printErrorMessageColor(fmt::format("{}", commandErrorOutput + "\n"), settings.pcSettings.toolErrorOutput);
-        }
+        targetCacheDiskWriteManager.vecCond.notify_one();
     }
 }
 
@@ -282,6 +411,8 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
 
                 if (iter->size() >= pos + 1)
                 {
+                    // Last character is \r for some reason.
+                    iter->back() = '\0';
                     pstring_view headerView(iter->begin() + pos, iter->end() - 1);
 
                     // TODO
@@ -291,7 +422,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
                         lowerCasePStringOnWindows(const_cast<pchar *>(headerView.data()), headerView.size());
 
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-                        Node *node = Node::getNodeFromNormalizedString(headerView, true, false);
+                        Node *node = Node::getHalfNodeFromNormalizedString(headerView);
                         bool found = false;
                         for (const PValue &value : headerDepsJson.GetArray())
                         {
@@ -303,16 +434,18 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
                         }
                         if (!found)
                         {
-                            headerDepsJson.PushBack(PValue(node->myId), ralloc);
+                            headerDepsJson.PushBack(PValue(node->myId), sourceNode.sourceNodeAllocator);
                         }
 
 #else
 
+                        // We need node so that it gets registered in the central nodes.cache
+                        const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
                         bool found = false;
                         for (const PValue &value : headerDepsJson.GetArray())
                         {
                             if (compareStringsFromEnd(pstring_view(value.GetString(), value.GetStringLength()),
-                                                      headerView))
+                                                      headerNode->filePath))
                             {
                                 found = true;
                                 break;
@@ -384,32 +517,26 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &hea
             for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
             {
                 const size_t pos = iter->find_first_not_of(" ");
-                pstring headerDep = iter->substr(pos, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos);
-                if (mustConsiderHeaderDeps || !ignoreHeaderFile(headerDep))
+                auto it = iter->begin() + pos;
+                if (const pstring_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
+                    mustConsiderHeaderDeps || !ignoreHeaderFile(headerView))
                 {
-                    headerDepsJson.PushBack(PValue(headerDep.c_str(), headerDep.size(), sourceNode.sourceNodeAllocator),
-                                            sourceNode.sourceNodeAllocator);
+                    const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
+                    headerDepsJson.PushBack(headerNode->getPValue(), sourceNode.sourceNodeAllocator);
                 }
             }
         }
     }
 }
 
-void PostCompile::parseHeaderDeps(SourceNode &sourceNode, const bool parseFromErrorOutput, bool mustConsiderHeaderDeps)
+void PostCompile::parseHeaderDeps(SourceNode &sourceNode, const bool mustConsiderHeaderDeps)
 {
-    PValue &headerDepsJson = (*sourceNode.sourceJson)[2];
+    PValue &headerDepsJson = sourceNode.sourceJson[Indices::CppTarget::BuildCache::SourceFiles::headerFiles];
     headerDepsJson.Clear();
 
     if (target.compiler.bTFamily == BTFamily::MSVC)
     {
-        parseDepsFromMSVCTextOutput(sourceNode, commandSuccessOutput, headerDepsJson, mustConsiderHeaderDeps);
-
-        if (parseFromErrorOutput)
-        {
-            // In case of GenerateSMRules header-file info is printed to stderr instead of stout. Just one more wrinkle.
-            // Hahaha
-            parseDepsFromMSVCTextOutput(sourceNode, commandErrorOutput, headerDepsJson, mustConsiderHeaderDeps);
-        }
+        parseDepsFromMSVCTextOutput(sourceNode, commandOutput, headerDepsJson, mustConsiderHeaderDeps);
     }
     else
     {

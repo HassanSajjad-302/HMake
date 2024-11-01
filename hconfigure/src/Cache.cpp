@@ -10,7 +10,7 @@ import <fstream>;
 #include "Cache.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
-#include "Node.hpp";
+#include "Node.hpp"
 #include "Settings.hpp"
 #include <fstream>
 #endif

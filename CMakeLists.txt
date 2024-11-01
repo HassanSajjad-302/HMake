@@ -1,11 +1,13 @@
-cmake_minimum_required(VERSION 3.21.0)
+cmake_minimum_required(VERSION 3.28.0)
 
 project(HMake)
 
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GCC")
+set(HMAKE_USE_THREAD_SANITIZER OFF BOOL "Whether to use thread-sanitizer on Linux or not.")
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 
-    add_compile_options(-fsanitize=thread -std=c++2b)
-    add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
+    if ("${HMAKE_USE_THREAD_SANITIZER}" MATCHES ON)
+        add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
+    endif ()
 
     add_compile_options(-std=c++2b)
 elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
@@ -42,7 +44,6 @@ add_library(hconfigure STATIC
         hconfigure/src/DSC.cpp
         hconfigure/src/ObjectFileProducer.cpp
         hconfigure/src/CSourceTarget.cpp
-        hconfigure/src/DLLLoader.cpp
         hconfigure/src/Configure.cpp
         hconfigure/src/CTargetRoundZeroBTarget.cpp
         hconfigure/src/PrebuiltLinkOrArchiveTarget.cpp
@@ -54,7 +55,9 @@ add_library(hconfigure STATIC
         hconfigure/src/InclNodeTargetMap.cpp
         3rdParty/lz4/lib/lz4.c
         hconfigure/src/ConfigHelpers.cpp
-        hconfigure/src/HashValues.cpp)
+        hconfigure/src/HashValues.cpp
+        hconfigure/src/TargetCache.cpp
+        hconfigure/src/TargetCacheDiskWriteManager.cpp)
 
 
 if (UNIX)
@@ -107,8 +110,11 @@ target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/3rdPa
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:fmt::fmt>")
 target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_PATH="$<TARGET_FILE:fmt>")
 
-add_executable(hbuild hbuild/src/main.cpp
-        hconfigure/header/SpecialNodes.hpp)
+if ("${HMAKE_USE_THREAD_SANITIZER}" MATCHES ON)
+    target_compile_definitions(hhelper PRIVATE USE_THREAD_SANITIZER)
+endif ()
+
+add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused

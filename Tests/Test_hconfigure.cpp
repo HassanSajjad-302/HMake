@@ -11,7 +11,7 @@
 using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::path,
     std::filesystem::current_path, std::cout, fmt::format, std::filesystem::remove_all, std::ifstream, std::ofstream;
 
-class HconfigureTests : public testing::Test
+/*class HconfigureTests : public testing::Test
 {
   protected:
     static void SetUpTestSuite()
@@ -25,4 +25,4 @@ class HconfigureTests : public testing::Test
 
 TEST_F(HconfigureTests, Example1)
 {
-}
+}*/

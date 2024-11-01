@@ -5,11 +5,13 @@
 import "BTarget.hpp";
 import "Features.hpp";
 import "FeaturesConvenienceFunctions.hpp";
+import "TargetCache.hpp";
 import "btree.h";
 #else
 #include "BTarget.hpp"
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
+#include "TargetCache.hpp"
 #include "btree.h"
 #endif
 
@@ -38,7 +40,7 @@ struct PrebuiltDep
     bool defaultRpathLink = true;
 };
 
-class PrebuiltBasic : public BTarget, public PrebuiltBasicFeatures
+class PrebuiltBasic : public BTarget, public PrebuiltBasicFeatures, public TargetCache
 {
   public:
     pstring outputName;
@@ -54,7 +56,6 @@ class PrebuiltBasic : public BTarget, public PrebuiltBasicFeatures
 
     vector<LibDirNode> usageRequirementLibraryDirectories;
 
-    PValue *targetTempCache;
     TargetType linkTargetType = TargetType::LIBRARY_OBJECT;
 
     template <typename... U> PrebuiltBasic &PUBLIC_DEPS(PrebuiltBasic *prebuiltLinkOrArchiveTarget, U... deps);
@@ -74,15 +75,14 @@ class PrebuiltBasic : public BTarget, public PrebuiltBasicFeatures
     PrebuiltBasic &DEPS(PrebuiltBasic *prebuiltTarget, Dependency dependency, PrebuiltDep prebuiltDep, U... deps);
 
     void populateRequirementAndUsageRequirementDeps();
-    void initializePrebuiltBasic(const pstring &name_);
 
     PrebuiltBasic(const pstring &outputName_, TargetType linkTargetType_);
-    PrebuiltBasic(pstring outputName_, TargetType linkTargetType_, const pstring &name_, bool buildExplicit,
+    PrebuiltBasic(const pstring &outputName_, TargetType linkTargetType_, const pstring &name_, bool buildExplicit,
                   bool makeDirectory);
 
     void updateBTarget(Builder &builder, unsigned short round) override;
 
-    void writeTargetConfigCacheAtConfigureTime() const;
+    void writeTargetConfigCacheAtConfigureTime();
     void readConfigCacheAtBuildTime();
 
     void addRequirementDepsToBTargetDependencies();

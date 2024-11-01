@@ -28,13 +28,13 @@ StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets
 
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
 {
-    return const_cast<BTarget *>(lhs)->realBTargets[0].indexInTopologicalSort >
+    return const_cast<BTarget *>(lhs)->realBTargets[0].indexInTopologicalSort <
            const_cast<BTarget *>(rhs)->realBTargets[0].indexInTopologicalSort;
 }
 
 bool IndexInTopologicalSortComparatorRoundTwo::operator()(const BTarget *lhs, const BTarget *rhs) const
 {
-    return const_cast<BTarget *>(lhs)->realBTargets[2].indexInTopologicalSort >
+    return const_cast<BTarget *>(lhs)->realBTargets[2].indexInTopologicalSort <
            const_cast<BTarget *>(rhs)->realBTargets[2].indexInTopologicalSort;
 }
 
@@ -117,6 +117,14 @@ void BTarget::assignFileStatusToDependents(RealBTarget &realBTarget)
 }
 
 void BTarget::updateBTarget(Builder &, unsigned short)
+{
+}
+
+void BTarget::endOfRound(Builder &builder, unsigned short round)
+{
+}
+
+void BTarget::copyJson()
 {
 }
 

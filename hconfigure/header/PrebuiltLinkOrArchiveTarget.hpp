@@ -24,8 +24,8 @@ class PrebuiltLinkOrArchiveTarget : public PrebuiltBasic, public PrebuiltLinkerF
     template <typename T> bool evaluate(T property) const;
     void updateBTarget(Builder &builder, unsigned short round) override;
 
-private:
-    void writeTargetConfigCacheAtConfigureTime() const;
+protected:
+    void writeTargetConfigCacheAtConfigureTime();
     void readConfigCacheAtBuildTime();
 };
 

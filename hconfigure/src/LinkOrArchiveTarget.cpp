@@ -61,7 +61,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
     for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
     {
-        objectFileProducer->getObjectFiles(&(objectFiles), this);
+        objectFileProducer->getObjectFiles(&objectFiles, this);
     }
 
     if (!evaluate(TargetType::LIBRARY_STATIC))
@@ -86,17 +86,11 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         create_directories(buildCacheFilesDirPath);
     }
 
-    // No other thread during BTarget::setFileStatusAndPopulateAllDependencies calls saveBuildCache() i.e. only the
-    // following operation needs to be guarded by the mutex, otherwise all the buildCache access would have been
-    // guarded. They are not guarded as those operations only modify the cache of this target.
-    buildCacheMutex.lock();
-
     namespace LinkTarget = Indices::LinkTarget;
-    if ((*targetTempCache)[LinkTarget::buildCache].Empty())
+    if (getBuildCache().Empty())
     {
         atomic_ref(fileStatus).store(true);
     }
-    buildCacheMutex.unlock();
 
     if (!atomic_ref(fileStatus).load())
     {
@@ -108,7 +102,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         {
             // If linkOrArchiveCommandWithoutTargets could be stored with linker.btPath.*toPStr, so only PValue of
             // strings is compared instead of new allocation
-            if ((*targetTempCache)[LinkTarget::buildCache][LinkTarget::BuildCache::commandWithoutArgumentsWithTools] ==
+            if (getBuildCache()[LinkTarget::BuildCache::commandWithoutArgumentsWithTools] ==
                 commandWithoutTargetsWithTool.getHash())
             {
                 bool needsUpdate = false;
@@ -133,8 +127,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 for (const ObjectFile *objectFile : objectFiles)
                 {
                     bool contains = false;
-                    for (PValue &o :
-                         (*targetTempCache)[LinkTarget::buildCache][LinkTarget::BuildCache::objectFiles].GetArray())
+                    for (PValue &o : getBuildCache()[LinkTarget::BuildCache::objectFiles].GetArray())
                     {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
                         contains = o.GetUint64() == objectFile->objectFileOutputFilePath->myId;
@@ -258,42 +251,44 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             {
                 PValue *objectFilesPValue;
 
-                lock_guard lk(buildCacheMutex);
-
                 namespace LinkTarget = Indices::LinkTarget;
-                if (PValue &t = (*targetTempCache)[LinkTarget::buildCache]; t.Empty())
+                if (buildOrConfigCacheCopy.Empty())
                 {
-                    t.PushBack(ptoref(name), ralloc);
+                    buildOrConfigCacheCopy.PushBack(ptoref(name), cacheAlloc);
 
-                    t.PushBack(commandWithoutTargetsWithTool.getHash(), ralloc);
-                    t.PushBack(PValue(kArrayType), ralloc);
-                    objectFilesPValue = t.End() - 1;
+                    buildOrConfigCacheCopy.PushBack(commandWithoutTargetsWithTool.getHash(), cacheAlloc);
+                    buildOrConfigCacheCopy.PushBack(PValue(kArrayType), cacheAlloc);
+                    objectFilesPValue = buildOrConfigCacheCopy.End() - 1;
                 }
                 else
                 {
                     namespace BuildCache = LinkTarget::BuildCache;
-                    t[BuildCache::commandWithoutArgumentsWithTools] = commandWithoutTargetsWithTool.getHash();
-                    objectFilesPValue = &t[BuildCache::objectFiles];
+                    buildOrConfigCacheCopy[BuildCache::commandWithoutArgumentsWithTools] =
+                        commandWithoutTargetsWithTool.getHash();
+                    objectFilesPValue = &buildOrConfigCacheCopy[BuildCache::objectFiles];
                     objectFilesPValue->Clear();
                 }
 
-                objectFilesPValue->Reserve(objectFiles.size(), ralloc);
+                objectFilesPValue->Reserve(objectFiles.size(), cacheAlloc);
                 for (const ObjectFile *objectFile : objectFiles)
                 {
-                    Node::emplaceNodeInPValue(objectFile->objectFileOutputFilePath, *objectFilesPValue);
+                    objectFilesPValue->PushBack(objectFile->objectFileOutputFilePath->getPValue(), cacheAlloc);
                 }
-                writeBuildCacheUnlocked();
             }
 
             {
                 lock_guard lk(printMutex);
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
                 {
-                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false);
+                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false,
+                                                                std::move(buildOrConfigCacheCopy), targetCacheIndex,
+                                                                Indices::LinkTarget::buildCache);
                 }
                 else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
                 {
-                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false);
+                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false,
+                                                                std::move(buildOrConfigCacheCopy), targetCacheIndex,
+                                                                Indices::LinkTarget::buildCache);
                 }
                 fflush(stdout);
             }
@@ -333,18 +328,10 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             create_directories(buildCacheFilesDirPath);
             if (evaluate(UseMiniTarget::YES))
             {
-                writeTargetConfigCacheAtConfigureTime();
+                // writeTargetConfigCacheAtConfigureTime();
             }
         }
     }
-}
-
-void LinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime() const
-{
-}
-
-void LinkOrArchiveTarget::readConfigCacheAtBuildTime()
-{
 }
 
 LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
@@ -1262,75 +1249,3 @@ pstring LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
     }
     return linkOrArchiveCommandPrint;
 }
-
-/*
-LinkOrArchiveTarget<MiniTarget::MINI>::LinkOrArchiveTarget(const pstring &name_, TargetType targetType)
-    : LinkOrArchiveTarget<MiniTarget::BASE>(name_, targetType)
-{
-    assert(bsMode == BSMode::BUILD && "Mini targets should not exist at configure mode");
-    uint64_t index = pvalueIndexInSubArray(configCache, PValue(ptoref(name)));
-    if (index != UINT64_MAX)
-    {
-        targetConfigCache = &configCache[index];
-    }
-    else
-    {
-        printErrorMessage(fmt::format("Mini-Target not found in config-cache\n"));
-        exit(EXIT_FAILURE);
-    }
-}
-LinkOrArchiveTarget<MiniTarget::MINI>::LinkOrArchiveTarget(bool buildExplicit, const pstring &name_,
-                                                           TargetType targetType)
-    : LinkOrArchiveTarget<MiniTarget::BASE>(buildExplicit, name_, targetType)
-{
-    assert(bsMode == BSMode::BUILD && "Mini targets should not exist at configure mode");
-    uint64_t index = pvalueIndexInSubArray(configCache, PValue(ptoref(name)));
-    if (index != UINT64_MAX)
-    {
-        targetConfigCache = &configCache[index];
-    }
-    else
-    {
-        printErrorMessage(fmt::format("Mini-Target not found in config-cache\n"));
-        exit(EXIT_FAILURE);
-    }
-}
-
-pstring LinkOrArchiveTarget<MiniTarget::MINI>::getLinkOrArchiveCommandWithoutTargets()
-{
-    return "dsd";
-}
-
-LinkOrArchiveTarget<MiniTarget::FULL>::LinkOrArchiveTarget(const pstring &name_, TargetType targetType)
-    : LinkOrArchiveTarget<MiniTarget::BASE>(name_, targetType)
-{
-    if (bsMode == BSMode::CONFIGURE && useMiniTarget == UseMiniTarget::YES)
-    {
-        configCache.PushBack(kArrayType, ralloc);
-        targetConfigCache = configCache.End() - 1;
-        targetConfigCache->PushBack(ptoref(name), ralloc);
-    }
-}
-
-LinkOrArchiveTarget<MiniTarget::FULL>::LinkOrArchiveTarget(bool buildExplicit, const pstring &name_,
-                                                           TargetType targetType)
-    : LinkOrArchiveTarget<MiniTarget::BASE>(buildExplicit, name_, targetType)
-{
-    if (bsMode == BSMode::CONFIGURE && useMiniTarget == UseMiniTarget::YES)
-    {
-        configCache.PushBack(kArrayType, ralloc);
-        targetConfigCache = configCache.End() - 1;
-        targetConfigCache->PushBack(ptoref(name), ralloc);
-    }
-}
-
-pstring LinkOrArchiveTarget<MiniTarget::FULL>::getLinkOrArchiveCommandWithoutTargets()
-{
-    return "dsd";
-}
-
-void LinkOrArchiveTarget<MiniTarget::FULL>::updateBTarget(Builder &builder, unsigned short round)
-{
-    LinkOrArchiveTarget<>::updateBTarget(builder, round);
-}
-*/

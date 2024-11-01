@@ -4,8 +4,10 @@
 
 #ifdef USE_HEADER_UNITS
 import "Node.hpp";
+import <list>;
 #else
 #include "Node.hpp"
+#include <list>
 #endif
 
 using std::list;
