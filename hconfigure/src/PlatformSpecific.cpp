@@ -217,7 +217,7 @@ extern string GetLastErrorString();
 
 // In configure mode only 2 files target-cache.json and nodes.json are written which are written at the end.
 // While in build-mode TargetCacheDisWriteManager asynchronously writes these files multiple times as the data is
-// updated. Hence these file write is atomic in build mode
+// updated. Hence, these file write is atomic in build mode
 static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize, bool binary)
 {
     const pstring str = fileName + ".tmp";
@@ -265,12 +265,12 @@ static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize,
         // For some reason, this does not work in Windows.
         if (binary)
         {
-            std::ofstream f(fileName, std::ios::binary);
+            std::ofstream f(str, std::ios::binary);
             f.write(buffer, bufferSize);
         }
         else
         {
-            std::ofstream(fileName) << buffer;
+            std::ofstream(str) << buffer;
         }
 #endif
     }
@@ -290,26 +290,23 @@ static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize,
 
     if (bsMode == BSMode::BUILD)
     {
-        if constexpr (os == OS::LINUX)
-        {
-            if (rename(str.c_str(), fileName.c_str()) != 0)
-            {
-                printMessage(
-                    fmt::format("Renaming File from {} to {} Not Successful\n", str.c_str(), fileName.c_str()));
-            }
-        }
-        else
-        {
 #ifdef WIN32
-            if (const bool result =
-                    MoveFileExA(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
-                !result)
-            {
-                printErrorMessage(fmt::format("Error:{}\n while writing file {}\n", GetLastErrorString(), fileName));
-                fflush(stdout);
-            }
-#endif
+        if (const bool result =
+                MoveFileExA(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+            !result)
+        {
+            printErrorMessage(fmt::format("Error:{}\n while writing file {}\n", GetLastErrorString(), fileName));
+            fflush(stdout);
         }
+#else
+
+        if (rename(str.c_str(), fileName.c_str()) != 0)
+        {
+            printMessage(fmt::format("Renaming File from {} to {} Not Successful. Error {}\n", str.c_str(),
+                                     fileName.c_str(), errno));
+        }
+
+#endif
     }
 }
 

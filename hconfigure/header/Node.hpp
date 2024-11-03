@@ -53,6 +53,7 @@ class Node
     bool systemCheckCalled = false;
 
   public:
+    Node(Node *&node, pstring filePath_);
     explicit Node(pstring filePath_);
     pstring getFileName() const;
     PValue getPValue() const;
@@ -73,7 +74,7 @@ class Node
     static Node *getNodeFromNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
 
-    static Node *getHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath);
+    static void addHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath);
     static Node *getHalfNodeFromNormalizedString(pstring_view p);
     static Node *getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist = false);
     static Node *getNotSystemCheckCalledNodeFromPValue(const PValue &pValue);
@@ -87,7 +88,6 @@ class Node
 
   public:
     bool doesNotExist = false;
-    bool halfNode = false;
     static void clearNodes();
 };
 

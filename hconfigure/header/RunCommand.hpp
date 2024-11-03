@@ -15,9 +15,6 @@ struct RunCommand
     pstring commandOutput;
     int exitStatus;
 
-    /* Could be a target or a file. For target (link and archive), we add extra _t at the end of the target name.*/
-    bool isTarget;
-
     // command is 3 parts. 1) tool path 2) command without output and error files 3) output and error files.
     // while print is 2 parts. 1) tool path and command without output and error files. 2) output and error files.
     RunCommand(path toolPath, const pstring &runCommand, pstring printCommand_, bool isTarget_);
@@ -35,9 +32,8 @@ struct PostCompile : RunCommand
                          pstring printCommandFirstHalf);
 
     bool ignoreHeaderFile(pstring_view child) const;
-    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, pstring &output, PValue &headerDepsJson,
-                                     bool mustConsiderHeaderDeps) const;
-    void parseDepsFromGCCDepsOutput(SourceNode &sourceNode, PValue &headerDepsJson, bool mustConsiderHeaderDeps);
+    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, pstring &output, bool mustConsiderHeaderDeps) const;
+    void parseDepsFromGCCDepsOutput(SourceNode &sourceNode, bool mustConsiderHeaderDeps) const;
     void parseHeaderDeps(SourceNode &sourceNode, bool mustConsiderHeaderDeps);
 };
 

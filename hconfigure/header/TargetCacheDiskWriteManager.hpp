@@ -62,6 +62,7 @@ class TargetCacheDiskWriteManager : public BTarget
     void writeNodesCacheIfNewNodesAdded();
     ~TargetCacheDiskWriteManager() override;
     void initialize();
+    void performThreadOperations(bool doUnlockAndRelock);
     void start();
 
     void updateBTarget(Builder &builder, unsigned short round) override;

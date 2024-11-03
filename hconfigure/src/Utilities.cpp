@@ -56,8 +56,7 @@ vector<pstring> split(pstring str, const pstring &token)
     vector<pstring> result;
     while (!str.empty())
     {
-        const pstring::size_type index = str.find(token);
-        if (index != pstring::npos)
+        if (const pstring::size_type index = str.find(token); index != pstring::npos)
         {
             result.emplace_back(str.substr(0, index));
             str = str.substr(index + token.size());

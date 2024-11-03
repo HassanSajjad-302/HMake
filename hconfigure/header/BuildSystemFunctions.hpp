@@ -27,6 +27,10 @@ inline char slashc = '\\';
 inline char slashc = '/';
 #endif
 
+struct IndexedNode
+{
+
+};
 // TODO
 // Explore
 using Json = nlohmann::json; // Unordered json
@@ -35,7 +39,6 @@ inline mutex buildOrConfigCacheMutex;
 inline unique_ptr<vector<pchar>> buildCacheFileBuffer;
 inline PDocument nodesCacheJson(kArrayType);
 inline unique_ptr<vector<pchar>> nodesCacheBuffer;
-inline vector<pstring_view> nodesCacheVector{10000};
 
 inline vector<struct BTarget *> roundEndTargets{10};
 inline std::atomic<uint64_t> roundEndTargetsCount = 0;

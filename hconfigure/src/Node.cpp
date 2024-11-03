@@ -69,13 +69,24 @@ std::size_t NodeHash::operator()(const pstring_view &str) const
     return rapidhash(str.data(), str.size());
 }
 
+Node::Node(Node *&node, pstring filePath_) : filePath(std::move(filePath_))
+{
+    node = this;
+    myId = idCount.fetch_add(1);
+    nodeIndices[myId] = this;
+    ++idCountCompleted;
+}
+
 Node::Node(pstring filePath_) : filePath(std::move(filePath_))
 {
+    myId = reinterpret_cast<uint32_t &>(idCount)++;
+    nodeIndices[myId] = this;
+    ++reinterpret_cast<uint32_t &>(idCountCompleted);
 }
 
 pstring Node::getFileName() const
 {
-    return pstring(filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end());
+    return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end()};
 }
 
 PValue Node::getPValue() const
@@ -109,23 +120,6 @@ path Node::getFinalNodePathFromPath(path filePath)
     }
     return filePath;
 }
-
-class SpinLock
-{
-    std::atomic_flag locked = ATOMIC_FLAG_INIT;
-
-  public:
-    void lock()
-    {
-        while (locked.test_and_set(std::memory_order_acquire))
-        {
-        }
-    }
-    void unlock()
-    {
-        locked.clear(std::memory_order_release);
-    }
-};
 
 void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
 {
@@ -175,9 +169,8 @@ Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool
 
     if (nodeAllFiles.lazy_emplace_l(
             pstring_view(p), [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(p); }))
+            [&](const Map::constructor &constructor) { constructor(node, p); }))
     {
-        nodeAllFiles.if_contains(pstring_view(p), [&](const Node &node_) { node = const_cast<Node *>(&node_); });
     }
 
     node->ensureSystemCheckCalled(isFile, mayNotExist);
@@ -192,9 +185,8 @@ Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile,
 
     if (nodeAllFiles.lazy_emplace_l(
             p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(pstring(p)); }))
+            [&](const Map::constructor &constructor) { constructor(node, pstring(p)); }))
     {
-        nodeAllFiles.if_contains(p, [&](const Node &node_) { node = const_cast<Node *>(&node_); });
     }
 
     node->ensureSystemCheckCalled(isFile, mayNotExist);
@@ -226,26 +218,12 @@ Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const
     return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }
 
-Node *Node::getHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath)
+void Node::addHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath)
 {
-    if (const auto &[it, ok] = nodeAllFiles.emplace(std::move(normalizedFilePath)); ok)
-    {
-        Node &node = const_cast<Node &>(*it);
-        // Why do atomic when it is executed single threaded
-        node.myId = reinterpret_cast<uint32_t &>(idCount)++;
-        nodeIndices[node.myId] = &node;
-        nodesCacheVector[node.myId] = node.filePath;
-        node.halfNode = true;
-        ++reinterpret_cast<uint32_t &>(idCountCompleted);
-        return &node;
-    }
-    else
-    {
-        return const_cast<Node *>(it.operator->());
-    }
+    nodeAllFiles.emplace(std::move(normalizedFilePath));
 }
 
-Node *Node::getHalfNodeFromNormalizedString(pstring_view p)
+Node *Node::getHalfNodeFromNormalizedString(const pstring_view p)
 {
     Node *node = nullptr;
 
@@ -253,14 +231,8 @@ Node *Node::getHalfNodeFromNormalizedString(pstring_view p)
 
     if (nodeAllFiles.lazy_emplace_l(
             p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(pstring(p)); }))
+            [&](const Map::constructor &constructor) { constructor(node, pstring(p)); }))
     {
-        nodeAllFiles.if_contains(p, [&](const Node &node_) { node = const_cast<Node *>(&node_); });
-        node->myId = idCount.fetch_add(1);
-        nodeIndices[node->myId] = node;
-        nodesCacheVector[node->myId] = node->filePath;
-        node->halfNode = true;
-        ++idCountCompleted;
     }
 
     return node;
@@ -282,10 +254,6 @@ Node *Node::getNotSystemCheckCalledNodeFromPValue(const PValue &pValue)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     Node *node = nodeIndices[pValue.GetUint64()];
-    if(node == nullptr)
-    {
-        bool debug = true;
-    }
 #else
     Node *node = getNodeFromNormalizedString(pstring_view(pValue.GetString(), pValue.GetStringLength()), true, false);
 #endif
@@ -389,14 +357,6 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
     FindClose(hFind)*/
     ;
     /////////////////////////////////////
-
-    if (!halfNode)
-    {
-        myId = idCount.fetch_add(1);
-        nodeIndices[myId] = this;
-        nodesCacheVector[myId] = filePath;
-        ++idCountCompleted;
-    }
 }
 
 void Node::clearNodes()

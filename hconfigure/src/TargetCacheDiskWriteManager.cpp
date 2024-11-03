@@ -81,7 +81,8 @@ void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
         //                          nodesSizeBefore, newNodesSize));
         for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
         {
-            nodesCacheJson.PushBack(PValue(nodesCacheVector[i].data(), nodesCacheVector[i].size()), ralloc);
+            nodesCacheJson.PushBack(
+                PValue(Node::nodeIndices[i]->filePath.c_str(), Node::nodeIndices[i]->filePath.size()), ralloc);
         }
         nodesSizeBefore = newNodesSize;
         writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheJson);
@@ -120,52 +121,67 @@ void TargetCacheDiskWriteManager::initialize()
     nodesSizeStart = nodesSizeBefore;
 }
 
+void TargetCacheDiskWriteManager::performThreadOperations(bool doUnlockAndRelock)
+{
+    if (!strCache.empty())
+    {
+        // Should be based on if a new node is entered.
+        strCacheLocal.swap(strCache);
+        pValueCacheLocal.swap(pValueCache);
+        strCache.clear();
+        pValueCache.clear();
+
+        if (doUnlockAndRelock)
+        {
+
+            vecMutex.unlock();
+        }
+
+        writeNodesCacheIfNewNodesAdded();
+
+        if (!pValueCacheLocal.empty())
+        {
+            for (PValueAndIndices &p : pValueCacheLocal)
+            {
+                p.getTargetPValue() = std::move(p.pValue);
+            }
+            writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
+                                        targetCache);
+        }
+        // Copying pvalue from array to central pvalue
+
+        for (ColoredStringForPrint &c : strCacheLocal)
+        {
+            if (c.isColored)
+            {
+                printMessageColor(c.msg, c.color);
+            }
+            else
+            {
+                printMessage(c.msg);
+            }
+        }
+
+        if (doUnlockAndRelock)
+        {
+            vecMutex.lock();
+        }
+    }
+}
+
 void TargetCacheDiskWriteManager::start()
 {
     vecMutex.lock();
 
     while (true)
     {
-        if (!strCache.empty())
-        {
-            // Should be based on if a new node is entered.
-            strCacheLocal.swap(strCache);
-            pValueCacheLocal.swap(pValueCache);
-            strCache.clear();
-            pValueCache.clear();
-
-            vecMutex.unlock();
-
-            writeNodesCacheIfNewNodesAdded();
-
-            if (!pValueCacheLocal.empty())
-            {
-                for (PValueAndIndices &p : pValueCacheLocal)
-                {
-                    p.getTargetPValue() = std::move(p.pValue);
-                }
-                writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
-                                            targetCache);
-            }
-            // Copying pvalue from array to central pvalue
-
-            for (ColoredStringForPrint &c : strCacheLocal)
-            {
-                if (c.isColored)
-                {
-                    printMessageColor(c.msg, c.color);
-                }
-                else
-                {
-                    printMessage(c.msg);
-                }
-            }
-
-            vecMutex.lock();
-        }
-
+        performThreadOperations(true);
         if (exitAfterThis)
         {
+            // Need to do this because other threads might have appended new data while this thread was performing
+            // operations in mutex unlocked state.
+            // But do not need to do unlocking and re-locking since we are exiting after this.
+            performThreadOperations(false);
             break;
         }
         vecCond.wait(vecLock);

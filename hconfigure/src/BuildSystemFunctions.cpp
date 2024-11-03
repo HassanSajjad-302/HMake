@@ -86,7 +86,7 @@ void initializeCache(const BSMode bsMode_)
         // However performSystemCheck is not called and is called in multi-threaded fashion.
         for (PValue &value : nodesCacheJson.GetArray())
         {
-            Node::getHalfNodeFromNormalizedStringSingleThreaded(pstring(value.GetString(), value.GetStringLength()));
+            Node::addHalfNodeFromNormalizedStringSingleThreaded(pstring(value.GetString(), value.GetStringLength()));
         }
         targetCacheDiskWriteManager.initialize();
     }
