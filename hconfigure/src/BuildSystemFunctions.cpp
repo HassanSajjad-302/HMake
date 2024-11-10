@@ -195,15 +195,16 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
     }
 }
 
-void configureOrBuild()
+bool configureOrBuild()
 {
-    Builder{};
+    const Builder b{};
     if (bsMode == BSMode::CONFIGURE)
     {
         cache.registerCacheVariables();
         writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
                                     targetCache);
     }
+    return b.errorHappenedInRoundMode;
 }
 
 void constructGlobals()

@@ -54,12 +54,15 @@ template <typename T> class TarjanNode
 
 template <typename T> void TarjanNode<T>::clearTarjanNodes()
 {
-    for (TarjanNode<T> *i : *tarjanNodes)
+    for (TarjanNode *i : *tarjanNodes)
     {
-        i->nodeIndex = 0;
-        i->lowLink = 0;
-        i->initialized = false;
-        i->onStack = false;
+        if (i)
+        {
+            i->nodeIndex = 0;
+            i->lowLink = 0;
+            i->initialized = false;
+            i->onStack = false;
+        }
     }
 }
 template <typename T> bool operator<(const TarjanNode<T> &lhs, const TarjanNode<T> &rhs);
@@ -87,13 +90,13 @@ template <typename T> void TarjanNode<T>::findSCCS()
 template <typename T> void TarjanNode<T>::strongConnect()
 {
     initialized = true;
-    nodeIndex = TarjanNode<T>::index;
-    lowLink = TarjanNode<T>::index;
-    ++TarjanNode<T>::index;
+    nodeIndex = index;
+    lowLink = index;
+    ++index;
     nodesStack.emplace_back(this);
     onStack = true;
 
-    for (TarjanNode<T> *tarjandep : deps)
+    for (TarjanNode *tarjandep : deps)
     {
         if (!tarjandep->initialized)
         {
@@ -122,7 +125,7 @@ template <typename T> void TarjanNode<T>::strongConnect()
         }
         if (tempCycle.size() > 1)
         {
-            for (TarjanNode *c : tempCycle)
+            for (const TarjanNode *c : tempCycle)
             {
                 cycle.emplace_back(const_cast<T *>(c->id));
             }
@@ -154,7 +157,7 @@ template <typename T> void TarjanNode<T>::checkForCycle()
                                        settings.pcSettings.toolErrorOutput);
             }
         }
-        throw std::exception();
+        exit(EXIT_FAILURE);
     }
 }
 

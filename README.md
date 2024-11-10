@@ -191,9 +191,9 @@ OurTarget b("World");
 OurTarget c("HMake");
 void buildSpecification()
 {
-    a.realBTargets[2].addDependency(b);
-    b.realBTargets[2].addDependency(c);
-    c.realBTargets[2].addDependency(a);
+    a.realBTargets[0].addDependency(b);
+    b.realBTargets[0].addDependency(c);
+    c.realBTargets[0].addDependency(a);
 }
 
 MAIN_FUNCTION
@@ -285,7 +285,7 @@ struct OurTarget : public BTarget
     }
     void updateBTarget(class Builder &builder, unsigned short round) override
     {
-        if (round == 2)
+        if (round == 0)
         {
             for (unsigned short i = low; i < high; ++i)
             {
@@ -293,7 +293,6 @@ struct OurTarget : public BTarget
                 // To simulate a long-running task that continuously outputs.
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
-            printMessage(FORMAT("{}", "\n"));
         }
     }
 };
@@ -304,29 +303,31 @@ struct OurTarget2 : public BTarget
 {
     void updateBTarget(Builder &builder, unsigned short round) override
     {
-        if (round == 2)
+        if (round == 0)
         {
             a = new OurTarget(10, 40);
             b = new OurTarget(50, 80);
             c = new OurTarget(800, 1000);
-            a->realBTargets[2].addDependency(*c);
-            b->realBTargets[2].addDependency(*c);
+            a->realBTargets[0].addDependency(*c);
+            b->realBTargets[0].addDependency(*c);
 
             {
                 std::lock_guard<std::mutex> lk(builder.executeMutex);
                 builder.updateBTargetsIterator = builder.updateBTargets.emplace(builder.updateBTargetsIterator, c);
                 builder.updateBTargetsSizeGoal += 3;
             }
-            builder.cond.notify_all();
+            builder.cond.notify_one();
         }
     }
 };
+
 OurTarget2 target2;
+
 void buildSpecification()
 {
 }
 
-MAIN_FUNCTIONN
+MAIN_FUNCTION
 ```
 
 </details>
@@ -346,8 +347,10 @@ However, you have to take care of the following aspects:
 2. All those targets that do not have any dependency must be added in ```updateBTargets```
    list like we added ```c``` target.
 3. Besides new targets, we can also modify the dependencies of older targets.
-   But not of those whose ```updateBTarget``` is being called or of those who have been
-   added to ```updateBTargets``` list i.e. their ```updateBTarget``` is about to be called.
+   But these targets ```dependenciesSize``` should not be zero.
+   Because if the target ```dependenciesSize``` becomes zero,
+   it is added to the ```updateBTargets``` list.
+   HMake does not allow removing elements from this list.
 4. These data structures must not be modified without ```Builder::executeMutex``` locked.
    And ```Builder::cond``` should be notified if we edit the ```updateBTargets``` list.
 

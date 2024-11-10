@@ -40,14 +40,20 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    const unsigned int launchThreads = settings.maximumBuildThreads - 1;
-    numberOfLaunchedThreads = launchThreads;
-    while (threads.size() != launchThreads - 1)
+    if (const unsigned int launchThreads = settings.maximumBuildThreads; launchThreads)
     {
-        threads.emplace_back(new thread{&Builder::execute, this});
+        numberOfLaunchedThreads = launchThreads;
+        while (threads.size() != launchThreads - 1)
+        {
+            threads.emplace_back(new thread{&Builder::execute, this});
+        }
+        execute();
     }
-    execute();
-
+    else
+    {
+        printErrorMessage("maximumBuildThreads is zero\n");
+        exit(EXIT_FAILURE);
+    }
     for (thread *t : threads)
     {
         t->join();
@@ -281,7 +287,7 @@ void Builder::execute()
 
 void Builder::incrementNumberOfSleepingThreads()
 {
-    if (numberOfSleepingThreads.fetch_add(1) + 1 == numberOfLaunchedThreads)
+    if (numberOfSleepingThreads.fetch_add(1) == numberOfLaunchedThreads - 1)
     {
         try
         {

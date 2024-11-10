@@ -33,6 +33,25 @@ void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const s
         << "hmake build succeeded, however running the application did not produce expected output";
 }
 
+void ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(pstring &output, int32_t exitStatus)
+{
+    if (exists(path("Build")))
+    {
+        remove_all(path("Build"));
+    }
+    create_directory("Build");
+    current_path("Build");
+
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << "First " + hhelperStr + " command failed.";
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << "Second " + hhelperStr + " command failed.";
+
+    const string command = "hbuild > file 2>&1 ";
+    ASSERT_EQ(system(command.c_str()), exitStatus) << "Could Not Run " << command;
+    stringstream outputStream;
+    outputStream << ifstream("file").rdbuf();
+    output = outputStream.str();
+}
+
 void ExamplesTestHelper::recreateBuildDir()
 {
     if (exists(path("Build")))

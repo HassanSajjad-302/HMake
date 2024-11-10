@@ -2,13 +2,12 @@
 #include "BuildSystemFunctions.hpp"
 #include "ExamplesTestHelper.hpp"
 #include "Features.hpp"
-#include "filesystem"
+#include "Utilities.hpp"
 #include "fmt/format.h"
-#include "fstream"
-#include "iostream"
 #include "nlohmann/json.hpp"
-#include "string"
 #include "gtest/gtest.h"
+#include <fstream>
+#include <regex>
 
 using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::path,
     std::filesystem::current_path, std::cout, fmt::format, std::filesystem::remove_all, std::ifstream, std::ofstream;
@@ -135,3 +134,103 @@ TEST(ExamplesTest, Example9)
                                                  "36\n");
 }
 #endif
+
+TEST(AExamplesTest, Example_A1)
+{
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A1"));
+    string output;
+    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_SUCCESS);
+    ASSERT_EQ(output, "Hello\nWorld\n");
+}
+
+TEST(AExamplesTest, Example_A2)
+{
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A2"));
+    string output;
+    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_SUCCESS);
+    ASSERT_EQ(output, "World\nHello\nHello\nWorld\n");
+}
+
+TEST(AExamplesTest, Example_A3)
+{
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A3"));
+    string output;
+    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_SUCCESS);
+    constexpr uint64_t count = 30 * 2 + 200 * 3 + 230;
+    ASSERT_EQ(output.size(), count);
+}
+
+std::string removeColorCodes(const std::string &str)
+{
+    // Regex pattern to match ANSI escape sequences
+    std::regex colorCodeRegex("\x1B\\[[0-9;]*m");
+    // Replace all occurrences of the pattern with an empty string
+    return std::regex_replace(str, colorCodeRegex, "");
+}
+
+TEST(AExamplesTest, Example_A4)
+{
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A4"));
+    string output;
+    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_FAILURE);
+    pstring str = R"(There is a Cyclic-Dependency.
+BTarget 2 Depends On BTarget 1.
+BTarget 1 Depends On BTarget 0.
+BTarget 0 Depends On BTarget 2.
+)";
+    string result = removeColorCodes(output);
+    ASSERT_EQ(result, str);
+}
+
+TEST(AExamplesTest, Example_A5)
+{
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A5"));
+    string output;
+    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_FAILURE);
+    const pstring str = R"(Hello
+World
+Target Ninja runtime error.
+HMake
+XMake
+Target build2 runtime error.
+)";
+    vector<pstring> expected = split(str, "\n");
+    vector<pstring> actual = split(output, "\n");
+    ASSERT_EQ(expected.size(), actual.size());
+    for (pstring &s : actual)
+    {
+        bool found = false;
+        for (pstring &c : expected)
+        {
+            if (s == c)
+            {
+                found = true;
+            }
+        }
+        ASSERT_EQ(found, true);
+    }
+}
+
+TEST(AExamplesTest, Example_A6)
+{
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A6"));
+    string output;
+    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_SUCCESS);
+    constexpr uint64_t count = 60 * 2 + 200 * 3 + 260;
+    ASSERT_EQ(output.size(), count);
+    pstring sub(output.begin() + 400, output.begin() + 407);
+    ASSERT_EQ(sub, "900 901");
+}
+
+TEST(AExamplesTest, Example_A7)
+{
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A7"));
+    string output;
+    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_FAILURE);
+    pstring str = R"(There is a Cyclic-Dependency.
+BTarget 1 Depends On BTarget 0.
+BTarget 0 Depends On BTarget 1.
+)";
+    string result = removeColorCodes(output);
+    ASSERT_EQ(result, str);
+}

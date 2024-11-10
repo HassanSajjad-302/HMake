@@ -107,7 +107,7 @@ void printErrorMessageColor(const pstring &message, uint32_t color);
 pstring getLastNameAfterSlash(pstring_view name);
 pstring_view getLastNameAfterSlashView(pstring_view name);
 pstring removeDashCppFromName(pstring_view name);
-void configureOrBuild();
+bool configureOrBuild();
 void constructGlobals();
 void destructGlobals();
 

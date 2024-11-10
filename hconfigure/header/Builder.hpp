@@ -33,9 +33,10 @@ class Builder
 
     bool updateBTargetFailed = false;
 
+    bool errorHappenedInRoundMode = false;
+
   private:
     bool returnAfterWakeup = false;
-    bool errorHappenedInRoundMode = false;
 
   public:
     explicit Builder();

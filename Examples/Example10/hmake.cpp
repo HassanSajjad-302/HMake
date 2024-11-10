@@ -4,8 +4,8 @@ void buildSpecification()
 {
     getCppExeDSC("app")
         .getSourceTarget()
-        .publicHUIncludes("3rd_party/olcPixelGameEngine")
-        .R_moduleDirectories("modules/", "src/")
+        .publicHUIncludes("ball_pit/3rd_party/olcPixelGameEngine")
+        .rModuleDirectories("ball_pit/modules", "ball_pit/src")
         .assign(CxxSTD::V_LATEST);
 }
 

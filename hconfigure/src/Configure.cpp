@@ -28,8 +28,12 @@ int main2(int argc, char **argv)
         constructGlobals();
         initializeCache(bsMode);
         (*buildSpecificationFuncPtr)();
-        configureOrBuild();
+        const bool errorHappened = configureOrBuild();
         destructGlobals();
+        if (errorHappened)
+        {
+            exit(EXIT_FAILURE);
+        }
     }
     catch (std::exception &ec)
     {
