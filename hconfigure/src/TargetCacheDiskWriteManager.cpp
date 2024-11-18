@@ -22,7 +22,7 @@ PValueAndIndices::PValueAndIndices(PValue _pValue, const uint64_t _index0, const
 
 PValue &PValueAndIndices::getTargetPValue() const
 {
-    PValue &target0 = targetCache;
+    PValue &target0 = buildCache;
     if (index0 == UINT64_MAX)
     {
         return target0;
@@ -145,8 +145,8 @@ void TargetCacheDiskWriteManager::performThreadOperations(bool doUnlockAndRelock
             {
                 p.getTargetPValue() = std::move(p.pValue);
             }
-            writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
-                                        targetCache);
+            writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                        buildCache);
         }
         // Copying pvalue from array to central pvalue
 
@@ -215,8 +215,8 @@ void TargetCacheDiskWriteManager::endOfRound(Builder &builder, unsigned short ro
                 copyJsonBTargets[i]->copyJson();
                 copyJsonBTargets[i] = nullptr;
             }
-            writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
-                                        targetCache);
+            writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                        buildCache);
         }
 
         diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, &targetCacheDiskWriteManager);

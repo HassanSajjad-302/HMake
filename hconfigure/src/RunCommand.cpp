@@ -374,53 +374,10 @@ bool PostCompile::ignoreHeaderFile(const pstring_view child) const
     return false;
 }
 
-static void addHeaderFileViewInHeaderDepsJson(SourceNode &sourceNode, pstring_view headerView)
-{
-
-    PValue &headerDepsJson = sourceNode.sourceJson[Indices::CppTarget::BuildCache::SourceFiles::headerFiles];
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    const Node *node = Node::getHalfNodeFromNormalizedString(headerView);
-    bool found = false;
-    for (const PValue &value : headerDepsJson.GetArray())
-    {
-        if (value.GetUint64() == node->myId)
-        {
-            found = true;
-            break;
-        }
-    }
-    if (!found)
-    {
-        headerDepsJson.PushBack(PValue(node->myId), sourceNode.sourceNodeAllocator);
-    }
-
-#else
-
-    // We need node so that it gets registered in the central nodes.cache
-    const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
-    bool found = false;
-    for (const PValue &value : headerDepsJson.GetArray())
-    {
-        if (compareStringsFromEnd(pstring_view(value.GetString(), value.GetStringLength()), headerNode->filePath))
-        {
-            found = true;
-            break;
-        }
-    }
-    if (!found)
-    {
-        headerDepsJson.PushBack(
-            PValue(PStringRef(headerView.data(), headerView.size()), sourceNode.sourceNodeAllocator),
-            sourceNode.sourceNodeAllocator);
-    }
-
-#endif
-}
-
 void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &output,
                                               const bool mustConsiderHeaderDeps) const
 {
-    PValue &headerDepsJson = sourceNode.sourceJson[Indices::CppTarget::BuildCache::SourceFiles::headerFiles];
+    PValue &headerDepsJson = sourceNode.sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles];
     headerDepsJson.Clear();
 
     const pstring includeFileNote = "Note: including file:";
@@ -490,7 +447,12 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
                     if (mustConsiderHeaderDeps || !ignoreHeaderFile(headerView))
                     {
                         lowerCasePStringOnWindows(const_cast<pchar *>(headerView.data()), headerView.size());
-                        addHeaderFileViewInHeaderDepsJson(sourceNode, headerView);
+
+                        if (const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
+                            !isNodeInPValue(headerDepsJson, *headerNode))
+                        {
+                            headerDepsJson.PushBack(headerNode->getPValue(), sourceNode.sourceNodeAllocator);
+                        }
                     }
                 }
                 else
@@ -526,7 +488,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
 
 void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, const bool mustConsiderHeaderDeps) const
 {
-    PValue &headerDepsJson = sourceNode.sourceJson[Indices::CppTarget::BuildCache::SourceFiles::headerFiles];
+    PValue &headerDepsJson = sourceNode.sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles];
     headerDepsJson.Clear();
     if (mustConsiderHeaderDeps || !sourceNode.ignoreHeaderDeps)
     {

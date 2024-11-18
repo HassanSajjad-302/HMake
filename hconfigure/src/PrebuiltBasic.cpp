@@ -107,10 +107,10 @@ void PrebuiltBasic::updateBTarget(Builder &, const unsigned short round)
 
 void PrebuiltBasic::writeTargetConfigCacheAtConfigureTime()
 {
-    namespace ConfigCache = Indices::LinkTarget::ConfigCache;
+    namespace LinkConfig = Indices::ConfigCache::LinkConfig;
 
     buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    PValue &libDirectoriesConfigCache = buildOrConfigCacheCopy[ConfigCache::requirementLibraryDirectoriesArray];
+    PValue &libDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::requirementLibraryDirectoriesArray];
     libDirectoriesConfigCache.Reserve(requirementLibraryDirectories.size(), cacheAlloc);
 
     for (const LibDirNode &libDirNode : requirementLibraryDirectories)
@@ -119,7 +119,7 @@ void PrebuiltBasic::writeTargetConfigCacheAtConfigureTime()
     }
 
     buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    PValue &useLibDirectoriesConfigCache = buildOrConfigCacheCopy[ConfigCache::usageRequirementLibraryDirectoriesArray];
+    PValue &useLibDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::usageRequirementLibraryDirectoriesArray];
     useLibDirectoriesConfigCache.Reserve(usageRequirementLibraryDirectories.size(), cacheAlloc);
 
     for (const LibDirNode &libDirNode : usageRequirementLibraryDirectories)
@@ -132,16 +132,16 @@ void PrebuiltBasic::writeTargetConfigCacheAtConfigureTime()
 
 void PrebuiltBasic::readConfigCacheAtBuildTime()
 {
-    namespace ConfigCache = Indices::LinkTarget::ConfigCache;
+    namespace LinkConfig = Indices::ConfigCache::LinkConfig;
 
-    PValue &reqLibDirsConfigCache = getConfigCache()[ConfigCache::requirementLibraryDirectoriesArray];
+    PValue &reqLibDirsConfigCache = getConfigCache()[LinkConfig::requirementLibraryDirectoriesArray];
     requirementLibraryDirectories.reserve(reqLibDirsConfigCache.Size());
     for (const PValue &pValue : reqLibDirsConfigCache.GetArray())
     {
         requirementLibraryDirectories.emplace_back(Node::getNodeFromPValue(pValue, false), true);
     }
 
-    PValue &useReqLibDirsConfigCache = getConfigCache()[ConfigCache::usageRequirementLibraryDirectoriesArray];
+    PValue &useReqLibDirsConfigCache = getConfigCache()[LinkConfig::usageRequirementLibraryDirectoriesArray];
     usageRequirementLibraryDirectories.reserve(useReqLibDirsConfigCache.Size());
     for (const PValue &pValue : useReqLibDirsConfigCache.GetArray())
     {

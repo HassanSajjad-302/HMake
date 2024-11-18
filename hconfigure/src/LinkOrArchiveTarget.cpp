@@ -86,7 +86,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         create_directories(buildCacheFilesDirPath);
     }
 
-    namespace LinkTarget = Indices::LinkTarget;
+    namespace LinkBuild = Indices::BuildCache::LinkBuild;
     if (getBuildCache().Empty())
     {
         atomic_ref(fileStatus).store(true);
@@ -102,8 +102,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         {
             // If linkOrArchiveCommandWithoutTargets could be stored with linker.btPath.*toPStr, so only PValue of
             // strings is compared instead of new allocation
-            if (getBuildCache()[LinkTarget::BuildCache::commandWithoutArgumentsWithTools] ==
-                commandWithoutTargetsWithTool.getHash())
+            if (getBuildCache()[LinkBuild::commandWithoutArgumentsWithTools] == commandWithoutTargetsWithTool.getHash())
             {
                 bool needsUpdate = false;
                 if (!evaluate(TargetType::LIBRARY_STATIC))
@@ -126,22 +125,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
                 for (const ObjectFile *objectFile : objectFiles)
                 {
-                    bool contains = false;
-                    for (PValue &o : getBuildCache()[LinkTarget::BuildCache::objectFiles].GetArray())
-                    {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-                        contains = o.GetUint64() == objectFile->objectFileOutputFilePath->myId;
-#else
-                        contains = compareStringsFromEnd(pstring_view(o.GetString(), o.GetStringLength()),
-                                                         objectFile->objectFileOutputFilePath->filePath);
-#endif
-                        if (contains)
-                        {
-                            break;
-                        }
-                    }
-
-                    if (!contains)
+                    if (!isNodeInPValue(getBuildCache()[LinkBuild::objectFiles], *objectFile->objectFileOutputFilePath))
                     {
                         needsUpdate = true;
                         break;
@@ -251,7 +235,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             {
                 PValue *objectFilesPValue;
 
-                namespace LinkTarget = Indices::LinkTarget;
+                namespace LinkBuild = Indices::BuildCache::LinkBuild;
                 if (buildOrConfigCacheCopy.Empty())
                 {
                     buildOrConfigCacheCopy.PushBack(ptoref(name), cacheAlloc);
@@ -262,10 +246,9 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 }
                 else
                 {
-                    namespace BuildCache = LinkTarget::BuildCache;
-                    buildOrConfigCacheCopy[BuildCache::commandWithoutArgumentsWithTools] =
+                    buildOrConfigCacheCopy[LinkBuild::commandWithoutArgumentsWithTools] =
                         commandWithoutTargetsWithTool.getHash();
-                    objectFilesPValue = &buildOrConfigCacheCopy[BuildCache::objectFiles];
+                    objectFilesPValue = &buildOrConfigCacheCopy[LinkBuild::objectFiles];
                     objectFilesPValue->Clear();
                 }
 
@@ -281,14 +264,12 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
                 {
                     postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false,
-                                                                std::move(buildOrConfigCacheCopy), targetCacheIndex,
-                                                                Indices::LinkTarget::buildCache);
+                                                                std::move(buildOrConfigCacheCopy), targetCacheIndex);
                 }
                 else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
                 {
                     postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false,
-                                                                std::move(buildOrConfigCacheCopy), targetCacheIndex,
-                                                                Indices::LinkTarget::buildCache);
+                                                                std::move(buildOrConfigCacheCopy), targetCacheIndex);
                 }
                 fflush(stdout);
             }
@@ -322,7 +303,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             }
         }
 
-        buildCacheFilesDirPath = configureNode->filePath + slashc + name + slashc + "cf" + slashc;
+        buildCacheFilesDirPath = configureNode->filePath + slashc + name + slashc;
         if (bsMode == BSMode::CONFIGURE)
         {
             create_directories(buildCacheFilesDirPath);

@@ -34,16 +34,19 @@ struct IndexedNode
 // TODO
 // Explore
 using Json = nlohmann::json; // Unordered json
-inline PDocument targetCache(kArrayType);
-inline mutex buildOrConfigCacheMutex;
-inline unique_ptr<vector<pchar>> buildCacheFileBuffer;
+
+inline mutex configCacheMutex;
+inline PDocument configCache(kArrayType);
+inline unique_ptr<vector<pchar>> configCacheBuffer;
+inline PDocument buildCache(kArrayType);
+inline unique_ptr<vector<pchar>> buildCacheBuffer;
 inline PDocument nodesCacheJson(kArrayType);
 inline unique_ptr<vector<pchar>> nodesCacheBuffer;
 
 inline vector<struct BTarget *> roundEndTargets{10};
 inline std::atomic<uint64_t> roundEndTargetsCount = 0;
 
-inline auto &ralloc = targetCache.GetAllocator();
+inline auto &ralloc = buildCache.GetAllocator();
 
 // Node representing source directory
 inline class Node *srcNode;

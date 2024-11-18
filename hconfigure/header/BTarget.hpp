@@ -18,7 +18,7 @@ using std::size_t, phmap::flat_hash_map, std::mutex, std::lock_guard, std::atomi
     std::atomic_ref;
 
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
-TarjanNode(const class BTarget *) -> TarjanNode<BTarget>;
+TarjanNode(const BTarget *) -> TarjanNode<BTarget>;
 using TBT = TarjanNode<BTarget>;
 inline vector<vector<TBT *>> tarjanNodesBTargets;
 inline vector<uint32_t> tarjanNodesCount;

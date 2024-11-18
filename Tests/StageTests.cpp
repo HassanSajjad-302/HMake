@@ -174,7 +174,7 @@ TEST(StageTests, Test1)
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "app/");
 
     // Deleting main.cpp.o
-    const path mainDotCppDotOFilePath = testSourcePath / "Build/app-cpp/cf/main.cpp.o";
+    const path mainDotCppDotOFilePath = testSourcePath / "Build/app-cpp/main.cpp.o";
     removeFilePath(mainDotCppDotOFilePath);
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 

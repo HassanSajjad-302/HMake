@@ -507,7 +507,6 @@ template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const pst
     {
         if (bsMode == BSMode::CONFIGURE)
         {
-            namespace ConfigCache = Indices::CppTarget::ConfigCache;
             actuallyAddSourceFileConfigTime(Node::getNodeFromNonNormalizedString(srcFile, true));
         }
         // Initialized in CppSourceTarget round 2
@@ -538,7 +537,6 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const pst
     {
         if (bsMode == BSMode::CONFIGURE)
         {
-            namespace ConfigCache = Indices::CppTarget::ConfigCache;
             actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), false);
         }
         // Initialized in CppSourceTarget round 2
@@ -570,7 +568,6 @@ CppSourceTarget &CppSourceTarget::interfaceFiles(const pstring &modFile, U... mo
     {
         if (bsMode == BSMode::CONFIGURE)
         {
-            namespace ConfigCache = Indices::CppTarget::ConfigCache;
             actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), true);
         }
         // Initialized in CppSourceTarget round 2

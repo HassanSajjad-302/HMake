@@ -75,8 +75,8 @@ void PrebuiltLinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime()
 
 void PrebuiltLinkOrArchiveTarget::readConfigCacheAtBuildTime()
 {
-    namespace LinkTarget = Indices::LinkTarget;
-    const PValue &v = getConfigCache()[LinkTarget::ConfigCache::outputDirectoryNode];
+    namespace LinkConfig = Indices::ConfigCache::LinkConfig;
+    const PValue &v = getConfigCache()[LinkConfig::outputDirectoryNode];
     outputDirectory = pstring(v.GetString(), v.GetStringLength());
-    outputFileNode = Node::getNodeFromPValue(getConfigCache()[LinkTarget::ConfigCache::outputFileNode], true, true);
+    outputFileNode = Node::getNodeFromPValue(getConfigCache()[LinkConfig::outputFileNode], true, true);
 }

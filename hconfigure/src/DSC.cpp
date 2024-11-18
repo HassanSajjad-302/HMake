@@ -71,8 +71,8 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSource
     {
         if (bsMode == BSMode::CONFIGURE)
         {
-            namespace CppTarget = Indices::CppTarget;
-            const PValue &modulesConfigCache = stored->buildOrConfigCacheCopy[CppTarget::ConfigCache::moduleFiles];
+            namespace CppConfig = Indices::ConfigCache::CppConfig;
+            const PValue &modulesConfigCache = stored->buildOrConfigCacheCopy[CppConfig::moduleFiles];
             for (uint64_t i = 0; i < modulesConfigCache.Size(); i = i + 2)
             {
                 if (modulesConfigCache[i + 1].GetBool())

@@ -23,6 +23,7 @@ import <Windows.h>;
 #include <Windows.h>
 #endif
 #endif
+#include <Node.hpp>
 
 // Copied from https://stackoverflow.com/a/208431
 class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>::state_type>
@@ -437,7 +438,7 @@ uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &ele
     return UINT64_MAX;
 }
 
-bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs)
+bool compareStringsFromEnd(const pstring_view lhs, const pstring_view rhs)
 {
     if (lhs.size() != rhs.size())
     {
@@ -453,7 +454,31 @@ bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs)
     return true;
 }
 
-void lowerCasePStringOnWindows(pchar *ptr, uint64_t size)
+uint64_t nodeIndexInPValueArray(const PValue &pvalue, const Node &node)
+{
+    for (uint64_t i = 0; i < pvalue.Size(); ++i)
+    {
+#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+        bool found = pvalue[i].GetUint64() == node.myId;
+#else
+        bool found =
+            compareStringsFromEnd(pstring_view(pvalue[i].GetString(), pvalue[i].GetStringLength()), node.filePath);
+#endif
+
+        if (found)
+        {
+            return i;
+        }
+    }
+    return UINT64_MAX;
+}
+
+bool isNodeInPValue(const PValue &value, const Node &node)
+{
+    return nodeIndexInPValueArray(value, node) != UINT64_MAX;
+}
+
+void lowerCasePStringOnWindows(pchar *ptr, const uint64_t size)
 {
     if constexpr (os == OS::NT)
     {
@@ -464,7 +489,7 @@ void lowerCasePStringOnWindows(pchar *ptr, uint64_t size)
     }
 }
 
-bool childInParentPathRecursiveNormalized(pstring_view parent, pstring_view child)
+bool childInParentPathRecursiveNormalized(const pstring_view parent, const pstring_view child)
 {
     // Adding +1 so we -1 in while loop find_las_not_of so we always give one position before the last found slashc,
     // otherwise it will return same index and it will be a forever loop.

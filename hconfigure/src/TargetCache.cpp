@@ -8,18 +8,18 @@ import "TargetCache.hpp";
 
 TargetCache::TargetCache(const pstring &name)
 {
-    const uint64_t index = pvalueIndexInSubArrayConsidered(targetCache, PValue(ptoref(name)));
+    const uint64_t index = pvalueIndexInSubArrayConsidered(configCache, PValue(ptoref(name)));
 
     if (bsMode == BSMode::CONFIGURE)
     {
         if (index == UINT64_MAX)
         {
-            targetCache.PushBack(PValue(kArrayType), ralloc);
-            PValue *targetCacheLocal = &targetCache[targetCache.Size() - 1];
+            configCache.PushBack(PValue(kArrayType), ralloc);
+            PValue *targetCacheLocal = &configCache[configCache.Size() - 1];
             targetCacheLocal->PushBack(PValue(kStringType).SetString(name.c_str(), name.size(), ralloc), ralloc);
             targetCacheLocal->PushBack(PValue(kArrayType), ralloc);
-            targetCacheLocal->PushBack(PValue(kArrayType), ralloc);
-            targetCacheIndex = targetCache.Size() - 1;
+            buildCache.PushBack(PValue(kArrayType), ralloc);
+            targetCacheIndex = configCache.Size() - 1;
         }
         else
         {
@@ -46,15 +46,15 @@ TargetCache::TargetCache(const pstring &name)
 
 PValue &TargetCache::getConfigCache() const
 {
-    return targetCache[targetCacheIndex][1];
+    return configCache[targetCacheIndex][1];
 }
 PValue &TargetCache::getBuildCache() const
 {
-    return targetCache[targetCacheIndex][2];
+    return buildCache[targetCacheIndex];
 }
 
 void TargetCache::copyBackConfigCacheMutexLocked() const
 {
-    std::lock_guard _(buildOrConfigCacheMutex);
+    std::lock_guard _(configCacheMutex);
     getConfigCache().CopyFrom(buildOrConfigCacheCopy, ralloc);
 }

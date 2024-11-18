@@ -105,6 +105,8 @@ uint64_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
 // This will consider the currentCacheIndex in its search
 uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &element);
 bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs);
+uint64_t nodeIndexInPValueArray(const PValue &pvalue, const class Node &node);
+bool isNodeInPValue(const PValue &value, const Node &node);
 void lowerCasePStringOnWindows(pchar *ptr, uint64_t size);
 bool childInParentPathRecursiveNormalized(pstring_view parent, pstring_view child);
 
@@ -114,13 +116,10 @@ inline vector<class CppSourceTarget *> cppSourceTargets{10000};
 namespace Indices
 {
 
-namespace CppTarget
+namespace ConfigCache
 {
 constexpr static unsigned name = 0;
-constexpr static unsigned configCache = 1;
-constexpr static unsigned buildCache = 2;
-
-namespace ConfigCache
+namespace CppConfig
 {
 constexpr static unsigned reqInclsArray = 0;
 constexpr static unsigned useReqInclsArray = 1;
@@ -128,9 +127,23 @@ constexpr static unsigned reqHUDirsArray = 2;
 constexpr static unsigned useReqHUDirsArray = 3;
 constexpr static unsigned sourceFiles = 4;
 constexpr static unsigned moduleFiles = 5;
-}; // namespace ConfigCache
+} // namespace CppConfig
+
+namespace LinkConfig
+{
+
+constexpr static unsigned requirementLibraryDirectoriesArray = 0;
+constexpr static unsigned usageRequirementLibraryDirectoriesArray = 1;
+constexpr static unsigned outputDirectoryNode = 2;
+constexpr static unsigned outputFileNode = 3;
+
+} // namespace LinkConfig
+
+} // namespace ConfigCache
 
 namespace BuildCache
+{
+namespace CppBuild
 {
 constexpr static unsigned sourceFiles = 0;
 constexpr static unsigned moduleFiles = 1;
@@ -158,7 +171,7 @@ constexpr static unsigned logicalName = 1;
 constexpr static unsigned angle = 2;
 constexpr static unsigned targetIndex = 3;
 constexpr static unsigned myIndex = 4;
-}; // namespace SingleHeaderUnitDep
+} // namespace SingleHeaderUnitDep
 
 namespace SingleModuleDep
 {
@@ -166,9 +179,9 @@ namespace SingleModuleDep
 // resolveRequirePaths, we check that whether we are resolving to the same module.
 constexpr static unsigned fullPath = 0;
 constexpr static unsigned logicalName = 1;
-}; // namespace SingleModuleDep
-}; // namespace ModuleData
-}; // namespace SourceFiles
+} // namespace SingleModuleDep
+} // namespace ModuleData
+} // namespace SourceFiles
 
 namespace ModuleFiles
 {
@@ -180,31 +193,17 @@ constexpr static unsigned smRules = 3;
 namespace SmRules = ModuleData;
 
 constexpr static unsigned compileCommandWithTool = 4;
-}; // namespace ModuleFiles
-}; // namespace BuildCache
-}; // namespace CppTarget
+} // namespace ModuleFiles
+} // namespace CppBuild
 
-namespace LinkTarget
-{
-constexpr static unsigned name = 0;
-constexpr static unsigned configCache = 1;
-constexpr static unsigned buildCache = 2;
-
-namespace ConfigCache
-{
-constexpr static unsigned requirementLibraryDirectoriesArray = 0;
-constexpr static unsigned usageRequirementLibraryDirectoriesArray = 1;
-constexpr static unsigned outputDirectoryNode = 2;
-constexpr static unsigned outputFileNode = 3;
-}; // namespace ConfigCache
-
-namespace BuildCache
+namespace LinkBuild
 {
 constexpr static unsigned commandWithoutArgumentsWithTools = 1;
 constexpr static unsigned objectFiles = 2;
 constexpr static unsigned localLinkCommandWithoutTargets = 3;
-}; // namespace BuildCache
-}; // namespace LinkTarget
-}; // namespace Indices
+} // namespace LinkBuild
+
+} // namespace BuildCache
+} // namespace Indices
 
 #endif // HMAKE_PLATFORMSPECIFIC_HPP

@@ -92,10 +92,24 @@ void initializeCache(const BSMode bsMode_)
     }
 
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
-    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache")); exists(p))
+    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache")); exists(p))
     {
         const pstring str = p.string();
-        buildCacheFileBuffer = readPValueFromCompressedFile(str, targetCache);
+        configCacheBuffer = readPValueFromCompressedFile(str, configCache);
+    }
+    else
+    {
+        if (bsMode == BSMode::BUILD)
+        {
+            printErrorMessage(fmt::format("{} does not exist. Exiting\n", p.string().c_str()));
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache")); exists(p))
+    {
+        const pstring str = p.string();
+        buildCacheBuffer = readPValueFromCompressedFile(str, buildCache);
     }
     else
     {
@@ -201,8 +215,9 @@ bool configureOrBuild()
     if (bsMode == BSMode::CONFIGURE)
     {
         cache.registerCacheVariables();
-        writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("target-cache"),
-                                    targetCache);
+        writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),
+                                    configCache);
+        writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
     }
     return b.errorHappenedInRoundMode;
 }
