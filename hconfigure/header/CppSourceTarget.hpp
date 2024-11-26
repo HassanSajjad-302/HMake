@@ -176,6 +176,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     void setSourceCompileCommandPrintFirstHalf();
     inline pstring &getSourceCompileCommandPrintFirstHalf();
 
+    pstring getDependenciesPString() const;
     void resolveRequirePaths();
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);

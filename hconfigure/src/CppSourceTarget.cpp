@@ -1500,6 +1500,16 @@ pstring &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
     return sourceCompileCommandPrintFirstHalf;
 }
 
+pstring CppSourceTarget::getDependenciesPString() const
+{
+    pstring deps;
+    for (const CSourceTarget *cSourceTarget : requirementDeps)
+    {
+        deps += cSourceTarget->name + '\n';
+    }
+    return deps;
+}
+
 void CppSourceTarget::resolveRequirePaths()
 {
     for (SMFile &smFile : modFileDeps)
@@ -1525,38 +1535,44 @@ void CppSourceTarget::resolveRequirePaths()
             RequireNameTargetId req(id, pstring(require[SingleModuleDep::logicalName].GetString(),
                                                 require[SingleModuleDep::logicalName].GetStringLength()));
 
+            const bool isInterface = req.requireName.contains(':');
+
             using Map = decltype(requirePaths2);
             if (requirePaths2.if_contains(
                     req, [&](const Map::value_type &value) { found = const_cast<SMFile *>(value.second); }))
             {
             }
 
-            const SMFile *found2 = nullptr;
-            for (CSourceTarget *cSourceTarget : requirementDeps)
+            // An interface module is searched only in the module files of the current target.
+            if (!isInterface)
             {
-                if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
+                const SMFile *found2 = nullptr;
+                for (CSourceTarget *cSourceTarget : requirementDeps)
                 {
-                    const auto *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
-                    req.id = cppSourceTarget->id;
-
-                    if (requirePaths2.if_contains(
-                            req, [&](const Map::value_type &value) { found2 = const_cast<SMFile *>(value.second); }))
+                    if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
                     {
-                        if (found)
+                        const auto *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
+                        req.id = cppSourceTarget->id;
+
+                        if (requirePaths2.if_contains(req, [&](const Map::value_type &value) {
+                                found2 = const_cast<SMFile *>(value.second);
+                            }))
                         {
-                            // Module was already found so error-out
-                            printErrorMessageColor(
-                                fmt::format("In target and its dependencies files:\n{}\nModule name:\n {}\n Is Being "
-                                            "Provided By 2 "
-                                            "different files:\n1){}\n2){}\n",
-                                            getTarjanNodeName(),
-                                            pstring(require[SingleModuleDep::logicalName].GetString(),
-                                                    require[SingleModuleDep::logicalName].GetStringLength()),
-                                            found->node->filePath, found->node->filePath),
-                                settings.pcSettings.toolErrorOutput);
-                            throw std::exception();
+                            if (found)
+                            {
+                                // Module was already found so error-out
+                                printErrorMessageColor(
+                                    fmt::format("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
+                                                "from target\n{}\n2){}\n from target\n{}\n",
+                                                getTarjanNodeName(), getDependenciesPString(),
+                                                pstring(require[SingleModuleDep::logicalName].GetString(),
+                                                        require[SingleModuleDep::logicalName].GetStringLength()),
+                                                found->node->filePath, found->node->filePath),
+                                    settings.pcSettings.toolErrorOutput);
+                                throw std::exception();
+                            }
+                            found = found2;
                         }
-                        found = found2;
                     }
                 }
             }
@@ -1568,19 +1584,31 @@ void CppSourceTarget::resolveRequirePaths()
                 {
                     if (require[SingleModuleDep::fullPath] != found->objectFileOutputFilePath->getPValue())
                     {
-                        atomic_ref(const_cast<SMFile &>(smFile).fileStatus).store(true);
+                        atomic_ref(smFile.fileStatus).store(true);
                     }
                 }
                 smFile.pValueObjectFileMapping.emplace_back(&require, found->objectFileOutputFilePath);
             }
             else
             {
-                printErrorMessageColor(
-                    fmt::format("No File in the target\n{}\n or in its dependencies provides this module {}.\n",
-                                getTarjanNodeName(),
-                                pstring(require[SingleModuleDep::logicalName].GetString(),
-                                        require[SingleModuleDep::logicalName].GetStringLength())),
-                    settings.pcSettings.toolErrorOutput);
+                if (isInterface)
+                {
+                    printErrorMessageColor(
+                        fmt::format("No File in the target\n{}\n provides this module\n{}.\n", getTarjanNodeName(),
+                                    pstring(require[SingleModuleDep::logicalName].GetString(),
+                                            require[SingleModuleDep::logicalName].GetStringLength())),
+                        settings.pcSettings.toolErrorOutput);
+                }
+                else
+                {
+                    printErrorMessageColor(
+                        fmt::format(
+                            "No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
+                            getTarjanNodeName(), getDependenciesPString(),
+                            pstring(require[SingleModuleDep::logicalName].GetString(),
+                                    require[SingleModuleDep::logicalName].GetStringLength())),
+                        settings.pcSettings.toolErrorOutput);
+                }
                 throw std::exception();
             }
         }
