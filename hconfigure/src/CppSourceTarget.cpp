@@ -219,6 +219,35 @@ CppSourceTarget::CppSourceTarget(const bool buildExplicit, const pstring &name_,
     initializeCppSourceTarget(targetType, name_);
 }
 
+CppSourceTarget::CppSourceTarget(pstring buildCacheFileDirPath_, const pstring &name_, const TargetType targetType)
+    : CSourceTarget{false, name_}, buildCacheFilesDirPath(std::move(buildCacheFileDirPath_))
+{
+    initializeCppSourceTarget(targetType, name_);
+}
+
+CppSourceTarget::CppSourceTarget(pstring buildCacheFileDirPath_, const bool buildExplicit, const pstring &name_,
+                                 const TargetType targetType)
+    : CSourceTarget{buildExplicit, name_}, buildCacheFilesDirPath(std::move(buildCacheFileDirPath_))
+{
+    initializeCppSourceTarget(targetType, name_);
+}
+
+CppSourceTarget::CppSourceTarget(pstring buildCacheFileDirPath_, const pstring &name_, const TargetType targetType,
+                                 Configuration *configuration_)
+    : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(false, name_, configuration_),
+      buildCacheFilesDirPath(std::move(buildCacheFileDirPath_))
+{
+    initializeCppSourceTarget(targetType, name_);
+}
+
+CppSourceTarget::CppSourceTarget(pstring buildCacheFileDirPath_, const bool buildExplicit, const pstring &name_,
+                                 const TargetType targetType, Configuration *configuration_)
+    : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(buildExplicit, name_, configuration_),
+      buildCacheFilesDirPath(std::move(buildCacheFileDirPath_))
+{
+    initializeCppSourceTarget(targetType, name_);
+}
+
 void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, const pstring &name_)
 {
     compileTargetType = targetType;
@@ -1083,7 +1112,10 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         populateTransitiveProperties();
         adjustHeaderUnitsBTarget.realBTargets[1].addDependency(*this);
 
-        buildCacheFilesDirPath = configureNode->filePath + slashc + name + slashc;
+        if (buildCacheFilesDirPath.empty())
+        {
+            buildCacheFilesDirPath = configureNode->filePath + slashc + name + slashc;
+        }
         if (bsMode == BSMode::BUILD)
         {
             // getCompileCommand will be later on called concurrently therefore need to set this before.

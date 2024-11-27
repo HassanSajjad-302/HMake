@@ -76,9 +76,9 @@ target_include_directories(hconfigure
         PUBLIC 3rdParty/lz4/lib
 )
 
-set(HMAKE_USE_FULL_FILE ON BOOL "use full file or smaller file(compressed, indices, hashed).")
+set(HMAKE_USE_FULL_FILE OFF BOOL "use full file or smaller file(compressed, indices, hashed).")
 
-if ("${HMAKE_USE_FULL_FILE}" MATCHES OFF)
+if ("${HMAKE_USE_FULL_FILE}" MATCHES ON)
     message("HMAKE_USE_FULL_FILE set")
     # Comment out the following to switch from hash to compile-command in the build-log.
     target_compile_definitions(hconfigure PUBLIC USE_COMMAND_HASH)
@@ -120,7 +120,7 @@ add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Examples/Example12/hmake.cpp)
+add_executable(HMakeHelper Projects/Boost/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 

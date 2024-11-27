@@ -15,9 +15,6 @@ TargetCache::TargetCache(const pstring &name)
         if (index == UINT64_MAX)
         {
             configCache.PushBack(PValue(kArrayType), ralloc);
-            PValue *targetCacheLocal = &configCache[configCache.Size() - 1];
-            targetCacheLocal->PushBack(PValue(kStringType).SetString(name.c_str(), name.size(), ralloc), ralloc);
-            targetCacheLocal->PushBack(PValue(kArrayType), ralloc);
             buildCache.PushBack(PValue(kArrayType), ralloc);
             targetCacheIndex = configCache.Size() - 1;
         }
@@ -26,6 +23,7 @@ TargetCache::TargetCache(const pstring &name)
             targetCacheIndex = index;
             getConfigCache().Clear();
         }
+        buildOrConfigCacheCopy.PushBack(PValue(kStringType).SetString(name.c_str(), name.size(), ralloc), ralloc);
     }
     else
     {
@@ -37,7 +35,7 @@ TargetCache::TargetCache(const pstring &name)
         else
         {
             printErrorMessage(fmt::format(
-                "Target {} not found in target-cache.\nMaybe you need to run hhelper first to update the target-cache.",
+                "Target {} not found in config-cache.\nMaybe you need to run hhelper first to update the target-cache.",
                 name));
             exit(EXIT_FAILURE);
         }
@@ -46,7 +44,7 @@ TargetCache::TargetCache(const pstring &name)
 
 PValue &TargetCache::getConfigCache() const
 {
-    return configCache[targetCacheIndex][1];
+    return configCache[targetCacheIndex];
 }
 PValue &TargetCache::getBuildCache() const
 {

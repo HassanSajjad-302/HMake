@@ -57,6 +57,11 @@ bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuratio
 // HMake in future will only be available as module. Hence configuration will-be a split-second process.
 
 // TODO
+// HMake will have produce two distinct binaries for configuring and building. Binary for building will be produced
+// after configuring is done. This will eliminate all the if statements with bsMode eliminating un-necessary branching
+// and improving efficiency.
+
+// TODO
 // HMake is designed to have all the build specification in a single-file. This might not be sufficient for really-big
 // projects. An approach to have a tugboat hmake.cpp that builds the cargo configure.dll, which then builds the project
 // will be explored.

@@ -121,21 +121,22 @@ namespace ConfigCache
 constexpr static unsigned name = 0;
 namespace CppConfig
 {
-constexpr static unsigned reqInclsArray = 0;
-constexpr static unsigned useReqInclsArray = 1;
-constexpr static unsigned reqHUDirsArray = 2;
-constexpr static unsigned useReqHUDirsArray = 3;
-constexpr static unsigned sourceFiles = 4;
-constexpr static unsigned moduleFiles = 5;
+constexpr static unsigned name = 0;
+constexpr static unsigned reqInclsArray = 1;
+constexpr static unsigned useReqInclsArray = 2;
+constexpr static unsigned reqHUDirsArray = 3;
+constexpr static unsigned useReqHUDirsArray = 4;
+constexpr static unsigned sourceFiles = 5;
+constexpr static unsigned moduleFiles = 6;
 } // namespace CppConfig
 
 namespace LinkConfig
 {
-
-constexpr static unsigned requirementLibraryDirectoriesArray = 0;
-constexpr static unsigned usageRequirementLibraryDirectoriesArray = 1;
-constexpr static unsigned outputDirectoryNode = 2;
-constexpr static unsigned outputFileNode = 3;
+constexpr static unsigned name = 0;
+constexpr static unsigned requirementLibraryDirectoriesArray = 1;
+constexpr static unsigned usageRequirementLibraryDirectoriesArray = 2;
+constexpr static unsigned outputDirectoryNode = 3;
+constexpr static unsigned outputFileNode = 4;
 
 } // namespace LinkConfig
 

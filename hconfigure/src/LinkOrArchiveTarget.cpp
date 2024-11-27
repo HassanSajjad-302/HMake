@@ -28,18 +28,34 @@ bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs)
     return lhs.name < rhs.name;
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(const pstring &name_, TargetType targetType)
+LinkOrArchiveTarget::LinkOrArchiveTarget(const pstring &name_, const TargetType targetType)
     : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
                                   name_, false, false)
 {
     linkTargetType = targetType;
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(bool buildExplicit, const pstring &name_, TargetType targetType)
+LinkOrArchiveTarget::LinkOrArchiveTarget(const bool buildExplicit, const pstring &name_, const TargetType targetType)
     : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
                                   name_, buildExplicit, false)
 {
     linkTargetType = targetType;
+}
+
+LinkOrArchiveTarget::LinkOrArchiveTarget(pstring buildCacheFileDirPath_, const pstring &name_,
+                                         const TargetType targetType)
+    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
+                                  name_, false, false),
+      buildCacheFilesDirPath(std::move(buildCacheFileDirPath_))
+{
+}
+
+LinkOrArchiveTarget::LinkOrArchiveTarget(pstring buildCacheFileDirPath_, bool buildExplicit, const pstring &name_,
+                                         TargetType targetType)
+    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
+                                  name_, buildExplicit, false),
+      buildCacheFilesDirPath(std::move(buildCacheFileDirPath_))
+{
 }
 
 pstring LinkOrArchiveTarget::getLinkOrArchiveCommandWithoutTargets()
@@ -303,7 +319,10 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             }
         }
 
-        buildCacheFilesDirPath = configureNode->filePath + slashc + name + slashc;
+        if(buildCacheFilesDirPath.empty())
+        {
+            buildCacheFilesDirPath = configureNode->filePath + slashc + name + slashc;
+        }
         if (bsMode == BSMode::CONFIGURE)
         {
             create_directories(buildCacheFilesDirPath);

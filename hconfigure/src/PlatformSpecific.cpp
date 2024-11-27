@@ -420,10 +420,13 @@ uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &ele
     const uint64_t old = currentTargetIndex;
     for (uint64_t i = currentTargetIndex; i < pvalue.Size(); ++i)
     {
-        if (element == pvalue[i][0])
+        if (const PValue &v = pvalue[i]; !v.Empty())
         {
-            currentTargetIndex = i;
-            return i;
+            if (v[0] == element)
+            {
+                currentTargetIndex = i;
+                return i;
+            }
         }
     }
     for (uint64_t i = 0; i < currentTargetIndex; ++i)

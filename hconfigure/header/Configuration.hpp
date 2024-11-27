@@ -49,10 +49,17 @@ struct Configuration : BTarget
 
     CppSourceTarget &getCppPreprocess(const pstring &name_);
     CppSourceTarget &getCppObject(const pstring &name_);
+    CppSourceTarget &getCppObject(bool explicitBuild, const pstring &buildCacheFilesDirPath_, const pstring &name_);
     PrebuiltBasic &getPrebuiltBasic(const pstring &name_) const;
     LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(const pstring &name_);
+    LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                                   const pstring &name_);
     LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(const pstring &name_);
+    LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                                      const pstring &name_);
     LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(const pstring &name_);
+    LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                                      const pstring &name_);
 
     PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTarget(const pstring &name_, const pstring &directory,
                                                                 TargetType linkTargetType_);
@@ -62,11 +69,23 @@ struct Configuration : BTarget
     // CSourceTarget &GetCPT();
 
     DSC<CppSourceTarget> &getCppExeDSC(const pstring &name_, bool defines = false, pstring define = "");
+    DSC<CppSourceTarget> &getCppExeDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_, const pstring &name_,
+                                       bool defines = false, pstring define = "");
     DSC<CppSourceTarget> &getCppTargetDSC(const pstring &name_, TargetType targetType_ = cache.libraryType,
                                           bool defines = false, pstring define = "");
+    DSC<CppSourceTarget> &getCppTargetDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_, const pstring &name_,
+                                          TargetType targetType_ = cache.libraryType, bool defines = false,
+                                          pstring define = "");
     DSC<CppSourceTarget> &getCppStaticDSC(const pstring &name_, bool defines = false, pstring define = "");
+    DSC<CppSourceTarget> &getCppStaticDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_, const pstring &name_,
+                                          bool defines = false, pstring define = "");
     DSC<CppSourceTarget> &getCppSharedDSC(const pstring &name_, bool defines = false, pstring define = "");
+    DSC<CppSourceTarget> &getCppSharedDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_, const pstring &name_,
+                                          bool defines = false, pstring define = "");
     DSC<CppSourceTarget> &getCppObjectDSC(const pstring &name_, bool defines = false, pstring define = "");
+
+    DSC<CppSourceTarget> &getCppObjectDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_, const pstring &name_,
+                                          bool defines = false, pstring define = "");
 
     // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
 

@@ -3,6 +3,7 @@
 // minimp3, and, from directories as src/Win32/, all header units were successfully compiled. Adding  a header-unit from
 // one of these causes compilation error. Not investigating for now.
 
+#include "BoostCppTarget.hpp"
 #include "Configure.hpp"
 
 using std::filesystem::directory_iterator;
@@ -57,7 +58,12 @@ void configurationSpecification(Configuration &configuration)
      */
 
     // callable_traits
-    DSC<CppSourceTarget> &callableTraits = configuration.getCppObjectDSC("callable_traits").privateLibraries(&stdhu);
+
+    BoostCppTarget boostCppTarget("callableTraits", &configuration, true);
+    boostCppTarget.mainTarget.
+    boostCppTarget.addTestDirectory("/libs/callable_traits/test");
+
+    /*DSC<CppSourceTarget> &callableTraits = configuration.getCppObjectDSC("callable_traits").privateLibraries(&stdhu);
     if (tests == TESTS::YES)
     {
         for (const auto &k : directory_iterator(path(srcNode->filePath + "/libs/callable_traits/test")))
@@ -76,9 +82,9 @@ void configurationSpecification(Configuration &configuration)
                 target2.getSourceTarget().moduleFiles(k.path().string()).privateCompileDefinition("USE_LAZY_TYPES");
             }
         }
-    }
+    }*/
 
-    if (examples == EXAMPLES::YES)
+    /*if (examples == EXAMPLES::YES)
     {
         for (const auto &k : directory_iterator(path(srcNode->filePath + "/libs/callable_traits/example")))
         {
@@ -117,7 +123,7 @@ void configurationSpecification(Configuration &configuration)
                 DSC<CppSourceTarget> &target =
                     configuration.getCppExeDSC("test_hof_" + k.path().filename().string()).privateLibraries(&stdhu);
                 target.getSourceTarget().moduleFiles(k.path().string());
-            }*/
+            }#1#
         }
     }
     // hof example has no Jamfile
@@ -151,7 +157,7 @@ void configurationSpecification(Configuration &configuration)
                     configuration.getCppExeDSC("test_leaf_" + k.path().filename().string()).privateLibraries(&stdhu);
                 target.getSourceTarget().moduleFiles(k.path().string());
             }
-        }*/
+        }#1#
     }
 
     DSC<CppSourceTarget> &mp11 = configuration.getCppObjectDSC("mp11").privateLibraries(&stdhu);
@@ -244,12 +250,12 @@ void configurationSpecification(Configuration &configuration)
                     .moduleFiles(k.path().string())
                     .privateCompileDefinition("BOOST_QVM_TEST_SINGLE_HEADER",
                                                 addEscapedQuotes("libs/qvm/include/boost/qvm_lite.hpp"));
-                                                */
+                                                #1#
 
                 /*DSC<CppSourceTarget> &target2 =
                     configuration.getCppExeDSC("test_qvm_" + k.path().filename().string() +
                 "__lazy").privateLibraries(&stdhu);
-                target2.getSourceTarget().moduleFiles(k.path().string()).privateCompileDefinition("USE_LAZY_TYPES");*/
+                target2.getSourceTarget().moduleFiles(k.path().string()).privateCompileDefinition("USE_LAZY_TYPES");#1#
             }
         }
     }
@@ -268,7 +274,7 @@ void configurationSpecification(Configuration &configuration)
                 target.getSourceTarget().moduleFiles(k.path().string());
             }
         }
-    }
+    }*/
 }
 
 void buildSpecification()

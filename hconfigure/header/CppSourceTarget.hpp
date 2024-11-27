@@ -203,6 +203,12 @@ class CppSourceTarget : public CppCompilerFeatures,
     CppSourceTarget(bool buildExplicit, const pstring &name_, TargetType targetType);
     CppSourceTarget(const pstring &name_, TargetType targetType, Configuration *configuration_);
     CppSourceTarget(bool buildExplicit, const pstring &name_, TargetType targetType, Configuration *configuration_);
+
+    CppSourceTarget(pstring buildCacheFileDirPath_, const pstring &name_, TargetType targetType);
+    CppSourceTarget(pstring buildCacheFileDirPath_, bool buildExplicit, const pstring &name_, TargetType targetType);
+    CppSourceTarget(pstring buildCacheFileDirPath_, const pstring &name_, TargetType targetType, Configuration *configuration_);
+    CppSourceTarget(pstring buildCacheFileDirPath_, bool buildExplicit, const pstring &name_, TargetType targetType, Configuration *configuration_);
+
     void initializeCppSourceTarget(TargetType targetType, const pstring &name_);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,

@@ -45,6 +45,15 @@ CppSourceTarget &Configuration::getCppObject(const pstring &name_)
     return cppSourceTarget;
 }
 
+CppSourceTarget &Configuration::getCppObject(bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                             const pstring &name_)
+{
+    CppSourceTarget &cppSourceTarget = targets2<CppSourceTarget>.emplace_back(
+        buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::LIBRARY_OBJECT, this);
+    cppSourceTargets.emplace_back(&cppSourceTarget);
+    return cppSourceTarget;
+}
+
 PrebuiltBasic &Configuration::getPrebuiltBasic(const pstring &name_) const
 {
     PrebuiltBasic &prebuiltBasic =
@@ -64,6 +73,19 @@ LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(const pstring &nam
     return linkOrArchiveTarget;
 }
 
+LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(bool explicitBuild,
+                                                              const pstring &buildCacheFilesDirPath_,
+                                                              const pstring &name_)
+{
+    LinkOrArchiveTarget &linkOrArchiveTarget = targets2<LinkOrArchiveTarget>.emplace_back(
+        buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::EXECUTABLE);
+    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
+    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
+    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
+    return linkOrArchiveTarget;
+}
+
 LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(const pstring &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget =
@@ -75,10 +97,36 @@ LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(const pstring &
     return linkOrArchiveTarget;
 }
 
+LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(bool explicitBuild,
+                                                                 const pstring &buildCacheFilesDirPath_,
+                                                                 const pstring &name_)
+{
+    LinkOrArchiveTarget &linkOrArchiveTarget = targets2<LinkOrArchiveTarget>.emplace_back(
+        buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::LIBRARY_STATIC);
+    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
+    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
+    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
+    return linkOrArchiveTarget;
+}
+
 LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTarget(const pstring &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget =
         targets2<LinkOrArchiveTarget>.emplace_back(name + slashc + name_, TargetType::LIBRARY_SHARED);
+    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
+    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
+    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
+    return linkOrArchiveTarget;
+}
+
+LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTarget(bool explicitBuild,
+                                                                 const pstring &buildCacheFilesDirPath_,
+                                                                 const pstring &name_)
+{
+    LinkOrArchiveTarget &linkOrArchiveTarget = targets2<LinkOrArchiveTarget>.emplace_back(
+        buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::LIBRARY_SHARED);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
     static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
@@ -135,6 +183,14 @@ DSC<CppSourceTarget> &Configuration::getCppExeDSC(const pstring &name_, const bo
                                                        &GetExeLinkOrArchiveTarget(name_), defines, std::move(define));
 }
 
+DSC<CppSourceTarget> &Configuration::getCppExeDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                                  const pstring &name_, const bool defines, pstring define)
+{
+    return targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
+        &GetExeLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define));
+}
+
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const pstring &name_, const TargetType targetType_,
                                                      const bool defines, pstring define)
 {
@@ -149,10 +205,33 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const pstring &name_, const
     return getCppObjectDSC(name_, defines, std::move(define));
 }
 
+DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                                     const pstring &name_, const TargetType targetType_,
+                                                     const bool defines, pstring define)
+{
+    if (targetType_ == TargetType::LIBRARY_STATIC)
+    {
+        return getCppStaticDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define));
+    }
+    if (targetType_ == TargetType::LIBRARY_SHARED)
+    {
+        return getCppSharedDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define));
+    }
+    return getCppObjectDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define));
+}
+
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC(const pstring &name_, const bool defines, pstring define)
 {
     return targets2<DSC<CppSourceTarget>>.emplace_back(
         &getCppObject(name_ + dashCpp), &getStaticLinkOrArchiveTarget(name_), defines, std::move(define));
+}
+
+DSC<CppSourceTarget> &Configuration::getCppStaticDSC(const bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                                     const pstring &name_, const bool defines, pstring define)
+{
+    return targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
+        &getStaticLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppSharedDSC(const pstring &name_, const bool defines, pstring define)
@@ -161,10 +240,26 @@ DSC<CppSourceTarget> &Configuration::getCppSharedDSC(const pstring &name_, const
         &getCppObject(name_ + dashCpp), &getSharedLinkOrArchiveTarget(name_), defines, std::move(define));
 }
 
+DSC<CppSourceTarget> &Configuration::getCppSharedDSC(const bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                                     const pstring &name_, const bool defines, pstring define)
+{
+    return targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
+        &getSharedLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define));
+}
+
 DSC<CppSourceTarget> &Configuration::getCppObjectDSC(const pstring &name_, const bool defines, pstring define)
 {
     return targets2<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp), &getPrebuiltBasic(name_),
                                                        defines, std::move(define));
+}
+
+DSC<CppSourceTarget> &Configuration::getCppObjectDSC(const bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                                     const pstring &name_, const bool defines, pstring define)
+{
+    return targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp), &getPrebuiltBasic(name_), defines,
+        std::move(define));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const pstring &name_, const pstring &directory,

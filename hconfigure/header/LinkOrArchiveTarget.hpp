@@ -71,6 +71,8 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
 
     LinkOrArchiveTarget(const pstring &name_, TargetType targetType);
     LinkOrArchiveTarget(bool buildExplicit, const pstring &name_, TargetType targetType);
+    LinkOrArchiveTarget(pstring buildCacheFileDirPath_, const pstring &name_, TargetType targetType);
+    LinkOrArchiveTarget(pstring buildCacheFileDirPath_, bool buildExplicit, const pstring &name_, TargetType targetType);
 
     virtual pstring getLinkOrArchiveCommandWithoutTargets();
 
