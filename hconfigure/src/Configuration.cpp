@@ -177,18 +177,35 @@ CSourceTarget &Configuration::GetCPT()
 }
 */
 
+DSC<CppSourceTarget> &Configuration::addStdCppDep(DSC<CppSourceTarget> &target)
+{
+    if (evaluate(AssignStandardCppTarget::YES))
+    {
+        if (!stdCppTarget)
+        {
+            throw std::exception(
+                fmt::format(
+                    "Standard Cpp Target not is nullptr in configuration {}\n.Trying to add it as dep of target {}\n",
+                    name, target.getSourceTarget().name)
+                    .c_str());
+        }
+        target.privateLibraries(stdCppTarget);
+    }
+    return target;
+}
+
 DSC<CppSourceTarget> &Configuration::getCppExeDSC(const pstring &name_, const bool defines, pstring define)
 {
-    return targets2<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp),
-                                                       &GetExeLinkOrArchiveTarget(name_), defines, std::move(define));
+    return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(name_ + dashCpp), &GetExeLinkOrArchiveTarget(name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppExeDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_,
                                                   const pstring &name_, const bool defines, pstring define)
 {
-    return targets2<DSC<CppSourceTarget>>.emplace_back(
+    return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
         &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
-        &GetExeLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define));
+        &GetExeLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const pstring &name_, const TargetType targetType_,
@@ -196,13 +213,13 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const pstring &name_, const
 {
     if (targetType_ == TargetType::LIBRARY_STATIC)
     {
-        return getCppStaticDSC(name_, defines, std::move(define));
+        return addStdCppDep(getCppStaticDSC(name_, defines, std::move(define)));
     }
     if (targetType_ == TargetType::LIBRARY_SHARED)
     {
-        return getCppSharedDSC(name_, defines, std::move(define));
+        return addStdCppDep(getCppSharedDSC(name_, defines, std::move(define)));
     }
-    return getCppObjectDSC(name_, defines, std::move(define));
+    return addStdCppDep(getCppObjectDSC(name_, defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const bool explicitBuild, const pstring &buildCacheFilesDirPath_,
@@ -211,55 +228,55 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const bool explicitBuild, c
 {
     if (targetType_ == TargetType::LIBRARY_STATIC)
     {
-        return getCppStaticDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define));
+        return addStdCppDep(getCppStaticDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define)));
     }
     if (targetType_ == TargetType::LIBRARY_SHARED)
     {
-        return getCppSharedDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define));
+        return addStdCppDep(getCppSharedDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define)));
     }
-    return getCppObjectDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define));
+    return addStdCppDep(getCppObjectDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC(const pstring &name_, const bool defines, pstring define)
 {
-    return targets2<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObject(name_ + dashCpp), &getStaticLinkOrArchiveTarget(name_), defines, std::move(define));
+    return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(name_ + dashCpp), &getStaticLinkOrArchiveTarget(name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC(const bool explicitBuild, const pstring &buildCacheFilesDirPath_,
                                                      const pstring &name_, const bool defines, pstring define)
 {
-    return targets2<DSC<CppSourceTarget>>.emplace_back(
+    return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
         &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
-        &getStaticLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define));
+        &getStaticLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppSharedDSC(const pstring &name_, const bool defines, pstring define)
 {
-    return targets2<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObject(name_ + dashCpp), &getSharedLinkOrArchiveTarget(name_), defines, std::move(define));
+    return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(name_ + dashCpp), &getSharedLinkOrArchiveTarget(name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppSharedDSC(const bool explicitBuild, const pstring &buildCacheFilesDirPath_,
                                                      const pstring &name_, const bool defines, pstring define)
 {
-    return targets2<DSC<CppSourceTarget>>.emplace_back(
+    return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
         &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
-        &getSharedLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define));
+        &getSharedLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppObjectDSC(const pstring &name_, const bool defines, pstring define)
 {
-    return targets2<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp), &getPrebuiltBasic(name_),
-                                                       defines, std::move(define));
+    return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(name_ + dashCpp), &getPrebuiltBasic(name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppObjectDSC(const bool explicitBuild, const pstring &buildCacheFilesDirPath_,
                                                      const pstring &name_, const bool defines, pstring define)
 {
-    return targets2<DSC<CppSourceTarget>>.emplace_back(
+    return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
         &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp), &getPrebuiltBasic(name_), defines,
-        std::move(define));
+        std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const pstring &name_, const pstring &directory,
@@ -267,11 +284,11 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const pstring &name_, con
 {
     if (targetType_ == TargetType::LIBRARY_STATIC)
     {
-        return getCppStaticDSC_P(name_, directory, defines, define);
+        return addStdCppDep(getCppStaticDSC_P(name_, directory, defines, define));
     }
     if (targetType_ == TargetType::LIBRARY_SHARED)
     {
-        return getCppSharedDSC_P(name_, directory, defines, define);
+        return addStdCppDep(getCppSharedDSC_P(name_, directory, defines, define));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
     throw std::exception{};
@@ -284,13 +301,13 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const pstring &name_, con
     CppSourceTarget *cppSourceTarget = &getCppObject(name_ + dashCpp);
     if (targetType_ == TargetType::LIBRARY_STATIC)
     {
-        return targets2<DSC<CppSourceTarget>>.emplace_back(
-            cppSourceTarget, &getStaticPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines);
+        return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
+            cppSourceTarget, &getStaticPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines));
     }
     if (targetType_ == TargetType::LIBRARY_SHARED)
     {
-        return targets2<DSC<CppSourceTarget>>.emplace_back(
-            cppSourceTarget, &getSharedPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines);
+        return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
+            cppSourceTarget, &getSharedPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
     throw std::exception{};
@@ -299,17 +316,17 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const pstring &name_, con
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC_P(const pstring &name_, const pstring &directory,
                                                        const bool defines, pstring define)
 {
-    return targets2<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp),
-                                                       &getStaticPrebuiltLinkOrArchiveTarget(name_, directory), defines,
-                                                       std::move(define));
+    return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(name_ + dashCpp), &getStaticPrebuiltLinkOrArchiveTarget(name_, directory), defines,
+        std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppSharedDSC_P(const pstring &name_, const pstring &directory,
                                                        const bool defines, pstring define)
 {
-    return targets2<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp),
-                                                       &getSharedPrebuiltLinkOrArchiveTarget(name_, directory), defines,
-                                                       std::move(define));
+    return addStdCppDep(targets2<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(name_ + dashCpp), &getSharedPrebuiltLinkOrArchiveTarget(name_, directory), defines,
+        std::move(define)));
 }
 
 bool Configuration::getUseMiniTarget() const

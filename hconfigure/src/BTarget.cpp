@@ -71,8 +71,10 @@ BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), Re
 {
     id = atomic_ref(total).fetch_add(1);
 }
-BTarget::BTarget(pstring name_, bool buildExplicit, bool makeDirectory)
-    : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}, name(lowerCase(std::move(name_)))
+
+BTarget::BTarget(pstring name_, const bool buildExplicit_, bool makeDirectory)
+    : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}, name(lowerCase(std::move(name_))),
+      buildExplicit(buildExplicit_)
 {
     id = atomic_ref(total).fetch_add(1);
 }
@@ -83,10 +85,10 @@ BTarget::BTarget(const bool add0, const bool add1, const bool add2)
     id = atomic_ref(total).fetch_add(1);
 }
 
-BTarget::BTarget(pstring name_, bool buildExplicit, bool makeDirectory, const bool add0, const bool add1,
+BTarget::BTarget(pstring name_, const bool buildExplicit_, bool makeDirectory, const bool add0, const bool add1,
                  const bool add2)
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)},
-      name(lowerCase(std::move(name_)))
+      name(lowerCase(std::move(name_))), buildExplicit(buildExplicit_)
 {
     id = atomic_ref(total).fetch_add(1);
 }

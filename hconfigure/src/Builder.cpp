@@ -32,7 +32,14 @@ Builder::Builder()
         {
             updateBTargets.emplace_back(target);
         }
-        target->setSelectiveBuild();
+        if (target->buildExplicit)
+        {
+
+        }
+        else
+        {
+            target->setSelectiveBuild();
+        }
     }
 
     updateBTargetsIterator = updateBTargets.begin();
@@ -133,6 +140,7 @@ void Builder::execute()
                                     RealBTarget &localReal = localBTarget.realBTargets[0];
 
                                     localReal.indexInTopologicalSort = topSize - (i + 1);
+
                                     if (localBTarget.selectiveBuild)
                                     {
                                         for (auto &[dependency, bTargetDepType] : localReal.dependencies)

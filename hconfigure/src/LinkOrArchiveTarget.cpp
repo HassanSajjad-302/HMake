@@ -42,19 +42,19 @@ LinkOrArchiveTarget::LinkOrArchiveTarget(const bool buildExplicit, const pstring
     linkTargetType = targetType;
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(pstring buildCacheFileDirPath_, const pstring &name_,
+LinkOrArchiveTarget::LinkOrArchiveTarget(const pstring &buildCacheFileDirPath_, const pstring &name_,
                                          const TargetType targetType)
-    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
-                                  name_, false, false),
-      buildCacheFilesDirPath(std::move(buildCacheFileDirPath_))
+    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), buildCacheFileDirPath_, targetType, name_, false,
+                                  false),
+      buildCacheFilesDirPath(buildCacheFileDirPath_)
 {
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(pstring buildCacheFileDirPath_, bool buildExplicit, const pstring &name_,
-                                         TargetType targetType)
-    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
-                                  name_, buildExplicit, false),
-      buildCacheFilesDirPath(std::move(buildCacheFileDirPath_))
+LinkOrArchiveTarget::LinkOrArchiveTarget(const pstring &buildCacheFileDirPath_, const bool buildExplicit,
+                                         const pstring &name_, const TargetType targetType)
+    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), buildCacheFileDirPath_, targetType, name_,
+                                  buildExplicit, false),
+      buildCacheFilesDirPath(buildCacheFileDirPath_)
 {
 }
 
@@ -319,7 +319,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             }
         }
 
-        if(buildCacheFilesDirPath.empty())
+        if (buildCacheFilesDirPath.empty())
         {
             buildCacheFilesDirPath = configureNode->filePath + slashc + name + slashc;
         }

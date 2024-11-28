@@ -19,24 +19,6 @@ import <GetTarget.hpp>;
 
 using std::filesystem::directory_iterator;
 
-/*
-namespace Indices::ConfigCache::BoostCppTarget
-{
-inline constexpr unsigned target = 0;
-namespace Target
-{
-inline constexpr unsigned name = 0;
-inline constexpr unsigned targetType = 1;
-} // namespace Target
-inline constexpr unsigned targetSize = 2;
-
-namespace Example
-{
-}
-
-} // namespace Indices::ConfigCache::BoostCppTarget
-
-*/
 static DSC<CppSourceTarget> &getMainTarget(const pstring &name, Configuration *configuration, const bool headerOnly)
 {
     pstring buildCacheFilesDirPath = configureNode->filePath + slashc + configuration->name + slashc + name;
@@ -52,11 +34,7 @@ BoostCppTarget::BoostCppTarget(const pstring &name, Configuration *configuration
     : TargetCache("Boost_" + name), configuration(configuration_),
       mainTarget(getMainTarget(name, configuration_, headerOnly))
 {
-    if (bsMode == BSMode::CONFIGURE)
-    {
-        // buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    }
-    else
+    if (bsMode == BSMode::BUILD)
     {
         PValue &targetConfigCache = getConfigCache();
         if (targetConfigCache.Size() < 2)
@@ -68,14 +46,17 @@ BoostCppTarget::BoostCppTarget(const pstring &name, Configuration *configuration
             PValue &testName = targetConfigCache[i];
             auto boostExampleOrTest = static_cast<BoostExampleOrTestType>(targetConfigCache[i + 1].GetUint());
 
-            // TODO
-            // Different buildCachesFilesDirPath needed for different purposes.
-            pstring buildCacheFilesDirPath =
-                configureNode->filePath + slashc + mainTarget.getPrebuiltBasicTarget().name + slashc + "Tests" + slashc;
-            examplesOrTests.emplace_back(
-                &configuration->getCppExeDSC(true, std::move(buildCacheFilesDirPath),
-                                             pstring(testName.GetString(), testName.GetStringLength())),
-                boostExampleOrTest);
+            if (boostExampleOrTest != BoostExampleOrTestType::EXAMPLE)
+            {
+                pstring buildCacheFilesDirPath = configureNode->filePath + slashc +
+                                                 mainTarget.getPrebuiltBasicTarget().name + slashc + "Tests" + slashc;
+                examplesOrTests.emplace_back(
+                    &configuration
+                         ->getCppExeDSC(configuration->evaluate(TestsExplicit::YES), buildCacheFilesDirPath,
+                                        pstring(testName.GetString(), testName.GetStringLength()))
+                         .privateLibraries(&mainTarget),
+                    boostExampleOrTest);
+            }
         }
     }
 }
@@ -89,7 +70,7 @@ void BoostCppTarget::addTestDirectory(const pstring &dir)
 {
     // TODO
     // Check that configuration has Tests defined. For now assuming it has. Also, these tests are not run.
-    if (bsMode == BSMode::CONFIGURE)
+    if (bsMode == BSMode::CONFIGURE && configuration->evaluate(BuildTests::YES))
     {
         for (const auto &k : directory_iterator(path(srcNode->filePath + dir)))
         {
@@ -104,7 +85,8 @@ void BoostCppTarget::addTestDirectory(const pstring &dir)
                 const Node *node = Node::getNodeFromNormalizedPath(k.path(), true);
                 pstring buildCacheFilesDirPath = configureNode->filePath + slashc +
                                                  mainTarget.getPrebuiltBasicTarget().name + slashc + "Tests" + slashc;
-                configuration->getCppExeDSC(true, buildCacheFilesDirPath, name)
+                configuration->getCppExeDSC(configuration->evaluate(TestsExplicit::YES), buildCacheFilesDirPath, name)
+                    .privateLibraries(&mainTarget)
                     .getSourceTarget()
                     .moduleFiles(node->filePath);
             }

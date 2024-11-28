@@ -35,6 +35,7 @@ struct IndexedNode
 // Explore
 using Json = nlohmann::json; // Unordered json
 
+inline flat_hash_set<pstring_view> cmdTargets;
 inline mutex configCacheMutex;
 inline PDocument configCache(kArrayType);
 inline unique_ptr<vector<pchar>> configCacheBuffer;

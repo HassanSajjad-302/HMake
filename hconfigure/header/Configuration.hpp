@@ -18,21 +18,72 @@ using std::shared_ptr;
 
 class CppSourceTarget;
 
-enum class GenerateModuleData
+enum class GenerateModuleData : char
 {
     NO,
     YES,
 };
 
-enum class UseModuleData
+enum class UseModuleData : char
 {
     NO,
     YES,
 };
 
-// TODO
-// HollowConfiguration type which is very similar to Configuration except it does not inherit from CTarget which means
-// CppSourceTarget etc could be created with a properties preset but a new Configuration Directory will not be created
+enum class AssignStandardCppTarget : char
+{
+    NO,
+    YES,
+};
+
+enum class BuildTests : char
+{
+    NO,
+    YES,
+};
+
+enum class BuildExamples : char
+{
+    NO,
+    YES,
+};
+
+enum class TestsExplicit : char
+{
+    NO,
+    YES,
+};
+
+enum class ExamplesExplicit : char
+{
+    NO,
+    YES,
+};
+
+enum class BuildTestsExplicitBuild : char
+{
+    NO,
+    YES,
+};
+
+enum class BuildExamplesExplicitBuild : char
+{
+    NO,
+    YES,
+};
+
+enum class BuildTestsAndExamples : char
+{
+    NO,
+    YES,
+};
+
+enum class BuildTestsAndExamplesExplicitBuild : char
+{
+    NO,
+    YES,
+};
+
 struct Configuration : BTarget
 {
     vector<CppSourceTarget *> cppSourceTargets;
@@ -45,6 +96,13 @@ struct Configuration : BTarget
     LinkerFeatures linkerFeatures;
     TargetType targetType = TargetType::LIBRARY_STATIC;
     GenerateModuleData generateModuleData = GenerateModuleData::NO;
+    AssignStandardCppTarget assignStandardCppTarget = AssignStandardCppTarget::NO;
+    BuildTests buildTests = BuildTests::NO;
+    BuildExamples buildExamples = BuildExamples::NO;
+    TestsExplicit testsExplicit = TestsExplicit::NO;
+    ExamplesExplicit examplesExplicit = ExamplesExplicit::NO;
+
+    DSC<CppSourceTarget> *stdCppTarget = nullptr;
     bool archiving = false;
 
     CppSourceTarget &getCppPreprocess(const pstring &name_);
@@ -65,6 +123,7 @@ struct Configuration : BTarget
                                                                 TargetType linkTargetType_);
     PrebuiltLinkOrArchiveTarget &getStaticPrebuiltLinkOrArchiveTarget(const pstring &name_, const pstring &directory);
     PrebuiltLinkOrArchiveTarget &getSharedPrebuiltLinkOrArchiveTarget(const pstring &name_, const pstring &directory);
+    DSC<CppSourceTarget> &addStdCppDep(DSC<CppSourceTarget> &target);
 
     // CSourceTarget &GetCPT();
 
@@ -73,19 +132,19 @@ struct Configuration : BTarget
                                        bool defines = false, pstring define = "");
     DSC<CppSourceTarget> &getCppTargetDSC(const pstring &name_, TargetType targetType_ = cache.libraryType,
                                           bool defines = false, pstring define = "");
-    DSC<CppSourceTarget> &getCppTargetDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_, const pstring &name_,
-                                          TargetType targetType_ = cache.libraryType, bool defines = false,
-                                          pstring define = "");
+    DSC<CppSourceTarget> &getCppTargetDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                          const pstring &name_, TargetType targetType_ = cache.libraryType,
+                                          bool defines = false, pstring define = "");
     DSC<CppSourceTarget> &getCppStaticDSC(const pstring &name_, bool defines = false, pstring define = "");
-    DSC<CppSourceTarget> &getCppStaticDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_, const pstring &name_,
-                                          bool defines = false, pstring define = "");
+    DSC<CppSourceTarget> &getCppStaticDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                          const pstring &name_, bool defines = false, pstring define = "");
     DSC<CppSourceTarget> &getCppSharedDSC(const pstring &name_, bool defines = false, pstring define = "");
-    DSC<CppSourceTarget> &getCppSharedDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_, const pstring &name_,
-                                          bool defines = false, pstring define = "");
+    DSC<CppSourceTarget> &getCppSharedDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                          const pstring &name_, bool defines = false, pstring define = "");
     DSC<CppSourceTarget> &getCppObjectDSC(const pstring &name_, bool defines = false, pstring define = "");
 
-    DSC<CppSourceTarget> &getCppObjectDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_, const pstring &name_,
-                                          bool defines = false, pstring define = "");
+    DSC<CppSourceTarget> &getCppObjectDSC(bool explicitBuild, const pstring &buildCacheFilesDirPath_,
+                                          const pstring &name_, bool defines = false, pstring define = "");
 
     // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
 
@@ -126,6 +185,82 @@ template <typename T, typename... Property> Configuration &Configuration::assign
         if (generateModuleData == GenerateModuleData::YES)
         {
             assign(TreatModuleAsSource::YES);
+        }
+    }
+    else if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
+    {
+        stdCppTarget = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AssignStandardCppTarget>)
+    {
+        assignStandardCppTarget = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BuildTests>)
+    {
+        buildTests = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BuildExamples>)
+    {
+        buildExamples = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TestsExplicit>)
+    {
+        testsExplicit = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), ExamplesExplicit>)
+    {
+        examplesExplicit = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BuildTestsExplicitBuild>)
+    {
+        if (property == BuildTestsExplicitBuild::YES)
+        {
+            buildTests = BuildTests::YES;
+            testsExplicit = TestsExplicit::YES;
+        }
+        else
+        {
+            buildTests = BuildTests::NO;
+        }
+    }
+    else if constexpr (std::is_same_v<decltype(property), BuildExamplesExplicitBuild>)
+    {
+        if (property == BuildExamplesExplicitBuild::YES)
+        {
+            buildExamples = BuildExamples::YES;
+            examplesExplicit = ExamplesExplicit::YES;
+        }
+        else
+        {
+            buildExamples = BuildExamples::NO;
+        }
+    }
+    else if constexpr (std::is_same_v<decltype(property), BuildTestsAndExamples>)
+    {
+        if (property == BuildTestsAndExamples::YES)
+        {
+            buildTests = BuildTests::YES;
+            buildExamples = BuildExamples::YES;
+        }
+        else
+        {
+            buildTests = BuildTests::NO;
+            buildExamples = BuildExamples::NO;
+        }
+    }
+    else if constexpr (std::is_same_v<decltype(property), BuildTestsAndExamplesExplicitBuild>)
+    {
+        if (property == BuildTestsAndExamplesExplicitBuild::YES)
+        {
+            buildTests = BuildTests::YES;
+            buildExamples = BuildExamples::YES;
+            testsExplicit = TestsExplicit::YES;
+            examplesExplicit = ExamplesExplicit::YES;
+        }
+        else
+        {
+            buildTests = BuildTests::NO;
+            buildExamples = BuildExamples::NO;
         }
     }
     // CommonFeatures
@@ -312,7 +447,6 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         linkerFeatures.strip = property;
     }
-
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
         property;
@@ -340,6 +474,30 @@ template <typename T> bool Configuration::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), GenerateModuleData>)
     {
         return generateModuleData == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
+    {
+        return stdCppTarget == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AssignStandardCppTarget>)
+    {
+        return assignStandardCppTarget == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BuildTests>)
+    {
+        return buildTests == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BuildExamples>)
+    {
+        return buildExamples == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TestsExplicit>)
+    {
+        return testsExplicit == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), ExamplesExplicit>)
+    {
+        return examplesExplicit == property;
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
