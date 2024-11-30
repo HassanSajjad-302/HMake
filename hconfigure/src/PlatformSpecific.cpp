@@ -431,10 +431,13 @@ uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &ele
     }
     for (uint64_t i = 0; i < currentTargetIndex; ++i)
     {
-        if (element == pvalue[i][0])
+        if (const PValue &v = pvalue[i]; !v.Empty())
         {
-            currentTargetIndex = i;
-            return i;
+            if (v[0] == element)
+            {
+                currentTargetIndex = i;
+                return i;
+            }
         }
     }
     currentTargetIndex = old;
@@ -496,7 +499,7 @@ void lowerCasePStringOnWindows(pchar *ptr, const uint64_t size)
 // Review this function and its usage.
 bool childInParentPathNormalized(const pstring_view parent, const pstring_view child)
 {
-    if(child.size() < parent.size())
+    if (child.size() < parent.size())
     {
         return false;
     }

@@ -25,10 +25,13 @@ struct ExampleOrTest
 struct BoostCppTarget : TargetCache
 {
     Configuration *configuration = nullptr;
+    BTarget *testTarget = nullptr;
+    BTarget *examplesTarget = nullptr;
     DSC<CppSourceTarget> &mainTarget;
     vector<ExampleOrTest> examplesOrTests;
 
-    BoostCppTarget(const pstring &name, Configuration *configuration_, bool headerOnly);
+    BoostCppTarget(const pstring &name, Configuration *configuration_, bool headerOnly, bool createTestsTarget = false,
+                   bool createExamplesTarget = false);
     ~BoostCppTarget();
     void addTestDirectory(const pstring &dir);
     /*void addTestDirectory(const pstring &dir, const pstring &prefix);

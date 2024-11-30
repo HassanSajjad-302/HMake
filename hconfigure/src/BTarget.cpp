@@ -82,6 +82,10 @@ BTarget::BTarget(pstring name_, const bool buildExplicit_, bool makeDirectory)
     {
         create_directory(configureNode->filePath + slashc + name);
     }
+    if (name.starts_with("conventional\\conventional\\"))
+    {
+        bool breakpoint = true;
+    }
 }
 
 BTarget::BTarget(const bool add0, const bool add1, const bool add2)
@@ -99,6 +103,10 @@ BTarget::BTarget(pstring name_, const bool buildExplicit_, bool makeDirectory, c
     if (bsMode == BSMode::CONFIGURE && makeDirectory)
     {
         create_directory(configureNode->filePath + slashc + name);
+    }
+    if (name.starts_with("conventional\\conventional\\"))
+    {
+        bool breakpoint = true;
     }
 }
 
@@ -148,6 +156,10 @@ bool operator<(const BTarget &lhs, const BTarget &rhs)
 // selectiveBuild targets especially for targets whose buildExplicit is true.
 void BTarget::setSelectiveBuild()
 {
+    if (name.ends_with("Tests"))
+    {
+        bool breakpoint = true;
+    }
     selectiveBuild = cmdTargets.contains(name);
     if (!buildExplicit && !selectiveBuild)
     {

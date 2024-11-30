@@ -59,9 +59,9 @@ void configurationSpecification(Configuration &configuration)
 
     // callable_traits
 
-    configuration.assign(&stdhu, BuildTests::YES, AssignStandardCppTarget::YES);
+    configuration.assign(&stdhu, BuildTestsExplicitBuild::YES, AssignStandardCppTarget::YES);
 
-    BoostCppTarget boostCppTarget("callableTraits", &configuration, true);
+    BoostCppTarget boostCppTarget("callableTraits", &configuration, true, true);
     boostCppTarget.addTestDirectory("/libs/callable_traits/test");
 
     /*DSC<CppSourceTarget> &callableTraits = configuration.getCppObjectDSC("callable_traits").privateLibraries(&stdhu);

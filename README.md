@@ -453,7 +453,13 @@ hmake.cpp
 
 </details>
 
-This example
+The BTarget::updateBTarget function checks whether
+the target should be updated based on the selectiveBuild flag.
+HMake invokes updateBTarget for all targets,
+but the selectiveBuild flag is true only for the targets that need updating.
+This is decided based on several factors.
+BTarget has a name and
+
 ## C++ Examples
 
 ### Example 1
