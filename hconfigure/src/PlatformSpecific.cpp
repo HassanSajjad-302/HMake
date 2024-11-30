@@ -492,7 +492,14 @@ void lowerCasePStringOnWindows(pchar *ptr, const uint64_t size)
     }
 }
 
-bool childInParentPathRecursiveNormalized(const pstring_view parent, const pstring_view child)
+// TODO
+// Review this function and its usage.
+bool childInParentPathNormalized(const pstring_view parent, const pstring_view child)
 {
+    if(child.size() < parent.size())
+    {
+        return false;
+    }
+
     return compareStringsFromEnd(parent, pstring_view(child.data(), parent.size()));
 }

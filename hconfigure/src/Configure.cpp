@@ -1,8 +1,10 @@
 #include "Configure.hpp"
+#include "HashValues.hpp"
+using std::filesystem::current_path;
 
 bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuration))
 {
-    if (equivalent(path(configureNode->filePath), std::filesystem::current_path()))
+    if (equivalent(path(configureNode->filePath), current_path()))
     {
         for (const Configuration &configuration : targets<Configuration>)
         {
@@ -20,11 +22,78 @@ bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuratio
     return false;
 }
 
-int main2(int argc, char **argv)
+static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
+{
+    if (argc > 1)
+    {
+        if (const pstring_view str(argv[1]); str == "--build")
+        {
+            bsMode = BSMode::BUILD;
+        }
+        else
+        {
+            printErrorMessage("Unknown cmd arguments in configure mode\n");
+            for (int i = 1; i < argc; ++i)
+            {
+                printErrorMessage(argv[i]);
+            }
+        }
+    }
+
+    pstring configurePathString;
+    if (bsMode != BSMode::CONFIGURE)
+    {
+        path configurePath;
+        bool configureExists = false;
+        for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
+        {
+            configurePath = p / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
+            if (exists(configurePath))
+            {
+                configureExists = true;
+                break;
+            }
+        }
+
+        if (configureExists)
+        {
+            configurePathString = (configurePath.parent_path().*toPStr)();
+        }
+        else
+        {
+            throw std::exception("Configure could not be found in current directory and directories above\n");
+        }
+    }
+    else
+    {
+        configurePathString = (current_path().*toPStr)();
+    }
+
+    lowerCasePStringOnWindows(configurePathString.data(), configurePathString.size());
+    configureNode = Node::getNodeFromNormalizedString(configurePathString, false);
+
+    if (bsMode == BSMode::BUILD)
+    {
+        for (int i = 2; i < argc; ++i)
+        {
+            pstring targetArgFullPath = (current_path() / argv[i]).lexically_normal().string();
+            lowerCasePStringOnWindows(targetArgFullPath.data(), targetArgFullPath.size());
+            if (targetArgFullPath.size() <= configureNode->filePath.size())
+            {
+                throw std::invalid_argument(fmt::format("Invalid Command-Line Argument {}\n", argv[i]));
+            }
+            pstring_view targetArgument(targetArgFullPath.begin() + configureNode->filePath.size() + 1,
+                                        targetArgFullPath.end());
+            cmdTargets.emplace(targetArgument);
+        }
+    }
+}
+
+int main2(const int argc, char **argv)
 {
     try
     {
-        setBuildSystemModeFromArguments(argc, argv);
+        parseCmdArgumentsAndSetConfigureNode(argc, argv);
         constructGlobals();
         initializeCache(bsMode);
         (*buildSpecificationFuncPtr)();

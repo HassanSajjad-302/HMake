@@ -4,12 +4,10 @@
 import "HashValues.hpp";
 import "OS.hpp";
 import "phmap.h";
-import "PlatformSpecific.hpp";
 import "nlohmann/json.hpp";
 #else
 #include "HashValues.hpp"
 #include "OS.hpp"
-#include "PlatformSpecific.hpp"
 #include "nlohmann/json.hpp"
 #include "phmap.h"
 #include <deque>
@@ -35,7 +33,7 @@ struct IndexedNode
 // Explore
 using Json = nlohmann::json; // Unordered json
 
-inline flat_hash_set<pstring_view> cmdTargets;
+inline flat_hash_set<pstring> cmdTargets;
 inline mutex configCacheMutex;
 inline PDocument configCache(kArrayType);
 inline unique_ptr<vector<pchar>> configCacheBuffer;
@@ -85,8 +83,8 @@ inline constexpr OS os = OS::LINUX;
 
 inline std::mutex printMutex;
 
+inline pstring currentMinusConfigure;
 void initializeCache(BSMode bsMode_);
-void setBuildSystemModeFromArguments(int argc, char **argv);
 inline const pstring dashCpp = "-cpp";
 inline const pstring dashLink = "-link";
 

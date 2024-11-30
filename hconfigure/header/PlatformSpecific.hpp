@@ -108,7 +108,7 @@ bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs);
 uint64_t nodeIndexInPValueArray(const PValue &pvalue, const class Node &node);
 bool isNodeInPValue(const PValue &value, const Node &node);
 void lowerCasePStringOnWindows(pchar *ptr, uint64_t size);
-bool childInParentPathRecursiveNormalized(pstring_view parent, pstring_view child);
+bool childInParentPathNormalized(pstring_view parent, pstring_view child);
 
 // TODO
 // Optimize this

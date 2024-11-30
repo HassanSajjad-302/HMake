@@ -440,6 +440,20 @@ This breaks the rule 2.
 Uncommenting the line above will fix this.
 This might hang or HMake might detect and print ```HMake API misuse```.
 
+### Example 9
+
+<details>
+<summary>
+hmake.cpp
+</summary>
+
+```cpp
+
+```
+
+</details>
+
+This example
 ## C++ Examples
 
 ### Example 1

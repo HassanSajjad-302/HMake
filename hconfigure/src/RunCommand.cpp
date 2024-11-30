@@ -365,7 +365,7 @@ bool PostCompile::ignoreHeaderFile(const pstring_view child) const
     {
         if (inclNode.ignoreHeaderDeps)
         {
-            if (childInParentPathRecursiveNormalized(inclNode.node->filePath, child))
+            if (childInParentPathNormalized(inclNode.node->filePath, child))
             {
                 return true;
             }

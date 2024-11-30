@@ -32,14 +32,6 @@ Builder::Builder()
         {
             updateBTargets.emplace_back(target);
         }
-        if (target->buildExplicit)
-        {
-
-        }
-        else
-        {
-            target->setSelectiveBuild();
-        }
     }
 
     updateBTargetsIterator = updateBTargets.begin();
@@ -224,6 +216,10 @@ void Builder::execute()
         try
         {
             bTarget->updateBTarget(*this, round);
+            if (round == 2)
+            {
+                bTarget->setSelectiveBuild();
+            }
             DEBUG_EXECUTE(fmt::format("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
             executeMutex.lock();
             if (realBTarget->exitStatus != EXIT_SUCCESS)
