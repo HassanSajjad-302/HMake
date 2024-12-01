@@ -440,25 +440,185 @@ This breaks the rule 2.
 Uncommenting the line above will fix this.
 This might hang or HMake might detect and print ```HMake API misuse```.
 
-### Example 9
+## BTarget Selective Build Mechanism
 
+You can skip this section. This is only needed if you are interested in extending the HMake
+selectiveBuild mechanism.
 <details>
 <summary>
-hmake.cpp
 </summary>
+
+# BTarget Selective Build Mechanism
+
+## Key Concepts
+
+### 1. Selective Build Flag
+
+The `selectiveBuild` flag determines if a target should be updated during a build.
+`updateBTarget` is called for all the BTargets
+but `selectiveBuild` is set for a selective few.
+`setSelectiveBuild` is called in round2 which sets the `selectiveBuild`.
+
+- **Set When:**
+    - The target is explicitly named in the `hbuild` command and `buildExplicit = true` is true for the target. Can be
+      supplied in the constructor.
+    - `hbuild` is executed in the target's build directory or its parent/child directory.
+
+---
+
+### 2. Explicit Build (`buildExplicit`)
+
+- When `buildExplicit = true`:
+    - The `selectiveBuild` flag is set only if the target is explicitly named in the `hbuild` command.
+- Useful for special targets (e.g., Tests or Examples) that should not be automatically built unless explicitly
+  requested.
+
+---
+
+### 3. Round Logic
+
+- **Round 2**:
+    - `setSelectiveBuild` is called to set the `selectiveBuild` flag based on directory rules.
+- **Round 0**:
+    - The `selectiveBuild` flag is used to decide if a target is built.
+    - If a target’s `selectiveBuild` is true, this propagates to its dependencies before round 0.
+
+---
+
+### 4. Make Directory
+
+- If `makeDirectory = true`, the target's directory is created during configuration.
+- If `makeDirectory = false`, no directory is created for the target.
+
+---
+
+### 5. Empty Target Names
+
+- Targets without a name behave differently:
+    - `selectiveBuild = true` if `hbuild` is executed in the **configure directory**.
+    - `selectiveBuild = false` if `hbuild` is executed in any subdirectory.
+
+---
+
+### Example 9
 
 ```cpp
 
+
+#include <utility>
+
+#include "Configure.hpp"
+
+struct OurTarget : BTarget
+{
+    string message;
+    explicit OurTarget(string str, string name = "", const bool makeDirectory = true, const bool buildExplicit = false)
+        : BTarget(std::move(name), buildExplicit, makeDirectory, true, false, true), message{std::move(str)}
+    {
+    }
+    void updateBTarget(Builder &builder, const unsigned short round) override
+    {
+        if (round == 0 && selectiveBuild)
+        {
+            printMessage(FORMAT("{}\n", message));
+        }
+    }
+};
+
+void buildSpecification()
+{
+    OurTarget *a = new OurTarget("A", "A");
+    string str = "A";
+    str += slashc;
+    OurTarget *b = new OurTarget("B", str + 'B', false);
+    OurTarget *c = new OurTarget("C", str + 'C', true, true);
+    OurTarget *d = new OurTarget("D", "D");
+    OurTarget *e = new OurTarget("E", "E");
+    OurTarget *f = new OurTarget("F");
+    c->realBTargets[0].addDependency(*e);
+}
+
+MAIN_FUNCTION
 ```
 
-</details>
+### Directory Structure (After Configuration)
 
-The BTarget::updateBTarget function checks whether
-the target should be updated based on the selectiveBuild flag.
-HMake invokes updateBTarget for all targets,
-but the selectiveBuild flag is true only for the targets that need updating.
-This is decided based on several factors.
-BTarget has a name and
+├───a
+
+│ &emsp;&ensp; └───c
+
+├───d
+
+└───e
+
+└───f
+
+- **No directories** are created for targets **B** or **F**.
+
+---
+
+### Target Properties
+
+- **A, D, E**: `makeDirectory = true`
+- **B**: `makeDirectory = false`
+- **C**: `buildExplicit = true`
+- **F**: No name, not a dependency, and no `buildExplicit`.
+
+---
+
+### Build Outcomes
+
+1.
+
+Run `hbuild` in the configure directory:
+
+Sample Output: `ABEDF`
+
+C is skipped because `buildExplicit = true`, and it wasn’t explicitly named.
+
+2.
+
+Run `hbuild` in D or E:
+
+Output: `D` (or `E` depending on directory)
+
+Only the target in the current directory is printed; others are siblings.
+
+3.
+
+Run `hbuild` in A:
+
+SampleOutput: `AB`
+
+`C` is skipped because `buildExplicit = true`.
+
+4.
+
+Run hbuild in the configure directory with A/C, `hbuild A/C`:
+
+Sample Output: `ABEDCF`
+
+C is explicitly named, so it’s included.
+
+5.
+
+Run hbuild in A with C, `hbuild C`:
+
+Sample Output: `AEBC`
+
+C is explicitly named.
+E is included as a dependency of C.
+
+6.
+
+Run hbuild in A with C and ../d, `hbuild C ../D`:
+
+Sample Output: `BAECD`
+All except F, which lacks a name, dependencies, and buildExplicit.
+F only prints when `hbuild` runs in the configure directory.
+
+
+</details>
 
 ## C++ Examples
 

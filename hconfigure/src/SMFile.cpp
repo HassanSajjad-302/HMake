@@ -1164,6 +1164,8 @@ BTargetType SMFile::getBTargetType() const
     return BTargetType::SMFILE;
 }
 
+// TODO
+// Propose the idea of big smfile. This combined with markArchivePoint could result in much increased in performance.
 void SMFile::setFileStatusAndPopulateAllDependencies()
 {
     auto emplaceInAll = [&](SMFile *smFile) -> bool {
