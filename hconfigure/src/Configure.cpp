@@ -82,9 +82,16 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
             {
                 throw std::invalid_argument(fmt::format("Invalid Command-Line Argument {}\n", argv[i]));
             }
-            pstring_view targetArgument(targetArgFullPath.begin() + configureNode->filePath.size() + 1,
-                                        targetArgFullPath.end());
-            cmdTargets.emplace(targetArgument);
+            if (targetArgFullPath.ends_with(slashc))
+            {
+                cmdTargets.emplace(targetArgFullPath.begin() + configureNode->filePath.size() + 1,
+                                   targetArgFullPath.end() - 1);
+            }
+            else
+            {
+                cmdTargets.emplace(targetArgFullPath.begin() + configureNode->filePath.size() + 1,
+                                   targetArgFullPath.end());
+            }
         }
     }
 }

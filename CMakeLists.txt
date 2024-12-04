@@ -58,8 +58,7 @@ add_library(hconfigure STATIC
         hconfigure/src/HashValues.cpp
         hconfigure/src/TargetCache.cpp
         hconfigure/src/TargetCacheDiskWriteManager.cpp
-        hconfigure/src/BoostCppTarget.cpp
-        hconfigure/header/BoostCppTarget.hpp)
+        hconfigure/src/BoostCppTarget.cpp)
 
 
 if (UNIX)
@@ -120,7 +119,7 @@ add_executable(hbuild hbuild/src/main.cpp)
 target_link_libraries(hbuild PRIVATE hconfigure)
 
 #Following target helps in writing hmake.cpp file with ide setup. Otherwise unused
-add_executable(HMakeHelper Projects/Boost/hmake.cpp)
+add_executable(HMakeHelper Examples/Example-A9/hmake.cpp)
 target_link_libraries(HMakeHelper PRIVATE hconfigure)
 target_compile_definitions(HMakeHelper PRIVATE EXE)
 

@@ -460,9 +460,11 @@ but `selectiveBuild` is set for a selective few.
 `setSelectiveBuild` is called in round2 which sets the `selectiveBuild`.
 
 - **Set When:**
-    - The target is explicitly named in the `hbuild` command and `buildExplicit = true` is true for the target. Can be
-      supplied in the constructor.
-    - `hbuild` is executed in the target's build directory or its parent/child directory.
+    - The target `name` is not empty and is explicitly named in the `hbuild` command.
+    - if `buildExplicit == false` and `hbuild` is executed
+      in the target's build directory or its parent/child build directory.
+    - `selectiveBuild` is also set for all the target's dependencies after round 1,
+      before round 0.
 
 ---
 
@@ -472,6 +474,9 @@ but `selectiveBuild` is set for a selective few.
     - The `selectiveBuild` flag is set only if the target is explicitly named in the `hbuild` command.
 - Useful for special targets (e.g., Tests or Examples) that should not be automatically built unless explicitly
   requested.
+- You can mimic Ninja like behavior by simply setting `buildExplict`
+  for all the targets.
+  Now, these targets will be built only when mentioned on the command-line.
 
 ---
 
@@ -481,7 +486,6 @@ but `selectiveBuild` is set for a selective few.
     - `setSelectiveBuild` is called to set the `selectiveBuild` flag based on directory rules.
 - **Round 0**:
     - The `selectiveBuild` flag is used to decide if a target is built.
-    - If a target’s `selectiveBuild` is true, this propagates to its dependencies before round 0.
 
 ---
 
@@ -489,14 +493,16 @@ but `selectiveBuild` is set for a selective few.
 
 - If `makeDirectory = true`, the target's directory is created during configuration.
 - If `makeDirectory = false`, no directory is created for the target.
+- Two targets having same name is not undefined behavior.
+  Both target's `selectiveBuild` will be true, when mentioned on the command-line.
 
 ---
 
 ### 5. Empty Target Names
 
-- Targets without a name behave differently:
-    - `selectiveBuild = true` if `hbuild` is executed in the **configure directory**.
-    - `selectiveBuild = false` if `hbuild` is executed in any subdirectory.
+- Targets without a name can only have `selectiveBuild` as true when hbuild is
+  executed in the configure-dir or one of the target's dependents `selectiveBuild`
+  is true.
 
 ---
 
@@ -520,7 +526,7 @@ struct OurTarget : BTarget
     {
         if (round == 0 && selectiveBuild)
         {
-            printMessage(FORMAT("{}\n", message));
+            printMessage(FORMAT("{}", message));
         }
     }
 };
@@ -559,8 +565,7 @@ MAIN_FUNCTION
 
 ### Target Properties
 
-- **A, D, E**: `makeDirectory = true`
-- **B**: `makeDirectory = false`
+- **A, C, D, E, F**: `makeDirectory = true`
 - **C**: `buildExplicit = true`
 - **F**: No name, not a dependency, and no `buildExplicit`.
 
@@ -590,7 +595,7 @@ Run `hbuild` in A:
 
 SampleOutput: `AB`
 
-`C` is skipped because `buildExplicit = true`.
+`C` is skipped because `buildExplicit = true` even it is a subdirectory.
 
 4.
 
@@ -598,18 +603,28 @@ Run hbuild in the configure directory with A/C, `hbuild A/C`:
 
 Sample Output: `ABEDCF`
 
-C is explicitly named, so it’s included.
+C is explicitly named, so it’s included with other targets.
 
 5.
+
+Run hbuild in the A/C directory, `hbuild .`:
+
+Sample Output: `AEC`
+
+A is the parent directory, C is explicitly named,
+E is the dependency of C.
+B, D and F are sibling targets.
+
+6.
 
 Run hbuild in A with C, `hbuild C`:
 
 Sample Output: `AEBC`
 
 C is explicitly named.
-E is included as a dependency of C.
+E is included as a dependency of C even though it is a sibling directory.
 
-6.
+7.
 
 Run hbuild in A with C and ../d, `hbuild C ../D`:
 

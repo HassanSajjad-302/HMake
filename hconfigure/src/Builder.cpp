@@ -215,11 +215,11 @@ void Builder::execute()
 
         try
         {
-            bTarget->updateBTarget(*this, round);
             if (round == 2)
             {
                 bTarget->setSelectiveBuild();
             }
+            bTarget->updateBTarget(*this, round);
             DEBUG_EXECUTE(fmt::format("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
             executeMutex.lock();
             if (realBTarget->exitStatus != EXIT_SUCCESS)
