@@ -35,7 +35,7 @@ BoostCppTarget::BoostCppTarget(const pstring &name, Configuration *configuration
     : TargetCache("Boost_" + name), configuration(configuration_),
       mainTarget(getMainTarget(name, configuration_, headerOnly))
 {
-    if (bsMode == BSMode::BUILD)
+    if constexpr (bsMode == BSMode::BUILD)
     {
         PValue &targetConfigCache = getConfigCache();
         if (createTestsTarget)
@@ -85,27 +85,32 @@ void BoostCppTarget::addTestDirectory(const pstring &dir)
 {
     // TODO
     // Check that configuration has Tests defined. For now assuming it has. Also, these tests are not run.
-    if (bsMode == BSMode::CONFIGURE && configuration->evaluate(BuildTests::YES))
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        for (const auto &k : directory_iterator(path(srcNode->filePath + dir)))
+        if (configuration->evaluate(BuildTests::YES))
         {
-            if (k.path().extension() == ".cpp")
+            for (const auto &k : directory_iterator(path(srcNode->filePath + dir)))
             {
-                // not adding configuration name because configuration add its own name
-                const pstring name = getLastNameAfterSlash(mainTarget.getPrebuiltBasicTarget().name) + slashc +
-                                     "Tests" + slashc + k.path().stem().string();
+                if (k.path().extension() == ".cpp")
+                {
+                    // not adding configuration name because configuration add its own name
+                    const pstring name = getLastNameAfterSlash(mainTarget.getPrebuiltBasicTarget().name) + slashc +
+                                         "Tests" + slashc + k.path().stem().string();
 
-                buildOrConfigCacheCopy.PushBack(static_cast<uint8_t>(BoostExampleOrTestType::RUNTEST), cacheAlloc);
-                buildOrConfigCacheCopy.PushBack(PValue(kStringType).SetString(name.c_str(), name.size(), cacheAlloc),
-                                                cacheAlloc);
+                    buildOrConfigCacheCopy.PushBack(static_cast<uint8_t>(BoostExampleOrTestType::RUNTEST), cacheAlloc);
+                    buildOrConfigCacheCopy.PushBack(
+                        PValue(kStringType).SetString(name.c_str(), name.size(), cacheAlloc), cacheAlloc);
 
-                const Node *node = Node::getNodeFromNormalizedPath(k.path(), true);
-                pstring buildCacheFilesDirPath = configureNode->filePath + slashc +
-                                                 mainTarget.getPrebuiltBasicTarget().name + slashc + "Tests" + slashc;
-                configuration->getCppExeDSC(configuration->evaluate(TestsExplicit::YES), buildCacheFilesDirPath, name)
-                    .privateLibraries(&mainTarget)
-                    .getSourceTarget()
-                    .moduleFiles(node->filePath);
+                    const Node *node = Node::getNodeFromNormalizedPath(k.path(), true);
+                    pstring buildCacheFilesDirPath = configureNode->filePath + slashc +
+                                                     mainTarget.getPrebuiltBasicTarget().name + slashc + "Tests" +
+                                                     slashc;
+                    configuration
+                        ->getCppExeDSC(configuration->evaluate(TestsExplicit::YES), buildCacheFilesDirPath, name)
+                        .privateLibraries(&mainTarget)
+                        .getSourceTarget()
+                        .moduleFiles(node->filePath);
+                }
             }
         }
     }

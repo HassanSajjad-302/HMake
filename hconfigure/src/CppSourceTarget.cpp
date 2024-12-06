@@ -252,7 +252,7 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
 {
     compileTargetType = targetType;
 
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (evaluate(UseMiniTarget::YES))
         {
@@ -285,7 +285,7 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
         }
     }
 
-    if (bsMode == BSMode::BUILD)
+    if constexpr (bsMode == BSMode::BUILD)
     {
         namespace CppConfig = Indices::ConfigCache::CppConfig;
         cppSourceTargets[targetCacheIndex] = this;
@@ -440,9 +440,12 @@ CSourceTargetType CppSourceTarget::getCSourceTargetType() const
 
 CppSourceTarget &CppSourceTarget::makeReqInclsUseable()
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        // Initialized in CppSourceTarget round 2
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+            // Initialized in CppSourceTarget round 2
+        }
     }
     else
     {
@@ -555,7 +558,7 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(const Node *node, const bo
 
 CppSourceTarget &CppSourceTarget::removeSourceFile(const pstring &sourceFile)
 {
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         namespace CppConfig = Indices::ConfigCache::CppConfig;
         const Node *node = Node::getNodeFromNonNormalizedPath(sourceFile, true);
@@ -579,7 +582,7 @@ CppSourceTarget &CppSourceTarget::removeModuleFile(const pstring &moduleFile)
     {
         return removeSourceFile(moduleFile);
     }
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         namespace CppConfig = Indices::ConfigCache::CppConfig;
         const Node *node = Node::getNodeFromNonNormalizedPath(moduleFile, true);
@@ -1094,7 +1097,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     }
     else if (round == 2)
     {
-        if (bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
             if (evaluate(UseMiniTarget::YES))
             {
@@ -1102,9 +1105,12 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             }
         }
 
-        if (bsMode == BSMode::BUILD && evaluate(UseMiniTarget::YES))
+        if constexpr (bsMode == BSMode::BUILD)
         {
-            readConfigCacheAtBuildTime();
+            if (evaluate(UseMiniTarget::YES))
+            {
+                readConfigCacheAtBuildTime();
+            }
         }
         populateRequirementAndUsageRequirementDeps();
         // Needed to maintain ordering between different includes specification.
@@ -1116,7 +1122,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         {
             buildCacheFilesDirPath = configureNode->filePath + slashc + name + slashc;
         }
-        if (bsMode == BSMode::BUILD)
+        if constexpr (bsMode == BSMode::BUILD)
         {
             // getCompileCommand will be later on called concurrently therefore need to set this before.
             setCompileCommand();
@@ -1151,12 +1157,12 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                 builder.cond.notify_one();
             }
         }
-        if (bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
             create_directories(buildCacheFilesDirPath);
         }
 
-        if (bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
             create_directories(buildCacheFilesDirPath);
             if (evaluate(UseMiniTarget::YES))
@@ -1316,10 +1322,13 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const pstri
         assignToSourceNodes = true;
     }
 
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        // Initialized in CppSourceTarget round 2
-        return;
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+            // Initialized in CppSourceTarget round 2
+            return;
+        }
     }
 
     const SourceDirectory dir{sourceDirectory, std::move(regex), recursive};

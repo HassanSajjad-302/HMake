@@ -43,7 +43,7 @@ void Cache::initializeCacheVariableFromCacheFile()
     *this = cacheFileJsonLocal;
     cacheFileJson = std::move(cacheFileJsonLocal);
     // Settings are saved only if mode is configure.
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr(bsMode == BSMode::CONFIGURE)
     {
         if (const path p = path(configureNode->filePath + slashc + "settings.json"); !exists(p))
         {
@@ -56,7 +56,7 @@ void Cache::initializeCacheVariableFromCacheFile()
 void Cache::registerCacheVariables()
 {
     // Cache is saved only if mode is configure
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr(bsMode == BSMode::CONFIGURE)
     {
         const path filePath = path(configureNode->filePath + slashc + "cache.json");
         cacheFileJson[JConsts::cacheVariables] = cacheVariables;

@@ -195,10 +195,6 @@ Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile,
 
 Node *Node::getNodeFromNonNormalizedString(const pstring &p, const bool isFile, const bool mayNotExist)
 {
-    if (bsMode == BSMode::BUILD)
-    {
-        // printMessage("Called\n");
-    }
     const path filePath = getFinalNodePathFromPath(p);
     return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }
@@ -210,10 +206,6 @@ Node *Node::getNodeFromNormalizedPath(const path &p, const bool isFile, const bo
 
 Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const bool mayNotExist)
 {
-    if (bsMode == BSMode::BUILD)
-    {
-        // printMessage("Called\n");
-    }
     const path filePath = getFinalNodePathFromPath(p);
     return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }

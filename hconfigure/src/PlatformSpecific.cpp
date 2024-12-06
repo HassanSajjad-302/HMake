@@ -222,7 +222,7 @@ extern string GetLastErrorString();
 static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize, bool binary)
 {
     const pstring str = fileName + ".tmp";
-    if (bsMode == BSMode::BUILD)
+    if constexpr (bsMode == BSMode::BUILD)
     {
 #ifdef WIN32
         // Open the existing file for writing, replacing its content
@@ -276,7 +276,7 @@ static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize,
 #endif
     }
 
-    else if (bsMode == BSMode::CONFIGURE)
+    else
     {
         if (binary)
         {
@@ -289,7 +289,7 @@ static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize,
         }
     }
 
-    if (bsMode == BSMode::BUILD)
+    if constexpr (bsMode == BSMode::BUILD)
     {
 #ifdef WIN32
         if (const bool result =

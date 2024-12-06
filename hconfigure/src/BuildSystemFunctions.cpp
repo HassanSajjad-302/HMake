@@ -61,6 +61,7 @@ void initializeCache(const BSMode bsMode_)
         currentMinusConfigure = pstring_view(currentNode->filePath.begin() + configureNode->filePath.size() + 1,
                                              currentNode->filePath.end());
     }
+
     if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache")); exists(p))
     {
         const pstring str = p.string();
@@ -68,7 +69,7 @@ void initializeCache(const BSMode bsMode_)
     }
     else
     {
-        if (bsMode == BSMode::BUILD)
+        if constexpr (bsMode == BSMode::BUILD)
         {
             printErrorMessage(fmt::format("{} does not exist. Exiting\n", p.string().c_str()));
             exit(EXIT_FAILURE);
@@ -82,14 +83,14 @@ void initializeCache(const BSMode bsMode_)
     }
     else
     {
-        if (bsMode == BSMode::BUILD)
+        if constexpr  (bsMode == BSMode::BUILD)
         {
             printErrorMessage(fmt::format("{} does not exist. Exiting\n", p.string().c_str()));
             exit(EXIT_FAILURE);
         }
     }
 
-    if (bsMode != BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::BUILD)
     {
         auto initializeSettings = [](const path &settingsFilePath) {
             Json outputSettingsJson;
@@ -164,7 +165,7 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
 bool configureOrBuild()
 {
     const Builder b{};
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr(bsMode == BSMode::CONFIGURE)
     {
         cache.registerCacheVariables();
         writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),

@@ -329,18 +329,6 @@ DSC<CppSourceTarget> &Configuration::getCppSharedDSC_P(const pstring &name_, con
         std::move(define)));
 }
 
-bool Configuration::getUseMiniTarget() const
-{
-    if (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
 bool operator<(const Configuration &lhs, const Configuration &rhs)
 {
     return lhs.name < rhs.name;

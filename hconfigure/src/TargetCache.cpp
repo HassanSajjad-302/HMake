@@ -10,7 +10,7 @@ TargetCache::TargetCache(const pstring &name)
 {
     const uint64_t index = pvalueIndexInSubArrayConsidered(configCache, PValue(ptoref(name)));
 
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (index == UINT64_MAX)
         {

@@ -20,8 +20,6 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 Builder::Builder()
 {
     round = 2;
-    roundGoal = bsMode == BSMode::BUILD ? 0 : 2;
-
     TBT::tarjanNodes = &tarjanNodesBTargets[round];
     TBT::findSCCS();
     TBT::checkForCycle();

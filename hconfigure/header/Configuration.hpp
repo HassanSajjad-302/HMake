@@ -164,7 +164,6 @@ struct Configuration : BTarget
     static void markArchivePoint();
     template <typename T, typename... Property> Configuration &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
-    bool getUseMiniTarget() const;
 };
 bool operator<(const Configuration &lhs, const Configuration &rhs);
 

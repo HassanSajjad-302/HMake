@@ -69,7 +69,7 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSource
 
     if (ptr->evaluate(UseMiniTarget::YES))
     {
-        if (bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
             namespace CppConfig = Indices::ConfigCache::CppConfig;
             const PValue &modulesConfigCache = stored->buildOrConfigCacheCopy[CppConfig::moduleFiles];

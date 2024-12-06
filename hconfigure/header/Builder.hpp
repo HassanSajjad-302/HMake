@@ -29,7 +29,7 @@ class Builder
     unsigned short numberOfLaunchedThreads = 0;
     atomic<unsigned short> numberOfSleepingThreads = 0;
     unsigned short round = 0;
-    unsigned short roundGoal = 0;
+    const unsigned short roundGoal = bsMode == BSMode::BUILD ? 0 : 2;
 
     bool updateBTargetFailed = false;
 

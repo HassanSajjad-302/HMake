@@ -97,7 +97,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     setLinkOrArchiveCommands();
     commandWithoutTargetsWithTool.setCommand((linker.bTPath.*toPStr)() + " " + linkOrArchiveCommandWithoutTargets);
 
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         create_directories(buildCacheFilesDirPath);
     }
@@ -322,7 +322,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
         {
             buildCacheFilesDirPath = configureNode->filePath + slashc + name + slashc;
         }
-        if (bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
             create_directories(buildCacheFilesDirPath);
             if (evaluate(UseMiniTarget::YES))

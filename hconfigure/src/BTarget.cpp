@@ -78,9 +78,12 @@ BTarget::BTarget(pstring name_, const bool buildExplicit_, bool makeDirectory)
       buildExplicit(buildExplicit_)
 {
     id = atomic_ref(total).fetch_add(1);
-    if (bsMode == BSMode::CONFIGURE && makeDirectory)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        create_directory(configureNode->filePath + slashc + name);
+        if (makeDirectory)
+        {
+            create_directory(configureNode->filePath + slashc + name);
+        }
     }
     if (name.starts_with("conventional\\conventional\\"))
     {
@@ -100,9 +103,12 @@ BTarget::BTarget(pstring name_, const bool buildExplicit_, bool makeDirectory, c
       name(lowerCase(std::move(name_))), buildExplicit(buildExplicit_)
 {
     id = atomic_ref(total).fetch_add(1);
-    if (bsMode == BSMode::CONFIGURE && makeDirectory)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        create_directory(configureNode->filePath + slashc + name);
+        if (makeDirectory)
+        {
+            create_directory(configureNode->filePath + slashc + name);
+        }
     }
     if (name.starts_with("conventional\\conventional\\"))
     {
