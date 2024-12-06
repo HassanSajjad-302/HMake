@@ -83,7 +83,7 @@ void initializeCache(const BSMode bsMode_)
     }
     else
     {
-        if constexpr  (bsMode == BSMode::BUILD)
+        if constexpr (bsMode == BSMode::BUILD)
         {
             printErrorMessage(fmt::format("{} does not exist. Exiting\n", p.string().c_str()));
             exit(EXIT_FAILURE);
@@ -165,7 +165,7 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
 bool configureOrBuild()
 {
     const Builder b{};
-    if constexpr(bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         cache.registerCacheVariables();
         writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),

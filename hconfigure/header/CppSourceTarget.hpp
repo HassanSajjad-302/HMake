@@ -602,7 +602,7 @@ CppSourceTarget &CppSourceTarget::interfaceFiles(const pstring &modFile, U... mo
 
     if (evaluate(UseMiniTarget::YES))
     {
-        if constexpr(bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
             actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), true);
         }
