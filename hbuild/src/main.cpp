@@ -19,13 +19,13 @@ using std::filesystem::current_path, std::filesystem::directory_iterator, std::i
     std::filesystem::exists, std::string, fmt::format;
 int main(const int argc, char **argv)
 {
-    path configureExecutablePath;
+    path buildExePath;
     bool configuredExecutableExists = false;
-    string configureName = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
+    string buildExeName = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "build");
     for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
     {
-        configureExecutablePath = p / configureName;
-        if (exists(configureExecutablePath))
+        buildExePath = p / buildExeName;
+        if (exists(buildExePath))
         {
             configuredExecutableExists = true;
             break;
@@ -33,7 +33,7 @@ int main(const int argc, char **argv)
     }
     if (configuredExecutableExists)
     {
-        string str = configureExecutablePath.string() + " --build ";
+        string str = buildExePath.string();
         for (uint64_t i = 1; i < argc; ++i)
         {
             str += argv[i];
@@ -42,6 +42,6 @@ int main(const int argc, char **argv)
         return system(str.c_str());
     }
     printErrorMessage(
-        fmt::format("{} File could not be found in current directory and directories above\n", configureName));
+        fmt::format("{} File could not be found in current directory and directories above\n", buildExeName));
     exit(EXIT_FAILURE);
 }

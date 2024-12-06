@@ -63,7 +63,12 @@ enum class BSMode : char // Build System Mode
 };
 
 // By default, mode is configure, however, if, --build cmd option is passed, it is set to BUILD.
-inline BSMode bsMode = BSMode::CONFIGURE;
+
+#ifdef BUILD_MODE
+inline constexpr BSMode bsMode = BSMode::BUILD;
+#else
+inline constexpr BSMode bsMode = BSMode::CONFIGURE;
+#endif
 
 // Following can be used for holding memory through build-system run and is used for target<CTarget> in GetTarget
 // functions

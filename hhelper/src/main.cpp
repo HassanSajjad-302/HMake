@@ -41,12 +41,6 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
 
 static std::mutex printMutex;
 
-void printMessageLocked(const pstring &message)
-{
-    std::lock_guard _(printMutex);
-    printMessage(message);
-}
-
 // https://stackoverflow.com/a/17620909/8993136
 void replaceAll(string &str, const string &from, const string &to)
 {
@@ -73,7 +67,10 @@ void replaceAll(string &str, const string &from, const string &to)
 #ifndef JSON_HEADER
 #define THROW true
 #endif
-#ifndef HCONFIGURE_STATIC_LIB_PATH
+#ifndef HCONFIGURE_C_STATIC_LIB_PATH
+#define THROW true
+#endif
+#ifndef HCONFIGURE_B_STATIC_LIB_PATH
 #define THROW true
 #endif
 #ifndef THIRD_PARTY_HEADER
@@ -136,9 +133,11 @@ int main(int argc, char **argv)
         path parallelHashMap = path(PARALLEL_HASHMAP);
         path lz4Header = path(LZ4_HEADER);
         path fmtHeaderPath = path(FMT_HEADER);
-        path hconfigureStaticLibDirectoryPath = path(HCONFIGURE_STATIC_LIB_DIRECTORY);
+        path hconfigureCStaticLibDirectoryPath = path(HCONFIGURE_C_STATIC_LIB_DIRECTORY);
+        path hconfigureBStaticLibDirectoryPath = path(HCONFIGURE_B_STATIC_LIB_DIRECTORY);
         path fmtStaticLibDirectoryPath = path(FMT_STATIC_LIB_DIRECTORY);
-        path hconfigureStaticLibPath = path(HCONFIGURE_STATIC_LIB_PATH);
+        path hconfigureCStaticLibPath = path(HCONFIGURE_C_STATIC_LIB_PATH);
+        path hconfigureBStaticLibPath = path(HCONFIGURE_B_STATIC_LIB_PATH);
         path fmtStaticLibPath = path(FMT_STATIC_LIB_PATH);
 
         if constexpr (os == OS::LINUX)
@@ -173,7 +172,7 @@ int main(int argc, char **argv)
                 useJsonFileCompressionDef +
                 " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
                 "  -I " FMT_HEADER " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
-                " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_STATIC_LIB_DIRECTORY
+                " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_C_STATIC_LIB_DIRECTORY
                 " -l hconfigure -Wl,--no-whole-archive -L " FMT_STATIC_LIB_DIRECTORY
                 " -l fmt -o {CONFIGURE_DIRECTORY}/" +
                 getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
@@ -216,6 +215,7 @@ int main(int argc, char **argv)
                     command += "/I " + addQuotes(str) + " ";
                 }
                 command += useCommandHashDef + useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef;
+                command += configureExe ? "" : " /D BUILD_MODE ";
                 command +=
                     "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
                     jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " + fmtHeaderPath.string() +
@@ -226,8 +226,9 @@ int main(int argc, char **argv)
                 {
                     command += "/LIBPATH:" + addQuotes(str) + " ";
                 }
-                command += "/WHOLEARCHIVE:" + addQuotes(hconfigureStaticLibPath.string()) + " " +
-                           addQuotes(fmtStaticLibPath.string()) +
+                command += "/WHOLEARCHIVE:" +
+                           addQuotes((configureExe ? hconfigureCStaticLibPath : hconfigureBStaticLibPath).string()) +
+                           " " + addQuotes(fmtStaticLibPath.string()) +
                            " kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib "
                            "uuid.lib comdlg32.lib advapi32.lib" +
                            " /OUT:{CONFIGURE_DIRECTORY}/" +
@@ -274,48 +275,65 @@ int main(int argc, char **argv)
 
         if (cacheLocal.configureExeBuildScript.empty())
         {
-            printMessageLocked("No script provided for building configure executable\n");
+            printErrorMessage("No script provided for building configure executable\n");
+            exit(EXIT_FAILURE);
         }
 
         if (cacheLocal.buildExeBuildScript.empty())
         {
-            printMessageLocked("No script provided for building build executable\n");
+            printErrorMessage("No script provided for building build executable\n");
+            exit(EXIT_FAILURE);
         }
 
-        std::thread buildExeThread([&] {
-            for (uint64_t i = 0; i < cacheLocal.buildExeBuildScript.size(); ++i)
-            {
-                string &command = cacheLocal.buildExeBuildScript[i];
-                replaceAll(command, srcDirString, sourceDirPath.string());
-                replaceAll(command, confDirString, current_path().string());
-                printMessageLocked(fmt::format("{}\n", command));
-                if (int code = system(command.c_str()); code != EXIT_SUCCESS)
-                {
-                    exit(code);
-                }
-            }
-        });
+        auto scriptExecution = [&](const bool configureExe) {
+            vector<pstring> &cacheCommands =
+                configureExe ? cacheLocal.configureExeBuildScript : cacheLocal.buildExeBuildScript;
+            const pstring configureOrBuildStr = configureExe ? "configure" : "build";
+            vector<string> commands;
+            vector<string> commandOutputs;
 
-        std::thread configureExeThread([&] {
-            vector<string> configureCommands;
-            vector<string> configureOutputs;
-            for (uint64_t i = 0; i < cacheLocal.configureExeBuildScript.size(); ++i)
+            int exitStatus = EXIT_SUCCESS;
+            for (uint64_t i = 0; i < cacheCommands.size(); ++i)
             {
-                string &command = cacheLocal.configureExeBuildScript[i];
+                string &command = cacheCommands[i];
                 replaceAll(command, srcDirString, sourceDirPath.string());
                 replaceAll(command, confDirString, current_path().string());
 
-                printMessageLocked(fmt::format("{}\n", command));
-                pstring outputFile = "build-output-" + std::to_string(i) + ".txt";
+                commands.push_back(command);
+
+                pstring outputFile = configureOrBuildStr + "-output-" + std::to_string(i) + ".txt";
                 pstring finalCommand = command + " > " + outputFile;
-                int code = system(finalCommand.c_str());
-                printMessageLocked(fmt::format("{}\n", fileToPString(outputFile)));
-                if (code != EXIT_SUCCESS)
+                exitStatus = system(finalCommand.c_str());
+
+                commandOutputs.push_back(fileToPString(outputFile));
+
+                if (exitStatus != EXIT_SUCCESS)
                 {
-                    exit(code);
+                    break;
                 }
             }
-        });
+
+            std::lock_guard _(printMutex);
+
+            if (exitStatus != EXIT_SUCCESS)
+            {
+                printMessage("Errors in Building " + configureOrBuildStr + " Executable");
+                for (uint64_t i = 0; i < commands.size(); ++i)
+                {
+                    printMessage(commands[i] + "\n");
+                    printMessage(commandOutputs[i] + "\n");
+                }
+                exit(exitStatus);
+            }
+            printMessage(configureOrBuildStr + " executable build script output\n");
+            for (pstring &output : commandOutputs)
+            {
+                printMessage(output + "\n");
+            }
+        };
+
+        std::thread configureExeThread(scriptExecution, true);
+        std::thread buildExeThread(scriptExecution, false);
 
         configureExeThread.join();
         buildExeThread.join();

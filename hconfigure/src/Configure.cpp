@@ -24,13 +24,9 @@ bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuratio
 
 static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
 {
-    if (argc > 1)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (const pstring_view str(argv[1]); str == "--build")
-        {
-            bsMode = BSMode::BUILD;
-        }
-        else
+        if (argc > 1)
         {
             printErrorMessage("Unknown cmd arguments in configure mode\n");
             for (int i = 1; i < argc; ++i)
@@ -41,27 +37,27 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     }
 
     pstring configurePathString;
-    if (bsMode != BSMode::CONFIGURE)
+    if constexpr (bsMode != BSMode::CONFIGURE)
     {
-        path configurePath;
-        bool configureExists = false;
+        path cacheJsonPath;
+        bool cacheJsonExists = false;
         for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
         {
-            configurePath = p / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
-            if (exists(configurePath))
+            cacheJsonPath = p / "cache.json";
+            if (exists(cacheJsonPath))
             {
-                configureExists = true;
+                cacheJsonExists = true;
                 break;
             }
         }
 
-        if (configureExists)
+        if (cacheJsonExists)
         {
-            configurePathString = (configurePath.parent_path().*toPStr)();
+            configurePathString = (cacheJsonPath.parent_path().*toPStr)();
         }
         else
         {
-            throw std::exception("Configure could not be found in current directory and directories above\n");
+            throw std::exception("cache.json could not be found in current directory and directories above\n");
         }
     }
     else

@@ -156,10 +156,6 @@ bool operator<(const BTarget &lhs, const BTarget &rhs)
 // selectiveBuild targets especially for targets whose buildExplicit is true.
 void BTarget::setSelectiveBuild()
 {
-    if (name.ends_with("Tests"))
-    {
-        bool breakpoint = true;
-    }
     selectiveBuild = cmdTargets.contains(name);
     if (!buildExplicit && !selectiveBuild)
     {
