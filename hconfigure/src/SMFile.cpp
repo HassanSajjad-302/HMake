@@ -738,11 +738,6 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 sourceJson[ModuleFiles::scanningCommandWithTool] = target->compileCommandWithTool.getHash();
                 postCompile.parseHeaderDeps(*this, false);
             }
-            {
-                lock_guard lk(printMutex);
-                // postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
-                fflush(stdout);
-            }
             realBTarget.exitStatus = postCompile.exitStatus;
             smrulesFileOutputClang = std::move(postCompile.commandOutput);
         }

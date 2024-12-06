@@ -276,7 +276,6 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             }
 
             {
-                lock_guard lk(printMutex);
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
                 {
                     postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false,

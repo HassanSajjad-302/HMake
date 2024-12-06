@@ -78,7 +78,8 @@ void to_json(Json &j, const Cache &cacheLocal)
     j[JConsts::scannerSelectedArrayIndex] = cacheLocal.selectedScannerArrayIndex;
     j[JConsts::libraryType] = cacheLocal.libraryType;
     j[JConsts::cacheVariables] = cacheLocal.cacheVariables;
-    j[JConsts::compileConfigureCommands] = cacheLocal.compileConfigureCommands;
+    j[JConsts::configureExeBuildScript] = cacheLocal.configureExeBuildScript;
+    j[JConsts::buildExeBuildScript] = cacheLocal.buildExeBuildScript;
 }
 
 void from_json(const Json &j, Cache &cacheLocal)
@@ -111,5 +112,6 @@ void from_json(const Json &j, Cache &cacheLocal)
         throw std::exception();
     }
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();
-    cacheLocal.compileConfigureCommands = j.at(JConsts::compileConfigureCommands).get<vector<pstring>>();
+    cacheLocal.configureExeBuildScript = j.at(JConsts::configureExeBuildScript).get<vector<pstring>>();
+    cacheLocal.buildExeBuildScript = j.at(JConsts::buildExeBuildScript).get<vector<pstring>>();
 }

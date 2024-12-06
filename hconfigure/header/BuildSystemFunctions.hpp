@@ -81,8 +81,6 @@ inline constexpr OS os = OS::NT;
 inline constexpr OS os = OS::LINUX;
 #endif
 
-inline std::mutex printMutex;
-
 inline pstring currentMinusConfigure;
 void initializeCache(BSMode bsMode_);
 inline const pstring dashCpp = "-cpp";

@@ -39,6 +39,33 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
     j[jstr] = container;
 }
 
+static std::mutex printMutex;
+
+void printMessageLocked(const pstring &message)
+{
+    std::lock_guard _(printMutex);
+    printMessage(message);
+}
+
+// https://stackoverflow.com/a/17620909/8993136
+void replaceAll(string &str, const string &from, const string &to)
+{
+    if (from.empty())
+        return;
+    string wsRet;
+    wsRet.reserve(str.length());
+    size_t start_pos = 0, pos;
+    while ((pos = str.find(from, start_pos)) != string::npos)
+    {
+        wsRet += str.substr(start_pos, pos - start_pos);
+        wsRet += to;
+        pos += from.length();
+        start_pos = pos;
+    }
+    wsRet += str.substr(start_pos);
+    str.swap(wsRet); // faster than str = wsRet;
+}
+
 #define THROW false
 #ifndef HCONFIGURE_HEADER
 #define THROW true
@@ -150,7 +177,7 @@ int main(int argc, char **argv)
                 " -l hconfigure -Wl,--no-whole-archive -L " FMT_STATIC_LIB_DIRECTORY
                 " -l fmt -o {CONFIGURE_DIRECTORY}/" +
                 getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
-            cache.compileConfigureCommands.push_back(compileCommand);
+            cache.configureExeBuildScript.push_back(compileCommand);
         }
         else
         {
@@ -182,29 +209,36 @@ int main(int argc, char **argv)
             }
 
             // hhelper currently only works with MSVC compiler expected in toolsCache vsTools[0]
-            string compileCommand = addQuotes(toolsCache.vsTools[0].compiler.bTPath.make_preferred().string()) + " ";
-            for (const string &str : toolsCache.vsTools[0].includeDirectories)
-            {
-                compileCommand += "/I " + addQuotes(str) + " ";
-            }
-            compileCommand += useCommandHashDef + useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef;
-            compileCommand += "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
-                              jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " +
-                              fmtHeaderPath.string() + " /I " + parallelHashMap.string() + " /I " + lz4Header.string() +
-                              " /std:c++latest /GL /EHsc /MD /nologo " +
-                              "{SOURCE_DIRECTORY}/hmake.cpp /link /SUBSYSTEM:CONSOLE /NOLOGO ";
-            for (const string &str : toolsCache.vsTools[0].libraryDirectories)
-            {
-                compileCommand += "/LIBPATH:" + addQuotes(str) + " ";
-            }
-            compileCommand += "/WHOLEARCHIVE:" + addQuotes(hconfigureStaticLibPath.string()) + " " +
-                              addQuotes(fmtStaticLibPath.string()) +
-                              " kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib "
-                              "uuid.lib comdlg32.lib advapi32.lib" +
-                              " /OUT:{CONFIGURE_DIRECTORY}/" +
-                              getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
-            compileCommand = addQuotes(compileCommand);
-            cache.compileConfigureCommands.push_back(compileCommand);
+            auto getCommand = [&](const bool configureExe) {
+                string command = addQuotes(toolsCache.vsTools[0].compiler.bTPath.make_preferred().string()) + " ";
+                for (const string &str : toolsCache.vsTools[0].includeDirectories)
+                {
+                    command += "/I " + addQuotes(str) + " ";
+                }
+                command += useCommandHashDef + useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef;
+                command +=
+                    "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
+                    jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " + fmtHeaderPath.string() +
+                    " /I " + parallelHashMap.string() + " /I " + lz4Header.string() +
+                    " /std:c++latest /GL /EHsc /MD /nologo {SOURCE_DIRECTORY}/hmake.cpp /Fo{CONFIGURE_DIRECTORY}/" +
+                    (configureExe ? "configure.obj" : "build.obj") + " /link /SUBSYSTEM:CONSOLE /NOLOGO ";
+                for (const string &str : toolsCache.vsTools[0].libraryDirectories)
+                {
+                    command += "/LIBPATH:" + addQuotes(str) + " ";
+                }
+                command += "/WHOLEARCHIVE:" + addQuotes(hconfigureStaticLibPath.string()) + " " +
+                           addQuotes(fmtStaticLibPath.string()) +
+                           " kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib "
+                           "uuid.lib comdlg32.lib advapi32.lib" +
+                           " /OUT:{CONFIGURE_DIRECTORY}/" +
+                           (configureExe ? getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure")
+                                         : getActualNameFromTargetName(TargetType::EXECUTABLE, os, "build"));
+                command = addQuotes(command);
+                return command;
+            };
+
+            cache.configureExeBuildScript.push_back(getCommand(true));
+            cache.buildExeBuildScript.push_back(getCommand(false));
         }
 
         Json cacheJson = cache;
@@ -218,47 +252,74 @@ int main(int argc, char **argv)
         {
             if (!exists(path(configureExePath)))
             {
+                printErrorMessage("configure.exe does not exists\n");
                 exit(EXIT_FAILURE);
             }
+            return std::system(configureExePath.c_str());
         }
-        else
+
+        Json cacheJson;
+        ifstream("cache.json") >> cacheJson;
+        configureNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
+        Cache cacheLocal = cacheJson;
+        path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
+        if (sourceDirPath.is_relative())
         {
-            Json cacheJson;
-            ifstream("cache.json") >> cacheJson;
-            configureNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
-            Cache cacheLocal = cacheJson;
-            path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
-            if (sourceDirPath.is_relative())
-            {
-                sourceDirPath = (current_path() / sourceDirPath).lexically_normal();
-            }
-            sourceDirPath = sourceDirPath.string();
+            sourceDirPath = (current_path() / sourceDirPath).lexically_normal();
+        }
+        sourceDirPath = sourceDirPath.string();
 
-            string srcDirString = "{SOURCE_DIRECTORY}";
-            string confDirString = "{CONFIGURE_DIRECTORY}";
+        string srcDirString = "{SOURCE_DIRECTORY}";
+        string confDirString = "{CONFIGURE_DIRECTORY}";
 
-            if (!cacheLocal.compileConfigureCommands.empty())
-            {
-                printMessage("Executing commands as specified in cache.json to produce configure executable\n");
-            }
+        if (cacheLocal.configureExeBuildScript.empty())
+        {
+            printMessageLocked("No script provided for building configure executable\n");
+        }
 
-            for (string &compileConfigureCommand : cacheLocal.compileConfigureCommands)
+        if (cacheLocal.buildExeBuildScript.empty())
+        {
+            printMessageLocked("No script provided for building build executable\n");
+        }
+
+        std::thread buildExeThread([&] {
+            for (uint64_t i = 0; i < cacheLocal.buildExeBuildScript.size(); ++i)
             {
-                if (const size_t position = compileConfigureCommand.find(srcDirString); position != string::npos)
-                {
-                    compileConfigureCommand.replace(position, srcDirString.size(), sourceDirPath.string());
-                }
-                if (const size_t position = compileConfigureCommand.find(confDirString); position != string::npos)
-                {
-                    compileConfigureCommand.replace(position, confDirString.size(), current_path().string());
-                }
-                printMessage(fmt::format("{}\n", compileConfigureCommand));
-                if (int code = system(compileConfigureCommand.c_str()); code != EXIT_SUCCESS)
+                string &command = cacheLocal.buildExeBuildScript[i];
+                replaceAll(command, srcDirString, sourceDirPath.string());
+                replaceAll(command, confDirString, current_path().string());
+                printMessageLocked(fmt::format("{}\n", command));
+                if (int code = system(command.c_str()); code != EXIT_SUCCESS)
                 {
                     exit(code);
                 }
             }
-        }
+        });
+
+        std::thread configureExeThread([&] {
+            vector<string> configureCommands;
+            vector<string> configureOutputs;
+            for (uint64_t i = 0; i < cacheLocal.configureExeBuildScript.size(); ++i)
+            {
+                string &command = cacheLocal.configureExeBuildScript[i];
+                replaceAll(command, srcDirString, sourceDirPath.string());
+                replaceAll(command, confDirString, current_path().string());
+
+                printMessageLocked(fmt::format("{}\n", command));
+                pstring outputFile = "build-output-" + std::to_string(i) + ".txt";
+                pstring finalCommand = command + " > " + outputFile;
+                int code = system(finalCommand.c_str());
+                printMessageLocked(fmt::format("{}\n", fileToPString(outputFile)));
+                if (code != EXIT_SUCCESS)
+                {
+                    exit(code);
+                }
+            }
+        });
+
+        configureExeThread.join();
+        buildExeThread.join();
+
         return std::system(configureExePath.c_str());
     }
 }
