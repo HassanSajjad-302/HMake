@@ -77,8 +77,7 @@ SourceNode::SourceNode(CppSourceTarget *target_, const Node *node_, const bool a
 
 pstring SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
 {
-    return getReducedPath(target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".o",
-                          pathPrint);
+    return getReducedPath(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".o", pathPrint);
 }
 
 pstring SourceNode::getTarjanNodeName() const
@@ -127,7 +126,7 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
         if (selectiveBuild || (target->configuration && target->configuration->evaluate(GenerateModuleData::YES)))
         {
             objectFileOutputFilePath = Node::getNodeFromNormalizedString(
-                target->buildCacheFilesDirPath + node->getFileName() + ".o", true, true);
+                target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".o", true, true);
 
             setSourceNodeFileStatus();
             if (atomic_ref(fileStatus).load())
@@ -675,7 +674,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                             sourceNodeAllocator);
 
         objectFileOutputFilePath = Node::getNodeFromNormalizedString(
-            target->buildCacheFilesDirPath + node->getFileName() + ".m.o", true, true);
+            target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".m.o", true, true);
 
         if (sourceJson[ModuleFiles::scanningCommandWithTool] != target->compileCommandWithTool.getHash())
         {
@@ -698,7 +697,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
         if (!foundFromCache)
         {
             objectFileOutputFilePath = Node::getNodeFromNormalizedString(
-                target->buildCacheFilesDirPath + node->getFileName() + ".m.o", true, true);
+                target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".m.o", true, true);
 
             if (sourceJson[ModuleFiles::scanningCommandWithTool] != target->compileCommandWithTool.getHash())
             {
@@ -737,11 +736,6 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             {
                 sourceJson[ModuleFiles::scanningCommandWithTool] = target->compileCommandWithTool.getHash();
                 postCompile.parseHeaderDeps(*this, false);
-            }
-            {
-                lock_guard lk(printMutex);
-                // postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, true);
-                fflush(stdout);
             }
             realBTarget.exitStatus = postCompile.exitStatus;
             smrulesFileOutputClang = std::move(postCompile.commandOutput);
@@ -841,8 +835,8 @@ void SMFile::saveSMRulesJsonToSourceJson(const pstring &smrulesFileOutputClang)
     namespace SMRules = ModuleFile::SmRules;
 
     // We get half-node since we trust the compiler to have generated if it is returning true
-    const Node *smRuleFileNode = Node::getHalfNodeFromNormalizedString(
-        target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".smrules");
+    const Node *smRuleFileNode = Node::getHalfNodeFromNormalizedString(target->buildCacheFilesDirPathNode->filePath + slashc +
+                                                                       node->getFileName() + ".smrules");
 
     PDocument d;
     // The assumptions is that clang only outputs scanning data during scanning on output while MSVC outputs
@@ -1117,7 +1111,7 @@ void SMFile::isSMRulesFileOutdatedComparedToSourceFileAndItsDeps()
     }
 
     const Node *smRuleFileNode = Node::getNodeFromNonNormalizedPath(
-        target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".smrules", true, true);
+        target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".smrules", true, true);
 
     if (smRuleFileNode->doesNotExist || node->lastWriteTime > smRuleFileNode->lastWriteTime ||
         checkHeaderFiles(smRuleFileNode))
@@ -1155,8 +1149,7 @@ void SMFile::isSMRulesFileOutdatedComparedToSourceFileAndItsDeps()
 
 pstring SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
 {
-    return getReducedPath(target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".m.o",
-                          pathPrint);
+    return getReducedPath(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".m.o", pathPrint);
 }
 
 BTargetType SMFile::getBTargetType() const
@@ -1164,6 +1157,8 @@ BTargetType SMFile::getBTargetType() const
     return BTargetType::SMFILE;
 }
 
+// TODO
+// Propose the idea of big smfile. This combined with markArchivePoint could result in much increased in performance.
 void SMFile::setFileStatusAndPopulateAllDependencies()
 {
     auto emplaceInAll = [&](SMFile *smFile) -> bool {
@@ -1371,8 +1366,7 @@ pstring SMFile::getFlagPrint(const pstring &outputFilesWithoutExtension) const
 
 pstring SMFile::getRequireFlag(const SMFile &dependentSMFile) const
 {
-    const pstring ifcFilePath =
-        addQuotes(target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".ifc");
+    const pstring ifcFilePath = addQuotes(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".ifc");
 
     string str;
 
@@ -1407,7 +1401,7 @@ pstring SMFile::getRequireFlag(const SMFile &dependentSMFile) const
 
 pstring SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
 {
-    const pstring ifcFilePath = target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)() + ".ifc";
+    const pstring ifcFilePath = target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".ifc";
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
     auto getRequireIFCPathOrLogicalName = [&](const pstring &logicalName_) {
         return ccpSettings.onlyLogicalNameOfRequireIFC
@@ -1477,6 +1471,6 @@ pstring SMFile::getModuleCompileCommandPrintLastHalf() const
     moduleCompileCommandPrintLastHalf += ccpSettings.infrastructureFlags ? target->getInfrastructureFlags(false) : "";
     moduleCompileCommandPrintLastHalf += getReducedPath(node->filePath, ccpSettings.sourceFile) + " ";
     moduleCompileCommandPrintLastHalf +=
-        getFlagPrint(target->buildCacheFilesDirPath + (path(node->filePath).filename().*toPStr)());
+        getFlagPrint(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName());
     return moduleCompileCommandPrintLastHalf;
 }

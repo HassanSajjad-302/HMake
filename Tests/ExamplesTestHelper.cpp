@@ -52,6 +52,24 @@ void ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(pstring &output, int
     output = outputStream.str();
 }
 
+void ExamplesTestHelper::runCommandAndGetOutput(const pstring &command, pstring &output)
+{
+    const pstring fullCommand = command + " > file 2>&1 ";
+    ASSERT_EQ(system(fullCommand.c_str()), EXIT_SUCCESS) << "Could Not Run " << command;
+    stringstream outputStream;
+    outputStream << ifstream("file").rdbuf();
+    output = outputStream.str();
+}
+
+void ExamplesTestHelper::runCommandAndGetOutputInDirectory(const pstring &directory, const pstring &command,
+                                                           pstring &output)
+{
+    const path p = current_path();
+    current_path(directory);
+    runCommandAndGetOutput(command, output);
+    current_path(p);
+}
+
 void ExamplesTestHelper::recreateBuildDir()
 {
     if (exists(path("Build")))

@@ -13,8 +13,8 @@ import <stack>;
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "HashedCommand.hpp"
-#include "RunCommand.hpp"
 #include "PrebuiltLinkOrArchiveTarget.hpp"
+#include "RunCommand.hpp"
 #include <stack>
 #endif
 #include <ObjectFile.hpp>
@@ -57,26 +57,33 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
     using BaseType = PrebuiltLinkOrArchiveTarget;
 
   public:
-    pstring buildCacheFilesDirPath;
-
     pstring linkOrArchiveCommandWithoutTargets;
     pstring linkOrArchiveCommandWithTargets;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     HashedCommand commandWithoutTargetsWithTool;
 
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
+    // TODO
+    // Remove this
+    Node *buildCacheFilesDirPathNode = nullptr;
 
     bool archiving = false;
     bool archived = false;
 
+    void makeBuildCacheFilesDirPathAtConfigTime(pstring buildCacheFilesDirPath);
     LinkOrArchiveTarget(const pstring &name_, TargetType targetType);
     LinkOrArchiveTarget(bool buildExplicit, const pstring &name_, TargetType targetType);
+    LinkOrArchiveTarget(const pstring &buildCacheFileDirPath_, const pstring &name_, TargetType targetType);
+    LinkOrArchiveTarget(const pstring &buildCacheFileDirPath_, bool buildExplicit, const pstring &name_,
+                        TargetType targetType);
 
     virtual pstring getLinkOrArchiveCommandWithoutTargets();
 
     void setOutputName(pstring outputName_);
     void setFileStatus(RealBTarget &realBTarget);
     void updateBTarget(Builder &builder, unsigned short round) override;
+    void writeTargetConfigCacheAtConfigureTime();
+    void readConfigCacheAtBuildTime();
 
     LinkerFlags getLinkerFlags();
     pstring getTarjanNodeName() const override;

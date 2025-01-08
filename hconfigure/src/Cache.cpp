@@ -43,7 +43,7 @@ void Cache::initializeCacheVariableFromCacheFile()
     *this = cacheFileJsonLocal;
     cacheFileJson = std::move(cacheFileJsonLocal);
     // Settings are saved only if mode is configure.
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (const path p = path(configureNode->filePath + slashc + "settings.json"); !exists(p))
         {
@@ -56,7 +56,7 @@ void Cache::initializeCacheVariableFromCacheFile()
 void Cache::registerCacheVariables()
 {
     // Cache is saved only if mode is configure
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         const path filePath = path(configureNode->filePath + slashc + "cache.json");
         cacheFileJson[JConsts::cacheVariables] = cacheVariables;
@@ -78,7 +78,8 @@ void to_json(Json &j, const Cache &cacheLocal)
     j[JConsts::scannerSelectedArrayIndex] = cacheLocal.selectedScannerArrayIndex;
     j[JConsts::libraryType] = cacheLocal.libraryType;
     j[JConsts::cacheVariables] = cacheLocal.cacheVariables;
-    j[JConsts::compileConfigureCommands] = cacheLocal.compileConfigureCommands;
+    j[JConsts::configureExeBuildScript] = cacheLocal.configureExeBuildScript;
+    j[JConsts::buildExeBuildScript] = cacheLocal.buildExeBuildScript;
 }
 
 void from_json(const Json &j, Cache &cacheLocal)
@@ -111,5 +112,6 @@ void from_json(const Json &j, Cache &cacheLocal)
         throw std::exception();
     }
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();
-    cacheLocal.compileConfigureCommands = j.at(JConsts::compileConfigureCommands).get<vector<pstring>>();
+    cacheLocal.configureExeBuildScript = j.at(JConsts::configureExeBuildScript).get<vector<pstring>>();
+    cacheLocal.buildExeBuildScript = j.at(JConsts::buildExeBuildScript).get<vector<pstring>>();
 }

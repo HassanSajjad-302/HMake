@@ -68,19 +68,21 @@ class Node
 
     static Node *getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNormalizedString(pstring_view p, bool isFile, bool mayNotExist = false);
+    static Node *getNodeFromNormalizedStringNoSystemCheckCalled(pstring_view p);
 
     static Node *getNodeFromNonNormalizedString(const pstring &p, bool isFile, bool mayNotExist = false);
 
     static Node *getNodeFromNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
 
-    static void addHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath);
+    static Node* addHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath);
     static Node *getHalfNodeFromNormalizedString(pstring_view p);
     static Node *getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist = false);
     static Node *getNotSystemCheckCalledNodeFromPValue(const PValue &pValue);
     static Node *tryGetNodeFromPValue(bool &systemCheckSucceeded, const PValue &pValue, bool isFile,
                                       bool mayNotExist = false);
 
+    static Node *getLastNodeAdded();
     static rapidjson::Type getType();
 
   private:

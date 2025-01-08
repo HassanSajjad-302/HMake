@@ -108,7 +108,7 @@ bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs);
 uint64_t nodeIndexInPValueArray(const PValue &pvalue, const class Node &node);
 bool isNodeInPValue(const PValue &value, const Node &node);
 void lowerCasePStringOnWindows(pchar *ptr, uint64_t size);
-bool childInParentPathRecursiveNormalized(pstring_view parent, pstring_view child);
+bool childInParentPathNormalized(pstring_view parent, pstring_view child);
 
 // TODO
 // Optimize this
@@ -121,21 +121,24 @@ namespace ConfigCache
 constexpr static unsigned name = 0;
 namespace CppConfig
 {
-constexpr static unsigned reqInclsArray = 0;
-constexpr static unsigned useReqInclsArray = 1;
-constexpr static unsigned reqHUDirsArray = 2;
-constexpr static unsigned useReqHUDirsArray = 3;
-constexpr static unsigned sourceFiles = 4;
-constexpr static unsigned moduleFiles = 5;
+constexpr static unsigned name = 0;
+constexpr static unsigned reqInclsArray = 1;
+constexpr static unsigned useReqInclsArray = 2;
+constexpr static unsigned reqHUDirsArray = 3;
+constexpr static unsigned useReqHUDirsArray = 4;
+constexpr static unsigned sourceFiles = 5;
+constexpr static unsigned moduleFiles = 6;
+constexpr static unsigned buildCacheFilesDirPath = 7;
 } // namespace CppConfig
 
 namespace LinkConfig
 {
-
-constexpr static unsigned requirementLibraryDirectoriesArray = 0;
-constexpr static unsigned usageRequirementLibraryDirectoriesArray = 1;
-constexpr static unsigned outputDirectoryNode = 2;
-constexpr static unsigned outputFileNode = 3;
+constexpr static unsigned name = 0;
+constexpr static unsigned requirementLibraryDirectoriesArray = 1;
+constexpr static unsigned usageRequirementLibraryDirectoriesArray = 2;
+constexpr static unsigned outputDirectoryNode = 3;
+constexpr static unsigned outputFileNode = 4;
+constexpr static unsigned buildCacheFilesDirPath = 5;
 
 } // namespace LinkConfig
 

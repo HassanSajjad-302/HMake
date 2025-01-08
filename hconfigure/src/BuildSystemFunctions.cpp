@@ -34,46 +34,6 @@ pstring getFileNameJsonOrOut(const pstring &name)
 
 void initializeCache(const BSMode bsMode_)
 {
-    /*targets2<CppSourceTarget>.resize(1000);
-    targets2<PrebuiltBasic>.resize(1000);
-    targets2<LinkOrArchiveTarget>.resize(1000);
-    targets2<PrebuiltLinkOrArchiveTarget>.resize(1000);
-    targets2<DSC<CppSourceTarget>>.resize(1000);*/
-
-    bsMode = bsMode_;
-    pstring configurePathString;
-    if (bsMode != BSMode::CONFIGURE)
-    {
-        path configurePath;
-        bool configureExists = false;
-        for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
-        {
-            configurePath = p / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
-            if (exists(configurePath))
-            {
-                configureExists = true;
-                break;
-            }
-        }
-
-        if (configureExists)
-        {
-            configurePathString = (configurePath.parent_path().*toPStr)();
-        }
-        else
-        {
-            print(stderr, "Configure could not be found in current directory and directories above\n");
-            throw std::exception();
-        }
-    }
-    else
-    {
-        configurePathString = (current_path().*toPStr)();
-    }
-
-    lowerCasePStringOnWindows(const_cast<pchar *>(configurePathString.c_str()), configurePathString.size());
-    configureNode = Node::getNodeFromNormalizedString(configurePathString, false);
-
     cache.initializeCacheVariableFromCacheFile();
     toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
 
@@ -92,6 +52,16 @@ void initializeCache(const BSMode bsMode_)
     }
 
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
+    if (currentNode->filePath.size() < configureNode->filePath.size())
+    {
+        throw std::exception("HMake internal error. configureNode size less than currentNode\n");
+    }
+    if (currentNode->filePath.size() != configureNode->filePath.size())
+    {
+        currentMinusConfigure = pstring_view(currentNode->filePath.begin() + configureNode->filePath.size() + 1,
+                                             currentNode->filePath.end());
+    }
+
     if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache")); exists(p))
     {
         const pstring str = p.string();
@@ -99,7 +69,7 @@ void initializeCache(const BSMode bsMode_)
     }
     else
     {
-        if (bsMode == BSMode::BUILD)
+        if constexpr (bsMode == BSMode::BUILD)
         {
             printErrorMessage(fmt::format("{} does not exist. Exiting\n", p.string().c_str()));
             exit(EXIT_FAILURE);
@@ -113,14 +83,14 @@ void initializeCache(const BSMode bsMode_)
     }
     else
     {
-        if (bsMode == BSMode::BUILD)
+        if constexpr (bsMode == BSMode::BUILD)
         {
             printErrorMessage(fmt::format("{} does not exist. Exiting\n", p.string().c_str()));
             exit(EXIT_FAILURE);
         }
     }
 
-    if (bsMode != BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::BUILD)
     {
         auto initializeSettings = [](const path &settingsFilePath) {
             Json outputSettingsJson;
@@ -129,23 +99,6 @@ void initializeCache(const BSMode bsMode_)
         };
 
         initializeSettings(path(configureNode->filePath + slashc + "settings.json"));
-    }
-}
-
-void setBuildSystemModeFromArguments(const int argc, char **argv)
-{
-    if (argc > 1)
-    {
-        const pstring argument(argv[1]);
-        if (argument == "--build")
-        {
-            bsMode = BSMode::BUILD;
-        }
-        else
-        {
-            print(stderr, "{}", "getBuildSystemModeFromArguments Invoked with unknown CMD option");
-            throw std::exception();
-        }
     }
 }
 
@@ -212,7 +165,7 @@ void printErrorMessageColor(const pstring &message, uint32_t color)
 bool configureOrBuild()
 {
     const Builder b{};
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         cache.registerCacheVariables();
         writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),
@@ -248,6 +201,14 @@ pstring_view getLastNameAfterSlashView(pstring_view name)
         return {name.begin() + i + 1, name.end()};
     }
     return name;
+}
+inline pstring getNameBeforeLastSlash(pstring_view name)
+{
+    if (const uint64_t i = name.find_last_of(slashc); i != pstring::npos)
+    {
+        return {name.begin(), name.begin() + i};
+    }
+    return pstring(name);
 }
 
 pstring removeDashCppFromName(pstring_view name)

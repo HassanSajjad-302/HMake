@@ -16,6 +16,8 @@ struct ExamplesTestHelper
     static void recreateBuildDirAndBuildHMakeProject();
     static void runAppWithExpectedOutput(const string &appName, const string &expectedOutput);
     static void recreateBuildDirAndGethbuildOutput(pstring &output, int32_t exitStatus);
+    static void runCommandAndGetOutput(const pstring &command, pstring &output);
+    static void runCommandAndGetOutputInDirectory(const pstring &directory, const pstring &command, pstring &output);
     static void recreateBuildDir();
 };
 

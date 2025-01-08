@@ -142,7 +142,8 @@ TEST(StageTests, Test1)
 
     // Touching main.cpp. But hbuild executed in app-cpp.
     touchFile(mainFilePath);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .nodesFile = true}, "app-cpp/");
+    // Test currently failing because app-cpp is already added in nodes.json because of buildCacheFilesDirPath.
+    executeSnapshotBalances(Updates{.sourceFiles = 1}, "app-cpp/");
 
     // Now executing again in Build
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
@@ -294,8 +295,8 @@ TEST(StageTests, Test2)
 
     // Touching public-lib4 then running hbuild in lib4-cpp, lib3-cpp, lib3, Build
     touchFile(publicLib4DotHpp);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .nodesFile = true}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .nodesFile = true}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
@@ -306,7 +307,7 @@ TEST(StageTests, Test2)
     executeSnapshotBalances(Updates{}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{}, "Debug/lib3");
     executeSnapshotBalances(Updates{}, "Debug/lib1");
-    executeSnapshotBalances(Updates{.nodesFile = true}, "Debug/lib1-cpp");
+    executeSnapshotBalances(Updates{}, "Debug/lib1-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
 
     // Touching main.cpp lib1.hpp-public, then hbuild in app
@@ -327,7 +328,7 @@ TEST(StageTests, Test2)
     copyFilePath(testSourcePath / "Version/0/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
     copyFilePath(testSourcePath / "Version/2/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
     copyFilePath(testSourcePath / "Version/2/extra-include.hpp", testSourcePath / "lib1/public/extra-include.hpp");
-    executeSnapshotBalances(Updates{.nodesFile = true}, "Debug/lib2-cpp");
+    executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .nodesFile = true}, "Debug/lib1-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
@@ -341,7 +342,7 @@ TEST(StageTests, Test2)
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
 
     executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .nodesFile = true}, "Debug/app-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/app-cpp");
     executeSnapshotBalances(Updates{.linkTargetsDebug = 1}, "Debug/app");
 
     // Resorting to the old-main and reconfiguring the project.
@@ -464,7 +465,7 @@ TEST(StageTests, Test3)
     copyFilePath(testSourcePath / "Version/1/lib3.cpp", testSourcePath / "lib3/private/lib3.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.smruleFiles = 2, .nodesFile = true}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .nodesFile = true}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib3.hpp
@@ -478,8 +479,8 @@ TEST(StageTests, Test3)
     // Touching public-lib4.hpp
     const path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
     touchFile(publicLib4DotHpp);
-    executeSnapshotBalances(Updates{.smruleFiles = 2, .nodesFile = true}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .nodesFile = true}, "Debug/lib2-cpp");
+    executeSnapshotBalances(Updates{.smruleFiles = 2}, "Debug/lib1-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib2-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});

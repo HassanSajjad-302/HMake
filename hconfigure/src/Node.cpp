@@ -193,12 +193,23 @@ Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile,
     return node;
 }
 
+Node *Node::getNodeFromNormalizedStringNoSystemCheckCalled(pstring_view p)
+{
+    Node *node = nullptr;
+
+    using Map = decltype(nodeAllFiles);
+
+    if (nodeAllFiles.lazy_emplace_l(
+            p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const Map::constructor &constructor) { constructor(node, pstring(p)); }))
+    {
+    }
+
+    return node;
+}
+
 Node *Node::getNodeFromNonNormalizedString(const pstring &p, const bool isFile, const bool mayNotExist)
 {
-    if (bsMode == BSMode::BUILD)
-    {
-        // printMessage("Called\n");
-    }
     const path filePath = getFinalNodePathFromPath(p);
     return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }
@@ -210,17 +221,13 @@ Node *Node::getNodeFromNormalizedPath(const path &p, const bool isFile, const bo
 
 Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const bool mayNotExist)
 {
-    if (bsMode == BSMode::BUILD)
-    {
-        // printMessage("Called\n");
-    }
     const path filePath = getFinalNodePathFromPath(p);
     return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
 }
 
-void Node::addHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath)
+Node *Node::addHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath)
 {
-    nodeAllFiles.emplace(std::move(normalizedFilePath));
+    return const_cast<Node *>(nodeAllFiles.emplace(std::move(normalizedFilePath)).first.operator->());
 }
 
 Node *Node::getHalfNodeFromNormalizedString(const pstring_view p)
@@ -255,7 +262,8 @@ Node *Node::getNotSystemCheckCalledNodeFromPValue(const PValue &pValue)
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     Node *node = nodeIndices[pValue.GetUint64()];
 #else
-    Node *node = getNodeFromNormalizedString(pstring_view(pValue.GetString(), pValue.GetStringLength()), true, false);
+    Node *node =
+        getNodeFromNormalizedStringNoSystemCheckCalled(pstring_view(pValue.GetString(), pValue.GetStringLength()));
 #endif
     return node;
 }
@@ -271,6 +279,11 @@ Node *Node::tryGetNodeFromPValue(bool &systemCheckSucceeded, const PValue &pValu
     systemCheckSucceeded = true;
 #endif
     return node;
+}
+
+Node *Node::getLastNodeAdded()
+{
+    return nodeIndices[idCountCompleted - 1];
 }
 
 rapidjson::Type Node::getType()

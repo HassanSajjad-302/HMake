@@ -17,7 +17,6 @@ import "nlohmann/json.hpp";
 #include "nlohmann/json.hpp"
 #endif
 
-
 #include "CTargetRoundZeroBTarget.hpp"
 #include "Configuration.hpp"
 using Json = nlohmann::json;
@@ -295,11 +294,14 @@ PrebuiltBasicFeatures::PrebuiltBasicFeatures()
 {
     if (cache.isLinkerInToolsArray)
     {
-        VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
-        if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+        const VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
+        if constexpr (bsMode == BSMode::BUILD)
         {
-            // Initialized in LinkOrArchiveTarget round 2
-            return;
+            if (useMiniTarget == UseMiniTarget::YES)
+            {
+                // Initialized in LinkOrArchiveTarget round 2
+                return;
+            }
         }
         for (const pstring &str : vsTools.libraryDirectories)
         {
@@ -418,10 +420,13 @@ void CppCompilerFeatures::setCompilerFromVSTools(const VSTools &vsTools)
 {
     compiler = vsTools.compiler;
 
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        // Initialized in CppSourceTarget round 2
-        return;
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+            // Initialized in CppSourceTarget round 2
+            return;
+        }
     }
     for (const pstring &str : vsTools.includeDirectories)
     {
@@ -432,10 +437,13 @@ void CppCompilerFeatures::setCompilerFromVSTools(const VSTools &vsTools)
 void CppCompilerFeatures::setCompilerFromLinuxTools(const LinuxTools &linuxTools)
 {
     compiler = linuxTools.compiler;
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        // Initialized in CppSourceTarget round 2
-        return;
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+            // Initialized in CppSourceTarget round 2
+            return;
+        }
     }
     for (const pstring &str : linuxTools.includeDirectories)
     {

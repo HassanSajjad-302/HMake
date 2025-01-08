@@ -165,7 +165,6 @@ The ```buildSpecification``` function is executed single-threaded
 but almost right after that the threads are launched and HMake updates BTargets on all cores.
 So, the output in the above example will be garbled as we did not specify any dependencies,
 and all 3 ```OurTarget::updateBTarget``` is executed in parallel.
-Here, we can use global ```printMutex``` which is a central mutex for synchronized printing.
 
 ### Example 4
 
@@ -439,6 +438,231 @@ MAIN_FUNCTION
 This breaks the rule 2.
 Uncommenting the line above will fix this.
 This might hang or HMake might detect and print ```HMake API misuse```.
+
+## BTarget Selective Build Mechanism
+
+You can skip this section. This is only needed if you are interested in extending the HMake
+selectiveBuild mechanism.
+<details>
+<summary>
+</summary>
+
+## Key Concepts
+
+### 1. Selective Build Flag
+
+The `selectiveBuild` flag determines if a target should be updated during a build.
+`updateBTarget` is called for all the BTargets
+but `selectiveBuild` is set for a selective few.
+`setSelectiveBuild` is called in round2 which sets the `selectiveBuild`.
+
+- **Set When:**
+    - The target `name` is not empty and is explicitly named in the `hbuild` command.
+    - if `buildExplicit == false` and `hbuild` is executed
+      in the target's build directory or its parent/child build directory.
+    - `selectiveBuild` is also set for all the target's dependencies after round 1,
+      before round 0.
+
+---
+
+### 2. Explicit Build (`buildExplicit`)
+
+- When `buildExplicit = true`:
+    - The `selectiveBuild` flag is set only if the target is explicitly named in the `hbuild` command.
+- Useful for special targets (e.g., Tests or Examples) that should not be automatically built unless explicitly
+  requested.
+- You can mimic Ninja like behavior by simply setting `buildExplict`
+  for all the targets.
+  Now, these targets will be built only when mentioned on the command-line.
+
+---
+
+### 3. Round Logic
+
+- **Round 2**:
+    - `setSelectiveBuild` is called to set the `selectiveBuild` flag based on directory rules.
+- **Round 0**:
+    - The `selectiveBuild` flag is used to decide if a target is built.
+
+---
+
+### 4. Make Directory
+
+- If `makeDirectory = true`, the target's directory is created during configuration.
+- If `makeDirectory = false`, no directory is created for the target.
+- Two targets having same name is not undefined behavior.
+  Both target's `selectiveBuild` will be true, when mentioned on the command-line.
+
+---
+
+### 5. Empty Target Names
+
+- Targets without a name can only have `selectiveBuild` as true when hbuild is
+  executed in the configure-dir or one of the target's dependents `selectiveBuild`
+  is true.
+
+---
+
+### Example 9
+
+```cpp
+
+
+#include <utility>
+
+#include "Configure.hpp"
+
+struct OurTarget : BTarget
+{
+    string message;
+    explicit OurTarget(string str, string name = "", const bool makeDirectory = true, const bool buildExplicit = false)
+        : BTarget(std::move(name), buildExplicit, makeDirectory, true, false, true), message{std::move(str)}
+    {
+    }
+    void updateBTarget(Builder &builder, const unsigned short round) override
+    {
+        if (round == 0 && selectiveBuild)
+        {
+            printMessage(FORMAT("{}", message));
+        }
+    }
+};
+
+void buildSpecification()
+{
+    OurTarget *a = new OurTarget("A", "A");
+    string str = "A";
+    str += slashc;
+    OurTarget *b = new OurTarget("B", str + 'B', false);
+    OurTarget *c = new OurTarget("C", str + 'C', true, true);
+    OurTarget *d = new OurTarget("D", "D");
+    OurTarget *e = new OurTarget("E", "E");
+    OurTarget *f = new OurTarget("F");
+    c->realBTargets[0].addDependency(*e);
+}
+
+MAIN_FUNCTION
+```
+
+### Directory Structure (After Configuration)
+
+├───a
+
+│ &emsp;&ensp; └───c
+
+├───d
+
+└───e
+
+└───f
+
+- **No directories** are created for targets **B** or **F**.
+
+---
+
+### Target Properties
+
+- **A, C, D, E, F**: `makeDirectory = true`
+- **C**: `buildExplicit = true`
+- **F**: No name, not a dependency, and no `buildExplicit`.
+
+---
+
+### Build Outcomes
+
+1.
+
+Run `hbuild` in the configure directory:
+
+Sample Output: `ABEDF`
+
+C is skipped because `buildExplicit = true`, and it wasn’t explicitly named.
+
+2.
+
+Run `hbuild` in D or E:
+
+Output: `D` (or `E` depending on directory)
+
+Only the target in the current directory is printed; others are siblings.
+
+3.
+
+Run `hbuild` in A:
+
+SampleOutput: `AB`
+
+`C` is skipped because `buildExplicit = true` even it is a subdirectory.
+
+4.
+
+Run hbuild in the configure directory with A/C, `hbuild A/C`:
+
+Sample Output: `ABEDCF`
+
+C is explicitly named, so it’s included with other targets.
+
+5.
+
+Run hbuild in the A/C directory, `hbuild .`:
+
+Sample Output: `AEC`
+
+A is the parent directory, C is explicitly named,
+E is the dependency of C.
+B, D and F are sibling targets.
+
+6.
+
+Run hbuild in A with C, `hbuild C`:
+
+Sample Output: `AEBC`
+
+C is explicitly named.
+E is included as a dependency of C even though it is a sibling directory.
+
+7.
+
+Run hbuild in A with C and ../d, `hbuild C ../D`:
+
+Sample Output: `BAECD`
+All except F, which lacks a name, dependencies, and buildExplicit.
+F only prints when `hbuild` runs in the configure directory.
+
+
+</details>
+
+## Nodes
+
+Every file and directory-path is represented by `Node` class in HMake.
+This class ensures that a file once checked for timestamp is not checked again.
+This is a common feature in build-systems.
+
+But HMake has an exclusive **game-changing and unprecedented** feature.
+
+HMake assigns a number to every new node as it is discovered, and it
+writes a nodes file when it saves build-cache and config-cache.
+In nodes file, it saves the nodes and their assigned number.
+Now, in build-cache and config-cache, it references these files with numbers
+instead of full filepath.
+This results in exceptionally shorter build-cache files.
+HMake, like Ninja, use compile-command hash to compare compile-commands
+to reduces the build-cache size.
+HMake also compresses file to reduce the file-size further.
+For debugging purposes, the CMakeLists.txt file includes options
+to enable or disable any of these individually or in combination.
+
+These features combined reduce the build-cache by **200x**.
+
+------Compare boost and predict for UE5.
+
+Total build-system residue with cap'n'proto should be less than 5MB.
+
+
+<details>
+
+<summary> Nodes And TargetCache</summary>
+</details>
 
 ## C++ Examples
 

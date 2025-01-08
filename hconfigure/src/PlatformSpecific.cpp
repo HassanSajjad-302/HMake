@@ -222,7 +222,7 @@ extern string GetLastErrorString();
 static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize, bool binary)
 {
     const pstring str = fileName + ".tmp";
-    if (bsMode == BSMode::BUILD)
+    if constexpr (bsMode == BSMode::BUILD)
     {
 #ifdef WIN32
         // Open the existing file for writing, replacing its content
@@ -276,7 +276,7 @@ static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize,
 #endif
     }
 
-    else if (bsMode == BSMode::CONFIGURE)
+    else
     {
         if (binary)
         {
@@ -289,7 +289,7 @@ static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize,
         }
     }
 
-    if (bsMode == BSMode::BUILD)
+    if constexpr (bsMode == BSMode::BUILD)
     {
 #ifdef WIN32
         if (const bool result =
@@ -420,18 +420,24 @@ uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &ele
     const uint64_t old = currentTargetIndex;
     for (uint64_t i = currentTargetIndex; i < pvalue.Size(); ++i)
     {
-        if (element == pvalue[i][0])
+        if (const PValue &v = pvalue[i]; !v.Empty())
         {
-            currentTargetIndex = i;
-            return i;
+            if (v[0] == element)
+            {
+                currentTargetIndex = i;
+                return i;
+            }
         }
     }
     for (uint64_t i = 0; i < currentTargetIndex; ++i)
     {
-        if (element == pvalue[i][0])
+        if (const PValue &v = pvalue[i]; !v.Empty())
         {
-            currentTargetIndex = i;
-            return i;
+            if (v[0] == element)
+            {
+                currentTargetIndex = i;
+                return i;
+            }
         }
     }
     currentTargetIndex = old;
@@ -489,32 +495,14 @@ void lowerCasePStringOnWindows(pchar *ptr, const uint64_t size)
     }
 }
 
-bool childInParentPathRecursiveNormalized(const pstring_view parent, const pstring_view child)
+// TODO
+// Review this function and its usage.
+bool childInParentPathNormalized(const pstring_view parent, const pstring_view child)
 {
-    // Adding +1 so we -1 in while loop find_las_not_of so we always give one position before the last found slashc,
-    // otherwise it will return same index and it will be a forever loop.
-    uint64_t i = child.size() + 1;
-    if (compareStringsFromEnd(parent, pstring_view(child.data(), i - 1)))
+    if (child.size() < parent.size())
     {
-        return true;
+        return false;
     }
-    while (true)
-    {
-        if (parent.size() > i)
-        {
-            return false;
-        }
-        i = child.find_last_of(slashc, i - 1);
-        if (i != pstring::npos)
-        {
-            if (compareStringsFromEnd(parent, pstring_view(child.data(), i)))
-            {
-                return true;
-            }
-        }
-        else
-        {
-            i = 0;
-        }
-    }
+
+    return compareStringsFromEnd(parent, pstring_view(child.data(), parent.size()));
 }

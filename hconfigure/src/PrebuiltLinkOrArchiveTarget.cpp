@@ -33,21 +33,27 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
     if (round == 2)
     {
         actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
-        if (bsMode == BSMode::BUILD && evaluate(UseMiniTarget::YES))
+        if constexpr (bsMode == BSMode::BUILD)
         {
-            readConfigCacheAtBuildTime();
+            if (evaluate(UseMiniTarget::YES))
+            {
+                readConfigCacheAtBuildTime();
+            }
+            else
+            {
+                outputDirectory = Node::getNodeFromNonNormalizedString(outputDirectory, false, true)->filePath;
+                outputFileNode =
+                    Node::getNodeFromNormalizedString(outputDirectory + slashc + actualOutputName, true, true);
+            }
         }
         else
         {
             outputDirectory = Node::getNodeFromNonNormalizedString(outputDirectory, false, true)->filePath;
             outputFileNode = Node::getNodeFromNormalizedString(outputDirectory + slashc + actualOutputName, true, true);
 
-            if (bsMode == BSMode::CONFIGURE)
+            if (evaluate(UseMiniTarget::YES))
             {
-                if (evaluate(UseMiniTarget::YES))
-                {
-                    writeTargetConfigCacheAtConfigureTime();
-                }
+                writeTargetConfigCacheAtConfigureTime();
             }
         }
 

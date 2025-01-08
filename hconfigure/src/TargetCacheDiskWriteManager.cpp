@@ -52,7 +52,7 @@ PValue &PValueAndIndices::getTargetPValue() const
 
 TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
 {
-    if (bsMode == BSMode::BUILD)
+    if constexpr (bsMode == BSMode::BUILD)
     {
         copyJsonBTargets.reserve(10000);
 #ifdef NDEBUG
@@ -91,7 +91,7 @@ void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
 
 TargetCacheDiskWriteManager::~TargetCacheDiskWriteManager()
 {
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         writeNodesCacheIfNewNodesAdded();
     }
@@ -107,7 +107,7 @@ TargetCacheDiskWriteManager::~TargetCacheDiskWriteManager()
 
 void TargetCacheDiskWriteManager::initialize()
 {
-    if (bsMode == BSMode::BUILD)
+    if constexpr (bsMode == BSMode::BUILD)
     {
         // TODO
         // Allocate this and all the other globals in one function call.

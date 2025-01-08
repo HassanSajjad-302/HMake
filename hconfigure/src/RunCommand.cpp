@@ -365,7 +365,7 @@ bool PostCompile::ignoreHeaderFile(const pstring_view child) const
     {
         if (inclNode.ignoreHeaderDeps)
         {
-            if (childInParentPathRecursiveNormalized(inclNode.node->filePath, child))
+            if (childInParentPathNormalized(inclNode.node->filePath, child))
             {
                 return true;
             }
@@ -492,7 +492,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, const bool 
     headerDepsJson.Clear();
     if (mustConsiderHeaderDeps || !sourceNode.ignoreHeaderDeps)
     {
-        const pstring headerFileContents = fileToPString(target.buildCacheFilesDirPath +
+        const pstring headerFileContents = fileToPString(target.buildCacheFilesDirPathNode->filePath + slashc +
                                                          (path(sourceNode.node->filePath).filename().*toPStr)() + ".d");
         vector<pstring> headerDeps = split(headerFileContents, "\n");
 

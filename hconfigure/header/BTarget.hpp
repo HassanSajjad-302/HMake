@@ -124,11 +124,12 @@ struct BTarget // BTarget
     float totalTimeTaken = 0.0f;
     bool selectiveBuild = false;
     bool fileStatus = false;
+    bool buildExplicit = false;
 
     BTarget();
-    BTarget(pstring name_, bool buildExplicit, bool makeDirectory);
+    BTarget(pstring name_, bool buildExplicit_, bool makeDirectory);
     BTarget(bool add0, bool add1, bool add2);
-    BTarget(pstring name_, bool buildExplicit, bool makeDirectory, bool add0, bool add1, bool add2);
+    BTarget(pstring name_, bool buildExplicit_, bool makeDirectory, bool add0, bool add1, bool add2);
 
     virtual ~BTarget();
 

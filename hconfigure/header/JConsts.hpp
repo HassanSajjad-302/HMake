@@ -18,6 +18,7 @@ struct JConsts
     inline static const pstring archivers = "archivers";
     inline static const pstring archiverSelectedArrayIndex = "archiver-selected-array-index";
     inline static const pstring binary = "binary";
+    inline static const pstring buildExeBuildScript = "build-exe-build-script";
     inline static const pstring cacheIncludes = "cache-includes";
     inline static const pstring cacheVariables = "cache-variables";
     inline static const pstring clang = "clang";
@@ -26,7 +27,7 @@ struct JConsts
     inline static const pstring compile = "compile";
     inline static const pstring compileCommand = "compile-command";
     inline static const pstring compileCommandColor = "compile-command-color";
-    inline static const pstring compileConfigureCommands = "compile-configureDerived-commands";
+    inline static const pstring configureExeBuildScript = "configure-exe-build-script";
     inline static const pstring compileDefinitions = "compile-definitions";
     inline static const pstring compilePrintSettings = "compile-print-settings";
     inline static const pstring compiler = "compiler";

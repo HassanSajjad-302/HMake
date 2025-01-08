@@ -234,3 +234,56 @@ BTarget 0 Depends On BTarget 1.
     string result = removeColorCodes(output);
     ASSERT_EQ(result, str);
 }
+
+TEST(AExamplesTest, Example_A9)
+{
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A9"));
+    string output;
+    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_SUCCESS);
+    ASSERT_EQ(output.size(), 5);
+    ASSERT_EQ(output.contains('D'), true);
+    ASSERT_EQ(output.contains('E'), true);
+    ASSERT_EQ(output.contains('A'), true);
+    ASSERT_EQ(output.contains('B'), true);
+    ASSERT_EQ(output.contains('F'), true);
+    ExamplesTestHelper::runCommandAndGetOutputInDirectory("D", "hbuild D", output);
+    ASSERT_EQ(output == "D", true);
+    ExamplesTestHelper::runCommandAndGetOutputInDirectory("E", "hbuild e", output);
+    ASSERT_EQ(output == "E", true);
+    ExamplesTestHelper::runCommandAndGetOutputInDirectory("A", "hbuild", output);
+    ASSERT_EQ(output.size(), 2);
+    ASSERT_EQ(output.contains('A'), true);
+    ASSERT_EQ(output.contains('B'), true);
+
+    ExamplesTestHelper::runCommandAndGetOutput("hbuild A/C", output);
+    ASSERT_EQ(output.size(), 6);
+    ASSERT_EQ(output.contains('A'), true);
+    ASSERT_EQ(output.contains('B'), true);
+    ASSERT_EQ(output.contains('E'), true);
+    ASSERT_EQ(output.contains('C'), true);
+    ASSERT_EQ(output.contains('D'), true);
+    ASSERT_EQ(output.contains('F'), true);
+
+    ExamplesTestHelper::runCommandAndGetOutputInDirectory("A/C", "hbuild .", output);
+    ASSERT_EQ(output.size(), 3);
+    ASSERT_EQ(output.contains('A'), true);
+    ASSERT_EQ(output.contains('E'), true);
+    ASSERT_EQ(output.contains('C'), true);
+
+    ExamplesTestHelper::runCommandAndGetOutputInDirectory("A", "hbuild C", output);
+    ASSERT_EQ(output.size(), 4);
+    ASSERT_EQ(output.contains('A'), true);
+    ASSERT_EQ(output.contains('E'), true);
+    ASSERT_EQ(output.contains('C'), true);
+    ASSERT_EQ(output.contains('B'), true);
+
+    ExamplesTestHelper::runCommandAndGetOutputInDirectory("A", "hbuild C ../D", output);
+    ASSERT_EQ(output.size(), 5);
+    ASSERT_EQ(output.contains('A'), true);
+    ASSERT_EQ(output.contains('E'), true);
+    ASSERT_EQ(output.contains('C'), true);
+    ASSERT_EQ(output.contains('B'), true);
+    ASSERT_EQ(output.contains('D'), true);
+
+    // ASSERT_EQ(output.contains('D'), true);
+}

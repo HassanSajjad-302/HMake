@@ -28,18 +28,47 @@ bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs)
     return lhs.name < rhs.name;
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(const pstring &name_, TargetType targetType)
+void LinkOrArchiveTarget::makeBuildCacheFilesDirPathAtConfigTime(pstring buildCacheFilesDirPath)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (buildCacheFilesDirPath.empty())
+        {
+            buildCacheFilesDirPath = configureNode->filePath + slashc + name;
+        }
+        create_directories(buildCacheFilesDirPath);
+        Node::addHalfNodeFromNormalizedStringSingleThreaded(buildCacheFilesDirPath);
+        buildCacheFilesDirPathNode = Node::getLastNodeAdded();
+    }
+}
+
+LinkOrArchiveTarget::LinkOrArchiveTarget(const pstring &name_, const TargetType targetType)
     : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
                                   name_, false, false)
 {
-    linkTargetType = targetType;
+    makeBuildCacheFilesDirPathAtConfigTime("");
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(bool buildExplicit, const pstring &name_, TargetType targetType)
+LinkOrArchiveTarget::LinkOrArchiveTarget(const bool buildExplicit, const pstring &name_, const TargetType targetType)
     : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
                                   name_, buildExplicit, false)
 {
-    linkTargetType = targetType;
+    makeBuildCacheFilesDirPathAtConfigTime("");
+}
+
+LinkOrArchiveTarget::LinkOrArchiveTarget(const pstring &buildCacheFileDirPath_, const pstring &name_,
+                                         const TargetType targetType)
+    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), buildCacheFileDirPath_, targetType, name_, false, false)
+{
+    makeBuildCacheFilesDirPathAtConfigTime(buildCacheFileDirPath_);
+}
+
+LinkOrArchiveTarget::LinkOrArchiveTarget(const pstring &buildCacheFileDirPath_, const bool buildExplicit,
+                                         const pstring &name_, const TargetType targetType)
+    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), buildCacheFileDirPath_, targetType, name_,
+                                  buildExplicit, false)
+{
+    makeBuildCacheFilesDirPathAtConfigTime(buildCacheFileDirPath_);
 }
 
 pstring LinkOrArchiveTarget::getLinkOrArchiveCommandWithoutTargets()
@@ -80,11 +109,6 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
     setLinkOrArchiveCommands();
     commandWithoutTargetsWithTool.setCommand((linker.bTPath.*toPStr)() + " " + linkOrArchiveCommandWithoutTargets);
-
-    if (bsMode == BSMode::CONFIGURE)
-    {
-        create_directories(buildCacheFilesDirPath);
-    }
 
     namespace LinkBuild = Indices::BuildCache::LinkBuild;
     if (getBuildCache().Empty())
@@ -260,7 +284,6 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             }
 
             {
-                lock_guard lk(printMutex);
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
                 {
                     postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false,
@@ -290,6 +313,13 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
     }
     else if (round == 2)
     {
+        if constexpr (bsMode == BSMode::BUILD)
+        {
+            if (evaluate(UseMiniTarget::YES))
+            {
+                readConfigCacheAtBuildTime();
+            }
+        }
         if (!evaluate(TargetType::LIBRARY_STATIC))
         {
             for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
@@ -303,16 +333,26 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             }
         }
 
-        buildCacheFilesDirPath = configureNode->filePath + slashc + name + slashc;
-        if (bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            create_directories(buildCacheFilesDirPath);
             if (evaluate(UseMiniTarget::YES))
             {
-                // writeTargetConfigCacheAtConfigureTime();
+                writeTargetConfigCacheAtConfigureTime();
             }
         }
     }
+}
+
+void LinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime()
+{
+    buildOrConfigCacheCopy.PushBack(buildCacheFilesDirPathNode->getPValue(), cacheAlloc);
+    copyBackConfigCacheMutexLocked();
+}
+
+void LinkOrArchiveTarget::readConfigCacheAtBuildTime()
+{
+    buildCacheFilesDirPathNode = Node::getNotSystemCheckCalledNodeFromPValue(
+        getConfigCache()[Indices::ConfigCache::LinkConfig::buildCacheFilesDirPath]);
 }
 
 LinkerFlags LinkOrArchiveTarget::getLinkerFlags()

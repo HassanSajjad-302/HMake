@@ -34,7 +34,8 @@ struct Cache
     unsigned selectedScannerArrayIndex;
     enum TargetType libraryType;
     Json cacheVariables;
-    vector<pstring> compileConfigureCommands;
+    vector<pstring> configureExeBuildScript;
+    vector<pstring> buildExeBuildScript;
     Cache();
     void initializeCacheVariableFromCacheFile();
     void registerCacheVariables();

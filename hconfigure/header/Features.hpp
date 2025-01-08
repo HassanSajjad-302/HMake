@@ -821,9 +821,11 @@ struct CppCompilerFeatures
 template <typename... U>
 CppCompilerFeatures &CppCompilerFeatures::privateIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        // Initialized in CppSourceTarget round 2
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+        }
     }
     else
     {

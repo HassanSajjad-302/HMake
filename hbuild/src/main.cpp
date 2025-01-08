@@ -19,45 +19,29 @@ using std::filesystem::current_path, std::filesystem::directory_iterator, std::i
     std::filesystem::exists, std::string, fmt::format;
 int main(const int argc, char **argv)
 {
-    if (argc == 2)
+    path buildExePath;
+    bool configuredExecutableExists = false;
+    string buildExeName = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "build");
+    for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
     {
-        const std::string filePath = argv[1];
-        path buildFilePath = filePath;
-        if (buildFilePath.is_relative())
+        buildExePath = p / buildExeName;
+        if (exists(buildExePath))
         {
-            buildFilePath = (current_path() / buildFilePath).lexically_normal();
-        }
-        else
-        {
-            buildFilePath = buildFilePath.lexically_normal();
-        }
-        if (!is_regular_file(buildFilePath))
-        {
-            printMessage(fmt::format("{} is not regular file.\n", buildFilePath.string()));
-            exit(EXIT_FAILURE);
+            configuredExecutableExists = true;
+            break;
         }
     }
-    else
+    if (configuredExecutableExists)
     {
-        path configureExecutablePath;
-        bool configuredExecutableExists = false;
-        string configureName = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
-        for (path p = current_path(); p.root_path() != p; p = (p / "..").lexically_normal())
+        string str = buildExePath.string() + ' ';
+        for (uint64_t i = 1; i < argc; ++i)
         {
-            configureExecutablePath = p / configureName;
-            if (exists(configureExecutablePath))
-            {
-                configuredExecutableExists = true;
-                break;
-            }
+            str += argv[i];
+            str += ' ';
         }
-        if (configuredExecutableExists)
-        {
-            const string str = configureExecutablePath.string() + " --build";
-            return system(str.c_str());
-        }
-        printErrorMessage(
-            fmt::format("{} File could not be found in current directory and directories above\n", configureName));
-        exit(EXIT_FAILURE);
+        return system(str.c_str());
     }
+    printErrorMessage(
+        fmt::format("{} File could not be found in current directory and directories above\n", buildExeName));
+    exit(EXIT_FAILURE);
 }

@@ -4,12 +4,10 @@
 import "HashValues.hpp";
 import "OS.hpp";
 import "phmap.h";
-import "PlatformSpecific.hpp";
 import "nlohmann/json.hpp";
 #else
 #include "HashValues.hpp"
 #include "OS.hpp"
-#include "PlatformSpecific.hpp"
 #include "nlohmann/json.hpp"
 #include "phmap.h"
 #include <deque>
@@ -35,6 +33,7 @@ struct IndexedNode
 // Explore
 using Json = nlohmann::json; // Unordered json
 
+inline flat_hash_set<pstring> cmdTargets;
 inline mutex configCacheMutex;
 inline PDocument configCache(kArrayType);
 inline unique_ptr<vector<pchar>> configCacheBuffer;
@@ -64,7 +63,12 @@ enum class BSMode : char // Build System Mode
 };
 
 // By default, mode is configure, however, if, --build cmd option is passed, it is set to BUILD.
-inline BSMode bsMode = BSMode::CONFIGURE;
+
+#ifdef BUILD_MODE
+inline constexpr BSMode bsMode = BSMode::BUILD;
+#else
+inline constexpr BSMode bsMode = BSMode::CONFIGURE;
+#endif
 
 // Following can be used for holding memory through build-system run and is used for target<CTarget> in GetTarget
 // functions
@@ -82,10 +86,8 @@ inline constexpr OS os = OS::NT;
 inline constexpr OS os = OS::LINUX;
 #endif
 
-inline std::mutex printMutex;
-
+inline pstring currentMinusConfigure;
 void initializeCache(BSMode bsMode_);
-void setBuildSystemModeFromArguments(int argc, char **argv);
 inline const pstring dashCpp = "-cpp";
 inline const pstring dashLink = "-link";
 
@@ -109,6 +111,7 @@ void printErrorMessageColor(const pstring &message, uint32_t color);
 
 pstring getLastNameAfterSlash(pstring_view name);
 pstring_view getLastNameAfterSlashView(pstring_view name);
+pstring getNameBeforeLastSlash(pstring_view name);
 pstring removeDashCppFromName(pstring_view name);
 bool configureOrBuild();
 void constructGlobals();

@@ -20,7 +20,7 @@ enum class CSourceTargetType : unsigned short
     CppSourceTarget = 2,
 };
 
-class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget> , public TargetCache
+class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>, public TargetCache
 {
   public:
     using BaseType = CSourceTarget;
@@ -36,13 +36,14 @@ class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget> , public Ta
     CSourceTarget(const pstring &name_, Configuration *configuration);
     CSourceTarget(bool buildExplicit, const pstring &name_, Configuration *configuration_);
 
-  /*protected:
-    // This parameter noTargetCacheInitialization is here so CSourceTarget does not call CSourceTarget and not call
-    // initializeCSourceTarget, as targetConfigCache could potentailly be set by the derived class
-    explicit CSourceTarget(pstring name_, bool noTargetCacheInitialization);
-    CSourceTarget(bool buildExplicit, pstring name_, bool noTargetCacheInitialization);
-    CSourceTarget(pstring name_, Configuration *configuration_, bool noTargetCacheInitialization);
-    CSourceTarget(bool buildExplicit, pstring name_, Configuration *configuration_, bool noTargetCacheInitialization);*/
+    /*protected:
+      // This parameter noTargetCacheInitialization is here so CSourceTarget does not call CSourceTarget and not call
+      // initializeCSourceTarget, as targetConfigCache could potentailly be set by the derived class
+      explicit CSourceTarget(pstring name_, bool noTargetCacheInitialization);
+      CSourceTarget(bool buildExplicit, pstring name_, bool noTargetCacheInitialization);
+      CSourceTarget(pstring name_, Configuration *configuration_, bool noTargetCacheInitialization);
+      CSourceTarget(bool buildExplicit, pstring name_, Configuration *configuration_, bool
+      noTargetCacheInitialization);*/
 
   public:
     template <typename... U> CSourceTarget &interfaceIncludes(const pstring &include, U... includeDirectoryPString);
@@ -55,9 +56,11 @@ bool operator<(const CSourceTarget &lhs, const CSourceTarget &rhs);
 template <typename... U>
 CSourceTarget &CSourceTarget::interfaceIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        // Initialized in CppSourceTarget round 2
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+        }
     }
     else
     {

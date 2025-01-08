@@ -20,8 +20,6 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 Builder::Builder()
 {
     round = 2;
-    roundGoal = bsMode == BSMode::BUILD ? 0 : 2;
-
     TBT::tarjanNodes = &tarjanNodesBTargets[round];
     TBT::findSCCS();
     TBT::checkForCycle();
@@ -32,7 +30,6 @@ Builder::Builder()
         {
             updateBTargets.emplace_back(target);
         }
-        target->setSelectiveBuild();
     }
 
     updateBTargetsIterator = updateBTargets.begin();
@@ -133,6 +130,7 @@ void Builder::execute()
                                     RealBTarget &localReal = localBTarget.realBTargets[0];
 
                                     localReal.indexInTopologicalSort = topSize - (i + 1);
+
                                     if (localBTarget.selectiveBuild)
                                     {
                                         for (auto &[dependency, bTargetDepType] : localReal.dependencies)
@@ -215,6 +213,10 @@ void Builder::execute()
 
         try
         {
+            if (round == 2)
+            {
+                bTarget->setSelectiveBuild();
+            }
             bTarget->updateBTarget(*this, round);
             DEBUG_EXECUTE(fmt::format("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
             executeMutex.lock();

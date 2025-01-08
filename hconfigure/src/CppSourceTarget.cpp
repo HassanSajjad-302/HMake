@@ -29,7 +29,7 @@ import <utility>;
 #include <utility>
 #endif
 
-using std::filesystem::create_directories, std::filesystem::directory_iterator,
+using std::filesystem::create_directories, std::filesystem::create_directory, std::filesystem::directory_iterator,
     std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
 
 SourceDirectory::SourceDirectory(const pstring &sourceDirectory_, pstring regex_, const bool recursive_)
@@ -197,43 +197,78 @@ bool CppSourceTarget::isCpuTypeG7()
 
 CppSourceTarget::CppSourceTarget(const pstring &name_, const TargetType targetType) : CSourceTarget{false, name_}
 {
-    initializeCppSourceTarget(targetType, name_);
+    initializeCppSourceTarget(targetType, name_, "");
 }
 
 CppSourceTarget::CppSourceTarget(const bool buildExplicit, const pstring &name_, const TargetType targetType)
     : CSourceTarget{buildExplicit, name_}
 {
-    initializeCppSourceTarget(targetType, name_);
+    initializeCppSourceTarget(targetType, name_, "");
 }
 
 CppSourceTarget::CppSourceTarget(const pstring &name_, const TargetType targetType, Configuration *configuration_)
     : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(false, name_, configuration_)
 {
-    initializeCppSourceTarget(targetType, name_);
+    initializeCppSourceTarget(targetType, name_, "");
 }
 
 CppSourceTarget::CppSourceTarget(const bool buildExplicit, const pstring &name_, const TargetType targetType,
                                  Configuration *configuration_)
     : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(buildExplicit, name_, configuration_)
 {
-    initializeCppSourceTarget(targetType, name_);
+    initializeCppSourceTarget(targetType, name_, "");
 }
 
-void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, const pstring &name_)
+CppSourceTarget::CppSourceTarget(pstring buildCacheFilesDirPath_, const pstring &name_, const TargetType targetType)
+    : CSourceTarget{false, name_}
+{
+    initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
+}
+
+CppSourceTarget::CppSourceTarget(pstring buildCacheFilesDirPath_, const bool buildExplicit, const pstring &name_,
+                                 const TargetType targetType)
+    : CSourceTarget{buildExplicit, name_}
+{
+    initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
+}
+
+CppSourceTarget::CppSourceTarget(pstring buildCacheFilesDirPath_, const pstring &name_, const TargetType targetType,
+                                 Configuration *configuration_)
+    : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(false, name_, configuration_)
+{
+    initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
+}
+
+CppSourceTarget::CppSourceTarget(pstring buildCacheFilesDirPath_, const bool buildExplicit, const pstring &name_,
+                                 const TargetType targetType, Configuration *configuration_)
+    : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(buildExplicit, name_, configuration_)
+{
+    initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
+}
+
+void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, const pstring &name_,
+                                                pstring buildCacheFilesDirPath)
 {
     compileTargetType = targetType;
 
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (evaluate(UseMiniTarget::YES))
+        buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc)
+            .PushBack(kArrayType, cacheAlloc)
+            .PushBack(kArrayType, cacheAlloc)
+            .PushBack(kArrayType, cacheAlloc)
+            .PushBack(kArrayType, cacheAlloc)
+            .PushBack(kArrayType, cacheAlloc)
+            .PushBack(Node::getType(), cacheAlloc);
+
+        if (buildCacheFilesDirPath.empty())
         {
-            buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc)
-                .PushBack(kArrayType, cacheAlloc)
-                .PushBack(kArrayType, cacheAlloc)
-                .PushBack(kArrayType, cacheAlloc)
-                .PushBack(kArrayType, cacheAlloc)
-                .PushBack(kArrayType, cacheAlloc);
+            buildCacheFilesDirPath = configureNode->filePath + slashc + name;
         }
+        create_directories(buildCacheFilesDirPath);
+        buildCacheFilesDirPathNode = Node::addHalfNodeFromNormalizedStringSingleThreaded(buildCacheFilesDirPath);
+        buildOrConfigCacheCopy[Indices::ConfigCache::CppConfig::buildCacheFilesDirPath] =
+            buildCacheFilesDirPathNode->getPValue();
 
         namespace CppBuild = Indices::BuildCache::CppBuild;
         if (PValue &targetBuildCache = getBuildCache(); targetBuildCache.Empty())
@@ -256,7 +291,7 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
         }
     }
 
-    if (bsMode == BSMode::BUILD)
+    if constexpr (bsMode == BSMode::BUILD)
     {
         namespace CppConfig = Indices::ConfigCache::CppConfig;
         cppSourceTargets[targetCacheIndex] = this;
@@ -286,6 +321,8 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
         PValue &moduleValue = buildOrConfigCacheCopy[CppBuild::moduleFiles];
         moduleValue.Reserve(moduleValue.Size() + modFileDeps.size(), cacheAlloc);
 
+        buildCacheFilesDirPathNode =
+            Node::getNotSystemCheckCalledNodeFromPValue(getConfigCache()[CppConfig::buildCacheFilesDirPath]);
         // Header-units size can't be known as these are dynamically discovered.
     }
 }
@@ -411,9 +448,12 @@ CSourceTargetType CppSourceTarget::getCSourceTargetType() const
 
 CppSourceTarget &CppSourceTarget::makeReqInclsUseable()
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        // Initialized in CppSourceTarget round 2
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+            // Initialized in CppSourceTarget round 2
+        }
     }
     else
     {
@@ -526,7 +566,7 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(const Node *node, const bo
 
 CppSourceTarget &CppSourceTarget::removeSourceFile(const pstring &sourceFile)
 {
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         namespace CppConfig = Indices::ConfigCache::CppConfig;
         const Node *node = Node::getNodeFromNonNormalizedPath(sourceFile, true);
@@ -550,7 +590,7 @@ CppSourceTarget &CppSourceTarget::removeModuleFile(const pstring &moduleFile)
     {
         return removeSourceFile(moduleFile);
     }
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         namespace CppConfig = Indices::ConfigCache::CppConfig;
         const Node *node = Node::getNodeFromNonNormalizedPath(moduleFile, true);
@@ -1065,7 +1105,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     }
     else if (round == 2)
     {
-        if (bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
             if (evaluate(UseMiniTarget::YES))
             {
@@ -1073,9 +1113,12 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             }
         }
 
-        if (bsMode == BSMode::BUILD && evaluate(UseMiniTarget::YES))
+        if constexpr (bsMode == BSMode::BUILD)
         {
-            readConfigCacheAtBuildTime();
+            if (evaluate(UseMiniTarget::YES))
+            {
+                readConfigCacheAtBuildTime();
+            }
         }
         populateRequirementAndUsageRequirementDeps();
         // Needed to maintain ordering between different includes specification.
@@ -1083,8 +1126,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         populateTransitiveProperties();
         adjustHeaderUnitsBTarget.realBTargets[1].addDependency(*this);
 
-        buildCacheFilesDirPath = configureNode->filePath + slashc + name + slashc;
-        if (bsMode == BSMode::BUILD)
+        if constexpr (bsMode == BSMode::BUILD)
         {
             // getCompileCommand will be later on called concurrently therefore need to set this before.
             setCompileCommand();
@@ -1119,14 +1161,9 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                 builder.cond.notify_one();
             }
         }
-        if (bsMode == BSMode::CONFIGURE)
-        {
-            create_directories(buildCacheFilesDirPath);
-        }
 
-        if (bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            create_directories(buildCacheFilesDirPath);
             if (evaluate(UseMiniTarget::YES))
             {
                 writeTargetConfigCacheAtConfigureTime(false);
@@ -1284,10 +1321,13 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const pstri
         assignToSourceNodes = true;
     }
 
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        // Initialized in CppSourceTarget round 2
-        return;
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+            // Initialized in CppSourceTarget round 2
+            return;
+        }
     }
 
     const SourceDirectory dir{sourceDirectory, std::move(regex), recursive};
@@ -1500,6 +1540,16 @@ pstring &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
     return sourceCompileCommandPrintFirstHalf;
 }
 
+pstring CppSourceTarget::getDependenciesPString() const
+{
+    pstring deps;
+    for (const CSourceTarget *cSourceTarget : requirementDeps)
+    {
+        deps += cSourceTarget->name + '\n';
+    }
+    return deps;
+}
+
 void CppSourceTarget::resolveRequirePaths()
 {
     for (SMFile &smFile : modFileDeps)
@@ -1525,38 +1575,44 @@ void CppSourceTarget::resolveRequirePaths()
             RequireNameTargetId req(id, pstring(require[SingleModuleDep::logicalName].GetString(),
                                                 require[SingleModuleDep::logicalName].GetStringLength()));
 
+            const bool isInterface = req.requireName.contains(':');
+
             using Map = decltype(requirePaths2);
             if (requirePaths2.if_contains(
                     req, [&](const Map::value_type &value) { found = const_cast<SMFile *>(value.second); }))
             {
             }
 
-            const SMFile *found2 = nullptr;
-            for (CSourceTarget *cSourceTarget : requirementDeps)
+            // An interface module is searched only in the module files of the current target.
+            if (!isInterface)
             {
-                if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
+                const SMFile *found2 = nullptr;
+                for (CSourceTarget *cSourceTarget : requirementDeps)
                 {
-                    const auto *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
-                    req.id = cppSourceTarget->id;
-
-                    if (requirePaths2.if_contains(
-                            req, [&](const Map::value_type &value) { found2 = const_cast<SMFile *>(value.second); }))
+                    if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
                     {
-                        if (found)
+                        const auto *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
+                        req.id = cppSourceTarget->id;
+
+                        if (requirePaths2.if_contains(req, [&](const Map::value_type &value) {
+                                found2 = const_cast<SMFile *>(value.second);
+                            }))
                         {
-                            // Module was already found so error-out
-                            printErrorMessageColor(
-                                fmt::format("In target and its dependencies files:\n{}\nModule name:\n {}\n Is Being "
-                                            "Provided By 2 "
-                                            "different files:\n1){}\n2){}\n",
-                                            getTarjanNodeName(),
-                                            pstring(require[SingleModuleDep::logicalName].GetString(),
-                                                    require[SingleModuleDep::logicalName].GetStringLength()),
-                                            found->node->filePath, found->node->filePath),
-                                settings.pcSettings.toolErrorOutput);
-                            throw std::exception();
+                            if (found)
+                            {
+                                // Module was already found so error-out
+                                printErrorMessageColor(
+                                    fmt::format("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
+                                                "from target\n{}\n2){}\n from target\n{}\n",
+                                                getTarjanNodeName(), getDependenciesPString(),
+                                                pstring(require[SingleModuleDep::logicalName].GetString(),
+                                                        require[SingleModuleDep::logicalName].GetStringLength()),
+                                                found->node->filePath, found->node->filePath),
+                                    settings.pcSettings.toolErrorOutput);
+                                throw std::exception();
+                            }
+                            found = found2;
                         }
-                        found = found2;
                     }
                 }
             }
@@ -1568,19 +1624,31 @@ void CppSourceTarget::resolveRequirePaths()
                 {
                     if (require[SingleModuleDep::fullPath] != found->objectFileOutputFilePath->getPValue())
                     {
-                        atomic_ref(const_cast<SMFile &>(smFile).fileStatus).store(true);
+                        atomic_ref(smFile.fileStatus).store(true);
                     }
                 }
                 smFile.pValueObjectFileMapping.emplace_back(&require, found->objectFileOutputFilePath);
             }
             else
             {
-                printErrorMessageColor(
-                    fmt::format("No File in the target\n{}\n or in its dependencies provides this module {}.\n",
-                                getTarjanNodeName(),
-                                pstring(require[SingleModuleDep::logicalName].GetString(),
-                                        require[SingleModuleDep::logicalName].GetStringLength())),
-                    settings.pcSettings.toolErrorOutput);
+                if (isInterface)
+                {
+                    printErrorMessageColor(
+                        fmt::format("No File in the target\n{}\n provides this module\n{}.\n", getTarjanNodeName(),
+                                    pstring(require[SingleModuleDep::logicalName].GetString(),
+                                            require[SingleModuleDep::logicalName].GetStringLength())),
+                        settings.pcSettings.toolErrorOutput);
+                }
+                else
+                {
+                    printErrorMessageColor(
+                        fmt::format(
+                            "No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
+                            getTarjanNodeName(), getDependenciesPString(),
+                            pstring(require[SingleModuleDep::logicalName].GetString(),
+                                    require[SingleModuleDep::logicalName].GetStringLength())),
+                        settings.pcSettings.toolErrorOutput);
+                }
                 throw std::exception();
             }
         }
@@ -1733,7 +1801,7 @@ pstring CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &sm
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
     {
         command +=
-            getReducedPath(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)() + ".smrules",
+            getReducedPath(buildCacheFilesDirPathNode->filePath + slashc + smFile.node->getFileName() + ".smrules",
                            ccpSettings.objectFile) +
             " ";
     }
@@ -1751,7 +1819,7 @@ PostCompile CppSourceTarget::CompileSMFile(const SMFile &smFile)
     }
     finalCompileCommand += getInfrastructureFlags(false) + " " + addQuotes(smFile.node->filePath) + " ";
 
-    finalCompileCommand += smFile.getFlag(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)());
+    finalCompileCommand += smFile.getFlag(buildCacheFilesDirPathNode->filePath + slashc + smFile.node->getFileName());
 
     return PostCompile{
         *this,
@@ -1777,12 +1845,14 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(const SourceNode &sourceNod
     finalCompileCommand += getInfrastructureFlags(true) + " " + addQuotes(sourceNode.node->filePath) + " ";
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        finalCompileCommand += (evaluate(TargetType::LIBRARY_OBJECT) ? "/Fo" : "/Fi") +
-                               addQuotes(buildCacheFilesDirPath + compileFileName + getExtension());
+        finalCompileCommand +=
+            (evaluate(TargetType::LIBRARY_OBJECT) ? "/Fo" : "/Fi") +
+            addQuotes(buildCacheFilesDirPathNode->filePath + slashc + compileFileName + getExtension());
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
-        finalCompileCommand += "-o " + addQuotes(buildCacheFilesDirPath + compileFileName + getExtension());
+        finalCompileCommand +=
+            "-o " + addQuotes(buildCacheFilesDirPathNode->filePath + slashc + compileFileName + getExtension());
     }
 
     return PostCompile{
@@ -1807,7 +1877,7 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const boo
         }
         finalCompileCommand +=
             "/nologo /showIncludes /scanDependencies " +
-            addQuotes(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)() + ".smrules") + " ";
+            addQuotes(buildCacheFilesDirPathNode->filePath + slashc + smFile.node->getFileName() + ".smrules") + " ";
 
         return printOnlyOnError ? PostCompile(*this, compiler.bTPath, finalCompileCommand, "")
                                 : PostCompile(*this, compiler.bTPath, finalCompileCommand,
@@ -1820,7 +1890,7 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const boo
         finalCompileCommand =
             "-format=p1689 -- " + compiler.bTPath.string() + " " + finalCompileCommand + " -c -MMD -MF ";
         finalCompileCommand +=
-            addQuotes(buildCacheFilesDirPath + (path(smFile.node->filePath).filename().*toPStr)() + ".d");
+            addQuotes(buildCacheFilesDirPathNode->filePath + slashc + smFile.node->getFileName() + ".d");
 
         return printOnlyOnError ? PostCompile(*this, scanner.bTPath, finalCompileCommand, "")
                                 : PostCompile(*this, scanner.bTPath, finalCompileCommand,

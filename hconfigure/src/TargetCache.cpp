@@ -8,27 +8,41 @@ import "TargetCache.hpp";
 
 TargetCache::TargetCache(const pstring &name)
 {
-    const uint64_t index = pvalueIndexInSubArrayConsidered(configCache, PValue(ptoref(name)));
-
-    if (bsMode == BSMode::CONFIGURE)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
+        const uint64_t index = pvalueIndexInSubArray(configCache, PValue(ptoref(name)));
         if (index == UINT64_MAX)
         {
             configCache.PushBack(PValue(kArrayType), ralloc);
-            PValue *targetCacheLocal = &configCache[configCache.Size() - 1];
-            targetCacheLocal->PushBack(PValue(kStringType).SetString(name.c_str(), name.size(), ralloc), ralloc);
-            targetCacheLocal->PushBack(PValue(kArrayType), ralloc);
             buildCache.PushBack(PValue(kArrayType), ralloc);
             targetCacheIndex = configCache.Size() - 1;
+            configCache[targetCacheIndex].PushBack(PValue(kStringType).SetString(name.c_str(), name.size(), ralloc),
+                                                   ralloc);
         }
         else
         {
             targetCacheIndex = index;
             getConfigCache().Clear();
+            configCache[targetCacheIndex].PushBack(PValue(kStringType).SetString(name.c_str(), name.size(), ralloc),
+                                                   ralloc);
         }
+
+#ifndef BUILD_MODE
+        myId = idCount;
+        ++idCount;
+        if (auto [pos, ok] = targetCacheIndexAndMyIdHashMap.emplace(targetCacheIndex, myId); !ok)
+        {
+            printErrorMessage(
+                fmt::format("Attempting to add 2 targets with same name {} in config-cache.json\n", name));
+            exit(EXIT_FAILURE);
+        }
+
+#endif
+        buildOrConfigCacheCopy.PushBack(PValue(kStringType).SetString(name.c_str(), name.size(), ralloc), ralloc);
     }
     else
     {
+        const uint64_t index = pvalueIndexInSubArrayConsidered(configCache, PValue(ptoref(name)));
         if (index != UINT64_MAX)
         {
             targetCacheIndex = index;
@@ -37,16 +51,18 @@ TargetCache::TargetCache(const pstring &name)
         else
         {
             printErrorMessage(fmt::format(
-                "Target {} not found in target-cache.\nMaybe you need to run hhelper first to update the target-cache.",
+                "Target {} not found in config-cache.\nMaybe you need to run hhelper first to update the target-cache.",
                 name));
             exit(EXIT_FAILURE);
         }
     }
+    flat_hash_map<int, int> a;
+    a.emplace(2, 3);
 }
 
 PValue &TargetCache::getConfigCache() const
 {
-    return configCache[targetCacheIndex][1];
+    return configCache[targetCacheIndex];
 }
 PValue &TargetCache::getBuildCache() const
 {

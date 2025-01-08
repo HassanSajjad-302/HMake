@@ -43,6 +43,11 @@ uint64_t hash_value(const Define &p)
     return rapidhash(&hash, sizeof(hash));
 }
 
+uint64_t hash_value(const pstring_view &p)
+{
+    return rapidhash(p.data(), p.size());
+}
+
 bool operator==(const CppSourceTarget &lhs, const CppSourceTarget &rhs)
 {
     return lhs.id == rhs.id;
@@ -50,7 +55,7 @@ bool operator==(const CppSourceTarget &lhs, const CppSourceTarget &rhs)
 
 bool operator==(const DSC<CppSourceTarget> &lhs, const DSC<CppSourceTarget> &rhs)
 {
-    return true;
+    return lhs.prebuiltBasic->id == rhs.prebuiltBasic->id && rhs.objectFileProducer->id == rhs.objectFileProducer->id;
 }
 
 bool operator==(const Configuration &lhs, const Configuration &rhs)

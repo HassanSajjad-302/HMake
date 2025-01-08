@@ -133,12 +133,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     using BaseType = CSourceTarget;
 
     TargetType compileTargetType;
-    /*    ModuleScopeDataOld *moduleScopeData = nullptr;
-        inline static map<const CppSourceTarget *, unique_ptr<ModuleScopeDataOld>> moduleScopes;*/
     friend struct PostCompile;
-    // Parsed Info Not Changed Once Read
-    // pstring targetFilePath;
-    pstring buildCacheFilesDirPath;
 
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
     pstring compileCommand;
@@ -157,6 +152,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
     AdjustHeaderUnitsBTarget adjustHeaderUnitsBTarget{this};
 
+    Node *buildCacheFilesDirPathNode = nullptr;
     // requirementIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
 
@@ -176,6 +172,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     void setSourceCompileCommandPrintFirstHalf();
     inline pstring &getSourceCompileCommandPrintFirstHalf();
 
+    pstring getDependenciesPString() const;
     void resolveRequirePaths();
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);
@@ -202,7 +199,15 @@ class CppSourceTarget : public CppCompilerFeatures,
     CppSourceTarget(bool buildExplicit, const pstring &name_, TargetType targetType);
     CppSourceTarget(const pstring &name_, TargetType targetType, Configuration *configuration_);
     CppSourceTarget(bool buildExplicit, const pstring &name_, TargetType targetType, Configuration *configuration_);
-    void initializeCppSourceTarget(TargetType targetType, const pstring &name_);
+
+    CppSourceTarget(pstring buildCacheFilesDirPath_, const pstring &name_, TargetType targetType);
+    CppSourceTarget(pstring buildCacheFilesDirPath_, bool buildExplicit, const pstring &name_, TargetType targetType);
+    CppSourceTarget(pstring buildCacheFilesDirPath_, const pstring &name_, TargetType targetType,
+                    Configuration *configuration_);
+    CppSourceTarget(pstring buildCacheFilesDirPath_, bool buildExplicit, const pstring &name_, TargetType targetType,
+                    Configuration *configuration_);
+
+    void initializeCppSourceTarget(TargetType targetType, const pstring &name_, pstring buildCacheFilesDirPath);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
@@ -268,8 +273,11 @@ bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
 template <typename... U>
 CppSourceTarget &CppSourceTarget::publicIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+        }
         // Initialized in CppSourceTarget round 2
     }
     else
@@ -291,8 +299,11 @@ CppSourceTarget &CppSourceTarget::publicIncludes(const pstring &include, U... in
 template <typename... U>
 CppSourceTarget &CppSourceTarget::privateIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+        }
         // Initialized in CppSourceTarget round 2
     }
     else
@@ -313,8 +324,11 @@ CppSourceTarget &CppSourceTarget::privateIncludes(const pstring &include, U... i
 template <typename... U>
 CppSourceTarget &CppSourceTarget::interfaceIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+        }
         // Initialized in CppSourceTarget round 2
     }
     else
@@ -335,8 +349,11 @@ CppSourceTarget &CppSourceTarget::interfaceIncludes(const pstring &include, U...
 template <typename... U>
 CppSourceTarget &CppSourceTarget::publicHUIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+        }
         // Initialized in CppSourceTarget round 2
     }
     else
@@ -368,8 +385,11 @@ CppSourceTarget &CppSourceTarget::publicHUIncludes(const pstring &include, U... 
 template <typename... U>
 CppSourceTarget &CppSourceTarget::privateHUIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+        }
         // Initialized in CppSourceTarget round 2
     }
     else
@@ -398,8 +418,11 @@ CppSourceTarget &CppSourceTarget::privateHUIncludes(const pstring &include, U...
 template <typename... U>
 CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const pstring &include, U... includeDirectoryPString)
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+        }
         // Initialized in CppSourceTarget round 2
     }
     else
@@ -428,8 +451,11 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const pstring &include, U.
 template <typename... U>
 CppSourceTarget &CppSourceTarget::publicHUDirectories(const pstring &include, U... includeDirectoryPString)
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+        }
         // Initialized in CppSourceTarget round 2
     }
     else
@@ -454,8 +480,11 @@ CppSourceTarget &CppSourceTarget::publicHUDirectories(const pstring &include, U.
 template <typename... U>
 CppSourceTarget &CppSourceTarget::privateHUDirectories(const pstring &include, U... includeDirectoryPString)
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+        }
         // Initialized in CppSourceTarget round 2
     }
     else
@@ -479,8 +508,11 @@ CppSourceTarget &CppSourceTarget::privateHUDirectories(const pstring &include, U
 template <typename... U>
 CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const pstring &include, U... includeDirectoryPString)
 {
-    if (bsMode == BSMode::BUILD && useMiniTarget == UseMiniTarget::YES)
+    if constexpr (bsMode == BSMode::BUILD)
     {
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+        }
         // Initialized in CppSourceTarget round 2
     }
     else
@@ -505,7 +537,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const pst
 {
     if (evaluate(UseMiniTarget::YES))
     {
-        if (bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
             actuallyAddSourceFileConfigTime(Node::getNodeFromNonNormalizedString(srcFile, true));
         }
@@ -535,7 +567,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const pst
 
     if (evaluate(UseMiniTarget::YES))
     {
-        if (bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
             actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), false);
         }
@@ -566,7 +598,7 @@ CppSourceTarget &CppSourceTarget::interfaceFiles(const pstring &modFile, U... mo
 
     if (evaluate(UseMiniTarget::YES))
     {
-        if (bsMode == BSMode::CONFIGURE)
+        if constexpr (bsMode == BSMode::CONFIGURE)
         {
             actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), true);
         }

@@ -78,18 +78,15 @@ void PrebuiltBasic::updateBTarget(Builder &, const unsigned short round)
     }
     else if (round == 2)
     {
-        if (bsMode == BSMode::BUILD && evaluate(UseMiniTarget::YES))
+        if (evaluate(UseMiniTarget::YES))
         {
-            readConfigCacheAtBuildTime();
-        }
-        else
-        {
-            if (bsMode == BSMode::CONFIGURE)
+            if constexpr (bsMode == BSMode::BUILD)
             {
-                if (evaluate(UseMiniTarget::YES))
-                {
-                    writeTargetConfigCacheAtConfigureTime();
-                }
+                readConfigCacheAtBuildTime();
+            }
+            else
+            {
+                writeTargetConfigCacheAtConfigureTime();
             }
         }
 

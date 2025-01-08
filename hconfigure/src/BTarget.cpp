@@ -15,7 +15,8 @@ import <fstream>;
 #include <fstream>
 #include <utility>
 #endif
-using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::mutex, std::lock_guard;
+using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::mutex, std::lock_guard,
+    std::filesystem::create_directory;
 
 StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets()
 {
@@ -63,7 +64,7 @@ void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
 
 static pstring lowerCase(pstring str)
 {
-    lowerCasePStringOnWindows(const_cast<pchar *>(str.c_str()), str.size());
+    lowerCasePStringOnWindows(str.data(), str.size());
     return str;
 }
 
@@ -71,10 +72,23 @@ BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), Re
 {
     id = atomic_ref(total).fetch_add(1);
 }
-BTarget::BTarget(pstring name_, bool buildExplicit, bool makeDirectory)
-    : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}, name(lowerCase(std::move(name_)))
+
+BTarget::BTarget(pstring name_, const bool buildExplicit_, bool makeDirectory)
+    : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}, name(lowerCase(std::move(name_))),
+      buildExplicit(buildExplicit_)
 {
     id = atomic_ref(total).fetch_add(1);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (makeDirectory)
+        {
+            create_directory(configureNode->filePath + slashc + name);
+        }
+    }
+    if (name.starts_with("conventional\\conventional\\"))
+    {
+        bool breakpoint = true;
+    }
 }
 
 BTarget::BTarget(const bool add0, const bool add1, const bool add2)
@@ -83,12 +97,23 @@ BTarget::BTarget(const bool add0, const bool add1, const bool add2)
     id = atomic_ref(total).fetch_add(1);
 }
 
-BTarget::BTarget(pstring name_, bool buildExplicit, bool makeDirectory, const bool add0, const bool add1,
+BTarget::BTarget(pstring name_, const bool buildExplicit_, bool makeDirectory, const bool add0, const bool add1,
                  const bool add2)
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)},
-      name(lowerCase(std::move(name_)))
+      name(lowerCase(std::move(name_))), buildExplicit(buildExplicit_)
 {
     id = atomic_ref(total).fetch_add(1);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (makeDirectory)
+        {
+            create_directory(configureNode->filePath + slashc + name);
+        }
+    }
+    if (name.starts_with("conventional\\conventional\\"))
+    {
+        bool breakpoint = true;
+    }
 }
 
 BTarget::~BTarget()
@@ -133,16 +158,62 @@ bool operator<(const BTarget &lhs, const BTarget &rhs)
     return lhs.id < rhs.id;
 }
 
-// selectiveBuild is set for the children if hbuild is executed in parent directory. Uses by the Builder::Builder
+// selectiveBuild is set for the children if hbuild is executed in parent directory. cmdTargets augments the
+// selectiveBuild targets especially for targets whose buildExplicit is true.
 void BTarget::setSelectiveBuild()
 {
-    selectiveBuild =
-        childInParentPathRecursiveNormalized(currentNode->filePath, configureNode->filePath + slashc + name);
+    selectiveBuild = cmdTargets.contains(name);
+    if (!buildExplicit && !selectiveBuild)
+    {
+        if (const uint64_t currentMinusConfigureSize = currentMinusConfigure.size())
+        {
+            const uint64_t nameSize = name.size();
+
+            // Because name and crrentMinusConfigure don't end in slash lib3-cpp/ and lib3 will match. We do the
+            // following check to avoid this
+            if (nameSize < currentMinusConfigureSize)
+            {
+                if (currentMinusConfigure[nameSize] != slashc)
+                {
+                    return;
+                }
+            }
+            else if (currentMinusConfigureSize < nameSize)
+            {
+                if (name[currentMinusConfigureSize] != slashc)
+                {
+                    return;
+                }
+            }
+
+            if (const uint64_t minLength = std::min(nameSize, currentMinusConfigureSize))
+            {
+                // Compare characters up to the shorter length
+                bool mismatch = false;
+                for (uint64_t i = 0; i < minLength; ++i)
+                {
+                    if (name[i] != currentMinusConfigure[i])
+                    {
+                        mismatch = true;
+                    }
+                }
+
+                if (!mismatch)
+                {
+                    selectiveBuild = true;
+                }
+            }
+        }
+        else
+        {
+            selectiveBuild = true;
+        }
+    }
 }
 
 // selectiveBuild is set for the parent if hbuild is executed in child directory. Used in hmake.cpp to rule out other
 // configurations specifications
 bool BTarget::getSelectiveBuildChildDir()
 {
-    return childInParentPathRecursiveNormalized(configureNode->filePath + slashc + name, currentNode->filePath);
+    return childInParentPathNormalized(configureNode->filePath + slashc + name, currentNode->filePath);
 }
