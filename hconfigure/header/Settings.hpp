@@ -141,7 +141,7 @@ struct Settings
 
 void to_json(Json &json, const Settings &settings_);
 void from_json(const Json &json, Settings &settings_);
-pstring getReducedPath(pstring_view subjectPath, const PathPrint &pathPrint);
+string getReducedPath(string_view subjectPath, const PathPrint &pathPrint);
 inline Settings settings;
 #endif // HMAKE_SETTINGS_HPP
 

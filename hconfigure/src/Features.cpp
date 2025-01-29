@@ -23,7 +23,7 @@ using Json = nlohmann::json;
 
 void to_json(Json &j, const Arch &arch)
 {
-    auto getPStringFromArchitectureEnum = [](const Arch arch) -> pstring {
+    auto getPStringFromArchitectureEnum = [](const Arch arch) -> string {
         switch (arch)
         {
         case Arch::X86:
@@ -138,14 +138,14 @@ void from_json(const Json &j, Arch &arch)
     }
     else
     {
-        printErrorMessage("conversion from json pstring literal to enum class Arch failed\n");
+        printErrorMessage("conversion from json string literal to enum class Arch failed\n");
         throw std::exception();
     }
 }
 
 void to_json(Json &j, const AddressModel &am)
 {
-    auto getPStringFromArchitectureEnum = [](const AddressModel am) -> pstring {
+    auto getPStringFromArchitectureEnum = [](const AddressModel am) -> string {
         switch (am)
         {
         case AddressModel::A_16:
@@ -182,7 +182,7 @@ void from_json(const Json &j, AddressModel &am)
     }
     else
     {
-        printErrorMessage("conversion from json pstring literal to enum class AM failed\n");
+        printErrorMessage("conversion from json string literal to enum class AM failed\n");
         throw std::exception();
     }
 }
@@ -191,7 +191,7 @@ TemplateDepth::TemplateDepth(const unsigned long long templateDepth_) : template
 {
 }
 
-Define::Define(pstring name_, pstring value_) : name{std::move(name_)}, value{std::move(value_)}
+Define::Define(string name_, string value_) : name{std::move(name_)}, value{std::move(value_)}
 {
 }
 
@@ -203,8 +203,8 @@ void to_json(Json &j, const Define &cd)
 
 void from_json(const Json &j, Define &cd)
 {
-    cd.name = j.at(JConsts::name).get<pstring>();
-    cd.value = j.at(JConsts::value).get<pstring>();
+    cd.name = j.at(JConsts::name).get<string>();
+    cd.value = j.at(JConsts::value).get<string>();
 }
 
 void to_json(Json &json, const OS &osLocal)
@@ -231,7 +231,7 @@ void from_json(const Json &json, OS &osLocal)
     }
 }
 
-pstring getActualNameFromTargetName(const TargetType bTargetType, const OS osLocal, const pstring &targetName)
+string getActualNameFromTargetName(const TargetType bTargetType, const OS osLocal, const string &targetName)
 {
     if (bTargetType == TargetType::EXECUTABLE)
     {
@@ -239,14 +239,14 @@ pstring getActualNameFromTargetName(const TargetType bTargetType, const OS osLoc
     }
     if (bTargetType == TargetType::LIBRARY_STATIC || bTargetType == TargetType::PLIBRARY_STATIC)
     {
-        pstring actualName = osLocal == OS::NT ? "" : "lib";
+        string actualName = osLocal == OS::NT ? "" : "lib";
         actualName += targetName;
         actualName += osLocal == OS::NT ? ".lib" : ".a";
         return actualName;
     }
     if (bTargetType == TargetType::LIBRARY_SHARED || bTargetType == TargetType::PLIBRARY_SHARED)
     {
-        pstring actualName = osLocal == OS::NT ? "" : "lib";
+        string actualName = osLocal == OS::NT ? "" : "lib";
         actualName += targetName;
         actualName += osLocal == OS::NT ? ".dll" : ".so";
         return actualName;
@@ -255,7 +255,7 @@ pstring getActualNameFromTargetName(const TargetType bTargetType, const OS osLoc
     throw std::exception();
 }
 
-pstring getTargetNameFromActualName(const TargetType bTargetType, const OS osLocal, const pstring &actualName)
+string getTargetNameFromActualName(const TargetType bTargetType, const OS osLocal, const string &actualName)
 {
     if (bTargetType == TargetType::EXECUTABLE)
     {
@@ -263,7 +263,7 @@ pstring getTargetNameFromActualName(const TargetType bTargetType, const OS osLoc
     }
     if (bTargetType == TargetType::LIBRARY_STATIC || bTargetType == TargetType::PLIBRARY_STATIC)
     {
-        pstring libName = actualName;
+        string libName = actualName;
         // Removes lib from libName.a
         libName = osLocal == OS::NT ? actualName : libName.erase(0, 3);
         // Removes .a from libName.a or .lib from Name.lib
@@ -273,7 +273,7 @@ pstring getTargetNameFromActualName(const TargetType bTargetType, const OS osLoc
     }
     if (bTargetType == TargetType::LIBRARY_SHARED || bTargetType == TargetType::PLIBRARY_SHARED)
     {
-        pstring libName = actualName;
+        string libName = actualName;
         // Removes lib from libName.so
         libName = osLocal == OS::NT ? actualName : libName.erase(0, 3);
         // Removes .so from libName.so or .dll from Name.dll
@@ -285,7 +285,7 @@ pstring getTargetNameFromActualName(const TargetType bTargetType, const OS osLoc
     throw std::exception();
 }
 
-pstring getSlashedExecutableName(const pstring &name)
+string getSlashedExecutableName(const string &name)
 {
     return os == OS::NT ? name + ".exe" : "./" + name;
 }
@@ -303,7 +303,7 @@ PrebuiltBasicFeatures::PrebuiltBasicFeatures()
                 return;
             }
         }
-        for (const pstring &str : vsTools.libraryDirectories)
+        for (const string &str : vsTools.libraryDirectories)
         {
             Node *node = Node::getNodeFromNonNormalizedPath(str, false);
             bool found = false;
@@ -428,7 +428,7 @@ void CppCompilerFeatures::setCompilerFromVSTools(const VSTools &vsTools)
             return;
         }
     }
-    for (const pstring &str : vsTools.includeDirectories)
+    for (const string &str : vsTools.includeDirectories)
     {
         actuallyAddInclude(reqIncls, str, true, true);
     }
@@ -445,7 +445,7 @@ void CppCompilerFeatures::setCompilerFromLinuxTools(const LinuxTools &linuxTools
             return;
         }
     }
-    for (const pstring &str : linuxTools.includeDirectories)
+    for (const string &str : linuxTools.includeDirectories)
     {
         actuallyAddInclude(reqIncls, str, true, true);
     }
@@ -485,7 +485,7 @@ void CppCompilerFeatures::setConfigType(const ConfigType configType)
     }
 }
 
-bool CppCompilerFeatures::actuallyAddInclude(vector<InclNode> &inclNodes, const pstring &include, bool isStandard,
+bool CppCompilerFeatures::actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool isStandard,
                                              bool ignoreHeaderDeps)
 {
     Node *node = Node::getNodeFromNonNormalizedPath(include, false);
@@ -495,7 +495,7 @@ bool CppCompilerFeatures::actuallyAddInclude(vector<InclNode> &inclNodes, const 
         if (inclNode.node->myId == node->myId)
         {
             found = true;
-            printErrorMessage(fmt::format("Include {} is already added.\n", node->filePath));
+            printErrorMessage(FORMAT("Include {} is already added.\n", node->filePath));
             break;
         }
     }
@@ -508,7 +508,7 @@ bool CppCompilerFeatures::actuallyAddInclude(vector<InclNode> &inclNodes, const 
 }
 
 bool CppCompilerFeatures::actuallyAddInclude(CppSourceTarget *target, vector<InclNodeTargetMap> &inclNodes,
-                                             const pstring &include, bool isStandard, bool ignoreHeaderDeps)
+                                             const string &include, bool isStandard, bool ignoreHeaderDeps)
 {
     Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     bool found = false;
@@ -518,7 +518,7 @@ bool CppCompilerFeatures::actuallyAddInclude(CppSourceTarget *target, vector<Inc
         {
             found = true;
             printErrorMessage(
-                fmt::format("Header-unit include {} already exists in target {}.\n", node->filePath, target->name));
+                FORMAT("Header-unit include {} already exists in target {}.\n", node->filePath, target->name));
             break;
         }
     }

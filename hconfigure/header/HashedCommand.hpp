@@ -16,7 +16,7 @@ class HashedCommand
   public:
     void setCommand(string command_);
     string getCommand() const;
-    PValue getHash() const;
+    Value getHash() const;
 
 #ifdef USE_COMMAND_HASH
   private:

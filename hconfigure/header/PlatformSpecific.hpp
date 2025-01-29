@@ -20,95 +20,34 @@ import <vector>;
 #include <vector>
 #endif
 
-using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector;
+using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector,
+    rapidjson::Document, rapidjson::Value, std::string_view, rapidjson::GenericStringRef;
 
-using rapidjson::UTF8, rapidjson::UTF16, rapidjson::GenericDocument, rapidjson::GenericValue,
-    rapidjson::GenericStringRef, rapidjson::kArrayType, rapidjson::kStringType;
-
-// Change this _WIN32 to switch to UTF-16 on Windows.
-#ifdef _ASDFKSAJDHFIWSJADNF
-
-#ifdef USE_HEADER_UNITS
-import "fmt/xchar.h";
-#else
-#include "fmt/xchar.h"
-#endif
-
-#define FORMAT(formatStr, ...) fmt::format(L##formatStr, __VA_ARGS__)
-
-using pstring = std::wstring;
-using pchar = wchar_t;
-wstring (path::*toPStr)() const = &path::wstring;
-
-template <typename T> wstring to_pstring(T t)
-{
-    return std::to_wstring(t);
-}
-using opstringstream = std::basic_ostringstream<wchar_t>;
-using pstringstream = std::basic_stringstream<char>;
-
-using PDocument = GenericDocument<UTF16<>>;
-using PValue = GenericValue<UTF16<>>;
-using PStringRef = GenericStringRef<wchar_t>;
-using pstring_view = std::basic_string_view<wchar_t>;
-
-#else
+// There is nothing platform specific in this file. It is just another BuildSystemFunctions.hpp file. Some functions go
+// there, some go here.
 
 #define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
-
-using pstring = std::string;
-using pchar = char;
-inline string (path::*toPStr)() const = &path::string;
-template <typename T> string to_pstring(T t)
+inline GenericStringRef<char> svtogsr(string_view str)
 {
-    return std::to_string(t);
+    return {str.data(), static_cast<rapidjson::SizeType>(str.size())};
 }
-using opstringstream = std::ostringstream;
-using pstringstream = std::stringstream;
-
-using PDocument = GenericDocument<UTF8<>>;
-using PValue = GenericValue<UTF8<>>;
-using PStringRef = GenericStringRef<char>;
-using pstring_view = std::basic_string_view<char>;
-
-#endif
-
-// PString to PStringRef
-// #define ptoref(str) PStringRef((str).c_str(), (str).size())
-
-PStringRef ptoref(pstring_view c);
-
-// PString EXPAND
-#define P_EXPAND(str) str.c_str(), (str).size()
-
-// Rapid Helper PlatformSpecific OStream
-struct RHPOStream
-{
-    FILE *fp = nullptr;
-    RHPOStream(pstring_view fileName);
-    ~RHPOStream();
-    typedef pchar Ch;
-    void Put(Ch c) const;
-    void Flush();
-};
-
+void prettyWriteValueToFile(string_view fileName, const Value &value);
 // While decompressing lz4 file, we allocate following + 1 the buffer size.
 // So, we have compressed filee * bufferMultiplier times the space.
 // Also, while storing we check that the original file size / compresseed file size
 // is not equal to or greater than bufferMultiplier. Hence validating our assumption.
-void prettyWritePValueToFile(pstring_view fileName, const PValue &value);
-unique_ptr<vector<pchar>> readPValueFromFile(pstring_view fileName, PDocument &document);
-void writePValueToFile(pstring fileName, const PValue &value);
-unique_ptr<vector<pchar>> readPValueFromCompressedFile(pstring_view fileName, PDocument &document);
-void writePValueToCompressedFile(pstring fileName, const PValue &value);
-uint64_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element);
+unique_ptr<vector<char>> readValueFromFile(string_view fileName, Document &document);
+void writeValueToFile(string fileName, const Value &value);
+unique_ptr<vector<char>> readValueFromCompressedFile(string_view fileName, Document &document);
+void writeValueToCompressedFile(string fileName, const Value &value);
+uint64_t valueIndexInSubArray(const Value &value, const Value &element);
 // This will consider the currentCacheIndex in its search
-uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &element);
-bool compareStringsFromEnd(pstring_view lhs, pstring_view rhs);
-uint64_t nodeIndexInPValueArray(const PValue &pvalue, const class Node &node);
-bool isNodeInPValue(const PValue &value, const Node &node);
-void lowerCasePStringOnWindows(pchar *ptr, uint64_t size);
-bool childInParentPathNormalized(pstring_view parent, pstring_view child);
+uint64_t valueIndexInSubArrayConsidered(const Value &value, const Value &element);
+bool compareStringsFromEnd(string_view lhs, string_view rhs);
+uint64_t nodeIndexInValueArray(const Value &value, const class Node &node);
+bool isNodeInValue(const Value &value, const Node &node);
+void lowerCasePStringOnWindows(char *ptr, uint64_t size);
+bool childInParentPathNormalized(string_view parent, string_view child);
 
 // TODO
 // Optimize this

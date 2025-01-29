@@ -116,7 +116,7 @@ struct BTarget // BTarget
 
     array<RealBTarget, 3> realBTargets;
 
-    pstring name;
+    string name;
     size_t id = 0; // unique for every BTarget
 
     // TODO
@@ -127,16 +127,16 @@ struct BTarget // BTarget
     bool buildExplicit = false;
 
     BTarget();
-    BTarget(pstring name_, bool buildExplicit_, bool makeDirectory);
+    BTarget(string name_, bool buildExplicit_, bool makeDirectory);
     BTarget(bool add0, bool add1, bool add2);
-    BTarget(pstring name_, bool buildExplicit_, bool makeDirectory, bool add0, bool add1, bool add2);
+    BTarget(string name_, bool buildExplicit_, bool makeDirectory, bool add0, bool add1, bool add2);
 
     virtual ~BTarget();
 
     void setSelectiveBuild();
     bool getSelectiveBuildChildDir();
 
-    virtual pstring getTarjanNodeName() const;
+    virtual string getTarjanNodeName() const;
 
     virtual BTargetType getBTargetType() const;
     static void assignFileStatusToDependents(RealBTarget &realBTarget);

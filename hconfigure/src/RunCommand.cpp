@@ -255,30 +255,30 @@ struct CLWrapper
 
 #endif
 
-using std::ofstream, fmt::format;
+using std::ofstream, fmt::format, std::stringstream;
 
-pstring getThreadId()
+string getThreadId()
 {
     const auto myId = std::this_thread::get_id();
-    pstringstream ss;
+    stringstream ss;
     ss << myId;
-    pstring threadId = ss.str();
+    string threadId = ss.str();
     return threadId;
 }
 
-RunCommand::RunCommand(path toolPath, const pstring &runCommand, pstring printCommand_, bool isTarget_)
+RunCommand::RunCommand(path toolPath, const string &runCommand, string printCommand_, bool isTarget_)
     : printCommand(std::move(printCommand_))
 {
 
 #ifdef _WIN32
 
-    pstring j = addQuotes(toolPath.make_preferred().string()) + ' ' + runCommand;
+    string j = addQuotes(toolPath.make_preferred().string()) + ' ' + runCommand;
     {
         exitStatus = CLWrapper{}.Run(j, &commandOutput);
     }
 
 #else
-    pstring j = addQuotes(toolPath.make_preferred().string()) + ' ' + runCommand;
+    string j = addQuotes(toolPath.make_preferred().string()) + ' ' + runCommand;
     exitStatus = CLWrapper::Run(j, &commandOutput);
 #endif
     if (exitStatus != EXIT_SUCCESS)
@@ -286,7 +286,7 @@ RunCommand::RunCommand(path toolPath, const pstring &runCommand, pstring printCo
         bool breakpoint = true;
     }
 }
-void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError, PValue sourceJson, uint64_t _index0,
+void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError, Value sourceJson, uint64_t _index0,
                                      uint64_t _index1, uint64_t _index2, uint64_t _index3, uint64_t _index4) const
 {
     bool notify = false;
@@ -303,14 +303,14 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
 
         if (printOnlyOnError)
         {
-            targetCacheDiskWriteManager.strCache.emplace_back(
-                fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color, true);
+            targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", printCommand + " " + getThreadId() + "\n"),
+                                                              color, true);
             notify = true;
             if (exitStatus != EXIT_SUCCESS)
             {
                 if (!commandOutput.empty())
                 {
-                    targetCacheDiskWriteManager.strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
+                    targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", commandOutput + "\n"),
                                                                       settings.pcSettings.toolErrorOutput, true);
                     notify = true;
                 }
@@ -319,12 +319,12 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
         else
         {
 
-            targetCacheDiskWriteManager.strCache.emplace_back(
-                fmt::format("{}", printCommand + " " + getThreadId() + "\n"), color, true);
+            targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", printCommand + " " + getThreadId() + "\n"),
+                                                              color, true);
 
             if (!commandOutput.empty())
             {
-                targetCacheDiskWriteManager.strCache.emplace_back(fmt::format("{}", commandOutput + "\n"),
+                targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", commandOutput + "\n"),
                                                                   static_cast<int>(fmt::color::light_green), true);
                 notify = true;
             }
@@ -337,14 +337,14 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
     }
 }
 
-PostCompile::PostCompile(const CppSourceTarget &target_, const path &toolPath, const pstring &commandFirstHalf,
-                         pstring printCommandFirstHalf)
+PostCompile::PostCompile(const CppSourceTarget &target_, const path &toolPath, const string &commandFirstHalf,
+                         string printCommandFirstHalf)
     : RunCommand(toolPath, commandFirstHalf, std::move(printCommandFirstHalf), false),
       target{const_cast<CppSourceTarget &>(target_)}
 {
 }
 
-bool PostCompile::ignoreHeaderFile(const pstring_view child) const
+bool PostCompile::ignoreHeaderFile(const string_view child) const
 {
     //  Premature Optimization Hahacd
     // TODO:
@@ -374,19 +374,19 @@ bool PostCompile::ignoreHeaderFile(const pstring_view child) const
     return false;
 }
 
-void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &output,
+void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &output,
                                               const bool mustConsiderHeaderDeps) const
 {
-    PValue &headerDepsJson = sourceNode.sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles];
+    Value &headerDepsJson = sourceNode.sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles];
     headerDepsJson.Clear();
 
-    const pstring includeFileNote = "Note: including file:";
+    const string includeFileNote = "Note: including file:";
 
     if (!mustConsiderHeaderDeps && sourceNode.ignoreHeaderDeps && settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
     {
         // TODO
         //  Merge this if in the following else.
-        vector<pstring> outputLines = split(output, "\n");
+        vector<string> outputLines = split(output, "\n");
         for (auto iter = outputLines.begin(); iter != outputLines.end();)
         {
             if (iter->contains(includeFileNote))
@@ -410,7 +410,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
             return;
         }
 
-        pstring_view line(output.begin() + startPos, output.begin() + lineEnd + 1);
+        string_view line(output.begin() + startPos, output.begin() + lineEnd + 1);
 
         if (!settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
         {
@@ -432,32 +432,41 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
         while (true)
         {
 
-            line = pstring_view(output.begin() + startPos, output.begin() + lineEnd + 1);
-            if (size_t pos = line.find(includeFileNote); pos != pstring::npos)
+            line = string_view(output.begin() + startPos, output.begin() + lineEnd + 1);
+            if (size_t pos = line.find(includeFileNote); pos != string::npos)
             {
                 pos = line.find_first_not_of(' ', includeFileNote.size());
 
                 if (line.size() >= pos + 1)
                 {
+                    // MSVC compiler can output header-includes with / as path separator
+                    for (auto it = line.begin() + pos; it != line.end() - 2; ++it)
+                    {
+                        if (*it == '/')
+                        {
+                            const_cast<char &>(*it) = '\\';
+                        }
+                    }
+
                     // Last character is \r for some reason.
-                    pstring_view headerView{line.begin() + pos, line.end() - 2};
+                    string_view headerView{line.begin() + pos, line.end() - 2};
 
                     // TODO
                     // If compile-command is all lower-cased, then this might not be needed
                     if (mustConsiderHeaderDeps || !ignoreHeaderFile(headerView))
                     {
-                        lowerCasePStringOnWindows(const_cast<pchar *>(headerView.data()), headerView.size());
+                        lowerCasePStringOnWindows(const_cast<char *>(headerView.data()), headerView.size());
 
                         if (const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
-                            !isNodeInPValue(headerDepsJson, *headerNode))
+                            !isNodeInValue(headerDepsJson, *headerNode))
                         {
-                            headerDepsJson.PushBack(headerNode->getPValue(), sourceNode.sourceNodeAllocator);
+                            headerDepsJson.PushBack(headerNode->getValue(), sourceNode.sourceNodeAllocator);
                         }
                     }
                 }
                 else
                 {
-                    printErrorMessage(fmt::format("Empty Header Include {}\n", line));
+                    printErrorMessage(FORMAT("Empty Header Include {}\n", line));
                 }
 
                 if (!settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
@@ -488,13 +497,13 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, pstring &o
 
 void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, const bool mustConsiderHeaderDeps) const
 {
-    PValue &headerDepsJson = sourceNode.sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles];
+    Value &headerDepsJson = sourceNode.sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles];
     headerDepsJson.Clear();
     if (mustConsiderHeaderDeps || !sourceNode.ignoreHeaderDeps)
     {
-        const pstring headerFileContents = fileToPString(target.buildCacheFilesDirPathNode->filePath + slashc +
-                                                         (path(sourceNode.node->filePath).filename().*toPStr)() + ".d");
-        vector<pstring> headerDeps = split(headerFileContents, "\n");
+        const string headerFileContents =
+            fileToPString(target.buildCacheFilesDirPathNode->filePath + slashc + sourceNode.node->getFileName() + ".d");
+        vector<string> headerDeps = split(headerFileContents, "\n");
 
         // First 2 lines are skipped as these are .o and .cpp file.
         // If the file is preprocessed, it does not generate the extra line
@@ -507,11 +516,11 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, const bool 
             {
                 const size_t pos = iter->find_first_not_of(" ");
                 auto it = iter->begin() + pos;
-                if (const pstring_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
+                if (const string_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
                     mustConsiderHeaderDeps || !ignoreHeaderFile(headerView))
                 {
                     const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
-                    headerDepsJson.PushBack(headerNode->getPValue(), sourceNode.sourceNodeAllocator);
+                    headerDepsJson.PushBack(headerNode->getValue(), sourceNode.sourceNodeAllocator);
                 }
             }
         }

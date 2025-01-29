@@ -173,7 +173,7 @@ TEST(AExamplesTest, Example_A4)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A4"));
     string output;
     ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_FAILURE);
-    pstring str = R"(There is a Cyclic-Dependency.
+    string str = R"(There is a Cyclic-Dependency.
 BTarget 2 Depends On BTarget 1.
 BTarget 1 Depends On BTarget 0.
 BTarget 0 Depends On BTarget 2.
@@ -187,20 +187,20 @@ TEST(AExamplesTest, Example_A5)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A5"));
     string output;
     ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_FAILURE);
-    const pstring str = R"(Hello
+    const string str = R"(Hello
 World
 Target Ninja runtime error.
 HMake
 XMake
 Target build2 runtime error.
 )";
-    vector<pstring> expected = split(str, "\n");
-    vector<pstring> actual = split(output, "\n");
+    vector<string> expected = split(str, "\n");
+    vector<string> actual = split(output, "\n");
     ASSERT_EQ(expected.size(), actual.size());
-    for (pstring &s : actual)
+    for (string &s : actual)
     {
         bool found = false;
-        for (pstring &c : expected)
+        for (string &c : expected)
         {
             if (s == c)
             {
@@ -218,7 +218,7 @@ TEST(AExamplesTest, Example_A6)
     ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_SUCCESS);
     constexpr uint64_t count = 60 * 2 + 200 * 3 + 260;
     ASSERT_EQ(output.size(), count);
-    pstring sub(output.begin() + 400, output.begin() + 407);
+    string sub(output.begin() + 400, output.begin() + 407);
     ASSERT_EQ(sub, "900 901");
 }
 
@@ -227,7 +227,7 @@ TEST(AExamplesTest, Example_A7)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A7"));
     string output;
     ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_FAILURE);
-    pstring str = R"(There is a Cyclic-Dependency.
+    string str = R"(There is a Cyclic-Dependency.
 BTarget 1 Depends On BTarget 0.
 BTarget 0 Depends On BTarget 1.
 )";

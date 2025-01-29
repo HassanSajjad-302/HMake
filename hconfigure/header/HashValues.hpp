@@ -21,7 +21,7 @@ uint64_t hash_value(const DSC<CppSourceTarget> &p);
 uint64_t hash_value(const Configuration &p);
 uint64_t hash_value(const RoundZeroUpdateBTarget &p);
 uint64_t hash_value(const Define &p);
-uint64_t hash_value(const pstring_view &p);
+uint64_t hash_value(const string_view &p);
 
 bool operator==(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
 bool operator==(const DSC<CppSourceTarget> &lhs, const DSC<CppSourceTarget> &rhs);

@@ -22,11 +22,11 @@ static void touchFile(const path &filePath)
     string command;
     if constexpr (os == OS::NT)
     {
-        command = fmt::format("powershell (ls {}).LastWriteTime = Get-Date", addQuotes(filePath.string()));
+        command = FORMAT("powershell (ls {}).LastWriteTime = Get-Date", addQuotes(filePath.string()));
     }
     else if constexpr (os == OS::LINUX)
     {
-        command = fmt::format("touch {}", addQuotes(filePath.string()));
+        command = FORMAT("touch {}", addQuotes(filePath.string()));
     }
     if (system(command.c_str()) == EXIT_FAILURE)
     {
@@ -603,7 +603,7 @@ TEST(StageTests, Test4)
     copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
 
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.smruleFiles = 1, .nodesFile = true}, "cat-cpp");
+    executeSnapshotBalances(Updates{.smruleFiles = 1}, "cat-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "app");
 
     // TODO

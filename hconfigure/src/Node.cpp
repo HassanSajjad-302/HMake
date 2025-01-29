@@ -15,7 +15,7 @@ import <mutex>;
 using std::filesystem::directory_entry, std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard,
     std::mutex, std::atomic_ref;
 
-pstring getStatusPString(const path &p)
+string getStatusPString(const path &p)
 {
     switch (status(p).type())
     {
@@ -49,12 +49,12 @@ bool NodeEqual::operator()(const Node &lhs, const Node &rhs) const
     return lhs.filePath == rhs.filePath;
 }
 
-bool NodeEqual::operator()(const Node &lhs, const pstring_view &rhs) const
+bool NodeEqual::operator()(const Node &lhs, const string_view &rhs) const
 {
     return lhs.filePath == rhs;
 }
 
-bool NodeEqual::operator()(const pstring_view &lhs, const Node &rhs) const
+bool NodeEqual::operator()(const string_view &lhs, const Node &rhs) const
 {
     return lhs == rhs.filePath;
 }
@@ -64,12 +64,12 @@ std::size_t NodeHash::operator()(const Node &node) const
     return rapidhash(node.filePath.c_str(), node.filePath.size());
 }
 
-std::size_t NodeHash::operator()(const pstring_view &str) const
+std::size_t NodeHash::operator()(const string_view &str) const
 {
     return rapidhash(str.data(), str.size());
 }
 
-Node::Node(Node *&node, pstring filePath_) : filePath(std::move(filePath_))
+Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
 {
     node = this;
     myId = idCount.fetch_add(1);
@@ -77,27 +77,29 @@ Node::Node(Node *&node, pstring filePath_) : filePath(std::move(filePath_))
     ++idCountCompleted;
 }
 
-Node::Node(pstring filePath_) : filePath(std::move(filePath_))
+Node::Node(string filePath_) : filePath(std::move(filePath_))
 {
     myId = reinterpret_cast<uint32_t &>(idCount)++;
     nodeIndices[myId] = this;
     ++reinterpret_cast<uint32_t &>(idCountCompleted);
 }
 
-pstring Node::getFileName() const
+string Node::getFileName() const
 {
     return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end()};
 }
 
-PValue Node::getPValue() const
+Value Node::getValue() const
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    return PValue(myId);
+    return Value(myId);
 #else
-    return PValue(ptoref(filePath));
+    return Value(svtogsr(filePath));
 #endif
 }
 
+// TODO
+// See if we can use new functions with absolute paths. So, only lexically_normal is called.
 path Node::getFinalNodePathFromPath(path filePath)
 {
     if (filePath.is_relative())
@@ -161,14 +163,14 @@ bool Node::trySystemCheck(const bool isFile, const bool mayNotExist)
     return false;
 }
 
-Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool mayNotExist)
+Node *Node::getNodeFromNormalizedString(string p, const bool isFile, const bool mayNotExist)
 {
     Node *node = nullptr;
 
     using Map = decltype(nodeAllFiles);
 
     if (nodeAllFiles.lazy_emplace_l(
-            pstring_view(p), [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
+            string_view(p), [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
             [&](const Map::constructor &constructor) { constructor(node, p); }))
     {
     }
@@ -177,7 +179,7 @@ Node *Node::getNodeFromNormalizedString(pstring p, const bool isFile, const bool
     return node;
 }
 
-Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile, const bool mayNotExist)
+Node *Node::getNodeFromNormalizedString(const string_view p, const bool isFile, const bool mayNotExist)
 {
     Node *node = nullptr;
 
@@ -185,7 +187,7 @@ Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile,
 
     if (nodeAllFiles.lazy_emplace_l(
             p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(node, pstring(p)); }))
+            [&](const Map::constructor &constructor) { constructor(node, string(p)); }))
     {
     }
 
@@ -193,7 +195,7 @@ Node *Node::getNodeFromNormalizedString(const pstring_view p, const bool isFile,
     return node;
 }
 
-Node *Node::getNodeFromNormalizedStringNoSystemCheckCalled(pstring_view p)
+Node *Node::getNodeFromNormalizedStringNoSystemCheckCalled(string_view p)
 {
     Node *node = nullptr;
 
@@ -201,36 +203,36 @@ Node *Node::getNodeFromNormalizedStringNoSystemCheckCalled(pstring_view p)
 
     if (nodeAllFiles.lazy_emplace_l(
             p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(node, pstring(p)); }))
+            [&](const Map::constructor &constructor) { constructor(node, string(p)); }))
     {
     }
 
     return node;
 }
 
-Node *Node::getNodeFromNonNormalizedString(const pstring &p, const bool isFile, const bool mayNotExist)
+Node *Node::getNodeFromNonNormalizedString(const string &p, const bool isFile, const bool mayNotExist)
 {
     const path filePath = getFinalNodePathFromPath(p);
-    return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
+    return getNodeFromNormalizedString(filePath.string(), isFile, mayNotExist);
 }
 
 Node *Node::getNodeFromNormalizedPath(const path &p, const bool isFile, const bool mayNotExist)
 {
-    return getNodeFromNormalizedString((p.*toPStr)(), isFile, mayNotExist);
+    return getNodeFromNormalizedString(p.string(), isFile, mayNotExist);
 }
 
 Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const bool mayNotExist)
 {
     const path filePath = getFinalNodePathFromPath(p);
-    return getNodeFromNormalizedString((filePath.*toPStr)(), isFile, mayNotExist);
+    return getNodeFromNormalizedString(filePath.string(), isFile, mayNotExist);
 }
 
-Node *Node::addHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath)
+Node *Node::addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath)
 {
     return const_cast<Node *>(nodeAllFiles.emplace(std::move(normalizedFilePath)).first.operator->());
 }
 
-Node *Node::getHalfNodeFromNormalizedString(const pstring_view p)
+Node *Node::getHalfNodeFromNormalizedString(const string_view p)
 {
     Node *node = nullptr;
 
@@ -238,43 +240,43 @@ Node *Node::getHalfNodeFromNormalizedString(const pstring_view p)
 
     if (nodeAllFiles.lazy_emplace_l(
             p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(node, pstring(p)); }))
+            [&](const Map::constructor &constructor) { constructor(node, string(p)); }))
     {
     }
 
     return node;
 }
 
-Node *Node::getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromValue(const Value &pValue, bool isFile, bool mayNotExist)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     Node *node = nodeIndices[pValue.GetUint64()];
     node->ensureSystemCheckCalled(isFile, mayNotExist);
 #else
-    Node *node = Node::getNodeFromNormalizedString(pstring_view(pValue.GetString(), pValue.GetStringLength()), isFile,
+    Node *node = Node::getNodeFromNormalizedString(string_view(pValue.GetString(), pValue.GetStringLength()), isFile,
                                                    mayNotExist);
 #endif
     return node;
 }
 
-Node *Node::getNotSystemCheckCalledNodeFromPValue(const PValue &pValue)
+Node *Node::getNotSystemCheckCalledNodeFromValue(const Value &pValue)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     Node *node = nodeIndices[pValue.GetUint64()];
 #else
     Node *node =
-        getNodeFromNormalizedStringNoSystemCheckCalled(pstring_view(pValue.GetString(), pValue.GetStringLength()));
+        getNodeFromNormalizedStringNoSystemCheckCalled(string_view(pValue.GetString(), pValue.GetStringLength()));
 #endif
     return node;
 }
 
-Node *Node::tryGetNodeFromPValue(bool &systemCheckSucceeded, const PValue &pValue, bool isFile, bool mayNotExist)
+Node *Node::tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &pValue, bool isFile, bool mayNotExist)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     Node *node = nodeIndices[pValue.GetUint64()];
     systemCheckSucceeded = node->trySystemCheck(isFile, mayNotExist);
 #else
-    Node *node = Node::getNodeFromNormalizedString(pstring_view(pValue.GetString(), pValue.GetStringLength()), isFile,
+    Node *node = Node::getNodeFromNormalizedString(string_view(pValue.GetString(), pValue.GetStringLength()), isFile,
                                                    mayNotExist);
     systemCheckSucceeded = true;
 #endif
@@ -316,8 +318,8 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
         {
             if (!mayNotExist || entry.status().type() != file_type::not_found)
             {
-                printErrorMessage(fmt::format("{} is not a {} file. File Type is {}\n", filePath,
-                                              isFile ? "regular" : "directory", getStatusPString(filePath)));
+                printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath,
+                                         isFile ? "regular" : "directory", getStatusPString(filePath)));
                 throw std::exception();
             }
             doesNotExist = true;
@@ -337,8 +339,8 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
         }
         else
         {
-            printErrorMessage(fmt::format("FindFirstFileEx failed {}\n", GetLastError()));
-            printErrorMessage(fmt::format("{} is not a {} file. File Type is {}\n", filePath,
+            printErrorMessage(FORMAT("FindFirstFileEx failed {}\n", GetLastError()));
+            printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath,
                                           isFile ? "regular" : "directory", getStatusPString(filePath)));
             throw std::exception();
         }
@@ -360,9 +362,9 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
         }
         else
         {
-            printErrorMessage(fmt::format("FindFirstFileEx failed {}\n", GetLastError()));
+            printErrorMessage(FORMAT("FindFirstFileEx failed {}\n", GetLastError()));
             printErrorMessage(
-                fmt::format("{} is not a directory file. File Type is {}\n", filePath, getStatusPString(filePath)));
+                FORMAT("{} is not a directory file. File Type is {}\n", filePath, getStatusPString(filePath)));
             throw std::exception();
         }
     }

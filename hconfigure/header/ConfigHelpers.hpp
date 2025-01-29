@@ -24,13 +24,13 @@ template <typename T> static const InclNode &getNode(const T &t)
     }
 }
 
-template <typename T> void writeIncDirsAtConfigTime(const vector<T> &include, PValue &pValue, auto &rapidJsonAllocator)
+template <typename T> void writeIncDirsAtConfigTime(const vector<T> &include, Value &pValue, auto &rapidJsonAllocator)
 {
     pValue.Reserve(include.size(), rapidJsonAllocator);
     for (auto &elem : include)
     {
         const InclNode &inclNode = getNode(elem);
-        pValue.PushBack(inclNode.node->getPValue(), rapidJsonAllocator);
+        pValue.PushBack(inclNode.node->getValue(), rapidJsonAllocator);
         pValue.PushBack(inclNode.isStandard, rapidJsonAllocator);
         pValue.PushBack(inclNode.ignoreHeaderDeps, rapidJsonAllocator);
     }
@@ -54,13 +54,13 @@ template <typename T> const Node *getNodeForEquality(const T &t)
     {
         return t.node;
     }
-    else if constexpr (std::is_same_v<T, PValue>)
+    else if constexpr (std::is_same_v<T, Value>)
     {
-        return Node::getNodeFromPValue(t, true, true);
+        return Node::getNodeFromValue(t, true, true);
     }
 }
 
-template <typename T> void testVectorHasUniqueElements(const T &container, const pstring &containerName)
+template <typename T> void testVectorHasUniqueElements(const T &container, const string &containerName)
 {
     for (auto &elem : container)
     {
@@ -75,11 +75,11 @@ template <typename T> void testVectorHasUniqueElements(const T &container, const
         if (count != 1)
         {
             printErrorMessage(
-                fmt::format("Repeat Value {} in container {}\n", getNodeForEquality(elem)->filePath, containerName));
+                FORMAT("Repeat Value {} in container {}\n", getNodeForEquality(elem)->filePath, containerName));
         }
     }
 }
 
-void testVectorHasUniqueElementsIncrement(const PValue &container, const pstring &containerName, uint64_t increment);
+void testVectorHasUniqueElementsIncrement(const Value &container, const string &containerName, uint64_t increment);
 
 #endif // CONFIGHELPERS_H

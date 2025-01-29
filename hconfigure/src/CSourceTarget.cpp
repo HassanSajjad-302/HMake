@@ -7,55 +7,55 @@ import "Features.hpp";
 #include "Features.hpp"
 #endif
 
-CSourceTarget::CSourceTarget(const pstring &name_) : ObjectFileProducerWithDS(name_, false, false), TargetCache(name_)
+CSourceTarget::CSourceTarget(const string &name_) : ObjectFileProducerWithDS(name_, false, false), TargetCache(name_)
 {
 }
 
-CSourceTarget::CSourceTarget(const bool buildExplicit, const pstring &name_)
+CSourceTarget::CSourceTarget(const bool buildExplicit, const string &name_)
     : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name_)
 {
 }
 
-CSourceTarget::CSourceTarget(const pstring &name_, Configuration *configuration_)
+CSourceTarget::CSourceTarget(const string &name_, Configuration *configuration_)
     : ObjectFileProducerWithDS(name_, false, false), TargetCache(name_), configuration(configuration_)
 {
 }
 
-CSourceTarget::CSourceTarget(const bool buildExplicit, const pstring &name_, Configuration *configuration_)
+CSourceTarget::CSourceTarget(const bool buildExplicit, const string &name_, Configuration *configuration_)
     : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name_), configuration(configuration_)
 {
 }
 
 /*
-CSourceTarget::CSourceTarget(pstring name_, const bool noTargetCacheInitialization)
+CSourceTarget::CSourceTarget(string name_, const bool noTargetCacheInitialization)
     : ObjectFileProducerWithDS(std::move(name_), false, false)
 {
 }
 
-CSourceTarget::CSourceTarget(const bool buildExplicit, pstring name_, const bool noTargetCacheInitialization)
+CSourceTarget::CSourceTarget(const bool buildExplicit, string name_, const bool noTargetCacheInitialization)
     : ObjectFileProducerWithDS(std::move(name_), buildExplicit, false)
 {
 }
 
-CSourceTarget::CSourceTarget(pstring name_, Configuration *configuration_, const bool noTargetCacheInitialization)
+CSourceTarget::CSourceTarget(string name_, Configuration *configuration_, const bool noTargetCacheInitialization)
     : ObjectFileProducerWithDS(std::move(name_), false, false), configuration(configuration_)
 {
 }
 
-CSourceTarget::CSourceTarget(const bool buildExplicit, pstring name_, Configuration *configuration_,
+CSourceTarget::CSourceTarget(const bool buildExplicit, string name_, Configuration *configuration_,
                              const bool noTargetCacheInitialization)
     : ObjectFileProducerWithDS(std::move(name_), buildExplicit, false), configuration(configuration_)
 {
 }
 
 */
-CSourceTarget &CSourceTarget::INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags)
+CSourceTarget &CSourceTarget::INTERFACE_COMPILER_FLAGS(const string &compilerFlags)
 {
     usageRequirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CSourceTarget &CSourceTarget::INTERFACE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue)
+CSourceTarget &CSourceTarget::INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
 {
     usageRequirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;

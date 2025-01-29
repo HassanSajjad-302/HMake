@@ -113,12 +113,18 @@ class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>:
     }
 };
 
-PStringRef ptoref(const pstring_view c)
+// Rapid Helper PlatformSpecific OStream
+struct RHPOStream
 {
-    return PStringRef(c.data(), c.size());
-}
+    FILE *fp = nullptr;
+    RHPOStream(string_view fileName);
+    ~RHPOStream();
+    typedef char Ch;
+    void Put(Ch c) const;
+    void Flush();
+};
 
-RHPOStream::RHPOStream(const pstring_view fileName)
+RHPOStream::RHPOStream(const string_view fileName)
 {
     fp = fopen(fileName.data(), "wb");
     /*/* multiple fputs() calls like: #1#
@@ -131,7 +137,7 @@ RHPOStream::RHPOStream(const pstring_view fileName)
     ret = _commit(fd);
     fclose(fp);*/
 
-    if constexpr (std::same_as<pchar, wchar_t>)
+    if constexpr (std::same_as<char, wchar_t>)
     {
         auto *unicodeFacet = new UTF16Facet();
         const std::locale unicodeLocale(std::cout.getloc(), unicodeFacet);
@@ -160,7 +166,7 @@ void RHPOStream::Flush()
     }
 }
 
-void prettyWritePValueToFile(const pstring_view fileName, const PValue &value)
+void prettyWriteValueToFile(const string_view fileName, const Value &value)
 {
     RHPOStream stream(fileName);
     rapidjson::PrettyWriter<RHPOStream, UTF8<>, UTF8<>> writer(stream, nullptr);
@@ -172,11 +178,11 @@ void prettyWritePValueToFile(const pstring_view fileName, const PValue &value)
     }
 }
 
-size_t pvalueIndexInArray(const PValue &pvalue, const PValue &element)
+size_t valueIndexInArray(const Value &value, const Value &element)
 {
-    for (size_t i = 0; i < pvalue.Size(); ++i)
+    for (size_t i = 0; i < value.Size(); ++i)
     {
-        if (element == pvalue[i])
+        if (element == value[i])
         {
             return i;
         }
@@ -188,7 +194,7 @@ size_t pvalueIndexInArray(const PValue &pvalue, const PValue &element)
 #define fopen_s(pFile, filename, mode) ((*(pFile)) = fopen((filename), (mode))) == NULL
 #endif
 
-unique_ptr<vector<pchar>> readPValueFromFile(const pstring_view fileName, PDocument &document)
+unique_ptr<vector<char>> readValueFromFile(const string_view fileName, Document &document)
 {
     // Read whole file into a buffer
     FILE *fp;
@@ -196,7 +202,7 @@ unique_ptr<vector<pchar>> readPValueFromFile(const pstring_view fileName, PDocum
     fseek(fp, 0, SEEK_END);
     const size_t filesize = (size_t)ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    unique_ptr<vector<pchar>> buffer = std::make_unique<vector<pchar>>(filesize + 1);
+    unique_ptr<vector<char>> buffer = std::make_unique<vector<char>>(filesize + 1);
     const size_t readLength = fread(buffer->begin().operator->(), 1, filesize, fp);
     if (fclose(fp) != 0)
     {
@@ -219,9 +225,9 @@ extern string GetLastErrorString();
 // In configure mode only 2 files target-cache.json and nodes.json are written which are written at the end.
 // While in build-mode TargetCacheDisWriteManager asynchronously writes these files multiple times as the data is
 // updated. Hence, these file write is atomic in build mode
-static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize, bool binary)
+static void writeFile(string fileName, const char *buffer, uint64_t bufferSize, bool binary)
 {
-    const pstring str = fileName + ".tmp";
+    const string str = fileName + ".tmp";
     if constexpr (bsMode == BSMode::BUILD)
     {
 #ifdef WIN32
@@ -238,7 +244,7 @@ static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize,
         // Check if the file handle is valid
         if (hFile == INVALID_HANDLE_VALUE)
         {
-            printErrorMessage(fmt::format("Failed to open file for writing. Error: {}\n", GetLastErrorString()));
+            printErrorMessage(FORMAT("Failed to open file for writing. Error: {}\n", GetLastErrorString()));
             throw std::exception{};
         }
 
@@ -248,7 +254,7 @@ static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize,
         // Write to the file
         if (!WriteFile(hFile, buffer, bufferSize, &bytesWritten, NULL))
         {
-            printErrorMessage(fmt::format("Failed to write to file. Error: {}\n", GetLastErrorString()));
+            printErrorMessage(FORMAT("Failed to write to file. Error: {}\n", GetLastErrorString()));
             CloseHandle(hFile);
             throw std::exception{};
         }
@@ -296,22 +302,22 @@ static void writeFile(pstring fileName, const char *buffer, uint64_t bufferSize,
                 MoveFileExA(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
             !result)
         {
-            printErrorMessage(fmt::format("Error:{}\n while writing file {}\n", GetLastErrorString(), fileName));
+            printErrorMessage(FORMAT("Error:{}\n while writing file {}\n", GetLastErrorString(), fileName));
             fflush(stdout);
         }
 #else
 
         if (rename(str.c_str(), fileName.c_str()) != 0)
         {
-            printMessage(fmt::format("Renaming File from {} to {} Not Successful. Error {}\n", str.c_str(),
-                                     fileName.c_str(), errno));
+            printMessage(
+                FORMAT("Renaming File from {} to {} Not Successful. Error {}\n", str.c_str(), fileName.c_str(), errno));
         }
 
 #endif
     }
 }
 
-void writePValueToFile(pstring fileName, const PValue &value)
+void writeValueToFile(string fileName, const Value &value)
 {
     StringBuffer buffer;
     Writer writer(buffer);
@@ -319,13 +325,13 @@ void writePValueToFile(pstring fileName, const PValue &value)
     writeFile(std::move(fileName), buffer.GetString(), buffer.GetSize(), false);
 }
 
-unique_ptr<vector<pchar>> readPValueFromCompressedFile(const pstring_view fileName, PDocument &document)
+unique_ptr<vector<char>> readValueFromCompressedFile(const string_view fileName, Document &document)
 {
 #ifndef USE_JSON_FILE_COMPRESSION
-    return readPValueFromFile(fileName, document);
+    return readValueFromFile(fileName, document);
 #else
     // Read whole file into a buffer
-    unique_ptr<vector<pchar>> fileBuffer;
+    unique_ptr<vector<char>> fileBuffer;
     uint64_t readLength;
     {
         FILE *fp;
@@ -333,13 +339,13 @@ unique_ptr<vector<pchar>> readPValueFromCompressedFile(const pstring_view fileNa
         fseek(fp, 0, SEEK_END);
         const size_t filesize = (size_t)ftell(fp);
         fseek(fp, 0, SEEK_SET);
-        fileBuffer = std::make_unique<vector<pchar>>(filesize);
+        fileBuffer = std::make_unique<vector<char>>(filesize);
         readLength = fread(fileBuffer->begin().operator->(), 1, filesize, fp);
         fclose(fp);
     }
 
     uint64_t decompressedSize = *reinterpret_cast<uint64_t *>(&(*fileBuffer)[0]);
-    unique_ptr<vector<pchar>> decompressedBuffer = std::make_unique<vector<pchar>>(decompressedSize + 1);
+    unique_ptr<vector<char>> decompressedBuffer = std::make_unique<vector<char>>(decompressedSize + 1);
 
     int decompressSize =
         LZ4_decompress_safe(&(*fileBuffer)[8], &(*decompressedBuffer)[0], readLength - 8, decompressedSize);
@@ -367,22 +373,22 @@ unique_ptr<vector<pchar>> readPValueFromCompressedFile(const pstring_view fileNa
     /*rapidjson::StringBuffer buffer;
     rapidjson::Writer writer(buffer);
     document.Accept(writer);
-    std::ofstream("nodes2.json") << pstring(buffer.GetString(), buffer.GetLength());*/
+    std::ofstream("nodes2.json") << string(buffer.GetString(), buffer.GetLength());*/
     return decompressedBuffer;
 #endif
 }
 
-void writePValueToCompressedFile(pstring fileName, const PValue &value)
+void writeValueToCompressedFile(string fileName, const Value &value)
 {
 #ifndef USE_JSON_FILE_COMPRESSION
-    writePValueToFile(std::move(fileName), value);
+    writeValueToFile(std::move(fileName), value);
 #else
     rapidjson::StringBuffer buffer;
     rapidjson::Writer writer(buffer);
     value.Accept(writer);
 
-    // printMessage(fmt::format("file {} \n{}\n", fileName, pstring(buffer.GetString(), buffer.GetLength())));
-    pstring compressed;
+    // printMessage(FORMAT("file {} \n{}\n", fileName, string(buffer.GetString(), buffer.GetLength())));
+    string compressed;
     const uint64_t maxCompressedSize = LZ4_compressBound(buffer.GetLength());
     // first eight bytes for the compressed size
     compressed.reserve(maxCompressedSize + 8);
@@ -390,7 +396,7 @@ void writePValueToCompressedFile(pstring fileName, const PValue &value)
     int compressedSize = LZ4_compress_default(buffer.GetString(), const_cast<char *>(compressed.c_str()) + 8,
                                               buffer.GetLength(), maxCompressedSize);
 
-    // printMessage(fmt::format("\n{}\n{}\n", buffer.GetLength(), compressedSize + 8));
+    // printMessage(FORMAT("\n{}\n{}\n", buffer.GetLength(), compressedSize + 8));
     if (!compressedSize)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
@@ -402,11 +408,11 @@ void writePValueToCompressedFile(pstring fileName, const PValue &value)
 #endif
 }
 
-uint64_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element)
+uint64_t valueIndexInSubArray(const Value &value, const Value &element)
 {
-    for (uint64_t i = 0; i < pvalue.Size(); ++i)
+    for (uint64_t i = 0; i < value.Size(); ++i)
     {
-        if (element == pvalue[i][0])
+        if (element == value[i][0])
         {
             return i;
         }
@@ -415,12 +421,12 @@ uint64_t pvalueIndexInSubArray(const PValue &pvalue, const PValue &element)
 }
 
 inline uint64_t currentTargetIndex = 0;
-uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &element)
+uint64_t valueIndexInSubArrayConsidered(const Value &value, const Value &element)
 {
     const uint64_t old = currentTargetIndex;
-    for (uint64_t i = currentTargetIndex; i < pvalue.Size(); ++i)
+    for (uint64_t i = currentTargetIndex; i < value.Size(); ++i)
     {
-        if (const PValue &v = pvalue[i]; !v.Empty())
+        if (const Value &v = value[i]; !v.Empty())
         {
             if (v[0] == element)
             {
@@ -431,7 +437,7 @@ uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &ele
     }
     for (uint64_t i = 0; i < currentTargetIndex; ++i)
     {
-        if (const PValue &v = pvalue[i]; !v.Empty())
+        if (const Value &v = value[i]; !v.Empty())
         {
             if (v[0] == element)
             {
@@ -444,7 +450,7 @@ uint64_t pvalueIndexInSubArrayConsidered(const PValue &pvalue, const PValue &ele
     return UINT64_MAX;
 }
 
-bool compareStringsFromEnd(const pstring_view lhs, const pstring_view rhs)
+bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
 {
     if (lhs.size() != rhs.size())
     {
@@ -460,15 +466,15 @@ bool compareStringsFromEnd(const pstring_view lhs, const pstring_view rhs)
     return true;
 }
 
-uint64_t nodeIndexInPValueArray(const PValue &pvalue, const Node &node)
+uint64_t nodeIndexInValueArray(const Value &value, const Node &node)
 {
-    for (uint64_t i = 0; i < pvalue.Size(); ++i)
+    for (uint64_t i = 0; i < value.Size(); ++i)
     {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-        bool found = pvalue[i].GetUint64() == node.myId;
+        bool found = value[i].GetUint64() == node.myId;
 #else
         bool found =
-            compareStringsFromEnd(pstring_view(pvalue[i].GetString(), pvalue[i].GetStringLength()), node.filePath);
+            compareStringsFromEnd(string_view(value[i].GetString(), value[i].GetStringLength()), node.filePath);
 #endif
 
         if (found)
@@ -479,12 +485,12 @@ uint64_t nodeIndexInPValueArray(const PValue &pvalue, const Node &node)
     return UINT64_MAX;
 }
 
-bool isNodeInPValue(const PValue &value, const Node &node)
+bool isNodeInValue(const Value &value, const Node &node)
 {
-    return nodeIndexInPValueArray(value, node) != UINT64_MAX;
+    return nodeIndexInValueArray(value, node) != UINT64_MAX;
 }
 
-void lowerCasePStringOnWindows(pchar *ptr, const uint64_t size)
+void lowerCasePStringOnWindows(char *ptr, const uint64_t size)
 {
     if constexpr (os == OS::NT)
     {
@@ -497,12 +503,12 @@ void lowerCasePStringOnWindows(pchar *ptr, const uint64_t size)
 
 // TODO
 // Review this function and its usage.
-bool childInParentPathNormalized(const pstring_view parent, const pstring_view child)
+bool childInParentPathNormalized(const string_view parent, const string_view child)
 {
     if (child.size() < parent.size())
     {
         return false;
     }
 
-    return compareStringsFromEnd(parent, pstring_view(child.data(), parent.size()));
+    return compareStringsFromEnd(parent, string_view(child.data(), parent.size()));
 }

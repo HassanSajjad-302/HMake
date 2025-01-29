@@ -113,11 +113,11 @@ enum class AddressModel : char // AddressModel
 void to_json(Json &j, const AddressModel &am);
 void from_json(const Json &j, AddressModel &am);
 
-struct CxxFlags : pstring
+struct CxxFlags : string
 {
 };
 
-struct LinkFlags : pstring
+struct LinkFlags : string
 {
 };
 
@@ -129,10 +129,10 @@ struct TemplateDepth
 
 struct Define
 {
-    pstring name;
-    pstring value;
+    string name;
+    string value;
     Define() = default;
-    explicit Define(pstring name_, pstring value_ = "");
+    explicit Define(string name_, string value_ = "");
 };
 
 void to_json(Json &j, const Define &cd);
@@ -275,9 +275,9 @@ enum class RuntimeDebugging : bool
 void to_json(Json &json, const OS &osLocal);
 void from_json(const Json &json, OS &osLocal);
 
-pstring getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const pstring &targetName);
-pstring getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const pstring &actualName);
-pstring getSlashedExecutableName(const pstring &name);
+string getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const string &targetName);
+string getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const string &actualName);
+string getSlashedExecutableName(const string &name);
 
 enum class CxxSTD : char
 {
@@ -679,10 +679,6 @@ struct DSCFeatures : DSCPrebuiltFeatures
     DefineDLLPrivate defineDllPrivate = DefineDLLPrivate::NO;
 };
 
-// TODO
-// Add another feature "CanBeUpdated", that suggests that whether the prebuilt target can be updated so its timestamp is
-// not checked by-default.
-
 struct PrebuiltBasicFeatures
 {
     // TODO
@@ -738,7 +734,7 @@ struct LinkerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 
-    pstring requirementLinkerFlags;
+    string requirementLinkerFlags;
     TargetType libraryType;
     LinkerFeatures();
     void setConfigType(ConfigType configType);
@@ -805,21 +801,21 @@ struct CppCompilerFeatures
     UseMiniTarget useMiniTarget = UseMiniTarget::YES;
 
     vector<InclNode> reqIncls;
-    pstring requirementCompilerFlags;
+    string requirementCompilerFlags;
     flat_hash_set<Define> requirementCompileDefinitions;
     CppCompilerFeatures();
     void setCompilerFromVSTools(const struct VSTools &vsTools);
     void setCompilerFromLinuxTools(const struct LinuxTools &linuxTools);
     void setConfigType(ConfigType configType);
-    template <typename... U> CppCompilerFeatures &privateIncludes(const pstring &include, U... includeDirectoryPString);
-    static bool actuallyAddInclude(vector<InclNode> &inclNodes, const pstring &include, bool isStandard = false,
+    template <typename... U> CppCompilerFeatures &privateIncludes(const string &include, U... includeDirectoryPString);
+    static bool actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool isStandard = false,
                                    bool ignoreHeaderDeps = false);
     static bool actuallyAddInclude(CppSourceTarget *target, vector<InclNodeTargetMap> &inclNodes,
-                                   const pstring &include, bool isStandard = false, bool ignoreHeaderDeps = false);
+                                   const string &include, bool isStandard = false, bool ignoreHeaderDeps = false);
 };
 
 template <typename... U>
-CppCompilerFeatures &CppCompilerFeatures::privateIncludes(const pstring &include, U... includeDirectoryPString)
+CppCompilerFeatures &CppCompilerFeatures::privateIncludes(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {

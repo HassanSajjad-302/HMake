@@ -91,6 +91,10 @@ target_include_directories(hconfigure-b
         PUBLIC 3rdParty/lz4/lib
 )
 
+# TODO
+# https://rapidjson.org/group___r_a_p_i_d_j_s_o_n___c_o_n_f_i_g.html
+# macros to be looked for simd from above and whether that they are defined
+
 set(HMAKE_USE_FULL_FILE OFF BOOL "use full file or smaller file(compressed, indices, hashed).")
 
 if ("${HMAKE_USE_FULL_FILE}" MATCHES ON)

@@ -147,14 +147,14 @@ template <typename T> void TarjanNode<T>::checkForCycle()
             if (i == cycleSize - 1)
             {
                 printErrorMessageColor(
-                    fmt::format("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[0]->getTarjanNodeName()),
+                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[0]->getTarjanNodeName()),
                     settings.pcSettings.toolErrorOutput);
             }
             else
             {
-                printErrorMessageColor(fmt::format("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(),
-                                                   cycle[i + 1]->getTarjanNodeName()),
-                                       settings.pcSettings.toolErrorOutput);
+                printErrorMessageColor(
+                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[i + 1]->getTarjanNodeName()),
+                    settings.pcSettings.toolErrorOutput);
             }
         }
         exit(EXIT_FAILURE);

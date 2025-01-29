@@ -10,10 +10,10 @@ import <vector>;
 #endif
 
 using std::vector;
-string addQuotes(const pstring_view pstr);
-string addEscapedQuotes(const pstring &pstr);
-string fileToPString(const pstring &file_name);
-vector<string> split(string str, const pstring &token);
+string addQuotes(const string_view pstr);
+string addEscapedQuotes(const string &pstr);
+string fileToPString(const string &file_name);
+vector<string> split(string str, const string &token);
 
 template <typename T> void emplaceInVector(vector<T> &v, T &&t)
 {

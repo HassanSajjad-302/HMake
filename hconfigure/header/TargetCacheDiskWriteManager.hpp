@@ -13,23 +13,23 @@ import "BTarget.hpp";
 
 struct ColoredStringForPrint
 {
-    pstring msg;
+    string msg;
     uint32_t color;
     bool isColored;
-    ColoredStringForPrint(pstring _msg, uint32_t _color, bool _isColored);
+    ColoredStringForPrint(string _msg, uint32_t _color, bool _isColored);
 };
 
-struct PValueAndIndices
+struct ValueAndIndices
 {
-    PValue pValue;
+    Value pValue;
     uint64_t index0;
     uint64_t index1;
     uint64_t index2;
     uint64_t index3;
     uint64_t index4;
-    explicit PValueAndIndices(PValue _pValue, uint64_t _index0, uint64_t _index1, uint64_t _index2, uint64_t _index3,
+    explicit ValueAndIndices(Value _pValue, uint64_t _index0, uint64_t _index1, uint64_t _index2, uint64_t _index3,
                               uint64_t _index4);
-    PValue &getTargetPValue() const;
+    Value &getTargetValue() const;
     void copyToCentralTargetCache();
 };
 
@@ -40,11 +40,11 @@ class TargetCacheDiskWriteManager : public BTarget
     std::condition_variable vecCond{};
     std::unique_lock<std::mutex> vecLock{vecMutex, std::defer_lock_t{}};
     vector<ColoredStringForPrint> strCache;
-    vector<PValueAndIndices> pValueCache;
+    vector<ValueAndIndices> pValueCache;
 
   private:
     vector<ColoredStringForPrint> strCacheLocal;
-    vector<PValueAndIndices> pValueCacheLocal;
+    vector<ValueAndIndices> pValueCacheLocal;
 
   public:
     vector<BTarget *> copyJsonBTargets;

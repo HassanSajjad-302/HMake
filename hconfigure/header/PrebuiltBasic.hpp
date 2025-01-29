@@ -23,17 +23,17 @@ struct PrebuiltDep
 {
     // LF linkerFlags
 
-    pstring requirementPreLF;
-    pstring usageRequirementPreLF;
+    string requirementPreLF;
+    string usageRequirementPreLF;
 
-    pstring requirementPostLF;
-    pstring usageRequirementPostLF;
+    string requirementPostLF;
+    string usageRequirementPostLF;
 
-    pstring requirementRpathLink;
-    pstring usageRequirementRpathLink;
+    string requirementRpathLink;
+    string usageRequirementRpathLink;
 
-    pstring requirementRpath;
-    pstring usageRequirementRpath;
+    string requirementRpath;
+    string usageRequirementRpath;
 
     vector<LibDirNode> usageRequirementLibraryDirectories;
     bool defaultRpath = true;
@@ -43,7 +43,7 @@ struct PrebuiltDep
 class PrebuiltBasic : public BTarget, public PrebuiltBasicFeatures, public TargetCache
 {
   public:
-    pstring outputName;
+    string outputName;
     vector<const class ObjectFile *> objectFiles;
 
     node_hash_map<PrebuiltBasic *, PrebuiltDep> requirementDeps;
@@ -76,8 +76,8 @@ class PrebuiltBasic : public BTarget, public PrebuiltBasicFeatures, public Targe
 
     void populateRequirementAndUsageRequirementDeps();
 
-    PrebuiltBasic(const pstring &outputName_, TargetType linkTargetType_);
-    PrebuiltBasic(const pstring &outputName_, TargetType linkTargetType_, const pstring &name_, bool buildExplicit,
+    PrebuiltBasic(const string &outputName_, TargetType linkTargetType_);
+    PrebuiltBasic(const string &outputName_, TargetType linkTargetType_, const string &name_, bool buildExplicit,
                   bool makeDirectory);
 
     void updateBTarget(Builder &builder, unsigned short round) override;

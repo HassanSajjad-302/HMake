@@ -28,33 +28,33 @@ using std::same_as;
 struct SourceDirectory
 {
     const Node *sourceDirectory;
-    pstring regex;
+    string regex;
     bool recursive;
-    SourceDirectory(const pstring &sourceDirectory_, pstring regex_, bool recursive_ = false);
+    SourceDirectory(const string &sourceDirectory_, string regex_, bool recursive_ = false);
 };
 
 struct CompilerFlags
 {
     // GCC
-    pstring OPTIONS;
-    pstring OPTIONS_COMPILE_CPP;
-    pstring OPTIONS_COMPILE;
-    pstring DEFINES_COMPILE_CPP;
-    pstring LANG;
+    string OPTIONS;
+    string OPTIONS_COMPILE_CPP;
+    string OPTIONS_COMPILE;
+    string DEFINES_COMPILE_CPP;
+    string LANG;
 
-    pstring TRANSLATE_INCLUDE;
+    string TRANSLATE_INCLUDE;
     // MSVC
-    pstring DOT_CC_COMPILE;
-    pstring DOT_ASM_COMPILE;
-    pstring DOT_ASM_OUTPUT_COMPILE;
-    pstring DOT_LD_ARCHIVE;
-    pstring PCH_FILE_COMPILE;
-    pstring PCH_SOURCE_COMPILE;
-    pstring PCH_HEADER_COMPILE;
-    pstring PDB_CFLAG;
-    pstring ASMFLAGS_ASM;
-    pstring CPP_FLAGS_COMPILE_CPP;
-    pstring CPP_FLAGS_COMPILE;
+    string DOT_CC_COMPILE;
+    string DOT_ASM_COMPILE;
+    string DOT_ASM_OUTPUT_COMPILE;
+    string DOT_LD_ARCHIVE;
+    string PCH_FILE_COMPILE;
+    string PCH_SOURCE_COMPILE;
+    string PCH_HEADER_COMPILE;
+    string PDB_CFLAG;
+    string ASMFLAGS_ASM;
+    string CPP_FLAGS_COMPILE_CPP;
+    string CPP_FLAGS_COMPILE;
 };
 
 struct InclNodePointerComparator
@@ -67,7 +67,7 @@ struct ResolveRequirePathBTarget final : BTarget
     CppSourceTarget *target;
     explicit ResolveRequirePathBTarget(CppSourceTarget *target_);
     void updateBTarget(Builder &builder, unsigned short round) override;
-    pstring getTarjanNodeName() const override;
+    string getTarjanNodeName() const override;
 };
 
 // TODO
@@ -77,14 +77,14 @@ struct AdjustHeaderUnitsBTarget final : BTarget
     CppSourceTarget *target;
     explicit AdjustHeaderUnitsBTarget(CppSourceTarget *target_);
     void updateBTarget(Builder &builder, unsigned short round) override;
-    pstring getTarjanNodeName() const override;
+    string getTarjanNodeName() const override;
 };
 
 struct RequireNameTargetId
 {
     uint64_t id;
-    pstring requireName;
-    RequireNameTargetId(uint64_t id_, pstring requirePath_);
+    string requireName;
+    RequireNameTargetId(uint64_t id_, string requirePath_);
     bool operator==(const RequireNameTargetId &other) const;
 };
 
@@ -136,8 +136,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     friend struct PostCompile;
 
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
-    pstring compileCommand;
-    pstring sourceCompileCommandPrintFirstHalf;
+    string compileCommand;
+    string sourceCompileCommandPrintFirstHalf;
 
     // Compile Command including tool. Tool is separated from compile command because on Windows, resource-file needs to
     // be used.
@@ -170,20 +170,20 @@ class CppSourceTarget : public CppCompilerFeatures,
 
     void setCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
-    inline pstring &getSourceCompileCommandPrintFirstHalf();
+    inline string &getSourceCompileCommandPrintFirstHalf();
 
-    pstring getDependenciesPString() const;
+    string getDependenciesPString() const;
     void resolveRequirePaths();
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);
     void populateSourceNodesConfigureTime();
     void parseModuleSourceFilesConfigureTime(Builder &builder);
     void populateResolveRequirePathDependencies();
-    pstring getInfrastructureFlags(bool showIncludes) const;
-    pstring getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
-    pstring getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
+    string getInfrastructureFlags(bool showIncludes) const;
+    string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
+    string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
     PostCompile CompileSMFile(const SMFile &smFile);
-    pstring getExtension() const;
+    string getExtension() const;
     PostCompile updateSourceNodeBTarget(const SourceNode &sourceNode);
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
@@ -192,75 +192,75 @@ class CppSourceTarget : public CppCompilerFeatures,
     void copyJson() override;
     void writeTargetConfigCacheAtConfigureTime(bool before);
     void readConfigCacheAtBuildTime();
-    pstring getTarjanNodeName() const override;
+    string getTarjanNodeName() const override;
     CompilerFlags getCompilerFlags();
 
-    CppSourceTarget(const pstring &name_, TargetType targetType);
-    CppSourceTarget(bool buildExplicit, const pstring &name_, TargetType targetType);
-    CppSourceTarget(const pstring &name_, TargetType targetType, Configuration *configuration_);
-    CppSourceTarget(bool buildExplicit, const pstring &name_, TargetType targetType, Configuration *configuration_);
+    CppSourceTarget(const string &name_, TargetType targetType);
+    CppSourceTarget(bool buildExplicit, const string &name_, TargetType targetType);
+    CppSourceTarget(const string &name_, TargetType targetType, Configuration *configuration_);
+    CppSourceTarget(bool buildExplicit, const string &name_, TargetType targetType, Configuration *configuration_);
 
-    CppSourceTarget(pstring buildCacheFilesDirPath_, const pstring &name_, TargetType targetType);
-    CppSourceTarget(pstring buildCacheFilesDirPath_, bool buildExplicit, const pstring &name_, TargetType targetType);
-    CppSourceTarget(pstring buildCacheFilesDirPath_, const pstring &name_, TargetType targetType,
+    CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, TargetType targetType);
+    CppSourceTarget(string buildCacheFilesDirPath_, bool buildExplicit, const string &name_, TargetType targetType);
+    CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, TargetType targetType,
                     Configuration *configuration_);
-    CppSourceTarget(pstring buildCacheFilesDirPath_, bool buildExplicit, const pstring &name_, TargetType targetType,
+    CppSourceTarget(string buildCacheFilesDirPath_, bool buildExplicit, const string &name_, TargetType targetType,
                     Configuration *configuration_);
 
-    void initializeCppSourceTarget(TargetType targetType, const pstring &name_, pstring buildCacheFilesDirPath);
+    void initializeCppSourceTarget(TargetType targetType, const string &name_, string buildCacheFilesDirPath);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
     void populateTransitiveProperties();
-    void adjustHeaderUnitsPValueArrayPointers();
+    void adjustHeaderUnitsValueArrayPointers();
     CSourceTargetType getCSourceTargetType() const override;
 
     CppSourceTarget &makeReqInclsUseable();
-    static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, const pstring &sourceFile,
+    static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, const string &sourceFile,
                                       CppSourceTarget *target);
     static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Node *sourceFileNode, CppSourceTarget *target);
-    static bool actuallyAddModuleFile(vector<SMFile> &smFiles, const pstring &moduleFile, CppSourceTarget *target);
+    static bool actuallyAddModuleFile(vector<SMFile> &smFiles, const string &moduleFile, CppSourceTarget *target);
     static bool actuallyAddModuleFile(vector<SMFile> &smFiles, Node *moduleFileNode, CppSourceTarget *target);
     void actuallyAddSourceFileConfigTime(const Node *node);
     void actuallyAddModuleFileConfigTime(const Node *node, bool isInterface);
-    CppSourceTarget &removeSourceFile(const pstring &sourceFile);
-    CppSourceTarget &removeModuleFile(const pstring &moduleFile);
+    CppSourceTarget &removeSourceFile(const string &sourceFile);
+    CppSourceTarget &removeModuleFile(const string &moduleFile);
 
     // TODO
     // Also provide function overload for functions like publicIncludes here and in CPT
-    template <typename... U> CppSourceTarget &publicIncludes(const pstring &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &privateIncludes(const pstring &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &interfaceIncludes(const pstring &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &publicHUIncludes(const pstring &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &privateHUIncludes(const pstring &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &interfaceHUIncludes(const pstring &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &publicHUDirectories(const pstring &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &publicIncludes(const string &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &privateIncludes(const string &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &interfaceIncludes(const string &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &publicHUIncludes(const string &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &privateHUIncludes(const string &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &interfaceHUIncludes(const string &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &publicHUDirectories(const string &include, U... includeDirectoryPString);
     template <typename... U>
-    CppSourceTarget &privateHUDirectories(const pstring &include, U... includeDirectoryPString);
+    CppSourceTarget &privateHUDirectories(const string &include, U... includeDirectoryPString);
     template <typename... U>
-    CppSourceTarget &interfaceHUDirectories(const pstring &include, U... includeDirectoryPString);
-    CppSourceTarget &publicCompilerFlags(const pstring &compilerFlags);
-    CppSourceTarget &privateCompilerFlags(const pstring &compilerFlags);
-    CppSourceTarget &interfaceCompilerFlags(const pstring &compilerFlags);
-    CppSourceTarget &publicCompileDefinition(const pstring &cddName, const pstring &cddValue = "");
-    CppSourceTarget &privateCompileDefinition(const pstring &cddName, const pstring &cddValue = "");
-    CppSourceTarget &interfaceCompileDefinition(const pstring &cddName, const pstring &cddValue = "");
-    template <typename... U> CppSourceTarget &sourceFiles(const pstring &srcFile, U... sourceFilePString);
-    template <typename... U> CppSourceTarget &moduleFiles(const pstring &modFile, U... moduleFilePString);
-    template <typename... U> CppSourceTarget &interfaceFiles(const pstring &modFile, U... moduleFilePString);
-    void parseRegexSourceDirs(bool assignToSourceNodes, const pstring &sourceDirectory, pstring regex, bool recursive);
-    template <typename... U> CppSourceTarget &sourceDirectories(const pstring &sourceDirectory, U... directories);
-    template <typename... U> CppSourceTarget &moduleDirectories(const pstring &moduleDirectory, U... directories);
+    CppSourceTarget &interfaceHUDirectories(const string &include, U... includeDirectoryPString);
+    CppSourceTarget &publicCompilerFlags(const string &compilerFlags);
+    CppSourceTarget &privateCompilerFlags(const string &compilerFlags);
+    CppSourceTarget &interfaceCompilerFlags(const string &compilerFlags);
+    CppSourceTarget &publicCompileDefinition(const string &cddName, const string &cddValue = "");
+    CppSourceTarget &privateCompileDefinition(const string &cddName, const string &cddValue = "");
+    CppSourceTarget &interfaceCompileDefinition(const string &cddName, const string &cddValue = "");
+    template <typename... U> CppSourceTarget &sourceFiles(const string &srcFile, U... sourceFilePString);
+    template <typename... U> CppSourceTarget &moduleFiles(const string &modFile, U... moduleFilePString);
+    template <typename... U> CppSourceTarget &interfaceFiles(const string &modFile, U... moduleFilePString);
+    void parseRegexSourceDirs(bool assignToSourceNodes, const string &sourceDirectory, string regex, bool recursive);
+    template <typename... U> CppSourceTarget &sourceDirectories(const string &sourceDirectory, U... directories);
+    template <typename... U> CppSourceTarget &moduleDirectories(const string &moduleDirectory, U... directories);
     template <typename... U>
-    CppSourceTarget &sourceDirectoriesRE(const pstring &sourceDirectory, const pstring &regex, U... directories);
+    CppSourceTarget &sourceDirectoriesRE(const string &sourceDirectory, const string &regex, U... directories);
     template <typename... U>
-    CppSourceTarget &moduleDirectoriesRE(const pstring &moduleDirectory, const pstring &regex, U... directories);
-    template <typename... U> CppSourceTarget &rSourceDirectories(const pstring &sourceDirectory, U... directories);
-    template <typename... U> CppSourceTarget &rModuleDirectories(const pstring &moduleDirectory, U... directories);
+    CppSourceTarget &moduleDirectoriesRE(const string &moduleDirectory, const string &regex, U... directories);
+    template <typename... U> CppSourceTarget &rSourceDirectories(const string &sourceDirectory, U... directories);
+    template <typename... U> CppSourceTarget &rModuleDirectories(const string &moduleDirectory, U... directories);
     template <typename... U>
-    CppSourceTarget &rSourceDirectoriesRE(const pstring &sourceDirectory, const pstring &regex, U... directories);
+    CppSourceTarget &rSourceDirectoriesRE(const string &sourceDirectory, const string &regex, U... directories);
     template <typename... U>
-    CppSourceTarget &rModuleDirectoriesRE(const pstring &moduleDirectory, const pstring &regex, U... directories);
+    CppSourceTarget &rModuleDirectoriesRE(const string &moduleDirectory, const string &regex, U... directories);
     //
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     CppSourceTarget &assign(T property, Property... properties);
@@ -271,7 +271,7 @@ class CppSourceTarget : public CppCompilerFeatures,
 bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::publicIncludes(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::publicIncludes(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -297,7 +297,7 @@ CppSourceTarget &CppSourceTarget::publicIncludes(const pstring &include, U... in
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::privateIncludes(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::privateIncludes(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -322,7 +322,7 @@ CppSourceTarget &CppSourceTarget::privateIncludes(const pstring &include, U... i
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::interfaceIncludes(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::interfaceIncludes(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -347,7 +347,7 @@ CppSourceTarget &CppSourceTarget::interfaceIncludes(const pstring &include, U...
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::publicHUIncludes(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::publicHUIncludes(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -383,7 +383,7 @@ CppSourceTarget &CppSourceTarget::publicHUIncludes(const pstring &include, U... 
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::privateHUIncludes(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::privateHUIncludes(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -416,7 +416,7 @@ CppSourceTarget &CppSourceTarget::privateHUIncludes(const pstring &include, U...
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -449,7 +449,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const pstring &include, U.
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::publicHUDirectories(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::publicHUDirectories(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -478,7 +478,7 @@ CppSourceTarget &CppSourceTarget::publicHUDirectories(const pstring &include, U.
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::privateHUDirectories(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::privateHUDirectories(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -506,7 +506,7 @@ CppSourceTarget &CppSourceTarget::privateHUDirectories(const pstring &include, U
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const pstring &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -533,7 +533,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const pstring &include,
     }
 }
 
-template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const pstring &srcFile, U... sourceFilePString)
+template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const string &srcFile, U... sourceFilePString)
 {
     if (evaluate(UseMiniTarget::YES))
     {
@@ -558,7 +558,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const pst
     }
 }
 
-template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const pstring &modFile, U... moduleFilePString)
+template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const string &modFile, U... moduleFilePString)
 {
     if (evaluate(TreatModuleAsSource::YES))
     {
@@ -589,7 +589,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const pst
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::interfaceFiles(const pstring &modFile, U... moduleFilePString)
+CppSourceTarget &CppSourceTarget::interfaceFiles(const string &modFile, U... moduleFilePString)
 {
     if (evaluate(TreatModuleAsSource::YES))
     {
@@ -621,7 +621,7 @@ CppSourceTarget &CppSourceTarget::interfaceFiles(const pstring &modFile, U... mo
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::sourceDirectories(const pstring &sourceDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::sourceDirectories(const string &sourceDirectory, U... directories)
 {
     parseRegexSourceDirs(true, sourceDirectory, ".*", false);
     if constexpr (sizeof...(directories))
@@ -632,7 +632,7 @@ CppSourceTarget &CppSourceTarget::sourceDirectories(const pstring &sourceDirecto
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::moduleDirectories(const pstring &moduleDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::moduleDirectories(const string &moduleDirectory, U... directories)
 {
     parseRegexSourceDirs(false, moduleDirectory, ".*", false);
     if constexpr (sizeof...(directories))
@@ -643,7 +643,7 @@ CppSourceTarget &CppSourceTarget::moduleDirectories(const pstring &moduleDirecto
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::sourceDirectoriesRE(const pstring &sourceDirectory, const pstring &regex,
+CppSourceTarget &CppSourceTarget::sourceDirectoriesRE(const string &sourceDirectory, const string &regex,
                                                       U... directories)
 {
     parseRegexSourceDirs(true, sourceDirectory, regex, false);
@@ -655,7 +655,7 @@ CppSourceTarget &CppSourceTarget::sourceDirectoriesRE(const pstring &sourceDirec
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::moduleDirectoriesRE(const pstring &moduleDirectory, const pstring &regex,
+CppSourceTarget &CppSourceTarget::moduleDirectoriesRE(const string &moduleDirectory, const string &regex,
                                                       U... directories)
 {
     parseRegexSourceDirs(false, moduleDirectory, regex, false);
@@ -667,7 +667,7 @@ CppSourceTarget &CppSourceTarget::moduleDirectoriesRE(const pstring &moduleDirec
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::rSourceDirectories(const pstring &sourceDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::rSourceDirectories(const string &sourceDirectory, U... directories)
 {
     parseRegexSourceDirs(true, sourceDirectory, ".*", true);
     if constexpr (sizeof...(directories))
@@ -678,7 +678,7 @@ CppSourceTarget &CppSourceTarget::rSourceDirectories(const pstring &sourceDirect
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::rModuleDirectories(const pstring &moduleDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::rModuleDirectories(const string &moduleDirectory, U... directories)
 {
     parseRegexSourceDirs(false, moduleDirectory, ".*", true);
     if constexpr (sizeof...(directories))
@@ -689,7 +689,7 @@ CppSourceTarget &CppSourceTarget::rModuleDirectories(const pstring &moduleDirect
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::rSourceDirectoriesRE(const pstring &sourceDirectory, const pstring &regex,
+CppSourceTarget &CppSourceTarget::rSourceDirectoriesRE(const string &sourceDirectory, const string &regex,
                                                        U... directories)
 {
     parseRegexSourceDirs(true, sourceDirectory, regex, true);
@@ -701,7 +701,7 @@ CppSourceTarget &CppSourceTarget::rSourceDirectoriesRE(const pstring &sourceDire
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::rModuleDirectoriesRE(const pstring &moduleDirectory, const pstring &regex,
+CppSourceTarget &CppSourceTarget::rModuleDirectoriesRE(const string &moduleDirectory, const string &regex,
                                                        U... directories)
 {
     parseRegexSourceDirs(false, moduleDirectory, regex, true);

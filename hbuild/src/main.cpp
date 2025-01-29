@@ -42,6 +42,6 @@ int main(const int argc, char **argv)
         return system(str.c_str());
     }
     printErrorMessage(
-        fmt::format("{} File could not be found in current directory and directories above\n", buildExeName));
+        FORMAT("{} File could not be found in current directory and directories above\n", buildExeName));
     exit(EXIT_FAILURE);
 }

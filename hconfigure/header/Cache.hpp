@@ -34,8 +34,8 @@ struct Cache
     unsigned selectedScannerArrayIndex;
     enum TargetType libraryType;
     Json cacheVariables;
-    vector<pstring> configureExeBuildScript;
-    vector<pstring> buildExeBuildScript;
+    vector<string> configureExeBuildScript;
+    vector<string> buildExeBuildScript;
     Cache();
     void initializeCacheVariableFromCacheFile();
     void registerCacheVariables();
@@ -48,12 +48,12 @@ inline Cache cache;
 template <typename T> struct CacheVariable
 {
     T value;
-    pstring jsonPString;
-    CacheVariable(pstring cacheVariableString_, T defaultValue);
+    string jsonPString;
+    CacheVariable(string cacheVariableString_, T defaultValue);
 };
 
 template <typename T>
-CacheVariable<T>::CacheVariable(pstring cacheVariableString_, T defaultValue)
+CacheVariable<T>::CacheVariable(string cacheVariableString_, T defaultValue)
     : jsonPString(std::move(cacheVariableString_))
 {
     Json &cacheVariablesJson = cache.cacheVariables;

@@ -9,6 +9,8 @@ import <utility>;
 #include <utility>
 #endif
 
+using std::stringstream;
+
 Version::Version(const unsigned int majorVersion_, const unsigned int minorVersion_, const unsigned int patchVersion_)
     : majorVersion{majorVersion_}, minorVersion{minorVersion_}, patchVersion{patchVersion_}
 {
@@ -16,15 +18,15 @@ Version::Version(const unsigned int majorVersion_, const unsigned int minorVersi
 
 void to_json(Json &j, const Version &p)
 {
-    j = to_pstring(p.majorVersion) + "." + to_pstring(p.minorVersion) + "." + to_pstring(p.patchVersion);
+    j = FORMAT("{}.{}.{}", p.majorVersion, p.minorVersion, p.patchVersion);
 }
 
 void from_json(const Json &j, Version &v)
 {
-    const pstring jString = j;
+    const string jString = j;
     const char delim = '.';
-    pstringstream ss(jString);
-    pstring item;
+    stringstream ss(jString);
+    string item;
     int count = 0;
     while (getline(ss, item, delim))
     {
@@ -84,13 +86,13 @@ BuildTool::BuildTool(const BTFamily btFamily_, const Version btVersion_, path bt
 void to_json(Json &json, const BuildTool &buildTool)
 {
     json[JConsts::family] = buildTool.bTFamily;
-    json[JConsts::path] = (buildTool.bTPath.*toPStr)();
+    json[JConsts::path] = buildTool.bTPath.string();
     json[JConsts::version] = buildTool.bTVersion;
 }
 
 void from_json(const Json &json, BuildTool &buildTool)
 {
-    buildTool.bTPath = json.at(JConsts::path).get<pstring>();
+    buildTool.bTPath = json.at(JConsts::path).get<string>();
     buildTool.bTFamily = json.at(JConsts::family).get<BTFamily>();
     buildTool.bTVersion = json.at(JConsts::version).get<Version>();
 }

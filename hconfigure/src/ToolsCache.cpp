@@ -19,13 +19,13 @@ import <utility>;
 
 using std::ofstream, std::filesystem::remove;
 
-VSTools::VSTools(pstring batchFile, path toolBinDir, const Arch hostArch_, const AddressModel hostAM_,
+VSTools::VSTools(string batchFile, path toolBinDir, const Arch hostArch_, const AddressModel hostAM_,
                  const Arch targetArch_, const AddressModel targetAM_, const bool executingFromWSL)
     : command(std::move(batchFile)), hostArch(hostArch_), hostAM(hostAM_), targetArch(targetArch_), targetAM(targetAM_)
 {
     bool hostSupported = false;
     bool targetSupported = false;
-    const vector<pstring> vec = split(toolBinDir.parent_path().filename().string(), ".");
+    const vector<string> vec = split(toolBinDir.parent_path().filename().string(), ".");
     const Version toolVersion(atol(vec[0].c_str()), atoi(vec[1].c_str()), atoi(vec[2].c_str()));
     if (hostArch_ == Arch::X86)
     {
@@ -77,13 +77,13 @@ void VSTools::initializeFromVSToolBatchCommand(const bool executingFromWSL)
     initializeFromVSToolBatchCommand(command + " " + commandArguments, executingFromWSL);
 }
 
-void VSTools::initializeFromVSToolBatchCommand(const pstring &finalCommand, bool executingFromWSL)
+void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool executingFromWSL)
 {
-    const pstring temporaryIncludeFilename = "temporaryInclude.txt";
-    const pstring temporaryLibFilename = "temporaryLib.txt";
-    const pstring temporaryBatchFilename = "temporaryBatch.bat";
-    const pstring cmdExe = executingFromWSL ? "cmd.exe /c " : "";
-    const pstring batchCommand = "call " + finalCommand + "\n" + cmdExe + "echo %INCLUDE% > " + temporaryIncludeFilename +
+    const string temporaryIncludeFilename = "temporaryInclude.txt";
+    const string temporaryLibFilename = "temporaryLib.txt";
+    const string temporaryBatchFilename = "temporaryBatch.bat";
+    const string cmdExe = executingFromWSL ? "cmd.exe /c " : "";
+    const string batchCommand = "call " + finalCommand + "\n" + cmdExe + "echo %INCLUDE% > " + temporaryIncludeFilename +
                            "\n" + cmdExe + "echo %LIB%;%LIBPATH% > " + temporaryLibFilename;
     ofstream(temporaryBatchFilename) << batchCommand;
 
@@ -94,12 +94,12 @@ void VSTools::initializeFromVSToolBatchCommand(const pstring &finalCommand, bool
     }
     remove(temporaryBatchFilename);
 
-    auto splitPathsAndAssignToVector = [](pstring &accumulatedPaths) -> vector<pstring> {
-        vector<pstring> separatedPaths{};
+    auto splitPathsAndAssignToVector = [](string &accumulatedPaths) -> vector<string> {
+        vector<string> separatedPaths{};
         size_t pos = accumulatedPaths.find(';');
-        while (pos != pstring::npos)
+        while (pos != string::npos)
         {
-            pstring token = accumulatedPaths.substr(0, pos);
+            string token = accumulatedPaths.substr(0, pos);
             if (token.empty())
             {
                 break;
@@ -111,31 +111,31 @@ void VSTools::initializeFromVSToolBatchCommand(const pstring &finalCommand, bool
         return separatedPaths;
     };
 
-    auto convertPathsToWSLPaths = [executingFromWSL](vector<pstring> &vec) {
+    auto convertPathsToWSLPaths = [executingFromWSL](vector<string> &vec) {
         if (executingFromWSL)
         {
-            const pstring s = "\\";
-            const pstring t = "/";
+            const string s = "\\";
+            const string t = "/";
 
-            const vector<pstring> vec2 = std::move(vec);
+            const vector<string> vec2 = std::move(vec);
             vec.clear();
-            for (const pstring &str : vec2)
+            for (const string &str : vec2)
             {
-                pstring str2 = str;
-                pstring::size_type n = 0;
-                while ((n = str2.find(s, n)) != pstring::npos)
+                string str2 = str;
+                string::size_type n = 0;
+                while ((n = str2.find(s, n)) != string::npos)
                 {
                     str2.replace(n, s.size(), t);
                     n += t.size();
                 }
                 str2.erase(0, 2);
-                pstring str3 = "/mnt/c" + str2;
+                string str3 = "/mnt/c" + str2;
                 vec.emplace_back(std::move(str3));
             }
         }
     };
 
-    pstring accumulatedPaths = fileToPString(temporaryIncludeFilename);
+    string accumulatedPaths = fileToPString(temporaryIncludeFilename);
     remove(temporaryIncludeFilename);
     accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
     accumulatedPaths.pop_back();
@@ -169,8 +169,8 @@ void to_json(Json &j, const VSTools &vsTool)
 
 void from_json(const Json &j, VSTools &vsTool)
 {
-    vsTool.command = j.at(JConsts::command).get<pstring>();
-    vsTool.commandArguments = j.at(JConsts::commandArguments).get<pstring>();
+    vsTool.command = j.at(JConsts::command).get<string>();
+    vsTool.commandArguments = j.at(JConsts::commandArguments).get<string>();
     vsTool.compiler = j.at(JConsts::compiler).get<Compiler>();
     vsTool.linker = j.at(JConsts::linker).get<Linker>();
     vsTool.archiver = j.at(JConsts::archiver).get<Archiver>();
@@ -179,18 +179,18 @@ void from_json(const Json &j, VSTools &vsTool)
     vsTool.hostAM = j.at(JConsts::hostArddressModel).get<AddressModel>();
     vsTool.targetArch = j.at(JConsts::targetArchitecture).get<Arch>();
     vsTool.targetAM = j.at(JConsts::targetAddressModel).get<AddressModel>();
-    vsTool.includeDirectories = j.at(JConsts::includeDirectories).get<vector<pstring>>();
-    vsTool.libraryDirectories = j.at(JConsts::libraryDirectories).get<vector<pstring>>();
+    vsTool.includeDirectories = j.at(JConsts::includeDirectories).get<vector<string>>();
+    vsTool.libraryDirectories = j.at(JConsts::libraryDirectories).get<vector<string>>();
 }
 
 LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
 {
-    const pstring temporaryIncludeFilename = "temporaryInclude.txt";
+    const string temporaryIncludeFilename = "temporaryInclude.txt";
 
-    const pstring str = std::filesystem::current_path().string();
-    const pstring temporaryCppFile = "temporary-main.cpp";
+    const string str = std::filesystem::current_path().string();
+    const string temporaryCppFile = "temporary-main.cpp";
     ofstream(temporaryCppFile) << "";
-    command = (compiler.bTPath.*toPStr)() + " " + temporaryCppFile + " -E -v> " + temporaryIncludeFilename + " 2>&1";
+    command = compiler.bTPath.string() + " " + temporaryCppFile + " -E -v> " + temporaryIncludeFilename + " 2>&1";
     const int code = system(command.c_str());
     remove(temporaryCppFile);
     if (code != EXIT_SUCCESS)
@@ -199,9 +199,9 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
         throw std::exception();
     }
 
-    pstring accumulatedPaths = fileToPString(temporaryIncludeFilename);
+    string accumulatedPaths = fileToPString(temporaryIncludeFilename);
     remove(temporaryIncludeFilename);
-    const vector<pstring> lines = split(std::move(accumulatedPaths), "\n");
+    const vector<string> lines = split(std::move(accumulatedPaths), "\n");
 
     size_t foundIndex = 0;
     for (size_t i = 0; i < lines.size(); ++i)
@@ -253,14 +253,14 @@ void to_json(Json &j, const LinuxTools &linuxTools)
 
 void from_json(const Json &j, LinuxTools &linuxTools)
 {
-    linuxTools.command = j.at(JConsts::command).get<pstring>();
+    linuxTools.command = j.at(JConsts::command).get<string>();
     linuxTools.compiler = j.at(JConsts::compiler).get<Compiler>();
-    linuxTools.includeDirectories = j.at(JConsts::includeDirectories).get<vector<pstring>>();
+    linuxTools.includeDirectories = j.at(JConsts::includeDirectories).get<vector<string>>();
 }
 
 ToolsCache::ToolsCache()
 {
-    const pstring toolsCacheFile = "toolsCache.json";
+    const string toolsCacheFile = "toolsCache.json";
     if constexpr (os == OS::LINUX)
     {
         if (const char *homedir = getenv("HOME"); homedir)
@@ -287,7 +287,7 @@ void ToolsCache::detectToolsAndInitialize()
 
     if constexpr (os == OS::NT)
     {
-        pstring batchFilePath =
+        string batchFilePath =
             R"("C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat")";
         path toolBinDir = R"(C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.42.34433\bin)";
         vsTools.emplace_back(batchFilePath, toolBinDir, Arch::X86, AddressModel::A_64, Arch::X86, AddressModel::A_64);

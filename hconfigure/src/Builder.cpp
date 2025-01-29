@@ -66,7 +66,7 @@ Builder::Builder()
 #define DEBUG_EXECUTE(x)
 #endif
 
-extern pstring getThreadId();
+extern string getThreadId();
 
 #ifndef NDEBUG
 unsigned short count = 0;
@@ -79,7 +79,7 @@ void Builder::execute()
     BTarget *bTarget = nullptr;
     RealBTarget *realBTarget = nullptr;
 
-    DEBUG_EXECUTE(fmt::format("{} Locking Update Mutex {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(),
+    DEBUG_EXECUTE(FORMAT("{} Locking Update Mutex {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(),
                               getThreadId()));
     std::unique_lock lk(executeMutex);
     while (true)
@@ -91,22 +91,22 @@ void Builder::execute()
 
             if (updateBTargetsIterator != updateBTargets.end())
             {
-                DEBUG_EXECUTE(fmt::format("{} update-executing {} {}\n", round, __LINE__, getThreadId()));
+                DEBUG_EXECUTE(FORMAT("{} update-executing {} {}\n", round, __LINE__, getThreadId()));
                 bTarget = *updateBTargetsIterator;
                 realBTarget = &bTarget->realBTargets[round];
                 ++updateBTargetsIterator;
-                DEBUG_EXECUTE(fmt::format("{} UnLocking Update Mutex {} {}\n", round, __LINE__, getThreadId()));
+                DEBUG_EXECUTE(FORMAT("{} UnLocking Update Mutex {} {}\n", round, __LINE__, getThreadId()));
                 executeMutex.unlock();
                 cond.notify_one();
                 shouldBreak = true;
             }
             else if (updateBTargets.size() == updateBTargetsSizeGoal)
             {
-                DEBUG_EXECUTE(fmt::format("{} updateBTargets.size() == updateBTargetsSizeGoal {} {} {}\n", round,
+                DEBUG_EXECUTE(FORMAT("{} updateBTargets.size() == updateBTargetsSizeGoal {} {} {}\n", round,
                                           numberOfSleepingThreads.load(), numberOfLaunchedThreads, getThreadId()));
                 if (numberOfSleepingThreads.load() == numberOfLaunchedThreads - 1)
                 {
-                    DEBUG_EXECUTE(fmt::format("{} {} {}\n", round,
+                    DEBUG_EXECUTE(FORMAT("{} {} {}\n", round,
                                               "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
 
                     runEndOfRoundTargets();
@@ -175,12 +175,12 @@ void Builder::execute()
 
                     executeMutex.unlock();
                     cond.notify_one();
-                    DEBUG_EXECUTE(fmt::format("{} Locking after notifying one after round decrement {} {}\n", round,
+                    DEBUG_EXECUTE(FORMAT("{} Locking after notifying one after round decrement {} {}\n", round,
                                               __LINE__, getThreadId()));
                     executeMutex.lock();
                     if (returnAfterWakeup)
                     {
-                        DEBUG_EXECUTE(fmt::format("{} Returning after roundGoal Achieved{} {}\n", round, __LINE__,
+                        DEBUG_EXECUTE(FORMAT("{} Returning after roundGoal Achieved{} {}\n", round, __LINE__,
                                                   getThreadId()));
                         return;
                     }
@@ -194,17 +194,17 @@ void Builder::execute()
 
             if (roundLocal == round)
             {
-                DEBUG_EXECUTE(fmt::format("{} Condition waiting {} {} {}\n", round, __LINE__,
+                DEBUG_EXECUTE(FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__,
                                           numberOfSleepingThreads.load(), getThreadId()));
                 incrementNumberOfSleepingThreads();
                 cond.wait(lk);
                 decrementNumberOfSleepingThreads();
-                DEBUG_EXECUTE(fmt::format("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__,
+                DEBUG_EXECUTE(FORMAT("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__,
                                           numberOfSleepingThreads.load(), getThreadId()));
                 if (returnAfterWakeup)
                 {
                     cond.notify_one();
-                    DEBUG_EXECUTE(fmt::format("{} returning after wakeup from condition variable {} {}\n", round,
+                    DEBUG_EXECUTE(FORMAT("{} returning after wakeup from condition variable {} {}\n", round,
                                               __LINE__, getThreadId()));
                     return;
                 }
@@ -218,7 +218,7 @@ void Builder::execute()
                 bTarget->setSelectiveBuild();
             }
             bTarget->updateBTarget(*this, round);
-            DEBUG_EXECUTE(fmt::format("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
+            DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
             executeMutex.lock();
             if (realBTarget->exitStatus != EXIT_SUCCESS)
             {
@@ -227,7 +227,7 @@ void Builder::execute()
         }
         catch (std::exception &ec)
         {
-            DEBUG_EXECUTE(fmt::format("{} Locking in catch block {} {}\n", round, __LINE__, getThreadId()));
+            DEBUG_EXECUTE(FORMAT("{} Locking in catch block {} {}\n", round, __LINE__, getThreadId()));
             executeMutex.lock();
             realBTarget->exitStatus = EXIT_FAILURE;
             if (string str(ec.what()); !str.empty())
@@ -282,7 +282,7 @@ void Builder::execute()
             }
         }
 
-        DEBUG_EXECUTE(fmt::format("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round,
+        DEBUG_EXECUTE(FORMAT("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round,
                                   __LINE__, updateBTargets.size(), updateBTargetsSizeGoal, getThreadId()));
     }
 }
@@ -303,7 +303,7 @@ void Builder::incrementNumberOfSleepingThreads()
         }
         catch (std::exception &ec)
         {
-            DEBUG_EXECUTE(fmt::format("Locking Update Mutex {}\n", __LINE__));
+            DEBUG_EXECUTE(FORMAT("Locking Update Mutex {}\n", __LINE__));
             if (const string str(ec.what()); !str.empty())
             {
                 printErrorMessage(str);

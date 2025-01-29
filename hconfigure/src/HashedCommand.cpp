@@ -28,16 +28,16 @@ string HashedCommand::getCommand() const
     return command;
 }
 
-PValue HashedCommand::getHash() const
+Value HashedCommand::getHash() const
 {
 
 #ifdef USE_COMMAND_HASH
 
-    return PValue(hash);
+    return Value(hash);
 
 #else
 
-    return PValue(ptoref(command));
+    return Value(svtogsr(command));
 
 #endif
 }

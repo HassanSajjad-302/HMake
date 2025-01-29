@@ -15,7 +15,7 @@ class ObjectFileProducer : public BTarget
 {
   public:
     ObjectFileProducer();
-    ObjectFileProducer(pstring name_, bool buildExplicit, bool makeDirectory);
+    ObjectFileProducer(string name_, bool buildExplicit, bool makeDirectory);
     virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                                 LinkOrArchiveTarget *linkOrArchiveTarget) const;
 };
@@ -24,7 +24,7 @@ class ObjectFileProducer : public BTarget
 template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
 {
     ObjectFileProducerWithDS();
-    ObjectFileProducerWithDS(pstring name_, bool buildExplicit, bool makeDirectory);
+    ObjectFileProducerWithDS(string name_, bool buildExplicit, bool makeDirectory);
     flat_hash_set<T *> requirementDeps;
     flat_hash_set<T *> usageRequirementDeps;
     template <typename... U> T &PUBLIC_DEPS(T *dep, const U... deps);
@@ -61,7 +61,7 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::P
 template <typename T> ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS() = default;
 
 template <typename T>
-ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS(pstring name_, bool buildExplicit, bool makeDirectory)
+ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS(string name_, bool buildExplicit, bool makeDirectory)
     : ObjectFileProducer(std::move(name_), buildExplicit, makeDirectory)
 {
 }

@@ -23,7 +23,7 @@ import <fstream>;
 
 using fmt::print, std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
 
-pstring getFileNameJsonOrOut(const pstring &name)
+string getFileNameJsonOrOut(const string &name)
 {
 #ifdef USE_JSON_FILE_COMPRESSION
     return name + ".out";
@@ -39,14 +39,14 @@ void initializeCache(const BSMode bsMode_)
 
     if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes")); exists(p))
     {
-        const pstring str = p.string();
-        nodesCacheBuffer = readPValueFromCompressedFile(str, nodesCacheJson);
+        const string str = p.string();
+        nodesCacheBuffer = readValueFromCompressedFile(str, nodesCacheJson);
 
         // node is constructed from cache. It is emplaced in the hash set and also in nodeIndices.
         // However performSystemCheck is not called and is called in multi-threaded fashion.
-        for (PValue &value : nodesCacheJson.GetArray())
+        for (Value &value : nodesCacheJson.GetArray())
         {
-            Node::addHalfNodeFromNormalizedStringSingleThreaded(pstring(value.GetString(), value.GetStringLength()));
+            Node::addHalfNodeFromNormalizedStringSingleThreaded(string(value.GetString(), value.GetStringLength()));
         }
         targetCacheDiskWriteManager.initialize();
     }
@@ -58,34 +58,34 @@ void initializeCache(const BSMode bsMode_)
     }
     if (currentNode->filePath.size() != configureNode->filePath.size())
     {
-        currentMinusConfigure = pstring_view(currentNode->filePath.begin() + configureNode->filePath.size() + 1,
+        currentMinusConfigure = string_view(currentNode->filePath.begin() + configureNode->filePath.size() + 1,
                                              currentNode->filePath.end());
     }
 
     if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache")); exists(p))
     {
-        const pstring str = p.string();
-        configCacheBuffer = readPValueFromCompressedFile(str, configCache);
+        const string str = p.string();
+        configCacheBuffer = readValueFromCompressedFile(str, configCache);
     }
     else
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
-            printErrorMessage(fmt::format("{} does not exist. Exiting\n", p.string().c_str()));
+            printErrorMessage(FORMAT("{} does not exist. Exiting\n", p.string().c_str()));
             exit(EXIT_FAILURE);
         }
     }
 
     if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache")); exists(p))
     {
-        const pstring str = p.string();
-        buildCacheBuffer = readPValueFromCompressedFile(str, buildCache);
+        const string str = p.string();
+        buildCacheBuffer = readValueFromCompressedFile(str, buildCache);
     }
     else
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
-            printErrorMessage(fmt::format("{} does not exist. Exiting\n", p.string().c_str()));
+            printErrorMessage(FORMAT("{} does not exist. Exiting\n", p.string().c_str()));
             exit(EXIT_FAILURE);
         }
     }
@@ -102,14 +102,14 @@ void initializeCache(const BSMode bsMode_)
     }
 }
 
-void printDebugMessage(const pstring &message)
+void printDebugMessage(const string &message)
 {
 #ifndef NDEBUG
     printMessage(message);
 #endif
 }
 
-void printMessage(const pstring &message)
+void printMessage(const string &message)
 {
     if (printMessagePointer)
     {
@@ -122,7 +122,7 @@ void printMessage(const pstring &message)
     }
 }
 
-void printMessageColor(const pstring &message, uint32_t color)
+void printMessageColor(const string &message, uint32_t color)
 {
     if (printMessageColorPointer)
     {
@@ -138,7 +138,7 @@ void printMessageColor(const pstring &message, uint32_t color)
     }
 }
 
-void printErrorMessage(const pstring &message)
+void printErrorMessage(const string &message)
 {
     if (printErrorMessagePointer)
     {
@@ -150,7 +150,7 @@ void printErrorMessage(const pstring &message)
     }
 }
 
-void printErrorMessageColor(const pstring &message, uint32_t color)
+void printErrorMessageColor(const string &message, uint32_t color)
 {
     if (printErrorMessageColorPointer)
     {
@@ -168,9 +168,9 @@ bool configureOrBuild()
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         cache.registerCacheVariables();
-        writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),
+        writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),
                                     configCache);
-        writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
+        writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
     }
     return b.errorHappenedInRoundMode;
 }
@@ -185,33 +185,33 @@ void destructGlobals()
     std::destroy_at(&targetCacheDiskWriteManager);
 }
 
-pstring getLastNameAfterSlash(pstring_view name)
+string getLastNameAfterSlash(string_view name)
 {
-    if (const uint64_t i = name.find_last_of(slashc); i != pstring::npos)
+    if (const uint64_t i = name.find_last_of(slashc); i != string::npos)
     {
         return {name.begin() + i + 1, name.end()};
     }
-    return pstring(name);
+    return string(name);
 }
 
-pstring_view getLastNameAfterSlashView(pstring_view name)
+string_view getLastNameAfterSlashView(string_view name)
 {
-    if (const uint64_t i = name.find_last_of(slashc); i != pstring::npos)
+    if (const uint64_t i = name.find_last_of(slashc); i != string::npos)
     {
         return {name.begin() + i + 1, name.end()};
     }
     return name;
 }
-inline pstring getNameBeforeLastSlash(pstring_view name)
+inline string getNameBeforeLastSlash(string_view name)
 {
-    if (const uint64_t i = name.find_last_of(slashc); i != pstring::npos)
+    if (const uint64_t i = name.find_last_of(slashc); i != string::npos)
     {
         return {name.begin(), name.begin() + i};
     }
-    return pstring(name);
+    return string(name);
 }
 
-pstring removeDashCppFromName(pstring_view name)
+string removeDashCppFromName(string_view name)
 {
-    return pstring(name.substr(0, name.size() - 4)); // Removing -cpp from the name
+    return string(name.substr(0, name.size() - 4)); // Removing -cpp from the name
 }

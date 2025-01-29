@@ -6,7 +6,7 @@ import "DSC.hpp";
 #endif
 
 template <>
-DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, const bool defines, pstring define_)
+DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, const bool defines, string define_)
 {
     objectFileProducer = ptr;
     prebuiltBasic = prebuiltBasic_;
@@ -72,12 +72,12 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSource
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
             namespace CppConfig = Indices::ConfigCache::CppConfig;
-            const PValue &modulesConfigCache = stored->buildOrConfigCacheCopy[CppConfig::moduleFiles];
+            const Value &modulesConfigCache = stored->buildOrConfigCacheCopy[CppConfig::moduleFiles];
             for (uint64_t i = 0; i < modulesConfigCache.Size(); i = i + 2)
             {
                 if (modulesConfigCache[i + 1].GetBool())
                 {
-                    ptr->moduleFiles(Node::getNodeFromPValue(modulesConfigCache[i], true)->filePath);
+                    ptr->moduleFiles(Node::getNodeFromValue(modulesConfigCache[i], true)->filePath);
                 }
             }
         }

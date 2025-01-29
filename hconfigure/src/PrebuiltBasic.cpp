@@ -51,13 +51,13 @@ void PrebuiltBasic::populateRequirementAndUsageRequirementDeps()
     }
 }
 
-PrebuiltBasic::PrebuiltBasic(const pstring &outputName_, const TargetType linkTargetType_)
+PrebuiltBasic::PrebuiltBasic(const string &outputName_, const TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), outputName{getLastNameAfterSlash(outputName_)},
       linkTargetType{linkTargetType_}
 {
 }
 
-PrebuiltBasic::PrebuiltBasic(const pstring &outputName_, const TargetType linkTargetType_, const pstring &name_,
+PrebuiltBasic::PrebuiltBasic(const string &outputName_, const TargetType linkTargetType_, const string &name_,
                              const bool buildExplicit, const bool makeDirectory)
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), outputName(outputName_),
       linkTargetType(linkTargetType_)
@@ -107,21 +107,21 @@ void PrebuiltBasic::writeTargetConfigCacheAtConfigureTime()
     namespace LinkConfig = Indices::ConfigCache::LinkConfig;
 
     buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    PValue &libDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::requirementLibraryDirectoriesArray];
+    Value &libDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::requirementLibraryDirectoriesArray];
     libDirectoriesConfigCache.Reserve(requirementLibraryDirectories.size(), cacheAlloc);
 
     for (const LibDirNode &libDirNode : requirementLibraryDirectories)
     {
-        libDirectoriesConfigCache.PushBack(libDirNode.node->getPValue(), cacheAlloc);
+        libDirectoriesConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
     }
 
     buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    PValue &useLibDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::usageRequirementLibraryDirectoriesArray];
+    Value &useLibDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::usageRequirementLibraryDirectoriesArray];
     useLibDirectoriesConfigCache.Reserve(usageRequirementLibraryDirectories.size(), cacheAlloc);
 
     for (const LibDirNode &libDirNode : usageRequirementLibraryDirectories)
     {
-        useLibDirectoriesConfigCache.PushBack(libDirNode.node->getPValue(), cacheAlloc);
+        useLibDirectoriesConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
     }
 
     copyBackConfigCacheMutexLocked();
@@ -131,18 +131,18 @@ void PrebuiltBasic::readConfigCacheAtBuildTime()
 {
     namespace LinkConfig = Indices::ConfigCache::LinkConfig;
 
-    PValue &reqLibDirsConfigCache = getConfigCache()[LinkConfig::requirementLibraryDirectoriesArray];
+    Value &reqLibDirsConfigCache = getConfigCache()[LinkConfig::requirementLibraryDirectoriesArray];
     requirementLibraryDirectories.reserve(reqLibDirsConfigCache.Size());
-    for (const PValue &pValue : reqLibDirsConfigCache.GetArray())
+    for (const Value &pValue : reqLibDirsConfigCache.GetArray())
     {
-        requirementLibraryDirectories.emplace_back(Node::getNodeFromPValue(pValue, false), true);
+        requirementLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
     }
 
-    PValue &useReqLibDirsConfigCache = getConfigCache()[LinkConfig::usageRequirementLibraryDirectoriesArray];
+    Value &useReqLibDirsConfigCache = getConfigCache()[LinkConfig::usageRequirementLibraryDirectoriesArray];
     usageRequirementLibraryDirectories.reserve(useReqLibDirsConfigCache.Size());
-    for (const PValue &pValue : useReqLibDirsConfigCache.GetArray())
+    for (const Value &pValue : useReqLibDirsConfigCache.GetArray())
     {
-        usageRequirementLibraryDirectories.emplace_back(Node::getNodeFromPValue(pValue, false), true);
+        usageRequirementLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
     }
 }
 

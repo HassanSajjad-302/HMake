@@ -36,7 +36,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
         }
     }
 
-    pstring configurePathString;
+    string configurePathString;
     if constexpr (bsMode != BSMode::CONFIGURE)
     {
         path cacheJsonPath;
@@ -53,7 +53,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
 
         if (cacheJsonExists)
         {
-            configurePathString = (cacheJsonPath.parent_path().*toPStr)();
+            configurePathString = cacheJsonPath.parent_path().string();
         }
         else
         {
@@ -62,7 +62,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     }
     else
     {
-        configurePathString = (current_path().*toPStr)();
+        configurePathString = current_path().string();
     }
 
     lowerCasePStringOnWindows(configurePathString.data(), configurePathString.size());
@@ -72,11 +72,11 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     {
         for (int i = 1; i < argc; ++i)
         {
-            pstring targetArgFullPath = (current_path() / argv[i]).lexically_normal().string();
+            string targetArgFullPath = (current_path() / argv[i]).lexically_normal().string();
             lowerCasePStringOnWindows(targetArgFullPath.data(), targetArgFullPath.size());
             if (targetArgFullPath.size() <= configureNode->filePath.size())
             {
-                throw std::invalid_argument(fmt::format("Invalid Command-Line Argument {}\n", argv[i]));
+                throw std::invalid_argument(FORMAT("Invalid Command-Line Argument {}\n", argv[i]));
             }
             if (targetArgFullPath.ends_with(slashc))
             {

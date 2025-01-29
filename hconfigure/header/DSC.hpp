@@ -34,9 +34,9 @@ template <typename T> struct DSC : DSCFeatures
     DSC &saveAndReplace(CppSourceTarget *ptr);
     DSC &restore();
 
-    pstring define;
+    string define;
 
-    DSC(T *ptr, PrebuiltBasic *prebuiltBasic_, bool defines = false, pstring define_ = "")
+    DSC(T *ptr, PrebuiltBasic *prebuiltBasic_, bool defines = false, string define_ = "")
     {
         objectFileProducer = ptr;
         prebuiltBasic = prebuiltBasic_;
@@ -206,7 +206,7 @@ template <typename T> LinkOrArchiveTarget &DSC<T>::getLinkOrArchiveTarget()
 }
 
 template <>
-DSC<CppSourceTarget>::DSC(class CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, pstring define_);
+DSC<CppSourceTarget>::DSC(class CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, string define_);
 
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget *ptr);
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget *ptr);

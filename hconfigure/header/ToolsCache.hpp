@@ -21,8 +21,8 @@ using Json = nlohmann::json;
 // Architecture and Address-Model.
 struct VSTools
 {
-    pstring command;
-    pstring commandArguments;
+    string command;
+    string commandArguments;
     Compiler compiler;
     Linker linker;
     Archiver archiver;
@@ -31,13 +31,13 @@ struct VSTools
     AddressModel hostAM;
     Arch targetArch;
     AddressModel targetAM;
-    vector<pstring> includeDirectories;
-    vector<pstring> libraryDirectories;
-    VSTools(pstring batchFile, path toolBinDir, Arch hostArch_, AddressModel hostAM_, Arch targetArch_,
+    vector<string> includeDirectories;
+    vector<string> libraryDirectories;
+    VSTools(string batchFile, path toolBinDir, Arch hostArch_, AddressModel hostAM_, Arch targetArch_,
             AddressModel targetAM_, bool executingFromWSL = false);
     VSTools() = default;
     void initializeFromVSToolBatchCommand(bool executingFromWSL = false);
-    void initializeFromVSToolBatchCommand(const pstring &command, bool executingFromWSL = false);
+    void initializeFromVSToolBatchCommand(const string &command, bool executingFromWSL = false);
 };
 void to_json(Json &j, const VSTools &vsTool);
 void from_json(const Json &j, VSTools &vsTool);
@@ -46,9 +46,9 @@ void from_json(const Json &j, VSTools &vsTool);
 // Architecture and Address-Model.
 struct LinuxTools
 {
-    pstring command;
+    string command;
     Compiler compiler;
-    vector<pstring> includeDirectories;
+    vector<string> includeDirectories;
     LinuxTools(Compiler compiler_);
     LinuxTools() = default;
 };

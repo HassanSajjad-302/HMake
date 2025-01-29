@@ -14,7 +14,7 @@ public:
     ObjectFile();
     ObjectFile(bool add0, bool add1, bool add2);
     Node *objectFileOutputFilePath = nullptr;
-    virtual pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
+    virtual string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
 };
 
 #endif //OBJECTFILE_HPP

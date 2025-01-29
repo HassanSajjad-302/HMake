@@ -99,7 +99,7 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     if (actual.size() != expected)
     {
         bool breakpoint = true;
-        printMessage(fmt::format("Actual {}\tExpected {}\n",actual.size(), expected));
+        printMessage(FORMAT("Actual {}\tExpected {}\n",actual.size(), expected));
 
         for(const NodeSnap *nodeSnap : actual)
         {

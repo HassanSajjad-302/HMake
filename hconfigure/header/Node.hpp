@@ -20,8 +20,8 @@ struct NodeEqual
     using is_transparent = void;
 
     bool operator()(const Node &lhs, const Node &rhs) const;
-    bool operator()(const Node &lhs, const pstring_view &rhs) const;
-    bool operator()(const pstring_view &lhs, const Node &rhs) const;
+    bool operator()(const Node &lhs, const string_view &rhs) const;
+    bool operator()(const string_view &lhs, const Node &rhs) const;
 };
 
 struct NodeHash
@@ -29,13 +29,13 @@ struct NodeHash
     using is_transparent = void; // or std::equal_to<>
 
     std::size_t operator()(const Node &node) const;
-    std::size_t operator()(const pstring_view &str) const;
+    std::size_t operator()(const string_view &str) const;
 };
 
 class Node
 {
   public:
-    pstring filePath;
+    string filePath;
 
     file_time_type lastWriteTime;
 
@@ -53,10 +53,10 @@ class Node
     bool systemCheckCalled = false;
 
   public:
-    Node(Node *&node, pstring filePath_);
-    explicit Node(pstring filePath_);
-    pstring getFileName() const;
-    PValue getPValue() const;
+    Node(Node *&node, string filePath_);
+    explicit Node(string filePath_);
+    string getFileName() const;
+    Value getValue() const;
 
     static path getFinalNodePathFromPath(path filePath);
 
@@ -66,20 +66,20 @@ class Node
     // calls performSystemCheck or returns.
     bool trySystemCheck(bool isFile, bool mayNotExist = false);
 
-    static Node *getNodeFromNormalizedString(pstring p, bool isFile, bool mayNotExist = false);
-    static Node *getNodeFromNormalizedString(pstring_view p, bool isFile, bool mayNotExist = false);
-    static Node *getNodeFromNormalizedStringNoSystemCheckCalled(pstring_view p);
+    static Node *getNodeFromNormalizedString(string p, bool isFile, bool mayNotExist = false);
+    static Node *getNodeFromNormalizedString(string_view p, bool isFile, bool mayNotExist = false);
+    static Node *getNodeFromNormalizedStringNoSystemCheckCalled(string_view p);
 
-    static Node *getNodeFromNonNormalizedString(const pstring &p, bool isFile, bool mayNotExist = false);
+    static Node *getNodeFromNonNormalizedString(const string &p, bool isFile, bool mayNotExist = false);
 
     static Node *getNodeFromNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
 
-    static Node* addHalfNodeFromNormalizedStringSingleThreaded(pstring normalizedFilePath);
-    static Node *getHalfNodeFromNormalizedString(pstring_view p);
-    static Node *getNodeFromPValue(const PValue &pValue, bool isFile, bool mayNotExist = false);
-    static Node *getNotSystemCheckCalledNodeFromPValue(const PValue &pValue);
-    static Node *tryGetNodeFromPValue(bool &systemCheckSucceeded, const PValue &pValue, bool isFile,
+    static Node *addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath);
+    static Node *getHalfNodeFromNormalizedString(string_view p);
+    static Node *getNodeFromValue(const Value &pValue, bool isFile, bool mayNotExist = false);
+    static Node *getNotSystemCheckCalledNodeFromValue(const Value &pValue);
+    static Node *tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &pValue, bool isFile,
                                       bool mayNotExist = false);
 
     static Node *getLastNodeAdded();

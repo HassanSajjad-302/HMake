@@ -85,12 +85,12 @@ void replaceAll(string &str, const string &from, const string &to)
 
 int main(int argc, char **argv)
 {
-    /*    PDocument d(kObjectType);
+    /*    Document d(kObjectType);
 
-        d.AddMember(PValue("Foo").Move(), PValue("Bar").Move(), ralloc)
-            .AddMember(PValue("Bar").Move(), PValue("Foo").Move(), ralloc);
+        d.AddMember(Value("Foo").Move(), Value("Bar").Move(), ralloc)
+            .AddMember(Value("Bar").Move(), Value("Foo").Move(), ralloc);
 
-        writePValueToCompressedFile("check.json", d);
+        writeValueToCompressedFile("check.json", d);
 
         return 0;*/
 
@@ -286,9 +286,9 @@ int main(int argc, char **argv)
         }
 
         auto scriptExecution = [&](const bool configureExe) {
-            vector<pstring> &cacheCommands =
+            vector<string> &cacheCommands =
                 configureExe ? cacheLocal.configureExeBuildScript : cacheLocal.buildExeBuildScript;
-            const pstring configureOrBuildStr = configureExe ? "configure" : "build";
+            const string configureOrBuildStr = configureExe ? "configure" : "build";
             vector<string> commands;
             vector<string> commandOutputs;
 
@@ -301,8 +301,8 @@ int main(int argc, char **argv)
 
                 commands.push_back(command);
 
-                pstring outputFile = configureOrBuildStr + "-output-" + std::to_string(i) + ".txt";
-                pstring finalCommand = command + " > " + outputFile;
+                string outputFile = configureOrBuildStr + "-output-" + std::to_string(i) + ".txt";
+                string finalCommand = command + " > " + outputFile;
                 exitStatus = system(finalCommand.c_str());
 
                 commandOutputs.push_back(fileToPString(outputFile));
@@ -326,7 +326,7 @@ int main(int argc, char **argv)
                 exit(exitStatus);
             }
             printMessage(configureOrBuildStr + " executable build script output\n");
-            for (pstring &output : commandOutputs)
+            for (string &output : commandOutputs)
             {
                 printMessage(output + "\n");
             }

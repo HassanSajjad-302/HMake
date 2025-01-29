@@ -11,14 +11,14 @@ import "PrebuiltBasic.hpp";
 class PrebuiltLinkOrArchiveTarget : public PrebuiltBasic, public PrebuiltLinkerFeatures
 {
   public:
-    pstring actualOutputName;
-    pstring usageRequirementLinkerFlags;
-    pstring outputDirectory;
+    string actualOutputName;
+    string usageRequirementLinkerFlags;
+    string outputDirectory;
     Node *outputFileNode = nullptr;
 
-    PrebuiltLinkOrArchiveTarget(const pstring &outputName_, pstring directory, TargetType linkTargetType_);
-    PrebuiltLinkOrArchiveTarget(const pstring &outputName_, pstring directory, TargetType linkTargetType_,
-                                pstring name_, bool buildExplicit, bool makeDirectory);
+    PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory, TargetType linkTargetType_);
+    PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory, TargetType linkTargetType_,
+                                string name_, bool buildExplicit, bool makeDirectory);
 
     template <typename T, typename... Property> PrebuiltLinkOrArchiveTarget &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;

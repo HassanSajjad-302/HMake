@@ -32,7 +32,7 @@ import <utility>;
 using std::filesystem::create_directories, std::filesystem::create_directory, std::filesystem::directory_iterator,
     std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
 
-SourceDirectory::SourceDirectory(const pstring &sourceDirectory_, pstring regex_, const bool recursive_)
+SourceDirectory::SourceDirectory(const string &sourceDirectory_, string regex_, const bool recursive_)
     : sourceDirectory{Node::getNodeFromNonNormalizedPath(sourceDirectory_, false)}, regex{std::move(regex_)},
       recursive(recursive_)
 {
@@ -55,7 +55,7 @@ void ResolveRequirePathBTarget::updateBTarget(Builder &builder, const unsigned s
     }
 }
 
-pstring ResolveRequirePathBTarget::getTarjanNodeName() const
+string ResolveRequirePathBTarget::getTarjanNodeName() const
 {
     return "ResolveRequirePath " + target->name;
 }
@@ -68,12 +68,12 @@ void AdjustHeaderUnitsBTarget::updateBTarget(Builder &builder, const unsigned sh
 {
     if (round == 0 && target->configuration && target->configuration->evaluate(GenerateModuleData::YES))
     {
-        target->adjustHeaderUnitsPValueArrayPointers();
+        target->adjustHeaderUnitsValueArrayPointers();
         // Build cache is saved after this in the CppSourceTarget::updateBTarget.
     }
     if (round == 1)
     {
-        target->adjustHeaderUnitsPValueArrayPointers();
+        target->adjustHeaderUnitsValueArrayPointers();
 
         if (target->evaluate(UseMiniTarget::YES))
         {
@@ -89,12 +89,12 @@ void AdjustHeaderUnitsBTarget::updateBTarget(Builder &builder, const unsigned sh
     }
 }
 
-pstring AdjustHeaderUnitsBTarget::getTarjanNodeName() const
+string AdjustHeaderUnitsBTarget::getTarjanNodeName() const
 {
     return "AdjustHeaderUnitsBTarget " + target->name;
 }
 
-RequireNameTargetId::RequireNameTargetId(const uint64_t id_, pstring requirePath_)
+RequireNameTargetId::RequireNameTargetId(const uint64_t id_, string requirePath_)
     : id(id_), requireName(std::move(requirePath_))
 {
 }
@@ -195,59 +195,59 @@ bool CppSourceTarget::isCpuTypeG7()
               CpuType::AMD64);
 }
 
-CppSourceTarget::CppSourceTarget(const pstring &name_, const TargetType targetType) : CSourceTarget{false, name_}
+CppSourceTarget::CppSourceTarget(const string &name_, const TargetType targetType) : CSourceTarget{false, name_}
 {
     initializeCppSourceTarget(targetType, name_, "");
 }
 
-CppSourceTarget::CppSourceTarget(const bool buildExplicit, const pstring &name_, const TargetType targetType)
+CppSourceTarget::CppSourceTarget(const bool buildExplicit, const string &name_, const TargetType targetType)
     : CSourceTarget{buildExplicit, name_}
 {
     initializeCppSourceTarget(targetType, name_, "");
 }
 
-CppSourceTarget::CppSourceTarget(const pstring &name_, const TargetType targetType, Configuration *configuration_)
+CppSourceTarget::CppSourceTarget(const string &name_, const TargetType targetType, Configuration *configuration_)
     : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(false, name_, configuration_)
 {
     initializeCppSourceTarget(targetType, name_, "");
 }
 
-CppSourceTarget::CppSourceTarget(const bool buildExplicit, const pstring &name_, const TargetType targetType,
+CppSourceTarget::CppSourceTarget(const bool buildExplicit, const string &name_, const TargetType targetType,
                                  Configuration *configuration_)
     : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(buildExplicit, name_, configuration_)
 {
     initializeCppSourceTarget(targetType, name_, "");
 }
 
-CppSourceTarget::CppSourceTarget(pstring buildCacheFilesDirPath_, const pstring &name_, const TargetType targetType)
+CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, const TargetType targetType)
     : CSourceTarget{false, name_}
 {
     initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
 }
 
-CppSourceTarget::CppSourceTarget(pstring buildCacheFilesDirPath_, const bool buildExplicit, const pstring &name_,
+CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const bool buildExplicit, const string &name_,
                                  const TargetType targetType)
     : CSourceTarget{buildExplicit, name_}
 {
     initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
 }
 
-CppSourceTarget::CppSourceTarget(pstring buildCacheFilesDirPath_, const pstring &name_, const TargetType targetType,
+CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, const TargetType targetType,
                                  Configuration *configuration_)
     : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(false, name_, configuration_)
 {
     initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
 }
 
-CppSourceTarget::CppSourceTarget(pstring buildCacheFilesDirPath_, const bool buildExplicit, const pstring &name_,
+CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const bool buildExplicit, const string &name_,
                                  const TargetType targetType, Configuration *configuration_)
     : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(buildExplicit, name_, configuration_)
 {
     initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
 }
 
-void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, const pstring &name_,
-                                                pstring buildCacheFilesDirPath)
+void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, const string &name_,
+                                                string buildCacheFilesDirPath)
 {
     compileTargetType = targetType;
 
@@ -268,20 +268,20 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
         create_directories(buildCacheFilesDirPath);
         buildCacheFilesDirPathNode = Node::addHalfNodeFromNormalizedStringSingleThreaded(buildCacheFilesDirPath);
         buildOrConfigCacheCopy[Indices::ConfigCache::CppConfig::buildCacheFilesDirPath] =
-            buildCacheFilesDirPathNode->getPValue();
+            buildCacheFilesDirPathNode->getValue();
 
         namespace CppBuild = Indices::BuildCache::CppBuild;
-        if (PValue &targetBuildCache = getBuildCache(); targetBuildCache.Empty())
+        if (Value &targetBuildCache = getBuildCache(); targetBuildCache.Empty())
         {
             // Maybe store pointers to these in CppSourceTarget
-            targetBuildCache.PushBack(PValue(kArrayType), cacheAlloc);
+            targetBuildCache.PushBack(Value(kArrayType), cacheAlloc);
             targetBuildCache[CppBuild::sourceFiles].Reserve(srcFileDeps.size(), cacheAlloc);
 
-            targetBuildCache.PushBack(PValue(kArrayType), cacheAlloc);
+            targetBuildCache.PushBack(Value(kArrayType), cacheAlloc);
             targetBuildCache[CppBuild::moduleFiles].Reserve(modFileDeps.size(), cacheAlloc);
 
             // Header-units size can't be known as these are dynamically discovered.
-            targetBuildCache.PushBack(PValue(kArrayType), cacheAlloc);
+            targetBuildCache.PushBack(Value(kArrayType), cacheAlloc);
         }
 
         if (configuration && configuration->evaluate(GenerateModuleData::YES))
@@ -295,34 +295,34 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
     {
         namespace CppConfig = Indices::ConfigCache::CppConfig;
         cppSourceTargets[targetCacheIndex] = this;
-        PValue &sourceNodesCache = getConfigCache()[CppConfig::sourceFiles];
-        PValue &moduleNodesCache = getConfigCache()[CppConfig::moduleFiles];
+        Value &sourceNodesCache = getConfigCache()[CppConfig::sourceFiles];
+        Value &moduleNodesCache = getConfigCache()[CppConfig::moduleFiles];
 
         // TODO
         // Do it in parallel
         srcFileDeps.reserve(sourceNodesCache.Size());
-        for (PValue &pValue : sourceNodesCache.GetArray())
+        for (Value &pValue : sourceNodesCache.GetArray())
         {
-            srcFileDeps.emplace_back(this, Node::getNodeFromPValue(pValue, true));
+            srcFileDeps.emplace_back(this, Node::getNodeFromValue(pValue, true));
         }
 
         modFileDeps.reserve(moduleNodesCache.Size() / 2);
         for (uint64_t i = 0; i < moduleNodesCache.Size(); i = i + 2)
         {
-            modFileDeps.emplace_back(this, Node::getNodeFromPValue(moduleNodesCache[i], true));
+            modFileDeps.emplace_back(this, Node::getNodeFromValue(moduleNodesCache[i], true));
             modFileDeps[i / 2].isInterface = moduleNodesCache[i + 1].GetBool();
         }
 
         // Move to some other function, so it is not single-threaded.
         namespace CppBuild = Indices::BuildCache::CppBuild;
-        PValue &sourceValue = buildOrConfigCacheCopy[CppBuild::sourceFiles];
+        Value &sourceValue = buildOrConfigCacheCopy[CppBuild::sourceFiles];
         sourceValue.Reserve(sourceValue.Size() + srcFileDeps.size(), cacheAlloc);
 
-        PValue &moduleValue = buildOrConfigCacheCopy[CppBuild::moduleFiles];
+        Value &moduleValue = buildOrConfigCacheCopy[CppBuild::moduleFiles];
         moduleValue.Reserve(moduleValue.Size() + modFileDeps.size(), cacheAlloc);
 
         buildCacheFilesDirPathNode =
-            Node::getNotSystemCheckCalledNodeFromPValue(getConfigCache()[CppConfig::buildCacheFilesDirPath]);
+            Node::getNotSystemCheckCalledNodeFromValue(getConfigCache()[CppConfig::buildCacheFilesDirPath]);
         // Header-units size can't be known as these are dynamically discovered.
     }
 }
@@ -385,9 +385,9 @@ void CppSourceTarget::populateTransitiveProperties()
                 if (found)
                 {
                     printErrorMessageColor(
-                        fmt::format("Include Directory\n{}\nbelongs to two different target\n{}\nand\n{}\n",
-                                    inclNodeTargetMap.inclNode.node->filePath, getTarjanNodeName(),
-                                    inclNodeTargetMap.cppSourceTarget->getTarjanNodeName()),
+                        FORMAT("Include Directory\n{}\nbelongs to two different target\n{}\nand\n{}\n",
+                               inclNodeTargetMap.inclNode.node->filePath, getTarjanNodeName(),
+                               inclNodeTargetMap.cppSourceTarget->getTarjanNodeName()),
                         settings.pcSettings.toolErrorOutput);
                     throw std::exception();
                     // Print Error Message that same include-directory belongs to two targets.
@@ -403,29 +403,29 @@ void CppSourceTarget::populateTransitiveProperties()
     }
 }
 
-void CppSourceTarget::adjustHeaderUnitsPValueArrayPointers()
+void CppSourceTarget::adjustHeaderUnitsValueArrayPointers()
 {
-    // All header-units are found, so header-units pvalue array size could be reserved
+    // All header-units are found, so header-units value array size could be reserved
     // If a new header-unit was added in this run, sourceJson pointers will point to the newly allocated array if any
 
     namespace CppBuild = Indices::BuildCache::CppBuild;
 
-    PValue &headerUnitsPValueArray = buildOrConfigCacheCopy[CppBuild::headerUnits];
+    Value &headerUnitsValueArray = buildOrConfigCacheCopy[CppBuild::headerUnits];
     if (newHeaderUnitsSize)
     {
-        const uint64_t olderSize = headerUnitsPValueArray.Size() + newHeaderUnitsSize;
+        const uint64_t olderSize = headerUnitsValueArray.Size() + newHeaderUnitsSize;
         for (uint64_t i = 0; i < olderSize; ++i)
         {
-            headerUnitsPValueArray.PushBack(kArrayType, cacheAlloc);
+            headerUnitsValueArray.PushBack(kArrayType, cacheAlloc);
         }
-        headerUnitsPValueArray.Reserve(headerUnitsPValueArray.Size() + newHeaderUnitsSize, cacheAlloc);
+        headerUnitsValueArray.Reserve(headerUnitsValueArray.Size() + newHeaderUnitsSize, cacheAlloc);
     }
 
     for (const SMFile *headerUnit : headerUnits)
     {
         if (headerUnit->isSMRuleFileOutdated)
         {
-            headerUnitsPValueArray[headerUnit->indexInBuildCache].CopyFrom(headerUnit->sourceJson, cacheAlloc);
+            headerUnitsValueArray[headerUnit->indexInBuildCache].CopyFrom(headerUnit->sourceJson, cacheAlloc);
             headerUnitScanned = true;
         }
     }
@@ -478,7 +478,7 @@ CppSourceTarget &CppSourceTarget::makeReqInclsUseable()
     return *this;
 }
 
-bool CppSourceTarget::actuallyAddSourceFile(vector<SourceNode> &sourceFiles, const pstring &sourceFile,
+bool CppSourceTarget::actuallyAddSourceFile(vector<SourceNode> &sourceFiles, const string &sourceFile,
                                             CppSourceTarget *target)
 {
     Node *node = Node::getNodeFromNonNormalizedPath(sourceFile, true);
@@ -494,8 +494,8 @@ bool CppSourceTarget::actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Nod
         if (source.node == sourceFileNode)
         {
             found = true;
-            printErrorMessage(fmt::format("Source File {} already added in target {}.\n", sourceFileNode->filePath,
-                                          source.target->name));
+            printErrorMessage(
+                FORMAT("Source File {} already added in target {}.\n", sourceFileNode->filePath, source.target->name));
             break;
         }
     }
@@ -507,7 +507,7 @@ bool CppSourceTarget::actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Nod
     return false;
 }
 
-bool CppSourceTarget::actuallyAddModuleFile(vector<SMFile> &smFiles, const pstring &moduleFile, CppSourceTarget *target)
+bool CppSourceTarget::actuallyAddModuleFile(vector<SMFile> &smFiles, const string &moduleFile, CppSourceTarget *target)
 {
     Node *node = Node::getNodeFromNonNormalizedPath(moduleFile, true);
     return actuallyAddModuleFile(smFiles, node, target);
@@ -522,7 +522,7 @@ bool CppSourceTarget::actuallyAddModuleFile(vector<SMFile> &smFiles, Node *modul
         {
             found = true;
             printErrorMessage(
-                fmt::format("Module File {} already added in target {}.\n", moduleFileNode->filePath, target->name));
+                FORMAT("Module File {} already added in target {}.\n", moduleFileNode->filePath, target->name));
             break;
         }
     }
@@ -538,9 +538,9 @@ void CppSourceTarget::actuallyAddSourceFileConfigTime(const Node *node)
 {
     assert(bsMode == BSMode::CONFIGURE);
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
-    buildOrConfigCacheCopy[Indices::ConfigCache::CppConfig::sourceFiles].PushBack(node->getPValue(), cacheAlloc);
-    if (PValue &sourceBuildJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::sourceFiles];
-        pvalueIndexInSubArray(sourceBuildJson, node->getPValue()) == UINT64_MAX)
+    buildOrConfigCacheCopy[Indices::ConfigCache::CppConfig::sourceFiles].PushBack(node->getValue(), cacheAlloc);
+    if (Value &sourceBuildJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::sourceFiles];
+        valueIndexInSubArray(sourceBuildJson, node->getValue()) == UINT64_MAX)
     {
         const uint64_t size = sourceBuildJson.Size();
         sourceBuildJson.PushBack(kArrayType, cacheAlloc);
@@ -553,10 +553,10 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(const Node *node, const bo
     assert(bsMode == BSMode::CONFIGURE);
     namespace CppConfig = Indices::ConfigCache::CppConfig;
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
-    buildOrConfigCacheCopy[CppConfig::moduleFiles].PushBack(node->getPValue(), cacheAlloc);
+    buildOrConfigCacheCopy[CppConfig::moduleFiles].PushBack(node->getValue(), cacheAlloc);
     buildOrConfigCacheCopy[CppConfig::moduleFiles].PushBack(isInterface, cacheAlloc);
-    if (PValue &moduleBuildJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::moduleFiles];
-        pvalueIndexInSubArray(moduleBuildJson, node->getPValue()) == UINT64_MAX)
+    if (Value &moduleBuildJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::moduleFiles];
+        valueIndexInSubArray(moduleBuildJson, node->getValue()) == UINT64_MAX)
     {
         const uint64_t size = moduleBuildJson.Size();
         moduleBuildJson.PushBack(kArrayType, cacheAlloc);
@@ -564,27 +564,27 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(const Node *node, const bo
     }
 }
 
-CppSourceTarget &CppSourceTarget::removeSourceFile(const pstring &sourceFile)
+CppSourceTarget &CppSourceTarget::removeSourceFile(const string &sourceFile)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         namespace CppConfig = Indices::ConfigCache::CppConfig;
         const Node *node = Node::getNodeFromNonNormalizedPath(sourceFile, true);
-        PValue &value = buildOrConfigCacheCopy[CppConfig::sourceFiles].GetArray();
-        if (const uint64_t i = nodeIndexInPValueArray(value, *node); i != UINT64_MAX)
+        Value &value = buildOrConfigCacheCopy[CppConfig::sourceFiles].GetArray();
+        if (const uint64_t i = nodeIndexInValueArray(value, *node); i != UINT64_MAX)
         {
             value.Erase(value[i].Begin(), value[i].Begin() + 1);
         }
         else
         {
             printErrorMessage(
-                fmt::format("Could Not remove {} from source-files in target {}.\n", node->filePath, name));
+                FORMAT("Could Not remove {} from source-files in target {}.\n", node->filePath, name));
         }
     }
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::removeModuleFile(const pstring &moduleFile)
+CppSourceTarget &CppSourceTarget::removeModuleFile(const string &moduleFile)
 {
     if (evaluate(TreatModuleAsSource::YES))
     {
@@ -594,14 +594,14 @@ CppSourceTarget &CppSourceTarget::removeModuleFile(const pstring &moduleFile)
     {
         namespace CppConfig = Indices::ConfigCache::CppConfig;
         const Node *node = Node::getNodeFromNonNormalizedPath(moduleFile, true);
-        PValue &value = buildOrConfigCacheCopy[CppConfig::moduleFiles].GetArray();
-        if (const uint64_t i = nodeIndexInPValueArray(value, *node); i != UINT64_MAX)
+        Value &value = buildOrConfigCacheCopy[CppConfig::moduleFiles].GetArray();
+        if (const uint64_t i = nodeIndexInValueArray(value, *node); i != UINT64_MAX)
         {
             value.Erase(value[i].Begin(), value[i].Begin() + 2);
         }
         else
         {
-            printErrorMessage(fmt::format("Could Not remove {} from module-files in target {}.\n", moduleFile, name));
+            printErrorMessage(FORMAT("Could Not remove {} from module-files in target {}.\n", moduleFile, name));
         }
     }
     return *this;
@@ -634,7 +634,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         // all variables in actions are in CAPITALS
 
         // Line 1560
-        pstring defaultAssembler = evaluate(Arch::IA64) ? "ias " : "";
+        string defaultAssembler = evaluate(Arch::IA64) ? "ias " : "";
         if (evaluate(Arch::X86))
         {
             defaultAssembler += GET_FLAG_evaluate(AddressModel::A_64, "ml64 ", AddressModel::A_32, "ml -coff ");
@@ -643,8 +643,8 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         {
             defaultAssembler += GET_FLAG_evaluate(AddressModel::A_64, "armasm64 ", AddressModel::A_32, "armasm ");
         }
-        pstring assemblerFlags = GET_FLAG_evaluate(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
-        pstring assemblerOutputFlag = GET_FLAG_evaluate(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
+        string assemblerFlags = GET_FLAG_evaluate(OR(Arch::X86, Arch::IA64), "-c -Zp4 -Cp -Cx ");
+        string assemblerOutputFlag = GET_FLAG_evaluate(OR(Arch::X86, Arch::IA64), "-Fo ", Arch::ARM, "-o ");
         // Line 1618
 
         // Line 1650
@@ -674,30 +674,30 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         if (evaluate(AddressModel::A_64))
         {
             // The various 64 bit runtime asan support libraries and related flags.
-            pstring FINDLIBS_SA_LINK =
+            string FINDLIBS_SA_LINK =
                 GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                                   "clang_rt.asan_dynamic-x86_64 clang_rt.asan_dynamic_runtime_thunk-x86_64 ");
             FINDLIBS_SA_LINK +=
                 GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                                   "clang_rt.asan-x86_64 clang_rt.asan_cxx-x86_64 ");
-            pstring FINDLIBS_SA_LINK_DLL =
+            string FINDLIBS_SA_LINK_DLL =
                 GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-x86_64 ");
-            pstring LINKFLAGS_LINK_DLL = GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+            string LINKFLAGS_LINK_DLL = GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
                                                            R"(/wholearchive\:"clang_rt.asan_dll_thunk-x86_64.lib ")");
         }
         else if (evaluate(AddressModel::A_32))
         {
             // The various 32 bit runtime asan support libraries and related flags.
 
-            pstring FINDLIBS_SA_LINK =
+            string FINDLIBS_SA_LINK =
                 GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::SHARED),
                                   "clang_rt.asan_dynamic-i386 clang_rt.asan_dynamic_runtime_thunk-i386 ");
             FINDLIBS_SA_LINK +=
                 GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC, TargetType::EXECUTABLE),
                                   "clang_rt.asan-i386 clang_rt.asan_cxx-i386 ");
-            pstring FINDLIBS_SA_LINK_DLL =
+            string FINDLIBS_SA_LINK_DLL =
                 GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386 ");
-            pstring LINKFLAGS_LINK_DLL = GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
+            string LINKFLAGS_LINK_DLL = GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
                                                            R"(/wholearchive\:"clang_rt.asan_dll_thunk-i386.lib ")");
         }
 
@@ -782,13 +782,13 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         //   TODO: flavor is being assigned based on the -dumpmachine argument to the gcc command. But this
         //    is not yet catered here.
 
-        auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const pstring &str) { flags.OPTIONS_COMPILE += str; };
-        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const pstring &str) {
+        auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const string &str) { flags.OPTIONS_COMPILE += str; };
+        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const string &str) {
             flags.OPTIONS_COMPILE_CPP += str;
         };
 
         // FINDLIBS-SA variable is being updated gcc.link rule.
-        pstring findLibsSA;
+        string findLibsSA;
 
         auto isTargetBSD = [&]() { return OR(TargetOS::BSD, TargetOS::FREEBSD, TargetOS::NETBSD, TargetOS::NETBSD); };
         {
@@ -931,7 +931,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
         flags.OPTIONS_COMPILE_CPP += GET_FLAG_evaluate(RTTI::OFF, "-fno-rtti ");
 
         // Sanitizers
-        pstring sanitizerFlags;
+        string sanitizerFlags;
         sanitizerFlags += GET_FLAG_evaluate(
             AddressSanitizer::ON, "-fsanitize=address -fno-omit-frame-pointer ", AddressSanitizer::NORECOVER,
             "-fsanitize=address -fno-sanitize-recover=address -fno-omit-frame-pointer ");
@@ -985,7 +985,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
             }
         }
 
-        pstring str = GET_FLAG_evaluate(
+        string str = GET_FLAG_evaluate(
             AND(Arch::X86, InstructionSet::native), "-march=native ", AND(Arch::X86, InstructionSet::i486),
             "-march=i486 ", AND(Arch::X86, InstructionSet::i586), "-march=i586 ", AND(Arch::X86, InstructionSet::i686),
             "-march=i686 ", AND(Arch::X86, InstructionSet::pentium), "-march=pentium ",
@@ -1130,18 +1130,18 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         {
             // getCompileCommand will be later on called concurrently therefore need to set this before.
             setCompileCommand();
-            compileCommandWithTool.setCommand((compiler.bTPath.*toPStr)() + " " + compileCommand);
+            compileCommandWithTool.setCommand(compiler.bTPath.string() + " " + compileCommand);
 
-            PValue &headerUnitsPValue = buildOrConfigCacheCopy[Indices::BuildCache::CppBuild::headerUnits];
-            oldHeaderUnits.reserve(headerUnitsPValue.Size());
-            for (uint64_t i = 0; i < headerUnitsPValue.Size(); ++i)
+            Value &headerUnitsValue = buildOrConfigCacheCopy[Indices::BuildCache::CppBuild::headerUnits];
+            oldHeaderUnits.reserve(headerUnitsValue.Size());
+            for (uint64_t i = 0; i < headerUnitsValue.Size(); ++i)
             {
                 namespace SingleHeaderUnitDep =
                     Indices::BuildCache::CppBuild::ModuleFiles::SmRules::SingleHeaderUnitDep;
 
                 oldHeaderUnits.emplace_back(
                     this,
-                    Node::getNotSystemCheckCalledNodeFromPValue(headerUnitsPValue[i][SingleHeaderUnitDep::fullPath]),
+                    Node::getNotSystemCheckCalledNodeFromValue(headerUnitsValue[i][SingleHeaderUnitDep::fullPath]),
                     SM_FILE_TYPE::HEADER_UNIT, false);
                 oldHeaderUnits[i].foundFromCache = true;
                 oldHeaderUnits[i].indexInBuildCache = i;
@@ -1181,7 +1181,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
 void CppSourceTarget::copyJson()
 {
     namespace CppBuild = Indices::BuildCache::CppBuild;
-    PValue &targetBuildCache = getBuildCache();
+    Value &targetBuildCache = getBuildCache();
     if (evaluate(UseMiniTarget::YES))
     {
         if (headerUnitScanned)
@@ -1233,87 +1233,87 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     // TODO
     // use-template
 
-    PValue &reqInclCache = getConfigCache()[ConfigCache::reqInclsArray];
-    PValue &useReqInclCache = getConfigCache()[ConfigCache::useReqInclsArray];
-    PValue &reqHUDirCache = getConfigCache()[ConfigCache::reqHUDirsArray];
-    PValue &useReqHUDirCache = getConfigCache()[ConfigCache::useReqHUDirsArray];
+    Value &reqInclCache = getConfigCache()[ConfigCache::reqInclsArray];
+    Value &useReqInclCache = getConfigCache()[ConfigCache::useReqInclsArray];
+    Value &reqHUDirCache = getConfigCache()[ConfigCache::reqHUDirsArray];
+    Value &useReqHUDirCache = getConfigCache()[ConfigCache::useReqHUDirsArray];
 
     constexpr uint8_t numOfElem = 3;
     reqIncls.reserve(reqInclCache.Size() / numOfElem);
     for (uint64_t i = 0; i < reqInclCache.Size(); i = i + numOfElem)
     {
-        reqIncls.emplace_back(Node::getNodeFromPValue(reqInclCache[i], false), reqInclCache[i + 1].GetBool(),
+        reqIncls.emplace_back(Node::getNodeFromValue(reqInclCache[i], false), reqInclCache[i + 1].GetBool(),
                               reqInclCache[i + 2].GetBool());
     }
 
     useReqIncls.reserve(useReqInclCache.Size() / numOfElem);
     for (uint64_t i = 0; i < useReqInclCache.Size(); i = i + numOfElem)
     {
-        useReqIncls.emplace_back(Node::getNodeFromPValue(useReqInclCache[i], false), useReqInclCache[i + 1].GetBool(),
+        useReqIncls.emplace_back(Node::getNodeFromValue(useReqInclCache[i], false), useReqInclCache[i + 1].GetBool(),
                                  useReqInclCache[i + 2].GetBool());
     }
 
     reqHuDirs.reserve(reqHUDirCache.Size() / numOfElem);
     for (uint64_t i = 0; i < reqHUDirCache.Size(); i = i + numOfElem)
     {
-        reqHuDirs.emplace_back(InclNode(Node::getNodeFromPValue(reqHUDirCache[i], false),
-                                        reqHUDirCache[i + 1].GetBool(), reqHUDirCache[i + 2].GetBool()),
+        reqHuDirs.emplace_back(InclNode(Node::getNodeFromValue(reqHUDirCache[i], false), reqHUDirCache[i + 1].GetBool(),
+                                        reqHUDirCache[i + 2].GetBool()),
                                this);
     }
 
     useReqHuDirs.reserve(useReqHUDirCache.Size() / numOfElem);
     for (uint64_t i = 0; i < useReqHUDirCache.Size(); i = i + numOfElem)
     {
-        useReqHuDirs.emplace_back(InclNode(Node::getNodeFromPValue(useReqHUDirCache[i], false),
+        useReqHuDirs.emplace_back(InclNode(Node::getNodeFromValue(useReqHUDirCache[i], false),
                                            useReqHUDirCache[i + 1].GetBool(), useReqHUDirCache[i + 2].GetBool()),
                                   this);
     }
 }
 
-pstring CppSourceTarget::getTarjanNodeName() const
+string CppSourceTarget::getTarjanNodeName() const
 {
     return "CppSourceTarget " + configureNode->filePath + slashc + name;
 }
 
-CppSourceTarget &CppSourceTarget::publicCompilerFlags(const pstring &compilerFlags)
+CppSourceTarget &CppSourceTarget::publicCompilerFlags(const string &compilerFlags)
 {
     requirementCompilerFlags += compilerFlags;
     usageRequirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::privateCompilerFlags(const pstring &compilerFlags)
+CppSourceTarget &CppSourceTarget::privateCompilerFlags(const string &compilerFlags)
 {
     requirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::interfaceCompilerFlags(const pstring &compilerFlags)
+CppSourceTarget &CppSourceTarget::interfaceCompilerFlags(const string &compilerFlags)
 {
     usageRequirementCompilerFlags += compilerFlags;
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::publicCompileDefinition(const pstring &cddName, const pstring &cddValue)
+CppSourceTarget &CppSourceTarget::publicCompileDefinition(const string &cddName, const string &cddValue)
 {
     requirementCompileDefinitions.emplace(cddName, cddValue);
     usageRequirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::privateCompileDefinition(const pstring &cddName, const pstring &cddValue)
+CppSourceTarget &CppSourceTarget::privateCompileDefinition(const string &cddName, const string &cddValue)
 {
     requirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 
-CppSourceTarget &CppSourceTarget::interfaceCompileDefinition(const pstring &cddName, const pstring &cddValue)
+CppSourceTarget &CppSourceTarget::interfaceCompileDefinition(const string &cddName, const string &cddValue)
 {
     usageRequirementCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 
-void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const pstring &sourceDirectory, pstring regex,
+void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const string &sourceDirectory, string regex,
                                            const bool recursive)
 {
     if (evaluate(TreatModuleAsSource::YES))
@@ -1334,7 +1334,7 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const pstri
     auto addNewFile = [&](const auto &k) {
         try
         {
-            if (k.is_regular_file() && regex_match((k.path().filename().*toPStr)(), std::regex(dir.regex)))
+            if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(dir.regex)))
             {
                 Node *node = Node::getNodeFromNonNormalizedPath(k.path(), true);
                 if (assignToSourceNodes)
@@ -1363,8 +1363,8 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const pstri
         }
         catch (const std::regex_error &e)
         {
-            printErrorMessage(fmt::format("regex_error : {}\nError happened while parsing regex {} of target{}\n",
-                                          e.what(), dir.regex, name));
+            printErrorMessage(FORMAT("regex_error : {}\nError happened while parsing regex {} of target{}\n", e.what(),
+                                     dir.regex, name));
             throw std::exception();
         }
     };
@@ -1403,7 +1403,7 @@ void CppSourceTarget::setCompileCommand()
                           flags.OPTIONS_COMPILE_CPP;
     }
 
-    const pstring translateIncludeFlag =
+    const string translateIncludeFlag =
         GET_FLAG_evaluate(AND(TranslateInclude::YES, BTFamily::MSVC), "/translateInclude ");
     compileCommand += translateIncludeFlag;
 
@@ -1443,14 +1443,14 @@ void CppSourceTarget::setCompileCommand()
         ++it;
     }
 
-    btree_set<pstring> includes;
+    btree_set<string> includes;
 
     for (; it != reqIncls.end(); ++it)
     {
         includes.emplace(it->node->filePath);
     }
 
-    for (const pstring &include : includes)
+    for (const string &include : includes)
     {
         compileCommand.append(getIncludeFlag() + addQuotes(include) + " ");
     }
@@ -1463,7 +1463,7 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
     if (ccpSettings.tool.printLevel != PathPrintLevel::NO)
     {
         sourceCompileCommandPrintFirstHalf +=
-            getReducedPath((compiler.bTPath.make_preferred().*toPStr)(), ccpSettings.tool) + " ";
+            getReducedPath(compiler.bTPath.make_preferred().string(), ccpSettings.tool) + " ";
     }
 
     if (ccpSettings.infrastructureFlags)
@@ -1531,7 +1531,7 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
     }
 }
 
-pstring &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
+string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
 {
     if (sourceCompileCommandPrintFirstHalf.empty())
     {
@@ -1540,9 +1540,9 @@ pstring &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
     return sourceCompileCommandPrintFirstHalf;
 }
 
-pstring CppSourceTarget::getDependenciesPString() const
+string CppSourceTarget::getDependenciesPString() const
 {
-    pstring deps;
+    string deps;
     for (const CSourceTarget *cSourceTarget : requirementDeps)
     {
         deps += cSourceTarget->name + '\n';
@@ -1556,14 +1556,14 @@ void CppSourceTarget::resolveRequirePaths()
     {
         namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
 
-        for (PValue &require : smFile.sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::moduleArray].GetArray())
+        for (Value &require : smFile.sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::moduleArray].GetArray())
         {
             namespace SingleModuleDep = ModuleFiles::SmRules::SingleModuleDep;
 
-            if (require[SingleModuleDep::logicalName] == PValue(ptoref(smFile.logicalName)))
+            if (require[SingleModuleDep::logicalName] == Value(svtogsr(smFile.logicalName)))
             {
-                printErrorMessageColor(fmt::format("In target\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                   getTarjanNodeName(), smFile.node->filePath),
+                printErrorMessageColor(FORMAT("In target\n{}\nModule\n{}\n can not depend on itself.\n",
+                                              getTarjanNodeName(), smFile.node->filePath),
                                        settings.pcSettings.toolErrorOutput);
                 throw std::exception();
             }
@@ -1572,7 +1572,7 @@ void CppSourceTarget::resolveRequirePaths()
 
             // Even if found, we continue the search to ensure that no two files are providing the same module in
             // the module-files of the target and its dependencies
-            RequireNameTargetId req(id, pstring(require[SingleModuleDep::logicalName].GetString(),
+            RequireNameTargetId req(id, string(require[SingleModuleDep::logicalName].GetString(),
                                                 require[SingleModuleDep::logicalName].GetStringLength()));
 
             const bool isInterface = req.requireName.contains(':');
@@ -1602,11 +1602,11 @@ void CppSourceTarget::resolveRequirePaths()
                             {
                                 // Module was already found so error-out
                                 printErrorMessageColor(
-                                    fmt::format("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
-                                                "from target\n{}\n2){}\n from target\n{}\n",
-                                                getTarjanNodeName(), getDependenciesPString(),
-                                                pstring(require[SingleModuleDep::logicalName].GetString(),
-                                                        require[SingleModuleDep::logicalName].GetStringLength()),
+                                    FORMAT("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
+                                           "from target\n{}\n2){}\n from target\n{}\n",
+                                           getTarjanNodeName(), getDependenciesPString(),
+                                           string(require[SingleModuleDep::logicalName].GetString(),
+                                                  require[SingleModuleDep::logicalName].GetStringLength()),
                                                 found->node->filePath, found->node->filePath),
                                     settings.pcSettings.toolErrorOutput);
                                 throw std::exception();
@@ -1622,7 +1622,7 @@ void CppSourceTarget::resolveRequirePaths()
                 smFile.realBTargets[0].addDependency(const_cast<SMFile &>(*found));
                 if (!atomic_ref(smFile.fileStatus).load())
                 {
-                    if (require[SingleModuleDep::fullPath] != found->objectFileOutputFilePath->getPValue())
+                    if (require[SingleModuleDep::fullPath] != found->objectFileOutputFilePath->getValue())
                     {
                         atomic_ref(smFile.fileStatus).store(true);
                     }
@@ -1633,19 +1633,18 @@ void CppSourceTarget::resolveRequirePaths()
             {
                 if (isInterface)
                 {
-                    printErrorMessageColor(
-                        fmt::format("No File in the target\n{}\n provides this module\n{}.\n", getTarjanNodeName(),
-                                    pstring(require[SingleModuleDep::logicalName].GetString(),
-                                            require[SingleModuleDep::logicalName].GetStringLength())),
+                    printErrorMessageColor(FORMAT("No File in the target\n{}\n provides this module\n{}.\n",
+                                                  getTarjanNodeName(),
+                                                  string(require[SingleModuleDep::logicalName].GetString(),
+                                                         require[SingleModuleDep::logicalName].GetStringLength())),
                         settings.pcSettings.toolErrorOutput);
                 }
                 else
                 {
                     printErrorMessageColor(
-                        fmt::format(
-                            "No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
-                            getTarjanNodeName(), getDependenciesPString(),
-                            pstring(require[SingleModuleDep::logicalName].GetString(),
+                        FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
+                               getTarjanNodeName(), getDependenciesPString(),
+                               string(require[SingleModuleDep::logicalName].GetString(),
                                     require[SingleModuleDep::logicalName].GetStringLength())),
                         settings.pcSettings.toolErrorOutput);
                 }
@@ -1657,7 +1656,7 @@ void CppSourceTarget::resolveRequirePaths()
 
 void CppSourceTarget::populateSourceNodes()
 {
-    PValue &sourceFilesJson = buildOrConfigCacheCopy[Indices::BuildCache::CppBuild::sourceFiles];
+    Value &sourceFilesJson = buildOrConfigCacheCopy[Indices::BuildCache::CppBuild::sourceFiles];
 
     for (const SourceNode &sourceNodeConst : srcFileDeps)
     {
@@ -1669,7 +1668,7 @@ void CppSourceTarget::populateSourceNodes()
             adjustHeaderUnitsBTarget.realBTargets[0].addDependency(sourceNode);
         }
 
-        if (const size_t fileIt = pvalueIndexInSubArray(sourceFilesJson, PValue(sourceNode.node->getPValue()));
+        if (const size_t fileIt = valueIndexInSubArray(sourceFilesJson, Value(sourceNode.node->getValue()));
             fileIt != UINT64_MAX)
         {
             sourceNode.sourceJson.CopyFrom(sourceFilesJson[fileIt], cacheAlloc);
@@ -1685,7 +1684,7 @@ void CppSourceTarget::populateSourceNodes()
 
 void CppSourceTarget::parseModuleSourceFiles(Builder &)
 {
-    PValue &moduleFilesJson = buildOrConfigCacheCopy[Indices::BuildCache::CppBuild::moduleFiles];
+    Value &moduleFilesJson = buildOrConfigCacheCopy[Indices::BuildCache::CppBuild::moduleFiles];
 
     for (const SMFile &smFileConst : modFileDeps)
     {
@@ -1695,7 +1694,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
         resolveRequirePathBTarget.realBTargets[1].addDependency(smFile);
         adjustHeaderUnitsBTarget.realBTargets[1].addDependency(smFile);
 
-        if (const size_t fileIt = pvalueIndexInSubArray(moduleFilesJson, PValue(smFile.node->getPValue()));
+        if (const size_t fileIt = valueIndexInSubArray(moduleFilesJson, Value(smFile.node->getValue()));
             fileIt != UINT64_MAX)
         {
             smFile.sourceJson.CopyFrom(moduleFilesJson[fileIt], cacheAlloc);
@@ -1732,11 +1731,11 @@ void CppSourceTarget::populateResolveRequirePathDependencies()
     }
 }
 
-pstring CppSourceTarget::getInfrastructureFlags(const bool showIncludes) const
+string CppSourceTarget::getInfrastructureFlags(const bool showIncludes) const
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        pstring str = GET_FLAG_evaluate(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-P");
+        string str = GET_FLAG_evaluate(TargetType::LIBRARY_OBJECT, "-c", TargetType::PREPROCESS, "-P");
         str += " /nologo ";
         if (showIncludes)
         {
@@ -1756,11 +1755,11 @@ pstring CppSourceTarget::getInfrastructureFlags(const bool showIncludes) const
     return "";
 }
 
-pstring CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const
+string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const
 {
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
 
-    pstring command;
+    string command;
     if (ccpSettings.infrastructureFlags)
     {
         command += getInfrastructureFlags(true) + " ";
@@ -1780,11 +1779,11 @@ pstring CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sour
     return command;
 }
 
-pstring CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const
+string CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const
 {
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
 
-    pstring command;
+    string command;
 
     if (ccpSettings.sourceFile.printLevel != PathPrintLevel::NO)
     {
@@ -1794,7 +1793,7 @@ pstring CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &sm
     {
         if (compiler.bTFamily == BTFamily::MSVC)
         {
-            const pstring translateIncludeFlag = GET_FLAG_evaluate(TranslateInclude::YES, "/translateInclude ");
+            const string translateIncludeFlag = GET_FLAG_evaluate(TranslateInclude::YES, "/translateInclude ");
             command += translateIncludeFlag + " /nologo /showIncludes /scanDependencies ";
         }
     }
@@ -1811,7 +1810,7 @@ pstring CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &sm
 
 PostCompile CppSourceTarget::CompileSMFile(const SMFile &smFile)
 {
-    pstring finalCompileCommand = compileCommand;
+    string finalCompileCommand = compileCommand;
 
     for (const SMFile *smFileLocal : smFile.allSMFileDependenciesRoundZero)
     {
@@ -1829,7 +1828,7 @@ PostCompile CppSourceTarget::CompileSMFile(const SMFile &smFile)
     };
 }
 
-pstring CppSourceTarget::getExtension() const
+string CppSourceTarget::getExtension() const
 {
     return GET_FLAG_evaluate(TargetType::PREPROCESS, ".ii", TargetType::LIBRARY_OBJECT, ".o");
 }
@@ -1838,9 +1837,9 @@ mutex cppSourceTargetDotCpp_TempMutex;
 
 PostCompile CppSourceTarget::updateSourceNodeBTarget(const SourceNode &sourceNode)
 {
-    const pstring compileFileName = (path(sourceNode.node->filePath).filename().*toPStr)();
+    const string compileFileName = sourceNode.node->getFileName();
 
-    pstring finalCompileCommand = compileCommand + " ";
+    string finalCompileCommand = compileCommand + " ";
 
     finalCompileCommand += getInfrastructureFlags(true) + " " + addQuotes(sourceNode.node->filePath) + " ";
     if (compiler.bTFamily == BTFamily::MSVC)
@@ -1865,7 +1864,7 @@ PostCompile CppSourceTarget::updateSourceNodeBTarget(const SourceNode &sourceNod
 
 PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const bool printOnlyOnError)
 {
-    pstring finalCompileCommand = compileCommand + addQuotes(smFile.node->filePath) + " ";
+    string finalCompileCommand = compileCommand + addQuotes(smFile.node->filePath) + " ";
 
     if (compiler.bTFamily == BTFamily::MSVC)
     {

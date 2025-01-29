@@ -16,12 +16,12 @@ struct TargetCache
     inline static flat_hash_map<uint64_t, uint64_t> targetCacheIndexAndMyIdHashMap;
     uint64_t myId = 0;
 #endif
-    PValue buildOrConfigCacheCopy{kArrayType};
+    Value buildOrConfigCacheCopy{kArrayType};
     uint64_t targetCacheIndex = UINT64_MAX;
     RAPIDJSON_DEFAULT_ALLOCATOR cacheAlloc;
-    explicit TargetCache(const pstring &name);
-    PValue &getConfigCache() const;
-    PValue &getBuildCache() const;
+    explicit TargetCache(const string &name);
+    Value &getConfigCache() const;
+    Value &getBuildCache() const;
     void copyBackConfigCacheMutexLocked() const;
 };
 #endif // TARGETCACHE_HPP

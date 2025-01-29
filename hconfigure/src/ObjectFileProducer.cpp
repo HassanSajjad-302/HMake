@@ -13,7 +13,7 @@ ObjectFileProducer::ObjectFileProducer()
 {
 }
 
-ObjectFileProducer::ObjectFileProducer(pstring name_, bool buildExplicit, bool makeDirectory) :BTarget(std::move(name_), buildExplicit, makeDirectory)
+ObjectFileProducer::ObjectFileProducer(string name_, bool buildExplicit, bool makeDirectory) :BTarget(std::move(name_), buildExplicit, makeDirectory)
 {
 }
 

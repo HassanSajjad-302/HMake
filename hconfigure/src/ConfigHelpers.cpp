@@ -7,7 +7,7 @@ import "ConfigHelpers.hpp";
 #endif
 
 
-void testVectorHasUniqueElementsIncrement(const PValue &container, const pstring &containerName, uint64_t increment)
+void testVectorHasUniqueElementsIncrement(const Value &container, const string &containerName, uint64_t increment)
 {
     for (uint64_t i = 0; i < container.Size(); i = i + increment)
     {
@@ -21,7 +21,7 @@ void testVectorHasUniqueElementsIncrement(const PValue &container, const pstring
         }
         if (count != 1)
         {
-            printErrorMessage(fmt::format("Repeat Value {} in container {}\n",
+            printErrorMessage(FORMAT("Repeat Value {} in container {}\n",
                                           getNodeForEquality(container[i])->filePath, containerName));
         }
     }

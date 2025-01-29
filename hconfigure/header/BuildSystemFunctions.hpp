@@ -33,14 +33,14 @@ struct IndexedNode
 // Explore
 using Json = nlohmann::json; // Unordered json
 
-inline flat_hash_set<pstring> cmdTargets;
+inline flat_hash_set<string> cmdTargets;
 inline mutex configCacheMutex;
-inline PDocument configCache(kArrayType);
-inline unique_ptr<vector<pchar>> configCacheBuffer;
-inline PDocument buildCache(kArrayType);
-inline unique_ptr<vector<pchar>> buildCacheBuffer;
-inline PDocument nodesCacheJson(kArrayType);
-inline unique_ptr<vector<pchar>> nodesCacheBuffer;
+inline Document configCache(kArrayType);
+inline unique_ptr<vector<char>> configCacheBuffer;
+inline Document buildCache(kArrayType);
+inline unique_ptr<vector<char>> buildCacheBuffer;
+inline Document nodesCacheJson(kArrayType);
+inline unique_ptr<vector<char>> nodesCacheBuffer;
 
 inline vector<struct BTarget *> roundEndTargets{10};
 inline std::atomic<uint64_t> roundEndTargetsCount = 0;
@@ -86,33 +86,33 @@ inline constexpr OS os = OS::NT;
 inline constexpr OS os = OS::LINUX;
 #endif
 
-inline pstring currentMinusConfigure;
+inline string currentMinusConfigure;
 void initializeCache(BSMode bsMode_);
-inline const pstring dashCpp = "-cpp";
-inline const pstring dashLink = "-link";
+inline const string dashCpp = "-cpp";
+inline const string dashLink = "-link";
 
-typedef void (*PrintMessage)(const pstring &message);
-typedef void (*PrintMessageColor)(const pstring &message, uint32_t color);
+typedef void (*PrintMessage)(const string &message);
+typedef void (*PrintMessageColor)(const string &message, uint32_t color);
 
-pstring getFileNameJsonOrOut(const pstring &name);
+string getFileNameJsonOrOut(const string &name);
 inline PrintMessage printMessagePointer = nullptr;
 inline PrintMessageColor printMessageColorPointer = nullptr;
 inline PrintMessage printErrorMessagePointer = nullptr;
 inline PrintMessageColor printErrorMessageColorPointer = nullptr;
 
 // Provide these with extern "C" linkage as well so ide/editor could pipe the logging.
-void printDebugMessage(const pstring &message);
-void printMessage(const pstring &message);
-void printMessageColor(const pstring &message, uint32_t color);
-void printErrorMessage(const pstring &message);
-void printErrorMessageColor(const pstring &message, uint32_t color);
+void printDebugMessage(const string &message);
+void printMessage(const string &message);
+void printMessageColor(const string &message, uint32_t color);
+void printErrorMessage(const string &message);
+void printErrorMessageColor(const string &message, uint32_t color);
 
-#define HMAKE_HMAKE_INTERNAL_ERROR printErrorMessage(fmt::format("HMake Internal Error {} {}", __FILE__, __LINE__));
+#define HMAKE_HMAKE_INTERNAL_ERROR printErrorMessage(FORMAT("HMake Internal Error {} {}", __FILE__, __LINE__));
 
-pstring getLastNameAfterSlash(pstring_view name);
-pstring_view getLastNameAfterSlashView(pstring_view name);
-pstring getNameBeforeLastSlash(pstring_view name);
-pstring removeDashCppFromName(pstring_view name);
+string getLastNameAfterSlash(string_view name);
+string_view getLastNameAfterSlashView(string_view name);
+string getNameBeforeLastSlash(string_view name);
+string removeDashCppFromName(string_view name);
 bool configureOrBuild();
 void constructGlobals();
 void destructGlobals();

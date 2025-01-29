@@ -62,7 +62,7 @@ void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
     tarjanNodesBTargets[round_][i] = this;
 }
 
-static pstring lowerCase(pstring str)
+static string lowerCase(string str)
 {
     lowerCasePStringOnWindows(str.data(), str.size());
     return str;
@@ -73,7 +73,7 @@ BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), Re
     id = atomic_ref(total).fetch_add(1);
 }
 
-BTarget::BTarget(pstring name_, const bool buildExplicit_, bool makeDirectory)
+BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
     : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}, name(lowerCase(std::move(name_))),
       buildExplicit(buildExplicit_)
 {
@@ -97,7 +97,7 @@ BTarget::BTarget(const bool add0, const bool add1, const bool add2)
     id = atomic_ref(total).fetch_add(1);
 }
 
-BTarget::BTarget(pstring name_, const bool buildExplicit_, bool makeDirectory, const bool add0, const bool add1,
+BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, const bool add0, const bool add1,
                  const bool add2)
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)},
       name(lowerCase(std::move(name_))), buildExplicit(buildExplicit_)
@@ -120,9 +120,9 @@ BTarget::~BTarget()
 {
 }
 
-pstring BTarget::getTarjanNodeName() const
+string BTarget::getTarjanNodeName() const
 {
-    return "BTarget " + to_pstring(id);
+    return FORMAT("BTarget {}", id);
 }
 
 BTargetType BTarget::getBTargetType() const

@@ -41,17 +41,16 @@ struct HeaderUnitIndexInfo
     uint64_t targetIndex;
     uint64_t myIndex;
     HeaderUnitIndexInfo(uint64_t targetIndex_, uint64_t myIndex_);
-    PValue &getSingleHeaderUnitDep() const;
+    Value &getSingleHeaderUnitDep() const;
 };
 
 class SourceNode : public ObjectFile
 {
   public:
     RAPIDJSON_DEFAULT_ALLOCATOR sourceNodeAllocator;
-    PValue sourceJson{kArrayType};
+    Value sourceJson{kArrayType};
     CppSourceTarget *target;
     const Node *node;
-    // TODO: 4-bytes enough or maybe 2bytes
     uint64_t indexInBuildCache = UINT64_MAX;
     bool ignoreHeaderDeps = false;
     SourceNode(CppSourceTarget *target_, Node *node_);
@@ -60,9 +59,9 @@ class SourceNode : public ObjectFile
     SourceNode(CppSourceTarget *target_, const Node *node_, bool add0, bool add1, bool add2);
 
   public:
-    pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
-    pstring getTarjanNodeName() const override;
-    static void initializeSourceJson(PValue &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
+    string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
+    string getTarjanNodeName() const override;
+    static void initializeSourceJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
                                      const CppSourceTarget &target);
     void updateBTarget(Builder &builder, unsigned short round) override;
     void populateModuleData(Builder &builder);
@@ -99,30 +98,30 @@ enum class SM_FILE_TYPE : char
 struct HeaderUnitConsumer
 {
     bool angle;
-    pstring logicalName;
-    HeaderUnitConsumer(bool angle_, pstring logicalName_);
+    string logicalName;
+    HeaderUnitConsumer(bool angle_, string logicalName_);
 };
 
-struct PValueObjectFileMapping
+struct ValueObjectFileMapping
 {
     // should be const
-    PValue *requireJson;
+    Value *requireJson;
     Node *objectFileOutputFilePath;
 
-    PValueObjectFileMapping(PValue *requireJson_, Node *objectFileOutputFilePath_);
+    ValueObjectFileMapping(Value *requireJson_, Node *objectFileOutputFilePath_);
 };
 
 struct SMFile : SourceNode // Scanned Module Rule
 {
-    pstring logicalName;
-    vector<PValueObjectFileMapping> pValueObjectFileMapping;
+    string logicalName;
+    vector<ValueObjectFileMapping> pValueObjectFileMapping;
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // depends on is consuming it another way.
     flat_hash_map<const SMFile *, HeaderUnitConsumer> headerUnitsConsumptionData;
     btree_set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
 
-    unique_ptr<vector<pchar>> smRuleFileBuffer;
+    unique_ptr<vector<char>> smRuleFileBuffer;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 
     bool isInterface = false;
@@ -144,27 +143,27 @@ struct SMFile : SourceNode // Scanned Module Rule
     SMFile(CppSourceTarget *target_, Node *node_);
     SMFile(CppSourceTarget *target_, Node *node_, SM_FILE_TYPE type_);
     SMFile(CppSourceTarget *target_, Node *node_, SM_FILE_TYPE type_, bool olderHeaderUnit);
-    void setSMRulesJson(pstring_view smRulesJson);
+    void setSMRulesJson(string_view smRulesJson);
     void checkHeaderFilesIfSMRulesJsonSet();
     void setLogicalNameAndAddToRequirePath();
     void updateBTarget(Builder &builder, unsigned short round) override;
     bool calledOnce = false;
-    void saveSMRulesJsonToSourceJson(const pstring &smrulesFileOutputClang);
-    static void initializeModuleJson(PValue &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
+    void saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang);
+    static void initializeModuleJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
                                      const CppSourceTarget &target);
     void initializeHeaderUnits(Builder &builder);
     void addNewBTargetInFinalBTargets(Builder &builder);
     void setSMFileType(Builder &builder);
     void isObjectFileOutdatedComparedToSourceFileAndItsDeps();
     void isSMRulesFileOutdatedComparedToSourceFileAndItsDeps();
-    pstring getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
+    string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
     void setFileStatusAndPopulateAllDependencies();
-    pstring getFlag(const pstring &outputFilesWithoutExtension) const;
-    pstring getFlagPrint(const pstring &outputFilesWithoutExtension) const;
-    pstring getRequireFlag(const SMFile &dependentSMFile) const;
-    pstring getRequireFlagPrint(const SMFile &logicalName_) const;
-    pstring getModuleCompileCommandPrintLastHalf() const;
+    string getFlag(const string &outputFilesWithoutExtension) const;
+    string getFlagPrint(const string &outputFilesWithoutExtension) const;
+    string getRequireFlag(const SMFile &dependentSMFile) const;
+    string getRequireFlagPrint(const SMFile &logicalName_) const;
+    string getModuleCompileCommandPrintLastHalf() const;
 };
 
 /*void to_json(Json &j, const SMFile &smFile);

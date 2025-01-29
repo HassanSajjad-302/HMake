@@ -12,14 +12,14 @@ import "SMFile.hpp";
 #include <utility>
 #endif
 
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const pstring &outputName_, pstring directory,
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory,
                                                          TargetType linkTargetType_)
     : PrebuiltBasic(outputName_, linkTargetType_), outputDirectory(std::move(directory))
 {
 }
 
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const pstring &outputName_, pstring directory,
-                                                         TargetType linkTargetType_, pstring name_, bool buildExplicit,
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory,
+                                                         TargetType linkTargetType_, string name_, bool buildExplicit,
                                                          bool makeDirectory)
     : PrebuiltBasic(outputName_, linkTargetType_, std::move(name_), buildExplicit, makeDirectory),
       outputDirectory(std::move(directory))
@@ -74,15 +74,15 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
 
 void PrebuiltLinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime()
 {
-    buildOrConfigCacheCopy.PushBack(PValue(ptoref(outputDirectory)), cacheAlloc);
-    buildOrConfigCacheCopy.PushBack(outputFileNode->getPValue(), cacheAlloc);
+    buildOrConfigCacheCopy.PushBack(Value(svtogsr(outputDirectory)), cacheAlloc);
+    buildOrConfigCacheCopy.PushBack(outputFileNode->getValue(), cacheAlloc);
     copyBackConfigCacheMutexLocked();
 }
 
 void PrebuiltLinkOrArchiveTarget::readConfigCacheAtBuildTime()
 {
     namespace LinkConfig = Indices::ConfigCache::LinkConfig;
-    const PValue &v = getConfigCache()[LinkConfig::outputDirectoryNode];
-    outputDirectory = pstring(v.GetString(), v.GetStringLength());
-    outputFileNode = Node::getNodeFromPValue(getConfigCache()[LinkConfig::outputFileNode], true, true);
+    const Value &v = getConfigCache()[LinkConfig::outputDirectoryNode];
+    outputDirectory = string(v.GetString(), v.GetStringLength());
+    outputFileNode = Node::getNodeFromValue(getConfigCache()[LinkConfig::outputFileNode], true, true);
 }

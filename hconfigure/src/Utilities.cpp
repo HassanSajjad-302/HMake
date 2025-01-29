@@ -14,49 +14,49 @@ import <sstream>;
 #include <sstream>
 #endif
 
-using std::ifstream, fmt::format;
+using std::ifstream, fmt::format, std::ostringstream;
 
-pstring addQuotes(const pstring_view pstr)
+string addQuotes(const string_view pstr)
 {
-    return "\"" + pstring(pstr) + "\"";
+    return "\"" + string(pstr) + "\"";
 }
 
-pstring addEscapedQuotes(const pstring &pstr)
+string addEscapedQuotes(const string &pstr)
 {
-    const pstring q = R"(\")";
+    const string q = R"(\")";
     return q + pstr + q;
 }
 
-pstring fileToPString(const pstring &file_name)
+string fileToPString(const string &file_name)
 {
     ifstream file_stream{file_name};
 
     if (file_stream.fail())
     {
         // Error opening file.
-        printErrorMessage(fmt::format("Error opening file {}\n", file_name));
+        printErrorMessage(FORMAT("Error opening file {}\n", file_name));
         throw std::exception();
     }
 
-    const opstringstream str_stream;
+    const ostringstream str_stream;
     file_stream >> str_stream.rdbuf(); // NOT str_stream << file_stream.rdbuf()
 
     if (file_stream.fail() && !file_stream.eof())
     {
         // Error reading file.
-        printErrorMessage(fmt::format("Error reading file {}\n", file_name));
+        printErrorMessage(FORMAT("Error reading file {}\n", file_name));
         throw std::exception();
     }
 
     return str_stream.str();
 }
 
-vector<pstring> split(pstring str, const pstring &token)
+vector<string> split(string str, const string &token)
 {
-    vector<pstring> result;
+    vector<string> result;
     while (!str.empty())
     {
-        if (const pstring::size_type index = str.find(token); index != pstring::npos)
+        if (const string::size_type index = str.find(token); index != string::npos)
         {
             result.emplace_back(str.substr(0, index));
             str = str.substr(index + token.size());

@@ -9,40 +9,40 @@ import "Node.hpp";
 #include "Node.hpp"
 #endif
 
-ColoredStringForPrint::ColoredStringForPrint(pstring _msg, uint32_t _color, bool _isColored)
+ColoredStringForPrint::ColoredStringForPrint(string _msg, uint32_t _color, bool _isColored)
     : msg(std::move(_msg)), color(_color), isColored(_isColored)
 {
 }
-PValueAndIndices::PValueAndIndices(PValue _pValue, const uint64_t _index0, const uint64_t _index1,
+ValueAndIndices::ValueAndIndices(Value _pValue, const uint64_t _index0, const uint64_t _index1,
                                    const uint64_t _index2, const uint64_t _index3, const uint64_t _index4)
 
     : pValue{std::move(_pValue)}, index0{_index0}, index1{_index1}, index2{_index2}, index3{_index3}, index4{_index4}
 {
 }
 
-PValue &PValueAndIndices::getTargetPValue() const
+Value &ValueAndIndices::getTargetValue() const
 {
-    PValue &target0 = buildCache;
+    Value &target0 = buildCache;
     if (index0 == UINT64_MAX)
     {
         return target0;
     }
-    PValue &target1 = target0[index0];
+    Value &target1 = target0[index0];
     if (index1 == UINT64_MAX)
     {
         return target1;
     }
-    PValue &target2 = target1[index1];
+    Value &target2 = target1[index1];
     if (index2 == UINT64_MAX)
     {
         return target2;
     }
-    PValue &target3 = target2[index2];
+    Value &target3 = target2[index2];
     if (index3 == UINT64_MAX)
     {
         return target3;
     }
-    PValue &target4 = target3[index3];
+    Value &target4 = target3[index3];
     if (index4 == UINT64_MAX)
     {
         return target4;
@@ -77,15 +77,15 @@ void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
 {
     if (const uint64_t newNodesSize = Node::idCountCompleted.load(); newNodesSize != nodesSizeBefore)
     {
-        // printMessage(fmt::format("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
+        // printMessage(FORMAT("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
         //                          nodesSizeBefore, newNodesSize));
         for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
         {
             nodesCacheJson.PushBack(
-                PValue(Node::nodeIndices[i]->filePath.c_str(), Node::nodeIndices[i]->filePath.size()), ralloc);
+                Value(Node::nodeIndices[i]->filePath.c_str(), Node::nodeIndices[i]->filePath.size()), ralloc);
         }
         nodesSizeBefore = newNodesSize;
-        writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheJson);
+        writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheJson);
     }
 }
 
@@ -141,14 +141,14 @@ void TargetCacheDiskWriteManager::performThreadOperations(bool doUnlockAndRelock
 
         if (!pValueCacheLocal.empty())
         {
-            for (PValueAndIndices &p : pValueCacheLocal)
+            for (ValueAndIndices &p : pValueCacheLocal)
             {
-                p.getTargetPValue() = std::move(p.pValue);
+                p.getTargetValue() = std::move(p.pValue);
             }
-            writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+            writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
                                         buildCache);
         }
-        // Copying pvalue from array to central pvalue
+        // Copying value from array to central value
 
         for (ColoredStringForPrint &c : strCacheLocal)
         {
@@ -215,7 +215,7 @@ void TargetCacheDiskWriteManager::endOfRound(Builder &builder, unsigned short ro
                 copyJsonBTargets[i]->copyJson();
                 copyJsonBTargets[i] = nullptr;
             }
-            writePValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+            writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
                                         buildCache);
         }
 

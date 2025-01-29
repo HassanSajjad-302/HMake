@@ -43,7 +43,7 @@ uint64_t hash_value(const Define &p)
     return rapidhash(&hash, sizeof(hash));
 }
 
-uint64_t hash_value(const pstring_view &p)
+uint64_t hash_value(const string_view &p)
 {
     return rapidhash(p.data(), p.size());
 }

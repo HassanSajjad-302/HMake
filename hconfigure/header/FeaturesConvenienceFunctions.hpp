@@ -15,11 +15,11 @@ template <typename U> class FeatureConvenienceFunctions
   protected:
     // returns on first positive condition. space is added.
     template <typename T, typename... Argument>
-    pstring GET_FLAG_evaluate(T condition, const pstring &flags, Argument... arguments) const;
+    string GET_FLAG_evaluate(T condition, const string &flags, Argument... arguments) const;
 
-    // returns cumulated pstring for trued conditions. spaces are added
+    // returns cumulated string for trued conditions. spaces are added
     template <typename T, typename... Argument>
-    pstring GET_CUMULATED_FLAG_evaluate(T condition, const pstring &flags, Argument... arguments) const;
+    string GET_CUMULATED_FLAG_evaluate(T condition, const string &flags, Argument... arguments) const;
 
   protected:
     // var left = right;
@@ -58,7 +58,7 @@ template <typename U> class FeatureConvenienceFunctions
 
 template <typename U>
 template <typename T, typename... Argument>
-pstring FeatureConvenienceFunctions<U>::GET_FLAG_evaluate(T condition, const pstring &flags,
+string FeatureConvenienceFunctions<U>::GET_FLAG_evaluate(T condition, const string &flags,
                                                           Argument... arguments) const
 {
     if (static_cast<const U &>(*this).evaluate(condition))
@@ -77,10 +77,10 @@ pstring FeatureConvenienceFunctions<U>::GET_FLAG_evaluate(T condition, const pst
 
 template <typename U>
 template <typename T, typename... Argument>
-pstring FeatureConvenienceFunctions<U>::GET_CUMULATED_FLAG_evaluate(T condition, const pstring &flags,
+string FeatureConvenienceFunctions<U>::GET_CUMULATED_FLAG_evaluate(T condition, const string &flags,
                                                                     Argument... arguments) const
 {
-    pstring str{};
+    string str{};
     if (static_cast<const U &>(*this).evaluate(condition))
     {
         str = flags;

@@ -25,36 +25,34 @@ class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>, public Tar
   public:
     using BaseType = CSourceTarget;
     vector<InclNode> useReqIncls;
-    pstring usageRequirementCompilerFlags;
+    string usageRequirementCompilerFlags;
     flat_hash_set<Define> usageRequirementCompileDefinitions;
-    // TODO:
-    // Could be 4 bytes instead
     Configuration *configuration = nullptr;
 
-    explicit CSourceTarget(const pstring &name_);
-    CSourceTarget(bool buildExplicit, const pstring &name_);
-    CSourceTarget(const pstring &name_, Configuration *configuration);
-    CSourceTarget(bool buildExplicit, const pstring &name_, Configuration *configuration_);
+    explicit CSourceTarget(const string &name_);
+    CSourceTarget(bool buildExplicit, const string &name_);
+    CSourceTarget(const string &name_, Configuration *configuration);
+    CSourceTarget(bool buildExplicit, const string &name_, Configuration *configuration_);
 
     /*protected:
       // This parameter noTargetCacheInitialization is here so CSourceTarget does not call CSourceTarget and not call
       // initializeCSourceTarget, as targetConfigCache could potentailly be set by the derived class
-      explicit CSourceTarget(pstring name_, bool noTargetCacheInitialization);
-      CSourceTarget(bool buildExplicit, pstring name_, bool noTargetCacheInitialization);
-      CSourceTarget(pstring name_, Configuration *configuration_, bool noTargetCacheInitialization);
-      CSourceTarget(bool buildExplicit, pstring name_, Configuration *configuration_, bool
+      explicit CSourceTarget(string name_, bool noTargetCacheInitialization);
+      CSourceTarget(bool buildExplicit, string name_, bool noTargetCacheInitialization);
+      CSourceTarget(string name_, Configuration *configuration_, bool noTargetCacheInitialization);
+      CSourceTarget(bool buildExplicit, string name_, Configuration *configuration_, bool
       noTargetCacheInitialization);*/
 
   public:
-    template <typename... U> CSourceTarget &interfaceIncludes(const pstring &include, U... includeDirectoryPString);
-    CSourceTarget &INTERFACE_COMPILER_FLAGS(const pstring &compilerFlags);
-    CSourceTarget &INTERFACE_COMPILE_DEFINITION(const pstring &cddName, const pstring &cddValue = "");
+    template <typename... U> CSourceTarget &interfaceIncludes(const string &include, U... includeDirectoryPString);
+    CSourceTarget &INTERFACE_COMPILER_FLAGS(const string &compilerFlags);
+    CSourceTarget &INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue = "");
     virtual CSourceTargetType getCSourceTargetType() const;
 };
 bool operator<(const CSourceTarget &lhs, const CSourceTarget &rhs);
 
 template <typename... U>
-CSourceTarget &CSourceTarget::interfaceIncludes(const pstring &include, U... includeDirectoryPString)
+CSourceTarget &CSourceTarget::interfaceIncludes(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {

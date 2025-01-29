@@ -84,7 +84,7 @@ void to_json(Json &j, const Cache &cacheLocal)
 
 void from_json(const Json &j, Cache &cacheLocal)
 {
-    cacheLocal.sourceDirectoryPath = j.at(JConsts::sourceDirectory).get<pstring>();
+    cacheLocal.sourceDirectoryPath = j.at(JConsts::sourceDirectory).get<string>();
     path srcPath = path(cacheLocal.sourceDirectoryPath);
     if (srcPath.is_relative())
     {
@@ -112,6 +112,6 @@ void from_json(const Json &j, Cache &cacheLocal)
         throw std::exception();
     }
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();
-    cacheLocal.configureExeBuildScript = j.at(JConsts::configureExeBuildScript).get<vector<pstring>>();
-    cacheLocal.buildExeBuildScript = j.at(JConsts::buildExeBuildScript).get<vector<pstring>>();
+    cacheLocal.configureExeBuildScript = j.at(JConsts::configureExeBuildScript).get<vector<string>>();
+    cacheLocal.buildExeBuildScript = j.at(JConsts::buildExeBuildScript).get<vector<string>>();
 }

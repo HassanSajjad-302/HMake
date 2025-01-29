@@ -33,7 +33,7 @@ void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const s
         << "hmake build succeeded, however running the application did not produce expected output";
 }
 
-void ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(pstring &output, int32_t exitStatus)
+void ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(string &output, int32_t exitStatus)
 {
     if (exists(path("Build")))
     {
@@ -52,17 +52,17 @@ void ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(pstring &output, int
     output = outputStream.str();
 }
 
-void ExamplesTestHelper::runCommandAndGetOutput(const pstring &command, pstring &output)
+void ExamplesTestHelper::runCommandAndGetOutput(const string &command, string &output)
 {
-    const pstring fullCommand = command + " > file 2>&1 ";
+    const string fullCommand = command + " > file 2>&1 ";
     ASSERT_EQ(system(fullCommand.c_str()), EXIT_SUCCESS) << "Could Not Run " << command;
     stringstream outputStream;
     outputStream << ifstream("file").rdbuf();
     output = outputStream.str();
 }
 
-void ExamplesTestHelper::runCommandAndGetOutputInDirectory(const pstring &directory, const pstring &command,
-                                                           pstring &output)
+void ExamplesTestHelper::runCommandAndGetOutputInDirectory(const string &directory, const string &command,
+                                                           string &output)
 {
     const path p = current_path();
     current_path(directory);

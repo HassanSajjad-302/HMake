@@ -24,30 +24,30 @@ using std::stack, std::filesystem::create_directories, std::shared_ptr;
 struct LinkerFlags
 {
     // GCC
-    pstring OPTIONS;
-    pstring OPTIONS_LINK;
-    pstring LANG;
-    pstring RPATH_OPTION_LINK;
-    pstring FINDLIBS_ST_PFX_LINK;
-    pstring FINDLIBS_SA_PFX_LINK;
-    pstring HAVE_SONAME_LINK;
-    pstring SONAME_OPTION_LINK;
-    pstring DOT_IMPLIB_COMMAND_LINK_DLL;
+    string OPTIONS;
+    string OPTIONS_LINK;
+    string LANG;
+    string RPATH_OPTION_LINK;
+    string FINDLIBS_ST_PFX_LINK;
+    string FINDLIBS_SA_PFX_LINK;
+    string HAVE_SONAME_LINK;
+    string SONAME_OPTION_LINK;
+    string DOT_IMPLIB_COMMAND_LINK_DLL;
 
     // Following two are directly used instead of being set
-    pstring RPATH_LINK;
-    pstring RPATH_LINK_LINK;
+    string RPATH_LINK;
+    string RPATH_LINK_LINK;
 
     bool isRpathOs = false;
     // MSVC
-    pstring FINDLIBS_SA_LINK;
-    pstring DOT_LD_LINK;
-    pstring DOT_LD_ARCHIVE;
-    pstring LINKFLAGS_LINK;
-    pstring PDB_CFLAG;
-    pstring ASMFLAGS_ASM;
-    pstring PDB_LINKFLAG;
-    pstring LINKFLAGS_MSVC;
+    string FINDLIBS_SA_LINK;
+    string DOT_LD_LINK;
+    string DOT_LD_ARCHIVE;
+    string LINKFLAGS_LINK;
+    string PDB_CFLAG;
+    string ASMFLAGS_ASM;
+    string PDB_LINKFLAG;
+    string LINKFLAGS_MSVC;
 };
 
 class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
@@ -57,40 +57,39 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
     using BaseType = PrebuiltLinkOrArchiveTarget;
 
   public:
-    pstring linkOrArchiveCommandWithoutTargets;
-    pstring linkOrArchiveCommandWithTargets;
+    string linkOrArchiveCommandWithoutTargets;
+    string linkOrArchiveCommandWithTargets;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     HashedCommand commandWithoutTargetsWithTool;
 
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
-    // TODO
-    // Remove this
+    // Needed for pdb files.
     Node *buildCacheFilesDirPathNode = nullptr;
 
     bool archiving = false;
     bool archived = false;
 
-    void makeBuildCacheFilesDirPathAtConfigTime(pstring buildCacheFilesDirPath);
-    LinkOrArchiveTarget(const pstring &name_, TargetType targetType);
-    LinkOrArchiveTarget(bool buildExplicit, const pstring &name_, TargetType targetType);
-    LinkOrArchiveTarget(const pstring &buildCacheFileDirPath_, const pstring &name_, TargetType targetType);
-    LinkOrArchiveTarget(const pstring &buildCacheFileDirPath_, bool buildExplicit, const pstring &name_,
+    void makeBuildCacheFilesDirPathAtConfigTime(string buildCacheFilesDirPath);
+    LinkOrArchiveTarget(const string &name_, TargetType targetType);
+    LinkOrArchiveTarget(bool buildExplicit, const string &name_, TargetType targetType);
+    LinkOrArchiveTarget(const string &buildCacheFileDirPath_, const string &name_, TargetType targetType);
+    LinkOrArchiveTarget(const string &buildCacheFileDirPath_, bool buildExplicit, const string &name_,
                         TargetType targetType);
 
-    virtual pstring getLinkOrArchiveCommandWithoutTargets();
+    virtual string getLinkOrArchiveCommandWithoutTargets();
 
-    void setOutputName(pstring outputName_);
+    void setOutputName(string outputName_);
     void setFileStatus(RealBTarget &realBTarget);
     void updateBTarget(Builder &builder, unsigned short round) override;
     void writeTargetConfigCacheAtConfigureTime();
     void readConfigCacheAtBuildTime();
 
     LinkerFlags getLinkerFlags();
-    pstring getTarjanNodeName() const override;
+    string getTarjanNodeName() const override;
     RunCommand Archive();
     RunCommand Link();
     void setLinkOrArchiveCommands();
-    pstring getLinkOrArchiveCommandPrint();
+    string getLinkOrArchiveCommandPrint();
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     LinkOrArchiveTarget &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
