@@ -4,8 +4,12 @@
 
 #ifdef USE_HEADER_UNITS
 import "BTarget.hpp";
+import "Node.hpp";
+import "Settings.hpp";
 #else
 #include "BTarget.hpp"
+#include "Node.hpp"
+#include "Settings.hpp"
 #endif
 
 class ObjectFile : public BTarget

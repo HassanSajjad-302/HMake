@@ -39,7 +39,6 @@ import <utility>;
 #include "JConsts.hpp"
 #include "SMFile.hpp"
 #include "Settings.hpp"
-#include "TarjanNode.hpp"
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"
 #include "nlohmann/json.hpp"

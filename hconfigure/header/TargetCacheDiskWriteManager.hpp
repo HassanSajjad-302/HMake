@@ -4,13 +4,18 @@
 #define TARGETCACHEDISKWRITEMANAGER_HPP
 
 #ifdef USE_HEADER_UNITS
-import <condition_variable>;
 import "BTarget.hpp";
+import "BuildSystemFunctions.hpp";
+import "rapidjson/document.h";
+import <condition_variable>;
 #else
 #include "BTarget.hpp"
+#include "BuildSystemFunctions.hpp"
+#include "rapidjson/document.h"
 #include <condition_variable>
 #endif
 
+using rapidjson::Value;
 struct ColoredStringForPrint
 {
     string msg;

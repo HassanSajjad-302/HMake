@@ -39,15 +39,120 @@ bool IndexInTopologicalSortComparatorRoundTwo::operator()(const BTarget *lhs, co
            const_cast<BTarget *>(rhs)->realBTargets[2].indexInTopologicalSort;
 }
 
+void RealBTarget::clearTarjanNodes()
+{
+    for (RealBTarget *i : *tarjanNodes)
+    {
+        if (i)
+        {
+            i->nodeIndex = 0;
+            i->lowLink = 0;
+            i->initialized = false;
+            i->onStack = false;
+        }
+    }
+}
+
+void RealBTarget::findSCCS(unsigned short round)
+{
+    index = 0;
+    cycleExists = false;
+    cycle.clear();
+    nodesStack.clear();
+    topologicalSort.clear();
+    for (RealBTarget *tarjanNode : *tarjanNodes)
+    {
+        if (tarjanNode && !tarjanNode->initialized)
+        {
+            tarjanNode->strongConnect(round);
+        }
+    }
+}
+
+void RealBTarget::strongConnect(unsigned short round)
+{
+    initialized = true;
+    nodeIndex = index;
+    lowLink = index;
+    ++index;
+    nodesStack.emplace_back(this);
+    onStack = true;
+
+    for (auto &[bTarget, bTargetDepType] : dependencies)
+    {
+        RealBTarget &tarjandep = bTarget->realBTargets[round];
+        if (!tarjandep.initialized)
+        {
+            tarjandep.strongConnect(round);
+            lowLink = std::min(lowLink, tarjandep.lowLink);
+        }
+        else if (tarjandep.onStack)
+        {
+            lowLink = std::min(lowLink, tarjandep.nodeIndex);
+        }
+    }
+
+    if (lowLink == nodeIndex)
+    {
+        vector<RealBTarget *> tempCycle;
+        while (true)
+        {
+            RealBTarget *tarjanTemp = nodesStack.back();
+            nodesStack.pop_back();
+            tarjanTemp->onStack = false;
+            tempCycle.emplace_back(tarjanTemp);
+            if (tarjanTemp->bTarget == this->bTarget)
+            {
+                break;
+            }
+        }
+        if (tempCycle.size() > 1)
+        {
+            for (const RealBTarget *c : tempCycle)
+            {
+                cycle.emplace_back(const_cast<BTarget *>(c->bTarget));
+            }
+            cycleExists = true;
+            return;
+        }
+    }
+    topologicalSort.emplace_back(const_cast<BTarget *>(bTarget));
+}
+
+void RealBTarget::checkForCycle()
+{
+    if (cycleExists)
+    {
+        printErrorMessageColor("There is a Cyclic-Dependency.\n", settings.pcSettings.toolErrorOutput);
+        size_t cycleSize = cycle.size();
+        for (unsigned int i = 0; i < cycleSize; ++i)
+        {
+            if (i == cycleSize - 1)
+            {
+                printErrorMessageColor(
+                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[0]->getTarjanNodeName()),
+                    settings.pcSettings.toolErrorOutput);
+            }
+            else
+            {
+                printErrorMessageColor(
+                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[i + 1]->getTarjanNodeName()),
+                    settings.pcSettings.toolErrorOutput);
+            }
+        }
+        exit(EXIT_FAILURE);
+    }
+}
+
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_)
-    : TBT{bTarget_}, bTarget(bTarget_), round(round_)
+    : bTarget(bTarget_), round(round_)
 {
     const uint32_t i = atomic_ref(tarjanNodesCount[round]).fetch_add(1);
     tarjanNodesBTargets[round][i] = this;
 }
 
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const bool add)
-    : TBT{bTarget_}, bTarget(bTarget_), round(round_)
+    : bTarget(bTarget_), round(round_)
 {
     if (add)
     {

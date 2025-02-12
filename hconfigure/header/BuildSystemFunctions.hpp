@@ -41,7 +41,7 @@ inline unique_ptr<vector<char>> buildCacheBuffer;
 inline Document nodesCacheJson(kArrayType);
 inline unique_ptr<vector<char>> nodesCacheBuffer;
 
-inline vector<struct BTarget *> roundEndTargets{10};
+inline vector<class BTarget *> roundEndTargets{10};
 inline std::atomic<uint64_t> roundEndTargetsCount = 0;
 
 inline auto &ralloc = buildCache.GetAllocator();
