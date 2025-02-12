@@ -222,28 +222,29 @@ CppSourceTarget::CppSourceTarget(const bool buildExplicit, const string &name_, 
 CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, const TargetType targetType)
     : CSourceTarget{false, name_}
 {
-    initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
+
+    initializeCppSourceTarget(targetType, name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
 }
 
 CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const bool buildExplicit, const string &name_,
                                  const TargetType targetType)
     : CSourceTarget{buildExplicit, name_}
 {
-    initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
+    initializeCppSourceTarget(targetType, name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
 }
 
 CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, const TargetType targetType,
                                  Configuration *configuration_)
     : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(false, name_, configuration_)
 {
-    initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
+    initializeCppSourceTarget(targetType, name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
 }
 
 CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const bool buildExplicit, const string &name_,
                                  const TargetType targetType, Configuration *configuration_)
     : CppCompilerFeatures(configuration_->compilerFeatures), CSourceTarget(buildExplicit, name_, configuration_)
 {
-    initializeCppSourceTarget(targetType, name_, std::move(buildCacheFilesDirPath_));
+    initializeCppSourceTarget(targetType, name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
 }
 
 void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, const string &name_,

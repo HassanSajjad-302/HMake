@@ -115,7 +115,7 @@ template <typename T>
 template <typename U, typename... V>
 void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *controller, V... args)
 {
-    objectFileProducer->DEPS(controller->getSourceTargetPointer(), dependency);
+    objectFileProducer->deps(controller->getSourceTargetPointer(), dependency);
 
     // TODO
     // A limitation is that this might add two different compile definitions for two different consumers with different

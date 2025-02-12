@@ -27,36 +27,14 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
     ObjectFileProducerWithDS(string name_, bool buildExplicit, bool makeDirectory);
     flat_hash_set<T *> requirementDeps;
     flat_hash_set<T *> usageRequirementDeps;
-    template <typename... U> T &PUBLIC_DEPS(T *dep, const U... deps);
-    template <typename... U> T &PRIVATE_DEPS(T *dep, const U... deps);
-    template <typename... U> T &INTERFACE_DEPS(T *dep, const U... deps);
+    template <typename... U> T &publicDeps(T *dep, const U... deps);
+    template <typename... U> T &privateDeps(T *dep, const U... deps);
+    template <typename... U> T &interfaceDeps(T *dep, const U... deps);
 
-    template <typename... U> T &DEPS(T *dep, Dependency dependency, const U... deps);
+    template <typename... U> T &deps(T *dep, Dependency dependency, const U... deps);
 
     void populateRequirementAndUsageRequirementDeps();
 };
-
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::INTERFACE_DEPS(T *dep, const U... deps)
-{
-    usageRequirementDeps.emplace(dep);
-    realBTargets[2].addDependency(*dep);
-    if constexpr (sizeof...(deps))
-    {
-        return INTERFACE_DEPS(deps...);
-    }
-    return static_cast<T &>(*this);
-}
-
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::PRIVATE_DEPS(T *dep, const U... deps)
-{
-    requirementDeps.emplace(dep);
-    realBTargets[2].addDependency(*dep);
-    if constexpr (sizeof...(deps))
-    {
-        return PRIVATE_DEPS(deps...);
-    }
-    return static_cast<T &>(*this);
-}
 
 template <typename T> ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS() = default;
 
@@ -66,21 +44,43 @@ ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS(string name_, bool buildEx
 {
 }
 
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::PUBLIC_DEPS(T *dep, const U... deps)
+template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::publicDeps(T *dep, const U... deps)
 {
     requirementDeps.emplace(dep);
     usageRequirementDeps.emplace(dep);
     realBTargets[2].addDependency(*dep);
     if constexpr (sizeof...(deps))
     {
-        return PUBLIC_DEPS(deps...);
+        return publicDeps(deps...);
+    }
+    return static_cast<T &>(*this);
+}
+
+template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::privateDeps(T *dep, const U... deps)
+{
+    requirementDeps.emplace(dep);
+    realBTargets[2].addDependency(*dep);
+    if constexpr (sizeof...(deps))
+    {
+        return privateDeps(deps...);
+    }
+    return static_cast<T &>(*this);
+}
+
+template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::interfaceDeps(T *dep, const U... deps)
+{
+    usageRequirementDeps.emplace(dep);
+    realBTargets[2].addDependency(*dep);
+    if constexpr (sizeof...(deps))
+    {
+        return interfaceDeps(deps...);
     }
     return static_cast<T &>(*this);
 }
 
 template <typename T>
 template <typename... U>
-T &ObjectFileProducerWithDS<T>::DEPS(T *dep, const Dependency dependency, const U... deps)
+T &ObjectFileProducerWithDS<T>::deps(T *dep, const Dependency dependency, const U... deps)
 {
     if (dependency == Dependency::PUBLIC)
     {

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.28.0)
 
 project(HMake)
-
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 set(HMAKE_USE_THREAD_SANITIZER OFF BOOL "Whether to use thread-sanitizer on Linux or not.")
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 

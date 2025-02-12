@@ -202,7 +202,7 @@ string_view getLastNameAfterSlashView(string_view name)
     }
     return name;
 }
-inline string getNameBeforeLastSlash(string_view name)
+string getNameBeforeLastSlash(string_view name)
 {
     if (const uint64_t i = name.find_last_of(slashc); i != string::npos)
     {
@@ -211,6 +211,14 @@ inline string getNameBeforeLastSlash(string_view name)
     return string(name);
 }
 
+string getNameBeforeLastPeriod(string_view name)
+{
+    if (const uint64_t i = name.find_last_of('.'); i != string::npos)
+    {
+        return {name.begin(), name.begin() + i};
+    }
+    return string(name);
+}
 string removeDashCppFromName(string_view name)
 {
     return string(name.substr(0, name.size() - 4)); // Removing -cpp from the name

@@ -226,6 +226,12 @@ class CppSourceTarget : public CppCompilerFeatures,
     CppSourceTarget &removeSourceFile(const string &sourceFile);
     CppSourceTarget &removeModuleFile(const string &moduleFile);
 
+    template <typename... U> CppSourceTarget &publicDeps(CppSourceTarget *dep, const U... deps);
+    template <typename... U> CppSourceTarget &privateDeps(CppSourceTarget *dep, const U... deps);
+    template <typename... U> CppSourceTarget &interfaceDeps(CppSourceTarget *dep, const U... deps);
+
+    template <typename... U> CppSourceTarget &deps(CppSourceTarget *dep, Dependency dependency, const U... deps);
+
     // TODO
     // Also provide function overload for functions like publicIncludes here and in CPT
     template <typename... U> CppSourceTarget &publicIncludes(const string &include, U... includeDirectoryPString);
@@ -235,8 +241,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     template <typename... U> CppSourceTarget &privateHUIncludes(const string &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &interfaceHUIncludes(const string &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &publicHUDirectories(const string &include, U... includeDirectoryPString);
-    template <typename... U>
-    CppSourceTarget &privateHUDirectories(const string &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &privateHUDirectories(const string &include, U... includeDirectoryPString);
     template <typename... U>
     CppSourceTarget &interfaceHUDirectories(const string &include, U... includeDirectoryPString);
     CppSourceTarget &publicCompilerFlags(const string &compilerFlags);
@@ -269,6 +274,66 @@ class CppSourceTarget : public CppCompilerFeatures,
 }; // class Target
 
 bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
+
+template <typename... U> CppSourceTarget &CppSourceTarget::publicDeps(CppSourceTarget *dep, const U... deps)
+{
+    requirementDeps.emplace(dep);
+    usageRequirementDeps.emplace(dep);
+    realBTargets[2].addDependency(*dep);
+    if constexpr (sizeof...(deps))
+    {
+        return publicDeps(deps...);
+    }
+    return static_cast<CppSourceTarget &>(*this);
+}
+
+template <typename... U> CppSourceTarget &CppSourceTarget::privateDeps(CppSourceTarget *dep, const U... deps)
+{
+    requirementDeps.emplace(dep);
+    realBTargets[2].addDependency(*dep);
+    if constexpr (sizeof...(deps))
+    {
+        return privateDeps(deps...);
+    }
+    return static_cast<CppSourceTarget &>(*this);
+}
+
+template <typename... U> CppSourceTarget &CppSourceTarget::interfaceDeps(CppSourceTarget *dep, const U... deps)
+{
+    usageRequirementDeps.emplace(dep);
+    realBTargets[2].addDependency(*dep);
+    if constexpr (sizeof...(deps))
+    {
+        return interfaceDeps(deps...);
+    }
+    return static_cast<CppSourceTarget &>(*this);
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const Dependency dependency, const U... deps)
+{
+    if (dependency == Dependency::PUBLIC)
+    {
+        requirementDeps.emplace(dep);
+        usageRequirementDeps.emplace(dep);
+        realBTargets[2].addDependency(*dep);
+    }
+    else if (dependency == Dependency::PRIVATE)
+    {
+        requirementDeps.emplace(dep);
+        realBTargets[2].addDependency(*dep);
+    }
+    else
+    {
+        usageRequirementDeps.emplace(dep);
+        realBTargets[2].addDependency(*dep);
+    }
+    if constexpr (sizeof...(deps))
+    {
+        return DEPS(deps...);
+    }
+    return static_cast<CppSourceTarget &>(*this);
+}
 
 template <typename... U>
 CppSourceTarget &CppSourceTarget::publicIncludes(const string &include, U... includeDirectoryPString)
@@ -588,8 +653,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const str
     }
 }
 
-template <typename... U>
-CppSourceTarget &CppSourceTarget::interfaceFiles(const string &modFile, U... moduleFilePString)
+template <typename... U> CppSourceTarget &CppSourceTarget::interfaceFiles(const string &modFile, U... moduleFilePString)
 {
     if (evaluate(TreatModuleAsSource::YES))
     {

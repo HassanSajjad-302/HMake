@@ -108,6 +108,8 @@ struct Configuration : BTarget
     CppSourceTarget &getCppPreprocess(const string &name_);
     CppSourceTarget &getCppObject(const string &name_);
     CppSourceTarget &getCppObject(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    CppSourceTarget &getCppObjectAddStdTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
+                                              const string &name_);
     PrebuiltBasic &getPrebuiltBasic(const string &name_) const;
     LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(const string &name_);
     LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
@@ -123,7 +125,8 @@ struct Configuration : BTarget
                                                                 TargetType linkTargetType_);
     PrebuiltLinkOrArchiveTarget &getStaticPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
     PrebuiltLinkOrArchiveTarget &getSharedPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
-    DSC<CppSourceTarget> &addStdCppDep(DSC<CppSourceTarget> &target);
+    CppSourceTarget &addStdCppDep(CppSourceTarget &target);
+    DSC<CppSourceTarget> &addStdDSCCppDep(DSC<CppSourceTarget> &target);
 
     // CSourceTarget &GetCPT();
 
@@ -163,8 +166,10 @@ struct Configuration : BTarget
     // These NoName functions do not prepend configuration name to the target name.
     CppSourceTarget &getCppPreprocessNoName(const string &name_);
     CppSourceTarget &getCppObjectNoName(const string &name_);
-    CppSourceTarget &getCppObjectNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                        const string &name_);
+    // non-DSC functions do not add the Std target as dependency, so we define a new function with
+    CppSourceTarget &getCppObjectNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    CppSourceTarget &getCppObjectNoNameAddStdTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
+                                                    const string &name_);
     PrebuiltBasic &getPrebuiltBasicNoName(const string &name_) const;
     LinkOrArchiveTarget &GetExeLinkOrArchiveTargetNoName(const string &name_);
     LinkOrArchiveTarget &GetExeLinkOrArchiveTargetNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
@@ -182,8 +187,6 @@ struct Configuration : BTarget
                                                                             const string &directory);
     PrebuiltLinkOrArchiveTarget &getSharedPrebuiltLinkOrArchiveTargetNoName(const string &name_,
                                                                             const string &directory);
-    DSC<CppSourceTarget> &addStdCppDepNoName(DSC<CppSourceTarget> &target);
-
     // CSourceTarget &GetCPTNoName();
 
     DSC<CppSourceTarget> &getCppExeDSCNoName(const string &name_, bool defines = false, string define = "");

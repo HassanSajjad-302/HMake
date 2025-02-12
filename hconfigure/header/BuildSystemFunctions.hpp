@@ -14,8 +14,8 @@ import "nlohmann/json.hpp";
 #include <mutex>
 #endif
 
-using std::mutex, std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set;
-
+using std::mutex, std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set, rapidjson::kArrayType,
+    rapidjson::kStringType;
 
 // Named as slashc to avoid collision with a declaration in nlohmann/json which causes warnings. Will be removed later
 // when nlohmann/json is removed.
@@ -27,7 +27,6 @@ inline char slashc = '/';
 
 struct IndexedNode
 {
-
 };
 // TODO
 // Explore
@@ -112,6 +111,7 @@ void printErrorMessageColor(const string &message, uint32_t color);
 string getLastNameAfterSlash(string_view name);
 string_view getLastNameAfterSlashView(string_view name);
 string getNameBeforeLastSlash(string_view name);
+string getNameBeforeLastPeriod(string_view name);
 string removeDashCppFromName(string_view name);
 bool configureOrBuild();
 void constructGlobals();

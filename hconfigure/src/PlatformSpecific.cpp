@@ -169,7 +169,7 @@ void RHPOStream::Flush()
 void prettyWriteValueToFile(const string_view fileName, const Value &value)
 {
     RHPOStream stream(fileName);
-    rapidjson::PrettyWriter<RHPOStream, UTF8<>, UTF8<>> writer(stream, nullptr);
+    rapidjson::PrettyWriter<RHPOStream> writer(stream, nullptr);
     if (!value.Accept(writer))
     {
         // TODO Check what error
@@ -218,7 +218,7 @@ unique_ptr<vector<char>> readValueFromFile(const string_view fileName, Document 
     return buffer;
 }
 
-using rapidjson::StringBuffer, rapidjson::Writer;
+using rapidjson::StringBuffer, rapidjson::Writer, rapidjson::PrettyWriter, rapidjson::UTF8;
 
 extern string GetLastErrorString();
 

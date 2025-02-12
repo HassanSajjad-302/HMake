@@ -6,6 +6,7 @@
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
 
+using std::filesystem::directory_iterator;
 enum class BoostExampleOrTestType : char
 {
     RUN_TEST,
@@ -17,11 +18,16 @@ enum class BoostExampleOrTestType : char
     RUN_EXAMPLE,
 };
 
+union BoostTestTargetType {
+    DSC<CppSourceTarget> *dscTarget;
+    CppSourceTarget *cppTarget;
+};
+
 struct ExampleOrTest
 {
     // I think union should be used here for the cases where there is only CppSourceTarget and no complete
     // DSC<CppSourceTarget>.
-    DSC<CppSourceTarget> *dscTarget;
+    BoostTestTargetType testTarget;
     BoostExampleOrTestType targetType;
 };
 
@@ -32,9 +38,14 @@ enum class IteratorTargetType : char
     LINK,
 };
 
+#ifdef BUILD_MODE
+#define BUILD_INLINE inline
+#else
+#define BUILD_INLINE
+#endif
+
 class BoostCppTarget : TargetCache
 {
-
     template <BoostExampleOrTestType boostExampleOrTestType, IteratorTargetType iteratorTargetType> struct GenericBase
     {
         const vector<ExampleOrTest> &examplesOrTests;
@@ -64,6 +75,28 @@ class BoostCppTarget : TargetCache
         GetEnds operator++();
     };
 
+    template <BoostExampleOrTestType EOT, bool addInConfigCache> struct Add
+    {
+        void operator()(BoostCppTarget &target, string_view sourceDir, string_view fileName);
+    };
+
+    template <BoostExampleOrTestType EOT> struct Add<EOT, false>
+    {
+        void operator()(BoostCppTarget &target, string_view sourceDir, string_view fileName);
+    };
+
+    template <BoostExampleOrTestType EOT, bool addInConfigCache> struct AddEnds
+    {
+        void operator()(BoostCppTarget &target, string_view innerBuildDirName, string_view sourceDir,
+                        string_view fileName);
+    };
+
+    template <BoostExampleOrTestType EOT> struct AddEnds<EOT, false>
+    {
+        void operator()(BoostCppTarget &target, string_view innerBuildDirName, string_view sourceDir,
+                        string_view fileName);
+    };
+
   public:
     Configuration *configuration = nullptr;
     BTarget *testTarget = nullptr;
@@ -74,26 +107,36 @@ class BoostCppTarget : TargetCache
     BoostCppTarget(const string &name, Configuration *configuration_, bool headerOnly, bool createTestsTarget = false,
                    bool createExamplesTarget = false);
     ~BoostCppTarget();
-    void addExampleOrTestGeneric(string_view sourceDir, string_view fileName, string_view innerBuildDirName,
-                                 BoostExampleOrTestType exampleOrTestType, bool buildExplicit);
-    void addDirectoryGeneric(string_view dir, string_view innerBuildDirName, BoostExampleOrTestType exampleOrTestType,
-                             bool buildExplicit);
+
+    template <BoostExampleOrTestType EOT>
+    void getTargetFromConfiguration(string_view name, string_view buildCacheFilesDirPath, const Node *node);
+    template <BoostExampleOrTestType EOT> bool getExplicitBuilding() const;
+    template <BoostExampleOrTestType EOT> static string getInnerBuildDirExcludingFileName();
+    template <BoostExampleOrTestType EOT>
+    static string getInnerBuildDirExcludingFileName(string_view innerBuildDirName);
 
     template <BoostExampleOrTestType EOT, IteratorTargetType iteratorTargetType, BSMode bsm = BSMode::BUILD> auto get();
     template <BoostExampleOrTestType EOT, IteratorTargetType iteratorTargetType, BSMode bsm = BSMode::BUILD>
     auto getEndsWith(const char *endsWith);
 
     // TODO
-    // Currently, not dealing with different kinds of tests and their results and not combining them either.
-    void addRunTestsDirectory(const string &sourceDir);
-    void addRunTestsDirectoryEndsWith(const string &sourceDir, const string &innerBuildDirEndsWith);
-    void addCompileTestsDirectory(const string &sourceDir);
-    void addRunExamplesDirectory(const string &sourceDir);
+    //  Change ends_with to contains.
 
-    void addRunTests(string_view sourceDir, const string_view *fileName, uint64_t arraySize);
-    void addCompileTests(string_view sourceDir, const string_view *fileName, uint64_t arraySize);
-    void addCompileFailTests(string_view sourceDir, const string_view *fileName, uint64_t arraySize);
-    void addExamples(string_view sourceDir, const string_view *fileName, uint64_t arraySize);
+    // TODO
+    // Currently, not dealing with different kinds of tests and their results and not combining them either.
+    template <BoostExampleOrTestType EOT> BUILD_INLINE BoostCppTarget &addDir(string_view sourceDir);
+    template <BoostExampleOrTestType EOT>
+    BUILD_INLINE BoostCppTarget &addDirEndsWith(string_view sourceDir, string_view innerBuildDirName);
+
+    template <BoostExampleOrTestType EOT>
+    BoostCppTarget &add(string_view sourceDir, const string_view *fileName, uint64_t arraySize);
+    template <BoostExampleOrTestType EOT>
+    BoostCppTarget &addEndsWith(string_view innerBuildDirName, string_view sourceDir, const string_view *fileName,
+                                uint64_t arraySize);
+
+    template <BoostExampleOrTestType EOT> BoostCppTarget &add(string_view sourceDir, string_view fileName);
+    template <BoostExampleOrTestType EOT>
+    BoostCppTarget &addEndsWith(string_view innerBuildDirName, string_view sourceDir, string_view fileName);
 };
 
 template <BoostExampleOrTestType boostExampleOrTestType, IteratorTargetType boostTargetType>
@@ -108,7 +151,7 @@ auto &BoostCppTarget::GenericBase<boostExampleOrTestType, iteratorTargetType>::o
 {
     if constexpr ((boostExampleOrTestType == BoostExampleOrTestType::COMPILE_TEST ||
                    boostExampleOrTestType == BoostExampleOrTestType::COMPILE_FAIL_TEST) &&
-                  iteratorTargetType != IteratorTargetType::LINK)
+                  iteratorTargetType == IteratorTargetType::LINK)
     {
         static_assert(false && "IteratorTargetType::LINK is not available when the BoostExampleOrTestType is "
                                "COMPILE_TEST or COMPILE_FAIL_TEST");
@@ -116,15 +159,15 @@ auto &BoostCppTarget::GenericBase<boostExampleOrTestType, iteratorTargetType>::o
 
     if constexpr (iteratorTargetType == IteratorTargetType::DSC_CPP)
     {
-        return *exampleOrTest->dscTarget;
+        return *exampleOrTest->testTarget.cppTarget;
     }
     else if constexpr (iteratorTargetType == IteratorTargetType::CPP)
     {
-        return exampleOrTest->dscTarget->getSourceTarget();
+        return exampleOrTest->testTarget.dscTarget->getSourceTarget();
     }
     else
     {
-        return exampleOrTest->dscTarget->getLinkOrArchiveTarget();
+        return exampleOrTest->testTarget.dscTarget->getLinkOrArchiveTarget();
     }
 }
 
@@ -226,11 +269,24 @@ BoostCppTarget::GetEnds<EOT, iteratorTargetType, bsm> BoostCppTarget::GetEnds<EO
         lowerCasePStringOnWindows(finalEndString.data(), finalEndString.size());
         for (const ExampleOrTest &exampleOrTest_ : examplesOrTests)
         {
-            if (exampleOrTest_.targetType == EOT &&
-                exampleOrTest_.dscTarget->getSourceTarget().name.contains(finalEndString))
+            if constexpr (EOT == BoostExampleOrTestType::COMPILE_TEST ||
+                          EOT == BoostExampleOrTestType::COMPILE_FAIL_TEST)
             {
-                exampleOrTestLocal = &exampleOrTest_;
-                break;
+                if (exampleOrTest_.targetType == EOT &&
+                    exampleOrTest_.testTarget.cppTarget->name.contains(finalEndString))
+                {
+                    exampleOrTestLocal = &exampleOrTest_;
+                    break;
+                }
+            }
+            else
+            {
+                if (exampleOrTest_.targetType == EOT &&
+                    exampleOrTest_.testTarget.dscTarget->getSourceTarget().name.contains(finalEndString))
+                {
+                    exampleOrTestLocal = &exampleOrTest_;
+                    break;
+                }
             }
         }
         exampleOrTest = exampleOrTestLocal;
@@ -263,13 +319,146 @@ BoostCppTarget::GetEnds<EOT, iteratorTargetType, bsm> BoostCppTarget::GetEnds<EO
         for (; exampleOrTest != examplesOrTests.begin().operator->() + examplesOrTests.size(); ++exampleOrTest)
         {
             if (exampleOrTest->targetType == EOT &&
-                exampleOrTest->dscTarget->getSourceTarget().name.contains(finalEndString))
+                exampleOrTest->testTarget.dscTarget->getSourceTarget().name.contains(finalEndString))
             {
                 return GetEnds(std::move(endsWith), examplesOrTests, exampleOrTest);
             }
         }
     }
     return GetEnds(std::move(endsWith), examplesOrTests, nullptr);
+}
+
+template <BoostExampleOrTestType EOT, bool addInConfigCache>
+void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &target, string_view sourceDir,
+                                                            string_view fileName)
+{
+    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltBasicTarget().name + slashc;
+
+    const string buildCacheFilesDirPath =
+        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
+    const string pushName =
+        target.getInnerBuildDirExcludingFileName<EOT>() + slashc + getNameBeforeLastPeriod(fileName);
+    const string name = configurationNamePlusTargetName + pushName;
+
+    target.buildOrConfigCacheCopy.PushBack(static_cast<uint8_t>(EOT), target.cacheAlloc);
+    target.buildOrConfigCacheCopy.PushBack(
+        Value(kStringType).SetString(pushName.c_str(), pushName.size(), target.cacheAlloc), target.cacheAlloc);
+
+    const Node *node = Node::getNodeFromNonNormalizedString(string(sourceDir) + slashc + string(fileName), true);
+    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, node);
+}
+
+template <BoostExampleOrTestType EOT>
+void BoostCppTarget::Add<EOT, false>::operator()(BoostCppTarget &target, string_view sourceDir, string_view fileName)
+{
+    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltBasicTarget().name + slashc;
+
+    const string buildCacheFilesDirPath =
+        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
+    const string pushName =
+        target.getInnerBuildDirExcludingFileName<EOT>() + slashc + getNameBeforeLastPeriod(fileName);
+    const string name = configurationNamePlusTargetName + pushName;
+
+    const Node *node = Node::getNodeFromNonNormalizedString(string(sourceDir) + slashc + string(fileName), true);
+    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, node);
+}
+
+template <BoostExampleOrTestType EOT, bool addInConfigCache>
+void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &target, string_view innerBuildDirName,
+                                                                string_view sourceDir, string_view fileName)
+{
+    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltBasicTarget().name + slashc;
+
+    const string buildCacheFilesDirPath =
+        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
+    const string pushName =
+        target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc + getNameBeforeLastPeriod(fileName);
+    const string name = configurationNamePlusTargetName + pushName;
+
+    target.buildOrConfigCacheCopy.PushBack(static_cast<uint8_t>(EOT), target.cacheAlloc);
+    target.buildOrConfigCacheCopy.PushBack(
+        Value(kStringType).SetString(pushName.c_str(), pushName.size(), target.cacheAlloc), target.cacheAlloc);
+
+    const Node *node = Node::getNodeFromNonNormalizedString(string(sourceDir) + slashc + string(fileName), true);
+    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, node);
+}
+
+template <BoostExampleOrTestType EOT>
+void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, string_view innerBuildDirName,
+                                                     string_view sourceDir, string_view fileName)
+{
+    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltBasicTarget().name + slashc;
+
+    const string buildCacheFilesDirPath =
+        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
+    const string pushName =
+        target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc + getNameBeforeLastPeriod(fileName);
+    const string name = configurationNamePlusTargetName + pushName;
+
+    const Node *node = Node::getNodeFromNonNormalizedString(string(sourceDir) + slashc + string(fileName), true);
+    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, node);
+}
+
+template <BoostExampleOrTestType EOT>
+void BoostCppTarget::getTargetFromConfiguration(string_view name, string_view buildCacheFilesDirPath, const Node *node)
+{
+    if constexpr (EOT == BoostExampleOrTestType::COMPILE_TEST)
+    {
+        configuration
+            ->getCppObjectNoNameAddStdTarget(getExplicitBuilding<EOT>(), string(buildCacheFilesDirPath), string(name))
+            .privateDeps(&mainTarget.getSourceTarget())
+            .moduleFiles(node->filePath);
+    }
+    else
+    {
+        configuration->getCppExeDSCNoName(getExplicitBuilding<EOT>(), string(buildCacheFilesDirPath), string(name))
+            .privateLibraries(&mainTarget)
+            .getSourceTarget()
+            .moduleFiles(node->filePath);
+    }
+}
+
+template <BoostExampleOrTestType EOT> bool BoostCppTarget::getExplicitBuilding() const
+{
+    if constexpr (EOT == BoostExampleOrTestType::EXAMPLE || EOT == BoostExampleOrTestType::RUN_EXAMPLE)
+    {
+        return configuration->evaluate(ExamplesExplicit::YES);
+    }
+    else
+    {
+        return configuration->evaluate(TestsExplicit::YES);
+    }
+}
+
+template <BoostExampleOrTestType EOT> string BoostCppTarget::getInnerBuildDirExcludingFileName()
+{
+    string str;
+    if constexpr (EOT == BoostExampleOrTestType::EXAMPLE || EOT == BoostExampleOrTestType::RUN_EXAMPLE)
+    {
+        str = "Examples";
+    }
+    else
+    {
+        str = "Tests";
+    }
+    return str;
+}
+
+template <BoostExampleOrTestType EOT>
+string BoostCppTarget::getInnerBuildDirExcludingFileName(string_view innerBuildDirName)
+{
+    string str;
+    if constexpr (EOT == BoostExampleOrTestType::EXAMPLE || EOT == BoostExampleOrTestType::RUN_EXAMPLE)
+    {
+        str = "Examples";
+    }
+    else
+    {
+        str = "Tests";
+    }
+    str += slashc;
+    str += innerBuildDirName;
+    return str;
 }
 
 template <BoostExampleOrTestType EOT, IteratorTargetType iteratorTargetType, BSMode bsm> auto BoostCppTarget::get()
@@ -282,4 +471,77 @@ auto BoostCppTarget::getEndsWith(const char *endsWith = "")
 {
     return GetEnds<EOT, iteratorTargetType, bsm>(endsWith, examplesOrTests, nullptr);
 }
+
+template <BoostExampleOrTestType EOT> BoostCppTarget &BoostCppTarget::addDir(string_view sourceDir)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(BuildTests::YES))
+        {
+            for (const auto &k : directory_iterator(path(srcNode->filePath + string(sourceDir))))
+            {
+                if (k.path().extension() == ".cpp")
+                {
+                    Add<EOT, true>{}(*this, k.path().parent_path().string(), k.path().filename().string());
+                }
+            }
+        }
+    }
+    return *this;
+}
+
+template <BoostExampleOrTestType EOT>
+BoostCppTarget &BoostCppTarget::addDirEndsWith(string_view sourceDir, string_view innerBuildDirName)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(BuildTests::YES))
+        {
+            for (const auto &k : directory_iterator(path(srcNode->filePath + string(sourceDir))))
+            {
+                if (k.path().extension() == ".cpp")
+                {
+                    AddEnds<EOT, true>{}(*this, innerBuildDirName, k.path().parent_path().string(),
+                                         k.path().filename().string());
+                }
+            }
+        }
+    }
+    return *this;
+}
+
+template <BoostExampleOrTestType EOT>
+BoostCppTarget &BoostCppTarget::add(string_view sourceDir, const string_view *fileName, uint64_t arraySize)
+{
+    for (uint64_t i = 0; i < arraySize; ++i)
+    {
+        Add<EOT, false>{}(*this, sourceDir, fileName[i]);
+    }
+    return *this;
+}
+
+template <BoostExampleOrTestType EOT>
+BoostCppTarget &BoostCppTarget::addEndsWith(string_view innerBuildDirName, string_view sourceDir,
+                                            const string_view *fileName, uint64_t arraySize)
+{
+    for (uint64_t i = 0; i < arraySize; ++i)
+    {
+        AddEnds<EOT, false>{}(*this, innerBuildDirName, sourceDir, fileName[i]);
+    }
+    return *this;
+}
+
+template <BoostExampleOrTestType EOT> BoostCppTarget &BoostCppTarget::add(string_view sourceDir, string_view fileName)
+{
+    Add<EOT, false>{}(*this, sourceDir, fileName);
+    return *this;
+}
+
+template <BoostExampleOrTestType EOT>
+BoostCppTarget &BoostCppTarget::addEndsWith(string_view innerBuildDirName, string_view sourceDir, string_view fileName)
+{
+    Add<EOT, false>{}(*this, innerBuildDirName, sourceDir, fileName);
+    return *this;
+}
+
 #endif // BOOSTCPPTARGET_HPP

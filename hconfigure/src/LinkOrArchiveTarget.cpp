@@ -58,17 +58,20 @@ LinkOrArchiveTarget::LinkOrArchiveTarget(const bool buildExplicit, const string 
 
 LinkOrArchiveTarget::LinkOrArchiveTarget(const string &buildCacheFileDirPath_, const string &name_,
                                          const TargetType targetType)
-    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), buildCacheFileDirPath_, targetType, name_, false, false)
+    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_),
+                                  configureNode->filePath + slashc + buildCacheFileDirPath_, targetType, name_, false,
+                                  false)
 {
-    makeBuildCacheFilesDirPathAtConfigTime(buildCacheFileDirPath_);
+    makeBuildCacheFilesDirPathAtConfigTime(configureNode->filePath + slashc + buildCacheFileDirPath_);
 }
 
 LinkOrArchiveTarget::LinkOrArchiveTarget(const string &buildCacheFileDirPath_, const bool buildExplicit,
                                          const string &name_, const TargetType targetType)
-    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), buildCacheFileDirPath_, targetType, name_,
+    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_),
+                                  configureNode->filePath + slashc + buildCacheFileDirPath_, targetType, name_,
                                   buildExplicit, false)
 {
-    makeBuildCacheFilesDirPathAtConfigTime(buildCacheFileDirPath_);
+    makeBuildCacheFilesDirPathAtConfigTime(configureNode->filePath + slashc + buildCacheFileDirPath_);
 }
 
 string LinkOrArchiveTarget::getLinkOrArchiveCommandWithoutTargets()
@@ -500,9 +503,7 @@ LinkerFlags LinkOrArchiveTarget::getLinkerFlags()
         //
 
         auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const string &str) { flags.OPTIONS_LINK += str; };
-        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const string &str) {
-            flags.OPTIONS_LINK += str;
-        };
+        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const string &str) { flags.OPTIONS_LINK += str; };
 
         // FINDLIBS-SA variable is being updated gcc.link rule.
         string findLibsSA;
