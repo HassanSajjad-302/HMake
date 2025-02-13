@@ -279,7 +279,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::publicDeps(CppSourceT
 {
     requirementDeps.emplace(dep);
     usageRequirementDeps.emplace(dep);
-    realBTargets[2].addDependency(*dep);
+    addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return publicDeps(deps...);
@@ -290,7 +290,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::publicDeps(CppSourceT
 template <typename... U> CppSourceTarget &CppSourceTarget::privateDeps(CppSourceTarget *dep, const U... deps)
 {
     requirementDeps.emplace(dep);
-    realBTargets[2].addDependency(*dep);
+    addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return privateDeps(deps...);
@@ -301,7 +301,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::privateDeps(CppSource
 template <typename... U> CppSourceTarget &CppSourceTarget::interfaceDeps(CppSourceTarget *dep, const U... deps)
 {
     usageRequirementDeps.emplace(dep);
-    realBTargets[2].addDependency(*dep);
+    addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return interfaceDeps(deps...);
@@ -316,17 +316,17 @@ CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const Dependency de
     {
         requirementDeps.emplace(dep);
         usageRequirementDeps.emplace(dep);
-        realBTargets[2].addDependency(*dep);
+        addDependency<2>(*dep);
     }
     else if (dependency == Dependency::PRIVATE)
     {
         requirementDeps.emplace(dep);
-        realBTargets[2].addDependency(*dep);
+        addDependency<2>(*dep);
     }
     else
     {
         usageRequirementDeps.emplace(dep);
-        realBTargets[2].addDependency(*dep);
+        addDependency<2>(*dep);
     }
     if constexpr (sizeof...(deps))
     {

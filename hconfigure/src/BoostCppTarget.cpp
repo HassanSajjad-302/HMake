@@ -92,7 +92,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
                 if (testTarget)
                 {
-                    testTarget->realBTargets[0].addDependency(cTarget);
+                    testTarget->addDependency<0>(cTarget);
                 }
             }
             else
@@ -104,7 +104,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
                 {
                     if (examplesTarget)
                     {
-                        examplesTarget->realBTargets[0].addDependency(uintTest.getLinkOrArchiveTarget());
+                        examplesTarget->addDependency<0>(uintTest.getLinkOrArchiveTarget());
                     }
                 }
                 else
@@ -112,7 +112,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
                     if (testTarget)
                     {
-                        testTarget->realBTargets[0].addDependency(uintTest.getLinkOrArchiveTarget());
+                        testTarget->addDependency<0>(uintTest.getLinkOrArchiveTarget());
                     }
                 }
             }

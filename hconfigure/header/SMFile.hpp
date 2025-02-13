@@ -152,7 +152,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     static void initializeModuleJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
                                      const CppSourceTarget &target);
     void initializeHeaderUnits(Builder &builder);
-    void addNewBTargetInFinalBTargets(Builder &builder);
+    void addNewBTargetInFinalBTargetsRound1(Builder &builder);
     void setSMFileType(Builder &builder);
     void isObjectFileOutdatedComparedToSourceFileAndItsDeps();
     void isSMRulesFileOutdatedComparedToSourceFileAndItsDeps();

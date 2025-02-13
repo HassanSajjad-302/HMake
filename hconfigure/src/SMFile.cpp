@@ -263,7 +263,7 @@ void SourceNode::populateModuleData(Builder &builder)
 
                         headerUnit->type = SM_FILE_TYPE::HEADER_UNIT_DISABLED;
 
-                        headerUnit->addNewBTargetInFinalBTargets(builder);
+                        headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
                     }
                     else
                     {
@@ -771,7 +771,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             }
 
             assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
-            target->realBTargets[0].addDependency(*this);
+            target->addDependency<0>(*this);
         }
     }
     else if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
@@ -971,7 +971,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
                                  *headerUnit->target);
 
             headerUnit->type = SM_FILE_TYPE::HEADER_UNIT;
-            headerUnit->addNewBTargetInFinalBTargets(builder);
+            headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
         }
         else
         {
@@ -984,7 +984,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
 
             if (headerUnit->foundFromCache && !atomic_ref(headerUnit->addedForRoundOne).exchange(true))
             {
-                headerUnit->addNewBTargetInFinalBTargets(builder);
+                headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
                 headerUnit->realBTargets[0].addInTarjanNodeBTarget(0);
             }
         }
@@ -993,7 +993,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
         headerUnitsConsumptionData.emplace(
             headerUnit, HeaderUnitConsumer{requireValue[SingleHeaderUnitDep::angle].GetBool(),
                                            requireValue[SingleHeaderUnitDep::logicalName].GetString()});
-        realBTargets[0].addDependency(*headerUnit);
+        addDependency<0>(*headerUnit);
 
         if (doLoad)
         {
@@ -1010,12 +1010,12 @@ void SMFile::initializeHeaderUnits(Builder &builder)
     }
 }
 
-void SMFile::addNewBTargetInFinalBTargets(Builder &builder)
+void SMFile::addNewBTargetInFinalBTargetsRound1(Builder &builder)
 {
     {
         std::lock_guard lk(builder.executeMutex);
         builder.updateBTargetsIterator = builder.updateBTargets.emplace(builder.updateBTargetsIterator, this);
-        target->adjustHeaderUnitsBTarget.realBTargets[builder.round].addDependency(*this);
+        target->adjustHeaderUnitsBTarget.addDependency<1>(*this);
         builder.updateBTargetsSizeGoal += 1;
     }
     builder.cond.notify_one();

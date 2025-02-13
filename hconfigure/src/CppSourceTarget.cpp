@@ -397,8 +397,8 @@ void CppSourceTarget::populateTransitiveProperties()
             }
             if (!cppSourceTarget->useReqHuDirs.empty())
             {
-                cppSourceTarget->adjustHeaderUnitsBTarget.realBTargets[1].addDependency(adjustHeaderUnitsBTarget);
-                cppSourceTarget->adjustHeaderUnitsBTarget.realBTargets[0].addDependency(adjustHeaderUnitsBTarget);
+                cppSourceTarget->adjustHeaderUnitsBTarget.addDependency<1>(adjustHeaderUnitsBTarget);
+                cppSourceTarget->adjustHeaderUnitsBTarget.addDependency<0>(adjustHeaderUnitsBTarget);
             }
         }
     }
@@ -1125,7 +1125,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         // Needed to maintain ordering between different includes specification.
         reqIncSizeBeforePopulate = reqIncls.size();
         populateTransitiveProperties();
-        adjustHeaderUnitsBTarget.realBTargets[1].addDependency(*this);
+        adjustHeaderUnitsBTarget.addDependency<1>(*this);
 
         if constexpr (bsMode == BSMode::BUILD)
         {
@@ -1620,7 +1620,7 @@ void CppSourceTarget::resolveRequirePaths()
 
             if (found)
             {
-                smFile.realBTargets[0].addDependency(const_cast<SMFile &>(*found));
+                smFile.addDependency<0>(const_cast<SMFile &>(*found));
                 if (!atomic_ref(smFile.fileStatus).load())
                 {
                     if (require[SingleModuleDep::fullPath] != found->objectFileOutputFilePath->getValue())
@@ -1663,10 +1663,10 @@ void CppSourceTarget::populateSourceNodes()
     {
         auto &sourceNode = const_cast<SourceNode &>(sourceNodeConst);
 
-        realBTargets[0].addDependency(sourceNode);
+        addDependency<0>(sourceNode);
         if (configuration && configuration->evaluate(GenerateModuleData::YES))
         {
-            adjustHeaderUnitsBTarget.realBTargets[0].addDependency(sourceNode);
+            adjustHeaderUnitsBTarget.addDependency<0>(sourceNode);
         }
 
         if (const size_t fileIt = valueIndexInSubArray(sourceFilesJson, Value(sourceNode.node->getValue()));
@@ -1691,9 +1691,9 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
     {
         auto &smFile = const_cast<SMFile &>(smFileConst);
 
-        realBTargets[0].addDependency(smFile);
-        resolveRequirePathBTarget.realBTargets[1].addDependency(smFile);
-        adjustHeaderUnitsBTarget.realBTargets[1].addDependency(smFile);
+        addDependency<0>(smFile);
+        resolveRequirePathBTarget.addDependency<1>(smFile);
+        adjustHeaderUnitsBTarget.addDependency<1>(smFile);
 
         if (const size_t fileIt = valueIndexInSubArray(moduleFilesJson, Value(smFile.node->getValue()));
             fileIt != UINT64_MAX)
@@ -1726,7 +1726,7 @@ void CppSourceTarget::populateResolveRequirePathDependencies()
             if (const auto cppSourceTarget = static_cast<CppSourceTarget *>(target);
                 !cppSourceTarget->modFileDeps.empty())
             {
-                resolveRequirePathBTarget.realBTargets[1].addDependency(cppSourceTarget->resolveRequirePathBTarget);
+                resolveRequirePathBTarget.addDependency<1>(cppSourceTarget->resolveRequirePathBTarget);
             }
         }
     }
