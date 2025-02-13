@@ -144,20 +144,18 @@ void RealBTarget::checkForCycle()
     }
 }
 
-RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_)
-    : bTarget(bTarget_), round(round_)
+RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarget(bTarget_)
 {
-    const uint32_t i = atomic_ref(tarjanNodesCount[round]).fetch_add(1);
-    tarjanNodesBTargets[round][i] = this;
+    const uint32_t i = atomic_ref(tarjanNodesCount[round_]).fetch_add(1);
+    tarjanNodesBTargets[round_][i] = this;
 }
 
-RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const bool add)
-    : bTarget(bTarget_), round(round_)
+RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const bool add) : bTarget(bTarget_)
 {
     if (add)
     {
-        const uint32_t i = atomic_ref(tarjanNodesCount[round]).fetch_add(1);
-        tarjanNodesBTargets[round][i] = this;
+        const uint32_t i = atomic_ref(tarjanNodesCount[round_]).fetch_add(1);
+        tarjanNodesBTargets[round_][i] = this;
     }
 }
 

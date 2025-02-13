@@ -56,7 +56,26 @@ enum class BTargetDepType : bool
 inline StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
 class RealBTarget
 {
+    // For TarjanNode topological sorting
+    // Following 4 are reset in findSCCS();
+    inline static int index = 0;
+    inline static vector<RealBTarget *> nodesStack;
+
+    // Output
+    inline static vector<BTarget *> cycle;
+    inline static bool cycleExists;
+
   public:
+    inline static vector<BTarget *> topologicalSort;
+
+    // Input
+    inline static vector<RealBTarget *> *tarjanNodes;
+
+    // Find Strongly Connected Components
+    static void findSCCS(unsigned short round);
+    static void checkForCycle();
+    static void clearTarjanNodes();
+
     flat_hash_map<BTarget *, BTargetDepType> dependents;
     flat_hash_map<BTarget *, BTargetDepType> dependencies;
 
@@ -83,39 +102,13 @@ class RealBTarget
     // Some tasks have more potential to benefit from multiple threading than others. Or they maybe executing for longer
     // than others. Users will assign such higher priority and will be allocated more of  the thread-pool compared to
     // the other.
+
     // float potential = 0.5f;
 
     // How many threads the tool supports. -1 means any. some tools may not support more than a fixed number, so
     // updateBTarget will not passed more than supportsThread
+
     // short supportsThread = -1;
-
-    unsigned short round;
-
-    // Set it to false, and build-system will not decrement dependenciesSize of the dependents RealBTargets
-    bool isUpdated = true;
-
-  private:
-    // Following 4 are reset in findSCCS();
-    inline static int index = 0;
-    inline static vector<RealBTarget *> nodesStack;
-
-    // Output
-    inline static vector<BTarget *> cycle;
-    inline static bool cycleExists;
-
-  public:
-    inline static vector<BTarget *> topologicalSort;
-
-    // Input
-    inline static vector<RealBTarget *> *tarjanNodes;
-
-
-    // Find Strongly Connected Components
-    static void findSCCS(unsigned short round);
-
-    static void checkForCycle();
-
-    static void clearTarjanNodes();
 
   private:
     void strongConnect(unsigned short round);
@@ -125,18 +118,13 @@ class RealBTarget
     bool onStack = false;
 
   public:
+    // Set it to false, and build-system will not decrement dependenciesSize of the dependents RealBTargets
+    bool isUpdated = true;
+
     RealBTarget(BTarget *bTarget_, unsigned short round_);
     RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
     void addInTarjanNodeBTarget(unsigned short round_);
-
-    template <typename... U> void addDependency(BTarget &dependency, U &...bTargets);
-    template <typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
 };
-
-namespace BTargetNamespace
-{
-inline std::mutex addDependencyMutex;
-}
 
 enum class BTargetType : unsigned short
 {
@@ -145,7 +133,7 @@ enum class BTargetType : unsigned short
 
 class BTarget // BTarget
 {
-public:
+  public:
     inline static size_t total = 0;
 
     array<RealBTarget, 3> realBTargets;
@@ -177,41 +165,47 @@ public:
     virtual void updateBTarget(class Builder &builder, unsigned short round);
     virtual void endOfRound(Builder &builder, unsigned short round);
     virtual void copyJson();
+
+    template <unsigned short round, typename... U> void addDependency(BTarget &dependency, U &...bTargets);
+    template <unsigned short round, typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
-inline std::mutex realbtarget_adddependency;
-template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U &...bTargets)
+// TODO
+// Determine whether this is better served by having 2 atomic-locks in RealBTargets.
+
+inline std::mutex dependencyMutex[3];
+template <unsigned short round, typename... U> void BTarget::addDependency(BTarget &dependency, U &...bTargets)
 {
     {
-        lock_guard lk{realbtarget_adddependency};
+        lock_guard lk{dependencyMutex[round]};
         // adding in both dependencies and deps is duplicating. One should be removed.
-        if (dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
+        if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
         {
             RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
-            dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::FULL);
-            ++atomic_ref(dependenciesSize);
+            dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
+            ++atomic_ref(realBTargets[round].dependenciesSize);
         }
     }
 
     if constexpr (sizeof...(bTargets))
     {
-        addDependency(bTargets...);
+        addDependency<round>(bTargets...);
     }
 }
 
-template <typename... U> void RealBTarget::addLooseDependency(BTarget &dependency, U &...bTargets)
+template <unsigned short round, typename... U> void BTarget::addLooseDependency(BTarget &dependency, U &...bTargets)
 {
-    lock_guard lk{realbtarget_adddependency};
-    if (dependencies.try_emplace(&dependency, BTargetDepType::LOOSE).second)
+    lock_guard lk{dependencyMutex[round]};
+    if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::LOOSE).second)
     {
         RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
-        dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::LOOSE);
+        dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::LOOSE);
     }
 
     if constexpr (sizeof...(bTargets))
     {
-        addDependency(bTargets...);
+        addLooseDependency<round>(bTargets...);
     }
 }
 
