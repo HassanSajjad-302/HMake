@@ -1059,7 +1059,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     {
         populateSourceNodes();
 
-       adjustHeaderUnitsValueArrayPointers();
+        adjustHeaderUnitsValueArrayPointers();
 
         if (evaluate(UseMiniTarget::YES))
         {
