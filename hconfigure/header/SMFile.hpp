@@ -64,10 +64,7 @@ class SourceNode : public ObjectFile
     static void initializeSourceJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
                                      const CppSourceTarget &target);
     void updateBTarget(Builder &builder, unsigned short round) override;
-    void populateModuleData(Builder &builder);
-    bool checkHeaderFiles2(const Node *compareNode, bool alsoCheckHeaderUnit) const;
     bool checkHeaderFiles(const Node *compareNode) const;
-    InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode);
     void setSourceNodeFileStatus();
 };
 
@@ -150,6 +147,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     void saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang);
     static void initializeModuleJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
                                      const CppSourceTarget &target);
+    InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
     void initializeHeaderUnits(Builder &builder);
     void addNewBTargetInFinalBTargetsRound1(Builder &builder);
     void setSMFileType(Builder &builder);
@@ -164,8 +162,5 @@ struct SMFile : SourceNode // Scanned Module Rule
     string getRequireFlagPrint(const SMFile &logicalName_) const;
     string getModuleCompileCommandPrintLastHalf() const;
 };
-
-/*void to_json(Json &j, const SMFile &smFile);
-void to_json(Json &j, const SMFile *smFile);*/
 
 #endif // HMAKE_SMFILE_HPP

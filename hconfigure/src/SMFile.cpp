@@ -132,199 +132,6 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
     }
 }
 
-void SourceNode::populateModuleData(Builder &builder)
-{
-    const vector<string> source = split(fileToPString(node->filePath), "\n");
-    vector<string_view> includes;
-    for (const string &str : source)
-    {
-        if (str.starts_with("#include "))
-        {
-            bool includeAlreadyInSource = false;
-            for (const string_view str2 : includes)
-            {
-                if (str == str2)
-                {
-                    includeAlreadyInSource = true;
-                    break;
-                }
-            }
-
-            if (includeAlreadyInSource)
-            {
-                continue;
-            }
-
-            constexpr uint64_t s = string("#include ").size();
-
-            bool quote = false;
-            if (str[s] == '\"')
-            {
-                quote = true;
-            }
-            const string_view fileName(str.c_str() + s + 1, str.size() - (s + 2));
-            for (Value &pValue : sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].GetArray())
-            {
-                Node *headerUnitNode = Node::getNotSystemCheckCalledNodeFromValue(pValue);
-                if (compareStringsFromEnd(fileName, getLastNameAfterSlashView(headerUnitNode->filePath)))
-                {
-                    // Do things with this value. As this value
-                    auto [nodeDir, huDirTarget] = findHeaderUnitTarget(headerUnitNode);
-
-                    huDirTarget->headerUnitsMutex.lock();
-                    if (const auto it = huDirTarget->headerUnits.find(headerUnitNode);
-                        it == huDirTarget->headerUnits.end())
-                    {
-                        SMFile *headerUnit = new SMFile(huDirTarget, headerUnitNode);
-                        huDirTarget->headerUnits.emplace(headerUnit).first;
-                        huDirTarget->headerUnitsMutex.unlock();
-
-                        if (nodeDir->ignoreHeaderDeps)
-                        {
-                            headerUnit->ignoreHeaderDeps = SMFile::ignoreHeaderDepsForIgnoreHeaderUnits;
-                        }
-
-                        headerUnit->indexInBuildCache = valueIndexInSubArray(
-                            huDirTarget->getBuildCache()[Indices::BuildCache::CppBuild::headerUnits],
-                            headerUnit->node->getValue());
-
-                        if (headerUnit->indexInBuildCache != UINT64_MAX)
-                        {
-                            headerUnit->sourceJson.CopyFrom(
-                                huDirTarget->getBuildCache()[Indices::BuildCache::CppBuild::headerUnits]
-                                                            [headerUnit->indexInBuildCache],
-                                sourceNodeAllocator);
-                        }
-                        else
-                        {
-                            // Indices::HeaderUnitDisabled
-                            ++huDirTarget->newHeaderUnitsSize;
-                            initializeSourceJson(headerUnit->sourceJson, headerUnit->node,
-                                                 headerUnit->sourceNodeAllocator, *(headerUnit->target));
-                        }
-
-                        headerUnit->type = SM_FILE_TYPE::HEADER_UNIT_DISABLED;
-
-                        headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
-                    }
-                    else
-                    {
-                        huDirTarget->headerUnitsMutex.unlock();
-                    }
-                }
-                namespace SourceFiles = Indices::BuildCache::CppBuild::SourceFiles;
-                Value &headerUnitArray = sourceJson[SourceFiles::moduleData][SourceFiles::ModuleData::headerUnitArray];
-
-                const string logicalName(str.c_str() + s, str.size() - s);
-
-                // SingleModuleDep::fullPath
-                headerUnitArray.PushBack(headerUnitNode->getValue(), sourceNodeAllocator);
-
-                // SingleModuleDep::logicalName
-                headerUnitArray.PushBack(
-                    Value(kStringType).SetString(logicalName.c_str(), logicalName.size(), sourceNodeAllocator),
-                    sourceNodeAllocator);
-
-                // SingleModuleDep::angle
-                headerUnitArray.PushBack(Value(!quote), sourceNodeAllocator);
-
-                includes.emplace_back(str);
-            }
-        }
-    }
-}
-
-bool SourceNode::checkHeaderFiles2(const Node *compareNode, bool alsoCheckHeaderUnit) const
-{
-    namespace SourceFiles = Indices::BuildCache::CppBuild::SourceFiles;
-    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
-    namespace SMRules = ModuleFiles::SmRules;
-    namespace SingleHeaderUnitDep = SMRules::SingleHeaderUnitDep;
-
-    vector<Node *> headerFilesUnChecked;
-    // Use as stack
-    vector<HeaderUnitIndexInfo> depthSearchStack;
-    depthSearchStack.reserve(20);
-
-    for (const Value &pValue : sourceJson[ModuleFiles::smRules][SMRules::headerUnitArray].GetArray())
-    {
-        depthSearchStack.emplace_back(pValue[SingleHeaderUnitDep::targetIndex].GetUint64(),
-                                      pValue[SingleHeaderUnitDep::myIndex].GetUint64());
-    }
-
-    while (!depthSearchStack.empty())
-    {
-        HeaderUnitIndexInfo info = depthSearchStack.back();
-        depthSearchStack.pop_back();
-
-        // Node *node = Node::nodeIndices[]
-    }
-    if (alsoCheckHeaderUnit)
-    {
-        for (const Value &pValue : sourceJson[ModuleFiles::smRules][SMRules::headerUnitArray].GetArray())
-        {
-            bool systemCheckCompleted = false;
-            Node *headerNode = Node::tryGetNodeFromValue(systemCheckCompleted,
-                                                          pValue[SMRules::SingleHeaderUnitDep::fullPath], true, true);
-            if (systemCheckCompleted)
-            {
-                if (headerNode->doesNotExist)
-                {
-                    return true;
-                }
-
-                if (headerNode->lastWriteTime > compareNode->lastWriteTime)
-                {
-                    return true;
-                }
-            }
-            else
-            {
-                headerFilesUnChecked.emplace_back(headerNode);
-            }
-        }
-    }
-
-    if (!headerFilesUnChecked.empty())
-    {
-        vector<Node *> stillUnchecked;
-        stillUnchecked.reserve(headerFilesUnChecked.size());
-
-        while (true)
-        {
-            bool zeroLeft = true;
-            for (Node *headerNode : headerFilesUnChecked)
-            {
-                if (atomic_ref(headerNode->systemCheckCompleted).load())
-                {
-                    if (headerNode->doesNotExist)
-                    {
-                        return true;
-                    }
-
-                    if (headerNode->lastWriteTime > compareNode->lastWriteTime)
-                    {
-                        return true;
-                    }
-                }
-                else
-                {
-                    stillUnchecked.emplace_back(headerNode);
-                    zeroLeft = false;
-                }
-            }
-            if (zeroLeft)
-            {
-                break;
-            }
-            headerFilesUnChecked.swap(stillUnchecked);
-            stillUnchecked.clear();
-        }
-    }
-
-    return false;
-}
-
 bool SourceNode::checkHeaderFiles(const Node *compareNode) const
 {
     namespace SourceFiles = Indices::BuildCache::CppBuild::SourceFiles;
@@ -411,48 +218,6 @@ bool pathContainsFile(string_view dir, const string_view file)
     // This stops checking when it reaches dir.end(), so it's OK if file
     // has more directory components afterward. They won't be checked.
     return std::equal(dir.begin(), dir.end(), withoutFileName.begin());
-}
-
-InclNodePointerTargetMap SourceNode::findHeaderUnitTarget(Node *headerUnitNode)
-{
-
-    // The target from which this header-unit comes from
-    CppSourceTarget *huDirTarget = nullptr;
-    const InclNode *nodeDir = nullptr;
-
-    // Iterating over all header-unit-directories of the target to find out which header-unit directory this header-unit
-    // comes from and which target that header-unit-directory belongs to if any
-    for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
-    {
-        if (pathContainsFile(inclNode.node->filePath, headerUnitNode->filePath))
-        {
-            if (huDirTarget && huDirTarget != targetLocal)
-            {
-                printErrorMessageColor(FORMAT("Module Header Unit\n{}\n belongs to two different Target Header "
-                                                   "Unit Includes\n{}\n{}\n",
-                                                   headerUnitNode->filePath, nodeDir->node->filePath,
-                                                   inclNode.node->filePath, settings.pcSettings.toolErrorOutput),
-                                       settings.pcSettings.toolErrorOutput);
-                throw std::exception();
-            }
-            huDirTarget = targetLocal;
-            nodeDir = &inclNode;
-        }
-    }
-
-    if (!huDirTarget)
-    {
-        printErrorMessageColor(FORMAT("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin "
-                                           "Target\n{}.\nSearched for header-unit target in the following reqHuDirs.\n",
-                                           headerUnitNode->filePath, node->filePath, target->name),
-                               settings.pcSettings.toolErrorOutput);
-        for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
-        {
-            printErrorMessage(FORMAT("HuDirTarget {} inclNode {}\n", targetLocal->name, inclNode.node->filePath));
-        }
-        throw std::exception();
-    }
-    return {nodeDir, huDirTarget};
 }
 
 void SourceNode::setSourceNodeFileStatus()
@@ -857,6 +622,48 @@ void SMFile::initializeModuleJson(Value &j, const Node *node, decltype(ralloc) &
     j.PushBack(Value(kArrayType), sourceNodeAllocator);
     j.PushBack(Value(kArrayType), sourceNodeAllocator);
     j.PushBack(Value(kStringType), sourceNodeAllocator);
+}
+
+InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) const
+{
+
+    // The target from which this header-unit comes from
+    CppSourceTarget *huDirTarget = nullptr;
+    const InclNode *nodeDir = nullptr;
+
+    // Iterating over all header-unit-directories of the target to find out which header-unit directory this header-unit
+    // comes from and which target that header-unit-directory belongs to if any
+    for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
+    {
+        if (pathContainsFile(inclNode.node->filePath, headerUnitNode->filePath))
+        {
+            if (huDirTarget && huDirTarget != targetLocal)
+            {
+                printErrorMessageColor(FORMAT("Module Header Unit\n{}\n belongs to two different Target Header "
+                                                   "Unit Includes\n{}\n{}\n",
+                                                   headerUnitNode->filePath, nodeDir->node->filePath,
+                                                   inclNode.node->filePath, settings.pcSettings.toolErrorOutput),
+                                       settings.pcSettings.toolErrorOutput);
+                throw std::exception();
+            }
+            huDirTarget = targetLocal;
+            nodeDir = &inclNode;
+        }
+    }
+
+    if (!huDirTarget)
+    {
+        printErrorMessageColor(FORMAT("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin "
+                                           "Target\n{}.\nSearched for header-unit target in the following reqHuDirs.\n",
+                                           headerUnitNode->filePath, node->filePath, target->name),
+                               settings.pcSettings.toolErrorOutput);
+        for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
+        {
+            printErrorMessage(FORMAT("HuDirTarget {} inclNode {}\n", targetLocal->name, inclNode.node->filePath));
+        }
+        throw std::exception();
+    }
+    return {nodeDir, huDirTarget};
 }
 
 void SMFile::initializeHeaderUnits(Builder &builder)
