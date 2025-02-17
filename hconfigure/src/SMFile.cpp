@@ -103,7 +103,7 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
     if (!round)
     {
         RealBTarget &realBTarget = realBTargets[0];
-        if (selectiveBuild )
+        if (selectiveBuild)
         {
             objectFileOutputFilePath = Node::getNodeFromNormalizedString(
                 target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".o", true, true);
@@ -122,7 +122,7 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
                 {
                     sourceJson[CppBuild::SourceFiles::compileCommandWithTool] =
                         target->compileCommandWithTool.getHash();
-                        postCompile.parseHeaderDeps(*this);
+                    postCompile.parseHeaderDeps(*this);
                 }
 
                 postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false, std::move(sourceJson),

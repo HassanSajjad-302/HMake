@@ -381,7 +381,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
 
     const string includeFileNote = "Note: including file:";
 
-    if ( sourceNode.ignoreHeaderDeps && settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
+    if (sourceNode.ignoreHeaderDeps && settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
     {
         // TODO
         //  Merge this if in the following else.
@@ -452,7 +452,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
 
                     // TODO
                     // If compile-command is all lower-cased, then this might not be needed
-                    if ( !ignoreHeaderFile(headerView))
+                    if (!ignoreHeaderFile(headerView))
                     {
                         lowerCasePStringOnWindows(const_cast<char *>(headerView.data()), headerView.size());
 
@@ -498,7 +498,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const
 {
     Value &headerDepsJson = sourceNode.sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles];
     headerDepsJson.Clear();
-    if ( !sourceNode.ignoreHeaderDeps)
+    if (!sourceNode.ignoreHeaderDeps)
     {
         const string headerFileContents =
             fileToPString(target.buildCacheFilesDirPathNode->filePath + slashc + sourceNode.node->getFileName() + ".d");
@@ -516,7 +516,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const
                 const size_t pos = iter->find_first_not_of(" ");
                 auto it = iter->begin() + pos;
                 if (const string_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
-                     !ignoreHeaderFile(headerView))
+                    !ignoreHeaderFile(headerView))
                 {
                     const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
                     headerDepsJson.PushBack(headerNode->getValue(), sourceNode.sourceNodeAllocator);
