@@ -95,10 +95,10 @@ target_include_directories(hconfigure-b
 # https://rapidjson.org/group___r_a_p_i_d_j_s_o_n___c_o_n_f_i_g.html
 # macros to be looked for simd from above and whether that they are defined
 
-set(HMAKE_USE_FULL_FILE OFF BOOL "use full file or smaller file(compressed, indices, hashed).")
+set(HMAKE_USE_SMALL_FILE ON BOOL "use full file or small file(compressed, indices, hashed) for storing cache.")
 
-if ("${HMAKE_USE_FULL_FILE}" MATCHES ON)
-    message("HMAKE_USE_FULL_FILE set")
+if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
+    message("HMAKE_USE_SMALL_FILE set")
     # Comment out the following to switch from hash to compile-command in the build-log.
     target_compile_definitions(hconfigure-c PUBLIC USE_COMMAND_HASH)
 
