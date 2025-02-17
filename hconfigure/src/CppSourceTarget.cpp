@@ -60,35 +60,6 @@ string ResolveRequirePathBTarget::getTarjanNodeName() const
     return "ResolveRequirePath " + target->name;
 }
 
-AdjustHeaderUnitsBTarget::AdjustHeaderUnitsBTarget(CppSourceTarget *target_) : target(target_)
-{
-}
-
-void AdjustHeaderUnitsBTarget::updateBTarget(Builder &builder, const unsigned short round)
-{
-    if (round == 1)
-    {
-        target->adjustHeaderUnitsValueArrayPointers();
-
-        if (target->evaluate(UseMiniTarget::YES))
-        {
-            if (reinterpret_cast<uint64_t &>(target->newHeaderUnitsSize) || target->moduleFileScanned)
-            {
-                targetCacheDiskWriteManager.addNewBTargetInCopyJsonBTargetsCount(target);
-            }
-        }
-        else
-        {
-            targetCacheDiskWriteManager.addNewBTargetInCopyJsonBTargetsCount(target);
-        }
-    }
-}
-
-string AdjustHeaderUnitsBTarget::getTarjanNodeName() const
-{
-    return "AdjustHeaderUnitsBTarget " + target->name;
-}
-
 RequireNameTargetId::RequireNameTargetId(const uint64_t id_, string requirePath_)
     : id(id_), requireName(std::move(requirePath_))
 {
@@ -384,8 +355,7 @@ void CppSourceTarget::populateTransitiveProperties()
             }
             if (!cppSourceTarget->useReqHuDirs.empty())
             {
-                cppSourceTarget->adjustHeaderUnitsBTarget.addDependency<1>(adjustHeaderUnitsBTarget);
-                cppSourceTarget->adjustHeaderUnitsBTarget.addDependency<0>(adjustHeaderUnitsBTarget);
+                cppSourceTarget->addDependency<1>(*this);
             }
         }
     }
@@ -1088,6 +1058,20 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     else if (round == 1)
     {
         populateSourceNodes();
+
+       adjustHeaderUnitsValueArrayPointers();
+
+        if (evaluate(UseMiniTarget::YES))
+        {
+            if (reinterpret_cast<uint64_t &>(newHeaderUnitsSize) || moduleFileScanned)
+            {
+                targetCacheDiskWriteManager.addNewBTargetInCopyJsonBTargetsCount(this);
+            }
+        }
+        else
+        {
+            targetCacheDiskWriteManager.addNewBTargetInCopyJsonBTargetsCount(this);
+        }
     }
     else if (round == 2)
     {
@@ -1110,7 +1094,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         // Needed to maintain ordering between different includes specification.
         reqIncSizeBeforePopulate = reqIncls.size();
         populateTransitiveProperties();
-        adjustHeaderUnitsBTarget.addDependency<1>(*this);
 
         if constexpr (bsMode == BSMode::BUILD)
         {
@@ -1674,7 +1657,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
 
         addDependency<0>(smFile);
         resolveRequirePathBTarget.addDependency<1>(smFile);
-        adjustHeaderUnitsBTarget.addDependency<1>(smFile);
+        addDependency<1>(smFile);
 
         if (const size_t fileIt = valueIndexInSubArray(moduleFilesJson, Value(smFile.node->getValue()));
             fileIt != UINT64_MAX)
@@ -1688,14 +1671,6 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
             // If Mini-Target, then initialize the json else error out. Should not happen for full-targets.
         }
     }
-}
-
-void CppSourceTarget::populateSourceNodesConfigureTime()
-{
-}
-
-void CppSourceTarget::parseModuleSourceFilesConfigureTime(Builder &builder)
-{
 }
 
 void CppSourceTarget::populateResolveRequirePathDependencies()

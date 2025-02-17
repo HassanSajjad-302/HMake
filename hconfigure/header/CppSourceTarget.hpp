@@ -70,16 +70,6 @@ struct ResolveRequirePathBTarget final : BTarget
     string getTarjanNodeName() const override;
 };
 
-// TODO
-// Remove this. Instead use CppSourceTarget itself.
-struct AdjustHeaderUnitsBTarget final : BTarget
-{
-    CppSourceTarget *target;
-    explicit AdjustHeaderUnitsBTarget(CppSourceTarget *target_);
-    void updateBTarget(Builder &builder, unsigned short round) override;
-    string getTarjanNodeName() const override;
-};
-
 struct RequireNameTargetId
 {
     uint64_t id;
@@ -149,7 +139,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     vector<SMFile> oldHeaderUnits;
 
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
-    AdjustHeaderUnitsBTarget adjustHeaderUnitsBTarget{this};
 
     Node *buildCacheFilesDirPathNode = nullptr;
     // requirementIncludes size before populateTransitiveProperties function is called
@@ -175,8 +164,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     void resolveRequirePaths();
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);
-    void populateSourceNodesConfigureTime();
-    void parseModuleSourceFilesConfigureTime(Builder &builder);
     void populateResolveRequirePathDependencies();
     string getInfrastructureFlags(bool showIncludes) const;
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;

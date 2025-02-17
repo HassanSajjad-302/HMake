@@ -944,7 +944,7 @@ void SMFile::addNewBTargetInFinalBTargetsRound1(Builder &builder)
     {
         std::lock_guard lk(builder.executeMutex);
         builder.updateBTargetsIterator = builder.updateBTargets.emplace(builder.updateBTargetsIterator, this);
-        target->adjustHeaderUnitsBTarget.addDependency<1>(*this);
+        target->addDependency<1>(*this);
         builder.updateBTargetsSizeGoal += 1;
     }
     builder.cond.notify_one();
