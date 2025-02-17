@@ -374,15 +374,14 @@ bool PostCompile::ignoreHeaderFile(const string_view child) const
     return false;
 }
 
-void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &output,
-                                              const bool mustConsiderHeaderDeps) const
+void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &output) const
 {
     Value &headerDepsJson = sourceNode.sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles];
     headerDepsJson.Clear();
 
     const string includeFileNote = "Note: including file:";
 
-    if (!mustConsiderHeaderDeps && sourceNode.ignoreHeaderDeps && settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
+    if ( sourceNode.ignoreHeaderDeps && settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
     {
         // TODO
         //  Merge this if in the following else.
@@ -453,7 +452,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
 
                     // TODO
                     // If compile-command is all lower-cased, then this might not be needed
-                    if (mustConsiderHeaderDeps || !ignoreHeaderFile(headerView))
+                    if ( !ignoreHeaderFile(headerView))
                     {
                         lowerCasePStringOnWindows(const_cast<char *>(headerView.data()), headerView.size());
 
@@ -495,11 +494,11 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
     }
 }
 
-void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, const bool mustConsiderHeaderDeps) const
+void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const
 {
     Value &headerDepsJson = sourceNode.sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles];
     headerDepsJson.Clear();
-    if (mustConsiderHeaderDeps || !sourceNode.ignoreHeaderDeps)
+    if ( !sourceNode.ignoreHeaderDeps)
     {
         const string headerFileContents =
             fileToPString(target.buildCacheFilesDirPathNode->filePath + slashc + sourceNode.node->getFileName() + ".d");
@@ -517,7 +516,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, const bool 
                 const size_t pos = iter->find_first_not_of(" ");
                 auto it = iter->begin() + pos;
                 if (const string_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
-                    mustConsiderHeaderDeps || !ignoreHeaderFile(headerView))
+                     !ignoreHeaderFile(headerView))
                 {
                     const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
                     headerDepsJson.PushBack(headerNode->getValue(), sourceNode.sourceNodeAllocator);
@@ -527,17 +526,17 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode, const bool 
     }
 }
 
-void PostCompile::parseHeaderDeps(SourceNode &sourceNode, const bool mustConsiderHeaderDeps)
+void PostCompile::parseHeaderDeps(SourceNode &sourceNode)
 {
     if (target.compiler.bTFamily == BTFamily::MSVC)
     {
-        parseDepsFromMSVCTextOutput(sourceNode, commandOutput, mustConsiderHeaderDeps);
+        parseDepsFromMSVCTextOutput(sourceNode, commandOutput);
     }
     else
     {
         if (exitStatus == EXIT_SUCCESS)
         {
-            parseDepsFromGCCDepsOutput(sourceNode, mustConsiderHeaderDeps);
+            parseDepsFromGCCDepsOutput(sourceNode);
         }
     }
 }

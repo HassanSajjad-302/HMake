@@ -96,26 +96,6 @@ void SourceNode::initializeSourceJson(Value &j, const Node *node, decltype(rallo
 
     // Indices::BuildCache::CppBuild::SourceFiles::headerFiles
     j.PushBack(Value(kArrayType), sourceNodeAllocator);
-
-    if (target.configuration && target.configuration->evaluate(GenerateModuleData::YES))
-    {
-        // Indices::BuildCache::CppBuild::SourceFiles::moduleData
-        j.PushBack(Value(kArrayType), sourceNodeAllocator);
-
-        Value &moduleData = j[Indices::BuildCache::CppBuild::SourceFiles::moduleData];
-
-        // Indices::BuildCache::CppBuild::ModuleFiles::ModuleData::exportName
-        moduleData.PushBack(kStringType, sourceNodeAllocator);
-
-        // Indices::BuildCache::CppBuild::ModuleFiles::ModuleData::isInterface
-        moduleData.PushBack(Value(false), sourceNodeAllocator);
-
-        // Indices::BuildCache::CppBuild::ModuleFiles::ModuleData::moduleArray
-        moduleData.PushBack(kArrayType, sourceNodeAllocator);
-
-        // Indices::BuildCache::CppBuild::ModuleFiles::ModuleData::headerUnitArray
-        moduleData.PushBack(kArrayType, sourceNodeAllocator);
-    }
 }
 
 void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
@@ -123,7 +103,7 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
     if (!round)
     {
         RealBTarget &realBTarget = realBTargets[0];
-        if (selectiveBuild || (target->configuration && target->configuration->evaluate(GenerateModuleData::YES)))
+        if (selectiveBuild )
         {
             objectFileOutputFilePath = Node::getNodeFromNormalizedString(
                 target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".o", true, true);
@@ -142,52 +122,14 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
                 {
                     sourceJson[CppBuild::SourceFiles::compileCommandWithTool] =
                         target->compileCommandWithTool.getHash();
-                    if (target->configuration && target->configuration->evaluate(GenerateModuleData::YES))
-                    {
-                        postCompile.parseHeaderDeps(*this, true);
-                    }
-                    else
-                    {
-                        postCompile.parseHeaderDeps(*this, false);
-                    }
+                        postCompile.parseHeaderDeps(*this);
                 }
 
                 postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false, std::move(sourceJson),
                                                 target->targetCacheIndex, CppBuild::sourceFiles, indexInBuildCache);
             }
         }
-
-        if (target->configuration && target->configuration->evaluate(GenerateModuleData::YES) &&
-            realBTarget.exitStatus == EXIT_SUCCESS)
-        {
-            if (!sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].Empty())
-            {
-                populateModuleData(builder);
-            }
-        }
     }
-
-    /*// All module data is populated. Here, we can move from
-    for (auto &[depTarget, type] : realBTarget.dependencies)
-    {
-        if (depTarget->getBTargetType() == BTargetType::SMFILE)
-        {
-            if (const SMFile *smFile = static_cast<SMFile *>(depTarget);
-                smFile->type == SM_FILE_TYPE::HEADER_UNIT_DISABLED)
-            {
-                namespace SourceFiles = Indices::BuildCache::CppBuild::SourceFiles;
-
-                Value &requireArray = (sourceJson)[SourceFiles::moduleData][SourceFiles::ModuleData::requireArray];
-
-                for (const Value &singleModuleDep :
-                     (*smFile->sourceJson)[SourceFiles::moduleData][SourceFiles::ModuleData::requireArray].GetArray())
-                {
-                    Value v(singleModuleDep, sourceNodeAllocator);
-                    requireArray.PushBack(v, sourceNodeAllocator);
-                }
-            }
-        }
-    }*/
 }
 
 void SourceNode::populateModuleData(Builder &builder)
@@ -570,12 +512,6 @@ SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node
 {
 }
 
-SMFile::SMFile(CppSourceTarget *target_, Node *node_, SM_FILE_TYPE type_) : SourceNode(target_, node_), type(type_)
-{
-    assert(type == SM_FILE_TYPE::HEADER_UNIT_DISABLED &&
-           "This constructor should only be used in GenerateModeData::YES mode.\n");
-}
-
 SMFile::SMFile(CppSourceTarget *target_, Node *node_, SM_FILE_TYPE type_, bool olderHeaderUnit)
     : SourceNode(target_, node_, false, false, false), type(type_)
 {
@@ -735,7 +671,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             if (realBTarget.exitStatus == EXIT_SUCCESS)
             {
                 sourceJson[ModuleFiles::scanningCommandWithTool] = target->compileCommandWithTool.getHash();
-                postCompile.parseHeaderDeps(*this, false);
+                postCompile.parseHeaderDeps(*this);
             }
             realBTarget.exitStatus = postCompile.exitStatus;
             smrulesFileOutputClang = std::move(postCompile.commandOutput);
@@ -818,13 +754,6 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                                                 target->targetCacheIndex, Indices::BuildCache::CppBuild::moduleFiles,
                                                 indexInBuildCache);
             }
-        }
-    }
-    else if (!round)
-    {
-        if (target->configuration && target->configuration->evaluate(GenerateModuleData::YES))
-        {
-            SourceNode::updateBTarget(builder, 0);
         }
     }
 }

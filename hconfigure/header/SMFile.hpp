@@ -141,7 +141,6 @@ struct SMFile : SourceNode // Scanned Module Rule
     // ignoreHeaderDeps is true
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
     SMFile(CppSourceTarget *target_, Node *node_);
-    SMFile(CppSourceTarget *target_, Node *node_, SM_FILE_TYPE type_);
     SMFile(CppSourceTarget *target_, Node *node_, SM_FILE_TYPE type_, bool olderHeaderUnit);
     void setSMRulesJson(string_view smRulesJson);
     void checkHeaderFilesIfSMRulesJsonSet();

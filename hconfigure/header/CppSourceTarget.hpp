@@ -122,7 +122,6 @@ class CppSourceTarget : public CppCompilerFeatures,
 
   public:
     mutex headerUnitsMutex;
-    mutex moduleDepsAccessMutex;
 
     // Written mutex locked in round 1 updateBTarget
     phmap::flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnits;

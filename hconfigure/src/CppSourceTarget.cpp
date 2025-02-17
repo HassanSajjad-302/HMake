@@ -66,11 +66,6 @@ AdjustHeaderUnitsBTarget::AdjustHeaderUnitsBTarget(CppSourceTarget *target_) : t
 
 void AdjustHeaderUnitsBTarget::updateBTarget(Builder &builder, const unsigned short round)
 {
-    if (round == 0 && target->configuration && target->configuration->evaluate(GenerateModuleData::YES))
-    {
-        target->adjustHeaderUnitsValueArrayPointers();
-        // Build cache is saved after this in the CppSourceTarget::updateBTarget.
-    }
     if (round == 1)
     {
         target->adjustHeaderUnitsValueArrayPointers();
@@ -284,12 +279,6 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
             // Header-units size can't be known as these are dynamically discovered.
             targetBuildCache.PushBack(Value(kArrayType), cacheAlloc);
         }
-
-        if (configuration && configuration->evaluate(GenerateModuleData::YES))
-        {
-            assert(evaluate(TreatModuleAsSource::YES) &&
-                   "TreatModuleAsSource should be YES for GenerateModuleData::YES");
-        }
     }
 
     if constexpr (bsMode == BSMode::BUILD)
@@ -331,22 +320,20 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
 void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
                                      LinkOrArchiveTarget *linkOrArchiveTarget) const
 {
-    if (!(configuration && configuration->evaluate(GenerateModuleData::YES)))
-    {
-        btree_set<const SMFile *, IndexInTopologicalSortComparatorRoundZero> sortedSMFileDependencies;
-        for (const SMFile &objectFile : modFileDeps)
-        {
-            sortedSMFileDependencies.emplace(&objectFile);
-        }
-        for (const SMFile *headerUnit : headerUnits)
-        {
-            sortedSMFileDependencies.emplace(headerUnit);
-        }
 
-        for (const SMFile *objectFile : sortedSMFileDependencies)
-        {
-            objectFiles->emplace_back(objectFile);
-        }
+    btree_set<const SMFile *, IndexInTopologicalSortComparatorRoundZero> sortedSMFileDependencies;
+    for (const SMFile &objectFile : modFileDeps)
+    {
+        sortedSMFileDependencies.emplace(&objectFile);
+    }
+    for (const SMFile *headerUnit : headerUnits)
+    {
+        sortedSMFileDependencies.emplace(headerUnit);
+    }
+
+    for (const SMFile *objectFile : sortedSMFileDependencies)
+    {
+        objectFiles->emplace_back(objectFile);
     }
 
     for (const SourceNode &objectFile : srcFileDeps)
@@ -460,8 +447,7 @@ CppSourceTarget &CppSourceTarget::makeReqInclsUseable()
     {
         for (const InclNode &include : reqIncls)
         {
-            if (evaluate(TreatModuleAsSource::NO) ||
-                (configuration && configuration->evaluate(GenerateModuleData::YES)))
+            if (evaluate(TreatModuleAsSource::NO))
             {
                 actuallyAddInclude(this, reqHuDirs, include.node->filePath, include.isStandard,
                                    include.ignoreHeaderDeps);
@@ -578,8 +564,7 @@ CppSourceTarget &CppSourceTarget::removeSourceFile(const string &sourceFile)
         }
         else
         {
-            printErrorMessage(
-                FORMAT("Could Not remove {} from source-files in target {}.\n", node->filePath, name));
+            printErrorMessage(FORMAT("Could Not remove {} from source-files in target {}.\n", node->filePath, name));
         }
     }
     return *this;
@@ -684,7 +669,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
             string FINDLIBS_SA_LINK_DLL =
                 GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-x86_64 ");
             string LINKFLAGS_LINK_DLL = GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
-                                                           R"(/wholearchive\:"clang_rt.asan_dll_thunk-x86_64.lib ")");
+                                                          R"(/wholearchive\:"clang_rt.asan_dll_thunk-x86_64.lib ")");
         }
         else if (evaluate(AddressModel::A_32))
         {
@@ -699,7 +684,7 @@ CompilerFlags CppSourceTarget::getCompilerFlags()
             string FINDLIBS_SA_LINK_DLL =
                 GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC), "clang_rt.asan_dll_thunk-i386 ");
             string LINKFLAGS_LINK_DLL = GET_FLAG_evaluate(AND(AddressSanitizer::ON, RuntimeLink::STATIC),
-                                                           R"(/wholearchive\:"clang_rt.asan_dll_thunk-i386.lib ")");
+                                                          R"(/wholearchive\:"clang_rt.asan_dll_thunk-i386.lib ")");
         }
 
         // Line 586
@@ -1574,7 +1559,7 @@ void CppSourceTarget::resolveRequirePaths()
             // Even if found, we continue the search to ensure that no two files are providing the same module in
             // the module-files of the target and its dependencies
             RequireNameTargetId req(id, string(require[SingleModuleDep::logicalName].GetString(),
-                                                require[SingleModuleDep::logicalName].GetStringLength()));
+                                               require[SingleModuleDep::logicalName].GetStringLength()));
 
             const bool isInterface = req.requireName.contains(':');
 
@@ -1608,7 +1593,7 @@ void CppSourceTarget::resolveRequirePaths()
                                            getTarjanNodeName(), getDependenciesPString(),
                                            string(require[SingleModuleDep::logicalName].GetString(),
                                                   require[SingleModuleDep::logicalName].GetStringLength()),
-                                                found->node->filePath, found->node->filePath),
+                                           found->node->filePath, found->node->filePath),
                                     settings.pcSettings.toolErrorOutput);
                                 throw std::exception();
                             }
@@ -1638,7 +1623,7 @@ void CppSourceTarget::resolveRequirePaths()
                                                   getTarjanNodeName(),
                                                   string(require[SingleModuleDep::logicalName].GetString(),
                                                          require[SingleModuleDep::logicalName].GetStringLength())),
-                        settings.pcSettings.toolErrorOutput);
+                                           settings.pcSettings.toolErrorOutput);
                 }
                 else
                 {
@@ -1646,7 +1631,7 @@ void CppSourceTarget::resolveRequirePaths()
                         FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
                                getTarjanNodeName(), getDependenciesPString(),
                                string(require[SingleModuleDep::logicalName].GetString(),
-                                    require[SingleModuleDep::logicalName].GetStringLength())),
+                                      require[SingleModuleDep::logicalName].GetStringLength())),
                         settings.pcSettings.toolErrorOutput);
                 }
                 throw std::exception();
@@ -1664,10 +1649,6 @@ void CppSourceTarget::populateSourceNodes()
         auto &sourceNode = const_cast<SourceNode &>(sourceNodeConst);
 
         addDependency<0>(sourceNode);
-        if (configuration && configuration->evaluate(GenerateModuleData::YES))
-        {
-            adjustHeaderUnitsBTarget.addDependency<0>(sourceNode);
-        }
 
         if (const size_t fileIt = valueIndexInSubArray(sourceFilesJson, Value(sourceNode.node->getValue()));
             fileIt != UINT64_MAX)

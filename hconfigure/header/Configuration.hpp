@@ -18,18 +18,6 @@ using std::shared_ptr;
 
 class CppSourceTarget;
 
-enum class GenerateModuleData : char
-{
-    NO,
-    YES,
-};
-
-enum class UseModuleData : char
-{
-    NO,
-    YES,
-};
-
 enum class AssignStandardCppTarget : char
 {
     NO,
@@ -95,7 +83,6 @@ struct Configuration : BTarget
     PrebuiltBasicFeatures prebuiltBasicFeatures;
     LinkerFeatures linkerFeatures;
     TargetType targetType = TargetType::LIBRARY_STATIC;
-    GenerateModuleData generateModuleData = GenerateModuleData::NO;
     AssignStandardCppTarget assignStandardCppTarget = AssignStandardCppTarget::NO;
     BuildTests buildTests = BuildTests::NO;
     BuildExamples buildExamples = BuildExamples::NO;
@@ -239,14 +226,6 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         compilerFeatures.setConfigType(property);
         linkerFeatures.setConfigType(property);
-    }
-    else if constexpr (std::is_same_v<decltype(property), GenerateModuleData>)
-    {
-        generateModuleData = property;
-        if (generateModuleData == GenerateModuleData::YES)
-        {
-            assign(TreatModuleAsSource::YES);
-        }
     }
     else if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
     {
@@ -531,10 +510,6 @@ template <typename T> bool Configuration::evaluate(T property) const
     if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
     {
         return useMiniTarget == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), GenerateModuleData>)
-    {
-        return generateModuleData == property;
     }
     else if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
     {
