@@ -70,7 +70,6 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::p
 template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::interfaceDeps(T *dep, const U... deps)
 {
     usageRequirementDeps.emplace(dep);
-    addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return interfaceDeps(deps...);
@@ -96,7 +95,6 @@ T &ObjectFileProducerWithDS<T>::deps(T *dep, const Dependency dependency, const 
     else
     {
         usageRequirementDeps.emplace(dep);
-        addDependency<2>(*dep);
     }
     if constexpr (sizeof...(deps))
     {

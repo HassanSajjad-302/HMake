@@ -161,7 +161,6 @@ PrebuiltBasic &PrebuiltBasic::INTERFACE_DEPS(PrebuiltBasic *prebuiltLinkOrArchiv
                                              U... deps)
 {
     usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
-    addDependency<2>(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
         return INTERFACE_DEPS(deps...);
@@ -214,7 +213,6 @@ PrebuiltBasic &PrebuiltBasic::DEPS(PrebuiltBasic *prebuiltTarget, Dependency dep
     else
     {
         usageRequirementDeps.emplace(prebuiltTarget, prebuiltDep);
-        addDependency<2>(*prebuiltTarget);
     }
     if constexpr (sizeof...(deps))
     {
