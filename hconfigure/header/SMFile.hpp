@@ -163,4 +163,6 @@ struct SMFile : SourceNode // Scanned Module Rule
     string getModuleCompileCommandPrintLastHalf() const;
 };
 
+inline deque<SMFile> globalSMFiles;
+
 #endif // HMAKE_SMFILE_HPP

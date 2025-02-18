@@ -77,7 +77,8 @@ SourceNode::SourceNode(CppSourceTarget *target_, const Node *node_, const bool a
 
 string SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
 {
-    return getReducedPath(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".o", pathPrint);
+    return getReducedPath(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".o",
+                          pathPrint);
 }
 
 string SourceNode::getTarjanNodeName() const
@@ -340,7 +341,7 @@ void SMFile::setLogicalNameAndAddToRequirePath()
     if (sourceJson[ModuleFile::smRules][SMRules::exportName].GetStringLength())
     {
         logicalName = string(sourceJson[ModuleFile::smRules][SMRules::exportName].GetString(),
-                              sourceJson[ModuleFile::smRules][SMRules::exportName].GetStringLength());
+                             sourceJson[ModuleFile::smRules][SMRules::exportName].GetStringLength());
 
         using Map = decltype(requirePaths2);
 
@@ -354,7 +355,7 @@ void SMFile::setLogicalNameAndAddToRequirePath()
         {
             printErrorMessageColor(
                 FORMAT("In target:\n{}\nModule name:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
-                            target->getTarjanNodeName(), logicalName, node->filePath, val->node->filePath),
+                       target->getTarjanNodeName(), logicalName, node->filePath, val->node->filePath),
                 settings.pcSettings.toolErrorOutput);
             throw std::exception();
         }
@@ -438,6 +439,11 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 sourceJson[ModuleFiles::scanningCommandWithTool] = target->compileCommandWithTool.getHash();
                 postCompile.parseHeaderDeps(*this);
             }
+            else
+            {
+                // TODO
+                // print the error output.
+            }
             realBTarget.exitStatus = postCompile.exitStatus;
             smrulesFileOutputClang = std::move(postCompile.commandOutput);
         }
@@ -455,7 +461,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 if (requireValue[SingleModuleDep::logicalName] == Value(svtogsr(logicalName)))
                 {
                     printErrorMessageColor(FORMAT("In target\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                       target->getTarjanNodeName(), node->filePath),
+                                                  target->getTarjanNodeName(), node->filePath),
                                            settings.pcSettings.toolErrorOutput);
                     throw std::exception();
                 }
@@ -529,8 +535,8 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang)
     namespace SMRules = ModuleFile::SmRules;
 
     // We get half-node since we trust the compiler to have generated if it is returning true
-    const Node *smRuleFileNode = Node::getHalfNodeFromNormalizedString(target->buildCacheFilesDirPathNode->filePath + slashc +
-                                                                       node->getFileName() + ".smrules");
+    const Node *smRuleFileNode = Node::getHalfNodeFromNormalizedString(target->buildCacheFilesDirPathNode->filePath +
+                                                                       slashc + node->getFileName() + ".smrules");
 
     Document d;
     // The assumptions is that clang only outputs scanning data during scanning on output while MSVC outputs
@@ -601,8 +607,8 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang)
                 headerUnitDepValue.PushBack(logicalName, sourceNodeAllocator);
                 // angle
                 headerUnitDepValue.PushBack(requireValue.FindMember(Value(svtogsr(JConsts::lookupMethod)))->value ==
-                                                 Value(svtogsr(JConsts::includeAngle)),
-                                             sourceNodeAllocator);
+                                                Value(svtogsr(JConsts::includeAngle)),
+                                            sourceNodeAllocator);
 
                 // These values are initialized later in initializeHeaderUnits.
                 // targetIndex
@@ -640,9 +646,9 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
             if (huDirTarget && huDirTarget != targetLocal)
             {
                 printErrorMessageColor(FORMAT("Module Header Unit\n{}\n belongs to two different Target Header "
-                                                   "Unit Includes\n{}\n{}\n",
-                                                   headerUnitNode->filePath, nodeDir->node->filePath,
-                                                   inclNode.node->filePath, settings.pcSettings.toolErrorOutput),
+                                              "Unit Includes\n{}\n{}\n",
+                                              headerUnitNode->filePath, nodeDir->node->filePath,
+                                              inclNode.node->filePath, settings.pcSettings.toolErrorOutput),
                                        settings.pcSettings.toolErrorOutput);
                 throw std::exception();
             }
@@ -653,16 +659,62 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
 
     if (!huDirTarget)
     {
+        if (const auto it = target->configuration->moduleFilesToTarget.find(headerUnitNode);
+            it != target->configuration->moduleFilesToTarget.end())
+        {
+            huDirTarget = it->second.target;
+
+            // The mapped target must be the same as the smfile target from which this header-unit is discovered or one
+            // of its requirementDeps
+
+            bool isHuDirTargetRelated = false;
+
+            if (huDirTarget == target)
+            {
+                isHuDirTargetRelated = true;
+            }
+
+            if (!isHuDirTargetRelated)
+            {
+                if (const auto it2 = target->requirementDeps.find(it->second.target);
+                    it2 != target->requirementDeps.end())
+                {
+                    isHuDirTargetRelated = true;
+                }
+            }
+
+            if (isHuDirTargetRelated)
+            {
+                bool found = false;
+
+                for (InclNode &incl : target->reqIncls)
+                {
+                    if (incl.node == it->second.incl)
+                    {
+                        found = true;
+                        nodeDir = &incl;
+                        break;
+                    }
+                }
+
+                if (found)
+                {
+                    return {nodeDir, huDirTarget};
+                }
+            }
+        }
         printErrorMessageColor(FORMAT("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin "
-                                           "Target\n{}.\nSearched for header-unit target in the following reqHuDirs.\n",
-                                           headerUnitNode->filePath, node->filePath, target->name),
+                                      "Target\n{}.\nSearched for header-unit target in the following reqHuDirs.\n",
+                                      headerUnitNode->filePath, node->filePath, target->name),
                                settings.pcSettings.toolErrorOutput);
         for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
         {
             printErrorMessage(FORMAT("HuDirTarget {} inclNode {}\n", targetLocal->name, inclNode.node->filePath));
         }
+
         throw std::exception();
     }
+
     return {nodeDir, huDirTarget};
 }
 
@@ -678,7 +730,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
         if (requireValue[SingleHeaderUnitDep::logicalName] == Value(svtogsr(logicalName)))
         {
             printErrorMessageColor(FORMAT("In target\n{}\nModule\n{}\n can not depend on itself.\n",
-                                               target->getTarjanNodeName(), node->filePath),
+                                          target->getTarjanNodeName(), node->filePath),
                                    settings.pcSettings.toolErrorOutput);
             throw std::exception();
         }
@@ -689,10 +741,10 @@ void SMFile::initializeHeaderUnits(Builder &builder)
         huDirTarget->headerUnitsMutex.lock();
         SMFile *headerUnit = nullptr;
         bool doLoad = false;
-        if (const auto it = huDirTarget->headerUnits.find(headerUnitNode); it == huDirTarget->headerUnits.end())
+        if (const auto it = huDirTarget->headerUnitsSet.find(headerUnitNode); it == huDirTarget->headerUnitsSet.end())
         {
             headerUnit = new SMFile(huDirTarget, headerUnitNode);
-            huDirTarget->headerUnits.emplace(headerUnit).first;
+            huDirTarget->headerUnitsSet.emplace(headerUnit).first;
 
             huDirTarget->headerUnitsMutex.unlock();
 
@@ -885,7 +937,8 @@ void SMFile::isSMRulesFileOutdatedComparedToSourceFileAndItsDeps()
 
 string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
 {
-    return getReducedPath(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".m.o", pathPrint);
+    return getReducedPath(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".m.o",
+                          pathPrint);
 }
 
 BTargetType SMFile::getBTargetType() const
@@ -1102,7 +1155,8 @@ string SMFile::getFlagPrint(const string &outputFilesWithoutExtension) const
 
 string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
 {
-    const string ifcFilePath = addQuotes(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".ifc");
+    const string ifcFilePath =
+        addQuotes(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".ifc");
 
     string str;
 

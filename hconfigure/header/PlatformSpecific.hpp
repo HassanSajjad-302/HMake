@@ -67,7 +67,8 @@ constexpr static unsigned reqHUDirsArray = 3;
 constexpr static unsigned useReqHUDirsArray = 4;
 constexpr static unsigned sourceFiles = 5;
 constexpr static unsigned moduleFiles = 6;
-constexpr static unsigned buildCacheFilesDirPath = 7;
+constexpr static unsigned headerUnits = 7;
+constexpr static unsigned buildCacheFilesDirPath = 8;
 } // namespace CppConfig
 
 namespace LinkConfig

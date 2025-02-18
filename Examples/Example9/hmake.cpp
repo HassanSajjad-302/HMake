@@ -18,7 +18,10 @@ void configurationSpecification(Configuration &config)
 {
     DSC<CppSourceTarget> &stdhu = config.getCppObjectDSC("stdhu");
 
-    stdhu.getSourceTargetPointer()->makeReqInclsUseable().interfaceIncludes("include");
+    stdhu.getSourceTargetPointer()
+        ->initializeUseReqInclsFromReqIncls()
+        .initializeHuDirsFromReqIncls()
+        .interfaceIncludes("include");
     stdhu.getLinkOrArchiveTarget().usageRequirementLibraryDirectories =
         stdhu.getLinkOrArchiveTarget().requirementLibraryDirectories;
 
@@ -37,6 +40,19 @@ void configurationSpecification(Configuration &config)
     DSC<CppSourceTarget> &app = config.getCppExeDSC("app").privateLibraries(&lib1).privateLibraries(&stdhu);
 
     initializeTargets(&lib1, &lib2, &lib3, &lib4, &app);
+
+    // This also tests the situation where two different targets have header-unit in the same directory. In that case
+    // these should be specified in the configuration file
+
+    DSC<CppSourceTarget> &libB = config.getCppStaticDSC("libB");
+    libB.getSourceTarget().moduleFiles("B.cpp").headerUnits("B.hpp").publicIncludes(
+        path(srcNode->filePath).string());
+
+    config.getCppExeDSC("appA")
+        .privateLibraries(&libB, &stdhu)
+        .getSourceTarget()
+        .moduleFiles("A.cpp")
+        .headerUnits("A.hpp");
 }
 
 void buildSpecification()

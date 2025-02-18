@@ -72,8 +72,15 @@ enum class BuildTestsAndExamplesExplicitBuild : char
     YES,
 };
 
+struct CppTargetAndParentDirNode
+{
+    CppSourceTarget *target;
+    Node *incl;
+};
+
 struct Configuration : BTarget
 {
+    flat_hash_map<Node *, CppTargetAndParentDirNode> moduleFilesToTarget;
     vector<CppSourceTarget *> cppSourceTargets;
     vector<LinkOrArchiveTarget *> linkOrArchiveTargets;
     vector<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;

@@ -226,6 +226,7 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
             .PushBack(kArrayType, cacheAlloc)
             .PushBack(kArrayType, cacheAlloc)
             .PushBack(kArrayType, cacheAlloc)
+            .PushBack(kArrayType, cacheAlloc)
             .PushBack(Node::getType(), cacheAlloc);
 
         if (buildCacheFilesDirPath.empty())
@@ -258,9 +259,10 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
         cppSourceTargets[targetCacheIndex] = this;
         Value &sourceNodesCache = getConfigCache()[CppConfig::sourceFiles];
         Value &moduleNodesCache = getConfigCache()[CppConfig::moduleFiles];
+        Value &headerUnitsNodesCache = getConfigCache()[CppConfig::headerUnits];
 
         // TODO
-        // Do it in parallel
+        // Do it in parallel. These are doing filesystem calls.
         srcFileDeps.reserve(sourceNodesCache.Size());
         for (Value &pValue : sourceNodesCache.GetArray())
         {
@@ -272,6 +274,16 @@ void CppSourceTarget::initializeCppSourceTarget(const TargetType targetType, con
         {
             modFileDeps.emplace_back(this, Node::getNodeFromValue(moduleNodesCache[i], true));
             modFileDeps[i / 2].isInterface = moduleNodesCache[i + 1].GetBool();
+        }
+
+        for (uint64_t i = 0; i < headerUnitsNodesCache.Size(); i = i + 2)
+        {
+            Node *headerUnitNode = Node::getNodeFromValue(headerUnitsNodesCache[i], true);
+            // If header-unit node exists, then its parent directory exists as-well. So, no need to perform system
+            // check.
+            Node *headerUnitDir = Node::getNotSystemCheckCalledNodeFromValue(headerUnitsNodesCache[i + 1]);
+            configuration->moduleFilesToTarget.emplace(headerUnitNode,
+                                                       CppTargetAndParentDirNode{.target = this, .incl = headerUnitDir});
         }
 
         // Move to some other function, so it is not single-threaded.
@@ -297,7 +309,7 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
     {
         sortedSMFileDependencies.emplace(&objectFile);
     }
-    for (const SMFile *headerUnit : headerUnits)
+    for (const SMFile *headerUnit : headerUnitsSet)
     {
         sortedSMFileDependencies.emplace(headerUnit);
     }
@@ -379,7 +391,7 @@ void CppSourceTarget::adjustHeaderUnitsValueArrayPointers()
         headerUnitsValueArray.Reserve(headerUnitsValueArray.Size() + newHeaderUnitsSize, cacheAlloc);
     }
 
-    for (const SMFile *headerUnit : headerUnits)
+    for (const SMFile *headerUnit : headerUnitsSet)
     {
         if (headerUnit->isSMRuleFileOutdated)
         {
@@ -404,7 +416,27 @@ CSourceTargetType CppSourceTarget::getCSourceTargetType() const
     return CSourceTargetType::CppSourceTarget;
 }
 
-CppSourceTarget &CppSourceTarget::makeReqInclsUseable()
+CppSourceTarget &CppSourceTarget::initializeUseReqInclsFromReqIncls()
+{
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        if (useMiniTarget == UseMiniTarget::YES)
+        {
+            // Initialized in CppSourceTarget round 2
+        }
+    }
+    else
+    {
+        for (const InclNode &include : reqIncls)
+        {
+            actuallyAddInclude(useReqIncls, include.node->filePath, include.isStandard, include.ignoreHeaderDeps);
+        }
+    }
+
+    return *this;
+}
+
+CppSourceTarget &CppSourceTarget::initializeHuDirsFromReqIncls()
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -423,11 +455,6 @@ CppSourceTarget &CppSourceTarget::makeReqInclsUseable()
                                    include.ignoreHeaderDeps);
                 actuallyAddInclude(this, useReqHuDirs, include.node->filePath, include.isStandard,
                                    include.ignoreHeaderDeps);
-                actuallyAddInclude(useReqIncls, include.node->filePath, include.isStandard, include.ignoreHeaderDeps);
-            }
-            else
-            {
-                actuallyAddInclude(useReqIncls, include.node->filePath, include.isStandard, include.ignoreHeaderDeps);
             }
         }
     }
@@ -1114,11 +1141,11 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                     SM_FILE_TYPE::HEADER_UNIT, false);
                 oldHeaderUnits[i].foundFromCache = true;
                 oldHeaderUnits[i].indexInBuildCache = i;
-                headerUnits.emplace(&oldHeaderUnits[i]);
+                headerUnitsSet.emplace(&oldHeaderUnits[i]);
             }
             {
                 lock_guard l(builder.executeMutex);
-                for (SMFile *headerUnit : headerUnits)
+                for (SMFile *headerUnit : headerUnitsSet)
                 {
                     builder.updateBTargetsIterator =
                         builder.updateBTargets.emplace(builder.updateBTargetsIterator, headerUnit);

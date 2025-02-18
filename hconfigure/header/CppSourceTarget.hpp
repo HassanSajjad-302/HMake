@@ -114,7 +114,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     mutex headerUnitsMutex;
 
     // Written mutex locked in round 1 updateBTarget
-    phmap::flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnits;
+    flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnitsSet;
 
     vector<InclNodeTargetMap> useReqHuDirs;
     vector<InclNodeTargetMap> reqHuDirs;
@@ -201,7 +201,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     void adjustHeaderUnitsValueArrayPointers();
     CSourceTargetType getCSourceTargetType() const override;
 
-    CppSourceTarget &makeReqInclsUseable();
+    CppSourceTarget &initializeUseReqInclsFromReqIncls();
+    CppSourceTarget &initializeHuDirsFromReqIncls();
     static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, const string &sourceFile,
                                       CppSourceTarget *target);
     static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Node *sourceFileNode, CppSourceTarget *target);
@@ -239,6 +240,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     template <typename... U> CppSourceTarget &sourceFiles(const string &srcFile, U... sourceFilePString);
     template <typename... U> CppSourceTarget &moduleFiles(const string &modFile, U... moduleFilePString);
     template <typename... U> CppSourceTarget &interfaceFiles(const string &modFile, U... moduleFilePString);
+    template <typename... U> CppSourceTarget &headerUnits(const string &headerUnit, U... headerUnitsString);
     void parseRegexSourceDirs(bool assignToSourceNodes, const string &sourceDirectory, string regex, bool recursive);
     template <typename... U> CppSourceTarget &sourceDirectories(const string &sourceDirectory, U... directories);
     template <typename... U> CppSourceTarget &moduleDirectories(const string &moduleDirectory, U... directories);
@@ -663,6 +665,31 @@ template <typename... U> CppSourceTarget &CppSourceTarget::interfaceFiles(const 
     if constexpr (sizeof...(moduleFilePString))
     {
         return interfaceFiles(moduleFilePString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const string &headerUnit, U... headerUnitsString)
+{
+    if (evaluate(UseMiniTarget::YES))
+    {
+        if constexpr (bsMode == BSMode::CONFIGURE)
+        {
+            using namespace Indices::ConfigCache;
+            Node *node = Node::getNodeFromNonNormalizedString(headerUnit, true);
+            Node *inclNode =
+                Node::getNodeFromNormalizedString(path(node->filePath).parent_path().string(), false);
+            buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
+            buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(inclNode->getValue(), cacheAlloc);
+        }
+    }
+
+    if constexpr (sizeof...(headerUnitsString))
+    {
+        return sourceFiles(headerUnitsString...);
     }
     else
     {
