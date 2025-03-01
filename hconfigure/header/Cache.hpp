@@ -7,9 +7,7 @@ import "TargetType.hpp";
 #include "nlohmann/json.hpp";
 import <vector>;
 #else
-#include "ConfigType.hpp"
 #include "PlatformSpecific.hpp"
-#include "TargetType.hpp"
 #include "nlohmann/json.hpp"
 #include <vector>
 #endif
@@ -20,7 +18,6 @@ struct Cache
 {
     Json cacheFileJson;
     string sourceDirectoryPath;
-    ConfigType configurationType;
     // isToolInVSToolsArray to be used only on Windows. Determines if the index of tool is in VSTools array or is in
     // plain array. In VSTools array, compiler and linker also have include-directories and library-directories with
     // them which are loaded from toolsCache global variable.
@@ -32,7 +29,6 @@ struct Cache
     unsigned selectedArchiverArrayIndex;
     bool isScannerInToolsArray;
     unsigned selectedScannerArrayIndex;
-    enum TargetType libraryType;
     Json cacheVariables;
     vector<string> configureExeBuildScript;
     vector<string> buildExeBuildScript;

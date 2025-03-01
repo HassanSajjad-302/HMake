@@ -1,6 +1,8 @@
 #include "Snapshot.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "rapidhash/rapidhash.h"
+#include <iostream>
+#include <stacktrace>
 #include <utility>
 
 using std::filesystem::recursive_directory_iterator;
@@ -99,13 +101,14 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     if (actual.size() != expected)
     {
         bool breakpoint = true;
-        printMessage(FORMAT("Actual {}\tExpected {}\n",actual.size(), expected));
+        printMessage(FORMAT("Actual {}\tExpected {}\n", actual.size(), expected));
 
-        for(const NodeSnap *nodeSnap : actual)
+        for (const NodeSnap *nodeSnap : actual)
         {
-           printMessage(nodeSnap->nodePath.string() + '\n');
+            printMessage(nodeSnap->nodePath.string() + '\n');
         }
-         breakpoint = true;
+        breakpoint = true;
+        std::cout << std::stacktrace::current() << std::endl;
     }
     return actual.size() == expected;
 }

@@ -9,7 +9,6 @@ import <memory>;
 #else
 #include "BTarget.hpp"
 #include "ConfigType.hpp"
-#include "DSC.hpp"
 #include "LinkOrArchiveTarget.hpp"
 #include <memory>
 #endif
@@ -17,18 +16,6 @@ import <memory>;
 using std::shared_ptr;
 
 class CppSourceTarget;
-
-enum class GenerateModuleData : char
-{
-    NO,
-    YES,
-};
-
-enum class UseModuleData : char
-{
-    NO,
-    YES,
-};
 
 enum class AssignStandardCppTarget : char
 {
@@ -84,28 +71,38 @@ enum class BuildTestsAndExamplesExplicitBuild : char
     YES,
 };
 
-struct Configuration : BTarget
+struct CppTargetAndParentDirNode
 {
+    CppSourceTarget *target;
+    Node *incl;
+};
+
+class CSourceTarget;
+class Configuration : public BTarget
+{
+    DSC<CppSourceTarget> *stdCppTarget = nullptr;
+
+  public:
+    flat_hash_map<Node *, CppTargetAndParentDirNode> moduleFilesToTarget;
     vector<CppSourceTarget *> cppSourceTargets;
     vector<LinkOrArchiveTarget *> linkOrArchiveTargets;
     vector<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;
     vector<CSourceTarget *> prebuiltTargets;
     CppCompilerFeatures compilerFeatures;
+    CppTargetFeatures cppTargetFeatures;
+    CompilerFlags compilerFlags;
     PrebuiltLinkerFeatures prebuiltLinkOrArchiveTargetFeatures;
     PrebuiltBasicFeatures prebuiltBasicFeatures;
     LinkerFeatures linkerFeatures;
     TargetType targetType = TargetType::LIBRARY_STATIC;
-    GenerateModuleData generateModuleData = GenerateModuleData::NO;
-    AssignStandardCppTarget assignStandardCppTarget = AssignStandardCppTarget::NO;
+    AssignStandardCppTarget assignStandardCppTarget = AssignStandardCppTarget::YES;
     BuildTests buildTests = BuildTests::NO;
     BuildExamples buildExamples = BuildExamples::NO;
     TestsExplicit testsExplicit = TestsExplicit::NO;
     ExamplesExplicit examplesExplicit = ExamplesExplicit::NO;
 
-    DSC<CppSourceTarget> *stdCppTarget = nullptr;
     bool archiving = false;
 
-    CppSourceTarget &getCppPreprocess(const string &name_);
     CppSourceTarget &getCppObject(const string &name_);
     CppSourceTarget &getCppObject(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
     CppSourceTarget &getCppObjectAddStdTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
@@ -133,11 +130,9 @@ struct Configuration : BTarget
     DSC<CppSourceTarget> &getCppExeDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppExeDSC(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_,
                                        bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSC(const string &name_, TargetType targetType_ = cache.libraryType,
-                                          bool defines = false, string define = "");
+    DSC<CppSourceTarget> &getCppTargetDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppTargetDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                          const string &name_, TargetType targetType_ = cache.libraryType,
-                                          bool defines = false, string define = "");
+                                          const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppStaticDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppStaticDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                           const string &name_, bool defines = false, string define = "");
@@ -151,12 +146,10 @@ struct Configuration : BTarget
 
     // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
 
-    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &directory,
-                                            TargetType targetType_ = cache.libraryType, bool defines = false,
+    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &directory, bool defines = false,
                                             string define = "");
     DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &prebuiltName, const string &directory,
-                                            TargetType targetType_ = cache.libraryType, bool defines = false,
-                                            string define = "");
+                                            bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppStaticDSC_P(const string &name_, const string &directory, bool defines = false,
                                             string define = "");
 
@@ -164,7 +157,7 @@ struct Configuration : BTarget
                                             string define = "");
 
     // These NoName functions do not prepend configuration name to the target name.
-    CppSourceTarget &getCppPreprocessNoName(const string &name_);
+
     CppSourceTarget &getCppObjectNoName(const string &name_);
     // non-DSC functions do not add the Std target as dependency, so we define a new function with
     CppSourceTarget &getCppObjectNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
@@ -192,11 +185,9 @@ struct Configuration : BTarget
     DSC<CppSourceTarget> &getCppExeDSCNoName(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppExeDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                              const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSCNoName(const string &name_, TargetType targetType_ = cache.libraryType,
-                                                bool defines = false, string define = "");
+    DSC<CppSourceTarget> &getCppTargetDSCNoName(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppTargetDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                const string &name_, TargetType targetType_ = cache.libraryType,
-                                                bool defines = false, string define = "");
+                                                const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppStaticDSCNoName(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppStaticDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                 const string &name_, bool defines = false, string define = "");
@@ -210,12 +201,10 @@ struct Configuration : BTarget
 
     // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
 
-    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &directory,
-                                                  TargetType targetType_ = cache.libraryType, bool defines = false,
+    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &directory, bool defines = false,
                                                   string define = "");
     DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName,
-                                                  const string &directory, TargetType targetType_ = cache.libraryType,
-                                                  bool defines = false, string define = "");
+                                                  const string &directory, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppStaticDSC_PNoName(const string &name_, const string &directory, bool defines = false,
                                                   string define = "");
 
@@ -223,11 +212,13 @@ struct Configuration : BTarget
                                                   string define = "");
 
     explicit Configuration(const string &name_);
+    void initialize();
     static void markArchivePoint();
     template <typename T, typename... Property> Configuration &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
 };
 bool operator<(const Configuration &lhs, const Configuration &rhs);
+Configuration &getConfiguration(const string &name);
 
 template <typename T, typename... Property> Configuration &Configuration::assign(T property, Property... properties)
 {
@@ -239,14 +230,6 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         compilerFeatures.setConfigType(property);
         linkerFeatures.setConfigType(property);
-    }
-    else if constexpr (std::is_same_v<decltype(property), GenerateModuleData>)
-    {
-        generateModuleData = property;
-        if (generateModuleData == GenerateModuleData::YES)
-        {
-            assign(TreatModuleAsSource::YES);
-        }
     }
     else if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
     {
@@ -411,14 +394,6 @@ template <typename T, typename... Property> Configuration &Configuration::assign
         linkerFeatures.runtimeDebugging = property;
     }
     // CppCompilerFeatures
-    else if constexpr (std::is_same_v<decltype(property), CxxFlags>)
-    {
-        compilerFeatures.requirementCompilerFlags += property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Define>)
-    {
-        compilerFeatures.requirementCompileDefinitions.emplace(property);
-    }
     else if constexpr (std::is_same_v<decltype(property), Compiler>)
     {
         compilerFeatures.compiler = property;
@@ -487,13 +462,22 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         compilerFeatures.treatModuleAsSource = property;
     }
-    else if constexpr (std::is_same_v<decltype(property), Define>)
-    {
-        compilerFeatures.requirementCompileDefinitions.emplace(property);
-    }
     else if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
     {
         prebuiltLinkOrArchiveTargetFeatures.copyToExeDirOnNtOs = property;
+    }
+    // CppTargetFeatures
+    else if constexpr (std::is_same_v<decltype(property), Define>)
+    {
+        cppTargetFeatures.requirementCompileDefinitions.emplace(property);
+    }
+    else if constexpr (std::is_same_v<decltype(property), CxxFlags>)
+    {
+        cppTargetFeatures.requirementCompilerFlags += property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Define>)
+    {
+        cppTargetFeatures.requirementCompileDefinitions.emplace(property);
     }
     // Linker Features
     else if constexpr (std::is_same_v<decltype(property), LinkFlags>)
@@ -531,10 +515,6 @@ template <typename T> bool Configuration::evaluate(T property) const
     if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
     {
         return useMiniTarget == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), GenerateModuleData>)
-    {
-        return generateModuleData == property;
     }
     else if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
     {

@@ -2,8 +2,7 @@
 #define HMAKE_SMFILE_HPP
 
 #ifdef USE_HEADER_UNITS
-import "nlohmann/json.hpp";
-import "InclNodeTargetMap.hpp";
+import "SpecialNodes.hpp";
 import "ObjectFile.hpp";
 import <filesystem>;
 import <list>;
@@ -11,7 +10,7 @@ import <utility>;
 import <vector>;
 import <atomic>;
 #else
-#include "InclNodeTargetMap.hpp"
+#include "SpecialNodes.hpp"
 #include "ObjectFile.hpp"
 #include "btree.h"
 #include "nlohmann/json.hpp"
@@ -64,10 +63,7 @@ class SourceNode : public ObjectFile
     static void initializeSourceJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
                                      const CppSourceTarget &target);
     void updateBTarget(Builder &builder, unsigned short round) override;
-    void populateModuleData(Builder &builder);
-    bool checkHeaderFiles2(const Node *compareNode, bool alsoCheckHeaderUnit) const;
     bool checkHeaderFiles(const Node *compareNode) const;
-    InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode);
     void setSourceNodeFileStatus();
 };
 
@@ -141,7 +137,6 @@ struct SMFile : SourceNode // Scanned Module Rule
     // ignoreHeaderDeps is true
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
     SMFile(CppSourceTarget *target_, Node *node_);
-    SMFile(CppSourceTarget *target_, Node *node_, SM_FILE_TYPE type_);
     SMFile(CppSourceTarget *target_, Node *node_, SM_FILE_TYPE type_, bool olderHeaderUnit);
     void setSMRulesJson(string_view smRulesJson);
     void checkHeaderFilesIfSMRulesJsonSet();
@@ -151,8 +146,9 @@ struct SMFile : SourceNode // Scanned Module Rule
     void saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang);
     static void initializeModuleJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
                                      const CppSourceTarget &target);
+    InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
     void initializeHeaderUnits(Builder &builder);
-    void addNewBTargetInFinalBTargets(Builder &builder);
+    void addNewBTargetInFinalBTargetsRound1(Builder &builder);
     void setSMFileType(Builder &builder);
     void isObjectFileOutdatedComparedToSourceFileAndItsDeps();
     void isSMRulesFileOutdatedComparedToSourceFileAndItsDeps();
@@ -166,7 +162,6 @@ struct SMFile : SourceNode // Scanned Module Rule
     string getModuleCompileCommandPrintLastHalf() const;
 };
 
-/*void to_json(Json &j, const SMFile &smFile);
-void to_json(Json &j, const SMFile *smFile);*/
+inline deque<SMFile> globalSMFiles;
 
 #endif // HMAKE_SMFILE_HPP

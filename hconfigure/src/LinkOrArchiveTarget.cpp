@@ -235,7 +235,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
     if (atomic_ref(fileStatus).load())
     {
-        assignFileStatusToDependents(realBTarget);
+        assignFileStatusToDependents(0);
     }
 }
 
@@ -1060,7 +1060,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         if (acpSettings.tool.printLevel != PathPrintLevel::NO)
         {
             linkOrArchiveCommandPrint +=
-                getReducedPath(archiver.bTPath.make_preferred().string(), acpSettings.tool) + " ";
+                getReducedPath(archiver.bTPath.lexically_normal().string(), acpSettings.tool) + " ";
         }
 
         if (acpSettings.infrastructureFlags)
@@ -1093,7 +1093,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         if (lcpSettings.tool.printLevel != PathPrintLevel::NO)
         {
             linkOrArchiveCommandPrint +=
-                getReducedPath(linker.bTPath.make_preferred().string(), lcpSettings.tool) + " ";
+                getReducedPath(linker.bTPath.lexically_normal().string(), lcpSettings.tool) + " ";
         }
 
         if (lcpSettings.infrastructureFlags)

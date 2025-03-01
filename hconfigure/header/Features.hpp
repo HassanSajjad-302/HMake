@@ -4,6 +4,7 @@
 import "BuildTools.hpp";
 import "Cache.hpp";
 import "InclNodeTargetMap.hpp";
+import "FeaturesConvenienceFunctions.hpp";
 import "OS.hpp";
 import "SpecialNodes.hpp";
 import "TargetType.hpp";
@@ -11,7 +12,7 @@ import <vector>;
 #else
 #include "BuildTools.hpp"
 #include "Cache.hpp"
-#include "InclNodeTargetMap.hpp"
+#include "FeaturesConvenienceFunctions.hpp"
 #include "OS.hpp"
 #include "SpecialNodes.hpp"
 #include "TargetType.hpp"
@@ -203,6 +204,14 @@ enum class Visibility : char
     PROTECTED,
 };
 
+enum class ConfigType : char
+{
+    DEBUG,
+    RELEASE,
+    PROFILE,
+    NONE,
+};
+
 enum class AddressSanitizer : char
 {
     OFF,
@@ -331,6 +340,7 @@ enum class TargetOS : char
     VMS,
     VXWORKS,
     WINDOWS,
+    NONE,
 };
 
 enum class Language : char
@@ -740,7 +750,32 @@ struct LinkerFeatures
     void setConfigType(ConfigType configType);
 };
 
-struct CppCompilerFeatures
+// Separate this in GccCompilerFlags and MSVCCompilerFlags
+struct CompilerFlags
+{
+    // GCC
+    string OPTIONS;
+    string OPTIONS_COMPILE_CPP;
+    string OPTIONS_COMPILE;
+    string DEFINES_COMPILE_CPP;
+    string LANG;
+
+    string TRANSLATE_INCLUDE;
+    // MSVC
+    string DOT_CC_COMPILE;
+    string DOT_ASM_COMPILE;
+    string DOT_ASM_OUTPUT_COMPILE;
+    string DOT_LD_ARCHIVE;
+    string PCH_FILE_COMPILE;
+    string PCH_SOURCE_COMPILE;
+    string PCH_HEADER_COMPILE;
+    string PDB_CFLAG;
+    string ASMFLAGS_ASM;
+    string CPP_FLAGS_COMPILE_CPP;
+    string CPP_FLAGS_COMPILE;
+};
+
+struct CppCompilerFeatures : public FeatureConvenienceFunctions<CppCompilerFeatures>
 {
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
@@ -752,12 +787,12 @@ struct CppCompilerFeatures
     LTOMode ltoMode = LTOMode::FULL;
     RuntimeLink runtimeLink = RuntimeLink::SHARED;
     RuntimeDebugging runtimeDebugging = RuntimeDebugging::ON;
-    TargetOS targetOs;
+    TargetOS targetOs = TargetOS::NONE;
     DebugSymbols debugSymbols = DebugSymbols::ON;
     Profiling profiling = Profiling::OFF;
     Visibility localVisibility = Visibility::HIDDEN;
 
-    ConfigType configurationType;
+    ConfigType configType;
 
     // Following two are initialized in constructor
     // AddressModel and Architecture to target for.
@@ -800,42 +835,179 @@ struct CppCompilerFeatures
     Threading threading = Threading::MULTI;
     UseMiniTarget useMiniTarget = UseMiniTarget::YES;
 
+    void initialize(Configuration &config);
+
+    void setCpuType();
+    bool isCpuTypeG7();
+
+    void setCompilerFromVSTools(Configuration &config, const struct VSTools &vsTools);
+    void setCompilerFromLinuxTools(Configuration &config, const struct LinuxTools &linuxTools);
+    void setConfigType(ConfigType configType_);
+    CompilerFlags getCompilerFlags() const;
+    template <typename T> bool evaluate(T property) const;
+};
+
+template <typename T> bool CppCompilerFeatures::evaluate(T property) const
+{
+    if constexpr (std::is_same_v<decltype(property), CSourceTargetEnum>)
+    {
+        return cSourceTarget == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Compiler>)
+    {
+        return compiler == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BTFamily>)
+    {
+        return compiler.bTFamily == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Threading>)
+    {
+        return threading == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CxxSTD>)
+    {
+        return cxxStd == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CxxSTDDialect>)
+    {
+        return cxxStdDialect == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Optimization>)
+    {
+        return optimization == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Inlining>)
+    {
+        return inlining == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Warnings>)
+    {
+        return warnings == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), WarningsAsErrors>)
+    {
+        return warningsAsErrors == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), ExceptionHandling>)
+    {
+        return exceptionHandling == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AsyncExceptions>)
+    {
+        return asyncExceptions == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RTTI>)
+    {
+        return rtti == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), ExternCNoThrow>)
+    {
+        return externCNoThrow == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), StdLib>)
+    {
+        return stdLib == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), InstructionSet>)
+    {
+        return instructionSet == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CpuType>)
+    {
+        return cpuType == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TargetOS>)
+    {
+        return targetOs == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DebugSymbols>)
+    {
+        return debugSymbols == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Profiling>)
+    {
+        return profiling == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Visibility>)
+    {
+        return localVisibility == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
+    {
+        return addressSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LeakSanitizer>)
+    {
+        return leakSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), ThreadSanitizer>)
+    {
+        return threadSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UndefinedSanitizer>)
+    {
+        return undefinedSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Coverage>)
+    {
+        return coverage == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LTO>)
+    {
+        return lto == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LTOMode>)
+    {
+        return ltoMode == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RuntimeLink>)
+    {
+        return runtimeLink == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Arch>)
+    {
+        return arch == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddressModel>)
+    {
+        return addModel == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DebugStore>)
+    {
+        return debugStore == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RuntimeDebugging>)
+    {
+        return runtimeDebugging == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TranslateInclude>)
+    {
+        return translateInclude == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
+    {
+        return treatModuleAsSource == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
+    {
+        return useMiniTarget == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), bool>)
+    {
+        return property;
+    }
+    else
+    {
+        static_assert(false && "No property matched in CppTargetFeatures::evaluate\n");
+    }
+}
+
+struct CppTargetFeatures
+{
     vector<InclNode> reqIncls;
     string requirementCompilerFlags;
     flat_hash_set<Define> requirementCompileDefinitions;
-    CppCompilerFeatures();
-    void setCompilerFromVSTools(const struct VSTools &vsTools);
-    void setCompilerFromLinuxTools(const struct LinuxTools &linuxTools);
-    void setConfigType(ConfigType configType);
-    template <typename... U> CppCompilerFeatures &privateIncludes(const string &include, U... includeDirectoryPString);
-    static bool actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool isStandard = false,
-                                   bool ignoreHeaderDeps = false);
-    static bool actuallyAddInclude(CppSourceTarget *target, vector<InclNodeTargetMap> &inclNodes,
-                                   const string &include, bool isStandard = false, bool ignoreHeaderDeps = false);
 };
-
-template <typename... U>
-CppCompilerFeatures &CppCompilerFeatures::privateIncludes(const string &include, U... includeDirectoryPString)
-{
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-    }
-    else
-    {
-        actuallyAddInclude(reqIncls, include, false);
-    }
-
-    if constexpr (sizeof...(includeDirectoryPString))
-    {
-        return privateIncludes(includeDirectoryPString...);
-    }
-    else
-    {
-        return *this;
-    }
-}
 
 #endif // HMAKE_FEATURES_HPP

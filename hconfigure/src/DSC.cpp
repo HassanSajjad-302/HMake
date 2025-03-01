@@ -1,8 +1,12 @@
 
 #ifdef USE_HEADER_UNITS
+import "CppSourceTarget.hpp";
 import "DSC.hpp";
+import "LinkOrArchiveTarget.hpp";
 #else
 #include "DSC.hpp"
+#include "CppSourceTarget.hpp"
+#include "LinkOrArchiveTarget.hpp"
 #endif
 
 template <>
@@ -36,7 +40,7 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, c
     {
         if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
         {
-            if (ptr->compiler.bTFamily == BTFamily::MSVC)
+            if (ptr->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
             {
                 ptr->requirementCompileDefinitions.emplace(Define(define, "__declspec(dllexport)"));
             }
@@ -96,13 +100,13 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSource
 
     for (auto &[inclNode, cppSourceTarget] : stored->reqHuDirs)
     {
-        CppCompilerFeatures::actuallyAddInclude(ptr, ptr->reqHuDirs, inclNode.node->filePath,
-                                                inclNode.isStandard, inclNode.ignoreHeaderDeps);
+        actuallyAddInclude(ptr->reqHuDirs, ptr, inclNode.node->filePath, inclNode.isStandard,
+                           inclNode.ignoreHeaderDeps);
     }
     for (auto &[inclNode, cppSourceTarget] : stored->useReqHuDirs)
     {
-        CppCompilerFeatures::actuallyAddInclude(ptr, ptr->useReqHuDirs, inclNode.node->filePath,
-                                                inclNode.isStandard, inclNode.ignoreHeaderDeps);
+        actuallyAddInclude(ptr->useReqHuDirs, ptr, inclNode.node->filePath, inclNode.isStandard,
+                           inclNode.ignoreHeaderDeps);
     }
     ptr->requirementCompileDefinitions = stored->requirementCompileDefinitions;
     ptr->reqIncls = stored->reqIncls;

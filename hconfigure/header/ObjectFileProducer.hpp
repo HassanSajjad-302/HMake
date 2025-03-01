@@ -48,7 +48,7 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::p
 {
     requirementDeps.emplace(dep);
     usageRequirementDeps.emplace(dep);
-    realBTargets[2].addDependency(*dep);
+    addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return publicDeps(deps...);
@@ -59,7 +59,7 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::p
 template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::privateDeps(T *dep, const U... deps)
 {
     requirementDeps.emplace(dep);
-    realBTargets[2].addDependency(*dep);
+    addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return privateDeps(deps...);
@@ -70,7 +70,6 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::p
 template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::interfaceDeps(T *dep, const U... deps)
 {
     usageRequirementDeps.emplace(dep);
-    realBTargets[2].addDependency(*dep);
     if constexpr (sizeof...(deps))
     {
         return interfaceDeps(deps...);
@@ -86,17 +85,16 @@ T &ObjectFileProducerWithDS<T>::deps(T *dep, const Dependency dependency, const 
     {
         requirementDeps.emplace(dep);
         usageRequirementDeps.emplace(dep);
-        realBTargets[2].addDependency(*dep);
+        addDependency<2>(*dep);
     }
     else if (dependency == Dependency::PRIVATE)
     {
         requirementDeps.emplace(dep);
-        realBTargets[2].addDependency(*dep);
+        addDependency<2>(*dep);
     }
     else
     {
         usageRequirementDeps.emplace(dep);
-        realBTargets[2].addDependency(*dep);
     }
     if constexpr (sizeof...(deps))
     {

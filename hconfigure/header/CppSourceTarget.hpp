@@ -2,8 +2,8 @@
 #define HMAKE_CPPSOURCETARGET_HPP
 #ifdef USE_HEADER_UNITS
 import "BuildTools.hpp";
+import "Configuration.hpp";
 import "CSourceTarget.hpp";
-import "FeaturesConvenienceFunctions.hpp";
 import "HashedCommand.hpp";
 import "JConsts.hpp";
 import "RunCommand.hpp";
@@ -14,7 +14,7 @@ import <set>;
 #else
 #include "BuildTools.hpp"
 #include "CSourceTarget.hpp"
-#include "FeaturesConvenienceFunctions.hpp"
+#include "Configuration.hpp"
 #include "HashedCommand.hpp"
 #include "JConsts.hpp"
 #include "RunCommand.hpp"
@@ -33,30 +33,6 @@ struct SourceDirectory
     SourceDirectory(const string &sourceDirectory_, string regex_, bool recursive_ = false);
 };
 
-struct CompilerFlags
-{
-    // GCC
-    string OPTIONS;
-    string OPTIONS_COMPILE_CPP;
-    string OPTIONS_COMPILE;
-    string DEFINES_COMPILE_CPP;
-    string LANG;
-
-    string TRANSLATE_INCLUDE;
-    // MSVC
-    string DOT_CC_COMPILE;
-    string DOT_ASM_COMPILE;
-    string DOT_ASM_OUTPUT_COMPILE;
-    string DOT_LD_ARCHIVE;
-    string PCH_FILE_COMPILE;
-    string PCH_SOURCE_COMPILE;
-    string PCH_HEADER_COMPILE;
-    string PDB_CFLAG;
-    string ASMFLAGS_ASM;
-    string CPP_FLAGS_COMPILE_CPP;
-    string CPP_FLAGS_COMPILE;
-};
-
 struct InclNodePointerComparator
 {
     bool operator()(const InclNode &lhs, const InclNode &rhs) const;
@@ -66,16 +42,6 @@ struct ResolveRequirePathBTarget final : BTarget
 {
     CppSourceTarget *target;
     explicit ResolveRequirePathBTarget(CppSourceTarget *target_);
-    void updateBTarget(Builder &builder, unsigned short round) override;
-    string getTarjanNodeName() const override;
-};
-
-// TODO
-// Remove this. Instead use CppSourceTarget itself.
-struct AdjustHeaderUnitsBTarget final : BTarget
-{
-    CppSourceTarget *target;
-    explicit AdjustHeaderUnitsBTarget(CppSourceTarget *target_);
     void updateBTarget(Builder &builder, unsigned short round) override;
     string getTarjanNodeName() const override;
 };
@@ -97,9 +63,7 @@ inline phmap::parallel_flat_hash_map_m<RequireNameTargetId, SMFile *, RequireNam
 // TODO
 // HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
 // use -TC flag with MSVC
-class CppSourceTarget : public CppCompilerFeatures,
-                        public FeatureConvenienceFunctions<CppSourceTarget>,
-                        public CSourceTarget
+class CppSourceTarget : public CppTargetFeatures, public CSourceTarget
 {
     struct SMFileEqual
     {
@@ -122,17 +86,15 @@ class CppSourceTarget : public CppCompilerFeatures,
 
   public:
     mutex headerUnitsMutex;
-    mutex moduleDepsAccessMutex;
 
     // Written mutex locked in round 1 updateBTarget
-    phmap::flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnits;
+    flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnitsSet;
 
     vector<InclNodeTargetMap> useReqHuDirs;
     vector<InclNodeTargetMap> reqHuDirs;
 
     using BaseType = CSourceTarget;
 
-    TargetType compileTargetType;
     friend struct PostCompile;
 
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
@@ -150,7 +112,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     vector<SMFile> oldHeaderUnits;
 
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
-    AdjustHeaderUnitsBTarget adjustHeaderUnitsBTarget{this};
 
     Node *buildCacheFilesDirPathNode = nullptr;
     // requirementIncludes size before populateTransitiveProperties function is called
@@ -165,9 +126,6 @@ class CppSourceTarget : public CppCompilerFeatures,
     // set to true if a source or smrule of a header-unit is updated so that latest cache could be stored.
     bool headerUnitScanned = false;
 
-    void setCpuType();
-    bool isCpuTypeG7();
-
     void setCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
     inline string &getSourceCompileCommandPrintFirstHalf();
@@ -176,14 +134,11 @@ class CppSourceTarget : public CppCompilerFeatures,
     void resolveRequirePaths();
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);
-    void populateSourceNodesConfigureTime();
-    void parseModuleSourceFilesConfigureTime(Builder &builder);
     void populateResolveRequirePathDependencies();
-    string getInfrastructureFlags(bool showIncludes) const;
+    string getInfrastructureFlags(const Compiler &compiler, bool showIncludes) const;
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
     string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
     PostCompile CompileSMFile(const SMFile &smFile);
-    string getExtension() const;
     PostCompile updateSourceNodeBTarget(const SourceNode &sourceNode);
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
@@ -193,21 +148,19 @@ class CppSourceTarget : public CppCompilerFeatures,
     void writeTargetConfigCacheAtConfigureTime(bool before);
     void readConfigCacheAtBuildTime();
     string getTarjanNodeName() const override;
-    CompilerFlags getCompilerFlags();
 
-    CppSourceTarget(const string &name_, TargetType targetType);
-    CppSourceTarget(bool buildExplicit, const string &name_, TargetType targetType);
-    CppSourceTarget(const string &name_, TargetType targetType, Configuration *configuration_);
-    CppSourceTarget(bool buildExplicit, const string &name_, TargetType targetType, Configuration *configuration_);
+    CppSourceTarget(const string &name_);
+    CppSourceTarget(bool buildExplicit, const string &name_);
+    CppSourceTarget(const string &name_, Configuration *configuration_);
+    CppSourceTarget(bool buildExplicit, const string &name_, Configuration *configuration_);
 
-    CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, TargetType targetType);
-    CppSourceTarget(string buildCacheFilesDirPath_, bool buildExplicit, const string &name_, TargetType targetType);
-    CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, TargetType targetType,
-                    Configuration *configuration_);
-    CppSourceTarget(string buildCacheFilesDirPath_, bool buildExplicit, const string &name_, TargetType targetType,
+    CppSourceTarget(string buildCacheFilesDirPath_, const string &name_);
+    CppSourceTarget(string buildCacheFilesDirPath_, bool buildExplicit, const string &name_);
+    CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, Configuration *configuration_);
+    CppSourceTarget(string buildCacheFilesDirPath_, bool buildExplicit, const string &name_,
                     Configuration *configuration_);
 
-    void initializeCppSourceTarget(TargetType targetType, const string &name_, string buildCacheFilesDirPath);
+    void initializeCppSourceTarget(const string &name_, string buildCacheFilesDirPath);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
                         LinkOrArchiveTarget *linkOrArchiveTarget) const override;
@@ -215,7 +168,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     void adjustHeaderUnitsValueArrayPointers();
     CSourceTargetType getCSourceTargetType() const override;
 
-    CppSourceTarget &makeReqInclsUseable();
+    CppSourceTarget &initializeUseReqInclsFromReqIncls();
+    CppSourceTarget &initializeHuDirsFromReqIncls();
     static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, const string &sourceFile,
                                       CppSourceTarget *target);
     static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Node *sourceFileNode, CppSourceTarget *target);
@@ -253,6 +207,7 @@ class CppSourceTarget : public CppCompilerFeatures,
     template <typename... U> CppSourceTarget &sourceFiles(const string &srcFile, U... sourceFilePString);
     template <typename... U> CppSourceTarget &moduleFiles(const string &modFile, U... moduleFilePString);
     template <typename... U> CppSourceTarget &interfaceFiles(const string &modFile, U... moduleFilePString);
+    template <typename... U> CppSourceTarget &headerUnits(const string &headerUnit, U... headerUnitsString);
     void parseRegexSourceDirs(bool assignToSourceNodes, const string &sourceDirectory, string regex, bool recursive);
     template <typename... U> CppSourceTarget &sourceDirectories(const string &sourceDirectory, U... directories);
     template <typename... U> CppSourceTarget &moduleDirectories(const string &moduleDirectory, U... directories);
@@ -270,7 +225,8 @@ class CppSourceTarget : public CppCompilerFeatures,
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     CppSourceTarget &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
-    template <Dependency dependency = Dependency::PRIVATE, typename T> void assignCommonFeature(T property);
+    template <typename T, typename... Argument>
+    string GET_FLAG_evaluate(T condition, const string &flags, Argument... arguments) const;
 }; // class Target
 
 bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
@@ -279,7 +235,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::publicDeps(CppSourceT
 {
     requirementDeps.emplace(dep);
     usageRequirementDeps.emplace(dep);
-    realBTargets[2].addDependency(*dep);
+    addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return publicDeps(deps...);
@@ -290,7 +246,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::publicDeps(CppSourceT
 template <typename... U> CppSourceTarget &CppSourceTarget::privateDeps(CppSourceTarget *dep, const U... deps)
 {
     requirementDeps.emplace(dep);
-    realBTargets[2].addDependency(*dep);
+    addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return privateDeps(deps...);
@@ -301,7 +257,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::privateDeps(CppSource
 template <typename... U> CppSourceTarget &CppSourceTarget::interfaceDeps(CppSourceTarget *dep, const U... deps)
 {
     usageRequirementDeps.emplace(dep);
-    realBTargets[2].addDependency(*dep);
+    addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return interfaceDeps(deps...);
@@ -316,17 +272,17 @@ CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const Dependency de
     {
         requirementDeps.emplace(dep);
         usageRequirementDeps.emplace(dep);
-        realBTargets[2].addDependency(*dep);
+        addDependency<2>(*dep);
     }
     else if (dependency == Dependency::PRIVATE)
     {
         requirementDeps.emplace(dep);
-        realBTargets[2].addDependency(*dep);
+        addDependency<2>(*dep);
     }
     else
     {
         usageRequirementDeps.emplace(dep);
-        realBTargets[2].addDependency(*dep);
+        addDependency<2>(*dep);
     }
     if constexpr (sizeof...(deps))
     {
@@ -425,8 +381,8 @@ CppSourceTarget &CppSourceTarget::publicHUIncludes(const string &include, U... i
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(this, reqHuDirs, include);
-            actuallyAddInclude(this, useReqHuDirs, include);
+            actuallyAddInclude(reqHuDirs, this, include);
+            actuallyAddInclude(useReqHuDirs, this, include);
             actuallyAddInclude(reqIncls, include);
             actuallyAddInclude(useReqIncls, include);
         }
@@ -461,7 +417,7 @@ CppSourceTarget &CppSourceTarget::privateHUIncludes(const string &include, U... 
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(this, reqHuDirs, include);
+            actuallyAddInclude(reqHuDirs, this, include);
             actuallyAddInclude(reqIncls, include);
         }
         else
@@ -494,7 +450,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const string &include, U..
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(this, useReqHuDirs, include);
+            actuallyAddInclude(useReqHuDirs, this, include);
             actuallyAddInclude(useReqIncls, include);
         }
         else
@@ -527,8 +483,8 @@ CppSourceTarget &CppSourceTarget::publicHUDirectories(const string &include, U..
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(this, reqHuDirs, include);
-            actuallyAddInclude(this, useReqHuDirs, include);
+            actuallyAddInclude(reqHuDirs, this, include);
+            actuallyAddInclude(useReqHuDirs, this, include);
         }
     }
 
@@ -556,7 +512,7 @@ CppSourceTarget &CppSourceTarget::privateHUDirectories(const string &include, U.
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(this, reqHuDirs, include);
+            actuallyAddInclude(reqHuDirs, this, include);
         }
     }
 
@@ -584,7 +540,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const string &include, 
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(this, useReqHuDirs, include);
+            actuallyAddInclude(useReqHuDirs, this, include);
         }
     }
 
@@ -677,6 +633,30 @@ template <typename... U> CppSourceTarget &CppSourceTarget::interfaceFiles(const 
     if constexpr (sizeof...(moduleFilePString))
     {
         return interfaceFiles(moduleFilePString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const string &headerUnit, U... headerUnitsString)
+{
+    if (evaluate(UseMiniTarget::YES))
+    {
+        if constexpr (bsMode == BSMode::CONFIGURE)
+        {
+            using namespace Indices::ConfigCache;
+            Node *node = Node::getNodeFromNonNormalizedString(headerUnit, true);
+            Node *inclNode = Node::getNodeFromNormalizedString(path(node->filePath).parent_path().string(), false);
+            buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
+            buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(inclNode->getValue(), cacheAlloc);
+        }
+    }
+
+    if constexpr (sizeof...(headerUnitsString))
+    {
+        return sourceFiles(headerUnitsString...);
     }
     else
     {
@@ -779,23 +759,7 @@ CppSourceTarget &CppSourceTarget::rModuleDirectoriesRE(const string &moduleDirec
 template <Dependency dependency, typename T, typename... Property>
 CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
 {
-    if constexpr (std::is_same_v<decltype(property), CSourceTargetEnum>)
-    {
-        cSourceTarget = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Compiler>)
-    {
-        compiler = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), BTFamily>)
-    {
-        compiler.bTFamily = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), path>)
-    {
-        compiler.bTPath = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CxxFlags>)
+    if constexpr (std::is_same_v<decltype(property), CxxFlags>)
     {
         if constexpr (dependency == Dependency::PRIVATE)
         {
@@ -827,80 +791,26 @@ CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
             usageRequirementCompileDefinitions.emplace(property);
         }
     }
-    else if constexpr (std::is_same_v<decltype(property), Threading>)
-    {
-        threading = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CxxSTD>)
-    {
-        cxxStd = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CxxSTDDialect>)
-    {
-        cxxStdDialect = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Optimization>)
-    {
-        optimization = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Inlining>)
-    {
-        inlining = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Warnings>)
-    {
-        warnings = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), WarningsAsErrors>)
-    {
-        warningsAsErrors = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ExceptionHandling>)
-    {
-        exceptionHandling = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AsyncExceptions>)
-    {
-        asyncExceptions = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), RTTI>)
-    {
-        rtti = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ExternCNoThrow>)
-    {
-        externCNoThrow = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), StdLib>)
-    {
-        stdLib = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TargetType>)
-    {
-        compileTargetType = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), InstructionSet>)
-    {
-        instructionSet = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CpuType>)
-    {
-        cpuType = property;
-    }
+    // TODO
+    // Will look into that
+
     else if constexpr (std::is_same_v<decltype(property), TranslateInclude>)
     {
-        translateInclude = property;
+        // translateInclude = property;
     }
     else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
     {
-        treatModuleAsSource = property;
+        // treatModuleAsSource = property;
     }
+    // TODO
+    // Will see what is this doing.
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
         property;
     }
     else
     {
+        static_assert(false && "Unknown feature");
         assignCommonFeature(property);
     }
     if constexpr (sizeof...(properties))
@@ -915,229 +825,23 @@ CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
 
 template <typename T> bool CppSourceTarget::evaluate(T property) const
 {
-    if constexpr (std::is_same_v<decltype(property), CSourceTargetEnum>)
-    {
-        return cSourceTarget == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Compiler>)
-    {
-        return compiler == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), BTFamily>)
-    {
-        return compiler.bTFamily == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Threading>)
-    {
-        return threading == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CxxSTD>)
-    {
-        return cxxStd == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CxxSTDDialect>)
-    {
-        return cxxStdDialect == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Optimization>)
-    {
-        return optimization == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Inlining>)
-    {
-        return inlining == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Warnings>)
-    {
-        return warnings == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), WarningsAsErrors>)
-    {
-        return warningsAsErrors == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ExceptionHandling>)
-    {
-        return exceptionHandling == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AsyncExceptions>)
-    {
-        return asyncExceptions == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), RTTI>)
-    {
-        return rtti == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ExternCNoThrow>)
-    {
-        return externCNoThrow == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), StdLib>)
-    {
-        return stdLib == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TargetType>)
-    {
-        return compileTargetType == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), InstructionSet>)
-    {
-        return instructionSet == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CpuType>)
-    {
-        return cpuType == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TargetOS>)
-    {
-        return targetOs == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), DebugSymbols>)
-    {
-        return debugSymbols == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Profiling>)
-    {
-        return profiling == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Visibility>)
-    {
-        return localVisibility == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
-    {
-        return addressSanitizer == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), LeakSanitizer>)
-    {
-        return leakSanitizer == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ThreadSanitizer>)
-    {
-        return threadSanitizer == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), UndefinedSanitizer>)
-    {
-        return undefinedSanitizer == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Coverage>)
-    {
-        return coverage == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), LTO>)
-    {
-        return lto == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), LTOMode>)
-    {
-        return ltoMode == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), RuntimeLink>)
-    {
-        return runtimeLink == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Arch>)
-    {
-        return arch == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AddressModel>)
-    {
-        return addModel == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), DebugStore>)
-    {
-        return debugStore == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), RuntimeDebugging>)
-    {
-        return runtimeDebugging == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TranslateInclude>)
-    {
-        return translateInclude == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
-    {
-        return treatModuleAsSource == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
-    {
-        return useMiniTarget == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), bool>)
-    {
-        return property;
-    }
-    else
-    {
-        compiler = property; // Just to fail the compilation. Ensures that all properties are handled.
-    }
+    return configuration->compilerFeatures.evaluate(property);
 }
 
-template <Dependency dependency, typename T> void CppSourceTarget::assignCommonFeature(T property)
+template <typename T, typename... Argument>
+string CppSourceTarget::GET_FLAG_evaluate(T condition, const string &flags, Argument... arguments) const
 {
-    if constexpr (std::is_same_v<decltype(property), TargetOS>)
+    if (evaluate(condition))
     {
-        targetOs = property;
+        return flags;
     }
-    else if constexpr (std::is_same_v<decltype(property), DebugSymbols>)
+    if constexpr (sizeof...(arguments))
     {
-        debugSymbols = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Profiling>)
-    {
-        profiling = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Visibility>)
-    {
-        localVisibility = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
-    {
-        addressSanitizer = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), LeakSanitizer>)
-    {
-        leakSanitizer = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ThreadSanitizer>)
-    {
-        threadSanitizer = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), UndefinedSanitizer>)
-    {
-        undefinedSanitizer = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Coverage>)
-    {
-        coverage = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), LTO>)
-    {
-        lto = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), RuntimeLink>)
-    {
-        runtimeLink = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Arch>)
-    {
-        arch = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AddressModel>)
-    {
-        addModel = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), DebugStore>)
-    {
-        debugStore = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), RuntimeDebugging>)
-    {
-        runtimeDebugging = property;
+        return GET_FLAG_evaluate(arguments...);
     }
     else
     {
-        compiler = property; // Just to fail the compilation. Ensures that all properties are handled.
+        return "";
     }
 }
 

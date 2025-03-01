@@ -32,9 +32,9 @@ struct PostCompile : RunCommand
                          string printCommandFirstHalf);
 
     bool ignoreHeaderFile(string_view child) const;
-    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, string &output, bool mustConsiderHeaderDeps) const;
-    void parseDepsFromGCCDepsOutput(SourceNode &sourceNode, bool mustConsiderHeaderDeps) const;
-    void parseHeaderDeps(SourceNode &sourceNode, bool mustConsiderHeaderDeps);
+    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, string &output) const;
+    void parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const;
+    void parseHeaderDeps(SourceNode &sourceNode);
 };
 
 #endif // HMAKE_RUNCOMMAND_HPP

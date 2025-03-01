@@ -39,20 +39,123 @@ bool IndexInTopologicalSortComparatorRoundTwo::operator()(const BTarget *lhs, co
            const_cast<BTarget *>(rhs)->realBTargets[2].indexInTopologicalSort;
 }
 
-RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_)
-    : TBT{bTarget_}, bTarget(bTarget_), round(round_)
+void RealBTarget::clearTarjanNodes()
 {
-    const uint32_t i = atomic_ref(tarjanNodesCount[round]).fetch_add(1);
-    tarjanNodesBTargets[round][i] = this;
+    for (RealBTarget *i : *tarjanNodes)
+    {
+        if (i)
+        {
+            i->nodeIndex = 0;
+            i->lowLink = 0;
+            i->initialized = false;
+            i->onStack = false;
+        }
+    }
 }
 
-RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const bool add)
-    : TBT{bTarget_}, bTarget(bTarget_), round(round_)
+void RealBTarget::findSCCS(unsigned short round)
+{
+    index = 0;
+    cycleExists = false;
+    cycle.clear();
+    nodesStack.clear();
+    topologicalSort.clear();
+    for (RealBTarget *tarjanNode : *tarjanNodes)
+    {
+        if (tarjanNode && !tarjanNode->initialized)
+        {
+            tarjanNode->strongConnect(round);
+        }
+    }
+}
+
+void RealBTarget::strongConnect(unsigned short round)
+{
+    initialized = true;
+    nodeIndex = index;
+    lowLink = index;
+    ++index;
+    nodesStack.emplace_back(this);
+    onStack = true;
+
+    for (auto &[bTarget, bTargetDepType] : dependencies)
+    {
+        RealBTarget &tarjandep = bTarget->realBTargets[round];
+        if (!tarjandep.initialized)
+        {
+            tarjandep.strongConnect(round);
+            lowLink = std::min(lowLink, tarjandep.lowLink);
+        }
+        else if (tarjandep.onStack)
+        {
+            lowLink = std::min(lowLink, tarjandep.nodeIndex);
+        }
+    }
+
+    if (lowLink == nodeIndex)
+    {
+        vector<RealBTarget *> tempCycle;
+        while (true)
+        {
+            RealBTarget *tarjanTemp = nodesStack.back();
+            nodesStack.pop_back();
+            tarjanTemp->onStack = false;
+            tempCycle.emplace_back(tarjanTemp);
+            if (tarjanTemp->bTarget == this->bTarget)
+            {
+                break;
+            }
+        }
+        if (tempCycle.size() > 1)
+        {
+            for (const RealBTarget *c : tempCycle)
+            {
+                cycle.emplace_back(const_cast<BTarget *>(c->bTarget));
+            }
+            cycleExists = true;
+            return;
+        }
+    }
+    topologicalSort.emplace_back(const_cast<BTarget *>(bTarget));
+}
+
+void RealBTarget::checkForCycle()
+{
+    if (cycleExists)
+    {
+        printErrorMessageColor("There is a Cyclic-Dependency.\n", settings.pcSettings.toolErrorOutput);
+        size_t cycleSize = cycle.size();
+        for (unsigned int i = 0; i < cycleSize; ++i)
+        {
+            if (i == cycleSize - 1)
+            {
+                printErrorMessageColor(
+                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[0]->getTarjanNodeName()),
+                    settings.pcSettings.toolErrorOutput);
+            }
+            else
+            {
+                printErrorMessageColor(
+                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[i + 1]->getTarjanNodeName()),
+                    settings.pcSettings.toolErrorOutput);
+            }
+        }
+        exit(EXIT_FAILURE);
+    }
+}
+
+RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarget(bTarget_)
+{
+    const uint32_t i = atomic_ref(tarjanNodesCount[round_]).fetch_add(1);
+    tarjanNodesBTargets[round_][i] = this;
+}
+
+RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const bool add) : bTarget(bTarget_)
 {
     if (add)
     {
-        const uint32_t i = atomic_ref(tarjanNodesCount[round]).fetch_add(1);
-        tarjanNodesBTargets[round][i] = this;
+        const uint32_t i = atomic_ref(tarjanNodesCount[round_]).fetch_add(1);
+        tarjanNodesBTargets[round_][i] = this;
     }
 }
 
@@ -116,6 +219,22 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
     }
 }
 
+void BTarget::assignFileStatusToDependents(const unsigned short round)
+{
+    for (auto &[dependent, bTargetDepType] : realBTargets[round].dependents)
+    {
+        if (bTargetDepType == BTargetDepType::FULL)
+        {
+            atomic_ref(dependent->fileStatus).store(true);
+        }
+    }
+}
+
+void BTarget::receiveNotificationPostBuildSpecification()
+{
+    postBuildSpecificationArray.emplace_back(this);
+}
+
 BTarget::~BTarget()
 {
 }
@@ -130,17 +249,6 @@ BTargetType BTarget::getBTargetType() const
     return static_cast<BTargetType>(0);
 }
 
-void BTarget::assignFileStatusToDependents(RealBTarget &realBTarget)
-{
-    for (auto &[dependent, bTargetDepType] : realBTarget.dependents)
-    {
-        if (bTargetDepType == BTargetDepType::FULL)
-        {
-            atomic_ref(dependent->fileStatus).store(true);
-        }
-    }
-}
-
 void BTarget::updateBTarget(Builder &, unsigned short)
 {
 }
@@ -153,13 +261,18 @@ void BTarget::copyJson()
 {
 }
 
+void BTarget::buildSpecificationCompleted()
+{
+}
+
 bool operator<(const BTarget &lhs, const BTarget &rhs)
 {
     return lhs.id < rhs.id;
 }
 
-// selectiveBuild is set for the children if hbuild is executed in parent directory. cmdTargets augments the
-// selectiveBuild targets especially for targets whose buildExplicit is true.
+// selectiveBuild is set for the children if hbuild is executed in parent directory. selectiveBuild is set for all
+// targets that are present in cmdTargets. if a target explicitBuild is true, then it must be present in cmdTargets for
+// its selectiveBuild to be true.
 void BTarget::setSelectiveBuild()
 {
     selectiveBuild = cmdTargets.contains(name);
@@ -211,9 +324,9 @@ void BTarget::setSelectiveBuild()
     }
 }
 
-// selectiveBuild is set for the parent if hbuild is executed in child directory. Used in hmake.cpp to rule out other
+// Returns true if hbuild is executed in the same directory or the child directory. Used in hmake.cpp to rule out other
 // configurations specifications
-bool BTarget::getSelectiveBuildChildDir()
+bool BTarget::isHBuildInSameOrChildDirectory() const
 {
     return childInParentPathNormalized(configureNode->filePath + slashc + name, currentNode->filePath);
 }

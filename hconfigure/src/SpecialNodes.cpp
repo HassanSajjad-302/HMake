@@ -63,3 +63,72 @@ bool InclNode::emplaceInList(list<InclNode> &includes, Node *node_, bool isStand
     includes.emplace_back(node_, isStandard_, ignoreHeaderDeps_);
     return true;
 }
+
+bool operator<(const InclNode &lhs, const InclNode &rhs)
+{
+    return std::tie(lhs.node, lhs.isStandard, lhs.ignoreHeaderDeps) <
+           std::tie(rhs.node, rhs.isStandard, rhs.ignoreHeaderDeps);
+}
+
+InclNodeTargetMap::InclNodeTargetMap(InclNode inclNode_, CppSourceTarget *cppSourceTarget_)
+    : inclNode(inclNode_), cppSourceTarget(cppSourceTarget_)
+{
+}
+
+InclNodePointerTargetMap::InclNodePointerTargetMap(const InclNode *inclNode_, CppSourceTarget *cppSourceTarget_)
+    : inclNode(inclNode_), cppSourceTarget(cppSourceTarget_)
+{
+}
+
+void actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool isStandard, bool ignoreHeaderDeps)
+{
+    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        bool found = false;
+        for (const InclNode &inclNode : inclNodes)
+        {
+            if (inclNode.node->myId == node->myId)
+            {
+                found = true;
+                printErrorMessage(FORMAT("Include {} is already added.\n", node->filePath));
+                break;
+            }
+        }
+        if (!found)
+        {
+            inclNodes.emplace_back(node, isStandard, ignoreHeaderDeps);
+        }
+    }
+    else
+    {
+        inclNodes.emplace_back(node, isStandard, ignoreHeaderDeps);
+    }
+}
+
+void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *target, const string &include,
+                        bool isStandard, bool ignoreHeaderDeps)
+{
+    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        bool found = false;
+        for (const InclNodeTargetMap &inclNode : inclNodes)
+        {
+            if (inclNode.inclNode.node->myId == node->myId)
+            {
+                found = true;
+                printErrorMessage(FORMAT("Header-unit include {} is already added.\n", node->filePath));
+                break;
+            }
+        }
+        if (!found)
+        {
+            inclNodes.emplace_back(InclNode(node, isStandard), target);
+        }
+    }
+    else
+    {
+        inclNodes.emplace_back(InclNode(node, isStandard), target);
+    }
+}

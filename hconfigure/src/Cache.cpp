@@ -29,8 +29,6 @@ Cache::Cache()
     selectedArchiverArrayIndex = 0;
     isScannerInToolsArray = isPresentInTools;
     selectedScannerArrayIndex = 0;
-    libraryType = TargetType::LIBRARY_STATIC;
-    configurationType = ConfigType::RELEASE;
 }
 
 void Cache::initializeCacheVariableFromCacheFile()
@@ -67,7 +65,6 @@ void Cache::registerCacheVariables()
 void to_json(Json &j, const Cache &cacheLocal)
 {
     j[JConsts::sourceDirectory] = cacheLocal.sourceDirectoryPath;
-    j[JConsts::configuration] = cacheLocal.configurationType;
     j[JConsts::isCompilerInToolsArray] = cacheLocal.isCompilerInToolsArray;
     j[JConsts::compilerSelectedArrayIndex] = cacheLocal.selectedCompilerArrayIndex;
     j[JConsts::isLinkerInToolsArray] = cacheLocal.isLinkerInToolsArray;
@@ -76,7 +73,6 @@ void to_json(Json &j, const Cache &cacheLocal)
     j[JConsts::archiverSelectedArrayIndex] = cacheLocal.selectedArchiverArrayIndex;
     j[JConsts::isScannerInToolsArray] = cacheLocal.isScannerInToolsArray;
     j[JConsts::scannerSelectedArrayIndex] = cacheLocal.selectedScannerArrayIndex;
-    j[JConsts::libraryType] = cacheLocal.libraryType;
     j[JConsts::cacheVariables] = cacheLocal.cacheVariables;
     j[JConsts::configureExeBuildScript] = cacheLocal.configureExeBuildScript;
     j[JConsts::buildExeBuildScript] = cacheLocal.buildExeBuildScript;
@@ -95,7 +91,6 @@ void from_json(const Json &j, Cache &cacheLocal)
 
     srcNode = Node::getNodeFromNonNormalizedPath(srcPath, false);
 
-    cacheLocal.configurationType = j.at(JConsts::configuration).get<ConfigType>();
     cacheLocal.isCompilerInToolsArray = j.at(JConsts::isCompilerInToolsArray).get<bool>();
     cacheLocal.selectedCompilerArrayIndex = j.at(JConsts::compilerSelectedArrayIndex).get<int>();
     cacheLocal.isLinkerInToolsArray = j.at(JConsts::isLinkerInToolsArray).get<bool>();
@@ -104,13 +99,6 @@ void from_json(const Json &j, Cache &cacheLocal)
     cacheLocal.selectedArchiverArrayIndex = j.at(JConsts::archiverSelectedArrayIndex).get<int>();
     cacheLocal.isScannerInToolsArray = j.at(JConsts::isScannerInToolsArray).get<bool>();
     cacheLocal.selectedScannerArrayIndex = j.at(JConsts::scannerSelectedArrayIndex).get<int>();
-    cacheLocal.libraryType = j.at(JConsts::libraryType).get<TargetType>();
-    if (cacheLocal.libraryType != TargetType::LIBRARY_STATIC && cacheLocal.libraryType != TargetType::LIBRARY_SHARED &&
-        cache.libraryType != TargetType::LIBRARY_OBJECT)
-    {
-        printErrorMessage("Cache libraryType TargetType is not one of LIBRARY_STATIC or LIBRARY_SHARED \n");
-        throw std::exception();
-    }
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();
     cacheLocal.configureExeBuildScript = j.at(JConsts::configureExeBuildScript).get<vector<string>>();
     cacheLocal.buildExeBuildScript = j.at(JConsts::buildExeBuildScript).get<vector<string>>();

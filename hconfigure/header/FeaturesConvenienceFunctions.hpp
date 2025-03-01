@@ -32,8 +32,8 @@ template <typename U> class FeatureConvenienceFunctions
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
     U &assign(bool assign, T property, Condition... conditions);
 #define assign_I assign<Dependency::INTERFACE>
-    template <typename T, typename... Condition> bool AND(T condition, Condition... conditions);
-    template <typename T, typename... Condition> bool OR(T condition, Condition... conditions);
+    template <typename T, typename... Condition> bool AND(T condition, Condition... conditions) const;
+    template <typename T, typename... Condition> bool OR(T condition, Condition... conditions) const;
 
     // Multiple properties on left which are anded and after that right's assignment occurs.
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
@@ -115,9 +115,9 @@ U &FeatureConvenienceFunctions<U>::assign(bool assign, T property, Condition... 
 
 template <typename U>
 template <typename T, typename... Condition>
-bool FeatureConvenienceFunctions<U>::AND(T condition, Condition... conditions)
+bool FeatureConvenienceFunctions<U>::AND(T condition, Condition... conditions) const
 {
-    if (!static_cast<U &>(*this).evaluate(condition))
+    if (!static_cast<const U &>(*this).evaluate(condition))
     {
         return false;
     }
@@ -133,9 +133,9 @@ bool FeatureConvenienceFunctions<U>::AND(T condition, Condition... conditions)
 
 template <typename U>
 template <typename T, typename... Condition>
-bool FeatureConvenienceFunctions<U>::OR(T condition, Condition... conditions)
+bool FeatureConvenienceFunctions<U>::OR(T condition, Condition... conditions) const
 {
-    if (static_cast<U &>(*this).evaluate(condition))
+    if (static_cast<const U &>(*this).evaluate(condition))
     {
         return true;
     }

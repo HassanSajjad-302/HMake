@@ -62,7 +62,8 @@ CSourceTarget &CSourceTarget::interfaceIncludes(const string &include, U... incl
     }
     else
     {
-        CppCompilerFeatures::actuallyAddInclude(useReqIncls, include, false);
+        // todo
+        // CppCompilerFeatures::actuallyAddInclude(useReqIncls, include, false);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))

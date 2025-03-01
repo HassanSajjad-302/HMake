@@ -1,26 +1,28 @@
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
 #ifdef USE_HEADER_UNITS
-import "TargetType.hpp";
-import "TarjanNode.hpp";
+import "parallel-hashmap/parallel_hashmap/phmap.h";
+import <vector>;
 import <array>;
 import <atomic>;
+import <string>;
 import <mutex>;
 #else
-#include "TargetType.hpp"
-#include "TarjanNode.hpp"
+#include "parallel-hashmap/parallel_hashmap/phmap.h"
 #include <array>
 #include <atomic>
 #include <mutex>
+#include <string>
+#include <vector>
 #endif
 
-using std::size_t, phmap::flat_hash_map, std::mutex, std::lock_guard, std::atomic_flag, std::array, std::atomic,
-    std::atomic_ref;
+using std::size_t, std::vector, phmap::flat_hash_map, std::mutex, std::lock_guard, std::atomic_flag, std::array,
+    std::atomic, std::atomic_ref, std::string;
 
 // TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
-TarjanNode(const BTarget *) -> TarjanNode<BTarget>;
-using TBT = TarjanNode<BTarget>;
-inline vector<vector<TBT *>> tarjanNodesBTargets;
+class RealBTarget;
+class BTarget;
+inline vector<vector<RealBTarget *>> tarjanNodesBTargets;
 inline vector<uint32_t> tarjanNodesCount;
 
 class StaticInitializationTarjanNodesBTargets
@@ -31,7 +33,6 @@ class StaticInitializationTarjanNodesBTargets
     // provide some way to get at letters_
 };
 
-struct RealBTarget;
 struct IndexInTopologicalSortComparatorRoundZero
 {
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
@@ -53,8 +54,28 @@ enum class BTargetDepType : bool
 };
 
 inline StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
-struct RealBTarget : TBT
+class RealBTarget
 {
+    // For TarjanNode topological sorting
+    // Following 4 are reset in findSCCS();
+    inline static int index = 0;
+    inline static vector<RealBTarget *> nodesStack;
+
+    // Output
+    inline static vector<BTarget *> cycle;
+    inline static bool cycleExists;
+
+  public:
+    inline static vector<BTarget *> topologicalSort;
+
+    // Input
+    inline static vector<RealBTarget *> *tarjanNodes;
+
+    // Find Strongly Connected Components
+    static void findSCCS(unsigned short round);
+    static void checkForCycle();
+    static void clearTarjanNodes();
+
     flat_hash_map<BTarget *, BTargetDepType> dependents;
     flat_hash_map<BTarget *, BTargetDepType> dependencies;
 
@@ -66,7 +87,7 @@ struct RealBTarget : TBT
     // TODO
     //  Following describes the time taken for the completion of this task. Currently unused. how to determine cpu time
     //  for this task in multi-threaded scenario
-    unsigned long timeTaken = 0;
+    // unsigned long timeTaken = 0;
 
     // Plays two roles. Depicts the exitStatus of itself and of its dependencies
     int exitStatus = EXIT_SUCCESS;
@@ -81,37 +102,40 @@ struct RealBTarget : TBT
     // Some tasks have more potential to benefit from multiple threading than others. Or they maybe executing for longer
     // than others. Users will assign such higher priority and will be allocated more of  the thread-pool compared to
     // the other.
-    float potential = 0.5f;
+
+    // float potential = 0.5f;
 
     // How many threads the tool supports. -1 means any. some tools may not support more than a fixed number, so
     // updateBTarget will not passed more than supportsThread
-    short supportsThread = -1;
 
-    unsigned short round;
+    // short supportsThread = -1;
 
+  private:
+    void strongConnect(unsigned short round);
+    int nodeIndex = 0;
+    int lowLink = 0;
+    bool initialized = false;
+    bool onStack = false;
+
+  public:
     // Set it to false, and build-system will not decrement dependenciesSize of the dependents RealBTargets
     bool isUpdated = true;
 
     RealBTarget(BTarget *bTarget_, unsigned short round_);
     RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
     void addInTarjanNodeBTarget(unsigned short round_);
-
-    template <typename... U> void addDependency(BTarget &dependency, U &...bTargets);
-    template <typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
 };
-
-namespace BTargetNamespace
-{
-inline std::mutex addDependencyMutex;
-}
 
 enum class BTargetType : unsigned short
 {
     SMFILE = 1,
 };
 
-struct BTarget // BTarget
+inline vector<BTarget *> postBuildSpecificationArray;
+
+class BTarget // BTarget
 {
+  public:
     inline static size_t total = 0;
 
     array<RealBTarget, 3> realBTargets;
@@ -121,7 +145,7 @@ struct BTarget // BTarget
 
     // TODO
     // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
-    float totalTimeTaken = 0.0f;
+    // float totalTimeTaken = 0.0f;
     bool selectiveBuild = false;
     bool fileStatus = false;
     bool buildExplicit = false;
@@ -134,52 +158,60 @@ struct BTarget // BTarget
     virtual ~BTarget();
 
     void setSelectiveBuild();
-    bool getSelectiveBuildChildDir();
+    bool isHBuildInSameOrChildDirectory() const;
+
+    // TODO
+    // Could be non-static
+    void assignFileStatusToDependents(unsigned short round);
+    void receiveNotificationPostBuildSpecification();
 
     virtual string getTarjanNodeName() const;
-
     virtual BTargetType getBTargetType() const;
-    static void assignFileStatusToDependents(RealBTarget &realBTarget);
     virtual void updateBTarget(class Builder &builder, unsigned short round);
     virtual void endOfRound(Builder &builder, unsigned short round);
     virtual void copyJson();
+    virtual void buildSpecificationCompleted();
+
+    template <unsigned short round, typename... U> void addDependency(BTarget &dependency, U &...bTargets);
+    template <unsigned short round, typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
-inline std::mutex realbtarget_adddependency;
-template <typename... U> void RealBTarget::addDependency(BTarget &dependency, U &...bTargets)
+// TODO
+// Determine whether this is better served by having 2 atomic-locks in RealBTargets.
+
+inline std::mutex dependencyMutex[3];
+template <unsigned short round, typename... U> void BTarget::addDependency(BTarget &dependency, U &...bTargets)
 {
     {
-        lock_guard lk{realbtarget_adddependency};
+        lock_guard lk{dependencyMutex[round]};
         // adding in both dependencies and deps is duplicating. One should be removed.
-        if (dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
+        if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
         {
             RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
-            dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::FULL);
-            ++atomic_ref(dependenciesSize);
-            deps.emplace(&dependencyRealBTarget);
+            dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
+            ++atomic_ref(realBTargets[round].dependenciesSize);
         }
     }
 
     if constexpr (sizeof...(bTargets))
     {
-        addDependency(bTargets...);
+        addDependency<round>(bTargets...);
     }
 }
 
-template <typename... U> void RealBTarget::addLooseDependency(BTarget &dependency, U &...bTargets)
+template <unsigned short round, typename... U> void BTarget::addLooseDependency(BTarget &dependency, U &...bTargets)
 {
-    lock_guard lk{realbtarget_adddependency};
-    if (dependencies.try_emplace(&dependency, BTargetDepType::LOOSE).second)
+    lock_guard lk{dependencyMutex[round]};
+    if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::LOOSE).second)
     {
         RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
-        dependencyRealBTarget.dependents.try_emplace(bTarget, BTargetDepType::LOOSE);
-        deps.emplace(&dependencyRealBTarget);
+        dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::LOOSE);
     }
 
     if constexpr (sizeof...(bTargets))
     {
-        addDependency(bTargets...);
+        addLooseDependency<round>(bTargets...);
     }
 }
 

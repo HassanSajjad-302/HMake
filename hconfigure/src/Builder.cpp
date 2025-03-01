@@ -20,11 +20,11 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 Builder::Builder()
 {
     round = 2;
-    TBT::tarjanNodes = &tarjanNodesBTargets[round];
-    TBT::findSCCS();
-    TBT::checkForCycle();
+    RealBTarget::tarjanNodes = &tarjanNodesBTargets[round];
+    RealBTarget::findSCCS(round);
+    RealBTarget::checkForCycle();
 
-    for (BTarget *target : TBT::topologicalSort)
+    for (BTarget *target : RealBTarget::topologicalSort)
     {
         if (!atomic_ref(target->realBTargets[round].dependenciesSize).load())
         {
@@ -33,11 +33,11 @@ Builder::Builder()
     }
 
     updateBTargetsIterator = updateBTargets.begin();
-    updateBTargetsSizeGoal = TBT::topologicalSort.size();
+    updateBTargetsSizeGoal = RealBTarget::topologicalSort.size();
 
     vector<thread *> threads;
 
-    if (const unsigned int launchThreads = settings.maximumBuildThreads; launchThreads)
+    if (const unsigned int launchThreads = 1; launchThreads)
     {
         numberOfLaunchedThreads = launchThreads;
         while (threads.size() != launchThreads - 1)
@@ -113,20 +113,20 @@ void Builder::execute()
                     if (round > roundGoal && !errorHappenedInRoundMode)
                     {
                         --round;
-                        TBT::tarjanNodes = &tarjanNodesBTargets[round];
-                        TBT::findSCCS();
-                        TBT::checkForCycle();
+                        RealBTarget::tarjanNodes = &tarjanNodesBTargets[round];
+                        RealBTarget::findSCCS(round);
+                        RealBTarget::checkForCycle();
 
                         updateBTargets.clear();
                         updateBTargetsSizeGoal = 0;
 
                         if (!round)
                         {
-                            if (const size_t topSize = TBT::topologicalSort.size())
+                            if (const size_t topSize = RealBTarget::topologicalSort.size())
                             {
-                                for (size_t i = TBT::topologicalSort.size(); i-- > 0;)
+                                for (size_t i = RealBTarget::topologicalSort.size(); i-- > 0;)
                                 {
-                                    BTarget &localBTarget = *TBT::topologicalSort[i];
+                                    BTarget &localBTarget = *RealBTarget::topologicalSort[i];
                                     RealBTarget &localReal = localBTarget.realBTargets[0];
 
                                     localReal.indexInTopologicalSort = topSize - (i + 1);
@@ -149,23 +149,23 @@ void Builder::execute()
                                 }
                             }
 
-                            updateBTargetsSizeGoal = TBT::topologicalSort.size();
+                            updateBTargetsSizeGoal = RealBTarget::topologicalSort.size();
                         }
                         else
                         {
                             // In rounds 2 and 1 all the targets will be updated.
                             // Index is only needed in round zero. Perform only for round one.
-                            for (uint64_t i = 0; i < TBT::topologicalSort.size(); ++i)
+                            for (uint64_t i = 0; i < RealBTarget::topologicalSort.size(); ++i)
                             {
-                                if (!atomic_ref(TBT::topologicalSort[i]->realBTargets[round].dependenciesSize).load())
+                                if (!atomic_ref(RealBTarget::topologicalSort[i]->realBTargets[round].dependenciesSize).load())
                                 {
-                                    updateBTargets.emplace_back(TBT::topologicalSort[i]);
+                                    updateBTargets.emplace_back(RealBTarget::topologicalSort[i]);
                                 }
-                                TBT::topologicalSort[i]->realBTargets[round].indexInTopologicalSort = i;
+                                RealBTarget::topologicalSort[i]->realBTargets[round].indexInTopologicalSort = i;
                             }
                         }
 
-                        updateBTargetsSizeGoal = TBT::topologicalSort.size();
+                        updateBTargetsSizeGoal = RealBTarget::topologicalSort.size();
                         updateBTargetsIterator = updateBTargets.begin();
                     }
                     else
@@ -293,11 +293,11 @@ void Builder::incrementNumberOfSleepingThreads()
     {
         try
         {
-            TBT::clearTarjanNodes();
-            TBT::findSCCS();
+            RealBTarget::clearTarjanNodes();
+            RealBTarget::findSCCS(round);
 
             // If a cycle happened this will throw an error, otherwise following exception will be thrown.
-            TBT::checkForCycle();
+            RealBTarget::checkForCycle();
 
             throw std::runtime_error("HMake API misuse.\n");
         }

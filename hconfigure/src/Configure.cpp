@@ -14,7 +14,7 @@ bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuratio
     }
     for (const Configuration &configuration : targets<Configuration>)
     {
-        if (const_cast<Configuration &>(configuration).getSelectiveBuildChildDir())
+        if (const_cast<Configuration &>(configuration).isHBuildInSameOrChildDirectory())
         {
             (*ptr)(const_cast<Configuration &>(configuration));
         }
@@ -92,6 +92,18 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     }
 }
 
+void callConfigurationSpecification()
+{
+    for (Configuration &configuration : targets<Configuration>)
+    {
+        if (configuration.isHBuildInSameOrChildDirectory() || configureNode == currentNode)
+        {
+            configuration.initialize();
+            configurationSpecification(configuration);
+        }
+    }
+}
+
 int main2(const int argc, char **argv)
 {
     try
@@ -99,7 +111,7 @@ int main2(const int argc, char **argv)
         parseCmdArgumentsAndSetConfigureNode(argc, argv);
         constructGlobals();
         initializeCache(bsMode);
-        (*buildSpecificationFuncPtr)();
+        buildSpecification();
         const bool errorHappened = configureOrBuild();
         destructGlobals();
         if (errorHappened)

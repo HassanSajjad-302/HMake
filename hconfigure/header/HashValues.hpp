@@ -12,7 +12,7 @@ import "PlatformSpecific.hpp";
 class CppSourceTarget;
 struct DSCFeatures;
 template <typename T> struct DSC;
-struct Configuration;
+class Configuration;
 struct RoundZeroUpdateBTarget;
 struct Define;
 

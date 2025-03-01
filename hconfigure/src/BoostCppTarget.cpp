@@ -6,7 +6,6 @@ import "Configuration.hpp";
 import "CppSourceTarget.hpp";
 import "DSC.hpp";
 import "LinkOrArchiveTarget.hpp";
-import <GetTarget.hpp>;
 #else
 #include "BoostCppTarget.hpp"
 #include "BuildSystemFunctions.hpp"
@@ -14,7 +13,6 @@ import <GetTarget.hpp>;
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
 #include "LinkOrArchiveTarget.hpp"
-#include <GetTarget.hpp>
 #include <utility>
 #endif
 
@@ -28,7 +26,7 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
     {
         return configuration->getCppObjectDSC(false, buildCacheFilesDirPath, name);
     }
-    return configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name, configuration->targetType);
+    return configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
 }
 
 BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_, const bool headerOnly,
@@ -42,12 +40,12 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         if (createTestsTarget)
         {
             string testsLocation = configuration->name + slashc + name + slashc + "Tests";
-            testTarget = &targets2<BTarget>.emplace_back(std::move(testsLocation), true, false, true, false, true);
+            testTarget = &targets<BTarget>.emplace_back(std::move(testsLocation), true, false, true, false, true);
         }
         if (createExamplesTarget)
         {
             string examplesLocation = configuration->name + slashc + name + slashc + "Examples";
-            testTarget = &targets2<BTarget>.emplace_back(std::move(examplesLocation), true, false, true, false, true);
+            testTarget = &targets<BTarget>.emplace_back(std::move(examplesLocation), true, false, true, false, true);
         }
         if (targetConfigCache.Size() < 2)
         {
@@ -92,7 +90,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
                 if (testTarget)
                 {
-                    testTarget->realBTargets[0].addDependency(cTarget);
+                    testTarget->addDependency<0>(cTarget);
                 }
             }
             else
@@ -104,7 +102,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
                 {
                     if (examplesTarget)
                     {
-                        examplesTarget->realBTargets[0].addDependency(uintTest.getLinkOrArchiveTarget());
+                        examplesTarget->addDependency<0>(uintTest.getLinkOrArchiveTarget());
                     }
                 }
                 else
@@ -112,7 +110,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
                     if (testTarget)
                     {
-                        testTarget->realBTargets[0].addDependency(uintTest.getLinkOrArchiveTarget());
+                        testTarget->addDependency<0>(uintTest.getLinkOrArchiveTarget());
                     }
                 }
             }

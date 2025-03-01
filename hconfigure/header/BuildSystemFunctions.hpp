@@ -41,7 +41,7 @@ inline unique_ptr<vector<char>> buildCacheBuffer;
 inline Document nodesCacheJson(kArrayType);
 inline unique_ptr<vector<char>> nodesCacheBuffer;
 
-inline vector<struct BTarget *> roundEndTargets{10};
+inline vector<class BTarget *> roundEndTargets{10};
 inline std::atomic<uint64_t> roundEndTargetsCount = 0;
 
 inline auto &ralloc = buildCache.GetAllocator();
@@ -69,11 +69,8 @@ inline constexpr BSMode bsMode = BSMode::BUILD;
 inline constexpr BSMode bsMode = BSMode::CONFIGURE;
 #endif
 
-// Following can be used for holding memory through build-system run and is used for target<CTarget> in GetTarget
-// functions
-template <typename T> inline node_hash_set<T> targets;
-
-template <typename T> inline deque<T> targets2;
+// Global variable for holding memory
+template <typename T> inline deque<T> targets;
 
 // Following can be used to hold pointers for all targets in the build system. It is used by CTarget and BTarget
 // constructor.

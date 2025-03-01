@@ -70,7 +70,7 @@ void PrebuiltBasic::updateBTarget(Builder &, const unsigned short round)
     {
         for (ObjectFileProducer *objectFileProducer : objectFileProducers)
         {
-            realBTargets[0].addDependency(*objectFileProducer);
+            addDependency<0>(*objectFileProducer);
         }
     }
     else if (round == 1)
@@ -148,19 +148,18 @@ void PrebuiltBasic::readConfigCacheAtBuildTime()
 
 void PrebuiltBasic::addRequirementDepsToBTargetDependencies()
 {
-    RealBTarget &round0 = realBTargets[0];
     if (evaluate(TargetType::LIBRARY_STATIC))
     {
         for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
         {
-            round0.addLooseDependency(*prebuiltBasic);
+            addLooseDependency<0>(*prebuiltBasic);
         }
     }
     else
     {
         for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
         {
-            round0.addDependency(*prebuiltBasic);
+            addDependency<0>(*prebuiltBasic);
         }
     }
 }

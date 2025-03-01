@@ -9,8 +9,8 @@ import "Builder.hpp";
 import "Cache.hpp";
 import "Configuration.hpp";
 import "CppSourceTarget.hpp";
+import "DSC.hpp";
 import "Features.hpp";
-import "GetTarget.hpp";
 import "JConsts.hpp";
 import "SMFile.hpp";
 import "Settings.hpp";
@@ -34,12 +34,11 @@ import <utility>;
 #include "Cache.hpp"
 #include "Configuration.hpp"
 #include "CppSourceTarget.hpp"
+#include "DSC.hpp"
 #include "Features.hpp"
-#include "GetTarget.hpp"
 #include "JConsts.hpp"
 #include "SMFile.hpp"
 #include "Settings.hpp"
-#include "TarjanNode.hpp"
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"
 #include "nlohmann/json.hpp"
@@ -62,16 +61,18 @@ bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuratio
 // will be explored.
 
 // TODO
-//  configure.dll on linux is compiled with -fsanitizer=thread but no sanitizer is used on Windows. Choice for
-//  using sanitizer will be optional.
+// Thread Sanitizer is used on Linux but not Sanitizer is used on Windows. There should be an option to use sanitizer on
+// Windows as well.
 
-inline void (*buildSpecificationFuncPtr)();
+void buildSpecification();
+void configurationSpecification(Configuration &config);
+void callConfigurationSpecification();
+
 int main2(int argc, char **argv);
 
 #define MAIN_FUNCTION                                                                                                  \
     int main(int argc, char **argv)                                                                                    \
     {                                                                                                                  \
-        buildSpecificationFuncPtr = &buildSpecification;                                                               \
         return main2(argc, argv);                                                                                      \
     }
 

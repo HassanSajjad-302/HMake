@@ -34,4 +34,23 @@ class InclNode : public LibDirNode
 };
 bool operator<(const InclNode &lhs, const InclNode &rhs);
 
+struct InclNodeTargetMap
+{
+    InclNode inclNode;
+    class CppSourceTarget *cppSourceTarget;
+    InclNodeTargetMap(InclNode inclNode_, CppSourceTarget *cppSourceTarget_);
+};
+
+struct InclNodePointerTargetMap
+{
+    const InclNode *inclNode;
+    CppSourceTarget *cppSourceTarget;
+    InclNodePointerTargetMap(const InclNode *inclNode_, CppSourceTarget *cppSourceTarget_);
+};
+
+void actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool isStandard = false,
+                        bool ignoreHeaderDeps = false);
+void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *target, const string &include,
+                        bool isStandard = false, bool ignoreHeaderDeps = false);
+
 #endif // SPECIALNODES_HPP

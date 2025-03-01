@@ -2,14 +2,13 @@
 #ifndef HMAKE_DSC_HPP
 #define HMAKE_DSC_HPP
 #ifdef USE_HEADER_UNITS
-import "LinkOrArchiveTarget.hpp";
-import "ObjectFileProducer.hpp";
 import "CppSourceTarget.hpp";
 #else
 #include "CppSourceTarget.hpp"
-#include "LinkOrArchiveTarget.hpp"
-#include "ObjectFileProducer.hpp"
 #endif
+
+class CppSourceTarget;
+class LinkOrArchiveTarget;
 
 // Dependency Specification Controller. Following declaration is for T = CSourceTarget
 template <typename T> struct DSC : DSCFeatures
@@ -128,7 +127,7 @@ void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *control
         U *c_ptr = static_cast<U *>(controller->objectFileProducer);
         if (controller->prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
         {
-            if (ptr->compiler.bTFamily == BTFamily::MSVC)
+            if (ptr->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
             {
                 c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, "__declspec(dllimport)"));
             }
@@ -206,7 +205,7 @@ template <typename T> LinkOrArchiveTarget &DSC<T>::getLinkOrArchiveTarget()
 }
 
 template <>
-DSC<CppSourceTarget>::DSC(class CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, string define_);
+DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, string define_);
 
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget *ptr);
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget *ptr);

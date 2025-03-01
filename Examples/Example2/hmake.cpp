@@ -5,8 +5,8 @@ void configurationSpecification(Configuration &configuration)
 {
     configuration.getCppExeDSC("app")
         .getSourceTarget()
-        .sourceDirectoriesRE(".", "file[1-4]\\.cpp|main\\.cpp")
-        .SINGLE(LTO::ON, Optimization::SPACE);
+        .sourceDirectoriesRE(".", "file[1-4]\\.cpp|main\\.cpp");
+       // .SINGLE(LTO::ON, Optimization::SPACE);
 }
 
 void buildSpecification()
@@ -16,8 +16,7 @@ void buildSpecification()
     Configuration &release = getConfiguration("Release");
     release.assign(LTO::ON);
 
-    configurationSpecification(debug);
-    configurationSpecification(release);
+    callConfigurationSpecification();
 }
 
 MAIN_FUNCTION

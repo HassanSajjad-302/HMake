@@ -14,13 +14,9 @@ enum class TargetType : char
     EXECUTABLE,
     LIBRARY_STATIC,
     LIBRARY_SHARED,
-    PREPROCESS,
     LIBRARY_OBJECT,
-    RUN,
     PLIBRARY_STATIC,
     PLIBRARY_SHARED,
 };
-void to_json(Json &j, const TargetType &targetType);
-void from_json(const Json &j, TargetType &targetType);
 
 #endif // HMAKE_TARGETTYPE_HPP
