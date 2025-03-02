@@ -318,10 +318,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
-            if (evaluate(UseMiniTarget::YES))
-            {
-                readConfigCacheAtBuildTime();
-            }
+            readConfigCacheAtBuildTime();
         }
         if (!evaluate(TargetType::LIBRARY_STATIC))
         {
@@ -338,10 +335,7 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
 
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            if (evaluate(UseMiniTarget::YES))
-            {
-                writeTargetConfigCacheAtConfigureTime();
-            }
+            writeTargetConfigCacheAtConfigureTime();
         }
     }
 }

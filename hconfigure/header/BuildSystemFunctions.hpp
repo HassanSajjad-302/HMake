@@ -58,7 +58,6 @@ enum class BSMode : char // Build System Mode
 {
     CONFIGURE = 0,
     BUILD = 1,
-    IDE = 2,
 };
 
 // By default, mode is configure, however, if, --build cmd option is passed, it is set to BUILD.

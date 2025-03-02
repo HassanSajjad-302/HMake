@@ -297,11 +297,8 @@ PrebuiltBasicFeatures::PrebuiltBasicFeatures()
         const VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
         if constexpr (bsMode == BSMode::BUILD)
         {
-            if (useMiniTarget == UseMiniTarget::YES)
-            {
-                // Initialized in LinkOrArchiveTarget round 2
-                return;
-            }
+            // Initialized in LinkOrArchiveTarget round 2
+            return;
         }
         for (const string &str : vsTools.libraryDirectories)
         {
@@ -428,11 +425,8 @@ void CppCompilerFeatures::setCompilerFromVSTools(Configuration &config, const VS
 
     if constexpr (bsMode == BSMode::BUILD)
     {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-            // Initialized in CppSourceTarget round 2
-            return;
-        }
+        // Initialized in CppSourceTarget round 2
+        return;
     }
     for (const string &str : vsTools.includeDirectories)
     {
@@ -447,11 +441,8 @@ void CppCompilerFeatures::setCompilerFromLinuxTools(Configuration &config, const
     compiler = linuxTools.compiler;
     if constexpr (bsMode == BSMode::BUILD)
     {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-            // Initialized in CppSourceTarget round 2
-            return;
-        }
+        // Initialized in CppSourceTarget round 2
+        return;
     }
     for (const string &str : linuxTools.includeDirectories)
     {

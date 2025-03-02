@@ -71,29 +71,15 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSource
 {
     save(ptr);
 
-    if (ptr->evaluate(UseMiniTarget::YES))
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if constexpr (bsMode == BSMode::CONFIGURE)
+        namespace CppConfig = Indices::ConfigCache::CppConfig;
+        const Value &modulesConfigCache = stored->buildOrConfigCacheCopy[CppConfig::moduleFiles];
+        for (uint64_t i = 0; i < modulesConfigCache.Size(); i = i + 2)
         {
-            namespace CppConfig = Indices::ConfigCache::CppConfig;
-            const Value &modulesConfigCache = stored->buildOrConfigCacheCopy[CppConfig::moduleFiles];
-            for (uint64_t i = 0; i < modulesConfigCache.Size(); i = i + 2)
+            if (modulesConfigCache[i + 1].GetBool())
             {
-                if (modulesConfigCache[i + 1].GetBool())
-                {
-                    ptr->moduleFiles(Node::getNodeFromValue(modulesConfigCache[i], true)->filePath);
-                }
-            }
-        }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
-    {
-        for (const SMFile &smFile : stored->modFileDeps)
-        {
-            if (smFile.isInterface)
-            {
-                ptr->moduleFiles(smFile.node->filePath);
+                ptr->moduleFiles(Node::getNodeFromValue(modulesConfigCache[i], true)->filePath);
             }
         }
     }

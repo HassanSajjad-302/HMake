@@ -308,11 +308,6 @@ template <typename T, typename... Property> Configuration &Configuration::assign
         }
     }
     // CommonFeatures
-    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
-    {
-        prebuiltBasicFeatures.useMiniTarget = property;
-        useMiniTarget = property;
-    }
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {
         compilerFeatures.targetOs = property;
@@ -512,11 +507,7 @@ template <typename T, typename... Property> Configuration &Configuration::assign
 
 template <typename T> bool Configuration::evaluate(T property) const
 {
-    if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
-    {
-        return useMiniTarget == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
+    if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
     {
         return stdCppTarget == property;
     }
@@ -555,7 +546,7 @@ template <typename T> bool Configuration::evaluate(T property) const
     }
     else
     {
-        useMiniTarget = property; // Just to fail the compilation. Ensures that all properties are handled.
+        static_assert(false);
     }
 }
 

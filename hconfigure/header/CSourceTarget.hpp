@@ -43,37 +43,10 @@ class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>, public Tar
       CSourceTarget(bool buildExplicit, string name_, Configuration *configuration_, bool
       noTargetCacheInitialization);*/
 
-  public:
-    template <typename... U> CSourceTarget &interfaceIncludes(const string &include, U... includeDirectoryPString);
     CSourceTarget &INTERFACE_COMPILER_FLAGS(const string &compilerFlags);
     CSourceTarget &INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue = "");
     virtual CSourceTargetType getCSourceTargetType() const;
 };
 bool operator<(const CSourceTarget &lhs, const CSourceTarget &rhs);
-
-template <typename... U>
-CSourceTarget &CSourceTarget::interfaceIncludes(const string &include, U... includeDirectoryPString)
-{
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-    }
-    else
-    {
-        // todo
-        // CppCompilerFeatures::actuallyAddInclude(useReqIncls, include, false);
-    }
-
-    if constexpr (sizeof...(includeDirectoryPString))
-    {
-        return interfaceIncludes(includeDirectoryPString...);
-    }
-    else
-    {
-        return *this;
-    }
-}
 
 #endif // HMAKE_CSOURCETARGET_HPP

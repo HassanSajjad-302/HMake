@@ -294,14 +294,7 @@ CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const Dependency de
 template <typename... U>
 CppSourceTarget &CppSourceTarget::publicIncludes(const string &include, U... includeDirectoryPString)
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         actuallyAddInclude(reqIncls, include);
         actuallyAddInclude(useReqIncls, include);
@@ -320,14 +313,7 @@ CppSourceTarget &CppSourceTarget::publicIncludes(const string &include, U... inc
 template <typename... U>
 CppSourceTarget &CppSourceTarget::privateIncludes(const string &include, U... includeDirectoryPString)
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         actuallyAddInclude(reqIncls, include);
     }
@@ -345,14 +331,7 @@ CppSourceTarget &CppSourceTarget::privateIncludes(const string &include, U... in
 template <typename... U>
 CppSourceTarget &CppSourceTarget::interfaceIncludes(const string &include, U... includeDirectoryPString)
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         actuallyAddInclude(useReqIncls, include);
     }
@@ -370,14 +349,7 @@ CppSourceTarget &CppSourceTarget::interfaceIncludes(const string &include, U... 
 template <typename... U>
 CppSourceTarget &CppSourceTarget::publicHUIncludes(const string &include, U... includeDirectoryPString)
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
@@ -406,14 +378,7 @@ CppSourceTarget &CppSourceTarget::publicHUIncludes(const string &include, U... i
 template <typename... U>
 CppSourceTarget &CppSourceTarget::privateHUIncludes(const string &include, U... includeDirectoryPString)
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
@@ -439,14 +404,7 @@ CppSourceTarget &CppSourceTarget::privateHUIncludes(const string &include, U... 
 template <typename... U>
 CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const string &include, U... includeDirectoryPString)
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
@@ -472,14 +430,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const string &include, U..
 template <typename... U>
 CppSourceTarget &CppSourceTarget::publicHUDirectories(const string &include, U... includeDirectoryPString)
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
@@ -501,14 +452,7 @@ CppSourceTarget &CppSourceTarget::publicHUDirectories(const string &include, U..
 template <typename... U>
 CppSourceTarget &CppSourceTarget::privateHUDirectories(const string &include, U... includeDirectoryPString)
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
@@ -529,14 +473,7 @@ CppSourceTarget &CppSourceTarget::privateHUDirectories(const string &include, U.
 template <typename... U>
 CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const string &include, U... includeDirectoryPString)
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
@@ -556,17 +493,9 @@ CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const string &include, 
 
 template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const string &srcFile, U... sourceFilePString)
 {
-    if (evaluate(UseMiniTarget::YES))
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if constexpr (bsMode == BSMode::CONFIGURE)
-        {
-            actuallyAddSourceFileConfigTime(Node::getNodeFromNonNormalizedString(srcFile, true));
-        }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
-    {
-        actuallyAddSourceFile(srcFileDeps, srcFile, this);
+        actuallyAddSourceFileConfigTime(Node::getNodeFromNonNormalizedString(srcFile, true));
     }
 
     if constexpr (sizeof...(sourceFilePString))
@@ -581,22 +510,13 @@ template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const str
 
 template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const string &modFile, U... moduleFilePString)
 {
-    if (evaluate(TreatModuleAsSource::YES))
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        return sourceFiles(modFile, moduleFilePString...);
-    }
-
-    if (evaluate(UseMiniTarget::YES))
-    {
-        if constexpr (bsMode == BSMode::CONFIGURE)
+        if (evaluate(TreatModuleAsSource::YES))
         {
-            actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), false);
+            return sourceFiles(modFile, moduleFilePString...);
         }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
-    {
-        actuallyAddModuleFile(modFileDeps, modFile, this);
+        actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), false);
     }
 
     if constexpr (sizeof...(moduleFilePString))
@@ -611,23 +531,13 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const str
 
 template <typename... U> CppSourceTarget &CppSourceTarget::interfaceFiles(const string &modFile, U... moduleFilePString)
 {
-    if (evaluate(TreatModuleAsSource::YES))
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        return sourceFiles(modFile, moduleFilePString...);
-    }
-
-    if (evaluate(UseMiniTarget::YES))
-    {
-        if constexpr (bsMode == BSMode::CONFIGURE)
+        if (evaluate(TreatModuleAsSource::YES))
         {
-            actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), true);
+            return sourceFiles(modFile, moduleFilePString...);
         }
-        // Initialized in CppSourceTarget round 2
-    }
-    else
-    {
-        actuallyAddModuleFile(modFileDeps, modFile, this);
-        modFileDeps.end()->isInterface = true;
+        actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), true);
     }
 
     if constexpr (sizeof...(moduleFilePString))
@@ -642,16 +552,13 @@ template <typename... U> CppSourceTarget &CppSourceTarget::interfaceFiles(const 
 
 template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const string &headerUnit, U... headerUnitsString)
 {
-    if (evaluate(UseMiniTarget::YES))
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if constexpr (bsMode == BSMode::CONFIGURE)
-        {
-            using namespace Indices::ConfigCache;
-            Node *node = Node::getNodeFromNonNormalizedString(headerUnit, true);
-            Node *inclNode = Node::getNodeFromNormalizedString(path(node->filePath).parent_path().string(), false);
-            buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
-            buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(inclNode->getValue(), cacheAlloc);
-        }
+        using namespace Indices::ConfigCache;
+        Node *node = Node::getNodeFromNonNormalizedString(headerUnit, true);
+        Node *inclNode = Node::getNodeFromNormalizedString(path(node->filePath).parent_path().string(), false);
+        buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
+        buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(inclNode->getValue(), cacheAlloc);
     }
 
     if constexpr (sizeof...(headerUnitsString))

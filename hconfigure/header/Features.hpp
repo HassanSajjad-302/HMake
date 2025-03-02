@@ -21,23 +21,6 @@ import <vector>;
 
 using std::vector;
 
-enum class UseMiniTarget : bool
-{
-    NO,
-    YES,
-};
-
-inline UseMiniTarget useMiniTarget = UseMiniTarget::YES;
-
-enum class MiniTarget : char
-{
-    BASE,
-    MINI,
-    FULL,
-    BASEMINI = BASE,
-    BASEFULL = BASE,
-};
-
 enum class TranslateInclude : bool
 {
     NO,
@@ -694,7 +677,6 @@ struct PrebuiltBasicFeatures
     // TODO
     // NO API in to assign this in LinkOrArchiveTarget, neither is their API like actuallyInclude.
     vector<LibDirNode> requirementLibraryDirectories;
-    UseMiniTarget useMiniTarget = UseMiniTarget::YES;
     PrebuiltBasicFeatures();
 };
 
@@ -833,7 +815,6 @@ struct CppCompilerFeatures : public FeatureConvenienceFunctions<CppCompilerFeatu
 
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
-    UseMiniTarget useMiniTarget = UseMiniTarget::YES;
 
     void initialize(Configuration &config);
 
@@ -988,10 +969,6 @@ template <typename T> bool CppCompilerFeatures::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
     {
         return treatModuleAsSource == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
-    {
-        return useMiniTarget == property;
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {

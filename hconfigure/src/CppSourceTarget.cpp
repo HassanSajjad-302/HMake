@@ -350,14 +350,7 @@ CSourceTargetType CppSourceTarget::getCSourceTargetType() const
 
 CppSourceTarget &CppSourceTarget::initializeUseReqInclsFromReqIncls()
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-            // Initialized in CppSourceTarget round 2
-        }
-    }
-    else
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         for (const InclNode &include : reqIncls)
         {
@@ -370,14 +363,7 @@ CppSourceTarget &CppSourceTarget::initializeUseReqInclsFromReqIncls()
 
 CppSourceTarget &CppSourceTarget::initializeHuDirsFromReqIncls()
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-            // Initialized in CppSourceTarget round 2
-        }
-    }
-    else
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
         for (const InclNode &include : reqIncls)
         {
@@ -537,14 +523,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
 
         adjustHeaderUnitsValueArrayPointers();
 
-        if (evaluate(UseMiniTarget::YES))
-        {
-            if (reinterpret_cast<uint64_t &>(newHeaderUnitsSize) || moduleFileScanned)
-            {
-                targetCacheDiskWriteManager.addNewBTargetInCopyJsonBTargetsCount(this);
-            }
-        }
-        else
+        if (reinterpret_cast<uint64_t &>(newHeaderUnitsSize) || moduleFileScanned)
         {
             targetCacheDiskWriteManager.addNewBTargetInCopyJsonBTargetsCount(this);
         }
@@ -553,18 +532,12 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     {
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            if (evaluate(UseMiniTarget::YES))
-            {
-                writeTargetConfigCacheAtConfigureTime(true);
-            }
+            writeTargetConfigCacheAtConfigureTime(true);
         }
 
         if constexpr (bsMode == BSMode::BUILD)
         {
-            if (evaluate(UseMiniTarget::YES))
-            {
-                readConfigCacheAtBuildTime();
-            }
+            readConfigCacheAtBuildTime();
         }
         populateRequirementAndUsageRequirementDeps();
         // Needed to maintain ordering between different includes specification.
@@ -610,10 +583,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
 
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            if (evaluate(UseMiniTarget::YES))
-            {
-                writeTargetConfigCacheAtConfigureTime(false);
-            }
+            writeTargetConfigCacheAtConfigureTime(false);
         }
         else
         {
@@ -628,23 +598,15 @@ void CppSourceTarget::copyJson()
 {
     namespace CppBuild = Indices::BuildCache::CppBuild;
     Value &targetBuildCache = getBuildCache();
-    if (evaluate(UseMiniTarget::YES))
+    if (headerUnitScanned)
     {
-        if (headerUnitScanned)
-        {
-            // copy only header-units json. following does not need to be atomic since this is called single-threaded in
-            // TargetCacheDiskWriteManager::endOfRound.
-            targetBuildCache[CppBuild::headerUnits].CopyFrom(buildOrConfigCacheCopy[CppBuild::headerUnits], ralloc);
-        }
-        if (moduleFileScanned)
-        {
-            targetBuildCache[CppBuild::moduleFiles].CopyFrom(buildOrConfigCacheCopy[CppBuild::moduleFiles], ralloc);
-        }
+        // copy only header-units json. following does not need to be atomic since this is called single-threaded in
+        // TargetCacheDiskWriteManager::endOfRound.
+        targetBuildCache[CppBuild::headerUnits].CopyFrom(buildOrConfigCacheCopy[CppBuild::headerUnits], ralloc);
     }
-    else
+    if (moduleFileScanned)
     {
-        // Copy full json since there could be new source-files or modules or header-units
-        targetBuildCache.CopyFrom(buildOrConfigCacheCopy, ralloc);
+        targetBuildCache[CppBuild::moduleFiles].CopyFrom(buildOrConfigCacheCopy[CppBuild::moduleFiles], ralloc);
     }
 }
 
@@ -769,11 +731,8 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const strin
 
     if constexpr (bsMode == BSMode::BUILD)
     {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-            // Initialized in CppSourceTarget round 2
-            return;
-        }
+        // Initialized in CppSourceTarget round 2
+        return;
     }
 
     const SourceDirectory dir{sourceDirectory, std::move(regex), recursive};
@@ -785,25 +744,11 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const strin
                 Node *node = Node::getNodeFromNonNormalizedPath(k.path(), true);
                 if (assignToSourceNodes)
                 {
-                    if (evaluate(UseMiniTarget::YES))
-                    {
-                        actuallyAddSourceFileConfigTime(node);
-                    }
-                    else
-                    {
-                        actuallyAddSourceFile(srcFileDeps, node, this);
-                    }
+                    actuallyAddSourceFileConfigTime(node);
                 }
                 else
                 {
-                    if (evaluate(UseMiniTarget::YES))
-                    {
-                        actuallyAddModuleFileConfigTime(node, false);
-                    }
-                    else
-                    {
-                        actuallyAddModuleFile(modFileDeps, node, this);
-                    }
+                    actuallyAddModuleFileConfigTime(node, false);
                 }
             }
         }

@@ -227,10 +227,6 @@ template <typename T, typename... Property> PrebuiltBasic &PrebuiltBasic::assign
     {
         linkTargetType = property;
     }
-    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
-    {
-        useMiniTarget = property;
-    }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
         return property;
@@ -255,10 +251,6 @@ template <typename T> bool PrebuiltBasic::evaluate(T property) const
     if constexpr (std::is_same_v<decltype(property), TargetType>)
     {
         return linkTargetType == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
-    {
-        return useMiniTarget == property;
     }
     else
     {
