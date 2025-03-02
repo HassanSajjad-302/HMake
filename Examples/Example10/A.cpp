@@ -7,6 +7,6 @@ const char *getAName()
         }
 int main()
     {
-       std::cout << getAName() << std::endl;
-std::cout << getBName() << std::endl;
+       std::cout << getAName();
+std::cout << getBName();
 }
