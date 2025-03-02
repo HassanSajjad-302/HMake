@@ -80,9 +80,7 @@ struct CppTargetAndParentDirNode
 class CSourceTarget;
 class Configuration : public BTarget
 {
-    DSC<CppSourceTarget> *stdCppTarget = nullptr;
-
-  public:
+public:
     flat_hash_map<Node *, CppTargetAndParentDirNode> moduleFilesToTarget;
     vector<CppSourceTarget *> cppSourceTargets;
     vector<LinkOrArchiveTarget *> linkOrArchiveTargets;
@@ -94,6 +92,7 @@ class Configuration : public BTarget
     PrebuiltLinkerFeatures prebuiltLinkOrArchiveTargetFeatures;
     PrebuiltBasicFeatures prebuiltBasicFeatures;
     LinkerFeatures linkerFeatures;
+    DSC<CppSourceTarget> *stdCppTarget = nullptr;
     TargetType targetType = TargetType::LIBRARY_STATIC;
     AssignStandardCppTarget assignStandardCppTarget = AssignStandardCppTarget::YES;
     BuildTests buildTests = BuildTests::NO;
