@@ -218,7 +218,7 @@ class Configuration : public BTarget
     template <typename T> bool evaluate(T property) const;
 };
 bool operator<(const Configuration &lhs, const Configuration &rhs);
-Configuration &getConfiguration(const string &name);
+Configuration &getConfiguration(const string &name = "Release");
 
 template <typename T, typename... Property> Configuration &Configuration::assign(T property, Property... properties)
 {

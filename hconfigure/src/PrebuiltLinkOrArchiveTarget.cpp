@@ -41,6 +41,7 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
         {
             outputDirectory = Node::getNodeFromNonNormalizedString(outputDirectory, false, true)->filePath;
             outputFileNode = Node::getNodeFromNormalizedString(outputDirectory + slashc + actualOutputName, true, true);
+            writeTargetConfigCacheAtConfigureTime();
         }
 
         for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)

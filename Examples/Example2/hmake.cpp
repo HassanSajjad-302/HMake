@@ -4,18 +4,13 @@
 void configurationSpecification(Configuration &configuration)
 {
     configuration.getCppExeDSC("app")
-        .getSourceTarget()
-        .sourceDirectoriesRE(".", "file[1-4]\\.cpp|main\\.cpp");
-       // .SINGLE(LTO::ON, Optimization::SPACE);
+        .getSourceTarget().sourceDirectoriesRE(".", "file[1-4]\\.cpp|main\\.cpp");
 }
 
 void buildSpecification()
 {
-    Configuration &debug = getConfiguration("Debug");
-    debug.assign(ConfigType::DEBUG);
-    Configuration &release = getConfiguration("Release");
-    release.assign(LTO::ON);
-
+    getConfiguration("Debug").assign(ConfigType::DEBUG);
+    getConfiguration("Release").assign(LTO::ON); // LTO is OFF in ConfigType::RELEASE which is the default
     callConfigurationSpecification();
 }
 

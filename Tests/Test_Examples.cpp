@@ -16,7 +16,7 @@ TEST(ExamplesTest, Example1)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example1"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Hello World\n");
 }
