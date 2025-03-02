@@ -70,10 +70,18 @@ void callConfigurationSpecification();
 
 int main2(int argc, char **argv);
 
+inline void (*buildSpecificationFuncPtr)();
+inline void (*configurationSpecificationFuncPtr)(Configuration &config);
+
 #define MAIN_FUNCTION                                                                                                  \
     int main(int argc, char **argv)                                                                                    \
     {                                                                                                                  \
+        buildSpecificationFuncPtr = &buildSpecification;                                                               \
         return main2(argc, argv);                                                                                      \
     }
+
+#define CALL_CONFIGURATION_SPECIFICATION                                                                               \
+    configurationSpecificationFuncPtr = &configurationSpecification;                                                   \
+    callConfigurationSpecification();
 
 #endif // HMAKE_CONFIGURE_HPP

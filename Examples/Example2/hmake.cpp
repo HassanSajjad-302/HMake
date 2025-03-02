@@ -11,7 +11,7 @@ void buildSpecification()
 {
     getConfiguration("Debug").assign(ConfigType::DEBUG);
     getConfiguration("Release").assign(LTO::ON); // LTO is OFF in ConfigType::RELEASE which is the default
-    callConfigurationSpecification();
+    CALL_CONFIGURATION_SPECIFICATION
 }
 
 MAIN_FUNCTION

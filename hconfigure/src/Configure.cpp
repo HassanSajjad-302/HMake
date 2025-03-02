@@ -99,7 +99,7 @@ void callConfigurationSpecification()
         if (configuration.isHBuildInSameOrChildDirectory() || configureNode == currentNode)
         {
             configuration.initialize();
-            configurationSpecification(configuration);
+            (*configurationSpecificationFuncPtr)(configuration);
         }
     }
 }
@@ -111,7 +111,7 @@ int main2(const int argc, char **argv)
         parseCmdArgumentsAndSetConfigureNode(argc, argv);
         constructGlobals();
         initializeCache(bsMode);
-        buildSpecification();
+        (*buildSpecificationFuncPtr)();
         const bool errorHappened = configureOrBuild();
         destructGlobals();
         if (errorHappened)

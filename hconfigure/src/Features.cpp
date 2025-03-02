@@ -334,6 +334,7 @@ LinkerFeatures::LinkerFeatures()
     {
         targetOs = TargetOS::LINUX_;
     }
+    configurationType = ConfigType::RELEASE;
     setConfigType(configurationType);
     if (cache.isLinkerInToolsArray)
     {

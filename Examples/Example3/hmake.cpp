@@ -22,7 +22,7 @@ void configurationSpecification(Configuration &config)
 void buildSpecification()
 {
     getConfiguration();
-    callConfigurationSpecification();
+    CALL_CONFIGURATION_SPECIFICATION
 }
 
 MAIN_FUNCTION

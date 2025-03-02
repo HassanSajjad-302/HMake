@@ -32,7 +32,7 @@ void buildSpecification()
 
     getConfiguration("static").assign(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_STATIC);
     getConfiguration("object").assign(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_OBJECT);
-    callConfigurationSpecification();
+    CALL_CONFIGURATION_SPECIFICATION
 }
 
 MAIN_FUNCTION
