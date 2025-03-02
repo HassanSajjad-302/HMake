@@ -1,8 +1,14 @@
 #include "Configure.hpp"
 
+void configurationSpecification(Configuration &config)
+{
+    config.getCppExeDSC("app").getSourceTarget().moduleDirectories("Mod_Src/");
+}
+
 void buildSpecification()
 {
-    getCppExeDSC("app").getSourceTarget().moduleDirectories("Mod_Src/");
+    getConfiguration();
+    callConfigurationSpecification();
 }
 
 MAIN_FUNCTION
