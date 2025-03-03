@@ -3,6 +3,7 @@
 void configurationSpecification(Configuration &config)
 {
     config.assign(config.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b);
+
     DSC<CppSourceTarget> &lib4 = config.getCppStaticDSC("lib4");
     lib4.getSourceTarget().sourceDirectoriesRE("lib4/private", ".*cpp").publicIncludes("lib4/public");
 
@@ -15,8 +16,7 @@ void configurationSpecification(Configuration &config)
     DSC<CppSourceTarget> &lib1 = config.getCppStaticDSC("lib1").publicLibraries(&lib2);
     lib1.getSourceTarget().sourceDirectoriesRE("lib1/private", ".*cpp").publicIncludes("lib1/public");
 
-    DSC<CppSourceTarget> &app = config.getCppExeDSC("app").privateLibraries(&lib1);
-    app.getSourceTarget().sourceFiles("main.cpp");
+    config.getCppExeDSC("app").privateLibraries(&lib1).getSourceTarget().sourceFiles("main.cpp");
 }
 
 void buildSpecification()
