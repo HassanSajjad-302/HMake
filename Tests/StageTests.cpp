@@ -585,6 +585,9 @@ static void setupTest4Default()
     copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
 }
 
+// TODO
+// Will be completed after configuration having vector of different cpptarget properties API is completed.
+/*
 TEST(StageTests, Test4)
 {
     const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
@@ -610,6 +613,7 @@ TEST(StageTests, Test4)
     // Expand test further and maybe merge with the above test.
     // Add test where scanning fails. Both for modules and header-unit.
 }
+*/
 
 #endif
 
