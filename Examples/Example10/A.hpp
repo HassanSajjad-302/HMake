@@ -1,3 +1,3 @@
 
-const char * getAName();
+const char *getAName();
 import "B.hpp";

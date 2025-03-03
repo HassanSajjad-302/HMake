@@ -1,2 +1,2 @@
 
-const char * getBName();
+const char *getBName();
