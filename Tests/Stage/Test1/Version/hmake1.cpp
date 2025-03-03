@@ -1,8 +1,14 @@
 #include "Configure.hpp"
 
+void configurationSpecification(Configuration &config)
+{
+    config.getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp");
+}
+
 void buildSpecification()
 {
-    getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp").assign(RTTI::OFF);
+    getConfiguration().assign(RTTI::OFF);
+    CALL_CONFIGURATION_SPECIFICATION
 }
 
 MAIN_FUNCTION

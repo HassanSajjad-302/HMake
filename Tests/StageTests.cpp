@@ -129,9 +129,9 @@ TEST(StageTests, Test1)
     current_path(testSourcePath);
     copyFilePath(testSourcePath / "Version/hmake0.cpp", testSourcePath / "hmake.cpp");
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    current_path("app/");
+    current_path("Release/app/");
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "Hello World\n");
-    current_path("../");
+    current_path("../../");
 
     executeSnapshotBalances(Updates{});
 
@@ -143,28 +143,28 @@ TEST(StageTests, Test1)
     // Touching main.cpp. But hbuild executed in app-cpp.
     touchFile(mainFilePath);
     // Test currently failing because app-cpp is already added in nodes.json because of buildCacheFilesDirPath.
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "app-cpp/");
+    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Release/app-cpp/");
 
     // Now executing again in Build
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
 
     // Touching main.cpp. But hbuild executed in app
     touchFile(mainFilePath);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "app/");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
 
     // Deleting app.exe
     const path appExeFilePath =
-        testSourcePath / "Build/app" / path(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"));
+        testSourcePath / "Build/Release/app" / path(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"));
     removeFilePath(appExeFilePath);
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
 
     // Deleting app.exe. But hbuild executed in app-cpp first and then in app
     removeFilePath(appExeFilePath);
-    executeSnapshotBalances(Updates{}, "app-cpp/");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "app/");
+    executeSnapshotBalances(Updates{}, "Release/app-cpp/");
+    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Release/app/");
 
     // Deleting app-cpp directory
-    const path appCppDirectory = testSourcePath / "Build/app-cpp/";
+    const path appCppDirectory = testSourcePath / "Build/Release/app-cpp/";
     removeDirectory(appCppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
@@ -172,16 +172,16 @@ TEST(StageTests, Test1)
     // Deleting app-cpp directory but executing hbuild in app
     removeDirectory(appCppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "app/");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
 
     // Deleting main.cpp.o
-    const path mainDotCppDotOFilePath = testSourcePath / "Build/app-cpp/main.cpp.o";
+    const path mainDotCppDotOFilePath = testSourcePath / "Build/Release/app-cpp/main.cpp.o";
     removeFilePath(mainDotCppDotOFilePath);
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
     // Deleting main.cpp.o but executing in app/
     removeFilePath(mainDotCppDotOFilePath);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "app/");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
 
     // Updating compiler-flags
     copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
@@ -196,7 +196,7 @@ TEST(StageTests, Test1)
     // Updating compiler-flags but executing in app-cpp
     copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "app-cpp/");
+    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Release/app-cpp/");
 
     // Executing in Build. Only app to be updated.
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
