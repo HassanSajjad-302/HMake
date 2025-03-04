@@ -18,7 +18,7 @@ template <typename T> struct DSC : DSCFeatures
     T *stored = nullptr;
     // These pointers are assigned in the constructor. An invariant is that these can not nullptr.
     ObjectFileProducerWithDS<BaseType> *objectFileProducer = nullptr;
-    PrebuiltBasic *prebuiltBasic = nullptr;
+    PrebuiltLinkOrArchiveTarget *prebuiltBasic = nullptr;
     PrebuiltDep prebuiltDepLocal;
 
     template <typename U, typename... V>
@@ -35,7 +35,7 @@ template <typename T> struct DSC : DSCFeatures
 
     string define;
 
-    DSC(T *ptr, PrebuiltBasic *prebuiltBasic_, bool defines = false, string define_ = "")
+    DSC(T *ptr, PrebuiltLinkOrArchiveTarget *prebuiltBasic_, bool defines = false, string define_ = "")
     {
         objectFileProducer = ptr;
         prebuiltBasic = prebuiltBasic_;
@@ -100,7 +100,7 @@ template <typename T> struct DSC : DSCFeatures
 
     T &getSourceTarget();
     T *getSourceTargetPointer();
-    PrebuiltBasic &getPrebuiltBasicTarget();
+    PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTargetTarget();
     PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTarget();
     LinkOrArchiveTarget &getLinkOrArchiveTarget();
 };
@@ -189,7 +189,7 @@ template <typename T> T *DSC<T>::getSourceTargetPointer()
     return static_cast<T *>(objectFileProducer);
 }
 
-template <typename T> PrebuiltBasic &DSC<T>::getPrebuiltBasicTarget()
+template <typename T> PrebuiltLinkOrArchiveTarget &DSC<T>::getPrebuiltLinkOrArchiveTargetTarget()
 {
     return *prebuiltBasic;
 }
@@ -205,7 +205,7 @@ template <typename T> LinkOrArchiveTarget &DSC<T>::getLinkOrArchiveTarget()
 }
 
 template <>
-DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltBasic *prebuiltBasic_, bool defines, string define_);
+DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *prebuiltBasic_, bool defines, string define_);
 
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget *ptr);
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget *ptr);

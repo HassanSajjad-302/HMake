@@ -332,7 +332,7 @@ template <BoostExampleOrTestType EOT, bool addInConfigCache>
 void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &target, string_view sourceDir,
                                                             string_view fileName)
 {
-    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltBasicTarget().name + slashc;
+    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltLinkOrArchiveTarget().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
@@ -351,7 +351,7 @@ void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &targ
 template <BoostExampleOrTestType EOT>
 void BoostCppTarget::Add<EOT, false>::operator()(BoostCppTarget &target, string_view sourceDir, string_view fileName)
 {
-    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltBasicTarget().name + slashc;
+    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltLinkOrArchiveTargetTarget().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
@@ -367,7 +367,7 @@ template <BoostExampleOrTestType EOT, bool addInConfigCache>
 void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &target, string_view innerBuildDirName,
                                                                 string_view sourceDir, string_view fileName)
 {
-    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltBasicTarget().name + slashc;
+    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltLinkOrArchiveTargetTarget().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
@@ -387,7 +387,7 @@ template <BoostExampleOrTestType EOT>
 void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, string_view innerBuildDirName,
                                                      string_view sourceDir, string_view fileName)
 {
-    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltBasicTarget().name + slashc;
+    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltLinkOrArchiveTargetTarget().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);

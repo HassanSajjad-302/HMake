@@ -44,7 +44,6 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/Configure.cpp
         hconfigure/src/CTargetRoundZeroBTarget.cpp
         hconfigure/src/PrebuiltLinkOrArchiveTarget.cpp
-        hconfigure/src/PrebuiltBasic.cpp
         hconfigure/src/PlatformSpecific.cpp
         hconfigure/src/Node.cpp
         hconfigure/src/ObjectFile.cpp

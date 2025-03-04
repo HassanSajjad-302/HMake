@@ -23,7 +23,7 @@ void Configuration::initialize()
     compilerFlags = compilerFeatures.getCompilerFlags();
     if (!stdCppTarget)
     {
-        stdCppTarget = &getCppObjectDSC("std");
+        stdCppTarget = &getCppStaticDSC("std");
         CppSourceTarget &cppTarget = stdCppTarget->getSourceTarget();
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
@@ -70,13 +70,6 @@ CppSourceTarget &Configuration::getCppObjectAddStdTarget(bool explicitBuild, con
         targets<CppSourceTarget>.emplace_back(buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, this);
     cppSourceTargets.emplace_back(&cppSourceTarget);
     return addStdCppDep(cppSourceTarget);
-}
-
-PrebuiltBasic &Configuration::getPrebuiltBasic(const string &name_) const
-{
-    PrebuiltBasic &prebuiltBasic =
-        targets<PrebuiltBasic>.emplace_back(name + slashc + name_, TargetType::LIBRARY_OBJECT);
-    return prebuiltBasic;
 }
 
 LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(const string &name_)
@@ -225,7 +218,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const string &name_, const 
     {
         return addStdDSCCppDep(getCppSharedDSC(name_, defines, std::move(define)));
     }
-    return addStdDSCCppDep(getCppObjectDSC(name_, defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const bool explicitBuild, const string &buildCacheFilesDirPath_,
@@ -241,7 +233,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const bool explicitBuild, c
         return addStdDSCCppDep(
             getCppSharedDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define)));
     }
-    return addStdDSCCppDep(getCppObjectDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC(const string &name_, const bool defines, string define)
@@ -270,20 +261,6 @@ DSC<CppSourceTarget> &Configuration::getCppSharedDSC(const bool explicitBuild, c
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
         &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
         &getSharedLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
-}
-
-DSC<CppSourceTarget> &Configuration::getCppObjectDSC(const string &name_, const bool defines, string define)
-{
-    return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObject(name_ + dashCpp), &getPrebuiltBasic(name_), defines, std::move(define)));
-}
-
-DSC<CppSourceTarget> &Configuration::getCppObjectDSC(const bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                     const string &name_, const bool defines, string define)
-{
-    return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp), &getPrebuiltBasic(name_), defines,
-        std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, const string &directory, const bool defines,
@@ -359,12 +336,6 @@ CppSourceTarget &Configuration::getCppObjectNoNameAddStdTarget(bool explicitBuil
         targets<CppSourceTarget>.emplace_back(buildCacheFilesDirPath_, explicitBuild, name_, this);
     cppSourceTargets.emplace_back(&cppSourceTarget);
     return addStdCppDep(cppSourceTarget);
-}
-
-PrebuiltBasic &Configuration::getPrebuiltBasicNoName(const string &name_) const
-{
-    PrebuiltBasic &prebuiltBasic = targets<PrebuiltBasic>.emplace_back(name_, TargetType::LIBRARY_OBJECT);
-    return prebuiltBasic;
 }
 
 LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTargetNoName(const string &name_)
@@ -548,21 +519,6 @@ DSC<CppSourceTarget> &Configuration::getCppSharedDSCNoName(const bool explicitBu
         &getCppObjectNoName(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
         &getSharedLinkOrArchiveTargetNoName(explicitBuild, buildCacheFilesDirPath_, name_), defines,
         std::move(define)));
-}
-
-DSC<CppSourceTarget> &Configuration::getCppObjectDSCNoName(const string &name_, const bool defines, string define)
-{
-    return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObjectNoName(name_ + dashCpp), &getPrebuiltBasicNoName(name_), defines, std::move(define)));
-}
-
-DSC<CppSourceTarget> &Configuration::getCppObjectDSCNoName(const bool explicitBuild,
-                                                           const string &buildCacheFilesDirPath_, const string &name_,
-                                                           const bool defines, string define)
-{
-    return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObjectNoName(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp), &getPrebuiltBasicNoName(name_),
-        defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_, const string &directory,

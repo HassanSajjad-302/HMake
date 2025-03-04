@@ -99,20 +99,6 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
         objectFileProducer->getObjectFiles(&objectFiles, this);
     }
 
-    if (!evaluate(TargetType::LIBRARY_STATIC))
-    {
-        for (auto &[pre, dep] : sortedPrebuiltDependencies)
-        {
-            if (pre->evaluate(TargetType::LIBRARY_OBJECT))
-            {
-                for (const ObjectFileProducer *objectFileProducer : pre->objectFileProducers)
-                {
-                    objectFileProducer->getObjectFiles(&objectFiles, this);
-                }
-            }
-        }
-    }
-
     setLinkOrArchiveCommands();
     commandWithoutTargetsWithTool.setCommand(linker.bTPath.string() + " " + linkOrArchiveCommandWithoutTargets);
 
@@ -139,16 +125,12 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                 {
                     for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
                     {
-                        if (prebuiltBasic->linkTargetType != TargetType::LIBRARY_OBJECT)
+                        const auto *prebuiltLinkOrArchiveTarget =
+                            static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
+                        if (prebuiltLinkOrArchiveTarget->outputFileNode->lastWriteTime > outputFileNode->lastWriteTime)
                         {
-                            const auto *prebuiltLinkOrArchiveTarget =
-                                static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                            if (prebuiltLinkOrArchiveTarget->outputFileNode->lastWriteTime >
-                                outputFileNode->lastWriteTime)
-                            {
-                                needsUpdate = true;
-                                break;
-                            }
+                            needsUpdate = true;
+                            break;
                         }
                     }
                 }
@@ -183,10 +165,10 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     {
         if (AND(TargetType::EXECUTABLE, CopyDLLToExeDirOnNTOs::YES) && atomic_ref(fileStatus).load())
         {
-            flat_hash_set<PrebuiltBasic *> checked;
+            flat_hash_set<PrebuiltLinkOrArchiveTarget *> checked;
             // TODO:
             // Use vector instead and call reserve before
-            stack<PrebuiltBasic *, vector<PrebuiltBasic *>> allDeps;
+            stack<PrebuiltLinkOrArchiveTarget *, vector<PrebuiltLinkOrArchiveTarget *>> allDeps;
             for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
             {
                 checked.emplace(prebuiltBasic);
@@ -194,12 +176,10 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
             }
             while (!allDeps.empty())
             {
-                PrebuiltBasic *prebuiltBasic = allDeps.top();
+                PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget = allDeps.top();
                 allDeps.pop();
-                if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
+                if (prebuiltLinkOrArchiveTarget->evaluate(TargetType::LIBRARY_SHARED))
                 {
-                    auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-
                     if (atomic_ref(prebuiltLinkOrArchiveTarget->fileStatus).load())
                     {
                         // latest dll will be built and copied
@@ -225,7 +205,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                         }
                     }
                 }
-                for (auto &[prebuiltBasic_, prebuiltDep] : prebuiltBasic->requirementDeps)
+                for (auto &[prebuiltBasic_, prebuiltDep] : prebuiltLinkOrArchiveTarget->requirementDeps)
                 {
                     if (checked.emplace(prebuiltBasic_).second)
                     {
@@ -327,12 +307,9 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
         {
             for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
             {
-                if (!prebuiltBasic->evaluate(TargetType::LIBRARY_OBJECT))
-                {
-                    const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
-                        static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                    requirementLinkerFlags += prebuiltLinkOrArchiveTarget->usageRequirementLinkerFlags;
-                }
+                const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
+                    static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
+                requirementLinkerFlags += prebuiltLinkOrArchiveTarget->usageRequirementLinkerFlags;
             }
         }
 
@@ -969,14 +946,11 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
     {
         for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
         {
-            if (!prebuiltBasic->evaluate(TargetType::LIBRARY_OBJECT))
-            {
-                auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                linkOrArchiveCommandWithTargets += prebuiltDep->requirementPreLF;
-                linkOrArchiveCommandWithTargets +=
-                    getLinkFlag(prebuiltLinkOrArchiveTarget->outputDirectory, prebuiltLinkOrArchiveTarget->outputName);
-                linkOrArchiveCommandWithTargets += prebuiltDep->requirementPostLF;
-            }
+            auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
+            linkOrArchiveCommandWithTargets += prebuiltDep->requirementPreLF;
+            linkOrArchiveCommandWithTargets +=
+                getLinkFlag(prebuiltLinkOrArchiveTarget->outputDirectory, prebuiltLinkOrArchiveTarget->outputName);
+            linkOrArchiveCommandWithTargets += prebuiltDep->requirementPostLF;
         }
 
         auto getLibraryDirectoryFlag = [this] {
@@ -1164,15 +1138,12 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         {
             for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                if (!prebuiltBasic->evaluate(TargetType::LIBRARY_OBJECT))
-                {
-                    auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                    linkOrArchiveCommandPrint += prebuiltDep->requirementPreLF;
-                    linkOrArchiveCommandPrint +=
-                        getLinkFlagPrint(prebuiltLinkOrArchiveTarget->outputDirectory,
-                                         prebuiltLinkOrArchiveTarget->outputName, lcpSettings.libraryDependencies);
-                    linkOrArchiveCommandPrint += prebuiltDep->requirementPostLF;
-                }
+                auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
+                linkOrArchiveCommandPrint += prebuiltDep->requirementPreLF;
+                linkOrArchiveCommandPrint +=
+                    getLinkFlagPrint(prebuiltLinkOrArchiveTarget->outputDirectory,
+                                     prebuiltLinkOrArchiveTarget->outputName, lcpSettings.libraryDependencies);
+                linkOrArchiveCommandPrint += prebuiltDep->requirementPostLF;
             }
         }
 

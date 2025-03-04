@@ -105,7 +105,7 @@ public:
     CppSourceTarget &getCppObject(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
     CppSourceTarget &getCppObjectAddStdTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                               const string &name_);
-    PrebuiltBasic &getPrebuiltBasic(const string &name_) const;
+
     LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(const string &name_);
     LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                    const string &name_);
@@ -137,10 +137,6 @@ public:
     DSC<CppSourceTarget> &getCppSharedDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppSharedDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                           const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppObjectDSC(const string &name_, bool defines = false, string define = "");
-
-    DSC<CppSourceTarget> &getCppObjectDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                          const string &name_, bool defines = false, string define = "");
 
     // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
 
@@ -161,7 +157,7 @@ public:
     CppSourceTarget &getCppObjectNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
     CppSourceTarget &getCppObjectNoNameAddStdTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                     const string &name_);
-    PrebuiltBasic &getPrebuiltBasicNoName(const string &name_) const;
+
     LinkOrArchiveTarget &GetExeLinkOrArchiveTargetNoName(const string &name_);
     LinkOrArchiveTarget &GetExeLinkOrArchiveTargetNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                          const string &name_);

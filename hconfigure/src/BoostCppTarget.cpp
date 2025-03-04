@@ -24,7 +24,7 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
 
     if (headerOnly)
     {
-        return configuration->getCppObjectDSC(false, buildCacheFilesDirPath, name);
+        return configuration->getCppStaticDSC(false, buildCacheFilesDirPath, name);
     }
     return configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
 }
@@ -55,7 +55,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         {
             auto boostExampleOrTest = static_cast<BoostExampleOrTestType>(targetConfigCache[i].GetUint());
             const string unitTestName =
-                mainTarget.getPrebuiltBasicTarget().name + slashc +
+                mainTarget.getPrebuiltLinkOrArchiveTarget().name + slashc +
                 string(targetConfigCache[i + 1].GetString(), targetConfigCache[i + 1].GetStringLength());
             bool explicitBuild = false;
             bool isExample = false;

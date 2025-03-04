@@ -14,28 +14,36 @@ import "SMFile.hpp";
 
 PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory,
                                                          TargetType linkTargetType_)
-    : PrebuiltBasic(outputName_, linkTargetType_), outputDirectory(std::move(directory))
+    : BTarget(outputName_, false, false), TargetCache(outputName_), outputName{getLastNameAfterSlash(outputName_)},
+      linkTargetType{linkTargetType_}, outputDirectory(std::move(directory))
 {
 }
 
 PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory,
                                                          TargetType linkTargetType_, string name_, bool buildExplicit,
                                                          bool makeDirectory)
-    : PrebuiltBasic(outputName_, linkTargetType_, std::move(name_), buildExplicit, makeDirectory),
-      outputDirectory(std::move(directory))
+    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), outputName(outputName_),
+      linkTargetType(linkTargetType_), outputDirectory(std::move(directory))
 
 {
 }
 
 void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
 {
-    PrebuiltBasic::updateBTarget(builder, round);
-    if (round == 2)
+    if (round == 1)
+    {
+        for (ObjectFileProducer *objectFileProducer : objectFileProducers)
+        {
+            addDependency<0>(*objectFileProducer);
+        }
+    }
+    else if (round == 2)
     {
         actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
+
         if constexpr (bsMode == BSMode::BUILD)
         {
-                readConfigCacheAtBuildTime();
+            readConfigCacheAtBuildTime();
         }
         else
         {
@@ -44,16 +52,23 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
             writeTargetConfigCacheAtConfigureTime();
         }
 
+        populateRequirementAndUsageRequirementDeps();
+        addRequirementDepsToBTargetDependencies();
+        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        {
+            for (const LibDirNode &libDirNode : PrebuiltLinkOrArchiveTarget->usageRequirementLibraryDirectories)
+            {
+                requirementLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
+            }
+        }
+
         for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
         {
-            if (!prebuiltBasic->evaluate(TargetType::LIBRARY_OBJECT))
+            for (const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
+                     static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
+                 const LibDirNode &libDirNode : prebuiltLinkOrArchiveTarget->usageRequirementLibraryDirectories)
             {
-                for (const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
-                         static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                     const LibDirNode &libDirNode : prebuiltLinkOrArchiveTarget->usageRequirementLibraryDirectories)
-                {
-                    requirementLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
-                }
+                requirementLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
             }
         }
     }
@@ -61,6 +76,26 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
 
 void PrebuiltLinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime()
 {
+    namespace LinkConfig = Indices::ConfigCache::LinkConfig;
+
+    buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
+    Value &libDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::requirementLibraryDirectoriesArray];
+    libDirectoriesConfigCache.Reserve(requirementLibraryDirectories.size(), cacheAlloc);
+
+    for (const LibDirNode &libDirNode : requirementLibraryDirectories)
+    {
+        libDirectoriesConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
+    }
+
+    buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
+    Value &useLibDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::usageRequirementLibraryDirectoriesArray];
+    useLibDirectoriesConfigCache.Reserve(usageRequirementLibraryDirectories.size(), cacheAlloc);
+
+    for (const LibDirNode &libDirNode : usageRequirementLibraryDirectories)
+    {
+        useLibDirectoriesConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
+    }
+
     buildOrConfigCacheCopy.PushBack(Value(svtogsr(outputDirectory)), cacheAlloc);
     buildOrConfigCacheCopy.PushBack(outputFileNode->getValue(), cacheAlloc);
     copyBackConfigCacheMutexLocked();
@@ -69,7 +104,105 @@ void PrebuiltLinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime()
 void PrebuiltLinkOrArchiveTarget::readConfigCacheAtBuildTime()
 {
     namespace LinkConfig = Indices::ConfigCache::LinkConfig;
+
+    Value &reqLibDirsConfigCache = getConfigCache()[LinkConfig::requirementLibraryDirectoriesArray];
+    requirementLibraryDirectories.reserve(reqLibDirsConfigCache.Size());
+    for (const Value &pValue : reqLibDirsConfigCache.GetArray())
+    {
+        requirementLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
+    }
+
+    Value &useReqLibDirsConfigCache = getConfigCache()[LinkConfig::usageRequirementLibraryDirectoriesArray];
+    usageRequirementLibraryDirectories.reserve(useReqLibDirsConfigCache.Size());
+    for (const Value &pValue : useReqLibDirsConfigCache.GetArray())
+    {
+        usageRequirementLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
+    }
+
     const Value &v = getConfigCache()[LinkConfig::outputDirectoryNode];
     outputDirectory = string(v.GetString(), v.GetStringLength());
     outputFileNode = Node::getNodeFromValue(getConfigCache()[LinkConfig::outputFileNode], true, true);
+}
+
+void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
+{
+    // Set is copied because new elements are to be inserted in it.
+    node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> localRequirementDeps = requirementDeps;
+
+    for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localRequirementDeps)
+    {
+        for (auto &[PrebuiltLinkOrArchiveTarget_, prebuilt] : PrebuiltLinkOrArchiveTarget->usageRequirementDeps)
+        {
+            PrebuiltDep prebuiltDep_;
+
+            prebuiltDep_.requirementPreLF = prebuilt.usageRequirementPreLF;
+            prebuiltDep_.requirementPostLF = prebuilt.usageRequirementPostLF;
+            prebuiltDep_.requirementRpathLink = prebuilt.usageRequirementRpathLink;
+            prebuiltDep_.requirementRpath = prebuilt.usageRequirementRpath;
+            prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
+            prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
+
+            requirementDeps.emplace(PrebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
+        }
+    }
+
+    for (auto localUsageRequirements = usageRequirementDeps;
+         auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localUsageRequirements)
+    {
+        for (auto &[PrebuiltLinkOrArchiveTarget_, prebuilt] : PrebuiltLinkOrArchiveTarget->usageRequirementDeps)
+        {
+            PrebuiltDep prebuiltDep_;
+
+            prebuiltDep_.usageRequirementPreLF = prebuilt.usageRequirementPreLF;
+            prebuiltDep_.usageRequirementPostLF = prebuilt.usageRequirementPostLF;
+            prebuiltDep_.usageRequirementRpathLink = prebuilt.usageRequirementRpathLink;
+            prebuiltDep_.usageRequirementRpath = prebuilt.usageRequirementRpath;
+            prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
+            prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
+
+            usageRequirementDeps.emplace(PrebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
+        }
+    }
+}
+
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, const TargetType linkTargetType_)
+    : BTarget(outputName_, false, false), TargetCache(outputName_), outputName{getLastNameAfterSlash(outputName_)},
+      linkTargetType{linkTargetType_}
+{
+}
+
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, const TargetType linkTargetType_,
+                                                         const string &name_, const bool buildExplicit,
+                                                         const bool makeDirectory)
+    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), outputName(outputName_),
+      linkTargetType(linkTargetType_)
+{
+}
+
+void PrebuiltLinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
+{
+    if (evaluate(TargetType::LIBRARY_STATIC))
+    {
+        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        {
+            addLooseDependency<0>(*PrebuiltLinkOrArchiveTarget);
+        }
+    }
+    else
+    {
+        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        {
+            addDependency<0>(*PrebuiltLinkOrArchiveTarget);
+        }
+    }
+}
+
+bool operator<(const PrebuiltLinkOrArchiveTarget &lhs, const PrebuiltLinkOrArchiveTarget &rhs)
+{
+    return lhs.id < rhs.id;
+}
+
+void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget)
+{
+    json = PrebuiltLinkOrArchiveTarget.getTarjanNodeName();
 }
