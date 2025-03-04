@@ -40,7 +40,7 @@ struct PrebuiltDep
     bool defaultRpathLink = true;
 };
 
-class PrebuiltBasic : public BTarget, public PrebuiltBasicFeatures, public TargetCache
+class PrebuiltBasic : public BTarget, public TargetCache
 {
   public:
     string outputName;
@@ -54,6 +54,7 @@ class PrebuiltBasic : public BTarget, public PrebuiltBasicFeatures, public Targe
 
     flat_hash_set<class ObjectFileProducer *> objectFileProducers;
 
+    vector<LibDirNode> requirementLibraryDirectories;
     vector<LibDirNode> usageRequirementLibraryDirectories;
 
     TargetType linkTargetType = TargetType::LIBRARY_OBJECT;

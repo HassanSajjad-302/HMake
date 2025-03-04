@@ -101,16 +101,6 @@ std::size_t CppSourceTarget::SMFileHash::operator()(const Node *node) const
     return reinterpret_cast<uint64_t>(node);
 }
 
-CppSourceTarget::CppSourceTarget(const string &name_) : CSourceTarget{false, name_}
-{
-    initializeCppSourceTarget(name_, "");
-}
-
-CppSourceTarget::CppSourceTarget(const bool buildExplicit, const string &name_) : CSourceTarget{buildExplicit, name_}
-{
-    initializeCppSourceTarget(name_, "");
-}
-
 CppSourceTarget::CppSourceTarget(const string &name_, Configuration *configuration_)
     : CSourceTarget(false, name_, configuration_)
 {
@@ -121,18 +111,6 @@ CppSourceTarget::CppSourceTarget(const bool buildExplicit, const string &name_, 
     : CSourceTarget(buildExplicit, name_, configuration_)
 {
     initializeCppSourceTarget(name_, "");
-}
-
-CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const string &name_) : CSourceTarget{false, name_}
-{
-
-    initializeCppSourceTarget(name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
-}
-
-CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const bool buildExplicit, const string &name_)
-    : CSourceTarget{buildExplicit, name_}
-{
-    initializeCppSourceTarget(name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
 }
 
 CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, Configuration *configuration_)

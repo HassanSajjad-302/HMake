@@ -292,29 +292,27 @@ string getSlashedExecutableName(const string &name)
 
 PrebuiltBasicFeatures::PrebuiltBasicFeatures()
 {
-    if (cache.isLinkerInToolsArray)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        const VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
-        if constexpr (bsMode == BSMode::BUILD)
+        if (cache.isLinkerInToolsArray)
         {
-            // Initialized in LinkOrArchiveTarget round 2
-            return;
-        }
-        for (const string &str : vsTools.libraryDirectories)
-        {
-            Node *node = Node::getNodeFromNonNormalizedPath(str, false);
-            bool found = false;
-            for (const LibDirNode &libDirNode : requirementLibraryDirectories)
+            const VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
+            for (const string &str : vsTools.libraryDirectories)
             {
-                if (libDirNode.node == node)
+                Node *node = Node::getNodeFromNonNormalizedPath(str, false);
+                bool found = false;
+                for (const LibDirNode &libDirNode : requirementLibraryDirectories)
                 {
-                    found = true;
-                    break;
+                    if (libDirNode.node == node)
+                    {
+                        found = true;
+                        break;
+                    }
                 }
-            }
-            if (!found)
-            {
-                requirementLibraryDirectories.emplace_back(node, true);
+                if (!found)
+                {
+                    requirementLibraryDirectories.emplace_back(node, true);
+                }
             }
         }
     }
@@ -423,32 +421,27 @@ void CppCompilerFeatures::initialize(Configuration &config)
 void CppCompilerFeatures::setCompilerFromVSTools(Configuration &config, const VSTools &vsTools)
 {
     compiler = vsTools.compiler;
-
-    if constexpr (bsMode == BSMode::BUILD)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        // Initialized in CppSourceTarget round 2
-        return;
-    }
-    for (const string &str : vsTools.includeDirectories)
-    {
-        // TODO
-        // This will assign directly to the default target and it will care for the build-time and configure-time.
-        actuallyAddInclude(config.cppTargetFeatures.reqIncls, str, true, true);
+        for (const string &str : vsTools.includeDirectories)
+        {
+            // TODO
+            // This will assign directly to the default target and it will care for the build-time and configure-time.
+            actuallyAddInclude(config.cppTargetFeatures.reqIncls, str, true, true);
+        }
     }
 }
 
 void CppCompilerFeatures::setCompilerFromLinuxTools(Configuration &config, const LinuxTools &linuxTools)
 {
     compiler = linuxTools.compiler;
-    if constexpr (bsMode == BSMode::BUILD)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        // Initialized in CppSourceTarget round 2
-        return;
-    }
-    for (const string &str : linuxTools.includeDirectories)
-    {
-        // This will assign directly to the default-target, and it will care for the build-time and configure-time.
-        actuallyAddInclude(config.cppTargetFeatures.reqIncls, str, true, true);
+        for (const string &str : linuxTools.includeDirectories)
+        {
+            // This will assign directly to the default-target, and it will care for the build-time and configure-time.
+            actuallyAddInclude(config.cppTargetFeatures.reqIncls, str, true, true);
+        }
     }
 }
 

@@ -90,7 +90,6 @@ public:
     CppTargetFeatures cppTargetFeatures;
     CompilerFlags compilerFlags;
     PrebuiltLinkerFeatures prebuiltLinkOrArchiveTargetFeatures;
-    PrebuiltBasicFeatures prebuiltBasicFeatures;
     LinkerFeatures linkerFeatures;
     DSC<CppSourceTarget> *stdCppTarget = nullptr;
     TargetType targetType = TargetType::LIBRARY_STATIC;

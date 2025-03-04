@@ -149,13 +149,8 @@ class CppSourceTarget : public CppTargetFeatures, public CSourceTarget
     void readConfigCacheAtBuildTime();
     string getTarjanNodeName() const override;
 
-    CppSourceTarget(const string &name_);
-    CppSourceTarget(bool buildExplicit, const string &name_);
     CppSourceTarget(const string &name_, Configuration *configuration_);
     CppSourceTarget(bool buildExplicit, const string &name_, Configuration *configuration_);
-
-    CppSourceTarget(string buildCacheFilesDirPath_, const string &name_);
-    CppSourceTarget(string buildCacheFilesDirPath_, bool buildExplicit, const string &name_);
     CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, Configuration *configuration_);
     CppSourceTarget(string buildCacheFilesDirPath_, bool buildExplicit, const string &name_,
                     Configuration *configuration_);
