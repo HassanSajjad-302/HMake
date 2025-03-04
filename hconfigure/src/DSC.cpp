@@ -10,7 +10,8 @@ import "LinkOrArchiveTarget.hpp";
 #endif
 
 template <>
-DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *prebuiltBasic_, const bool defines, string define_)
+DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *prebuiltBasic_, const bool defines,
+                          string define_)
 {
     objectFileProducer = ptr;
     prebuiltBasic = prebuiltBasic_;
