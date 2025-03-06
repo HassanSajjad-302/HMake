@@ -78,7 +78,6 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
 
     virtual string getLinkOrArchiveCommandWithoutTargets();
 
-    void setOutputName(string outputName_);
     void setFileStatus(RealBTarget &realBTarget);
     void updateBTarget(Builder &builder, unsigned short round) override;
     void writeTargetConfigCacheAtConfigureTime();

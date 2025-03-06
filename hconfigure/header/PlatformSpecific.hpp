@@ -76,7 +76,6 @@ namespace LinkConfig
 constexpr static unsigned name = 0;
 constexpr static unsigned requirementLibraryDirectoriesArray = 1;
 constexpr static unsigned usageRequirementLibraryDirectoriesArray = 2;
-constexpr static unsigned outputDirectoryNode = 3;
 constexpr static unsigned outputFileNode = 4;
 constexpr static unsigned buildCacheFilesDirPath = 5;
 

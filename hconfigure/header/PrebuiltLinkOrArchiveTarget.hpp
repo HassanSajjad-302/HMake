@@ -43,11 +43,19 @@ struct PrebuiltDep
 
 class PrebuiltLinkOrArchiveTarget : public PrebuiltLinkerFeatures, public BTarget, public TargetCache
 {
-  public:
+#ifndef BUILD_MODE
+    string outputName;
     string actualOutputName;
-    string usageRequirementLinkerFlags;
     string outputDirectory;
+#endif
+
+  public:
+    string usageRequirementLinkerFlags;
     Node *outputFileNode = nullptr;
+
+    string getOutputName() const;
+    string getActualOutputName() const;
+    string_view getOutputDirectoryV() const;
 
     PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory, TargetType linkTargetType_);
     PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory, TargetType linkTargetType_, string name_,
@@ -62,7 +70,6 @@ class PrebuiltLinkOrArchiveTarget : public PrebuiltLinkerFeatures, public BTarge
     void readConfigCacheAtBuildTime();
 
   public:
-    string outputName;
     vector<const class ObjectFile *> objectFiles;
 
     node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> requirementDeps;
@@ -103,11 +110,6 @@ class PrebuiltLinkOrArchiveTarget : public PrebuiltLinkerFeatures, public BTarge
                                       PrebuiltDep prebuiltDep, U... deps);
 
     void populateRequirementAndUsageRequirementDeps();
-
-    PrebuiltLinkOrArchiveTarget(const string &outputName_, TargetType linkTargetType_);
-    PrebuiltLinkOrArchiveTarget(const string &outputName_, TargetType linkTargetType_, const string &name_,
-                                bool buildExplicit, bool makeDirectory);
-
     void addRequirementDepsToBTargetDependencies();
 };
 

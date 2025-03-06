@@ -468,7 +468,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSCNoName(const string &name_, 
     {
         return addStdDSCCppDep(getCppSharedDSCNoName(name_, defines, std::move(define)));
     }
-    return addStdDSCCppDep(getCppObjectDSCNoName(name_, defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSCNoName(const bool explicitBuild,
@@ -485,8 +484,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSCNoName(const bool explicitBu
         return addStdDSCCppDep(
             getCppSharedDSCNoName(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define)));
     }
-    return addStdDSCCppDep(
-        getCppObjectDSCNoName(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSCNoName(const string &name_, const bool defines, string define)

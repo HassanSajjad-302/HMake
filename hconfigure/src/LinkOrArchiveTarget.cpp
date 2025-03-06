@@ -82,11 +82,6 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandWithoutTargets()
     return "";
 }
 
-void LinkOrArchiveTarget::setOutputName(string outputName_)
-{
-    outputName = std::move(outputName_);
-}
-
 void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 {
     for (auto &[pre, dep] : requirementDeps)
@@ -190,7 +185,9 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                         // latest dll exists but it might not have been copied in the previous invocation.
 
                         if (const Node *copiedDLLNode = Node::getNodeFromNormalizedString(
-                                outputDirectory + slashc + prebuiltLinkOrArchiveTarget->actualOutputName, true, true);
+                                string(getOutputDirectoryV()) + slashc +
+                                    prebuiltLinkOrArchiveTarget->getActualOutputName(),
+                                true, true);
                             copiedDLLNode->doesNotExist)
                         {
                             dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
@@ -290,7 +287,8 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                     for (const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : dllsToBeCopied)
                     {
                         copy_file(prebuiltLinkOrArchiveTarget->outputFileNode->filePath,
-                                  outputDirectory + slashc + prebuiltLinkOrArchiveTarget->actualOutputName,
+                                  string(getOutputDirectoryV()) + slashc +
+                                      prebuiltLinkOrArchiveTarget->getActualOutputName(),
                                   std::filesystem::copy_options::overwrite_existing);
                     }
                 }
@@ -948,8 +946,8 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
         {
             auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
             linkOrArchiveCommandWithTargets += prebuiltDep->requirementPreLF;
-            linkOrArchiveCommandWithTargets +=
-                getLinkFlag(prebuiltLinkOrArchiveTarget->outputDirectory, prebuiltLinkOrArchiveTarget->outputName);
+            linkOrArchiveCommandWithTargets += getLinkFlag(string(prebuiltLinkOrArchiveTarget->getOutputDirectoryV()),
+                                                           prebuiltLinkOrArchiveTarget->getOutputName());
             linkOrArchiveCommandWithTargets += prebuiltDep->requirementPostLF;
         }
 
@@ -976,7 +974,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                     {
                         auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                         localLinkCommand += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                                            addQuotes(prebuiltLinkOrArchiveTarget->outputDirectory) + " ";
+                                            addQuotes(string(prebuiltLinkOrArchiveTarget->getOutputDirectoryV())) + " ";
                     }
                     else
                     {
@@ -995,8 +993,8 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                     if (prebuiltDep->defaultRpathLink)
                     {
                         auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                        localLinkCommand +=
-                            "-Wl,-rpath-link -Wl," + addQuotes(prebuiltLinkOrArchiveTarget->outputDirectory) + " ";
+                        localLinkCommand += "-Wl,-rpath-link -Wl," +
+                                            addQuotes(string(prebuiltLinkOrArchiveTarget->getOutputDirectoryV())) + " ";
                     }
                     else
                     {
@@ -1141,8 +1139,8 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                 auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                 linkOrArchiveCommandPrint += prebuiltDep->requirementPreLF;
                 linkOrArchiveCommandPrint +=
-                    getLinkFlagPrint(prebuiltLinkOrArchiveTarget->outputDirectory,
-                                     prebuiltLinkOrArchiveTarget->outputName, lcpSettings.libraryDependencies);
+                    getLinkFlagPrint(string(prebuiltLinkOrArchiveTarget->getOutputDirectoryV()),
+                                     prebuiltLinkOrArchiveTarget->getOutputName(), lcpSettings.libraryDependencies);
                 linkOrArchiveCommandPrint += prebuiltDep->requirementPostLF;
             }
         }
@@ -1187,7 +1185,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                     {
                         auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                         linkOrArchiveCommandPrint += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                                                     getReducedPath(prebuiltLinkOrArchiveTarget->outputDirectory,
+                                                     getReducedPath(prebuiltLinkOrArchiveTarget->getOutputDirectoryV(),
                                                                     lcpSettings.libraryDependencies) +
                                                      " ";
                     }
@@ -1210,7 +1208,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                     {
                         auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                         linkOrArchiveCommandPrint += "-Wl,-rpath-link -Wl," +
-                                                     getReducedPath(prebuiltLinkOrArchiveTarget->outputDirectory,
+                                                     getReducedPath(prebuiltLinkOrArchiveTarget->getOutputDirectoryV(),
                                                                     lcpSettings.libraryDependencies) +
                                                      " ";
                     }

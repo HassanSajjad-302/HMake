@@ -12,6 +12,50 @@ import "SMFile.hpp";
 #include <utility>
 #endif
 
+string PrebuiltLinkOrArchiveTarget::getOutputName() const
+{
+#ifdef BUILD_MODE
+    return getTargetNameFromActualName(linkTargetType, os, getLastNameAfterSlash(outputFileNode->filePath));
+#else
+    return outputName;
+#endif
+}
+
+string PrebuiltLinkOrArchiveTarget::getActualOutputName() const
+{
+#ifdef BUILD_MODE
+    getLastNameAfterSlash(outputFileNode->filePath);
+#else
+    return actualOutputName;
+#endif
+}
+
+string_view PrebuiltLinkOrArchiveTarget::getOutputDirectoryV() const
+{
+#ifdef BUILD_MODE
+    getNameBeforeLastSlash(outputFileNode->filePath);
+#else
+    return outputDirectory;
+#endif
+}
+
+#ifdef BUILD_MODE
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory,
+                                                         TargetType linkTargetType_)
+    : BTarget(outputName_, false, false), TargetCache(outputName_), linkTargetType{linkTargetType_}
+{
+}
+
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory,
+                                                         TargetType linkTargetType_, string name_, bool buildExplicit,
+                                                         bool makeDirectory)
+    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), linkTargetType(linkTargetType_)
+
+{
+}
+
+#else
+
 PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory,
                                                          TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), outputName{getLastNameAfterSlash(outputName_)},
@@ -28,6 +72,8 @@ PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputNam
 {
 }
 
+#endif
+
 void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
 {
     if (round == 1)
@@ -39,7 +85,6 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
     }
     else if (round == 2)
     {
-        actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
 
         if constexpr (bsMode == BSMode::BUILD)
         {
@@ -47,8 +92,13 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
         }
         else
         {
+
+#ifndef BUILD_MODE
+            actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
             outputDirectory = Node::getNodeFromNonNormalizedString(outputDirectory, false, true)->filePath;
             outputFileNode = Node::getNodeFromNormalizedString(outputDirectory + slashc + actualOutputName, true, true);
+#endif
+
             writeTargetConfigCacheAtConfigureTime();
         }
 
@@ -96,7 +146,9 @@ void PrebuiltLinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime()
         useLibDirectoriesConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
     }
 
+#ifndef BUILD_MODE
     buildOrConfigCacheCopy.PushBack(Value(svtogsr(outputDirectory)), cacheAlloc);
+#endif
     buildOrConfigCacheCopy.PushBack(outputFileNode->getValue(), cacheAlloc);
     copyBackConfigCacheMutexLocked();
 }
@@ -119,8 +171,6 @@ void PrebuiltLinkOrArchiveTarget::readConfigCacheAtBuildTime()
         usageRequirementLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
     }
 
-    const Value &v = getConfigCache()[LinkConfig::outputDirectoryNode];
-    outputDirectory = string(v.GetString(), v.GetStringLength());
     outputFileNode = Node::getNodeFromValue(getConfigCache()[LinkConfig::outputFileNode], true, true);
 }
 
@@ -163,20 +213,6 @@ void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
             usageRequirementDeps.emplace(PrebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
         }
     }
-}
-
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, const TargetType linkTargetType_)
-    : BTarget(outputName_, false, false), TargetCache(outputName_), outputName{getLastNameAfterSlash(outputName_)},
-      linkTargetType{linkTargetType_}
-{
-}
-
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, const TargetType linkTargetType_,
-                                                         const string &name_, const bool buildExplicit,
-                                                         const bool makeDirectory)
-    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), outputName(outputName_),
-      linkTargetType(linkTargetType_)
-{
 }
 
 void PrebuiltLinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
