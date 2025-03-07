@@ -62,6 +62,7 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     HashedCommand commandWithoutTargetsWithTool;
 
+    vector<const ObjectFile *> objectFiles;
     vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
     // Needed for pdb files.
     Node *buildCacheFilesDirPathNode = nullptr;
@@ -77,8 +78,9 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
                         TargetType targetType, Configuration *configuration_);
 
     virtual string getLinkOrArchiveCommandWithoutTargets();
+    BTargetType getBTargetType() const override;
 
-    void setFileStatus(RealBTarget &realBTarget);
+    void setFileStatus();
     void updateBTarget(Builder &builder, unsigned short round) override;
     void writeTargetConfigCacheAtConfigureTime();
     void readConfigCacheAtBuildTime();

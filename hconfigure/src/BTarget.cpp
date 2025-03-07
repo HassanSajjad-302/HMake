@@ -246,7 +246,7 @@ string BTarget::getTarjanNodeName() const
 
 BTargetType BTarget::getBTargetType() const
 {
-    return static_cast<BTargetType>(0);
+    return BTargetType::DEFAULT;
 }
 
 void BTarget::updateBTarget(Builder &, unsigned short)

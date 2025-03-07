@@ -12,11 +12,9 @@ import <utility>;
 #else
 #include "LinkOrArchiveTarget.hpp"
 #include "BuildSystemFunctions.hpp"
-#include "Cache.hpp"
 #include "CppSourceTarget.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
-#include <fstream>
 #include <stack>
 #include <utility>
 #endif
@@ -37,8 +35,7 @@ void LinkOrArchiveTarget::makeBuildCacheFilesDirPathAtConfigTime(string buildCac
             buildCacheFilesDirPath = configureNode->filePath + slashc + name;
         }
         create_directories(buildCacheFilesDirPath);
-        Node::addHalfNodeFromNormalizedStringSingleThreaded(buildCacheFilesDirPath);
-        buildCacheFilesDirPathNode = Node::getLastNodeAdded();
+        buildCacheFilesDirPathNode = Node::addHalfNodeFromNormalizedStringSingleThreaded(buildCacheFilesDirPath);
     }
 }
 
@@ -82,7 +79,12 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandWithoutTargets()
     return "";
 }
 
-void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
+BTargetType LinkOrArchiveTarget::getBTargetType() const
+{
+    return BTargetType::LINK_OR_ARCHIVE_TARGET;
+}
+
+void LinkOrArchiveTarget::setFileStatus()
 {
     for (auto &[pre, dep] : requirementDeps)
     {
@@ -92,6 +94,17 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
     for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
     {
         objectFileProducer->getObjectFiles(&objectFiles, this);
+    }
+
+    if (objectFiles.empty())
+    {
+        if (evaluate(TargetType::LIBRARY_STATIC))
+        {
+            atomic_ref(fileStatus).store(false);
+            return;
+        }
+        // TODO
+        // Throw Exception. Shared Library or Executable cannot have zero object-files.
     }
 
     setLinkOrArchiveCommands();
@@ -105,23 +118,28 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
 
     if (!atomic_ref(fileStatus).load())
     {
+        outputFileNode->ensureSystemCheckCalled(true, true);
         if (outputFileNode->doesNotExist)
         {
             atomic_ref(fileStatus).store(true);
         }
         else
         {
-            // If linkOrArchiveCommandWithoutTargets could be stored with linker.btPath.*toPStr, so only Value of
-            // strings is compared instead of new allocation
             if (getBuildCache()[LinkBuild::commandWithoutArgumentsWithTools] == commandWithoutTargetsWithTool.getHash())
             {
                 bool needsUpdate = false;
                 if (!evaluate(TargetType::LIBRARY_STATIC))
                 {
-                    for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
+                    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
                     {
-                        const auto *prebuiltLinkOrArchiveTarget =
-                            static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
+                        // No need to check whether prebuiltLinkOrArchiveTarget is a static-library since it is
+                        // already-checked in that target's setFileStatus.
+
+                        if (prebuiltLinkOrArchiveTarget->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
+                            static_cast<LinkOrArchiveTarget *>(prebuiltLinkOrArchiveTarget)->objectFiles.empty())
+                        {
+                            continue;
+                        }
                         if (prebuiltLinkOrArchiveTarget->outputFileNode->lastWriteTime > outputFileNode->lastWriteTime)
                         {
                             needsUpdate = true;
@@ -182,7 +200,7 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
                     }
                     else
                     {
-                        // latest dll exists but it might not have been copied in the previous invocation.
+                        // latest dll exists, but it might not have been copied in the previous invocation.
 
                         if (const Node *copiedDLLNode = Node::getNodeFromNormalizedString(
                                 string(getOutputDirectoryV()) + slashc +
@@ -212,11 +230,6 @@ void LinkOrArchiveTarget::setFileStatus(RealBTarget &realBTarget)
             }
         }
     }
-
-    if (atomic_ref(fileStatus).load())
-    {
-        assignFileStatusToDependents(0);
-    }
 }
 
 void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
@@ -225,7 +238,12 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
     RealBTarget &realBTarget = realBTargets[round];
     if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
     {
-        setFileStatus(realBTarget);
+        setFileStatus();
+        if (atomic_ref(fileStatus).load())
+        {
+            assignFileStatusToDependents(0);
+        }
+
         if (atomic_ref(fileStatus).load())
         {
             shared_ptr<RunCommand> postBasicLinkOrArchive;
@@ -277,7 +295,6 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
                     postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false,
                                                                 std::move(buildOrConfigCacheCopy), targetCacheIndex);
                 }
-                fflush(stdout);
             }
 
             if constexpr (os == OS::NT)
@@ -942,9 +959,14 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
 
     if (linkTargetType != TargetType::LIBRARY_STATIC)
     {
-        for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
+        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : sortedPrebuiltDependencies)
         {
-            auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
+            if (prebuiltLinkOrArchiveTarget->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
+                static_cast<LinkOrArchiveTarget *>(prebuiltLinkOrArchiveTarget)->objectFiles.empty())
+            {
+                continue;
+            }
+
             linkOrArchiveCommandWithTargets += prebuiltDep->requirementPreLF;
             linkOrArchiveCommandWithTargets += getLinkFlag(string(prebuiltLinkOrArchiveTarget->getOutputDirectoryV()),
                                                            prebuiltLinkOrArchiveTarget->getOutputName());

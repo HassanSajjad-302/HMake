@@ -70,7 +70,6 @@ class PrebuiltLinkOrArchiveTarget : public PrebuiltLinkerFeatures, public BTarge
     void readConfigCacheAtBuildTime();
 
   public:
-    vector<const class ObjectFile *> objectFiles;
 
     node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> requirementDeps;
     node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> usageRequirementDeps;

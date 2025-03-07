@@ -59,7 +59,7 @@ void initializeCache(const BSMode bsMode_)
     if (currentNode->filePath.size() != configureNode->filePath.size())
     {
         currentMinusConfigure = string_view(currentNode->filePath.begin() + configureNode->filePath.size() + 1,
-                                             currentNode->filePath.end());
+                                            currentNode->filePath.end());
     }
 
     if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache")); exists(p))
@@ -169,7 +169,7 @@ bool configureOrBuild()
     {
         cache.registerCacheVariables();
         writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),
-                                    configCache);
+                                   configCache);
         writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
     }
     return b.errorHappenedInRoundMode;
@@ -194,7 +194,7 @@ string getLastNameAfterSlash(string_view name)
     return string(name);
 }
 
-string_view getLastNameAfterSlashView(string_view name)
+string_view getLastNameAfterSlashV(string_view name)
 {
     if (const uint64_t i = name.find_last_of(slashc); i != string::npos)
     {
@@ -202,6 +202,7 @@ string_view getLastNameAfterSlashView(string_view name)
     }
     return name;
 }
+
 string getNameBeforeLastSlash(string_view name)
 {
     if (const uint64_t i = name.find_last_of(slashc); i != string::npos)
@@ -209,6 +210,15 @@ string getNameBeforeLastSlash(string_view name)
         return {name.begin(), name.begin() + i};
     }
     return string(name);
+}
+
+string_view getNameBeforeLastSlashV(string_view name)
+{
+    if (const uint64_t i = name.find_last_of(slashc); i != string::npos)
+    {
+        return {name.begin(), name.begin() + i};
+    }
+    return name;
 }
 
 string getNameBeforeLastPeriod(string_view name)

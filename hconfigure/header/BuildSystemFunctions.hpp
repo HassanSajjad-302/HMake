@@ -105,8 +105,9 @@ void printErrorMessageColor(const string &message, uint32_t color);
 #define HMAKE_HMAKE_INTERNAL_ERROR printErrorMessage(FORMAT("HMake Internal Error {} {}", __FILE__, __LINE__));
 
 string getLastNameAfterSlash(string_view name);
-string_view getLastNameAfterSlashView(string_view name);
+string_view getLastNameAfterSlashV(string_view name);
 string getNameBeforeLastSlash(string_view name);
+string_view getNameBeforeLastSlashV(string_view name);
 string getNameBeforeLastPeriod(string_view name);
 string removeDashCppFromName(string_view name);
 bool configureOrBuild();

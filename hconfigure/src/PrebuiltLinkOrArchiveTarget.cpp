@@ -24,7 +24,7 @@ string PrebuiltLinkOrArchiveTarget::getOutputName() const
 string PrebuiltLinkOrArchiveTarget::getActualOutputName() const
 {
 #ifdef BUILD_MODE
-    getLastNameAfterSlash(outputFileNode->filePath);
+    return getLastNameAfterSlash(outputFileNode->filePath);
 #else
     return actualOutputName;
 #endif
@@ -33,7 +33,7 @@ string PrebuiltLinkOrArchiveTarget::getActualOutputName() const
 string_view PrebuiltLinkOrArchiveTarget::getOutputDirectoryV() const
 {
 #ifdef BUILD_MODE
-    getNameBeforeLastSlash(outputFileNode->filePath);
+    return getNameBeforeLastSlashV(outputFileNode->filePath);
 #else
     return outputDirectory;
 #endif
@@ -95,8 +95,19 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
 
 #ifndef BUILD_MODE
             actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
-            outputDirectory = Node::getNodeFromNonNormalizedString(outputDirectory, false, true)->filePath;
+            Node *outputDirectoryNode = Node::getNodeFromNonNormalizedString(outputDirectory, false, true);
+            if (outputDirectoryNode->doesNotExist)
+            {
+                // TODO
+                // Throw Exception. Also Replace outputDirectory with outputNode initialized in the constructor.
+                // User won't have the ability to setOutputName or setOutputDirectory. Should be achieved in the constructor.
+
+               // throw std::exception(FORMAT("Output directory {} for LinkTarget {} does not exists.", outputDirectoryNode->filePath, name));
+
+            }
+            outputDirectory = outputDirectoryNode->filePath;
             outputFileNode = Node::getNodeFromNormalizedString(outputDirectory + slashc + actualOutputName, true, true);
+
 #endif
 
             writeTargetConfigCacheAtConfigureTime();
@@ -146,9 +157,6 @@ void PrebuiltLinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime()
         useLibDirectoriesConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
     }
 
-#ifndef BUILD_MODE
-    buildOrConfigCacheCopy.PushBack(Value(svtogsr(outputDirectory)), cacheAlloc);
-#endif
     buildOrConfigCacheCopy.PushBack(outputFileNode->getValue(), cacheAlloc);
     copyBackConfigCacheMutexLocked();
 }
@@ -171,7 +179,7 @@ void PrebuiltLinkOrArchiveTarget::readConfigCacheAtBuildTime()
         usageRequirementLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
     }
 
-    outputFileNode = Node::getNodeFromValue(getConfigCache()[LinkConfig::outputFileNode], true, true);
+    outputFileNode = Node::getNotSystemCheckCalledNodeFromValue(getConfigCache()[LinkConfig::outputFileNode]);
 }
 
 void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
