@@ -47,6 +47,31 @@ void Configuration::initialize()
                     .initializeUseReqInclsFromReqIncls()
                     .initializePublicHuDirsFromReqIncls();
             }
+            if (cache.isLinkerInToolsArray)
+            {
+                const VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
+                for (const string &str : vsTools.libraryDirectories)
+                {
+                    Node *node = Node::getNodeFromNonNormalizedPath(str, false);
+                    bool found = false;
+                    for (const LibDirNode &libDirNode :
+                         stdCppTarget->getLinkOrArchiveTarget().requirementLibraryDirectories)
+                    {
+                        if (libDirNode.node == node)
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        stdCppTarget->getLinkOrArchiveTarget().requirementLibraryDirectories.emplace_back(node, true);
+                    }
+                }
+
+                stdCppTarget->getLinkOrArchiveTarget().usageRequirementLibraryDirectories =
+                    stdCppTarget->getLinkOrArchiveTarget().requirementLibraryDirectories;
+            }
         }
     }
 }
