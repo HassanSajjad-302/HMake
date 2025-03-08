@@ -38,7 +38,6 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/ToolsCache.cpp
         hconfigure/src/RunCommand.cpp
         hconfigure/src/Utilities.cpp
-        hconfigure/src/DSC.cpp
         hconfigure/src/ObjectFileProducer.cpp
         hconfigure/src/CSourceTarget.cpp
         hconfigure/src/Configure.cpp

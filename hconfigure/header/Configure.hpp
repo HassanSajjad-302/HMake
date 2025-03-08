@@ -32,7 +32,7 @@ import <utility>;
 #include "Builder.hpp"
 #include "CTargetRoundZeroBTarget.hpp"
 #include "Cache.hpp"
-#include "Configuration.hpp"
+#include "ConfigurationAssign.hpp"
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
 #include "Features.hpp"

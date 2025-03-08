@@ -24,9 +24,14 @@ class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>, public Tar
 {
   public:
     using BaseType = CSourceTarget;
+
+    vector<InclNode> reqIncls;
     vector<InclNode> useReqIncls;
+    string requirementCompilerFlags;
     string usageRequirementCompilerFlags;
+    flat_hash_set<Define> requirementCompileDefinitions;
     flat_hash_set<Define> usageRequirementCompileDefinitions;
+
     Configuration *configuration = nullptr;
 
     explicit CSourceTarget(const string &name_);

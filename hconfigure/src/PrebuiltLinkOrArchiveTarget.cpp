@@ -100,10 +100,11 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
             {
                 // TODO
                 // Throw Exception. Also Replace outputDirectory with outputNode initialized in the constructor.
-                // User won't have the ability to setOutputName or setOutputDirectory. Should be achieved in the constructor.
+                // User won't have the ability to setOutputName or setOutputDirectory. Should be achieved in the
+                // constructor.
 
-               // throw std::exception(FORMAT("Output directory {} for LinkTarget {} does not exists.", outputDirectoryNode->filePath, name));
-
+                // throw std::exception(FORMAT("Output directory {} for LinkTarget {} does not exists.",
+                // outputDirectoryNode->filePath, name));
             }
             outputDirectory = outputDirectoryNode->filePath;
             outputFileNode = Node::getNodeFromNormalizedString(outputDirectory + slashc + actualOutputName, true, true);

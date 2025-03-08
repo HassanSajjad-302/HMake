@@ -19,6 +19,8 @@ import "nlohmann/json.hpp";
 
 #include "CTargetRoundZeroBTarget.hpp"
 #include "Configuration.hpp"
+
+#include <DSC.hpp>
 using Json = nlohmann::json;
 
 void to_json(Json &j, const Arch &arch)
@@ -373,7 +375,7 @@ void LinkerFeatures::setConfigType(const ConfigType configType)
     }
 }
 
-void CppCompilerFeatures::initialize(Configuration &config)
+void CppCompilerFeatures::initialize()
 {
     // TODO
     // Not Detecting
@@ -400,11 +402,11 @@ void CppCompilerFeatures::initialize(Configuration &config)
         {
             if constexpr (os == OS::NT)
             {
-                setCompilerFromVSTools(config, toolsCache.vsTools[cache.selectedCompilerArrayIndex]);
+                compiler = toolsCache.vsTools[cache.selectedCompilerArrayIndex].compiler;
             }
             else
             {
-                setCompilerFromLinuxTools(config, toolsCache.linuxTools[cache.selectedCompilerArrayIndex]);
+                compiler = toolsCache.linuxTools[cache.selectedCompilerArrayIndex].compiler;
             }
         }
         else
@@ -413,35 +415,6 @@ void CppCompilerFeatures::initialize(Configuration &config)
         }
 
         scanner.bTPath = compiler.bTPath.parent_path() / "clang-scan-deps";
-    }
-}
-
-// Use getNodeFromNormalizedPath instead
-
-void CppCompilerFeatures::setCompilerFromVSTools(Configuration &config, const VSTools &vsTools)
-{
-    compiler = vsTools.compiler;
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        for (const string &str : vsTools.includeDirectories)
-        {
-            // TODO
-            // This will assign directly to the default target and it will care for the build-time and configure-time.
-            actuallyAddInclude(config.cppTargetFeatures.reqIncls, str, true, true);
-        }
-    }
-}
-
-void CppCompilerFeatures::setCompilerFromLinuxTools(Configuration &config, const LinuxTools &linuxTools)
-{
-    compiler = linuxTools.compiler;
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        for (const string &str : linuxTools.includeDirectories)
-        {
-            // This will assign directly to the default-target, and it will care for the build-time and configure-time.
-            actuallyAddInclude(config.cppTargetFeatures.reqIncls, str, true, true);
-        }
     }
 }
 

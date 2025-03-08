@@ -2,9 +2,11 @@
 #ifndef HMAKE_DSC_HPP
 #define HMAKE_DSC_HPP
 #ifdef USE_HEADER_UNITS
-import "CppSourceTarget.hpp";
+import "Features.hpp";
+import "ObjectFileProducer.hpp";
 #else
-#include "CppSourceTarget.hpp"
+#include "Features.hpp"
+#include "ObjectFileProducer.hpp"
 #endif
 
 class CppSourceTarget;
@@ -41,9 +43,9 @@ template <typename T> struct DSC : DSCFeatures
         prebuiltBasic = prebuiltBasic_;
         prebuiltBasic->objectFileProducers.emplace(objectFileProducer);
 
-        if (define_.empty() && !prebuiltBasic->evaluate(TargetType::LIBRARY_OBJECT))
+        if (define_.empty())
         {
-            define = prebuiltBasic->outputName;
+            define = prebuiltBasic->getOutputName();
             transform(define.begin(), define.end(), define.begin(), ::toupper);
             define += "_EXPORT";
         }
@@ -203,13 +205,5 @@ template <typename T> LinkOrArchiveTarget &DSC<T>::getLinkOrArchiveTarget()
 {
     return static_cast<LinkOrArchiveTarget &>(*prebuiltBasic);
 }
-
-template <>
-DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *prebuiltBasic_, bool defines,
-                          string define_);
-
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget *ptr);
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget *ptr);
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::restore();
 
 #endif // HMAKE_DSC_HPP

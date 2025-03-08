@@ -816,13 +816,10 @@ struct CppCompilerFeatures : public FeatureConvenienceFunctions<CppCompilerFeatu
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 
-    void initialize(Configuration &config);
+    void initialize();
 
     void setCpuType();
     bool isCpuTypeG7();
-
-    void setCompilerFromVSTools(Configuration &config, const struct VSTools &vsTools);
-    void setCompilerFromLinuxTools(Configuration &config, const struct LinuxTools &linuxTools);
     void setConfigType(ConfigType configType_);
     CompilerFlags getCompilerFlags() const;
     template <typename T> bool evaluate(T property) const;
@@ -979,12 +976,5 @@ template <typename T> bool CppCompilerFeatures::evaluate(T property) const
         static_assert(false && "No property matched in CppTargetFeatures::evaluate\n");
     }
 }
-
-struct CppTargetFeatures
-{
-    vector<InclNode> reqIncls;
-    string requirementCompilerFlags;
-    flat_hash_set<Define> requirementCompileDefinitions;
-};
 
 #endif // HMAKE_FEATURES_HPP

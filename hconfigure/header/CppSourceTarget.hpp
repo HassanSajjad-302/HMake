@@ -3,6 +3,7 @@
 #ifdef USE_HEADER_UNITS
 import "BuildTools.hpp";
 import "Configuration.hpp";
+import "DSC.hpp";
 import "CSourceTarget.hpp";
 import "HashedCommand.hpp";
 import "JConsts.hpp";
@@ -15,6 +16,7 @@ import <set>;
 #include "BuildTools.hpp"
 #include "CSourceTarget.hpp"
 #include "Configuration.hpp"
+#include "DSC.hpp"
 #include "HashedCommand.hpp"
 #include "JConsts.hpp"
 #include "RunCommand.hpp"
@@ -63,7 +65,7 @@ inline phmap::parallel_flat_hash_map_m<RequireNameTargetId, SMFile *, RequireNam
 // TODO
 // HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
 // use -TC flag with MSVC
-class CppSourceTarget : public CppTargetFeatures, public CSourceTarget
+class CppSourceTarget : public CSourceTarget
 {
     struct SMFileEqual
     {
@@ -164,7 +166,7 @@ class CppSourceTarget : public CppTargetFeatures, public CSourceTarget
     CSourceTargetType getCSourceTargetType() const override;
 
     CppSourceTarget &initializeUseReqInclsFromReqIncls();
-    CppSourceTarget &initializeHuDirsFromReqIncls();
+    CppSourceTarget &initializePublicHuDirsFromReqIncls();
     static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, const string &sourceFile,
                                       CppSourceTarget *target);
     static bool actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Node *sourceFileNode, CppSourceTarget *target);
@@ -746,5 +748,13 @@ string CppSourceTarget::GET_FLAG_evaluate(T condition, const string &flags, Argu
         return "";
     }
 }
+
+template <>
+DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *prebuiltBasic_, bool defines,
+                          string define_);
+
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget *ptr);
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget *ptr);
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::restore();
 
 #endif // HMAKE_CPPSOURCETARGET_HPP

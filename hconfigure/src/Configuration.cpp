@@ -19,32 +19,47 @@ Configuration::Configuration(const string &name_) : BTarget(name_, false, false)
 
 void Configuration::initialize()
 {
-    compilerFeatures.initialize(*this);
+    compilerFeatures.initialize();
     compilerFlags = compilerFeatures.getCompilerFlags();
     if (!stdCppTarget)
     {
         stdCppTarget = &getCppStaticDSC("std");
-        CppSourceTarget &cppTarget = stdCppTarget->getSourceTarget();
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            cppTarget.reqIncls = cppTargetFeatures.reqIncls;
-            cppTarget.initializeUseReqInclsFromReqIncls().initializeHuDirsFromReqIncls();
+            if (cache.isCompilerInToolsArray)
+            {
+                // Use getNodeFromNormalizedPath instead
+                if constexpr (os == OS::NT)
+                {
+                    for (const string &str : toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirectories)
+                    {
+                        actuallyAddInclude(stdCppTarget->getSourceTarget().reqIncls, str, true, true);
+                    }
+                }
+                else
+                {
+                    for (const string &str : toolsCache.linuxTools[cache.selectedCompilerArrayIndex].includeDirectories)
+                    {
+                        actuallyAddInclude(stdCppTarget->getSourceTarget().reqIncls, str, true, true);
+                    }
+                }
+                stdCppTarget->getSourceTarget()
+                    .initializeUseReqInclsFromReqIncls()
+                    .initializePublicHuDirsFromReqIncls();
+            }
         }
-        cppTarget.requirementCompileDefinitions = cppTargetFeatures.requirementCompileDefinitions;
-        cppTarget.requirementCompilerFlags = cppTargetFeatures.requirementCompilerFlags;
     }
 }
 
 void Configuration::markArchivePoint()
 {
     // TODO
-    // This functions marks the archive point i.e. the targets before this function should be archived upon successful
-    // build. i.e. some extra info will be saved in build-cache.json file of these targets.
-    // The goal is that next time when hbuild is invoked, archived targets source-files won't be checked for
-    // existence/rebuilt. Neither the header-files
-    // coming from such targets includes will be stored in cache.
-    // The use-case is when e.g. a target A dependens on targets B and C, such that these targets source is never meant
-    // to be changed e.g. fmt and json source in hmake project.
+    // This functions marks the archive point i.e. the targets before this function should be archived upon
+    // successful build. i.e. some extra info will be saved in build-cache.json file of these targets. The goal is
+    // that next time when hbuild is invoked, archived targets source-files won't be checked for existence/rebuilt.
+    // Neither the header-files coming from such targets includes will be stored in cache. The use-case is when e.g.
+    // a target A dependens on targets B and C, such that these targets source is never meant to be changed e.g. fmt
+    // and json source in hmake project.
 }
 
 CppSourceTarget &Configuration::getCppObject(const string &name_)
