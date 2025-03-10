@@ -697,7 +697,36 @@ template <typename T> bool PrebuiltLinkerFeatures::evaluate(T property) const
     }
 }
 
-struct LinkerFeatures
+struct LinkerFlags
+{
+    // GCC
+    string OPTIONS;
+    string OPTIONS_LINK;
+    string LANG;
+    string RPATH_OPTION_LINK;
+    string FINDLIBS_ST_PFX_LINK;
+    string FINDLIBS_SA_PFX_LINK;
+    string HAVE_SONAME_LINK;
+    string SONAME_OPTION_LINK;
+    string DOT_IMPLIB_COMMAND_LINK_DLL;
+
+    // Following two are directly used instead of being set
+    string RPATH_LINK;
+    string RPATH_LINK_LINK;
+
+    bool isRpathOs = false;
+    // MSVC
+    string FINDLIBS_SA_LINK;
+    string DOT_LD_LINK;
+    string DOT_LD_ARCHIVE;
+    string LINKFLAGS_LINK;
+    string PDB_CFLAG;
+    string ASMFLAGS_ASM;
+    string PDB_LINKFLAG;
+    string LINKFLAGS_MSVC;
+};
+
+struct LinkerFeatures : FeatureConvenienceFunctions<LinkerFeatures>
 {
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
@@ -738,11 +767,124 @@ struct LinkerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 
-    string requirementLinkerFlags;
     TargetType libraryType;
     LinkerFeatures();
+    LinkerFlags getLinkerFlags();
     void setConfigType(ConfigType configType);
+    template <typename T> bool evaluate(T property) const;
 };
+
+template <typename T> bool LinkerFeatures::evaluate(T property) const
+{
+    if constexpr (std::is_same_v<decltype(property), Linker>)
+    {
+        return linker == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BTFamily>)
+    {
+        return linker.bTFamily == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TargetOS>)
+    {
+        return targetOs == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Threading>)
+    {
+        return threading == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CxxSTD>)
+    {
+        return cxxStd == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CxxSTDDialect>)
+    {
+        return cxxStdDialect == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DebugSymbols>)
+    {
+        return debugSymbols == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Profiling>)
+    {
+        return profiling == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Visibility>)
+    {
+        return visibility == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
+    {
+        return addressSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LeakSanitizer>)
+    {
+        return leakSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), ThreadSanitizer>)
+    {
+        return threadSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UndefinedSanitizer>)
+    {
+        return undefinedSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Coverage>)
+    {
+        return coverage == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LTO>)
+    {
+        return lto == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LTOMode>)
+    {
+        return ltoMode == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RuntimeLink>)
+    {
+        return runtimeLink == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RuntimeDebugging>)
+    {
+        return runtimeDebugging == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Arch>)
+    {
+        return arch == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddressModel>)
+    {
+        return addModel == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DebugStore>)
+    {
+        return debugStore == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UserInterface>)
+    {
+        return userInterface == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), InstructionSet>)
+    {
+        return instructionSet == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CpuType>)
+    {
+        return cpuType == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Strip>)
+    {
+        return strip == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), bool>)
+    {
+        return property;
+    }
+    else
+    {
+        static_assert(false && "No property matched in LinkerFeatures::evaluate\n");
+    }
+}
 
 // Separate this in GccCompilerFlags and MSVCCompilerFlags
 struct CompilerFlags
@@ -985,7 +1127,7 @@ template <typename T> bool CppCompilerFeatures::evaluate(T property) const
     }
     else
     {
-        static_assert(false && "No property matched in CppTargetFeatures::evaluate\n");
+        static_assert(false && "No property matched in CppCompilerFeatures::evaluate\n");
     }
 }
 

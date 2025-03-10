@@ -91,6 +91,7 @@ class Configuration : public BTarget
     CompilerFlags compilerFlags;
     PrebuiltLinkerFeatures prebuiltLinkOrArchiveTargetFeatures;
     LinkerFeatures linkerFeatures;
+    LinkerFlags linkerFlags;
     DSC<CppSourceTarget> *stdCppTarget = nullptr;
     TargetType targetType = TargetType::LIBRARY_STATIC;
     AssignStandardCppTarget assignStandardCppTarget = AssignStandardCppTarget::YES;
