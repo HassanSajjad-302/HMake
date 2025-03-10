@@ -39,35 +39,33 @@ void LinkOrArchiveTarget::makeBuildCacheFilesDirPathAtConfigTime(string buildCac
     }
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(const string &name_, const TargetType targetType,
-                                         Configuration *configuration_)
-    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
-                                  name_, false, false)
+LinkOrArchiveTarget::LinkOrArchiveTarget(Configuration &config_, const string &name_, const TargetType targetType)
+    : PrebuiltLinkOrArchiveTarget(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_,
+                                  targetType, name_, false, false)
 {
     makeBuildCacheFilesDirPathAtConfigTime("");
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(const bool buildExplicit, const string &name_, const TargetType targetType,
-                                         Configuration *configuration_)
-    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType,
-                                  name_, buildExplicit, false)
+LinkOrArchiveTarget::LinkOrArchiveTarget(Configuration &config_, const bool buildExplicit, const string &name_,
+                                         const TargetType targetType)
+    : PrebuiltLinkOrArchiveTarget(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_,
+                                  targetType, name_, buildExplicit, false)
 {
     makeBuildCacheFilesDirPathAtConfigTime("");
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(const string &buildCacheFileDirPath_, const string &name_,
-                                         const TargetType targetType, Configuration *configuration_)
-    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_),
+LinkOrArchiveTarget::LinkOrArchiveTarget(Configuration &config_, const string &buildCacheFileDirPath_,
+                                         const string &name_, const TargetType targetType)
+    : PrebuiltLinkOrArchiveTarget(config_, getLastNameAfterSlash(name_),
                                   configureNode->filePath + slashc + buildCacheFileDirPath_, targetType, name_, false,
                                   false)
 {
     makeBuildCacheFilesDirPathAtConfigTime(configureNode->filePath + slashc + buildCacheFileDirPath_);
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(const string &buildCacheFileDirPath_, const bool buildExplicit,
-                                         const string &name_, const TargetType targetType,
-                                         Configuration *configuration_)
-    : PrebuiltLinkOrArchiveTarget(getLastNameAfterSlash(name_),
+LinkOrArchiveTarget::LinkOrArchiveTarget(Configuration &config_, const string &buildCacheFileDirPath_,
+                                         const bool buildExplicit, const string &name_, const TargetType targetType)
+    : PrebuiltLinkOrArchiveTarget(config_, getLastNameAfterSlash(name_),
                                   configureNode->filePath + slashc + buildCacheFileDirPath_, targetType, name_,
                                   buildExplicit, false)
 {

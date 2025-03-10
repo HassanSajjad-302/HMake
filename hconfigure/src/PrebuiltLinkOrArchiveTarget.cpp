@@ -40,33 +40,34 @@ string_view PrebuiltLinkOrArchiveTarget::getOutputDirectoryV() const
 }
 
 #ifdef BUILD_MODE
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory,
-                                                         TargetType linkTargetType_)
-    : BTarget(outputName_, false, false), TargetCache(outputName_), linkTargetType{linkTargetType_}
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_, const string &outputName_,
+                                                         string directory, TargetType linkTargetType_)
+    : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_), linkTargetType{linkTargetType_}
 {
 }
 
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory,
-                                                         TargetType linkTargetType_, string name_, bool buildExplicit,
-                                                         bool makeDirectory)
-    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), linkTargetType(linkTargetType_)
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_, const string &outputName_,
+                                                         string directory, TargetType linkTargetType_, string name_,
+                                                         bool buildExplicit, bool makeDirectory)
+    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), linkTargetType(linkTargetType_)
 
 {
 }
 
 #else
 
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory,
-                                                         TargetType linkTargetType_)
-    : BTarget(outputName_, false, false), TargetCache(outputName_), outputName{getLastNameAfterSlash(outputName_)},
-      linkTargetType{linkTargetType_}, outputDirectory(std::move(directory))
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_, const string &outputName_,
+                                                         string directory, TargetType linkTargetType_)
+    : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_),
+      outputName{getLastNameAfterSlash(outputName_)}, linkTargetType{linkTargetType_},
+      outputDirectory(std::move(directory))
 {
 }
 
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory,
-                                                         TargetType linkTargetType_, string name_, bool buildExplicit,
-                                                         bool makeDirectory)
-    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), outputName(outputName_),
+PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_, const string &outputName_,
+                                                         string directory, TargetType linkTargetType_, string name_,
+                                                         bool buildExplicit, bool makeDirectory)
+    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), outputName(outputName_),
       linkTargetType(linkTargetType_), outputDirectory(std::move(directory))
 
 {

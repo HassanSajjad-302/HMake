@@ -115,9 +115,8 @@ CppSourceTarget &Configuration::getCppObjectAddStdTarget(bool explicitBuild, con
 LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<LinkOrArchiveTarget>.emplace_back(name + slashc + name_, TargetType::EXECUTABLE, this);
+        targets<LinkOrArchiveTarget>.emplace_back(*this, name + slashc + name_, TargetType::EXECUTABLE);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -126,9 +125,8 @@ LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(bool explicitBuild
                                                               const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::EXECUTABLE, this);
+        *this, buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::EXECUTABLE);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -136,9 +134,8 @@ LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(bool explicitBuild
 LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<LinkOrArchiveTarget>.emplace_back(name + slashc + name_, TargetType::LIBRARY_STATIC, this);
+        targets<LinkOrArchiveTarget>.emplace_back(*this, name + slashc + name_, TargetType::LIBRARY_STATIC);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -148,9 +145,8 @@ LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(bool explicitBu
                                                                  const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::LIBRARY_STATIC, this);
+        *this, buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::LIBRARY_STATIC);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -158,9 +154,8 @@ LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(bool explicitBu
 LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTarget(const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<LinkOrArchiveTarget>.emplace_back(name + slashc + name_, TargetType::LIBRARY_SHARED, this);
+        targets<LinkOrArchiveTarget>.emplace_back(*this, name + slashc + name_, TargetType::LIBRARY_SHARED);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -170,9 +165,8 @@ LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTarget(bool explicitBu
                                                                  const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::LIBRARY_SHARED, this);
+        *this, buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::LIBRARY_SHARED);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -181,8 +175,7 @@ PrebuiltLinkOrArchiveTarget &Configuration::getPrebuiltLinkOrArchiveTarget(const
                                                                            TargetType linkTargetType_)
 {
     PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name + slashc + name_, directory, linkTargetType_);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(*this, name + slashc + name_, directory, linkTargetType_);
     prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -190,9 +183,8 @@ PrebuiltLinkOrArchiveTarget &Configuration::getPrebuiltLinkOrArchiveTarget(const
 PrebuiltLinkOrArchiveTarget &Configuration::getStaticPrebuiltLinkOrArchiveTarget(const string &name_,
                                                                                  const string &directory)
 {
-    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name + slashc + name_, directory, TargetType::LIBRARY_STATIC);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget = targets<PrebuiltLinkOrArchiveTarget>.emplace_back(
+        *this, name + slashc + name_, directory, TargetType::LIBRARY_STATIC);
     prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -200,9 +192,8 @@ PrebuiltLinkOrArchiveTarget &Configuration::getStaticPrebuiltLinkOrArchiveTarget
 PrebuiltLinkOrArchiveTarget &Configuration::getSharedPrebuiltLinkOrArchiveTarget(const string &name_,
                                                                                  const string &directory)
 {
-    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name + slashc + name_, directory, TargetType::LIBRARY_SHARED);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget = targets<PrebuiltLinkOrArchiveTarget>.emplace_back(
+        *this, name + slashc + name_, directory, TargetType::LIBRARY_SHARED);
     prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -381,9 +372,8 @@ CppSourceTarget &Configuration::getCppObjectNoNameAddStdTarget(bool explicitBuil
 LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTargetNoName(const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<LinkOrArchiveTarget>.emplace_back(name_, TargetType::EXECUTABLE, this);
+        targets<LinkOrArchiveTarget>.emplace_back(*this, name_, TargetType::EXECUTABLE);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -393,9 +383,8 @@ LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTargetNoName(bool explici
                                                                     const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name_, TargetType::EXECUTABLE, this);
+        *this, buildCacheFilesDirPath_, explicitBuild, name_, TargetType::EXECUTABLE);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -403,9 +392,8 @@ LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTargetNoName(bool explici
 LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTargetNoName(const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<LinkOrArchiveTarget>.emplace_back(name_, TargetType::LIBRARY_STATIC, this);
+        targets<LinkOrArchiveTarget>.emplace_back(*this, name_, TargetType::LIBRARY_STATIC);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -415,9 +403,8 @@ LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTargetNoName(bool expl
                                                                        const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name_, TargetType::LIBRARY_STATIC, this);
+        *this, buildCacheFilesDirPath_, explicitBuild, name_, TargetType::LIBRARY_STATIC);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -425,9 +412,8 @@ LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTargetNoName(bool expl
 LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTargetNoName(const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<LinkOrArchiveTarget>.emplace_back(name_, TargetType::LIBRARY_SHARED, this);
+        targets<LinkOrArchiveTarget>.emplace_back(*this, name_, TargetType::LIBRARY_SHARED);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -437,9 +423,8 @@ LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTargetNoName(bool expl
                                                                        const string &name_)
 {
     LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name_, TargetType::LIBRARY_SHARED, this);
+        *this, buildCacheFilesDirPath_, explicitBuild, name_, TargetType::LIBRARY_SHARED);
     static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
     linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -449,8 +434,7 @@ PrebuiltLinkOrArchiveTarget &Configuration::getPrebuiltLinkOrArchiveTargetNoName
                                                                                  TargetType linkTargetType_)
 {
     PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name_, directory, linkTargetType_);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(*this, name_, directory, linkTargetType_);
     prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -459,8 +443,7 @@ PrebuiltLinkOrArchiveTarget &Configuration::getStaticPrebuiltLinkOrArchiveTarget
                                                                                        const string &directory)
 {
     PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name_, directory, TargetType::LIBRARY_STATIC);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(*this, name_, directory, TargetType::LIBRARY_STATIC);
     prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }
@@ -469,8 +452,7 @@ PrebuiltLinkOrArchiveTarget &Configuration::getSharedPrebuiltLinkOrArchiveTarget
                                                                                        const string &directory)
 {
     PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name_, directory, TargetType::LIBRARY_SHARED);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
+        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(*this, name_, directory, TargetType::LIBRARY_SHARED);
     prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
     return linkOrArchiveTarget;
 }

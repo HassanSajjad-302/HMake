@@ -292,34 +292,6 @@ string getSlashedExecutableName(const string &name)
     return os == OS::NT ? name + ".exe" : "./" + name;
 }
 
-PrebuiltBasicFeatures::PrebuiltBasicFeatures()
-{
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        if (cache.isLinkerInToolsArray)
-        {
-            const VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
-            for (const string &str : vsTools.libraryDirectories)
-            {
-                Node *node = Node::getNodeFromNonNormalizedPath(str, false);
-                bool found = false;
-                for (const LibDirNode &libDirNode : requirementLibraryDirectories)
-                {
-                    if (libDirNode.node == node)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                {
-                    requirementLibraryDirectories.emplace_back(node, true);
-                }
-            }
-        }
-    }
-}
-
 LinkerFeatures::LinkerFeatures()
 {
     // TODO

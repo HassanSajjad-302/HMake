@@ -15,6 +15,7 @@ import "btree.h";
 #include "TargetCache.hpp"
 #include "btree.h"
 #endif
+#include <Configuration.hpp>
 
 using phmap::node_hash_map, phmap::btree_map;
 
@@ -41,7 +42,7 @@ struct PrebuiltDep
     bool defaultRpathLink = true;
 };
 
-class PrebuiltLinkOrArchiveTarget : public PrebuiltLinkerFeatures, public BTarget, public TargetCache
+class PrebuiltLinkOrArchiveTarget : public BTarget, public TargetCache
 {
 #ifndef BUILD_MODE
     string outputName;
@@ -51,17 +52,18 @@ class PrebuiltLinkOrArchiveTarget : public PrebuiltLinkerFeatures, public BTarge
 
   public:
     string usageRequirementLinkerFlags;
+    Configuration &config;
     Node *outputFileNode = nullptr;
 
     string getOutputName() const;
     string getActualOutputName() const;
     string_view getOutputDirectoryV() const;
 
-    PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory, TargetType linkTargetType_);
-    PrebuiltLinkOrArchiveTarget(const string &outputName_, string directory, TargetType linkTargetType_, string name_,
-                                bool buildExplicit, bool makeDirectory);
+    PrebuiltLinkOrArchiveTarget(Configuration &config_, const string &outputName_, string directory,
+                                TargetType linkTargetType_);
+    PrebuiltLinkOrArchiveTarget(Configuration &config_, const string &outputName_, string directory,
+                                TargetType linkTargetType_, string name_, bool buildExplicit, bool makeDirectory);
 
-    template <typename T, typename... Property> PrebuiltLinkOrArchiveTarget &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
     void updateBTarget(Builder &builder, unsigned short round) override;
 
@@ -70,7 +72,6 @@ class PrebuiltLinkOrArchiveTarget : public PrebuiltLinkerFeatures, public BTarge
     void readConfigCacheAtBuildTime();
 
   public:
-
     node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> requirementDeps;
     node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> usageRequirementDeps;
 
@@ -112,40 +113,6 @@ class PrebuiltLinkOrArchiveTarget : public PrebuiltLinkerFeatures, public BTarge
     void addRequirementDepsToBTargetDependencies();
 };
 
-template <typename T, typename... Property>
-PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::assign(T property, Property... properties)
-{
-    if constexpr (std::is_same_v<decltype(property), TargetType>)
-    {
-        linkTargetType = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
-    {
-        copyToExeDirOnNtOs = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TargetType>)
-    {
-        linkTargetType = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), bool>)
-    {
-        return property;
-    }
-    else
-    {
-        static_assert(false);
-    }
-
-    if constexpr (sizeof...(properties))
-    {
-        return assign(properties...);
-    }
-    else
-    {
-        return *this;
-    }
-}
-
 template <typename T> bool PrebuiltLinkOrArchiveTarget::evaluate(T property) const
 {
     if constexpr (std::is_same_v<decltype(property), TargetType>)
@@ -154,11 +121,7 @@ template <typename T> bool PrebuiltLinkOrArchiveTarget::evaluate(T property) con
     }
     else if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
     {
-        return copyToExeDirOnNtOs == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TargetType>)
-    {
-        return linkTargetType == property;
+        return config.prebuiltLinkOrArchiveTargetFeatures.evaluate(property);
     }
     else
     {

@@ -71,11 +71,12 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget,
     bool archived = false;
 
     void makeBuildCacheFilesDirPathAtConfigTime(string buildCacheFilesDirPath);
-    LinkOrArchiveTarget(const string &name_, TargetType targetType, Configuration *configuration_);
-    LinkOrArchiveTarget(bool buildExplicit, const string &name_, TargetType targetType, Configuration *configuration_);
-    LinkOrArchiveTarget(const string &buildCacheFileDirPath_, const string &name_, TargetType targetType, Configuration *configuration_);
-    LinkOrArchiveTarget(const string &buildCacheFileDirPath_, bool buildExplicit, const string &name_,
-                        TargetType targetType, Configuration *configuration_);
+    LinkOrArchiveTarget(Configuration &config_, const string &name_, TargetType targetType);
+    LinkOrArchiveTarget(Configuration &config_, bool buildExplicit, const string &name_, TargetType targetType);
+    LinkOrArchiveTarget(Configuration &config_, const string &buildCacheFileDirPath_, const string &name_,
+                        TargetType targetType);
+    LinkOrArchiveTarget(Configuration &config_, const string &buildCacheFileDirPath_, bool buildExplicit,
+                        const string &name_, TargetType targetType);
 
     virtual string getLinkOrArchiveCommandWithoutTargets();
     BTargetType getBTargetType() const override;

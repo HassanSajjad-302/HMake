@@ -2,11 +2,11 @@
 #define HMAKE_CONFIGURATION_HPP
 #ifdef USE_HEADER_UNITS
 import "BTarget.hpp";
-import "LinkOrArchiveTarget.hpp";
+import "Features.hpp";
 import <memory>;
 #else
 #include "BTarget.hpp"
-#include "LinkOrArchiveTarget.hpp"
+#include "Features.hpp"
 #include <memory>
 #endif
 
@@ -68,13 +68,17 @@ enum class BuildTestsAndExamplesExplicitBuild : char
     YES,
 };
 
+class CSourceTarget;
+class PrebuiltLinkOrArchiveTarget;
+class LinkOrArchiveTarget;
+class Node;
+
 struct CppTargetAndParentDirNode
 {
     CppSourceTarget *target;
     Node *incl;
 };
 
-class CSourceTarget;
 class Configuration : public BTarget
 {
   public:

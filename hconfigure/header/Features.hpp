@@ -82,7 +82,8 @@ enum class Arch : char // Architecture
     PARISC,
     ARM,
     S390X,
-    ARM_P_X86 // arm+x86
+    ARM_P_X86, // arm+x86
+    NONE,
 };
 void to_json(Json &j, const Arch &arch);
 void from_json(const Json &j, Arch &arch);
@@ -93,6 +94,7 @@ enum class AddressModel : char // AddressModel
     A_32,
     A_64,
     A_32_64,
+    NONE,
 };
 void to_json(Json &j, const AddressModel &am);
 void from_json(const Json &j, AddressModel &am);
@@ -653,6 +655,7 @@ enum class CpuType : char
     ITANIUM,
     ITANIUM2,
     ARM,
+    NONE,
 };
 
 // Declared on Line 1871 msvc.jam
@@ -672,18 +675,27 @@ struct DSCFeatures : DSCPrebuiltFeatures
     DefineDLLPrivate defineDllPrivate = DefineDLLPrivate::NO;
 };
 
-struct PrebuiltBasicFeatures
-{
-    // TODO
-    // NO API in to assign this in LinkOrArchiveTarget, neither is their API like actuallyInclude.
-    vector<LibDirNode> requirementLibraryDirectories;
-    PrebuiltBasicFeatures();
-};
-
 struct PrebuiltLinkerFeatures
 {
     CopyDLLToExeDirOnNTOs copyToExeDirOnNtOs = CopyDLLToExeDirOnNTOs::YES;
+    template <typename T> bool evaluate(T property) const;
 };
+
+template <typename T> bool PrebuiltLinkerFeatures::evaluate(T property) const
+{
+    if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
+    {
+        return copyToExeDirOnNtOs == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), bool>)
+    {
+        return property;
+    }
+    else
+    {
+        static_assert(false && "No property matched in PrebuiltLinkerFeatures::evaluate\n");
+    }
+}
 
 struct LinkerFeatures
 {
@@ -757,7 +769,7 @@ struct CompilerFlags
     string CPP_FLAGS_COMPILE;
 };
 
-struct CppCompilerFeatures : public FeatureConvenienceFunctions<CppCompilerFeatures>
+struct CppCompilerFeatures : FeatureConvenienceFunctions<CppCompilerFeatures>
 {
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
@@ -774,12 +786,12 @@ struct CppCompilerFeatures : public FeatureConvenienceFunctions<CppCompilerFeatu
     Profiling profiling = Profiling::OFF;
     Visibility localVisibility = Visibility::HIDDEN;
 
-    ConfigType configType;
+    ConfigType configType = ConfigType::NONE;
 
     // Following two are initialized in constructor
     // AddressModel and Architecture to target for.
-    Arch arch;
-    AddressModel addModel;
+    Arch arch = Arch::NONE;
+    AddressModel addModel = AddressModel::NONE;
 
     // Windows Specifc
     DebugStore debugStore = DebugStore::OBJECT;
@@ -804,7 +816,7 @@ struct CppCompilerFeatures : public FeatureConvenienceFunctions<CppCompilerFeatu
     // Following two are initialized in constructor
     // AddressModel and Architecture to target for.
     InstructionSet instructionSet = InstructionSet::OFF;
-    CpuType cpuType;
+    CpuType cpuType = CpuType::NONE;
 
     CSourceTargetEnum cSourceTarget = CSourceTargetEnum::NO;
 
