@@ -1298,9 +1298,7 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *pre
 
     if (define_.empty() )
     {
-        // TODO
-        // Shared Library not working because of this.
-        // define = prebuiltBasic->getOutputName();
+        define = prebuiltBasic->getOutputName();
         transform(define.begin(), define.end(), define.begin(), toupper);
         define += "_EXPORT";
     }

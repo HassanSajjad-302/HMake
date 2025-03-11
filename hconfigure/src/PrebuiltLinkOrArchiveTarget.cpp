@@ -44,6 +44,8 @@ PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_,
                                                          string directory, TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_), linkTargetType{linkTargetType_}
 {
+    outputFileNode =
+        Node::getNotSystemCheckCalledNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
 }
 
 PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_, const string &outputName_,
@@ -52,6 +54,8 @@ PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_,
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), linkTargetType(linkTargetType_)
 
 {
+    outputFileNode =
+        Node::getNotSystemCheckCalledNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
 }
 
 #else
@@ -180,8 +184,6 @@ void PrebuiltLinkOrArchiveTarget::readConfigCacheAtBuildTime()
     {
         usageRequirementLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
     }
-
-    outputFileNode = Node::getNotSystemCheckCalledNodeFromValue(getConfigCache()[LinkConfig::outputFileNode]);
 }
 
 void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
