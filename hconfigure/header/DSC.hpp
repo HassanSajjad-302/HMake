@@ -26,8 +26,7 @@ template <typename T> struct DSC : DSCFeatures
     template <typename U, typename... V>
     void assignLinkOrArchiveTargetLib(Dependency dependency, DSC<U> *controller, PrebuiltDep prebuiltDep, V... args);
 
-    template <typename U, typename... V>
-    void assignObjectFileProducerDeps(Dependency dependency, DSC<U> *controller, V... args);
+    template <typename U> void assignObjectFileProducerDeps(Dependency dependency, DSC<U> *controller);
 
     template <typename U, typename... V>
     void assignLinkOrArchiveTargetLib(Dependency dependency, DSC<U> *controller, V... args);
@@ -113,8 +112,8 @@ template <typename T> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
 }
 
 template <typename T>
-template <typename U, typename... V>
-void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *controller, V... args)
+template <typename U>
+void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *controller)
 {
     objectFileProducer->deps(controller->getSourceTargetPointer(), dependency);
 
@@ -126,21 +125,30 @@ void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *control
     if (controller->defineDllInterface == DefineDLLInterface::YES)
     {
         T *ptr = static_cast<T *>(objectFileProducer);
-        U *c_ptr = static_cast<U *>(controller->objectFileProducer);
+
+        Define define;
+        define.name = controller->define;
+
         if (controller->prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
         {
             if (ptr->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
             {
-                c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, "__declspec(dllimport)"));
+                define.value = "__declspec(dllimport)";
             }
-            else
-            {
-                c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
-            }
+        }
+
+        if (dependency == Dependency::PUBLIC)
+        {
+            ptr->requirementCompileDefinitions.emplace(define);
+            ptr->usageRequirementCompileDefinitions.emplace(define);
+        }
+        else if (dependency == Dependency::PRIVATE)
+        {
+            ptr->requirementCompileDefinitions.emplace(define);
         }
         else
         {
-            c_ptr->usageRequirementCompileDefinitions.emplace(Define(controller->define, ""));
+            ptr->usageRequirementCompileDefinitions.emplace(define);
         }
     }
 }
