@@ -72,9 +72,11 @@ LinkOrArchiveTarget::LinkOrArchiveTarget(Configuration &config_, const string &b
     makeBuildCacheFilesDirPathAtConfigTime(configureNode->filePath + slashc + buildCacheFileDirPath_);
 }
 
-string LinkOrArchiveTarget::getLinkOrArchiveCommandWithoutTargets()
+void LinkOrArchiveTarget::setOutputName(string str)
 {
-    return "";
+#ifndef BUILD_MODE
+    outputName = std::move(str);
+#endif
 }
 
 BTargetType LinkOrArchiveTarget::getBTargetType() const

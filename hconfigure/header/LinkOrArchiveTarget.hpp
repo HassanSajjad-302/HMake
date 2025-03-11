@@ -47,8 +47,8 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget
                         TargetType targetType);
     LinkOrArchiveTarget(Configuration &config_, const string &buildCacheFileDirPath_, bool buildExplicit,
                         const string &name_, TargetType targetType);
+    void setOutputName(string str);
 
-    virtual string getLinkOrArchiveCommandWithoutTargets();
     BTargetType getBTargetType() const override;
 
     void setFileStatus();

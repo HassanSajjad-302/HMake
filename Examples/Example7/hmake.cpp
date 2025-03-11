@@ -2,17 +2,20 @@
 
 void configurationSpecification(Configuration &config)
 {
-    config.getCppExeDSC("app").getSourceTarget().moduleFiles("main.cpp", "std.cpp");
-    config.getCppExeDSC("app2")
-        .getSourceTarget()
-        .moduleFiles("main2.cpp")
-        .initializeUseReqInclsFromReqIncls()
-        .initializeHuDirsFromReqIncls();
+    if (config.name == "modules")
+    {
+        config.getCppExeDSC("app").getSourceTarget().moduleFiles("main.cpp", "std.cpp");
+    }
+    else
+    {
+        config.getCppExeDSC("app2").getSourceTarget().moduleFiles("main2.cpp");
+    }
 }
 
 void buildSpecification()
 {
-    getConfiguration();
+    getConfiguration("modules");
+    getConfiguration("hu");
     CALL_CONFIGURATION_SPECIFICATION
 }
 

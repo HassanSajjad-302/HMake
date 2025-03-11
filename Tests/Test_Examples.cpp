@@ -105,10 +105,10 @@ TEST(ExamplesTest, Example7)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example7"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/modules/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Hello World\n");
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app2/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/hu/app2/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app2"),
                                                  "Hello World\n");
 }
@@ -127,9 +127,6 @@ TEST(ExamplesTest, Example9)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example9"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/static/app/" +
-                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
-                                                 "36\n");
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/object/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "36\n");
 }

@@ -45,9 +45,10 @@ struct PrebuiltDep
 class PrebuiltLinkOrArchiveTarget : public BTarget, public TargetCache
 {
 #ifndef BUILD_MODE
-    string outputName;
     string actualOutputName;
     string outputDirectory;
+public:
+    string outputName;
 #endif
 
   public:

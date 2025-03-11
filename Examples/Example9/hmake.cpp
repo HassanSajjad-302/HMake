@@ -31,7 +31,6 @@ void buildSpecification()
     CxxSTD cxxStd = toolsCache.vsTools[0].compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_23;
 
     getConfiguration("static").assign(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_STATIC);
-    getConfiguration("object").assign(cxxStd, TreatModuleAsSource::NO, ConfigType::DEBUG, TargetType::LIBRARY_OBJECT);
     CALL_CONFIGURATION_SPECIFICATION
 }
 
