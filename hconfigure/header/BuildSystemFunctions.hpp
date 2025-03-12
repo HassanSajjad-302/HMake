@@ -25,11 +25,6 @@ inline char slashc = '\\';
 inline char slashc = '/';
 #endif
 
-struct IndexedNode
-{
-};
-// TODO
-// Explore
 using Json = nlohmann::json; // Unordered json
 
 inline flat_hash_set<string> cmdTargets;

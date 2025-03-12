@@ -695,19 +695,6 @@ CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
             usageRequirementCompileDefinitions.emplace(property);
         }
     }
-    // TODO
-    // Will look into that
-
-    else if constexpr (std::is_same_v<decltype(property), TranslateInclude>)
-    {
-        // translateInclude = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
-    {
-        // treatModuleAsSource = property;
-    }
-    // TODO
-    // Will see what is this doing.
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
         property;
@@ -715,7 +702,6 @@ CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
     else
     {
         static_assert(false && "Unknown feature");
-        assignCommonFeature(property);
     }
     if constexpr (sizeof...(properties))
     {

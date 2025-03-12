@@ -130,8 +130,6 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
 bool SourceNode::checkHeaderFiles(const Node *compareNode) const
 {
     namespace SourceFiles = Indices::BuildCache::CppBuild::SourceFiles;
-    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
-    namespace SMRules = ModuleFiles::SmRules;
 
     vector<Node *> headerFilesUnChecked;
 
@@ -837,16 +835,8 @@ void SMFile::isObjectFileOutdatedComparedToSourceFileAndItsDeps()
         return;
     }
 
-    if (checkHeaderFiles(objectFileOutputFilePath))
-    {
-        isObjectFileOutdated = true;
-        atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
-        return;
-    }
-
     for (Value &pValue : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
     {
-
         CppSourceTarget *localTarget = cppSourceTargets[pValue[SingleHeaderUnitDep::targetIndex].GetUint64()];
         if (!localTarget)
         {
@@ -895,12 +885,24 @@ void SMFile::isSMRulesFileOutdatedComparedToSourceFileAndItsDeps()
     const Node *smRuleFileNode = Node::getNodeFromNonNormalizedPath(
         target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".smrules", true, true);
 
-    if (smRuleFileNode->doesNotExist || node->lastWriteTime > smRuleFileNode->lastWriteTime ||
-        checkHeaderFiles(smRuleFileNode))
+    if (smRuleFileNode->doesNotExist || node->lastWriteTime > smRuleFileNode->lastWriteTime)
+
     {
         isSMRuleFileOutdated = true;
         atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
         return;
+    }
+
+    // We assume that all header-files systemCheck has already been called and that they exist.
+    for (const Value &pValue : sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].GetArray())
+    {
+        if (const Node *headerNode = Node::getNotSystemCheckCalledNodeFromValue(pValue);
+            headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
+        {
+            isSMRuleFileOutdated = true;
+            atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
+            return;
+        }
     }
 
     for (Value &pValue : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())

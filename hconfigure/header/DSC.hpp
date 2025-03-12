@@ -117,11 +117,6 @@ void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *control
 {
     objectFileProducer->deps(controller->getSourceTargetPointer(), dependency);
 
-    // TODO
-    // A limitation is that this might add two different compile definitions for two different consumers with different
-    // compilers. i.e. if gcc and msvc both are consuming a library on Windows. An alternative of GenerateExportHeader
-    // CMake module like functionality is to be supported as well.
-
     if (controller->defineDllInterface == DefineDLLInterface::YES)
     {
         T *ptr = static_cast<T *>(objectFileProducer);

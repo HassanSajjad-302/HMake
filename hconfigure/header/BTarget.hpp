@@ -162,8 +162,6 @@ class BTarget // BTarget
     void setSelectiveBuild();
     bool isHBuildInSameOrChildDirectory() const;
 
-    // TODO
-    // Could be non-static
     void assignFileStatusToDependents(unsigned short round);
     void receiveNotificationPostBuildSpecification();
 
