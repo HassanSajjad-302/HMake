@@ -861,6 +861,13 @@ void SMFile::checkObjectFileOutdatedHeaderUnits()
         return;
     }
 
+    if (checkHeaderFiles(objectFileOutputFilePath))
+    {
+        isObjectFileOutdated = true;
+        atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
+        return;
+    }
+
     for (Value &pValue : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
     {
         CppSourceTarget *localTarget = cppSourceTargets[pValue[SingleHeaderUnitDep::targetIndex].GetUint64()];
@@ -961,6 +968,12 @@ void SMFile::checkObjectFileOutdatedModules()
 {
     namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
     namespace SingleHeaderUnitDep = ModuleFiles::SmRules::SingleHeaderUnitDep;
+
+    if (checkHeaderFiles(objectFileOutputFilePath))
+    {
+        isObjectFileOutdated = true;
+        return;
+    }
 
     for (Value &pValue : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
     {

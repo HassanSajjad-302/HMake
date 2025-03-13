@@ -57,7 +57,7 @@ set(HCONFIGURE_SOURCES
 set(INCLUDE_BUILD ON)
 set(INCLUDE_CONFIGURE ON)
 set(HMAKE_USE_SMALL_FILE OFF BOOL "use full file or small file(compressed, indices, hashed) for storing cache.")
-set(HelperSource Examples/Example1/hmake.cpp)
+set(HelperSource Examples/Example9/hmake.cpp)
 
 
 if (${INCLUDE_CONFIGURE})
