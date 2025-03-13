@@ -133,11 +133,13 @@ bool SourceNode::checkHeaderFiles(const Node *compareNode) const
 {
     namespace SourceFiles = Indices::BuildCache::CppBuild::SourceFiles;
 
-    // Use this instead
-    // https://github.com/gharveymn/small_vector
-    vector<Node *> headerFilesUnChecked;
+    // Basically using a static-vector here.
+    constexpr uint64_t stackSize = 2;
+    uint64_t currentArraySize = 0;
+    Node *headerFilesUnCheckedArray[stackSize];
+    vector<Node *> headerFilesUnCheckedVector;
 
-    headerFilesUnChecked.reserve(sourceJson[SourceFiles::headerFiles].GetArray().Size());
+    bool usingArray = true;
 
     for (const Value &pValue : sourceJson[SourceFiles::headerFiles].GetArray())
     {
@@ -157,20 +159,39 @@ bool SourceNode::checkHeaderFiles(const Node *compareNode) const
         }
         else
         {
-            headerFilesUnChecked.emplace_back(headerNode);
+            if (usingArray)
+            {
+                if (currentArraySize == stackSize)
+                {
+                    usingArray = false;
+                    headerFilesUnCheckedVector.reserve(stackSize + 1);
+                    std::copy_n(headerFilesUnCheckedArray, stackSize, headerFilesUnCheckedVector.data());
+                    headerFilesUnCheckedVector.emplace_back(headerNode);
+                }
+                else
+                {
+                    headerFilesUnCheckedArray[currentArraySize] = headerNode;
+                    ++currentArraySize;
+                }
+            }
+            else
+            {
+                headerFilesUnCheckedVector.emplace_back(headerNode);
+            }
         }
     }
 
-    if (!headerFilesUnChecked.empty())
+    if (usingArray ? !currentArraySize : !headerFilesUnCheckedVector.empty())
     {
-        uint64_t uncheckedCountOld = headerFilesUnChecked.size();
+        uint64_t uncheckedCountOld = usingArray ? currentArraySize : headerFilesUnCheckedVector.size();
         while (true)
         {
             bool zeroLeft = true;
             uint64_t uncheckedCountNew = 0;
             for (uint64_t i = 0; i < uncheckedCountOld; ++i)
             {
-                if (Node *headerNode = headerFilesUnChecked[i]; atomic_ref(headerNode->systemCheckCompleted).load())
+                if (Node *headerNode = usingArray ? headerFilesUnCheckedArray[i] : headerFilesUnCheckedVector[i];
+                    atomic_ref(headerNode->systemCheckCompleted).load())
                 {
                     if (headerNode->doesNotExist)
                     {
@@ -184,7 +205,7 @@ bool SourceNode::checkHeaderFiles(const Node *compareNode) const
                 }
                 else
                 {
-                    headerFilesUnChecked[uncheckedCountNew] = headerNode;
+                    headerFilesUnCheckedVector[uncheckedCountNew] = headerNode;
                     ++uncheckedCountNew;
                     zeroLeft = false;
                 }
