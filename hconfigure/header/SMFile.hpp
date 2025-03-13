@@ -122,7 +122,7 @@ struct SMFile : SourceNode // Scanned Module Rule
 
     bool isInterface = false;
     bool isSMRulesJsonSet = false;
-    bool foundFromCache = false;
+    bool isAnOlderHeaderUnit = false;
     bool isObjectFileOutdated = false;
     bool isSMRuleFileOutdated = false;
 
@@ -150,8 +150,10 @@ struct SMFile : SourceNode // Scanned Module Rule
     void initializeHeaderUnits(Builder &builder);
     void addNewBTargetInFinalBTargetsRound1(Builder &builder);
     void setSMFileType();
-    void isObjectFileOutdatedComparedToSourceFileAndItsDeps();
-    void isSMRulesFileOutdatedComparedToSourceFileAndItsDeps();
+    void checkObjectFileOutdatedHeaderUnits();
+    void checkSMRulesFileOutdatedHeaderUnits();
+    void checkObjectFileOutdatedModules();
+    void checkSMRulesFileOutdatedModules();
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
     void setFileStatusAndPopulateAllDependencies();

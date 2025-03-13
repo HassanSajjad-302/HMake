@@ -540,7 +540,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                     this,
                     Node::getNotSystemCheckCalledNodeFromValue(headerUnitsValue[i][SingleHeaderUnitDep::fullPath]),
                     SM_FILE_TYPE::HEADER_UNIT, false);
-                oldHeaderUnits[i].foundFromCache = true;
+                oldHeaderUnits[i].isAnOlderHeaderUnit = true;
                 oldHeaderUnits[i].indexInBuildCache = i;
                 headerUnitsSet.emplace(&oldHeaderUnits[i]);
             }

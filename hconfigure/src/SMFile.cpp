@@ -390,7 +390,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
     }
     else if (round == 1 && realBTarget.exitStatus == EXIT_SUCCESS)
     {
-        if (!foundFromCache)
+        if (!isAnOlderHeaderUnit)
         {
             objectFileOutputFilePath = Node::getNodeFromNormalizedString(
                 target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".m.o", true, true);
@@ -398,9 +398,11 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             if (sourceJson[ModuleFiles::scanningCommandWithTool] != target->compileCommandWithTool.getHash())
             {
                 isObjectFileOutdated = true;
-                atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
                 isSMRuleFileOutdated = true;
-                atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
+
+                // Following variables are only accessed in parallel for older header-units in is*Outdated functions.
+                isObjectFileOutdatedCallCompleted = true;
+                isSMRuleFileOutdatedCallCompleted = true;
             }
             else if (node->doesNotExist || objectFileOutputFilePath->doesNotExist ||
                      node->lastWriteTime > objectFileOutputFilePath->lastWriteTime ||
@@ -411,11 +413,37 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             }
         }
 
-        isObjectFileOutdatedComparedToSourceFileAndItsDeps();
-        if (isObjectFileOutdated)
+        if (type == SM_FILE_TYPE::HEADER_UNIT)
         {
-            fileStatus = true;
-            isSMRulesFileOutdatedComparedToSourceFileAndItsDeps();
+
+            if (!isObjectFileOutdated)
+            {
+                checkObjectFileOutdatedHeaderUnits();
+            }
+            if (isObjectFileOutdated)
+            {
+                fileStatus = true;
+                if (!isSMRuleFileOutdated)
+                {
+                    checkSMRulesFileOutdatedHeaderUnits();
+                }
+            }
+        }
+        else
+        {
+            // Modules checkOutdated functions do not set callCompleted variables since those are never accessed.
+            if (!isObjectFileOutdated)
+            {
+                checkObjectFileOutdatedModules();
+            }
+            if (isObjectFileOutdated)
+            {
+                fileStatus = true;
+                if (!isSMRuleFileOutdated)
+                {
+                    checkSMRulesFileOutdatedModules();
+                }
+            }
         }
 
         string smrulesFileOutputClang;
@@ -760,7 +788,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
             // so we don't loop much
             doLoad = true;
 
-            if (headerUnit->foundFromCache && !atomic_ref(headerUnit->addedForRoundOne).exchange(true))
+            if (headerUnit->isAnOlderHeaderUnit && !atomic_ref(headerUnit->addedForRoundOne).exchange(true))
             {
                 headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
                 headerUnit->realBTargets[0].addInTarjanNodeBTarget(0);
@@ -823,7 +851,7 @@ void SMFile::setSMFileType()
     }
 }
 
-void SMFile::isObjectFileOutdatedComparedToSourceFileAndItsDeps()
+void SMFile::checkObjectFileOutdatedHeaderUnits()
 {
     namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
     namespace SingleHeaderUnitDep = ModuleFiles::SmRules::SingleHeaderUnitDep;
@@ -847,7 +875,7 @@ void SMFile::isObjectFileOutdatedComparedToSourceFileAndItsDeps()
 
         if (!atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
         {
-            headerUnit.isObjectFileOutdatedComparedToSourceFileAndItsDeps();
+            headerUnit.checkObjectFileOutdatedHeaderUnits();
         }
 
         if (headerUnit.isObjectFileOutdated)
@@ -859,7 +887,7 @@ void SMFile::isObjectFileOutdatedComparedToSourceFileAndItsDeps()
     }
 }
 
-void SMFile::isSMRulesFileOutdatedComparedToSourceFileAndItsDeps()
+void SMFile::checkSMRulesFileOutdatedHeaderUnits()
 {
     // If smrules file exists, and is updated, then it won't be updated. This can happen when, because of
     // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the
@@ -917,13 +945,102 @@ void SMFile::isSMRulesFileOutdatedComparedToSourceFileAndItsDeps()
 
         if (!atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
         {
-            headerUnit.isSMRulesFileOutdatedComparedToSourceFileAndItsDeps();
+            headerUnit.checkSMRulesFileOutdatedHeaderUnits();
         }
 
         if (headerUnit.isSMRuleFileOutdated)
         {
             isSMRuleFileOutdated = true;
             atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
+            return;
+        }
+    }
+}
+
+void SMFile::checkObjectFileOutdatedModules()
+{
+    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
+    namespace SingleHeaderUnitDep = ModuleFiles::SmRules::SingleHeaderUnitDep;
+
+    for (Value &pValue : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
+    {
+        CppSourceTarget *localTarget = cppSourceTargets[pValue[SingleHeaderUnitDep::targetIndex].GetUint64()];
+        if (!localTarget)
+        {
+            isObjectFileOutdated = true;
+            return;
+        }
+
+        SMFile &headerUnit = localTarget->oldHeaderUnits[pValue[SingleHeaderUnitDep::myIndex].GetUint64()];
+
+        if (!atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
+        {
+            headerUnit.checkObjectFileOutdatedHeaderUnits();
+        }
+
+        if (headerUnit.isObjectFileOutdated)
+        {
+            isObjectFileOutdated = true;
+            return;
+        }
+    }
+}
+
+void SMFile::checkSMRulesFileOutdatedModules()
+{
+    // If smrules file exists, and is updated, then it won't be updated. This can happen when, because of
+    // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the
+    // .m.o file.
+
+    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
+    namespace SingleHeaderUnitDep = ModuleFiles::SmRules::SingleHeaderUnitDep;
+
+    if (isSMRulesJsonSet)
+    {
+        isSMRuleFileOutdated = false;
+        return;
+    }
+
+    const Node *smRuleFileNode = Node::getNodeFromNonNormalizedPath(
+        target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".smrules", true, true);
+
+    if (smRuleFileNode->doesNotExist || node->lastWriteTime > smRuleFileNode->lastWriteTime)
+
+    {
+        isSMRuleFileOutdated = true;
+        return;
+    }
+
+    // We assume that all header-files systemCheck has already been called and that they exist.
+    for (const Value &pValue : sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].GetArray())
+    {
+        if (const Node *headerNode = Node::getNotSystemCheckCalledNodeFromValue(pValue);
+            headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
+        {
+            isSMRuleFileOutdated = true;
+            return;
+        }
+    }
+
+    for (Value &pValue : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
+    {
+        CppSourceTarget *localTarget = cppSourceTargets[pValue[SingleHeaderUnitDep::targetIndex].GetUint64()];
+        if (!localTarget)
+        {
+            isSMRuleFileOutdated = true;
+            return;
+        }
+
+        SMFile &headerUnit = localTarget->oldHeaderUnits[pValue[SingleHeaderUnitDep::myIndex].GetInt()];
+
+        if (!atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
+        {
+            headerUnit.checkSMRulesFileOutdatedHeaderUnits();
+        }
+
+        if (headerUnit.isSMRuleFileOutdated)
+        {
+            isSMRuleFileOutdated = true;
             return;
         }
     }
