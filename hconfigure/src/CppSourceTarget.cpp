@@ -779,7 +779,7 @@ void CppSourceTarget::setCompileCommand()
 
     if (compiler.bTFamily == BTFamily::MSVC && evaluate(TranslateInclude::YES))
     {
-        compileCommand += "/translateInclude";
+        compileCommand += "/translateInclude ";
     }
 
     auto getIncludeFlag = [&compiler] {

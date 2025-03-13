@@ -181,7 +181,7 @@ bool SourceNode::checkHeaderFiles(const Node *compareNode) const
         }
     }
 
-    if (usingArray ? !currentArraySize : !headerFilesUnCheckedVector.empty())
+    if (usingArray ? currentArraySize : !headerFilesUnCheckedVector.empty())
     {
         uint64_t uncheckedCountOld = usingArray ? currentArraySize : headerFilesUnCheckedVector.size();
         while (true)
@@ -920,6 +920,7 @@ void SMFile::checkObjectFileOutdatedHeaderUnits()
             return;
         }
     }
+    atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
 }
 
 void SMFile::checkSMRulesFileOutdatedHeaderUnits()
@@ -990,6 +991,7 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
             return;
         }
     }
+    atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
 }
 
 void SMFile::checkObjectFileOutdatedModules()

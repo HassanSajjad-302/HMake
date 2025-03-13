@@ -8,19 +8,11 @@
 
 using std::filesystem::directory_iterator;
 
-void configurationSpecification(Configuration &configuration)
+void configurationSpecification(Configuration &config)
 {
-    DSC<CppSourceTarget> &stdhu = configuration.getCppObjectDSC("stdhu");
-    stdhu.getSourceTarget().makeReqInclsUseable().publicHUIncludes(srcNode->filePath);
+    config.stdCppTarget->getSourceTarget().publicHUIncludes(srcNode->filePath);
 
-    stdhu.getLinkOrArchiveTarget().usageRequirementLibraryDirectories =
-        stdhu.getLinkOrArchiveTarget().requirementLibraryDirectories;
-
-    configuration.compilerFeatures.reqIncls.clear();
-    configuration.prebuiltBasicFeatures.requirementLibraryDirectories.clear();
-
-    /*
-     * 1 - callable_traits
+    /* 1 - callable_traits
      * 2 - compatibility
      * 3 - config
      * 4 - headers
@@ -38,9 +30,9 @@ void configurationSpecification(Configuration &configuration)
 
     // callable_traits
 
-    configuration.assign(&stdhu, BuildTests::YES, BuildExamples::YES, AssignStandardCppTarget::YES);
+    config.assign(BuildTests::YES, BuildExamples::YES, AssignStandardCppTarget::YES);
 
-    BoostCppTarget callableTraits("callableTraits", &configuration, true, true);
+    BoostCppTarget callableTraits("callableTraits", &config, true, true);
     callableTraits.addDir<BoostExampleOrTestType::RUN_EXAMPLE>("/libs/callable_traits/example")
         .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test")
         .addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test", "lazy");
@@ -51,50 +43,48 @@ void configurationSpecification(Configuration &configuration)
         cppTestTarget.privateCompileDefinition("USE_LAZY_TYPES");
     }
 
-
-
     // compatibility
-    BoostCppTarget compatibility("compatibility", &configuration, true, false);
+    BoostCppTarget compatibility("compatibility", &config, true, false);
     // compatibility.getSourceTarget().publicHUIncludes("libs/");
 
     // config
-    BoostCppTarget config("config", &configuration, true, false);
+    BoostCppTarget configTarget("config", &config, true, false);
     // Skipping test and check for now
 
     // headers
-    BoostCppTarget headers("headers", &configuration, true, false);
+    BoostCppTarget headers("headers", &config, true, false);
     // This is a fake library for installing headers
 
-    if (configuration.evaluate(CxxSTD::V_11) || configuration.evaluate(CxxSTD::V_14))
+    if (config.evaluate(CxxSTD::V_11) || config.evaluate(CxxSTD::V_14))
     {
         // Not working and no one depends on it.
         /*BoostCppTarget hof("hof", &configuration, true, true);
         hof.addRunTestsDirectory("/libs/hof/test");*/
     }
 
-    BoostCppTarget lambda2("lambda2", &configuration, true, false);
+    BoostCppTarget lambda2("lambda2", &config, true, false);
     lambda2.addDir<BoostExampleOrTestType::RUN_TEST>("/libs/lambda2/test");
 
-    BoostCppTarget leaf("leaf", &configuration, true, false);
+    BoostCppTarget leaf("leaf", &config, true, false);
     leaf.add<BoostExampleOrTestType::RUN_TEST>("libs/leaf/test", leafRunTests, std::size(leafRunTests));
 
     // No underlying API to differentiate between run-tests, compile-tests, compile-fail-tests, run-fail-tests etc.
     // leaf.addCompileTests("/libs/leaf/test", leafCompileTests, std::size(leafCompileTests));
     // leaf.addCompileFailTests("/libs/leaf/test", leafCompileFailTests, std::size(leafCompileFailTests));
-    if (configuration.evaluate(ExceptionHandling::ON))
+    if (config.evaluate(ExceptionHandling::ON))
     {
         leaf.add<BoostExampleOrTestType::EXAMPLE>("libs/leaf/example", leafExamples, std::size(leafExamples));
         leaf.add<BoostExampleOrTestType::EXAMPLE>("libs/leaf/example/print_file", leafExamplesPrintFile,
                                                   std::size(leafExamplesPrintFile));
     }
 
-    BoostCppTarget mp11("mp11", &configuration, true, false);
+    BoostCppTarget mp11("mp11", &config, true, false);
     mp11.add<BoostExampleOrTestType::RUN_TEST>("libs/mp11/test", mp11RunTests, std::size(mp11RunTests));
     // mp11.addCompileTests("/libs/mp11/test", mp11CompileTests, std::size(mp11CompileTests));
 
     // skipping pfr tests and examples. header-only library with lots of configurations for its tests and examples
 
-    BoostCppTarget pfr("pfr", &configuration, true, false);
+    BoostCppTarget pfr("pfr", &config, true, false);
     pfr.addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/pfr/test/config", "config");
     for (CppSourceTarget &testTarget :
          pfr.getEndsWith<BoostExampleOrTestType::RUN_TEST, IteratorTargetType::CPP, BSMode::BUILD>("config"))
@@ -103,9 +93,9 @@ void configurationSpecification(Configuration &configuration)
     }
 
     // skipping predef tests and examples. header-only library with lots of configurations for its tests and examples
-    BoostCppTarget predef("predef", &configuration, true, false);
+    BoostCppTarget predef("predef", &config, true, false);
 
-    BoostCppTarget preprocessor("preprocessor", &configuration, true, false);
+    BoostCppTarget preprocessor("preprocessor", &config, true, false);
     const char *preprocTestDir = "libs/preprocessor/test";
     preprocessor
         .add<BoostExampleOrTestType::COMPILE_TEST>(preprocTestDir, preprocessorTests, std::size(preprocessorTests))
@@ -190,9 +180,9 @@ void configurationSpecification(Configuration &configuration)
 void buildSpecification()
 {
     // This tries to build SFML similar to the current CMakeLists.txt. Currently, only Windows build is supported.
-    getConfiguration("conventional").assign(CxxSTD::V_LATEST, TargetType::LIBRARY_SHARED, TreatModuleAsSource::YES);
-
-    selectiveConfigurationSpecification(&configurationSpecification);
+    getConfiguration("conventional")
+        .assign(CxxSTD::V_LATEST, TargetType::LIBRARY_SHARED, TreatModuleAsSource::NO, TranslateInclude::YES);
+    CALL_CONFIGURATION_SPECIFICATION
 }
 
 MAIN_FUNCTION
