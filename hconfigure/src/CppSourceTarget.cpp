@@ -171,24 +171,25 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
         Value &moduleNodesCache = getConfigCache()[CppConfig::moduleFiles];
         Value &headerUnitsNodesCache = getConfigCache()[CppConfig::headerUnits];
 
-        // TODO
-        // Do it in parallel. These are doing filesystem calls.
         srcFileDeps.reserve(sourceNodesCache.Size());
         for (Value &pValue : sourceNodesCache.GetArray())
         {
-            srcFileDeps.emplace_back(this, Node::getNodeFromValue(pValue, true));
+            // ensureSystemCheckCalled is called in SourceNode::updateBTarget(0) in parallel.
+            srcFileDeps.emplace_back(this, Node::getNotSystemCheckCalledNodeFromValue(pValue));
         }
 
         modFileDeps.reserve(moduleNodesCache.Size() / 2);
         for (uint64_t i = 0; i < moduleNodesCache.Size(); i = i + 2)
         {
-            modFileDeps.emplace_back(this, Node::getNodeFromValue(moduleNodesCache[i], true));
+            // ensureSystemCheckCalled is called in SMFile::updateBTarget(1) in parallel.
+            modFileDeps.emplace_back(this, Node::getNotSystemCheckCalledNodeFromValue(moduleNodesCache[i]));
             modFileDeps[i / 2].isInterface = moduleNodesCache[i + 1].GetBool();
         }
 
         for (uint64_t i = 0; i < headerUnitsNodesCache.Size(); i = i + 2)
         {
-            Node *headerUnitNode = Node::getNodeFromValue(headerUnitsNodesCache[i], true);
+            // ensureSystemCheckCalled is called in SMFile::updateBTarget(2) in parallel.
+            Node *headerUnitNode = Node::getNotSystemCheckCalledNodeFromValue(headerUnitsNodesCache[i]);
             // If header-unit node exists, then its parent directory exists as-well. So, no need to perform system
             // check.
             Node *headerUnitDir = Node::getNotSystemCheckCalledNodeFromValue(headerUnitsNodesCache[i + 1]);
@@ -1296,7 +1297,7 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *pre
         prebuiltBasic->objectFileProducers.emplace(objectFileProducer);
     }
 
-    if (define_.empty() )
+    if (define_.empty())
     {
         define = prebuiltBasic->getOutputName();
         transform(define.begin(), define.end(), define.begin(), toupper);

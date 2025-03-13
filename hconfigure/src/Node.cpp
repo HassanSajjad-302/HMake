@@ -253,7 +253,7 @@ Node *Node::getNodeFromValue(const Value &pValue, bool isFile, bool mayNotExist)
     Node *node = nodeIndices[pValue.GetUint64()];
     node->ensureSystemCheckCalled(isFile, mayNotExist);
 #else
-    Node *node = Node::getNodeFromNormalizedString(string_view(pValue.GetString(), pValue.GetStringLength()), isFile,
+    Node *node = getNodeFromNormalizedString(string_view(pValue.GetString(), pValue.GetStringLength()), isFile,
                                                    mayNotExist);
 #endif
     return node;

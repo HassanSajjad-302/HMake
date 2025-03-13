@@ -100,6 +100,8 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
         RealBTarget &realBTarget = realBTargets[0];
         if (selectiveBuild)
         {
+            const_cast<Node *>(node)->ensureSystemCheckCalled(true);
+
             objectFileOutputFilePath = Node::getNodeFromNormalizedString(
                 target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".o", true, true);
 
@@ -394,6 +396,11 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
         {
             objectFileOutputFilePath = Node::getNodeFromNormalizedString(
                 target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".m.o", true, true);
+
+            if (type != SM_FILE_TYPE::HEADER_UNIT)
+            {
+                const_cast<Node *>(node)->ensureSystemCheckCalled(true);
+            }
 
             if (sourceJson[ModuleFiles::scanningCommandWithTool] != target->compileCommandWithTool.getHash())
             {
