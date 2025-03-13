@@ -205,7 +205,8 @@ bool SourceNode::checkHeaderFiles(const Node *compareNode) const
                 }
                 else
                 {
-                    headerFilesUnCheckedVector[uncheckedCountNew] = headerNode;
+                    usingArray ? headerFilesUnCheckedArray[uncheckedCountNew]
+                               : headerFilesUnCheckedVector[uncheckedCountNew] = headerNode;
                     ++uncheckedCountNew;
                     zeroLeft = false;
                 }
@@ -405,7 +406,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
         }
 
         if (node->doesNotExist || objectFileOutputFilePath->doesNotExist ||
-            node->lastWriteTime > objectFileOutputFilePath->lastWriteTime || checkHeaderFiles(objectFileOutputFilePath))
+            node->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
         {
             isObjectFileOutdated = true;
             isObjectFileOutdatedCallCompleted = true;
@@ -433,8 +434,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 isSMRuleFileOutdatedCallCompleted = true;
             }
             else if (node->doesNotExist || objectFileOutputFilePath->doesNotExist ||
-                     node->lastWriteTime > objectFileOutputFilePath->lastWriteTime ||
-                     checkHeaderFiles(objectFileOutputFilePath))
+                     node->lastWriteTime > objectFileOutputFilePath->lastWriteTime)
             {
                 isObjectFileOutdated = true;
                 atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
