@@ -149,7 +149,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
     void initializeHeaderUnits(Builder &builder);
     void addNewBTargetInFinalBTargetsRound1(Builder &builder);
-    void setSMFileType(Builder &builder);
+    void setSMFileType();
     void isObjectFileOutdatedComparedToSourceFileAndItsDeps();
     void isSMRulesFileOutdatedComparedToSourceFileAndItsDeps();
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;

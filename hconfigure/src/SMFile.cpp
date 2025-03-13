@@ -131,6 +131,8 @@ bool SourceNode::checkHeaderFiles(const Node *compareNode) const
 {
     namespace SourceFiles = Indices::BuildCache::CppBuild::SourceFiles;
 
+    // Use this instead
+    // https://github.com/gharveymn/small_vector
     vector<Node *> headerFilesUnChecked;
 
     headerFilesUnChecked.reserve(sourceJson[SourceFiles::headerFiles].GetArray().Size());
@@ -400,20 +402,15 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 isSMRuleFileOutdated = true;
                 atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
             }
-
-            // TODO
-            // Change this to "else if" and move it into a function.
-            // doesNotExist should be treated a bit differently
-            if (node->doesNotExist || objectFileOutputFilePath->doesNotExist ||
-                node->lastWriteTime > objectFileOutputFilePath->lastWriteTime ||
-                checkHeaderFiles(objectFileOutputFilePath))
+            else if (node->doesNotExist || objectFileOutputFilePath->doesNotExist ||
+                     node->lastWriteTime > objectFileOutputFilePath->lastWriteTime ||
+                     checkHeaderFiles(objectFileOutputFilePath))
             {
                 isObjectFileOutdated = true;
                 atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
             }
         }
 
-        string smrulesFileOutputClang;
         isObjectFileOutdatedComparedToSourceFileAndItsDeps();
         if (isObjectFileOutdated)
         {
@@ -421,6 +418,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             isSMRulesFileOutdatedComparedToSourceFileAndItsDeps();
         }
 
+        string smrulesFileOutputClang;
         if (isSMRuleFileOutdated)
         {
             // TODO
@@ -462,7 +460,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             initializeHeaderUnits(builder);
             if (type != SM_FILE_TYPE::HEADER_UNIT)
             {
-                setSMFileType(builder);
+                setSMFileType();
                 if (isSMRuleFileOutdated)
                 {
                     target->moduleFileScanned = true;
@@ -801,7 +799,7 @@ void SMFile::addNewBTargetInFinalBTargetsRound1(Builder &builder)
     builder.cond.notify_one();
 }
 
-void SMFile::setSMFileType(Builder &builder)
+void SMFile::setSMFileType()
 {
     namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
 
