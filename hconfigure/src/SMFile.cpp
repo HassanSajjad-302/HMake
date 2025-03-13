@@ -134,7 +134,7 @@ bool SourceNode::checkHeaderFiles(const Node *compareNode) const
     namespace SourceFiles = Indices::BuildCache::CppBuild::SourceFiles;
 
     // Basically using a static-vector here.
-    constexpr uint64_t stackSize = 2;
+    constexpr uint64_t stackSize = 1024;
     uint64_t currentArraySize = 0;
     Node *headerFilesUnCheckedArray[stackSize];
     vector<Node *> headerFilesUnCheckedVector;
