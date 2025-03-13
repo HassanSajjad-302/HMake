@@ -10,7 +10,7 @@ using std::filesystem::directory_iterator;
 
 void configurationSpecification(Configuration &config)
 {
-    config.stdCppTarget->getSourceTarget().publicHUIncludes(srcNode->filePath);
+    config.stdCppTarget->getSourceTarget().publicIncludes(srcNode->filePath);
 
     /* 1 - callable_traits
      * 2 - compatibility
@@ -32,7 +32,7 @@ void configurationSpecification(Configuration &config)
 
     config.assign(BuildTests::YES, BuildExamples::YES, AssignStandardCppTarget::YES);
 
-    BoostCppTarget callableTraits("callableTraits", &config, true, true);
+    BoostCppTarget callableTraits("callable_Traits", &config, true, true);
     callableTraits.addDir<BoostExampleOrTestType::RUN_EXAMPLE>("/libs/callable_traits/example")
         .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test")
         .addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test", "lazy");
@@ -44,6 +44,7 @@ void configurationSpecification(Configuration &config)
     }
 
     // compatibility
+    /*
     BoostCppTarget compatibility("compatibility", &config, true, false);
     // compatibility.getSourceTarget().publicHUIncludes("libs/");
 
@@ -59,7 +60,7 @@ void configurationSpecification(Configuration &config)
     {
         // Not working and no one depends on it.
         /*BoostCppTarget hof("hof", &configuration, true, true);
-        hof.addRunTestsDirectory("/libs/hof/test");*/
+        hof.addRunTestsDirectory("/libs/hof/test");#1#
     }
 
     BoostCppTarget lambda2("lambda2", &config, true, false);
@@ -120,6 +121,7 @@ void configurationSpecification(Configuration &config)
     preprocessorMacroDefines("512", "BOOST_PP_LIMIT_MAG", "512");
     preprocessorMacroDefines("1024", "BOOST_PP_LIMIT_MAG", "1024");
 
+    */
     // callable_traits
     /* DSC<CppSourceTarget> &qvm = configuration.getCppObjectDSC("qvm").privateLibraries(&stdhu);
      if (tests == TESTS::YES)

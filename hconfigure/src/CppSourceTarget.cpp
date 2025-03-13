@@ -255,24 +255,27 @@ void CppSourceTarget::populateTransitiveProperties()
             CppSourceTarget *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
             for (InclNodeTargetMap &inclNodeTargetMap : cppSourceTarget->useReqHuDirs)
             {
-                bool found = false;
-                for (const InclNodeTargetMap &inclNodeTargetMap_ : reqHuDirs)
+                if constexpr (bsMode == BSMode::CONFIGURE)
                 {
-                    if (inclNodeTargetMap_.inclNode.node->myId == inclNodeTargetMap.inclNode.node->myId)
+                    bool found = false;
+                    for (const InclNodeTargetMap &inclNodeTargetMap_ : reqHuDirs)
                     {
-                        found = true;
-                        break;
+                        if (inclNodeTargetMap_.inclNode.node->myId == inclNodeTargetMap.inclNode.node->myId)
+                        {
+                            found = true;
+                            break;
+                        }
                     }
-                }
-                if (found)
-                {
-                    printErrorMessageColor(
-                        FORMAT("Include Directory\n{}\nbelongs to two different target\n{}\nand\n{}\n",
-                               inclNodeTargetMap.inclNode.node->filePath, getTarjanNodeName(),
-                               inclNodeTargetMap.cppSourceTarget->getTarjanNodeName()),
-                        settings.pcSettings.toolErrorOutput);
-                    throw std::exception();
-                    // Print Error Message that same include-directory belongs to two targets.
+                    if (found)
+                    {
+                        printErrorMessageColor(
+                            FORMAT("Include Directory\n{}\nbelongs to two different target\n{}\nand\n{}\n",
+                                   inclNodeTargetMap.inclNode.node->filePath, getTarjanNodeName(),
+                                   inclNodeTargetMap.cppSourceTarget->getTarjanNodeName()),
+                            settings.pcSettings.toolErrorOutput);
+                        throw std::exception();
+                        // Print Error Message that same include-directory belongs to two targets.
+                    }
                 }
                 reqHuDirs.emplace_back(inclNodeTargetMap);
             }

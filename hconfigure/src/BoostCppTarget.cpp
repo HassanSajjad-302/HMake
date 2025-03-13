@@ -22,11 +22,19 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
 {
     const string buildCacheFilesDirPath = configuration->name + slashc + name;
 
+    DSC<CppSourceTarget> *t = nullptr;
     if (headerOnly)
     {
-        return configuration->getCppStaticDSC(false, buildCacheFilesDirPath, name);
+        t = &configuration->getCppStaticDSC(false, buildCacheFilesDirPath, name);
     }
-    return configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
+    else
+    {
+        t = &configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
+    }
+    t->getSourceTarget()
+        .publicHUDirectories(string("boost") + slashc + name)
+        .headerUnits(string("boost") + slashc + name + ".hpp");
+    return *t;
 }
 
 BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_, const bool headerOnly,
