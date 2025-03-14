@@ -34,15 +34,16 @@ void configurationSpecification(Configuration &config)
     config.assign(BuildTests::YES, BuildExamples::YES, AssignStandardCppTarget::YES);
 
     BoostCppTarget callableTraits("callable_Traits", &config, true, true);
-    callableTraits.addDir<BoostExampleOrTestType::RUN_EXAMPLE>("/libs/callable_traits/example")
-        .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test")
-        .addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test", "lazy");
-
-    for (CppSourceTarget &cppTestTarget :
-         callableTraits.getEndsWith<BoostExampleOrTestType::RUN_TEST, IteratorTargetType::CPP, BSMode::BUILD>("lazy"))
-    {
-        cppTestTarget.privateCompileDefinition("USE_LAZY_TYPES");
-    }
+    // callableTraits.addDir<BoostExampleOrTestType::RUN_EXAMPLE>("/libs/callable_traits/example")
+    //     .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test")
+    //     .addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test", "lazy");
+    //
+    // for (CppSourceTarget &cppTestTarget :
+    //      callableTraits.getEndsWith<BoostExampleOrTestType::RUN_TEST, IteratorTargetType::CPP,
+    //      BSMode::BUILD>("lazy"))
+    // {
+    //     cppTestTarget.privateCompileDefinition("USE_LAZY_TYPES");
+    // }
 
     // compatibility
 
@@ -64,7 +65,14 @@ void configurationSpecification(Configuration &config)
         hof.addRunTestsDirectory("/libs/hof/test");*/
     }
 
+    DSC<CppSourceTarget> &current = config.getCppStaticDSC("current-target");
+    current.getSourceTarget().headerUnits("boost/current_function.hpp");
+
+    BoostCppTarget core("core", &config, true, false);
+    core.mainTarget.publicLibraries(&current, configTarget.mainTarget);
+
     BoostCppTarget lambda2("lambda2", &config, true, false);
+    lambda2.mainTarget.publicLibraries(&core.mainTarget);
     lambda2.addDir<BoostExampleOrTestType::RUN_TEST>("/libs/lambda2/test");
 
     return;

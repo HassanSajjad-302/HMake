@@ -159,7 +159,7 @@ auto &BoostCppTarget::GenericBase<boostExampleOrTestType, iteratorTargetType>::o
 
     if constexpr (iteratorTargetType == IteratorTargetType::DSC_CPP)
     {
-        return *exampleOrTest->testTarget.cppTarget;
+        return *exampleOrTest->testTarget.dscTarget;
     }
     else if constexpr (iteratorTargetType == IteratorTargetType::CPP)
     {
