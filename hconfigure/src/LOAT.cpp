@@ -1,6 +1,6 @@
 
 #ifdef USE_HEADER_UNITS
-import "LinkOrArchiveTarget.hpp";
+import "LOAT.hpp";
 import "BuildSystemFunctions.hpp";
 import "Cache.hpp";
 import "CppSourceTarget.hpp";
@@ -10,7 +10,7 @@ import <fstream>;
 import <stack>;
 import <utility>;
 #else
-#include "LinkOrArchiveTarget.hpp"
+#include "LOAT.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
 #include "Utilities.hpp"
@@ -21,12 +21,12 @@ import <utility>;
 
 using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard, std::mutex;
 
-bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs)
+bool operator<(const LOAT &lhs, const LOAT &rhs)
 {
     return lhs.name < rhs.name;
 }
 
-void LinkOrArchiveTarget::makeBuildCacheFilesDirPathAtConfigTime(string buildCacheFilesDirPath)
+void LOAT::makeBuildCacheFilesDirPathAtConfigTime(string buildCacheFilesDirPath)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -39,52 +39,52 @@ void LinkOrArchiveTarget::makeBuildCacheFilesDirPathAtConfigTime(string buildCac
     }
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(Configuration &config_, const string &name_, const TargetType targetType)
-    : PrebuiltLinkOrArchiveTarget(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_,
+LOAT::LOAT(Configuration &config_, const string &name_, const TargetType targetType)
+    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_,
                                   targetType, name_, false, false)
 {
     makeBuildCacheFilesDirPathAtConfigTime("");
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(Configuration &config_, const bool buildExplicit, const string &name_,
+LOAT::LOAT(Configuration &config_, const bool buildExplicit, const string &name_,
                                          const TargetType targetType)
-    : PrebuiltLinkOrArchiveTarget(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_,
+    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_,
                                   targetType, name_, buildExplicit, false)
 {
     makeBuildCacheFilesDirPathAtConfigTime("");
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(Configuration &config_, const string &buildCacheFileDirPath_,
+LOAT::LOAT(Configuration &config_, const string &buildCacheFileDirPath_,
                                          const string &name_, const TargetType targetType)
-    : PrebuiltLinkOrArchiveTarget(config_, getLastNameAfterSlash(name_),
+    : PLOAT(config_, getLastNameAfterSlash(name_),
                                   configureNode->filePath + slashc + buildCacheFileDirPath_, targetType, name_, false,
                                   false)
 {
     makeBuildCacheFilesDirPathAtConfigTime(configureNode->filePath + slashc + buildCacheFileDirPath_);
 }
 
-LinkOrArchiveTarget::LinkOrArchiveTarget(Configuration &config_, const string &buildCacheFileDirPath_,
+LOAT::LOAT(Configuration &config_, const string &buildCacheFileDirPath_,
                                          const bool buildExplicit, const string &name_, const TargetType targetType)
-    : PrebuiltLinkOrArchiveTarget(config_, getLastNameAfterSlash(name_),
+    : PLOAT(config_, getLastNameAfterSlash(name_),
                                   configureNode->filePath + slashc + buildCacheFileDirPath_, targetType, name_,
                                   buildExplicit, false)
 {
     makeBuildCacheFilesDirPathAtConfigTime(configureNode->filePath + slashc + buildCacheFileDirPath_);
 }
 
-void LinkOrArchiveTarget::setOutputName(string str)
+void LOAT::setOutputName(string str)
 {
 #ifndef BUILD_MODE
     outputName = std::move(str);
 #endif
 }
 
-BTargetType LinkOrArchiveTarget::getBTargetType() const
+BTargetType LOAT::getBTargetType() const
 {
     return BTargetType::LINK_OR_ARCHIVE_TARGET;
 }
 
-void LinkOrArchiveTarget::setFileStatus()
+void LOAT::setFileStatus()
 {
     for (auto &[pre, dep] : reqDeps)
     {
@@ -131,17 +131,17 @@ void LinkOrArchiveTarget::setFileStatus()
                 bool needsUpdate = false;
                 if (!evaluate(TargetType::LIBRARY_STATIC))
                 {
-                    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : reqDeps)
+                    for (auto &[ploat, prebuiltDep] : reqDeps)
                     {
-                        // No need to check whether prebuiltLinkOrArchiveTarget is a static-library since it is
+                        // No need to check whether ploat is a static-library since it is
                         // already-checked in that target's setFileStatus.
 
-                        if (prebuiltLinkOrArchiveTarget->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
-                            static_cast<LinkOrArchiveTarget *>(prebuiltLinkOrArchiveTarget)->objectFiles.empty())
+                        if (ploat->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
+                            static_cast<LOAT *>(ploat)->objectFiles.empty())
                         {
                             continue;
                         }
-                        if (prebuiltLinkOrArchiveTarget->outputFileNode->lastWriteTime > outputFileNode->lastWriteTime)
+                        if (ploat->outputFileNode->lastWriteTime > outputFileNode->lastWriteTime)
                         {
                             needsUpdate = true;
                             break;
@@ -178,28 +178,28 @@ void LinkOrArchiveTarget::setFileStatus()
     if constexpr (os == OS::NT)
     {
         if (linkTargetType == TargetType::EXECUTABLE &&
-            config.prebuiltLinkOrArchiveTargetFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
+            config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
             atomic_ref(fileStatus).load())
         {
-            flat_hash_set<PrebuiltLinkOrArchiveTarget *> checked;
+            flat_hash_set<PLOAT *> checked;
             // TODO:
             // Use vector instead and call reserve before
-            stack<PrebuiltLinkOrArchiveTarget *, vector<PrebuiltLinkOrArchiveTarget *>> allDeps;
-            for (auto &[prebuiltBasic, prebuiltDep] : reqDeps)
+            stack<PLOAT *, vector<PLOAT *>> allDeps;
+            for (auto &[ploat, prebuiltDep] : reqDeps)
             {
-                checked.emplace(prebuiltBasic);
-                allDeps.emplace(prebuiltBasic);
+                checked.emplace(ploat);
+                allDeps.emplace(ploat);
             }
             while (!allDeps.empty())
             {
-                PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget = allDeps.top();
+                PLOAT *ploat = allDeps.top();
                 allDeps.pop();
-                if (prebuiltLinkOrArchiveTarget->evaluate(TargetType::LIBRARY_SHARED))
+                if (ploat->evaluate(TargetType::LIBRARY_SHARED))
                 {
-                    if (atomic_ref(prebuiltLinkOrArchiveTarget->fileStatus).load())
+                    if (atomic_ref(ploat->fileStatus).load())
                     {
                         // latest dll will be built and copied
-                        dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
+                        dllsToBeCopied.emplace_back(ploat);
                     }
                     else
                     {
@@ -207,27 +207,27 @@ void LinkOrArchiveTarget::setFileStatus()
 
                         if (const Node *copiedDLLNode = Node::getNodeFromNormalizedString(
                                 string(getOutputDirectoryV()) + slashc +
-                                    prebuiltLinkOrArchiveTarget->getActualOutputName(),
+                                    ploat->getActualOutputName(),
                                 true, true);
                             copiedDLLNode->doesNotExist)
                         {
-                            dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
+                            dllsToBeCopied.emplace_back(ploat);
                         }
                         else
                         {
                             if (copiedDLLNode->lastWriteTime <
-                                prebuiltLinkOrArchiveTarget->outputFileNode->lastWriteTime)
+                                ploat->outputFileNode->lastWriteTime)
                             {
-                                dllsToBeCopied.emplace_back(prebuiltLinkOrArchiveTarget);
+                                dllsToBeCopied.emplace_back(ploat);
                             }
                         }
                     }
                 }
-                for (auto &[prebuiltBasic_, prebuiltDep] : prebuiltLinkOrArchiveTarget->reqDeps)
+                for (auto &[ploat_, prebuiltDep] : ploat->reqDeps)
                 {
-                    if (checked.emplace(prebuiltBasic_).second)
+                    if (checked.emplace(ploat_).second)
                     {
-                        allDeps.emplace(prebuiltBasic_);
+                        allDeps.emplace(ploat_);
                     }
                 }
             }
@@ -235,9 +235,9 @@ void LinkOrArchiveTarget::setFileStatus()
     }
 }
 
-void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
+void LOAT::updateBTarget(Builder &builder, unsigned short round)
 {
-    PrebuiltLinkOrArchiveTarget::updateBTarget(builder, round);
+    PLOAT::updateBTarget(builder, round);
     RealBTarget &realBTarget = realBTargets[round];
     if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
     {
@@ -303,14 +303,14 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
             if constexpr (os == OS::NT)
             {
                 if (linkTargetType == TargetType::EXECUTABLE &&
-                    config.prebuiltLinkOrArchiveTargetFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
+                    config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
                     realBTarget.exitStatus == EXIT_SUCCESS)
                 {
-                    for (const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget : dllsToBeCopied)
+                    for (const PLOAT *ploat : dllsToBeCopied)
                     {
-                        copy_file(prebuiltLinkOrArchiveTarget->outputFileNode->filePath,
+                        copy_file(ploat->outputFileNode->filePath,
                                   string(getOutputDirectoryV()) + slashc +
-                                      prebuiltLinkOrArchiveTarget->getActualOutputName(),
+                                      ploat->getActualOutputName(),
                                   std::filesystem::copy_options::overwrite_existing);
                     }
                 }
@@ -325,11 +325,9 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
         }
         if (!evaluate(TargetType::LIBRARY_STATIC))
         {
-            for (auto &[prebuiltBasic, prebuiltDep] : reqDeps)
+            for (auto &[ploat, prebuiltDep] : reqDeps)
             {
-                const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
-                    static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                reqLinkerFlags += prebuiltLinkOrArchiveTarget->useReqLinkerFlags;
+                reqLinkerFlags += ploat->useReqLinkerFlags;
             }
         }
 
@@ -340,19 +338,19 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
     }
 }
 
-void LinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime()
+void LOAT::writeTargetConfigCacheAtConfigureTime()
 {
     buildOrConfigCacheCopy.PushBack(buildCacheFilesDirPathNode->getValue(), cacheAlloc);
     copyBackConfigCacheMutexLocked();
 }
 
-void LinkOrArchiveTarget::readConfigCacheAtBuildTime()
+void LOAT::readConfigCacheAtBuildTime()
 {
     buildCacheFilesDirPathNode = Node::getNotSystemCheckCalledNodeFromValue(
         getConfigCache()[Indices::ConfigCache::LinkConfig::buildCacheFilesDirPath]);
 }
 
-string LinkOrArchiveTarget::getTarjanNodeName() const
+string LOAT::getTarjanNodeName() const
 {
     string str;
     if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -370,18 +368,18 @@ string LinkOrArchiveTarget::getTarjanNodeName() const
     return str + " " + configureNode->filePath + slashc + name;
 }
 
-RunCommand LinkOrArchiveTarget::Archive()
+RunCommand LOAT::Archive()
 {
     return {config.linkerFeatures.archiver.bTPath, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(),
             true};
 }
 
-RunCommand LinkOrArchiveTarget::Link()
+RunCommand LOAT::Link()
 {
     return {config.linkerFeatures.linker.bTPath, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), true};
 }
 
-void LinkOrArchiveTarget::setLinkOrArchiveCommands()
+void LOAT::setLinkOrArchiveCommands()
 {
     const LinkerFlags &flags = config.linkerFlags;
     const Linker &linker = config.linkerFeatures.linker;
@@ -448,17 +446,17 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
 
     if (linkTargetType != TargetType::LIBRARY_STATIC)
     {
-        for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : sortedPrebuiltDependencies)
+        for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
         {
-            if (prebuiltLinkOrArchiveTarget->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
-                static_cast<LinkOrArchiveTarget *>(prebuiltLinkOrArchiveTarget)->objectFiles.empty())
+            if (ploat->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
+                static_cast<LOAT *>(ploat)->objectFiles.empty())
             {
                 continue;
             }
 
             linkOrArchiveCommandWithTargets += prebuiltDep->reqPreLF;
-            linkOrArchiveCommandWithTargets += getLinkFlag(string(prebuiltLinkOrArchiveTarget->getOutputDirectoryV()),
-                                                           prebuiltLinkOrArchiveTarget->getOutputName());
+            linkOrArchiveCommandWithTargets += getLinkFlag(string(ploat->getOutputDirectoryV()),
+                                                           ploat->getOutputName());
             linkOrArchiveCommandWithTargets += prebuiltDep->reqPostLF;
         }
 
@@ -477,16 +475,15 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
 
         if (evaluate(BTFamily::GCC))
         {
-            for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
+            for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
+                if (ploat->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     if (prebuiltDep->defaultRpath)
                     {
-                        auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                         linkOrArchiveCommandWithTargets +=
                             "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                            addQuotes(string(prebuiltLinkOrArchiveTarget->getOutputDirectoryV())) + " ";
+                            addQuotes(string(ploat->getOutputDirectoryV())) + " ";
                     }
                     else
                     {
@@ -498,16 +495,15 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
 
         if (config.linkerFeatures.evaluate(BTFamily::GCC) && evaluate(TargetType::EXECUTABLE) && flags.isRpathOs)
         {
-            for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
+            for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
+                if (ploat->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     if (prebuiltDep->defaultRpathLink)
                     {
-                        auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                         linkOrArchiveCommandWithTargets +=
                             "-Wl,-rpath-link -Wl," +
-                            addQuotes(string(prebuiltLinkOrArchiveTarget->getOutputDirectoryV())) + " ";
+                            addQuotes(string(ploat->getOutputDirectoryV())) + " ";
                     }
                     else
                     {
@@ -536,7 +532,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
     linkOrArchiveCommandWithoutTargets = string_view(linkOrArchiveCommandWithTargets.data(), commandWithoutTargetsSize);
 }
 
-string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
+string LOAT::getLinkOrArchiveCommandPrint()
 {
     const LinkerFlags &flags = config.linkerFlags;
     const Linker &linker = config.linkerFeatures.linker;
@@ -655,13 +651,12 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
     {
         if (lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
         {
-            for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
+            for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                 linkOrArchiveCommandPrint += prebuiltDep->reqPreLF;
                 linkOrArchiveCommandPrint +=
-                    getLinkFlagPrint(string(prebuiltLinkOrArchiveTarget->getOutputDirectoryV()),
-                                     prebuiltLinkOrArchiveTarget->getOutputName(), lcpSettings.libraryDependencies);
+                    getLinkFlagPrint(string(ploat->getOutputDirectoryV()),
+                                     ploat->getOutputName(), lcpSettings.libraryDependencies);
                 linkOrArchiveCommandPrint += prebuiltDep->reqPostLF;
             }
         }
@@ -698,15 +693,14 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
 
         if (evaluate(BTFamily::GCC) && lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
         {
-            for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
+            for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
+                if (ploat->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     if (prebuiltDep->defaultRpath)
                     {
-                        auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                         linkOrArchiveCommandPrint += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                                                     getReducedPath(prebuiltLinkOrArchiveTarget->getOutputDirectoryV(),
+                                                     getReducedPath(ploat->getOutputDirectoryV(),
                                                                     lcpSettings.libraryDependencies) +
                                                      " ";
                     }
@@ -721,15 +715,14 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
         if (config.linkerFeatures.evaluate(BTFamily::GCC) && evaluate(TargetType::EXECUTABLE) && flags.isRpathOs &&
             lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
         {
-            for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
+            for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
             {
-                if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
+                if (ploat->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     if (prebuiltDep->defaultRpathLink)
                     {
-                        auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
                         linkOrArchiveCommandPrint += "-Wl,-rpath-link -Wl," +
-                                                     getReducedPath(prebuiltLinkOrArchiveTarget->getOutputDirectoryV(),
+                                                     getReducedPath(ploat->getOutputDirectoryV(),
                                                                     lcpSettings.libraryDependencies) +
                                                      " ";
                     }

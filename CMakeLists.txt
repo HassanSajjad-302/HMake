@@ -33,7 +33,7 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/SMFile.cpp
         hconfigure/src/Configuration.cpp
         hconfigure/src/CppSourceTarget.cpp
-        hconfigure/src/LinkOrArchiveTarget.cpp
+        hconfigure/src/LOAT.cpp
         hconfigure/src/BuildTools.cpp
         hconfigure/src/ToolsCache.cpp
         hconfigure/src/RunCommand.cpp
@@ -42,7 +42,7 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/CSourceTarget.cpp
         hconfigure/src/Configure.cpp
         hconfigure/src/CTargetRoundZeroBTarget.cpp
-        hconfigure/src/PrebuiltLinkOrArchiveTarget.cpp
+        hconfigure/src/PLOAT.cpp
         hconfigure/src/PlatformSpecific.cpp
         hconfigure/src/Node.cpp
         hconfigure/src/ObjectFile.cpp

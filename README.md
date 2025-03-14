@@ -212,7 +212,7 @@ BTarget 0 Depends On BTarget 2.
 By overriding ```BTarget::getTarjanNodeName```,
 we can customize this message to differentiate between different overrides of BTarget.
 By default, it prints ```BTarget``` and the id number.
-```CppSourceTarget```, ```LinkOrArchiveTarget``` prints ```name```,
+```CppSourceTarget```, ```LOAT``` prints ```name```,
 while ```SourceNode``` and ```SMFile``` prints ```node->filePath```.
 
 ### Example 5
@@ -737,7 +737,7 @@ in cmake build-dir for debugging on Windows.
 This line ```getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp");``` in the file create a
 ```DSC<CppSourceTarget>```. ```DSC<CppSourceTarget>``` manages dependency specification as you will see
 later on.
-It has pointers to ```CppSourceTarget``` and ```LinkOrArchiveTarget```.
+It has pointers to ```CppSourceTarget``` and ```LOAT```.
 ```getSourceTarget``` returns the ```CppSourceTarget``` pointer to which we add the source-files.
 There are other ```Get*``` function available in ```GetTarget.hpp```.
 These functions preserve by emplacing the element in ```targets``` template variable.
@@ -785,7 +785,7 @@ A complete list of such features can be found in ```Features.hpp```.
 ```Configuration``` has ```Get*``` like functions.
 These functions will return the respective element but with the properties of Configuration.
 In ```configurationSpecification```, ```Optimization::SPACE``` is set based on the ```LTO``` feature.
-More functions like ```SINGLE``` are available in the ```CppSourceTarget``` and ```LinkOrArchiveTarget```,
+More functions like ```SINGLE``` are available in the ```CppSourceTarget``` and ```LOAT```,
 as these are inheriting from the ```FeatureConvenienceFunctions.hpp```.
 These functions allow more concise conditional property specification.
 ```sourceDirectoriesRE``` function also takes the ```regex``` argument,
@@ -865,7 +865,7 @@ The third argument specifies what compile-definition to use.
 By default ```name + "_EXPORT"``` compile-definition will be used.
 On Windows, HMake by default, copies the shared library dependencies to the build-dir.
 You can change that by ```assign(CopyDLLToExeDirOnNTOs::NO)``` call to the
-```prebuiltLinkOrArchiveTarget``` of the ```DSC```.
+```ploat``` of the ```DSC```.
 
 ### Example 5
 
@@ -889,15 +889,15 @@ void buildSpecification()
             if (bTarget.getRealBTarget(0).exitStatus == EXIT_SUCCESS &&
                 bTarget.fileStatus.load(std::memory_order_acquire))
             {
-                std::filesystem::copy(catShared.getLinkOrArchiveTarget().getActualOutputPath(),
-                                      path(animalShared.getLinkOrArchiveTarget().getActualOutputPath()).parent_path(),
+                std::filesystem::copy(catShared.getLOAT().getActualOutputPath(),
+                                      path(animalShared.getLOAT().getActualOutputPath()).parent_path(),
                                       std::filesystem::copy_options::overwrite_existing);
-                std::filesystem::remove(catShared.getLinkOrArchiveTarget().getActualOutputPath());
+                std::filesystem::remove(catShared.getLOAT().getActualOutputPath());
                 std::lock_guard<std::mutex> lk(printMutex);
                 printMessage("libCat.so copied to Animal/ and deleted from Cat/\n");
             }
         },
-        animalShared.getLinkOrArchiveTarget(), catShared.getLinkOrArchiveTarget());
+        animalShared.getLOAT(), catShared.getLOAT());
 }
 
 MAIN_FUNCTION
@@ -959,11 +959,11 @@ void buildSpecification()
         dog2.privateLibraries(&cat).getSourceTarget().sourceFiles("Dog2/src/Dog.cpp").publicIncludes("Dog2/header");
 
         DSC<CppSourceTarget> &app = getCppExeDSC("App" + str);
-        app.getLinkOrArchiveTarget().setOutputName("app");
+        app.getLOAT().setOutputName("app");
         app.privateLibraries(&dog).getSourceTarget().sourceFiles("main.cpp");
 
         DSC<CppSourceTarget> &app2 = getCppExeDSC("App2" + str);
-        app2.getLinkOrArchiveTarget().setOutputName("app");
+        app2.getLOAT().setOutputName("app");
         app2.privateLibraries(&dog2).getSourceTarget().sourceFiles("main2.cpp");
     };
 
@@ -1152,19 +1152,19 @@ struct SizeDifference : public CTarget, public BTarget
         RealBTarget &realBTarget = realBTargets.emplace_back(this, 0);
         if (speedConfiguration.getSelectiveBuild() && sizeConfiguration.getSelectiveBuild() && getSelectiveBuild())
         {
-            for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
+            for (LOAT *loat : sizeConfiguration.loats)
             {
-                if (linkOrArchiveTarget->evaluate(TargetType::EXECUTABLE))
+                if (loat->evaluate(TargetType::EXECUTABLE))
                 {
-                    realBTarget.addDependency(*linkOrArchiveTarget);
+                    realBTarget.addDependency(*loat);
                 }
             }
 
-            for (LinkOrArchiveTarget *linkOrArchiveTarget : speedConfiguration.linkOrArchiveTargets)
+            for (LOAT *loat : speedConfiguration.loats)
             {
-                if (linkOrArchiveTarget->evaluate(TargetType::EXECUTABLE))
+                if (loat->evaluate(TargetType::EXECUTABLE))
                 {
-                    realBTarget.addDependency(*linkOrArchiveTarget);
+                    realBTarget.addDependency(*loat);
                 }
             }
         }
@@ -1191,24 +1191,24 @@ struct SizeDifference : public CTarget, public BTarget
 
             unsigned long long speedSize = 0;
             unsigned long long sizeSize = 0;
-            for (LinkOrArchiveTarget *linkOrArchiveTarget : sizeConfiguration.linkOrArchiveTargets)
+            for (LOAT *loat : sizeConfiguration.loats)
             {
-                if (linkOrArchiveTarget->evaluate(TargetType::EXECUTABLE))
+                if (loat->evaluate(TargetType::EXECUTABLE))
                 {
-                    sizeSize += file_size(linkOrArchiveTarget->getActualOutputPath());
-                    std::filesystem::copy(linkOrArchiveTarget->getActualOutputPath(),
-                                          sizeDirPath + linkOrArchiveTarget->actualOutputName,
+                    sizeSize += file_size(loat->getActualOutputPath());
+                    std::filesystem::copy(loat->getActualOutputPath(),
+                                          sizeDirPath + loat->actualOutputName,
                                           std::filesystem::copy_options::overwrite_existing);
                 }
             }
 
-            for (LinkOrArchiveTarget *linkOrArchiveTarget : speedConfiguration.linkOrArchiveTargets)
+            for (LOAT *loat : speedConfiguration.loats)
             {
-                if (linkOrArchiveTarget->evaluate(TargetType::EXECUTABLE))
+                if (loat->evaluate(TargetType::EXECUTABLE))
                 {
-                    speedSize += file_size(linkOrArchiveTarget->getActualOutputPath());
-                    std::filesystem::copy(linkOrArchiveTarget->getActualOutputPath(),
-                                          speedDirPath + linkOrArchiveTarget->actualOutputName,
+                    speedSize += file_size(loat->getActualOutputPath());
+                    std::filesystem::copy(loat->getActualOutputPath(),
+                                          speedDirPath + loat->actualOutputName,
                                           std::filesystem::copy_options::overwrite_existing);
                 }
             }
@@ -1249,15 +1249,15 @@ void configurationSpecification(Configuration &configuration)
         .privateCompileDefinition("FMT_HEADER", addEscapedQuotes(srcDir + "fmt/include"))
         .privateCompileDefinition(
             "HCONFIGURE_STATIC_LIB_DIRECTORY",
-            addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
+            addEscapedQuotes(path(hconfigure.getLOAT().getActualOutputPath()).parent_path().string()))
         .privateCompileDefinition(
             "HCONFIGURE_STATIC_LIB_PATH",
-            addEscapedQuotes(path(hconfigure.getLinkOrArchiveTarget().getActualOutputPath()).string()))
+            addEscapedQuotes(path(hconfigure.getLOAT().getActualOutputPath()).string()))
         .privateCompileDefinition(
             "FMT_STATIC_LIB_DIRECTORY",
-            addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).parent_path().string()))
+            addEscapedQuotes(path(fmt.getLOAT().getActualOutputPath()).parent_path().string()))
         .privateCompileDefinition(
-            "FMT_STATIC_LIB_PATH", addEscapedQuotes(path(fmt.getLinkOrArchiveTarget().getActualOutputPath()).string()));
+            "FMT_STATIC_LIB_PATH", addEscapedQuotes(path(fmt.getLOAT().getActualOutputPath()).string()));
 
     DSC<CppSourceTarget> &hbuild = configuration.getCppExeDSC("hbuild").privateLibraries(&hconfigure, &stdhu);
     hbuild.getSourceTarget().moduleFiles("hbuild/src/main.cpp");

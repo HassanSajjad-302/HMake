@@ -69,8 +69,8 @@ enum class BuildTestsAndExamplesExplicitBuild : char
 };
 
 class CSourceTarget;
-class PrebuiltLinkOrArchiveTarget;
-class LinkOrArchiveTarget;
+class PLOAT;
+class LOAT;
 class Node;
 
 struct CppTargetAndParentDirNode
@@ -84,12 +84,12 @@ class Configuration : public BTarget
   public:
     flat_hash_map<Node *, CppTargetAndParentDirNode> moduleFilesToTarget;
     vector<CppSourceTarget *> cppSourceTargets;
-    vector<LinkOrArchiveTarget *> linkOrArchiveTargets;
-    vector<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;
+    vector<LOAT *> loats;
+    vector<PLOAT *> ploats;
     vector<CSourceTarget *> prebuiltTargets;
     CppCompilerFeatures compilerFeatures;
     CompilerFlags compilerFlags;
-    PrebuiltLinkerFeatures prebuiltLinkOrArchiveTargetFeatures;
+    PrebuiltLinkerFeatures ploatFeatures;
     LinkerFeatures linkerFeatures;
     LinkerFlags linkerFlags;
     DSC<CppSourceTarget> *stdCppTarget = nullptr;
@@ -107,20 +107,20 @@ class Configuration : public BTarget
     CppSourceTarget &getCppObjectAddStdTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                               const string &name_);
 
-    LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(const string &name_);
-    LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
+    LOAT &GetExeLOAT(const string &name_);
+    LOAT &GetExeLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                    const string &name_);
-    LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(const string &name_);
-    LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
+    LOAT &getStaticLOAT(const string &name_);
+    LOAT &getStaticLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                       const string &name_);
-    LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(const string &name_);
-    LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
+    LOAT &getSharedLOAT(const string &name_);
+    LOAT &getSharedLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                       const string &name_);
 
-    PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory,
+    PLOAT &getPLOAT(const string &name_, const string &directory,
                                                                 TargetType linkTargetType_);
-    PrebuiltLinkOrArchiveTarget &getStaticPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
-    PrebuiltLinkOrArchiveTarget &getSharedPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
+    PLOAT &getStaticPLOAT(const string &name_, const string &directory);
+    PLOAT &getSharedPLOAT(const string &name_, const string &directory);
     CppSourceTarget &addStdCppDep(CppSourceTarget &target);
     DSC<CppSourceTarget> &addStdDSCCppDep(DSC<CppSourceTarget> &target);
 
@@ -139,7 +139,7 @@ class Configuration : public BTarget
     DSC<CppSourceTarget> &getCppSharedDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                           const string &name_, bool defines = false, string define = "");
 
-    // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
+    // _P means it will use PLOAT instead of LOAT
 
     DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &directory, bool defines = false,
                                             string define = "");
@@ -159,21 +159,21 @@ class Configuration : public BTarget
     CppSourceTarget &getCppObjectNoNameAddStdTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                     const string &name_);
 
-    LinkOrArchiveTarget &GetExeLinkOrArchiveTargetNoName(const string &name_);
-    LinkOrArchiveTarget &GetExeLinkOrArchiveTargetNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
+    LOAT &GetExeLOATNoName(const string &name_);
+    LOAT &GetExeLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                          const string &name_);
-    LinkOrArchiveTarget &getStaticLinkOrArchiveTargetNoName(const string &name_);
-    LinkOrArchiveTarget &getStaticLinkOrArchiveTargetNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
+    LOAT &getStaticLOATNoName(const string &name_);
+    LOAT &getStaticLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                             const string &name_);
-    LinkOrArchiveTarget &getSharedLinkOrArchiveTargetNoName(const string &name_);
-    LinkOrArchiveTarget &getSharedLinkOrArchiveTargetNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
+    LOAT &getSharedLOATNoName(const string &name_);
+    LOAT &getSharedLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                             const string &name_);
 
-    PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTargetNoName(const string &name_, const string &directory,
+    PLOAT &getPLOATNoName(const string &name_, const string &directory,
                                                                       TargetType linkTargetType_);
-    PrebuiltLinkOrArchiveTarget &getStaticPrebuiltLinkOrArchiveTargetNoName(const string &name_,
+    PLOAT &getStaticPLOATNoName(const string &name_,
                                                                             const string &directory);
-    PrebuiltLinkOrArchiveTarget &getSharedPrebuiltLinkOrArchiveTargetNoName(const string &name_,
+    PLOAT &getSharedPLOATNoName(const string &name_,
                                                                             const string &directory);
     // CSourceTarget &GetCPTNoName();
 
@@ -190,7 +190,7 @@ class Configuration : public BTarget
     DSC<CppSourceTarget> &getCppSharedDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                 const string &name_, bool defines = false, string define = "");
 
-    // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
+    // _P means it will use PLOAT instead of LOAT
 
     DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &directory, bool defines = false,
                                                   string define = "");

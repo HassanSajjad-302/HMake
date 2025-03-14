@@ -4,7 +4,7 @@ import "Builder.hpp";
 import "PrebuiltLinkOrOrArchiveTarget.hpp";
 import "SMFile.hpp";
 #else
-#include "PrebuiltLinkOrArchiveTarget.hpp"
+#include "PLOAT.hpp"
 
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
@@ -12,7 +12,7 @@ import "SMFile.hpp";
 #include <utility>
 #endif
 
-string PrebuiltLinkOrArchiveTarget::getOutputName() const
+string PLOAT::getOutputName() const
 {
 #ifdef BUILD_MODE
     return getTargetNameFromActualName(linkTargetType, os, getLastNameAfterSlash(outputFileNode->filePath));
@@ -21,7 +21,7 @@ string PrebuiltLinkOrArchiveTarget::getOutputName() const
 #endif
 }
 
-string PrebuiltLinkOrArchiveTarget::getActualOutputName() const
+string PLOAT::getActualOutputName() const
 {
 #ifdef BUILD_MODE
     return getLastNameAfterSlash(outputFileNode->filePath);
@@ -30,7 +30,7 @@ string PrebuiltLinkOrArchiveTarget::getActualOutputName() const
 #endif
 }
 
-string_view PrebuiltLinkOrArchiveTarget::getOutputDirectoryV() const
+string_view PLOAT::getOutputDirectoryV() const
 {
 #ifdef BUILD_MODE
     return getNameBeforeLastSlashV(outputFileNode->filePath);
@@ -40,17 +40,15 @@ string_view PrebuiltLinkOrArchiveTarget::getOutputDirectoryV() const
 }
 
 #ifdef BUILD_MODE
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_, const string &outputName_,
-                                                         string directory, TargetType linkTargetType_)
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_), linkTargetType{linkTargetType_}
 {
     outputFileNode =
         Node::getNotSystemCheckCalledNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
 }
 
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_, const string &outputName_,
-                                                         string directory, TargetType linkTargetType_, string name_,
-                                                         bool buildExplicit, bool makeDirectory)
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_,
+             string name_, bool buildExplicit, bool makeDirectory)
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), linkTargetType(linkTargetType_)
 
 {
@@ -60,17 +58,15 @@ PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_,
 
 #else
 
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_, const string &outputName_,
-                                                         string directory, TargetType linkTargetType_)
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_),
       outputName{getLastNameAfterSlash(outputName_)}, linkTargetType{linkTargetType_},
       outputDirectory(std::move(directory))
 {
 }
 
-PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_, const string &outputName_,
-                                                         string directory, TargetType linkTargetType_, string name_,
-                                                         bool buildExplicit, bool makeDirectory)
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_,
+             string name_, bool buildExplicit, bool makeDirectory)
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), outputName(outputName_),
       linkTargetType(linkTargetType_), outputDirectory(std::move(directory))
 
@@ -79,7 +75,7 @@ PrebuiltLinkOrArchiveTarget::PrebuiltLinkOrArchiveTarget(Configuration &config_,
 
 #endif
 
-void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
+void PLOAT::updateBTarget(Builder &builder, unsigned short round)
 {
     if (round == 1)
     {
@@ -121,19 +117,17 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
 
         populateReqAndUseReqDeps();
         addReqDepsToBTargetDependencies();
-        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : reqDeps)
+        for (auto &[PLOAT, prebuiltDep] : reqDeps)
         {
-            for (const LibDirNode &libDirNode : PrebuiltLinkOrArchiveTarget->useReqLibraryDirectories)
+            for (const LibDirNode &libDirNode : PLOAT->useReqLibraryDirectories)
             {
                 reqLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
             }
         }
 
-        for (auto &[prebuiltBasic, prebuiltDep] : reqDeps)
+        for (auto &[ploat, prebuiltDep] : reqDeps)
         {
-            for (const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
-                     static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                 const LibDirNode &libDirNode : prebuiltLinkOrArchiveTarget->useReqLibraryDirectories)
+            for (const LibDirNode &libDirNode : ploat->useReqLibraryDirectories)
             {
                 reqLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
             }
@@ -141,7 +135,7 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
     }
 }
 
-void PrebuiltLinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime()
+void PLOAT::writeTargetConfigCacheAtConfigureTime()
 {
     namespace LinkConfig = Indices::ConfigCache::LinkConfig;
 
@@ -167,33 +161,33 @@ void PrebuiltLinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime()
     copyBackConfigCacheMutexLocked();
 }
 
-void PrebuiltLinkOrArchiveTarget::readConfigCacheAtBuildTime()
+void PLOAT::readConfigCacheAtBuildTime()
 {
     namespace LinkConfig = Indices::ConfigCache::LinkConfig;
 
     Value &reqLibDirsConfigCache = getConfigCache()[LinkConfig::reqLibraryDirectoriesArray];
     reqLibraryDirectories.reserve(reqLibDirsConfigCache.Size());
-    for (const Value &pValue : reqLibDirsConfigCache.GetArray())
+    for (const Value &value : reqLibDirsConfigCache.GetArray())
     {
-        reqLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
+        reqLibraryDirectories.emplace_back(Node::getNodeFromValue(value, false), true);
     }
 
     Value &useReqLibDirsConfigCache = getConfigCache()[LinkConfig::useReqLibraryDirectoriesArray];
     useReqLibraryDirectories.reserve(useReqLibDirsConfigCache.Size());
-    for (const Value &pValue : useReqLibDirsConfigCache.GetArray())
+    for (const Value &value : useReqLibDirsConfigCache.GetArray())
     {
-        useReqLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
+        useReqLibraryDirectories.emplace_back(Node::getNodeFromValue(value, false), true);
     }
 }
 
-void PrebuiltLinkOrArchiveTarget::populateReqAndUseReqDeps()
+void PLOAT::populateReqAndUseReqDeps()
 {
     // Set is copied because new elements are to be inserted in it.
-    node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> localReqDeps = reqDeps;
+    node_hash_map<PLOAT *, PrebuiltDep> localReqDeps = reqDeps;
 
-    for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localReqDeps)
+    for (auto &[PLOAT, prebuiltDep] : localReqDeps)
     {
-        for (auto &[PrebuiltLinkOrArchiveTarget_, prebuilt] : PrebuiltLinkOrArchiveTarget->useReqDeps)
+        for (auto &[PLOAT_, prebuilt] : PLOAT->useReqDeps)
         {
             PrebuiltDep prebuiltDep_;
 
@@ -204,13 +198,13 @@ void PrebuiltLinkOrArchiveTarget::populateReqAndUseReqDeps()
             prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
             prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
 
-            reqDeps.emplace(PrebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
+            reqDeps.emplace(PLOAT_, std::move(prebuiltDep_));
         }
     }
 
-    for (auto localUseReqs = useReqDeps; auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localUseReqs)
+    for (auto localUseReqs = useReqDeps; auto &[PLOAT, prebuiltDep] : localUseReqs)
     {
-        for (auto &[PrebuiltLinkOrArchiveTarget_, prebuilt] : PrebuiltLinkOrArchiveTarget->useReqDeps)
+        for (auto &[PLOAT_, prebuilt] : PLOAT->useReqDeps)
         {
             PrebuiltDep prebuiltDep_;
 
@@ -221,35 +215,35 @@ void PrebuiltLinkOrArchiveTarget::populateReqAndUseReqDeps()
             prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
             prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
 
-            useReqDeps.emplace(PrebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
+            useReqDeps.emplace(PLOAT_, std::move(prebuiltDep_));
         }
     }
 }
 
-void PrebuiltLinkOrArchiveTarget::addReqDepsToBTargetDependencies()
+void PLOAT::addReqDepsToBTargetDependencies()
 {
     if (evaluate(TargetType::LIBRARY_STATIC))
     {
-        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : reqDeps)
+        for (auto &[PLOAT, prebuiltDep] : reqDeps)
         {
-            addLooseDependency<0>(*PrebuiltLinkOrArchiveTarget);
+            addLooseDependency<0>(*PLOAT);
         }
     }
     else
     {
-        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : reqDeps)
+        for (auto &[PLOAT, prebuiltDep] : reqDeps)
         {
-            addDependency<0>(*PrebuiltLinkOrArchiveTarget);
+            addDependency<0>(*PLOAT);
         }
     }
 }
 
-bool operator<(const PrebuiltLinkOrArchiveTarget &lhs, const PrebuiltLinkOrArchiveTarget &rhs)
+bool operator<(const PLOAT &lhs, const PLOAT &rhs)
 {
     return lhs.id < rhs.id;
 }
 
-void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget)
+void to_json(Json &json, const PLOAT &PLOAT)
 {
-    json = PrebuiltLinkOrArchiveTarget.getTarjanNodeName();
+    json = PLOAT.getTarjanNodeName();
 }

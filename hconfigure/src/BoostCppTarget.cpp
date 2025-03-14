@@ -5,14 +5,14 @@ import "BuildSystemFunctions.hpp";
 import "Configuration.hpp";
 import "CppSourceTarget.hpp";
 import "DSC.hpp";
-import "LinkOrArchiveTarget.hpp";
+import "LOAT.hpp";
 #else
 #include "BoostCppTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Configuration.hpp"
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
-#include "LinkOrArchiveTarget.hpp"
+#include "LOAT.hpp"
 #include <utility>
 #endif
 
@@ -65,7 +65,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         {
             auto boostExampleOrTest = static_cast<BoostExampleOrTestType>(targetConfigCache[i].GetUint());
             const string unitTestName =
-                mainTarget.getPrebuiltLinkOrArchiveTarget().name + slashc +
+                mainTarget.getPLOAT().name + slashc +
                 string(targetConfigCache[i + 1].GetString(), targetConfigCache[i + 1].GetStringLength());
             bool explicitBuild = false;
             bool isExample = false;
@@ -112,7 +112,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
                 {
                     if (examplesTarget)
                     {
-                        examplesTarget->addDependency<0>(uintTest.getLinkOrArchiveTarget());
+                        examplesTarget->addDependency<0>(uintTest.getLOAT());
                     }
                 }
                 else
@@ -120,7 +120,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
                     if (testTarget)
                     {
-                        testTarget->addDependency<0>(uintTest.getLinkOrArchiveTarget());
+                        testTarget->addDependency<0>(uintTest.getLOAT());
                     }
                 }
             }

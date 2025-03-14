@@ -22,7 +22,7 @@ uint64_t hash_value(const CppSourceTarget &p)
 uint64_t hash_value(const DSC<CppSourceTarget> &p)
 {
     uint64_t arr[2];
-    arr[0] = p.prebuiltBasic->id;
+    arr[0] = p.ploat->id;
     arr[1] = p.objectFileProducer->id;
     return rapidhash(&arr, sizeof(arr));
 }
@@ -55,7 +55,7 @@ bool operator==(const CppSourceTarget &lhs, const CppSourceTarget &rhs)
 
 bool operator==(const DSC<CppSourceTarget> &lhs, const DSC<CppSourceTarget> &rhs)
 {
-    return lhs.prebuiltBasic->id == rhs.prebuiltBasic->id && rhs.objectFileProducer->id == rhs.objectFileProducer->id;
+    return lhs.ploat->id == rhs.ploat->id && rhs.objectFileProducer->id == rhs.objectFileProducer->id;
 }
 
 bool operator==(const Configuration &lhs, const Configuration &rhs)

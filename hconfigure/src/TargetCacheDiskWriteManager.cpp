@@ -13,10 +13,10 @@ ColoredStringForPrint::ColoredStringForPrint(string _msg, uint32_t _color, bool 
     : msg(std::move(_msg)), color(_color), isColored(_isColored)
 {
 }
-ValueAndIndices::ValueAndIndices(Value _pValue, const uint64_t _index0, const uint64_t _index1,
+ValueAndIndices::ValueAndIndices(Value _value, const uint64_t _index0, const uint64_t _index1,
                                    const uint64_t _index2, const uint64_t _index3, const uint64_t _index4)
 
-    : pValue{std::move(_pValue)}, index0{_index0}, index1{_index1}, index2{_index2}, index3{_index3}, index4{_index4}
+    : value{std::move(_value)}, index0{_index0}, index1{_index1}, index2{_index2}, index3{_index3}, index4{_index4}
 {
 }
 
@@ -113,8 +113,8 @@ void TargetCacheDiskWriteManager::initialize()
         // Allocate this and all the other globals in one function call.
         strCache.reserve(1000);
         strCacheLocal.reserve(1000);
-        pValueCache.reserve(1000);
-        pValueCacheLocal.reserve(1000);
+        valueCache.reserve(1000);
+        valueCacheLocal.reserve(1000);
     }
 
     nodesSizeBefore = nodesCacheJson.Size();
@@ -127,9 +127,9 @@ void TargetCacheDiskWriteManager::performThreadOperations(bool doUnlockAndRelock
     {
         // Should be based on if a new node is entered.
         strCacheLocal.swap(strCache);
-        pValueCacheLocal.swap(pValueCache);
+        valueCacheLocal.swap(valueCache);
         strCache.clear();
-        pValueCache.clear();
+        valueCache.clear();
 
         if (doUnlockAndRelock)
         {
@@ -139,11 +139,11 @@ void TargetCacheDiskWriteManager::performThreadOperations(bool doUnlockAndRelock
 
         writeNodesCacheIfNewNodesAdded();
 
-        if (!pValueCacheLocal.empty())
+        if (!valueCacheLocal.empty())
         {
-            for (ValueAndIndices &p : pValueCacheLocal)
+            for (ValueAndIndices &p : valueCacheLocal)
             {
-                p.getTargetValue() = std::move(p.pValue);
+                p.getTargetValue() = std::move(p.value);
             }
             writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
                                         buildCache);

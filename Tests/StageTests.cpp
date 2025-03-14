@@ -618,5 +618,5 @@ TEST(StageTests, Test4)
 #endif
 
 // TODO
-// Few features like PrebuiltLinkOrArchiveTarget::outputName and PrebuiltLinkOrArchiveTarget::name aren't tested. atm.
+// Few features like PLOAT::outputName and PLOAT::name aren't tested. atm.
 // Testing could be further expanded as-well.

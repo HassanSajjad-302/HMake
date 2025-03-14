@@ -10,7 +10,7 @@ import "ObjectFileProducer.hpp";
 #endif
 
 class CppSourceTarget;
-class LinkOrArchiveTarget;
+class LOAT;
 
 // Dependency Specification Controller. Following declaration is for T = CSourceTarget
 template <typename T> struct DSC : DSCFeatures
@@ -20,31 +20,31 @@ template <typename T> struct DSC : DSCFeatures
     T *stored = nullptr;
     // These pointers are assigned in the constructor. An invariant is that these can not nullptr.
     ObjectFileProducerWithDS<BaseType> *objectFileProducer = nullptr;
-    PrebuiltLinkOrArchiveTarget *prebuiltBasic = nullptr;
+    PLOAT *ploat = nullptr;
     PrebuiltDep prebuiltDepLocal;
 
     template <typename U, typename... V>
-    void assignLinkOrArchiveTargetLib(Dependency dependency, DSC<U> *controller, PrebuiltDep prebuiltDep, V... args);
+    void assignLOATLib(Dependency dependency, DSC<U> *controller, PrebuiltDep prebuiltDep, V... args);
 
     template <typename U> void assignObjectFileProducerDeps(Dependency dependency, DSC<U> *controller);
 
     template <typename U, typename... V>
-    void assignLinkOrArchiveTargetLib(Dependency dependency, DSC<U> *controller, V... args);
+    void assignLOATLib(Dependency dependency, DSC<U> *controller, V... args);
     DSC &save(CppSourceTarget *ptr);
     DSC &saveAndReplace(CppSourceTarget *ptr);
     DSC &restore();
 
     string define;
 
-    DSC(T *ptr, PrebuiltLinkOrArchiveTarget *prebuiltBasic_, bool defines = false, string define_ = "")
+    DSC(T *ptr, PLOAT *ploat_, bool defines = false, string define_ = "")
     {
         objectFileProducer = ptr;
-        prebuiltBasic = prebuiltBasic_;
-        prebuiltBasic->objectFileProducers.emplace(objectFileProducer);
+        ploat = ploat_;
+        ploat->objectFileProducers.emplace(objectFileProducer);
 
         if (define_.empty())
         {
-            define = prebuiltBasic->getOutputName();
+            define = ploat->getOutputName();
             transform(define.begin(), define.end(), define.begin(), ::toupper);
             define += "_EXPORT";
         }
@@ -62,53 +62,53 @@ template <typename T> struct DSC : DSCFeatures
 
     template <typename U, typename... V> DSC &publicLibraries(DSC<U> *controller, const V... libraries)
     {
-        assignLinkOrArchiveTargetLib(Dependency::PUBLIC, controller, libraries...);
+        assignLOATLib(Dependency::PUBLIC, controller, libraries...);
         return *this;
     }
 
     template <typename U, typename... V> DSC &privateLibraries(DSC<U> *controller, const V... libraries)
     {
-        assignLinkOrArchiveTargetLib(Dependency::PRIVATE, controller, libraries...);
+        assignLOATLib(Dependency::PRIVATE, controller, libraries...);
         return *this;
     }
 
     template <typename U, typename... V> DSC &INTERFACE_LIBRARIES(DSC<U> *controller, const V... libraries)
     {
-        assignLinkOrArchiveTargetLib(Dependency::INTERFACE, controller, libraries...);
+        assignLOATLib(Dependency::INTERFACE, controller, libraries...);
         return *this;
     }
 
     template <typename U, typename... V>
     DSC &publicLibraries(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
     {
-        assignLinkOrArchiveTargetLib(Dependency::PUBLIC, controller, std::move(prebuiltDep), libraries...);
+        assignLOATLib(Dependency::PUBLIC, controller, std::move(prebuiltDep), libraries...);
         return *this;
     }
 
     template <typename U, typename... V>
     DSC &privateLibraries(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
     {
-        assignLinkOrArchiveTargetLib(Dependency::PRIVATE, controller, std::move(prebuiltDep), libraries...);
+        assignLOATLib(Dependency::PRIVATE, controller, std::move(prebuiltDep), libraries...);
         return *this;
     }
 
     template <typename U, typename... V>
     DSC &INTERFACE_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
     {
-        assignLinkOrArchiveTargetLib(Dependency::INTERFACE, controller, std::move(prebuiltDep), libraries...);
+        assignLOATLib(Dependency::INTERFACE, controller, std::move(prebuiltDep), libraries...);
         return *this;
     }
 
     T &getSourceTarget();
     T *getSourceTargetPointer();
-    PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTargetTarget();
-    PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTarget();
-    LinkOrArchiveTarget &getLinkOrArchiveTarget();
+    PLOAT &getPLOATTarget();
+    PLOAT &getPLOAT();
+    LOAT &getLOAT();
 };
 
 template <typename T> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
 {
-    return std::tie(lhs.objectFileProducer, lhs.prebuiltBasic) < std::tie(rhs.objectFileProducer, rhs.prebuiltBasic);
+    return std::tie(lhs.objectFileProducer, lhs.ploat) < std::tie(rhs.objectFileProducer, rhs.ploat);
 }
 
 template <typename T>
@@ -124,7 +124,7 @@ void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *control
         Define define;
         define.name = controller->define;
 
-        if (controller->prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
+        if (controller->ploat->evaluate(TargetType::LIBRARY_SHARED))
         {
             if (ptr->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
             {
@@ -150,37 +150,37 @@ void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *control
 
 template <typename T>
 template <typename U, typename... V>
-void DSC<T>::assignLinkOrArchiveTargetLib(Dependency dependency, DSC<U> *controller, PrebuiltDep prebuiltDep, V... args)
+void DSC<T>::assignLOATLib(Dependency dependency, DSC<U> *controller, PrebuiltDep prebuiltDep, V... args)
 {
-    if (prebuiltBasic->linkTargetType != TargetType::LIBRARY_SHARED && dependency == Dependency::PRIVATE)
+    if (ploat->linkTargetType != TargetType::LIBRARY_SHARED && dependency == Dependency::PRIVATE)
     {
         // A static library or object library can't have Dependency::PRIVATE deps, it can only have
         // Dependency::INTERFACE. But, the following publicDeps is done for correct-ordering when static-libs are
         // finally supplied to dynamic-lib or exe. Static library ignores the deps.
-        prebuiltBasic->publicDeps(controller->prebuiltBasic, std::move(prebuiltDep));
+        ploat->publicDeps(controller->ploat, std::move(prebuiltDep));
     }
     else
     {
-        prebuiltBasic->deps(controller->prebuiltBasic, dependency, std::move(prebuiltDep));
+        ploat->deps(controller->ploat, dependency, std::move(prebuiltDep));
     }
 
     assignObjectFileProducerDeps(dependency, controller);
 
     if constexpr (sizeof...(args))
     {
-        return assignLinkOrArchiveTargetLib(dependency, args...);
+        return assignLOATLib(dependency, args...);
     }
 }
 
 template <typename T>
 template <typename U, typename... V>
-void DSC<T>::assignLinkOrArchiveTargetLib(Dependency dependency, DSC<U> *controller, V... args)
+void DSC<T>::assignLOATLib(Dependency dependency, DSC<U> *controller, V... args)
 {
-    assignLinkOrArchiveTargetLib(dependency, controller, prebuiltDepLocal);
+    assignLOATLib(dependency, controller, prebuiltDepLocal);
 
     if constexpr (sizeof...(args))
     {
-        return assignLinkOrArchiveTargetLib(dependency, args...);
+        return assignLOATLib(dependency, args...);
     }
 }
 
@@ -194,19 +194,19 @@ template <typename T> T *DSC<T>::getSourceTargetPointer()
     return static_cast<T *>(objectFileProducer);
 }
 
-template <typename T> PrebuiltLinkOrArchiveTarget &DSC<T>::getPrebuiltLinkOrArchiveTargetTarget()
+template <typename T> PLOAT &DSC<T>::getPLOATTarget()
 {
-    return *prebuiltBasic;
+    return *ploat;
 }
 
-template <typename T> PrebuiltLinkOrArchiveTarget &DSC<T>::getPrebuiltLinkOrArchiveTarget()
+template <typename T> PLOAT &DSC<T>::getPLOAT()
 {
-    return static_cast<PrebuiltLinkOrArchiveTarget &>(*prebuiltBasic);
+    return static_cast<PLOAT &>(*ploat);
 }
 
-template <typename T> LinkOrArchiveTarget &DSC<T>::getLinkOrArchiveTarget()
+template <typename T> LOAT &DSC<T>::getLOAT()
 {
-    return static_cast<LinkOrArchiveTarget &>(*prebuiltBasic);
+    return static_cast<LOAT &>(*ploat);
 }
 
 #endif // HMAKE_DSC_HPP

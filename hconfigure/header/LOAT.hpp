@@ -2,28 +2,26 @@
 #define HMAKE_LINKORARCHIVETARGET_HPP
 #ifdef USE_HEADER_UNITS
 import "Features.hpp";
-import "FeaturesConvenienceFunctions.hpp";
 import "HashedCommand";
-import "Node.hpp";
+import "ObjectFile.hpp";
+import "PLOAT.hpp";
 import "RunCommand.hpp";
-import "PrebuiltLinkOrArchiveTarget.hpp";
-import "Utilities.hpp";
 import <stack>;
 #else
 #include "Features.hpp"
-#include "FeaturesConvenienceFunctions.hpp"
 #include "HashedCommand.hpp"
-#include "PrebuiltLinkOrArchiveTarget.hpp"
+#include "ObjectFile.hpp"
+#include "PLOAT.hpp"
 #include "RunCommand.hpp"
 #include <stack>
 #endif
-#include <ObjectFile.hpp>
 
 using std::stack, std::filesystem::create_directories, std::shared_ptr;
 
-class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget
+// LinkOrArchiveTarget
+class LOAT : public PLOAT
 {
-    using BaseType = PrebuiltLinkOrArchiveTarget;
+    using BaseType = PLOAT;
 
   public:
     string reqLinkerFlags;
@@ -33,7 +31,7 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget
     HashedCommand commandWithoutTargetsWithTool;
 
     vector<const ObjectFile *> objectFiles;
-    vector<PrebuiltLinkOrArchiveTarget *> dllsToBeCopied;
+    vector<PLOAT *> dllsToBeCopied;
     // Needed for pdb files.
     Node *buildCacheFilesDirPathNode = nullptr;
 
@@ -41,12 +39,11 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget
     bool archived = false;
 
     void makeBuildCacheFilesDirPathAtConfigTime(string buildCacheFilesDirPath);
-    LinkOrArchiveTarget(Configuration &config_, const string &name_, TargetType targetType);
-    LinkOrArchiveTarget(Configuration &config_, bool buildExplicit, const string &name_, TargetType targetType);
-    LinkOrArchiveTarget(Configuration &config_, const string &buildCacheFileDirPath_, const string &name_,
-                        TargetType targetType);
-    LinkOrArchiveTarget(Configuration &config_, const string &buildCacheFileDirPath_, bool buildExplicit,
-                        const string &name_, TargetType targetType);
+    LOAT(Configuration &config_, const string &name_, TargetType targetType);
+    LOAT(Configuration &config_, bool buildExplicit, const string &name_, TargetType targetType);
+    LOAT(Configuration &config_, const string &buildCacheFileDirPath_, const string &name_, TargetType targetType);
+    LOAT(Configuration &config_, const string &buildCacheFileDirPath_, bool buildExplicit, const string &name_,
+         TargetType targetType);
     void setOutputName(string str);
 
     BTargetType getBTargetType() const override;
@@ -64,9 +61,9 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget
     template <typename T> bool evaluate(T property) const;
 };
 
-bool operator<(const LinkOrArchiveTarget &lhs, const LinkOrArchiveTarget &rhs);
+bool operator<(const LOAT &lhs, const LOAT &rhs);
 
-template <typename T> bool LinkOrArchiveTarget::evaluate(T property) const
+template <typename T> bool LOAT::evaluate(T property) const
 {
     if constexpr (std::is_same_v<decltype(property), TargetType>)
     {

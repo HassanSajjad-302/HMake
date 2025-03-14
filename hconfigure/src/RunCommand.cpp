@@ -297,7 +297,7 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
 
         if (exitStatus == EXIT_SUCCESS)
         {
-            targetCacheDiskWriteManager.pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2,
+            targetCacheDiskWriteManager.valueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2,
                                                                  _index3, _index4);
             notify = true;
         }

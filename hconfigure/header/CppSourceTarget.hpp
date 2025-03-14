@@ -160,7 +160,7 @@ class CppSourceTarget : public CSourceTarget
     void initializeCppSourceTarget(const string &name_, string buildCacheFilesDirPath);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles,
-                        LinkOrArchiveTarget *linkOrArchiveTarget) const override;
+                        LOAT *loat) const override;
     void populateTransitiveProperties();
     void adjustHeaderUnitsValueArrayPointers();
     CSourceTargetType getCSourceTargetType() const override;
@@ -736,7 +736,7 @@ string CppSourceTarget::GET_FLAG_evaluate(T condition, const string &flags, Argu
 }
 
 template <>
-DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *prebuiltBasic_, bool defines,
+DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PLOAT *ploat_, bool defines,
                           string define_);
 
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget *ptr);

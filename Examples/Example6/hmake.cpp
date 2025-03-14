@@ -16,11 +16,11 @@ void configurationSpecification(Configuration &config)
         dog2.privateLibraries(&cat).getSourceTarget().sourceFiles("Dog2/src/Dog.cpp").publicIncludes("Dog2/header");
 
         DSC<CppSourceTarget> &app = config.getCppExeDSC("App" + str);
-        app.getLinkOrArchiveTarget().setOutputName("app");
+        app.getLOAT().setOutputName("app");
         app.privateLibraries(&dog).getSourceTarget().sourceFiles("main.cpp");
 
         DSC<CppSourceTarget> &app2 = config.getCppExeDSC("App2" + str);
-        app2.getLinkOrArchiveTarget().setOutputName("app");
+        app2.getLOAT().setOutputName("app");
         app2.privateLibraries(&dog2).getSourceTarget().sourceFiles("main2.cpp");
     };
 

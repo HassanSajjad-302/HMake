@@ -247,36 +247,36 @@ Node *Node::getHalfNodeFromNormalizedString(const string_view p)
     return node;
 }
 
-Node *Node::getNodeFromValue(const Value &pValue, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromValue(const Value &value, bool isFile, bool mayNotExist)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[pValue.GetUint64()];
+    Node *node = nodeIndices[value.GetUint64()];
     node->ensureSystemCheckCalled(isFile, mayNotExist);
 #else
     Node *node =
-        getNodeFromNormalizedString(string_view(pValue.GetString(), pValue.GetStringLength()), isFile, mayNotExist);
+        getNodeFromNormalizedString(string_view(value.GetString(), value.GetStringLength()), isFile, mayNotExist);
 #endif
     return node;
 }
 
-Node *Node::getNotSystemCheckCalledNodeFromValue(const Value &pValue)
+Node *Node::getNotSystemCheckCalledNodeFromValue(const Value &value)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[pValue.GetUint64()];
+    Node *node = nodeIndices[value.GetUint64()];
 #else
     Node *node =
-        getNodeFromNormalizedStringNoSystemCheckCalled(string_view(pValue.GetString(), pValue.GetStringLength()));
+        getNodeFromNormalizedStringNoSystemCheckCalled(string_view(value.GetString(), value.GetStringLength()));
 #endif
     return node;
 }
 
-Node *Node::tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &pValue, bool isFile, bool mayNotExist)
+Node *Node::tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, bool isFile, bool mayNotExist)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[pValue.GetUint64()];
+    Node *node = nodeIndices[value.GetUint64()];
     systemCheckSucceeded = node->trySystemCheck(isFile, mayNotExist);
 #else
-    Node *node = Node::getNodeFromNormalizedString(string_view(pValue.GetString(), pValue.GetStringLength()), isFile,
+    Node *node = Node::getNodeFromNormalizedString(string_view(value.GetString(), value.GetStringLength()), isFile,
                                                    mayNotExist);
     systemCheckSucceeded = true;
 #endif

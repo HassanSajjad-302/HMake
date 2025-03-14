@@ -59,9 +59,9 @@ TEST(CAPITEST, Test1)
         }
         else if (cTargetContainer->c_cTargets[i]->type == C_LOA_TARGET_TYPE)
         {
-            const auto c_linkOrArchiveTarget =
-                reinterpret_cast<C_LinkOrArchiveTarget *>(cTargetContainer->c_cTargets[i]->object);
-            ASSERT_EQ(equivalent(path(c_linkOrArchiveTarget->parent->dir), testBuildDir / "Debug/app/"), true);
+            const auto c_loat =
+                reinterpret_cast<C_LOAT *>(cTargetContainer->c_cTargets[i]->object);
+            ASSERT_EQ(equivalent(path(c_loat->parent->dir), testBuildDir / "Debug/app/"), true);
         }
     }
 }

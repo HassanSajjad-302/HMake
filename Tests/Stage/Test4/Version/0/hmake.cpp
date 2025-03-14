@@ -2,9 +2,9 @@
 
 void buildSpecification()
 {
-    // DSC constructor has this line         prebuiltBasic->objectFileProducers.emplace(objectFileProducer);
+    // DSC constructor has this line         ploat->objectFileProducers.emplace(objectFileProducer);
     // which specifies std CppSourceTarget (and transitively its object-files) as a dependency of std
-    // LinkOrArchiveTarget.
+    // LOAT.
     DSC<CppSourceTarget> &std = getCppObjectDSC("std");
     std.getSourceTarget().interfaceFiles("std/std.cpp").assign(CxxSTD::V_20);
 
@@ -25,10 +25,10 @@ void buildSpecification()
     // target is compiled with the default value /std:c++latest same as the main.cpp. saveAndReplace will also populate
     // the module files of these newer targets with similar values to the older targets. assignObjectFileProducerDeps
     // is used instead of privateLibraries because besides adding std CppSourceTarget as a dependency of cat
-    // CppSourceTarget, privateLibraries also adds std LinkOrArchiveTarget as a dependency of cat LinkOrArchiveTarget
+    // CppSourceTarget, privateLibraries also adds std LOAT as a dependency of cat LOAT
     // which has already been done. Please notice that the older CppSourceTargets that we are replacing in the
     // following, we had already specified them (and transitively their object files) as the dependency of the
-    // respective LinkOrArchiveTargets in the DSC constructor. The newer, following declared, CppSourceTargets are not
+    // respective LOATs in the DSC constructor. The newer, following declared, CppSourceTargets are not
     // specified as a dependency of any LinkOrArchiveTaget, hence the object files of these are wasted but the ifc files
     // are used while compiling their dependents.
 

@@ -5,7 +5,7 @@ import "BuildSystemFunctions.hpp";
 import "Builder.hpp";
 import "ConfigHelpers.hpp";
 import "Configuration.hpp";
-import "LinkOrArchiveTarget.hpp";
+import "LOAT.hpp";
 import "rapidhash.h";
 import "TargetCacheDiskWriteManager.hpp";
 import "Utilities.hpp";
@@ -19,7 +19,7 @@ import <utility>;
 #include "Builder.hpp"
 #include "ConfigHelpers.hpp"
 #include "Configuration.hpp"
-#include "LinkOrArchiveTarget.hpp"
+#include "LOAT.hpp"
 #include "TargetCacheDiskWriteManager.hpp"
 #include "Utilities.hpp"
 #include "rapidhash/rapidhash.h"
@@ -172,10 +172,10 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
         Value &headerUnitsNodesCache = getConfigCache()[CppConfig::headerUnits];
 
         srcFileDeps.reserve(sourceNodesCache.Size());
-        for (Value &pValue : sourceNodesCache.GetArray())
+        for (Value &value : sourceNodesCache.GetArray())
         {
             // ensureSystemCheckCalled is called in SourceNode::updateBTarget(0) in parallel.
-            srcFileDeps.emplace_back(this, Node::getNotSystemCheckCalledNodeFromValue(pValue));
+            srcFileDeps.emplace_back(this, Node::getNotSystemCheckCalledNodeFromValue(value));
         }
 
         modFileDeps.reserve(moduleNodesCache.Size() / 2);
@@ -212,7 +212,7 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
 }
 
 void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
-                                     LinkOrArchiveTarget *linkOrArchiveTarget) const
+                                     LOAT *loat) const
 {
 
     btree_set<const SMFile *, IndexInTopologicalSortComparatorRoundZero> sortedSMFileDependencies;
@@ -1007,7 +1007,7 @@ void CppSourceTarget::resolveRequirePaths()
                         atomic_ref(smFile.fileStatus).store(true);
                     }
                 }
-                smFile.pValueObjectFileMapping.emplace_back(&require, found->objectFileOutputFilePath);
+                smFile.valueObjectFileMapping.emplace_back(&require, found->objectFileOutputFilePath);
             }
             else
             {
@@ -1290,19 +1290,19 @@ bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs)
 }
 
 template <>
-DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *prebuiltBasic_, const bool defines,
+DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PLOAT *ploat_, const bool defines,
                           string define_)
 {
     objectFileProducer = ptr;
-    prebuiltBasic = prebuiltBasic_;
-    if (prebuiltBasic_)
+    ploat = ploat_;
+    if (ploat_)
     {
-        prebuiltBasic->objectFileProducers.emplace(objectFileProducer);
+        ploat->objectFileProducers.emplace(objectFileProducer);
     }
 
     if (define_.empty())
     {
-        define = prebuiltBasic->getOutputName();
+        define = ploat->getOutputName();
         transform(define.begin(), define.end(), define.begin(), toupper);
         define += "_EXPORT";
     }
@@ -1319,7 +1319,7 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *pre
 
     if (defineDllPrivate == DefineDLLPrivate::YES)
     {
-        if (prebuiltBasic->evaluate(TargetType::LIBRARY_SHARED))
+        if (ploat->evaluate(TargetType::LIBRARY_SHARED))
         {
             if (ptr->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
             {

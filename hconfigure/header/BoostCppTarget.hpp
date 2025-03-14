@@ -167,7 +167,7 @@ auto &BoostCppTarget::GenericBase<boostExampleOrTestType, iteratorTargetType>::o
     }
     else
     {
-        return exampleOrTest->testTarget.dscTarget->getLinkOrArchiveTarget();
+        return exampleOrTest->testTarget.dscTarget->getLOAT();
     }
 }
 
@@ -332,7 +332,7 @@ template <BoostExampleOrTestType EOT, bool addInConfigCache>
 void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &target, string_view sourceDir,
                                                             string_view fileName)
 {
-    const string configurationNamePlusTargetName = target.mainTarget.getPrebuiltLinkOrArchiveTarget().name + slashc;
+    const string configurationNamePlusTargetName = target.mainTarget.getPLOAT().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
@@ -352,7 +352,7 @@ template <BoostExampleOrTestType EOT>
 void BoostCppTarget::Add<EOT, false>::operator()(BoostCppTarget &target, string_view sourceDir, string_view fileName)
 {
     const string configurationNamePlusTargetName =
-        target.mainTarget.getPrebuiltLinkOrArchiveTargetTarget().name + slashc;
+        target.mainTarget.getPLOATTarget().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
@@ -369,7 +369,7 @@ void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &
                                                                 string_view sourceDir, string_view fileName)
 {
     const string configurationNamePlusTargetName =
-        target.mainTarget.getPrebuiltLinkOrArchiveTargetTarget().name + slashc;
+        target.mainTarget.getPLOATTarget().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
@@ -390,7 +390,7 @@ void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, str
                                                      string_view sourceDir, string_view fileName)
 {
     const string configurationNamePlusTargetName =
-        target.mainTarget.getPrebuiltLinkOrArchiveTargetTarget().name + slashc;
+        target.mainTarget.getPLOATTarget().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);

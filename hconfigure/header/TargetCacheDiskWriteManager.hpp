@@ -26,13 +26,13 @@ struct ColoredStringForPrint
 
 struct ValueAndIndices
 {
-    Value pValue;
+    Value value;
     uint64_t index0;
     uint64_t index1;
     uint64_t index2;
     uint64_t index3;
     uint64_t index4;
-    explicit ValueAndIndices(Value _pValue, uint64_t _index0, uint64_t _index1, uint64_t _index2, uint64_t _index3,
+    explicit ValueAndIndices(Value _value, uint64_t _index0, uint64_t _index1, uint64_t _index2, uint64_t _index3,
                               uint64_t _index4);
     Value &getTargetValue() const;
     void copyToCentralTargetCache();
@@ -45,11 +45,11 @@ class TargetCacheDiskWriteManager : public BTarget
     std::condition_variable vecCond{};
     std::unique_lock<std::mutex> vecLock{vecMutex, std::defer_lock_t{}};
     vector<ColoredStringForPrint> strCache;
-    vector<ValueAndIndices> pValueCache;
+    vector<ValueAndIndices> valueCache;
 
   private:
     vector<ColoredStringForPrint> strCacheLocal;
-    vector<ValueAndIndices> pValueCacheLocal;
+    vector<ValueAndIndices> valueCacheLocal;
 
   public:
     vector<BTarget *> copyJsonBTargets;

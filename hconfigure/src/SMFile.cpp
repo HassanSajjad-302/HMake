@@ -141,10 +141,10 @@ bool SourceNode::checkHeaderFiles(const Node *compareNode) const
 
     bool usingArray = true;
 
-    for (const Value &pValue : sourceJson[SourceFiles::headerFiles].GetArray())
+    for (const Value &value : sourceJson[SourceFiles::headerFiles].GetArray())
     {
         bool systemCheckCompleted = false;
-        Node *headerNode = Node::tryGetNodeFromValue(systemCheckCompleted, pValue, true, true);
+        Node *headerNode = Node::tryGetNodeFromValue(systemCheckCompleted, value, true, true);
         if (systemCheckCompleted)
         {
             if (headerNode->doesNotExist)
@@ -552,7 +552,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 // cached compile-command would be different
                 sourceJson[ModuleFiles::compileCommandWithTool] = target->compileCommandWithTool.getHash();
 
-                for (const ValueObjectFileMapping &mapping : pValueObjectFileMapping)
+                for (const ValueObjectFileMapping &mapping : valueObjectFileMapping)
                 {
                     namespace SingleModuleDep = ModuleFiles::SmRules::SingleModuleDep;
                     (*mapping.requireJson)[SingleModuleDep::fullPath] = mapping.objectFileOutputFilePath->getValue();
@@ -629,18 +629,18 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang)
                 sourcePathIt == requireValue.MemberEnd())
             {
                 prunedRules[SMRules::moduleArray].PushBack(Value(kArrayType), sourceNodeAllocator);
-                Value &moduleDepValue = *(prunedRules[SMRules::moduleArray].End() - 1);
+                Value &moduleDevalue = *(prunedRules[SMRules::moduleArray].End() - 1);
 
                 // If source-path does not exist, then it is not a header-unit
                 // This source-path will be saved before saving and then will be checked in next invocations in
                 // resolveRequirePaths function.
-                moduleDepValue.PushBack(Node::getType(), sourceNodeAllocator);
-                moduleDepValue.PushBack(logicalName, sourceNodeAllocator);
+                moduleDevalue.PushBack(Node::getType(), sourceNodeAllocator);
+                moduleDevalue.PushBack(logicalName, sourceNodeAllocator);
             }
             else
             {
                 prunedRules[SMRules::headerUnitArray].PushBack(Value(kArrayType), sourceNodeAllocator);
-                Value &headerUnitDepValue = *(prunedRules[SMRules::headerUnitArray].End() - 1);
+                Value &headerUnitDevalue = *(prunedRules[SMRules::headerUnitArray].End() - 1);
 
                 // lower-cased before saving for further use
                 string_view str(sourcePathIt->value.GetString(), sourcePathIt->value.GetStringLength());
@@ -648,19 +648,19 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang)
                 const Node *halfHeaderUnitNode = Node::getHalfNodeFromNormalizedString(str);
 
                 // fullPath
-                headerUnitDepValue.PushBack(halfHeaderUnitNode->getValue(), sourceNodeAllocator);
+                headerUnitDevalue.PushBack(halfHeaderUnitNode->getValue(), sourceNodeAllocator);
                 // logicalName
-                headerUnitDepValue.PushBack(logicalName, sourceNodeAllocator);
+                headerUnitDevalue.PushBack(logicalName, sourceNodeAllocator);
                 // angle
-                headerUnitDepValue.PushBack(requireValue.FindMember(Value(svtogsr(JConsts::lookupMethod)))->value ==
+                headerUnitDevalue.PushBack(requireValue.FindMember(Value(svtogsr(JConsts::lookupMethod)))->value ==
                                                 Value(svtogsr(JConsts::includeAngle)),
                                             sourceNodeAllocator);
 
                 // These values are initialized later in initializeHeaderUnits.
                 // targetIndex
-                headerUnitDepValue.PushBack(Value(UINT64_MAX), sourceNodeAllocator);
+                headerUnitDevalue.PushBack(Value(UINT64_MAX), sourceNodeAllocator);
                 // myIndex
-                headerUnitDepValue.PushBack(Value(UINT64_MAX), sourceNodeAllocator);
+                headerUnitDevalue.PushBack(Value(UINT64_MAX), sourceNodeAllocator);
             }
         }
     }
@@ -871,9 +871,9 @@ void SMFile::checkObjectFileOutdatedHeaderUnits()
         return;
     }
 
-    for (Value &pValue : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
+    for (Value &value : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
     {
-        CppSourceTarget *localTarget = cppSourceTargets[pValue[SingleHeaderUnitDep::targetIndex].GetUint64()];
+        CppSourceTarget *localTarget = cppSourceTargets[value[SingleHeaderUnitDep::targetIndex].GetUint64()];
         if (!localTarget)
         {
             isObjectFileOutdated = true;
@@ -881,7 +881,7 @@ void SMFile::checkObjectFileOutdatedHeaderUnits()
             return;
         }
 
-        SMFile &headerUnit = localTarget->oldHeaderUnits[pValue[SingleHeaderUnitDep::myIndex].GetUint64()];
+        SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetUint64()];
 
         if (!atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
         {
@@ -931,9 +931,9 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
     }
 
     // We assume that all header-files systemCheck has already been called and that they exist.
-    for (const Value &pValue : sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].GetArray())
+    for (const Value &value : sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].GetArray())
     {
-        if (const Node *headerNode = Node::getNotSystemCheckCalledNodeFromValue(pValue);
+        if (const Node *headerNode = Node::getNotSystemCheckCalledNodeFromValue(value);
             headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
         {
             isSMRuleFileOutdated = true;
@@ -942,9 +942,9 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
         }
     }
 
-    for (Value &pValue : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
+    for (Value &value : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
     {
-        CppSourceTarget *localTarget = cppSourceTargets[pValue[SingleHeaderUnitDep::targetIndex].GetUint64()];
+        CppSourceTarget *localTarget = cppSourceTargets[value[SingleHeaderUnitDep::targetIndex].GetUint64()];
         if (!localTarget)
         {
             isSMRuleFileOutdated = true;
@@ -952,7 +952,7 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
             return;
         }
 
-        SMFile &headerUnit = localTarget->oldHeaderUnits[pValue[SingleHeaderUnitDep::myIndex].GetInt()];
+        SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetInt()];
 
         if (!atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
         {
@@ -980,16 +980,16 @@ void SMFile::checkObjectFileOutdatedModules()
         return;
     }
 
-    for (Value &pValue : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
+    for (Value &value : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
     {
-        CppSourceTarget *localTarget = cppSourceTargets[pValue[SingleHeaderUnitDep::targetIndex].GetUint64()];
+        CppSourceTarget *localTarget = cppSourceTargets[value[SingleHeaderUnitDep::targetIndex].GetUint64()];
         if (!localTarget)
         {
             isObjectFileOutdated = true;
             return;
         }
 
-        SMFile &headerUnit = localTarget->oldHeaderUnits[pValue[SingleHeaderUnitDep::myIndex].GetUint64()];
+        SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetUint64()];
 
         if (!atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
         {
@@ -1030,9 +1030,9 @@ void SMFile::checkSMRulesFileOutdatedModules()
     }
 
     // We assume that all header-files systemCheck has already been called and that they exist.
-    for (const Value &pValue : sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].GetArray())
+    for (const Value &value : sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].GetArray())
     {
-        if (const Node *headerNode = Node::getNotSystemCheckCalledNodeFromValue(pValue);
+        if (const Node *headerNode = Node::getNotSystemCheckCalledNodeFromValue(value);
             headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
         {
             isSMRuleFileOutdated = true;
@@ -1040,16 +1040,16 @@ void SMFile::checkSMRulesFileOutdatedModules()
         }
     }
 
-    for (Value &pValue : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
+    for (Value &value : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
     {
-        CppSourceTarget *localTarget = cppSourceTargets[pValue[SingleHeaderUnitDep::targetIndex].GetUint64()];
+        CppSourceTarget *localTarget = cppSourceTargets[value[SingleHeaderUnitDep::targetIndex].GetUint64()];
         if (!localTarget)
         {
             isSMRuleFileOutdated = true;
             return;
         }
 
-        SMFile &headerUnit = localTarget->oldHeaderUnits[pValue[SingleHeaderUnitDep::myIndex].GetInt()];
+        SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetInt()];
 
         if (!atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
         {

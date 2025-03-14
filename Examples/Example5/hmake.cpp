@@ -13,8 +13,8 @@ void buildSpecification()
         [&](Builder &, BTarget &bTarget) {
             if (bTarget.realBTargets[0].exitStatus == EXIT_SUCCESS && atomic_ref(bTarget.fileStatus).load())
             {
-                const LinkOrArchiveTarget &catSharedLink = catShared.getLinkOrArchiveTarget();
-                const LinkOrArchiveTarget &animalSharedLink = animalShared.getLinkOrArchiveTarget();
+                const LOAT &catSharedLink = catShared.getLOAT();
+                const LOAT &animalSharedLink = animalShared.getLOAT();
                 copy(catSharedLink.outputFileNode->filePath,
                      path(animalSharedLink.outputFileNode->filePath).parent_path(),
                      std::filesystem::copy_options::overwrite_existing);
@@ -24,7 +24,7 @@ void buildSpecification()
                 printMessage("libCat.so copied to Animal/ and deleted from Cat/\n");
             }
         },
-        animalShared.getLinkOrArchiveTarget(), catShared.getLinkOrArchiveTarget());
+        animalShared.getLOAT(), catShared.getLOAT());
 }
 
 MAIN_FUNCTION

@@ -3,11 +3,11 @@
 #define HMAKE_OBJECTFILEPRODUCER_HPP
 #ifdef USE_HEADER_UNITS
 import "Dependency.hpp";
-import "LinkOrArchiveTarget.hpp";
+import "LOAT.hpp";
 import "ObjectFile.hpp";
 #else
 #include "Dependency.hpp"
-#include "LinkOrArchiveTarget.hpp"
+#include "LOAT.hpp"
 #include "ObjectFile.hpp"
 #endif
 
@@ -17,7 +17,7 @@ class ObjectFileProducer : public BTarget
     ObjectFileProducer();
     ObjectFileProducer(string name_, bool buildExplicit, bool makeDirectory);
     virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles,
-                                LinkOrArchiveTarget *linkOrArchiveTarget) const;
+                                LOAT *loat) const;
 };
 
 // Dependency Specification CRTP

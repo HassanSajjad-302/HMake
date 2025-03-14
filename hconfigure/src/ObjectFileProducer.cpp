@@ -1,12 +1,12 @@
 
 #ifdef USE_HEADER_UNITS
 import "ObjectFileProducer.hpp";
-import "LinkOrArchiveTarget.hpp";
+import "LOAT.hpp";
 #else
 #include "ObjectFileProducer.hpp"
 
 #include <utility>
-#include "LinkOrArchiveTarget.hpp"
+#include "LOAT.hpp"
 #endif
 
 ObjectFileProducer::ObjectFileProducer()
@@ -17,6 +17,6 @@ ObjectFileProducer::ObjectFileProducer(string name_, bool buildExplicit, bool ma
 {
 }
 
-void ObjectFileProducer::getObjectFiles(vector<const ObjectFile *> *, LinkOrArchiveTarget *) const
+void ObjectFileProducer::getObjectFiles(vector<const ObjectFile *> *, LOAT *) const
 {
 }

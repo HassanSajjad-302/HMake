@@ -110,7 +110,7 @@ struct ValueObjectFileMapping
 struct SMFile : SourceNode // Scanned Module Rule
 {
     string logicalName;
-    vector<ValueObjectFileMapping> pValueObjectFileMapping;
+    vector<ValueObjectFileMapping> valueObjectFileMapping;
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // depends on is consuming it another way.
