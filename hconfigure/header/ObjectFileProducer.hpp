@@ -98,7 +98,7 @@ T &ObjectFileProducerWithDS<T>::deps(T *dep, const Dependency dependency, const 
     }
     if constexpr (sizeof...(deps))
     {
-        return DEPS(deps...);
+        return deps(deps...);
     }
     return static_cast<T &>(*this);
 }

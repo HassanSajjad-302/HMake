@@ -87,27 +87,27 @@ public:
     TargetType linkTargetType = TargetType::LIBRARY_STATIC;
 
     template <typename... U>
-    PrebuiltLinkOrArchiveTarget &PUBLIC_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps);
+    PrebuiltLinkOrArchiveTarget &publicDeps(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps);
     template <typename... U>
-    PrebuiltLinkOrArchiveTarget &PRIVATE_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps);
+    PrebuiltLinkOrArchiveTarget &privateDeps(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps);
     template <typename... U>
-    PrebuiltLinkOrArchiveTarget &INTERFACE_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps);
+    PrebuiltLinkOrArchiveTarget &interfaceDeps(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps);
 
     template <typename... U>
-    PrebuiltLinkOrArchiveTarget &DEPS(PrebuiltLinkOrArchiveTarget *dep, Dependency dependency, U... deps);
+    PrebuiltLinkOrArchiveTarget &deps(PrebuiltLinkOrArchiveTarget *dep, Dependency dependency, U... deps);
 
     template <typename... U>
-    PrebuiltLinkOrArchiveTarget &PUBLIC_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
+    PrebuiltLinkOrArchiveTarget &publicDeps(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
                                              PrebuiltDep prebuiltDep, U... deps);
     template <typename... U>
-    PrebuiltLinkOrArchiveTarget &PRIVATE_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
+    PrebuiltLinkOrArchiveTarget &privateDeps(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
                                               PrebuiltDep prebuiltDep, U... deps);
     template <typename... U>
-    PrebuiltLinkOrArchiveTarget &INTERFACE_DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
+    PrebuiltLinkOrArchiveTarget &interfaceDeps(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
                                                 PrebuiltDep prebuiltDep, U... deps);
 
     template <typename... U>
-    PrebuiltLinkOrArchiveTarget &DEPS(PrebuiltLinkOrArchiveTarget *prebuiltTarget, Dependency dependency,
+    PrebuiltLinkOrArchiveTarget &deps(PrebuiltLinkOrArchiveTarget *prebuiltTarget, Dependency dependency,
                                       PrebuiltDep prebuiltDep, U... deps);
 
     void populateRequirementAndUsageRequirementDeps();
@@ -134,33 +134,33 @@ bool operator<(const PrebuiltLinkOrArchiveTarget &lhs, const PrebuiltLinkOrArchi
 void to_json(Json &json, const PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget);
 
 template <typename... U>
-PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::INTERFACE_DEPS(
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::interfaceDeps(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps)
 {
     useReqDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
     addDependency<2>(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
-        return INTERFACE_DEPS(deps...);
+        return interfaceDeps(deps...);
     }
     return *this;
 }
 
 template <typename... U>
-PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PRIVATE_DEPS(
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::privateDeps(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps)
 {
     reqDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
     addDependency<2>(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
-        return PRIVATE_DEPS(deps...);
+        return privateDeps(deps...);
     }
     return *this;
 }
 
 template <typename... U>
-PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PUBLIC_DEPS(
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::publicDeps(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps)
 {
     reqDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
@@ -168,13 +168,13 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PUBLIC_DEPS(
     addDependency<2>(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
-        return PUBLIC_DEPS(deps...);
+        return publicDeps(deps...);
     }
     return *this;
 }
 
 template <typename... U>
-PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::DEPS(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::deps(PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget,
                                                                Dependency dependency, U... deps)
 {
     if (dependency == Dependency::PUBLIC)
@@ -195,38 +195,38 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::DEPS(PrebuiltLinkOrArc
     }
     if constexpr (sizeof...(deps))
     {
-        return DEPS(deps...);
+        return deps(deps...);
     }
     return *this;
 }
 
 template <typename... U>
-PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::INTERFACE_DEPS(
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::interfaceDeps(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, PrebuiltDep prebuiltDep, U... deps)
 {
     useReqDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
     if constexpr (sizeof...(deps))
     {
-        return INTERFACE_DEPS(deps...);
+        return interfaceDeps(deps...);
     }
     return *this;
 }
 
 template <typename... U>
-PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PRIVATE_DEPS(
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::privateDeps(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, PrebuiltDep prebuiltDep, U... deps)
 {
     reqDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
     addDependency<2>(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
-        return PRIVATE_DEPS(deps...);
+        return privateDeps(deps...);
     }
     return *this;
 }
 
 template <typename... U>
-PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PUBLIC_DEPS(
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::publicDeps(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, PrebuiltDep prebuiltDep, U... deps)
 {
     reqDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
@@ -234,13 +234,13 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PUBLIC_DEPS(
     addDependency<2>(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
-        return PUBLIC_DEPS(deps...);
+        return publicDeps(deps...);
     }
     return *this;
 }
 
 template <typename... U>
-PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::DEPS(PrebuiltLinkOrArchiveTarget *prebuiltTarget,
+PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::deps(PrebuiltLinkOrArchiveTarget *prebuiltTarget,
                                                                Dependency dependency, PrebuiltDep prebuiltDep,
                                                                U... deps)
 {
@@ -261,7 +261,7 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::DEPS(PrebuiltLinkOrArc
     }
     if constexpr (sizeof...(deps))
     {
-        return DEPS(deps...);
+        return deps(deps...);
     }
     return *this;
 }

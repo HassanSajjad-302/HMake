@@ -283,7 +283,7 @@ CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const Dependency de
     }
     if constexpr (sizeof...(deps))
     {
-        return DEPS(deps...);
+        return deps(deps...);
     }
     return static_cast<CppSourceTarget &>(*this);
 }

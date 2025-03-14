@@ -155,13 +155,13 @@ void DSC<T>::assignLinkOrArchiveTargetLib(Dependency dependency, DSC<U> *control
     if (prebuiltBasic->linkTargetType != TargetType::LIBRARY_SHARED && dependency == Dependency::PRIVATE)
     {
         // A static library or object library can't have Dependency::PRIVATE deps, it can only have
-        // Dependency::INTERFACE. But, the following PUBLIC_DEPS is done for correct-ordering when static-libs are
+        // Dependency::INTERFACE. But, the following publicDeps is done for correct-ordering when static-libs are
         // finally supplied to dynamic-lib or exe. Static library ignores the deps.
-        prebuiltBasic->PUBLIC_DEPS(controller->prebuiltBasic, std::move(prebuiltDep));
+        prebuiltBasic->publicDeps(controller->prebuiltBasic, std::move(prebuiltDep));
     }
     else
     {
-        prebuiltBasic->DEPS(controller->prebuiltBasic, dependency, std::move(prebuiltDep));
+        prebuiltBasic->deps(controller->prebuiltBasic, dependency, std::move(prebuiltDep));
     }
 
     assignObjectFileProducerDeps(dependency, controller);
