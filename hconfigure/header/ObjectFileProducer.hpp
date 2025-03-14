@@ -33,7 +33,7 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
 
     template <typename... U> T &deps(T *dep, Dependency dependency, const U... deps);
 
-    void populateRequirementAndUsageRequirementDeps();
+    void populateReqAndUseReqDeps();
 };
 
 template <typename T> ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS() = default;
@@ -103,11 +103,11 @@ T &ObjectFileProducerWithDS<T>::deps(T *dep, const Dependency dependency, const 
     return static_cast<T &>(*this);
 }
 
-template <typename T> void ObjectFileProducerWithDS<T>::populateRequirementAndUsageRequirementDeps()
+template <typename T> void ObjectFileProducerWithDS<T>::populateReqAndUseReqDeps()
 {
     // Set is copied because new elements are to be inserted in it.
 
-    for (flat_hash_set<T *> localRequirementDeps = reqDeps; T * t : localRequirementDeps)
+    for (flat_hash_set<T *> localReqDeps = reqDeps; T * t : localReqDeps)
     {
         for (T *t_ : t->useReqDeps)
         {
@@ -115,7 +115,7 @@ template <typename T> void ObjectFileProducerWithDS<T>::populateRequirementAndUs
         }
     }
 
-    for (flat_hash_set<T *> localUsageRequirementDeps = useReqDeps; T * t : localUsageRequirementDeps)
+    for (flat_hash_set<T *> localUseReqDeps = useReqDeps; T * t : localUseReqDeps)
     {
         for (T *t_ : t->useReqDeps)
         {

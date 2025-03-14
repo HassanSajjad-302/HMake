@@ -119,8 +119,8 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
             writeTargetConfigCacheAtConfigureTime();
         }
 
-        populateRequirementAndUsageRequirementDeps();
-        addRequirementDepsToBTargetDependencies();
+        populateReqAndUseReqDeps();
+        addReqDepsToBTargetDependencies();
         for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : reqDeps)
         {
             for (const LibDirNode &libDirNode : PrebuiltLinkOrArchiveTarget->useReqLibraryDirectories)
@@ -186,12 +186,12 @@ void PrebuiltLinkOrArchiveTarget::readConfigCacheAtBuildTime()
     }
 }
 
-void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
+void PrebuiltLinkOrArchiveTarget::populateReqAndUseReqDeps()
 {
     // Set is copied because new elements are to be inserted in it.
-    node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> localRequirementDeps = reqDeps;
+    node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> localReqDeps = reqDeps;
 
-    for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localRequirementDeps)
+    for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localReqDeps)
     {
         for (auto &[PrebuiltLinkOrArchiveTarget_, prebuilt] : PrebuiltLinkOrArchiveTarget->useReqDeps)
         {
@@ -208,8 +208,8 @@ void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
         }
     }
 
-    for (auto localUsageRequirements = useReqDeps;
-         auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localUsageRequirements)
+    for (auto localUseReqs = useReqDeps;
+         auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localUseReqs)
     {
         for (auto &[PrebuiltLinkOrArchiveTarget_, prebuilt] : PrebuiltLinkOrArchiveTarget->useReqDeps)
         {
@@ -227,7 +227,7 @@ void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
     }
 }
 
-void PrebuiltLinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
+void PrebuiltLinkOrArchiveTarget::addReqDepsToBTargetDependencies()
 {
     if (evaluate(TargetType::LIBRARY_STATIC))
     {

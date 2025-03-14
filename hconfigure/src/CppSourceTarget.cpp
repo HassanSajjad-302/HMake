@@ -521,7 +521,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         {
             readConfigCacheAtBuildTime();
         }
-        populateRequirementAndUsageRequirementDeps();
+        populateReqAndUseReqDeps();
         // Needed to maintain ordering between different includes specification.
         reqIncSizeBeforePopulate = reqIncls.size();
         populateTransitiveProperties();
