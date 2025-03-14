@@ -30,6 +30,7 @@ void configurationSpecification(Configuration &config)
 
     // callable_traits
 
+    config.getCppObject("aevain");
     config.assign(BuildTests::YES, BuildExamples::YES, AssignStandardCppTarget::YES);
 
     BoostCppTarget callableTraits("callable_Traits", &config, true, true);
@@ -44,8 +45,8 @@ void configurationSpecification(Configuration &config)
     }
 
     // compatibility
-    /*
-    BoostCppTarget compatibility("compatibility", &config, true, false);
+
+    // BoostCppTarget compatibility("compatibility", &config, true, false);
     // compatibility.getSourceTarget().publicHUIncludes("libs/");
 
     // config
@@ -53,19 +54,20 @@ void configurationSpecification(Configuration &config)
     // Skipping test and check for now
 
     // headers
-    BoostCppTarget headers("headers", &config, true, false);
+    // BoostCppTarget headers("headers", &config, true, false);
     // This is a fake library for installing headers
 
     if (config.evaluate(CxxSTD::V_11) || config.evaluate(CxxSTD::V_14))
     {
         // Not working and no one depends on it.
         /*BoostCppTarget hof("hof", &configuration, true, true);
-        hof.addRunTestsDirectory("/libs/hof/test");#1#
+        hof.addRunTestsDirectory("/libs/hof/test");*/
     }
 
     BoostCppTarget lambda2("lambda2", &config, true, false);
     lambda2.addDir<BoostExampleOrTestType::RUN_TEST>("/libs/lambda2/test");
 
+    return;
     BoostCppTarget leaf("leaf", &config, true, false);
     leaf.add<BoostExampleOrTestType::RUN_TEST>("libs/leaf/test", leafRunTests, std::size(leafRunTests));
 
@@ -94,7 +96,7 @@ void configurationSpecification(Configuration &config)
     }
 
     // skipping predef tests and examples. header-only library with lots of configurations for its tests and examples
-    BoostCppTarget predef("predef", &config, true, false);
+    // BoostCppTarget predef("predef", &config, true, false);
 
     BoostCppTarget preprocessor("preprocessor", &config, true, false);
     const char *preprocTestDir = "libs/preprocessor/test";
@@ -121,7 +123,6 @@ void configurationSpecification(Configuration &config)
     preprocessorMacroDefines("512", "BOOST_PP_LIMIT_MAG", "512");
     preprocessorMacroDefines("1024", "BOOST_PP_LIMIT_MAG", "1024");
 
-    */
     // callable_traits
     /* DSC<CppSourceTarget> &qvm = configuration.getCppObjectDSC("qvm").privateLibraries(&stdhu);
      if (tests == TESTS::YES)

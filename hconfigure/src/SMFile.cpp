@@ -678,11 +678,12 @@ void SMFile::initializeModuleJson(Value &j, const Node *node, decltype(ralloc) &
 
 InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) const
 {
-
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
     const InclNode *nodeDir = nullptr;
 
+    path a("dsd");
+    path b = a.lexically_normal();
     // Iterating over all header-unit-directories of the target to find out which header-unit directory this header-unit
     // comes from and which target that header-unit-directory belongs to if any
     for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
@@ -703,65 +704,40 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
         }
     }
 
-    if (!huDirTarget)
+    if (huDirTarget)
     {
-        if (const auto it = target->configuration->moduleFilesToTarget.find(headerUnitNode);
-            it != target->configuration->moduleFilesToTarget.end())
-        {
-            huDirTarget = it->second.target;
-
-            // The mapped target must be the same as the smfile target from which this header-unit is discovered or one
-            // of its requirementDeps
-
-            bool isHuDirTargetRelated = false;
-
-            if (huDirTarget == target)
-            {
-                isHuDirTargetRelated = true;
-            }
-
-            if (!isHuDirTargetRelated)
-            {
-                if (const auto it2 = target->requirementDeps.find(it->second.target);
-                    it2 != target->requirementDeps.end())
-                {
-                    isHuDirTargetRelated = true;
-                }
-            }
-
-            if (isHuDirTargetRelated)
-            {
-                bool found = false;
-
-                for (InclNode &incl : target->reqIncls)
-                {
-                    if (incl.node == it->second.incl)
-                    {
-                        found = true;
-                        nodeDir = &incl;
-                        break;
-                    }
-                }
-
-                if (found)
-                {
-                    return {nodeDir, huDirTarget};
-                }
-            }
-        }
-        printErrorMessageColor(FORMAT("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin "
-                                      "Target\n{}.\nSearched for header-unit target in the following reqHuDirs.\n",
-                                      headerUnitNode->filePath, node->filePath, target->name),
-                               settings.pcSettings.toolErrorOutput);
-        for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
-        {
-            printErrorMessage(FORMAT("HuDirTarget {} inclNode {}\n", targetLocal->name, inclNode.node->filePath));
-        }
-
-        throw std::exception();
+        return {nodeDir, huDirTarget};
     }
 
-    return {nodeDir, huDirTarget};
+    if (const auto it = target->configuration->moduleFilesToTarget.find(headerUnitNode);
+        it != target->configuration->moduleFilesToTarget.end())
+    {
+        // The mapped target must be the same as the SMFile target from which this header-unit is discovered or one
+        // of its requirementDeps
+        if (it->second.target == target ||
+            target->requirementDeps.find(it->second.target) != target->requirementDeps.end())
+        {
+            for (const InclNode &incl : target->reqIncls)
+            {
+                if (pathContainsFile(incl.node->filePath, headerUnitNode->filePath))
+                {
+                    return {&incl, it->second.target};
+                }
+            }
+            throw std::exception("HMake Internal Error");
+        }
+    }
+
+    printErrorMessageColor(FORMAT("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin "
+                                  "Target\n{}.\nSearched for header-unit target in the following reqHuDirs.\n",
+                                  headerUnitNode->filePath, node->filePath, target->name),
+                           settings.pcSettings.toolErrorOutput);
+    for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
+    {
+        printErrorMessage(FORMAT("HuDirTarget {} inclNode {}\n", targetLocal->name, inclNode.node->filePath));
+    }
+
+    throw std::exception();
 }
 
 void SMFile::initializeHeaderUnits(Builder &builder)
