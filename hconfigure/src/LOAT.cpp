@@ -40,34 +40,31 @@ void LOAT::makeBuildCacheFilesDirPathAtConfigTime(string buildCacheFilesDirPath)
 }
 
 LOAT::LOAT(Configuration &config_, const string &name_, const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_,
-                                  targetType, name_, false, false)
+    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType, name_, false,
+            false)
 {
     makeBuildCacheFilesDirPathAtConfigTime("");
 }
 
-LOAT::LOAT(Configuration &config_, const bool buildExplicit, const string &name_,
-                                         const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_,
-                                  targetType, name_, buildExplicit, false)
+LOAT::LOAT(Configuration &config_, const bool buildExplicit, const string &name_, const TargetType targetType)
+    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType, name_,
+            buildExplicit, false)
 {
     makeBuildCacheFilesDirPathAtConfigTime("");
 }
 
-LOAT::LOAT(Configuration &config_, const string &buildCacheFileDirPath_,
-                                         const string &name_, const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_),
-                                  configureNode->filePath + slashc + buildCacheFileDirPath_, targetType, name_, false,
-                                  false)
+LOAT::LOAT(Configuration &config_, const string &buildCacheFileDirPath_, const string &name_,
+           const TargetType targetType)
+    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + buildCacheFileDirPath_,
+            targetType, name_, false, false)
 {
     makeBuildCacheFilesDirPathAtConfigTime(configureNode->filePath + slashc + buildCacheFileDirPath_);
 }
 
-LOAT::LOAT(Configuration &config_, const string &buildCacheFileDirPath_,
-                                         const bool buildExplicit, const string &name_, const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_),
-                                  configureNode->filePath + slashc + buildCacheFileDirPath_, targetType, name_,
-                                  buildExplicit, false)
+LOAT::LOAT(Configuration &config_, const string &buildCacheFileDirPath_, const bool buildExplicit, const string &name_,
+           const TargetType targetType)
+    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + buildCacheFileDirPath_,
+            targetType, name_, buildExplicit, false)
 {
     makeBuildCacheFilesDirPathAtConfigTime(configureNode->filePath + slashc + buildCacheFileDirPath_);
 }
@@ -178,8 +175,7 @@ void LOAT::setFileStatus()
     if constexpr (os == OS::NT)
     {
         if (linkTargetType == TargetType::EXECUTABLE &&
-            config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
-            atomic_ref(fileStatus).load())
+            config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES && atomic_ref(fileStatus).load())
         {
             flat_hash_set<PLOAT *> checked;
             // TODO:
@@ -206,17 +202,14 @@ void LOAT::setFileStatus()
                         // latest dll exists, but it might not have been copied in the previous invocation.
 
                         if (const Node *copiedDLLNode = Node::getNodeFromNormalizedString(
-                                string(getOutputDirectoryV()) + slashc +
-                                    ploat->getActualOutputName(),
-                                true, true);
+                                string(getOutputDirectoryV()) + slashc + ploat->getActualOutputName(), true, true);
                             copiedDLLNode->doesNotExist)
                         {
                             dllsToBeCopied.emplace_back(ploat);
                         }
                         else
                         {
-                            if (copiedDLLNode->lastWriteTime <
-                                ploat->outputFileNode->lastWriteTime)
+                            if (copiedDLLNode->lastWriteTime < ploat->outputFileNode->lastWriteTime)
                             {
                                 dllsToBeCopied.emplace_back(ploat);
                             }
@@ -309,8 +302,7 @@ void LOAT::updateBTarget(Builder &builder, unsigned short round)
                     for (const PLOAT *ploat : dllsToBeCopied)
                     {
                         copy_file(ploat->outputFileNode->filePath,
-                                  string(getOutputDirectoryV()) + slashc +
-                                      ploat->getActualOutputName(),
+                                  string(getOutputDirectoryV()) + slashc + ploat->getActualOutputName(),
                                   std::filesystem::copy_options::overwrite_existing);
                     }
                 }
@@ -455,8 +447,8 @@ void LOAT::setLinkOrArchiveCommands()
             }
 
             linkOrArchiveCommandWithTargets += prebuiltDep->reqPreLF;
-            linkOrArchiveCommandWithTargets += getLinkFlag(string(ploat->getOutputDirectoryV()),
-                                                           ploat->getOutputName());
+            linkOrArchiveCommandWithTargets +=
+                getLinkFlag(string(ploat->getOutputDirectoryV()), ploat->getOutputName());
             linkOrArchiveCommandWithTargets += prebuiltDep->reqPostLF;
         }
 
@@ -481,9 +473,8 @@ void LOAT::setLinkOrArchiveCommands()
                 {
                     if (prebuiltDep->defaultRpath)
                     {
-                        linkOrArchiveCommandWithTargets +=
-                            "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                            addQuotes(string(ploat->getOutputDirectoryV())) + " ";
+                        linkOrArchiveCommandWithTargets += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
+                                                           addQuotes(string(ploat->getOutputDirectoryV())) + " ";
                     }
                     else
                     {
@@ -502,8 +493,7 @@ void LOAT::setLinkOrArchiveCommands()
                     if (prebuiltDep->defaultRpathLink)
                     {
                         linkOrArchiveCommandWithTargets +=
-                            "-Wl,-rpath-link -Wl," +
-                            addQuotes(string(ploat->getOutputDirectoryV())) + " ";
+                            "-Wl,-rpath-link -Wl," + addQuotes(string(ploat->getOutputDirectoryV())) + " ";
                     }
                     else
                     {
@@ -654,9 +644,8 @@ string LOAT::getLinkOrArchiveCommandPrint()
             for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
             {
                 linkOrArchiveCommandPrint += prebuiltDep->reqPreLF;
-                linkOrArchiveCommandPrint +=
-                    getLinkFlagPrint(string(ploat->getOutputDirectoryV()),
-                                     ploat->getOutputName(), lcpSettings.libraryDependencies);
+                linkOrArchiveCommandPrint += getLinkFlagPrint(string(ploat->getOutputDirectoryV()),
+                                                              ploat->getOutputName(), lcpSettings.libraryDependencies);
                 linkOrArchiveCommandPrint += prebuiltDep->reqPostLF;
             }
         }
@@ -699,10 +688,9 @@ string LOAT::getLinkOrArchiveCommandPrint()
                 {
                     if (prebuiltDep->defaultRpath)
                     {
-                        linkOrArchiveCommandPrint += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                                                     getReducedPath(ploat->getOutputDirectoryV(),
-                                                                    lcpSettings.libraryDependencies) +
-                                                     " ";
+                        linkOrArchiveCommandPrint +=
+                            "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
+                            getReducedPath(ploat->getOutputDirectoryV(), lcpSettings.libraryDependencies) + " ";
                     }
                     else
                     {
@@ -721,10 +709,9 @@ string LOAT::getLinkOrArchiveCommandPrint()
                 {
                     if (prebuiltDep->defaultRpathLink)
                     {
-                        linkOrArchiveCommandPrint += "-Wl,-rpath-link -Wl," +
-                                                     getReducedPath(ploat->getOutputDirectoryV(),
-                                                                    lcpSettings.libraryDependencies) +
-                                                     " ";
+                        linkOrArchiveCommandPrint +=
+                            "-Wl,-rpath-link -Wl," +
+                            getReducedPath(ploat->getOutputDirectoryV(), lcpSettings.libraryDependencies) + " ";
                     }
                     else
                     {

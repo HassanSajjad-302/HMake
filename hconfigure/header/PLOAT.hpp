@@ -63,10 +63,9 @@ class PLOAT : public BTarget, public TargetCache
     string getActualOutputName() const;
     string_view getOutputDirectoryV() const;
 
-    PLOAT(Configuration &config_, const string &outputName_, string directory,
-                                TargetType linkTargetType_);
-    PLOAT(Configuration &config_, const string &outputName_, string directory,
-                                TargetType linkTargetType_, string name_, bool buildExplicit, bool makeDirectory);
+    PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_);
+    PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_, string name_,
+          bool buildExplicit, bool makeDirectory);
 
     template <typename T> bool evaluate(T property) const;
     void updateBTarget(Builder &builder, unsigned short round) override;
@@ -79,8 +78,7 @@ class PLOAT : public BTarget, public TargetCache
     node_hash_map<PLOAT *, PrebuiltDep> reqDeps;
     node_hash_map<PLOAT *, PrebuiltDep> useReqDeps;
 
-    btree_map<PLOAT *, const PrebuiltDep *, IndexInTopologicalSortComparatorRoundZero>
-        sortedPrebuiltDependencies;
+    btree_map<PLOAT *, const PrebuiltDep *, IndexInTopologicalSortComparatorRoundZero> sortedPrebuiltDependencies;
 
     flat_hash_set<class ObjectFileProducer *> objectFileProducers;
 
@@ -89,33 +87,18 @@ class PLOAT : public BTarget, public TargetCache
 
     TargetType linkTargetType = TargetType::LIBRARY_STATIC;
 
-    template <typename... U>
-    PLOAT &publicDeps(PLOAT *ploat,
-                                            U... ploats);
-    template <typename... U>
-    PLOAT &privateDeps(PLOAT *ploat,
-                                             U... ploats);
-    template <typename... U>
-    PLOAT &interfaceDeps(PLOAT *ploat,
-                                               U... ploats);
+    template <typename... U> PLOAT &publicDeps(PLOAT *ploat, U... ploats);
+    template <typename... U> PLOAT &privateDeps(PLOAT *ploat, U... ploats);
+    template <typename... U> PLOAT &interfaceDeps(PLOAT *ploat, U... ploats);
+
+    template <typename... U> PLOAT &deps(PLOAT *ploat, Dependency dependency, U... ploats);
+
+    template <typename... U> PLOAT &publicDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats);
+    template <typename... U> PLOAT &privateDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats);
+    template <typename... U> PLOAT &interfaceDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats);
 
     template <typename... U>
-    PLOAT &deps(PLOAT *ploat, Dependency dependency,
-                                      U... ploats);
-
-    template <typename... U>
-    PLOAT &publicDeps(PLOAT *ploat,
-                                            PrebuiltDep prebuiltDep, U... ploats);
-    template <typename... U>
-    PLOAT &privateDeps(PLOAT *ploat,
-                                             PrebuiltDep prebuiltDep, U... ploats);
-    template <typename... U>
-    PLOAT &interfaceDeps(PLOAT *ploat,
-                                               PrebuiltDep prebuiltDep, U... ploats);
-
-    template <typename... U>
-    PLOAT &deps(PLOAT *prebuiltTarget, Dependency dependency,
-                                      PrebuiltDep prebuiltDep, U... ploats);
+    PLOAT &deps(PLOAT *prebuiltTarget, Dependency dependency, PrebuiltDep prebuiltDep, U... ploats);
 
     void populateReqAndUseReqDeps();
     void addReqDepsToBTargetDependencies();
@@ -140,9 +123,7 @@ template <typename T> bool PLOAT::evaluate(T property) const
 bool operator<(const PLOAT &lhs, const PLOAT &rhs);
 void to_json(Json &json, const PLOAT &PLOAT);
 
-template <typename... U>
-PLOAT &PLOAT::interfaceDeps(
-    PLOAT *ploat, U... ploats)
+template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT *ploat, U... ploats)
 {
     useReqDeps.emplace(ploat, PrebuiltDep{});
     addDependency<2>(*ploat);
@@ -153,9 +134,7 @@ PLOAT &PLOAT::interfaceDeps(
     return *this;
 }
 
-template <typename... U>
-PLOAT &PLOAT::privateDeps(
-    PLOAT *ploat, U... ploats)
+template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT *ploat, U... ploats)
 {
     reqDeps.emplace(ploat, PrebuiltDep{});
     addDependency<2>(*ploat);
@@ -166,9 +145,7 @@ PLOAT &PLOAT::privateDeps(
     return *this;
 }
 
-template <typename... U>
-PLOAT &PLOAT::publicDeps(
-    PLOAT *ploat, U... ploats)
+template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT *ploat, U... ploats)
 {
     reqDeps.emplace(ploat, PrebuiltDep{});
     useReqDeps.emplace(ploat, PrebuiltDep{});
@@ -180,10 +157,7 @@ PLOAT &PLOAT::publicDeps(
     return *this;
 }
 
-template <typename... U>
-PLOAT &PLOAT::deps(PLOAT *ploat,
-                                                               const Dependency dependency,
-                                                               U... ploats)
+template <typename... U> PLOAT &PLOAT::deps(PLOAT *ploat, const Dependency dependency, U... ploats)
 {
     if (dependency == Dependency::PUBLIC)
     {
@@ -208,10 +182,7 @@ PLOAT &PLOAT::deps(PLOAT *ploat,
     return *this;
 }
 
-template <typename... U>
-PLOAT &PLOAT::interfaceDeps(
-    PLOAT *ploat, PrebuiltDep prebuiltDep,
-    U... ploats)
+template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats)
 {
     useReqDeps.emplace(ploat, prebuiltDep);
     if constexpr (sizeof...(ploats))
@@ -221,10 +192,7 @@ PLOAT &PLOAT::interfaceDeps(
     return *this;
 }
 
-template <typename... U>
-PLOAT &PLOAT::privateDeps(
-    PLOAT *ploat, PrebuiltDep prebuiltDep,
-    U... ploats)
+template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats)
 {
     reqDeps.emplace(ploat, prebuiltDep);
     addDependency<2>(*ploat);
@@ -235,10 +203,7 @@ PLOAT &PLOAT::privateDeps(
     return *this;
 }
 
-template <typename... U>
-PLOAT &PLOAT::publicDeps(
-    PLOAT *ploat, PrebuiltDep prebuiltDep,
-    U... ploats)
+template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats)
 {
     reqDeps.emplace(ploat, prebuiltDep);
     useReqDeps.emplace(ploat, prebuiltDep);
@@ -251,9 +216,7 @@ PLOAT &PLOAT::publicDeps(
 }
 
 template <typename... U>
-PLOAT &PLOAT::deps(PLOAT *prebuiltTarget,
-                                                               Dependency dependency, PrebuiltDep prebuiltDep,
-                                                               U... ploats)
+PLOAT &PLOAT::deps(PLOAT *prebuiltTarget, Dependency dependency, PrebuiltDep prebuiltDep, U... ploats)
 {
     if (dependency == Dependency::PUBLIC)
     {

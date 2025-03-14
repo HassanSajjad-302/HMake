@@ -28,8 +28,7 @@ template <typename T> struct DSC : DSCFeatures
 
     template <typename U> void assignObjectFileProducerDeps(Dependency dependency, DSC<U> *controller);
 
-    template <typename U, typename... V>
-    void assignLOATLib(Dependency dependency, DSC<U> *controller, V... args);
+    template <typename U, typename... V> void assignLOATLib(Dependency dependency, DSC<U> *controller, V... args);
     DSC &save(CppSourceTarget *ptr);
     DSC &saveAndReplace(CppSourceTarget *ptr);
     DSC &restore();
