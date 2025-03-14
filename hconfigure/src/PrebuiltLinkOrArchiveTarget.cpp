@@ -208,8 +208,7 @@ void PrebuiltLinkOrArchiveTarget::populateReqAndUseReqDeps()
         }
     }
 
-    for (auto localUseReqs = useReqDeps;
-         auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localUseReqs)
+    for (auto localUseReqs = useReqDeps; auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localUseReqs)
     {
         for (auto &[PrebuiltLinkOrArchiveTarget_, prebuilt] : PrebuiltLinkOrArchiveTarget->useReqDeps)
         {
