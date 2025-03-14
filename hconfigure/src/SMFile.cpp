@@ -714,8 +714,7 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
     {
         // The mapped target must be the same as the SMFile target from which this header-unit is discovered or one
         // of its reqDeps
-        if (it->second.target == target ||
-            target->reqDeps.find(it->second.target) != target->reqDeps.end())
+        if (it->second.target == target || target->reqDeps.find(it->second.target) != target->reqDeps.end())
         {
             for (const InclNode &incl : target->reqIncls)
             {
