@@ -318,8 +318,8 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
         {
             if (!mayNotExist || entry.status().type() != file_type::not_found)
             {
-                printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath,
-                                         isFile ? "regular" : "dir", getStatusPString(filePath)));
+                printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath, isFile ? "regular" : "dir",
+                                         getStatusPString(filePath)));
                 throw std::exception();
             }
             doesNotExist = true;

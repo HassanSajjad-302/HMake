@@ -2,11 +2,11 @@
 #ifndef HMAKE_OBJECTFILEPRODUCER_HPP
 #define HMAKE_OBJECTFILEPRODUCER_HPP
 #ifdef USE_HEADER_UNITS
-import "Dependency.hpp";
+import "DepType.hpp";
 import "LOAT.hpp";
 import "ObjectFile.hpp";
 #else
-#include "Dependency.hpp"
+#include "DepType.hpp"
 #include "LOAT.hpp"
 #include "ObjectFile.hpp"
 #endif
@@ -27,11 +27,11 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
     ObjectFileProducerWithDS(string name_, bool buildExplicit, bool makeDirectory);
     flat_hash_set<T *> reqDeps;
     flat_hash_set<T *> useReqDeps;
-    template <typename... U> T &publicDeps(T *dep, const U... deps);
-    template <typename... U> T &privateDeps(T *dep, const U... deps);
-    template <typename... U> T &interfaceDeps(T *dep, const U... deps);
+    template <typename... U> T &publicDeps(T &dep, const U... deps);
+    template <typename... U> T &privateDeps(T &dep, const U... deps);
+    template <typename... U> T &interfaceDeps(T &dep, const U... deps);
 
-    template <typename... U> T &deps(T *dep, Dependency dependency, const U... deps);
+    template <typename... U> T &deps(T &dep, DepType dependency, const U... deps);
 
     void populateReqAndUseReqDeps();
 };
@@ -44,11 +44,11 @@ ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS(string name_, bool buildEx
 {
 }
 
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::publicDeps(T *dep, const U... deps)
+template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::publicDeps(T &dep, const U... deps)
 {
-    reqDeps.emplace(dep);
-    useReqDeps.emplace(dep);
-    addDependency<2>(*dep);
+    reqDeps.emplace(&dep);
+    useReqDeps.emplace(&dep);
+    addDependency<2>(dep);
     if constexpr (sizeof...(deps))
     {
         return publicDeps(deps...);
@@ -56,9 +56,9 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::p
     return static_cast<T &>(*this);
 }
 
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::privateDeps(T *dep, const U... deps)
+template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::privateDeps(T &dep, const U... deps)
 {
-    reqDeps.emplace(dep);
+    reqDeps.emplace(&dep);
     addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
@@ -67,9 +67,9 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::p
     return static_cast<T &>(*this);
 }
 
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::interfaceDeps(T *dep, const U... deps)
+template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::interfaceDeps(T &dep, const U... deps)
 {
-    useReqDeps.emplace(dep);
+    useReqDeps.emplace(&dep);
     if constexpr (sizeof...(deps))
     {
         return interfaceDeps(deps...);
@@ -79,22 +79,22 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::i
 
 template <typename T>
 template <typename... U>
-T &ObjectFileProducerWithDS<T>::deps(T *dep, const Dependency dependency, const U... deps)
+T &ObjectFileProducerWithDS<T>::deps(T &dep, const DepType dependency, const U... deps)
 {
-    if (dependency == Dependency::PUBLIC)
+    if (dependency == DepType::PUBLIC)
     {
-        reqDeps.emplace(dep);
-        useReqDeps.emplace(dep);
-        addDependency<2>(*dep);
+        reqDeps.emplace(&dep);
+        useReqDeps.emplace(&dep);
+        addDependency<2>(dep);
     }
-    else if (dependency == Dependency::PRIVATE)
+    else if (dependency == DepType::PRIVATE)
     {
-        reqDeps.emplace(dep);
-        addDependency<2>(*dep);
+        reqDeps.emplace(&dep);
+        addDependency<2>(dep);
     }
     else
     {
-        useReqDeps.emplace(dep);
+        useReqDeps.emplace(&dep);
     }
     if constexpr (sizeof...(deps))
     {

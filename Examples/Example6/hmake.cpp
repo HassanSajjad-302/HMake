@@ -10,18 +10,18 @@ void configurationSpecification(Configuration &config)
         cat.getSourceTarget().interfaceIncludes("../Example4/Cat/header");
 
         DSC<CppSourceTarget> &dog = config.getCppTargetDSC("Dog" + str, true, "DOG_EXPORT");
-        dog.publicLibraries(&cat).getSourceTarget().sourceFiles("Dog/src/Dog.cpp").publicIncludes("Dog/header");
+        dog.publicDeps(cat).getSourceTarget().sourceFiles("Dog/src/Dog.cpp").publicIncludes("Dog/header");
 
         DSC<CppSourceTarget> &dog2 = config.getCppTargetDSC("Dog2" + str, true, "DOG2_EXPORT");
-        dog2.privateLibraries(&cat).getSourceTarget().sourceFiles("Dog2/src/Dog.cpp").publicIncludes("Dog2/header");
+        dog2.privateDeps(cat).getSourceTarget().sourceFiles("Dog2/src/Dog.cpp").publicIncludes("Dog2/header");
 
         DSC<CppSourceTarget> &app = config.getCppExeDSC("App" + str);
         app.getLOAT().setOutputName("app");
-        app.privateLibraries(&dog).getSourceTarget().sourceFiles("main.cpp");
+        app.privateDeps(dog).getSourceTarget().sourceFiles("main.cpp");
 
         DSC<CppSourceTarget> &app2 = config.getCppExeDSC("App2" + str);
         app2.getLOAT().setOutputName("app");
-        app2.privateLibraries(&dog2).getSourceTarget().sourceFiles("main2.cpp");
+        app2.privateDeps(dog2).getSourceTarget().sourceFiles("main2.cpp");
     };
 
     config.targetType = TargetType::LIBRARY_STATIC;

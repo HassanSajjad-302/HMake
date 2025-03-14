@@ -352,7 +352,7 @@ template <BoostExampleOrTestType EOT>
 void BoostCppTarget::Add<EOT, false>::operator()(BoostCppTarget &target, string_view sourceDir, string_view fileName)
 {
     const string configurationNamePlusTargetName =
-        target.mainTarget.getPLOATTarget().name + slashc;
+        target.mainTarget.getLOAT().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
@@ -369,7 +369,7 @@ void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &
                                                                 string_view sourceDir, string_view fileName)
 {
     const string configurationNamePlusTargetName =
-        target.mainTarget.getPLOATTarget().name + slashc;
+        target.mainTarget.getLOAT().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
@@ -390,7 +390,7 @@ void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, str
                                                      string_view sourceDir, string_view fileName)
 {
     const string configurationNamePlusTargetName =
-        target.mainTarget.getPLOATTarget().name + slashc;
+        target.mainTarget.getPLOAT().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
@@ -415,7 +415,7 @@ void BoostCppTarget::getTargetFromConfiguration(string_view name, string_view bu
     else
     {
         configuration->getCppExeDSCNoName(getExplicitBuilding<EOT>(), string(buildCacheFilesDirPath), string(name))
-            .privateLibraries(&mainTarget)
+            .privateDeps(mainTarget)
             .getSourceTarget()
             .moduleFiles(node->filePath);
     }

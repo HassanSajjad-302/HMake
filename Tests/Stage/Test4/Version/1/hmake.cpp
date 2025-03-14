@@ -15,17 +15,17 @@ void buildSpecification()
         .assign(CxxSTD::V_20)
         .publicHUIncludes("cat");
 
-    cat.privateLibraries(&std);
+    cat.privateDeps(std);
 
     DSC<CppSourceTarget> &app = getCppExeDSC("app");
     app.getSourceTarget().moduleFiles("main.cpp");
 
     // This will define two new CppSourceTargets. saveAndReplace will save the older CppSourceTargets in the
-    // DSC<CppSourceTarget> while replacing it with these newer ones to be used in privateLibraries function. This new
+    // DSC<CppSourceTarget> while replacing it with these newer ones to be used in privateDeps function. This new
     // target is compiled with the default value /std:c++latest same as the main.cpp. saveAndReplace will also populate
     // the module files of these newer targets with similar values to the older targets. assignObjectFileProducerDeps
-    // is used instead of privateLibraries because besides adding std CppSourceTarget as a dependency of cat
-    // CppSourceTarget, privateLibraries also adds std LOAT as a dependency of cat LOAT
+    // is used instead of privateDeps because besides adding std CppSourceTarget as a dependency of cat
+    // CppSourceTarget, privateDeps also adds std LOAT as a dependency of cat LOAT
     // which has already been done. Please notice that the older CppSourceTargets that we are replacing in the
     // following, we had already specified them (and transitively their object files) as the dependency of the
     // respective LOATs in the DSC constructor. The newer, following declared, CppSourceTargets are not
@@ -39,7 +39,7 @@ void buildSpecification()
     std.saveAndReplace(&std1);
     cat.saveAndReplace(&cat1);*/
 
-    app.privateLibraries(&cat, &std);
+    app.privateDeps(cat, std);
 
     // Please notice that saveAndReplace() function stores the older pointer in that respective DSC and populates the
     // module files of the newer target with only the interface-file of the  older target. This means that cat.ixx and

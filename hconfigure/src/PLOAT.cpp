@@ -47,8 +47,7 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, Targ
         Node::getNotSystemCheckCalledNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
 }
 
-PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_,
-             string name_, bool buildExplicit, bool makeDirectory)
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_, bool buildExplicit, bool makeDirectory)
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), linkTargetType(linkTargetType_)
 
 {
@@ -65,8 +64,7 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, Targ
 {
 }
 
-PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_,
-             string name_, bool buildExplicit, bool makeDirectory)
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_, bool buildExplicit, bool makeDirectory)
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), outputName(outputName_),
       linkTargetType(linkTargetType_), outputDirectory(std::move(dir))
 

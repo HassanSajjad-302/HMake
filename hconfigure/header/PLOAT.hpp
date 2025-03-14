@@ -87,18 +87,17 @@ class PLOAT : public BTarget, public TargetCache
 
     TargetType linkTargetType = TargetType::LIBRARY_STATIC;
 
-    template <typename... U> PLOAT &publicDeps(PLOAT *ploat, U... ploats);
-    template <typename... U> PLOAT &privateDeps(PLOAT *ploat, U... ploats);
-    template <typename... U> PLOAT &interfaceDeps(PLOAT *ploat, U... ploats);
+    template <typename... U> PLOAT &publicDeps(PLOAT &ploat, U... ploats);
+    template <typename... U> PLOAT &privateDeps(PLOAT &ploat, U... ploats);
+    template <typename... U> PLOAT &interfaceDeps(PLOAT &ploat, U... ploats);
 
-    template <typename... U> PLOAT &deps(PLOAT *ploat, Dependency dependency, U... ploats);
+    template <typename... U> PLOAT &deps(DepType depType, PLOAT &ploat, U... ploats);
 
-    template <typename... U> PLOAT &publicDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats);
-    template <typename... U> PLOAT &privateDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats);
-    template <typename... U> PLOAT &interfaceDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats);
+    template <typename... U> PLOAT &publicDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
+    template <typename... U> PLOAT &privateDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
+    template <typename... U> PLOAT &interfaceDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
 
-    template <typename... U>
-    PLOAT &deps(PLOAT *prebuiltTarget, Dependency dependency, PrebuiltDep prebuiltDep, U... ploats);
+    template <typename... U> PLOAT &deps(DepType depType, PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
 
     void populateReqAndUseReqDeps();
     void addReqDepsToBTargetDependencies();
@@ -123,10 +122,10 @@ template <typename T> bool PLOAT::evaluate(T property) const
 bool operator<(const PLOAT &lhs, const PLOAT &rhs);
 void to_json(Json &json, const PLOAT &PLOAT);
 
-template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT *ploat, U... ploats)
+template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
 {
-    useReqDeps.emplace(ploat, PrebuiltDep{});
-    addDependency<2>(*ploat);
+    useReqDeps.emplace(&ploat, PrebuiltDep{});
+    addDependency<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
         return interfaceDeps(deps...);
@@ -134,10 +133,10 @@ template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT *ploat, U... ploats)
     return *this;
 }
 
-template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT *ploat, U... ploats)
+template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, U... ploats)
 {
-    reqDeps.emplace(ploat, PrebuiltDep{});
-    addDependency<2>(*ploat);
+    reqDeps.emplace(&ploat, PrebuiltDep{});
+    addDependency<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
         return privateDeps(deps...);
@@ -145,11 +144,11 @@ template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT *ploat, U... ploats)
     return *this;
 }
 
-template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT *ploat, U... ploats)
+template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, U... ploats)
 {
-    reqDeps.emplace(ploat, PrebuiltDep{});
-    useReqDeps.emplace(ploat, PrebuiltDep{});
-    addDependency<2>(*ploat);
+    reqDeps.emplace(&ploat, PrebuiltDep{});
+    useReqDeps.emplace(&ploat, PrebuiltDep{});
+    addDependency<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
         return publicDeps(deps...);
@@ -157,34 +156,34 @@ template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT *ploat, U... ploats)
     return *this;
 }
 
-template <typename... U> PLOAT &PLOAT::deps(PLOAT *ploat, const Dependency dependency, U... ploats)
+template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat, U... ploats)
 {
-    if (dependency == Dependency::PUBLIC)
+    if (depType == DepType::PUBLIC)
     {
-        reqDeps.emplace(ploat, PrebuiltDep{});
-        useReqDeps.emplace(ploat, PrebuiltDep{});
-        addDependency<2>(*ploat);
+        reqDeps.emplace(&ploat, PrebuiltDep{});
+        useReqDeps.emplace(&ploat, PrebuiltDep{});
+        addDependency<2>(ploat);
     }
-    else if (dependency == Dependency::PRIVATE)
+    else if (depType == DepType::PRIVATE)
     {
-        reqDeps.emplace(ploat, PrebuiltDep{});
-        addDependency<2>(*ploat);
+        reqDeps.emplace(&ploat, PrebuiltDep{});
+        addDependency<2>(ploat);
     }
     else
     {
-        useReqDeps.emplace(ploat, PrebuiltDep{});
-        addDependency<2>(*ploat);
+        useReqDeps.emplace(&ploat, PrebuiltDep{});
+        addDependency<2>(ploat);
     }
     if constexpr (sizeof...(ploats))
     {
-        return deps(deps...);
+        return deps(depType, ploats...);
     }
     return *this;
 }
 
-template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats)
+template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
 {
-    useReqDeps.emplace(ploat, prebuiltDep);
+    useReqDeps.emplace(&ploat, prebuiltDep);
     if constexpr (sizeof...(ploats))
     {
         return interfaceDeps(deps...);
@@ -192,10 +191,10 @@ template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT *ploat, PrebuiltDep p
     return *this;
 }
 
-template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats)
+template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
 {
-    reqDeps.emplace(ploat, prebuiltDep);
-    addDependency<2>(*ploat);
+    reqDeps.emplace(&ploat, prebuiltDep);
+    addDependency<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
         return privateDeps(deps...);
@@ -203,11 +202,11 @@ template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT *ploat, PrebuiltDep pre
     return *this;
 }
 
-template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT *ploat, PrebuiltDep prebuiltDep, U... ploats)
+template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
 {
-    reqDeps.emplace(ploat, prebuiltDep);
-    useReqDeps.emplace(ploat, prebuiltDep);
-    addDependency<2>(*ploat);
+    reqDeps.emplace(&ploat, prebuiltDep);
+    useReqDeps.emplace(&ploat, prebuiltDep);
+    addDependency<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
         return publicDeps(deps...);
@@ -215,27 +214,26 @@ template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT *ploat, PrebuiltDep preb
     return *this;
 }
 
-template <typename... U>
-PLOAT &PLOAT::deps(PLOAT *prebuiltTarget, Dependency dependency, PrebuiltDep prebuiltDep, U... ploats)
+template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
 {
-    if (dependency == Dependency::PUBLIC)
+    if (depType == DepType::PUBLIC)
     {
-        reqDeps.emplace(prebuiltTarget, prebuiltDep);
-        useReqDeps.emplace(prebuiltTarget, prebuiltDep);
-        addDependency<2>(*prebuiltTarget);
+        reqDeps.emplace(&ploat, prebuiltDep);
+        useReqDeps.emplace(&ploat, prebuiltDep);
+        addDependency<2>(ploat);
     }
-    else if (dependency == Dependency::PRIVATE)
+    else if (depType == DepType::PRIVATE)
     {
-        reqDeps.emplace(prebuiltTarget, prebuiltDep);
-        addDependency<2>(*prebuiltTarget);
+        reqDeps.emplace(&ploat, prebuiltDep);
+        addDependency<2>(ploat);
     }
     else
     {
-        useReqDeps.emplace(prebuiltTarget, prebuiltDep);
+        useReqDeps.emplace(&ploat, prebuiltDep);
     }
     if constexpr (sizeof...(ploats))
     {
-        return deps(deps...);
+        return deps(depType, ploats...);
     }
     return *this;
 }

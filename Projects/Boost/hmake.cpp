@@ -69,10 +69,10 @@ void configurationSpecification(Configuration &config)
     current.getSourceTarget().headerUnits("boost/current_function.hpp");
 
     BoostCppTarget core("core", &config, true, false);
-    core.mainTarget.publicLibraries(&current, &configTarget.mainTarget);
+    core.mainTarget.publicDeps(current, configTarget.mainTarget);
 
     BoostCppTarget lambda2("lambda2", &config, true, false);
-    lambda2.mainTarget.publicLibraries(&core.mainTarget);
+    lambda2.mainTarget.publicDeps(core.mainTarget);
     lambda2.addDir<BoostExampleOrTestType::RUN_TEST>("/libs/lambda2/test");
 
     return;

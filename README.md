@@ -841,12 +841,12 @@ void buildSpecification()
     DSC<CppSourceTarget> &catStatic = getCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
     catStatic.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
 
-    getCppExeDSC("Animal-Static").privateLibraries(&catStatic).getSourceTarget().sourceFiles("main.cpp");
+    getCppExeDSC("Animal-Static").privateDeps(&catStatic).getSourceTarget().sourceFiles("main.cpp");
 
     DSC<CppSourceTarget> &catShared = getCppSharedDSC("Cat-Shared", true, "CAT_EXPORT");
     catShared.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
 
-    getCppExeDSC("Animal-Shared").privateLibraries(&catShared).getSourceTarget().sourceFiles("main.cpp");
+    getCppExeDSC("Animal-Shared").privateDeps(&catShared).getSourceTarget().sourceFiles("main.cpp");
 }
 
 MAIN_FUNCTION
@@ -880,7 +880,7 @@ void buildSpecification()
     DSC<CppSourceTarget> &catShared = getCppSharedDSC("Cat", true);
     catShared.getSourceTarget().sourceFiles("../Example4/Cat/src/Cat.cpp").publicIncludes("../Example4/Cat/header");
 
-    DSC<CppSourceTarget> &animalShared = getCppExeDSC("Animal").privateLibraries(
+    DSC<CppSourceTarget> &animalShared = getCppExeDSC("Animal").privateDeps(
         &catShared, PrebuiltDep{.reqRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false});
     animalShared.getSourceTarget().sourceFiles("../Example4/main.cpp");
 
@@ -953,18 +953,18 @@ void buildSpecification()
         cat.getSourceTarget().interfaceIncludes("../Example4/Cat/header");
 
         DSC<CppSourceTarget> &dog = getCppTargetDSC("Dog" + str, targetType, true, "DOG_EXPORT");
-        dog.publicLibraries(&cat).getSourceTarget().sourceFiles("Dog/src/Dog.cpp").publicIncludes("Dog/header");
+        dog.publicDeps(&cat).getSourceTarget().sourceFiles("Dog/src/Dog.cpp").publicIncludes("Dog/header");
 
         DSC<CppSourceTarget> &dog2 = getCppTargetDSC("Dog2" + str, targetType, true, "DOG2_EXPORT");
-        dog2.privateLibraries(&cat).getSourceTarget().sourceFiles("Dog2/src/Dog.cpp").publicIncludes("Dog2/header");
+        dog2.privateDeps(&cat).getSourceTarget().sourceFiles("Dog2/src/Dog.cpp").publicIncludes("Dog2/header");
 
         DSC<CppSourceTarget> &app = getCppExeDSC("App" + str);
         app.getLOAT().setOutputName("app");
-        app.privateLibraries(&dog).getSourceTarget().sourceFiles("main.cpp");
+        app.privateDeps(&dog).getSourceTarget().sourceFiles("main.cpp");
 
         DSC<CppSourceTarget> &app2 = getCppExeDSC("App2" + str);
         app2.getLOAT().setOutputName("app");
-        app2.privateLibraries(&dog2).getSourceTarget().sourceFiles("main2.cpp");
+        app2.privateDeps(&dog2).getSourceTarget().sourceFiles("main2.cpp");
     };
 
     makeApps(TargetType::LIBRARY_STATIC);
@@ -1074,11 +1074,11 @@ void configurationSpecification(Configuration &config)
     stdhu.getSourceTargetPointer()->assignStandardIncludesToPublicHUDirs();
 
     DSC<CppSourceTarget> &lib4 = config.getCppTargetDSC("lib4", config.targetType);
-    DSC<CppSourceTarget> &lib3 = config.getCppTargetDSC("lib3", config.targetType).publicLibraries(&lib4);
+    DSC<CppSourceTarget> &lib3 = config.getCppTargetDSC("lib3", config.targetType).publicDeps(&lib4);
     DSC<CppSourceTarget> &lib2 =
-        config.getCppTargetDSC("lib2", config.targetType).publicLibraries(&stdhu).privateLibraries(&lib3);
-    DSC<CppSourceTarget> &lib1 = config.getCppTargetDSC("lib1", config.targetType).publicLibraries(&lib2);
-    DSC<CppSourceTarget> &app = config.getCppExeDSC("app").privateLibraries(&lib1);
+        config.getCppTargetDSC("lib2", config.targetType).publicDeps(&stdhu).privateDeps(&lib3);
+    DSC<CppSourceTarget> &lib1 = config.getCppTargetDSC("lib1", config.targetType).publicDeps(&lib2);
+    DSC<CppSourceTarget> &app = config.getCppExeDSC("app").privateDeps(&lib1);
 
     initializeTargets(lib1, lib2, lib3, lib4, app);
 }
@@ -1230,17 +1230,17 @@ void configurationSpecification(Configuration &configuration)
     DSC<CppSourceTarget> &stdhu = configuration.getCppObjectDSC("stdhu");
     stdhu.getSourceTarget().assignStandardIncludesToPublicHUDirs();
 
-    DSC<CppSourceTarget> &fmt = configuration.getCppStaticDSC("fmt").publicLibraries(&stdhu);
+    DSC<CppSourceTarget> &fmt = configuration.getCppStaticDSC("fmt").publicDeps(&stdhu);
     fmt.getSourceTarget().moduleFiles("fmt/src/format.cc", "fmt/src/os.cc").publicHUIncludes("fmt/include");
 
     configuration.markArchivePoint();
 
-    DSC<CppSourceTarget> &hconfigure = configuration.getCppStaticDSC("hconfigure").publicLibraries(&fmt);
+    DSC<CppSourceTarget> &hconfigure = configuration.getCppStaticDSC("hconfigure").publicDeps(&fmt);
     hconfigure.getSourceTarget()
         .moduleDirs("hconfigure/src")
         .publicHUIncludes("hconfigure/header", "cxxopts/include", "json/include", "rapidjson/include");
 
-    DSC<CppSourceTarget> &hhelper = configuration.getCppExeDSC("hhelper").privateLibraries(&hconfigure, &stdhu);
+    DSC<CppSourceTarget> &hhelper = configuration.getCppExeDSC("hhelper").privateDeps(&hconfigure, &stdhu);
     hhelper.getSourceTarget()
         .moduleFiles("hhelper/src/main.cpp")
         .privateCompileDefinition("HCONFIGURE_HEADER", addEscapedQuotes(srcDir + "hconfigure/header"))
@@ -1259,14 +1259,14 @@ void configurationSpecification(Configuration &configuration)
         .privateCompileDefinition(
             "FMT_STATIC_LIB_PATH", addEscapedQuotes(path(fmt.getLOAT().getActualOutputPath()).string()));
 
-    DSC<CppSourceTarget> &hbuild = configuration.getCppExeDSC("hbuild").privateLibraries(&hconfigure, &stdhu);
+    DSC<CppSourceTarget> &hbuild = configuration.getCppExeDSC("hbuild").privateDeps(&hconfigure, &stdhu);
     hbuild.getSourceTarget().moduleFiles("hbuild/src/main.cpp");
 
     DSC<CppSourceTarget> &hmakeHelper =
-        configuration.getCppExeDSC("HMakeHelper").privateLibraries(&hconfigure, &stdhu);
+        configuration.getCppExeDSC("HMakeHelper").privateDeps(&hconfigure, &stdhu);
     hmakeHelper.getSourceTarget().moduleFiles("hmake.cpp").privateCompileDefinition("EXE");
 
-    DSC<CppSourceTarget> &exp = configuration.getCppExeDSC("exp").privateLibraries(&stdhu);
+    DSC<CppSourceTarget> &exp = configuration.getCppExeDSC("exp").privateDeps(&stdhu);
     exp.getSourceTarget().moduleFiles("main.cpp").privateIncludes("rapidjson/include");
 }
 

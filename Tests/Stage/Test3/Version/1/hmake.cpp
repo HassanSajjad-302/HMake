@@ -9,16 +9,16 @@ void configurationSpecification(Configuration &debug)
         .publicIncludes("lib4/public")
         .privateIncludes("lib4/private");
 
-    DSC<CppSourceTarget> &lib3 = debug.getCppStaticDSC("lib3").publicLibraries(&lib4);
+    DSC<CppSourceTarget> &lib3 = debug.getCppStaticDSC("lib3").publicDeps(lib4);
     lib3.getSourceTarget().moduleDirsRE("lib3/private", ".*cpp").publicHUIncludes("lib3/public");
 
-    DSC<CppSourceTarget> &lib2 = debug.getCppStaticDSC("lib2").privateLibraries(&lib3);
+    DSC<CppSourceTarget> &lib2 = debug.getCppStaticDSC("lib2").privateDeps(lib3);
     lib2.getSourceTarget().sourceDirsRE("lib2/private", ".*cpp").publicIncludes("lib2/public");
 
-    DSC<CppSourceTarget> &lib1 = debug.getCppStaticDSC("lib1").publicLibraries(&lib2);
+    DSC<CppSourceTarget> &lib1 = debug.getCppStaticDSC("lib1").publicDeps(lib2);
     lib1.getSourceTarget().sourceDirsRE("lib1/private", ".*cpp").publicIncludes("lib1/public");
 
-    debug.getCppExeDSC("app").privateLibraries(&lib1).getSourceTarget().sourceFiles("main.cpp");
+    debug.getCppExeDSC("app").privateDeps(lib1).getSourceTarget().sourceFiles("main.cpp");
 }
 
 void buildSpecification()

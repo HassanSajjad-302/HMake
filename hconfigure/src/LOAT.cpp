@@ -675,7 +675,8 @@ string LOAT::getLinkOrArchiveCommandPrint()
                 {
                     linkOrArchiveCommandPrint +=
                         getLibraryDirectoryFlag() +
-                        getReducedPath(libDirNode.node->filePath, lcpSettings.libraryDirs) + " ";
+                                                 getReducedPath(libDirNode.node->filePath, lcpSettings.libraryDirs) +
+                                                 " ";
                 }
             }
         }

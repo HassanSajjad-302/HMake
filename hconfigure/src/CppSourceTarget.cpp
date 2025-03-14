@@ -1334,17 +1334,17 @@ template <> DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PLOAT *ploat_, const
     }
 }
 
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget *ptr)
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget &ptr)
 {
     if (!stored)
     {
         stored = static_cast<CppSourceTarget *>(objectFileProducer);
     }
-    objectFileProducer = ptr;
+    objectFileProducer = &ptr;
     return *this;
 }
 
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget *ptr)
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget &ptr)
 {
     save(ptr);
 
@@ -1356,26 +1356,26 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSource
         {
             if (modulesConfigCache[i + 1].GetBool())
             {
-                ptr->moduleFiles(Node::getNodeFromValue(modulesConfigCache[i], true)->filePath);
+                ptr.moduleFiles(Node::getNodeFromValue(modulesConfigCache[i], true)->filePath);
             }
         }
     }
 
     for (auto &[inclNode, cppSourceTarget] : stored->reqHuDirs)
     {
-        actuallyAddInclude(ptr->reqHuDirs, ptr, inclNode.node->filePath, inclNode.isStandard,
+        actuallyAddInclude(ptr.reqHuDirs, &ptr, inclNode.node->filePath, inclNode.isStandard,
                            inclNode.ignoreHeaderDeps);
     }
     for (auto &[inclNode, cppSourceTarget] : stored->useReqHuDirs)
     {
-        actuallyAddInclude(ptr->useReqHuDirs, ptr, inclNode.node->filePath, inclNode.isStandard,
+        actuallyAddInclude(ptr.useReqHuDirs, &ptr, inclNode.node->filePath, inclNode.isStandard,
                            inclNode.ignoreHeaderDeps);
     }
-    ptr->reqCompileDefinitions = stored->reqCompileDefinitions;
-    ptr->reqIncls = stored->reqIncls;
+    ptr.reqCompileDefinitions = stored->reqCompileDefinitions;
+    ptr.reqIncls = stored->reqIncls;
 
-    ptr->useReqCompileDefinitions = stored->useReqCompileDefinitions;
-    ptr->useReqIncls = stored->useReqIncls;
+    ptr.useReqCompileDefinitions = stored->useReqCompileDefinitions;
+    ptr.useReqIncls = stored->useReqIncls;
     return *this;
 }
 

@@ -61,8 +61,7 @@ void ExamplesTestHelper::runCommandAndGetOutput(const string &command, string &o
     output = outputStream.str();
 }
 
-void ExamplesTestHelper::runCommandAndGetOutputInDirectory(const string &dir, const string &command,
-                                                           string &output)
+void ExamplesTestHelper::runCommandAndGetOutputInDirectory(const string &dir, const string &command, string &output)
 {
     const path p = current_path();
     current_path(dir);

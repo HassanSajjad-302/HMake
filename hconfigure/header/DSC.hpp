@@ -24,13 +24,13 @@ template <typename T> struct DSC : DSCFeatures
     PrebuiltDep prebuiltDepLocal;
 
     template <typename U, typename... V>
-    void assignLOATLib(Dependency dependency, DSC<U> *controller, PrebuiltDep prebuiltDep, V... args);
+    void assignLOATDep(DepType depType, DSC<U> &dsc, PrebuiltDep prebuiltDep, V... args);
 
-    template <typename U> void assignObjectFileProducerDeps(Dependency dependency, DSC<U> *controller);
+    template <typename U> void assignObjectFileProducerDeps(DepType depType, DSC<U> &dsc);
 
-    template <typename U, typename... V> void assignLOATLib(Dependency dependency, DSC<U> *controller, V... args);
-    DSC &save(CppSourceTarget *ptr);
-    DSC &saveAndReplace(CppSourceTarget *ptr);
+    template <typename U, typename... V> void assignLOATDep(DepType depType, DSC<U> &dsc, V... args);
+    DSC &save(CppSourceTarget &ptr);
+    DSC &saveAndReplace(CppSourceTarget &ptr);
     DSC &restore();
 
     string define;
@@ -59,49 +59,45 @@ template <typename T> struct DSC : DSCFeatures
         }
     }
 
-    template <typename U, typename... V> DSC &publicLibraries(DSC<U> *controller, const V... libraries)
+    template <typename U, typename... V> DSC &publicDeps(DSC<U> &dsc, const V... dscs)
     {
-        assignLOATLib(Dependency::PUBLIC, controller, libraries...);
+        assignLOATDep(DepType::PUBLIC, dsc, dscs...);
         return *this;
     }
 
-    template <typename U, typename... V> DSC &privateLibraries(DSC<U> *controller, const V... libraries)
+    template <typename U, typename... V> DSC &privateDeps(DSC<U> &dsc, const V... dscs)
     {
-        assignLOATLib(Dependency::PRIVATE, controller, libraries...);
+        assignLOATDep(DepType::PRIVATE, dsc, dscs...);
         return *this;
     }
 
-    template <typename U, typename... V> DSC &INTERFACE_LIBRARIES(DSC<U> *controller, const V... libraries)
+    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &dsc, const V... dscs)
     {
-        assignLOATLib(Dependency::INTERFACE, controller, libraries...);
+        assignLOATDep(DepType::INTERFACE, dsc, dscs...);
         return *this;
     }
 
-    template <typename U, typename... V>
-    DSC &publicLibraries(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
+    template <typename U, typename... V> DSC &publicDeps(DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs)
     {
-        assignLOATLib(Dependency::PUBLIC, controller, std::move(prebuiltDep), libraries...);
+        assignLOATDep(DepType::PUBLIC, dsc, std::move(prebuiltDep), dscs...);
         return *this;
     }
 
-    template <typename U, typename... V>
-    DSC &privateLibraries(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
+    template <typename U, typename... V> DSC &privateDeps(DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs)
     {
-        assignLOATLib(Dependency::PRIVATE, controller, std::move(prebuiltDep), libraries...);
+        assignLOATDep(DepType::PRIVATE, dsc, std::move(prebuiltDep), dscs...);
         return *this;
     }
 
-    template <typename U, typename... V>
-    DSC &INTERFACE_LIBRARIES(DSC<U> *controller, PrebuiltDep prebuiltDep, const V... libraries)
+    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs)
     {
-        assignLOATLib(Dependency::INTERFACE, controller, std::move(prebuiltDep), libraries...);
+        assignLOATDep(DepType::INTERFACE, dsc, std::move(prebuiltDep), dscs...);
         return *this;
     }
 
     T &getSourceTarget();
     T *getSourceTargetPointer();
-    PLOAT &getPLOATTarget();
-    PLOAT &getPLOAT();
+    PLOAT &getPLOAT() const;
     LOAT &getLOAT();
 };
 
@@ -110,20 +106,18 @@ template <typename T> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
     return std::tie(lhs.objectFileProducer, lhs.ploat) < std::tie(rhs.objectFileProducer, rhs.ploat);
 }
 
-template <typename T>
-template <typename U>
-void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *controller)
+template <typename T> template <typename U> void DSC<T>::assignObjectFileProducerDeps(DepType depType, DSC<U> &dsc)
 {
-    objectFileProducer->deps(controller->getSourceTargetPointer(), dependency);
+    objectFileProducer->deps(dsc.getSourceTarget(), depType);
 
-    if (controller->defineDllInterface == DefineDLLInterface::YES)
+    if (dsc.defineDllInterface == DefineDLLInterface::YES)
     {
         T *ptr = static_cast<T *>(objectFileProducer);
 
         Define define;
-        define.name = controller->define;
+        define.name = dsc.define;
 
-        if (controller->ploat->evaluate(TargetType::LIBRARY_SHARED))
+        if (dsc.ploat->evaluate(TargetType::LIBRARY_SHARED))
         {
             if (ptr->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
             {
@@ -131,12 +125,12 @@ void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *control
             }
         }
 
-        if (dependency == Dependency::PUBLIC)
+        if (depType == DepType::PUBLIC)
         {
             ptr->reqCompileDefinitions.emplace(define);
             ptr->useReqCompileDefinitions.emplace(define);
         }
-        else if (dependency == Dependency::PRIVATE)
+        else if (depType == DepType::PRIVATE)
         {
             ptr->reqCompileDefinitions.emplace(define);
         }
@@ -149,37 +143,37 @@ void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *control
 
 template <typename T>
 template <typename U, typename... V>
-void DSC<T>::assignLOATLib(Dependency dependency, DSC<U> *controller, PrebuiltDep prebuiltDep, V... args)
+void DSC<T>::assignLOATDep(DepType depType, DSC<U> &dsc, PrebuiltDep prebuiltDep, V... args)
 {
-    if (ploat->linkTargetType != TargetType::LIBRARY_SHARED && dependency == Dependency::PRIVATE)
+    if (ploat->linkTargetType != TargetType::LIBRARY_SHARED && depType == DepType::PRIVATE)
     {
         // A static library or object library can't have Dependency::PRIVATE deps, it can only have
         // Dependency::INTERFACE. But, the following publicDeps is done for correct-ordering when static-libs are
         // finally supplied to dynamic-lib or exe. Static library ignores the deps.
-        ploat->publicDeps(controller->ploat, std::move(prebuiltDep));
+        ploat->publicDeps(dsc.getPLOAT(), std::move(prebuiltDep));
     }
     else
     {
-        ploat->deps(controller->ploat, dependency, std::move(prebuiltDep));
+        ploat->deps(depType, dsc.getPLOAT(), std::move(prebuiltDep));
     }
 
-    assignObjectFileProducerDeps(dependency, controller);
+    assignObjectFileProducerDeps(depType, dsc);
 
     if constexpr (sizeof...(args))
     {
-        return assignLOATLib(dependency, args...);
+        return assignLOATDep(depType, args...);
     }
 }
 
 template <typename T>
 template <typename U, typename... V>
-void DSC<T>::assignLOATLib(Dependency dependency, DSC<U> *controller, V... args)
+void DSC<T>::assignLOATDep(DepType depType, DSC<U> &dsc, V... args)
 {
-    assignLOATLib(dependency, controller, prebuiltDepLocal);
+    assignLOATDep(depType, dsc, prebuiltDepLocal);
 
     if constexpr (sizeof...(args))
     {
-        return assignLOATLib(dependency, args...);
+        return assignLOATDep(depType, args...);
     }
 }
 
@@ -193,14 +187,9 @@ template <typename T> T *DSC<T>::getSourceTargetPointer()
     return static_cast<T *>(objectFileProducer);
 }
 
-template <typename T> PLOAT &DSC<T>::getPLOATTarget()
+template <typename T> PLOAT &DSC<T>::getPLOAT() const
 {
     return *ploat;
-}
-
-template <typename T> PLOAT &DSC<T>::getPLOAT()
-{
-    return static_cast<PLOAT &>(*ploat);
 }
 
 template <typename T> LOAT &DSC<T>::getLOAT()

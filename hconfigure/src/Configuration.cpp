@@ -193,15 +193,6 @@ PLOAT &Configuration::getSharedPLOAT(const string &name_,
     return loat;
 }
 
-/*
-CSourceTarget &Configuration::GetCPT()
-{
-    CSourceTarget &cpt = const_cast<CSourceTarget &>(targets<CSourceTarget>.emplace().first.operator*());
-    prebuiltTargets.emplace_back(&cpt);
-    return cpt;
-}
-*/
-
 CppSourceTarget &Configuration::addStdCppDep(CppSourceTarget &target)
 {
     if (evaluate(AssignStandardCppTarget::YES) && stdCppTarget)
@@ -211,11 +202,11 @@ CppSourceTarget &Configuration::addStdCppDep(CppSourceTarget &target)
     return target;
 }
 
-DSC<CppSourceTarget> &Configuration::addStdDSCCppDep(DSC<CppSourceTarget> &target)
+DSC<CppSourceTarget> &Configuration::addStdDSCCppDep(DSC<CppSourceTarget> &target) const
 {
     if (evaluate(AssignStandardCppTarget::YES) && stdCppTarget)
     {
-        target.privateLibraries(stdCppTarget);
+        target.privateDeps(*stdCppTarget);
     }
     return target;
 }
@@ -445,15 +436,6 @@ PLOAT &Configuration::getSharedPLOATNoName(const string &name_,
     ploats.emplace_back(&loat);
     return loat;
 }
-
-/*
-CSourceTarget &Configuration::GetCPT()
-{
-    CSourceTarget &cpt = const_cast<CSourceTarget &>(targets<CSourceTarget>.emplace().first.operator*());
-    prebuiltTargets.emplace_back(&cpt);
-    return cpt;
-}
-*/
 
 DSC<CppSourceTarget> &Configuration::getCppExeDSCNoName(const string &name_, const bool defines, string define)
 {

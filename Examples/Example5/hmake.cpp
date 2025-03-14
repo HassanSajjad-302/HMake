@@ -5,8 +5,8 @@ void buildSpecification()
     DSC<CppSourceTarget> &catShared = getCppSharedDSC("Cat", true);
     catShared.getSourceTarget().sourceFiles("../Example4/Cat/src/Cat.cpp").publicIncludes("../Example4/Cat/header");
 
-    DSC<CppSourceTarget> &animalShared = getCppExeDSC("Animal").privateLibraries(
-        &catShared, PrebuiltDep{.reqRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false});
+    DSC<CppSourceTarget> &animalShared = getCppExeDSC("Animal").privateDeps(
+        catShared, PrebuiltDep{.reqRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false});
     animalShared.getSourceTarget().sourceFiles("../Example4/main.cpp");
 
     getRoundZeroUpdateBTarget(

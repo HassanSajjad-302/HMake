@@ -106,7 +106,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
             else
             {
                 DSC<CppSourceTarget> &uintTest =
-                    configuration->getCppExeDSCNoName(explicitBuild, "", unitTestName).privateLibraries(&mainTarget);
+                    configuration->getCppExeDSCNoName(explicitBuild, "", unitTestName).privateDeps(mainTarget);
                 examplesOrTests.emplace_back(BoostTestTargetType{.dscTarget = &uintTest}, boostExampleOrTest);
                 if (isExample)
                 {

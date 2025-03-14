@@ -2,7 +2,7 @@
 #ifndef HMAKE_DEPENDENCY_HPP
 #define HMAKE_DEPENDENCY_HPP
 
-enum class Dependency : char
+enum class DepType : char
 {
     PUBLIC,
     PRIVATE,

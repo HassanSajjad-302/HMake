@@ -1,9 +1,9 @@
 #ifndef HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
 #define HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
 #ifdef USE_HEADER_UNITS
-import "Dependency.hpp";
+import "DepType.hpp";
 #else
-#include "Dependency.hpp"
+#include "DepType.hpp"
 #endif
 
 // TODO
@@ -24,34 +24,34 @@ template <typename U> class FeatureConvenienceFunctions
   protected:
     // var left = right;
     // Only last property will be assigned. Others aren't considered.
-    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
+    template <DepType dependency = DepType::PRIVATE, typename T, typename... Condition>
     void RIGHT_MOST(T condition, Condition... conditions);
 
   public:
     // Properties are assigned if assign bool is true.
-    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
+    template <DepType dependency = DepType::PRIVATE, typename T, typename... Condition>
     U &assign(bool assign, T property, Condition... conditions);
 #define assign_I assign<Dependency::INTERFACE>
     template <typename T, typename... Condition> bool AND(T condition, Condition... conditions) const;
     template <typename T, typename... Condition> bool OR(T condition, Condition... conditions) const;
 
     // Multiple properties on left which are anded and after that right's assignment occurs.
-    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
+    template <DepType dependency = DepType::PRIVATE, typename T, typename... Condition>
     U &M_LEFT_AND(T condition, Condition... conditions);
 #define M_LEFT_AND_I M_LEFT_AND<Dependency::INTERFACE>
 
     // Single Condition and Property. M_LEFT_AND or M_LEFT_OR could be used too, but, that's more clear
-    template <Dependency dependency = Dependency::PRIVATE, typename T, typename P> U &SINGLE(T condition, P property);
+    template <DepType dependency = DepType::PRIVATE, typename T, typename P> U &SINGLE(T condition, P property);
 #define SINGLE_I SINGLE<Dependency::INTERFACE>
 
     // Multiple properties on left which are orred and after that right's assignment occurs.
-    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
+    template <DepType dependency = DepType::PRIVATE, typename T, typename... Condition>
     U &M_LEFT_OR(T condition, Condition... conditions);
 #define M_LEFT_OR_I M_LEFT_OR<Dependency::INTERFACE>
 
     // Incomplete
     // If first left succeeds then, Multiple properties of the right are assigned to the target.
-    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Condition>
+    template <DepType dependency = DepType::PRIVATE, typename T, typename... Condition>
     U &M_RIGHT(T condition, Condition... conditions);
 #define M_RIGHT_I M_RIGHT<Dependency::INTERFACE>
 };
@@ -93,7 +93,7 @@ string FeatureConvenienceFunctions<U>::GET_CUMULATED_FLAG_evaluate(T condition, 
 }
 
 template <typename U>
-template <Dependency dependency, typename T, typename... Condition>
+template <DepType dependency, typename T, typename... Condition>
 void FeatureConvenienceFunctions<U>::RIGHT_MOST(T condition, Condition... conditions)
 {
     if constexpr (sizeof...(conditions))
@@ -107,7 +107,7 @@ void FeatureConvenienceFunctions<U>::RIGHT_MOST(T condition, Condition... condit
 }
 
 template <typename U>
-template <Dependency dependency, typename T, typename... Condition>
+template <DepType dependency, typename T, typename... Condition>
 U &FeatureConvenienceFunctions<U>::assign(bool assign, T property, Condition... conditions)
 {
     return assign ? static_cast<U &>(*this).assign(property, conditions...) : static_cast<U &>(*this);
@@ -150,7 +150,7 @@ bool FeatureConvenienceFunctions<U>::OR(T condition, Condition... conditions) co
 }
 
 template <typename U>
-template <Dependency dependency, typename T, typename... Condition>
+template <DepType dependency, typename T, typename... Condition>
 U &FeatureConvenienceFunctions<U>::M_LEFT_AND(T condition, Condition... conditions)
 {
     if constexpr (sizeof...(conditions))
@@ -165,7 +165,7 @@ U &FeatureConvenienceFunctions<U>::M_LEFT_AND(T condition, Condition... conditio
 }
 
 template <typename U>
-template <Dependency dependency, typename T, typename P>
+template <DepType dependency, typename T, typename P>
 U &FeatureConvenienceFunctions<U>::SINGLE(T condition, P property)
 {
     if (static_cast<U &>(*this).evaluate(condition))
@@ -176,7 +176,7 @@ U &FeatureConvenienceFunctions<U>::SINGLE(T condition, P property)
 }
 
 template <typename U>
-template <Dependency dependency, typename T, typename... Condition>
+template <DepType dependency, typename T, typename... Condition>
 U &FeatureConvenienceFunctions<U>::M_LEFT_OR(T condition, Condition... conditions)
 {
     if constexpr (sizeof...(conditions))
@@ -195,7 +195,7 @@ U &FeatureConvenienceFunctions<U>::M_LEFT_OR(T condition, Condition... condition
 }
 
 template <typename U>
-template <Dependency dependency, typename T, typename... Condition>
+template <DepType dependency, typename T, typename... Condition>
 U &FeatureConvenienceFunctions<U>::M_RIGHT(T condition, Condition... conditions)
 {
     if (static_cast<U &>(*this).evaluate(condition))

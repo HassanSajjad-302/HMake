@@ -86,7 +86,6 @@ class Configuration : public BTarget
     vector<CppSourceTarget *> cppSourceTargets;
     vector<LOAT *> loats;
     vector<PLOAT *> ploats;
-    vector<CSourceTarget *> prebuiltTargets;
     CppCompilerFeatures compilerFeatures;
     CompilerFlags compilerFlags;
     PrebuiltLinkerFeatures ploatFeatures;
@@ -122,7 +121,7 @@ class Configuration : public BTarget
     PLOAT &getStaticPLOAT(const string &name_, const string &dir);
     PLOAT &getSharedPLOAT(const string &name_, const string &dir);
     CppSourceTarget &addStdCppDep(CppSourceTarget &target);
-    DSC<CppSourceTarget> &addStdDSCCppDep(DSC<CppSourceTarget> &target);
+    DSC<CppSourceTarget> &addStdDSCCppDep(DSC<CppSourceTarget> &target) const;
 
     // CSourceTarget &GetCPT();
 

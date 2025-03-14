@@ -18,10 +18,10 @@ void configurationSpecification(Configuration &config)
 {
     config.stdCppTarget->getSourceTarget().interfaceIncludes("include");
     DSC<CppSourceTarget> &lib4 = config.getCppTargetDSC("lib4");
-    DSC<CppSourceTarget> &lib3 = config.getCppTargetDSC("lib3").publicLibraries(&lib4);
-    DSC<CppSourceTarget> &lib2 = config.getCppTargetDSC("lib2").privateLibraries(&lib3);
-    DSC<CppSourceTarget> &lib1 = config.getCppTargetDSC("lib1").publicLibraries(&lib2);
-    DSC<CppSourceTarget> &app = config.getCppExeDSC("app").privateLibraries(&lib1);
+    DSC<CppSourceTarget> &lib3 = config.getCppTargetDSC("lib3").publicDeps(lib4);
+    DSC<CppSourceTarget> &lib2 = config.getCppTargetDSC("lib2").privateDeps(lib3);
+    DSC<CppSourceTarget> &lib1 = config.getCppTargetDSC("lib1").publicDeps(lib2);
+    DSC<CppSourceTarget> &app = config.getCppExeDSC("app").privateDeps(lib1);
 
     initializeTargets(&lib1, &lib2, &lib3, &lib4, &app);
 }

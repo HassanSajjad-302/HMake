@@ -181,7 +181,7 @@ class CppSourceTarget : public CSourceTarget
     template <typename... U> CppSourceTarget &privateDeps(CppSourceTarget *dep, const U... deps);
     template <typename... U> CppSourceTarget &interfaceDeps(CppSourceTarget *dep, const U... deps);
 
-    template <typename... U> CppSourceTarget &deps(CppSourceTarget *dep, Dependency dependency, const U... deps);
+    template <typename... U> CppSourceTarget &deps(CppSourceTarget *dep, DepType dependency, const U... deps);
 
     // TODO
     // Also provide function overload for functions like publicIncludes here and in CPT
@@ -219,7 +219,7 @@ class CppSourceTarget : public CSourceTarget
     template <typename... U>
     CppSourceTarget &rModuleDirsRE(const string &moduleDirectory, const string &regex, U... dirs);
     //
-    template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
+    template <DepType dependency = DepType::PRIVATE, typename T, typename... Property>
     CppSourceTarget &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
     template <typename T, typename... Argument>
@@ -263,15 +263,15 @@ template <typename... U> CppSourceTarget &CppSourceTarget::interfaceDeps(CppSour
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const Dependency dependency, const U... deps)
+CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const DepType dependency, const U... deps)
 {
-    if (dependency == Dependency::PUBLIC)
+    if (dependency == DepType::PUBLIC)
     {
         reqDeps.emplace(dep);
         useReqDeps.emplace(dep);
         addDependency<2>(*dep);
     }
-    else if (dependency == Dependency::PRIVATE)
+    else if (dependency == DepType::PRIVATE)
     {
         reqDeps.emplace(dep);
         addDependency<2>(*dep);
@@ -660,16 +660,16 @@ CppSourceTarget &CppSourceTarget::rModuleDirsRE(const string &moduleDirectory, c
     return *this;
 }
 
-template <Dependency dependency, typename T, typename... Property>
+template <DepType dependency, typename T, typename... Property>
 CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
 {
     if constexpr (std::is_same_v<decltype(property), CxxFlags>)
     {
-        if constexpr (dependency == Dependency::PRIVATE)
+        if constexpr (dependency == DepType::PRIVATE)
         {
             reqCompilerFlags += property;
         }
-        else if constexpr (dependency == Dependency::INTERFACE)
+        else if constexpr (dependency == DepType::INTERFACE)
         {
             useReqCompilerFlags += property;
         }
@@ -681,11 +681,11 @@ CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
     }
     else if constexpr (std::is_same_v<decltype(property), Define>)
     {
-        if constexpr (dependency == Dependency::PRIVATE)
+        if constexpr (dependency == DepType::PRIVATE)
         {
             reqCompileDefinitions.emplace(property);
         }
-        else if constexpr (dependency == Dependency::INTERFACE)
+        else if constexpr (dependency == DepType::INTERFACE)
         {
             useReqCompileDefinitions.emplace(property);
         }
@@ -739,8 +739,8 @@ template <>
 DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PLOAT *ploat_, bool defines,
                           string define_);
 
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget *ptr);
-template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget *ptr);
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget &ptr);
+template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget &ptr);
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::restore();
 
 #endif // HMAKE_CPPSOURCETARGET_HPP
