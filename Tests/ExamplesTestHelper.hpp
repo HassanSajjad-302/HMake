@@ -17,7 +17,7 @@ struct ExamplesTestHelper
     static void runAppWithExpectedOutput(const string &appName, const string &expectedOutput);
     static void recreateBuildDirAndGethbuildOutput(string &output, int32_t exitStatus);
     static void runCommandAndGetOutput(const string &command, string &output);
-    static void runCommandAndGetOutputInDirectory(const string &directory, const string &command, string &output);
+    static void runCommandAndGetOutputInDirectory(const string &dir, const string &command, string &output);
     static void recreateBuildDir();
 };
 

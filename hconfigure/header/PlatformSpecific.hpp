@@ -74,8 +74,8 @@ constexpr static unsigned buildCacheFilesDirPath = 8;
 namespace LinkConfig
 {
 constexpr static unsigned name = 0;
-constexpr static unsigned reqLibraryDirectoriesArray = 1;
-constexpr static unsigned useReqLibraryDirectoriesArray = 2;
+constexpr static unsigned reqLibraryDirsArray = 1;
+constexpr static unsigned useReqLibraryDirsArray = 2;
 constexpr static unsigned outputFileNode = 3;
 constexpr static unsigned buildCacheFilesDirPath = 4;
 

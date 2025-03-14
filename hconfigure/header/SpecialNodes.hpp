@@ -24,7 +24,7 @@ class LibDirNode
 class InclNode : public LibDirNode
 {
   public:
-    // Used with includeDirectories to specify whether to ignore include-files from these directories from being stored
+    // Used with includeDirs to specify whether to ignore include-files from these dirs from being stored
     // in target-cache file
     bool ignoreHeaderDeps = false;
     explicit InclNode(Node *node_, bool isStandard_ = false, bool ignoreHeaderDeps_ = false);

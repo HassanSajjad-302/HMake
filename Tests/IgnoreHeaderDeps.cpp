@@ -15,7 +15,7 @@
 
 
 
-//This should test whether InclNode::ignoreHeaderDeps works or not for the include directories.
+//This should test whether InclNode::ignoreHeaderDeps works or not for the include dirs.
 // What does this mean in the context of header-units and whether it works in that context as-well.
 
 TEST(IgnoreHeaderDeps, Test1)

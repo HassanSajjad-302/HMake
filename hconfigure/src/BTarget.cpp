@@ -270,7 +270,7 @@ bool operator<(const BTarget &lhs, const BTarget &rhs)
     return lhs.id < rhs.id;
 }
 
-// selectiveBuild is set for the children if hbuild is executed in parent directory. selectiveBuild is set for all
+// selectiveBuild is set for the children if hbuild is executed in parent dir. selectiveBuild is set for all
 // targets that are present in cmdTargets. if a target explicitBuild is true, then it must be present in cmdTargets for
 // its selectiveBuild to be true.
 void BTarget::setSelectiveBuild()
@@ -324,7 +324,7 @@ void BTarget::setSelectiveBuild()
     }
 }
 
-// Returns true if hbuild is executed in the same directory or the child directory. Used in hmake.cpp to rule out other
+// Returns true if hbuild is executed in the same dir or the child dir. Used in hmake.cpp to rule out other
 // configurations specifications
 bool BTarget::isHBuildInSameOrChildDirectory() const
 {

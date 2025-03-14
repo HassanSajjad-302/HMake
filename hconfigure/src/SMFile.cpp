@@ -235,7 +235,7 @@ bool pathContainsFile(string_view dir, const string_view file)
     }
 
     // This stops checking when it reaches dir.end(), so it's OK if file
-    // has more directory components afterward. They won't be checked.
+    // has more dir components afterward. They won't be checked.
     return std::equal(dir.begin(), dir.end(), withoutFileName.begin());
 }
 
@@ -684,8 +684,8 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
 
     path a("dsd");
     path b = a.lexically_normal();
-    // Iterating over all header-unit-directories of the target to find out which header-unit directory this header-unit
-    // comes from and which target that header-unit-directory belongs to if any
+    // Iterating over all header-unit-dirs of the target to find out which header-unit dir this header-unit
+    // comes from and which target that header-unit-dir belongs to if any
     for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
     {
         if (pathContainsFile(inclNode.node->filePath, headerUnitNode->filePath))

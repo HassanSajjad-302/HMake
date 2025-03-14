@@ -117,10 +117,10 @@ class Configuration : public BTarget
     LOAT &getSharedLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                       const string &name_);
 
-    PLOAT &getPLOAT(const string &name_, const string &directory,
+    PLOAT &getPLOAT(const string &name_, const string &dir,
                                                                 TargetType linkTargetType_);
-    PLOAT &getStaticPLOAT(const string &name_, const string &directory);
-    PLOAT &getSharedPLOAT(const string &name_, const string &directory);
+    PLOAT &getStaticPLOAT(const string &name_, const string &dir);
+    PLOAT &getSharedPLOAT(const string &name_, const string &dir);
     CppSourceTarget &addStdCppDep(CppSourceTarget &target);
     DSC<CppSourceTarget> &addStdDSCCppDep(DSC<CppSourceTarget> &target);
 
@@ -141,14 +141,14 @@ class Configuration : public BTarget
 
     // _P means it will use PLOAT instead of LOAT
 
-    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &directory, bool defines = false,
+    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &dir, bool defines = false,
                                             string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &prebuiltName, const string &directory,
+    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &prebuiltName, const string &dir,
                                             bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppStaticDSC_P(const string &name_, const string &directory, bool defines = false,
+    DSC<CppSourceTarget> &getCppStaticDSC_P(const string &name_, const string &dir, bool defines = false,
                                             string define = "");
 
-    DSC<CppSourceTarget> &getCppSharedDSC_P(const string &name_, const string &directory, bool defines = false,
+    DSC<CppSourceTarget> &getCppSharedDSC_P(const string &name_, const string &dir, bool defines = false,
                                             string define = "");
 
     // These NoName functions do not prepend configuration name to the target name.
@@ -169,12 +169,12 @@ class Configuration : public BTarget
     LOAT &getSharedLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                             const string &name_);
 
-    PLOAT &getPLOATNoName(const string &name_, const string &directory,
+    PLOAT &getPLOATNoName(const string &name_, const string &dir,
                                                                       TargetType linkTargetType_);
     PLOAT &getStaticPLOATNoName(const string &name_,
-                                                                            const string &directory);
+                                                                            const string &dir);
     PLOAT &getSharedPLOATNoName(const string &name_,
-                                                                            const string &directory);
+                                                                            const string &dir);
     // CSourceTarget &GetCPTNoName();
 
     DSC<CppSourceTarget> &getCppExeDSCNoName(const string &name_, bool defines = false, string define = "");
@@ -192,14 +192,14 @@ class Configuration : public BTarget
 
     // _P means it will use PLOAT instead of LOAT
 
-    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &directory, bool defines = false,
+    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &dir, bool defines = false,
                                                   string define = "");
     DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName,
-                                                  const string &directory, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppStaticDSC_PNoName(const string &name_, const string &directory, bool defines = false,
+                                                  const string &dir, bool defines = false, string define = "");
+    DSC<CppSourceTarget> &getCppStaticDSC_PNoName(const string &name_, const string &dir, bool defines = false,
                                                   string define = "");
 
-    DSC<CppSourceTarget> &getCppSharedDSC_PNoName(const string &name_, const string &directory, bool defines = false,
+    DSC<CppSourceTarget> &getCppSharedDSC_PNoName(const string &name_, const string &dir, bool defines = false,
                                                   string define = "");
 
     explicit Configuration(const string &name_);

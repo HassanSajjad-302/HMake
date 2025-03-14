@@ -57,7 +57,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
         }
         else
         {
-            throw std::exception("cache.json could not be found in current directory and directories above\n");
+            throw std::exception("cache.json could not be found in current dir and dirs above\n");
         }
     }
     else

@@ -319,7 +319,7 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
             if (!mayNotExist || entry.status().type() != file_type::not_found)
             {
                 printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath,
-                                         isFile ? "regular" : "directory", getStatusPString(filePath)));
+                                         isFile ? "regular" : "dir", getStatusPString(filePath)));
                 throw std::exception();
             }
             doesNotExist = true;
@@ -341,7 +341,7 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
         {
             printErrorMessage(FORMAT("FindFirstFileEx failed {}\n", GetLastError()));
             printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath,
-                                          isFile ? "regular" : "directory", getStatusPString(filePath)));
+                                          isFile ? "regular" : "dir", getStatusPString(filePath)));
             throw std::exception();
         }
     }
@@ -364,7 +364,7 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
         {
             printErrorMessage(FORMAT("FindFirstFileEx failed {}\n", GetLastError()));
             printErrorMessage(
-                FORMAT("{} is not a directory file. File Type is {}\n", filePath, getStatusPString(filePath)));
+                FORMAT("{} is not a dir file. File Type is {}\n", filePath, getStatusPString(filePath)));
             throw std::exception();
         }
     }

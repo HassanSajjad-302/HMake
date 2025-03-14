@@ -44,7 +44,7 @@ void buildSpecification()
     // Please notice that saveAndReplace() function stores the older pointer in that respective DSC and populates the
     // module files of the newer target with only the interface-file of the  older target. This means that cat.ixx and
     // cat.hpp will be compiled in cat1-cpp but not cat.cpp. saveAndReplace also copies other properties such as
-    // compiler-definitions and include-directories. It, however, does not copy the compiler-flags. It also does not
+    // compiler-definitions and include-dirs. It, however, does not copy the compiler-flags. It also does not
     // copy the build-system features such as CxxStd. The reason is that such feature values can result to bmi sensitive
     // values to the compile-command.
 }

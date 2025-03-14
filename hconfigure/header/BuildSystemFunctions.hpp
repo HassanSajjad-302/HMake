@@ -41,10 +41,10 @@ inline std::atomic<uint64_t> roundEndTargetsCount = 0;
 
 inline auto &ralloc = buildCache.GetAllocator();
 
-// Node representing source directory
+// Node representing source dir
 inline class Node *srcNode;
 
-// Node representing configure directory
+// Node representing configure dir
 inline Node *configureNode;
 
 inline Node *currentNode;

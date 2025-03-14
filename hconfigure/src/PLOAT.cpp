@@ -40,14 +40,14 @@ string_view PLOAT::getOutputDirectoryV() const
 }
 
 #ifdef BUILD_MODE
-PLOAT::PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_)
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_), linkTargetType{linkTargetType_}
 {
     outputFileNode =
         Node::getNotSystemCheckCalledNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
 }
 
-PLOAT::PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_,
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_,
              string name_, bool buildExplicit, bool makeDirectory)
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), linkTargetType(linkTargetType_)
 
@@ -58,17 +58,17 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, string directory
 
 #else
 
-PLOAT::PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_)
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_),
       outputName{getLastNameAfterSlash(outputName_)}, linkTargetType{linkTargetType_},
-      outputDirectory(std::move(directory))
+      outputDirectory(std::move(dir))
 {
 }
 
-PLOAT::PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_,
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_,
              string name_, bool buildExplicit, bool makeDirectory)
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), outputName(outputName_),
-      linkTargetType(linkTargetType_), outputDirectory(std::move(directory))
+      linkTargetType(linkTargetType_), outputDirectory(std::move(dir))
 
 {
 }
@@ -104,7 +104,7 @@ void PLOAT::updateBTarget(Builder &builder, unsigned short round)
                 // User won't have the ability to setOutputName or setOutputDirectory. Should be achieved in the
                 // constructor.
 
-                // throw std::exception(FORMAT("Output directory {} for LinkTarget {} does not exists.",
+                // throw std::exception(FORMAT("Output dir {} for LinkTarget {} does not exists.",
                 // outputDirectoryNode->filePath, name));
             }
             outputDirectory = outputDirectoryNode->filePath;
@@ -119,17 +119,17 @@ void PLOAT::updateBTarget(Builder &builder, unsigned short round)
         addReqDepsToBTargetDependencies();
         for (auto &[PLOAT, prebuiltDep] : reqDeps)
         {
-            for (const LibDirNode &libDirNode : PLOAT->useReqLibraryDirectories)
+            for (const LibDirNode &libDirNode : PLOAT->useReqLibraryDirs)
             {
-                reqLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
+                reqLibraryDirs.emplace_back(libDirNode.node, libDirNode.isStandard);
             }
         }
 
         for (auto &[ploat, prebuiltDep] : reqDeps)
         {
-            for (const LibDirNode &libDirNode : ploat->useReqLibraryDirectories)
+            for (const LibDirNode &libDirNode : ploat->useReqLibraryDirs)
             {
-                reqLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
+                reqLibraryDirs.emplace_back(libDirNode.node, libDirNode.isStandard);
             }
         }
     }
@@ -140,21 +140,21 @@ void PLOAT::writeTargetConfigCacheAtConfigureTime()
     namespace LinkConfig = Indices::ConfigCache::LinkConfig;
 
     buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    Value &libDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::reqLibraryDirectoriesArray];
-    libDirectoriesConfigCache.Reserve(reqLibraryDirectories.size(), cacheAlloc);
+    Value &libDirsConfigCache = buildOrConfigCacheCopy[LinkConfig::reqLibraryDirsArray];
+    libDirsConfigCache.Reserve(reqLibraryDirs.size(), cacheAlloc);
 
-    for (const LibDirNode &libDirNode : reqLibraryDirectories)
+    for (const LibDirNode &libDirNode : reqLibraryDirs)
     {
-        libDirectoriesConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
+        libDirsConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
     }
 
     buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    Value &useLibDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::useReqLibraryDirectoriesArray];
-    useLibDirectoriesConfigCache.Reserve(useReqLibraryDirectories.size(), cacheAlloc);
+    Value &useLibDirsConfigCache = buildOrConfigCacheCopy[LinkConfig::useReqLibraryDirsArray];
+    useLibDirsConfigCache.Reserve(useReqLibraryDirs.size(), cacheAlloc);
 
-    for (const LibDirNode &libDirNode : useReqLibraryDirectories)
+    for (const LibDirNode &libDirNode : useReqLibraryDirs)
     {
-        useLibDirectoriesConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
+        useLibDirsConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
     }
 
     buildOrConfigCacheCopy.PushBack(outputFileNode->getValue(), cacheAlloc);
@@ -165,18 +165,18 @@ void PLOAT::readConfigCacheAtBuildTime()
 {
     namespace LinkConfig = Indices::ConfigCache::LinkConfig;
 
-    Value &reqLibDirsConfigCache = getConfigCache()[LinkConfig::reqLibraryDirectoriesArray];
-    reqLibraryDirectories.reserve(reqLibDirsConfigCache.Size());
+    Value &reqLibDirsConfigCache = getConfigCache()[LinkConfig::reqLibraryDirsArray];
+    reqLibraryDirs.reserve(reqLibDirsConfigCache.Size());
     for (const Value &value : reqLibDirsConfigCache.GetArray())
     {
-        reqLibraryDirectories.emplace_back(Node::getNodeFromValue(value, false), true);
+        reqLibraryDirs.emplace_back(Node::getNodeFromValue(value, false), true);
     }
 
-    Value &useReqLibDirsConfigCache = getConfigCache()[LinkConfig::useReqLibraryDirectoriesArray];
-    useReqLibraryDirectories.reserve(useReqLibDirsConfigCache.Size());
+    Value &useReqLibDirsConfigCache = getConfigCache()[LinkConfig::useReqLibraryDirsArray];
+    useReqLibraryDirs.reserve(useReqLibDirsConfigCache.Size());
     for (const Value &value : useReqLibDirsConfigCache.GetArray())
     {
-        useReqLibraryDirectories.emplace_back(Node::getNodeFromValue(value, false), true);
+        useReqLibraryDirs.emplace_back(Node::getNodeFromValue(value, false), true);
     }
 }
 

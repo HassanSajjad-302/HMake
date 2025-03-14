@@ -122,7 +122,7 @@ static void executeErroneousSnapshotBalances(const Updates &updates, const path 
     current_path(p);
 }
 
-// Tests Hello-World and rebuild in different directories on touching file.
+// Tests Hello-World and rebuild in different dirs on touching file.
 TEST(StageTests, Test1)
 {
     const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
@@ -163,13 +163,13 @@ TEST(StageTests, Test1)
     executeSnapshotBalances(Updates{}, "Release/app-cpp/");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Release/app/");
 
-    // Deleting app-cpp directory
+    // Deleting app-cpp dir
     const path appCppDirectory = testSourcePath / "Build/Release/app-cpp/";
     removeDirectory(appCppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
-    // Deleting app-cpp directory but executing hbuild in app
+    // Deleting app-cpp dir but executing hbuild in app
     removeDirectory(appCppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
@@ -223,7 +223,7 @@ static void setupTest2Default()
     }
 }
 
-// Tests Property Transitiviy, rebuild in multiple directories on touching file, source-file inclusion and exclusion,
+// Tests Property Transitiviy, rebuild in multiple dirs on touching file, source-file inclusion and exclusion,
 // header-files exclusion and inclusion, libraries exclusion and inclusion, caching in-case of error in
 // file-compilation.
 
@@ -269,13 +269,13 @@ TEST(StageTests, Test2)
     touchFile(publicLib4DotHpp);
     executeSnapshotBalances(Updates{.sourceFiles = 3, .linkTargetsNoDebug = 3, .linkTargetsDebug = 1});
 
-    // Deleting lib3-cpp directory
+    // Deleting lib3-cpp dir
     path lib3CppDirectory = testSourcePath / "Build/Debug/lib3-cpp/";
     removeDirectory(lib3CppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
-    // Deleting lib4 and lib2-cpp directory
+    // Deleting lib4 and lib2-cpp dir
     path lib4 = testSourcePath / "Build/Debug/lib4/" /
                 path(getActualNameFromTargetName(TargetType::LIBRARY_STATIC, os, "lib4"));
     path lib2CppDirectory = testSourcePath / "Build/Debug/lib2-cpp/";
@@ -315,7 +315,7 @@ TEST(StageTests, Test2)
     touchFile(publicLib1DotHpp);
     executeSnapshotBalances(Updates{.sourceFiles = 2, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
 
-    // Adding public-lib1.hpp contents to main.cpp and lib1.cpp and removing it from directory
+    // Adding public-lib1.hpp contents to main.cpp and lib1.cpp and removing it from dir
     copyFilePath(testSourcePath / "Version/1/main.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/1/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
     removeFilePath(testSourcePath / "lib1/public/public-lib1.hpp");

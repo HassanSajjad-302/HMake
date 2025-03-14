@@ -4,9 +4,9 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> *target, T.
 {
     CppSourceTarget &t = target->getSourceTarget();
     string str = removeDashCppFromName(getLastNameAfterSlash(t.name));
-    t.moduleDirectoriesRE("src/" + str + "/", ".*cpp")
-        .privateHUDirectories("src/" + str)
-        .publicHUDirectories("include/" + str);
+    t.moduleDirsRE("src/" + str + "/", ".*cpp")
+        .privateHUDirs("src/" + str)
+        .publicHUDirs("include/" + str);
 
     if constexpr (sizeof...(targets))
     {

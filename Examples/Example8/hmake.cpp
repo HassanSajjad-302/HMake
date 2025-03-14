@@ -2,7 +2,7 @@
 
 void configurationSpecification(Configuration &config)
 {
-    config.getCppExeDSC("app").getSourceTarget().moduleDirectories("Mod_Src/");
+    config.getCppExeDSC("app").getSourceTarget().moduleDirs("Mod_Src/");
 }
 
 void buildSpecification()

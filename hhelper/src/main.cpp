@@ -210,7 +210,7 @@ int main(int argc, char **argv)
             // hhelper currently only works with MSVC compiler expected in toolsCache vsTools[0]
             auto getCommand = [&](const bool configureExe) {
                 string command = addQuotes(toolsCache.vsTools[0].compiler.bTPath.lexically_normal().string()) + " ";
-                for (const string &str : toolsCache.vsTools[0].includeDirectories)
+                for (const string &str : toolsCache.vsTools[0].includeDirs)
                 {
                     command += "/I " + addQuotes(str) + " ";
                 }
@@ -222,7 +222,7 @@ int main(int argc, char **argv)
                     " /I " + parallelHashMap.string() + " /I " + lz4Header.string() +
                     " /std:c++latest /GL /EHsc /MD /nologo {SOURCE_DIRECTORY}/hmake.cpp /Fo{CONFIGURE_DIRECTORY}/" +
                     (configureExe ? "configure.obj" : "build.obj") + " /link /SUBSYSTEM:CONSOLE /NOLOGO ";
-                for (const string &str : toolsCache.vsTools[0].libraryDirectories)
+                for (const string &str : toolsCache.vsTools[0].libraryDirs)
                 {
                     command += "/LIBPATH:" + addQuotes(str) + " ";
                 }

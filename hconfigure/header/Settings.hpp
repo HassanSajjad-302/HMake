@@ -40,9 +40,9 @@ struct CompileCommandPrintSettings
     bool compilerFlags = true;
     bool compileDefinitions = true;
 
-    PathPrint includeDirectories{
+    PathPrint includeDirs{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
-    PathPrint standardIncludeDirectories{
+    PathPrint standardIncludeDirs{
         .printLevel = PathPrintLevel::NO, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
     bool onlyLogicalNameOfRequireIFC = true;
     PathPrint requireIFCs{
@@ -90,9 +90,9 @@ struct LinkCommandPrintSettings
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
     PathPrint libraryDependencies{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};
-    PathPrint libraryDirectories{
+    PathPrint libraryDirs{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
-    PathPrint standardLibraryDirectories{
+    PathPrint standardLibraryDirs{
         .printLevel = PathPrintLevel::NO, .depth = 3, .addQuotes = false, .isDirectory = true, .isTool = false};
     PathPrint binary{
         .printLevel = PathPrintLevel::HALF, .depth = 3, .addQuotes = false, .isDirectory = false, .isTool = false};

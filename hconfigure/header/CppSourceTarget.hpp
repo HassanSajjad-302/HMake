@@ -191,10 +191,10 @@ class CppSourceTarget : public CSourceTarget
     template <typename... U> CppSourceTarget &publicHUIncludes(const string &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &privateHUIncludes(const string &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &interfaceHUIncludes(const string &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &publicHUDirectories(const string &include, U... includeDirectoryPString);
-    template <typename... U> CppSourceTarget &privateHUDirectories(const string &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &publicHUDirs(const string &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &privateHUDirs(const string &include, U... includeDirectoryPString);
     template <typename... U>
-    CppSourceTarget &interfaceHUDirectories(const string &include, U... includeDirectoryPString);
+    CppSourceTarget &interfaceHUDirs(const string &include, U... includeDirectoryPString);
     CppSourceTarget &publicCompilerFlags(const string &compilerFlags);
     CppSourceTarget &privateCompilerFlags(const string &compilerFlags);
     CppSourceTarget &interfaceCompilerFlags(const string &compilerFlags);
@@ -206,18 +206,18 @@ class CppSourceTarget : public CSourceTarget
     template <typename... U> CppSourceTarget &interfaceFiles(const string &modFile, U... moduleFilePString);
     template <typename... U> CppSourceTarget &headerUnits(const string &headerUnit, U... headerUnitsString);
     void parseRegexSourceDirs(bool assignToSourceNodes, const string &sourceDirectory, string regex, bool recursive);
-    template <typename... U> CppSourceTarget &sourceDirectories(const string &sourceDirectory, U... directories);
-    template <typename... U> CppSourceTarget &moduleDirectories(const string &moduleDirectory, U... directories);
+    template <typename... U> CppSourceTarget &sourceDirs(const string &sourceDirectory, U... dirs);
+    template <typename... U> CppSourceTarget &moduleDirs(const string &moduleDirectory, U... dirs);
     template <typename... U>
-    CppSourceTarget &sourceDirectoriesRE(const string &sourceDirectory, const string &regex, U... directories);
+    CppSourceTarget &sourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs);
     template <typename... U>
-    CppSourceTarget &moduleDirectoriesRE(const string &moduleDirectory, const string &regex, U... directories);
-    template <typename... U> CppSourceTarget &rSourceDirectories(const string &sourceDirectory, U... directories);
-    template <typename... U> CppSourceTarget &rModuleDirectories(const string &moduleDirectory, U... directories);
+    CppSourceTarget &moduleDirsRE(const string &moduleDirectory, const string &regex, U... dirs);
+    template <typename... U> CppSourceTarget &rSourceDirs(const string &sourceDirectory, U... dirs);
+    template <typename... U> CppSourceTarget &rModuleDirs(const string &moduleDirectory, U... dirs);
     template <typename... U>
-    CppSourceTarget &rSourceDirectoriesRE(const string &sourceDirectory, const string &regex, U... directories);
+    CppSourceTarget &rSourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs);
     template <typename... U>
-    CppSourceTarget &rModuleDirectoriesRE(const string &moduleDirectory, const string &regex, U... directories);
+    CppSourceTarget &rModuleDirsRE(const string &moduleDirectory, const string &regex, U... dirs);
     //
     template <Dependency dependency = Dependency::PRIVATE, typename T, typename... Property>
     CppSourceTarget &assign(T property, Property... properties);
@@ -425,7 +425,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const string &include, U..
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::publicHUDirectories(const string &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::publicHUDirs(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -438,7 +438,7 @@ CppSourceTarget &CppSourceTarget::publicHUDirectories(const string &include, U..
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return publicHUDirectories(includeDirectoryPString...);
+        return publicHUDirs(includeDirectoryPString...);
     }
     else
     {
@@ -447,7 +447,7 @@ CppSourceTarget &CppSourceTarget::publicHUDirectories(const string &include, U..
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::privateHUDirectories(const string &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::privateHUDirs(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -459,7 +459,7 @@ CppSourceTarget &CppSourceTarget::privateHUDirectories(const string &include, U.
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return privateHUDirectories(includeDirectoryPString...);
+        return privateHUDirs(includeDirectoryPString...);
     }
     else
     {
@@ -468,7 +468,7 @@ CppSourceTarget &CppSourceTarget::privateHUDirectories(const string &include, U.
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const string &include, U... includeDirectoryPString)
+CppSourceTarget &CppSourceTarget::interfaceHUDirs(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -480,7 +480,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUDirectories(const string &include, 
 
     if constexpr (sizeof...(includeDirectoryPString))
     {
-        return interfaceHUDirectories(includeDirectoryPString...);
+        return interfaceHUDirs(includeDirectoryPString...);
     }
     else
     {
@@ -569,93 +569,93 @@ template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const str
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::sourceDirectories(const string &sourceDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::sourceDirs(const string &sourceDirectory, U... dirs)
 {
     parseRegexSourceDirs(true, sourceDirectory, ".*", false);
-    if constexpr (sizeof...(directories))
+    if constexpr (sizeof...(dirs))
     {
-        return sourceDirectories(directories...);
+        return sourceDirs(dirs...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::moduleDirectories(const string &moduleDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::moduleDirs(const string &moduleDirectory, U... dirs)
 {
     parseRegexSourceDirs(false, moduleDirectory, ".*", false);
-    if constexpr (sizeof...(directories))
+    if constexpr (sizeof...(dirs))
     {
-        return moduleDirectories(directories...);
+        return moduleDirs(dirs...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::sourceDirectoriesRE(const string &sourceDirectory, const string &regex,
-                                                      U... directories)
+CppSourceTarget &CppSourceTarget::sourceDirsRE(const string &sourceDirectory, const string &regex,
+                                                      U... dirs)
 {
     parseRegexSourceDirs(true, sourceDirectory, regex, false);
-    if constexpr (sizeof...(directories))
+    if constexpr (sizeof...(dirs))
     {
-        return sourceDirectoriesRE(directories...);
+        return sourceDirsRE(dirs...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::moduleDirectoriesRE(const string &moduleDirectory, const string &regex,
-                                                      U... directories)
+CppSourceTarget &CppSourceTarget::moduleDirsRE(const string &moduleDirectory, const string &regex,
+                                                      U... dirs)
 {
     parseRegexSourceDirs(false, moduleDirectory, regex, false);
-    if constexpr (sizeof...(directories))
+    if constexpr (sizeof...(dirs))
     {
-        return moduleDirectoriesRE(directories...);
+        return moduleDirsRE(dirs...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::rSourceDirectories(const string &sourceDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::rSourceDirs(const string &sourceDirectory, U... dirs)
 {
     parseRegexSourceDirs(true, sourceDirectory, ".*", true);
-    if constexpr (sizeof...(directories))
+    if constexpr (sizeof...(dirs))
     {
-        return rSourceDirectories(directories...);
+        return rSourceDirs(dirs...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::rModuleDirectories(const string &moduleDirectory, U... directories)
+CppSourceTarget &CppSourceTarget::rModuleDirs(const string &moduleDirectory, U... dirs)
 {
     parseRegexSourceDirs(false, moduleDirectory, ".*", true);
-    if constexpr (sizeof...(directories))
+    if constexpr (sizeof...(dirs))
     {
-        return rModuleDirectories(directories...);
+        return rModuleDirs(dirs...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::rSourceDirectoriesRE(const string &sourceDirectory, const string &regex,
-                                                       U... directories)
+CppSourceTarget &CppSourceTarget::rSourceDirsRE(const string &sourceDirectory, const string &regex,
+                                                       U... dirs)
 {
     parseRegexSourceDirs(true, sourceDirectory, regex, true);
-    if constexpr (sizeof...(directories))
+    if constexpr (sizeof...(dirs))
     {
-        return R_sourceDirectoriesRE(directories...);
+        return R_sourceDirsRE(dirs...);
     }
     return *this;
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::rModuleDirectoriesRE(const string &moduleDirectory, const string &regex,
-                                                       U... directories)
+CppSourceTarget &CppSourceTarget::rModuleDirsRE(const string &moduleDirectory, const string &regex,
+                                                       U... dirs)
 {
     parseRegexSourceDirs(false, moduleDirectory, regex, true);
-    if constexpr (sizeof...(directories))
+    if constexpr (sizeof...(dirs))
     {
-        return R_moduleDirectoriesRE(directories...);
+        return R_moduleDirsRE(dirs...);
     }
     return *this;
 }

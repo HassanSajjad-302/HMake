@@ -38,7 +38,7 @@ struct PrebuiltDep
     string reqRpath;
     string useReqRpath;
 
-    vector<LibDirNode> useReqLibraryDirectories;
+    vector<LibDirNode> useReqLibraryDirs;
     bool defaultRpath = true;
     bool defaultRpathLink = true;
 };
@@ -63,8 +63,8 @@ class PLOAT : public BTarget, public TargetCache
     string getActualOutputName() const;
     string_view getOutputDirectoryV() const;
 
-    PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_);
-    PLOAT(Configuration &config_, const string &outputName_, string directory, TargetType linkTargetType_, string name_,
+    PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_);
+    PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_,
           bool buildExplicit, bool makeDirectory);
 
     template <typename T> bool evaluate(T property) const;
@@ -82,8 +82,8 @@ class PLOAT : public BTarget, public TargetCache
 
     flat_hash_set<class ObjectFileProducer *> objectFileProducers;
 
-    vector<LibDirNode> reqLibraryDirectories;
-    vector<LibDirNode> useReqLibraryDirectories;
+    vector<LibDirNode> reqLibraryDirs;
+    vector<LibDirNode> useReqLibraryDirs;
 
     TargetType linkTargetType = TargetType::LIBRARY_STATIC;
 

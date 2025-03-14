@@ -31,7 +31,7 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
     {
         t = &configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
     }
-    t->getSourceTarget().publicHUDirectories(string("boost") + slashc + name);
+    t->getSourceTarget().publicHUDirs(string("boost") + slashc + name);
     if (name != "core")
     {
         t->getSourceTarget().headerUnits(string("boost") + slashc + name + ".hpp");

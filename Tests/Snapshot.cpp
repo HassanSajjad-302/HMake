@@ -30,16 +30,16 @@ bool operator==(const NodeSnap &lhs, const NodeSnap &rhs)
     return lhs.nodePath == rhs.nodePath;
 }
 
-Snapshot::Snapshot(const path &directoryPath)
+Snapshot::Snapshot(const path &dirPath)
 {
-    before(directoryPath);
+    before(dirPath);
 }
 
-void Snapshot::before(const path &directoryPath)
+void Snapshot::before(const path &dirPath)
 {
     beforeData.clear();
     afterData.clear();
-    for (auto &f : recursive_directory_iterator(directoryPath))
+    for (auto &f : recursive_directory_iterator(dirPath))
     {
         if (f.is_regular_file())
         {
@@ -48,9 +48,9 @@ void Snapshot::before(const path &directoryPath)
     }
 }
 
-void Snapshot::after(const path &directoryPath)
+void Snapshot::after(const path &dirPath)
 {
-    for (auto &f : recursive_directory_iterator(directoryPath))
+    for (auto &f : recursive_directory_iterator(dirPath))
     {
         if (f.is_regular_file())
         {

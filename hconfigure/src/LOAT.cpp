@@ -460,7 +460,7 @@ void LOAT::setLinkOrArchiveCommands()
             return "-L";
         };
 
-        for (const LibDirNode &libDirNode : reqLibraryDirectories)
+        for (const LibDirNode &libDirNode : reqLibraryDirs)
         {
             linkOrArchiveCommandWithTargets += getLibraryDirectoryFlag() + addQuotes(libDirNode.node->filePath) + " ";
         }
@@ -658,24 +658,24 @@ string LOAT::getLinkOrArchiveCommandPrint()
             return "-L";
         };
 
-        for (const LibDirNode &libDirNode : reqLibraryDirectories)
+        for (const LibDirNode &libDirNode : reqLibraryDirs)
         {
             if (libDirNode.isStandard)
             {
-                if (lcpSettings.standardLibraryDirectories.printLevel != PathPrintLevel::NO)
+                if (lcpSettings.standardLibraryDirs.printLevel != PathPrintLevel::NO)
                 {
                     linkOrArchiveCommandPrint +=
                         getLibraryDirectoryFlag() +
-                        getReducedPath(libDirNode.node->filePath, lcpSettings.standardLibraryDirectories) + " ";
+                        getReducedPath(libDirNode.node->filePath, lcpSettings.standardLibraryDirs) + " ";
                 }
             }
             else
             {
-                if (lcpSettings.libraryDirectories.printLevel != PathPrintLevel::NO)
+                if (lcpSettings.libraryDirs.printLevel != PathPrintLevel::NO)
                 {
                     linkOrArchiveCommandPrint +=
                         getLibraryDirectoryFlag() +
-                        getReducedPath(libDirNode.node->filePath, lcpSettings.libraryDirectories) + " ";
+                        getReducedPath(libDirNode.node->filePath, lcpSettings.libraryDirs) + " ";
                 }
             }
         }

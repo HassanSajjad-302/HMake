@@ -34,8 +34,8 @@ void to_json(Json &json, const CompileCommandPrintSettings &ccpSettings)
     json[JConsts::tool] = ccpSettings.tool;
     json[JConsts::compilerFlags] = ccpSettings.compilerFlags;
     json[JConsts::compileDefinitions] = ccpSettings.compileDefinitions;
-    json[JConsts::projectIncludeDirectories] = ccpSettings.includeDirectories;
-    json[JConsts::standardIncludeDirectories] = ccpSettings.standardIncludeDirectories;
+    json[JConsts::projectIncludeDirs] = ccpSettings.includeDirs;
+    json[JConsts::standardIncludeDirs] = ccpSettings.standardIncludeDirs;
     json[JConsts::onlyLogicalNameOfRequireIfc] = ccpSettings.onlyLogicalNameOfRequireIFC;
     json[JConsts::requireIfcs] = ccpSettings.requireIFCs;
     json[JConsts::sourceFile] = ccpSettings.sourceFile;
@@ -55,8 +55,8 @@ void from_json(const Json &json, CompileCommandPrintSettings &ccpSettings)
     ccpSettings.tool.isTool = true;
     ccpSettings.compilerFlags = json.at(JConsts::compilerFlags).get<bool>();
     ccpSettings.compileDefinitions = json.at(JConsts::compileDefinitions).get<bool>();
-    ccpSettings.includeDirectories = json.at(JConsts::projectIncludeDirectories).get<PathPrint>();
-    ccpSettings.standardIncludeDirectories = json.at(JConsts::standardIncludeDirectories).get<PathPrint>();
+    ccpSettings.includeDirs = json.at(JConsts::projectIncludeDirs).get<PathPrint>();
+    ccpSettings.standardIncludeDirs = json.at(JConsts::standardIncludeDirs).get<PathPrint>();
     ccpSettings.onlyLogicalNameOfRequireIFC = json.at(JConsts::onlyLogicalNameOfRequireIfc).get<bool>();
     ccpSettings.requireIFCs = json.at(JConsts::requireIfcs).get<PathPrint>();
     ccpSettings.sourceFile = json.at(JConsts::sourceFile).get<PathPrint>();
@@ -96,8 +96,8 @@ void to_json(Json &json, const LinkCommandPrintSettings &lcpSettings)
     json[JConsts::infrastructureFlags] = lcpSettings.infrastructureFlags;
     json[JConsts::objectFiles] = lcpSettings.objectFiles;
     json[JConsts::libraryDependencies] = lcpSettings.libraryDependencies;
-    json[JConsts::libraryDirectories] = lcpSettings.libraryDirectories;
-    json[JConsts::standardLibraryDirectories] = lcpSettings.standardLibraryDirectories;
+    json[JConsts::libraryDirs] = lcpSettings.libraryDirs;
+    json[JConsts::standardLibraryDirs] = lcpSettings.standardLibraryDirs;
     json[JConsts::binary] = lcpSettings.binary;
 }
 
@@ -108,8 +108,8 @@ void from_json(const Json &json, LinkCommandPrintSettings &lcpSettings)
     lcpSettings.infrastructureFlags = json.at(JConsts::infrastructureFlags).get<bool>();
     lcpSettings.objectFiles = json.at(JConsts::objectFiles).get<PathPrint>();
     lcpSettings.libraryDependencies = json.at(JConsts::libraryDependencies).get<PathPrint>();
-    lcpSettings.libraryDirectories = json.at(JConsts::libraryDirectories).get<PathPrint>();
-    lcpSettings.standardLibraryDirectories = json.at(JConsts::standardLibraryDirectories).get<PathPrint>();
+    lcpSettings.libraryDirs = json.at(JConsts::libraryDirs).get<PathPrint>();
+    lcpSettings.standardLibraryDirs = json.at(JConsts::standardLibraryDirs).get<PathPrint>();
     lcpSettings.binary = json.at(JConsts::objectFiles).get<PathPrint>();
 }
 

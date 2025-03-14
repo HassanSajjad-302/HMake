@@ -29,7 +29,7 @@ import <utility>;
 #include <utility>
 #endif
 
-using std::filesystem::create_directories, std::filesystem::create_directory, std::filesystem::directory_iterator,
+using std::filesystem::create_directories, std::filesystem::directory_iterator,
     std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
 
 SourceDirectory::SourceDirectory(const string &sourceDirectory_, string regex_, const bool recursive_)
@@ -190,7 +190,7 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
         {
             // ensureSystemCheckCalled is called in SMFile::updateBTarget(2) in parallel.
             Node *headerUnitNode = Node::getNotSystemCheckCalledNodeFromValue(headerUnitsNodesCache[i]);
-            // If header-unit node exists, then its parent directory exists as-well. So, no need to perform system
+            // If header-unit node exists, then its parent dir exists as-well. So, no need to perform system
             // check.
             Node *headerUnitDir = Node::getNotSystemCheckCalledNodeFromValue(headerUnitsNodesCache[i + 1]);
             configuration->moduleFilesToTarget.emplace(
@@ -211,8 +211,7 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
     }
 }
 
-void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
-                                     LOAT *loat) const
+void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const
 {
 
     btree_set<const SMFile *, IndexInTopologicalSortComparatorRoundZero> sortedSMFileDependencies;
@@ -274,7 +273,7 @@ void CppSourceTarget::populateTransitiveProperties()
                                    inclNodeTargetMap.cppSourceTarget->getTarjanNodeName()),
                             settings.pcSettings.toolErrorOutput);
                         throw std::exception();
-                        // Print Error Message that same include-directory belongs to two targets.
+                        // Print Error Message that same include-dir belongs to two targets.
                     }
                 }
                 reqHuDirs.emplace_back(inclNodeTargetMap);
@@ -893,19 +892,18 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
     {
         if (include.isStandard)
         {
-            if (ccpSettings.standardIncludeDirectories.printLevel != PathPrintLevel::NO)
+            if (ccpSettings.standardIncludeDirs.printLevel != PathPrintLevel::NO)
             {
                 sourceCompileCommandPrintFirstHalf +=
-                    getIncludeFlag() + getReducedPath(include.node->filePath, ccpSettings.standardIncludeDirectories) +
-                    " ";
+                    getIncludeFlag() + getReducedPath(include.node->filePath, ccpSettings.standardIncludeDirs) + " ";
             }
         }
         else
         {
-            if (ccpSettings.includeDirectories.printLevel != PathPrintLevel::NO)
+            if (ccpSettings.includeDirs.printLevel != PathPrintLevel::NO)
             {
                 sourceCompileCommandPrintFirstHalf +=
-                    getIncludeFlag() + getReducedPath(include.node->filePath, ccpSettings.includeDirectories) + " ";
+                    getIncludeFlag() + getReducedPath(include.node->filePath, ccpSettings.includeDirs) + " ";
             }
         }
     }
@@ -1289,9 +1287,7 @@ bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs)
     return lhs.name < rhs.name;
 }
 
-template <>
-DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PLOAT *ploat_, const bool defines,
-                          string define_)
+template <> DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PLOAT *ploat_, const bool defines, string define_)
 {
     objectFileProducer = ptr;
     ploat = ploat_;
