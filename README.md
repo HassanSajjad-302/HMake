@@ -881,7 +881,7 @@ void buildSpecification()
     catShared.getSourceTarget().sourceFiles("../Example4/Cat/src/Cat.cpp").publicIncludes("../Example4/Cat/header");
 
     DSC<CppSourceTarget> &animalShared = getCppExeDSC("Animal").privateLibraries(
-        &catShared, PrebuiltDep{.requirementRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false});
+        &catShared, PrebuiltDep{.reqRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false});
     animalShared.getSourceTarget().sourceFiles("../Example4/main.cpp");
 
     getRoundZeroUpdateBTarget(
@@ -908,13 +908,13 @@ MAIN_FUNCTION
 This example showcases ```PrebuiltDep``` and extensibility.
 ```PrebuiltDep``` is used to specify the properties such as Rpath which are not the properties of
 the dependency or dependent, but, are the properties of the dependency relationship.
-This line ```PrebuiltDep{.requirementRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false}``` means
+This line ```PrebuiltDep{.reqRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false}``` means
 that ```$ORIGIN``` Rpath will be specified to the ```Animal``` target with the ```Cat``` shared-library.
 ```.defautRpath = false``` is important,
 because this means that the default-rpath,
 which is the shared-library build-dir,
-won't be used, and, instead the value of ```requirementRpath``` will be used.
-```PrebuiltDep::usageRequirementRpath``` should be used to specify the rpath in case,
+won't be used, and, instead the value of ```reqRpath``` will be used.
+```PrebuiltDep::useReqRpath``` should be used to specify the rpath in case,
 another target depends on Animal, and, Cat is propagated to that target.
 Generally, if ```defaultRpath``` is set to false, then, both should be set.
 
@@ -1008,7 +1008,7 @@ if any are being included by these module-files.
 This .smrule file is specified by the compiler according to the P1689R5 paper.
 In ```round==0```, HMake also determines the dependencies between different modules,
 and then in round 3, will build them accordingly.
-```app2``` marks all the ```requirementIncludes``` for which ```isStandard = true```
+```app2``` marks all the ```reqIncludes``` for which ```isStandard = true```
 as header-unit-includes by calling the function ```assignStandardIncludesToPublicHUDirectories```.
 Any directory that has header-units should be marked by at least one and only one
 target as hu-include(header-unit-include) in a target or its dependencies.
@@ -1275,7 +1275,7 @@ void buildSpecification()
     Configuration &releaseSpeed = getConfiguration("RSpeed");
     CxxSTD cxxStd = releaseSpeed.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b;
     releaseSpeed.assign(cxxStd, TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
-    // releaseSpeed.compilerFeatures.requirementCompileDefinitions.emplace("USE_HEADER_UNITS", "1");
+    // releaseSpeed.compilerFeatures.reqCompileDefinitions.emplace("USE_HEADER_UNITS", "1");
 
     Configuration &releaseSize = getConfiguration("RSize");
     releaseSize.assign(cxxStd, TreatModuleAsSource::YES, ConfigType::RELEASE, Optimization::SPACE);

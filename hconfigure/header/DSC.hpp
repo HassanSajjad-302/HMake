@@ -134,16 +134,16 @@ void DSC<T>::assignObjectFileProducerDeps(Dependency dependency, DSC<U> *control
 
         if (dependency == Dependency::PUBLIC)
         {
-            ptr->requirementCompileDefinitions.emplace(define);
-            ptr->usageRequirementCompileDefinitions.emplace(define);
+            ptr->reqCompileDefinitions.emplace(define);
+            ptr->useReqCompileDefinitions.emplace(define);
         }
         else if (dependency == Dependency::PRIVATE)
         {
-            ptr->requirementCompileDefinitions.emplace(define);
+            ptr->reqCompileDefinitions.emplace(define);
         }
         else
         {
-            ptr->usageRequirementCompileDefinitions.emplace(define);
+            ptr->useReqCompileDefinitions.emplace(define);
         }
     }
 }

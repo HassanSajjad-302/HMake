@@ -26,7 +26,7 @@ class LinkOrArchiveTarget : public PrebuiltLinkOrArchiveTarget
     using BaseType = PrebuiltLinkOrArchiveTarget;
 
   public:
-    string requirementLinkerFlags;
+    string reqLinkerFlags;
     string_view linkOrArchiveCommandWithoutTargets;
     string linkOrArchiveCommandWithTargets;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.

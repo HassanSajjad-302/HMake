@@ -27,10 +27,10 @@ class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>, public Tar
 
     vector<InclNode> reqIncls;
     vector<InclNode> useReqIncls;
-    string requirementCompilerFlags;
-    string usageRequirementCompilerFlags;
-    flat_hash_set<Define> requirementCompileDefinitions;
-    flat_hash_set<Define> usageRequirementCompileDefinitions;
+    string reqCompilerFlags;
+    string useReqCompilerFlags;
+    flat_hash_set<Define> reqCompileDefinitions;
+    flat_hash_set<Define> useReqCompileDefinitions;
 
     Configuration *configuration = nullptr;
 

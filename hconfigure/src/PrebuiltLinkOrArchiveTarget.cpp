@@ -121,21 +121,21 @@ void PrebuiltLinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short
 
         populateRequirementAndUsageRequirementDeps();
         addRequirementDepsToBTargetDependencies();
-        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : reqDeps)
         {
-            for (const LibDirNode &libDirNode : PrebuiltLinkOrArchiveTarget->usageRequirementLibraryDirectories)
+            for (const LibDirNode &libDirNode : PrebuiltLinkOrArchiveTarget->useReqLibraryDirectories)
             {
-                requirementLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
+                reqLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
             }
         }
 
-        for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
+        for (auto &[prebuiltBasic, prebuiltDep] : reqDeps)
         {
             for (const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
                      static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                 const LibDirNode &libDirNode : prebuiltLinkOrArchiveTarget->usageRequirementLibraryDirectories)
+                 const LibDirNode &libDirNode : prebuiltLinkOrArchiveTarget->useReqLibraryDirectories)
             {
-                requirementLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
+                reqLibraryDirectories.emplace_back(libDirNode.node, libDirNode.isStandard);
             }
         }
     }
@@ -146,19 +146,19 @@ void PrebuiltLinkOrArchiveTarget::writeTargetConfigCacheAtConfigureTime()
     namespace LinkConfig = Indices::ConfigCache::LinkConfig;
 
     buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    Value &libDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::requirementLibraryDirectoriesArray];
-    libDirectoriesConfigCache.Reserve(requirementLibraryDirectories.size(), cacheAlloc);
+    Value &libDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::reqLibraryDirectoriesArray];
+    libDirectoriesConfigCache.Reserve(reqLibraryDirectories.size(), cacheAlloc);
 
-    for (const LibDirNode &libDirNode : requirementLibraryDirectories)
+    for (const LibDirNode &libDirNode : reqLibraryDirectories)
     {
         libDirectoriesConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
     }
 
     buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    Value &useLibDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::usageRequirementLibraryDirectoriesArray];
-    useLibDirectoriesConfigCache.Reserve(usageRequirementLibraryDirectories.size(), cacheAlloc);
+    Value &useLibDirectoriesConfigCache = buildOrConfigCacheCopy[LinkConfig::useReqLibraryDirectoriesArray];
+    useLibDirectoriesConfigCache.Reserve(useReqLibraryDirectories.size(), cacheAlloc);
 
-    for (const LibDirNode &libDirNode : usageRequirementLibraryDirectories)
+    for (const LibDirNode &libDirNode : useReqLibraryDirectories)
     {
         useLibDirectoriesConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
     }
@@ -171,58 +171,58 @@ void PrebuiltLinkOrArchiveTarget::readConfigCacheAtBuildTime()
 {
     namespace LinkConfig = Indices::ConfigCache::LinkConfig;
 
-    Value &reqLibDirsConfigCache = getConfigCache()[LinkConfig::requirementLibraryDirectoriesArray];
-    requirementLibraryDirectories.reserve(reqLibDirsConfigCache.Size());
+    Value &reqLibDirsConfigCache = getConfigCache()[LinkConfig::reqLibraryDirectoriesArray];
+    reqLibraryDirectories.reserve(reqLibDirsConfigCache.Size());
     for (const Value &pValue : reqLibDirsConfigCache.GetArray())
     {
-        requirementLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
+        reqLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
     }
 
-    Value &useReqLibDirsConfigCache = getConfigCache()[LinkConfig::usageRequirementLibraryDirectoriesArray];
-    usageRequirementLibraryDirectories.reserve(useReqLibDirsConfigCache.Size());
+    Value &useReqLibDirsConfigCache = getConfigCache()[LinkConfig::useReqLibraryDirectoriesArray];
+    useReqLibraryDirectories.reserve(useReqLibDirsConfigCache.Size());
     for (const Value &pValue : useReqLibDirsConfigCache.GetArray())
     {
-        usageRequirementLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
+        useReqLibraryDirectories.emplace_back(Node::getNodeFromValue(pValue, false), true);
     }
 }
 
 void PrebuiltLinkOrArchiveTarget::populateRequirementAndUsageRequirementDeps()
 {
     // Set is copied because new elements are to be inserted in it.
-    node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> localRequirementDeps = requirementDeps;
+    node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> localRequirementDeps = reqDeps;
 
     for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localRequirementDeps)
     {
-        for (auto &[PrebuiltLinkOrArchiveTarget_, prebuilt] : PrebuiltLinkOrArchiveTarget->usageRequirementDeps)
+        for (auto &[PrebuiltLinkOrArchiveTarget_, prebuilt] : PrebuiltLinkOrArchiveTarget->useReqDeps)
         {
             PrebuiltDep prebuiltDep_;
 
-            prebuiltDep_.requirementPreLF = prebuilt.usageRequirementPreLF;
-            prebuiltDep_.requirementPostLF = prebuilt.usageRequirementPostLF;
-            prebuiltDep_.requirementRpathLink = prebuilt.usageRequirementRpathLink;
-            prebuiltDep_.requirementRpath = prebuilt.usageRequirementRpath;
+            prebuiltDep_.reqPreLF = prebuilt.useReqPreLF;
+            prebuiltDep_.reqPostLF = prebuilt.useReqPostLF;
+            prebuiltDep_.reqRpathLink = prebuilt.useReqRpathLink;
+            prebuiltDep_.reqRpath = prebuilt.useReqRpath;
             prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
             prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
 
-            requirementDeps.emplace(PrebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
+            reqDeps.emplace(PrebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
         }
     }
 
-    for (auto localUsageRequirements = usageRequirementDeps;
+    for (auto localUsageRequirements = useReqDeps;
          auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : localUsageRequirements)
     {
-        for (auto &[PrebuiltLinkOrArchiveTarget_, prebuilt] : PrebuiltLinkOrArchiveTarget->usageRequirementDeps)
+        for (auto &[PrebuiltLinkOrArchiveTarget_, prebuilt] : PrebuiltLinkOrArchiveTarget->useReqDeps)
         {
             PrebuiltDep prebuiltDep_;
 
-            prebuiltDep_.usageRequirementPreLF = prebuilt.usageRequirementPreLF;
-            prebuiltDep_.usageRequirementPostLF = prebuilt.usageRequirementPostLF;
-            prebuiltDep_.usageRequirementRpathLink = prebuilt.usageRequirementRpathLink;
-            prebuiltDep_.usageRequirementRpath = prebuilt.usageRequirementRpath;
+            prebuiltDep_.useReqPreLF = prebuilt.useReqPreLF;
+            prebuiltDep_.useReqPostLF = prebuilt.useReqPostLF;
+            prebuiltDep_.useReqRpathLink = prebuilt.useReqRpathLink;
+            prebuiltDep_.useReqRpath = prebuilt.useReqRpath;
             prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
             prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
 
-            usageRequirementDeps.emplace(PrebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
+            useReqDeps.emplace(PrebuiltLinkOrArchiveTarget_, std::move(prebuiltDep_));
         }
     }
 }
@@ -231,14 +231,14 @@ void PrebuiltLinkOrArchiveTarget::addRequirementDepsToBTargetDependencies()
 {
     if (evaluate(TargetType::LIBRARY_STATIC))
     {
-        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : reqDeps)
         {
             addLooseDependency<0>(*PrebuiltLinkOrArchiveTarget);
         }
     }
     else
     {
-        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+        for (auto &[PrebuiltLinkOrArchiveTarget, prebuiltDep] : reqDeps)
         {
             addDependency<0>(*PrebuiltLinkOrArchiveTarget);
         }

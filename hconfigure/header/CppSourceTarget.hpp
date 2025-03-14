@@ -116,7 +116,7 @@ class CppSourceTarget : public CSourceTarget
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
 
     Node *buildCacheFilesDirPathNode = nullptr;
-    // requirementIncludes size before populateTransitiveProperties function is called
+    // reqIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
 
     atomic<uint64_t> newHeaderUnitsSize = 0;
@@ -230,8 +230,8 @@ bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
 
 template <typename... U> CppSourceTarget &CppSourceTarget::publicDeps(CppSourceTarget *dep, const U... deps)
 {
-    requirementDeps.emplace(dep);
-    usageRequirementDeps.emplace(dep);
+    reqDeps.emplace(dep);
+    useReqDeps.emplace(dep);
     addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
@@ -242,7 +242,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::publicDeps(CppSourceT
 
 template <typename... U> CppSourceTarget &CppSourceTarget::privateDeps(CppSourceTarget *dep, const U... deps)
 {
-    requirementDeps.emplace(dep);
+    reqDeps.emplace(dep);
     addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
@@ -253,7 +253,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::privateDeps(CppSource
 
 template <typename... U> CppSourceTarget &CppSourceTarget::interfaceDeps(CppSourceTarget *dep, const U... deps)
 {
-    usageRequirementDeps.emplace(dep);
+    useReqDeps.emplace(dep);
     addDependency<2>(*dep);
     if constexpr (sizeof...(deps))
     {
@@ -267,18 +267,18 @@ CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const Dependency de
 {
     if (dependency == Dependency::PUBLIC)
     {
-        requirementDeps.emplace(dep);
-        usageRequirementDeps.emplace(dep);
+        reqDeps.emplace(dep);
+        useReqDeps.emplace(dep);
         addDependency<2>(*dep);
     }
     else if (dependency == Dependency::PRIVATE)
     {
-        requirementDeps.emplace(dep);
+        reqDeps.emplace(dep);
         addDependency<2>(*dep);
     }
     else
     {
-        usageRequirementDeps.emplace(dep);
+        useReqDeps.emplace(dep);
         addDependency<2>(*dep);
     }
     if constexpr (sizeof...(deps))
@@ -667,32 +667,32 @@ CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
     {
         if constexpr (dependency == Dependency::PRIVATE)
         {
-            requirementCompilerFlags += property;
+            reqCompilerFlags += property;
         }
         else if constexpr (dependency == Dependency::INTERFACE)
         {
-            usageRequirementCompilerFlags += property;
+            useReqCompilerFlags += property;
         }
         else
         {
-            requirementCompilerFlags += property;
-            usageRequirementCompilerFlags += property;
+            reqCompilerFlags += property;
+            useReqCompilerFlags += property;
         }
     }
     else if constexpr (std::is_same_v<decltype(property), Define>)
     {
         if constexpr (dependency == Dependency::PRIVATE)
         {
-            requirementCompileDefinitions.emplace(property);
+            reqCompileDefinitions.emplace(property);
         }
         else if constexpr (dependency == Dependency::INTERFACE)
         {
-            usageRequirementCompileDefinitions.emplace(property);
+            useReqCompileDefinitions.emplace(property);
         }
         else
         {
-            requirementCompileDefinitions.emplace(property);
-            usageRequirementCompileDefinitions.emplace(property);
+            reqCompileDefinitions.emplace(property);
+            useReqCompileDefinitions.emplace(property);
         }
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)

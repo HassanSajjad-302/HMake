@@ -56,7 +56,7 @@ void Configuration::initialize()
                     Node *node = Node::getNodeFromNonNormalizedPath(str, false);
                     bool found = false;
                     for (const LibDirNode &libDirNode :
-                         stdCppTarget->getLinkOrArchiveTarget().requirementLibraryDirectories)
+                         stdCppTarget->getLinkOrArchiveTarget().reqLibraryDirectories)
                     {
                         if (libDirNode.node == node)
                         {
@@ -66,12 +66,12 @@ void Configuration::initialize()
                     }
                     if (!found)
                     {
-                        stdCppTarget->getLinkOrArchiveTarget().requirementLibraryDirectories.emplace_back(node, true);
+                        stdCppTarget->getLinkOrArchiveTarget().reqLibraryDirectories.emplace_back(node, true);
                     }
                 }
 
-                stdCppTarget->getLinkOrArchiveTarget().usageRequirementLibraryDirectories =
-                    stdCppTarget->getLinkOrArchiveTarget().requirementLibraryDirectories;
+                stdCppTarget->getLinkOrArchiveTarget().useReqLibraryDirectories =
+                    stdCppTarget->getLinkOrArchiveTarget().reqLibraryDirectories;
             }
         }
     }

@@ -25,19 +25,19 @@ struct PrebuiltDep
 {
     // LF linkerFlags
 
-    string requirementPreLF;
-    string usageRequirementPreLF;
+    string reqPreLF;
+    string useReqPreLF;
 
-    string requirementPostLF;
-    string usageRequirementPostLF;
+    string reqPostLF;
+    string useReqPostLF;
 
-    string requirementRpathLink;
-    string usageRequirementRpathLink;
+    string reqRpathLink;
+    string useReqRpathLink;
 
-    string requirementRpath;
-    string usageRequirementRpath;
+    string reqRpath;
+    string useReqRpath;
 
-    vector<LibDirNode> usageRequirementLibraryDirectories;
+    vector<LibDirNode> useReqLibraryDirectories;
     bool defaultRpath = true;
     bool defaultRpathLink = true;
 };
@@ -52,7 +52,7 @@ public:
 #endif
 
   public:
-    string usageRequirementLinkerFlags;
+    string useReqLinkerFlags;
     Configuration &config;
     Node *outputFileNode = nullptr;
 
@@ -73,16 +73,16 @@ public:
     void readConfigCacheAtBuildTime();
 
   public:
-    node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> requirementDeps;
-    node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> usageRequirementDeps;
+    node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> reqDeps;
+    node_hash_map<PrebuiltLinkOrArchiveTarget *, PrebuiltDep> useReqDeps;
 
     btree_map<PrebuiltLinkOrArchiveTarget *, const PrebuiltDep *, IndexInTopologicalSortComparatorRoundZero>
         sortedPrebuiltDependencies;
 
     flat_hash_set<class ObjectFileProducer *> objectFileProducers;
 
-    vector<LibDirNode> requirementLibraryDirectories;
-    vector<LibDirNode> usageRequirementLibraryDirectories;
+    vector<LibDirNode> reqLibraryDirectories;
+    vector<LibDirNode> useReqLibraryDirectories;
 
     TargetType linkTargetType = TargetType::LIBRARY_STATIC;
 
@@ -137,7 +137,7 @@ template <typename... U>
 PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::INTERFACE_DEPS(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps)
 {
-    usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+    useReqDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
     addDependency<2>(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
@@ -150,7 +150,7 @@ template <typename... U>
 PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PRIVATE_DEPS(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps)
 {
-    requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+    reqDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
     addDependency<2>(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
@@ -163,8 +163,8 @@ template <typename... U>
 PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PUBLIC_DEPS(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, U... deps)
 {
-    requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
-    usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+    reqDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+    useReqDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
     addDependency<2>(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
@@ -179,18 +179,18 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::DEPS(PrebuiltLinkOrArc
 {
     if (dependency == Dependency::PUBLIC)
     {
-        requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
-        usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+        reqDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+        useReqDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
         addDependency<2>(*prebuiltLinkOrArchiveTarget);
     }
     else if (dependency == Dependency::PRIVATE)
     {
-        requirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+        reqDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
         addDependency<2>(*prebuiltLinkOrArchiveTarget);
     }
     else
     {
-        usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
+        useReqDeps.emplace(prebuiltLinkOrArchiveTarget, PrebuiltDep{});
         addDependency<2>(*prebuiltLinkOrArchiveTarget);
     }
     if constexpr (sizeof...(deps))
@@ -204,7 +204,7 @@ template <typename... U>
 PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::INTERFACE_DEPS(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, PrebuiltDep prebuiltDep, U... deps)
 {
-    usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    useReqDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
     if constexpr (sizeof...(deps))
     {
         return INTERFACE_DEPS(deps...);
@@ -216,7 +216,7 @@ template <typename... U>
 PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PRIVATE_DEPS(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, PrebuiltDep prebuiltDep, U... deps)
 {
-    requirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    reqDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
     addDependency<2>(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
@@ -229,8 +229,8 @@ template <typename... U>
 PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::PUBLIC_DEPS(
     PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget, PrebuiltDep prebuiltDep, U... deps)
 {
-    requirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
-    usageRequirementDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    reqDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
+    useReqDeps.emplace(prebuiltLinkOrArchiveTarget, prebuiltDep);
     addDependency<2>(*prebuiltLinkOrArchiveTarget);
     if constexpr (sizeof...(deps))
     {
@@ -246,18 +246,18 @@ PrebuiltLinkOrArchiveTarget &PrebuiltLinkOrArchiveTarget::DEPS(PrebuiltLinkOrArc
 {
     if (dependency == Dependency::PUBLIC)
     {
-        requirementDeps.emplace(prebuiltTarget, prebuiltDep);
-        usageRequirementDeps.emplace(prebuiltTarget, prebuiltDep);
+        reqDeps.emplace(prebuiltTarget, prebuiltDep);
+        useReqDeps.emplace(prebuiltTarget, prebuiltDep);
         addDependency<2>(*prebuiltTarget);
     }
     else if (dependency == Dependency::PRIVATE)
     {
-        requirementDeps.emplace(prebuiltTarget, prebuiltDep);
+        reqDeps.emplace(prebuiltTarget, prebuiltDep);
         addDependency<2>(*prebuiltTarget);
     }
     else
     {
-        usageRequirementDeps.emplace(prebuiltTarget, prebuiltDep);
+        useReqDeps.emplace(prebuiltTarget, prebuiltDep);
     }
     if constexpr (sizeof...(deps))
     {

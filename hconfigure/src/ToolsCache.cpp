@@ -283,7 +283,7 @@ void ToolsCache::detectToolsAndInitialize()
 {
     // TODO
     // HMake does not have installer yet. Otherwise, this maybe added in installer. Currently, nothing is detected yet.
-    // 2022 Visual Studio Community is requirement. So is g++-12.2.0.
+    // 2022 Visual Studio Community is req. So is g++-12.2.0.
 
     if constexpr (os == OS::NT)
     {

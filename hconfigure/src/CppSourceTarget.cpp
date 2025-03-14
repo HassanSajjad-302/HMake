@@ -238,18 +238,18 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles,
 
 void CppSourceTarget::populateTransitiveProperties()
 {
-    for (CSourceTarget *cSourceTarget : requirementDeps)
+    for (CSourceTarget *cSourceTarget : reqDeps)
     {
         for (const InclNode &inclNode : cSourceTarget->useReqIncls)
         {
             actuallyAddInclude(reqIncls, inclNode.node->filePath, inclNode.isStandard, inclNode.ignoreHeaderDeps);
         }
-        requirementCompilerFlags += cSourceTarget->usageRequirementCompilerFlags;
-        for (const Define &define : cSourceTarget->usageRequirementCompileDefinitions)
+        reqCompilerFlags += cSourceTarget->useReqCompilerFlags;
+        for (const Define &define : cSourceTarget->useReqCompileDefinitions)
         {
-            requirementCompileDefinitions.emplace(define);
+            reqCompileDefinitions.emplace(define);
         }
-        requirementCompilerFlags += cSourceTarget->usageRequirementCompilerFlags;
+        reqCompilerFlags += cSourceTarget->useReqCompilerFlags;
         if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
         {
             CppSourceTarget *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
@@ -667,39 +667,39 @@ string CppSourceTarget::getTarjanNodeName() const
 
 CppSourceTarget &CppSourceTarget::publicCompilerFlags(const string &compilerFlags)
 {
-    requirementCompilerFlags += compilerFlags;
-    usageRequirementCompilerFlags += compilerFlags;
+    reqCompilerFlags += compilerFlags;
+    useReqCompilerFlags += compilerFlags;
     return *this;
 }
 
 CppSourceTarget &CppSourceTarget::privateCompilerFlags(const string &compilerFlags)
 {
-    requirementCompilerFlags += compilerFlags;
+    reqCompilerFlags += compilerFlags;
     return *this;
 }
 
 CppSourceTarget &CppSourceTarget::interfaceCompilerFlags(const string &compilerFlags)
 {
-    usageRequirementCompilerFlags += compilerFlags;
+    useReqCompilerFlags += compilerFlags;
     return *this;
 }
 
 CppSourceTarget &CppSourceTarget::publicCompileDefinition(const string &cddName, const string &cddValue)
 {
-    requirementCompileDefinitions.emplace(cddName, cddValue);
-    usageRequirementCompileDefinitions.emplace(cddName, cddValue);
+    reqCompileDefinitions.emplace(cddName, cddValue);
+    useReqCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 
 CppSourceTarget &CppSourceTarget::privateCompileDefinition(const string &cddName, const string &cddValue)
 {
-    requirementCompileDefinitions.emplace(cddName, cddValue);
+    reqCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 
 CppSourceTarget &CppSourceTarget::interfaceCompileDefinition(const string &cddName, const string &cddValue)
 {
-    usageRequirementCompileDefinitions.emplace(cddName, cddValue);
+    useReqCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 
@@ -793,9 +793,9 @@ void CppSourceTarget::setCompileCommand()
         return "-I ";
     };
 
-    compileCommand += requirementCompilerFlags;
+    compileCommand += reqCompilerFlags;
 
-    for (const auto &i : requirementCompileDefinitions)
+    for (const auto &i : reqCompileDefinitions)
     {
         if (compiler.bTFamily == BTFamily::MSVC)
         {
@@ -807,8 +807,8 @@ void CppSourceTarget::setCompileCommand()
         }
     }
 
-    // Following set is needed because otherwise InclNode propogated from other requirementDeps won't have ordering,
-    // because requirementDeps in DS is set. Because of weak ordering this will hurt the caching. Now,
+    // Following set is needed because otherwise InclNode propogated from other reqDeps won't have ordering,
+    // because reqDeps in DS is set. Because of weak ordering this will hurt the caching. Now,
     // reqIncls can be made set, but this is not done to maintain specification order for include-dirs
 
     // I think ideally this should not be support this. A same header-file should not present in more than one
@@ -863,10 +863,10 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
 
     if (ccpSettings.compilerFlags)
     {
-        sourceCompileCommandPrintFirstHalf += requirementCompilerFlags;
+        sourceCompileCommandPrintFirstHalf += reqCompilerFlags;
     }
 
-    for (const auto &i : requirementCompileDefinitions)
+    for (const auto &i : reqCompileDefinitions)
     {
         if (ccpSettings.compileDefinitions)
         {
@@ -923,7 +923,7 @@ string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
 string CppSourceTarget::getDependenciesPString() const
 {
     string deps;
-    for (const CSourceTarget *cSourceTarget : requirementDeps)
+    for (const CSourceTarget *cSourceTarget : reqDeps)
     {
         deps += cSourceTarget->name + '\n';
     }
@@ -967,7 +967,7 @@ void CppSourceTarget::resolveRequirePaths()
             if (!isInterface)
             {
                 const SMFile *found2 = nullptr;
-                for (CSourceTarget *cSourceTarget : requirementDeps)
+                for (CSourceTarget *cSourceTarget : reqDeps)
                 {
                     if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
                     {
@@ -1086,7 +1086,7 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
 
 void CppSourceTarget::populateResolveRequirePathDependencies()
 {
-    for (CSourceTarget *target : requirementDeps)
+    for (CSourceTarget *target : reqDeps)
     {
         if (target->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
         {
@@ -1323,17 +1323,17 @@ DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PrebuiltLinkOrArchiveTarget *pre
         {
             if (ptr->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
             {
-                ptr->requirementCompileDefinitions.emplace(Define(define, "__declspec(dllexport)"));
+                ptr->reqCompileDefinitions.emplace(Define(define, "__declspec(dllexport)"));
             }
             else
             {
-                ptr->requirementCompileDefinitions.emplace(
+                ptr->reqCompileDefinitions.emplace(
                     Define(define, "\"__attribute__ ((visibility (\\\"default\\\")))\""));
             }
         }
         else
         {
-            ptr->requirementCompileDefinitions.emplace(Define(define, ""));
+            ptr->reqCompileDefinitions.emplace(Define(define, ""));
         }
     }
 }
@@ -1375,10 +1375,10 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSource
         actuallyAddInclude(ptr->useReqHuDirs, ptr, inclNode.node->filePath, inclNode.isStandard,
                            inclNode.ignoreHeaderDeps);
     }
-    ptr->requirementCompileDefinitions = stored->requirementCompileDefinitions;
+    ptr->reqCompileDefinitions = stored->reqCompileDefinitions;
     ptr->reqIncls = stored->reqIncls;
 
-    ptr->usageRequirementCompileDefinitions = stored->usageRequirementCompileDefinitions;
+    ptr->useReqCompileDefinitions = stored->useReqCompileDefinitions;
     ptr->useReqIncls = stored->useReqIncls;
     return *this;
 }

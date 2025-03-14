@@ -86,7 +86,7 @@ BTargetType LinkOrArchiveTarget::getBTargetType() const
 
 void LinkOrArchiveTarget::setFileStatus()
 {
-    for (auto &[pre, dep] : requirementDeps)
+    for (auto &[pre, dep] : reqDeps)
     {
         sortedPrebuiltDependencies.emplace(pre, &dep);
     }
@@ -131,7 +131,7 @@ void LinkOrArchiveTarget::setFileStatus()
                 bool needsUpdate = false;
                 if (!evaluate(TargetType::LIBRARY_STATIC))
                 {
-                    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : requirementDeps)
+                    for (auto &[prebuiltLinkOrArchiveTarget, prebuiltDep] : reqDeps)
                     {
                         // No need to check whether prebuiltLinkOrArchiveTarget is a static-library since it is
                         // already-checked in that target's setFileStatus.
@@ -185,7 +185,7 @@ void LinkOrArchiveTarget::setFileStatus()
             // TODO:
             // Use vector instead and call reserve before
             stack<PrebuiltLinkOrArchiveTarget *, vector<PrebuiltLinkOrArchiveTarget *>> allDeps;
-            for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
+            for (auto &[prebuiltBasic, prebuiltDep] : reqDeps)
             {
                 checked.emplace(prebuiltBasic);
                 allDeps.emplace(prebuiltBasic);
@@ -223,7 +223,7 @@ void LinkOrArchiveTarget::setFileStatus()
                         }
                     }
                 }
-                for (auto &[prebuiltBasic_, prebuiltDep] : prebuiltLinkOrArchiveTarget->requirementDeps)
+                for (auto &[prebuiltBasic_, prebuiltDep] : prebuiltLinkOrArchiveTarget->reqDeps)
                 {
                     if (checked.emplace(prebuiltBasic_).second)
                     {
@@ -325,11 +325,11 @@ void LinkOrArchiveTarget::updateBTarget(Builder &builder, unsigned short round)
         }
         if (!evaluate(TargetType::LIBRARY_STATIC))
         {
-            for (auto &[prebuiltBasic, prebuiltDep] : requirementDeps)
+            for (auto &[prebuiltBasic, prebuiltDep] : reqDeps)
             {
                 const PrebuiltLinkOrArchiveTarget *prebuiltLinkOrArchiveTarget =
                     static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                requirementLinkerFlags += prebuiltLinkOrArchiveTarget->usageRequirementLinkerFlags;
+                reqLinkerFlags += prebuiltLinkOrArchiveTarget->useReqLinkerFlags;
             }
         }
 
@@ -428,7 +428,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             }
             linkOrArchiveCommandWithTargets += flags.LINKFLAGS_LINK + flags.LINKFLAGS_MSVC;
         }
-        linkOrArchiveCommandWithTargets += requirementLinkerFlags + " ";
+        linkOrArchiveCommandWithTargets += reqLinkerFlags + " ";
     }
 
     auto getLinkFlag = [&](const string &libraryPath, const string &libraryName) {
@@ -456,10 +456,10 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                 continue;
             }
 
-            linkOrArchiveCommandWithTargets += prebuiltDep->requirementPreLF;
+            linkOrArchiveCommandWithTargets += prebuiltDep->reqPreLF;
             linkOrArchiveCommandWithTargets += getLinkFlag(string(prebuiltLinkOrArchiveTarget->getOutputDirectoryV()),
                                                            prebuiltLinkOrArchiveTarget->getOutputName());
-            linkOrArchiveCommandWithTargets += prebuiltDep->requirementPostLF;
+            linkOrArchiveCommandWithTargets += prebuiltDep->reqPostLF;
         }
 
         auto getLibraryDirectoryFlag = [&] {
@@ -470,7 +470,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
             return "-L";
         };
 
-        for (const LibDirNode &libDirNode : requirementLibraryDirectories)
+        for (const LibDirNode &libDirNode : reqLibraryDirectories)
         {
             linkOrArchiveCommandWithTargets += getLibraryDirectoryFlag() + addQuotes(libDirNode.node->filePath) + " ";
         }
@@ -490,7 +490,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                     }
                     else
                     {
-                        linkOrArchiveCommandWithTargets += prebuiltDep->requirementRpath;
+                        linkOrArchiveCommandWithTargets += prebuiltDep->reqRpath;
                     }
                 }
             }
@@ -511,7 +511,7 @@ void LinkOrArchiveTarget::setLinkOrArchiveCommands()
                     }
                     else
                     {
-                        linkOrArchiveCommandWithTargets += prebuiltDep->requirementRpathLink;
+                        linkOrArchiveCommandWithTargets += prebuiltDep->reqRpathLink;
                     }
                 }
             }
@@ -620,7 +620,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
 
         if (lcpSettings.linkerFlags)
         {
-            linkOrArchiveCommandPrint += requirementLinkerFlags + " ";
+            linkOrArchiveCommandPrint += reqLinkerFlags + " ";
         }
     }
 
@@ -658,11 +658,11 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
             for (auto &[prebuiltBasic, prebuiltDep] : sortedPrebuiltDependencies)
             {
                 auto *prebuiltLinkOrArchiveTarget = static_cast<PrebuiltLinkOrArchiveTarget *>(prebuiltBasic);
-                linkOrArchiveCommandPrint += prebuiltDep->requirementPreLF;
+                linkOrArchiveCommandPrint += prebuiltDep->reqPreLF;
                 linkOrArchiveCommandPrint +=
                     getLinkFlagPrint(string(prebuiltLinkOrArchiveTarget->getOutputDirectoryV()),
                                      prebuiltLinkOrArchiveTarget->getOutputName(), lcpSettings.libraryDependencies);
-                linkOrArchiveCommandPrint += prebuiltDep->requirementPostLF;
+                linkOrArchiveCommandPrint += prebuiltDep->reqPostLF;
             }
         }
 
@@ -674,7 +674,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
             return "-L";
         };
 
-        for (const LibDirNode &libDirNode : requirementLibraryDirectories)
+        for (const LibDirNode &libDirNode : reqLibraryDirectories)
         {
             if (libDirNode.isStandard)
             {
@@ -712,7 +712,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                     }
                     else
                     {
-                        linkOrArchiveCommandPrint += prebuiltDep->requirementRpath;
+                        linkOrArchiveCommandPrint += prebuiltDep->reqRpath;
                     }
                 }
             }
@@ -735,7 +735,7 @@ string LinkOrArchiveTarget::getLinkOrArchiveCommandPrint()
                     }
                     else
                     {
-                        linkOrArchiveCommandPrint += prebuiltDep->requirementRpathLink;
+                        linkOrArchiveCommandPrint += prebuiltDep->reqRpathLink;
                     }
                 }
             }
