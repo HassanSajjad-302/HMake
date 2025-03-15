@@ -714,13 +714,13 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
     {
         // The mapped target must be the same as the SMFile target from which this header-unit is discovered or one
         // of its reqDeps
-        if (it->second.target == target || target->reqDeps.find(it->second.target) != target->reqDeps.end())
+        if (it->second == target || target->reqDeps.find(it->second) != target->reqDeps.end())
         {
             for (const InclNode &incl : target->reqIncls)
             {
                 if (pathContainsFile(incl.node->filePath, headerUnitNode->filePath))
                 {
-                    return {&incl, it->second.target};
+                    return {&incl, it->second};
                 }
             }
             throw std::exception("HMake Internal Error");
@@ -781,7 +781,6 @@ void SMFile::initializeHeaderUnits(Builder &builder)
 
             headerUnit->type = SM_FILE_TYPE::HEADER_UNIT;
             headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
-            huDirTarget->addDependency<1>(*headerUnit);
         }
         else
         {
@@ -796,7 +795,6 @@ void SMFile::initializeHeaderUnits(Builder &builder)
             {
                 headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
                 headerUnit->realBTargets[0].addInTarjanNodeBTarget(0);
-                huDirTarget->addDependency<1>(*headerUnit);
             }
         }
 
@@ -826,6 +824,8 @@ void SMFile::addNewBTargetInFinalBTargetsRound1(Builder &builder)
     {
         std::lock_guard lk(builder.executeMutex);
         builder.updateBTargetsIterator = builder.updateBTargets.emplace(builder.updateBTargetsIterator, this);
+        // This locks double mutex. Reasoning for performing it in single lock is difficult.
+        target->addDependency<1>(*this);
         builder.updateBTargetsSizeGoal += 1;
     }
     builder.cond.notify_one();

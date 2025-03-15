@@ -73,16 +73,10 @@ class PLOAT;
 class LOAT;
 class Node;
 
-struct CppTargetAndParentDirNode
-{
-    CppSourceTarget *target;
-    Node *incl;
-};
-
 class Configuration : public BTarget
 {
   public:
-    flat_hash_map<Node *, CppTargetAndParentDirNode> moduleFilesToTarget;
+    flat_hash_map<Node *, CppSourceTarget *> moduleFilesToTarget;
     vector<class BoostCppTarget *> boostCppTargets;
     vector<CppSourceTarget *> cppSourceTargets;
     vector<LOAT *> loats;
@@ -193,7 +187,7 @@ class Configuration : public BTarget
                                                   string define = "");
 
     BoostCppTarget &getBoostCppTarget(const string &name, bool headerOnly, bool createTestsTarget = false,
-                                     bool createExamplesTarget = false);
+                                      bool createExamplesTarget = false);
 
     explicit Configuration(const string &name_);
     void postConfigurationSpecification() const;

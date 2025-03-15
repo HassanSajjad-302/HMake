@@ -120,9 +120,8 @@ class CppSourceTarget : public CSourceTarget
     unsigned short reqIncSizeBeforePopulate = 0;
 
     atomic<uint64_t> newHeaderUnitsSize = 0;
-    bool archiving = false;
-    bool archived = false;
 
+    bool hasManuallySpecifiedHeaderUnits = false;
     // Set to true if a source or smrule of a module is updated so that latest cache could be stored.
     bool moduleFileScanned = false;
     // set to true if a source or smrule of a header-unit is updated so that latest cache could be stored.
@@ -144,7 +143,6 @@ class CppSourceTarget : public CSourceTarget
     PostCompile updateSourceNodeBTarget(const SourceNode &sourceNode);
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
-    void saveBuildCache(bool round);
     void updateBTarget(Builder &builder, unsigned short round) override;
     void copyJson() override;
     void writeTargetConfigCacheAtConfigureTime(bool before);
@@ -551,9 +549,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const str
     {
         using namespace Indices::ConfigCache;
         Node *node = Node::getNodeFromNonNormalizedString(headerUnit, true);
-        Node *inclNode = Node::getNodeFromNormalizedString(path(node->filePath).parent_path().string(), false);
         buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
-        buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(inclNode->getValue(), cacheAlloc);
     }
 
     if constexpr (sizeof...(headerUnitsString))

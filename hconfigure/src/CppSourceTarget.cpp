@@ -186,15 +186,13 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
             modFileDeps[i / 2].isInterface = moduleNodesCache[i + 1].GetBool();
         }
 
-        for (uint64_t i = 0; i < headerUnitsNodesCache.Size(); i = i + 2)
+        for (uint64_t i = 0; i < headerUnitsNodesCache.Size(); ++i)
         {
-            // ensureSystemCheckCalled is called in SMFile::updateBTarget(2) in parallel.
-            Node *headerUnitNode = Node::getNotSystemCheckCalledNodeFromValue(headerUnitsNodesCache[i]);
-            // If header-unit node exists, then its parent dir exists as-well. So, no need to perform system
-            // check.
-            Node *headerUnitDir = Node::getNotSystemCheckCalledNodeFromValue(headerUnitsNodesCache[i + 1]);
+            // If new, ensureSystemCheckCalled is called in SMFile::updateBTarget(1), else it is called in
+            // SMFile::updateBTarget(2).
+            hasManuallySpecifiedHeaderUnits = true;
             configuration->moduleFilesToTarget.emplace(
-                headerUnitNode, CppTargetAndParentDirNode{.target = this, .incl = headerUnitDir});
+                Node::getNotSystemCheckCalledNodeFromValue(headerUnitsNodesCache[i]), this);
         }
 
         // Move to some other function, so it is not single-threaded.
@@ -278,7 +276,8 @@ void CppSourceTarget::populateTransitiveProperties()
                 }
                 reqHuDirs.emplace_back(inclNodeTargetMap);
             }
-            if (!cppSourceTarget->useReqHuDirs.empty())
+
+            if (!cppSourceTarget->useReqHuDirs.empty() || cppSourceTarget->hasManuallySpecifiedHeaderUnits)
             {
                 cppSourceTarget->addDependency<1>(*this);
             }
@@ -1263,25 +1262,6 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const boo
                                                   getCompileCommandPrintSecondPartSMRule(smFile));
     }
     throw std::runtime_error("Generate SMRules not supported for this compiler\n");
-}
-
-void CppSourceTarget::saveBuildCache(const bool round)
-{
-    if (round)
-    {
-        // writeBuildCacheUnlocked();
-    }
-    else
-    {
-        if (archiving)
-        {
-            if (realBTargets[0].exitStatus == EXIT_SUCCESS)
-            {
-                archived = true;
-            }
-        }
-        // writeBuildCacheUnlocked();
-    }
 }
 
 bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs)
