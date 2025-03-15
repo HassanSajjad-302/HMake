@@ -106,7 +106,12 @@ class BoostCppTarget : TargetCache
 
     BoostCppTarget(const string &name, Configuration *configuration_, bool headerOnly, bool createTestsTarget = false,
                    bool createExamplesTarget = false);
-    ~BoostCppTarget();
+    void copyConfigCache() const;
+
+    template <typename T, typename... U> BoostCppTarget &publicDeps(T &dep_, U &&...deps_);
+    template <typename T, typename... U> BoostCppTarget &privateDeps(T &dep_, U &&...deps_);
+    template <typename T, typename... U> BoostCppTarget &interfaceDeps(T &dep_, U &&...deps_);
+    template <typename T, typename... U> BoostCppTarget &deps(DepType depType, T &dep_, U &&...deps_);
 
     template <BoostExampleOrTestType EOT>
     void getTargetFromConfiguration(string_view name, string_view buildCacheFilesDirPath, const Node *node);
@@ -351,8 +356,7 @@ void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &targ
 template <BoostExampleOrTestType EOT>
 void BoostCppTarget::Add<EOT, false>::operator()(BoostCppTarget &target, string_view sourceDir, string_view fileName)
 {
-    const string configurationNamePlusTargetName =
-        target.mainTarget.getLOAT().name + slashc;
+    const string configurationNamePlusTargetName = target.mainTarget.getLOAT().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
@@ -368,8 +372,7 @@ template <BoostExampleOrTestType EOT, bool addInConfigCache>
 void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &target, string_view innerBuildDirName,
                                                                 string_view sourceDir, string_view fileName)
 {
-    const string configurationNamePlusTargetName =
-        target.mainTarget.getLOAT().name + slashc;
+    const string configurationNamePlusTargetName = target.mainTarget.getLOAT().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
@@ -389,8 +392,7 @@ template <BoostExampleOrTestType EOT>
 void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, string_view innerBuildDirName,
                                                      string_view sourceDir, string_view fileName)
 {
-    const string configurationNamePlusTargetName =
-        target.mainTarget.getPLOAT().name + slashc;
+    const string configurationNamePlusTargetName = target.mainTarget.getPLOAT().name + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
@@ -400,6 +402,64 @@ void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, str
 
     const Node *node = Node::getNodeFromNonNormalizedString(string(sourceDir) + slashc + string(fileName), true);
     target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, node);
+}
+
+template <typename T, typename... U> BoostCppTarget &BoostCppTarget::publicDeps(T &dep_, U &&...deps_)
+{
+    if constexpr (sizeof...(deps_))
+    {
+        return deps(DepType::PUBLIC, dep_, std::forward<U>(deps_)...);
+    }
+    else
+    {
+        return deps(DepType::PUBLIC, dep_);
+    }
+}
+
+template <typename T, typename... U> BoostCppTarget &BoostCppTarget::privateDeps(T &dep_, U &&...deps_)
+{
+    if constexpr (sizeof...(deps_))
+    {
+        return deps(DepType::PRIVATE, dep_, std::forward<U>(deps_)...);
+    }
+    else
+    {
+        return deps(DepType::PRIVATE, dep_);
+    }
+}
+
+template <typename T, typename... U> BoostCppTarget &BoostCppTarget::interfaceDeps(T &dep_, U &&...deps_)
+{
+    if constexpr (sizeof...(deps_))
+    {
+        return deps(DepType::INTERFACE, dep_, std::forward<U>(deps_)...);
+    }
+    else
+    {
+        return deps(DepType::INTERFACE, dep_);
+    }
+}
+
+template <typename T, typename... U> BoostCppTarget &BoostCppTarget::deps(DepType depType, T &dep_, U &&...deps_)
+{
+    if constexpr (std::is_same_v<decltype(dep_), BoostCppTarget&>)
+    {
+        mainTarget.deps(depType, dep_.mainTarget);
+    }
+    else if constexpr (std::is_same_v<DSC<CppSourceTarget> &, decltype(dep_)>)
+    {
+        mainTarget.deps<CppSourceTarget>(depType, dep_);
+    }
+    else
+    {
+        static_assert(false && "No Matching Type");
+    }
+
+    if constexpr (sizeof...(deps_))
+    {
+        return deps(depType, std::forward<U>(deps_)...);
+    }
+    return *this;
 }
 
 template <BoostExampleOrTestType EOT>

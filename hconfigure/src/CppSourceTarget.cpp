@@ -501,7 +501,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     else if (round == 1)
     {
         populateSourceNodes();
-
         adjustHeaderUnitsValueArrayPointers();
 
         if (reinterpret_cast<uint64_t &>(newHeaderUnitsSize) || moduleFileScanned)
@@ -548,13 +547,16 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                 headerUnitsSet.emplace(&oldHeaderUnits[i]);
             }
             {
-                lock_guard l(builder.executeMutex);
-                for (SMFile *headerUnit : headerUnitsSet)
                 {
-                    builder.updateBTargetsIterator =
-                        builder.updateBTargets.emplace(builder.updateBTargetsIterator, headerUnit);
+                    lock_guard l(builder.executeMutex);
+                    for (SMFile *headerUnit : headerUnitsSet)
+                    {
+                        builder.updateBTargetsIterator =
+                            builder.updateBTargets.emplace(builder.updateBTargetsIterator, headerUnit);
+                    }
+                    builder.updateBTargetsSizeGoal += oldHeaderUnits.size();
                 }
-                builder.updateBTargetsSizeGoal += oldHeaderUnits.size();
+                builder.cond.notify_one();
             }
             if (!oldHeaderUnits.empty())
             {

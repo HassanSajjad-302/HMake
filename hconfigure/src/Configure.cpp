@@ -94,12 +94,13 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
 
 void callConfigurationSpecification()
 {
-    for (Configuration &configuration : targets<Configuration>)
+    for (Configuration &config : targets<Configuration>)
     {
-        if (configuration.isHBuildInSameOrChildDirectory() || configureNode == currentNode)
+        if (config.isHBuildInSameOrChildDirectory() || configureNode == currentNode)
         {
-            configuration.initialize();
-            (*configurationSpecificationFuncPtr)(configuration);
+            config.initialize();
+            (*configurationSpecificationFuncPtr)(config);
+            config.postConfigurationSpecification();
         }
     }
 }

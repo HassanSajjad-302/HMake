@@ -159,8 +159,7 @@ class CppSourceTarget : public CSourceTarget
 
     void initializeCppSourceTarget(const string &name_, string buildCacheFilesDirPath);
 
-    void getObjectFiles(vector<const ObjectFile *> *objectFiles,
-                        LOAT *loat) const override;
+    void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const override;
     void populateTransitiveProperties();
     void adjustHeaderUnitsValueArrayPointers();
     CSourceTargetType getCSourceTargetType() const override;
@@ -193,8 +192,7 @@ class CppSourceTarget : public CSourceTarget
     template <typename... U> CppSourceTarget &interfaceHUIncludes(const string &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &publicHUDirs(const string &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &privateHUDirs(const string &include, U... includeDirectoryPString);
-    template <typename... U>
-    CppSourceTarget &interfaceHUDirs(const string &include, U... includeDirectoryPString);
+    template <typename... U> CppSourceTarget &interfaceHUDirs(const string &include, U... includeDirectoryPString);
     CppSourceTarget &publicCompilerFlags(const string &compilerFlags);
     CppSourceTarget &privateCompilerFlags(const string &compilerFlags);
     CppSourceTarget &interfaceCompilerFlags(const string &compilerFlags);
@@ -560,7 +558,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const str
 
     if constexpr (sizeof...(headerUnitsString))
     {
-        return sourceFiles(headerUnitsString...);
+        return headerUnits(headerUnitsString...);
     }
     else
     {
@@ -568,8 +566,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const str
     }
 }
 
-template <typename... U>
-CppSourceTarget &CppSourceTarget::sourceDirs(const string &sourceDirectory, U... dirs)
+template <typename... U> CppSourceTarget &CppSourceTarget::sourceDirs(const string &sourceDirectory, U... dirs)
 {
     parseRegexSourceDirs(true, sourceDirectory, ".*", false);
     if constexpr (sizeof...(dirs))
@@ -579,8 +576,7 @@ CppSourceTarget &CppSourceTarget::sourceDirs(const string &sourceDirectory, U...
     return *this;
 }
 
-template <typename... U>
-CppSourceTarget &CppSourceTarget::moduleDirs(const string &moduleDirectory, U... dirs)
+template <typename... U> CppSourceTarget &CppSourceTarget::moduleDirs(const string &moduleDirectory, U... dirs)
 {
     parseRegexSourceDirs(false, moduleDirectory, ".*", false);
     if constexpr (sizeof...(dirs))
@@ -591,8 +587,7 @@ CppSourceTarget &CppSourceTarget::moduleDirs(const string &moduleDirectory, U...
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::sourceDirsRE(const string &sourceDirectory, const string &regex,
-                                                      U... dirs)
+CppSourceTarget &CppSourceTarget::sourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs)
 {
     parseRegexSourceDirs(true, sourceDirectory, regex, false);
     if constexpr (sizeof...(dirs))
@@ -603,8 +598,7 @@ CppSourceTarget &CppSourceTarget::sourceDirsRE(const string &sourceDirectory, co
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::moduleDirsRE(const string &moduleDirectory, const string &regex,
-                                                      U... dirs)
+CppSourceTarget &CppSourceTarget::moduleDirsRE(const string &moduleDirectory, const string &regex, U... dirs)
 {
     parseRegexSourceDirs(false, moduleDirectory, regex, false);
     if constexpr (sizeof...(dirs))
@@ -614,8 +608,7 @@ CppSourceTarget &CppSourceTarget::moduleDirsRE(const string &moduleDirectory, co
     return *this;
 }
 
-template <typename... U>
-CppSourceTarget &CppSourceTarget::rSourceDirs(const string &sourceDirectory, U... dirs)
+template <typename... U> CppSourceTarget &CppSourceTarget::rSourceDirs(const string &sourceDirectory, U... dirs)
 {
     parseRegexSourceDirs(true, sourceDirectory, ".*", true);
     if constexpr (sizeof...(dirs))
@@ -625,8 +618,7 @@ CppSourceTarget &CppSourceTarget::rSourceDirs(const string &sourceDirectory, U..
     return *this;
 }
 
-template <typename... U>
-CppSourceTarget &CppSourceTarget::rModuleDirs(const string &moduleDirectory, U... dirs)
+template <typename... U> CppSourceTarget &CppSourceTarget::rModuleDirs(const string &moduleDirectory, U... dirs)
 {
     parseRegexSourceDirs(false, moduleDirectory, ".*", true);
     if constexpr (sizeof...(dirs))
@@ -637,8 +629,7 @@ CppSourceTarget &CppSourceTarget::rModuleDirs(const string &moduleDirectory, U..
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::rSourceDirsRE(const string &sourceDirectory, const string &regex,
-                                                       U... dirs)
+CppSourceTarget &CppSourceTarget::rSourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs)
 {
     parseRegexSourceDirs(true, sourceDirectory, regex, true);
     if constexpr (sizeof...(dirs))
@@ -649,8 +640,7 @@ CppSourceTarget &CppSourceTarget::rSourceDirsRE(const string &sourceDirectory, c
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::rModuleDirsRE(const string &moduleDirectory, const string &regex,
-                                                       U... dirs)
+CppSourceTarget &CppSourceTarget::rModuleDirsRE(const string &moduleDirectory, const string &regex, U... dirs)
 {
     parseRegexSourceDirs(false, moduleDirectory, regex, true);
     if constexpr (sizeof...(dirs))
@@ -735,9 +725,7 @@ string CppSourceTarget::GET_FLAG_evaluate(T condition, const string &flags, Argu
     }
 }
 
-template <>
-DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PLOAT *ploat_, bool defines,
-                          string define_);
+template <> DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PLOAT *ploat_, bool defines, string define_);
 
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget &ptr);
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget &ptr);

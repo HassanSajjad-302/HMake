@@ -83,6 +83,7 @@ class Configuration : public BTarget
 {
   public:
     flat_hash_map<Node *, CppTargetAndParentDirNode> moduleFilesToTarget;
+    vector<class BoostCppTarget *> boostCppTargets;
     vector<CppSourceTarget *> cppSourceTargets;
     vector<LOAT *> loats;
     vector<PLOAT *> ploats;
@@ -107,17 +108,13 @@ class Configuration : public BTarget
                                               const string &name_);
 
     LOAT &GetExeLOAT(const string &name_);
-    LOAT &GetExeLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                   const string &name_);
+    LOAT &GetExeLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
     LOAT &getStaticLOAT(const string &name_);
-    LOAT &getStaticLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                      const string &name_);
+    LOAT &getStaticLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
     LOAT &getSharedLOAT(const string &name_);
-    LOAT &getSharedLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                      const string &name_);
+    LOAT &getSharedLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
 
-    PLOAT &getPLOAT(const string &name_, const string &dir,
-                                                                TargetType linkTargetType_);
+    PLOAT &getPLOAT(const string &name_, const string &dir, TargetType linkTargetType_);
     PLOAT &getStaticPLOAT(const string &name_, const string &dir);
     PLOAT &getSharedPLOAT(const string &name_, const string &dir);
     CppSourceTarget &addStdCppDep(CppSourceTarget &target);
@@ -159,21 +156,15 @@ class Configuration : public BTarget
                                                     const string &name_);
 
     LOAT &GetExeLOATNoName(const string &name_);
-    LOAT &GetExeLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                         const string &name_);
+    LOAT &GetExeLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
     LOAT &getStaticLOATNoName(const string &name_);
-    LOAT &getStaticLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                            const string &name_);
+    LOAT &getStaticLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
     LOAT &getSharedLOATNoName(const string &name_);
-    LOAT &getSharedLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                            const string &name_);
+    LOAT &getSharedLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
 
-    PLOAT &getPLOATNoName(const string &name_, const string &dir,
-                                                                      TargetType linkTargetType_);
-    PLOAT &getStaticPLOATNoName(const string &name_,
-                                                                            const string &dir);
-    PLOAT &getSharedPLOATNoName(const string &name_,
-                                                                            const string &dir);
+    PLOAT &getPLOATNoName(const string &name_, const string &dir, TargetType linkTargetType_);
+    PLOAT &getStaticPLOATNoName(const string &name_, const string &dir);
+    PLOAT &getSharedPLOATNoName(const string &name_, const string &dir);
     // CSourceTarget &GetCPTNoName();
 
     DSC<CppSourceTarget> &getCppExeDSCNoName(const string &name_, bool defines = false, string define = "");
@@ -193,15 +184,19 @@ class Configuration : public BTarget
 
     DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &dir, bool defines = false,
                                                   string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName,
-                                                  const string &dir, bool defines = false, string define = "");
+    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName, const string &dir,
+                                                  bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppStaticDSC_PNoName(const string &name_, const string &dir, bool defines = false,
                                                   string define = "");
 
     DSC<CppSourceTarget> &getCppSharedDSC_PNoName(const string &name_, const string &dir, bool defines = false,
                                                   string define = "");
 
+    BoostCppTarget &getBoostCppTarget(const string &name, bool headerOnly, bool createTestsTarget = false,
+                                     bool createExamplesTarget = false);
+
     explicit Configuration(const string &name_);
+    void postConfigurationSpecification() const;
     void initialize();
     static void markArchivePoint();
     template <typename T, typename... Property> Configuration &assign(T property, Property... properties);

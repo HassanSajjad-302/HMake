@@ -77,6 +77,12 @@ template <typename T> struct DSC : DSCFeatures
         return *this;
     }
 
+    template <typename U, typename... V> DSC &deps(DepType depType, DSC<U> &dsc, const V... dscs)
+    {
+        assignLOATDep(depType, dsc, dscs...);
+        return *this;
+    }
+
     template <typename U, typename... V> DSC &publicDeps(DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs)
     {
         assignLOATDep(DepType::PUBLIC, dsc, std::move(prebuiltDep), dscs...);
@@ -95,6 +101,13 @@ template <typename T> struct DSC : DSCFeatures
         return *this;
     }
 
+    template <typename U, typename... V>
+    DSC &deps(DepType depType, DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs)
+    {
+        assignLOATDep(depType, dsc, std::move(prebuiltDep), dscs...);
+        return *this;
+    }
+
     T &getSourceTarget();
     T *getSourceTargetPointer();
     PLOAT &getPLOAT() const;
@@ -108,7 +121,7 @@ template <typename T> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
 
 template <typename T> template <typename U> void DSC<T>::assignObjectFileProducerDeps(DepType depType, DSC<U> &dsc)
 {
-    objectFileProducer->deps(dsc.getSourceTarget(), depType);
+    objectFileProducer->deps(depType, dsc.getSourceTarget());
 
     if (dsc.defineDllInterface == DefineDLLInterface::YES)
     {

@@ -653,8 +653,8 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang)
                 headerUnitDevalue.PushBack(logicalName, sourceNodeAllocator);
                 // angle
                 headerUnitDevalue.PushBack(requireValue.FindMember(Value(svtogsr(JConsts::lookupMethod)))->value ==
-                                                Value(svtogsr(JConsts::includeAngle)),
-                                            sourceNodeAllocator);
+                                               Value(svtogsr(JConsts::includeAngle)),
+                                           sourceNodeAllocator);
 
                 // These values are initialized later in initializeHeaderUnits.
                 // targetIndex
@@ -781,6 +781,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
 
             headerUnit->type = SM_FILE_TYPE::HEADER_UNIT;
             headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
+            huDirTarget->addDependency<1>(*headerUnit);
         }
         else
         {
@@ -795,6 +796,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
             {
                 headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
                 headerUnit->realBTargets[0].addInTarjanNodeBTarget(0);
+                huDirTarget->addDependency<1>(*headerUnit);
             }
         }
 
@@ -824,7 +826,6 @@ void SMFile::addNewBTargetInFinalBTargetsRound1(Builder &builder)
     {
         std::lock_guard lk(builder.executeMutex);
         builder.updateBTargetsIterator = builder.updateBTargets.emplace(builder.updateBTargetsIterator, this);
-        target->addDependency<1>(*this);
         builder.updateBTargetsSizeGoal += 1;
     }
     builder.cond.notify_one();

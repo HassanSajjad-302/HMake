@@ -128,7 +128,10 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
     }
 }
 
-BoostCppTarget::~BoostCppTarget()
+void BoostCppTarget::copyConfigCache() const
 {
-    configCache[targetCacheIndex].CopyFrom(buildOrConfigCacheCopy, ralloc);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        configCache[targetCacheIndex].CopyFrom(buildOrConfigCacheCopy, ralloc);
+    }
 }
