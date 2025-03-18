@@ -17,7 +17,7 @@ class ObjectFile : public BTarget
 public:
     ObjectFile();
     ObjectFile(bool add0, bool add1, bool add2);
-    Node *objectFileOutputFilePath = nullptr;
+    Node *objectFileOutputFileNode = nullptr;
     virtual string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
 };
 

@@ -25,11 +25,6 @@ inline char slashc = '\\';
 inline char slashc = '/';
 #endif
 
-struct IndexedNode
-{
-};
-// TODO
-// Explore
 using Json = nlohmann::json; // Unordered json
 
 inline flat_hash_set<string> cmdTargets;
@@ -46,10 +41,10 @@ inline std::atomic<uint64_t> roundEndTargetsCount = 0;
 
 inline auto &ralloc = buildCache.GetAllocator();
 
-// Node representing source directory
+// Node representing source dir
 inline class Node *srcNode;
 
-// Node representing configure directory
+// Node representing configure dir
 inline Node *configureNode;
 
 inline Node *currentNode;
@@ -58,7 +53,11 @@ enum class BSMode : char // Build System Mode
 {
     CONFIGURE = 0,
     BUILD = 1,
-    IDE = 2,
+#ifdef BUILD_MODE
+    BOTH = 1,
+#else
+    BOTH = 0,
+#endif
 };
 
 // By default, mode is configure, however, if, --build cmd option is passed, it is set to BUILD.
@@ -106,8 +105,9 @@ void printErrorMessageColor(const string &message, uint32_t color);
 #define HMAKE_HMAKE_INTERNAL_ERROR printErrorMessage(FORMAT("HMake Internal Error {} {}", __FILE__, __LINE__));
 
 string getLastNameAfterSlash(string_view name);
-string_view getLastNameAfterSlashView(string_view name);
+string_view getLastNameAfterSlashV(string_view name);
 string getNameBeforeLastSlash(string_view name);
+string_view getNameBeforeLastSlashV(string_view name);
 string getNameBeforeLastPeriod(string_view name);
 string removeDashCppFromName(string_view name);
 bool configureOrBuild();

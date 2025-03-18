@@ -45,11 +45,11 @@ struct JConsts
     inline static const string debug = "debug";
     inline static const string dependencies = "dependencies";
     inline static const string depth = "depth";
-    inline static const string directories = "directories";
+    inline static const string dirs = "dirs";
     inline static const string elements = "elements";
     inline static const string standardCompilerFlags = "standard-compiler-flags";
-    inline static const string standardIncludeDirectories = "standard-include-directories";
-    inline static const string standardLibraryDirectories = "standard-library-directories";
+    inline static const string standardIncludeDirs = "standard-include-dirs";
+    inline static const string standardLibraryDirs = "standard-library-dirs";
     inline static const string executable = "executable";
     inline static const string family = "family";
     inline static const string fileName = "fileName";
@@ -64,10 +64,10 @@ struct JConsts
     inline static const string hmakeFilePath = "hmake-file-path";
     inline static const string hostArchitecture = "host-architecture";
     inline static const string hostArddressModel = "host-address-model";
-    inline static const string huIncludeDirectories = "header-unit-include-directories";
+    inline static const string huIncludeDirs = "header-unit-include-dirs";
     inline static const string ifcOutputFile = "ifc-output-file";
     inline static const string includeAngle = "include-angle";
-    inline static const string includeDirectories = "include-directories";
+    inline static const string includeDirs = "include-dirs";
     inline static const string index = "index";
     inline static const string infrastructureFlags = "infrastructure-flags";
     inline static const string interface_ = "interface";
@@ -77,7 +77,7 @@ struct JConsts
     inline static const string isLinkerInToolsArray = "is-linker-in-tools-array";
     inline static const string isScannerInToolsArray = "is-scanner-in-tools-array";
     inline static const string libraryDependencies = "library-dependencies";
-    inline static const string libraryDirectories = "library-directories";
+    inline static const string libraryDirs = "library-dirs";
     inline static const string libraryType = "library-type";
     inline static const string linkCommand = "link-command";
     inline static const string linkCommandColor = "link-command-color";
@@ -103,7 +103,7 @@ struct JConsts
     inline static const string objectFiles = "object-files";
     inline static const string onlyLogicalNameOfRequireIfc = "only-logical-name-of-require-ifc";
     inline static const string outputAndErrorFiles = "output-and-error-files";
-    inline static const string outputDirectory = "output-directory";
+    inline static const string outputDirectory = "output-dir";
     inline static const string outputName = "output-name";
     inline static const string packageName = "package-name";
     inline static const string packagePath = "package-path";
@@ -126,7 +126,7 @@ struct JConsts
     inline static const string private_ = "private";
     inline static const string provides = "provides";
     inline static const string project = "project";
-    inline static const string projectIncludeDirectories = "project-include-directories";
+    inline static const string projectIncludeDirs = "project-include-dirs";
     inline static const string pruneCompiledSourceFileNameFromMsvcOutput =
         "prune-compiled-source-file-name-from-msvc-output";
     inline static const string pruneHeaderDependenciesFromMsvcOutput = "prune-header-dependencies-from-msvc-output";
@@ -146,7 +146,7 @@ struct JConsts
     inline static const string smFileType = "smfile-type";
     inline static const string smrules = "smrules";
     inline static const string sourceDependencies = "source-dependencies";
-    inline static const string sourceDirectory = "source-directory";
+    inline static const string sourceDirectory = "source-dir";
     inline static const string sourceFile = "source-file";
     inline static const string sourcePath = "source-path";
     inline static const string srcFile = "src-file";

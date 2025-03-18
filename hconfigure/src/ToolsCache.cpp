@@ -140,15 +140,15 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
     accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
     accumulatedPaths.pop_back();
     accumulatedPaths.append(";");
-    includeDirectories = splitPathsAndAssignToVector(accumulatedPaths);
-    convertPathsToWSLPaths(includeDirectories);
+    includeDirs = splitPathsAndAssignToVector(accumulatedPaths);
+    convertPathsToWSLPaths(includeDirs);
     accumulatedPaths = fileToPString(temporaryLibFilename);
     remove(temporaryLibFilename);
     accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
     accumulatedPaths.pop_back();
     accumulatedPaths.append(";");
-    libraryDirectories = splitPathsAndAssignToVector(accumulatedPaths);
-    convertPathsToWSLPaths(libraryDirectories);
+    libraryDirs = splitPathsAndAssignToVector(accumulatedPaths);
+    convertPathsToWSLPaths(libraryDirs);
 }
 
 void to_json(Json &j, const VSTools &vsTool)
@@ -163,8 +163,8 @@ void to_json(Json &j, const VSTools &vsTool)
     j[JConsts::hostArddressModel] = vsTool.hostAM;
     j[JConsts::targetArchitecture] = vsTool.targetArch;
     j[JConsts::targetAddressModel] = vsTool.targetAM;
-    j[JConsts::includeDirectories] = vsTool.includeDirectories;
-    j[JConsts::libraryDirectories] = vsTool.libraryDirectories;
+    j[JConsts::includeDirs] = vsTool.includeDirs;
+    j[JConsts::libraryDirs] = vsTool.libraryDirs;
 }
 
 void from_json(const Json &j, VSTools &vsTool)
@@ -179,8 +179,8 @@ void from_json(const Json &j, VSTools &vsTool)
     vsTool.hostAM = j.at(JConsts::hostArddressModel).get<AddressModel>();
     vsTool.targetArch = j.at(JConsts::targetArchitecture).get<Arch>();
     vsTool.targetAM = j.at(JConsts::targetAddressModel).get<AddressModel>();
-    vsTool.includeDirectories = j.at(JConsts::includeDirectories).get<vector<string>>();
-    vsTool.libraryDirectories = j.at(JConsts::libraryDirectories).get<vector<string>>();
+    vsTool.includeDirs = j.at(JConsts::includeDirs).get<vector<string>>();
+    vsTool.libraryDirs = j.at(JConsts::libraryDirs).get<vector<string>>();
 }
 
 LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
@@ -230,7 +230,7 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
             for (size_t i = foundIndex + 1; i < endIndex; ++i)
             {
                 // first character is space, so substr is copied
-                emplaceInVector(includeDirectories, lines[i].substr(1, lines[i].size() - 1));
+                emplaceInVector(includeDirs, lines[i].substr(1, lines[i].size() - 1));
             }
         }
         else
@@ -248,14 +248,14 @@ void to_json(Json &j, const LinuxTools &linuxTools)
 {
     j[JConsts::command] = linuxTools.command;
     j[JConsts::compiler] = linuxTools.compiler;
-    j[JConsts::includeDirectories] = linuxTools.includeDirectories;
+    j[JConsts::includeDirs] = linuxTools.includeDirs;
 }
 
 void from_json(const Json &j, LinuxTools &linuxTools)
 {
     linuxTools.command = j.at(JConsts::command).get<string>();
     linuxTools.compiler = j.at(JConsts::compiler).get<Compiler>();
-    linuxTools.includeDirectories = j.at(JConsts::includeDirectories).get<vector<string>>();
+    linuxTools.includeDirs = j.at(JConsts::includeDirs).get<vector<string>>();
 }
 
 ToolsCache::ToolsCache()
@@ -283,7 +283,7 @@ void ToolsCache::detectToolsAndInitialize()
 {
     // TODO
     // HMake does not have installer yet. Otherwise, this maybe added in installer. Currently, nothing is detected yet.
-    // 2022 Visual Studio Community is requirement. So is g++-12.2.0.
+    // 2022 Visual Studio Community is req. So is g++-12.2.0.
 
     if constexpr (os == OS::NT)
     {

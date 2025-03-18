@@ -41,7 +41,6 @@ int main(const int argc, char **argv)
         }
         return system(str.c_str());
     }
-    printErrorMessage(
-        FORMAT("{} File could not be found in current directory and directories above\n", buildExeName));
+    printErrorMessage(FORMAT("{} File could not be found in current dir and dirs above\n", buildExeName));
     exit(EXIT_FAILURE);
 }

@@ -297,8 +297,8 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
 
         if (exitStatus == EXIT_SUCCESS)
         {
-            targetCacheDiskWriteManager.pValueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2,
-                                                                 _index3, _index4);
+            targetCacheDiskWriteManager.valueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2,
+                                                                _index3, _index4);
             notify = true;
         }
 
@@ -350,14 +350,14 @@ bool PostCompile::ignoreHeaderFile(const string_view child) const
     //  Premature Optimization Hahacd
     // TODO:
     //  Add a key in hconfigure that informs hbuild that the library isn't to be
-    //  updated, so includes from the directories coming from it aren't mentioned
+    //  updated, so includes from the dirs coming from it aren't mentioned
     //  in targetCache and neither are those libraries checked for an edit for
     //  faster startup times.
 
     // If a file is in environment includes, it is not marked as dependency as an
-    // optimization. If a file is in subdirectory of environment include, it is
+    // optimization. If a file is in subdir of environment include, it is
     // still marked as dependency. It is not checked if any of environment
-    // includes is related(equivalent, subdirectory) with any of normal includes
+    // includes is related(equivalent, subdir) with any of normal includes
     // or vice-versa.
 
     // std::path::equivalent is not used as it is slow

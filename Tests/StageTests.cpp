@@ -73,6 +73,7 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
     }
 }
 
+#include <stacktrace>
 static void executeSnapshotBalances(const Updates &updates, const path &hbuildExecutionPath = current_path())
 {
     // Running configure.exe --build should not update any file
@@ -80,12 +81,21 @@ static void executeSnapshotBalances(const Updates &updates, const path &hbuildEx
     current_path(hbuildExecutionPath);
     Snapshot snapshot(p);
     const int exitCode = system(hbuildBuildStr.c_str());
+    /*if (exitCode)
+    {
+        std::cout << std::stacktrace::current() << std::endl;
+    }*/
     ASSERT_EQ(exitCode, 0) << hbuildBuildStr + " command failed.";
     snapshot.after(p);
     ASSERT_EQ(snapshot.snapshotBalances(updates), true);
 
     snapshot.before(p);
-    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+    const int exitCode2 = system(hbuildBuildStr.c_str());
+    /*if (exitCode2)
+    {
+        std::cout << std::stacktrace::current() << std::endl;
+    }*/
+    ASSERT_EQ(exitCode2, 0) << hbuildBuildStr + " command failed.";
     snapshot.after(p);
     current_path(p);
     ASSERT_EQ(snapshot.snapshotBalances(Updates{}), true);
@@ -122,16 +132,16 @@ static void executeErroneousSnapshotBalances(const Updates &updates, const path 
     current_path(p);
 }
 
-// Tests Hello-World and rebuild in different directories on touching file.
+// Tests Hello-World and rebuild in different dirs on touching file.
 TEST(StageTests, Test1)
 {
     const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
     current_path(testSourcePath);
     copyFilePath(testSourcePath / "Version/hmake0.cpp", testSourcePath / "hmake.cpp");
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    current_path("app/");
+    current_path("Release/app/");
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "Hello World\n");
-    current_path("../");
+    current_path("../../");
 
     executeSnapshotBalances(Updates{});
 
@@ -143,45 +153,45 @@ TEST(StageTests, Test1)
     // Touching main.cpp. But hbuild executed in app-cpp.
     touchFile(mainFilePath);
     // Test currently failing because app-cpp is already added in nodes.json because of buildCacheFilesDirPath.
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "app-cpp/");
+    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Release/app-cpp/");
 
     // Now executing again in Build
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
 
     // Touching main.cpp. But hbuild executed in app
     touchFile(mainFilePath);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "app/");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
 
     // Deleting app.exe
     const path appExeFilePath =
-        testSourcePath / "Build/app" / path(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"));
+        testSourcePath / "Build/Release/app" / path(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"));
     removeFilePath(appExeFilePath);
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
 
     // Deleting app.exe. But hbuild executed in app-cpp first and then in app
     removeFilePath(appExeFilePath);
-    executeSnapshotBalances(Updates{}, "app-cpp/");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "app/");
+    executeSnapshotBalances(Updates{}, "Release/app-cpp/");
+    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Release/app/");
 
-    // Deleting app-cpp directory
-    const path appCppDirectory = testSourcePath / "Build/app-cpp/";
+    // Deleting app-cpp dir
+    const path appCppDirectory = testSourcePath / "Build/Release/app-cpp/";
     removeDirectory(appCppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
-    // Deleting app-cpp directory but executing hbuild in app
+    // Deleting app-cpp dir but executing hbuild in app
     removeDirectory(appCppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "app/");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
 
     // Deleting main.cpp.o
-    const path mainDotCppDotOFilePath = testSourcePath / "Build/app-cpp/main.cpp.o";
+    const path mainDotCppDotOFilePath = testSourcePath / "Build/Release/app-cpp/main.cpp.o";
     removeFilePath(mainDotCppDotOFilePath);
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
     // Deleting main.cpp.o but executing in app/
     removeFilePath(mainDotCppDotOFilePath);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "app/");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
 
     // Updating compiler-flags
     copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
@@ -196,7 +206,7 @@ TEST(StageTests, Test1)
     // Updating compiler-flags but executing in app-cpp
     copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "app-cpp/");
+    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Release/app-cpp/");
 
     // Executing in Build. Only app to be updated.
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
@@ -223,7 +233,7 @@ static void setupTest2Default()
     }
 }
 
-// Tests Property Transitiviy, rebuild in multiple directories on touching file, source-file inclusion and exclusion,
+// Tests Property Transitiviy, rebuild in multiple dirs on touching file, source-file inclusion and exclusion,
 // header-files exclusion and inclusion, libraries exclusion and inclusion, caching in-case of error in
 // file-compilation.
 
@@ -269,13 +279,13 @@ TEST(StageTests, Test2)
     touchFile(publicLib4DotHpp);
     executeSnapshotBalances(Updates{.sourceFiles = 3, .linkTargetsNoDebug = 3, .linkTargetsDebug = 1});
 
-    // Deleting lib3-cpp directory
+    // Deleting lib3-cpp dir
     path lib3CppDirectory = testSourcePath / "Build/Debug/lib3-cpp/";
     removeDirectory(lib3CppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
-    // Deleting lib4 and lib2-cpp directory
+    // Deleting lib4 and lib2-cpp dir
     path lib4 = testSourcePath / "Build/Debug/lib4/" /
                 path(getActualNameFromTargetName(TargetType::LIBRARY_STATIC, os, "lib4"));
     path lib2CppDirectory = testSourcePath / "Build/Debug/lib2-cpp/";
@@ -315,7 +325,7 @@ TEST(StageTests, Test2)
     touchFile(publicLib1DotHpp);
     executeSnapshotBalances(Updates{.sourceFiles = 2, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
 
-    // Adding public-lib1.hpp contents to main.cpp and lib1.cpp and removing it from directory
+    // Adding public-lib1.hpp contents to main.cpp and lib1.cpp and removing it from dir
     copyFilePath(testSourcePath / "Version/1/main.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/1/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
     removeFilePath(testSourcePath / "lib1/public/public-lib1.hpp");
@@ -512,12 +522,8 @@ TEST(StageTests, Test3)
     //  public-lib3.hpp will be recompiled and its dependent lib3.cpp will also be recompiled but public-lib4.hpp is
     //  itself a header-unit in lib4.cpp, so its smrule will also be generated.
     touchFile(testSourcePath / "lib4/public/public-lib4.hpp");
-    // TODO
-    // This test is incorrect since 5 smruleFiles should be generated. lib2.cpp, lib3.cpp, lib4.cpp, public-lib3.hpp,
-    // public-lib4.hpp. This does not generate lib3.cpp.smrules which has an import dependency on public-lib3.hpp which
-    // has an include dependency on public-lib4.hpp. But this include is not outputted in /showIncludes flag in first
-    // round. So the bug is that /showIncludes only show the direct header-files includes and not of those which are
-    // included by the header-units we are importing.
+
+    // 5 smruleFiles are generated. lib2.cpp, lib3.cpp, lib4.cpp, public-lib3.hpp, public-lib4.hpp.
     executeSnapshotBalances(Updates{.smruleFiles = 5}, "Debug/lib1-cpp");
     executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{}, "Debug/lib1-cpp");
@@ -579,13 +585,38 @@ TEST(StageTests, Test3)
                                     .linkTargetsDebug = 1});
 }
 
-static void setupTest4Default()
+TEST(StageTests, Test4)
+{
+    const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
+    current_path(testSourcePath);
+    copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
+
+    if (exists(path("Build")))
+    {
+        remove_all(path("Build"));
+    }
+    create_directory("Build");
+    current_path("Build");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << "First " + hhelperStr + " command failed.";
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << "Second " + hhelperStr + " command failed.";
+
+    executeSnapshotBalances(Updates{.smruleFiles = 2, .nodesFile = true}, "hu/aevain");
+
+    copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << "Second " + hhelperStr + " command failed.";
+    executeSnapshotBalances(Updates{.smruleFiles = 2, .nodesFile = true}, "hu/aevain");
+}
+
+static void setupTest5Default()
 {
     const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
     copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
 }
 
-TEST(StageTests, Test4)
+// TODO
+// Will be completed after configuration having vector of different cpptarget properties API is completed.
+/*
+TEST(StageTests, Test5)
 {
     const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
     current_path(testSourcePath);
@@ -610,9 +641,10 @@ TEST(StageTests, Test4)
     // Expand test further and maybe merge with the above test.
     // Add test where scanning fails. Both for modules and header-unit.
 }
+*/
 
 #endif
 
 // TODO
-// Few features like PrebuiltLinkOrArchiveTarget::outputName and PrebuiltLinkOrArchiveTarget::name aren't tested. atm.
+// Few features like PLOAT::outputName and PLOAT::name aren't tested. atm.
 // Testing could be further expanded as-well.

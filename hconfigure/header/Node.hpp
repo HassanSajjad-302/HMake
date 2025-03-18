@@ -77,9 +77,9 @@ class Node
 
     static Node *addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath);
     static Node *getHalfNodeFromNormalizedString(string_view p);
-    static Node *getNodeFromValue(const Value &pValue, bool isFile, bool mayNotExist = false);
-    static Node *getNotSystemCheckCalledNodeFromValue(const Value &pValue);
-    static Node *tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &pValue, bool isFile,
+    static Node *getNodeFromValue(const Value &value, bool isFile, bool mayNotExist = false);
+    static Node *getHalfNodeFromValue(const Value &value);
+    static Node *tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, bool isFile,
                                       bool mayNotExist = false);
 
     static Node *getLastNodeAdded();

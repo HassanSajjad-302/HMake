@@ -24,9 +24,14 @@ class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>, public Tar
 {
   public:
     using BaseType = CSourceTarget;
+
+    vector<InclNode> reqIncls;
     vector<InclNode> useReqIncls;
-    string usageRequirementCompilerFlags;
-    flat_hash_set<Define> usageRequirementCompileDefinitions;
+    string reqCompilerFlags;
+    string useReqCompilerFlags;
+    flat_hash_set<Define> reqCompileDefinitions;
+    flat_hash_set<Define> useReqCompileDefinitions;
+
     Configuration *configuration = nullptr;
 
     explicit CSourceTarget(const string &name_);
@@ -43,37 +48,10 @@ class CSourceTarget : public ObjectFileProducerWithDS<CSourceTarget>, public Tar
       CSourceTarget(bool buildExplicit, string name_, Configuration *configuration_, bool
       noTargetCacheInitialization);*/
 
-  public:
-    template <typename... U> CSourceTarget &interfaceIncludes(const string &include, U... includeDirectoryPString);
     CSourceTarget &INTERFACE_COMPILER_FLAGS(const string &compilerFlags);
     CSourceTarget &INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue = "");
     virtual CSourceTargetType getCSourceTargetType() const;
 };
 bool operator<(const CSourceTarget &lhs, const CSourceTarget &rhs);
-
-template <typename... U>
-CSourceTarget &CSourceTarget::interfaceIncludes(const string &include, U... includeDirectoryPString)
-{
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        if (useMiniTarget == UseMiniTarget::YES)
-        {
-        }
-    }
-    else
-    {
-        // todo
-        // CppCompilerFeatures::actuallyAddInclude(useReqIncls, include, false);
-    }
-
-    if constexpr (sizeof...(includeDirectoryPString))
-    {
-        return interfaceIncludes(includeDirectoryPString...);
-    }
-    else
-    {
-        return *this;
-    }
-}
 
 #endif // HMAKE_CSOURCETARGET_HPP

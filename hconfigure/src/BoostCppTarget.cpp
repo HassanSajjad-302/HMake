@@ -5,14 +5,14 @@ import "BuildSystemFunctions.hpp";
 import "Configuration.hpp";
 import "CppSourceTarget.hpp";
 import "DSC.hpp";
-import "LinkOrArchiveTarget.hpp";
+import "LOAT.hpp";
 #else
 #include "BoostCppTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Configuration.hpp"
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
-#include "LinkOrArchiveTarget.hpp"
+#include "LOAT.hpp"
 #include <utility>
 #endif
 
@@ -22,16 +22,26 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
 {
     const string buildCacheFilesDirPath = configuration->name + slashc + name;
 
+    DSC<CppSourceTarget> *t = nullptr;
     if (headerOnly)
     {
-        return configuration->getCppObjectDSC(false, buildCacheFilesDirPath, name);
+        t = &configuration->getCppStaticDSC(false, buildCacheFilesDirPath, name);
     }
-    return configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
+    else
+    {
+        t = &configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
+    }
+    t->getSourceTarget().publicHUDirs(string("boost") + slashc + name);
+    if (name != "core" && name != "mpl" && name != "detail")
+    {
+        t->getSourceTarget().headerUnits(string("boost") + slashc + name + ".hpp");
+    }
+    return *t;
 }
 
 BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_, const bool headerOnly,
                                const bool createTestsTarget, const bool createExamplesTarget)
-    : TargetCache("Boost_" + name), configuration(configuration_),
+    : TargetCache(configuration_->name + "Boost_" + name), configuration(configuration_),
       mainTarget(getMainTarget(name, configuration_, headerOnly))
 {
     if constexpr (bsMode == BSMode::BUILD)
@@ -55,7 +65,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         {
             auto boostExampleOrTest = static_cast<BoostExampleOrTestType>(targetConfigCache[i].GetUint());
             const string unitTestName =
-                mainTarget.getPrebuiltBasicTarget().name + slashc +
+                mainTarget.getPLOAT().name + slashc +
                 string(targetConfigCache[i + 1].GetString(), targetConfigCache[i + 1].GetStringLength());
             bool explicitBuild = false;
             bool isExample = false;
@@ -83,34 +93,32 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
             if (isCompile)
             {
-                CSourceTarget &cTarget = configuration->getCppObjectNoName(explicitBuild, "", unitTestName)
-                                             .privateDeps(&mainTarget.getSourceTarget());
-                auto &cppTarget = static_cast<CppSourceTarget &>(cTarget);
+                CppSourceTarget &cppTarget = configuration->getCppObjectNoName(explicitBuild, "", unitTestName)
+                                                 .privateDeps(&mainTarget.getSourceTarget());
                 examplesOrTests.emplace_back(BoostTestTargetType{.cppTarget = &cppTarget}, boostExampleOrTest);
 
                 if (testTarget)
                 {
-                    testTarget->addDependency<0>(cTarget);
+                    testTarget->addDependency<0>(cppTarget);
                 }
             }
             else
             {
                 DSC<CppSourceTarget> &uintTest =
-                    configuration->getCppExeDSCNoName(explicitBuild, "", unitTestName).privateLibraries(&mainTarget);
+                    configuration->getCppExeDSCNoName(explicitBuild, "", unitTestName).privateDeps(mainTarget);
                 examplesOrTests.emplace_back(BoostTestTargetType{.dscTarget = &uintTest}, boostExampleOrTest);
                 if (isExample)
                 {
                     if (examplesTarget)
                     {
-                        examplesTarget->addDependency<0>(uintTest.getLinkOrArchiveTarget());
+                        examplesTarget->addDependency<0>(uintTest.getLOAT());
                     }
                 }
                 else
                 {
-
                     if (testTarget)
                     {
-                        testTarget->addDependency<0>(uintTest.getLinkOrArchiveTarget());
+                        testTarget->addDependency<0>(uintTest.getLOAT());
                     }
                 }
             }
@@ -118,7 +126,43 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
     }
 }
 
-BoostCppTarget::~BoostCppTarget()
+BoostCppTarget &BoostCppTarget::assignPrivateTestDeps()
 {
-    configCache[targetCacheIndex].CopyFrom(buildOrConfigCacheCopy, ralloc);
+    for (auto &[testTarget, targetType] : examplesOrTests)
+    {
+        bool isCompile = false;
+        if (targetType == BoostExampleOrTestType::COMPILE_TEST ||
+            targetType == BoostExampleOrTestType::COMPILE_FAIL_TEST)
+        {
+            isCompile = true;
+        }
+        else
+        {
+            isCompile = false;
+        }
+
+        if (isCompile)
+        {
+            for (CppSourceTarget *dep : cppTestDepsPrivate)
+            {
+                testTarget.cppTarget->privateDeps(dep);
+            }
+        }
+        else
+        {
+            for (DSC<CppSourceTarget> *dep : dscTestDepsPrivate)
+            {
+                testTarget.dscTarget->privateDeps(*dep);
+            }
+        }
+    }
+    return *this;
+}
+
+void BoostCppTarget::copyConfigCache()
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        configCache[targetCacheIndex].CopyFrom(buildOrConfigCacheCopy, ralloc);
+    }
 }

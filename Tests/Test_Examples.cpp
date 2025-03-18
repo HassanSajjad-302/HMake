@@ -16,7 +16,7 @@ TEST(ExamplesTest, Example1)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example1"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Hello World\n");
 }
@@ -37,7 +37,7 @@ TEST(ExamplesTest, Example3)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example3"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "func() from file1.cpp called.\n");
 
@@ -51,7 +51,7 @@ TEST(ExamplesTest, Example3)
     ASSERT_EQ(system((hhelperStr + " --configure").c_str()), 0) << hhelperStr + " --configure" + " command failed.";
     ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
 
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "func() from file2.cpp called.\n");
 }
@@ -61,11 +61,11 @@ TEST(ExamplesTest, Example4)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example4"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     ExamplesTestHelper::runAppWithExpectedOutput(
-        current_path().string() + "/Animal-Shared/" +
+        current_path().string() + "/Release/Animal-Shared/" +
             getActualNameFromTargetName(TargetType::EXECUTABLE, os, "Animal-Shared"),
         "Cat says Meow..\n");
     ExamplesTestHelper::runAppWithExpectedOutput(
-        current_path().string() + "/Animal-Static/" +
+        current_path().string() + "/Release/Animal-Static/" +
             getActualNameFromTargetName(TargetType::EXECUTABLE, os, "Animal-Static"),
         "Cat says Meow..\n");
 }
@@ -86,16 +86,16 @@ TEST(ExamplesTest, Example6)
 
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example6"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/App-Static/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/App-Static/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Cat says Meow..\nDog says Woof..\n");
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/App-Shared/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/App-Shared/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Cat says Meow..\nDog says Woof..\n");
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/App2-Static/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/App2-Static/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Cat says Meow..\nDog says Woof..\n");
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/App2-Shared/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/App2-Shared/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Cat says Meow..\nDog says Woof..\n");
 }
@@ -105,10 +105,10 @@ TEST(ExamplesTest, Example7)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example7"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/modules/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Hello World\n");
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app2/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/hu/app2/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app2"),
                                                  "Hello World\n");
 }
@@ -117,7 +117,7 @@ TEST(ExamplesTest, Example8)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example8"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app/" +
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Hello World\n");
 }
@@ -129,10 +129,17 @@ TEST(ExamplesTest, Example9)
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/static/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "36\n");
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/object/app/" +
-                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
-                                                 "36\n");
 }
+
+TEST(ExamplesTest, Example10)
+{
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example10"));
+    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/appA/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "appA"),
+                                                 "My Name is Library A\nMy Name is Library B\n");
+}
+
 #endif
 
 TEST(AExamplesTest, Example_A1)

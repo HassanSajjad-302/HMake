@@ -57,7 +57,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
         }
         else
         {
-            throw std::exception("cache.json could not be found in current directory and directories above\n");
+            throw std::exception("cache.json could not be found in current dir and dirs above\n");
         }
     }
     else
@@ -94,12 +94,13 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
 
 void callConfigurationSpecification()
 {
-    for (Configuration &configuration : targets<Configuration>)
+    for (Configuration &config : targets<Configuration>)
     {
-        if (configuration.isHBuildInSameOrChildDirectory() || configureNode == currentNode)
+        if (config.isHBuildInSameOrChildDirectory() || configureNode == currentNode)
         {
-            configuration.initialize();
-            configurationSpecification(configuration);
+            config.initialize();
+            (*configurationSpecificationFuncPtr)(config);
+            config.postConfigurationSpecification();
         }
     }
 }
@@ -111,7 +112,7 @@ int main2(const int argc, char **argv)
         parseCmdArgumentsAndSetConfigureNode(argc, argv);
         constructGlobals();
         initializeCache(bsMode);
-        buildSpecification();
+        (*buildSpecificationFuncPtr)();
         const bool errorHappened = configureOrBuild();
         destructGlobals();
         if (errorHappened)

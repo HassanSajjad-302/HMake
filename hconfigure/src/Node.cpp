@@ -247,36 +247,36 @@ Node *Node::getHalfNodeFromNormalizedString(const string_view p)
     return node;
 }
 
-Node *Node::getNodeFromValue(const Value &pValue, bool isFile, bool mayNotExist)
+Node *Node::getNodeFromValue(const Value &value, bool isFile, bool mayNotExist)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[pValue.GetUint64()];
+    Node *node = nodeIndices[value.GetUint64()];
     node->ensureSystemCheckCalled(isFile, mayNotExist);
 #else
-    Node *node = Node::getNodeFromNormalizedString(string_view(pValue.GetString(), pValue.GetStringLength()), isFile,
-                                                   mayNotExist);
+    Node *node =
+        getNodeFromNormalizedString(string_view(value.GetString(), value.GetStringLength()), isFile, mayNotExist);
 #endif
     return node;
 }
 
-Node *Node::getNotSystemCheckCalledNodeFromValue(const Value &pValue)
+Node *Node::getHalfNodeFromValue(const Value &value)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[pValue.GetUint64()];
+    Node *node = nodeIndices[value.GetUint64()];
 #else
     Node *node =
-        getNodeFromNormalizedStringNoSystemCheckCalled(string_view(pValue.GetString(), pValue.GetStringLength()));
+        getNodeFromNormalizedStringNoSystemCheckCalled(string_view(value.GetString(), value.GetStringLength()));
 #endif
     return node;
 }
 
-Node *Node::tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &pValue, bool isFile, bool mayNotExist)
+Node *Node::tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, bool isFile, bool mayNotExist)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[pValue.GetUint64()];
+    Node *node = nodeIndices[value.GetUint64()];
     systemCheckSucceeded = node->trySystemCheck(isFile, mayNotExist);
 #else
-    Node *node = Node::getNodeFromNormalizedString(string_view(pValue.GetString(), pValue.GetStringLength()), isFile,
+    Node *node = Node::getNodeFromNormalizedString(string_view(value.GetString(), value.GetStringLength()), isFile,
                                                    mayNotExist);
     systemCheckSucceeded = true;
 #endif
@@ -318,8 +318,8 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
         {
             if (!mayNotExist || entry.status().type() != file_type::not_found)
             {
-                printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath,
-                                         isFile ? "regular" : "directory", getStatusPString(filePath)));
+                printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath, isFile ? "regular" : "dir",
+                                         getStatusPString(filePath)));
                 throw std::exception();
             }
             doesNotExist = true;
@@ -341,7 +341,7 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
         {
             printErrorMessage(FORMAT("FindFirstFileEx failed {}\n", GetLastError()));
             printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath,
-                                          isFile ? "regular" : "directory", getStatusPString(filePath)));
+                                          isFile ? "regular" : "dir", getStatusPString(filePath)));
             throw std::exception();
         }
     }
@@ -364,7 +364,7 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
         {
             printErrorMessage(FORMAT("FindFirstFileEx failed {}\n", GetLastError()));
             printErrorMessage(
-                FORMAT("{} is not a directory file. File Type is {}\n", filePath, getStatusPString(filePath)));
+                FORMAT("{} is not a dir file. File Type is {}\n", filePath, getStatusPString(filePath)));
             throw std::exception();
         }
     }

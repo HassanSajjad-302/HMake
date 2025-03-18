@@ -50,9 +50,9 @@ class Snapshot
     flat_hash_set<NodeSnap> afterData;
 
   public:
-    explicit Snapshot(const path &directoryPath);
-    void before(const path &directoryPath);
-    void after(const path &directoryPath);
+    explicit Snapshot(const path &dirPath);
+    void before(const path &dirPath);
+    void after(const path &dirPath);
     bool snapshotBalances(const Updates &updates) const;
 };
 

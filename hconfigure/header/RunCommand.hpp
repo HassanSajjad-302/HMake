@@ -8,7 +8,7 @@ import "Settings.hpp";
 #include "Settings.hpp"
 #endif
 
-// Maybe use CRTP and inherit both SourceNode and LinkOrArchiveTarget from it. exitStatus is being copied currently.
+// Maybe use CRTP and inherit both SourceNode and LOAT from it. exitStatus is being copied currently.
 struct RunCommand
 {
     string printCommand;

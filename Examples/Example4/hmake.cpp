@@ -1,16 +1,22 @@
 #include "Configure.hpp"
 
-void buildSpecification()
+void configurationSpecification(Configuration &config)
 {
-    DSC<CppSourceTarget> &catStatic = getCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
+    DSC<CppSourceTarget> &catStatic = config.getCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
     catStatic.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
 
-    getCppExeDSC("Animal-Static").privateLibraries(&catStatic).getSourceTarget().sourceFiles("main.cpp");
+    config.getCppExeDSC("Animal-Static").privateDeps(catStatic).getSourceTarget().sourceFiles("main.cpp");
 
-    DSC<CppSourceTarget> &catShared = getCppSharedDSC("Cat-Shared", true, "CAT_EXPORT");
+    DSC<CppSourceTarget> &catShared = config.getCppSharedDSC("Cat-Shared", true, "CAT_EXPORT");
     catShared.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
 
-    getCppExeDSC("Animal-Shared").privateLibraries(&catShared).getSourceTarget().sourceFiles("main.cpp");
+    config.getCppExeDSC("Animal-Shared").privateDeps(catShared).getSourceTarget().sourceFiles("main.cpp");
+}
+
+void buildSpecification()
+{
+    getConfiguration();
+    CALL_CONFIGURATION_SPECIFICATION
 }
 
 MAIN_FUNCTION

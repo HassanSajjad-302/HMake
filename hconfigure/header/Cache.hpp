@@ -19,7 +19,7 @@ struct Cache
     Json cacheFileJson;
     string sourceDirectoryPath;
     // isToolInVSToolsArray to be used only on Windows. Determines if the index of tool is in VSTools array or is in
-    // plain array. In VSTools array, compiler and linker also have include-directories and library-directories with
+    // plain array. In VSTools array, compiler and linker also have include-dirs and library-dirs with
     // them which are loaded from toolsCache global variable.
     bool isCompilerInToolsArray;
     unsigned selectedCompilerArrayIndex;

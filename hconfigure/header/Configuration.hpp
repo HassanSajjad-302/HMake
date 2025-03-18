@@ -2,14 +2,11 @@
 #define HMAKE_CONFIGURATION_HPP
 #ifdef USE_HEADER_UNITS
 import "BTarget.hpp";
-import "ConfigType.hpp";
-import "DSC.hpp";
-import "LinkOrArchiveTarget.hpp";
+import "Features.hpp";
 import <memory>;
 #else
 #include "BTarget.hpp"
-#include "ConfigType.hpp"
-#include "LinkOrArchiveTarget.hpp"
+#include "Features.hpp"
 #include <memory>
 #endif
 
@@ -71,29 +68,25 @@ enum class BuildTestsAndExamplesExplicitBuild : char
     YES,
 };
 
-struct CppTargetAndParentDirNode
-{
-    CppSourceTarget *target;
-    Node *incl;
-};
-
 class CSourceTarget;
+class PLOAT;
+class LOAT;
+class Node;
+
 class Configuration : public BTarget
 {
-    DSC<CppSourceTarget> *stdCppTarget = nullptr;
-
   public:
-    flat_hash_map<Node *, CppTargetAndParentDirNode> moduleFilesToTarget;
+    flat_hash_map<Node *, CppSourceTarget *> moduleFilesToTarget;
+    vector<class BoostCppTarget *> boostCppTargets;
     vector<CppSourceTarget *> cppSourceTargets;
-    vector<LinkOrArchiveTarget *> linkOrArchiveTargets;
-    vector<PrebuiltLinkOrArchiveTarget *> prebuiltLinkOrArchiveTargets;
-    vector<CSourceTarget *> prebuiltTargets;
+    vector<LOAT *> loats;
+    vector<PLOAT *> ploats;
     CppCompilerFeatures compilerFeatures;
-    CppTargetFeatures cppTargetFeatures;
     CompilerFlags compilerFlags;
-    PrebuiltLinkerFeatures prebuiltLinkOrArchiveTargetFeatures;
-    PrebuiltBasicFeatures prebuiltBasicFeatures;
+    PrebuiltLinkerFeatures ploatFeatures;
     LinkerFeatures linkerFeatures;
+    LinkerFlags linkerFlags;
+    DSC<CppSourceTarget> *stdCppTarget = nullptr;
     TargetType targetType = TargetType::LIBRARY_STATIC;
     AssignStandardCppTarget assignStandardCppTarget = AssignStandardCppTarget::YES;
     BuildTests buildTests = BuildTests::NO;
@@ -107,23 +100,19 @@ class Configuration : public BTarget
     CppSourceTarget &getCppObject(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
     CppSourceTarget &getCppObjectAddStdTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                               const string &name_);
-    PrebuiltBasic &getPrebuiltBasic(const string &name_) const;
-    LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(const string &name_);
-    LinkOrArchiveTarget &GetExeLinkOrArchiveTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                   const string &name_);
-    LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(const string &name_);
-    LinkOrArchiveTarget &getStaticLinkOrArchiveTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                      const string &name_);
-    LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(const string &name_);
-    LinkOrArchiveTarget &getSharedLinkOrArchiveTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                      const string &name_);
 
-    PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory,
-                                                                TargetType linkTargetType_);
-    PrebuiltLinkOrArchiveTarget &getStaticPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
-    PrebuiltLinkOrArchiveTarget &getSharedPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory);
+    LOAT &GetExeLOAT(const string &name_);
+    LOAT &GetExeLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    LOAT &getStaticLOAT(const string &name_);
+    LOAT &getStaticLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    LOAT &getSharedLOAT(const string &name_);
+    LOAT &getSharedLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+
+    PLOAT &getPLOAT(const string &name_, const string &dir, TargetType linkTargetType_);
+    PLOAT &getStaticPLOAT(const string &name_, const string &dir);
+    PLOAT &getSharedPLOAT(const string &name_, const string &dir);
     CppSourceTarget &addStdCppDep(CppSourceTarget &target);
-    DSC<CppSourceTarget> &addStdDSCCppDep(DSC<CppSourceTarget> &target);
+    DSC<CppSourceTarget> &addStdDSCCppDep(DSC<CppSourceTarget> &target) const;
 
     // CSourceTarget &GetCPT();
 
@@ -139,21 +128,17 @@ class Configuration : public BTarget
     DSC<CppSourceTarget> &getCppSharedDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppSharedDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                           const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppObjectDSC(const string &name_, bool defines = false, string define = "");
 
-    DSC<CppSourceTarget> &getCppObjectDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                          const string &name_, bool defines = false, string define = "");
+    // _P means it will use PLOAT instead of LOAT
 
-    // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
-
-    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &directory, bool defines = false,
+    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &dir, bool defines = false,
                                             string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &prebuiltName, const string &directory,
+    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &prebuiltName, const string &dir,
                                             bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppStaticDSC_P(const string &name_, const string &directory, bool defines = false,
+    DSC<CppSourceTarget> &getCppStaticDSC_P(const string &name_, const string &dir, bool defines = false,
                                             string define = "");
 
-    DSC<CppSourceTarget> &getCppSharedDSC_P(const string &name_, const string &directory, bool defines = false,
+    DSC<CppSourceTarget> &getCppSharedDSC_P(const string &name_, const string &dir, bool defines = false,
                                             string define = "");
 
     // These NoName functions do not prepend configuration name to the target name.
@@ -163,23 +148,17 @@ class Configuration : public BTarget
     CppSourceTarget &getCppObjectNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
     CppSourceTarget &getCppObjectNoNameAddStdTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                     const string &name_);
-    PrebuiltBasic &getPrebuiltBasicNoName(const string &name_) const;
-    LinkOrArchiveTarget &GetExeLinkOrArchiveTargetNoName(const string &name_);
-    LinkOrArchiveTarget &GetExeLinkOrArchiveTargetNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                         const string &name_);
-    LinkOrArchiveTarget &getStaticLinkOrArchiveTargetNoName(const string &name_);
-    LinkOrArchiveTarget &getStaticLinkOrArchiveTargetNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                            const string &name_);
-    LinkOrArchiveTarget &getSharedLinkOrArchiveTargetNoName(const string &name_);
-    LinkOrArchiveTarget &getSharedLinkOrArchiveTargetNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                            const string &name_);
 
-    PrebuiltLinkOrArchiveTarget &getPrebuiltLinkOrArchiveTargetNoName(const string &name_, const string &directory,
-                                                                      TargetType linkTargetType_);
-    PrebuiltLinkOrArchiveTarget &getStaticPrebuiltLinkOrArchiveTargetNoName(const string &name_,
-                                                                            const string &directory);
-    PrebuiltLinkOrArchiveTarget &getSharedPrebuiltLinkOrArchiveTargetNoName(const string &name_,
-                                                                            const string &directory);
+    LOAT &GetExeLOATNoName(const string &name_);
+    LOAT &GetExeLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    LOAT &getStaticLOATNoName(const string &name_);
+    LOAT &getStaticLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    LOAT &getSharedLOATNoName(const string &name_);
+    LOAT &getSharedLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+
+    PLOAT &getPLOATNoName(const string &name_, const string &dir, TargetType linkTargetType_);
+    PLOAT &getStaticPLOATNoName(const string &name_, const string &dir);
+    PLOAT &getSharedPLOATNoName(const string &name_, const string &dir);
     // CSourceTarget &GetCPTNoName();
 
     DSC<CppSourceTarget> &getCppExeDSCNoName(const string &name_, bool defines = false, string define = "");
@@ -194,329 +173,35 @@ class Configuration : public BTarget
     DSC<CppSourceTarget> &getCppSharedDSCNoName(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppSharedDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                                 const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppObjectDSCNoName(const string &name_, bool defines = false, string define = "");
 
-    DSC<CppSourceTarget> &getCppObjectDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                const string &name_, bool defines = false, string define = "");
+    // _P means it will use PLOAT instead of LOAT
 
-    // _P means it will use PrebuiltLinkOrArchiveTarget instead of LinkOrArchiveTarget
-
-    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &directory, bool defines = false,
+    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &dir, bool defines = false,
                                                   string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName,
-                                                  const string &directory, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppStaticDSC_PNoName(const string &name_, const string &directory, bool defines = false,
+    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName, const string &dir,
+                                                  bool defines = false, string define = "");
+    DSC<CppSourceTarget> &getCppStaticDSC_PNoName(const string &name_, const string &dir, bool defines = false,
                                                   string define = "");
 
-    DSC<CppSourceTarget> &getCppSharedDSC_PNoName(const string &name_, const string &directory, bool defines = false,
+    DSC<CppSourceTarget> &getCppSharedDSC_PNoName(const string &name_, const string &dir, bool defines = false,
                                                   string define = "");
+
+    BoostCppTarget &getBoostCppTarget(const string &name, bool headerOnly, bool createTestsTarget = false,
+                                      bool createExamplesTarget = false);
 
     explicit Configuration(const string &name_);
+    void postConfigurationSpecification() const;
     void initialize();
     static void markArchivePoint();
     template <typename T, typename... Property> Configuration &assign(T property, Property... properties);
     template <typename T> bool evaluate(T property) const;
 };
 bool operator<(const Configuration &lhs, const Configuration &rhs);
-Configuration &getConfiguration(const string &name);
-
-template <typename T, typename... Property> Configuration &Configuration::assign(T property, Property... properties)
-{
-    if constexpr (std::is_same_v<decltype(property), TargetType>)
-    {
-        targetType = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ConfigType>)
-    {
-        compilerFeatures.setConfigType(property);
-        linkerFeatures.setConfigType(property);
-    }
-    else if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
-    {
-        stdCppTarget = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AssignStandardCppTarget>)
-    {
-        assignStandardCppTarget = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), BuildTests>)
-    {
-        buildTests = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), BuildExamples>)
-    {
-        buildExamples = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TestsExplicit>)
-    {
-        testsExplicit = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ExamplesExplicit>)
-    {
-        examplesExplicit = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), BuildTestsExplicitBuild>)
-    {
-        if (property == BuildTestsExplicitBuild::YES)
-        {
-            buildTests = BuildTests::YES;
-            testsExplicit = TestsExplicit::YES;
-        }
-        else
-        {
-            buildTests = BuildTests::NO;
-        }
-    }
-    else if constexpr (std::is_same_v<decltype(property), BuildExamplesExplicitBuild>)
-    {
-        if (property == BuildExamplesExplicitBuild::YES)
-        {
-            buildExamples = BuildExamples::YES;
-            examplesExplicit = ExamplesExplicit::YES;
-        }
-        else
-        {
-            buildExamples = BuildExamples::NO;
-        }
-    }
-    else if constexpr (std::is_same_v<decltype(property), BuildTestsAndExamples>)
-    {
-        if (property == BuildTestsAndExamples::YES)
-        {
-            buildTests = BuildTests::YES;
-            buildExamples = BuildExamples::YES;
-        }
-        else
-        {
-            buildTests = BuildTests::NO;
-            buildExamples = BuildExamples::NO;
-        }
-    }
-    else if constexpr (std::is_same_v<decltype(property), BuildTestsAndExamplesExplicitBuild>)
-    {
-        if (property == BuildTestsAndExamplesExplicitBuild::YES)
-        {
-            buildTests = BuildTests::YES;
-            buildExamples = BuildExamples::YES;
-            testsExplicit = TestsExplicit::YES;
-            examplesExplicit = ExamplesExplicit::YES;
-        }
-        else
-        {
-            buildTests = BuildTests::NO;
-            buildExamples = BuildExamples::NO;
-        }
-    }
-    // CommonFeatures
-    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
-    {
-        prebuiltBasicFeatures.useMiniTarget = property;
-        useMiniTarget = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TargetOS>)
-    {
-        compilerFeatures.targetOs = property;
-        linkerFeatures.targetOs = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), DebugSymbols>)
-    {
-        compilerFeatures.debugSymbols = property;
-        linkerFeatures.debugSymbols = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Profiling>)
-    {
-        compilerFeatures.profiling = property;
-        linkerFeatures.profiling = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Visibility>)
-    {
-        compilerFeatures.localVisibility = property;
-        linkerFeatures.visibility = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
-    {
-        compilerFeatures.addressSanitizer = property;
-        linkerFeatures.addressSanitizer = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), LeakSanitizer>)
-    {
-        compilerFeatures.leakSanitizer = property;
-        linkerFeatures.leakSanitizer = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ThreadSanitizer>)
-    {
-        compilerFeatures.threadSanitizer = property;
-        linkerFeatures.threadSanitizer = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), UndefinedSanitizer>)
-    {
-        compilerFeatures.undefinedSanitizer = property;
-        linkerFeatures.undefinedSanitizer = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Coverage>)
-    {
-        compilerFeatures.coverage = property;
-        linkerFeatures.coverage = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), LTO>)
-    {
-        compilerFeatures.lto = property;
-        linkerFeatures.lto = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), LTOMode>)
-    {
-        compilerFeatures.ltoMode = property;
-        linkerFeatures.ltoMode = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), RuntimeLink>)
-    {
-        compilerFeatures.runtimeLink = property;
-        linkerFeatures.runtimeLink = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Arch>)
-    {
-        compilerFeatures.arch = property;
-        linkerFeatures.arch = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AddressModel>)
-    {
-        compilerFeatures.addModel = property;
-        linkerFeatures.addModel = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), DebugStore>)
-    {
-        compilerFeatures.debugStore = property;
-        linkerFeatures.debugStore = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), RuntimeDebugging>)
-    {
-        compilerFeatures.runtimeDebugging = property;
-        linkerFeatures.runtimeDebugging = property;
-    }
-    // CppCompilerFeatures
-    else if constexpr (std::is_same_v<decltype(property), Compiler>)
-    {
-        compilerFeatures.compiler = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Threading>)
-    {
-        compilerFeatures.threading = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CxxSTD>)
-    {
-        compilerFeatures.cxxStd = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CxxSTDDialect>)
-    {
-        compilerFeatures.cxxStdDialect = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Optimization>)
-    {
-        compilerFeatures.optimization = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Inlining>)
-    {
-        compilerFeatures.inlining = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Warnings>)
-    {
-        compilerFeatures.warnings = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), WarningsAsErrors>)
-    {
-        compilerFeatures.warningsAsErrors = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ExceptionHandling>)
-    {
-        compilerFeatures.exceptionHandling = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), AsyncExceptions>)
-    {
-        compilerFeatures.asyncExceptions = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), RTTI>)
-    {
-        compilerFeatures.rtti = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), ExternCNoThrow>)
-    {
-        compilerFeatures.externCNoThrow = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), StdLib>)
-    {
-        compilerFeatures.stdLib = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), InstructionSet>)
-    {
-        compilerFeatures.instructionSet = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CpuType>)
-    {
-        compilerFeatures.cpuType = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TranslateInclude>)
-    {
-        compilerFeatures.translateInclude = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
-    {
-        compilerFeatures.treatModuleAsSource = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
-    {
-        prebuiltLinkOrArchiveTargetFeatures.copyToExeDirOnNtOs = property;
-    }
-    // CppTargetFeatures
-    else if constexpr (std::is_same_v<decltype(property), Define>)
-    {
-        cppTargetFeatures.requirementCompileDefinitions.emplace(property);
-    }
-    else if constexpr (std::is_same_v<decltype(property), CxxFlags>)
-    {
-        cppTargetFeatures.requirementCompilerFlags += property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Define>)
-    {
-        cppTargetFeatures.requirementCompileDefinitions.emplace(property);
-    }
-    // Linker Features
-    else if constexpr (std::is_same_v<decltype(property), LinkFlags>)
-    {
-        linkerFeatures.requirementLinkerFlags += property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), UserInterface>)
-    {
-        linkerFeatures.userInterface = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), Strip>)
-    {
-        linkerFeatures.strip = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), bool>)
-    {
-        property;
-    }
-    else
-    {
-        linkerFeatures.strip = property; // Just to fail the compilation. Ensures that all properties are handled.
-    }
-    if constexpr (sizeof...(properties))
-    {
-        return assign(properties...);
-    }
-    else
-    {
-        return *this;
-    }
-}
+Configuration &getConfiguration(const string &name = "Release");
 
 template <typename T> bool Configuration::evaluate(T property) const
 {
-    if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
-    {
-        return useMiniTarget == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
+    if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
     {
         return stdCppTarget == property;
     }
@@ -555,7 +240,7 @@ template <typename T> bool Configuration::evaluate(T property) const
     }
     else
     {
-        useMiniTarget = property; // Just to fail the compilation. Ensures that all properties are handled.
+        static_assert(false);
     }
 }
 

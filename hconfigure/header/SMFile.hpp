@@ -3,6 +3,7 @@
 
 #ifdef USE_HEADER_UNITS
 import "SpecialNodes.hpp";
+import "StaticVector.hpp";
 import "ObjectFile.hpp";
 import <filesystem>;
 import <list>;
@@ -10,8 +11,9 @@ import <utility>;
 import <vector>;
 import <atomic>;
 #else
-#include "SpecialNodes.hpp"
 #include "ObjectFile.hpp"
+#include "SpecialNodes.hpp"
+#include "StaticVector.hpp"
 #include "btree.h"
 #include "nlohmann/json.hpp"
 #include <atomic>
@@ -33,14 +35,6 @@ struct CompareSourceNode
     bool operator()(const SourceNode &lhs, const SourceNode &rhs) const;
     bool operator()(const Node *lhs, const SourceNode &rhs) const;
     bool operator()(const SourceNode &lhs, const Node *rhs) const;
-};
-
-struct HeaderUnitIndexInfo
-{
-    uint64_t targetIndex;
-    uint64_t myIndex;
-    HeaderUnitIndexInfo(uint64_t targetIndex_, uint64_t myIndex_);
-    Value &getSingleHeaderUnitDep() const;
 };
 
 class SourceNode : public ObjectFile
@@ -91,13 +85,6 @@ enum class SM_FILE_TYPE : char
     HEADER_UNIT_DISABLED = 6,
 };
 
-struct HeaderUnitConsumer
-{
-    bool angle;
-    string logicalName;
-    HeaderUnitConsumer(bool angle_, string logicalName_);
-};
-
 struct ValueObjectFileMapping
 {
     // should be const
@@ -110,11 +97,11 @@ struct ValueObjectFileMapping
 struct SMFile : SourceNode // Scanned Module Rule
 {
     string logicalName;
-    vector<ValueObjectFileMapping> pValueObjectFileMapping;
+    vector<ValueObjectFileMapping> valueObjectFileMapping;
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // depends on is consuming it another way.
-    flat_hash_map<const SMFile *, HeaderUnitConsumer> headerUnitsConsumptionData;
+    flat_hash_map<const SMFile *, bool> headerUnitsConsumptionData;
     btree_set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
 
     unique_ptr<vector<char>> smRuleFileBuffer;
@@ -122,7 +109,7 @@ struct SMFile : SourceNode // Scanned Module Rule
 
     bool isInterface = false;
     bool isSMRulesJsonSet = false;
-    bool foundFromCache = false;
+    bool isAnOlderHeaderUnit = false;
     bool isObjectFileOutdated = false;
     bool isSMRuleFileOutdated = false;
 
@@ -137,21 +124,24 @@ struct SMFile : SourceNode // Scanned Module Rule
     // ignoreHeaderDeps is true
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
     SMFile(CppSourceTarget *target_, Node *node_);
-    SMFile(CppSourceTarget *target_, Node *node_, SM_FILE_TYPE type_, bool olderHeaderUnit);
-    void setSMRulesJson(string_view smRulesJson);
+    SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
     void checkHeaderFilesIfSMRulesJsonSet();
     void setLogicalNameAndAddToRequirePath();
     void updateBTarget(Builder &builder, unsigned short round) override;
+    string getOutputFileName() const;
     bool calledOnce = false;
-    void saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang);
+    void saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang, StaticVector<string_view, 1000> &includeNames);
     static void initializeModuleJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
                                      const CppSourceTarget &target);
     InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
-    void initializeHeaderUnits(Builder &builder);
+    void initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder);
+    void initializeHeaderUnits(Builder &builder, const StaticVector<string_view, 1000> &includeNames);
     void addNewBTargetInFinalBTargetsRound1(Builder &builder);
-    void setSMFileType(Builder &builder);
-    void isObjectFileOutdatedComparedToSourceFileAndItsDeps();
-    void isSMRulesFileOutdatedComparedToSourceFileAndItsDeps();
+    void setSMFileType();
+    void checkObjectFileOutdatedHeaderUnits();
+    void checkSMRulesFileOutdatedHeaderUnits();
+    void checkObjectFileOutdatedModules();
+    void checkSMRulesFileOutdatedModules();
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
     void setFileStatusAndPopulateAllDependencies();

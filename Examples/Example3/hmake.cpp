@@ -1,8 +1,8 @@
 #include "Configure.hpp"
 
-void buildSpecification()
+void configurationSpecification(Configuration &config)
 {
-    CppSourceTarget &app = getCppExeDSC("app").getSourceTarget();
+    CppSourceTarget &app = config.getCppExeDSC("app").getSourceTarget();
     app.sourceFiles("main.cpp");
 
     // Change the value of "FILE1" in cache.hmake to false and then run configure again.
@@ -17,6 +17,12 @@ void buildSpecification()
     {
         app.sourceFiles("file2.cpp");
     }
+}
+
+void buildSpecification()
+{
+    getConfiguration();
+    CALL_CONFIGURATION_SPECIFICATION
 }
 
 MAIN_FUNCTION

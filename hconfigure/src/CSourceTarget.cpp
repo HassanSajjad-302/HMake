@@ -51,13 +51,13 @@ CSourceTarget::CSourceTarget(const bool buildExplicit, string name_, Configurati
 */
 CSourceTarget &CSourceTarget::INTERFACE_COMPILER_FLAGS(const string &compilerFlags)
 {
-    usageRequirementCompilerFlags += compilerFlags;
+    useReqCompilerFlags += compilerFlags;
     return *this;
 }
 
 CSourceTarget &CSourceTarget::INTERFACE_COMPILE_DEFINITION(const string &cddName, const string &cddValue)
 {
-    usageRequirementCompileDefinitions.emplace(cddName, cddValue);
+    useReqCompileDefinitions.emplace(cddName, cddValue);
     return *this;
 }
 

@@ -14,7 +14,6 @@ enum class TargetType : char
     EXECUTABLE,
     LIBRARY_STATIC,
     LIBRARY_SHARED,
-    LIBRARY_OBJECT,
     PLIBRARY_STATIC,
     PLIBRARY_SHARED,
 };

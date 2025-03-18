@@ -21,23 +21,6 @@ import <vector>;
 
 using std::vector;
 
-enum class UseMiniTarget : bool
-{
-    NO,
-    YES,
-};
-
-inline UseMiniTarget useMiniTarget = UseMiniTarget::YES;
-
-enum class MiniTarget : char
-{
-    BASE,
-    MINI,
-    FULL,
-    BASEMINI = BASE,
-    BASEFULL = BASE,
-};
-
 enum class TranslateInclude : bool
 {
     NO,
@@ -99,7 +82,8 @@ enum class Arch : char // Architecture
     PARISC,
     ARM,
     S390X,
-    ARM_P_X86 // arm+x86
+    ARM_P_X86, // arm+x86
+    NONE,
 };
 void to_json(Json &j, const Arch &arch);
 void from_json(const Json &j, Arch &arch);
@@ -110,6 +94,7 @@ enum class AddressModel : char // AddressModel
     A_32,
     A_64,
     A_32_64,
+    NONE,
 };
 void to_json(Json &j, const AddressModel &am);
 void from_json(const Json &j, AddressModel &am);
@@ -670,6 +655,7 @@ enum class CpuType : char
     ITANIUM,
     ITANIUM2,
     ARM,
+    NONE,
 };
 
 // Declared on Line 1871 msvc.jam
@@ -689,21 +675,58 @@ struct DSCFeatures : DSCPrebuiltFeatures
     DefineDLLPrivate defineDllPrivate = DefineDLLPrivate::NO;
 };
 
-struct PrebuiltBasicFeatures
-{
-    // TODO
-    // NO API in to assign this in LinkOrArchiveTarget, neither is their API like actuallyInclude.
-    vector<LibDirNode> requirementLibraryDirectories;
-    UseMiniTarget useMiniTarget = UseMiniTarget::YES;
-    PrebuiltBasicFeatures();
-};
-
 struct PrebuiltLinkerFeatures
 {
     CopyDLLToExeDirOnNTOs copyToExeDirOnNtOs = CopyDLLToExeDirOnNTOs::YES;
+    template <typename T> bool evaluate(T property) const;
 };
 
-struct LinkerFeatures
+template <typename T> bool PrebuiltLinkerFeatures::evaluate(T property) const
+{
+    if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
+    {
+        return copyToExeDirOnNtOs == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), bool>)
+    {
+        return property;
+    }
+    else
+    {
+        static_assert(false && "No property matched in PrebuiltLinkerFeatures::evaluate\n");
+    }
+}
+
+struct LinkerFlags
+{
+    // GCC
+    string OPTIONS;
+    string OPTIONS_LINK;
+    string LANG;
+    string RPATH_OPTION_LINK;
+    string FINDLIBS_ST_PFX_LINK;
+    string FINDLIBS_SA_PFX_LINK;
+    string HAVE_SONAME_LINK;
+    string SONAME_OPTION_LINK;
+    string DOT_IMPLIB_COMMAND_LINK_DLL;
+
+    // Following two are directly used instead of being set
+    string RPATH_LINK;
+    string RPATH_LINK_LINK;
+
+    bool isRpathOs = false;
+    // MSVC
+    string FINDLIBS_SA_LINK;
+    string DOT_LD_LINK;
+    string DOT_LD_ARCHIVE;
+    string LINKFLAGS_LINK;
+    string PDB_CFLAG;
+    string ASMFLAGS_ASM;
+    string PDB_LINKFLAG;
+    string LINKFLAGS_MSVC;
+};
+
+struct LinkerFeatures : FeatureConvenienceFunctions<LinkerFeatures>
 {
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
@@ -744,11 +767,124 @@ struct LinkerFeatures
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
 
-    string requirementLinkerFlags;
     TargetType libraryType;
     LinkerFeatures();
+    LinkerFlags getLinkerFlags();
     void setConfigType(ConfigType configType);
+    template <typename T> bool evaluate(T property) const;
 };
+
+template <typename T> bool LinkerFeatures::evaluate(T property) const
+{
+    if constexpr (std::is_same_v<decltype(property), Linker>)
+    {
+        return linker == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BTFamily>)
+    {
+        return linker.bTFamily == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TargetOS>)
+    {
+        return targetOs == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Threading>)
+    {
+        return threading == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CxxSTD>)
+    {
+        return cxxStd == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CxxSTDDialect>)
+    {
+        return cxxStdDialect == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DebugSymbols>)
+    {
+        return debugSymbols == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Profiling>)
+    {
+        return profiling == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Visibility>)
+    {
+        return visibility == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddressSanitizer>)
+    {
+        return addressSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LeakSanitizer>)
+    {
+        return leakSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), ThreadSanitizer>)
+    {
+        return threadSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UndefinedSanitizer>)
+    {
+        return undefinedSanitizer == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Coverage>)
+    {
+        return coverage == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LTO>)
+    {
+        return lto == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), LTOMode>)
+    {
+        return ltoMode == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RuntimeLink>)
+    {
+        return runtimeLink == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), RuntimeDebugging>)
+    {
+        return runtimeDebugging == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Arch>)
+    {
+        return arch == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), AddressModel>)
+    {
+        return addModel == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DebugStore>)
+    {
+        return debugStore == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UserInterface>)
+    {
+        return userInterface == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), InstructionSet>)
+    {
+        return instructionSet == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), CpuType>)
+    {
+        return cpuType == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), Strip>)
+    {
+        return strip == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), bool>)
+    {
+        return property;
+    }
+    else
+    {
+        static_assert(false && "No property matched in LinkerFeatures::evaluate\n");
+    }
+}
 
 // Separate this in GccCompilerFlags and MSVCCompilerFlags
 struct CompilerFlags
@@ -775,7 +911,7 @@ struct CompilerFlags
     string CPP_FLAGS_COMPILE;
 };
 
-struct CppCompilerFeatures : public FeatureConvenienceFunctions<CppCompilerFeatures>
+struct CppCompilerFeatures : FeatureConvenienceFunctions<CppCompilerFeatures>
 {
     AddressSanitizer addressSanitizer = AddressSanitizer::OFF;
     LeakSanitizer leakSanitizer = LeakSanitizer::OFF;
@@ -792,12 +928,12 @@ struct CppCompilerFeatures : public FeatureConvenienceFunctions<CppCompilerFeatu
     Profiling profiling = Profiling::OFF;
     Visibility localVisibility = Visibility::HIDDEN;
 
-    ConfigType configType;
+    ConfigType configType = ConfigType::NONE;
 
     // Following two are initialized in constructor
     // AddressModel and Architecture to target for.
-    Arch arch;
-    AddressModel addModel;
+    Arch arch = Arch::NONE;
+    AddressModel addModel = AddressModel::NONE;
 
     // Windows Specifc
     DebugStore debugStore = DebugStore::OBJECT;
@@ -822,7 +958,7 @@ struct CppCompilerFeatures : public FeatureConvenienceFunctions<CppCompilerFeatu
     // Following two are initialized in constructor
     // AddressModel and Architecture to target for.
     InstructionSet instructionSet = InstructionSet::OFF;
-    CpuType cpuType;
+    CpuType cpuType = CpuType::NONE;
 
     CSourceTargetEnum cSourceTarget = CSourceTargetEnum::NO;
 
@@ -833,15 +969,11 @@ struct CppCompilerFeatures : public FeatureConvenienceFunctions<CppCompilerFeatu
 
     // In threading-feature.jam the default value is single, but author here prefers multi
     Threading threading = Threading::MULTI;
-    UseMiniTarget useMiniTarget = UseMiniTarget::YES;
 
-    void initialize(Configuration &config);
+    void initialize();
 
     void setCpuType();
     bool isCpuTypeG7();
-
-    void setCompilerFromVSTools(Configuration &config, const struct VSTools &vsTools);
-    void setCompilerFromLinuxTools(Configuration &config, const struct LinuxTools &linuxTools);
     void setConfigType(ConfigType configType_);
     CompilerFlags getCompilerFlags() const;
     template <typename T> bool evaluate(T property) const;
@@ -989,25 +1121,14 @@ template <typename T> bool CppCompilerFeatures::evaluate(T property) const
     {
         return treatModuleAsSource == property;
     }
-    else if constexpr (std::is_same_v<decltype(property), UseMiniTarget>)
-    {
-        return useMiniTarget == property;
-    }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
         return property;
     }
     else
     {
-        static_assert(false && "No property matched in CppTargetFeatures::evaluate\n");
+        static_assert(false && "No property matched in CppCompilerFeatures::evaluate\n");
     }
 }
-
-struct CppTargetFeatures
-{
-    vector<InclNode> reqIncls;
-    string requirementCompilerFlags;
-    flat_hash_set<Define> requirementCompileDefinitions;
-};
 
 #endif // HMAKE_FEATURES_HPP

@@ -1,50 +1,102 @@
 
 #ifdef USE_HEADER_UNITS
 import "Configuration.hpp";
-import "BuildSystemFunctions.hpp";
+import BoostCppTarget.hpp ";
+    import "BuildSystemFunctions.hpp";
 import "CppSourceTarget.hpp";
 import "DSC.hpp";
-import "LinkOrArchiveTarget.hpp";
+import "LOAT.hpp";
 #else
 #include "Configuration.hpp"
+#include "BoostCppTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
-#include "LinkOrArchiveTarget.hpp"
+#include "LOAT.hpp"
 #endif
 
 Configuration::Configuration(const string &name_) : BTarget(name_, false, false)
 {
 }
 
+void Configuration::postConfigurationSpecification() const
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        for (BoostCppTarget *t : boostCppTargets)
+        {
+            t->copyConfigCache();
+        }
+    }
+}
+
 void Configuration::initialize()
 {
-    compilerFeatures.initialize(*this);
+    compilerFeatures.initialize();
     compilerFlags = compilerFeatures.getCompilerFlags();
+    linkerFlags = linkerFeatures.getLinkerFlags();
     if (!stdCppTarget)
     {
-        stdCppTarget = &getCppObjectDSC("std");
-        CppSourceTarget &cppTarget = stdCppTarget->getSourceTarget();
+        stdCppTarget = &getCppStaticDSC("std");
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            cppTarget.reqIncls = cppTargetFeatures.reqIncls;
-            cppTarget.initializeUseReqInclsFromReqIncls().initializeHuDirsFromReqIncls();
+            if (cache.isCompilerInToolsArray)
+            {
+                // Use getNodeFromNormalizedPath instead
+                if constexpr (os == OS::NT)
+                {
+                    for (const string &str : toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs)
+                    {
+                        actuallyAddInclude(stdCppTarget->getSourceTarget().reqIncls, str, true, true);
+                    }
+                }
+                else
+                {
+                    for (const string &str : toolsCache.linuxTools[cache.selectedCompilerArrayIndex].includeDirs)
+                    {
+                        actuallyAddInclude(stdCppTarget->getSourceTarget().reqIncls, str, true, true);
+                    }
+                }
+                stdCppTarget->getSourceTarget()
+                    .initializeUseReqInclsFromReqIncls()
+                    .initializePublicHuDirsFromReqIncls();
+            }
+            if (cache.isLinkerInToolsArray)
+            {
+                const VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
+                for (const string &str : vsTools.libraryDirs)
+                {
+                    Node *node = Node::getNodeFromNonNormalizedPath(str, false);
+                    bool found = false;
+                    for (const LibDirNode &libDirNode : stdCppTarget->getLOAT().reqLibraryDirs)
+                    {
+                        if (libDirNode.node == node)
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        stdCppTarget->getLOAT().reqLibraryDirs.emplace_back(node, true);
+                    }
+                }
+
+                stdCppTarget->getLOAT().useReqLibraryDirs = stdCppTarget->getLOAT().reqLibraryDirs;
+            }
         }
-        cppTarget.requirementCompileDefinitions = cppTargetFeatures.requirementCompileDefinitions;
-        cppTarget.requirementCompilerFlags = cppTargetFeatures.requirementCompilerFlags;
     }
 }
 
 void Configuration::markArchivePoint()
 {
     // TODO
-    // This functions marks the archive point i.e. the targets before this function should be archived upon successful
-    // build. i.e. some extra info will be saved in build-cache.json file of these targets.
-    // The goal is that next time when hbuild is invoked, archived targets source-files won't be checked for
-    // existence/rebuilt. Neither the header-files
-    // coming from such targets includes will be stored in cache.
-    // The use-case is when e.g. a target A dependens on targets B and C, such that these targets source is never meant
-    // to be changed e.g. fmt and json source in hmake project.
+    // This functions marks the archive point i.e. the targets before this function should be archived upon
+    // successful build. i.e. some extra info will be saved in build-cache.json file of these targets. The goal is
+    // that next time when hbuild is invoked, archived targets source-files won't be checked for existence/rebuilt.
+    // Neither the header-files coming from such targets includes will be stored in cache. The use-case is when e.g.
+    // a target A dependens on targets B and C, such that these targets source is never meant to be changed e.g. fmt
+    // and json source in hmake project.
 }
 
 CppSourceTarget &Configuration::getCppObject(const string &name_)
@@ -72,126 +124,71 @@ CppSourceTarget &Configuration::getCppObjectAddStdTarget(bool explicitBuild, con
     return addStdCppDep(cppSourceTarget);
 }
 
-PrebuiltBasic &Configuration::getPrebuiltBasic(const string &name_) const
+LOAT &Configuration::GetExeLOAT(const string &name_)
 {
-    PrebuiltBasic &prebuiltBasic =
-        targets<PrebuiltBasic>.emplace_back(name + slashc + name_, TargetType::LIBRARY_OBJECT);
-    static_cast<PrebuiltBasicFeatures &>(prebuiltBasic) = prebuiltBasicFeatures;
-    return prebuiltBasic;
+    LOAT &loat = targets<LOAT>.emplace_back(*this, name + slashc + name_, TargetType::EXECUTABLE);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(const string &name_)
+LOAT &Configuration::GetExeLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<LinkOrArchiveTarget>.emplace_back(name + slashc + name_, TargetType::EXECUTABLE);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    LOAT &loat = targets<LOAT>.emplace_back(*this, buildCacheFilesDirPath_, explicitBuild, name + slashc + name_,
+                                            TargetType::EXECUTABLE);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                              const string &name_)
+LOAT &Configuration::getStaticLOAT(const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::EXECUTABLE);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    LOAT &loat = targets<LOAT>.emplace_back(*this, name + slashc + name_, TargetType::LIBRARY_STATIC);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(const string &name_)
+LOAT &Configuration::getStaticLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<LinkOrArchiveTarget>.emplace_back(name + slashc + name_, TargetType::LIBRARY_STATIC);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    LOAT &loat = targets<LOAT>.emplace_back(*this, buildCacheFilesDirPath_, explicitBuild, name + slashc + name_,
+                                            TargetType::LIBRARY_STATIC);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTarget(bool explicitBuild,
-                                                                 const string &buildCacheFilesDirPath_,
-                                                                 const string &name_)
+LOAT &Configuration::getSharedLOAT(const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::LIBRARY_STATIC);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    LOAT &loat = targets<LOAT>.emplace_back(*this, name + slashc + name_, TargetType::LIBRARY_SHARED);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTarget(const string &name_)
+LOAT &Configuration::getSharedLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<LinkOrArchiveTarget>.emplace_back(name + slashc + name_, TargetType::LIBRARY_SHARED);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    LOAT &loat = targets<LOAT>.emplace_back(*this, buildCacheFilesDirPath_, explicitBuild, name + slashc + name_,
+                                            TargetType::LIBRARY_SHARED);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTarget(bool explicitBuild,
-                                                                 const string &buildCacheFilesDirPath_,
-                                                                 const string &name_)
+PLOAT &Configuration::getPLOAT(const string &name_, const string &dir, TargetType linkTargetType_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name + slashc + name_, TargetType::LIBRARY_SHARED);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name + slashc + name_, dir, linkTargetType_);
+    ploats.emplace_back(&loat);
+    return loat;
 }
 
-PrebuiltLinkOrArchiveTarget &Configuration::getPrebuiltLinkOrArchiveTarget(const string &name_, const string &directory,
-                                                                           TargetType linkTargetType_)
+PLOAT &Configuration::getStaticPLOAT(const string &name_, const string &dir)
 {
-    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name + slashc + name_, directory, linkTargetType_);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name + slashc + name_, dir, TargetType::LIBRARY_STATIC);
+    ploats.emplace_back(&loat);
+    return loat;
 }
 
-PrebuiltLinkOrArchiveTarget &Configuration::getStaticPrebuiltLinkOrArchiveTarget(const string &name_,
-                                                                                 const string &directory)
+PLOAT &Configuration::getSharedPLOAT(const string &name_, const string &dir)
 {
-    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name + slashc + name_, directory, TargetType::LIBRARY_STATIC);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name + slashc + name_, dir, TargetType::LIBRARY_SHARED);
+    ploats.emplace_back(&loat);
+    return loat;
 }
-
-PrebuiltLinkOrArchiveTarget &Configuration::getSharedPrebuiltLinkOrArchiveTarget(const string &name_,
-                                                                                 const string &directory)
-{
-    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name + slashc + name_, directory, TargetType::LIBRARY_SHARED);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
-}
-
-/*
-CSourceTarget &Configuration::GetCPT()
-{
-    CSourceTarget &cpt = const_cast<CSourceTarget &>(targets<CSourceTarget>.emplace().first.operator*());
-    prebuiltTargets.emplace_back(&cpt);
-    return cpt;
-}
-*/
 
 CppSourceTarget &Configuration::addStdCppDep(CppSourceTarget &target)
 {
@@ -202,19 +199,19 @@ CppSourceTarget &Configuration::addStdCppDep(CppSourceTarget &target)
     return target;
 }
 
-DSC<CppSourceTarget> &Configuration::addStdDSCCppDep(DSC<CppSourceTarget> &target)
+DSC<CppSourceTarget> &Configuration::addStdDSCCppDep(DSC<CppSourceTarget> &target) const
 {
     if (evaluate(AssignStandardCppTarget::YES) && stdCppTarget)
     {
-        target.privateLibraries(stdCppTarget);
+        target.privateDeps(*stdCppTarget);
     }
     return target;
 }
 
 DSC<CppSourceTarget> &Configuration::getCppExeDSC(const string &name_, const bool defines, string define)
 {
-    return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObject(name_ + dashCpp), &GetExeLinkOrArchiveTarget(name_), defines, std::move(define)));
+    return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp),
+                                                                      &GetExeLOAT(name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppExeDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
@@ -222,7 +219,7 @@ DSC<CppSourceTarget> &Configuration::getCppExeDSC(bool explicitBuild, const stri
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
         &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
-        &GetExeLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
+        &GetExeLOAT(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const string &name_, const bool defines, string define)
@@ -235,7 +232,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const string &name_, const 
     {
         return addStdDSCCppDep(getCppSharedDSC(name_, defines, std::move(define)));
     }
-    return addStdDSCCppDep(getCppObjectDSC(name_, defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const bool explicitBuild, const string &buildCacheFilesDirPath_,
@@ -251,13 +247,12 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC(const bool explicitBuild, c
         return addStdDSCCppDep(
             getCppSharedDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define)));
     }
-    return addStdDSCCppDep(getCppObjectDSC(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC(const string &name_, const bool defines, string define)
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObject(name_ + dashCpp), &getStaticLinkOrArchiveTarget(name_), defines, std::move(define)));
+        &getCppObject(name_ + dashCpp), &getStaticLOAT(name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC(const bool explicitBuild, const string &buildCacheFilesDirPath_,
@@ -265,13 +260,13 @@ DSC<CppSourceTarget> &Configuration::getCppStaticDSC(const bool explicitBuild, c
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
         &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
-        &getStaticLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
+        &getStaticLOAT(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppSharedDSC(const string &name_, const bool defines, string define)
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObject(name_ + dashCpp), &getSharedLinkOrArchiveTarget(name_), defines, std::move(define)));
+        &getCppObject(name_ + dashCpp), &getSharedLOAT(name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppSharedDSC(const bool explicitBuild, const string &buildCacheFilesDirPath_,
@@ -279,70 +274,54 @@ DSC<CppSourceTarget> &Configuration::getCppSharedDSC(const bool explicitBuild, c
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
         &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
-        &getSharedLinkOrArchiveTarget(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
+        &getSharedLOAT(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
 }
 
-DSC<CppSourceTarget> &Configuration::getCppObjectDSC(const string &name_, const bool defines, string define)
-{
-    return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObject(name_ + dashCpp), &getPrebuiltBasic(name_), defines, std::move(define)));
-}
-
-DSC<CppSourceTarget> &Configuration::getCppObjectDSC(const bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                     const string &name_, const bool defines, string define)
-{
-    return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp), &getPrebuiltBasic(name_), defines,
-        std::move(define)));
-}
-
-DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, const string &directory, const bool defines,
+DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, const string &dir, const bool defines,
                                                        string define)
 {
     if (targetType == TargetType::LIBRARY_STATIC)
     {
-        return addStdDSCCppDep(getCppStaticDSC_P(name_, directory, defines, define));
+        return addStdDSCCppDep(getCppStaticDSC_P(name_, dir, defines, define));
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(getCppSharedDSC_P(name_, directory, defines, define));
+        return addStdDSCCppDep(getCppSharedDSC_P(name_, dir, defines, define));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
     throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, const string &prebuiltName,
-                                                       const string &directory, bool defines, string define)
+                                                       const string &dir, bool defines, string define)
 {
     CppSourceTarget *cppSourceTarget = &getCppObject(name_ + dashCpp);
     if (targetType == TargetType::LIBRARY_STATIC)
     {
-        return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-            cppSourceTarget, &getStaticPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines));
+        return addStdDSCCppDep(
+            targets<DSC<CppSourceTarget>>.emplace_back(cppSourceTarget, &getStaticPLOAT(prebuiltName, dir), defines));
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-            cppSourceTarget, &getSharedPrebuiltLinkOrArchiveTarget(prebuiltName, directory), defines));
+        return addStdDSCCppDep(
+            targets<DSC<CppSourceTarget>>.emplace_back(cppSourceTarget, &getSharedPLOAT(prebuiltName, dir), defines));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
     throw std::exception{};
 }
 
-DSC<CppSourceTarget> &Configuration::getCppStaticDSC_P(const string &name_, const string &directory, const bool defines,
+DSC<CppSourceTarget> &Configuration::getCppStaticDSC_P(const string &name_, const string &dir, const bool defines,
                                                        string define)
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObject(name_ + dashCpp), &getStaticPrebuiltLinkOrArchiveTarget(name_, directory), defines,
-        std::move(define)));
+        &getCppObject(name_ + dashCpp), &getStaticPLOAT(name_, dir), defines, std::move(define)));
 }
 
-DSC<CppSourceTarget> &Configuration::getCppSharedDSC_P(const string &name_, const string &directory, const bool defines,
+DSC<CppSourceTarget> &Configuration::getCppSharedDSC_P(const string &name_, const string &dir, const bool defines,
                                                        string define)
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObject(name_ + dashCpp), &getSharedPrebuiltLinkOrArchiveTarget(name_, directory), defines,
-        std::move(define)));
+        &getCppObject(name_ + dashCpp), &getSharedPLOAT(name_, dir), defines, std::move(define)));
 }
 
 CppSourceTarget &Configuration::getCppObjectNoName(const string &name_)
@@ -371,131 +350,76 @@ CppSourceTarget &Configuration::getCppObjectNoNameAddStdTarget(bool explicitBuil
     return addStdCppDep(cppSourceTarget);
 }
 
-PrebuiltBasic &Configuration::getPrebuiltBasicNoName(const string &name_) const
+LOAT &Configuration::GetExeLOATNoName(const string &name_)
 {
-    PrebuiltBasic &prebuiltBasic = targets<PrebuiltBasic>.emplace_back(name_, TargetType::LIBRARY_OBJECT);
-    static_cast<PrebuiltBasicFeatures &>(prebuiltBasic) = prebuiltBasicFeatures;
-    return prebuiltBasic;
+    LOAT &loat = targets<LOAT>.emplace_back(*this, name_, TargetType::EXECUTABLE);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTargetNoName(const string &name_)
+LOAT &Configuration::GetExeLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(name_, TargetType::EXECUTABLE);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    LOAT &loat =
+        targets<LOAT>.emplace_back(*this, buildCacheFilesDirPath_, explicitBuild, name_, TargetType::EXECUTABLE);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::GetExeLinkOrArchiveTargetNoName(bool explicitBuild,
-                                                                    const string &buildCacheFilesDirPath_,
-                                                                    const string &name_)
+LOAT &Configuration::getStaticLOATNoName(const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name_, TargetType::EXECUTABLE);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    LOAT &loat = targets<LOAT>.emplace_back(*this, name_, TargetType::LIBRARY_STATIC);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTargetNoName(const string &name_)
+LOAT &Configuration::getStaticLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<LinkOrArchiveTarget>.emplace_back(name_, TargetType::LIBRARY_STATIC);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    LOAT &loat =
+        targets<LOAT>.emplace_back(*this, buildCacheFilesDirPath_, explicitBuild, name_, TargetType::LIBRARY_STATIC);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::getStaticLinkOrArchiveTargetNoName(bool explicitBuild,
-                                                                       const string &buildCacheFilesDirPath_,
-                                                                       const string &name_)
+LOAT &Configuration::getSharedLOATNoName(const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name_, TargetType::LIBRARY_STATIC);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    LOAT &loat = targets<LOAT>.emplace_back(*this, name_, TargetType::LIBRARY_SHARED);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTargetNoName(const string &name_)
+LOAT &Configuration::getSharedLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<LinkOrArchiveTarget>.emplace_back(name_, TargetType::LIBRARY_SHARED);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    LOAT &loat =
+        targets<LOAT>.emplace_back(*this, buildCacheFilesDirPath_, explicitBuild, name_, TargetType::LIBRARY_SHARED);
+    loats.emplace_back(&loat);
+    return loat;
 }
 
-LinkOrArchiveTarget &Configuration::getSharedLinkOrArchiveTargetNoName(bool explicitBuild,
-                                                                       const string &buildCacheFilesDirPath_,
-                                                                       const string &name_)
+PLOAT &Configuration::getPLOATNoName(const string &name_, const string &dir, TargetType linkTargetType_)
 {
-    LinkOrArchiveTarget &linkOrArchiveTarget = targets<LinkOrArchiveTarget>.emplace_back(
-        buildCacheFilesDirPath_, explicitBuild, name_, TargetType::LIBRARY_SHARED);
-    static_cast<LinkerFeatures &>(linkOrArchiveTarget) = linkerFeatures;
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    linkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name_, dir, linkTargetType_);
+    ploats.emplace_back(&loat);
+    return loat;
 }
 
-PrebuiltLinkOrArchiveTarget &Configuration::getPrebuiltLinkOrArchiveTargetNoName(const string &name_,
-                                                                                 const string &directory,
-                                                                                 TargetType linkTargetType_)
+PLOAT &Configuration::getStaticPLOATNoName(const string &name_, const string &dir)
 {
-    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name_, directory, linkTargetType_);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name_, dir, TargetType::LIBRARY_STATIC);
+    ploats.emplace_back(&loat);
+    return loat;
 }
 
-PrebuiltLinkOrArchiveTarget &Configuration::getStaticPrebuiltLinkOrArchiveTargetNoName(const string &name_,
-                                                                                       const string &directory)
+PLOAT &Configuration::getSharedPLOATNoName(const string &name_, const string &dir)
 {
-    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name_, directory, TargetType::LIBRARY_STATIC);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
+    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name_, dir, TargetType::LIBRARY_SHARED);
+    ploats.emplace_back(&loat);
+    return loat;
 }
-
-PrebuiltLinkOrArchiveTarget &Configuration::getSharedPrebuiltLinkOrArchiveTargetNoName(const string &name_,
-                                                                                       const string &directory)
-{
-    PrebuiltLinkOrArchiveTarget &linkOrArchiveTarget =
-        targets<PrebuiltLinkOrArchiveTarget>.emplace_back(name_, directory, TargetType::LIBRARY_SHARED);
-    static_cast<PrebuiltLinkerFeatures &>(linkOrArchiveTarget) = prebuiltLinkOrArchiveTargetFeatures;
-    static_cast<PrebuiltBasicFeatures &>(linkOrArchiveTarget) = prebuiltBasicFeatures;
-    prebuiltLinkOrArchiveTargets.emplace_back(&linkOrArchiveTarget);
-    return linkOrArchiveTarget;
-}
-
-/*
-CSourceTarget &Configuration::GetCPT()
-{
-    CSourceTarget &cpt = const_cast<CSourceTarget &>(targets<CSourceTarget>.emplace().first.operator*());
-    prebuiltTargets.emplace_back(&cpt);
-    return cpt;
-}
-*/
 
 DSC<CppSourceTarget> &Configuration::getCppExeDSCNoName(const string &name_, const bool defines, string define)
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObjectNoName(name_ + dashCpp), &GetExeLinkOrArchiveTargetNoName(name_), defines, std::move(define)));
+        &getCppObjectNoName(name_ + dashCpp), &GetExeLOATNoName(name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppExeDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
@@ -503,7 +427,7 @@ DSC<CppSourceTarget> &Configuration::getCppExeDSCNoName(bool explicitBuild, cons
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
         &getCppObjectNoName(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
-        &GetExeLinkOrArchiveTargetNoName(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
+        &GetExeLOATNoName(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSCNoName(const string &name_, const bool defines, string define)
@@ -516,7 +440,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSCNoName(const string &name_, 
     {
         return addStdDSCCppDep(getCppSharedDSCNoName(name_, defines, std::move(define)));
     }
-    return addStdDSCCppDep(getCppObjectDSCNoName(name_, defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSCNoName(const bool explicitBuild,
@@ -533,14 +456,12 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSCNoName(const bool explicitBu
         return addStdDSCCppDep(
             getCppSharedDSCNoName(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define)));
     }
-    return addStdDSCCppDep(
-        getCppObjectDSCNoName(explicitBuild, buildCacheFilesDirPath_, name_, defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSCNoName(const string &name_, const bool defines, string define)
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObjectNoName(name_ + dashCpp), &getStaticLinkOrArchiveTargetNoName(name_), defines, std::move(define)));
+        &getCppObjectNoName(name_ + dashCpp), &getStaticLOATNoName(name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSCNoName(const bool explicitBuild,
@@ -549,14 +470,13 @@ DSC<CppSourceTarget> &Configuration::getCppStaticDSCNoName(const bool explicitBu
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
         &getCppObjectNoName(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
-        &getStaticLinkOrArchiveTargetNoName(explicitBuild, buildCacheFilesDirPath_, name_), defines,
-        std::move(define)));
+        &getStaticLOATNoName(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppSharedDSCNoName(const string &name_, const bool defines, string define)
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObjectNoName(name_ + dashCpp), &getSharedLinkOrArchiveTargetNoName(name_), defines, std::move(define)));
+        &getCppObjectNoName(name_ + dashCpp), &getSharedLOATNoName(name_), defines, std::move(define)));
 }
 
 DSC<CppSourceTarget> &Configuration::getCppSharedDSCNoName(const bool explicitBuild,
@@ -565,72 +485,61 @@ DSC<CppSourceTarget> &Configuration::getCppSharedDSCNoName(const bool explicitBu
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
         &getCppObjectNoName(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp),
-        &getSharedLinkOrArchiveTargetNoName(explicitBuild, buildCacheFilesDirPath_, name_), defines,
-        std::move(define)));
+        &getSharedLOATNoName(explicitBuild, buildCacheFilesDirPath_, name_), defines, std::move(define)));
 }
 
-DSC<CppSourceTarget> &Configuration::getCppObjectDSCNoName(const string &name_, const bool defines, string define)
-{
-    return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObjectNoName(name_ + dashCpp), &getPrebuiltBasicNoName(name_), defines, std::move(define)));
-}
-
-DSC<CppSourceTarget> &Configuration::getCppObjectDSCNoName(const bool explicitBuild,
-                                                           const string &buildCacheFilesDirPath_, const string &name_,
-                                                           const bool defines, string define)
-{
-    return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObjectNoName(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp), &getPrebuiltBasicNoName(name_),
-        defines, std::move(define)));
-}
-
-DSC<CppSourceTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_, const string &directory,
-                                                             const bool defines, string define)
+DSC<CppSourceTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_, const string &dir, const bool defines,
+                                                             string define)
 {
     if (targetType == TargetType::LIBRARY_STATIC)
     {
-        return addStdDSCCppDep(getCppStaticDSC_PNoName(name_, directory, defines, define));
+        return addStdDSCCppDep(getCppStaticDSC_PNoName(name_, dir, defines, define));
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(getCppSharedDSC_PNoName(name_, directory, defines, define));
+        return addStdDSCCppDep(getCppSharedDSC_PNoName(name_, dir, defines, define));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
     throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName,
-                                                             const string &directory, bool defines, string define)
+                                                             const string &dir, bool defines, string define)
 {
     CppSourceTarget *cppSourceTarget = &getCppObjectNoName(name_ + dashCpp);
     if (targetType == TargetType::LIBRARY_STATIC)
     {
         return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-            cppSourceTarget, &getStaticPrebuiltLinkOrArchiveTargetNoName(prebuiltName, directory), defines));
+            cppSourceTarget, &getStaticPLOATNoName(prebuiltName, dir), defines));
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
         return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-            cppSourceTarget, &getSharedPrebuiltLinkOrArchiveTargetNoName(prebuiltName, directory), defines));
+            cppSourceTarget, &getSharedPLOATNoName(prebuiltName, dir), defines));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
     throw std::exception{};
 }
 
-DSC<CppSourceTarget> &Configuration::getCppStaticDSC_PNoName(const string &name_, const string &directory,
-                                                             const bool defines, string define)
+DSC<CppSourceTarget> &Configuration::getCppStaticDSC_PNoName(const string &name_, const string &dir, const bool defines,
+                                                             string define)
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObjectNoName(name_ + dashCpp), &getStaticPrebuiltLinkOrArchiveTargetNoName(name_, directory), defines,
-        std::move(define)));
+        &getCppObjectNoName(name_ + dashCpp), &getStaticPLOATNoName(name_, dir), defines, std::move(define)));
 }
 
-DSC<CppSourceTarget> &Configuration::getCppSharedDSC_PNoName(const string &name_, const string &directory,
-                                                             const bool defines, string define)
+DSC<CppSourceTarget> &Configuration::getCppSharedDSC_PNoName(const string &name_, const string &dir, const bool defines,
+                                                             string define)
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
-        &getCppObjectNoName(name_ + dashCpp), &getSharedPrebuiltLinkOrArchiveTargetNoName(name_, directory), defines,
-        std::move(define)));
+        &getCppObjectNoName(name_ + dashCpp), &getSharedPLOATNoName(name_, dir), defines, std::move(define)));
+}
+
+BoostCppTarget &Configuration::getBoostCppTarget(const string &name, bool headerOnly, bool createTestsTarget,
+                                                 bool createExamplesTarget)
+{
+    return *boostCppTargets.emplace_back(
+        &targets<BoostCppTarget>.emplace_back(name, this, headerOnly, createTestsTarget, createExamplesTarget));
 }
 
 bool operator<(const Configuration &lhs, const Configuration &rhs)

@@ -27,6 +27,13 @@ using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique
 // there, some go here.
 
 #define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
+
+// value to string_view
+inline string_view vtosv(const Value &v)
+{
+    return {v.GetString(), v.GetStringLength()};
+}
+// string_view to GenericstringRef
 inline GenericStringRef<char> svtogsr(string_view str)
 {
     return {str.data(), static_cast<rapidjson::SizeType>(str.size())};
@@ -74,11 +81,10 @@ constexpr static unsigned buildCacheFilesDirPath = 8;
 namespace LinkConfig
 {
 constexpr static unsigned name = 0;
-constexpr static unsigned requirementLibraryDirectoriesArray = 1;
-constexpr static unsigned usageRequirementLibraryDirectoriesArray = 2;
-constexpr static unsigned outputDirectoryNode = 3;
-constexpr static unsigned outputFileNode = 4;
-constexpr static unsigned buildCacheFilesDirPath = 5;
+constexpr static unsigned reqLibraryDirsArray = 1;
+constexpr static unsigned useReqLibraryDirsArray = 2;
+constexpr static unsigned outputFileNode = 3;
+constexpr static unsigned buildCacheFilesDirPath = 4;
 
 } // namespace LinkConfig
 
@@ -97,33 +103,6 @@ namespace SourceFiles
 constexpr static unsigned fullPath = 0;
 constexpr static unsigned compileCommandWithTool = 1;
 constexpr static unsigned headerFiles = 2;
-// Used only in GenerateModuleData::YES mode
-constexpr static unsigned moduleData = 3;
-namespace ModuleData
-{
-constexpr static unsigned exportName = 0;
-constexpr static unsigned isInterface = 1;
-constexpr static unsigned headerUnitArray = 2;
-constexpr static unsigned moduleArray = 3;
-
-namespace SingleHeaderUnitDep
-{
-constexpr static unsigned fullPath = 0;
-constexpr static unsigned logicalName = 1;
-// Maybe store this info in logicalName and extract it from there
-constexpr static unsigned angle = 2;
-constexpr static unsigned targetIndex = 3;
-constexpr static unsigned myIndex = 4;
-} // namespace SingleHeaderUnitDep
-
-namespace SingleModuleDep
-{
-// This is the value of the source-path key and is assigned before saving. So, in next build in
-// resolveRequirePaths, we check that whether we are resolving to the same module.
-constexpr static unsigned fullPath = 0;
-constexpr static unsigned logicalName = 1;
-} // namespace SingleModuleDep
-} // namespace ModuleData
 } // namespace SourceFiles
 
 namespace ModuleFiles
@@ -133,8 +112,31 @@ constexpr static unsigned fullPath = 0;
 constexpr static unsigned scanningCommandWithTool = 1;
 constexpr static unsigned headerFiles = 2;
 constexpr static unsigned smRules = 3;
-namespace SmRules = ModuleData;
 
+namespace SmRules
+{
+constexpr static unsigned exportName = 0;
+constexpr static unsigned isInterface = 1;
+constexpr static unsigned headerUnitArray = 2;
+constexpr static unsigned moduleArray = 3;
+
+namespace SingleHeaderUnitDep
+{
+constexpr static unsigned fullPath = 0;
+// Maybe store this info in logicalName and extract it from there
+constexpr static unsigned angle = 1;
+constexpr static unsigned targetIndex = 2;
+constexpr static unsigned myIndex = 3;
+} // namespace SingleHeaderUnitDep
+
+namespace SingleModuleDep
+{
+// This is the value of the source-path key and is assigned before saving. So, in next build in
+// resolveRequirePaths, we check that whether we are resolving to the same module.
+constexpr static unsigned fullPath = 0;
+constexpr static unsigned logicalName = 1;
+} // namespace SingleModuleDep
+} // namespace SmRules
 constexpr static unsigned compileCommandWithTool = 4;
 } // namespace ModuleFiles
 } // namespace CppBuild
