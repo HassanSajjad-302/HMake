@@ -1,6 +1,6 @@
 // To compile this project follow the following steps. You must have the latest MSVC installed.
 
-// 1) Download boost 1.87.0 and build it with b2.
+// 1)
 // 2) Build HMake with the CMake Release configuration.
 // 3) Add the build-dir to Environment Variable
 // 4) Run htools as administrator. This registers the include and library dirs of the installed latest msvc tool.
