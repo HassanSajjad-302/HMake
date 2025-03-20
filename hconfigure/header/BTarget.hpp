@@ -137,10 +137,10 @@ class BTarget // BTarget
 
         // provide some way to get at letters_
     };
-    inline static StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
 
-    inline static array<array<BTarget *, 10>, 3> roundEndTargets;
-    inline static array<atomic<uint64_t>, 3> roundEndTargetsCount{0, 0, 0};
+    // This not needed currently
+    /*inline static array<array<BTarget *, 10>, 3> roundEndTargets;
+    inline static array<atomic<uint64_t>, 3> roundEndTargetsCount{0, 0, 0};*/
 
   public:
     // vector because we clear this memory at the end of the round
@@ -151,6 +151,7 @@ class BTarget // BTarget
     inline static array<vector<TwoBTargets>, 2> twoBTargetsVector;
     inline static array<atomic<uint32_t>, 2> twoBTargetsVectorSize{0, 0};
 
+    inline static StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
   public:
     inline static size_t total = 0;
 
@@ -201,8 +202,8 @@ inline std::mutex dependencyMutex[3];
 
 template <unsigned short round> void BTarget::addEndOfRoundBTarget()
 {
-    const uint64_t i = roundEndTargetsCount[round].fetch_add(1);
-    roundEndTargets[round][i] = this;
+    /*const uint64_t i = roundEndTargetsCount[round].fetch_add(1);
+    roundEndTargets[round][i] = this;*/
 }
 
 template <unsigned short round, typename... U> void BTarget::addDependency(BTarget &dependency, U &...bTargets)

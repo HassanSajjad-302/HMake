@@ -465,7 +465,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             }
 
             assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
-            target->addDependency<0>(*this);
+            target->addDependencyDelayed<0>(*this);
         }
     }
     else if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
@@ -721,7 +721,7 @@ void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
 
         // Should be true if JConsts::lookupMethod == "include-angle";
         headerUnitsConsumptionData.emplace(&headerUnit, value[SingleHeaderUnitDep::angle].GetBool());
-        addDependency<0>(headerUnit);
+        addDependencyDelayed<0>(headerUnit);
     }
 }
 
@@ -779,7 +779,7 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
 
         // Should be true if JConsts::lookupMethod == "include-angle";
         headerUnitsConsumptionData.emplace(headerUnit, requireValue[SingleHeaderUnitDep::angle].GetBool());
-        addDependency<0>(*headerUnit);
+        addDependencyDelayed<0>(*headerUnit);
 
         if (doLoad)
         {

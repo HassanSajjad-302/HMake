@@ -79,7 +79,7 @@ void PLOAT::updateBTarget(Builder &builder, unsigned short round)
     {
         for (ObjectFileProducer *objectFileProducer : objectFileProducers)
         {
-            addDependency<0>(*objectFileProducer);
+            addDependencyDelayed<0>(*objectFileProducer);
         }
     }
     else if (round == 2)
@@ -231,7 +231,7 @@ void PLOAT::addReqDepsToBTargetDependencies()
     {
         for (auto &[PLOAT, prebuiltDep] : reqDeps)
         {
-            addDependency<0>(*PLOAT);
+            addDependencyDelayed<0>(*PLOAT);
         }
     }
 }

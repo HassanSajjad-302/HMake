@@ -99,7 +99,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
                 if (testTarget)
                 {
-                    testTarget->addDependency<0>(cppTarget);
+                    testTarget->addDependencyNoMutex<0>(cppTarget);
                 }
             }
             else
@@ -111,14 +111,14 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
                 {
                     if (examplesTarget)
                     {
-                        examplesTarget->addDependency<0>(uintTest.getLOAT());
+                        examplesTarget->addDependencyNoMutex<0>(uintTest.getLOAT());
                     }
                 }
                 else
                 {
                     if (testTarget)
                     {
-                        testTarget->addDependency<0>(uintTest.getLOAT());
+                        testTarget->addDependencyNoMutex<0>(uintTest.getLOAT());
                     }
                 }
             }

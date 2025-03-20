@@ -47,7 +47,7 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::p
 {
     reqDeps.emplace(&dep);
     useReqDeps.emplace(&dep);
-    addDependency<2>(dep);
+    addDependencyNoMutex<2>(dep);
     if constexpr (sizeof...(deps))
     {
         return publicDeps(deps...);
@@ -58,7 +58,7 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::p
 template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::privateDeps(T &dep, U &&...deps)
 {
     reqDeps.emplace(&dep);
-    addDependency<2>(*dep);
+    addDependencyNoMutex<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return privateDeps(deps...);
@@ -84,12 +84,12 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &dep, U &&...deps)
     {
         reqDeps.emplace(&dep);
         useReqDeps.emplace(&dep);
-        addDependency<2>(dep);
+        addDependencyNoMutex<2>(dep);
     }
     else if (depType == DepType::PRIVATE)
     {
         reqDeps.emplace(&dep);
-        addDependency<2>(dep);
+        addDependencyNoMutex<2>(dep);
     }
     else
     {

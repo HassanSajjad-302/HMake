@@ -274,7 +274,7 @@ void CppSourceTarget::populateTransitiveProperties()
 
             if (!cppSourceTarget->useReqHuDirs.empty() || cppSourceTarget->hasManuallySpecifiedHeaderUnits)
             {
-                cppSourceTarget->addDependency<1>(*this);
+                cppSourceTarget->addDependencyDelayed<1>(*this);
             }
         }
     }
@@ -943,7 +943,7 @@ void CppSourceTarget::resolveRequirePaths()
 
             if (found)
             {
-                smFile.addDependency<0>(const_cast<SMFile &>(*found));
+                smFile.addDependencyDelayed<0>(const_cast<SMFile &>(*found));
                 if (!atomic_ref(smFile.fileStatus).load())
                 {
                     if (require[SingleModuleDep::fullPath] != found->objectFileOutputFileNode->getValue())
@@ -983,7 +983,7 @@ void CppSourceTarget::populateSourceNodes()
     {
         auto &sourceNode = const_cast<SourceNode &>(sourceNodeConst);
 
-        addDependency<0>(sourceNode);
+        addDependencyDelayed<0>(sourceNode);
 
         if (const size_t fileIt = valueIndexInSubArray(sourceFilesJson, Value(sourceNode.node->getValue()));
             fileIt != UINT64_MAX)
@@ -1007,9 +1007,9 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
     {
         auto &smFile = const_cast<SMFile &>(smFileConst);
 
-        addDependency<0>(smFile);
-        resolveRequirePathBTarget.addDependency<1>(smFile);
-        addDependency<1>(smFile);
+        addDependencyDelayed<0>(smFile);
+        resolveRequirePathBTarget.addDependencyDelayed<1>(smFile);
+        addDependencyDelayed<1>(smFile);
 
         if (const size_t fileIt = valueIndexInSubArray(moduleFilesJson, Value(smFile.node->getValue()));
             fileIt != UINT64_MAX)

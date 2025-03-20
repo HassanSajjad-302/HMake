@@ -1,18 +1,17 @@
 
 #ifdef USE_HEADER_UNITS
 import "BTarget.hpp";
-import "Builder.hpp";
 import "BuildSystemFunctions.hpp";
 import "CppSourceTarget.hpp";
+import "TargetCacheDiskWriteManager.hpp";
 import <filesystem>;
-import <fstream>;
+import <utility>;
 #else
 #include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
-#include "Builder.hpp"
 #include "CppSourceTarget.hpp"
+#include "TargetCacheDiskWriteManager.hpp"
 #include <filesystem>
-#include <fstream>
 #include <utility>
 #endif
 using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::mutex, std::lock_guard,
@@ -20,13 +19,11 @@ using std::filesystem::create_directories, std::ofstream, std::filesystem::curre
 
 BTarget::StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets()
 {
-    for (unsigned short i = 0; i < 3; ++i)
-    {
-        // 1MB. Deallocated after round.
-        tarjanNodesBTargets.fill(vector<RealBTarget *>{1024 * 1024});
-        // 2MB. Deallocated after round.
-        twoBTargetsVector.fill(vector<TwoBTargets>{1024 * 1024});
-    }
+    // 1MB. Deallocated after round.
+    tarjanNodesBTargets.fill(vector<RealBTarget *>{1024 * 1024});
+    auto *p = &tarjanNodesBTargets[0];
+    // 2MB. Deallocated after round.
+    twoBTargetsVector.fill(vector<TwoBTargets>{1024 * 1024});
 }
 
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
@@ -238,13 +235,33 @@ void BTarget::receiveNotificationPostBuildSpecification()
 
 void BTarget::runEndOfRoundTargets(Builder &builder, uint16_t round)
 {
-    for (BTarget *t : roundEndTargets[round])
+    if (round == 2)
+    {
+        tarjanNodesBTargets[round].clear();
+        for (uint64_t i = 0; i < twoBTargetsVectorSize[1]; ++i)
+        {
+            auto &[b, dep] = twoBTargetsVector[1][i];
+            b->addDependencyNoMutex<1>(*dep);
+        }
+    }
+    else if (round == 1)
+    {
+        targetCacheDiskWriteManager.endOfRound();
+        tarjanNodesBTargets[round].clear();
+        for (uint64_t i = 0; i < twoBTargetsVectorSize[0]; ++i)
+        {
+            auto &[b, dep] = twoBTargetsVector[0][i];
+            b->addDependencyNoMutex<0>(*dep);
+        }
+    }
+
+    /*for (BTarget *t : roundEndTargets[round])
     {
         if (t != nullptr)
         {
             t->endOfRound(builder, round);
         }
-    }
+    }*/
 }
 
 BTarget::~BTarget()
