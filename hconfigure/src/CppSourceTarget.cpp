@@ -183,7 +183,7 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
         {
             // ensureSystemCheckCalled is called in SMFile::updateBTarget(1) in parallel.
             modFileDeps.emplace_back(this, Node::getHalfNodeFromValue(moduleNodesCache[i]));
-            modFileDeps[i / 2].isInterface = moduleNodesCache[i + 1].GetBool();
+            modFileDeps[i / 2].isInterface = moduleNodesCache[i + 1].GetUint64();
         }
 
         for (uint64_t i = 0; i < headerUnitsNodesCache.Size(); ++i)
@@ -433,7 +433,7 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(const Node *node, const bo
     namespace CppConfig = Indices::ConfigCache::CppConfig;
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
     buildOrConfigCacheCopy[CppConfig::moduleFiles].PushBack(node->getValue(), cacheAlloc);
-    buildOrConfigCacheCopy[CppConfig::moduleFiles].PushBack(isInterface, cacheAlloc);
+    buildOrConfigCacheCopy[CppConfig::moduleFiles].PushBack(static_cast<uint64_t>(isInterface), cacheAlloc);
     if (Value &moduleBuildJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::moduleFiles];
         valueIndexInSubArray(moduleBuildJson, node->getValue()) == UINT64_MAX)
     {
@@ -582,22 +582,22 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     reqIncls.reserve(reqInclCache.Size() / numOfElem);
     for (uint64_t i = 0; i < reqInclCache.Size(); i = i + numOfElem)
     {
-        reqIncls.emplace_back(Node::getNodeFromValue(reqInclCache[i], false), reqInclCache[i + 1].GetBool(),
-                              reqInclCache[i + 2].GetBool());
+        reqIncls.emplace_back(Node::getNodeFromValue(reqInclCache[i], false), reqInclCache[i + 1].GetUint64(),
+                              reqInclCache[i + 2].GetUint64());
     }
 
     useReqIncls.reserve(useReqInclCache.Size() / numOfElem);
     for (uint64_t i = 0; i < useReqInclCache.Size(); i = i + numOfElem)
     {
-        useReqIncls.emplace_back(Node::getNodeFromValue(useReqInclCache[i], false), useReqInclCache[i + 1].GetBool(),
-                                 useReqInclCache[i + 2].GetBool());
+        useReqIncls.emplace_back(Node::getNodeFromValue(useReqInclCache[i], false), useReqInclCache[i + 1].GetUint64(),
+                                 useReqInclCache[i + 2].GetUint64());
     }
 
     reqHuDirs.reserve(reqHUDirCache.Size() / numOfElem);
     for (uint64_t i = 0; i < reqHUDirCache.Size(); i = i + numOfElem)
     {
-        reqHuDirs.emplace_back(InclNode(Node::getNodeFromValue(reqHUDirCache[i], false), reqHUDirCache[i + 1].GetBool(),
-                                        reqHUDirCache[i + 2].GetBool()),
+        reqHuDirs.emplace_back(InclNode(Node::getNodeFromValue(reqHUDirCache[i], false),
+                                        reqHUDirCache[i + 1].GetUint64(), reqHUDirCache[i + 2].GetUint64()),
                                this);
     }
 
@@ -605,7 +605,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     for (uint64_t i = 0; i < useReqHUDirCache.Size(); i = i + numOfElem)
     {
         useReqHuDirs.emplace_back(InclNode(Node::getNodeFromValue(useReqHUDirCache[i], false),
-                                           useReqHUDirCache[i + 1].GetBool(), useReqHUDirCache[i + 2].GetBool()),
+                                           useReqHUDirCache[i + 1].GetUint64(), useReqHUDirCache[i + 2].GetUint64()),
                                   this);
     }
 }
@@ -958,9 +958,9 @@ void CppSourceTarget::resolveRequirePaths()
                 if (isInterface)
                 {
                     printErrorMessage(FORMAT("No File in the target\n{}\n provides this module\n{}.\n",
-                                                  getTarjanNodeName(),
-                                                  string(require[SingleModuleDep::logicalName].GetString(),
-                                                         require[SingleModuleDep::logicalName].GetStringLength())));
+                                             getTarjanNodeName(),
+                                             string(require[SingleModuleDep::logicalName].GetString(),
+                                                    require[SingleModuleDep::logicalName].GetStringLength())));
                 }
                 else
                 {

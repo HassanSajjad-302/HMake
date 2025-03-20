@@ -572,15 +572,15 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
         {
             prunedRules.PushBack(Value(kStringType), sourceNodeAllocator);
         }
-        prunedRules.PushBack(Value(false), sourceNodeAllocator);
+        prunedRules.PushBack(Value(0), sourceNodeAllocator);
     }
     else
     {
         Value &provideJson = it->value[0];
         Value &logicalNameValue = provideJson.FindMember(Value(svtogsr(JConsts::logicalName)))->value;
-        Value &isInterfaceValue = provideJson.FindMember(Value(svtogsr(JConsts::isInterface)))->value;
+        const bool isInterface = provideJson.FindMember(Value(svtogsr(JConsts::isInterface)))->value.GetBool();
         prunedRules.PushBack(logicalNameValue, sourceNodeAllocator);
-        prunedRules.PushBack(isInterfaceValue, sourceNodeAllocator);
+        prunedRules.PushBack(static_cast<uint64_t>(isInterface), sourceNodeAllocator);
     }
 
     // Pushing header-unit array and module-array
@@ -618,10 +618,11 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
 
                 // fullPath
                 headerUnitDevalue.PushBack(halfHeaderUnitNode->getValue(), sourceNodeAllocator);
+
+                const bool angle = requireValue.FindMember(Value(svtogsr(JConsts::lookupMethod)))->value ==
+                                   Value(svtogsr(JConsts::includeAngle));
                 // angle
-                headerUnitDevalue.PushBack(requireValue.FindMember(Value(svtogsr(JConsts::lookupMethod)))->value ==
-                                               Value(svtogsr(JConsts::includeAngle)),
-                                           sourceNodeAllocator);
+                headerUnitDevalue.PushBack(static_cast<uint64_t>(angle), sourceNodeAllocator);
 
                 // These values are initialized later in initializeHeaderUnits.
                 // targetIndex
@@ -720,7 +721,7 @@ void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
         }
 
         // Should be true if JConsts::lookupMethod == "include-angle";
-        headerUnitsConsumptionData.emplace(&headerUnit, value[SingleHeaderUnitDep::angle].GetBool());
+        headerUnitsConsumptionData.emplace(&headerUnit, value[SingleHeaderUnitDep::angle].GetUint64());
         addDependencyDelayed<0>(headerUnit);
     }
 }
@@ -778,7 +779,7 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
         }
 
         // Should be true if JConsts::lookupMethod == "include-angle";
-        headerUnitsConsumptionData.emplace(headerUnit, requireValue[SingleHeaderUnitDep::angle].GetBool());
+        headerUnitsConsumptionData.emplace(headerUnit, requireValue[SingleHeaderUnitDep::angle].GetUint64());
         addDependencyDelayed<0>(*headerUnit);
 
         if (doLoad)
@@ -812,7 +813,7 @@ void SMFile::setSMFileType()
 {
     namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
 
-    if (sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::isInterface].GetBool())
+    if (sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::isInterface].GetUint64())
     {
         if (sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::exportName].GetStringLength())
         {
