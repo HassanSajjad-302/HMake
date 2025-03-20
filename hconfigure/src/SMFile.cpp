@@ -313,11 +313,9 @@ void SMFile::setLogicalNameAndAddToRequirePath()
         }
         else
         {
-            printErrorMessageColor(
+            printErrorMessage(
                 FORMAT("In target:\n{}\nModule name:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
-                       target->getTarjanNodeName(), logicalName, node->filePath, val->node->filePath),
-                settings.pcSettings.toolErrorOutput);
-            throw std::exception();
+                       target->getTarjanNodeName(), logicalName, node->filePath, val->node->filePath));
         }
     }
 }
@@ -431,7 +429,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             else
             {
                 bool breakpoint = true;
-                throw std::exception("Scanning Failed");
+                printErrorMessage("Scanning Failed");
                 // TODO
                 // Have Some Kind of MakeShift Printing.
             }
@@ -460,10 +458,8 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                     namespace SingleModuleDep = ModuleFiles::SmRules::SingleModuleDep;
                     if (requireValue[SingleModuleDep::logicalName] == Value(svtogsr(logicalName)))
                     {
-                        printErrorMessageColor(FORMAT("In target\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                      target->getTarjanNodeName(), node->filePath),
-                                               settings.pcSettings.toolErrorOutput);
-                        throw std::exception();
+                        printErrorMessage(FORMAT("In target\n{}\nModule\n{}\n can not depend on itself.\n",
+                                                 target->getTarjanNodeName(), node->filePath));
                     }
                 }
             }
@@ -663,21 +659,10 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
             {
                 if (huDirTarget != targetLocal)
                 {
-                    printErrorMessageColor(FORMAT("Module Header Unit\n{}\n belongs to two different Targets\n{}\n{}\n",
-                                                  headerUnitNode->filePath, nodeDir->node->filePath,
-                                                  inclNode.node->filePath, settings.pcSettings.toolErrorOutput),
-                                           settings.pcSettings.toolErrorOutput);
+                    printErrorMessage(FORMAT("Module Header Unit\n{}\n belongs to two different Targets\n{}\n{}\n",
+                                             headerUnitNode->filePath, nodeDir->node->filePath, inclNode.node->filePath,
+                                             settings.pcSettings.toolErrorOutput));
                 }
-                // Not Sure if this is needed.
-                /* if (inclNode.node != nodeDir->node)
-                 {
-                     printErrorMessageColor(FORMAT("Module Header Unit\n{}\n in target\n{}\n belongs to two different "
-                                                   "Header Unit Includes\n{}\n{}\nThis is not allowed because HMake can
-                 " "not establish the correct exportName for the HeaderUnit.\n", headerUnitNode->filePath,
-                 huDirTarget->name, nodeDir->node->filePath, inclNode.node->filePath,
-                 settings.pcSettings.toolErrorOutput), settings.pcSettings.toolErrorOutput);
-                 }*/
-                throw std::exception();
             }
             huDirTarget = targetLocal;
             nodeDir = &inclNode;
@@ -703,20 +688,19 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
                     return {&incl, it->second};
                 }
             }
-            throw std::exception("HMake Internal Error");
+            printErrorMessage("HMake Internal Error");
         }
     }
 
-    printErrorMessageColor(FORMAT("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin "
-                                  "Target\n{}.\nSearched for header-unit target in the following reqHuDirs.\n",
-                                  headerUnitNode->filePath, node->filePath, target->name),
-                           settings.pcSettings.toolErrorOutput);
+    string errorMessage = FORMAT("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin "
+                                 "Target\n{}.\nSearched for header-unit target in the following reqHuDirs.\n",
+                                 headerUnitNode->filePath, node->filePath, target->name);
     for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
     {
-        printErrorMessage(FORMAT("HuDirTarget {} inclNode {}\n", targetLocal->name, inclNode.node->filePath));
+        errorMessage += FORMAT("HuDirTarget {} inclNode {}\n", targetLocal->name, inclNode.node->filePath);
     }
 
-    throw std::exception();
+    printErrorMessage(errorMessage);
 }
 
 void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
@@ -1132,9 +1116,7 @@ string SMFile::getFlag(const string &outputFilesWithoutExtension) const
     {
         if (type == SM_FILE_TYPE::NOT_ASSIGNED)
         {
-            printErrorMessageColor("Error! In getRequireFlag() type is NOT_ASSIGNED",
-                                   settings.pcSettings.toolErrorOutput);
-            throw std::exception();
+            printErrorMessage("Error! In getRequireFlag() type is NOT_ASSIGNED");
         }
         if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
@@ -1163,9 +1145,7 @@ string SMFile::getFlag(const string &outputFilesWithoutExtension) const
 
         if (type == SM_FILE_TYPE::NOT_ASSIGNED)
         {
-            printErrorMessageColor("Error! In getRequireFlag() type is NOT_ASSIGNED",
-                                   settings.pcSettings.toolErrorOutput);
-            throw std::exception();
+            printErrorMessage("Error! In getRequireFlag() type is NOT_ASSIGNED");
         }
         /*        else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
                 {
@@ -1202,9 +1182,7 @@ string SMFile::getFlagPrint(const string &outputFilesWithoutExtension) const
     {
         if (type == SM_FILE_TYPE::NOT_ASSIGNED)
         {
-            printErrorMessageColor("Error! In getRequireFlag() type is NOT_ASSIGNED",
-                                   settings.pcSettings.toolErrorOutput);
-            throw std::exception();
+            printErrorMessage("Error! In getRequireFlag() type is NOT_ASSIGNED");
         }
 
         if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
@@ -1241,9 +1219,7 @@ string SMFile::getFlagPrint(const string &outputFilesWithoutExtension) const
 
         if (type == SM_FILE_TYPE::NOT_ASSIGNED)
         {
-            printErrorMessageColor("Error! In getRequireFlag() type is NOT_ASSIGNED",
-                                   settings.pcSettings.toolErrorOutput);
-            throw std::exception();
+            printErrorMessage("Error! In getRequireFlag() type is NOT_ASSIGNED");
         }
         /*        else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
                 {
@@ -1288,7 +1264,6 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
         printErrorMessage("HMake Error! In getRequireFlag() unknown type");
-        throw std::exception();
     }
     if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT ||
         type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
@@ -1308,7 +1283,6 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
     else
     {
         printErrorMessage("HMake Error! In getRequireFlag() unknown type");
-        throw std::exception();
     }
     return str;
 }
@@ -1327,7 +1301,6 @@ string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
     if (type == SM_FILE_TYPE::NOT_ASSIGNED)
     {
         printErrorMessage("HMake Error! In getRequireFlag() type is NOT_ASSIGNED");
-        throw std::exception();
     }
     if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT ||
         type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)

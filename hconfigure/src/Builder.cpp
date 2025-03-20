@@ -20,7 +20,7 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 Builder::Builder()
 {
     round = 2;
-    RealBTarget::tarjanNodes = &tarjanNodesBTargets[round];
+    RealBTarget::tarjanNodes = &BTarget::tarjanNodesBTargets[round];
     RealBTarget::findSCCS(round);
     RealBTarget::checkForCycle();
 
@@ -109,11 +109,11 @@ void Builder::execute()
                     DEBUG_EXECUTE(FORMAT("{} {} {}\n", round,
                                               "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
 
-                    runEndOfRoundTargets();
+                    BTarget::runEndOfRoundTargets(*this, round);
                     if (round > roundGoal && !errorHappenedInRoundMode)
                     {
                         --round;
-                        RealBTarget::tarjanNodes = &tarjanNodesBTargets[round];
+                        RealBTarget::tarjanNodes = &BTarget::tarjanNodesBTargets[round];
                         RealBTarget::findSCCS(round);
                         RealBTarget::checkForCycle();
 
@@ -299,7 +299,7 @@ void Builder::incrementNumberOfSleepingThreads()
             // If a cycle happened this will throw an error, otherwise following exception will be thrown.
             RealBTarget::checkForCycle();
 
-            throw std::runtime_error("HMake API misuse.\n");
+            printErrorMessage("HMake API misuse.\n");
         }
         catch (std::exception &ec)
         {
@@ -316,17 +316,4 @@ void Builder::incrementNumberOfSleepingThreads()
 void Builder::decrementNumberOfSleepingThreads()
 {
     --numberOfSleepingThreads;
-}
-
-void Builder::runEndOfRoundTargets()
-{
-    for (BTarget *&t : roundEndTargets)
-    {
-        if (t != nullptr)
-        {
-            t->endOfRound(*this, round);
-            t = nullptr;
-        }
-    }
-    roundEndTargetsCount = 0;
 }

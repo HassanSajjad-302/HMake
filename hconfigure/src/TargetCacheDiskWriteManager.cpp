@@ -54,12 +54,12 @@ TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
-        copyJsonBTargets.reserve(10000);
+        copyJsonBTargets.reserve(4096 * 4);
 #ifdef NDEBUG
         std::memset(copyJsonBTargets.data(), 0, 10000 * sizeof(void *));
 #else
         // satisify the sanitizer and iterator based debuggerr
-        for (int i = 0; i < 10000; ++i)
+        for (int i = 0; i < 4096 * 4; ++i)
         {
             copyJsonBTargets.emplace_back(nullptr);
         }
@@ -192,8 +192,7 @@ void TargetCacheDiskWriteManager::updateBTarget(Builder &builder, const unsigned
 {
     if (round == 1)
     {
-        const uint64_t i = roundEndTargetsCount.fetch_add(1);
-        roundEndTargets[i] = this;
+        addEndOfRoundBTarget<1>();
     }
 }
 

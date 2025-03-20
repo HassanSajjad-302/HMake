@@ -43,7 +43,6 @@ class Builder
     void execute();
     void incrementNumberOfSleepingThreads();
     void decrementNumberOfSleepingThreads();
-    void runEndOfRoundTargets();
 };
 
 #endif // HMAKE_BUILDER_HPP

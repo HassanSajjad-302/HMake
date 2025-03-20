@@ -9,12 +9,20 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MAT
         add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
     endif ()
 
+    add_compile_options(-fno-exceptions -fno-rtti)
     add_compile_options(-std=c++2b)
 elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
+
     if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         add_compile_options(/fsanitize=address)
     endif ()
+
     set(CMAKE_CXX_STANDARD 23)
+
+    string(REGEX REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REGEX REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    add_definitions(-D_HAS_EXCEPTIONS=0) # for STL
+
 endif ()
 
 set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 0)

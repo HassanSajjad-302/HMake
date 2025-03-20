@@ -174,7 +174,6 @@ void prettyWriteValueToFile(const string_view fileName, const Value &value)
     {
         // TODO Check what error
         printErrorMessage(FORMAT("Error Happened in parsing file {}\n", fileName.data()));
-        throw std::exception{};
     }
 }
 
@@ -245,7 +244,6 @@ static void writeFile(string fileName, const char *buffer, uint64_t bufferSize, 
         if (hFile == INVALID_HANDLE_VALUE)
         {
             printErrorMessage(FORMAT("Failed to open file for writing. Error: {}\n", GetLastErrorString()));
-            throw std::exception{};
         }
 
         // Content to write to the file
@@ -256,13 +254,11 @@ static void writeFile(string fileName, const char *buffer, uint64_t bufferSize, 
         {
             printErrorMessage(FORMAT("Failed to write to file. Error: {}\n", GetLastErrorString()));
             CloseHandle(hFile);
-            throw std::exception{};
         }
 
         if (bytesWritten != bufferSize)
         {
             printErrorMessage("Failed to write the full file\n");
-            throw std::exception{};
         }
 
         // Close the file handle

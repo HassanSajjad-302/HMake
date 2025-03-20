@@ -9,6 +9,7 @@ import "TargetCacheDiskWriteManager.hpp";
 import "fmt/format.h";
 import <filesystem>;
 import <fstream>;
+import <stacktrace>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
@@ -19,6 +20,7 @@ import <fstream>;
 #include <DSC.hpp>
 #include <filesystem>
 #include <fstream>
+#include <stacktrace>
 #endif
 
 using fmt::print, std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
@@ -54,7 +56,8 @@ void initializeCache(const BSMode bsMode_)
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
     if (currentNode->filePath.size() < configureNode->filePath.size())
     {
-        throw std::exception("HMake internal error. configureNode size less than currentNode\n");
+        printErrorMessage(FORMAT("HMake internal error. configureNode size {} less than currentNode size{}\n",
+                                 configureNode->filePath.size(), currentNode->filePath.size()));
     }
     if (currentNode->filePath.size() != configureNode->filePath.size())
     {
@@ -148,6 +151,8 @@ void printErrorMessage(const string &message)
     {
         print(stderr, "{}", message);
     }
+    print(stderr, "{}", to_string(std::stacktrace::current()));
+    exit(EXIT_FAILURE);
 }
 
 void printErrorMessageColor(const string &message, uint32_t color)

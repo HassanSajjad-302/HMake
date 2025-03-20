@@ -263,13 +263,10 @@ void CppSourceTarget::populateTransitiveProperties()
                     }
                     if (found)
                     {
-                        printErrorMessageColor(
+                        printErrorMessage(
                             FORMAT("Include Directory\n{}\nbelongs to two different target\n{}\nand\n{}\n",
                                    inclNodeTargetMap.inclNode.node->filePath, getTarjanNodeName(),
-                                   inclNodeTargetMap.cppSourceTarget->getTarjanNodeName()),
-                            settings.pcSettings.toolErrorOutput);
-                        throw std::exception();
-                        // Print Error Message that same include-dir belongs to two targets.
+                                   inclNodeTargetMap.cppSourceTarget->getTarjanNodeName()));
                     }
                 }
                 reqHuDirs.emplace_back(inclNodeTargetMap);
@@ -691,7 +688,6 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const strin
         {
             printErrorMessage(FORMAT("regex_error : {}\nError happened while parsing regex {} of target{}\n", e.what(),
                                      dir.regex, name));
-            throw std::exception();
         }
     };
 
@@ -894,10 +890,8 @@ void CppSourceTarget::resolveRequirePaths()
 
             if (require[SingleModuleDep::logicalName] == Value(svtogsr(smFile.logicalName)))
             {
-                printErrorMessageColor(FORMAT("In target\n{}\nModule\n{}\n can not depend on itself.\n",
-                                              getTarjanNodeName(), smFile.node->filePath),
-                                       settings.pcSettings.toolErrorOutput);
-                throw std::exception();
+                printErrorMessage(FORMAT("In target\n{}\nModule\n{}\n can not depend on itself.\n", getTarjanNodeName(),
+                                         smFile.node->filePath));
             }
 
             const SMFile *found = nullptr;
@@ -933,15 +927,13 @@ void CppSourceTarget::resolveRequirePaths()
                             if (found)
                             {
                                 // Module was already found so error-out
-                                printErrorMessageColor(
+                                printErrorMessage(
                                     FORMAT("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
                                            "from target\n{}\n2){}\n from target\n{}\n",
                                            getTarjanNodeName(), getDependenciesPString(),
                                            string(require[SingleModuleDep::logicalName].GetString(),
                                                   require[SingleModuleDep::logicalName].GetStringLength()),
-                                           found->node->filePath, found->node->filePath),
-                                    settings.pcSettings.toolErrorOutput);
-                                throw std::exception();
+                                           found->node->filePath, found->node->filePath));
                             }
                             found = found2;
                         }
@@ -965,22 +957,19 @@ void CppSourceTarget::resolveRequirePaths()
             {
                 if (isInterface)
                 {
-                    printErrorMessageColor(FORMAT("No File in the target\n{}\n provides this module\n{}.\n",
+                    printErrorMessage(FORMAT("No File in the target\n{}\n provides this module\n{}.\n",
                                                   getTarjanNodeName(),
                                                   string(require[SingleModuleDep::logicalName].GetString(),
-                                                         require[SingleModuleDep::logicalName].GetStringLength())),
-                                           settings.pcSettings.toolErrorOutput);
+                                                         require[SingleModuleDep::logicalName].GetStringLength())));
                 }
                 else
                 {
-                    printErrorMessageColor(
+                    printErrorMessage(
                         FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
                                getTarjanNodeName(), getDependenciesPString(),
                                string(require[SingleModuleDep::logicalName].GetString(),
-                                      require[SingleModuleDep::logicalName].GetStringLength())),
-                        settings.pcSettings.toolErrorOutput);
+                                      require[SingleModuleDep::logicalName].GetStringLength())));
                 }
-                throw std::exception();
             }
         }
     }
@@ -1214,7 +1203,7 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const boo
                                               getSourceCompileCommandPrintFirstHalf() +
                                                   getCompileCommandPrintSecondPartSMRule(smFile));
     }
-    throw std::runtime_error("Generate SMRules not supported for this compiler\n");
+    printErrorMessage("Generate SMRules not supported for this compiler\n");
 }
 
 bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs)

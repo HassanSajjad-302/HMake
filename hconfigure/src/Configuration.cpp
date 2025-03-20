@@ -289,7 +289,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, cons
         return addStdDSCCppDep(getCppSharedDSC_P(name_, dir, defines, define));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, const string &prebuiltName,
@@ -307,7 +306,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, cons
             targets<DSC<CppSourceTarget>>.emplace_back(cppSourceTarget, &getSharedPLOAT(prebuiltName, dir), defines));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC_P(const string &name_, const string &dir, const bool defines,
@@ -500,7 +498,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_
         return addStdDSCCppDep(getCppSharedDSC_PNoName(name_, dir, defines, define));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName,
@@ -518,7 +515,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_
             cppSourceTarget, &getSharedPLOATNoName(prebuiltName, dir), defines));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC_PNoName(const string &name_, const string &dir, const bool defines,

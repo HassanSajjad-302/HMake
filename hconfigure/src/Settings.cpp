@@ -22,7 +22,6 @@ void from_json(const Json &json, PathPrint &pathPrint)
     if (level < 0 || level > 2)
     {
         printErrorMessage("Level should be in range 0-2\n");
-        throw std::exception();
     }
     pathPrint.printLevel = (PathPrintLevel)level;
     pathPrint.depth = json.at(JConsts::depth).get<int>();

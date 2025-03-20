@@ -13,7 +13,6 @@ inline constexpr string_view leafRunTests[] = {"BOOST_LEAF_AUTO_test.cpp",
                                                "capture_exception_result_unload_test.cpp",
                                                "capture_exception_state_test.cpp",
                                                "capture_exception_unload_test.cpp",
-                                               "capture_result_async_test_.cpp",
                                                "capture_result_async_test.cpp",
                                                "capture_result_state_test.cpp",
                                                "context_activator_test.cpp",
@@ -23,11 +22,6 @@ inline constexpr string_view leafRunTests[] = {"BOOST_LEAF_AUTO_test.cpp",
                                                "ctx_handle_some_test.cpp",
                                                "ctx_remote_handle_all_test.cpp",
                                                "ctx_remote_handle_some_test.cpp",
-                                               "diagnostic_info_test1.cpp",
-                                               "diagnostic_info_test2.cpp",
-                                               "diagnostic_info_test3.cpp",
-                                               "diagnostic_info_test4.cpp",
-                                               "diagnostic_info_test5.cpp",
                                                "e_errno_test.cpp",
                                                "e_LastError_test.cpp",
                                                "error_code_test.cpp",
@@ -120,7 +114,7 @@ inline constexpr string_view leafExamples[] = {
     "print_half.cpp",
 };
 
-inline constexpr string_view leafExamplesPrintFile[] = {"print_file_eh.cpp", "print_file_result.cpp"};
+inline constexpr string_view leafExamplesPrintFile[] = { "print_file_result.cpp"};
 
 inline constexpr string_view mp11RunTests[] = {
     "mp_size.cpp",

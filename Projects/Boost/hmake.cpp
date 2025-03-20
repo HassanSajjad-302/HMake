@@ -99,8 +99,6 @@ void configurationSpecification(Configuration &config)
     if (config.evaluate(ExceptionHandling::ON))
     {
         leaf.add<BoostExampleOrTestType::EXAMPLE>("libs/leaf/example", leafExamples, std::size(leafExamples));
-        leaf.add<BoostExampleOrTestType::EXAMPLE>("libs/leaf/example/print_file", leafExamplesPrintFile,
-                                                  std::size(leafExamplesPrintFile));
     }
 
     BoostCppTarget &detail = config.getBoostCppTarget("detail", true).publicDeps(configTarget);
