@@ -136,7 +136,7 @@ if (${INCLUDE_BUILD})
         message("HMAKE_USE_SMALL_FILE set")
         target_compile_definitions(hconfigure-b PUBLIC USE_COMMAND_HASH)
         target_compile_definitions(hconfigure-b PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
-        target_compile_definitions(hconfigure-b PUBLIC USE_JSON_FILE_COMPRESSION)
+        #  target_compile_definitions(hconfigure-b PUBLIC USE_JSON_FILE_COMPRESSION)
 
     endif ()
 

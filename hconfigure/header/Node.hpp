@@ -49,7 +49,7 @@ class Node
     // atomically.
     bool systemCheckCompleted{false};
 
-  private:
+  // private:
     bool systemCheckCalled = false;
 
   public:

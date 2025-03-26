@@ -143,9 +143,8 @@ constexpr static unsigned compileCommandWithTool = 4;
 
 namespace LinkBuild
 {
-constexpr static unsigned commandWithoutArgumentsWithTools = 1;
-constexpr static unsigned objectFiles = 2;
-constexpr static unsigned localLinkCommandWithoutTargets = 3;
+constexpr static unsigned commandWithoutArgumentsWithTools = 0;
+constexpr static unsigned objectFiles = 1;
 } // namespace LinkBuild
 
 } // namespace BuildCache
