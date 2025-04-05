@@ -14,7 +14,7 @@ import "SpecialNodes.hpp";
 
 template <typename T> static const InclNode &getNode(const T &t)
 {
-    if constexpr (std::is_same_v<T, struct InclNodeTargetMap>)
+    if constexpr (std::is_same_v<T, InclNodeTargetMap>)
     {
         return t.inclNode;
     }
@@ -33,6 +33,12 @@ template <typename T> void writeIncDirsAtConfigTime(const vector<T> &include, Va
         value.PushBack(inclNode.node->getValue(), rapidJsonAllocator);
         value.PushBack(static_cast<uint64_t>(inclNode.isStandard), rapidJsonAllocator);
         value.PushBack(static_cast<uint64_t>(inclNode.ignoreHeaderDeps), rapidJsonAllocator);
+        if constexpr (std::is_same_v<T, InclNodeTargetMap>)
+        {
+            auto &headerUnitNode = static_cast<const HeaderUnitNode &>(inclNode);
+            value.PushBack(headerUnitNode.targetCacheIndex, rapidJsonAllocator);
+            value.PushBack(headerUnitNode.headerUnitIndex, rapidJsonAllocator);
+        }
     }
 }
 

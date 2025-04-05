@@ -237,7 +237,7 @@ void CppSourceTarget::populateTransitiveProperties()
     {
         for (const InclNode &inclNode : cSourceTarget->useReqIncls)
         {
-            actuallyAddInclude(reqIncls, inclNode.node->filePath, inclNode.isStandard, inclNode.ignoreHeaderDeps);
+            reqIncls.emplace_back(inclNode);
         }
         reqCompilerFlags += cSourceTarget->useReqCompilerFlags;
         for (const Define &define : cSourceTarget->useReqCompileDefinitions)
@@ -608,18 +608,19 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
                                  useReqInclCache[i + 2].GetUint64());
     }
 
-    reqHuDirs.reserve(reqHUDirCache.Size() / numOfElem);
-    for (uint64_t i = 0; i < reqHUDirCache.Size(); i = i + numOfElem)
+    constexpr uint8_t numOfHUDirElem = 5;
+    reqHuDirs.reserve(reqHUDirCache.Size() / numOfHUDirElem);
+    for (uint64_t i = 0; i < reqHUDirCache.Size(); i = i + numOfHUDirElem)
     {
-        reqHuDirs.emplace_back(InclNode(Node::getNodeFromValue(reqHUDirCache[i], false),
+        reqHuDirs.emplace_back(HeaderUnitNode(Node::getNodeFromValue(reqHUDirCache[i], false),
                                         reqHUDirCache[i + 1].GetUint64(), reqHUDirCache[i + 2].GetUint64()),
                                this);
     }
 
-    useReqHuDirs.reserve(useReqHUDirCache.Size() / numOfElem);
-    for (uint64_t i = 0; i < useReqHUDirCache.Size(); i = i + numOfElem)
+    useReqHuDirs.reserve(useReqHUDirCache.Size() / numOfHUDirElem);
+    for (uint64_t i = 0; i < useReqHUDirCache.Size(); i = i + numOfHUDirElem)
     {
-        useReqHuDirs.emplace_back(InclNode(Node::getNodeFromValue(useReqHUDirCache[i], false),
+        useReqHuDirs.emplace_back(HeaderUnitNode(Node::getNodeFromValue(useReqHUDirCache[i], false),
                                            useReqHUDirCache[i + 1].GetUint64(), useReqHUDirCache[i + 2].GetUint64()),
                                   this);
     }

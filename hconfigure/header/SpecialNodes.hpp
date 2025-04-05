@@ -18,7 +18,6 @@ class LibDirNode
     bool isStandard = false;
     explicit LibDirNode(Node *node_, bool isStandard_ = false);
     static void emplaceInList(list<LibDirNode> &libDirNodes, LibDirNode &libDirNode);
-    static void emplaceInList(list<LibDirNode> &libDirNodes, Node *node_, bool isStandard_ = false);
 };
 
 class InclNode : public LibDirNode
@@ -29,16 +28,25 @@ class InclNode : public LibDirNode
     bool ignoreHeaderDeps = false;
     explicit InclNode(Node *node_, bool isStandard_ = false, bool ignoreHeaderDeps_ = false);
     static bool emplaceInList(list<InclNode> &includes, InclNode &libDirNode);
-    static bool emplaceInList(list<InclNode> &includes, Node *node_, bool isStandard_ = false,
-                              bool ignoreHeaderDeps_ = false);
 };
 bool operator<(const InclNode &lhs, const InclNode &rhs);
 
+class HeaderUnitNode : public InclNode
+{
+  public:
+    uint64_t targetCacheIndex = UINT64_MAX;
+    uint64_t headerUnitIndex = UINT64_MAX;
+    explicit HeaderUnitNode(Node *node_, uint64_t targetCacheIndex_ = UINT32_MAX,
+                            uint64_t headerUnitIndex_ = UINT32_MAX, bool isStandard_ = false,
+                            bool ignoreHeaderDeps_ = false);
+    static bool emplaceInList(list<HeaderUnitNode> &includes, HeaderUnitNode &libDirNode);
+};
+
 struct InclNodeTargetMap
 {
-    InclNode inclNode;
+    HeaderUnitNode inclNode;
     class CppSourceTarget *cppSourceTarget;
-    InclNodeTargetMap(InclNode inclNode_, CppSourceTarget *cppSourceTarget_);
+    InclNodeTargetMap(HeaderUnitNode inclNode_, CppSourceTarget *cppSourceTarget_);
 };
 
 struct InclNodePointerTargetMap

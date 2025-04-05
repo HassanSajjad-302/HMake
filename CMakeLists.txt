@@ -98,7 +98,7 @@ if (${INCLUDE_CONFIGURE})
         target_compile_definitions(hconfigure-c PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
 
         # Comment out the following to switch from json files stored as compressed vs stored as-it-is
-        target_compile_definitions(hconfigure-c PUBLIC USE_JSON_FILE_COMPRESSION)
+        #  target_compile_definitions(hconfigure-c PUBLIC USE_JSON_FILE_COMPRESSION)
 
     endif ()
 

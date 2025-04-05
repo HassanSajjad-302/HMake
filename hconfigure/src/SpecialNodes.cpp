@@ -21,18 +21,6 @@ void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, LibDirNode &libDir
     libDirNodes.emplace_back(libDirNode);
 }
 
-void LibDirNode::emplaceInList(list<LibDirNode> &libDirNodes, Node *node_, bool isStandard_)
-{
-    for (const LibDirNode &libDirNode : libDirNodes)
-    {
-        if (libDirNode.node == node_)
-        {
-            return;
-        }
-    }
-    libDirNodes.emplace_back(node_, isStandard_);
-}
-
 InclNode::InclNode(Node *node_, const bool isStandard_, const bool ignoreHeaderDeps_)
     : LibDirNode(node_, isStandard_), ignoreHeaderDeps{ignoreHeaderDeps_}
 {
@@ -51,26 +39,32 @@ bool InclNode::emplaceInList(list<InclNode> &includes, InclNode &libDirNode)
     return true;
 }
 
-bool InclNode::emplaceInList(list<InclNode> &includes, Node *node_, bool isStandard_, bool ignoreHeaderDeps_)
-{
-    for (const InclNode &include : includes)
-    {
-        if (include.node == node_)
-        {
-            return false;
-        }
-    }
-    includes.emplace_back(node_, isStandard_, ignoreHeaderDeps_);
-    return true;
-}
-
 bool operator<(const InclNode &lhs, const InclNode &rhs)
 {
     return std::tie(lhs.node, lhs.isStandard, lhs.ignoreHeaderDeps) <
            std::tie(rhs.node, rhs.isStandard, rhs.ignoreHeaderDeps);
 }
 
-InclNodeTargetMap::InclNodeTargetMap(InclNode inclNode_, CppSourceTarget *cppSourceTarget_)
+HeaderUnitNode::HeaderUnitNode(Node *node_, const uint64_t targetCacheIndex_, const uint64_t headerUnitIndex_,
+                               const bool isStandard_, const bool ignoreHeaderDeps_)
+    : InclNode(node_, isStandard_, ignoreHeaderDeps_), targetCacheIndex(targetCacheIndex_),
+      headerUnitIndex(headerUnitIndex_)
+{
+}
+bool HeaderUnitNode::emplaceInList(list<HeaderUnitNode> &includes, HeaderUnitNode &libDirNode)
+{
+    for (const HeaderUnitNode &include : includes)
+    {
+        if (include.node == libDirNode.node)
+        {
+            return false;
+        }
+    }
+    includes.emplace_back(libDirNode);
+    return true;
+}
+
+InclNodeTargetMap::InclNodeTargetMap(HeaderUnitNode inclNode_, CppSourceTarget *cppSourceTarget_)
     : inclNode(inclNode_), cppSourceTarget(cppSourceTarget_)
 {
 }
@@ -100,10 +94,6 @@ void actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool
             inclNodes.emplace_back(node, isStandard, ignoreHeaderDeps);
         }
     }
-    else
-    {
-        inclNodes.emplace_back(node, isStandard, ignoreHeaderDeps);
-    }
 }
 
 void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *target, const string &include,
@@ -124,11 +114,7 @@ void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *t
         }
         if (!found)
         {
-            inclNodes.emplace_back(InclNode(node, isStandard), target);
+            inclNodes.emplace_back(HeaderUnitNode(node, isStandard), target);
         }
-    }
-    else
-    {
-        inclNodes.emplace_back(InclNode(node, isStandard), target);
     }
 }
