@@ -172,6 +172,7 @@ class CppSourceTarget : public CSourceTarget
     static bool actuallyAddModuleFile(vector<SMFile> &smFiles, Node *moduleFileNode, CppSourceTarget *target);
     void actuallyAddSourceFileConfigTime(const Node *node);
     void actuallyAddModuleFileConfigTime(const Node *node, bool isInterface);
+    void actuallyAddHeaderUnitsConfigTime(const Node *node);
 
     template <typename... U> CppSourceTarget &publicDeps(CppSourceTarget *dep, const U... deps);
     template <typename... U> CppSourceTarget &privateDeps(CppSourceTarget *dep, const U... deps);
@@ -547,8 +548,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const str
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         using namespace Indices::ConfigCache;
-        Node *node = Node::getNodeFromNonNormalizedString(headerUnit, true);
-        buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
+        actuallyAddSourceFileConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true));
     }
 
     if constexpr (sizeof...(headerUnitsString))

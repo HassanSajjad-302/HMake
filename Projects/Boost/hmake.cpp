@@ -45,7 +45,7 @@ void configurationSpecification(Configuration &config)
     // callable_traits
 
     config.getCppObject("ScanOnly");
-
+/*
     BoostCppTarget &callableTraits =
         config.getBoostCppTarget("callable_Traits", true)
             .addDir<BoostExampleOrTestType::RUN_EXAMPLE>("/libs/callable_traits/example")
@@ -64,7 +64,7 @@ void configurationSpecification(Configuration &config)
     // compatibility.getSourceTarget().publicHUIncludes("libs/");
 
     // config
-    BoostCppTarget &configTarget = config.getBoostCppTarget("config", true, false);
+    BoostCppTarget &configTarget = config.getBoostCppTarget("config", true, false);*/
     // Skipping test and check for now
 
     // headers
@@ -78,7 +78,7 @@ void configurationSpecification(Configuration &config)
         hof.addRunTestsDirectory("/libs/hof/test");*/
     }
 
-    DSC<CppSourceTarget> &current = config.getCppStaticDSC("current-target");
+/*    DSC<CppSourceTarget> &current = config.getCppStaticDSC("current-target");
     current.getSourceTarget().headerUnits("boost/current_function.hpp", "boost/version.hpp");
 
     BoostCppTarget &core = config.getBoostCppTarget("core", true).publicDeps(configTarget, current);
@@ -100,10 +100,10 @@ void configurationSpecification(Configuration &config)
     {
         leaf.add<BoostExampleOrTestType::EXAMPLE>("libs/leaf/example", leafExamples, std::size(leafExamples));
     }
-
-    BoostCppTarget &detail = config.getBoostCppTarget("detail", true).publicDeps(configTarget);
+*/
+ //   BoostCppTarget &detail = config.getBoostCppTarget("detail", true).publicDeps(configTarget);
     BoostCppTarget &preprocessor = config.getBoostCppTarget("preprocessor", true);
-    BoostCppTarget &typeTraits = config.getBoostCppTarget("type_traits", true).publicDeps(detail);
+/*    BoostCppTarget &typeTraits = config.getBoostCppTarget("type_traits", true).publicDeps(detail);
     BoostCppTarget &mpl = config.getBoostCppTarget("mpl", true, false).publicDeps(detail, preprocessor, typeTraits);
     BoostCppTarget &mp11 =
         config.getBoostCppTarget("mp11", true)
@@ -121,7 +121,7 @@ void configurationSpecification(Configuration &config)
     {
         testTarget.privateCompileDefinition("BOOST_PFR_DETAIL_STRICT_RVALUE_TESTING");
     }
-
+*/
     // skipping predef tests and examples. header-only library with lots of configurations for its tests and examples
     // BoostCppTarget predef("predef", &config, true, false);
 
@@ -210,7 +210,7 @@ void configurationSpecification(Configuration &config)
 void buildSpecification()
 {
     // This tries to build SFML similar to the current CMakeLists.txt. Currently, only Windows build is supported.
-    getConfiguration("conventional").assign(CxxSTD::V_LATEST, TargetType::LIBRARY_SHARED, TreatModuleAsSource::YES);
+    // getConfiguration("conventional").assign(CxxSTD::V_LATEST, TargetType::LIBRARY_SHARED, TreatModuleAsSource::YES);
     getConfiguration("hu").assign(CxxSTD::V_LATEST, TargetType::LIBRARY_SHARED, TreatModuleAsSource::NO,
                                   TranslateInclude::YES);
     CALL_CONFIGURATION_SPECIFICATION

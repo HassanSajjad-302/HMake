@@ -443,6 +443,21 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(const Node *node, const bo
     }
 }
 
+void CppSourceTarget::actuallyAddHeaderUnitsConfigTime(const Node *node)
+{
+    assert(bsMode == BSMode::CONFIGURE);
+    namespace CppConfig = Indices::ConfigCache::CppConfig;
+    // No check for uniques since this is checked in writeConfigCacheAtConfigTime
+    buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
+    if (Value &headerUnitsBuildJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::headerUnits];
+        valueIndexInSubArray(headerUnitsBuildJson, node->getValue()) == UINT64_MAX)
+    {
+        const uint64_t size = headerUnitsBuildJson.Size();
+        headerUnitsBuildJson.PushBack(kArrayType, cacheAlloc);
+        SMFile::initializeModuleJson(headerUnitsBuildJson[size], node, cacheAlloc, *this);
+    }
+}
+
 void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round)
 {
     if (!round)
