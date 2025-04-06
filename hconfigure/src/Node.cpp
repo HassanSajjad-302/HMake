@@ -290,7 +290,6 @@ Node *Node::getLastNodeAdded()
 
 rapidjson::Type Node::getType()
 {
-
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     return rapidjson::kNumberType;
 #else

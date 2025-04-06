@@ -76,9 +76,9 @@ InclNodePointerTargetMap::InclNodePointerTargetMap(const InclNode *inclNode_, Cp
 
 void actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool isStandard, bool ignoreHeaderDeps)
 {
-    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
+        Node *node = Node::getNodeFromNonNormalizedPath(include, false);
         bool found = false;
         for (const InclNode &inclNode : inclNodes)
         {
@@ -99,9 +99,9 @@ void actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool
 void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *target, const string &include,
                         bool isStandard, bool ignoreHeaderDeps)
 {
-    Node *node = Node::getNodeFromNonNormalizedPath(include, false);
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
+        Node *node = Node::getNodeFromNonNormalizedPath(include, false);
         bool found = false;
         for (const InclNodeTargetMap &inclNode : inclNodes)
         {
@@ -115,6 +115,29 @@ void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *t
         if (!found)
         {
             inclNodes.emplace_back(HeaderUnitNode(node, isStandard), target);
+        }
+    }
+}
+
+void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *target, const string &include,
+                        uint64_t targetCacheIndex, uint64_t headerUnitIndex, bool isStandard, bool ignoreHeaderDeps)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        Node *node = Node::getNodeFromNonNormalizedPath(include, false);
+        bool found = false;
+        for (const InclNodeTargetMap &inclNode : inclNodes)
+        {
+            if (inclNode.inclNode.node->myId == node->myId)
+            {
+                found = true;
+                printErrorMessage(FORMAT("Header-unit include {} is already added.\n", node->filePath));
+                break;
+            }
+        }
+        if (!found)
+        {
+            inclNodes.emplace_back(HeaderUnitNode(node, targetCacheIndex, headerUnitIndex, isStandard), target);
         }
     }
 }

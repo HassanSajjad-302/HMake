@@ -172,7 +172,7 @@ class CppSourceTarget : public CSourceTarget
     static bool actuallyAddModuleFile(vector<SMFile> &smFiles, Node *moduleFileNode, CppSourceTarget *target);
     void actuallyAddSourceFileConfigTime(const Node *node);
     void actuallyAddModuleFileConfigTime(const Node *node, bool isInterface);
-    void actuallyAddHeaderUnitsConfigTime(const Node *node);
+    uint64_t actuallyAddHeaderUnitsConfigTime(const Node *node);
 
     template <typename... U> CppSourceTarget &publicDeps(CppSourceTarget *dep, const U... deps);
     template <typename... U> CppSourceTarget &privateDeps(CppSourceTarget *dep, const U... deps);
@@ -190,6 +190,10 @@ class CppSourceTarget : public CSourceTarget
     template <typename... U> CppSourceTarget &interfaceHUIncludes(const string &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &publicHUDirs(const string &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &privateHUDirs(const string &include, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &publicHUDirBigHu(const string &include, const string &bigHu, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &privateHUDirBigHu(const string &include, const string &bugHu, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &interfaceHUDirs(const string &include, U... includeDirectoryPString);
     CppSourceTarget &publicCompilerFlags(const string &compilerFlags);
     CppSourceTarget &privateCompilerFlags(const string &compilerFlags);
@@ -464,6 +468,56 @@ CppSourceTarget &CppSourceTarget::privateHUDirs(const string &include, U... incl
 }
 
 template <typename... U>
+CppSourceTarget &CppSourceTarget::publicHUDirBigHu(const string &include, const string &bigHu,
+                                                   U... includeDirectoryPString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (evaluate(TreatModuleAsSource::NO))
+        {
+            uint64_t headerUnitIndex =
+                actuallyAddHeaderUnitsConfigTime(Node::getNodeFromNonNormalizedString(bigHu, true));
+            actuallyAddInclude(reqHuDirs, this, include, targetCacheIndex, headerUnitIndex);
+            actuallyAddInclude(useReqHuDirs, this, include, targetCacheIndex, headerUnitIndex);
+        }
+    }
+
+    if constexpr (sizeof...(includeDirectoryPString))
+    {
+        return publicHUDirs(includeDirectoryPString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::privateHUDirBigHu(const string &include, const string &bigHu,
+                                                    U... includeDirectoryPString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (evaluate(TreatModuleAsSource::NO))
+        {
+            uint64_t headerUnitIndex =
+                actuallyAddHeaderUnitsConfigTime(Node::getNodeFromNonNormalizedString(bigHu, true));
+            actuallyAddInclude(reqHuDirs, this, include, targetCacheIndex, headerUnitIndex);
+            actuallyAddInclude(useReqHuDirs, this, include, targetCacheIndex, headerUnitIndex);
+        }
+    }
+
+    if constexpr (sizeof...(includeDirectoryPString))
+    {
+        return privateHUDirs(includeDirectoryPString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
 CppSourceTarget &CppSourceTarget::interfaceHUDirs(const string &include, U... includeDirectoryPString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -548,7 +602,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const str
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         using namespace Indices::ConfigCache;
-        actuallyAddSourceFileConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true));
+        actuallyAddHeaderUnitsConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true));
     }
 
     if constexpr (sizeof...(headerUnitsString))

@@ -209,7 +209,6 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
 
 void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const
 {
-
     btree_set<const SMFile *, IndexInTopologicalSortComparatorRoundZero> sortedSMFileDependencies;
     for (const SMFile &objectFile : modFileDeps)
     {
@@ -443,19 +442,21 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(const Node *node, const bo
     }
 }
 
-void CppSourceTarget::actuallyAddHeaderUnitsConfigTime(const Node *node)
+uint64_t CppSourceTarget::actuallyAddHeaderUnitsConfigTime(const Node *node)
 {
     assert(bsMode == BSMode::CONFIGURE);
     namespace CppConfig = Indices::ConfigCache::CppConfig;
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
     buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
-    if (Value &headerUnitsBuildJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::headerUnits];
-        valueIndexInSubArray(headerUnitsBuildJson, node->getValue()) == UINT64_MAX)
+    Value &headerUnitsBuildJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::headerUnits];
+    const uint64_t i = valueIndexInSubArray(headerUnitsBuildJson, node->getValue());
+    if (i == UINT64_MAX)
     {
         const uint64_t size = headerUnitsBuildJson.Size();
         headerUnitsBuildJson.PushBack(kArrayType, cacheAlloc);
         SMFile::initializeModuleJson(headerUnitsBuildJson[size], node, cacheAlloc, *this);
     }
+    return i;
 }
 
 void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round)
@@ -500,20 +501,26 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             compileCommandWithTool.setCommand(configuration->compilerFeatures.compiler.bTPath.string() + " " +
                                               compileCommand);
 
-            Value &headerUnitsValue = buildOrConfigCacheCopy[Indices::BuildCache::CppBuild::headerUnits];
-            oldHeaderUnits.reserve(headerUnitsValue.Size());
-            for (uint64_t i = 0; i < headerUnitsValue.Size(); ++i)
+            if (Value &headerUnitsValue = buildOrConfigCacheCopy[Indices::BuildCache::CppBuild::headerUnits];
+                !headerUnitsValue.Empty())
             {
-                namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
+                oldHeaderUnits.reserve(headerUnitsValue.Size());
+                for (uint64_t i = 0; i < headerUnitsValue.Size(); ++i)
+                {
+                    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
 
-                oldHeaderUnits.emplace_back(
-                    this, Node::getHalfNodeFromValue(headerUnitsValue[i][ModuleFiles::fullPath]),
-                    string(vtosv(headerUnitsValue[i][ModuleFiles::smRules][ModuleFiles::SmRules::exportName])));
-                oldHeaderUnits[i].isAnOlderHeaderUnit = true;
-                oldHeaderUnits[i].indexInBuildCache = i;
-                headerUnitsSet.emplace(&oldHeaderUnits[i]);
-            }
-            {
+                    string str;
+                    if (Value &smRules = headerUnitsValue[i][ModuleFiles::smRules]; !smRules.Empty())
+                    {
+                        str = vtosv(smRules[ModuleFiles::SmRules::exportName]);
+                    }
+                    oldHeaderUnits.emplace_back(
+                        this, Node::getHalfNodeFromValue(headerUnitsValue[i][ModuleFiles::fullPath]), str);
+                    oldHeaderUnits[i].isAnOlderHeaderUnit = true;
+                    oldHeaderUnits[i].indexInBuildCache = i;
+                    headerUnitsSet.emplace(&oldHeaderUnits[i]);
+                }
+
                 lock_guard l(builder.executeMutex);
                 for (SMFile *headerUnit : headerUnitsSet)
                 {
@@ -521,9 +528,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                         builder.updateBTargets.emplace(builder.updateBTargetsIterator, headerUnit);
                 }
                 builder.updateBTargetsSizeGoal += oldHeaderUnits.size();
-            }
-            if (!oldHeaderUnits.empty())
-            {
                 builder.cond.notify_one();
             }
         }
@@ -613,7 +617,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     for (uint64_t i = 0; i < reqHUDirCache.Size(); i = i + numOfHUDirElem)
     {
         reqHuDirs.emplace_back(HeaderUnitNode(Node::getNodeFromValue(reqHUDirCache[i], false),
-                                        reqHUDirCache[i + 1].GetUint64(), reqHUDirCache[i + 2].GetUint64()),
+                                              reqHUDirCache[i + 1].GetUint64(), reqHUDirCache[i + 2].GetUint64()),
                                this);
     }
 
@@ -621,7 +625,8 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     for (uint64_t i = 0; i < useReqHUDirCache.Size(); i = i + numOfHUDirElem)
     {
         useReqHuDirs.emplace_back(HeaderUnitNode(Node::getNodeFromValue(useReqHUDirCache[i], false),
-                                           useReqHUDirCache[i + 1].GetUint64(), useReqHUDirCache[i + 2].GetUint64()),
+                                                 useReqHUDirCache[i + 1].GetUint64(),
+                                                 useReqHUDirCache[i + 2].GetUint64()),
                                   this);
     }
 }

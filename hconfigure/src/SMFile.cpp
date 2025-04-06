@@ -75,7 +75,7 @@ void SourceNode::initializeSourceJson(Value &j, const Node *node, decltype(rallo
     j.PushBack(node->getValue(), sourceNodeAllocator);
 
     // Indices::BuildCache::CppBuild::SourceFiles::compileCommandWithTool
-    j.PushBack(Value(kStringType), sourceNodeAllocator);
+    j.PushBack(Node::getType(), sourceNodeAllocator);
 
     // Indices::BuildCache::CppBuild::SourceFiles::headerFiles
     j.PushBack(Value(kArrayType), sourceNodeAllocator);
@@ -332,9 +332,6 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
         sourceJson.CopyFrom(target->getBuildCache()[Indices::BuildCache::CppBuild::headerUnits][indexInBuildCache],
                             sourceNodeAllocator);
 
-        objectFileOutputFileNode = Node::getNodeFromNormalizedString(
-            target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".m.o", true, true);
-
         if (sourceJson[ModuleFiles::scanningCommandWithTool] != target->compileCommandWithTool.getHash())
         {
             isObjectFileOutdated = true;
@@ -343,6 +340,9 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             isSMRuleFileOutdatedCallCompleted = true;
             return;
         }
+
+        objectFileOutputFileNode = Node::getNodeFromNormalizedString(
+            target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".m.o", true, true);
 
         if (node->doesNotExist || objectFileOutputFileNode->doesNotExist ||
             node->lastWriteTime > objectFileOutputFileNode->lastWriteTime)
@@ -437,9 +437,9 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
         }
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
-            StaticVector<string_view, 1000> includeNames;
             if (isSMRuleFileOutdated)
             {
+                StaticVector<string_view, 1000> includeNames;
                 saveSMRulesJsonToSourceJson(smrulesFileOutputClang, includeNames);
                 initializeHeaderUnits(builder, includeNames);
             }
@@ -638,10 +638,10 @@ void SMFile::initializeModuleJson(Value &j, const Node *node, decltype(ralloc) &
                                   const CppSourceTarget &target)
 {
     j.PushBack(node->getValue(), sourceNodeAllocator);
-    j.PushBack(Value(kStringType), sourceNodeAllocator);
+    j.PushBack(Node::getType(), sourceNodeAllocator);
     j.PushBack(Value(kArrayType), sourceNodeAllocator);
     j.PushBack(Value(kArrayType), sourceNodeAllocator);
-    j.PushBack(Value(kStringType), sourceNodeAllocator);
+    j.PushBack(Node::getType(), sourceNodeAllocator);
 }
 
 InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) const
@@ -773,6 +773,13 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
 
             if (headerUnit->isAnOlderHeaderUnit && !atomic_ref(headerUnit->addedForRoundOne).exchange(true))
             {
+                if (!headerUnit->objectFileOutputFileNode)
+                {
+                    headerUnit->logicalName = string(includeNames[i]);
+                    headerUnit->objectFileOutputFileNode = Node::getNodeFromNormalizedString(
+                        target->buildCacheFilesDirPathNode->filePath + slashc + headerUnit->getOutputFileName() + ".m.o", true,
+                        true);
+                }
                 headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
                 headerUnit->realBTargets[0].addInTarjanNodeBTarget(0);
             }

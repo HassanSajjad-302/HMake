@@ -29,7 +29,6 @@ using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique
 #define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
 #define CALL_ONLY_AT_CONFIGURE_TIME
 
-
 // value to string_view
 inline string_view vtosv(const Value &v)
 {
