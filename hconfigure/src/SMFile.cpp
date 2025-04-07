@@ -332,6 +332,9 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
         sourceJson.CopyFrom(target->getBuildCache()[Indices::BuildCache::CppBuild::headerUnits][indexInBuildCache],
                             sourceNodeAllocator);
 
+        objectFileOutputFileNode = Node::getNodeFromNormalizedString(
+            target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".m.o", true, true);
+
         if (sourceJson[ModuleFiles::scanningCommandWithTool] != target->compileCommandWithTool.getHash())
         {
             isObjectFileOutdated = true;
@@ -340,9 +343,6 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             isSMRuleFileOutdatedCallCompleted = true;
             return;
         }
-
-        objectFileOutputFileNode = Node::getNodeFromNormalizedString(
-            target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".m.o", true, true);
 
         if (node->doesNotExist || objectFileOutputFileNode->doesNotExist ||
             node->lastWriteTime > objectFileOutputFileNode->lastWriteTime)
@@ -648,7 +648,7 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
 {
     // The target from which this header-unit comes from
     CppSourceTarget *huDirTarget = nullptr;
-    const InclNode *nodeDir = nullptr;
+    const HeaderUnitNode *nodeDir = nullptr;
 
     // Iterating over all header-unit-dirs of the target to find out which header-unit dir this header-unit
     // comes from and which target that header-unit-dir belongs to if any
@@ -686,7 +686,7 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
             {
                 if (pathContainsFile(incl.node->filePath, headerUnitNode->filePath))
                 {
-                    return {&incl, it->second};
+                    return {nullptr, it->second};
                 }
             }
             printErrorMessage("HMake Internal Error");
@@ -738,50 +738,65 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
         Node *headerUnitNode = Node::getNodeFromValue(requireValue[SingleHeaderUnitDep::fullPath], true);
         auto [nodeDir, huDirTarget] = findHeaderUnitTarget(headerUnitNode);
 
-        huDirTarget->headerUnitsMutex.lock();
         SMFile *headerUnit = nullptr;
         bool doLoad = false;
-        if (const auto it = huDirTarget->headerUnitsSet.find(headerUnitNode); it == huDirTarget->headerUnitsSet.end())
+        bool alreadyAddedInHeaderUnitSet = false;
+
+        if (nodeDir && nodeDir->headerUnitIndex != UINT32_MAX)
         {
-            headerUnit = new SMFile(huDirTarget, headerUnitNode);
-            huDirTarget->headerUnitsSet.emplace(headerUnit).first;
-
-            huDirTarget->headerUnitsMutex.unlock();
-
-            if (nodeDir->ignoreHeaderDeps)
-            {
-                headerUnit->ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
-            }
-
-            atomic_ref(headerUnit->indexInBuildCache)
-                .store(huDirTarget->newHeaderUnitsSize.fetch_add(1) + huDirTarget->oldHeaderUnits.size());
-            initializeModuleJson(headerUnit->sourceJson, headerUnit->node, headerUnit->sourceNodeAllocator,
-                                 *headerUnit->target);
-
-            headerUnit->type = SM_FILE_TYPE::HEADER_UNIT;
-            headerUnit->logicalName = string(includeNames[i]);
-            headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
+            headerUnit = &cppSourceTargets[nodeDir->targetCacheIndex]->oldHeaderUnits[nodeDir->headerUnitIndex];
+            alreadyAddedInHeaderUnitSet = true;
         }
         else
         {
-            headerUnit = *it;
-            huDirTarget->headerUnitsMutex.unlock();
-            // We don't know whether the other thread has set the headerUnitIndex yet. But the while loop is not run
-            // here. So, in-case the other thread has just acquired headerUnitsMutex, it could set the headerUnitIndex
-            // so we don't loop much
-            doLoad = true;
-
-            if (headerUnit->isAnOlderHeaderUnit && !atomic_ref(headerUnit->addedForRoundOne).exchange(true))
+            huDirTarget->headerUnitsMutex.lock();
+            if (const auto it = huDirTarget->headerUnitsSet.find(headerUnitNode);
+                it == huDirTarget->headerUnitsSet.end())
             {
-                if (!headerUnit->objectFileOutputFileNode)
+                headerUnit = new SMFile(huDirTarget, headerUnitNode);
+                huDirTarget->headerUnitsSet.emplace(headerUnit).first;
+
+                huDirTarget->headerUnitsMutex.unlock();
+
+                /*if (nodeDir->ignoreHeaderDeps)
                 {
-                    headerUnit->logicalName = string(includeNames[i]);
-                    headerUnit->objectFileOutputFileNode = Node::getNodeFromNormalizedString(
-                        target->buildCacheFilesDirPathNode->filePath + slashc + headerUnit->getOutputFileName() + ".m.o", true,
-                        true);
-                }
+                    headerUnit->ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
+                }*/
+
+                atomic_ref(headerUnit->indexInBuildCache)
+                    .store(huDirTarget->newHeaderUnitsSize.fetch_add(1) + huDirTarget->oldHeaderUnits.size());
+                initializeModuleJson(headerUnit->sourceJson, headerUnit->node, headerUnit->sourceNodeAllocator,
+                                     *headerUnit->target);
+
+                headerUnit->type = SM_FILE_TYPE::HEADER_UNIT;
+                headerUnit->logicalName = string(includeNames[i]);
                 headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
-                headerUnit->realBTargets[0].addInTarjanNodeBTarget(0);
+            }
+            else
+            {
+                headerUnit = *it;
+                huDirTarget->headerUnitsMutex.unlock();
+                alreadyAddedInHeaderUnitSet = true;
+            }
+        }
+
+        if (alreadyAddedInHeaderUnitSet)
+        {
+            if (headerUnit->isAnOlderHeaderUnit)
+            {
+                if (!atomic_ref(headerUnit->addedForRoundOne).exchange(true))
+                {
+                    headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
+                    headerUnit->realBTargets[0].addInTarjanNodeBTarget(0);
+                }
+            }
+            // Older header-units indexInBuildCache already set.
+            else
+            {
+                // We don't know whether the other thread has set the headerUnitIndex yet. But the while loop is not run
+                // here. So, in-case the other thread has just acquired headerUnitsMutex, it could set the
+                // headerUnitIndex so we don't loop much
+                doLoad = true;
             }
         }
 
@@ -793,10 +808,6 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
         {
             while (atomic_ref(headerUnit->indexInBuildCache).load() == UINT64_MAX)
                 ;
-        }
-        else
-        {
-            // We ourselves initialized and set headerUnitIndex
         }
 
         requireValue[SingleHeaderUnitDep::targetIndex] = huDirTarget->targetCacheIndex;

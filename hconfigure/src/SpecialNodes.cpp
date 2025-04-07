@@ -69,7 +69,7 @@ InclNodeTargetMap::InclNodeTargetMap(HeaderUnitNode inclNode_, CppSourceTarget *
 {
 }
 
-InclNodePointerTargetMap::InclNodePointerTargetMap(const InclNode *inclNode_, CppSourceTarget *cppSourceTarget_)
+InclNodePointerTargetMap::InclNodePointerTargetMap(const HeaderUnitNode *inclNode_, CppSourceTarget *cppSourceTarget_)
     : inclNode(inclNode_), cppSourceTarget(cppSourceTarget_)
 {
 }

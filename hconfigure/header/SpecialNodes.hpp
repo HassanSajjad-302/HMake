@@ -51,9 +51,9 @@ struct InclNodeTargetMap
 
 struct InclNodePointerTargetMap
 {
-    const InclNode *inclNode;
+    const HeaderUnitNode *inclNode;
     CppSourceTarget *cppSourceTarget;
-    InclNodePointerTargetMap(const InclNode *inclNode_, CppSourceTarget *cppSourceTarget_);
+    InclNodePointerTargetMap(const HeaderUnitNode *inclNode_, CppSourceTarget *cppSourceTarget_);
 };
 
 void actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool isStandard = false,

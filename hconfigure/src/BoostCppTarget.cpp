@@ -31,10 +31,14 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
     {
         t = &configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
     }
-    t->getSourceTarget().publicHUDirs(string("boost") + slashc + name);
     if (name != "core" && name != "mpl" && name != "detail")
     {
-        t->getSourceTarget().headerUnits(string("boost") + slashc + name + ".hpp");
+        t->getSourceTarget().publicHUDirBigHu(string("boost") + slashc + name,
+                                              string("boost") + slashc + name + ".hpp");
+    }
+    else
+    {
+        t->getSourceTarget().publicHUDirs(string("boost") + slashc + name);
     }
     return *t;
 }

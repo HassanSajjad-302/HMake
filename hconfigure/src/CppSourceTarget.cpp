@@ -216,7 +216,10 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles, LO
     }
     for (const SMFile *headerUnit : headerUnitsSet)
     {
-        sortedSMFileDependencies.emplace(headerUnit);
+        if (headerUnit->addedForRoundOne)
+        {
+            sortedSMFileDependencies.emplace(headerUnit);
+        }
     }
 
     for (const SMFile *objectFile : sortedSMFileDependencies)
@@ -236,6 +239,8 @@ void CppSourceTarget::populateTransitiveProperties()
     {
         for (const InclNode &inclNode : cSourceTarget->useReqIncls)
         {
+            // Configure-time check.
+            actuallyAddInclude(reqIncls, inclNode.node->filePath);
             reqIncls.emplace_back(inclNode);
         }
         reqCompilerFlags += cSourceTarget->useReqCompilerFlags;
@@ -246,28 +251,11 @@ void CppSourceTarget::populateTransitiveProperties()
         reqCompilerFlags += cSourceTarget->useReqCompilerFlags;
         if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
         {
-            CppSourceTarget *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
+            const auto cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
             for (InclNodeTargetMap &inclNodeTargetMap : cppSourceTarget->useReqHuDirs)
             {
-                if constexpr (bsMode == BSMode::CONFIGURE)
-                {
-                    bool found = false;
-                    for (const InclNodeTargetMap &inclNodeTargetMap_ : reqHuDirs)
-                    {
-                        if (inclNodeTargetMap_.inclNode.node->myId == inclNodeTargetMap.inclNode.node->myId)
-                        {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (found)
-                    {
-                        printErrorMessage(
-                            FORMAT("Include Directory\n{}\nbelongs to two different target\n{}\nand\n{}\n",
-                                   inclNodeTargetMap.inclNode.node->filePath, getTarjanNodeName(),
-                                   inclNodeTargetMap.cppSourceTarget->getTarjanNodeName()));
-                    }
-                }
+                // Configure-time check
+                actuallyAddInclude(reqHuDirs, this, inclNodeTargetMap.inclNode.node->filePath);
                 reqHuDirs.emplace_back(inclNodeTargetMap);
             }
 
@@ -617,6 +605,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     for (uint64_t i = 0; i < reqHUDirCache.Size(); i = i + numOfHUDirElem)
     {
         reqHuDirs.emplace_back(HeaderUnitNode(Node::getNodeFromValue(reqHUDirCache[i], false),
+                                              reqHUDirCache[i + 3].GetUint64(), reqHUDirCache[i + 4].GetUint64(),
                                               reqHUDirCache[i + 1].GetUint64(), reqHUDirCache[i + 2].GetUint64()),
                                this);
     }
@@ -624,10 +613,11 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     useReqHuDirs.reserve(useReqHUDirCache.Size() / numOfHUDirElem);
     for (uint64_t i = 0; i < useReqHUDirCache.Size(); i = i + numOfHUDirElem)
     {
-        useReqHuDirs.emplace_back(HeaderUnitNode(Node::getNodeFromValue(useReqHUDirCache[i], false),
-                                                 useReqHUDirCache[i + 1].GetUint64(),
-                                                 useReqHUDirCache[i + 2].GetUint64()),
-                                  this);
+        useReqHuDirs.emplace_back(
+            HeaderUnitNode(Node::getNodeFromValue(useReqHUDirCache[i], false), useReqHUDirCache[i + 3].GetUint64(),
+                           useReqHUDirCache[i + 4].GetUint64(), useReqHUDirCache[i + 1].GetUint64(),
+                           useReqHUDirCache[i + 2].GetUint64()),
+            this);
     }
 }
 
