@@ -344,65 +344,8 @@ CppSourceTarget &CppSourceTarget::initializePublicHuDirsFromReqIncls()
     return *this;
 }
 
-bool CppSourceTarget::actuallyAddSourceFile(vector<SourceNode> &sourceFiles, const string &sourceFile,
-                                            CppSourceTarget *target)
-{
-    Node *node = Node::getNodeFromNonNormalizedPath(sourceFile, true);
-    return actuallyAddSourceFile(sourceFiles, node, target);
-}
-
-bool CppSourceTarget::actuallyAddSourceFile(vector<SourceNode> &sourceFiles, Node *sourceFileNode,
-                                            CppSourceTarget *target)
-{
-    bool found = false;
-    for (const SourceNode &source : sourceFiles)
-    {
-        if (source.node == sourceFileNode)
-        {
-            found = true;
-            printErrorMessage(
-                FORMAT("Source File {} already added in target {}.\n", sourceFileNode->filePath, source.target->name));
-            break;
-        }
-    }
-    if (!found)
-    {
-        sourceFiles.emplace_back(target, sourceFileNode);
-        return true;
-    }
-    return false;
-}
-
-bool CppSourceTarget::actuallyAddModuleFile(vector<SMFile> &smFiles, const string &moduleFile, CppSourceTarget *target)
-{
-    Node *node = Node::getNodeFromNonNormalizedPath(moduleFile, true);
-    return actuallyAddModuleFile(smFiles, node, target);
-}
-
-bool CppSourceTarget::actuallyAddModuleFile(vector<SMFile> &smFiles, Node *moduleFileNode, CppSourceTarget *target)
-{
-    bool found = false;
-    for (const SMFile &smFile : smFiles)
-    {
-        if (smFile.node == moduleFileNode)
-        {
-            found = true;
-            printErrorMessage(
-                FORMAT("Module File {} already added in target {}.\n", moduleFileNode->filePath, target->name));
-            break;
-        }
-    }
-    if (!found)
-    {
-        smFiles.emplace_back(target, moduleFileNode);
-        return true;
-    }
-    return false;
-}
-
 void CppSourceTarget::actuallyAddSourceFileConfigTime(const Node *node)
 {
-    assert(bsMode == BSMode::CONFIGURE);
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
     buildOrConfigCacheCopy[Indices::ConfigCache::CppConfig::sourceFiles].PushBack(node->getValue(), cacheAlloc);
     if (Value &sourceBuildJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::sourceFiles];
@@ -416,7 +359,6 @@ void CppSourceTarget::actuallyAddSourceFileConfigTime(const Node *node)
 
 void CppSourceTarget::actuallyAddModuleFileConfigTime(const Node *node, const bool isInterface)
 {
-    assert(bsMode == BSMode::CONFIGURE);
     namespace CppConfig = Indices::ConfigCache::CppConfig;
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
     buildOrConfigCacheCopy[CppConfig::moduleFiles].PushBack(node->getValue(), cacheAlloc);
@@ -430,21 +372,31 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(const Node *node, const bo
     }
 }
 
-uint64_t CppSourceTarget::actuallyAddHeaderUnitsConfigTime(const Node *node)
+void CppSourceTarget::actuallyAddHeaderUnitConfigTime(const Node *node)
 {
     assert(bsMode == BSMode::CONFIGURE);
     namespace CppConfig = Indices::ConfigCache::CppConfig;
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
     buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
-    Value &headerUnitsBuildJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::headerUnits];
-    const uint64_t i = valueIndexInSubArray(headerUnitsBuildJson, node->getValue());
-    if (i == UINT64_MAX)
+}
+
+uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit)
+{
+    namespace CppConfig = Indices::ConfigCache::CppConfig;
+    // No check for uniques since this is checked in writeConfigCacheAtConfigTime
+    buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
+    Value &headerUnitJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::moduleFiles];
+    const uint64_t index = valueIndexInSubArray(headerUnitJson, node->getValue());
+    if (index == UINT64_MAX)
     {
-        const uint64_t size = headerUnitsBuildJson.Size();
-        headerUnitsBuildJson.PushBack(kArrayType, cacheAlloc);
-        SMFile::initializeModuleJson(headerUnitsBuildJson[size], node, cacheAlloc, *this);
+        const uint64_t size = headerUnitJson.Size();
+        headerUnitJson.PushBack(kArrayType, cacheAlloc);
+        SMFile::initializeModuleJson(headerUnitJson[size], node, cacheAlloc, *this);
+        headerUnitJson[size][Indices::BuildCache::CppBuild::ModuleFiles::smRules].PushBack(
+            Value().SetString(svtogsr(headerUnit), cacheAlloc), cacheAlloc);
+        return size;
     }
-    return i;
+    return index;
 }
 
 void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round)

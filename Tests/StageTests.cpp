@@ -607,7 +607,13 @@ TEST(StageTests, Test4)
     executeSnapshotBalances(Updates{.smruleFiles = 2, .nodesFile = true}, "hu/aevain");
 }
 
-static void setupTest5Default()
+
+TEST(StageTests, Test6)
+{
+
+}
+
+static void setupTest6Default()
 {
     const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
     copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
@@ -616,7 +622,7 @@ static void setupTest5Default()
 // TODO
 // Will be completed after configuration having vector of different cpptarget properties API is completed.
 /*
-TEST(StageTests, Test5)
+TEST(StageTests, Test6)
 {
     const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test4");
     current_path(testSourcePath);

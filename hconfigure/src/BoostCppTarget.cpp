@@ -33,8 +33,8 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
     }
     if (name != "core" && name != "mpl" && name != "detail")
     {
-        t->getSourceTarget().publicHUDirBigHu(string("boost") + slashc + name,
-                                              string("boost") + slashc + name + ".hpp");
+        t->getSourceTarget().publicHUDirsBigHu(string("boost") + slashc + name, string("boost") + slashc + name + ".hpp",
+                                              string("boost") + slashc + name);
     }
     else
     {

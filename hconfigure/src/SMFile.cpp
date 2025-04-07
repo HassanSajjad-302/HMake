@@ -754,6 +754,7 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
                 it == huDirTarget->headerUnitsSet.end())
             {
                 headerUnit = new SMFile(huDirTarget, headerUnitNode);
+                headerUnit->addedForRoundOne = true;
                 huDirTarget->headerUnitsSet.emplace(headerUnit).first;
 
                 huDirTarget->headerUnitsMutex.unlock();
