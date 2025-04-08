@@ -385,7 +385,7 @@ uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const str
     namespace CppConfig = Indices::ConfigCache::CppConfig;
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
     buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
-    Value &headerUnitJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::moduleFiles];
+    Value &headerUnitJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::headerUnits];
     const uint64_t index = valueIndexInSubArray(headerUnitJson, node->getValue());
     if (index == UINT64_MAX)
     {
@@ -450,10 +450,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                     namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
 
                     string str;
-                    if (Value &smRules = headerUnitsValue[i][ModuleFiles::smRules]; !smRules.Empty())
-                    {
-                        str = vtosv(smRules[ModuleFiles::SmRules::exportName]);
-                    }
+                    str = vtosv(headerUnitsValue[i][ModuleFiles::smRules][ModuleFiles::SmRules::exportName]);
                     oldHeaderUnits.emplace_back(
                         this, Node::getHalfNodeFromValue(headerUnitsValue[i][ModuleFiles::fullPath]), str);
                     oldHeaderUnits[i].isAnOlderHeaderUnit = true;

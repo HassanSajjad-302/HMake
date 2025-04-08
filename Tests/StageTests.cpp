@@ -607,10 +607,8 @@ TEST(StageTests, Test4)
     executeSnapshotBalances(Updates{.smruleFiles = 2, .nodesFile = true}, "hu/aevain");
 }
 
-
 TEST(StageTests, Test6)
 {
-
 }
 
 static void setupTest6Default()
