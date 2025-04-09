@@ -354,21 +354,18 @@ inline constexpr string_view mp11CompileTests[] = {
 };
 
 inline constexpr string_view preprocessorTests[] = {
-    "array.cpp", "comparison.cpp", "control.cpp",     "debug.cpp",      "facilities.cpp",
-    "list.cpp",  "logical.cpp",    "punctuation.cpp", "repetition.cpp", "selection.cpp",
-    "slot.cpp",  "stringize.cpp",  "tuple.cpp",       "variadic.cpp",
+    "array.cpp",       "comparison.cpp", "control.cpp",   "debug.cpp", "facilities.cpp", "list.cpp",  "logical.cpp",
+    "punctuation.cpp", "repetition.cpp", "selection.cpp", "slot.cpp",  "stringize.cpp",  "tuple.cpp", "variadic.cpp",
 };
 
 inline constexpr string_view preprocessorTests512[] = {
-    "array.cpp",     "comparison.cpp", "control.cpp",    "debug.cpp",
-    "facilities.cpp", "list.cpp",      "logical.cpp",    "repetition.cpp", "selection.cpp",
-    "slot.cpp",       "stringize.cpp", "tuple.cpp",      "variadic.cpp",
+    "array.cpp",      "comparison.cpp", "control.cpp", "debug.cpp",     "facilities.cpp", "list.cpp",     "logical.cpp",
+    "repetition.cpp", "selection.cpp",  "slot.cpp",    "stringize.cpp", "tuple.cpp",      "variadic.cpp",
 };
 
 inline constexpr string_view preprocessorTests1024[] = {
-    "array.cpp",     "comparison.cpp", "control.cpp",    "debug.cpp",
-    "facilities.cpp", "list.cpp",      "logical.cpp",    "repetition.cpp", "selection.cpp",
-    "slot.cpp",       "stringize.cpp", "tuple.cpp",      "variadic.cpp",
+    "array.cpp",     "comparison.cpp", "control.cpp", "debug.cpp",     "facilities.cpp", "list.cpp",     "logical.cpp",
+    "repetition.cpp", "selection.cpp",  "slot.cpp",    "stringize.cpp", "tuple.cpp",      "variadic.cpp",
 };
 
 inline constexpr string_view preprocessorV128[] = {
