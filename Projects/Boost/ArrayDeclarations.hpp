@@ -364,7 +364,7 @@ inline constexpr string_view preprocessorTests512[] = {
 };
 
 inline constexpr string_view preprocessorTests1024[] = {
-    "array.cpp",     "comparison.cpp", "control.cpp", "debug.cpp",     "facilities.cpp", "list.cpp",     "logical.cpp",
+    "array.cpp",      "comparison.cpp", "control.cpp", "debug.cpp",     "facilities.cpp", "list.cpp",     "logical.cpp",
     "repetition.cpp", "selection.cpp",  "slot.cpp",    "stringize.cpp", "tuple.cpp",      "variadic.cpp",
 };
 
