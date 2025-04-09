@@ -21,22 +21,6 @@
 
 using std::filesystem::directory_iterator;
 
-/* 1 - callable_traits
- * 2 - compatibility
- * 3 - config
- * 4 - headers
- * 5 - hof
- * 6 - lambda2
- *
- * 7 - leaf
- * 8 - mp11
- * 9 - pfr
- * 10 - predef
- * 11 - preprocessor
- * 12 - qvm
- * 13 - ratio
- */
-
 void configurationSpecification(Configuration &config)
 {
     config.stdCppTarget->getSourceTarget().publicIncludes(srcNode->filePath);
@@ -45,9 +29,8 @@ void configurationSpecification(Configuration &config)
     // callable_traits
 
     config.getCppObject("ScanOnly");
-/*
     BoostCppTarget &callableTraits =
-        config.getBoostCppTarget("callable_Traits", true)
+        config.getBoostCppTarget("callable_Traits")
             .addDir<BoostExampleOrTestType::RUN_EXAMPLE>("/libs/callable_traits/example")
             .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test")
             .addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test", "lazy");
@@ -58,40 +41,22 @@ void configurationSpecification(Configuration &config)
         cppTestTarget.privateCompileDefinition("USE_LAZY_TYPES");
     }
 
-    // compatibility
-
-    // BoostCppTarget compatibility("compatibility", &config, true, false);
-    // compatibility.getSourceTarget().publicHUIncludes("libs/");
-
     // config
-    BoostCppTarget &configTarget = config.getBoostCppTarget("config", true, false);*/
+    BoostCppTarget &configTarget = config.getBoostCppTarget("config");
     // Skipping test and check for now
 
-    // headers
-    // BoostCppTarget headers("headers", &config, true, false);
-    // This is a fake library for installing headers
-
-    if (config.evaluate(CxxSTD::V_11) || config.evaluate(CxxSTD::V_14))
-    {
-        // Not working and no one depends on it.
-        /*BoostCppTarget hof("hof", &configuration, true, true);
-        hof.addRunTestsDirectory("/libs/hof/test");*/
-    }
-
-/*    DSC<CppSourceTarget> &current = config.getCppStaticDSC("current-target");
+    DSC<CppSourceTarget> &current = config.getCppStaticDSC("current-target");
     current.getSourceTarget().headerUnits("boost/current_function.hpp", "boost/version.hpp");
 
-    BoostCppTarget &core = config.getBoostCppTarget("core", true).publicDeps(configTarget, current);
+    BoostCppTarget &core = config.getBoostCppTarget("core", true, false).publicDeps(configTarget, current);
 
-    config.assign(BuildTests::YES, BuildExamples::YES);
-    BoostCppTarget &lambda2 = config.getBoostCppTarget("lambda2", true)
+    BoostCppTarget &lambda2 = config.getBoostCppTarget("lambda2")
                                   .privateTestDeps(core.mainTarget, current)
                                   .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/lambda2/test")
                                   .assignPrivateTestDeps();
 
-    BoostCppTarget &leaf =
-        config.getBoostCppTarget("leaf", true, false)
-            .add<BoostExampleOrTestType::RUN_TEST>("libs/leaf/test", leafRunTests, std::size(leafRunTests));
+    BoostCppTarget &leaf = config.getBoostCppTarget("leaf").add<BoostExampleOrTestType::RUN_TEST>(
+        "libs/leaf/test", leafRunTests, std::size(leafRunTests));
 
     // No underlying API to differentiate between run-tests, compile-tests, compile-fail-tests, run-fail-tests etc.
     // leaf.addCompileTests("/libs/leaf/test", leafCompileTests, std::size(leafCompileTests));
@@ -100,32 +65,19 @@ void configurationSpecification(Configuration &config)
     {
         leaf.add<BoostExampleOrTestType::EXAMPLE>("libs/leaf/example", leafExamples, std::size(leafExamples));
     }
-*/
- //   BoostCppTarget &detail = config.getBoostCppTarget("detail", true).publicDeps(configTarget);
-    BoostCppTarget &preprocessor = config.getBoostCppTarget("preprocessor", true);
-/*    BoostCppTarget &typeTraits = config.getBoostCppTarget("type_traits", true).publicDeps(detail);
+    BoostCppTarget &detail = config.getBoostCppTarget("detail", true, false).publicDeps(configTarget);
+    BoostCppTarget &preprocessor = config.getBoostCppTarget("preprocessor");
+    BoostCppTarget &typeTraits = config.getBoostCppTarget("type_traits").publicDeps(detail);
     BoostCppTarget &mpl = config.getBoostCppTarget("mpl", true, false).publicDeps(detail, preprocessor, typeTraits);
     BoostCppTarget &mp11 =
-        config.getBoostCppTarget("mp11", true)
+        config.getBoostCppTarget("mp11")
             .privateTestDeps(core.mainTarget, mpl.mainTarget, current)
             .add<BoostExampleOrTestType::RUN_TEST>("libs/mp11/test", mp11RunTests, std::size(mp11RunTests));
 
-    // mp11.addCompileTests("/libs/mp11/test", mp11CompileTests, std::size(mp11CompileTests));
-
-    // skipping pfr tests and examples. header-only library with lots of configurations for its tests and examples
-
-    BoostCppTarget pfr("pfr", &config, true, false);
-    pfr.addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/pfr/test/config", "config");
-    for (CppSourceTarget &testTarget :
-         pfr.getEndsWith<BoostExampleOrTestType::RUN_TEST, IteratorTargetType::CPP, BSMode::BUILD>("config"))
-    {
-        testTarget.privateCompileDefinition("BOOST_PFR_DETAIL_STRICT_RVALUE_TESTING");
-    }
-*/
     // skipping predef tests and examples. header-only library with lots of configurations for its tests and examples
-    // BoostCppTarget predef("predef", &config, true, false);
+    BoostCppTarget &predef = config.getBoostCppTarget("predef", true, false);
 
-    const char *preprocTestDir = "libs/preprocessor/test";
+    /*const char *preprocTestDir = "libs/preprocessor/test";
     preprocessor
         .add<BoostExampleOrTestType::COMPILE_TEST>(preprocTestDir, preprocessorTests, std::size(preprocessorTests))
         .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("512", preprocTestDir, preprocessorTests512,
@@ -149,62 +101,17 @@ void configurationSpecification(Configuration &config)
     preprocessorMacroDefines("512", "BOOST_PP_LIMIT_MAG", "512");
     preprocessorMacroDefines("1024", "BOOST_PP_LIMIT_MAG", "1024");
 
-    return;
-    // callable_traits
-    /* DSC<CppSourceTarget> &qvm = configuration.getCppObjectDSC("qvm").privateLibraries(&stdhu);
-     if (tests == TESTS::YES)
-     {
-         for (const auto &k : directory_iterator(path(srcNode->filePath + "/libs/qvm/test")))
-         {
-             // All targets are just being compiled instead of being run as well.
-             // Fail tests are not being considered
-             if (k.path().extension() == ".cpp" && !k.path().string().contains("fail") &&
-                 !k.path().string().contains("header-test.cpp"))
-             {
-                 DSC<CppSourceTarget> &qvmTest =
-                     configuration.getCppExeDSC("test_qvm_" + k.path().filename().string()).privateLibraries(&stdhu);
-                 qvmTest.getSourceTarget().moduleFiles(k.path().string());
+    // skipping pfr tests and examples. header-only library with lots of configurations for its tests and examples
 
-                 DSC<CppSourceTarget> &qvmTestHpp =
-                     configuration.getCppExeDSC("test_qvm_hpp_" +
-     k.path().filename().string()).privateLibraries(&stdhu); qvmTestHpp.getSourceTarget()
-                     .moduleFiles(k.path().string())
-                     .privateCompileDefinition("BOOST_QVM_TEST_SINGLE_HEADER",
-                                               addEscapedQuotes("libs/qvm/include/boost/qvm.hpp"));
-
-                 // Commented out because lite tests do not pass
-                 /*
-                 DSC<CppSourceTarget> &qvmTestLiteHpp =
-                     configuration.getCppExeDSC("test_qvm_lite_hpp_" +
-                 k.path().filename().string()).privateLibraries(&stdhu); qvmTestLiteHpp.getSourceTarget()
-                     .moduleFiles(k.path().string())
-                     .privateCompileDefinition("BOOST_QVM_TEST_SINGLE_HEADER",
-                                                 addEscapedQuotes("libs/qvm/include/boost/qvm_lite.hpp"));
-                                                 #1#
-
-                 /*DSC<CppSourceTarget> &target2 =
-                     configuration.getCppExeDSC("test_qvm_" + k.path().filename().string() +
-                 "__lazy").privateLibraries(&stdhu);
-                 target2.getSourceTarget().moduleFiles(k.path().string()).privateCompileDefinition("USE_LAZY_TYPES");#1#
-             }
-         }
-     }
-
-     // Level 1
-     DSC<CppSourceTarget> &assert = configuration.getCppObjectDSC("assert").privateLibraries(&stdhu);
-     if (tests == TESTS::YES)
-     {
-         for (const auto &k : directory_iterator(path(srcNode->filePath + "/libs/assert/test")))
-         {
-             // All targets are just being compiled instead of being run as well.
-             if (k.path().extension() == ".cpp")
-             {
-                 DSC<CppSourceTarget> &target =
-                     configuration.getCppExeDSC("test_assert_" + k.path().filename().string()).privateLibraries(&stdhu);
-                 target.getSourceTarget().moduleFiles(k.path().string());
-             }
-         }
-     }*/
+    BoostCppTarget &pfr = config.getBoostCppTarget("pfr");
+    pfr.addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/pfr/test/config", "config")
+        .privateTestDeps(preprocessor.mainTarget);
+    for (CppSourceTarget &testTarget :
+         pfr.getEndsWith<BoostExampleOrTestType::RUN_TEST, IteratorTargetType::CPP, BSMode::BUILD>("config"))
+    {
+        testTarget.privateCompileDefinition("BOOST_PFR_DETAIL_STRICT_RVALUE_TESTING");
+    }
+    pfr.assignPrivateTestDeps();*/
 }
 
 void buildSpecification()

@@ -97,6 +97,7 @@ void printDebugMessage(const string &message);
 void printMessage(const string &message);
 void printMessageColor(const string &message, uint32_t color);
 void printErrorMessage(const string &message);
+void printErrorMessageNoReturn(const string &message);
 void printErrorMessageColor(const string &message, uint32_t color);
 
 #define HMAKE_HMAKE_INTERNAL_ERROR printErrorMessage(FORMAT("HMake Internal Error {} {}", __FILE__, __LINE__));

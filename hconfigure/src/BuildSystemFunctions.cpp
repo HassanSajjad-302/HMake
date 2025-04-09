@@ -151,8 +151,24 @@ void printErrorMessage(const string &message)
     {
         print(stderr, "{}", message);
     }
+
+#ifndef NDEBUG
     print(stderr, "{}", to_string(std::stacktrace::current()));
+#endif
+
     exit(EXIT_FAILURE);
+}
+
+void printErrorMessageNoReturn(const string &message)
+{
+    if (printErrorMessagePointer)
+    {
+        printErrorMessagePointer(message);
+    }
+    else
+    {
+        print(stderr, "{}", message);
+    }
 }
 
 void printErrorMessageColor(const string &message, uint32_t color)

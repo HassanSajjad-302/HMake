@@ -21,6 +21,7 @@ struct RunCommand
     void executePrintRoutine(uint32_t color, bool printOnlyOnError, Value sourceJson, uint64_t _index0 = UINT64_MAX,
                              uint64_t _index1 = UINT64_MAX, uint64_t _index2 = UINT64_MAX,
                              uint64_t _index3 = UINT64_MAX, uint64_t _index4 = UINT64_MAX) const;
+    void executePrintRoutineRoundOne(struct SMFile const &smFile) const;
 };
 
 class CppSourceTarget;

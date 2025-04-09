@@ -336,6 +336,18 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
     }
 }
 
+inline mutex roundOneMutex;
+void RunCommand::executePrintRoutineRoundOne(const SMFile &smFile) const
+{
+    lock_guard _{roundOneMutex};
+    if (exitStatus != EXIT_SUCCESS)
+    {
+        printErrorMessageNoReturn(
+            FORMAT("Scanning Failed for {} of Target {}\n", smFile.node->filePath, smFile.target->name));
+        printErrorMessageNoReturn(FORMAT("{}", commandOutput));
+    }
+}
+
 PostCompile::PostCompile(const CppSourceTarget &target_, const path &toolPath, const string &commandFirstHalf,
                          string printCommandFirstHalf)
     : RunCommand(toolPath, commandFirstHalf, std::move(printCommandFirstHalf), false),

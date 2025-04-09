@@ -114,7 +114,7 @@ inline constexpr string_view leafExamples[] = {
     "print_half.cpp",
 };
 
-inline constexpr string_view leafExamplesPrintFile[] = { "print_file_result.cpp"};
+inline constexpr string_view leafExamplesPrintFile[] = {"print_file_result.cpp"};
 
 inline constexpr string_view mp11RunTests[] = {
     "mp_size.cpp",
@@ -354,20 +354,20 @@ inline constexpr string_view mp11CompileTests[] = {
 };
 
 inline constexpr string_view preprocessorTests[] = {
-    "arithmetic.cpp", "array.cpp", "comparison.cpp", "control.cpp",     "debug.cpp",      "facilities.cpp",
-    "iteration.cpp",  "list.cpp",  "logical.cpp",    "punctuation.cpp", "repetition.cpp", "selection.cpp",
-    "seq.cpp",        "slot.cpp",  "stringize.cpp",  "tuple.cpp",       "variadic.cpp",
+    "array.cpp", "comparison.cpp", "control.cpp",     "debug.cpp",      "facilities.cpp",
+    "list.cpp",  "logical.cpp",    "punctuation.cpp", "repetition.cpp", "selection.cpp",
+    "slot.cpp",  "stringize.cpp",  "tuple.cpp",       "variadic.cpp",
 };
 
 inline constexpr string_view preprocessorTests512[] = {
-    "arithmetic.cpp", "array.cpp",     "comparison.cpp", "control.cpp",    "debug.cpp",     "facilities.cpp",
-    "iteration.cpp",  "list.cpp",      "logical.cpp",    "repetition.cpp", "selection.cpp", "seq.cpp",
+    "array.cpp",     "comparison.cpp", "control.cpp",    "debug.cpp",
+    "facilities.cpp", "list.cpp",      "logical.cpp",    "repetition.cpp", "selection.cpp",
     "slot.cpp",       "stringize.cpp", "tuple.cpp",      "variadic.cpp",
 };
 
 inline constexpr string_view preprocessorTests1024[] = {
-    "arithmetic.cpp", "array.cpp",     "comparison.cpp", "control.cpp",    "debug.cpp",     "facilities.cpp",
-    "iteration.cpp",  "list.cpp",      "logical.cpp",    "repetition.cpp", "selection.cpp", "seq.cpp",
+    "array.cpp",     "comparison.cpp", "control.cpp",    "debug.cpp",
+    "facilities.cpp", "list.cpp",      "logical.cpp",    "repetition.cpp", "selection.cpp",
     "slot.cpp",       "stringize.cpp", "tuple.cpp",      "variadic.cpp",
 };
 

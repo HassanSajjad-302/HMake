@@ -186,8 +186,8 @@ class Configuration : public BTarget
     DSC<CppSourceTarget> &getCppSharedDSC_PNoName(const string &name_, const string &dir, bool defines = false,
                                                   string define = "");
 
-    BoostCppTarget &getBoostCppTarget(const string &name, bool headerOnly, bool createTestsTarget = false,
-                                      bool createExamplesTarget = false);
+    BoostCppTarget &getBoostCppTarget(const string &name, bool headerOnly = true, bool hasBigHeader = true,
+                                      bool createTestsTarget = false, bool createExamplesTarget = false);
 
     explicit Configuration(const string &name_);
     void postConfigurationSpecification() const;

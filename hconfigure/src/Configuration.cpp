@@ -531,11 +531,11 @@ DSC<CppSourceTarget> &Configuration::getCppSharedDSC_PNoName(const string &name_
         &getCppObjectNoName(name_ + dashCpp), &getSharedPLOATNoName(name_, dir), defines, std::move(define)));
 }
 
-BoostCppTarget &Configuration::getBoostCppTarget(const string &name, bool headerOnly, bool createTestsTarget,
-                                                 bool createExamplesTarget)
+BoostCppTarget &Configuration::getBoostCppTarget(const string &name, bool headerOnly, bool hasBigHeader,
+                                                 bool createTestsTarget, bool createExamplesTarget)
 {
-    return *boostCppTargets.emplace_back(
-        &targets<BoostCppTarget>.emplace_back(name, this, headerOnly, createTestsTarget, createExamplesTarget));
+    return *boostCppTargets.emplace_back(&targets<BoostCppTarget>.emplace_back(
+        name, this, headerOnly, hasBigHeader, createTestsTarget, createExamplesTarget));
 }
 
 bool operator<(const Configuration &lhs, const Configuration &rhs)

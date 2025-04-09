@@ -425,15 +425,13 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 sourceJson[ModuleFiles::scanningCommandWithTool] = target->compileCommandWithTool.getHash();
                 postCompile.parseHeaderDeps(*this);
                 (type == SM_FILE_TYPE::HEADER_UNIT ? target->headerUnitScanned : target->moduleFileScanned) = true;
+                smrulesFileOutputClang = std::move(postCompile.commandOutput);
             }
             else
             {
                 bool breakpoint = true;
-                printErrorMessage("Scanning Failed");
-                // TODO
-                // Have Some Kind of MakeShift Printing.
+                postCompile.executePrintRoutineRoundOne(*this);
             }
-            smrulesFileOutputClang = std::move(postCompile.commandOutput);
         }
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {

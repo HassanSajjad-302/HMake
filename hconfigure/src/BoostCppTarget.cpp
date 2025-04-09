@@ -18,7 +18,8 @@ import "LOAT.hpp";
 
 using std::filesystem::directory_iterator;
 
-static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *configuration, const bool headerOnly)
+static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *configuration, const bool headerOnly,
+                                           const bool hasBigHeader)
 {
     const string buildCacheFilesDirPath = configuration->name + slashc + name;
 
@@ -31,22 +32,20 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
     {
         t = &configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
     }
-    if (name != "core" && name != "mpl" && name != "detail")
+
+    CppSourceTarget &cpp = t->getSourceTarget();
+    cpp.publicHUDirs(string("boost") + slashc + name);
+    if (hasBigHeader)
     {
-        t->getSourceTarget().publicHUDirsBigHu(
-            string("boost") + slashc + name, string("boost") + slashc + name + ".hpp", string("boost") + slashc + name);
-    }
-    else
-    {
-        t->getSourceTarget().publicHUDirs(string("boost") + slashc + name);
+        cpp.headerUnits(string("boost") + slashc + name + ".hpp");
     }
     return *t;
 }
 
 BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_, const bool headerOnly,
-                               const bool createTestsTarget, const bool createExamplesTarget)
+                               const bool hasBigHeader, const bool createTestsTarget, const bool createExamplesTarget)
     : TargetCache(configuration_->name + "Boost_" + name), configuration(configuration_),
-      mainTarget(getMainTarget(name, configuration_, headerOnly))
+      mainTarget(getMainTarget(name, configuration_, headerOnly, hasBigHeader))
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
