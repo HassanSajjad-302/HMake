@@ -138,7 +138,7 @@ class BoostCppTarget : TargetCache
     BUILD_INLINE BoostCppTarget &addDirEndsWith(string_view sourceDir, string_view innerBuildDirName);
 
     template <BoostExampleOrTestType EOT>
-    BoostCppTarget &add(string_view sourceDir, const string_view *fileName, uint64_t arraySize);
+    BoostCppTarget &add(string_view sourceDir, const string_view *fileNamesArray, uint64_t arraySize);
     template <BoostExampleOrTestType EOT>
     BoostCppTarget &addEndsWith(string_view innerBuildDirName, string_view sourceDir, const string_view *fileName,
                                 uint64_t arraySize);
@@ -603,11 +603,11 @@ BoostCppTarget &BoostCppTarget::addDirEndsWith(string_view sourceDir, string_vie
 }
 
 template <BoostExampleOrTestType EOT>
-BoostCppTarget &BoostCppTarget::add(string_view sourceDir, const string_view *fileName, uint64_t arraySize)
+BoostCppTarget &BoostCppTarget::add(string_view sourceDir, const string_view *fileNamesArray, uint64_t arraySize)
 {
     for (uint64_t i = 0; i < arraySize; ++i)
     {
-        Add<EOT, false>{}(*this, sourceDir, fileName[i]);
+        Add<EOT, false>{}(*this, sourceDir, fileNamesArray[i]);
     }
     return *this;
 }

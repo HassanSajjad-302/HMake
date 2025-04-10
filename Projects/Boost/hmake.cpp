@@ -45,8 +45,15 @@ void configurationSpecification(Configuration &config)
     BoostCppTarget &configTarget = config.getBoostCppTarget("config");
     // Skipping test and check for now
 
-    DSC<CppSourceTarget> &current = config.getCppStaticDSC("current-target");
-    current.getSourceTarget().headerUnits("boost/current_function.hpp", "boost/version.hpp");
+    DSC<CppSourceTarget> &cstdint = config.getCppTargetDSC("cstdint").publicDeps(configTarget.mainTarget);
+    cstdint.getSourceTarget().headerUnits("boost/cstdint.hpp");
+
+    BoostCppTarget &assertTarget = config.getBoostCppTarget("assert").publicDeps(cstdint);
+
+    BoostCppTarget &exception = config.getBoostCppTarget("exception", true, false).publicDeps(assertTarget, cstdint);
+    DSC<CppSourceTarget> &current = config.getCppStaticDSC("current-target").publicDeps(exception.mainTarget, cstdint);
+    current.getSourceTarget().headerUnits("boost/current_function.hpp", "boost/version.hpp",
+                                          "boost/throw_exception.hpp");
 
     BoostCppTarget &core = config.getBoostCppTarget("core", true, false).publicDeps(configTarget, current);
 
@@ -55,16 +62,22 @@ void configurationSpecification(Configuration &config)
                                   .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/lambda2/test")
                                   .assignPrivateTestDeps();
 
-    BoostCppTarget &leaf = config.getBoostCppTarget("leaf").add<BoostExampleOrTestType::RUN_TEST>(
-        "libs/leaf/test", leafRunTests, std::size(leafRunTests));
+    BoostCppTarget &winApi = config.getBoostCppTarget("winapi", true, false).publicDeps(configTarget);
+    BoostCppTarget &variant = config.getBoostCppTarget("variant");
 
-    // No underlying API to differentiate between run-tests, compile-tests, compile-fail-tests, run-fail-tests etc.
-    // leaf.addCompileTests("/libs/leaf/test", leafCompileTests, std::size(leafCompileTests));
-    // leaf.addCompileFailTests("/libs/leaf/test", leafCompileFailTests, std::size(leafCompileFailTests));
-    if (config.evaluate(ExceptionHandling::ON))
-    {
-        leaf.add<BoostExampleOrTestType::EXAMPLE>("libs/leaf/example", leafExamples, std::size(leafExamples));
-    }
+    BoostCppTarget &leaf = config.getBoostCppTarget("leaf");
+    //         .privateTestDeps(system.mainTarget, configTarget.mainTarget, current, winApi.mainTarget,
+    //                          assertTarget.mainTarget)
+    //         .add<BoostExampleOrTestType::RUN_TEST>("libs/leaf/test", leafRunTests, std::size(leafRunTests));
+    //
+    // // No underlying API to differentiate between run-tests, compile-tests, compile-fail-tests, run-fail-tests etc.
+    // // leaf.addCompileTests("/libs/leaf/test", leafCompileTests, std::size(leafCompileTests));
+    // // leaf.addCompileFailTests("/libs/leaf/test", leafCompileFailTests, std::size(leafCompileFailTests));
+    // if (config.evaluate(ExceptionHandling::ON))
+    // {
+    //     leaf.add<BoostExampleOrTestType::EXAMPLE>("libs/leaf/example", leafExamples, std::size(leafExamples));
+    // }
+    // leaf.assignPrivateTestDeps();
     BoostCppTarget &detail = config.getBoostCppTarget("detail", true, false).publicDeps(configTarget);
     BoostCppTarget &preprocessor = config.getBoostCppTarget("preprocessor");
     BoostCppTarget &typeTraits = config.getBoostCppTarget("type_traits").publicDeps(detail);
@@ -74,10 +87,15 @@ void configurationSpecification(Configuration &config)
             .privateTestDeps(core.mainTarget, mpl.mainTarget, current)
             .add<BoostExampleOrTestType::RUN_TEST>("libs/mp11/test", mp11RunTests, std::size(mp11RunTests));
 
+    BoostCppTarget &variant2 = config.getBoostCppTarget("variant2").publicDeps(mp11, assertTarget);
+    BoostCppTarget &system =
+        config.getBoostCppTarget("system").publicDeps(configTarget, variant2, assertTarget, winApi.mainTarget, current);
+    system.privateTestDeps(core.mainTarget, exception.mainTarget)
+        .add<BoostExampleOrTestType::RUN_TEST>("libs/system/test", systemRunTests, std::size(systemRunTests));
     // skipping predef tests and examples. header-only library with lots of configurations for its tests and examples
     BoostCppTarget &predef = config.getBoostCppTarget("predef", true, false);
 
-    /*const char *preprocTestDir = "libs/preprocessor/test";
+    const char *preprocTestDir = "libs/preprocessor/test";
     preprocessor
         .add<BoostExampleOrTestType::COMPILE_TEST>(preprocTestDir, preprocessorTests, std::size(preprocessorTests))
         .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("512", preprocTestDir, preprocessorTests512,
@@ -111,14 +129,14 @@ void configurationSpecification(Configuration &config)
     {
         testTarget.privateCompileDefinition("BOOST_PFR_DETAIL_STRICT_RVALUE_TESTING");
     }
-    pfr.assignPrivateTestDeps();*/
+    pfr.assignPrivateTestDeps();
 }
 
 void buildSpecification()
 {
     // This tries to build SFML similar to the current CMakeLists.txt. Currently, only Windows build is supported.
-    // getConfiguration("conventional").assign(CxxSTD::V_LATEST, TargetType::LIBRARY_SHARED, TreatModuleAsSource::YES);
-    getConfiguration("hu").assign(CxxSTD::V_LATEST, TargetType::LIBRARY_SHARED, TreatModuleAsSource::NO,
+    getConfiguration("conventional").assign(CxxSTD::V_LATEST, TargetType::LIBRARY_STATIC, TreatModuleAsSource::YES);
+    getConfiguration("hu").assign(CxxSTD::V_LATEST, TargetType::LIBRARY_STATIC, TreatModuleAsSource::NO,
                                   TranslateInclude::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
