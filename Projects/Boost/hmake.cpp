@@ -25,75 +25,61 @@ void configurationSpecification(Configuration &config)
 {
     config.stdCppTarget->getSourceTarget().publicIncludes(srcNode->filePath);
     config.assign(BuildTests::YES, BuildExamples::YES);
-
-    // callable_traits
-
     config.getCppObject("ScanOnly");
-    BoostCppTarget &callableTraits =
-        config.getBoostCppTarget("callable_Traits")
-            .addDir<BoostExampleOrTestType::RUN_EXAMPLE>("/libs/callable_traits/example")
-            .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test")
-            .addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test", "lazy");
 
+    BoostCppTarget &callableTraits = config.getBoostCppTarget("callable_Traits");
+    BoostCppTarget &configTarget = config.getBoostCppTarget("config");
+    BoostCppTarget &lambda2 = config.getBoostCppTarget("lambda2");
+    BoostCppTarget &variant = config.getBoostCppTarget("variant");
+    BoostCppTarget &leaf = config.getBoostCppTarget("leaf");
+    BoostCppTarget &mp11 = config.getBoostCppTarget("mp11");
+    BoostCppTarget &pfr = config.getBoostCppTarget("pfr");
+    BoostCppTarget &preprocessor = config.getBoostCppTarget("preprocessor");
+    BoostCppTarget &predef = config.getBoostCppTarget("predef", true, false);
+
+    DSC<CppSourceTarget> &cstdint = config.getCppTargetDSC("cstdint").publicDeps(configTarget.mainTarget);
+    cstdint.getSourceTarget().headerUnits("boost/cstdint.hpp");
+    BoostCppTarget &assertTarget = config.getBoostCppTarget("assert").publicDeps(cstdint);
+    BoostCppTarget &exception = config.getBoostCppTarget("exception", true, false).publicDeps(assertTarget, cstdint);
+    DSC<CppSourceTarget> &current = config.getCppStaticDSC("current-target").publicDeps(exception.mainTarget, cstdint);
+    BoostCppTarget &core = config.getBoostCppTarget("core", true, false).publicDeps(configTarget, current);
+    BoostCppTarget &winApi = config.getBoostCppTarget("winapi", true, false).publicDeps(configTarget);
+    BoostCppTarget &detail = config.getBoostCppTarget("detail", true, false).publicDeps(configTarget);
+    DSC<CppSourceTarget> &staticAssert =
+        config.getCppTargetDSC("staticAssert").publicDeps(configTarget.mainTarget, detail.mainTarget);
+    staticAssert.getSourceTarget().headerUnits("boost/static_assert.hpp");
+    BoostCppTarget &typeTraits = config.getBoostCppTarget("type_traits").publicDeps(configTarget, staticAssert, detail);
+    BoostCppTarget &mpl = config.getBoostCppTarget("mpl", true, false).publicDeps(detail, preprocessor, typeTraits);
+    BoostCppTarget &variant2 = config.getBoostCppTarget("variant2").publicDeps(mp11, assertTarget);
+    BoostCppTarget &system =
+        config.getBoostCppTarget("system").publicDeps(configTarget, variant2, assertTarget, winApi.mainTarget, current);
+    BoostCppTarget &function = config.getBoostCppTarget("function").publicDeps(assertTarget, configTarget, current);
+    BoostCppTarget &move = config.getBoostCppTarget("move", true, false);
+    DSC<CppSourceTarget> &nonCopyable = config.getCppStaticDSC("nonCopyable").publicDeps(core.mainTarget);
+    nonCopyable.getSourceTarget().headerUnits("boost/noncopyable.hpp");
+
+    callableTraits.addDir<BoostExampleOrTestType::RUN_EXAMPLE>("/libs/callable_traits/example")
+        .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test")
+        .addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test", "lazy");
     for (CppSourceTarget &cppTestTarget :
          callableTraits.getEndsWith<BoostExampleOrTestType::RUN_TEST, IteratorTargetType::CPP, BSMode::BUILD>("lazy"))
     {
         cppTestTarget.privateCompileDefinition("USE_LAZY_TYPES");
     }
 
-    // config
-    BoostCppTarget &configTarget = config.getBoostCppTarget("config");
-    // Skipping test and check for now
-
-    DSC<CppSourceTarget> &cstdint = config.getCppTargetDSC("cstdint").publicDeps(configTarget.mainTarget);
-    cstdint.getSourceTarget().headerUnits("boost/cstdint.hpp");
-
-    BoostCppTarget &assertTarget = config.getBoostCppTarget("assert").publicDeps(cstdint);
-
-    BoostCppTarget &exception = config.getBoostCppTarget("exception", true, false).publicDeps(assertTarget, cstdint);
-    DSC<CppSourceTarget> &current = config.getCppStaticDSC("current-target").publicDeps(exception.mainTarget, cstdint);
     current.getSourceTarget().headerUnits("boost/current_function.hpp", "boost/version.hpp",
-                                          "boost/throw_exception.hpp");
+                                          "boost/throw_exception.hpp", "boost/function_equal.hpp");
 
-    BoostCppTarget &core = config.getBoostCppTarget("core", true, false).publicDeps(configTarget, current);
+    lambda2.privateTestDeps(core.mainTarget, current)
+        .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/lambda2/test")
+        .assignPrivateTestDeps();
 
-    BoostCppTarget &lambda2 = config.getBoostCppTarget("lambda2")
-                                  .privateTestDeps(core.mainTarget, current)
-                                  .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/lambda2/test")
-                                  .assignPrivateTestDeps();
+    mp11.privateTestDeps(core.mainTarget, mpl.mainTarget, current)
+        .add<BoostExampleOrTestType::RUN_TEST>("libs/mp11/test", mp11RunTests, std::size(mp11RunTests));
 
-    BoostCppTarget &winApi = config.getBoostCppTarget("winapi", true, false).publicDeps(configTarget);
-    BoostCppTarget &variant = config.getBoostCppTarget("variant");
-
-    BoostCppTarget &leaf = config.getBoostCppTarget("leaf");
-    //         .privateTestDeps(system.mainTarget, configTarget.mainTarget, current, winApi.mainTarget,
-    //                          assertTarget.mainTarget)
-    //         .add<BoostExampleOrTestType::RUN_TEST>("libs/leaf/test", leafRunTests, std::size(leafRunTests));
-    //
-    // // No underlying API to differentiate between run-tests, compile-tests, compile-fail-tests, run-fail-tests etc.
-    // // leaf.addCompileTests("/libs/leaf/test", leafCompileTests, std::size(leafCompileTests));
-    // // leaf.addCompileFailTests("/libs/leaf/test", leafCompileFailTests, std::size(leafCompileFailTests));
-    // if (config.evaluate(ExceptionHandling::ON))
-    // {
-    //     leaf.add<BoostExampleOrTestType::EXAMPLE>("libs/leaf/example", leafExamples, std::size(leafExamples));
-    // }
-    // leaf.assignPrivateTestDeps();
-    BoostCppTarget &detail = config.getBoostCppTarget("detail", true, false).publicDeps(configTarget);
-    BoostCppTarget &preprocessor = config.getBoostCppTarget("preprocessor");
-    BoostCppTarget &typeTraits = config.getBoostCppTarget("type_traits").publicDeps(detail);
-    BoostCppTarget &mpl = config.getBoostCppTarget("mpl", true, false).publicDeps(detail, preprocessor, typeTraits);
-    BoostCppTarget &mp11 =
-        config.getBoostCppTarget("mp11")
-            .privateTestDeps(core.mainTarget, mpl.mainTarget, current)
-            .add<BoostExampleOrTestType::RUN_TEST>("libs/mp11/test", mp11RunTests, std::size(mp11RunTests));
-
-    BoostCppTarget &variant2 = config.getBoostCppTarget("variant2").publicDeps(mp11, assertTarget);
-    BoostCppTarget &system =
-        config.getBoostCppTarget("system").publicDeps(configTarget, variant2, assertTarget, winApi.mainTarget, current);
     system.privateTestDeps(core.mainTarget, exception.mainTarget)
         .add<BoostExampleOrTestType::RUN_TEST>("libs/system/test", systemRunTests, std::size(systemRunTests));
     // skipping predef tests and examples. header-only library with lots of configurations for its tests and examples
-    BoostCppTarget &predef = config.getBoostCppTarget("predef", true, false);
 
     const char *preprocTestDir = "libs/preprocessor/test";
     preprocessor
@@ -121,7 +107,6 @@ void configurationSpecification(Configuration &config)
 
     // skipping pfr tests and examples. header-only library with lots of configurations for its tests and examples
 
-    BoostCppTarget &pfr = config.getBoostCppTarget("pfr");
     pfr.addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/pfr/test/config", "config")
         .privateTestDeps(preprocessor.mainTarget);
     for (CppSourceTarget &testTarget :
@@ -130,6 +115,10 @@ void configurationSpecification(Configuration &config)
         testTarget.privateCompileDefinition("BOOST_PFR_DETAIL_STRICT_RVALUE_TESTING");
     }
     pfr.assignPrivateTestDeps();
+
+    typeTraits.privateTestDeps(nonCopyable, core.mainTarget, function.mainTarget, mpl.mainTarget, move.mainTarget)
+        .add<BoostExampleOrTestType::RUN_TEST>("libs/type_traits/test", typeTraitsRunTests,
+                                               std::size(typeTraitsRunTests));
 }
 
 void buildSpecification()
