@@ -16,7 +16,42 @@ import "LOAT.hpp";
 #include <utility>
 #endif
 
-using std::filesystem::directory_iterator;
+using std::filesystem::directory_iterator, std::filesystem::remove;
+
+void removeTroublingHu(const string_view *headerUnitsJsonDirs, uint64_t headerUnitsJsonDirsSize,
+                       const string_view *headerUnitsJsonEntry, uint64_t headerUnitsJsonEntrySize)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        string str = "header-units.json";
+        string boostDir = srcNode->filePath + slashc + string("boost") + slashc;
+        for (uint64_t i = 0; i < headerUnitsJsonDirsSize; ++i)
+        {
+            path p{boostDir + string(headerUnitsJsonDirs[i]) + slashc + str};
+            if (exists(p))
+            {
+                remove(p);
+            }
+        }
+
+        for (uint64_t i = 0; i < headerUnitsJsonEntrySize; i += 2)
+        {
+            Document d;
+            string fileName = boostDir + string(headerUnitsJsonEntry[i]) + slashc + str;
+            auto a = readValueFromFile(fileName, d);
+            Value &m = d.FindMember("BuildAsHeaderUnits")->value.GetArray();
+            uint64_t index = UINT64_MAX;
+            for (uint64_t j = 0; j < m.Size(); ++j)
+            {
+                if (compareStringsFromEnd(vtosv(m[j]), headerUnitsJsonEntry[i + 1]))
+                {
+                    m.Erase(&m[j]);
+                    prettyWriteValueToFile(fileName, d);
+                }
+            }
+        }
+    }
+}
 
 static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *configuration, const bool headerOnly,
                                            const bool hasBigHeader)

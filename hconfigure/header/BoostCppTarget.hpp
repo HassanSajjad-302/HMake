@@ -6,6 +6,8 @@
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
 
+void removeTroublingHu(const string_view *headerUnitsJsonDirs, uint64_t headerUnitsJsonDirsSize,
+                       const string_view *headerUnitsJsonEntry, uint64_t headerUnitsJsonEntrySize);
 using std::filesystem::directory_iterator;
 enum class BoostExampleOrTestType : char
 {

@@ -48,15 +48,27 @@ void configurationSpecification(Configuration &config)
     DSC<CppSourceTarget> &staticAssert =
         config.getCppTargetDSC("staticAssert").publicDeps(configTarget.mainTarget, detail.mainTarget);
     staticAssert.getSourceTarget().headerUnits("boost/static_assert.hpp");
-    BoostCppTarget &typeTraits = config.getBoostCppTarget("type_traits").publicDeps(configTarget, staticAssert, detail);
+    DSC<CppSourceTarget> &version = config.getCppStaticDSC("version-header");
+    version.getSourceTarget().headerUnits("boost/version.hpp");
+    BoostCppTarget &typeTraits =
+        config.getBoostCppTarget("type_traits").publicDeps(configTarget, staticAssert, detail, version);
     BoostCppTarget &mpl = config.getBoostCppTarget("mpl", true, false).publicDeps(detail, preprocessor, typeTraits);
     BoostCppTarget &variant2 = config.getBoostCppTarget("variant2").publicDeps(mp11, assertTarget);
     BoostCppTarget &system =
         config.getBoostCppTarget("system").publicDeps(configTarget, variant2, assertTarget, winApi.mainTarget, current);
-    BoostCppTarget &function = config.getBoostCppTarget("function").publicDeps(assertTarget, configTarget, current);
-    BoostCppTarget &move = config.getBoostCppTarget("move", true, false);
+    BoostCppTarget &function = config.getBoostCppTarget("function").publicDeps(assertTarget, core);
+    BoostCppTarget &move = config.getBoostCppTarget("move", true, false).publicDeps(configTarget);
     DSC<CppSourceTarget> &nonCopyable = config.getCppStaticDSC("nonCopyable").publicDeps(core.mainTarget);
     nonCopyable.getSourceTarget().headerUnits("boost/noncopyable.hpp");
+    BoostCppTarget &bind = config.getBoostCppTarget("bind");
+    DSC<CppSourceTarget> &getPointerHeader =
+        config.getCppStaticDSC("getPointerHeader").publicDeps(configTarget.mainTarget);
+    bind.publicDeps(getPointerHeader);
+    getPointerHeader.getSourceTarget().headerUnits("boost/get_pointer.hpp");
+    DSC<CppSourceTarget> &memFnHeader =
+        config.getCppStaticDSC("memfn-header").publicDeps(bind.mainTarget, getPointerHeader);
+    memFnHeader.getSourceTarget().headerUnits("boost/mem_fn.hpp");
+    function.publicDeps(memFnHeader);
 
     callableTraits.addDir<BoostExampleOrTestType::RUN_EXAMPLE>("/libs/callable_traits/example")
         .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test")
@@ -67,10 +79,10 @@ void configurationSpecification(Configuration &config)
         cppTestTarget.privateCompileDefinition("USE_LAZY_TYPES");
     }
 
-    current.getSourceTarget().headerUnits("boost/current_function.hpp", "boost/version.hpp",
-                                          "boost/throw_exception.hpp", "boost/function_equal.hpp");
+    current.getSourceTarget().headerUnits("boost/current_function.hpp", "boost/throw_exception.hpp",
+                                          "boost/function_equal.hpp");
 
-    lambda2.privateTestDeps(core.mainTarget, current)
+    lambda2.privateTestDeps(core.mainTarget, current, version)
         .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/lambda2/test")
         .assignPrivateTestDeps();
 
@@ -116,13 +128,17 @@ void configurationSpecification(Configuration &config)
     }
     pfr.assignPrivateTestDeps();
 
-    typeTraits.privateTestDeps(nonCopyable, core.mainTarget, function.mainTarget, mpl.mainTarget, move.mainTarget)
+    typeTraits
+        .privateTestDeps(memFnHeader, getPointerHeader, nonCopyable, bind.mainTarget, core.mainTarget,
+                         function.mainTarget, mpl.mainTarget, move.mainTarget)
         .add<BoostExampleOrTestType::RUN_TEST>("libs/type_traits/test", typeTraitsRunTests,
                                                std::size(typeTraitsRunTests));
 }
 
 void buildSpecification()
 {
+    removeTroublingHu(headerUnitsJsonDirs, std::size(headerUnitsJsonDirs), headerUnitsJsonEntry,
+                      std::size(headerUnitsJsonEntry));
     // This tries to build SFML similar to the current CMakeLists.txt. Currently, only Windows build is supported.
     getConfiguration("conventional").assign(CxxSTD::V_LATEST, TargetType::LIBRARY_STATIC, TreatModuleAsSource::YES);
     getConfiguration("hu").assign(CxxSTD::V_LATEST, TargetType::LIBRARY_STATIC, TreatModuleAsSource::NO,
