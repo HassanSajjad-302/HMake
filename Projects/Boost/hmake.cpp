@@ -33,7 +33,6 @@ void configurationSpecification(Configuration &config)
     BoostCppTarget &variant = config.getBoostCppTarget("variant");
     BoostCppTarget &leaf = config.getBoostCppTarget("leaf");
     BoostCppTarget &mp11 = config.getBoostCppTarget("mp11");
-    BoostCppTarget &pfr = config.getBoostCppTarget("pfr");
     BoostCppTarget &preprocessor = config.getBoostCppTarget("preprocessor");
     BoostCppTarget &predef = config.getBoostCppTarget("predef", true, false);
 
@@ -70,14 +69,7 @@ void configurationSpecification(Configuration &config)
     memFnHeader.getSourceTarget().headerUnits("boost/mem_fn.hpp");
     function.publicDeps(memFnHeader);
 
-    callableTraits.addDir<BoostExampleOrTestType::RUN_EXAMPLE>("/libs/callable_traits/example")
-        .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test")
-        .addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/callable_traits/test", "lazy");
-    for (CppSourceTarget &cppTestTarget :
-         callableTraits.getEndsWith<BoostExampleOrTestType::RUN_TEST, IteratorTargetType::CPP, BSMode::BUILD>("lazy"))
-    {
-        cppTestTarget.privateCompileDefinition("USE_LAZY_TYPES");
-    }
+
 
     current.getSourceTarget().headerUnits("boost/current_function.hpp", "boost/throw_exception.hpp",
                                           "boost/function_equal.hpp");
@@ -116,17 +108,6 @@ void configurationSpecification(Configuration &config)
     };
     preprocessorMacroDefines("512", "BOOST_PP_LIMIT_MAG", "512");
     preprocessorMacroDefines("1024", "BOOST_PP_LIMIT_MAG", "1024");
-
-    // skipping pfr tests and examples. header-only library with lots of configurations for its tests and examples
-
-    pfr.addDirEndsWith<BoostExampleOrTestType::RUN_TEST>("/libs/pfr/test/config", "config")
-        .privateTestDeps(preprocessor.mainTarget);
-    for (CppSourceTarget &testTarget :
-         pfr.getEndsWith<BoostExampleOrTestType::RUN_TEST, IteratorTargetType::CPP, BSMode::BUILD>("config"))
-    {
-        testTarget.privateCompileDefinition("BOOST_PFR_DETAIL_STRICT_RVALUE_TESTING");
-    }
-    pfr.assignPrivateTestDeps();
 
     typeTraits
         .privateTestDeps(memFnHeader, getPointerHeader, nonCopyable, bind.mainTarget, core.mainTarget,

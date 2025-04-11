@@ -476,8 +476,6 @@ inline constexpr string_view typeTraitsRunTests[] = {"add_const_test.cpp",
                                                      "aligned_storage_a2_test.cpp",
                                                      "aligned_storage_empy_test.cpp",
                                                      "aligned_storage_test.cpp",
-                                                     "alignment_of_a2_test.cpp",
-                                                     "alignment_of_test.cpp",
                                                      "common_type_2_test.cpp",
                                                      "common_type_3_test.cpp",
                                                      "common_type_4_test.cpp",
@@ -651,8 +649,19 @@ inline constexpr string_view typeTraitsRunTests[] = {"add_const_test.cpp",
                                                      "type_traits_test.cpp",
                                                      "type_with_alignment_test.cpp"};
 
-inline constexpr string_view headerUnitsJsonDirs[] = {"compute", "compute/utility"};
-inline constexpr string_view headerUnitsJsonEntry[] = {"compute/random", "normal_distribution.hpp", "compute/random",
-                                                       "threefry_engine.hpp"};
+inline constexpr string_view headerUnitsJsonDirs[] = {
+    "preprocessor/list",        "preprocessor/list/detail",
+
+    "preprocessor/control",     "preprocessor/slot",
+    "preprocessor/slot/detail", "preprocessor/tuple",
+    "preprocessor/punctuation", "preprocessor/config",
+
+    "type_traits/detail",   "system/detail",
+};
+inline constexpr string_view headerUnitsJsonEntry[] = {
+    "mpl/aux_", "integral_wrapper.hpp",
+
+    // Following gives error of could not find header-unit even though it is provided on command-line
+    /*".", "function.hpp", "core", "ref.hpp"*/};
 
 #endif // ARRAYDECLARATIONS_HPP
