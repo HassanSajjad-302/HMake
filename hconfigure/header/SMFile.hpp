@@ -81,8 +81,6 @@ enum class SM_FILE_TYPE : char
     PARTITION_IMPLEMENTATION = 3,
     HEADER_UNIT = 4,
     PRIMARY_IMPLEMENTATION = 5,
-    // Used only in GenerateModuleData
-    HEADER_UNIT_DISABLED = 6,
 };
 
 struct ValueObjectFileMapping
@@ -102,6 +100,10 @@ struct SMFile : SourceNode // Scanned Module Rule
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // depends on is consuming it another way.
     flat_hash_map<const SMFile *, bool> headerUnitsConsumptionData;
+
+    // TODO
+    // Maybe use vector and do in-place sorting especially if big hu are used since the number of elements become really
+    // small.
     btree_set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
 
     unique_ptr<vector<char>> smRuleFileBuffer;
@@ -110,9 +112,11 @@ struct SMFile : SourceNode // Scanned Module Rule
     bool isInterface = false;
     bool isSMRulesJsonSet = false;
     bool isAnOlderHeaderUnit = false;
+    // In case of header-unit, it is a bmi-file.
     bool isObjectFileOutdated = false;
     bool isSMRuleFileOutdated = false;
 
+    // In case of header-unit, it is a bmi-file.
     // atomic
     bool isObjectFileOutdatedCallCompleted = false;
     bool isSMRuleFileOutdatedCallCompleted = false;
@@ -130,7 +134,8 @@ struct SMFile : SourceNode // Scanned Module Rule
     void updateBTarget(Builder &builder, unsigned short round) override;
     string getOutputFileName() const;
     bool calledOnce = false;
-    void saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang, StaticVector<string_view, 1000> &includeNames);
+    void saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
+                                     StaticVector<string_view, 1000> &includeNames);
     static void initializeModuleJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
                                      const CppSourceTarget &target);
     InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
@@ -138,6 +143,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     void initializeHeaderUnits(Builder &builder, const StaticVector<string_view, 1000> &includeNames);
     void addNewBTargetInFinalBTargetsRound1(Builder &builder);
     void setSMFileType();
+    // In case of header-units, this check the ifc file.
     void checkObjectFileOutdatedHeaderUnits();
     void checkSMRulesFileOutdatedHeaderUnits();
     void checkObjectFileOutdatedModules();
@@ -145,8 +151,8 @@ struct SMFile : SourceNode // Scanned Module Rule
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
     void setFileStatusAndPopulateAllDependencies();
-    string getFlag(const string &outputFilesWithoutExtension) const;
-    string getFlagPrint(const string &outputFilesWithoutExtension) const;
+    string getFlag() const;
+    string getFlagPrint() const;
     string getRequireFlag(const SMFile &dependentSMFile) const;
     string getRequireFlagPrint(const SMFile &logicalName_) const;
     string getModuleCompileCommandPrintLastHalf() const;

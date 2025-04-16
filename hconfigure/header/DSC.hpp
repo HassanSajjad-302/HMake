@@ -18,13 +18,12 @@ template <typename T> struct DSC : DSCFeatures
     using BaseType = typename T::BaseType;
     // Pointer is unused beside CppSourceTarget *
     T *stored = nullptr;
-    // These pointers are assigned in the constructor. An invariant is that these can not nullptr.
     ObjectFileProducerWithDS<BaseType> *objectFileProducer = nullptr;
     PLOAT *ploat = nullptr;
     PrebuiltDep prebuiltDepLocal;
 
     template <typename U, typename... V>
-    void assignLOATDep(DepType depType, DSC<U> &dsc, PrebuiltDep prebuiltDep, V... args);
+    void assignLOATDep(DepType depType, DSC<U> &depDSC, PrebuiltDep prebuiltDep, V... args);
 
     template <typename U> void assignObjectFileProducerDeps(DepType depType, DSC<U> &dsc);
 
@@ -39,9 +38,12 @@ template <typename T> struct DSC : DSCFeatures
     {
         objectFileProducer = ptr;
         ploat = ploat_;
-        ploat->objectFileProducers.emplace(objectFileProducer);
+        if (ploat)
+        {
+            ploat->objectFileProducers.emplace(objectFileProducer);
+        }
 
-        if (define_.empty())
+        if (define_.empty() && ploat)
         {
             define = ploat->getOutputName();
             transform(define.begin(), define.end(), define.begin(), ::toupper);
@@ -59,45 +61,45 @@ template <typename T> struct DSC : DSCFeatures
         }
     }
 
-    template <typename U, typename... V> DSC &publicDeps(DSC<U> &dsc, const V... dscs)
+    template <typename U, typename... V> DSC &publicDeps(DSC<U> &depDSC, const V... dscs)
     {
-        assignLOATDep(DepType::PUBLIC, dsc, dscs...);
+        assignLOATDep(DepType::PUBLIC, depDSC, dscs...);
         return *this;
     }
 
-    template <typename U, typename... V> DSC &privateDeps(DSC<U> &dsc, const V... dscs)
+    template <typename U, typename... V> DSC &privateDeps(DSC<U> &depDSC, const V... dscs)
     {
-        assignLOATDep(DepType::PRIVATE, dsc, dscs...);
+        assignLOATDep(DepType::PRIVATE, depDSC, dscs...);
         return *this;
     }
 
-    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &dsc, const V... dscs)
+    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &depDSC, const V... dscs)
     {
-        assignLOATDep(DepType::INTERFACE, dsc, dscs...);
+        assignLOATDep(DepType::INTERFACE, depDSC, dscs...);
         return *this;
     }
 
-    template <typename U, typename... V> DSC &deps(DepType depType, DSC<U> &dsc, const V... dscs)
+    template <typename U, typename... V> DSC &deps(DepType depType, DSC<U> &depDSC, const V... dscs)
     {
-        assignLOATDep(depType, dsc, dscs...);
+        assignLOATDep(depType, depDSC, dscs...);
         return *this;
     }
 
-    template <typename U, typename... V> DSC &publicDeps(DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs)
+    template <typename U, typename... V> DSC &publicDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
     {
-        assignLOATDep(DepType::PUBLIC, dsc, std::move(prebuiltDep), dscs...);
+        assignLOATDep(DepType::PUBLIC, depDSC, std::move(prebuiltDep), dscs...);
         return *this;
     }
 
-    template <typename U, typename... V> DSC &privateDeps(DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs)
+    template <typename U, typename... V> DSC &privateDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
     {
-        assignLOATDep(DepType::PRIVATE, dsc, std::move(prebuiltDep), dscs...);
+        assignLOATDep(DepType::PRIVATE, depDSC, std::move(prebuiltDep), dscs...);
         return *this;
     }
 
-    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs)
+    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
     {
-        assignLOATDep(DepType::INTERFACE, dsc, std::move(prebuiltDep), dscs...);
+        assignLOATDep(DepType::INTERFACE, depDSC, std::move(prebuiltDep), dscs...);
         return *this;
     }
 
@@ -119,18 +121,18 @@ template <typename T> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
     return std::tie(lhs.objectFileProducer, lhs.ploat) < std::tie(rhs.objectFileProducer, rhs.ploat);
 }
 
-template <typename T> template <typename U> void DSC<T>::assignObjectFileProducerDeps(DepType depType, DSC<U> &dsc)
+template <typename T> template <typename U> void DSC<T>::assignObjectFileProducerDeps(DepType depType, DSC<U> &depDSC)
 {
-    objectFileProducer->deps(depType, dsc.getSourceTarget());
+    objectFileProducer->deps(depType, depDSC.getSourceTarget());
 
-    if (dsc.defineDllInterface == DefineDLLInterface::YES)
+    if (depDSC.defineDllInterface == DefineDLLInterface::YES)
     {
         T *ptr = static_cast<T *>(objectFileProducer);
 
         Define define;
-        define.name = dsc.define;
+        define.name = depDSC.define;
 
-        if (dsc.ploat->evaluate(TargetType::LIBRARY_SHARED))
+        if (depDSC.ploat && depDSC.ploat->evaluate(TargetType::LIBRARY_SHARED))
         {
             if (ptr->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
             {
@@ -156,21 +158,24 @@ template <typename T> template <typename U> void DSC<T>::assignObjectFileProduce
 
 template <typename T>
 template <typename U, typename... V>
-void DSC<T>::assignLOATDep(DepType depType, DSC<U> &dsc, PrebuiltDep prebuiltDep, V... args)
+void DSC<T>::assignLOATDep(DepType depType, DSC<U> &depDSC, PrebuiltDep prebuiltDep, V... args)
 {
-    if (ploat->linkTargetType != TargetType::LIBRARY_SHARED && depType == DepType::PRIVATE)
+    if (ploat && depDSC.ploat)
     {
-        // A static library or object library can't have Dependency::PRIVATE deps, it can only have
-        // Dependency::INTERFACE. But, the following publicDeps is done for correct-ordering when static-libs are
-        // finally supplied to dynamic-lib or exe. Static library ignores the deps.
-        ploat->publicDeps(dsc.getPLOAT(), std::move(prebuiltDep));
-    }
-    else
-    {
-        ploat->deps(depType, dsc.getPLOAT(), std::move(prebuiltDep));
+        if (ploat->linkTargetType != TargetType::LIBRARY_SHARED && depType == DepType::PRIVATE)
+        {
+            // A static library or object library can't have Dependency::PRIVATE deps, it can only have
+            // Dependency::INTERFACE. But, the following publicDeps is done for correct-ordering when static-libs are
+            // finally supplied to dynamic-lib or exe. Static library ignores the deps.
+            ploat->publicDeps(depDSC.getPLOAT(), std::move(prebuiltDep));
+        }
+        else
+        {
+            ploat->deps(depType, depDSC.getPLOAT(), std::move(prebuiltDep));
+        }
     }
 
-    assignObjectFileProducerDeps(depType, dsc);
+    assignObjectFileProducerDeps(depType, depDSC);
 
     if constexpr (sizeof...(args))
     {

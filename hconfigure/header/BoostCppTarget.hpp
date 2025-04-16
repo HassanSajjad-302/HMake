@@ -6,7 +6,12 @@
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
 
+void removeTroublingHu(const string_view *headerUnitsJsonDirs, uint64_t headerUnitsJsonDirsSize,
+                       const string_view *headerUnitsJsonEntry, uint64_t headerUnitsJsonEntrySize);
 using std::filesystem::directory_iterator;
+
+// Currently, the tests are not run after compilation, neither does the build-system compares the output.
+// Build-system does not support the fail-tests either.
 enum class BoostExampleOrTestType : char
 {
     RUN_TEST,
@@ -44,6 +49,10 @@ enum class IteratorTargetType : char
 #define BUILD_INLINE
 #endif
 
+// This class represents a Boost library. It has a mainTarget which represents the boost library.
+// And has functions to define Tests and Examples based on BoostExampleOrTestType. (These functions consider the values
+// of buildTests, buildExamples, testsExplicit and examplesExplicit of Configuration class).
+// This also has testTarget and exampleTarget which you can run to build all the tests and examples.
 class BoostCppTarget : TargetCache
 {
     template <BoostExampleOrTestType boostExampleOrTestType, IteratorTargetType iteratorTargetType> struct GenericBase
@@ -106,11 +115,20 @@ class BoostCppTarget : TargetCache
     vector<DSC<CppSourceTarget> *> dscTestDepsPrivate;
     vector<CppSourceTarget *> cppTestDepsPrivate;
 
-    BoostCppTarget(const string &name, Configuration *configuration_, bool headerOnly, bool createTestsTarget = false,
-                   bool createExamplesTarget = false);
+    BoostCppTarget(const string &name, Configuration *configuration_, bool headerOnly = true, bool hasBigHeader = true,
+                   bool createTestsTarget = false, bool createExamplesTarget = false);
+
+    // When using addDir or addDirEndsWith, if you have also added dependencies for Tests or Examples via the
+    // privateTestDeps function, ensure that this function is called after all addDir* calls. The addDir* methods do not
+    // perform any actions at build time; they simply record the directory files during configuration time. Later, the
+    // BoostCppTarget constructor loads these targets into the testsOrExamples variable at build time. The following
+    // call will then iterate over testsOrExamples and add the specified targets as deps.
     BoostCppTarget &assignPrivateTestDeps();
     void copyConfigCache();
 
+    // This function adds a dependency for all subsequent Tests or Examples target. Any add function
+    // call (non addDir) will add these targets as dependency. While addDir functions should later-on call
+    // assignPrivateTestDeps function.
     template <typename T, typename... U> BoostCppTarget &privateTestDeps(T &dep_, U &&...deps_);
     template <typename T, typename... U> BoostCppTarget &publicDeps(T &dep_, U &&...deps_);
     template <typename T, typename... U> BoostCppTarget &privateDeps(T &dep_, U &&...deps_);
@@ -118,12 +136,15 @@ class BoostCppTarget : TargetCache
     template <typename T, typename... U> BoostCppTarget &deps(DepType depType, T &dep_, U &&...deps_);
 
     template <BoostExampleOrTestType EOT>
-    void getTargetFromConfiguration(string_view name, string_view buildCacheFilesDirPath, const Node *node);
+    void getTargetFromConfiguration(string_view name, string_view buildCacheFilesDirPath, const string &filePath) const;
     template <BoostExampleOrTestType EOT> bool getExplicitBuilding() const;
     template <BoostExampleOrTestType EOT> static string getInnerBuildDirExcludingFileName();
     template <BoostExampleOrTestType EOT>
     static string getInnerBuildDirExcludingFileName(string_view innerBuildDirName);
 
+    // This function can be used to iterate over the addDir targets to define different properties at build-time.
+    // While the targets added using simple add function can be modified manually since we know the source-files array
+    // corresponding to these targets at build-time.
     template <BoostExampleOrTestType EOT, IteratorTargetType iteratorTargetType, BSMode bsm = BSMode::BUILD> auto get();
     template <BoostExampleOrTestType EOT, IteratorTargetType iteratorTargetType, BSMode bsm = BSMode::BUILD>
     auto getEndsWith(const char *endsWith);
@@ -133,17 +154,31 @@ class BoostCppTarget : TargetCache
 
     // TODO
     // Currently, not dealing with different kinds of tests and their results and not combining them either.
-    template <BoostExampleOrTestType EOT> BUILD_INLINE BoostCppTarget &addDir(string_view sourceDir);
-    template <BoostExampleOrTestType EOT>
-    BUILD_INLINE BoostCppTarget &addDirEndsWith(string_view sourceDir, string_view innerBuildDirName);
 
+    // Following 2 functions take a sourceDir and records all the files of the directory at config-time in an array.
+    // At build-time, it defines targets using this array.
+    template <BoostExampleOrTestType EOT> BoostCppTarget &addDir(string_view sourceDir);
+
+    // This function creates a subdirectory (named innerBuildDirName) within either the Tests or Examples
+    // directory, depending on the BoostExampleOrTestType parameter. New targets from sourceDir are built in
+    // this subdirectory. This design enables targets with identical names to coexist while having different
+    // properties (e.g., macros). Using the alternative function would have caused object-file name collisions
+    // in the Tests or Examples directory.
     template <BoostExampleOrTestType EOT>
-    BoostCppTarget &add(string_view sourceDir, const string_view *fileName, uint64_t arraySize);
+    BoostCppTarget &addDirEndsWith(string_view sourceDir, string_view innerBuildDirName);
+
+    // Following functions takes an array and defines targets corresponding to that array.
+    template <BoostExampleOrTestType EOT>
+    BoostCppTarget &add(string_view sourceDir, const string_view *fileNamesArray, uint64_t arraySize);
+
+    // This function is used to avoid object-file name collision just like addDirEndsWith.
     template <BoostExampleOrTestType EOT>
     BoostCppTarget &addEndsWith(string_view innerBuildDirName, string_view sourceDir, const string_view *fileName,
                                 uint64_t arraySize);
 
     template <BoostExampleOrTestType EOT> BoostCppTarget &add(string_view sourceDir, string_view fileName);
+
+    // This function is used to avoid object-file name collision just like addDirEndsWith.
     template <BoostExampleOrTestType EOT>
     BoostCppTarget &addEndsWith(string_view innerBuildDirName, string_view sourceDir, string_view fileName);
 };
@@ -291,7 +326,8 @@ BoostCppTarget::GetEnds<EOT, iteratorTargetType, bsm> BoostCppTarget::GetEnds<EO
             else
             {
                 if (exampleOrTest_.targetType == EOT &&
-                    exampleOrTest_.testTarget.dscTarget->getSourceTarget().name.contains(finalEndString))
+                    removeDashCppFromNameSV(exampleOrTest_.testTarget.dscTarget->getSourceTarget().name)
+                        .contains(finalEndString))
                 {
                     exampleOrTestLocal = &exampleOrTest_;
                     break;
@@ -328,7 +364,8 @@ BoostCppTarget::GetEnds<EOT, iteratorTargetType, bsm> BoostCppTarget::GetEnds<EO
         for (; exampleOrTest != examplesOrTests.begin().operator->() + examplesOrTests.size(); ++exampleOrTest)
         {
             if (exampleOrTest->targetType == EOT &&
-                exampleOrTest->testTarget.dscTarget->getSourceTarget().name.contains(finalEndString))
+                removeDashCppFromNameSV(exampleOrTest->testTarget.dscTarget->getSourceTarget().name)
+                    .contains(finalEndString))
             {
                 return GetEnds(std::move(endsWith), examplesOrTests, exampleOrTest);
             }
@@ -341,7 +378,8 @@ template <BoostExampleOrTestType EOT, bool addInConfigCache>
 void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &target, string_view sourceDir,
                                                             string_view fileName)
 {
-    const string configurationNamePlusTargetName = target.mainTarget.getPLOAT().name + slashc;
+    const string configurationNamePlusTargetName =
+        removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
@@ -353,14 +391,14 @@ void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &targ
     target.buildOrConfigCacheCopy.PushBack(
         Value(kStringType).SetString(pushName.c_str(), pushName.size(), target.cacheAlloc), target.cacheAlloc);
 
-    const Node *node = Node::getNodeFromNonNormalizedString(string(sourceDir) + slashc + string(fileName), true);
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, node);
+    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
 }
 
 template <BoostExampleOrTestType EOT>
 void BoostCppTarget::Add<EOT, false>::operator()(BoostCppTarget &target, string_view sourceDir, string_view fileName)
 {
-    const string configurationNamePlusTargetName = target.mainTarget.getLOAT().name + slashc;
+    const string configurationNamePlusTargetName =
+        removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
@@ -368,15 +406,15 @@ void BoostCppTarget::Add<EOT, false>::operator()(BoostCppTarget &target, string_
         target.getInnerBuildDirExcludingFileName<EOT>() + slashc + getNameBeforeLastPeriod(fileName);
     const string name = configurationNamePlusTargetName + pushName;
 
-    const Node *node = Node::getNodeFromNonNormalizedString(string(sourceDir) + slashc + string(fileName), true);
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, node);
+    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
 }
 
 template <BoostExampleOrTestType EOT, bool addInConfigCache>
 void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &target, string_view innerBuildDirName,
                                                                 string_view sourceDir, string_view fileName)
 {
-    const string configurationNamePlusTargetName = target.mainTarget.getLOAT().name + slashc;
+    const string configurationNamePlusTargetName =
+        removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
@@ -388,15 +426,15 @@ void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &
     target.buildOrConfigCacheCopy.PushBack(
         Value(kStringType).SetString(pushName.c_str(), pushName.size(), target.cacheAlloc), target.cacheAlloc);
 
-    const Node *node = Node::getNodeFromNonNormalizedString(string(sourceDir) + slashc + string(fileName), true);
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, node);
+    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
 }
 
 template <BoostExampleOrTestType EOT>
 void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, string_view innerBuildDirName,
                                                      string_view sourceDir, string_view fileName)
 {
-    const string configurationNamePlusTargetName = target.mainTarget.getPLOAT().name + slashc;
+    const string configurationNamePlusTargetName =
+        removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
@@ -404,8 +442,7 @@ void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, str
         target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc + getNameBeforeLastPeriod(fileName);
     const string name = configurationNamePlusTargetName + pushName;
 
-    const Node *node = Node::getNodeFromNonNormalizedString(string(sourceDir) + slashc + string(fileName), true);
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, node);
+    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
 }
 
 template <typename T, typename... U> BoostCppTarget &BoostCppTarget::privateTestDeps(T &dep_, U &&...deps_)
@@ -488,13 +525,14 @@ template <typename T, typename... U> BoostCppTarget &BoostCppTarget::deps(DepTyp
 }
 
 template <BoostExampleOrTestType EOT>
-void BoostCppTarget::getTargetFromConfiguration(string_view name, string_view buildCacheFilesDirPath, const Node *node)
+void BoostCppTarget::getTargetFromConfiguration(const string_view name, const string_view buildCacheFilesDirPath,
+                                                const string &filePath) const
 {
     if constexpr (EOT == BoostExampleOrTestType::COMPILE_TEST)
     {
         CppSourceTarget &t = configuration->getCppObjectNoNameAddStdTarget(
             getExplicitBuilding<EOT>(), string(buildCacheFilesDirPath), string(name));
-        t.privateDeps(&mainTarget.getSourceTarget()).moduleFiles(node->filePath);
+        t.privateDeps(&mainTarget.getSourceTarget()).moduleFiles(filePath);
         for (CppSourceTarget *dep : cppTestDepsPrivate)
         {
             t.privateDeps(dep);
@@ -504,7 +542,7 @@ void BoostCppTarget::getTargetFromConfiguration(string_view name, string_view bu
     {
         DSC<CppSourceTarget> &t =
             configuration->getCppExeDSCNoName(getExplicitBuilding<EOT>(), string(buildCacheFilesDirPath), string(name));
-        t.privateDeps(mainTarget).getSourceTarget().moduleFiles(node->filePath);
+        t.privateDeps(mainTarget).getSourceTarget().moduleFiles(filePath);
 
         for (DSC<CppSourceTarget> *dep : dscTestDepsPrivate)
         {
@@ -606,11 +644,11 @@ BoostCppTarget &BoostCppTarget::addDirEndsWith(string_view sourceDir, string_vie
 }
 
 template <BoostExampleOrTestType EOT>
-BoostCppTarget &BoostCppTarget::add(string_view sourceDir, const string_view *fileName, uint64_t arraySize)
+BoostCppTarget &BoostCppTarget::add(string_view sourceDir, const string_view *fileNamesArray, uint64_t arraySize)
 {
     for (uint64_t i = 0; i < arraySize; ++i)
     {
-        Add<EOT, false>{}(*this, sourceDir, fileName[i]);
+        Add<EOT, false>{}(*this, sourceDir, fileNamesArray[i]);
     }
     return *this;
 }

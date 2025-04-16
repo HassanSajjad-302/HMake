@@ -35,7 +35,6 @@ string fileToPString(const string &file_name)
     {
         // Error opening file.
         printErrorMessage(FORMAT("Error opening file {}\n", file_name));
-        throw std::exception();
     }
 
     const ostringstream str_stream;
@@ -45,7 +44,6 @@ string fileToPString(const string &file_name)
     {
         // Error reading file.
         printErrorMessage(FORMAT("Error reading file {}\n", file_name));
-        throw std::exception();
     }
 
     return str_stream.str();

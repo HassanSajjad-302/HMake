@@ -27,6 +27,7 @@ using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique
 // there, some go here.
 
 #define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
+#define CALL_ONLY_AT_CONFIGURE_TIME
 
 // value to string_view
 inline string_view vtosv(const Value &v)
@@ -143,9 +144,8 @@ constexpr static unsigned compileCommandWithTool = 4;
 
 namespace LinkBuild
 {
-constexpr static unsigned commandWithoutArgumentsWithTools = 1;
-constexpr static unsigned objectFiles = 2;
-constexpr static unsigned localLinkCommandWithoutTargets = 3;
+constexpr static unsigned commandWithoutArgumentsWithTools = 0;
+constexpr static unsigned objectFiles = 1;
 } // namespace LinkBuild
 
 } // namespace BuildCache

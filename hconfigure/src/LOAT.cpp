@@ -259,8 +259,6 @@ void LOAT::updateBTarget(Builder &builder, unsigned short round)
                 namespace LinkBuild = Indices::BuildCache::LinkBuild;
                 if (buildOrConfigCacheCopy.Empty())
                 {
-                    buildOrConfigCacheCopy.PushBack(svtogsr(name), cacheAlloc);
-
                     buildOrConfigCacheCopy.PushBack(commandWithoutTargetsWithTool.getHash(), cacheAlloc);
                     buildOrConfigCacheCopy.PushBack(Value(kArrayType), cacheAlloc);
                     objectFilesValue = buildOrConfigCacheCopy.End() - 1;

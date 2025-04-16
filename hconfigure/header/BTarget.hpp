@@ -19,20 +19,10 @@ import <mutex>;
 using std::size_t, std::vector, phmap::flat_hash_map, std::mutex, std::lock_guard, std::atomic_flag, std::array,
     std::atomic, std::atomic_ref, std::string;
 
-// TBT = TarjanNodeBTarget    TCT = TarjanNodeCTarget
-class RealBTarget;
 class BTarget;
-inline vector<vector<RealBTarget *>> tarjanNodesBTargets;
-inline vector<uint32_t> tarjanNodesCount;
 
-class StaticInitializationTarjanNodesBTargets
-{
-  public:
-    StaticInitializationTarjanNodesBTargets();
-
-    // provide some way to get at letters_
-};
-
+// TODO
+// Maybe remove this and use vector with in-place sorting.
 struct IndexInTopologicalSortComparatorRoundZero
 {
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
@@ -53,7 +43,6 @@ enum class BTargetDepType : bool
     LOOSE,
 };
 
-inline StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
 class RealBTarget
 {
     // For TarjanNode topological sorting
@@ -137,6 +126,34 @@ inline vector<BTarget *> postBuildSpecificationArray;
 
 class BTarget // BTarget
 {
+    friend RealBTarget;
+    struct TwoBTargets
+    {
+        BTarget *b;
+        BTarget *dep;
+    };
+    class StaticInitializationTarjanNodesBTargets
+    {
+      public:
+        StaticInitializationTarjanNodesBTargets();
+
+        // provide some way to get at letters_
+    };
+
+    // This not needed currently
+    /*inline static array<array<BTarget *, 10>, 3> roundEndTargets;
+    inline static array<atomic<uint64_t>, 3> roundEndTargetsCount{0, 0, 0};*/
+
+  public:
+    // vector because we clear this memory at the end of the round
+    inline static array<vector<RealBTarget *>, 3> tarjanNodesBTargets;
+    inline static array<atomic<uint32_t>, 3> tarjanNodesCount{0, 0, 0};
+
+  private:
+    inline static array<vector<TwoBTargets>, 2> twoBTargetsVector;
+    inline static array<atomic<uint32_t>, 2> twoBTargetsVectorSize{0, 0};
+
+    inline static StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
   public:
     inline static size_t total = 0;
 
@@ -164,6 +181,7 @@ class BTarget // BTarget
 
     void assignFileStatusToDependents(unsigned short round);
     void receiveNotificationPostBuildSpecification();
+    static void runEndOfRoundTargets(class Builder &builder, uint16_t round);
 
     virtual string getTarjanNodeName() const;
     virtual BTargetType getBTargetType() const;
@@ -172,20 +190,28 @@ class BTarget // BTarget
     virtual void copyJson();
     virtual void buildSpecificationCompleted();
 
+    template <unsigned short round> void addEndOfRoundBTarget();
+
     template <unsigned short round, typename... U> void addDependency(BTarget &dependency, U &...bTargets);
     template <unsigned short round, typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
+
+    template <unsigned short round, typename... U> void addDependencyDelayed(BTarget &dependency, U &...bTargets);
+    template <unsigned short round> void addDependencyNoMutex(BTarget &dependency);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
-// TODO
-// Determine whether this is better served by having 2 atomic-locks in RealBTargets.
-
 inline std::mutex dependencyMutex[3];
+
+template <unsigned short round> void BTarget::addEndOfRoundBTarget()
+{
+    /*const uint64_t i = roundEndTargetsCount[round].fetch_add(1);
+    roundEndTargets[round][i] = this;*/
+}
+
 template <unsigned short round, typename... U> void BTarget::addDependency(BTarget &dependency, U &...bTargets)
 {
     {
         lock_guard lk{dependencyMutex[round]};
-        // adding in both dependencies and deps is duplicating. One should be removed.
         if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
         {
             RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
@@ -212,6 +238,27 @@ template <unsigned short round, typename... U> void BTarget::addLooseDependency(
     if constexpr (sizeof...(bTargets))
     {
         addLooseDependency<round>(bTargets...);
+    }
+}
+
+template <unsigned short round, typename... U> void BTarget::addDependencyDelayed(BTarget &dependency, U &...bTargets)
+{
+    twoBTargetsVector[round][twoBTargetsVectorSize[round].fetch_add(1)] = TwoBTargets{.b = this, .dep = &dependency};
+
+    if constexpr (sizeof...(bTargets))
+    {
+        addDependencyPost<round>(bTargets...);
+    }
+}
+
+template <unsigned short round> void BTarget::addDependencyNoMutex(BTarget &dependency)
+{
+    // adding in both dependencies and deps is duplicating. One should be removed.
+    if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
+    {
+        RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
+        dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
+        ++atomic_ref(realBTargets[round].dependenciesSize);
     }
 }
 

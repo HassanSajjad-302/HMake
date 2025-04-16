@@ -20,24 +20,30 @@ enum class AssignStandardCppTarget : char
     YES,
 };
 
+// Whether tests should be built
 enum class BuildTests : char
 {
     NO,
     YES,
 };
 
+// Whether Examples should be built
 enum class BuildExamples : char
 {
     NO,
     YES,
 };
 
+// Setting this to YES will not build tests by-default and the test target will have to be named on the hbuild
+// command-line to be built.
 enum class TestsExplicit : char
 {
     NO,
     YES,
 };
 
+// Seeting this to YES will not build examples by-default and the example target will have to be named on the hbuild
+// command-line to be built.
 enum class ExamplesExplicit : char
 {
     NO,
@@ -116,6 +122,9 @@ class Configuration : public BTarget
 
     // CSourceTarget &GetCPT();
 
+    DSC<CppSourceTarget> &getCppObjectDSC(const string &name_, bool defines = false, string define = "");
+    DSC<CppSourceTarget> &getCppObjectDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
+                                          const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppExeDSC(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppExeDSC(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_,
                                        bool defines = false, string define = "");
@@ -161,6 +170,9 @@ class Configuration : public BTarget
     PLOAT &getSharedPLOATNoName(const string &name_, const string &dir);
     // CSourceTarget &GetCPTNoName();
 
+    DSC<CppSourceTarget> &getCppObjectDSCNoName(const string &name_, bool defines = false, string define = "");
+    DSC<CppSourceTarget> &getCppObjectDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
+                                                const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppExeDSCNoName(const string &name_, bool defines = false, string define = "");
     DSC<CppSourceTarget> &getCppExeDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
                                              const string &name_, bool defines = false, string define = "");
@@ -186,8 +198,8 @@ class Configuration : public BTarget
     DSC<CppSourceTarget> &getCppSharedDSC_PNoName(const string &name_, const string &dir, bool defines = false,
                                                   string define = "");
 
-    BoostCppTarget &getBoostCppTarget(const string &name, bool headerOnly, bool createTestsTarget = false,
-                                      bool createExamplesTarget = false);
+    BoostCppTarget &getBoostCppTarget(const string &name, bool headerOnly = true, bool hasBigHeader = true,
+                                      bool createTestsTarget = false, bool createExamplesTarget = false);
 
     explicit Configuration(const string &name_);
     void postConfigurationSpecification() const;

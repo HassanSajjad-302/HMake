@@ -16,34 +16,75 @@ import "LOAT.hpp";
 #include <utility>
 #endif
 
-using std::filesystem::directory_iterator;
+using std::filesystem::directory_iterator, std::filesystem::remove;
 
-static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *configuration, const bool headerOnly)
+void removeTroublingHu(const string_view *headerUnitsJsonDirs, uint64_t headerUnitsJsonDirsSize,
+                       const string_view *headerUnitsJsonEntry, uint64_t headerUnitsJsonEntrySize)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        string str = "header-units.json";
+        string boostDir = srcNode->filePath + slashc + string("boost") + slashc;
+        for (uint64_t i = 0; i < headerUnitsJsonDirsSize; ++i)
+        {
+            path p{boostDir + string(headerUnitsJsonDirs[i]) + slashc + str};
+            if (exists(p))
+            {
+                remove(p);
+            }
+        }
+
+        for (uint64_t i = 0; i < headerUnitsJsonEntrySize; i += 2)
+        {
+            Document d;
+            string fileName = boostDir + string(headerUnitsJsonEntry[i]) + slashc + str;
+            auto a = readValueFromFile(fileName, d);
+            Value &m = d.FindMember("BuildAsHeaderUnits")->value.GetArray();
+            uint64_t index = UINT64_MAX;
+            for (uint64_t j = 0; j < m.Size(); ++j)
+            {
+                if (compareStringsFromEnd(vtosv(m[j]), headerUnitsJsonEntry[i + 1]))
+                {
+                    m.Erase(&m[j]);
+                    prettyWriteValueToFile(fileName, d);
+                }
+            }
+        }
+    }
+}
+
+static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *configuration, const bool headerOnly,
+                                           const bool hasBigHeader)
 {
     const string buildCacheFilesDirPath = configuration->name + slashc + name;
 
     DSC<CppSourceTarget> *t = nullptr;
     if (headerOnly)
     {
-        t = &configuration->getCppStaticDSC(false, buildCacheFilesDirPath, name);
+        t = &configuration->getCppObjectDSC(false, buildCacheFilesDirPath, name);
     }
     else
     {
         t = &configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
+        t->getSourceTarget().moduleDirs("libs" + name + "src");
     }
-    t->getSourceTarget().publicHUDirs(string("boost") + slashc + name);
-    if (name != "core" && name != "mpl" && name != "detail")
+
+    CppSourceTarget &cpp = t->getSourceTarget();
+    cpp.publicHUDirs(string("boost") + slashc + name);
+    if (hasBigHeader)
     {
-        t->getSourceTarget().headerUnits(string("boost") + slashc + name + ".hpp");
+        cpp.headerUnits(string("boost") + slashc + name + ".hpp");
     }
     return *t;
 }
 
 BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_, const bool headerOnly,
-                               const bool createTestsTarget, const bool createExamplesTarget)
+                               const bool hasBigHeader, const bool createTestsTarget, const bool createExamplesTarget)
     : TargetCache(configuration_->name + "Boost_" + name), configuration(configuration_),
-      mainTarget(getMainTarget(name, configuration_, headerOnly))
+      mainTarget(getMainTarget(name, configuration_, headerOnly, hasBigHeader))
 {
+
+    // Reads config-cache at build-time and
     if constexpr (bsMode == BSMode::BUILD)
     {
         Value &targetConfigCache = getConfigCache();
@@ -65,7 +106,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         {
             auto boostExampleOrTest = static_cast<BoostExampleOrTestType>(targetConfigCache[i].GetUint());
             const string unitTestName =
-                mainTarget.getPLOAT().name + slashc +
+                removeDashCppFromName(mainTarget.getSourceTarget().name) + slashc +
                 string(targetConfigCache[i + 1].GetString(), targetConfigCache[i + 1].GetStringLength());
             bool explicitBuild = false;
             bool isExample = false;
@@ -99,7 +140,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
                 if (testTarget)
                 {
-                    testTarget->addDependency<0>(cppTarget);
+                    testTarget->addDependencyNoMutex<0>(cppTarget);
                 }
             }
             else
@@ -111,14 +152,14 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
                 {
                     if (examplesTarget)
                     {
-                        examplesTarget->addDependency<0>(uintTest.getLOAT());
+                        examplesTarget->addDependencyNoMutex<0>(uintTest.getLOAT());
                     }
                 }
                 else
                 {
                     if (testTarget)
                     {
-                        testTarget->addDependency<0>(uintTest.getLOAT());
+                        testTarget->addDependencyNoMutex<0>(uintTest.getLOAT());
                     }
                 }
             }

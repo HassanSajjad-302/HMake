@@ -77,6 +77,8 @@ Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
     ++idCountCompleted;
 }
 
+// This function is called single-threaded. While the above is called multithreaded in lambdas passed to nodeAllFiles
+// emplace functions.
 Node::Node(string filePath_) : filePath(std::move(filePath_))
 {
     myId = reinterpret_cast<uint32_t &>(idCount)++;
@@ -276,8 +278,8 @@ Node *Node::tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, 
     Node *node = nodeIndices[value.GetUint64()];
     systemCheckSucceeded = node->trySystemCheck(isFile, mayNotExist);
 #else
-    Node *node = Node::getNodeFromNormalizedString(string_view(value.GetString(), value.GetStringLength()), isFile,
-                                                   mayNotExist);
+    Node *node =
+        Node::getNodeFromNormalizedString(string_view(value.GetString(), value.GetStringLength()), isFile, mayNotExist);
     systemCheckSucceeded = true;
 #endif
     return node;
@@ -290,7 +292,6 @@ Node *Node::getLastNodeAdded()
 
 rapidjson::Type Node::getType()
 {
-
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     return rapidjson::kNumberType;
 #else
@@ -320,7 +321,6 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
             {
                 printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath, isFile ? "regular" : "dir",
                                          getStatusPString(filePath)));
-                throw std::exception();
             }
             doesNotExist = true;
         }
@@ -342,7 +342,6 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
             printErrorMessage(FORMAT("FindFirstFileEx failed {}\n", GetLastError()));
             printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath,
                                           isFile ? "regular" : "dir", getStatusPString(filePath)));
-            throw std::exception();
         }
     }
 
@@ -365,7 +364,6 @@ void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
             printErrorMessage(FORMAT("FindFirstFileEx failed {}\n", GetLastError()));
             printErrorMessage(
                 FORMAT("{} is not a dir file. File Type is {}\n", filePath, getStatusPString(filePath)));
-            throw std::exception();
         }
     }
 

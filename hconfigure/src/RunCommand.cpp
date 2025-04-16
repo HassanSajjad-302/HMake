@@ -179,13 +179,11 @@ struct CLWrapper
         if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1)
         {
             printErrorMessage("Error Creating Pipes\n");
-            throw std::runtime_error("Error Creating Pipes");
         }
 
         if (const pid_t pid = fork(); pid == -1)
         {
             printErrorMessage("fork");
-            throw std::runtime_error("fork");
         }
         else
         {
@@ -214,7 +212,7 @@ struct CLWrapper
 
             if (waitpid(pid, &status, 0) < 0)
             {
-                throw std::runtime_error("waitpid");
+                printErrorMessage("waitpid");
             }
 
             char buffer[4096];
@@ -335,6 +333,18 @@ void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError
     if (notify)
     {
         targetCacheDiskWriteManager.vecCond.notify_one();
+    }
+}
+
+inline mutex roundOneMutex;
+void RunCommand::executePrintRoutineRoundOne(const SMFile &smFile) const
+{
+    lock_guard _{roundOneMutex};
+    if (exitStatus != EXIT_SUCCESS)
+    {
+        printErrorMessageNoReturn(
+            FORMAT("Scanning Failed for {} of Target {}\n", smFile.node->filePath, smFile.target->name));
+        printErrorMessageNoReturn(FORMAT("{}", commandOutput));
     }
 }
 

@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.28.0)
 
 project(HMake)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 set(HMAKE_USE_THREAD_SANITIZER OFF BOOL "Whether to use thread-sanitizer on Linux or not.")
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
@@ -9,12 +10,20 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MAT
         add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
     endif ()
 
+    add_compile_options(-fno-exceptions -fno-rtti)
     add_compile_options(-std=c++2b)
 elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
+
     if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         add_compile_options(/fsanitize=address)
     endif ()
+
     set(CMAKE_CXX_STANDARD 23)
+
+    string(REGEX REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REGEX REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    add_definitions(-D_HAS_EXCEPTIONS=0) # for STL
+
 endif ()
 
 set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 0)
@@ -198,6 +207,9 @@ if ((${INCLUDE_CONFIGURE} MATCHES ON) AND (${INCLUDE_BUILD} MATCHES ON))
     target_link_libraries(hwrite PRIVATE hconfigure-c)
 
 endif ()
+
+add_executable(copy copy.cpp)
+target_link_libraries(copy PRIVATE hconfigure-c)
 
 # TODO
 # https://rapidjson.org/group___r_a_p_i_d_j_s_o_n___c_o_n_f_i_g.html

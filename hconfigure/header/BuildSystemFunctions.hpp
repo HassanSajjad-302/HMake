@@ -36,9 +36,6 @@ inline unique_ptr<vector<char>> buildCacheBuffer;
 inline Document nodesCacheJson(kArrayType);
 inline unique_ptr<vector<char>> nodesCacheBuffer;
 
-inline vector<class BTarget *> roundEndTargets{10};
-inline std::atomic<uint64_t> roundEndTargetsCount = 0;
-
 inline auto &ralloc = buildCache.GetAllocator();
 
 // Node representing source dir
@@ -100,6 +97,7 @@ void printDebugMessage(const string &message);
 void printMessage(const string &message);
 void printMessageColor(const string &message, uint32_t color);
 void printErrorMessage(const string &message);
+void printErrorMessageNoReturn(const string &message);
 void printErrorMessageColor(const string &message, uint32_t color);
 
 #define HMAKE_HMAKE_INTERNAL_ERROR printErrorMessage(FORMAT("HMake Internal Error {} {}", __FILE__, __LINE__));
@@ -110,6 +108,7 @@ string getNameBeforeLastSlash(string_view name);
 string_view getNameBeforeLastSlashV(string_view name);
 string getNameBeforeLastPeriod(string_view name);
 string removeDashCppFromName(string_view name);
+string_view removeDashCppFromNameSV(string_view name);
 bool configureOrBuild();
 void constructGlobals();
 void destructGlobals();

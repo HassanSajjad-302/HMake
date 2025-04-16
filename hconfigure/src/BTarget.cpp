@@ -1,30 +1,29 @@
 
 #ifdef USE_HEADER_UNITS
 import "BTarget.hpp";
-import "Builder.hpp";
 import "BuildSystemFunctions.hpp";
 import "CppSourceTarget.hpp";
+import "TargetCacheDiskWriteManager.hpp";
 import <filesystem>;
-import <fstream>;
+import <utility>;
 #else
 #include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
-#include "Builder.hpp"
 #include "CppSourceTarget.hpp"
+#include "TargetCacheDiskWriteManager.hpp"
 #include <filesystem>
-#include <fstream>
 #include <utility>
 #endif
 using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::mutex, std::lock_guard,
     std::filesystem::create_directory;
 
-StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets()
+BTarget::StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets()
 {
-    for (unsigned short i = 0; i < 3; ++i)
-    {
-        tarjanNodesBTargets.emplace_back(10000);
-        tarjanNodesCount.emplace_back(0);
-    }
+    // 1MB. Deallocated after round.
+    tarjanNodesBTargets.fill(vector<RealBTarget *>{1024 * 1024});
+    auto *p = &tarjanNodesBTargets[0];
+    // 2MB. Deallocated after round.
+    twoBTargetsVector.fill(vector<TwoBTargets>{1024 * 1024});
 }
 
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
@@ -123,46 +122,45 @@ void RealBTarget::checkForCycle()
 {
     if (cycleExists)
     {
-        printErrorMessageColor("There is a Cyclic-Dependency.\n", settings.pcSettings.toolErrorOutput);
+        string errorString = "There is a Cyclic-Dependency.\n";
         size_t cycleSize = cycle.size();
         for (unsigned int i = 0; i < cycleSize; ++i)
         {
             if (i == cycleSize - 1)
             {
-                printErrorMessageColor(
-                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[0]->getTarjanNodeName()),
-                    settings.pcSettings.toolErrorOutput);
+                errorString +=
+                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[0]->getTarjanNodeName());
             }
             else
             {
-                printErrorMessageColor(
-                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[i + 1]->getTarjanNodeName()),
-                    settings.pcSettings.toolErrorOutput);
+                errorString +=
+                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[i + 1]->getTarjanNodeName());
             }
         }
+        printErrorMessage(errorString);
         exit(EXIT_FAILURE);
     }
 }
 
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarget(bTarget_)
 {
-    const uint32_t i = atomic_ref(tarjanNodesCount[round_]).fetch_add(1);
-    tarjanNodesBTargets[round_][i] = this;
+    const uint32_t i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+    BTarget::tarjanNodesBTargets[round_][i] = this;
 }
 
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const bool add) : bTarget(bTarget_)
 {
     if (add)
     {
-        const uint32_t i = atomic_ref(tarjanNodesCount[round_]).fetch_add(1);
-        tarjanNodesBTargets[round_][i] = this;
+        const uint32_t i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+        BTarget::tarjanNodesBTargets[round_][i] = this;
     }
 }
 
 void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
 {
-    const uint32_t i = atomic_ref(tarjanNodesCount[round_]).fetch_add(1);
-    tarjanNodesBTargets[round_][i] = this;
+    const uint32_t i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+    BTarget::tarjanNodesBTargets[round_][i] = this;
 }
 
 static string lowerCase(string str)
@@ -233,6 +231,37 @@ void BTarget::assignFileStatusToDependents(const unsigned short round)
 void BTarget::receiveNotificationPostBuildSpecification()
 {
     postBuildSpecificationArray.emplace_back(this);
+}
+
+void BTarget::runEndOfRoundTargets(Builder &builder, uint16_t round)
+{
+    if (round == 2)
+    {
+        tarjanNodesBTargets[round].clear();
+        for (uint64_t i = 0; i < twoBTargetsVectorSize[1]; ++i)
+        {
+            auto &[b, dep] = twoBTargetsVector[1][i];
+            b->addDependencyNoMutex<1>(*dep);
+        }
+    }
+    else if (round == 1)
+    {
+        targetCacheDiskWriteManager.endOfRound();
+        tarjanNodesBTargets[round].clear();
+        for (uint64_t i = 0; i < twoBTargetsVectorSize[0]; ++i)
+        {
+            auto &[b, dep] = twoBTargetsVector[0][i];
+            b->addDependencyNoMutex<0>(*dep);
+        }
+    }
+
+    /*for (BTarget *t : roundEndTargets[round])
+    {
+        if (t != nullptr)
+        {
+            t->endOfRound(builder, round);
+        }
+    }*/
 }
 
 BTarget::~BTarget()

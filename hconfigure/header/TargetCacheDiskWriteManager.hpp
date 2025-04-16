@@ -4,16 +4,18 @@
 #define TARGETCACHEDISKWRITEMANAGER_HPP
 
 #ifdef USE_HEADER_UNITS
-import "BTarget.hpp";
 import "BuildSystemFunctions.hpp";
 import "rapidjson/document.h";
+import <atomic>;
 import <condition_variable>;
 #else
-#include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "rapidjson/document.h"
+#include <atomic>
 #include <condition_variable>
 #endif
+
+using std::atomic;
 
 using rapidjson::Value;
 struct ColoredStringForPrint
@@ -33,12 +35,12 @@ struct ValueAndIndices
     uint64_t index3;
     uint64_t index4;
     explicit ValueAndIndices(Value _value, uint64_t _index0, uint64_t _index1, uint64_t _index2, uint64_t _index3,
-                              uint64_t _index4);
+                             uint64_t _index4);
     Value &getTargetValue() const;
     void copyToCentralTargetCache();
 };
 
-class TargetCacheDiskWriteManager : public BTarget
+class TargetCacheDiskWriteManager
 {
   public:
     mutex vecMutex;
@@ -52,7 +54,7 @@ class TargetCacheDiskWriteManager : public BTarget
     vector<ValueAndIndices> valueCacheLocal;
 
   public:
-    vector<BTarget *> copyJsonBTargets;
+    vector<class BTarget *> copyJsonBTargets;
     RAPIDJSON_DEFAULT_ALLOCATOR writeBuildCacheAllocator;
     std::thread diskWriteManagerThread;
     uint64_t nodesSizeBefore = 0;
@@ -65,13 +67,11 @@ class TargetCacheDiskWriteManager : public BTarget
     TargetCacheDiskWriteManager();
     void addNewBTargetInCopyJsonBTargetsCount(BTarget *bTarget);
     void writeNodesCacheIfNewNodesAdded();
-    ~TargetCacheDiskWriteManager() override;
+    ~TargetCacheDiskWriteManager();
     void initialize();
     void performThreadOperations(bool doUnlockAndRelock);
     void start();
-
-    void updateBTarget(Builder &builder, unsigned short round) override;
-    void endOfRound(Builder &builder, unsigned short round) override;
+    void endOfRound();
 };
 
 GLOBAL_VARIABLE(TargetCacheDiskWriteManager, targetCacheDiskWriteManager)

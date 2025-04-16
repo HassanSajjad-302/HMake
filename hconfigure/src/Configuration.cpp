@@ -208,6 +208,21 @@ DSC<CppSourceTarget> &Configuration::addStdDSCCppDep(DSC<CppSourceTarget> &targe
     return target;
 }
 
+DSC<CppSourceTarget> &Configuration::getCppObjectDSC(const string &name_, bool defines, string define)
+{
+    DSC<CppSourceTarget> &dscCppTarget =
+        targets<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp), nullptr, defines, std::move(define));
+    return addStdDSCCppDep(dscCppTarget);
+}
+
+DSC<CppSourceTarget> &Configuration::getCppObjectDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
+                                                     const string &name_, bool defines, string define)
+{
+    DSC<CppSourceTarget> &dscCppTarget = targets<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObject(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp), nullptr, defines, std::move(define));
+    return addStdDSCCppDep(dscCppTarget);
+}
+
 DSC<CppSourceTarget> &Configuration::getCppExeDSC(const string &name_, const bool defines, string define)
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(&getCppObject(name_ + dashCpp),
@@ -289,7 +304,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, cons
         return addStdDSCCppDep(getCppSharedDSC_P(name_, dir, defines, define));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, const string &prebuiltName,
@@ -307,7 +321,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, cons
             targets<DSC<CppSourceTarget>>.emplace_back(cppSourceTarget, &getSharedPLOAT(prebuiltName, dir), defines));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC_P(const string &name_, const string &dir, const bool defines,
@@ -416,6 +429,23 @@ PLOAT &Configuration::getSharedPLOATNoName(const string &name_, const string &di
     return loat;
 }
 
+DSC<CppSourceTarget> &Configuration::getCppObjectDSCNoName(const string &name_, bool defines, string define)
+{
+    DSC<CppSourceTarget> &dscCppTarget = targets<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObjectNoName(name_ + dashCpp), nullptr, defines, std::move(define));
+    return addStdDSCCppDep(dscCppTarget);
+}
+
+DSC<CppSourceTarget> &Configuration::getCppObjectDSCNoName(const bool explicitBuild,
+                                                           const string &buildCacheFilesDirPath_, const string &name_,
+                                                           bool defines, string define)
+{
+    DSC<CppSourceTarget> &dscCppTarget = targets<DSC<CppSourceTarget>>.emplace_back(
+        &getCppObjectNoName(explicitBuild, buildCacheFilesDirPath_, name_ + dashCpp), nullptr, defines,
+        std::move(define));
+    return addStdDSCCppDep(dscCppTarget);
+}
+
 DSC<CppSourceTarget> &Configuration::getCppExeDSCNoName(const string &name_, const bool defines, string define)
 {
     return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
@@ -500,7 +530,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_
         return addStdDSCCppDep(getCppSharedDSC_PNoName(name_, dir, defines, define));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName,
@@ -518,7 +547,6 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_PNoName(const string &name_
             cppSourceTarget, &getSharedPLOATNoName(prebuiltName, dir), defines));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
-    throw std::exception{};
 }
 
 DSC<CppSourceTarget> &Configuration::getCppStaticDSC_PNoName(const string &name_, const string &dir, const bool defines,
@@ -535,11 +563,11 @@ DSC<CppSourceTarget> &Configuration::getCppSharedDSC_PNoName(const string &name_
         &getCppObjectNoName(name_ + dashCpp), &getSharedPLOATNoName(name_, dir), defines, std::move(define)));
 }
 
-BoostCppTarget &Configuration::getBoostCppTarget(const string &name, bool headerOnly, bool createTestsTarget,
-                                                 bool createExamplesTarget)
+BoostCppTarget &Configuration::getBoostCppTarget(const string &name, bool headerOnly, bool hasBigHeader,
+                                                 bool createTestsTarget, bool createExamplesTarget)
 {
-    return *boostCppTargets.emplace_back(
-        &targets<BoostCppTarget>.emplace_back(name, this, headerOnly, createTestsTarget, createExamplesTarget));
+    return *boostCppTargets.emplace_back(&targets<BoostCppTarget>.emplace_back(
+        name, this, headerOnly, hasBigHeader, createTestsTarget, createExamplesTarget));
 }
 
 bool operator<(const Configuration &lhs, const Configuration &rhs)

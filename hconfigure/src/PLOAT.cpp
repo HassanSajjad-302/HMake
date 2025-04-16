@@ -1,13 +1,14 @@
 #ifdef USE_HEADER_UNITS
+import "PLOAT.hpp";
 import "BuildSystemFunctions.hpp";
 import "Builder.hpp";
-import "PrebuiltLinkOrOrArchiveTarget.hpp";
+import "ObjectFileProducer.hpp";
 import "SMFile.hpp";
 #else
 #include "PLOAT.hpp"
-
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
+#include "ObjectFileProducer.hpp"
 #include "SMFile.hpp"
 #include <utility>
 #endif
@@ -43,28 +44,27 @@ string_view PLOAT::getOutputDirectoryV() const
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_), linkTargetType{linkTargetType_}
 {
-    outputFileNode =
-        Node::getHalfNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
+    outputFileNode = Node::getHalfNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
 }
 
-PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_, bool buildExplicit, bool makeDirectory)
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_,
+             bool buildExplicit, bool makeDirectory)
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), linkTargetType(linkTargetType_)
 
 {
-    outputFileNode =
-        Node::getHalfNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
+    outputFileNode = Node::getHalfNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
 }
 
 #else
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_),
-      outputName{getLastNameAfterSlash(outputName_)}, linkTargetType{linkTargetType_},
-      outputDirectory(std::move(dir))
+      outputName{getLastNameAfterSlash(outputName_)}, linkTargetType{linkTargetType_}, outputDirectory(std::move(dir))
 {
 }
 
-PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_, bool buildExplicit, bool makeDirectory)
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_,
+             bool buildExplicit, bool makeDirectory)
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), outputName(outputName_),
       linkTargetType(linkTargetType_), outputDirectory(std::move(dir))
 
@@ -79,7 +79,7 @@ void PLOAT::updateBTarget(Builder &builder, unsigned short round)
     {
         for (ObjectFileProducer *objectFileProducer : objectFileProducers)
         {
-            addDependency<0>(*objectFileProducer);
+            addDependencyDelayed<0>(*objectFileProducer);
         }
     }
     else if (round == 2)
@@ -231,7 +231,7 @@ void PLOAT::addReqDepsToBTargetDependencies()
     {
         for (auto &[PLOAT, prebuiltDep] : reqDeps)
         {
-            addDependency<0>(*PLOAT);
+            addDependencyDelayed<0>(*PLOAT);
         }
     }
 }

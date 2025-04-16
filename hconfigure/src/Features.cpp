@@ -141,7 +141,6 @@ void from_json(const Json &j, Arch &arch)
     else
     {
         printErrorMessage("conversion from json string literal to enum class Arch failed\n");
-        throw std::exception();
     }
 }
 
@@ -185,7 +184,6 @@ void from_json(const Json &j, AddressModel &am)
     else
     {
         printErrorMessage("conversion from json string literal to enum class AM failed\n");
-        throw std::exception();
     }
 }
 
@@ -254,7 +252,6 @@ string getActualNameFromTargetName(const TargetType bTargetType, const OS osLoca
         return actualName;
     }
     printErrorMessage("Other Targets Are Not Supported Yet.\n");
-    throw std::exception();
 }
 
 string getTargetNameFromActualName(const TargetType bTargetType, const OS osLocal, const string &actualName)
@@ -284,7 +281,6 @@ string getTargetNameFromActualName(const TargetType bTargetType, const OS osLoca
         return libName;
     }
     printErrorMessage("Other Targets Are Not Supported Yet.\n");
-    throw std::exception();
 }
 
 string getSlashedExecutableName(const string &name)
@@ -1042,7 +1038,7 @@ CompilerFlags CppCompilerFeatures::getCompilerFlags() const
         // Rule register-toolset-really on Line 1852
         if (evaluate(RuntimeLink::SHARED) && !evaluate(Threading::MULTI))
         {
-            throw std::exception("With RuntimeLink::SHARED, Threading::MULTI must be used");
+            printErrorMessage("With RuntimeLink::SHARED, Threading::MULTI must be used\n");
         }
         // TODO
         // debug-store and pch-source features are being added. don't know where it will be used so holding back

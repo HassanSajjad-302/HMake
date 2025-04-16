@@ -49,7 +49,7 @@ class Node
     // atomically.
     bool systemCheckCompleted{false};
 
-  private:
+  // private:
     bool systemCheckCalled = false;
 
   public:
@@ -93,7 +93,6 @@ class Node
     static void clearNodes();
 };
 
-// flat_hash_set is used for speed but maybe we
 //  This keeps info if a file is touched. If it's touched, it's not touched again.
 inline phmap::parallel_node_hash_set_m<Node, NodeHash, NodeEqual> nodeAllFiles{10000};
 #endif // HMAKE_NODE_HPP

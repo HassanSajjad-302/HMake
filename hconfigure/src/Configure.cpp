@@ -57,7 +57,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
         }
         else
         {
-            throw std::exception("cache.json could not be found in current dir and dirs above\n");
+            printErrorMessage("cache.json could not be found in current dir and dirs above\n");
         }
     }
     else
@@ -76,7 +76,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
             lowerCasePStringOnWindows(targetArgFullPath.data(), targetArgFullPath.size());
             if (targetArgFullPath.size() <= configureNode->filePath.size())
             {
-                throw std::invalid_argument(FORMAT("Invalid Command-Line Argument {}\n", argv[i]));
+                printErrorMessage(FORMAT("Invalid Command-Line Argument {}\n", argv[i]));
             }
             if (targetArgFullPath.ends_with(slashc))
             {

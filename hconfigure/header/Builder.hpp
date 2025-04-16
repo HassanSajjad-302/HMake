@@ -1,12 +1,14 @@
 #ifndef HMAKE_BUILDER_HPP
 #define HMAKE_BUILDER_HPP
 #ifdef USE_HEADER_UNITS
-import "CppSourceTarget.hpp";
+import "BTarget.hpp";
+import "BuildSystemFunctions.hpp";
 import <condition_variable>;
 import <vector>;
 import <list>;
 #else
-#include "CppSourceTarget.hpp"
+#include "BTarget.hpp"
+#include "BuildSystemFunctions.hpp"
 #include <condition_variable>
 #include <list>
 #include <vector>
@@ -43,7 +45,6 @@ class Builder
     void execute();
     void incrementNumberOfSleepingThreads();
     void decrementNumberOfSleepingThreads();
-    void runEndOfRoundTargets();
 };
 
 #endif // HMAKE_BUILDER_HPP

@@ -13,8 +13,8 @@ ColoredStringForPrint::ColoredStringForPrint(string _msg, uint32_t _color, bool 
     : msg(std::move(_msg)), color(_color), isColored(_isColored)
 {
 }
-ValueAndIndices::ValueAndIndices(Value _value, const uint64_t _index0, const uint64_t _index1,
-                                   const uint64_t _index2, const uint64_t _index3, const uint64_t _index4)
+ValueAndIndices::ValueAndIndices(Value _value, const uint64_t _index0, const uint64_t _index1, const uint64_t _index2,
+                                 const uint64_t _index3, const uint64_t _index4)
 
     : value{std::move(_value)}, index0{_index0}, index1{_index1}, index2{_index2}, index3{_index3}, index4{_index4}
 {
@@ -54,12 +54,12 @@ TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
-        copyJsonBTargets.reserve(10000);
+        copyJsonBTargets.reserve(4096 * 4);
 #ifdef NDEBUG
         std::memset(copyJsonBTargets.data(), 0, 10000 * sizeof(void *));
 #else
         // satisify the sanitizer and iterator based debuggerr
-        for (int i = 0; i < 10000; ++i)
+        for (int i = 0; i < 4096 * 4; ++i)
         {
             copyJsonBTargets.emplace_back(nullptr);
         }
@@ -146,7 +146,7 @@ void TargetCacheDiskWriteManager::performThreadOperations(bool doUnlockAndRelock
                 p.getTargetValue() = std::move(p.value);
             }
             writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                        buildCache);
+                                       buildCache);
         }
         // Copying value from array to central value
 
@@ -188,37 +188,24 @@ void TargetCacheDiskWriteManager::start()
     }
 }
 
-void TargetCacheDiskWriteManager::updateBTarget(Builder &builder, const unsigned short round)
-{
-    if (round == 1)
-    {
-        const uint64_t i = roundEndTargetsCount.fetch_add(1);
-        roundEndTargets[i] = this;
-    }
-}
-
-void TargetCacheDiskWriteManager::endOfRound(Builder &builder, unsigned short round)
+void TargetCacheDiskWriteManager::endOfRound()
 {
     // This function is executed in first thread. After that the destructor of this manager is excuted in this thread
     // which waits for the thread to finish.
 
     // This will still copy even if an error has happened. This will copy only in
     // round 1 hence only in BSMode::BUILD.
-    if (round == 1)
+    writeNodesCacheIfNewNodesAdded();
+
+    if (const uint64_t s = copyJsonBTargetsCount.load())
     {
-        writeNodesCacheIfNewNodesAdded();
-
-        if (const uint64_t s = copyJsonBTargetsCount.load())
+        for (uint64_t i = 0; i < s; ++i)
         {
-            for (uint64_t i = 0; i < s; ++i)
-            {
-                copyJsonBTargets[i]->copyJson();
-                copyJsonBTargets[i] = nullptr;
-            }
-            writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                        buildCache);
+            copyJsonBTargets[i]->copyJson();
+            copyJsonBTargets[i] = nullptr;
         }
-
-        diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, &targetCacheDiskWriteManager);
+        writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
     }
+
+    diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, &targetCacheDiskWriteManager);
 }

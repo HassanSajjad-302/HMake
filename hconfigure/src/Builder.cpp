@@ -2,6 +2,7 @@
 #ifdef USE_HEADER_UNITS
 import "Builder.hpp";
 import "BTarget.hpp";
+import "Settings.hpp";
 import "Utilities.hpp";
 import <mutex>;
 import <stack>;
@@ -9,6 +10,7 @@ import <thread>;
 #else
 #include "Builder.hpp"
 #include "BTarget.hpp"
+#include "Settings.hpp"
 #include "Utilities.hpp"
 #include <mutex>
 #include <stack>
@@ -20,7 +22,7 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 Builder::Builder()
 {
     round = 2;
-    RealBTarget::tarjanNodes = &tarjanNodesBTargets[round];
+    RealBTarget::tarjanNodes = &BTarget::tarjanNodesBTargets[round];
     RealBTarget::findSCCS(round);
     RealBTarget::checkForCycle();
 
@@ -37,7 +39,7 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    if (const unsigned int launchThreads = 32; launchThreads)
+    if (const unsigned int launchThreads = settings.maximumBuildThreads; launchThreads)
     {
         numberOfLaunchedThreads = launchThreads;
         while (threads.size() != launchThreads - 1)
@@ -79,8 +81,8 @@ void Builder::execute()
     BTarget *bTarget = nullptr;
     RealBTarget *realBTarget = nullptr;
 
-    DEBUG_EXECUTE(FORMAT("{} Locking Update Mutex {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(),
-                              getThreadId()));
+    DEBUG_EXECUTE(
+        FORMAT("{} Locking Update Mutex {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(), getThreadId()));
     std::unique_lock lk(executeMutex);
     while (true)
     {
@@ -103,17 +105,17 @@ void Builder::execute()
             else if (updateBTargets.size() == updateBTargetsSizeGoal)
             {
                 DEBUG_EXECUTE(FORMAT("{} updateBTargets.size() == updateBTargetsSizeGoal {} {} {}\n", round,
-                                          numberOfSleepingThreads.load(), numberOfLaunchedThreads, getThreadId()));
+                                     numberOfSleepingThreads.load(), numberOfLaunchedThreads, getThreadId()));
                 if (numberOfSleepingThreads.load() == numberOfLaunchedThreads - 1)
                 {
-                    DEBUG_EXECUTE(FORMAT("{} {} {}\n", round,
-                                              "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
+                    DEBUG_EXECUTE(FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads",
+                                         getThreadId()));
 
-                    runEndOfRoundTargets();
+                    BTarget::runEndOfRoundTargets(*this, round);
                     if (round > roundGoal && !errorHappenedInRoundMode)
                     {
                         --round;
-                        RealBTarget::tarjanNodes = &tarjanNodesBTargets[round];
+                        RealBTarget::tarjanNodes = &BTarget::tarjanNodesBTargets[round];
                         RealBTarget::findSCCS(round);
                         RealBTarget::checkForCycle();
 
@@ -157,7 +159,8 @@ void Builder::execute()
                             // Index is only needed in round zero. Perform only for round one.
                             for (uint64_t i = 0; i < RealBTarget::topologicalSort.size(); ++i)
                             {
-                                if (!atomic_ref(RealBTarget::topologicalSort[i]->realBTargets[round].dependenciesSize).load())
+                                if (!atomic_ref(RealBTarget::topologicalSort[i]->realBTargets[round].dependenciesSize)
+                                         .load())
                                 {
                                     updateBTargets.emplace_back(RealBTarget::topologicalSort[i]);
                                 }
@@ -176,12 +179,12 @@ void Builder::execute()
                     executeMutex.unlock();
                     cond.notify_one();
                     DEBUG_EXECUTE(FORMAT("{} Locking after notifying one after round decrement {} {}\n", round,
-                                              __LINE__, getThreadId()));
+                                         __LINE__, getThreadId()));
                     executeMutex.lock();
                     if (returnAfterWakeup)
                     {
-                        DEBUG_EXECUTE(FORMAT("{} Returning after roundGoal Achieved{} {}\n", round, __LINE__,
-                                                  getThreadId()));
+                        DEBUG_EXECUTE(
+                            FORMAT("{} Returning after roundGoal Achieved{} {}\n", round, __LINE__, getThreadId()));
                         return;
                     }
                 }
@@ -194,18 +197,18 @@ void Builder::execute()
 
             if (roundLocal == round)
             {
-                DEBUG_EXECUTE(FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__,
-                                          numberOfSleepingThreads.load(), getThreadId()));
+                DEBUG_EXECUTE(FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(),
+                                     getThreadId()));
                 incrementNumberOfSleepingThreads();
                 cond.wait(lk);
                 decrementNumberOfSleepingThreads();
                 DEBUG_EXECUTE(FORMAT("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__,
-                                          numberOfSleepingThreads.load(), getThreadId()));
+                                     numberOfSleepingThreads.load(), getThreadId()));
                 if (returnAfterWakeup)
                 {
                     cond.notify_one();
-                    DEBUG_EXECUTE(FORMAT("{} returning after wakeup from condition variable {} {}\n", round,
-                                              __LINE__, getThreadId()));
+                    DEBUG_EXECUTE(FORMAT("{} returning after wakeup from condition variable {} {}\n", round, __LINE__,
+                                         getThreadId()));
                     return;
                 }
             }
@@ -282,8 +285,8 @@ void Builder::execute()
             }
         }
 
-        DEBUG_EXECUTE(FORMAT("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round,
-                                  __LINE__, updateBTargets.size(), updateBTargetsSizeGoal, getThreadId()));
+        DEBUG_EXECUTE(FORMAT("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round, __LINE__,
+                             updateBTargets.size(), updateBTargetsSizeGoal, getThreadId()));
     }
 }
 
@@ -299,7 +302,7 @@ void Builder::incrementNumberOfSleepingThreads()
             // If a cycle happened this will throw an error, otherwise following exception will be thrown.
             RealBTarget::checkForCycle();
 
-            throw std::runtime_error("HMake API misuse.\n");
+            printErrorMessage("HMake API misuse.\n");
         }
         catch (std::exception &ec)
         {
@@ -316,17 +319,4 @@ void Builder::incrementNumberOfSleepingThreads()
 void Builder::decrementNumberOfSleepingThreads()
 {
     --numberOfSleepingThreads;
-}
-
-void Builder::runEndOfRoundTargets()
-{
-    for (BTarget *&t : roundEndTargets)
-    {
-        if (t != nullptr)
-        {
-            t->endOfRound(*this, round);
-            t = nullptr;
-        }
-    }
-    roundEndTargetsCount = 0;
 }
