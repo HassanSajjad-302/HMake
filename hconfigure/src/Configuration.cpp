@@ -1,8 +1,8 @@
 
 #ifdef USE_HEADER_UNITS
 import "Configuration.hpp";
-import BoostCppTarget.hpp ";
-    import "BuildSystemFunctions.hpp";
+import "BoostCppTarget.hpp";
+import "BuildSystemFunctions.hpp";
 import "CppSourceTarget.hpp";
 import "DSC.hpp";
 import "LOAT.hpp";

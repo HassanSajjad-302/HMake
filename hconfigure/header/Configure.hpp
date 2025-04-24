@@ -14,7 +14,6 @@ import "Features.hpp";
 import "JConsts.hpp";
 import "SMFile.hpp";
 import "Settings.hpp";
-import "CTargetRoundZeroBTarget.hpp";
 import "TarjanNode.hpp";
 import "ToolsCache.hpp";
 import "Utilities.hpp";
@@ -30,7 +29,6 @@ import <utility>;
 #include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
 #include "Builder.hpp"
-#include "CTargetRoundZeroBTarget.hpp"
 #include "Cache.hpp"
 #include "ConfigurationAssign.hpp"
 #include "CppSourceTarget.hpp"

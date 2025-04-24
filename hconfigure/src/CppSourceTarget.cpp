@@ -102,26 +102,26 @@ std::size_t CppSourceTarget::SMFileHash::operator()(const Node *node) const
 }
 
 CppSourceTarget::CppSourceTarget(const string &name_, Configuration *configuration_)
-    : CSourceTarget(false, name_, configuration_)
+    : ObjectFileProducerWithDS(name_, false, false), TargetCache(name_), configuration(configuration_)
 {
     initializeCppSourceTarget(name_, "");
 }
 
 CppSourceTarget::CppSourceTarget(const bool buildExplicit, const string &name_, Configuration *configuration_)
-    : CSourceTarget(buildExplicit, name_, configuration_)
+    : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name_), configuration(configuration_)
 {
     initializeCppSourceTarget(name_, "");
 }
 
 CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, Configuration *configuration_)
-    : CSourceTarget(false, name_, configuration_)
+    : ObjectFileProducerWithDS(name_, false, false), TargetCache(name_), configuration(configuration_)
 {
     initializeCppSourceTarget(name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
 }
 
 CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const bool buildExplicit, const string &name_,
                                  Configuration *configuration_)
-    : CSourceTarget(buildExplicit, name_, configuration_)
+    : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name_), configuration(configuration_)
 {
     initializeCppSourceTarget(name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
 }
@@ -228,34 +228,31 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles, LO
 
 void CppSourceTarget::populateTransitiveProperties()
 {
-    for (CSourceTarget *cSourceTarget : reqDeps)
+    for (CppSourceTarget *cppSourceTarget : reqDeps)
     {
-        for (const InclNode &inclNode : cSourceTarget->useReqIncls)
+        for (const InclNode &inclNode : cppSourceTarget->useReqIncls)
         {
             // Configure-time check.
             actuallyAddInclude(reqIncls, inclNode.node->filePath);
             reqIncls.emplace_back(inclNode);
         }
-        reqCompilerFlags += cSourceTarget->useReqCompilerFlags;
-        for (const Define &define : cSourceTarget->useReqCompileDefinitions)
+        reqCompilerFlags += cppSourceTarget->useReqCompilerFlags;
+        for (const Define &define : cppSourceTarget->useReqCompileDefinitions)
         {
             reqCompileDefinitions.emplace(define);
         }
-        reqCompilerFlags += cSourceTarget->useReqCompilerFlags;
-        if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
-        {
-            const auto cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
-            for (InclNodeTargetMap &inclNodeTargetMap : cppSourceTarget->useReqHuDirs)
-            {
-                // Configure-time check
-                actuallyAddInclude(reqHuDirs, this, inclNodeTargetMap.inclNode.node->filePath);
-                reqHuDirs.emplace_back(inclNodeTargetMap);
-            }
+        reqCompilerFlags += cppSourceTarget->useReqCompilerFlags;
 
-            if (!cppSourceTarget->useReqHuDirs.empty() || cppSourceTarget->hasManuallySpecifiedHeaderUnits)
-            {
-                cppSourceTarget->addDependencyDelayed<1>(*this);
-            }
+        for (InclNodeTargetMap &inclNodeTargetMap : cppSourceTarget->useReqHuDirs)
+        {
+            // Configure-time check
+            actuallyAddInclude(reqHuDirs, this, inclNodeTargetMap.inclNode.node->filePath);
+            reqHuDirs.emplace_back(inclNodeTargetMap);
+        }
+
+        if (!cppSourceTarget->useReqHuDirs.empty() || cppSourceTarget->hasManuallySpecifiedHeaderUnits)
+        {
+            cppSourceTarget->addDependencyDelayed<1>(*this);
         }
     }
 }
@@ -298,11 +295,6 @@ void CppSourceTarget::adjustHeaderUnitsValueArrayPointers()
             }
         }
     }
-}
-
-CSourceTargetType CppSourceTarget::getCSourceTargetType() const
-{
-    return CSourceTargetType::CppSourceTarget;
 }
 
 CppSourceTarget &CppSourceTarget::initializeUseReqInclsFromReqIncls()
@@ -623,25 +615,17 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const strin
 
     const SourceDirectory dir{sourceDirectory, std::move(regex), recursive};
     auto addNewFile = [&](const auto &k) {
-        try
+        if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(dir.regex)))
         {
-            if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(dir.regex)))
+            Node *node = Node::getNodeFromNonNormalizedPath(k.path(), true);
+            if (assignToSourceNodes)
             {
-                Node *node = Node::getNodeFromNonNormalizedPath(k.path(), true);
-                if (assignToSourceNodes)
-                {
-                    actuallyAddSourceFileConfigTime(node);
-                }
-                else
-                {
-                    actuallyAddModuleFileConfigTime(node, false);
-                }
+                actuallyAddSourceFileConfigTime(node);
             }
-        }
-        catch (const std::regex_error &e)
-        {
-            printErrorMessage(FORMAT("regex_error : {}\nError happened while parsing regex {} of target{}\n", e.what(),
-                                     dir.regex, name));
+            else
+            {
+                actuallyAddModuleFileConfigTime(node, false);
+            }
         }
     };
 
@@ -825,9 +809,9 @@ string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
 string CppSourceTarget::getDependenciesPString() const
 {
     string deps;
-    for (const CSourceTarget *cSourceTarget : reqDeps)
+    for (const CppSourceTarget *cppSourceTarget : reqDeps)
     {
-        deps += cSourceTarget->name + '\n';
+        deps += cppSourceTarget->name + '\n';
     }
     return deps;
 }
@@ -867,30 +851,25 @@ void CppSourceTarget::resolveRequirePaths()
             if (!isInterface)
             {
                 const SMFile *found2 = nullptr;
-                for (CSourceTarget *cSourceTarget : reqDeps)
+                for (CppSourceTarget *cppSourceTarget : reqDeps)
                 {
-                    if (cSourceTarget->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
-                    {
-                        const auto *cppSourceTarget = static_cast<CppSourceTarget *>(cSourceTarget);
-                        req.id = cppSourceTarget->id;
+                    req.id = cppSourceTarget->id;
 
-                        if (requirePaths2.if_contains(req, [&](const Map::value_type &value) {
-                                found2 = const_cast<SMFile *>(value.second);
-                            }))
+                    if (requirePaths2.if_contains(
+                            req, [&](const Map::value_type &value) { found2 = const_cast<SMFile *>(value.second); }))
+                    {
+                        if (found)
                         {
-                            if (found)
-                            {
-                                // Module was already found so error-out
-                                printErrorMessage(
-                                    FORMAT("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
-                                           "from target\n{}\n2){}\n from target\n{}\n",
-                                           getTarjanNodeName(), getDependenciesPString(),
-                                           string(require[SingleModuleDep::logicalName].GetString(),
-                                                  require[SingleModuleDep::logicalName].GetStringLength()),
-                                           found->node->filePath, found->node->filePath));
-                            }
-                            found = found2;
+                            // Module was already found so error-out
+                            printErrorMessage(
+                                FORMAT("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
+                                       "from target\n{}\n2){}\n from target\n{}\n",
+                                       getTarjanNodeName(), getDependenciesPString(),
+                                       string(require[SingleModuleDep::logicalName].GetString(),
+                                              require[SingleModuleDep::logicalName].GetStringLength()),
+                                       found->node->filePath, found->node->filePath));
                         }
+                        found = found2;
                     }
                 }
             }
@@ -981,20 +960,16 @@ void CppSourceTarget::parseModuleSourceFiles(Builder &)
 
 void CppSourceTarget::populateResolveRequirePathDependencies()
 {
-    for (CSourceTarget *target : reqDeps)
+    for (CppSourceTarget *cppSourceTarget : reqDeps)
     {
-        if (target->getCSourceTargetType() == CSourceTargetType::CppSourceTarget)
+        if (!cppSourceTarget->modFileDeps.empty())
         {
-            if (const auto cppSourceTarget = static_cast<CppSourceTarget *>(target);
-                !cppSourceTarget->modFileDeps.empty())
-            {
-                resolveRequirePathBTarget.addDependency<1>(cppSourceTarget->resolveRequirePathBTarget);
-            }
+            resolveRequirePathBTarget.addDependency<1>(cppSourceTarget->resolveRequirePathBTarget);
         }
     }
 }
 
-string CppSourceTarget::getInfrastructureFlags(const Compiler &compiler, const bool showIncludes) const
+string CppSourceTarget::getInfrastructureFlags(const Compiler &compiler, const bool showIncludes)
 {
     if (compiler.bTFamily == BTFamily::MSVC)
     {

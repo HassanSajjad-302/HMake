@@ -147,7 +147,7 @@ class BoostCppTarget : TargetCache
     // corresponding to these targets at build-time.
     template <BoostExampleOrTestType EOT, IteratorTargetType iteratorTargetType, BSMode bsm = BSMode::BUILD> auto get();
     template <BoostExampleOrTestType EOT, IteratorTargetType iteratorTargetType, BSMode bsm = BSMode::BUILD>
-    auto getEndsWith(const char *endsWith);
+    auto getEndsWith(const char *endsWith = "");
 
     // TODO
     //  Change ends_with to contains.
@@ -600,7 +600,7 @@ template <BoostExampleOrTestType EOT, IteratorTargetType iteratorTargetType, BSM
 }
 
 template <BoostExampleOrTestType EOT, IteratorTargetType iteratorTargetType, BSMode bsm>
-auto BoostCppTarget::getEndsWith(const char *endsWith = "")
+auto BoostCppTarget::getEndsWith(const char *endsWith)
 {
     return GetEnds<EOT, iteratorTargetType, bsm>(endsWith, examplesOrTests, nullptr);
 }

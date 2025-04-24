@@ -78,7 +78,7 @@ template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::i
 
 template <typename T>
 template <typename... U>
-T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &dep, U &&...deps)
+T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &dep, U &&...objectFileDeps)
 {
     if (depType == DepType::PUBLIC)
     {
@@ -95,9 +95,9 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &dep, U &&...deps)
     {
         useReqDeps.emplace(&dep);
     }
-    if constexpr (sizeof...(deps))
+    if constexpr (sizeof...(objectFileDeps))
     {
-        return deps(deps...);
+        return deps(objectFileDeps...);
     }
     return static_cast<T &>(*this);
 }

@@ -9,6 +9,7 @@ import "ToolsCache.hpp";
 import "Utilities.hpp";
 import <filesystem>;
 import <fstream>;
+import <thread>;
 #else
 #include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
@@ -19,6 +20,7 @@ import <fstream>;
 #include "fmt/format.h"
 #include <filesystem>
 #include <fstream>
+#include <thread>
 #endif
 
 using std::string, std::vector, std::ifstream, std::ofstream, std::endl, std::filesystem::path,
@@ -102,8 +104,7 @@ int main(int argc, char **argv)
     bool onlyConfigure = false;
     if (argc == 2)
     {
-        string argument(argv[1]);
-        if (argument == "--configure")
+        if (string argument(argv[1]); argument == "--configure")
         {
             onlyConfigure = true;
         }
@@ -167,16 +168,22 @@ int main(int argc, char **argv)
             string tsan = "";
 #endif
 
-            string compileCommand =
-                "c++ -std=c++2b -fvisibility=hidden " + tsan + useCommandHashDef + useNodesCacheIndicesInCacheDef +
-                useJsonFileCompressionDef +
-                " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
-                "  -I " FMT_HEADER " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
-                " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_C_STATIC_LIB_DIRECTORY
-                " -l hconfigure -Wl,--no-whole-archive -L " FMT_STATIC_LIB_DIRECTORY
-                " -l fmt -o {CONFIGURE_DIRECTORY}/" +
-                getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure");
-            cache.configureExeBuildScript.push_back(compileCommand);
+            auto getCommand = [&](const bool configureExe) {
+                string compileCommand =
+                    "c++ -std=c++2b -fno-exceptions -fno-rtti -fvisibility=hidden " + tsan + useCommandHashDef +
+                    useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef +
+                    string(configureExe ? "" : " -D BUILD_MODE ") +
+                    " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
+                    "  -I " FMT_HEADER " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
+                    " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_C_STATIC_LIB_DIRECTORY " -l " +
+                    string(configureExe ? "hconfigure-c" : "hconfigure-b") +
+                    " -Wl,--no-whole-archive -L " FMT_STATIC_LIB_DIRECTORY " -l fmt -o {CONFIGURE_DIRECTORY}/" +
+                    getActualNameFromTargetName(TargetType::EXECUTABLE, os, configureExe ? "configure" : "build");
+
+                return compileCommand;
+            };
+            cache.configureExeBuildScript.push_back(getCommand(true));
+            cache.buildExeBuildScript.push_back(getCommand(false));
         }
         else
         {
@@ -220,7 +227,7 @@ int main(int argc, char **argv)
                     "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
                     jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " + fmtHeaderPath.string() +
                     " /I " + parallelHashMap.string() + " /I " + lz4Header.string() +
-                    " /std:c++latest /GL /EHsc /MD /nologo {SOURCE_DIRECTORY}/hmake.cpp /Fo{CONFIGURE_DIRECTORY}/" +
+                    " /std:c++latest /GR- /EHsc /MD /nologo {SOURCE_DIRECTORY}/hmake.cpp /Fo{CONFIGURE_DIRECTORY}/" +
                     (configureExe ? "configure.obj" : "build.obj") + " /link /SUBSYSTEM:CONSOLE /NOLOGO ";
                 for (const string &str : toolsCache.vsTools[0].libraryDirs)
                 {

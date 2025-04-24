@@ -128,7 +128,7 @@ template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
     addDependencyNoMutex<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
-        return interfaceDeps(deps...);
+        return interfaceDeps(ploats...);
     }
     return *this;
 }
@@ -139,7 +139,7 @@ template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, U... ploats)
     addDependencyNoMutex<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
-        return privateDeps(deps...);
+        return privateDeps(ploats...);
     }
     return *this;
 }
@@ -151,7 +151,7 @@ template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, U... ploats)
     addDependencyNoMutex<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
-        return publicDeps(deps...);
+        return publicDeps(ploats...);
     }
     return *this;
 }
@@ -186,7 +186,7 @@ template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, PrebuiltDep p
     useReqDeps.emplace(&ploat, prebuiltDep);
     if constexpr (sizeof...(ploats))
     {
-        return interfaceDeps(deps...);
+        return interfaceDeps(ploats...);
     }
     return *this;
 }
@@ -197,7 +197,7 @@ template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, PrebuiltDep pre
     addDependencyNoMutex<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
-        return privateDeps(deps...);
+        return privateDeps(ploats...);
     }
     return *this;
 }
@@ -209,7 +209,7 @@ template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, PrebuiltDep preb
     addDependencyNoMutex<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
-        return publicDeps(deps...);
+        return publicDeps(ploats...);
     }
     return *this;
 }

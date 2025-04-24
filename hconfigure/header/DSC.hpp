@@ -9,16 +9,13 @@ import "ObjectFileProducer.hpp";
 #include "ObjectFileProducer.hpp"
 #endif
 
-class CppSourceTarget;
 class LOAT;
 
-// Dependency Specification Controller. Following declaration is for T = CSourceTarget
+// Dependency Specification Controller. The following declaration is for T = CSourceTarget
 template <typename T> struct DSC : DSCFeatures
 {
-    using BaseType = typename T::BaseType;
-    // Pointer is unused beside CppSourceTarget *
     T *stored = nullptr;
-    ObjectFileProducerWithDS<BaseType> *objectFileProducer = nullptr;
+    ObjectFileProducerWithDS<T> *objectFileProducer = nullptr;
     PLOAT *ploat = nullptr;
     PrebuiltDep prebuiltDepLocal;
 
@@ -28,87 +25,23 @@ template <typename T> struct DSC : DSCFeatures
     template <typename U> void assignObjectFileProducerDeps(DepType depType, DSC<U> &dsc);
 
     template <typename U, typename... V> void assignLOATDep(DepType depType, DSC<U> &dsc, V... args);
-    DSC &save(CppSourceTarget &ptr);
-    DSC &saveAndReplace(CppSourceTarget &ptr);
+    DSC &save(T &ptr);
+    DSC &saveAndReplace(T &ptr);
     DSC &restore();
 
     string define;
 
-    DSC(T *ptr, PLOAT *ploat_, bool defines = false, string define_ = "")
-    {
-        objectFileProducer = ptr;
-        ploat = ploat_;
-        if (ploat)
-        {
-            ploat->objectFileProducers.emplace(objectFileProducer);
-        }
+    DSC(T *ptr, PLOAT *ploat_, bool defines = false, string define_ = "");
 
-        if (define_.empty() && ploat)
-        {
-            define = ploat->getOutputName();
-            transform(define.begin(), define.end(), define.begin(), ::toupper);
-            define += "_EXPORT";
-        }
-        else
-        {
-            define = std::move(define_);
-        }
-
-        if (defines)
-        {
-            defineDllPrivate = DefineDLLPrivate::YES;
-            defineDllInterface = DefineDLLInterface::YES;
-        }
-    }
-
-    template <typename U, typename... V> DSC &publicDeps(DSC<U> &depDSC, const V... dscs)
-    {
-        assignLOATDep(DepType::PUBLIC, depDSC, dscs...);
-        return *this;
-    }
-
-    template <typename U, typename... V> DSC &privateDeps(DSC<U> &depDSC, const V... dscs)
-    {
-        assignLOATDep(DepType::PRIVATE, depDSC, dscs...);
-        return *this;
-    }
-
-    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &depDSC, const V... dscs)
-    {
-        assignLOATDep(DepType::INTERFACE, depDSC, dscs...);
-        return *this;
-    }
-
-    template <typename U, typename... V> DSC &deps(DepType depType, DSC<U> &depDSC, const V... dscs)
-    {
-        assignLOATDep(depType, depDSC, dscs...);
-        return *this;
-    }
-
-    template <typename U, typename... V> DSC &publicDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
-    {
-        assignLOATDep(DepType::PUBLIC, depDSC, std::move(prebuiltDep), dscs...);
-        return *this;
-    }
-
-    template <typename U, typename... V> DSC &privateDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
-    {
-        assignLOATDep(DepType::PRIVATE, depDSC, std::move(prebuiltDep), dscs...);
-        return *this;
-    }
-
-    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
-    {
-        assignLOATDep(DepType::INTERFACE, depDSC, std::move(prebuiltDep), dscs...);
-        return *this;
-    }
-
+    template <typename U, typename... V> DSC &publicDeps(DSC<U> &depDSC, const V... dscs);
+    template <typename U, typename... V> DSC &privateDeps(DSC<U> &depDSC, const V... dscs);
+    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &depDSC, const V... dscs);
+    template <typename U, typename... V> DSC &deps(DepType depType, DSC<U> &depDSC, const V... dscs);
+    template <typename U, typename... V> DSC &publicDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs);
+    template <typename U, typename... V> DSC &privateDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs);
+    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs);
     template <typename U, typename... V>
-    DSC &deps(DepType depType, DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs)
-    {
-        assignLOATDep(depType, dsc, std::move(prebuiltDep), dscs...);
-        return *this;
-    }
+    DSC &deps(DepType depType, DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs);
 
     T &getSourceTarget();
     T *getSourceTargetPointer();
@@ -119,6 +52,93 @@ template <typename T> struct DSC : DSCFeatures
 template <typename T> bool operator<(const DSC<T> &lhs, const DSC<T> &rhs)
 {
     return std::tie(lhs.objectFileProducer, lhs.ploat) < std::tie(rhs.objectFileProducer, rhs.ploat);
+}
+
+template <typename T> DSC<T>::DSC(T *ptr, PLOAT *ploat_, bool defines, string define_)
+{
+    objectFileProducer = ptr;
+    ploat = ploat_;
+    if (ploat)
+    {
+        ploat->objectFileProducers.emplace(objectFileProducer);
+    }
+
+    if (define_.empty() && ploat)
+    {
+        define = ploat->getOutputName();
+        transform(define.begin(), define.end(), define.begin(), ::toupper);
+        define += "_EXPORT";
+    }
+    else
+    {
+        define = std::move(define_);
+    }
+
+    if (defines)
+    {
+        defineDllPrivate = DefineDLLPrivate::YES;
+        defineDllInterface = DefineDLLInterface::YES;
+    }
+}
+
+template <typename T> template <typename U, typename... V> DSC<T> &DSC<T>::publicDeps(DSC<U> &depDSC, const V... dscs)
+{
+    assignLOATDep(DepType::PUBLIC, depDSC, dscs...);
+    return *this;
+}
+
+template <typename T> template <typename U, typename... V> DSC<T> &DSC<T>::privateDeps(DSC<U> &depDSC, const V... dscs)
+{
+    assignLOATDep(DepType::PRIVATE, depDSC, dscs...);
+    return *this;
+}
+
+template <typename T>
+template <typename U, typename... V>
+DSC<T> &DSC<T>::interfaceDeps(DSC<U> &depDSC, const V... dscs)
+{
+    assignLOATDep(DepType::INTERFACE, depDSC, dscs...);
+    return *this;
+}
+
+template <typename T>
+template <typename U, typename... V>
+DSC<T> &DSC<T>::deps(DepType depType, DSC<U> &depDSC, const V... dscs)
+{
+    assignLOATDep(depType, depDSC, dscs...);
+    return *this;
+}
+
+template <typename T>
+template <typename U, typename... V>
+DSC<T> &DSC<T>::publicDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
+{
+    assignLOATDep(DepType::PUBLIC, depDSC, std::move(prebuiltDep), dscs...);
+    return *this;
+}
+
+template <typename T>
+template <typename U, typename... V>
+DSC<T> &DSC<T>::privateDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
+{
+    assignLOATDep(DepType::PRIVATE, depDSC, std::move(prebuiltDep), dscs...);
+    return *this;
+}
+
+template <typename T>
+template <typename U, typename... V>
+DSC<T> &DSC<T>::interfaceDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
+{
+    assignLOATDep(DepType::INTERFACE, depDSC, std::move(prebuiltDep), dscs...);
+    return *this;
+}
+
+template <typename T>
+template <typename U, typename... V>
+DSC<T> &DSC<T>::deps(DepType depType, DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs)
+{
+    assignLOATDep(depType, dsc, std::move(prebuiltDep), dscs...);
+    return *this;
 }
 
 template <typename T> template <typename U> void DSC<T>::assignObjectFileProducerDeps(DepType depType, DSC<U> &depDSC)

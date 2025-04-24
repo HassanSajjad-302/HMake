@@ -48,9 +48,7 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/RunCommand.cpp
         hconfigure/src/Utilities.cpp
         hconfigure/src/ObjectFileProducer.cpp
-        hconfigure/src/CSourceTarget.cpp
         hconfigure/src/Configure.cpp
-        hconfigure/src/CTargetRoundZeroBTarget.cpp
         hconfigure/src/PLOAT.cpp
         hconfigure/src/PlatformSpecific.cpp
         hconfigure/src/Node.cpp
@@ -210,6 +208,8 @@ endif ()
 
 add_executable(copy copy.cpp)
 target_link_libraries(copy PRIVATE hconfigure-c)
+
+add_executable(benchmark Examples/benchmark/benchmark.cpp)
 
 # TODO
 # https://rapidjson.org/group___r_a_p_i_d_j_s_o_n___c_o_n_f_i_g.html

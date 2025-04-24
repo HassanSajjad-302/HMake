@@ -57,9 +57,6 @@ bool isNodeInValue(const Value &value, const Node &node);
 void lowerCasePStringOnWindows(char *ptr, uint64_t size);
 bool childInParentPathNormalized(string_view parent, string_view child);
 
-// TODO
-// Optimize this
-inline vector<class CppSourceTarget *> cppSourceTargets{10000};
 namespace Indices
 {
 

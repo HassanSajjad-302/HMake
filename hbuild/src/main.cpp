@@ -17,6 +17,30 @@ import <string>;
 
 using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::filesystem::path,
     std::filesystem::exists, std::string, fmt::format;
+
+int runCommand(const char *cmd)
+{
+#ifdef _WIN32
+    return system(cmd);
+#else
+    const int status = system(cmd);
+    if (status == -1)
+    {
+        printErrorMessage("system call failed");
+        return -1; // system() itself failed
+    }
+
+    if (const int exitCode = WEXITSTATUS(status); exitCode == EXIT_SUCCESS)
+    {
+        return 0; // command succeeded
+    }
+    else
+    {
+        return exitCode; // propagate non-zero exit code
+    }
+#endif
+}
+
 int main(const int argc, char **argv)
 {
     path buildExePath;
@@ -39,7 +63,7 @@ int main(const int argc, char **argv)
             str += argv[i];
             str += ' ';
         }
-        return system(str.c_str());
+        return runCommand(str.c_str());
     }
     printErrorMessage(FORMAT("{} File could not be found in current dir and dirs above\n", buildExeName));
     exit(EXIT_FAILURE);

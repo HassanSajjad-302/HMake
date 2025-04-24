@@ -153,7 +153,7 @@ void printErrorMessage(const string &message)
     }
 
 #ifndef NDEBUG
-    print(stderr, "{}", to_string(std::stacktrace::current()));
+    //  print(stderr, "{}", to_string(std::stacktrace::current()));
 #endif
 
     exit(EXIT_FAILURE);

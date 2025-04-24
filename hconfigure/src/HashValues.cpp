@@ -12,7 +12,6 @@ import "rapidhash.h";
 #include "DSC.hpp"
 #include "rapidhash/rapidhash.h"
 #endif
-#include <CTargetRoundZeroBTarget.hpp>
 
 uint64_t hash_value(const CppSourceTarget &p)
 {
@@ -28,11 +27,6 @@ uint64_t hash_value(const DSC<CppSourceTarget> &p)
 }
 
 uint64_t hash_value(const Configuration &p)
-{
-    return p.id;
-}
-
-uint64_t hash_value(const RoundZeroUpdateBTarget &p)
 {
     return p.id;
 }
@@ -59,11 +53,6 @@ bool operator==(const DSC<CppSourceTarget> &lhs, const DSC<CppSourceTarget> &rhs
 }
 
 bool operator==(const Configuration &lhs, const Configuration &rhs)
-{
-    return lhs.id == rhs.id;
-}
-
-bool operator==(const RoundZeroUpdateBTarget &lhs, const RoundZeroUpdateBTarget &rhs)
 {
     return lhs.id == rhs.id;
 }

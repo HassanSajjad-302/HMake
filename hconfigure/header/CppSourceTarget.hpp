@@ -4,9 +4,9 @@
 import "BuildTools.hpp";
 import "Configuration.hpp";
 import "DSC.hpp";
-import "CSourceTarget.hpp";
 import "HashedCommand.hpp";
 import "JConsts.hpp";
+import "ObjectFileProducer.hpp";
 import "RunCommand.hpp";
 import "SMFile.hpp";
 import "ToolsCache.hpp";
@@ -14,11 +14,11 @@ import <concepts>;
 import <set>;
 #else
 #include "BuildTools.hpp"
-#include "CSourceTarget.hpp"
 #include "Configuration.hpp"
 #include "DSC.hpp"
 #include "HashedCommand.hpp"
 #include "JConsts.hpp"
+#include "ObjectFileProducer.hpp"
 #include "RunCommand.hpp"
 #include "SMFile.hpp"
 #include "ToolsCache.hpp"
@@ -65,7 +65,7 @@ inline phmap::parallel_flat_hash_map_m<RequireNameTargetId, SMFile *, RequireNam
 // TODO
 // HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
 // use -TC flag with MSVC
-class CppSourceTarget : public CSourceTarget
+class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public TargetCache
 {
     struct SMFileEqual
     {
@@ -87,7 +87,11 @@ class CppSourceTarget : public CSourceTarget
     friend struct ResolveRequirePathBTarget;
 
   public:
+    ResolveRequirePathBTarget resolveRequirePathBTarget{this};
     mutex headerUnitsMutex;
+
+    flat_hash_set<Define> reqCompileDefinitions;
+    flat_hash_set<Define> useReqCompileDefinitions;
 
     // Written mutex locked in round 1 updateBTarget
     flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnitsSet;
@@ -102,6 +106,8 @@ class CppSourceTarget : public CSourceTarget
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
     string compileCommand;
     string sourceCompileCommandPrintFirstHalf;
+    string reqCompilerFlags;
+    string useReqCompilerFlags;
 
     // Compile Command including tool. Tool is separated from compile command because on Windows, resource-file needs to
     // be used.
@@ -113,7 +119,10 @@ class CppSourceTarget : public CSourceTarget
 
     vector<SMFile> oldHeaderUnits;
 
-    ResolveRequirePathBTarget resolveRequirePathBTarget{this};
+    vector<InclNode> reqIncls;
+    vector<InclNode> useReqIncls;
+
+    Configuration *configuration = nullptr;
 
     Node *buildCacheFilesDirPathNode = nullptr;
     // reqIncludes size before populateTransitiveProperties function is called
@@ -137,7 +146,7 @@ class CppSourceTarget : public CSourceTarget
     void populateSourceNodes();
     void parseModuleSourceFiles(Builder &builder);
     void populateResolveRequirePathDependencies();
-    string getInfrastructureFlags(const Compiler &compiler, bool showIncludes) const;
+    static string getInfrastructureFlags(const Compiler &compiler, bool showIncludes) ;
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
     string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
     PostCompile CompileSMFile(const SMFile &smFile);
@@ -161,7 +170,6 @@ class CppSourceTarget : public CSourceTarget
     void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const override;
     void populateTransitiveProperties();
     void adjustHeaderUnitsValueArrayPointers();
-    CSourceTargetType getCSourceTargetType() const override;
 
     CppSourceTarget &initializeUseReqInclsFromReqIncls();
     CppSourceTarget &initializePublicHuDirsFromReqIncls();
@@ -261,7 +269,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::interfaceDeps(CppSour
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const DepType dependency, const U... deps)
+CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const DepType dependency, const U... cppSourceTargets)
 {
     if (dependency == DepType::PUBLIC)
     {
@@ -279,9 +287,9 @@ CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const DepType depen
         useReqDeps.emplace(dep);
         addDependencyNoMutex<2>(*dep);
     }
-    if constexpr (sizeof...(deps))
+    if constexpr (sizeof...(cppSourceTargets))
     {
-        return deps(deps...);
+        return deps(cppSourceTargets...);
     }
     return static_cast<CppSourceTarget &>(*this);
 }
@@ -776,5 +784,9 @@ template <> DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PLOAT *ploat_, bool 
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget &ptr);
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget &ptr);
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::restore();
+
+// TODO
+// Optimize this
+inline vector<CppSourceTarget *> cppSourceTargets{10000};
 
 #endif // HMAKE_CPPSOURCETARGET_HPP

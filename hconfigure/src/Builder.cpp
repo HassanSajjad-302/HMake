@@ -214,33 +214,16 @@ void Builder::execute()
             }
         }
 
-        try
+        if (round == 2)
         {
-            if (round == 2)
-            {
-                bTarget->setSelectiveBuild();
-            }
-            bTarget->updateBTarget(*this, round);
-            DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
-            executeMutex.lock();
-            if (realBTarget->exitStatus != EXIT_SUCCESS)
-            {
-                errorHappenedInRoundMode = true;
-            }
+            bTarget->setSelectiveBuild();
         }
-        catch (std::exception &ec)
+        bTarget->updateBTarget(*this, round);
+        DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
+        executeMutex.lock();
+        if (realBTarget->exitStatus != EXIT_SUCCESS)
         {
-            DEBUG_EXECUTE(FORMAT("{} Locking in catch block {} {}\n", round, __LINE__, getThreadId()));
-            executeMutex.lock();
-            realBTarget->exitStatus = EXIT_FAILURE;
-            if (string str(ec.what()); !str.empty())
-            {
-                printErrorMessage(str);
-            }
-            if (realBTarget->exitStatus != EXIT_SUCCESS)
-            {
-                errorHappenedInRoundMode = true;
-            }
+            errorHappenedInRoundMode = true;
         }
 
         // bTargetDepType is only considered in round 0.
@@ -294,25 +277,13 @@ void Builder::incrementNumberOfSleepingThreads()
 {
     if (numberOfSleepingThreads.fetch_add(1) == numberOfLaunchedThreads - 1)
     {
-        try
-        {
-            RealBTarget::clearTarjanNodes();
-            RealBTarget::findSCCS(round);
+        RealBTarget::clearTarjanNodes();
+        RealBTarget::findSCCS(round);
 
-            // If a cycle happened this will throw an error, otherwise following exception will be thrown.
-            RealBTarget::checkForCycle();
+        // If a cycle happened this will throw an error, otherwise following exception will be thrown.
+        RealBTarget::checkForCycle();
 
-            printErrorMessage("HMake API misuse.\n");
-        }
-        catch (std::exception &ec)
-        {
-            DEBUG_EXECUTE(FORMAT("Locking Update Mutex {}\n", __LINE__));
-            if (const string str(ec.what()); !str.empty())
-            {
-                printErrorMessage(str);
-            }
-            exit(EXIT_FAILURE);
-        }
+        printErrorMessage("HMake API misuse.\n");
     }
 }
 

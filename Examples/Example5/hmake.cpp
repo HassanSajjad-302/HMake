@@ -1,30 +1,43 @@
 #include "Configure.hpp"
 
-void buildSpecification()
+struct CopySharedLib final : public BTarget
 {
-    DSC<CppSourceTarget> &catShared = getCppSharedDSC("Cat", true);
+    const string &copyFrom;
+    const string &copyTo;
+
+    CopySharedLib(const string &copyFrom_, const string &copyTo_) : copyFrom(copyFrom_), copyTo(copyTo_)
+    {
+    }
+    void updateBTarget(Builder &, unsigned short) override
+    {
+        if (realBTargets[0].exitStatus == EXIT_SUCCESS && atomic_ref(fileStatus).load())
+        {
+            std::filesystem::copy(copyFrom, path(copyTo).parent_path(),
+                                  std::filesystem::copy_options::overwrite_existing);
+            std::filesystem::remove(copyFrom);
+        }
+    }
+};
+
+CopySharedLib *p;
+void configurationSpecification(Configuration &config)
+{
+    DSC<CppSourceTarget> &catShared = config.getCppSharedDSC("Cat", true);
     catShared.getSourceTarget().sourceFiles("../Example4/Cat/src/Cat.cpp").publicIncludes("../Example4/Cat/header");
 
-    DSC<CppSourceTarget> &animalShared = getCppExeDSC("Animal").privateDeps(
+    DSC<CppSourceTarget> &animal = config.getCppExeDSC("Animal").privateDeps(
         catShared, PrebuiltDep{.reqRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false});
-    animalShared.getSourceTarget().sourceFiles("../Example4/main.cpp");
+    animal.getSourceTarget().sourceFiles("../Example4/main.cpp");
 
-    getRoundZeroUpdateBTarget(
-        [&](Builder &, BTarget &bTarget) {
-            if (bTarget.realBTargets[0].exitStatus == EXIT_SUCCESS && atomic_ref(bTarget.fileStatus).load())
-            {
-                const LOAT &catSharedLink = catShared.getLOAT();
-                const LOAT &animalSharedLink = animalShared.getLOAT();
-                copy(catSharedLink.outputFileNode->filePath,
-                     path(animalSharedLink.outputFileNode->filePath).parent_path(),
-                     std::filesystem::copy_options::overwrite_existing);
-                std::filesystem::remove(catSharedLink.outputFileNode->filePath);
+    p = new CopySharedLib(catShared.getPLOAT().outputFileNode->filePath, animal.getPLOAT().outputFileNode->filePath);
+    p->addDependency<0>(animal.getPLOAT());
+    p->addDependency<0>(catShared.getPLOAT());
+}
 
-                std::lock_guard lk(printMutex);
-                printMessage("libCat.so copied to Animal/ and deleted from Cat/\n");
-            }
-        },
-        animalShared.getLOAT(), catShared.getLOAT());
+void buildSpecification()
+{
+    getConfiguration();
+    CALL_CONFIGURATION_SPECIFICATION
 }
 
 MAIN_FUNCTION

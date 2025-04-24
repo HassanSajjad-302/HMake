@@ -33,6 +33,29 @@ void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const s
         << "hmake build succeeded, however running the application did not produce expected output";
 }
 
+int runCommand(const char *cmd)
+{
+#ifdef _WIN32
+    return system(cmd);
+#else
+    const int status = system(cmd);
+    if (status == -1)
+    {
+        printErrorMessage("system call failed");
+        return -1; // system() itself failed
+    }
+
+    if (const int exitCode = WEXITSTATUS(status); exitCode == EXIT_SUCCESS)
+    {
+        return 0; // command succeeded
+    }
+    else
+    {
+        return exitCode; // propagate non-zero exit code
+    }
+#endif
+}
+
 void ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(string &output, int32_t exitStatus)
 {
     if (exists(path("Build")))
@@ -46,7 +69,7 @@ void ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(string &output, int3
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << "Second " + hhelperStr + " command failed.";
 
     const string command = "hbuild > file 2>&1 ";
-    ASSERT_EQ(system(command.c_str()), exitStatus) << "Could Not Run " << command;
+    ASSERT_EQ(runCommand(command.c_str()), exitStatus) << "Could Not Run " << command;
     stringstream outputStream;
     outputStream << ifstream("file").rdbuf();
     output = outputStream.str();

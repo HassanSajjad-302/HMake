@@ -107,26 +107,15 @@ void callConfigurationSpecification()
 
 int main2(const int argc, char **argv)
 {
-    try
+    parseCmdArgumentsAndSetConfigureNode(argc, argv);
+    constructGlobals();
+    initializeCache(bsMode);
+    (*buildSpecificationFuncPtr)();
+    const bool errorHappened = configureOrBuild();
+    destructGlobals();
+    if (errorHappened)
     {
-        parseCmdArgumentsAndSetConfigureNode(argc, argv);
-        constructGlobals();
-        initializeCache(bsMode);
-        (*buildSpecificationFuncPtr)();
-        const bool errorHappened = configureOrBuild();
-        destructGlobals();
-        if (errorHappened)
-        {
-            exit(EXIT_FAILURE);
-        }
-    }
-    catch (std::exception &ec)
-    {
-        if (const string str(ec.what()); !str.empty())
-        {
-            printErrorMessage(str);
-        }
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
     return EXIT_SUCCESS;
 }

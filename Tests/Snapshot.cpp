@@ -108,7 +108,7 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
             printMessage(nodeSnap->nodePath.string() + '\n');
         }
         breakpoint = true;
-        std::cout << std::stacktrace::current() << std::endl;
+        // std::cout << std::stacktrace::current() << std::endl;
     }
     return actual.size() == expected;
 }

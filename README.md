@@ -4,7 +4,8 @@ HMake is a new build system that does not invent a new DSL for its project build
 Currently, it only provides C++ build and C++ API.
 Later on, build support for other programming languages will be added.
 API in multiple other programming languages will be provided as well.
-Tested on Windows 11 with MSVC 14.43.34808.
+Tested on Windows 11 with MSVC 14.43.34808,
+and on Ubuntu 22.04 with GCC 14.2.
 It does support Linux and GCC and Clang but those are untested atm.
 
 You can skip to the C++ Examples for C++ project examples.
@@ -833,8 +834,8 @@ void configurationSpecification(Configuration &configuration)
 
 void buildSpecification()
 {
-    getConfiguration("Debug").assign(ConfigType::DEBUG);
-    getConfiguration("Release").assign(LTO::ON); // LTO is OFF in ConfigType::RELEASE which is the default
+    getConfiguration("debug").assign(ConfigType::DEBUG);
+    getConfiguration("release").assign(LTO::ON); // LTO is OFF in ConfigType::RELEASE which is the default
     CALL_CONFIGURATION_SPECIFICATION
 }
 
