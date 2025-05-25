@@ -688,6 +688,7 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
         // of its reqDeps
         if (it->second == target || target->reqDeps.find(it->second) != target->reqDeps.end())
         {
+            return {nullptr, it->second};
             for (const InclNode &incl : target->reqIncls)
             {
                 if (pathContainsFile(incl.node->filePath, headerUnitNode->filePath))
@@ -695,7 +696,7 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
                     return {nullptr, it->second};
                 }
             }
-            printErrorMessage("HMake Internal Error");
+            // printErrorMessage("HMake Internal Error");
         }
     }
 

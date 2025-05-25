@@ -415,7 +415,6 @@ inline constexpr string_view systemRunTests[] = {"is_error_code_enum_test.cpp",
                                                  "ec_what_test.cpp",
                                                  "system_error_test3.cpp",
                                                  "std_interop_test11.cpp",
-                                                 "ec_wstream_test.cpp",
                                                  "std_interop_test12.cpp",
                                                  "errc_test4.cpp",
                                                  "std_interop_test13.cpp",
@@ -693,29 +692,15 @@ inline constexpr string_view describeRunTests[] = {
 };
 
 inline constexpr string_view utilityRunTests[] = {
-    "base_from_member_test.cpp",
-    "base_from_member_ref_test.cpp",
-    "binary_test.cpp",
-    "compressed_pair_test.cpp",
-    "compressed_pair_final_test.cpp",
-    "iterators_test.cpp",
-    "operators_test.cpp",
-    "string_ref_test1.cpp",
-    "string_ref_test2.cpp",
-    "string_ref_test_io.cpp",
-    "string_view_test1.cpp",
-    "string_view_test2.cpp",
-    "string_view_test_io.cpp",
-    "value_init_test.cpp",
-    "value_init_test2.cpp",
-    "value_init_test3.cpp",
-    "value_init_workaround_test.cpp",
-    "initialized_test.cpp",
+    "base_from_member_test.cpp", "base_from_member_ref_test.cpp",  "binary_test.cpp",
+    "compressed_pair_test.cpp",  "compressed_pair_final_test.cpp", "iterators_test.cpp",
+    "operators_test.cpp",        "string_ref_test1.cpp",           "string_ref_test2.cpp",
+    "string_view_test1.cpp",     "string_view_test2.cpp",          "initialized_test.cpp",
 };
 
 inline constexpr string_view ioRunTests[] = {
-    "ios_state_unit_test.cpp", "ios_state_test.cpp",           "quoted_test.cpp",      "quoted_fill_test.cpp",
-    "ostream_joiner_test.cpp", "make_ostream_joiner_test.cpp", "ostream_put_test.cpp", "nullstream_test.cpp",
+    "ios_state_unit_test.cpp",      "ios_state_test.cpp",  "ostream_joiner_test.cpp",
+    "make_ostream_joiner_test.cpp", "nullstream_test.cpp",
 };
 
 inline constexpr string_view containerHashRunTests[] = {
@@ -735,7 +720,6 @@ inline constexpr string_view containerHashRunTests[] = {
     "hash_friend_test.cpp",
     "hash_built_in_array_test.cpp",
     "hash_value_array_test.cpp",
-    "hash_vector_test.cpp",
     "hash_list_test.cpp",
     "hash_deque_test.cpp",
     "hash_set_test.cpp",

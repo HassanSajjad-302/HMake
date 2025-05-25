@@ -79,7 +79,7 @@ vector<std::thread::id> threadIds;
 void Builder::execute()
 {
     BTarget *bTarget = nullptr;
-    RealBTarget *realBTarget = nullptr;
+    const RealBTarget *realBTarget = nullptr;
 
     DEBUG_EXECUTE(
         FORMAT("{} Locking Update Mutex {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(), getThreadId()));

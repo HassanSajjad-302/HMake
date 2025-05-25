@@ -1,4 +1,4 @@
-// To compile this project follow the following steps. You must have the latest MSVC installed.
+// To compile this project follow the following steps. You must have the latest MSVC installed ( 14.44.35207).
 
 // 1) Download boost_1_88_0.zip and extract it in C:\boost (important for shorter compile-commands).
 // 2) Build HMake with the CMake Release configuration.
@@ -8,14 +8,29 @@
 // 6) In C:\boost/boost/    Run "hwrite -r .hpp".     --> This writes header-units.json files recursively. Otherwise,
 // header-units not considered by MSVC for include translation.
 //
-// 7) In boost/ mkdir BoostBuild cd BoostBuild/hu/ScanOnly
-// hbuild        --> This will just scan, but not build the hu configuration. This takes 50s on my 32 thread system.
-// I use ptime utility for time measurements.
+// 7) In boost/, mkdir BoostBuild, cd BoostBuild.
+// 8) hhelper
+// 9) hhelper
+// 10) cd conventional-d && hbuild    --> This will full build the conventional-d configuration.
+// 11) cd ../hu-d/ScanOnly   &&   hbuild    --> This will just scan, but not build the hu-d configuration.
+// 12) cd ../ && hbuild      --> This will full build the hu-d configuration. Just sit-back and enjoy.
 
-// 8) cd ..  && hbuild    --> This will do full build of the hu configuration.(Just sit back and enjoy:). This took 67s.
-// 9) cd ../conventional && hbuild    --> This will full build of the conventional configuration. This took 97.3s.
+// Results
 
-// i.e. header-unit build is 1.44x faster if we exclude the scanning.
+// hu-d scanning    43.00
+// hu-d             30.35
+// conventional-d   53.07
+
+// hu-r scanning    38.12
+// hu-r             56.31
+// conventional-r     100.58
+
+// Conclusion
+
+// Scanning is extremely slow for header-units. If we exclude scanning, we get
+// 1.74x and 1.78x build speed-up in Debug and Release Configuration respectively.
+
+// I used ptime for time measurements. And tested on modern hardware with 32 threads x86-64 cpu on Windows11.
 
 #include "BoostCppTarget.hpp"
 #include "arrayDeclarations.hpp"
@@ -139,8 +154,10 @@ void buildSpecification()
     removeTroublingHu(headerUnitsJsonDirs, std::size(headerUnitsJsonDirs), headerUnitsJsonEntry,
                       std::size(headerUnitsJsonEntry));
 
-    getConfiguration("conventional").assign(TreatModuleAsSource::YES);
-    getConfiguration("hu").assign(TreatModuleAsSource::NO, TranslateInclude::YES);
+    getConfiguration("conventional-r").assign(TreatModuleAsSource::YES, ConfigType::RELEASE);
+    getConfiguration("hu-r").assign(TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
+    getConfiguration("conventional-d").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
+    getConfiguration("hu-d").assign(TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG);
     CALL_CONFIGURATION_SPECIFICATION
 }
 
