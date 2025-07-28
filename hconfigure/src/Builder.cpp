@@ -30,11 +30,11 @@ Builder::Builder()
     {
         if (!atomic_ref(target->realBTargets[round].dependenciesSize).load())
         {
-            updateBTargets.emplace_back(target);
+            updateBTargets.emplaceBackBeforeRound(target);
         }
     }
 
-    updateBTargetsIterator = updateBTargets.begin();
+    updateBTargets.initializeForRound(round);
     updateBTargetsSizeGoal = RealBTarget::topologicalSort.size();
 
     vector<thread *> threads;
@@ -91,12 +91,10 @@ void Builder::execute()
             const unsigned short roundLocal = round;
             bool shouldBreak = false;
 
-            if (updateBTargetsIterator != updateBTargets.end())
+            if (bTarget = updateBTargets.getItem(); bTarget)
             {
                 DEBUG_EXECUTE(FORMAT("{} update-executing {} {}\n", round, __LINE__, getThreadId()));
-                bTarget = *updateBTargetsIterator;
                 realBTarget = &bTarget->realBTargets[round];
-                ++updateBTargetsIterator;
                 DEBUG_EXECUTE(FORMAT("{} UnLocking Update Mutex {} {}\n", round, __LINE__, getThreadId()));
                 executeMutex.unlock();
                 cond.notify_one();
@@ -146,7 +144,7 @@ void Builder::execute()
 
                                     if (!atomic_ref(localReal.dependenciesSize).load())
                                     {
-                                        updateBTargets.emplace_front(&localBTarget);
+                                        updateBTargets.emplaceFrontBeforeLastRound(&localBTarget);
                                     }
                                 }
                             }
@@ -162,14 +160,14 @@ void Builder::execute()
                                 if (!atomic_ref(RealBTarget::topologicalSort[i]->realBTargets[round].dependenciesSize)
                                          .load())
                                 {
-                                    updateBTargets.emplace_back(RealBTarget::topologicalSort[i]);
+                                    updateBTargets.emplaceBackBeforeRound(RealBTarget::topologicalSort[i]);
                                 }
                                 RealBTarget::topologicalSort[i]->realBTargets[round].indexInTopologicalSort = i;
                             }
                         }
 
                         updateBTargetsSizeGoal = RealBTarget::topologicalSort.size();
-                        updateBTargetsIterator = updateBTargets.begin();
+                        updateBTargets.initializeForRound(round);
                     }
                     else
                     {
@@ -244,7 +242,7 @@ void Builder::execute()
                 --atomic_ref(dependentRealBTarget.dependenciesSize);
                 if (!atomic_ref(dependentRealBTarget.dependenciesSize).load())
                 {
-                    updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, dependent);
+                    updateBTargets.emplace(dependent);
                 }
             }
         }
@@ -262,7 +260,7 @@ void Builder::execute()
                     --atomic_ref(dependentRealBTarget.dependenciesSize);
                     if (!atomic_ref(dependentRealBTarget.dependenciesSize).load())
                     {
-                        updateBTargetsIterator = updateBTargets.emplace(updateBTargetsIterator, dependent);
+                        updateBTargets.emplace(dependent);
                     }
                 }
             }

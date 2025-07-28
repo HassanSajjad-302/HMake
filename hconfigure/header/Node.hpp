@@ -42,7 +42,7 @@ class Node
     inline static atomic<uint32_t> idCount = 0;
     inline static atomic<uint32_t> idCountCompleted = 0;
     // Used in multi-threading context. So, can not emplace_back. size should be same as size of nodeAllFiles
-    inline static vector<Node *> nodeIndices{10000};
+    inline static vector<Node *> nodeIndices{20000};
     uint32_t myId = UINT32_MAX;
 
     // While following are not atomic to keep Node copyable and moveable, all operations on these bools are done

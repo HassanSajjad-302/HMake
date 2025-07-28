@@ -827,7 +827,7 @@ void SMFile::addNewBTargetInFinalBTargetsRound1(Builder &builder)
 {
     {
         std::lock_guard lk(builder.executeMutex);
-        builder.updateBTargetsIterator = builder.updateBTargets.emplace(builder.updateBTargetsIterator, this);
+        builder.updateBTargets.emplace(this);
         // This locks double mutex. Reasoning for performing it in single lock is difficult.
         target->addDependency<1>(*this);
         builder.updateBTargetsSizeGoal += 1;

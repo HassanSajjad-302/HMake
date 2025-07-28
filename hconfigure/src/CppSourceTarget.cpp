@@ -447,8 +447,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                 lock_guard l(builder.executeMutex);
                 for (SMFile *headerUnit : headerUnitsSet)
                 {
-                    builder.updateBTargetsIterator =
-                        builder.updateBTargets.emplace(builder.updateBTargetsIterator, headerUnit);
+                    builder.updateBTargets.emplace(headerUnit);
                 }
                 builder.updateBTargetsSizeGoal += oldHeaderUnits.size();
                 builder.cond.notify_one();
