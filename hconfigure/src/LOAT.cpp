@@ -97,7 +97,7 @@ void LOAT::setFileStatus()
     {
         if (evaluate(TargetType::LIBRARY_STATIC))
         {
-            atomic_ref(fileStatus).store(false);
+            fileStatus = false;
             return;
         }
         // TODO
@@ -111,7 +111,7 @@ void LOAT::setFileStatus()
     namespace LinkBuild = Indices::BuildCache::LinkBuild;
     if (getBuildCache().Empty())
     {
-        atomic_ref(fileStatus).store(true);
+        fileStatus = true;
     }
 
     if (!atomic_ref(fileStatus).load())
@@ -119,7 +119,7 @@ void LOAT::setFileStatus()
         outputFileNode->ensureSystemCheckCalled(true, true);
         if (outputFileNode->doesNotExist)
         {
-            atomic_ref(fileStatus).store(true);
+            fileStatus = true;
         }
         else
         {
@@ -162,12 +162,12 @@ void LOAT::setFileStatus()
                 }
                 if (needsUpdate)
                 {
-                    atomic_ref(fileStatus).store(true);
+                    fileStatus = true;
                 }
             }
             else
             {
-                atomic_ref(fileStatus).store(true);
+                fileStatus = true;
             }
         }
     }
@@ -235,12 +235,12 @@ void LOAT::updateBTarget(Builder &builder, unsigned short round)
     if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
     {
         setFileStatus();
-        if (atomic_ref(fileStatus).load())
+        if (fileStatus)
         {
             assignFileStatusToDependents(0);
         }
 
-        if (atomic_ref(fileStatus).load())
+        if (fileStatus)
         {
             shared_ptr<RunCommand> postBasicLinkOrArchive;
             if (linkTargetType == TargetType::LIBRARY_STATIC)

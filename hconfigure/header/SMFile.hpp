@@ -104,7 +104,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     // TODO
     // Maybe use vector and do in-place sorting especially if big hu are used since the number of elements become really
     // small.
-    btree_set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
+    vector<SMFile *> allSMFileDependenciesRoundZero;
 
     unique_ptr<vector<char>> smRuleFileBuffer;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;

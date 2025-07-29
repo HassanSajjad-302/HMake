@@ -1082,55 +1082,74 @@ BTargetType SMFile::getBTargetType() const
     return BTargetType::SMFILE;
 }
 
+thread_local vector<SMFile *> allSMFileDependenciesRoundZeroGlobal;
 // TODO
 // Propose the idea of big smfile. This combined with markArchivePoint could result in much increased in performance.
 void SMFile::setFileStatusAndPopulateAllDependencies()
 {
-    auto emplaceInAll = [&](SMFile *smFile) -> bool {
-        if (const auto &[pos, Ok] = allSMFileDependenciesRoundZero.emplace(smFile); Ok)
-        {
-            for (auto &h : smFile->headerUnitsConsumptionData)
-            {
-                headerUnitsConsumptionData.emplace(h);
-            }
-            return true;
-        }
-        return false;
-    };
+    allSMFileDependenciesRoundZeroGlobal.clear();
+    allSMFileDependenciesRoundZeroGlobal.reserve(1024 * 16);
 
-    if (!atomic_ref(fileStatus).load())
+    for (auto &[dependency, ignore] : realBTargets[0].dependencies)
     {
-        for (auto &[dependency, ignore] : realBTargets[0].dependencies)
+        if (dependency->getBTargetType() == BTargetType::SMFILE)
         {
-            if (dependency->getBTargetType() == BTargetType::SMFILE)
+            if (auto *smFile = static_cast<SMFile *>(dependency))
             {
-                if (auto *smFile = static_cast<SMFile *>(dependency); emplaceInAll(smFile))
+                allSMFileDependenciesRoundZeroGlobal.emplace_back(smFile);
+                for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
                 {
-                    for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
-                    {
-                        emplaceInAll(smFileDep);
-                    }
-                    if (smFile->objectFileOutputFileNode->lastWriteTime > objectFileOutputFileNode->lastWriteTime)
-                    {
-                        atomic_ref(fileStatus).store(true);
-                    }
+                    allSMFileDependenciesRoundZeroGlobal.emplace_back(smFileDep);
                 }
             }
         }
     }
+
+    if (allSMFileDependenciesRoundZeroGlobal.size() < 64)
+    {
+
+        std::sort(allSMFileDependenciesRoundZeroGlobal.begin(), allSMFileDependenciesRoundZeroGlobal.end());
+
+        const auto uniqueEndIt =
+            std::unique(allSMFileDependenciesRoundZeroGlobal.begin(), allSMFileDependenciesRoundZeroGlobal.end());
+
+        for (auto it = allSMFileDependenciesRoundZeroGlobal.begin(); it != uniqueEndIt; ++it)
+        {
+            allSMFileDependenciesRoundZero.emplace_back(*it);
+        }
+    }
     else
     {
-        for (auto &[dependency, ignore] : realBTargets[0].dependencies)
+        flat_hash_set<SMFile *> uniqueElements;
+        for (SMFile *smFile : allSMFileDependenciesRoundZeroGlobal)
         {
-            if (dependency->getBTargetType() == BTargetType::SMFILE)
+            const auto &[it, ok] = uniqueElements.emplace(smFile);
+            if (ok)
             {
-                if (auto *smFile = static_cast<SMFile *>(dependency); emplaceInAll(smFile))
-                {
-                    for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
-                    {
-                        emplaceInAll(smFileDep);
-                    }
-                }
+                allSMFileDependenciesRoundZero.emplace_back(const_cast<SMFile *>(*it));
+            }
+        }
+    }
+
+    if (!fileStatus)
+    {
+        for (const SMFile *smFile : allSMFileDependenciesRoundZero)
+        {
+            if (smFile->objectFileOutputFileNode->lastWriteTime > objectFileOutputFileNode->lastWriteTime)
+            {
+                fileStatus = true;
+                break;
+            }
+        }
+    }
+
+    if (fileStatus)
+    {
+        for (SMFile *smFile : allSMFileDependenciesRoundZero)
+        {
+            for (auto &h : smFile->headerUnitsConsumptionData)
+            {
+                headerUnitsConsumptionData.emplace(h);
             }
         }
     }
