@@ -1,17 +1,19 @@
 
 #ifdef USE_HEADER_UNITS
-#include "BuildSystemFunctions.hpp"
-import <iostream>;
+import "BuildSystemFunctions.hpp";
+import "Node.hpp";
 import "PlatformSpecific.hpp";
 import "lz4.h";
 import "rapidjson/prettywriter.h";
 import "rapidjson/writer.h";
 import <cstdio>;
+import <iostream>;
 #ifdef WIN32
 import <Windows.h>;
 #endif
 #else
 #include "BuildSystemFunctions.hpp"
+#include "Node.hpp"
 #include "PlatformSpecific.hpp"
 #include "lz4.h"
 #include "rapidjson/prettywriter.h"
@@ -23,7 +25,6 @@ import <Windows.h>;
 #include <Windows.h>
 #endif
 #endif
-#include <Node.hpp>
 
 // Copied from https://stackoverflow.com/a/208431
 class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>::state_type>
@@ -144,6 +145,7 @@ RHPOStream::RHPOStream(const string_view fileName)
         // of->imbue(unicodeLocale);
     }
 }
+
 RHPOStream::~RHPOStream()
 {
     int result = fclose(fp);
@@ -164,6 +166,49 @@ void RHPOStream::Flush()
     {
         printErrorMessage("Error flushing the file \n");
     }
+}
+
+vector<char> readBufferFromFile(const string &fileName)
+{
+    vector<char> fileBuffer;
+    FILE *fp;
+    fopen_s(&fp, fileName.data(), "rb");
+    fseek(fp, 0, SEEK_END);
+    const size_t filesize = (size_t)ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    fileBuffer.resize(filesize);
+    const uint64_t readLength = fread(fileBuffer.data(), 1, filesize, fp);
+    fclose(fp);
+    return fileBuffer;
+}
+
+vector<char> readBufferFromCompressedFile(const string &fileName)
+{
+#ifndef USE_JSON_FILE_COMPRESSION
+    return readBufferFromFile(fileName, fileBuffer);
+#else
+    vector<char> compressedBuffer = readBufferFromFile(fileName);
+    vector<char> fileBuffer;
+    fileBuffer.resize(*reinterpret_cast<uint64_t *>(compressedBuffer.data()));
+
+    const int decompressSize =
+        LZ4_decompress_safe(&compressedBuffer[8], fileBuffer.data(), compressedBuffer.size() - 8, fileBuffer.size());
+
+    if (decompressSize < 0)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+        exit(EXIT_FAILURE);
+    }
+
+    if (fileBuffer.size() != decompressSize)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+        exit(EXIT_FAILURE);
+    }
+
+    return fileBuffer;
+
+#endif
 }
 
 void prettyWriteValueToFile(const string_view fileName, const Value &value)
@@ -224,21 +269,21 @@ extern string GetLastErrorString();
 // In configure mode only 2 files target-cache.json and nodes.json are written which are written at the end.
 // While in build-mode TargetCacheDisWriteManager asynchronously writes these files multiple times as the data is
 // updated. Hence, these file write is atomic in build mode
-static void writeFile(string fileName, const char *buffer, uint64_t bufferSize, bool binary)
+static void writeFile(const string &fileName, const char *buffer, uint64_t bufferSize, bool binary)
 {
     const string str = fileName + ".tmp";
     if constexpr (bsMode == BSMode::BUILD)
     {
 #ifdef WIN32
         // Open the existing file for writing, replacing its content
-        HANDLE hFile = CreateFile(str.c_str(),
-                                  GENERIC_WRITE,         // Open for writing
-                                  0,                     // Do not share
-                                  NULL,                  // Default security
-                                  CREATE_ALWAYS,         // Always create a new file (replace if exists)
-                                  FILE_ATTRIBUTE_NORMAL, // Normal file
-                                  NULL                   // No template
-        );
+        const HANDLE hFile = CreateFile(str.c_str(),
+                                        GENERIC_WRITE, // Open for writing
+                                        0, // Do not share
+                                        NULL, // Default security
+                                        CREATE_ALWAYS, // Always create a new file (replace if exists)
+                                        FILE_ATTRIBUTE_NORMAL, // Normal file
+                                        NULL // No template
+            );
 
         // Check if the file handle is valid
         if (hFile == INVALID_HANDLE_VALUE)
@@ -250,7 +295,7 @@ static void writeFile(string fileName, const char *buffer, uint64_t bufferSize, 
         DWORD bytesWritten;
 
         // Write to the file
-        if (!WriteFile(hFile, buffer, bufferSize, &bytesWritten, NULL))
+        if (!WriteFile(hFile, buffer, bufferSize, &bytesWritten, nullptr))
         {
             printErrorMessage(FORMAT("Failed to write to file. Error: {}\n", GetLastErrorString()));
             CloseHandle(hFile);
@@ -313,12 +358,42 @@ static void writeFile(string fileName, const char *buffer, uint64_t bufferSize, 
     }
 }
 
-void writeValueToFile(string fileName, const Value &value)
+void writeBufferToFile(const string &fileName, const vector<char> &fileBuffer)
+{
+    writeFile(fileName, fileBuffer.data(), fileBuffer.size(), false);
+}
+
+void writeBufferToCompressedFile(const string &fileName, const vector<char> &fileBuffer)
+{
+#ifndef USE_JSON_FILE_COMPRESSION
+    writeValueToFile(std::move(fileName), value);
+#else
+    const uint64_t maxCompressedSize = LZ4_compressBound(fileBuffer.size());
+
+    string compressed;
+    compressed.resize(maxCompressedSize + 8);
+
+    const int compressedSize = LZ4_compress_default(fileBuffer.data(), compressed.data() + 8,
+                                                    fileBuffer.size(), maxCompressedSize);
+
+    // printMessage(FORMAT("\n{}\n{}\n", buffer.GetLength(), compressedSize + 8));
+    if (!compressedSize)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+        exit(EXIT_FAILURE);
+    }
+    *reinterpret_cast<uint64_t *>(compressed.data()) = fileBuffer.size();
+
+    writeFile(fileName, compressed.c_str(), compressedSize + 8, true);
+#endif
+}
+
+void writeValueToFile(const string &fileName, const Value &value)
 {
     StringBuffer buffer;
     Writer writer(buffer);
     value.Accept(writer);
-    writeFile(std::move(fileName), buffer.GetString(), buffer.GetSize(), false);
+    writeFile(fileName, buffer.GetString(), buffer.GetSize(), false);
 }
 
 unique_ptr<vector<char>> readValueFromCompressedFile(const string_view fileName, Document &document)
@@ -417,6 +492,7 @@ uint64_t valueIndexInSubArray(const Value &value, const Value &element)
 }
 
 inline uint64_t currentTargetIndex = 0;
+
 uint64_t valueIndexInSubArrayConsidered(const Value &value, const Value &element)
 {
     const uint64_t old = currentTargetIndex;

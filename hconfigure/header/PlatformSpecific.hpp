@@ -39,12 +39,16 @@ inline GenericStringRef<char> svtogsr(string_view str)
 {
     return {str.data(), static_cast<rapidjson::SizeType>(str.size())};
 }
+vector<char> readBufferFromFile(const string &fileName);
+vector<char> readBufferFromCompressedFile(const string &fileName);
 void prettyWriteValueToFile(string_view fileName, const Value &value);
 // While decompressing lz4 file, we allocate following + 1 the buffer size.
 // So, we have compressed filee * bufferMultiplier times the space.
 // Also, while storing we check that the original file size / compresseed file size
 // is not equal to or greater than bufferMultiplier. Hence validating our assumption.
 unique_ptr<vector<char>> readValueFromFile(string_view fileName, Document &document);
+void writeBufferToCompressedFile(const string &fileName, const vector<char> &fileBuffer);
+void writeBufferToFile(const string &fileName, const vector<char> &fileBuffer);
 void writeValueToFile(string fileName, const Value &value);
 unique_ptr<vector<char>> readValueFromCompressedFile(string_view fileName, Document &document);
 void writeValueToCompressedFile(string fileName, const Value &value);

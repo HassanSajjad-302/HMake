@@ -39,16 +39,23 @@ void initializeCache(const BSMode bsMode_)
     cache.initializeCacheVariableFromCacheFile();
     toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
 
-    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes")); exists(p))
+    if (const auto p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes")); exists(p))
     {
         const string str = p.string();
-        nodesCacheBuffer = readValueFromCompressedFile(str, nodesCacheJson);
+        nodesCacheBuffer = readBufferFromCompressedFile(str);
 
-        // node is constructed from cache. It is emplaced in the hash set and also in nodeIndices.
-        // However performSystemCheck is not called and is called in multi-threaded fashion.
-        for (Value &value : nodesCacheJson.GetArray())
+        // The Node is constructed from cache. It is placed in the hash set and also in nodeIndices.
+        // However, performSystemCheck is not called and is called in multithreaded fashion.
+
+        const uint64_t bufferSize = nodesCacheBuffer.size();
+        uint64_t bufferRead = 0;
+        while (bufferRead != bufferSize)
         {
-            Node::addHalfNodeFromNormalizedStringSingleThreaded(string(value.GetString(), value.GetStringLength()));
+            uint16_t size;
+            memcpy(&size, nodesCacheBuffer.data() + bufferRead, sizeof(uint16_t));
+            bufferRead += sizeof(uint16_t);
+            Node::addHalfNodeFromNormalizedStringSingleThreaded(string(nodesCacheBuffer.data() + bufferRead, size));
+            bufferRead += size;
         }
         targetCacheDiskWriteManager.initialize();
     }

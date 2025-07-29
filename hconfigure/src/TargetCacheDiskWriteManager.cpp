@@ -75,17 +75,21 @@ void TargetCacheDiskWriteManager::addNewBTargetInCopyJsonBTargetsCount(BTarget *
 
 void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
 {
+    nodesCacheBuffer.reserve(1024 * 1024 * 4);
     if (const uint64_t newNodesSize = Node::idCountCompleted.load(); newNodesSize != nodesSizeBefore)
     {
         // printMessage(FORMAT("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
         //                          nodesSizeBefore, newNodesSize));
         for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
         {
-            nodesCacheJson.PushBack(
-                Value(Node::nodeIndices[i]->filePath.c_str(), Node::nodeIndices[i]->filePath.size()), ralloc);
+            const string &str = Node::nodeIndices[i]->filePath;
+            uint16_t strSize = str.size();
+            const auto ptr = reinterpret_cast<const char *>(&strSize);
+            nodesCacheBuffer.insert(nodesCacheBuffer.end(), ptr, ptr + 2);
+            nodesCacheBuffer.insert(nodesCacheBuffer.end(), str.begin(), str.end());
         }
         nodesSizeBefore = newNodesSize;
-        writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheJson);
+        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheBuffer);
     }
 }
 
@@ -117,7 +121,7 @@ void TargetCacheDiskWriteManager::initialize()
         valueCacheLocal.reserve(1000);
     }
 
-    nodesSizeBefore = nodesCacheJson.Size();
+    nodesSizeBefore = Node::idCountCompleted;
     nodesSizeStart = nodesSizeBefore;
 }
 

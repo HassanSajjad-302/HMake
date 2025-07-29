@@ -33,8 +33,7 @@ inline Document configCache(kArrayType);
 inline unique_ptr<vector<char>> configCacheBuffer;
 inline Document buildCache(kArrayType);
 inline unique_ptr<vector<char>> buildCacheBuffer;
-inline Document nodesCacheJson(kArrayType);
-inline unique_ptr<vector<char>> nodesCacheBuffer;
+inline vector<char> nodesCacheBuffer;
 
 inline auto &ralloc = buildCache.GetAllocator();
 
