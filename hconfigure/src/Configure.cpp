@@ -14,7 +14,7 @@ bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuratio
     }
     for (const Configuration &configuration : targets<Configuration>)
     {
-        if (const_cast<Configuration &>(configuration).isHBuildInSameOrChildDirectory())
+        if (configuration.isHBuildInSameOrChildDirectory())
         {
             (*ptr)(const_cast<Configuration &>(configuration));
         }

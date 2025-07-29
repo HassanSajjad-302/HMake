@@ -21,9 +21,6 @@ BTarget::StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNode
 {
     // 1MB. Deallocated after round.
     tarjanNodesBTargets.fill(vector<RealBTarget *>{1024 * 1024});
-    auto *p = &tarjanNodesBTargets[0];
-    // 2MB. Deallocated after round.
-    twoBTargetsVector.fill(vector<TwoBTargets>{1024 * 1024});
 }
 
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
@@ -238,20 +235,24 @@ void BTarget::runEndOfRoundTargets(Builder &builder, uint16_t round)
     if (round == 2)
     {
         tarjanNodesBTargets[round].clear();
-        for (uint64_t i = 0; i < twoBTargetsVectorSize[1]; ++i)
+        for (auto *twoBTargetsVectorLocal : centralRegistryForTwoBTargetsVector)
         {
-            auto &[b, dep] = twoBTargetsVector[1][i];
-            b->addDependencyNoMutex<1>(*dep);
+            for (auto [b, dep] : (*twoBTargetsVectorLocal)[1])
+            {
+                b->addDependencyNoMutex<1>(*dep);
+            }
         }
     }
     else if (round == 1)
     {
         targetCacheDiskWriteManager.endOfRound();
         tarjanNodesBTargets[round].clear();
-        for (uint64_t i = 0; i < twoBTargetsVectorSize[0]; ++i)
+        for (auto *twoBTargetsVectorLocal : centralRegistryForTwoBTargetsVector)
         {
-            auto &[b, dep] = twoBTargetsVector[0][i];
-            b->addDependencyNoMutex<0>(*dep);
+            for (auto [b, dep] : (*twoBTargetsVectorLocal)[0])
+            {
+                b->addDependencyNoMutex<0>(*dep);
+            }
         }
     }
 

@@ -150,8 +150,10 @@ class BTarget // BTarget
     inline static array<atomic<uint32_t>, 3> tarjanNodesCount{0, 0, 0};
 
   private:
-    inline static array<vector<TwoBTargets>, 2> twoBTargetsVector;
-    inline static array<atomic<uint32_t>, 2> twoBTargetsVectorSize{0, 0};
+    inline static thread_local array<vector<TwoBTargets>, 2> twoBTargetsVector;
+    inline static vector<array<vector<TwoBTargets>, 2> *> centralRegistryForTwoBTargetsVector{};
+    friend class Builder;
+    friend void constructGlobals();
 
     inline static StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
   public:
@@ -243,7 +245,7 @@ template <unsigned short round, typename... U> void BTarget::addLooseDependency(
 
 template <unsigned short round, typename... U> void BTarget::addDependencyDelayed(BTarget &dependency, U &...bTargets)
 {
-    twoBTargetsVector[round][twoBTargetsVectorSize[round].fetch_add(1)] = TwoBTargets{.b = this, .dep = &dependency};
+    twoBTargetsVector[round].emplace_back(TwoBTargets{.b = this, .dep = &dependency});
 
     if constexpr (sizeof...(bTargets))
     {
@@ -258,7 +260,7 @@ template <unsigned short round> void BTarget::addDependencyNoMutex(BTarget &depe
     {
         RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
         dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
-        ++atomic_ref(realBTargets[round].dependenciesSize);
+        ++realBTargets[round].dependenciesSize;
     }
 }
 

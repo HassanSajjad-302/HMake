@@ -28,7 +28,7 @@ Builder::Builder()
 
     for (BTarget *target : RealBTarget::topologicalSort)
     {
-        if (!atomic_ref(target->realBTargets[round].dependenciesSize).load())
+        if (!target->realBTargets[round].dependenciesSize)
         {
             updateBTargets.emplaceBackBeforeRound(target);
         }
@@ -42,9 +42,19 @@ Builder::Builder()
     if (const unsigned int launchThreads = settings.maximumBuildThreads; launchThreads)
     {
         numberOfLaunchedThreads = launchThreads;
+
+        for (uint64_t i = 0; i < launchThreads - 1; ++i)
+        {
+            BTarget::centralRegistryForTwoBTargetsVector.emplace_back(nullptr);
+        }
+
         while (threads.size() != launchThreads - 1)
         {
-            threads.emplace_back(new thread{&Builder::execute, this});
+            uint64_t index = threads.size() + 1;
+            threads.emplace_back(new thread([this, index] {
+                BTarget::centralRegistryForTwoBTargetsVector[index] = &BTarget::twoBTargetsVector;
+                execute();
+            }));
         }
         execute();
     }
@@ -142,7 +152,7 @@ void Builder::execute()
                                         }
                                     }
 
-                                    if (!atomic_ref(localReal.dependenciesSize).load())
+                                    if (!localReal.dependenciesSize)
                                     {
                                         updateBTargets.emplaceFrontBeforeLastRound(&localBTarget);
                                     }
@@ -157,8 +167,7 @@ void Builder::execute()
                             // Index is only needed in round zero. Perform only for round one.
                             for (uint64_t i = 0; i < RealBTarget::topologicalSort.size(); ++i)
                             {
-                                if (!atomic_ref(RealBTarget::topologicalSort[i]->realBTargets[round].dependenciesSize)
-                                         .load())
+                                if (!RealBTarget::topologicalSort[i]->realBTargets[round].dependenciesSize)
                                 {
                                     updateBTargets.emplaceBackBeforeRound(RealBTarget::topologicalSort[i]);
                                 }
@@ -239,8 +248,8 @@ void Builder::execute()
                 {
                     dependentRealBTarget.exitStatus = EXIT_FAILURE;
                 }
-                --atomic_ref(dependentRealBTarget.dependenciesSize);
-                if (!atomic_ref(dependentRealBTarget.dependenciesSize).load())
+                --dependentRealBTarget.dependenciesSize;
+                if (!dependentRealBTarget.dependenciesSize)
                 {
                     updateBTargets.emplace(dependent);
                 }
@@ -257,8 +266,8 @@ void Builder::execute()
                     {
                         dependentRealBTarget.exitStatus = EXIT_FAILURE;
                     }
-                    --atomic_ref(dependentRealBTarget.dependenciesSize);
-                    if (!atomic_ref(dependentRealBTarget.dependenciesSize).load())
+                    --dependentRealBTarget.dependenciesSize;
+                    if (!dependentRealBTarget.dependenciesSize)
                     {
                         updateBTargets.emplace(dependent);
                     }
