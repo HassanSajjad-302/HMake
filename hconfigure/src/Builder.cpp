@@ -114,7 +114,7 @@ void Builder::execute()
             {
                 DEBUG_EXECUTE(FORMAT("{} updateBTargets.size() == updateBTargetsSizeGoal {} {} {}\n", round,
                                      numberOfSleepingThreads.load(), numberOfLaunchedThreads, getThreadId()));
-                if (numberOfSleepingThreads.load() == numberOfLaunchedThreads - 1)
+                if (numberOfSleepingThreads == numberOfLaunchedThreads - 1)
                 {
                     DEBUG_EXECUTE(FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads",
                                          getThreadId()));
@@ -282,7 +282,7 @@ void Builder::execute()
 
 void Builder::incrementNumberOfSleepingThreads()
 {
-    if (numberOfSleepingThreads.fetch_add(1) == numberOfLaunchedThreads - 1)
+    if (numberOfSleepingThreads == numberOfLaunchedThreads - 1)
     {
         RealBTarget::clearTarjanNodes();
         RealBTarget::findSCCS(round);
@@ -292,6 +292,7 @@ void Builder::incrementNumberOfSleepingThreads()
 
         printErrorMessage("HMake API misuse.\n");
     }
+    ++numberOfSleepingThreads;
 }
 
 void Builder::decrementNumberOfSleepingThreads()

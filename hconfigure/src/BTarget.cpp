@@ -144,7 +144,16 @@ void RealBTarget::checkForCycle()
 
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarget(bTarget_)
 {
-    const uint32_t i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+    uint32_t i;
+    if (buildSpecificationCompleted)
+    {
+        i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+    }
+    else
+    {
+        i = BTarget::tarjanNodesCount[round_];
+        ++BTarget::tarjanNodesCount[round_];
+    }
     BTarget::tarjanNodesBTargets[round_][i] = this;
 }
 
@@ -152,14 +161,32 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
 {
     if (add)
     {
-        const uint32_t i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+        uint32_t i;
+        if (buildSpecificationCompleted)
+        {
+            i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+        }
+        else
+        {
+            i = BTarget::tarjanNodesCount[round_];
+            ++BTarget::tarjanNodesCount[round_];
+        }
         BTarget::tarjanNodesBTargets[round_][i] = this;
     }
 }
 
 void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
 {
-    const uint32_t i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+    uint32_t i;
+    if (buildSpecificationCompleted)
+    {
+        i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+    }
+    else
+    {
+        i = BTarget::tarjanNodesCount[round_];
+        ++BTarget::tarjanNodesCount[round_];
+    }
     BTarget::tarjanNodesBTargets[round_][i] = this;
 }
 

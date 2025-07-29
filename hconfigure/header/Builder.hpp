@@ -122,7 +122,7 @@ class Builder
 
     unsigned short threadCount = 0;
     unsigned short numberOfLaunchedThreads = 0;
-    atomic<unsigned short> numberOfSleepingThreads = 0;
+    unsigned short numberOfSleepingThreads = 0;
     unsigned short round = 0;
     const unsigned short roundGoal = bsMode == BSMode::BUILD ? 0 : 2;
 
