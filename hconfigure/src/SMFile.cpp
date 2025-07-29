@@ -94,7 +94,7 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
                 target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".o", true, true);
 
             setSourceNodeFileStatus();
-            if (atomic_ref(fileStatus).load())
+            if (fileStatus)
             {
                 namespace CppBuild = Indices::BuildCache::CppBuild;
 
@@ -154,7 +154,8 @@ bool SourceNode::checkHeaderFiles(const Node *compareNode) const
             uint64_t uncheckedCountNew = 0;
             for (uint64_t i = 0; i < uncheckedCountOld; ++i)
             {
-                if (Node *headerNode = headerFilesUnChecked[i]; atomic_ref(headerNode->systemCheckCompleted).load())
+                if (Node *headerNode = headerFilesUnChecked[i];
+                    headerNode->systemCheckCompleted || atomic_ref(headerNode->systemCheckCompleted).load())
                 {
                     if (headerNode->doesNotExist)
                     {
@@ -207,25 +208,25 @@ void SourceNode::setSourceNodeFileStatus()
 
     if (sourceJson[SourceFiles::compileCommandWithTool] != target->compileCommandWithTool.getHash())
     {
-        atomic_ref(fileStatus).store(true);
+        fileStatus = true;
         return;
     }
 
     if (objectFileOutputFileNode->doesNotExist)
     {
-        atomic_ref(fileStatus).store(true);
+        fileStatus = true;
         return;
     }
 
     if (node->lastWriteTime > objectFileOutputFileNode->lastWriteTime)
     {
-        atomic_ref(fileStatus).store(true);
+        fileStatus = true;
         return;
     }
 
     if (checkHeaderFiles(objectFileOutputFileNode))
     {
-        atomic_ref(fileStatus).store(true);
+        fileStatus = true;
     }
 }
 
@@ -268,19 +269,19 @@ void SMFile::checkHeaderFilesIfSMRulesJsonSet()
 
         if (sourceJson[ModuleFiles::compileCommandWithTool] != target->compileCommandWithTool.getHash())
         {
-            atomic_ref(fileStatus).store(true);
+            fileStatus = true;
             return;
         }
 
         if (objectFileOutputFileNode->doesNotExist)
         {
-            atomic_ref(fileStatus).store(true);
+            fileStatus = true;
             return;
         }
 
         if (node->lastWriteTime > objectFileOutputFileNode->lastWriteTime)
         {
-            atomic_ref(fileStatus).store(true);
+            fileStatus = true;
             return;
         }
 
@@ -288,7 +289,7 @@ void SMFile::checkHeaderFilesIfSMRulesJsonSet()
         // Because, if a header-unit of ours is updated, because we are dependent of it, we will be updated as-well.
         if (checkHeaderFiles(objectFileOutputFileNode))
         {
-            atomic_ref(fileStatus).store(true);
+            fileStatus = true;
         }
     }
 }
@@ -479,15 +480,15 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
         checkHeaderFilesIfSMRulesJsonSet();
         setFileStatusAndPopulateAllDependencies();
 
-        if (!atomic_ref(fileStatus).load())
+        if (!fileStatus)
         {
             if (sourceJson[ModuleFiles::compileCommandWithTool] != target->compileCommandWithTool.getHash())
             {
-                atomic_ref(fileStatus).store(true);
+                fileStatus = true;
             }
         }
 
-        if (atomic_ref(fileStatus).load())
+        if (fileStatus)
         {
             assignFileStatusToDependents(0);
             const PostCompile postCompile = target->CompileSMFile(*this);
@@ -721,7 +722,7 @@ void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
         CppSourceTarget *localTarget = cppSourceTargets[value[SingleHeaderUnitDep::targetIndex].GetUint64()];
         SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetUint64()];
 
-        if (!atomic_ref(headerUnit.addedForRoundOne).exchange(true))
+        if (!addedForRoundOne && !atomic_ref(headerUnit.addedForRoundOne).exchange(true))
         {
             headerUnit.addNewBTargetInFinalBTargetsRound1(builder);
             headerUnit.realBTargets[0].addInTarjanNodeBTarget(0);
@@ -792,7 +793,7 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
         {
             if (headerUnit->isAnOlderHeaderUnit)
             {
-                if (!atomic_ref(headerUnit->addedForRoundOne).exchange(true))
+                if (!addedForRoundOne && !atomic_ref(headerUnit->addedForRoundOne).exchange(true))
                 {
                     headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
                     headerUnit->realBTargets[0].addInTarjanNodeBTarget(0);
@@ -864,7 +865,7 @@ void SMFile::checkObjectFileOutdatedHeaderUnits()
     namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
     namespace SingleHeaderUnitDep = ModuleFiles::SmRules::SingleHeaderUnitDep;
 
-    if (atomic_ref(isObjectFileOutdatedCallCompleted).load())
+    if (isObjectFileOutdatedCallCompleted || atomic_ref(isObjectFileOutdatedCallCompleted).load())
     {
         return;
     }
@@ -890,7 +891,8 @@ void SMFile::checkObjectFileOutdatedHeaderUnits()
 
         SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetUint64()];
 
-        if (!atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
+        if (!headerUnit.isObjectFileOutdatedCallCompleted &&
+            !atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
         {
             headerUnit.checkObjectFileOutdatedHeaderUnits();
         }
@@ -914,7 +916,7 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
     namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
     namespace SingleHeaderUnitDep = ModuleFiles::SmRules::SingleHeaderUnitDep;
 
-    if (atomic_ref(isSMRuleFileOutdatedCallCompleted).load())
+    if (isSMRuleFileOutdatedCallCompleted || atomic_ref(isSMRuleFileOutdatedCallCompleted).load())
     {
         return;
     }
@@ -961,7 +963,8 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
 
         SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetInt()];
 
-        if (!atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
+        if (!headerUnit.isSMRuleFileOutdatedCallCompleted &&
+            !atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
         {
             headerUnit.checkSMRulesFileOutdatedHeaderUnits();
         }
@@ -998,7 +1001,8 @@ void SMFile::checkObjectFileOutdatedModules()
 
         SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetUint64()];
 
-        if (!atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
+        if (!headerUnit.isObjectFileOutdatedCallCompleted &&
+            !atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
         {
             headerUnit.checkObjectFileOutdatedHeaderUnits();
         }
@@ -1058,7 +1062,8 @@ void SMFile::checkSMRulesFileOutdatedModules()
 
         SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetInt()];
 
-        if (!atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
+        if (!headerUnit.isSMRuleFileOutdatedCallCompleted &&
+            !atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
         {
             headerUnit.checkSMRulesFileOutdatedHeaderUnits();
         }

@@ -168,14 +168,30 @@ static string lowerCase(string str)
 
 BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}
 {
-    id = atomic_ref(total).fetch_add(1);
+    if (buildSpecificationCompleted)
+    {
+        id = atomic_ref(total).fetch_add(1);
+    }
+    else
+    {
+        id = total;
+        ++total;
+    }
 }
 
 BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
     : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}, name(lowerCase(std::move(name_))),
       buildExplicit(buildExplicit_)
 {
-    id = atomic_ref(total).fetch_add(1);
+    if (buildSpecificationCompleted)
+    {
+        id = atomic_ref(total).fetch_add(1);
+    }
+    else
+    {
+        id = total;
+        ++total;
+    }
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (makeDirectory)
@@ -192,7 +208,15 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
 BTarget::BTarget(const bool add0, const bool add1, const bool add2)
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)}
 {
-    id = atomic_ref(total).fetch_add(1);
+    if (buildSpecificationCompleted)
+    {
+        id = atomic_ref(total).fetch_add(1);
+    }
+    else
+    {
+        id = total;
+        ++total;
+    }
 }
 
 BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, const bool add0, const bool add1,
@@ -200,7 +224,15 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)},
       name(lowerCase(std::move(name_))), buildExplicit(buildExplicit_)
 {
-    id = atomic_ref(total).fetch_add(1);
+    if (buildSpecificationCompleted)
+    {
+        id = atomic_ref(total).fetch_add(1);
+    }
+    else
+    {
+        id = total;
+        ++total;
+    }
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (makeDirectory)
@@ -288,10 +320,6 @@ void BTarget::endOfRound(Builder &builder, unsigned short round)
 }
 
 void BTarget::copyJson()
-{
-}
-
-void BTarget::buildSpecificationCompleted()
 {
 }
 

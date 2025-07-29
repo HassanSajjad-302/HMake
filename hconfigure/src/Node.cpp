@@ -127,7 +127,7 @@ path Node::getFinalNodePathFromPath(path filePath)
 
 void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
 {
-    if (atomic_ref(systemCheckCompleted).load())
+    if (systemCheckCompleted || atomic_ref(systemCheckCompleted).load())
     {
         return;
     }
@@ -149,6 +149,11 @@ void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
 
 bool Node::trySystemCheck(const bool isFile, const bool mayNotExist)
 {
+    if (systemCheckCompleted)
+    {
+        return true;
+    }
+
     // If systemCheck was not called previously or isn't being called, call it.
     if (!atomic_ref(systemCheckCalled).exchange(true))
     {
@@ -157,11 +162,7 @@ bool Node::trySystemCheck(const bool isFile, const bool mayNotExist)
         return true;
     }
 
-    if (atomic_ref(systemCheckCompleted).load())
-    {
-        return true;
-    }
-
+    // performSystemCheck is being called by some other thread.
     return false;
 }
 

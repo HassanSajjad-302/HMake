@@ -190,7 +190,6 @@ class BTarget // BTarget
     virtual void updateBTarget(class Builder &builder, unsigned short round);
     virtual void endOfRound(Builder &builder, unsigned short round);
     virtual void copyJson();
-    virtual void buildSpecificationCompleted();
 
     template <unsigned short round> void addEndOfRoundBTarget();
 

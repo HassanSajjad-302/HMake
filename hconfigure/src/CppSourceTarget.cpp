@@ -876,7 +876,7 @@ void CppSourceTarget::resolveRequirePaths()
             if (found)
             {
                 smFile.addDependencyDelayed<0>(const_cast<SMFile &>(*found));
-                if (!atomic_ref(smFile.fileStatus).load())
+                if (!smFile.fileStatus && !atomic_ref(smFile.fileStatus).load())
                 {
                     if (require[SingleModuleDep::fullPath] != found->objectFileOutputFileNode->getValue())
                     {

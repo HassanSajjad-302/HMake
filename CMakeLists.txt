@@ -59,6 +59,7 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/HashValues.cpp
         hconfigure/src/TargetCache.cpp
         hconfigure/src/TargetCacheDiskWriteManager.cpp
+        3rdParty/mimalloc/src/static.c
         hconfigure/src/BoostCppTarget.cpp)
 
 set(INCLUDE_BUILD ON)
@@ -82,6 +83,7 @@ if (${INCLUDE_CONFIGURE})
             PUBLIC 3rdParty/rapidjson/include
             PUBLIC 3rdParty/parallel-hashmap/parallel_hashmap
             PUBLIC 3rdParty/lz4/lib
+            PUBLIC 3rdParty/mimalloc/include
     )
 
     add_executable(htools htools/main.cpp)
@@ -128,6 +130,7 @@ if (${INCLUDE_BUILD})
             PUBLIC 3rdParty/rapidjson/include
             PUBLIC 3rdParty/parallel-hashmap/parallel_hashmap
             PUBLIC 3rdParty/lz4/lib
+            PUBLIC 3rdParty/mimalloc/include
     )
 
     if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
