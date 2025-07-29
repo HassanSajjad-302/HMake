@@ -462,7 +462,7 @@ void writeValueToCompressedFile(string fileName, const Value &value)
     string compressed;
     const uint64_t maxCompressedSize = LZ4_compressBound(buffer.GetLength());
     // first eight bytes for the compressed size
-    compressed.reserve(maxCompressedSize + 8);
+    compressed.resize(maxCompressedSize + 8);
 
     int compressedSize = LZ4_compress_default(buffer.GetString(), const_cast<char *>(compressed.c_str()) + 8,
                                               buffer.GetLength(), maxCompressedSize);

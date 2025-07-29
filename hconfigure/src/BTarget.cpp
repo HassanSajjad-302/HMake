@@ -20,7 +20,10 @@ using std::filesystem::create_directories, std::ofstream, std::filesystem::curre
 BTarget::StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets()
 {
     // 1MB. Deallocated after round.
-    tarjanNodesBTargets.fill(vector<RealBTarget *>{1024 * 1024});
+    for (vector<RealBTarget *> &realBTargets : tarjanNodesBTargets)
+    {
+        realBTargets.resize(1024 * 1024);
+    }
 }
 
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
