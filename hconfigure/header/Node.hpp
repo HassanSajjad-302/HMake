@@ -39,8 +39,8 @@ class Node
 
     file_time_type lastWriteTime;
 
-    inline static atomic<uint32_t> idCount = 0;
-    inline static atomic<uint32_t> idCountCompleted = 0;
+    inline static uint32_t idCount = 0;
+    inline static uint32_t idCountCompleted = 0;
     // Used in multi-threading context. So, can not emplace_back. size should be same as size of nodeAllFiles
     inline static vector<Node *> nodeIndices{20000};
     uint32_t myId = UINT32_MAX;
@@ -82,7 +82,6 @@ class Node
     static Node *tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, bool isFile,
                                       bool mayNotExist = false);
 
-    static Node *getLastNodeAdded();
     static rapidjson::Type getType();
 
   private:

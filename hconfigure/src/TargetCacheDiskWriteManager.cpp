@@ -76,7 +76,7 @@ void TargetCacheDiskWriteManager::addNewBTargetInCopyJsonBTargetsCount(BTarget *
 void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
 {
     nodesCacheBuffer.reserve(1024 * 1024 * 4);
-    if (const uint64_t newNodesSize = Node::idCountCompleted.load(); newNodesSize != nodesSizeBefore)
+    if (const uint64_t newNodesSize = atomic_ref(Node::idCountCompleted).load(); newNodesSize != nodesSizeBefore)
     {
         // printMessage(FORMAT("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
         //                          nodesSizeBefore, newNodesSize));

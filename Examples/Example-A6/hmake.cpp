@@ -35,8 +35,8 @@ struct OurTarget2 : public BTarget
             b->addDependency<0>(*c);
 
             {
-                std::lock_guard<std::mutex> lk(builder.executeMutex);
-                builder.updateBTargetsIterator = builder.updateBTargets.emplace(builder.updateBTargetsIterator, c);
+                std::lock_guard lk(builder.executeMutex);
+                builder.updateBTargets.emplace(c);
                 builder.updateBTargetsSizeGoal += 3;
             }
             builder.cond.notify_one();
