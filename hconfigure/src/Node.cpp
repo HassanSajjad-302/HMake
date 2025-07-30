@@ -72,6 +72,10 @@ std::size_t NodeHash::operator()(const string_view &str) const
 Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
 {
     node = this;
+    myId = atomic_ref(idCount).fetch_add(1);
+    nodeIndices[myId] = this;
+    ++idCountCompleted;
+    return;
     if (buildSpecificationCompleted)
     {
         myId = atomic_ref(idCount).fetch_add(1);

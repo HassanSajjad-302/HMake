@@ -82,7 +82,7 @@ void initializeCache(const BSMode bsMode_)
         if constexpr (bsMode == BSMode::BUILD)
         {
             printErrorMessage(FORMAT("{} does not exist. Exiting\n", p.string().c_str()));
-            exit(EXIT_FAILURE);
+            errorExit();
         }
     }
 
@@ -96,7 +96,7 @@ void initializeCache(const BSMode bsMode_)
         if constexpr (bsMode == BSMode::BUILD)
         {
             printErrorMessage(FORMAT("{} does not exist. Exiting\n", p.string().c_str()));
-            exit(EXIT_FAILURE);
+            errorExit();
         }
     }
 
@@ -163,7 +163,7 @@ void printErrorMessage(const string &message)
     //  print(stderr, "{}", to_string(std::stacktrace::current()));
 #endif
 
-    exit(EXIT_FAILURE);
+    errorExit();
 }
 
 void printErrorMessageNoReturn(const string &message)
@@ -212,6 +212,13 @@ void constructGlobals()
 void destructGlobals()
 {
     std::destroy_at(&targetCacheDiskWriteManager);
+}
+
+void errorExit()
+{
+    fflush(stdout);
+    fflush(stderr);
+    std::_Exit(EXIT_FAILURE);
 }
 
 string getLastNameAfterSlash(string_view name)

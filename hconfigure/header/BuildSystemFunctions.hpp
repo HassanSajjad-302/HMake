@@ -113,6 +113,7 @@ string_view removeDashCppFromNameSV(string_view name);
 bool configureOrBuild();
 void constructGlobals();
 void destructGlobals();
+void errorExit();
 
 #define GLOBAL_VARIABLE(type, var)                                                                                     \
     inline char _##var[sizeof(type)];                                                                                  \

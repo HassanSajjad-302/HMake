@@ -14,6 +14,9 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MAT
     add_compile_options(-std=c++2b)
 elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
 
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Release>:Release>")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
     if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         add_compile_options(/fsanitize=address)
     endif ()

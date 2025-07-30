@@ -227,7 +227,7 @@ int main(int argc, char **argv)
                     "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
                     jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " + fmtHeaderPath.string() +
                     " /I " + parallelHashMap.string() + " /I " + lz4Header.string() +
-                    " /std:c++latest /GR- /EHsc /MD /nologo {SOURCE_DIRECTORY}/hmake.cpp /Fo{CONFIGURE_DIRECTORY}/" +
+                    " /std:c++latest /GR- /EHsc /MT /nologo {SOURCE_DIRECTORY}/hmake.cpp /Fo{CONFIGURE_DIRECTORY}/" +
                     (configureExe ? "configure.obj" : "build.obj") + " /link /SUBSYSTEM:CONSOLE /NOLOGO ";
                 for (const string &str : toolsCache.vsTools[0].libraryDirs)
                 {

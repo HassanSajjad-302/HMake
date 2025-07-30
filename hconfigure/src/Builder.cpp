@@ -61,7 +61,7 @@ Builder::Builder()
     else
     {
         printErrorMessage("maximumBuildThreads is zero\n");
-        exit(EXIT_FAILURE);
+        errorExit();
     }
     for (thread *t : threads)
     {

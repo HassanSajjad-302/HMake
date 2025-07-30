@@ -197,13 +197,13 @@ vector<char> readBufferFromCompressedFile(const string &fileName)
     if (decompressSize < 0)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
-        exit(EXIT_FAILURE);
+        errorExit();
     }
 
     if (fileBuffer.size() != decompressSize)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
-        exit(EXIT_FAILURE);
+        errorExit();
     }
 
     return fileBuffer;
@@ -380,7 +380,7 @@ void writeBufferToCompressedFile(const string &fileName, const vector<char> &fil
     if (!compressedSize)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
-        exit(EXIT_FAILURE);
+        errorExit();
     }
     *reinterpret_cast<uint64_t *>(compressed.data()) = fileBuffer.size();
 
@@ -424,13 +424,13 @@ unique_ptr<vector<char>> readValueFromCompressedFile(const string_view fileName,
     if (decompressSize < 0)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
-        exit(EXIT_FAILURE);
+        errorExit();
     }
 
     if (decompressedSize != decompressSize)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
-        exit(EXIT_FAILURE);
+        errorExit();
     }
 
     // TODO
@@ -471,7 +471,7 @@ void writeValueToCompressedFile(string fileName, const Value &value)
     if (!compressedSize)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
-        exit(EXIT_FAILURE);
+        errorExit();
     }
     *reinterpret_cast<uint64_t *>(const_cast<char *>(compressed.c_str())) = buffer.GetLength();
 

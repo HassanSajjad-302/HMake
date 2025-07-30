@@ -13,6 +13,7 @@ ColoredStringForPrint::ColoredStringForPrint(string _msg, uint32_t _color, bool 
     : msg(std::move(_msg)), color(_color), isColored(_isColored)
 {
 }
+
 ValueAndIndices::ValueAndIndices(Value _value, const uint64_t _index0, const uint64_t _index1, const uint64_t _index2,
                                  const uint64_t _index3, const uint64_t _index4)
 

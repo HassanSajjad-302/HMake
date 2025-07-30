@@ -138,7 +138,7 @@ void RealBTarget::checkForCycle()
             }
         }
         printErrorMessage(errorString);
-        exit(EXIT_FAILURE);
+        errorExit();
     }
 }
 

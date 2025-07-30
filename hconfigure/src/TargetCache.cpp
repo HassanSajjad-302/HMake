@@ -34,7 +34,7 @@ TargetCache::TargetCache(const string &name)
         {
             printErrorMessage(
                 FORMAT("Attempting to add 2 targets with same name {} in config-cache.json\n", name));
-            exit(EXIT_FAILURE);
+            errorExit();
         }
 
 #endif
@@ -53,7 +53,7 @@ TargetCache::TargetCache(const string &name)
             printErrorMessage(FORMAT(
                 "Target {} not found in config-cache.\nMaybe you need to run hhelper first to update the target-cache.",
                 name));
-            exit(EXIT_FAILURE);
+            errorExit();
         }
     }
     flat_hash_map<int, int> a;

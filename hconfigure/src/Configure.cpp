@@ -111,11 +111,23 @@ int main2(const int argc, char **argv)
     constructGlobals();
     initializeCache(bsMode);
     (*buildSpecificationFuncPtr)();
+    buildSpecificationCompleted = true;
     const bool errorHappened = configureOrBuild();
     destructGlobals();
+    fflush(stdout);
+    fflush(stderr);
+#ifdef NDEBUG
+    if (errorHappened)
+    {
+        std::_Exit(EXIT_FAILURE);
+    }
+    std::_Exit(EXIT_SUCCESS);
+#else
     if (errorHappened)
     {
         exit(EXIT_FAILURE);
     }
-    return EXIT_SUCCESS;
+    exit(EXIT_SUCCESS);
+#endif
+
 }

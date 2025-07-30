@@ -1107,7 +1107,7 @@ PostCompile CppSourceTarget::GenerateSMRulesFile(const SMFile &smFile, const boo
         if (smFile.isSMRulesJsonSet)
         {
             HMAKE_HMAKE_INTERNAL_ERROR
-            exit(EXIT_FAILURE);
+            errorExit();
         }
         finalCompileCommand +=
             "/nologo /showIncludes /scanDependencies " +
