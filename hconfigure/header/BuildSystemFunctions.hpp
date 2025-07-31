@@ -29,13 +29,11 @@ using Json = nlohmann::json; // Unordered json
 
 inline flat_hash_set<string> cmdTargets;
 inline mutex configCacheMutex;
-inline Document configCache(kArrayType);
-inline unique_ptr<vector<char>> configCacheBuffer;
-inline Document buildCache(kArrayType);
-inline unique_ptr<vector<char>> buildCacheBuffer;
+inline vector<char> configCache;
+inline vector<char> buildCache;
 inline vector<char> nodesCacheBuffer;
 
-inline auto &ralloc = buildCache.GetAllocator();
+//inline auto &ralloc = buildCache.GetAllocator();
 
 // Node representing source dir
 inline class Node *srcNode;

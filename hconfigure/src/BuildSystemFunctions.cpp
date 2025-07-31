@@ -51,11 +51,12 @@ void initializeCache(const BSMode bsMode_)
         uint64_t bufferRead = 0;
         while (bufferRead != bufferSize)
         {
-            uint16_t size;
-            memcpy(&size, nodesCacheBuffer.data() + bufferRead, sizeof(uint16_t));
+            uint16_t nodeFilePathSize;
+            memcpy(&nodeFilePathSize, nodesCacheBuffer.data() + bufferRead, sizeof(uint16_t));
             bufferRead += sizeof(uint16_t);
-            Node::addHalfNodeFromNormalizedStringSingleThreaded(string(nodesCacheBuffer.data() + bufferRead, size));
-            bufferRead += size;
+            Node::addHalfNodeFromNormalizedStringSingleThreaded(
+                string(nodesCacheBuffer.data() + bufferRead, nodeFilePathSize));
+            bufferRead += nodeFilePathSize;
         }
         targetCacheDiskWriteManager.initialize();
     }
@@ -75,7 +76,7 @@ void initializeCache(const BSMode bsMode_)
     if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache")); exists(p))
     {
         const string str = p.string();
-        configCacheBuffer = readValueFromCompressedFile(str, configCache);
+        configCache = readBufferFromCompressedFile(str);
     }
     else
     {
@@ -89,7 +90,7 @@ void initializeCache(const BSMode bsMode_)
     if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache")); exists(p))
     {
         const string str = p.string();
-        buildCacheBuffer = readValueFromCompressedFile(str, buildCache);
+        buildCache = readBufferFromCompressedFile(str);
     }
     else
     {
@@ -99,6 +100,10 @@ void initializeCache(const BSMode bsMode_)
             errorExit();
         }
     }
+
+    readConfigCache();
+    readBuildCache();
+
 
     if constexpr (bsMode == BSMode::BUILD)
     {

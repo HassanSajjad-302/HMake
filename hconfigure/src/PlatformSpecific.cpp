@@ -25,6 +25,7 @@ import <Windows.h>;
 #include <Windows.h>
 #endif
 #endif
+#include "JConsts.hpp"
 
 // Copied from https://stackoverflow.com/a/208431
 class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>::state_type>
@@ -209,6 +210,77 @@ vector<char> readBufferFromCompressedFile(const string &fileName)
     return fileBuffer;
 
 #endif
+}
+
+void readConfigCache()
+{
+    const uint32_t bufferSize = configCache.size();
+    uint32_t bufferRead = 0;
+
+    uint32_t count = 0;
+    while (bufferRead != bufferSize)
+    {
+        ConfigCacheTarget configCacheTarget;
+
+        // Skip the target name. configAddress includes the size, however.
+        configCacheTarget.name = readStringView(configCache.data() + bufferRead, bufferRead);
+        configCacheTarget.configAddress = configCache.data() + bufferRead;
+
+        const uint32_t dataSize = readUint32(configCache.data() + bufferRead, bufferRead);
+        // In BSMode::CONFIGURE, the data is to be rewritten.
+        if constexpr (bsMode == BSMode::BUILD)
+        {
+            configCacheTarget.configSize = dataSize;
+        }
+
+        configCacheTargets.emplace_back(std::move(configCacheTarget));
+        nameToIndexMap.emplace(configCacheTarget.name, count);
+
+        ++count;
+    }
+}
+
+void readBuildCache()
+{
+    const uint32_t bufferSize = buildCache.size();
+    uint32_t bufferRead = 0;
+
+    uint32_t count = 0;
+    while (bufferRead != bufferSize)
+    {
+        ConfigCacheTarget &configCacheTarget = configCacheTargets[count];
+        configCacheTarget.buildAddress = buildCache.data() + bufferRead;
+        configCacheTarget.buildSize = readUint32(buildCache.data() + bufferRead, bufferRead);
+
+        ++count;
+    }
+}
+
+vector<char> writeConfigCache()
+{
+    vector<char> fileBuffer;
+
+    for (ConfigCacheTarget &configCacheTarget : configCacheTargets)
+    {
+        writeStringView(fileBuffer, configCacheTarget.name);
+        writeUint32(fileBuffer, configCacheTarget.configSize);
+        fileBuffer.insert(fileBuffer.end(), configCacheTarget.configAddress,
+                          configCacheTarget.configAddress + configCacheTarget.configSize);
+    }
+
+    return fileBuffer;
+}
+
+vector<char> writeBuildCache()
+{
+    vector<char> fileBuffer;
+    for (ConfigCacheTarget &configCacheTarget : configCacheTargets)
+    {
+        writeUint32(fileBuffer, configCacheTarget.buildSize);
+        fileBuffer.insert(fileBuffer.end(), configCacheTarget.buildAddress,
+                          configCacheTarget.buildAddress + configCacheTarget.buildSize);
+    }
+    return fileBuffer;
 }
 
 void prettyWriteValueToFile(const string_view fileName, const Value &value)

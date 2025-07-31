@@ -9,6 +9,7 @@ import "BuildSystemFunctions.hpp";
 #endif
 
 using phmap::flat_hash_map;
+
 struct TargetCache
 {
 #ifndef BUILD_MODE

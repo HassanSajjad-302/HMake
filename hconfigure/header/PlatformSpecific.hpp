@@ -18,29 +18,56 @@ import <vector>;
 #include <fstream>
 #include <string>
 #include <vector>
+#include <span>
 #endif
+#include "phmap.h"
 
 using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector,
-    rapidjson::Document, rapidjson::Value, std::string_view, rapidjson::GenericStringRef;
+    rapidjson::Document, rapidjson::Value, std::string_view, rapidjson::GenericStringRef, std::span;
 
-// There is nothing platform specific in this file. It is just another BuildSystemFunctions.hpp file. Some functions go
+// There is nothing platform-specific in this file. It is just another BuildSystemFunctions.hpp file. Some functions go
 // there, some go here.
 
 #define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
-#define CALL_ONLY_AT_CONFIGURE_TIME
+
+struct ConfigCacheTarget
+{
+    // string will have 4 byte size instead of 8 byte size.
+    string_view name;
+    char *configAddress = nullptr;
+    char *buildAddress = nullptr;
+    uint32_t configSize = 0;
+    uint32_t buildSize = 0;
+};
+
+inline vector<ConfigCacheTarget> configCacheTargets;
+inline phmap::flat_hash_map<string, uint32_t> nameToIndexMap;
 
 // value to string_view
 inline string_view vtosv(const Value &v)
 {
     return {v.GetString(), v.GetStringLength()};
 }
+
 // string_view to GenericstringRef
 inline GenericStringRef<char> svtogsr(string_view str)
 {
     return {str.data(), static_cast<rapidjson::SizeType>(str.size())};
 }
+
+
+
+
+
 vector<char> readBufferFromFile(const string &fileName);
 vector<char> readBufferFromCompressedFile(const string &fileName);
+
+void readConfigCache();
+void readBuildCache();
+
+vector<char> writeConfigCache();
+vector<char> writeBuildCache();
+
 void prettyWriteValueToFile(string_view fileName, const Value &value);
 // While decompressing lz4 file, we allocate following + 1 the buffer size.
 // So, we have compressed filee * bufferMultiplier times the space.
@@ -67,6 +94,7 @@ namespace Indices
 namespace ConfigCache
 {
 constexpr static unsigned name = 0;
+
 namespace CppConfig
 {
 constexpr static unsigned name = 0;
