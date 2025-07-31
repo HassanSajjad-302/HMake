@@ -5,5 +5,5 @@ import "public-lib4.hpp";
 
 unsigned short getValueLib2()
 {
-    return privateValueLib2 + getValueLib3() + getValueLib4();
+    return PRIVATE_VALUE_LIB2 + getValueLib3() + getValueLib4();
 }

@@ -4,5 +4,5 @@
 
 unsigned short getValueLib4()
 {
-    return privateValueLib4;
+    return PRIVATE_VALUE_LIB4;
 }

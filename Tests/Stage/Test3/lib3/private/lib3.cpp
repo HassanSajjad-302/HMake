@@ -1,7 +1,7 @@
 #include "private-lib3.hpp"
-import "public-lib3.hpp";
+#include "public-lib3.hpp"
 
 unsigned short getValueLib3()
 {
-    return privateValueLib3 + getValueLib4();
+    return PRIVATE_VALUE_LIB3 + getValueLib4();
 }

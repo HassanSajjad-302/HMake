@@ -7,5 +7,5 @@ import "public-lib4.hpp";
 #endif
 unsigned short getValueLib4()
 {
-    return privateValueLib4;
+    return PRIVATE_VALUE_LIB4;
 }

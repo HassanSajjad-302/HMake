@@ -3,5 +3,5 @@
 
 unsigned short getValueLib1()
 {
-    return privateValueLib1 + getValueLib2();
+    return PRIVATE_VALUE_LIB1 + getValueLib2();
 }

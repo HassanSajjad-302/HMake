@@ -3,5 +3,5 @@ import "public-lib3.hpp";
 
 unsigned short getValueLib3()
 {
-    return privateValueLib3 + getValueLib4();
+    return PRIVATE_VALUE_LIB3 + getValueLib4();
 }
