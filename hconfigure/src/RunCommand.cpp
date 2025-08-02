@@ -467,7 +467,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
                     {
                         lowerCasePStringOnWindows(const_cast<char *>(headerView.data()), headerView.size());
 
-                        if (const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
+                        if (const Node *headerNode = Node::getHalfNode(headerView);
                             !isNodeInValue(headerDepsJson, *headerNode))
                         {
                             headerDepsJson.PushBack(headerNode->getValue(), sourceNode.sourceNodeAllocator);
@@ -528,7 +528,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const
                 if (const string_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
                     !ignoreHeaderFile(headerView))
                 {
-                    const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
+                    const Node *headerNode = Node::getHalfNode(headerView);
                     headerDepsJson.PushBack(headerNode->getValue(), sourceNode.sourceNodeAllocator);
                 }
             }

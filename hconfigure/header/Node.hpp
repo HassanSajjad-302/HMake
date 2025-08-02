@@ -11,6 +11,7 @@ import <atomic>;
 #include "phmap.h"
 #include <atomic>
 #endif
+#include "TargetCache.hpp"
 
 using std::atomic, std::lock_guard, std::filesystem::file_time_type;
 
@@ -56,7 +57,7 @@ class Node
     Node(Node *&node, string filePath_);
     explicit Node(string filePath_);
     string getFileName() const;
-    Value getValue() const;
+    NodeIndexOrFilePath getNodeIndexOrFilePath() const;
 
     static path getFinalNodePathFromPath(path filePath);
 
@@ -76,9 +77,9 @@ class Node
     static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
 
     static Node *addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath);
-    static Node *getHalfNodeFromNormalizedString(string_view p);
+    static Node *getHalfNode(string_view p);
     static Node *getNodeFromValue(const Value &value, bool isFile, bool mayNotExist = false);
-    static Node *getHalfNodeFromValue(const Value &value);
+    static Node *getHalfNode(const NodeIndexOrFilePath &nodeIndexOrFilePath);
     static Node *tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, bool isFile,
                                       bool mayNotExist = false);
 

@@ -87,6 +87,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     friend struct ResolveRequirePathBTarget;
 
   public:
+    BuildCache::Cpp buildCache;
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
     mutex headerUnitsMutex;
 
@@ -113,9 +114,9 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     // be used.
     HashedCommand compileCommandWithTool;
 
-    vector<SourceNode> srcFileDeps;
+    vector<SourceNode *> srcFileDeps;
     // Comparator used is same as for SourceNode
-    vector<SMFile> modFileDeps;
+    vector<SMFile *> modFileDeps;
 
     vector<SMFile> oldHeaderUnits;
 
@@ -173,10 +174,10 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     CppSourceTarget &initializeUseReqInclsFromReqIncls();
     CppSourceTarget &initializePublicHuDirsFromReqIncls();
-    void actuallyAddSourceFileConfigTime(const Node *node);
-    void actuallyAddModuleFileConfigTime(const Node *node, bool isInterface);
+    void actuallyAddSourceFileConfigTime(Node *node);
+    void actuallyAddModuleFileConfigTime(Node *node, bool isInterface);
     void actuallyAddHeaderUnitConfigTime(const Node *node);
-    uint64_t actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit);
+    //uint64_t actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit);
 
     template <typename... U> CppSourceTarget &publicDeps(CppSourceTarget *dep, const U... deps);
     template <typename... U> CppSourceTarget &privateDeps(CppSourceTarget *dep, const U... deps);

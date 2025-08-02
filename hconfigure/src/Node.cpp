@@ -11,6 +11,7 @@ import <mutex>;
 #include <mutex>
 #include <utility>
 #endif
+#include "TargetCache.hpp"
 
 using std::filesystem::directory_entry, std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard,
     std::mutex, std::atomic_ref;
@@ -112,12 +113,12 @@ string Node::getFileName() const
     return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end()};
 }
 
-Value Node::getValue() const
+NodeIndexOrFilePath Node::getNodeIndexOrFilePath() const
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    return Value(myId);
+    return NodeIndexOrFilePath(myId);
 #else
-    return Value(svtogsr(filePath));
+    return NodeIndexOrFilePath(filePath);
 #endif
 }
 
@@ -268,7 +269,7 @@ Node *Node::addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFileP
     return const_cast<Node *>(nodeAllFiles.emplace(std::move(normalizedFilePath)).first.operator->());
 }
 
-Node *Node::getHalfNodeFromNormalizedString(const string_view p)
+Node *Node::getHalfNode(const string_view p)
 {
     Node *node = nullptr;
 
@@ -299,10 +300,10 @@ Node *Node::getNodeFromValue(const Value &value, bool isFile, bool mayNotExist)
     return node;
 }
 
-Node *Node::getHalfNodeFromValue(const Value &value)
+Node *Node::getHalfNode(const NodeIndexOrFilePath &nodeIndexOrFilePath)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[value.GetUint64()];
+    Node *node = nodeIndices[nodeIndexOrFilePath.index];
 #else
     Node *node =
         getNodeFromNormalizedStringNoSystemCheckCalled(string_view(value.GetString(), value.GetStringLength()));

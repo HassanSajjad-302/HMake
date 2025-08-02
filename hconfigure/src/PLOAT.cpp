@@ -44,7 +44,7 @@ string_view PLOAT::getOutputDirectoryV() const
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_), linkTargetType{linkTargetType_}
 {
-    outputFileNode = Node::getHalfNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
+    outputFileNode = Node::getHalfNode(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
 }
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_,
@@ -52,7 +52,7 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, Targ
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), linkTargetType(linkTargetType_)
 
 {
-    outputFileNode = Node::getHalfNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
+    outputFileNode = Node::getHalfNode(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
 }
 
 #else

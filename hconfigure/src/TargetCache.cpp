@@ -6,215 +6,53 @@ import "TargetCache.hpp";
 #endif
 #include <BuildSystemFunctions.hpp>
 
+namespace
+{
+uint64_t idCount = 0;
+flat_hash_set<string> targetCacheIndexAndMyIdHashMap;
+uint64_t myId = 0;
+
+void checkForSameTargetName(const string &targetName)
+{
+    myId = idCount;
+    ++idCount;
+    if (auto [pos, ok] = targetCacheIndexAndMyIdHashMap.emplace(targetName); !ok)
+    {
+        printErrorMessage(FORMAT("Attempting to add 2 targets with same name {} in config-cache.json\n", targetName));
+        errorExit();
+    }
+}
+} // namespace
+
 TargetCache::TargetCache(const string &name)
 {
+    const auto it = nameToIndexMap.find(name);
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        const uint64_t index = valueIndexInSubArray(configCache, Value(svtogsr(name)));
-        if (index == UINT64_MAX)
+        if (it == nameToIndexMap.end())
         {
-            configCache.PushBack(Value(kArrayType), ralloc);
-            buildCache.PushBack(Value(kArrayType), ralloc);
-            targetCacheIndex = configCache.Size() - 1;
-            configCache[targetCacheIndex].PushBack(Value(kStringType).SetString(name.c_str(), name.size(), ralloc),
-                                                   ralloc);
+            targetCacheIndex = configCacheTargets.size();
+            configCacheTargets.emplace_back(name);
         }
         else
         {
-            targetCacheIndex = index;
-            getConfigCache().Clear();
-            configCache[targetCacheIndex].PushBack(Value(kStringType).SetString(name.c_str(), name.size(), ralloc),
-                                                   ralloc);
+            targetCacheIndex = it->second;
         }
 
-#ifndef BUILD_MODE
-        myId = idCount;
-        ++idCount;
-        if (auto [pos, ok] = targetCacheIndexAndMyIdHashMap.emplace(targetCacheIndex, myId); !ok)
-        {
-            printErrorMessage(
-                FORMAT("Attempting to add 2 targets with same name {} in config-cache.json\n", name));
-            errorExit();
-        }
-
-#endif
-        buildOrConfigCacheCopy.PushBack(Value(kStringType).SetString(name.c_str(), name.size(), ralloc), ralloc);
+        checkForSameTargetName(name);
     }
     else
     {
-        const uint64_t index = valueIndexInSubArrayConsidered(configCache, Value(svtogsr(name)));
-        if (index != UINT64_MAX)
-        {
-            targetCacheIndex = index;
-            buildOrConfigCacheCopy = Value().CopyFrom(getBuildCache(), cacheAlloc);
-        }
-        else
+        if (it == nameToIndexMap.end())
         {
             printErrorMessage(FORMAT(
                 "Target {} not found in config-cache.\nMaybe you need to run hhelper first to update the target-cache.",
                 name));
             errorExit();
         }
+        targetCacheIndex = it->second;
     }
-    flat_hash_map<int, int> a;
-    a.emplace(2, 3);
 }
-
-Value &TargetCache::getConfigCache() const
-{
-    return configCache[targetCacheIndex];
-}
-
-Value &TargetCache::getBuildCache() const
-{
-    return buildCache[targetCacheIndex];
-}
-
-void TargetCache::copyBackConfigCacheMutexLocked() const
-{
-    std::lock_guard _(configCacheMutex);
-    getConfigCache().CopyFrom(buildOrConfigCacheCopy, ralloc);
-}
-
-
-// Node Index or FilePath
-struct NodeIndexOrFilePath
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    uint32_t index{};
-#else
-    string_view filePath;
-#endif
-};
-
-// Hash Or Compile Command
-struct CCOrHash
-{
-#ifdef USE_COMMAND_HASH
-    uint32_t hash{};
-#else
-    string_view compilerCommand;
-#endif
-};
-
-struct ConfigCache
-{
-    struct Cpp
-    {
-        span<NodeIndexOrFilePath> reqInclsArray;
-        span<NodeIndexOrFilePath> useReqInclsArray;
-        span<NodeIndexOrFilePath> reqHUDirsArray;
-        span<NodeIndexOrFilePath> useReqHUDirsArray;
-        span<NodeIndexOrFilePath> sourceFiles;
-        span<NodeIndexOrFilePath> moduleFiles;
-        span<NodeIndexOrFilePath> headerUnits;
-        NodeIndexOrFilePath buildCacheFilesDirPath;
-    };
-
-    struct Link
-    {
-        span<NodeIndexOrFilePath> reqLibraryDirsArray;
-        span<NodeIndexOrFilePath> useReqLibraryDirsArray;
-        NodeIndexOrFilePath outputFileNode;
-        NodeIndexOrFilePath buildCacheFilesDirPath;
-    };
-};
-
-struct BuildCache
-{
-    struct Cpp
-    {
-        struct SourceFile
-        {
-            NodeIndexOrFilePath fullPath;
-            CCOrHash compileCommandWithTool;
-            span<NodeIndexOrFilePath> headerFiles;
-        };
-
-        struct ModuleFileCache
-        {
-            struct SmRules
-            {
-                struct SingleHeaderUnitDep
-                {
-                    NodeIndexOrFilePath fullPath;
-                    bool angle{};
-                    uint32_t targetIndex{};
-                    uint32_t myIndex{};
-                };
-
-                struct SingleModuleDep
-                {
-                    NodeIndexOrFilePath fullPath;
-                    string logicalName;
-                };
-
-                string exportName;
-                bool isInterface{};
-                span<SingleHeaderUnitDep> headerUnitArray;
-                span<SingleModuleDep> moduleArray;
-            };
-
-            SourceFile srcFile;
-            span<NodeIndexOrFilePath> headerFiles;
-            SmRules smRules;
-            CCOrHash compileCommandWithTool;
-        };
-
-        span<SourceFile> sourceFiles;
-        span<ModuleFileCache> moduleFiles;
-        span<ModuleFileCache> headerUnits;
-    };
-
-    struct Link
-    {
-        CCOrHash commandWithoutArgumentsWithTools;
-        span<NodeIndexOrFilePath> objectFiles;
-    };
-};
-
-using ModuleFileCache = BuildCache::Cpp::ModuleFileCache;
-
-bool readBool(const char *ptr, uint32_t &bytesRead);
-uint32_t readUint32(const char *ptr, uint32_t &bytesRead);
-string_view readStringView(const char *ptr, uint32_t &bytesRead);
-NodeIndexOrFilePath readNodeIndexOrFilePath(const char *ptr, uint32_t &bytesRead);
-CCOrHash readCCOrHash(const char *ptr, uint32_t &bytesRead);
-span<NodeIndexOrFilePath> readNoIndexOrFilePathSpan(const char *ptr, uint32_t &bytesRead);
-ConfigCache::Cpp readCppConfigCache(const char *ptr, uint32_t &bytesRead);
-ConfigCache::Link readLinkConfigCache(const char *ptr, uint32_t &bytesRead);
-BuildCache::Cpp::SourceFile readSourceFileBuildCache(const char *ptr, uint32_t &bytesRead);
-span<BuildCache::Cpp::SourceFile> readSourceFilesBuildCacheSpan(const char *ptr, uint32_t &bytesRead);
-ModuleFileCache::SmRules::SingleHeaderUnitDep readSingleHeaderUnitDep(const char *ptr, uint32_t &bytesRead);
-span<ModuleFileCache::SmRules::SingleHeaderUnitDep> readSingleHeaderUnitDepSpan(const char *ptr, uint32_t &bytesRead);
-ModuleFileCache::SmRules::SingleModuleDep readSingleModuleDep(const char *ptr, uint32_t &bytesRead);
-span<ModuleFileCache::SmRules::SingleModuleDep> readSingleModuleDepSpan(const char *ptr, uint32_t &bytesRead);
-ModuleFileCache::SmRules readSMRules(const char *ptr, uint32_t &bytesRead);
-ModuleFileCache readModuleFileBuildCache(const char *ptr, uint32_t &bytesRead);
-span<ModuleFileCache> readModuleFilesBuildCacheSpan(const char *ptr, uint32_t &bytesRead);
-BuildCache::Cpp readCppBuildCache(const char *ptr, uint32_t &bytesRead);
-BuildCache::Link readLinkBuildCache(const char *ptr, uint32_t &bytesRead);
-
-void writeBool(vector<char> &buffer, const bool &value);
-void writeUint32(vector<char> &buffer, const uint32_t &data);
-void writeStringView(vector<char> &buffer, const string_view &data);
-void writeNodeIndexOrFilePath(vector<char> &buffer, const NodeIndexOrFilePath &value);
-void writeCCOrHash(vector<char> &buffer, const CCOrHash &value);
-void writeNodeIndexOrFilePathSpan(vector<char> &buffer, span<NodeIndexOrFilePath> array);
-void writeCppConfigCache(vector<char> &buffer, const ConfigCache::Cpp &data);
-void writeLinkConfigCache(vector<char> &buffer, const ConfigCache::Link &data);
-void writeSourceFileBuildCache(vector<char> &buffer, const BuildCache::Cpp::SourceFile &data);
-void writeSourceFileBuildCacheSpan(vector<char> &buffer, const BuildCache::Cpp::SourceFile &data);
-void writeSourceFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::SourceFile> &data);
-void writeSingleHeaderUnitDep(vector<char> &buffer,
-                              const ModuleFileCache::SmRules::SingleHeaderUnitDep &data);
-void writeSingleModuleDep(vector<char> &buffer, const ModuleFileCache::SmRules::SingleModuleDep &data);
-void writeSMRules(vector<char> &buffer, const ModuleFileCache::SmRules &data);
-void writeModuleFileBuildCache(vector<char> &buffer, const ModuleFileCache &data);
-void writeModuleFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::ModuleFileCache> &data);
-void writeCppBuildCache(vector<char> &buffer, const BuildCache::Cpp &data);
-void writeLinkBuildCache(vector<char> &buffer, const BuildCache::Link &data);
-
 bool readBool(const char *ptr, uint32_t &bytesRead)
 {
     bool result;
@@ -310,8 +148,8 @@ span<BuildCache::Cpp::SourceFile> readSourceFilesBuildCacheSpan(const char *ptr,
     return {(BuildCache::Cpp::SourceFile *)(ptr + offset), count};
 }
 
-BuildCache::Cpp::ModuleFileCache::SmRules::SingleHeaderUnitDep
-readSingleHeaderUnitDep(const char *ptr, uint32_t &bytesRead)
+BuildCache::Cpp::ModuleFileCache::SmRules::SingleHeaderUnitDep readSingleHeaderUnitDep(const char *ptr,
+                                                                                       uint32_t &bytesRead)
 {
     BuildCache::Cpp::ModuleFileCache::SmRules::SingleHeaderUnitDep huDep;
     huDep.fullPath = readNodeIndexOrFilePath(ptr, bytesRead);
@@ -329,8 +167,7 @@ span<ModuleFileCache::SmRules::SingleHeaderUnitDep> readSingleHeaderUnitDepSpan(
     return {(ModuleFileCache::SmRules::SingleHeaderUnitDep *)(ptr + offset), count};
 }
 
-BuildCache::Cpp::ModuleFileCache::SmRules::SingleModuleDep
-readSingleModuleDep(const char *ptr, uint32_t &bytesRead)
+BuildCache::Cpp::ModuleFileCache::SmRules::SingleModuleDep readSingleModuleDep(const char *ptr, uint32_t &bytesRead)
 {
     BuildCache::Cpp::ModuleFileCache::SmRules::SingleModuleDep d;
     d.fullPath = readNodeIndexOrFilePath(ptr, bytesRead);

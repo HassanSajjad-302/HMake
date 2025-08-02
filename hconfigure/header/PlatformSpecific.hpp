@@ -30,19 +30,6 @@ using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique
 
 #define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
 
-struct ConfigCacheTarget
-{
-    // string will have 4 byte size instead of 8 byte size.
-    string_view name;
-    char *configAddress = nullptr;
-    char *buildAddress = nullptr;
-    uint32_t configSize = 0;
-    uint32_t buildSize = 0;
-};
-
-inline vector<ConfigCacheTarget> configCacheTargets;
-inline phmap::flat_hash_map<string, uint32_t> nameToIndexMap;
-
 // value to string_view
 inline string_view vtosv(const Value &v)
 {

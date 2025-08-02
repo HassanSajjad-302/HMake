@@ -549,7 +549,7 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
     namespace SMRules = ModuleFiles::SmRules;
 
     // We get half-node since we trust the compiler to have generated if it is returning true
-    const Node *smRuleFileNode = Node::getHalfNodeFromNormalizedString(target->buildCacheFilesDirPathNode->filePath +
+    const Node *smRuleFileNode = Node::getHalfNode(target->buildCacheFilesDirPathNode->filePath +
                                                                        slashc + getOutputFileName() + ".smrules");
 
     Document d;
@@ -621,7 +621,7 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
                 // lower-cased before saving for further use
                 string_view str(sourcePathIt->value.GetString(), sourcePathIt->value.GetStringLength());
                 lowerCasePStringOnWindows(const_cast<char *>(str.data()), str.size());
-                const Node *halfHeaderUnitNode = Node::getHalfNodeFromNormalizedString(str);
+                const Node *halfHeaderUnitNode = Node::getHalfNode(str);
 
                 // fullPath
                 headerUnitDevalue.PushBack(halfHeaderUnitNode->getValue(), sourceNodeAllocator);
@@ -942,7 +942,7 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
     // We assume that all header-files systemCheck has already been called and that they exist.
     for (const Value &value : sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].GetArray())
     {
-        if (const Node *headerNode = Node::getHalfNodeFromValue(value);
+        if (const Node *headerNode = Node::getHalfNode(value);
             headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
         {
             isSMRuleFileOutdated = true;
@@ -1043,7 +1043,7 @@ void SMFile::checkSMRulesFileOutdatedModules()
     // We assume that all header-files systemCheck has already been called and that they exist.
     for (const Value &value : sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].GetArray())
     {
-        if (const Node *headerNode = Node::getHalfNodeFromValue(value);
+        if (const Node *headerNode = Node::getHalfNode(value);
             headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
         {
             isSMRuleFileOutdated = true;
