@@ -40,11 +40,10 @@ struct CompareSourceNode
 class SourceNode : public ObjectFile
 {
   public:
-    RAPIDJSON_DEFAULT_ALLOCATOR sourceNodeAllocator;
-    Value sourceJson{kArrayType};
     CppSourceTarget *target;
     const Node *node;
     uint64_t indexInBuildCache = UINT64_MAX;
+    char *sourceNodeBuildCache;
     bool ignoreHeaderDeps = false;
     SourceNode(CppSourceTarget *target_, Node *node_);
 

@@ -30,16 +30,6 @@ struct TargetCache
     explicit TargetCache(const string &name);
 };
 
-/// Stores either node's index or file-path based on USE_NODES_CACHE_INDICES_IN_CACHE CMake configuration macro.
-struct NodeIndexOrFilePath
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    uint32_t index{};
-#else
-    string_view filePath;
-#endif
-};
-
 /// Stores either compile-commands or its based on the USE_COMMAND_HASH CMake configuration macro.
 struct CCOrHash
 {
@@ -56,26 +46,26 @@ struct ConfigCache
     {
         struct InclNode
         {
-            NodeIndexOrFilePath node;
+            Node *node;
             bool isStandard = false;
             bool ignoreHeaderDeps = false;
         };
         span<InclNode> reqInclsArray;
         span<InclNode> useReqInclsArray;
-        span<NodeIndexOrFilePath> reqHUDirsArray;
-        span<NodeIndexOrFilePath> useReqHUDirsArray;
-        span<NodeIndexOrFilePath> sourceFiles;
-        span<NodeIndexOrFilePath> moduleFiles;
-        span<NodeIndexOrFilePath> headerUnits;
-        NodeIndexOrFilePath buildCacheFilesDirPath;
+        span<Node *> reqHUDirsArray;
+        span<Node *> useReqHUDirsArray;
+        span<Node *> sourceFiles;
+        span<Node *> moduleFiles;
+        span<Node *> headerUnits;
+        Node *buildCacheFilesDirPath;
     };
 
     struct Link
     {
-        span<NodeIndexOrFilePath> reqLibraryDirsArray;
-        span<NodeIndexOrFilePath> useReqLibraryDirsArray;
-        NodeIndexOrFilePath outputFileNode;
-        NodeIndexOrFilePath buildCacheFilesDirPath;
+        span<Node *> reqLibraryDirsArray;
+        span<Node *> useReqLibraryDirsArray;
+        Node *outputFileNode;
+        Node *buildCacheFilesDirPath;
     };
 };
 
@@ -85,9 +75,9 @@ struct BuildCache
     {
         struct SourceFile
         {
-            NodeIndexOrFilePath fullPath;
+            Node *fullPath;
             CCOrHash compileCommandWithTool;
-            span<NodeIndexOrFilePath> headerFiles;
+            span<Node *> headerFiles;
         };
 
         struct ModuleFileCache
@@ -96,7 +86,7 @@ struct BuildCache
             {
                 struct SingleHeaderUnitDep
                 {
-                    NodeIndexOrFilePath fullPath;
+                    Node *fullPath;
                     bool angle{};
                     uint32_t targetIndex{};
                     uint32_t myIndex{};
@@ -104,7 +94,7 @@ struct BuildCache
 
                 struct SingleModuleDep
                 {
-                    NodeIndexOrFilePath fullPath;
+                    Node *fullPath;
                     string logicalName;
                 };
 
@@ -115,32 +105,31 @@ struct BuildCache
             };
 
             SourceFile srcFile;
-            span<NodeIndexOrFilePath> headerFiles;
+            span<Node *> headerFiles;
             SmRules smRules;
             CCOrHash compileCommandWithTool;
         };
 
-        span<SourceFile> sourceFiles;
-        span<ModuleFileCache> moduleFiles;
-        span<ModuleFileCache> headerUnits;
+        span<SourceFile*> sourceFiles;
+        span<ModuleFileCache*> moduleFiles;
+        span<ModuleFileCache*> headerUnits;
     };
 
     struct Link
     {
         CCOrHash commandWithoutArgumentsWithTools;
-        span<NodeIndexOrFilePath> objectFiles;
+        span<Node *> objectFiles;
     };
 };
-
 
 using ModuleFileCache = BuildCache::Cpp::ModuleFileCache;
 
 bool readBool(const char *ptr, uint32_t &bytesRead);
 uint32_t readUint32(const char *ptr, uint32_t &bytesRead);
 string_view readStringView(const char *ptr, uint32_t &bytesRead);
-NodeIndexOrFilePath readNodeIndexOrFilePath(const char *ptr, uint32_t &bytesRead);
+Node *readNode(const char *ptr, uint32_t &bytesRead);
 CCOrHash readCCOrHash(const char *ptr, uint32_t &bytesRead);
-span<NodeIndexOrFilePath> readNoIndexOrFilePathSpan(const char *ptr, uint32_t &bytesRead);
+span<Node *> readNoIndexOrFilePathSpan(const char *ptr, uint32_t &bytesRead);
 ConfigCache::Cpp readCppConfigCache(const char *ptr, uint32_t &bytesRead);
 ConfigCache::Link readLinkConfigCache(const char *ptr, uint32_t &bytesRead);
 BuildCache::Cpp::SourceFile readSourceFileBuildCache(const char *ptr, uint32_t &bytesRead);
@@ -158,13 +147,12 @@ BuildCache::Link readLinkBuildCache(const char *ptr, uint32_t &bytesRead);
 void writeBool(vector<char> &buffer, const bool &value);
 void writeUint32(vector<char> &buffer, const uint32_t &data);
 void writeStringView(vector<char> &buffer, const string_view &data);
-void writeNodeIndexOrFilePath(vector<char> &buffer, const NodeIndexOrFilePath &value);
+void writeNode(vector<char> &buffer, const Node *value);
 void writeCCOrHash(vector<char> &buffer, const CCOrHash &value);
-void writeNodeIndexOrFilePathSpan(vector<char> &buffer, span<NodeIndexOrFilePath> array);
+void writeNodeSpan(vector<char> &buffer, span<Node *> array);
 void writeCppConfigCache(vector<char> &buffer, const ConfigCache::Cpp &data);
 void writeLinkConfigCache(vector<char> &buffer, const ConfigCache::Link &data);
 void writeSourceFileBuildCache(vector<char> &buffer, const BuildCache::Cpp::SourceFile &data);
-void writeSourceFileBuildCacheSpan(vector<char> &buffer, const BuildCache::Cpp::SourceFile &data);
 void writeSourceFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::SourceFile> &data);
 void writeSingleHeaderUnitDep(vector<char> &buffer, const ModuleFileCache::SmRules::SingleHeaderUnitDep &data);
 void writeSingleModuleDep(vector<char> &buffer, const ModuleFileCache::SmRules::SingleModuleDep &data);
@@ -174,7 +162,6 @@ void writeModuleFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::
 void writeCppBuildCache(vector<char> &buffer, const BuildCache::Cpp &data);
 void writeLinkBuildCache(vector<char> &buffer, const BuildCache::Link &data);
 
-
 template <typename T> void writeIncDirsAtConfigTime(vector<char> *buffer, const vector<T> &include)
 {
     buffer->reserve(include.size() * sizeof(T) + sizeof(uint32_t));
@@ -182,7 +169,7 @@ template <typename T> void writeIncDirsAtConfigTime(vector<char> *buffer, const 
     for (auto &elem : include)
     {
         const InclNode &inclNode = getNode(elem);
-        writeNodeIndexOrFilePath(*buffer, inclNode.node->getNodeIndexOrFilePath());
+        writeNode(*buffer, include.node);
         writeBool(*buffer, inclNode.isStandard);
         writeBool(*buffer, inclNode.ignoreHeaderDeps);
         if constexpr (std::is_same_v<T, InclNodeTargetMap>)
@@ -195,4 +182,25 @@ template <typename T> void writeIncDirsAtConfigTime(vector<char> *buffer, const 
     }
 }
 
+template <typename T> void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, const vector<T> &include)
+{
+    const uint32_t reserveSize = readUint32(ptr + bytesRead, bytesRead);
+    include.reserve(reserveSize * sizeof(T) + sizeof(uint32_t));
+    for (uint32_t i = 0; i < include.size(); ++i)
+    {
+        Node *node = readNode(ptr + bytesRead, bytesRead);
+        bool isStandard = readBool(ptr + bytesRead, bytesRead);
+        bool ignoreHeaderDeps = readBool(ptr + bytesRead, bytesRead);
+        if constexpr (std::is_same_v<T, InclNodeTargetMap>)
+        {
+            bool targetCacheIndex = readBool(ptr + bytesRead, bytesRead);
+            bool headerUnitIndex = readBool(ptr + bytesRead, bytesRead);
+            include.emplace_back(node, isStandard, ignoreHeaderDeps, targetCacheIndex, headerUnitIndex);
+        }
+        else
+        {
+            include.emplace_back(node, isStandard, ignoreHeaderDeps);
+        }
+    }
+}
 #endif // TARGETCACHE_HPP

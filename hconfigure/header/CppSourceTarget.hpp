@@ -87,7 +87,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     friend struct ResolveRequirePathBTarget;
 
   public:
-    BuildCache::Cpp buildCache;
+    BuildCache::Cpp cppBuildCache;
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
     mutex headerUnitsMutex;
 
@@ -156,7 +156,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void updateBTarget(Builder &builder, unsigned short round) override;
     void copyJson() override;
-    void writeTargetConfigCacheAtConfigureTime(bool before);
+    void writeTargetConfigCacheAtConfigureTime(bool before) const;
     void readConfigCacheAtBuildTime();
     string getTarjanNodeName() const override;
 

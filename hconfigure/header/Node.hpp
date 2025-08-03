@@ -50,10 +50,9 @@ class Node
     // atomically.
     bool systemCheckCompleted{false};
 
-  // private:
+    // private:
     bool systemCheckCalled = false;
 
-  public:
     Node(Node *&node, string filePath_);
     explicit Node(string filePath_);
     string getFileName() const;
@@ -79,9 +78,9 @@ class Node
     static Node *addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath);
     static Node *getHalfNode(string_view p);
     static Node *getNodeFromValue(const Value &value, bool isFile, bool mayNotExist = false);
-    static Node *getHalfNode(const NodeIndexOrFilePath &nodeIndexOrFilePath);
+    static Node *getHalfNode(uint32_t );
     static Node *tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, bool isFile,
-                                      bool mayNotExist = false);
+                                     bool mayNotExist = false);
 
     static rapidjson::Type getType();
 

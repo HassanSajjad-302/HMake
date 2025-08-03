@@ -300,15 +300,9 @@ Node *Node::getNodeFromValue(const Value &value, bool isFile, bool mayNotExist)
     return node;
 }
 
-Node *Node::getHalfNode(const NodeIndexOrFilePath &nodeIndexOrFilePath)
+Node *Node::getHalfNode(const uint32_t index)
 {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[nodeIndexOrFilePath.index];
-#else
-    Node *node =
-        getNodeFromNormalizedStringNoSystemCheckCalled(string_view(value.GetString(), value.GetStringLength()));
-#endif
-    return node;
+    return nodeIndices[nodeIndexOrFilePath.index];
 }
 
 Node *Node::tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, bool isFile, bool mayNotExist)

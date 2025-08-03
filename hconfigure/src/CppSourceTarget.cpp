@@ -155,7 +155,8 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
             srcFileDeps.emplace_back(new SourceNode(this, Node::getHalfNode(value)));
         }
 
-        modFileDeps.reserve(moduleNodesCache.Size() / 2);
+        modFileDeps.reserve(moduleNod
+        esCache.Size() / 2);
         for (uint64_t i = 0; i < moduleNodesCache.Size(); i = i + 2)
         {
             // ensureSystemCheckCalled is called in SMFile::updateBTarget(1) in parallel.
@@ -456,7 +457,7 @@ void CppSourceTarget::copyJson()
     }
 }
 
-void CppSourceTarget::writeTargetConfigCacheAtConfigureTime(const bool before)
+void CppSourceTarget::writeTargetConfigCacheAtConfigureTime(const bool before) const
 {
     if (before)
     {
@@ -470,12 +471,12 @@ void CppSourceTarget::writeTargetConfigCacheAtConfigureTime(const bool before)
 
         for (const SourceNode *source : srcFileDeps)
         {
-            writeNodeIndexOrFilePath(*buffer, source->node->getNodeIndexOrFilePath());
+            writeNode(*buffer, source->node);
         }
 
         for (const SMFile *smFile : modFileDeps)
         {
-            writeNodeIndexOrFilePath(*buffer, smFile->node->getNodeIndexOrFilePath());
+            writeNode(*buffer, smFile->node);
             writeBool(*buffer, smFile->isInterface);
         }
 
@@ -487,53 +488,27 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
 {
     namespace ConfigCache = Indices::ConfigCache::CppConfig;
 
-    // TODO
-    // use-template
+    uint32_t configRead = 0;
+    readInclDirsAtBuildTime(configCache.data() + configRead, configRead, reqIncls);
+    readInclDirsAtBuildTime(configCache.data() + configRead, configRead, useReqIncls);
+    readInclDirsAtBuildTime(configCache.data() + configRead, configRead, reqHuDirs);
+    readInclDirsAtBuildTime(configCache.data() + configRead, configRead, useReqHuDirs);
 
-
-    const uint32_t bufferSize = configCache.size();
-    uint32_t bufferRead = 0;
-
-    uint32_t
-
-    Value &reqInclCache = getConfigCache()[ConfigCache::reqInclsArray];
-    Value &useReqInclCache = getConfigCache()[ConfigCache::useReqInclsArray];
-    Value &reqHUDirCache = getConfigCache()[ConfigCache::reqHUDirsArray];
-    Value &useReqHUDirCache = getConfigCache()[ConfigCache::useReqHUDirsArray];
-
-    constexpr uint8_t numOfElem = 3;
-    reqIncls.reserve(reqInclCache.Size() / numOfElem);
-    for (uint64_t i = 0; i < reqInclCache.Size(); i = i + numOfElem)
+    uint32_t buildRead = 0;
+    uint32_t sourceCountBuild = readUint32(buildCache.data(), buildRead);
+    const uint32_t sourceCountConfig = readUint32(configCache.data() + configRead, configRead);
+    srcFileDeps.reserve(sourceCountConfig);
+    for (uint32_t i = 0; i < sourceCountConfig; i++)
     {
-        reqIncls.emplace_back(Node::getNodeFromValue(reqInclCache[i], false), reqInclCache[i + 1].GetUint64(),
-                              reqInclCache[i + 2].GetUint64());
+        cppBuildCache.so
     }
 
-    useReqIncls.reserve(useReqInclCache.Size() / numOfElem);
-    for (uint64_t i = 0; i < useReqInclCache.Size(); i = i + numOfElem)
-    {
-        useReqIncls.emplace_back(Node::getNodeFromValue(useReqInclCache[i], false), useReqInclCache[i + 1].GetUint64(),
-                                 useReqInclCache[i + 2].GetUint64());
-    }
+    SourceNode *srcNode = srcFileDeps.emplace_back(readNode(configCache.data() + configRead, configRead), this);
 
-    constexpr uint8_t numOfHUDirElem = 5;
-    reqHuDirs.reserve(reqHUDirCache.Size() / numOfHUDirElem);
-    for (uint64_t i = 0; i < reqHUDirCache.Size(); i = i + numOfHUDirElem)
+    srcNode->indexInBuildCache;
+    if (configRead != configCache.size())
     {
-        reqHuDirs.emplace_back(HeaderUnitNode(Node::getNodeFromValue(reqHUDirCache[i], false),
-                                              reqHUDirCache[i + 3].GetUint64(), reqHUDirCache[i + 4].GetUint64(),
-                                              reqHUDirCache[i + 1].GetUint64(), reqHUDirCache[i + 2].GetUint64()),
-                               this);
-    }
-
-    useReqHuDirs.reserve(useReqHUDirCache.Size() / numOfHUDirElem);
-    for (uint64_t i = 0; i < useReqHUDirCache.Size(); i = i + numOfHUDirElem)
-    {
-        useReqHuDirs.emplace_back(
-            HeaderUnitNode(Node::getNodeFromValue(useReqHUDirCache[i], false), useReqHUDirCache[i + 3].GetUint64(),
-                           useReqHUDirCache[i + 4].GetUint64(), useReqHUDirCache[i + 1].GetUint64(),
-                           useReqHUDirCache[i + 2].GetUint64()),
-            this);
+        // error reporting.
     }
 }
 

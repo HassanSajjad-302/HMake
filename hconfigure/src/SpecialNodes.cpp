@@ -45,8 +45,8 @@ bool operator<(const InclNode &lhs, const InclNode &rhs)
            std::tie(rhs.node, rhs.isStandard, rhs.ignoreHeaderDeps);
 }
 
-HeaderUnitNode::HeaderUnitNode(Node *node_, const uint64_t targetCacheIndex_, const uint64_t headerUnitIndex_,
-                               const bool isStandard_, const bool ignoreHeaderDeps_)
+HeaderUnitNode::HeaderUnitNode(Node *node_, const bool isStandard_, const bool ignoreHeaderDeps_,
+                               const uint64_t targetCacheIndex_, const uint64_t headerUnitIndex_)
     : InclNode(node_, isStandard_, ignoreHeaderDeps_), targetCacheIndex(targetCacheIndex_),
       headerUnitIndex(headerUnitIndex_)
 {

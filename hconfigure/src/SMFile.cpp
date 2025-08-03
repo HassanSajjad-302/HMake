@@ -549,8 +549,8 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
     namespace SMRules = ModuleFiles::SmRules;
 
     // We get half-node since we trust the compiler to have generated if it is returning true
-    const Node *smRuleFileNode = Node::getHalfNode(target->buildCacheFilesDirPathNode->filePath +
-                                                                       slashc + getOutputFileName() + ".smrules");
+    const Node *smRuleFileNode =
+        Node::getHalfNode(target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".smrules");
 
     Document d;
     // The assumption is that clang only outputs scanning data during scanning on output while MSVC outputs nothing.

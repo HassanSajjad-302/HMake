@@ -36,9 +36,9 @@ class HeaderUnitNode : public InclNode
   public:
     uint64_t targetCacheIndex = UINT64_MAX;
     uint64_t headerUnitIndex = UINT64_MAX;
-    explicit HeaderUnitNode(Node *node_, uint64_t targetCacheIndex_ = UINT32_MAX,
-                            uint64_t headerUnitIndex_ = UINT32_MAX, bool isStandard_ = false,
-                            bool ignoreHeaderDeps_ = false);
+    explicit HeaderUnitNode(Node *node_,bool isStandard_ = false,
+                            bool ignoreHeaderDeps_ = false, uint64_t targetCacheIndex_ = UINT32_MAX,
+                            uint64_t headerUnitIndex_ = UINT32_MAX);
     static bool emplaceInList(list<HeaderUnitNode> &includes, HeaderUnitNode &libDirNode);
 };
 
