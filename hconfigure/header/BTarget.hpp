@@ -189,7 +189,7 @@ class BTarget // BTarget
     virtual BTargetType getBTargetType() const;
     virtual void updateBTarget(class Builder &builder, unsigned short round);
     virtual void endOfRound(Builder &builder, unsigned short round);
-    virtual void copyJson();
+    virtual void copyBuildCache(vector<char> &buildBuffer);
 
     template <unsigned short round> void addEndOfRoundBTarget();
 
@@ -242,13 +242,16 @@ template <unsigned short round, typename... U> void BTarget::addLooseDependency(
     }
 }
 
+// TODO
+// Bug here.
+// addDependencyDelayed is being called multi-threaded
 template <unsigned short round, typename... U> void BTarget::addDependencyDelayed(BTarget &dependency, U &...bTargets)
 {
     twoBTargetsVector[round].emplace_back(TwoBTargets{.b = this, .dep = &dependency});
 
     if constexpr (sizeof...(bTargets))
     {
-        addDependencyPost<round>(bTargets...);
+        addDependencyDelayed<round>(bTargets...);
     }
 }
 

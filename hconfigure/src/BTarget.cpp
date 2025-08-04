@@ -349,7 +349,7 @@ void BTarget::endOfRound(Builder &builder, unsigned short round)
 {
 }
 
-void BTarget::copyJson()
+void BTarget::copyBuildCache(vector<char> &buildBuffer)
 {
 }
 

@@ -42,20 +42,20 @@ void initializeCache(const BSMode bsMode_)
     if (const auto p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes")); exists(p))
     {
         const string str = p.string();
-        nodesCacheBuffer = readBufferFromCompressedFile(str);
+        nodesCacheGlobal = readBufferFromCompressedFile(str);
 
         // The Node is constructed from cache. It is placed in the hash set and also in nodeIndices.
         // However, performSystemCheck is not called and is called in multithreaded fashion.
 
-        const uint64_t bufferSize = nodesCacheBuffer.size();
+        const uint64_t bufferSize = nodesCacheGlobal.size();
         uint64_t bufferRead = 0;
         while (bufferRead != bufferSize)
         {
             uint16_t nodeFilePathSize;
-            memcpy(&nodeFilePathSize, nodesCacheBuffer.data() + bufferRead, sizeof(uint16_t));
+            memcpy(&nodeFilePathSize, nodesCacheGlobal.data() + bufferRead, sizeof(uint16_t));
             bufferRead += sizeof(uint16_t);
             Node::addHalfNodeFromNormalizedStringSingleThreaded(
-                string(nodesCacheBuffer.data() + bufferRead, nodeFilePathSize));
+                string(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
             bufferRead += nodeFilePathSize;
         }
         targetCacheDiskWriteManager.initialize();

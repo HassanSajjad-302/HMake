@@ -53,6 +53,7 @@ TargetCache::TargetCache(const string &name)
         targetCacheIndex = it->second;
     }
 }
+
 bool readBool(const char *ptr, uint32_t &bytesRead)
 {
     bool result;
@@ -77,7 +78,7 @@ string_view readStringView(const char *ptr, uint32_t &bytesRead)
     return {ptr + offset, strSize};
 }
 
-Node* readNode(const char *ptr, uint32_t &bytesRead)
+Node *readNode(const char *ptr, uint32_t &bytesRead)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     return Node::getHalfNode(readUint32(ptr, bytesRead));
@@ -97,24 +98,24 @@ CCOrHash readCCOrHash(const char *ptr, uint32_t &bytesRead)
     return cmd;
 }
 
-span<Node*> readNoIndexOrFilePathSpan(const char *ptr, uint32_t &bytesRead)
+span<Node *> readNodeSpan(const char *ptr, uint32_t &bytesRead)
 {
     uint32_t count = readUint32(ptr, bytesRead);
     const uint32_t offset = bytesRead;
-    bytesRead += count * sizeof(Node*);
-    return {(Node* *)(ptr + offset), count};
+    bytesRead += count * sizeof(Node *);
+    return {(Node **)(ptr + offset), count};
 }
 
 ConfigCache::Cpp readCppConfigCache(const char *ptr, uint32_t &bytesRead)
 {
     ConfigCache::Cpp cfg;
-    cfg.reqInclsArray = readNoIndexOrFilePathSpan(ptr, bytesRead);
-    cfg.useReqInclsArray = readNoIndexOrFilePathSpan(ptr, bytesRead);
-    cfg.reqHUDirsArray = readNoIndexOrFilePathSpan(ptr, bytesRead);
-    cfg.useReqHUDirsArray = readNoIndexOrFilePathSpan(ptr, bytesRead);
-    cfg.sourceFiles = readNoIndexOrFilePathSpan(ptr, bytesRead);
-    cfg.moduleFiles = readNoIndexOrFilePathSpan(ptr, bytesRead);
-    cfg.headerUnits = readNoIndexOrFilePathSpan(ptr, bytesRead);
+    cfg.reqInclsArray = readNodeSpan(ptr, bytesRead);
+    cfg.useReqInclsArray = readNodeSpan(ptr, bytesRead);
+    cfg.reqHUDirsArray = readNodeSpan(ptr, bytesRead);
+    cfg.useReqHUDirsArray = readNodeSpan(ptr, bytesRead);
+    cfg.sourceFiles = readNodeSpan(ptr, bytesRead);
+    cfg.moduleFiles = readNodeSpan(ptr, bytesRead);
+    cfg.headerUnits = readNodeSpan(ptr, bytesRead);
     cfg.buildCacheFilesDirPath = readNode(ptr, bytesRead);
     return cfg;
 }
@@ -122,8 +123,8 @@ ConfigCache::Cpp readCppConfigCache(const char *ptr, uint32_t &bytesRead)
 ConfigCache::Link readLinkConfigCache(const char *ptr, uint32_t &bytesRead)
 {
     ConfigCache::Link ln;
-    ln.reqLibraryDirsArray = readNoIndexOrFilePathSpan(ptr, bytesRead);
-    ln.useReqLibraryDirsArray = readNoIndexOrFilePathSpan(ptr, bytesRead);
+    ln.reqLibraryDirsArray = readNodeSpan(ptr, bytesRead);
+    ln.useReqLibraryDirsArray = readNodeSpan(ptr, bytesRead);
     ln.outputFileNode = readNode(ptr, bytesRead);
     ln.buildCacheFilesDirPath = readNode(ptr, bytesRead);
     return ln;
@@ -134,22 +135,54 @@ BuildCache::Cpp::SourceFile readSourceFileBuildCache(const char *ptr, uint32_t &
     BuildCache::Cpp::SourceFile sf;
     sf.fullPath = readNode(ptr, bytesRead);
     sf.compileCommandWithTool = readCCOrHash(ptr, bytesRead);
-    sf.headerFiles = readNoIndexOrFilePathSpan(ptr, bytesRead);
+    sf.headerFiles = readNodeSpan(ptr, bytesRead);
     return sf;
 }
 
-span<BuildCache::Cpp::SourceFile> readSourceFilesBuildCacheSpan(const char *ptr, uint32_t &bytesRead)
+void BuildCache::Cpp::SourceFile::initialize(const char *ptr, uint32_t &bytesRead)
+{
+    *this = readSourceFileBuildCache(ptr, bytesRead);
+}
+
+void ModuleFileCache::SmRules::SingleHeaderUnitDep::initialize(const char *ptr, uint32_t &bytesRead)
+{
+    *this = readSingleHeaderUnitDep(ptr, bytesRead);
+}
+void ModuleFileCache::SmRules::SingleModuleDep::initialize(const char *ptr, uint32_t &bytesRead)
+{
+    *this = readSingleModuleDep(ptr, bytesRead);
+}
+void ModuleFileCache::SmRules::initialize(const char *ptr, uint32_t &bytesRead)
+{
+    *this = readSMRules(ptr, bytesRead);
+}
+void BuildCache::Cpp::initialize(const char *ptr, uint32_t &bytesRead)
+{
+
+    // TODO
+    // just receive targetCacheIndex
+    // also check if the bytesRead size == cppConfigTargets[targetCacheIndex].buildCache.size().
+    // also assign BuildCache::Cpp::SourceFile ptr and size.
+}
+
+void ModuleFileCache::initialize(const char *ptr, uint32_t &bytesRead)
 {
     uint32_t count = readUint32(ptr, bytesRead);
     const uint32_t offset = bytesRead;
+    vector<BuildCache::Cpp::SourceFile> for (uint32_t i = 0; i < count; ++i)
+    {
+        BuildCache::Cpp::SourceFile sf;
+        sf.fullPath = readNode(ptr, bytesRead);
+        sf.compileCommandWithTool = readCCOrHash(ptr, bytesRead);
+        sf.headerFiles = readNodeSpan(ptr, bytesRead);
+    }
     bytesRead += count * sizeof(BuildCache::Cpp::SourceFile);
-    return {(BuildCache::Cpp::SourceFile *)(ptr + offset), count};
 }
 
-BuildCache::Cpp::ModuleFileCache::SmRules::SingleHeaderUnitDep readSingleHeaderUnitDep(const char *ptr,
+BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep readSingleHeaderUnitDep(const char *ptr,
                                                                                        uint32_t &bytesRead)
 {
-    BuildCache::Cpp::ModuleFileCache::SmRules::SingleHeaderUnitDep huDep;
+    BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep huDep;
     huDep.fullPath = readNode(ptr, bytesRead);
     huDep.angle = readBool(ptr, bytesRead);
     huDep.targetIndex = readUint32(ptr, bytesRead);
@@ -165,9 +198,9 @@ span<ModuleFileCache::SmRules::SingleHeaderUnitDep> readSingleHeaderUnitDepSpan(
     return {(ModuleFileCache::SmRules::SingleHeaderUnitDep *)(ptr + offset), count};
 }
 
-BuildCache::Cpp::ModuleFileCache::SmRules::SingleModuleDep readSingleModuleDep(const char *ptr, uint32_t &bytesRead)
+BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep readSingleModuleDep(const char *ptr, uint32_t &bytesRead)
 {
-    BuildCache::Cpp::ModuleFileCache::SmRules::SingleModuleDep d;
+    BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep d;
     d.fullPath = readNode(ptr, bytesRead);
     d.logicalName = string(readStringView(ptr, bytesRead));
     return d;
@@ -181,9 +214,9 @@ span<ModuleFileCache::SmRules::SingleModuleDep> readSingleModuleDepSpan(const ch
     return {(ModuleFileCache::SmRules::SingleModuleDep *)(ptr + offset), count};
 }
 
-BuildCache::Cpp::ModuleFileCache::SmRules readSMRules(const char *ptr, uint32_t &bytesRead)
+BuildCache::Cpp::ModuleFile::SmRules readSMRules(const char *ptr, uint32_t &bytesRead)
 {
-    BuildCache::Cpp::ModuleFileCache::SmRules rules;
+    BuildCache::Cpp::ModuleFile::SmRules rules;
     rules.exportName = string(readStringView(ptr, bytesRead));
     rules.isInterface = readBool(ptr, bytesRead);
     rules.headerUnitArray = readSingleHeaderUnitDepSpan(ptr, bytesRead);
@@ -191,11 +224,11 @@ BuildCache::Cpp::ModuleFileCache::SmRules readSMRules(const char *ptr, uint32_t 
     return rules;
 }
 
-BuildCache::Cpp::ModuleFileCache readModuleFileBuildCache(const char *ptr, uint32_t &bytesRead)
+BuildCache::Cpp::ModuleFile readModuleFileBuildCache(const char *ptr, uint32_t &bytesRead)
 {
-    BuildCache::Cpp::ModuleFileCache mf;
+    BuildCache::Cpp::ModuleFile mf;
     mf.srcFile = readSourceFileBuildCache(ptr, bytesRead);
-    mf.headerFiles = readNoIndexOrFilePathSpan(ptr, bytesRead);
+    mf.headerFiles = readNodeSpan(ptr, bytesRead);
     mf.smRules = readSMRules(ptr, bytesRead);
     mf.compileCommandWithTool = readCCOrHash(ptr, bytesRead);
     return mf;
@@ -212,8 +245,8 @@ span<ModuleFileCache> readModuleFilesBuildCacheSpan(const char *ptr, uint32_t &b
 BuildCache::Cpp readCppBuildCache(const char *ptr, uint32_t &bytesRead)
 {
     BuildCache::Cpp bc;
-    bc.sourceFiles = readSourceFilesBuildCacheSpan(ptr, bytesRead);
-    bc.moduleFiles = readModuleFilesBuildCacheSpan(ptr, bytesRead);
+    bc.srcFiles = readSourceFilesBuildCacheSpan(ptr, bytesRead);
+    bc.modFiles = readModuleFilesBuildCacheSpan(ptr, bytesRead);
     bc.headerUnits = readModuleFilesBuildCacheSpan(ptr, bytesRead);
     return bc;
 }
@@ -222,7 +255,7 @@ BuildCache::Link readLinkBuildCache(const char *ptr, uint32_t &bytesRead)
 {
     BuildCache::Link ln;
     ln.commandWithoutArgumentsWithTools = readCCOrHash(ptr, bytesRead);
-    ln.objectFiles = readNoIndexOrFilePathSpan(ptr, bytesRead);
+    ln.objectFiles = readNodeSpan(ptr, bytesRead);
     return ln;
 }
 
@@ -243,7 +276,7 @@ void writeStringView(vector<char> &buffer, const string_view &data)
     buffer.insert(buffer.end(), data.begin(), data.end());
 }
 
-void writeNode(vector<char> &buffer, const Node* value)
+void writeNode(vector<char> &buffer, const Node *value)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     writeUint32(buffer, value.index);
@@ -261,12 +294,12 @@ void writeCCOrHash(vector<char> &buffer, const CCOrHash &value)
 #endif
 }
 
-void writeNodeSpan(vector<char> &buffer, span<Node*> array)
+void writeNodeSpan(vector<char> &buffer, span<Node *> array)
 {
     writeUint32(buffer, static_cast<uint32_t>(array.size()));
     for (auto &e : array)
     {
-        writeNode*(buffer, e);
+        writeNode *(buffer, e);
     }
 }
 
@@ -279,7 +312,7 @@ void writeCppConfigCache(vector<char> &buffer, const ConfigCache::Cpp &data)
     writeNodeSpan(buffer, data.sourceFiles);
     writeNodeSpan(buffer, data.moduleFiles);
     writeNodeSpan(buffer, data.headerUnits);
-    writeNode*(buffer, data.buildCacheFilesDirPath);
+    writeNode *(buffer, data.buildCacheFilesDirPath);
 }
 
 void writeLinkConfigCache(vector<char> &buffer, const ConfigCache::Link &data)
@@ -307,21 +340,21 @@ void writeSourceFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::
 }
 
 void writeSingleHeaderUnitDep(vector<char> &buffer,
-                              const BuildCache::Cpp::ModuleFileCache::SmRules::SingleHeaderUnitDep &data)
+                              const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &data)
 {
-    writeNode*(buffer, data.fullPath);
+    writeNode *(buffer, data.fullPath);
     writeBool(buffer, data.angle);
     writeUint32(buffer, data.targetIndex);
     writeUint32(buffer, data.myIndex);
 }
 
-void writeSingleModuleDep(vector<char> &buffer, const BuildCache::Cpp::ModuleFileCache::SmRules::SingleModuleDep &data)
+void writeSingleModuleDep(vector<char> &buffer, const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &data)
 {
-    writeNode*(buffer, data.fullPath);
+    writeNode *(buffer, data.fullPath);
     writeStringView(buffer, data.logicalName);
 }
 
-void writeSMRules(vector<char> &buffer, const BuildCache::Cpp::ModuleFileCache::SmRules &data)
+void writeSMRules(vector<char> &buffer, const BuildCache::Cpp::ModuleFile::SmRules &data)
 {
     writeStringView(buffer, data.exportName);
     writeBool(buffer, data.isInterface);
@@ -339,7 +372,7 @@ void writeSMRules(vector<char> &buffer, const BuildCache::Cpp::ModuleFileCache::
     }
 }
 
-void writeModuleFileBuildCache(vector<char> &buffer, const BuildCache::Cpp::ModuleFileCache &data)
+void writeModuleFileBuildCache(vector<char> &buffer, const BuildCache::Cpp::ModuleFile &data)
 {
     writeSourceFileBuildCache(buffer, data.srcFile);
     writeNodeSpan(buffer, data.headerFiles);
@@ -347,7 +380,7 @@ void writeModuleFileBuildCache(vector<char> &buffer, const BuildCache::Cpp::Modu
     writeCCOrHash(buffer, data.compileCommandWithTool);
 }
 
-void writeModuleFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::ModuleFileCache> &data)
+void writeModuleFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::ModuleFile> &data)
 {
     writeUint32(buffer, static_cast<uint32_t>(data.size()));
     for (auto &e : data)
@@ -358,8 +391,8 @@ void writeModuleFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::
 
 void writeCppBuildCache(vector<char> &buffer, const BuildCache::Cpp &data)
 {
-    writeSourceFileBuildCacheSpan(buffer, data.sourceFiles);
-    writeModuleFileBuildCacheSpan(buffer, data.moduleFiles);
+    writeSourceFileBuildCacheSpan(buffer, data.srcFiles);
+    writeModuleFileBuildCacheSpan(buffer, data.modFiles);
     writeModuleFileBuildCacheSpan(buffer, data.headerUnits);
 }
 

@@ -29,9 +29,9 @@ using Json = nlohmann::json; // Unordered json
 
 inline flat_hash_set<string> cmdTargets;
 inline mutex configCacheMutex;
-inline vector<char> configCache;
-inline vector<char> buildCache;
-inline vector<char> nodesCacheBuffer;
+inline vector<char> configCacheGlobal;
+inline vector<char> buildCacheGlobal;
+inline vector<char> nodesCacheGlobal;
 
 //inline auto &ralloc = buildCache.GetAllocator();
 

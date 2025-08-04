@@ -55,6 +55,7 @@ class TargetCacheDiskWriteManager
 
   public:
     vector<class BTarget *> copyJsonBTargets;
+    vector<char> buildBuffer;
     RAPIDJSON_DEFAULT_ALLOCATOR writeBuildCacheAllocator;
     std::thread diskWriteManagerThread;
     uint64_t nodesSizeBefore = 0;

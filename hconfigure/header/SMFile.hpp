@@ -42,7 +42,8 @@ class SourceNode : public ObjectFile
   public:
     CppSourceTarget *target;
     const Node *node;
-    uint64_t indexInBuildCache = UINT64_MAX;
+    uint32_t buildCacheSize = 0;
+    uint32_t indexInBuildCache = -1;
     char *sourceNodeBuildCache;
     bool ignoreHeaderDeps = false;
     SourceNode(CppSourceTarget *target_, Node *node_);

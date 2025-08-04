@@ -78,9 +78,10 @@ struct BuildCache
             Node *fullPath;
             CCOrHash compileCommandWithTool;
             span<Node *> headerFiles;
+            void initialize(const char *ptr, uint32_t &bytesRead);
         };
 
-        struct ModuleFileCache
+        struct ModuleFile
         {
             struct SmRules
             {
@@ -90,29 +91,35 @@ struct BuildCache
                     bool angle{};
                     uint32_t targetIndex{};
                     uint32_t myIndex{};
+                    void initialize(const char *ptr, uint32_t &bytesRead);
                 };
 
                 struct SingleModuleDep
                 {
                     Node *fullPath;
                     string logicalName;
+                    void initialize(const char *ptr, uint32_t &bytesRead);
                 };
 
                 string exportName;
                 bool isInterface{};
                 span<SingleHeaderUnitDep> headerUnitArray;
                 span<SingleModuleDep> moduleArray;
+                void initialize(const char *ptr, uint32_t &bytesRead);
             };
 
             SourceFile srcFile;
             span<Node *> headerFiles;
             SmRules smRules;
             CCOrHash compileCommandWithTool;
+            void initialize(const char *ptr, uint32_t &bytesRead);
         };
 
-        span<SourceFile*> sourceFiles;
-        span<ModuleFileCache*> moduleFiles;
-        span<ModuleFileCache*> headerUnits;
+        span<SourceFile> srcFiles;
+        span<ModuleFile> modFiles;
+        span<ModuleFile> headerUnits;
+        void initialize(const char *ptr, uint32_t &bytesRead);
+        span<SourceFile> readSourceFilesBuildCacheSpan(const char *ptr, uint32_t &bytesRead);
     };
 
     struct Link
@@ -122,18 +129,17 @@ struct BuildCache
     };
 };
 
-using ModuleFileCache = BuildCache::Cpp::ModuleFileCache;
+using ModuleFileCache = BuildCache::Cpp::ModuleFile;
 
 bool readBool(const char *ptr, uint32_t &bytesRead);
 uint32_t readUint32(const char *ptr, uint32_t &bytesRead);
 string_view readStringView(const char *ptr, uint32_t &bytesRead);
 Node *readNode(const char *ptr, uint32_t &bytesRead);
 CCOrHash readCCOrHash(const char *ptr, uint32_t &bytesRead);
-span<Node *> readNoIndexOrFilePathSpan(const char *ptr, uint32_t &bytesRead);
+span<Node *> readNodeSpan(const char *ptr, uint32_t &bytesRead);
 ConfigCache::Cpp readCppConfigCache(const char *ptr, uint32_t &bytesRead);
 ConfigCache::Link readLinkConfigCache(const char *ptr, uint32_t &bytesRead);
 BuildCache::Cpp::SourceFile readSourceFileBuildCache(const char *ptr, uint32_t &bytesRead);
-span<BuildCache::Cpp::SourceFile> readSourceFilesBuildCacheSpan(const char *ptr, uint32_t &bytesRead);
 ModuleFileCache::SmRules::SingleHeaderUnitDep readSingleHeaderUnitDep(const char *ptr, uint32_t &bytesRead);
 span<ModuleFileCache::SmRules::SingleHeaderUnitDep> readSingleHeaderUnitDepSpan(const char *ptr, uint32_t &bytesRead);
 ModuleFileCache::SmRules::SingleModuleDep readSingleModuleDep(const char *ptr, uint32_t &bytesRead);
@@ -158,7 +164,7 @@ void writeSingleHeaderUnitDep(vector<char> &buffer, const ModuleFileCache::SmRul
 void writeSingleModuleDep(vector<char> &buffer, const ModuleFileCache::SmRules::SingleModuleDep &data);
 void writeSMRules(vector<char> &buffer, const ModuleFileCache::SmRules &data);
 void writeModuleFileBuildCache(vector<char> &buffer, const ModuleFileCache &data);
-void writeModuleFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::ModuleFileCache> &data);
+void writeModuleFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::ModuleFile> &data);
 void writeCppBuildCache(vector<char> &buffer, const BuildCache::Cpp &data);
 void writeLinkBuildCache(vector<char> &buffer, const BuildCache::Link &data);
 
@@ -182,7 +188,7 @@ template <typename T> void writeIncDirsAtConfigTime(vector<char> *buffer, const 
     }
 }
 
-template <typename T> void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, const vector<T> &include)
+template <typename T> void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &include)
 {
     const uint32_t reserveSize = readUint32(ptr + bytesRead, bytesRead);
     include.reserve(reserveSize * sizeof(T) + sizeof(uint32_t));

@@ -144,8 +144,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     string getDependenciesPString() const;
     void resolveRequirePaths();
-    void populateSourceNodes();
-    void parseModuleSourceFiles(Builder &builder);
+    void initializeCppBuildCache();
     void populateResolveRequirePathDependencies();
     static string getInfrastructureFlags(const Compiler &compiler, bool showIncludes) ;
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
@@ -155,7 +154,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void updateBTarget(Builder &builder, unsigned short round) override;
-    void copyJson() override;
+    void copyBuildCache(vector<char> &buildBuffer) override;
     void writeTargetConfigCacheAtConfigureTime(bool before) const;
     void readConfigCacheAtBuildTime();
     string getTarjanNodeName() const override;

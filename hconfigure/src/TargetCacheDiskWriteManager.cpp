@@ -76,7 +76,7 @@ void TargetCacheDiskWriteManager::addNewBTargetInCopyJsonBTargetsCount(BTarget *
 
 void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
 {
-    nodesCacheBuffer.reserve(1024 * 1024 * 4);
+    nodesCacheGlobal.reserve(1024 * 1024 * 4);
     if (const uint64_t newNodesSize = atomic_ref(Node::idCountCompleted).load(); newNodesSize != nodesSizeBefore)
     {
         // printMessage(FORMAT("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
@@ -86,11 +86,11 @@ void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
             const string &str = Node::nodeIndices[i]->filePath;
             uint16_t strSize = str.size();
             const auto ptr = reinterpret_cast<const char *>(&strSize);
-            nodesCacheBuffer.insert(nodesCacheBuffer.end(), ptr, ptr + 2);
-            nodesCacheBuffer.insert(nodesCacheBuffer.end(), str.begin(), str.end());
+            nodesCacheGlobal.insert(nodesCacheGlobal.end(), ptr, ptr + 2);
+            nodesCacheGlobal.insert(nodesCacheGlobal.end(), str.begin(), str.end());
         }
         nodesSizeBefore = newNodesSize;
-        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheBuffer);
+        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheGlobal);
     }
 }
 
@@ -206,7 +206,7 @@ void TargetCacheDiskWriteManager::endOfRound()
     {
         for (uint64_t i = 0; i < s; ++i)
         {
-            copyJsonBTargets[i]->copyJson();
+            copyJsonBTargets[i]->copyBuildCache(buildBuffer);
             copyJsonBTargets[i] = nullptr;
         }
         writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
