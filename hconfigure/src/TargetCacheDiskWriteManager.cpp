@@ -8,47 +8,15 @@ import "Node.hpp";
 #include "BTarget.hpp"
 #include "Node.hpp"
 #endif
+#include "TargetCache.hpp"
 
 ColoredStringForPrint::ColoredStringForPrint(string _msg, uint32_t _color, bool _isColored)
     : msg(std::move(_msg)), color(_color), isColored(_isColored)
 {
 }
 
-ValueAndIndices::ValueAndIndices(Value _value, const uint64_t _index0, const uint64_t _index1, const uint64_t _index2,
-                                 const uint64_t _index3, const uint64_t _index4)
-
-    : value{std::move(_value)}, index0{_index0}, index1{_index1}, index2{_index2}, index3{_index3}, index4{_index4}
+UpdatedCache::UpdatedCache(CppSourceTarget *target_, BuildCache::Cpp::ModuleFile cache_, const bool isSource_) : cache(cache_), target(target_), isSource(isSource_)
 {
-}
-
-Value &ValueAndIndices::getTargetValue() const
-{
-    Value &target0 = buildCache;
-    if (index0 == UINT64_MAX)
-    {
-        return target0;
-    }
-    Value &target1 = target0[index0];
-    if (index1 == UINT64_MAX)
-    {
-        return target1;
-    }
-    Value &target2 = target1[index1];
-    if (index2 == UINT64_MAX)
-    {
-        return target2;
-    }
-    Value &target3 = target2[index2];
-    if (index3 == UINT64_MAX)
-    {
-        return target3;
-    }
-    Value &target4 = target3[index3];
-    if (index4 == UINT64_MAX)
-    {
-        return target4;
-    }
-    return target4[index4];
 }
 
 TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
@@ -118,8 +86,8 @@ void TargetCacheDiskWriteManager::initialize()
         // Allocate this and all the other globals in one function call.
         strCache.reserve(1000);
         strCacheLocal.reserve(1000);
-        valueCache.reserve(1000);
-        valueCacheLocal.reserve(1000);
+        updatedCaches.reserve(1000);
+        updatedCachesLocal.reserve(1000);
     }
 
     nodesSizeBefore = Node::idCountCompleted;
@@ -132,21 +100,20 @@ void TargetCacheDiskWriteManager::performThreadOperations(bool doUnlockAndRelock
     {
         // Should be based on if a new node is entered.
         strCacheLocal.swap(strCache);
-        valueCacheLocal.swap(valueCache);
+        updatedCachesLocal.swap(updatedCaches);
         strCache.clear();
-        valueCache.clear();
+        updatedCaches.clear();
 
         if (doUnlockAndRelock)
         {
-
             vecMutex.unlock();
         }
 
         writeNodesCacheIfNewNodesAdded();
 
-        if (!valueCacheLocal.empty())
+        if (!updatedCachesLocal.empty())
         {
-            for (ValueAndIndices &p : valueCacheLocal)
+            for (UpdatedCache &p : updatedCachesLocal)
             {
                 p.getTargetValue() = std::move(p.value);
             }

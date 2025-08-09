@@ -14,6 +14,7 @@ import <condition_variable>;
 #include <atomic>
 #include <condition_variable>
 #endif
+#include "TargetCache.hpp"
 
 using std::atomic;
 
@@ -26,18 +27,12 @@ struct ColoredStringForPrint
     ColoredStringForPrint(string _msg, uint32_t _color, bool _isColored);
 };
 
-struct ValueAndIndices
+struct UpdatedCache
 {
-    Value value;
-    uint64_t index0;
-    uint64_t index1;
-    uint64_t index2;
-    uint64_t index3;
-    uint64_t index4;
-    explicit ValueAndIndices(Value _value, uint64_t _index0, uint64_t _index1, uint64_t _index2, uint64_t _index3,
-                             uint64_t _index4);
-    Value &getTargetValue() const;
-    void copyToCentralTargetCache();
+    BuildCache::Cpp::ModuleFile cache;
+    CppSourceTarget *target;
+    bool isSource;
+    UpdatedCache(CppSourceTarget *target_, BuildCache::Cpp::ModuleFile cache_, bool isSource_);
 };
 
 class TargetCacheDiskWriteManager
@@ -47,11 +42,11 @@ class TargetCacheDiskWriteManager
     std::condition_variable vecCond{};
     std::unique_lock<std::mutex> vecLock{vecMutex, std::defer_lock_t{}};
     vector<ColoredStringForPrint> strCache;
-    vector<ValueAndIndices> valueCache;
+    vector<UpdatedCache> updatedCaches;
 
   private:
     vector<ColoredStringForPrint> strCacheLocal;
-    vector<ValueAndIndices> valueCacheLocal;
+    vector<UpdatedCache> updatedCachesLocal;
 
   public:
     vector<CppSourceTarget *> copyJsonBTargets;

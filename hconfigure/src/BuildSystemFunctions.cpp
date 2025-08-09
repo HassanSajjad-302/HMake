@@ -76,21 +76,7 @@ void initializeCache(const BSMode bsMode_)
     if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache")); exists(p))
     {
         const string str = p.string();
-        configCache = readBufferFromCompressedFile(str);
-    }
-    else
-    {
-        if constexpr (bsMode == BSMode::BUILD)
-        {
-            printErrorMessage(FORMAT("{} does not exist. Exiting\n", p.string().c_str()));
-            errorExit();
-        }
-    }
-
-    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache")); exists(p))
-    {
-        const string str = p.string();
-        buildCache = readBufferFromCompressedFile(str);
+        configCacheGlobal = readBufferFromCompressedFile(str);
     }
     else
     {
@@ -102,8 +88,21 @@ void initializeCache(const BSMode bsMode_)
     }
 
     readConfigCache();
-    readBuildCache();
 
+    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache")); exists(p))
+    {
+        const string str = p.string();
+        buildCacheGlobal = readBufferFromCompressedFile(str);
+        readBuildCache();
+    }
+    else
+    {
+        if constexpr (bsMode == BSMode::BUILD)
+        {
+            printErrorMessage(FORMAT("{} does not exist. Exiting\n", p.string().c_str()));
+            errorExit();
+        }
+    }
 
     if constexpr (bsMode == BSMode::BUILD)
     {

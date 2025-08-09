@@ -16,8 +16,8 @@ struct ConfigCacheTarget
 {
     // string will have 4 byte size instead of 8 byte size.
     string_view name;
-    span<char> configCache;
-    span<char> buildCache;
+    string_view configCache;
+    string_view buildCache;
 };
 
 inline vector<ConfigCacheTarget> configCacheTargets;

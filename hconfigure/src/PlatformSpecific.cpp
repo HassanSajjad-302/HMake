@@ -12,9 +12,9 @@ import <iostream>;
 import <Windows.h>;
 #endif
 #else
+#include "PlatformSpecific.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Node.hpp"
-#include "PlatformSpecific.hpp"
 #include "lz4.h"
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/writer.h"
@@ -214,7 +214,7 @@ vector<char> readBufferFromCompressedFile(const string &fileName)
 
 void readConfigCache()
 {
-    const uint32_t bufferSize = configCache.size();
+    const uint32_t bufferSize = configCacheGlobal.size();
     uint32_t bufferRead = 0;
 
     uint32_t count = 0;
@@ -222,18 +222,10 @@ void readConfigCache()
     {
         ConfigCacheTarget configCacheTarget;
 
-        // Skip the target name. configAddress includes the size, however.
-        configCacheTarget.name = readStringView(configCache.data() + bufferRead, bufferRead);
-        configCacheTarget.configAddress = configCache.data() + bufferRead;
+        configCacheTarget.name = readStringView(configCacheGlobal.data() + bufferRead, bufferRead);
+        configCacheTarget.configCache = readStringView(configCacheGlobal.data() + bufferRead, bufferRead);
 
-        const uint32_t dataSize = readUint32(configCache.data() + bufferRead, bufferRead);
-        // In BSMode::CONFIGURE, the data is to be rewritten.
-        if constexpr (bsMode == BSMode::BUILD)
-        {
-            configCacheTarget.configSize = dataSize;
-        }
-
-        configCacheTargets.emplace_back(std::move(configCacheTarget));
+        configCacheTargets.emplace_back(configCacheTarget);
         nameToIndexMap.emplace(configCacheTarget.name, count);
 
         ++count;
@@ -242,17 +234,19 @@ void readConfigCache()
 
 void readBuildCache()
 {
-    const uint32_t bufferSize = buildCache.size();
+    const uint32_t bufferSize = buildCacheGlobal.size();
     uint32_t bufferRead = 0;
 
-    uint32_t count = 0;
-    while (bufferRead != bufferSize)
+    for (ConfigCacheTarget configCacheTarget : configCacheTargets)
     {
-        ConfigCacheTarget &configCacheTarget = configCacheTargets[count];
-        configCacheTarget.buildAddress = buildCache.data() + bufferRead;
-        configCacheTarget.buildSize = readUint32(buildCache.data() + bufferRead, bufferRead);
+        const uint32_t dataSize = readUint32(buildCacheGlobal.data() + bufferRead, bufferRead);
+        const char *ptr = buildCacheGlobal.data() + bufferRead;
+        bufferRead += dataSize;
+        configCacheTarget.buildCache = string_view(ptr, dataSize);
+    }
 
-        ++count;
+    if (bufferRead != bufferSize)
+    {
     }
 }
 
@@ -263,9 +257,7 @@ vector<char> writeConfigCache()
     for (ConfigCacheTarget &configCacheTarget : configCacheTargets)
     {
         writeStringView(fileBuffer, configCacheTarget.name);
-        writeUint32(fileBuffer, configCacheTarget.configSize);
-        fileBuffer.insert(fileBuffer.end(), configCacheTarget.configAddress,
-                          configCacheTarget.configAddress + configCacheTarget.configSize);
+        writeStringView(fileBuffer, configCacheTarget.configCache);
     }
 
     return fileBuffer;
@@ -276,9 +268,7 @@ vector<char> writeBuildCache()
     vector<char> fileBuffer;
     for (ConfigCacheTarget &configCacheTarget : configCacheTargets)
     {
-        writeUint32(fileBuffer, configCacheTarget.buildSize);
-        fileBuffer.insert(fileBuffer.end(), configCacheTarget.buildAddress,
-                          configCacheTarget.buildAddress + configCacheTarget.buildSize);
+        writeStringView(fileBuffer, configCacheTarget.buildCache);
     }
     return fileBuffer;
 }
@@ -294,45 +284,9 @@ void prettyWriteValueToFile(const string_view fileName, const Value &value)
     }
 }
 
-size_t valueIndexInArray(const Value &value, const Value &element)
-{
-    for (size_t i = 0; i < value.Size(); ++i)
-    {
-        if (element == value[i])
-        {
-            return i;
-        }
-    }
-    return UINT64_MAX;
-}
-
 #ifndef _WIN32
 #define fopen_s(pFile, filename, mode) ((*(pFile)) = fopen((filename), (mode))) == NULL
 #endif
-
-unique_ptr<vector<char>> readValueFromFile(const string_view fileName, Document &document)
-{
-    // Read whole file into a buffer
-    FILE *fp;
-    fopen_s(&fp, fileName.data(), "r");
-    fseek(fp, 0, SEEK_END);
-    const size_t filesize = (size_t)ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    unique_ptr<vector<char>> buffer = std::make_unique<vector<char>>(filesize + 1);
-    const size_t readLength = fread(buffer->begin().operator->(), 1, filesize, fp);
-    if (fclose(fp) != 0)
-    {
-        printErrorMessage("Error closing the file \n");
-    }
-
-    // TODO
-    //  What should this be for wchar_t
-    (*buffer)[readLength] = '\0';
-
-    // In situ parsing the buffer into d, buffer will also be modified
-    document.ParseInsitu(buffer->begin().operator->());
-    return buffer;
-}
 
 using rapidjson::StringBuffer, rapidjson::Writer, rapidjson::PrettyWriter, rapidjson::UTF8;
 
@@ -349,13 +303,13 @@ static void writeFile(const string &fileName, const char *buffer, uint64_t buffe
 #ifdef WIN32
         // Open the existing file for writing, replacing its content
         const HANDLE hFile = CreateFile(str.c_str(),
-                                        GENERIC_WRITE, // Open for writing
-                                        0, // Do not share
-                                        NULL, // Default security
-                                        CREATE_ALWAYS, // Always create a new file (replace if exists)
+                                        GENERIC_WRITE,         // Open for writing
+                                        0,                     // Do not share
+                                        NULL,                  // Default security
+                                        CREATE_ALWAYS,         // Always create a new file (replace if exists)
                                         FILE_ATTRIBUTE_NORMAL, // Normal file
-                                        NULL // No template
-            );
+                                        NULL                   // No template
+        );
 
         // Check if the file handle is valid
         if (hFile == INVALID_HANDLE_VALUE)
@@ -445,8 +399,8 @@ void writeBufferToCompressedFile(const string &fileName, const vector<char> &fil
     string compressed;
     compressed.resize(maxCompressedSize + 8);
 
-    const int compressedSize = LZ4_compress_default(fileBuffer.data(), compressed.data() + 8,
-                                                    fileBuffer.size(), maxCompressedSize);
+    const int compressedSize =
+        LZ4_compress_default(fileBuffer.data(), compressed.data() + 8, fileBuffer.size(), maxCompressedSize);
 
     // printMessage(FORMAT("\n{}\n{}\n", buffer.GetLength(), compressedSize + 8));
     if (!compressedSize)
@@ -458,140 +412,6 @@ void writeBufferToCompressedFile(const string &fileName, const vector<char> &fil
 
     writeFile(fileName, compressed.c_str(), compressedSize + 8, true);
 #endif
-}
-
-void writeValueToFile(const string &fileName, const Value &value)
-{
-    StringBuffer buffer;
-    Writer writer(buffer);
-    value.Accept(writer);
-    writeFile(fileName, buffer.GetString(), buffer.GetSize(), false);
-}
-
-unique_ptr<vector<char>> readValueFromCompressedFile(const string_view fileName, Document &document)
-{
-#ifndef USE_JSON_FILE_COMPRESSION
-    return readValueFromFile(fileName, document);
-#else
-    // Read whole file into a buffer
-    unique_ptr<vector<char>> fileBuffer;
-    uint64_t readLength;
-    {
-        FILE *fp;
-        fopen_s(&fp, fileName.data(), "rb");
-        fseek(fp, 0, SEEK_END);
-        const size_t filesize = (size_t)ftell(fp);
-        fseek(fp, 0, SEEK_SET);
-        fileBuffer = std::make_unique<vector<char>>(filesize);
-        readLength = fread(fileBuffer->begin().operator->(), 1, filesize, fp);
-        fclose(fp);
-    }
-
-    uint64_t decompressedSize = *reinterpret_cast<uint64_t *>(&(*fileBuffer)[0]);
-    unique_ptr<vector<char>> decompressedBuffer = std::make_unique<vector<char>>(decompressedSize + 1);
-
-    int decompressSize =
-        LZ4_decompress_safe(&(*fileBuffer)[8], &(*decompressedBuffer)[0], readLength - 8, decompressedSize);
-
-    if (decompressSize < 0)
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
-        errorExit();
-    }
-
-    if (decompressedSize != decompressSize)
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
-        errorExit();
-    }
-
-    // TODO
-    //  What should this be for wchar_t
-    // Neccessary for in-situ parsing
-    (*decompressedBuffer)[decompressSize] = '\0';
-
-    // In situ parsing the buffer into d, buffer will also be modified
-    document.ParseInsitu(&(*decompressedBuffer)[0]);
-
-    /*rapidjson::StringBuffer buffer;
-    rapidjson::Writer writer(buffer);
-    document.Accept(writer);
-    std::ofstream("nodes2.json") << string(buffer.GetString(), buffer.GetLength());*/
-    return decompressedBuffer;
-#endif
-}
-
-void writeValueToCompressedFile(string fileName, const Value &value)
-{
-#ifndef USE_JSON_FILE_COMPRESSION
-    writeValueToFile(std::move(fileName), value);
-#else
-    rapidjson::StringBuffer buffer;
-    rapidjson::Writer writer(buffer);
-    value.Accept(writer);
-
-    // printMessage(FORMAT("file {} \n{}\n", fileName, string(buffer.GetString(), buffer.GetLength())));
-    string compressed;
-    const uint64_t maxCompressedSize = LZ4_compressBound(buffer.GetLength());
-    // first eight bytes for the compressed size
-    compressed.resize(maxCompressedSize + 8);
-
-    int compressedSize = LZ4_compress_default(buffer.GetString(), const_cast<char *>(compressed.c_str()) + 8,
-                                              buffer.GetLength(), maxCompressedSize);
-
-    // printMessage(FORMAT("\n{}\n{}\n", buffer.GetLength(), compressedSize + 8));
-    if (!compressedSize)
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
-        errorExit();
-    }
-    *reinterpret_cast<uint64_t *>(const_cast<char *>(compressed.c_str())) = buffer.GetLength();
-
-    writeFile(std::move(fileName), compressed.c_str(), compressedSize + 8, true);
-#endif
-}
-
-uint64_t valueIndexInSubArray(const Value &value, const Value &element)
-{
-    for (uint64_t i = 0; i < value.Size(); ++i)
-    {
-        if (element == value[i][0])
-        {
-            return i;
-        }
-    }
-    return UINT64_MAX;
-}
-
-inline uint64_t currentTargetIndex = 0;
-
-uint64_t valueIndexInSubArrayConsidered(const Value &value, const Value &element)
-{
-    const uint64_t old = currentTargetIndex;
-    for (uint64_t i = currentTargetIndex; i < value.Size(); ++i)
-    {
-        if (const Value &v = value[i]; !v.Empty())
-        {
-            if (v[0] == element)
-            {
-                currentTargetIndex = i;
-                return i;
-            }
-        }
-    }
-    for (uint64_t i = 0; i < currentTargetIndex; ++i)
-    {
-        if (const Value &v = value[i]; !v.Empty())
-        {
-            if (v[0] == element)
-            {
-                currentTargetIndex = i;
-                return i;
-            }
-        }
-    }
-    currentTargetIndex = old;
-    return UINT64_MAX;
 }
 
 bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
@@ -608,30 +428,6 @@ bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
         }
     }
     return true;
-}
-
-uint64_t nodeIndexInValueArray(const Value &value, const Node &node)
-{
-    for (uint64_t i = 0; i < value.Size(); ++i)
-    {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-        bool found = value[i].GetUint64() == node.myId;
-#else
-        bool found =
-            compareStringsFromEnd(string_view(value[i].GetString(), value[i].GetStringLength()), node.filePath);
-#endif
-
-        if (found)
-        {
-            return i;
-        }
-    }
-    return UINT64_MAX;
-}
-
-bool isNodeInValue(const Value &value, const Node &node)
-{
-    return nodeIndexInValueArray(value, node) != UINT64_MAX;
 }
 
 void lowerCasePStringOnWindows(char *ptr, const uint64_t size)

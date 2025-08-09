@@ -1115,7 +1115,8 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSource
 
     ptr.useReqCompileDefinitions = stored->useReqCompileDefinitions;
     ptr.useReqIncls = stored->useReqIncls;
-    return *this*/;
+    return *this*/
+    ;
 }
 
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::restore()

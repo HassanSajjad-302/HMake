@@ -68,19 +68,6 @@ string SourceNode::getTarjanNodeName() const
     return node->filePath;
 }
 
-void SourceNode::initializeSourceJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
-                                      const CppSourceTarget &target)
-{
-    // Indices::BuildCache::CppBuild::SourceFiles::fullPath
-    j.PushBack(node->getValue(), sourceNodeAllocator);
-
-    // Indices::BuildCache::CppBuild::SourceFiles::compileCommandWithTool
-    j.PushBack(Node::getType(), sourceNodeAllocator);
-
-    // Indices::BuildCache::CppBuild::SourceFiles::headerFiles
-    j.PushBack(Value(kArrayType), sourceNodeAllocator);
-}
-
 void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
 {
     if (!round)

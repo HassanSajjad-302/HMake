@@ -60,18 +60,9 @@ void prettyWriteValueToFile(string_view fileName, const Value &value);
 // So, we have compressed filee * bufferMultiplier times the space.
 // Also, while storing we check that the original file size / compresseed file size
 // is not equal to or greater than bufferMultiplier. Hence validating our assumption.
-unique_ptr<vector<char>> readValueFromFile(string_view fileName, Document &document);
 void writeBufferToCompressedFile(const string &fileName, const vector<char> &fileBuffer);
 void writeBufferToFile(const string &fileName, const vector<char> &fileBuffer);
-void writeValueToFile(string fileName, const Value &value);
-unique_ptr<vector<char>> readValueFromCompressedFile(string_view fileName, Document &document);
-void writeValueToCompressedFile(string fileName, const Value &value);
-uint64_t valueIndexInSubArray(const Value &value, const Value &element);
-// This will consider the currentCacheIndex in its search
-uint64_t valueIndexInSubArrayConsidered(const Value &value, const Value &element);
 bool compareStringsFromEnd(string_view lhs, string_view rhs);
-uint64_t nodeIndexInValueArray(const Value &value, const class Node &node);
-bool isNodeInValue(const Value &value, const Node &node);
 void lowerCasePStringOnWindows(char *ptr, uint64_t size);
 bool childInParentPathNormalized(string_view parent, string_view child);
 
