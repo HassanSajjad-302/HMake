@@ -97,11 +97,11 @@ struct BuildCache
                 struct SingleModuleDep
                 {
                     Node *fullPath;
-                    string logicalName;
+                    string_view logicalName;
                     void initialize(const char *ptr, uint32_t &bytesRead);
                 };
 
-                string exportName;
+                string_view exportName;
                 bool isInterface{};
                 span<SingleHeaderUnitDep> headerUnitArray;
                 span<SingleModuleDep> moduleArray;
@@ -109,7 +109,6 @@ struct BuildCache
             };
 
             SourceFile srcFile;
-            span<Node *> headerFiles;
             SmRules smRules;
             CCOrHash compileCommandWithTool;
             void initialize(const char *ptr, uint32_t &bytesRead);
@@ -118,7 +117,7 @@ struct BuildCache
         span<SourceFile> srcFiles;
         span<ModuleFile> modFiles;
         span<ModuleFile> headerUnits;
-        void initialize(const char *ptr, uint32_t &bytesRead);
+        void initialize(uint32_t targetCacheIndex);
         span<SourceFile> readSourceFilesBuildCacheSpan(const char *ptr, uint32_t &bytesRead);
     };
 

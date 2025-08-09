@@ -54,7 +54,7 @@ class TargetCacheDiskWriteManager
     vector<ValueAndIndices> valueCacheLocal;
 
   public:
-    vector<class BTarget *> copyJsonBTargets;
+    vector<CppSourceTarget *> copyJsonBTargets;
     vector<char> buildBuffer;
     RAPIDJSON_DEFAULT_ALLOCATOR writeBuildCacheAllocator;
     std::thread diskWriteManagerThread;
@@ -63,10 +63,10 @@ class TargetCacheDiskWriteManager
     bool exitAfterThis = false;
     // TODO
     // Make this global
-    atomic<uint64_t> copyJsonBTargetsCount = 0;
+    atomic<uint64_t> cppSourceTargets = 0;
 
     TargetCacheDiskWriteManager();
-    void addNewBTargetInCopyJsonBTargetsCount(BTarget *bTarget);
+    void updateCacheOnRoundEndCppSourceTarget(CppSourceTarget *target);
     void writeNodesCacheIfNewNodesAdded();
     ~TargetCacheDiskWriteManager();
     void initialize();

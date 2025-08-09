@@ -42,6 +42,7 @@ class SourceNode : public ObjectFile
   public:
     CppSourceTarget *target;
     const Node *node;
+    char *buildCache;
     uint32_t buildCacheSize = 0;
     uint32_t indexInBuildCache = -1;
     char *sourceNodeBuildCache;
@@ -86,16 +87,16 @@ enum class SM_FILE_TYPE : char
 struct ValueObjectFileMapping
 {
     // should be const
-    Value *requireJson;
-    Node *objectFileOutputFilePath;
+    string_view logicalName;
+    Node *objectFile;
 
-    ValueObjectFileMapping(Value *requireJson_, Node *objectFileOutputFilePath_);
+    ValueObjectFileMapping(string_view logicalName_, Node *objectFile_);
 };
 
 struct SMFile : SourceNode // Scanned Module Rule
 {
     string logicalName;
-    vector<ValueObjectFileMapping> valueObjectFileMapping;
+    vector<ValueObjectFileMapping> logicalNameObjectFileMapping;
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // depends on is consuming it another way.

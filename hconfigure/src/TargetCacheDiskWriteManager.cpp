@@ -68,10 +68,10 @@ TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
     }
 }
 
-void TargetCacheDiskWriteManager::addNewBTargetInCopyJsonBTargetsCount(BTarget *bTarget)
+void TargetCacheDiskWriteManager::updateCacheOnRoundEndCppSourceTarget(CppSourceTarget *target)
 {
-    const uint64_t i = copyJsonBTargetsCount.fetch_add(1);
-    copyJsonBTargets[i] = bTarget;
+    const uint64_t i = cppSourceTargets.fetch_add(1);
+    copyJsonBTargets[i] = target;
 }
 
 void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
@@ -202,7 +202,7 @@ void TargetCacheDiskWriteManager::endOfRound()
     // round 1 hence only in BSMode::BUILD.
     writeNodesCacheIfNewNodesAdded();
 
-    if (const uint64_t s = copyJsonBTargetsCount.load())
+    if (const uint64_t s = cppSourceTargets.load())
     {
         for (uint64_t i = 0; i < s; ++i)
         {

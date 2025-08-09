@@ -60,8 +60,8 @@ string ResolveRequirePathBTarget::getTarjanNodeName() const
     return "ResolveRequirePath " + target->name;
 }
 
-RequireNameTargetId::RequireNameTargetId(const uint64_t id_, string requirePath_)
-    : id(id_), requireName(std::move(requirePath_))
+RequireNameTargetId::RequireNameTargetId(const uint64_t id_, string_view requireName_)
+    : id(id_), requireName(requireName_)
 {
 }
 
@@ -194,55 +194,6 @@ void CppSourceTarget::populateTransitiveProperties()
     }
 }
 
-void CppSourceTarget::adjustHeaderUnitsValueArrayPointers()
-{
-    // All header-units are found, so header-units value array size could be reserved
-    // If a new header-unit was added in this run, sourceJson pointers will point to the newly allocated array if any
-
-    namespace CppBuild = Indices::BuildCache::CppBuild;
-
-    if (newHeaderUnitsSize)
-    {
-        auto *n =
-            new vector<BuildCache::Cpp::ModuleFile>{oldHeaderUnits.size() + newHeaderUnitsSize};
-
-
-        cppBuildCache.headerUnits = for (uint64_t i = 0; i < newHeaderUnitsSize; ++i)
-        {
-
-            headerUnitsValueArray.PushBack(kArrayType, cacheAlloc);
-        }
-    }
-
-    if (headerUnitScanned)
-    {
-        for (const SMFile *headerUnit : headerUnitsSet)
-        {
-            if (headerUnit->isSMRuleFileOutdated)
-            {
-                headerUnitsValueArray[headerUnit->indexInBuildCache].CopyFrom(headerUnit->sourceJson, cacheAlloc);
-            }
-        }
-    }
-
-    if (moduleFileScanned)
-    {
-        for (SMFile &smFile : modFileDeps)
-        {
-            if (smFile.isSMRuleFileOutdated)
-            {
-                buildOrConfigCacheCopy[CppBuild::moduleFiles][smFile.indexInBuildCache].CopyFrom(smFile.sourceJson,
-                                                                                                 cacheAlloc);
-            }
-        }
-    }
-
-    if (headerUnitScanned || moduleFileScanned)
-    {
-        targetCacheDiskWriteManager.addNewBTargetInCopyJsonBTargetsCount(this);
-    }
-}
-
 CppSourceTarget &CppSourceTarget::initializeUseReqInclsFromReqIncls()
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -277,7 +228,6 @@ CppSourceTarget &CppSourceTarget::initializePublicHuDirsFromReqIncls()
 
 void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
 {
-    // No check for uniques since this is checked in writeConfigCacheAtConfigTime
     for (const SourceNode *source : srcFileDeps)
     {
         if (source->node == node)
@@ -289,23 +239,23 @@ void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
 
 void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, const bool isInterface)
 {
-    // No check for uniques since this is checked in writeConfigCacheAtConfigTime
     for (const SMFile *smFile : modFileDeps)
     {
         if (smFile->node == node)
         {
         }
     }
-    auto &m = modFileDeps.emplace_back(this, node);
+    const auto &m = modFileDeps.emplace_back(this, node);
     m->isInterface = isInterface;
 }
 
 void CppSourceTarget::actuallyAddHeaderUnitConfigTime(const Node *node)
 {
-    assert(bsMode == BSMode::CONFIGURE);
+    // TODO
+    /*assert(bsMode == BSMode::CONFIGURE);
     namespace CppConfig = Indices::ConfigCache::CppConfig;
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
-    buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
+    buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);*/
 }
 
 /*
@@ -341,13 +291,16 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     else if (round == 1)
     {
         initializeCppBuildCache();
-        adjustHeaderUnitsValueArrayPointers();
+        if (headerUnitScanned || moduleFileScanned)
+        {
+            targetCacheDiskWriteManager.updateCacheOnRoundEndCppSourceTarget(this);
+        }
     }
     else if (round == 2)
     {
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            writeTargetConfigCacheAtConfigureTime(true);
+            writeCacheAtConfigTime(true);
         }
 
         if constexpr (bsMode == BSMode::BUILD)
@@ -366,14 +319,15 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             compileCommandWithTool.setCommand(configuration->compilerFeatures.compiler.bTPath.string() + " " +
                                               compileCommand);
 
-            if (!buildCache.headerUnits.empty())
+            cppBuildCache.initialize(targetCacheIndex);
+            if (!cppBuildCache.headerUnits.empty())
             {
-                oldHeaderUnits.reserve(buildCache.headerUnits.size());
-                for (uint64_t i = 0; i < buildCache.headerUnits.size(); ++i)
+                oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
+                for (uint64_t i = 0; i < cppBuildCache.headerUnits.size(); ++i)
                 {
                     namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
 
-                    oldHeaderUnits.emplace_back(this, Node::getHalfNode(buildCache.headerUnits[i].srcFile.fullPath));
+                    oldHeaderUnits.emplace_back(this, cppBuildCache.headerUnits[i].srcFile.fullPath);
                     oldHeaderUnits[i].isAnOlderHeaderUnit = true;
                     oldHeaderUnits[i].indexInBuildCache = i;
                     headerUnitsSet.emplace(&oldHeaderUnits[i]);
@@ -391,7 +345,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
 
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            writeTargetConfigCacheAtConfigureTime(false);
+            writeCacheAtConfigTime(false);
         }
         else
         {
@@ -403,31 +357,75 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
 
 void CppSourceTarget::copyBuildCache(vector<char> &buildBuffer)
 {
-    for (SourceNode *source : srcFileDeps)
+    for (const SourceNode *source : srcFileDeps)
     {
-        buildBuffer.insert(buildBuffer.back(), cppBuildCache.srcFiles[source->indexInBuildCache].fullPath.getH)
+        buildBuffer.insert(buildBuffer.end(), source->buildCache, source->buildCache + source->buildCacheSize);
     }
-    namespace CppBuild = Indices::BuildCache::CppBuild;
-    Value &targetBuildCache = getBuildCache();
-    if (headerUnitScanned)
+
+    for (const SMFile *smFile : modFileDeps)
     {
-        // copy only header-units json. following does not need to be atomic since this is called single-threaded in
-        // TargetCacheDiskWriteManager::endOfRound.
-        targetBuildCache[CppBuild::headerUnits].CopyFrom(buildOrConfigCacheCopy[CppBuild::headerUnits], ralloc);
+        buildBuffer.insert(buildBuffer.end(), smFile->buildCache, smFile->buildCache + smFile->buildCacheSize);
     }
-    if (moduleFileScanned)
+
+    for (const SMFile *smFile : headerUnitsSet)
     {
-        targetBuildCache[CppBuild::moduleFiles].CopyFrom(buildOrConfigCacheCopy[CppBuild::moduleFiles], ralloc);
+        buildBuffer.insert(buildBuffer.end(), smFile->buildCache, smFile->buildCache + smFile->buildCacheSize);
     }
 }
 
-void CppSourceTarget::writeTargetConfigCacheAtConfigureTime(const bool before) const
+void CppSourceTarget::checkAndCopyBuildCache(vector<char> &buildBuffer)
+{
+    if (newHeaderUnitsSize)
+    {
+        auto *headerUnitsCache = new vector<BuildCache::Cpp::ModuleFile>{};
+        headerUnitsCache->reserve(newHeaderUnitsSize + oldHeaderUnits.size());
+        headerUnitsCache->insert(headerUnitsCache->end(), cppBuildCache.headerUnits.begin(),
+                                 cppBuildCache.headerUnits.end());
+    }
+
+    copyBuildCache(buildBuffer);
+}
+
+template <typename T> uint32_t findNodeInSourceCache(const span<T> sourceCache, const Node *node)
+{
+    for (uint32_t i = 0; i < sourceCache.size(); ++i)
+    {
+        if (sourceCache[i].fullPath == node)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+template <typename T, typename U> void adjustBuildCache(span<T> &oldCache, const vector<U *> &sourceFiles)
+{
+    auto *newCache = new vector<T>{oldCache.begin(), oldCache.end()};
+    newCache->resize(oldCache.size() + sourceFiles.size());
+
+    uint32_t newlyFounded = 0;
+    for (uint32_t i = 0; i < sourceFiles.size(); ++i)
+    {
+        if (const uint32_t cacheIndex = findNodeInSourceCache(oldCache, sourceFiles[i]->node); cacheIndex == -1)
+        {
+            std::swap((*newCache)[i], (*newCache)[newlyFounded + oldCache.size()]);
+            ++newlyFounded;
+        }
+        else
+        {
+            std::swap((*newCache)[i], (*newCache)[cacheIndex]);
+        }
+    }
+
+    newCache->resize(newlyFounded + oldCache.size());
+    oldCache = span(newCache->data(), newlyFounded + oldCache.size());
+}
+
+void CppSourceTarget::writeCacheAtConfigTime(const bool before)
 {
     if (before)
     {
-        namespace ConfigCache = Indices::ConfigCache::CppConfig;
-
-        vector<char> *buffer = new vector<char>;
+        auto *buffer = new vector<char>;
         writeIncDirsAtConfigTime(buffer, reqIncls);
         writeIncDirsAtConfigTime(buffer, useReqIncls);
         writeIncDirsAtConfigTime(buffer, reqHuDirs);
@@ -445,6 +443,10 @@ void CppSourceTarget::writeTargetConfigCacheAtConfigureTime(const bool before) c
         }
 
         configCacheTargets[targetCacheIndex].configCache = span{buffer->data(), buffer->size()};
+
+        cppBuildCache.initialize(targetCacheIndex);
+        adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
+        adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
     }
 }
 
@@ -747,26 +749,24 @@ string CppSourceTarget::getDependenciesPString() const
 
 void CppSourceTarget::resolveRequirePaths()
 {
-    for (SMFile &smFile : modFileDeps)
+    for (uint32_t i = 0; i < modFileDeps.size(); ++i)
     {
-        namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
+        SMFile *smFile = modFileDeps[i];
 
-        for (Value &require : smFile.sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::moduleArray].GetArray())
+        for (BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &require :
+             cppBuildCache.modFiles[i].smRules.moduleArray)
         {
-            namespace SingleModuleDep = ModuleFiles::SmRules::SingleModuleDep;
-
-            if (require[SingleModuleDep::logicalName] == Value(svtogsr(smFile.logicalName)))
+            if (require.logicalName == smFile->logicalName)
             {
                 printErrorMessage(FORMAT("In target\n{}\nModule\n{}\n can not depend on itself.\n", getTarjanNodeName(),
-                                         smFile.node->filePath));
+                                         smFile->node->filePath));
             }
 
             const SMFile *found = nullptr;
 
             // Even if found, we continue the search to ensure that no two files are providing the same module in
             // the module-files of the target and its dependencies
-            RequireNameTargetId req(id, string(require[SingleModuleDep::logicalName].GetString(),
-                                               require[SingleModuleDep::logicalName].GetStringLength()));
+            RequireNameTargetId req(id, require.logicalName);
 
             const bool isInterface = req.requireName.contains(':');
 
@@ -793,9 +793,7 @@ void CppSourceTarget::resolveRequirePaths()
                             printErrorMessage(
                                 FORMAT("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
                                        "from target\n{}\n2){}\n from target\n{}\n",
-                                       getTarjanNodeName(), getDependenciesPString(),
-                                       string(require[SingleModuleDep::logicalName].GetString(),
-                                              require[SingleModuleDep::logicalName].GetStringLength()),
+                                       getTarjanNodeName(), getDependenciesPString(), require.logicalName,
                                        found->node->filePath, found->node->filePath));
                         }
                         found = found2;
@@ -805,82 +803,44 @@ void CppSourceTarget::resolveRequirePaths()
 
             if (found)
             {
-                smFile.addDependencyDelayed<0>(const_cast<SMFile &>(*found));
-                if (!smFile.fileStatus && !atomic_ref(smFile.fileStatus).load())
+                smFile->addDependencyDelayed<0>(const_cast<SMFile &>(*found));
+                if (!smFile->fileStatus && !atomic_ref(smFile->fileStatus).load())
                 {
-                    if (require[SingleModuleDep::fullPath] != found->objectFileOutputFileNode->getValue())
+                    if (require.fullPath != found->objectFileOutputFileNode)
                     {
-                        atomic_ref(smFile.fileStatus).store(true);
+                        atomic_ref(smFile->fileStatus).store(true);
                     }
                 }
-                smFile.valueObjectFileMapping.emplace_back(&require, found->objectFileOutputFileNode);
+                smFile->logicalNameObjectFileMapping.emplace_back(require.logicalName, found->objectFileOutputFileNode);
             }
             else
             {
                 if (isInterface)
                 {
                     printErrorMessage(FORMAT("No File in the target\n{}\n provides this module\n{}.\n",
-                                             getTarjanNodeName(),
-                                             string(require[SingleModuleDep::logicalName].GetString(),
-                                                    require[SingleModuleDep::logicalName].GetStringLength())));
+                                             getTarjanNodeName(), require.logicalName));
                 }
                 else
                 {
                     printErrorMessage(
                         FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
-                               getTarjanNodeName(), getDependenciesPString(),
-                               string(require[SingleModuleDep::logicalName].GetString(),
-                                      require[SingleModuleDep::logicalName].GetStringLength())));
+                               getTarjanNodeName(), getDependenciesPString(), require.logicalName));
                 }
             }
         }
     }
 }
 
-void CppSourceTarget::initializeCppBuildCache()
+void CppSourceTarget::initializeCppBuildCache() const
 {
-    const span<char> buildCache = configCacheTargets[targetCacheIndex].buildCache;
-    uint32_t buildRead = 0;
-
-    cppBuildCache.initialize(buildCache.data(), buildRead);
-
-    // TODO
-    // Implement the case if the size of any of these arrays is > 31
-    // should also initialize source-node and smfile buildCacheSize as well.
-    const uint32_t srcBuildSize = cppBuildCache.srcFiles.size();
-    const auto &srcFilesBuild = cppBuildCache.srcFiles;
-    for (SourceNode *src : srcFileDeps)
+    for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
     {
-        for (uint32_t i = 0; i < srcBuildSize; ++i)
-        {
-            if (src->node == srcFilesBuild[i].fullPath)
-            {
-                src->indexInBuildCache = i;
-                break;
-            }
-        }
+        srcFileDeps[i]->indexInBuildCache = i;
     }
 
-    const uint32_t modBuildSize = cppBuildCache.modFiles.size();
-    const auto &modFilesBuild = cppBuildCache.modFiles;
-    for (SMFile *mod : modFileDeps)
+    for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
     {
-        uint32_t sourceIndex = 0;
-
-        for (uint32_t i = 0; i < modBuildSize; ++i)
-        {
-            if (mod->node == modFilesBuild[i].srcFile.fullPath)
-            {
-                sourceIndex = i;
-                break;
-            }
-        }
-        mod->indexInBuildCache = sourceIndex;
-    }
-
-    for (SMFile *smFile : modFileDeps)
-    {
-        smFile->indexInBuildCache = buildRead;
+        modFileDeps[i]->indexInBuildCache = i;
     }
 }
 
@@ -1125,7 +1085,7 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget &pt
 
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget &ptr)
 {
-    save(ptr);
+    /*save(ptr);
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -1155,7 +1115,7 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSource
 
     ptr.useReqCompileDefinitions = stored->useReqCompileDefinitions;
     ptr.useReqIncls = stored->useReqIncls;
-    return *this;
+    return *this*/;
 }
 
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::restore()

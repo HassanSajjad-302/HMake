@@ -52,7 +52,7 @@ struct RequireNameTargetId
 {
     uint64_t id;
     string requireName;
-    RequireNameTargetId(uint64_t id_, string requirePath_);
+    RequireNameTargetId(uint64_t id_, string_view requirePath_);
     bool operator==(const RequireNameTargetId &other) const;
 };
 
@@ -87,9 +87,9 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     friend struct ResolveRequirePathBTarget;
 
   public:
-    BuildCache::Cpp cppBuildCache;
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
     mutex headerUnitsMutex;
+    BuildCache::Cpp cppBuildCache;
 
     flat_hash_set<Define> reqCompileDefinitions;
     flat_hash_set<Define> useReqCompileDefinitions;
@@ -119,6 +119,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     vector<SMFile *> modFileDeps;
 
     vector<SMFile> oldHeaderUnits;
+    BuildCache::Cpp::ModuleFile headerUnitsCache;
 
     vector<InclNode> reqIncls;
     vector<InclNode> useReqIncls;
@@ -144,7 +145,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     string getDependenciesPString() const;
     void resolveRequirePaths();
-    void initializeCppBuildCache();
+    void initializeCppBuildCache() const;
     void populateResolveRequirePathDependencies();
     static string getInfrastructureFlags(const Compiler &compiler, bool showIncludes) ;
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
@@ -155,7 +156,8 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void updateBTarget(Builder &builder, unsigned short round) override;
     void copyBuildCache(vector<char> &buildBuffer) override;
-    void writeTargetConfigCacheAtConfigureTime(bool before) const;
+    void checkAndCopyBuildCache(vector<char> &buildBuffer);
+    void writeCacheAtConfigTime(bool before);
     void readConfigCacheAtBuildTime();
     string getTarjanNodeName() const override;
 
@@ -169,7 +171,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const override;
     void populateTransitiveProperties();
-    void adjustHeaderUnitsValueArrayPointers();
 
     CppSourceTarget &initializeUseReqInclsFromReqIncls();
     CppSourceTarget &initializePublicHuDirsFromReqIncls();

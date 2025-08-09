@@ -156,7 +156,7 @@ void ModuleFileCache::SmRules::initialize(const char *ptr, uint32_t &bytesRead)
 {
     *this = readSMRules(ptr, bytesRead);
 }
-void BuildCache::Cpp::initialize(const char *ptr, uint32_t &bytesRead)
+void BuildCache::Cpp::initialize(uint32_t targetCacheIndex)
 {
 
     // TODO
@@ -179,8 +179,7 @@ void ModuleFileCache::initialize(const char *ptr, uint32_t &bytesRead)
     bytesRead += count * sizeof(BuildCache::Cpp::SourceFile);
 }
 
-BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep readSingleHeaderUnitDep(const char *ptr,
-                                                                                       uint32_t &bytesRead)
+BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep readSingleHeaderUnitDep(const char *ptr, uint32_t &bytesRead)
 {
     BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep huDep;
     huDep.fullPath = readNode(ptr, bytesRead);

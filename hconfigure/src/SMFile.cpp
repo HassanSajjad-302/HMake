@@ -245,8 +245,8 @@ bool operator<(const SourceNode &lhs, const SourceNode &rhs)
     return lhs.node < rhs.node;
 }
 
-ValueObjectFileMapping::ValueObjectFileMapping(Value *requireJson_, Node *objectFileOutputFilePath_)
-    : requireJson(requireJson_), objectFileOutputFilePath(objectFileOutputFilePath_)
+ValueObjectFileMapping::ValueObjectFileMapping(const string_view logicalName_, Node *objectFile_)
+    : logicalName(logicalName_), objectFile(objectFile_)
 {
 }
 
@@ -500,10 +500,10 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 // cached compile-command would be different
                 sourceJson[ModuleFiles::compileCommandWithTool] = target->compileCommandWithTool.getHash();
 
-                for (const ValueObjectFileMapping &mapping : valueObjectFileMapping)
+                for (const ValueObjectFileMapping &mapping : logicalNameObjectFileMapping)
                 {
                     namespace SingleModuleDep = ModuleFiles::SmRules::SingleModuleDep;
-                    (*mapping.requireJson)[SingleModuleDep::fullPath] = mapping.objectFileOutputFilePath->getValue();
+                    (*mapping.logicalName)[SingleModuleDep::fullPath] = mapping.objectFile->getValue();
                 }
             }
 
