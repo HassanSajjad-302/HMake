@@ -47,6 +47,7 @@ class TargetCacheDiskWriteManager
   private:
     vector<ColoredStringForPrint> strCacheLocal;
     vector<UpdatedCache> updatedCachesLocal;
+    vector<char> buildBufferLocal;
 
   public:
     vector<CppSourceTarget *> copyJsonBTargets;

@@ -52,8 +52,8 @@ vector<char> readBufferFromCompressedFile(const string &fileName);
 void readConfigCache();
 void readBuildCache();
 
-vector<char> writeConfigCache();
-vector<char> writeBuildCache();
+void writeConfigBuffer(vector<char> &buffer);
+void writeBuildBuffer(vector<char> &buffer);
 
 void prettyWriteValueToFile(string_view fileName, const Value &value);
 // While decompressing lz4 file, we allocate following + 1 the buffer size.

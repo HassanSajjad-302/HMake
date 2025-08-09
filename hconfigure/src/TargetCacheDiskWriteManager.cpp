@@ -8,6 +8,7 @@ import "Node.hpp";
 #include "BTarget.hpp"
 #include "Node.hpp"
 #endif
+#include "CppSourceTarget.hpp"
 #include "TargetCache.hpp"
 
 ColoredStringForPrint::ColoredStringForPrint(string _msg, uint32_t _color, bool _isColored)
@@ -15,7 +16,8 @@ ColoredStringForPrint::ColoredStringForPrint(string _msg, uint32_t _color, bool 
 {
 }
 
-UpdatedCache::UpdatedCache(CppSourceTarget *target_, BuildCache::Cpp::ModuleFile cache_, const bool isSource_) : cache(cache_), target(target_), isSource(isSource_)
+UpdatedCache::UpdatedCache(CppSourceTarget *target_, BuildCache::Cpp::ModuleFile cache_, const bool isSource_)
+    : cache(cache_), target(target_), isSource(isSource_)
 {
 }
 
@@ -44,7 +46,6 @@ void TargetCacheDiskWriteManager::updateCacheOnRoundEndCppSourceTarget(CppSource
 
 void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
 {
-    nodesCacheGlobal.reserve(1024 * 1024 * 4);
     if (const uint64_t newNodesSize = atomic_ref(Node::idCountCompleted).load(); newNodesSize != nodesSizeBefore)
     {
         // printMessage(FORMAT("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
@@ -94,7 +95,7 @@ void TargetCacheDiskWriteManager::initialize()
     nodesSizeStart = nodesSizeBefore;
 }
 
-void TargetCacheDiskWriteManager::performThreadOperations(bool doUnlockAndRelock)
+void TargetCacheDiskWriteManager::performThreadOperations(const bool doUnlockAndRelock)
 {
     if (!strCache.empty())
     {
@@ -115,10 +116,12 @@ void TargetCacheDiskWriteManager::performThreadOperations(bool doUnlockAndRelock
         {
             for (UpdatedCache &p : updatedCachesLocal)
             {
-                p.getTargetValue() = std::move(p.value);
+                p.target->updateBuildCache(p.cache, p.isSource);
             }
-            writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                       buildCache);
+
+            writeBuildBuffer(buildBufferLocal);
+            writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                        buildBufferLocal);
         }
         // Copying value from array to central value
 
@@ -173,10 +176,11 @@ void TargetCacheDiskWriteManager::endOfRound()
     {
         for (uint64_t i = 0; i < s; ++i)
         {
-            copyJsonBTargets[i]->copyBuildCache(buildBuffer);
+            copyJsonBTargets[i]->copyBuildCache(buildBufferLocal);
             copyJsonBTargets[i] = nullptr;
         }
-        writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
+        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                    buildBufferLocal);
     }
 
     diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, &targetCacheDiskWriteManager);

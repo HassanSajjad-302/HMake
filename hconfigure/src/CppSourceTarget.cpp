@@ -487,6 +487,11 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     }
 }
 
+void CppSourceTarget::updateBuildCache(BuildCache::Cpp::ModuleFile &cache, bool isSource)
+{
+
+}
+
 string CppSourceTarget::getTarjanNodeName() const
 {
     return "CppSourceTarget " + configureNode->filePath + slashc + name;

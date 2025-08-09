@@ -250,27 +250,21 @@ void readBuildCache()
     }
 }
 
-vector<char> writeConfigCache()
+void writeConfigBuffer(vector<char> &buffer)
 {
-    vector<char> fileBuffer;
-
     for (ConfigCacheTarget &configCacheTarget : configCacheTargets)
     {
-        writeStringView(fileBuffer, configCacheTarget.name);
-        writeStringView(fileBuffer, configCacheTarget.configCache);
+        writeStringView(buffer, configCacheTarget.name);
+        writeStringView(buffer, configCacheTarget.configCache);
     }
-
-    return fileBuffer;
 }
 
-vector<char> writeBuildCache()
+void writeBuildBuffer(vector<char> &buffer)
 {
-    vector<char> fileBuffer;
     for (ConfigCacheTarget &configCacheTarget : configCacheTargets)
     {
-        writeStringView(fileBuffer, configCacheTarget.buildCache);
+        writeStringView(buffer, configCacheTarget.buildCache);
     }
-    return fileBuffer;
 }
 
 void prettyWriteValueToFile(const string_view fileName, const Value &value)
