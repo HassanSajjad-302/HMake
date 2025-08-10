@@ -16,7 +16,11 @@ class HashedCommand
   public:
     void setCommand(string command_);
     string getCommand() const;
-    Value getHash() const;
+#ifdef USE_COMMAND_HASH
+    uint64_t getHash() const;
+#else
+    string_view getHash() const;
+#endif
 
 #ifdef USE_COMMAND_HASH
   private:
