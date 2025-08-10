@@ -92,13 +92,13 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
                 // because cached compile-command would be different
                 if (realBTarget.exitStatus == EXIT_SUCCESS)
                 {
-                    BuildCache::Cpp::SourceFile s;
-                    s.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+                    buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
                     postCompile.parseHeaderDeps(*this);
                 }
 
-                postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, false, std::move(sourceJson),
-                                                target->targetCacheIndex, CppBuild::sourceFiles, indexInBuildCache);
+                targetCacheDiskWriteManager.vecMutex.lock();
+                ++target->cacheUpdateCount;
+                postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, target, this);
             }
         }
     }
@@ -215,6 +215,11 @@ void SourceNode::setSourceNodeFileStatus()
     {
         fileStatus = true;
     }
+}
+
+void SourceNode::updateBuildCache()
+{
+    target->cppBuildCache.srcFiles[indexInBuildCache] = buildCache;
 }
 
 void to_json(Json &j, const SourceNode &sourceNode)
@@ -1072,6 +1077,12 @@ string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) cons
 BTargetType SMFile::getBTargetType() const
 {
     return BTargetType::SMFILE;
+}
+
+void SMFile::updateBuildCache()
+{
+    // TODO
+    target->cppBuildCache.modFiles[indexInBuildCache].srcFile = buildCache;
 }
 
 thread_local vector<SMFile *> allSMFileDependenciesRoundZeroGlobal;

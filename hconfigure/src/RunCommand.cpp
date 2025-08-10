@@ -296,6 +296,8 @@ void RunCommand::executePrintRoutine(uint32_t color, TargetCache *target, void *
         notify = true;
     }
 
+    // TODO
+    // these print commands formatting should be outside the mutex.
     targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", printCommand + " " + getThreadId() + "\n"), color,
                                                       true);
 

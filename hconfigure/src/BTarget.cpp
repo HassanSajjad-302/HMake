@@ -349,10 +349,6 @@ void BTarget::endOfRound(Builder &builder, unsigned short round)
 {
 }
 
-void BTarget::copyBuildCache(vector<char> &buildBuffer)
-{
-}
-
 bool operator<(const BTarget &lhs, const BTarget &rhs)
 {
     return lhs.id < rhs.id;

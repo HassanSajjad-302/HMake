@@ -20,7 +20,7 @@ struct RunCommand
     RunCommand(path toolPath, const string &runCommand, string printCommand_, bool isTarget_);
 
     // should lock targetCacheDiskWriteManager.vecMutex before calling this function.
-    void executePrintRoutine(uint32_t color, class TargetCache *target, void *ptr) const;
+    void executePrintRoutine(uint32_t color, class TargetCache *target, void *cache) const;
     void executePrintRoutineRoundOne(struct SMFile const &smFile) const;
 };
 

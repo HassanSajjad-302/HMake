@@ -189,7 +189,6 @@ class BTarget // BTarget
     virtual BTargetType getBTargetType() const;
     virtual void updateBTarget(class Builder &builder, unsigned short round);
     virtual void endOfRound(Builder &builder, unsigned short round);
-    virtual void copyBuildCache(vector<char> &buildBuffer);
 
     template <unsigned short round> void addEndOfRoundBTarget();
 

@@ -33,7 +33,7 @@ inline vector<char> configCacheGlobal;
 inline vector<char> buildCacheGlobal;
 inline vector<char> nodesCacheGlobal;
 
-//inline auto &ralloc = buildCacheBuffer.GetAllocator();
+// inline auto &ralloc = buildCacheBuffer.GetAllocator();
 
 // Node representing source dir
 inline class Node *srcNode;

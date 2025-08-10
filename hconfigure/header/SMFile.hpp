@@ -43,8 +43,6 @@ class SourceNode : public ObjectFile
     BuildCache::Cpp::SourceFile buildCache;
     CppSourceTarget *target;
     const Node *node;
-    char *buildCacheBuffer;
-    uint32_t buildCacheSize = 0;
     uint32_t indexInBuildCache = -1;
     char *sourceNodeBuildCache;
     bool ignoreHeaderDeps = false;
@@ -59,6 +57,7 @@ class SourceNode : public ObjectFile
     void updateBTarget(Builder &builder, unsigned short round) override;
     bool checkHeaderFiles(const Node *compareNode) const;
     void setSourceNodeFileStatus();
+    virtual void updateBuildCache();
 };
 
 void to_json(Json &j, const SourceNode &sourceNode);
@@ -150,6 +149,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     void checkSMRulesFileOutdatedModules();
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
+    void updateBuildCache() override;
     void setFileStatusAndPopulateAllDependencies();
     string getFlag() const;
     string getFlagPrint() const;

@@ -163,6 +163,18 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles, LO
     }
 }
 
+void CppSourceTarget::updateBuildCache(void *ptr)
+{
+    static_cast<SourceNode *>(ptr)->updateBuildCache();
+    --cacheUpdateCount;
+    if (!cacheUpdateCount)
+    {
+        // call the right write function.
+        // todo
+        // writeCppBuildCache()
+    }
+}
+
 void CppSourceTarget::populateTransitiveProperties()
 {
     for (CppSourceTarget *cppSourceTarget : reqDeps)
@@ -355,24 +367,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     }
 }
 
-void CppSourceTarget::copyBuildCache(vector<char> &buildBuffer)
-{
-    for (const SourceNode *source : srcFileDeps)
-    {
-        buildBuffer.insert(buildBuffer.end(), source->buildCacheBuffer, source->buildCacheBuffer + source->buildCacheSize);
-    }
-
-    for (const SMFile *smFile : modFileDeps)
-    {
-        buildBuffer.insert(buildBuffer.end(), smFile->buildCacheBuffer, smFile->buildCacheBuffer + smFile->buildCacheSize);
-    }
-
-    for (const SMFile *smFile : headerUnitsSet)
-    {
-        buildBuffer.insert(buildBuffer.end(), smFile->buildCacheBuffer, smFile->buildCacheBuffer + smFile->buildCacheSize);
-    }
-}
-
 void CppSourceTarget::checkAndCopyBuildCache(vector<char> &buildBuffer)
 {
     if (newHeaderUnitsSize)
@@ -382,8 +376,6 @@ void CppSourceTarget::checkAndCopyBuildCache(vector<char> &buildBuffer)
         headerUnitsCache->insert(headerUnitsCache->end(), cppBuildCache.headerUnits.begin(),
                                  cppBuildCache.headerUnits.end());
     }
-
-    copyBuildCache(buildBuffer);
 }
 
 template <typename T> uint32_t findNodeInSourceCache(const span<T> sourceCache, const Node *node)
@@ -398,6 +390,8 @@ template <typename T> uint32_t findNodeInSourceCache(const span<T> sourceCache, 
     return -1;
 }
 
+/// This adjusts build cache during config time so the source and module-files point to the same index as in the config
+/// cache.
 template <typename T, typename U> void adjustBuildCache(span<T> &oldCache, const vector<U *> &sourceFiles)
 {
     auto *newCache = new vector<T>{oldCache.begin(), oldCache.end()};

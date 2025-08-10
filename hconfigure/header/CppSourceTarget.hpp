@@ -129,6 +129,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     Node *buildCacheFilesDirPathNode = nullptr;
     // reqIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
+    unsigned short cacheUpdateCount = 0;
 
     atomic<uint64_t> newHeaderUnitsSize = 0;
 
@@ -155,7 +156,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void updateBTarget(Builder &builder, unsigned short round) override;
-    void copyBuildCache(vector<char> &buildBuffer) override;
     void checkAndCopyBuildCache(vector<char> &buildBuffer);
     void writeCacheAtConfigTime(bool before);
     void readConfigCacheAtBuildTime();
@@ -171,6 +171,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void initializeCppSourceTarget(const string &name_, string buildCacheFilesDirPath);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const override;
+    void updateBuildCache(void *ptr) override;
     void populateTransitiveProperties();
 
     CppSourceTarget &initializeUseReqInclsFromReqIncls();

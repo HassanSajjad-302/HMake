@@ -15,9 +15,9 @@ using phmap::flat_hash_map;
 struct ConfigCacheTarget
 {
     // string will have 4 byte size instead of 8 byte size.
-    string_view name;
-    string_view configCache;
-    string_view buildCache;
+    span<char> name;
+    span<char> configCache;
+    span<char> buildCache;
 };
 
 inline vector<ConfigCacheTarget> configCacheTargets;
@@ -25,7 +25,8 @@ inline flat_hash_map<string, uint32_t> nameToIndexMap;
 
 class TargetCache
 {
-public:`
+public:
+
     /// Needed to address in configCacheTargets;
     uint32_t targetCacheIndex = -1;
     explicit TargetCache(const string &name);
