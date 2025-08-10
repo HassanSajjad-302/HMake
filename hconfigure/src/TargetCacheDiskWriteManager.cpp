@@ -11,13 +11,12 @@ import "Node.hpp";
 #include "CppSourceTarget.hpp"
 #include "TargetCache.hpp"
 
-ColoredStringForPrint::ColoredStringForPrint(string _msg, uint32_t _color, bool _isColored)
+ColoredStringForPrint::ColoredStringForPrint(string _msg, const uint32_t _color, const bool _isColored)
     : msg(std::move(_msg)), color(_color), isColored(_isColored)
 {
 }
 
-UpdatedCache::UpdatedCache(CppSourceTarget *target_, BuildCache::Cpp::ModuleFile cache_, const bool isSource_)
-    : cache(cache_), target(target_), isSource(isSource_)
+UpdatedCache::UpdatedCache(TargetCache *target_, void *cache_) : target(target_), cache(cache_)
 {
 }
 
@@ -25,16 +24,7 @@ TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
-        copyJsonBTargets.reserve(4096 * 4);
-#ifdef NDEBUG
-        std::memset(copyJsonBTargets.data(), 0, 10000 * sizeof(void *));
-#else
-        // satisify the sanitizer and iterator based debuggerr
-        for (int i = 0; i < 4096 * 4; ++i)
-        {
-            copyJsonBTargets.emplace_back(nullptr);
-        }
-#endif
+        copyJsonBTargets.resize(4096 * 4);
     }
 }
 
@@ -114,9 +104,9 @@ void TargetCacheDiskWriteManager::performThreadOperations(const bool doUnlockAnd
 
         if (!updatedCachesLocal.empty())
         {
-            for (UpdatedCache &p : updatedCachesLocal)
+            for (const UpdatedCache &p : updatedCachesLocal)
             {
-                p.target->updateBuildCache(p.cache, p.isSource);
+                p.target->updateBuildCache(p.cache);
             }
 
             writeBuildBuffer(buildBufferLocal);
@@ -165,8 +155,8 @@ void TargetCacheDiskWriteManager::start()
 
 void TargetCacheDiskWriteManager::endOfRound()
 {
-    // This function is executed in first thread. After that the destructor of this manager is excuted in this thread
-    // which waits for the thread to finish.
+    // This function is executed in the first thread. After that, the destructor of this manager is executed in this
+    // thread which waits for the thread to finish.
 
     // This will still copy even if an error has happened. This will copy only in
     // round 1 hence only in BSMode::BUILD.

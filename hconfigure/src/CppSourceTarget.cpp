@@ -264,7 +264,7 @@ uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const str
     namespace CppConfig = Indices::ConfigCache::CppConfig;
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
     buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
-    Value &headerUnitJson = buildCache[targetCacheIndex][Indices::BuildCache::CppBuild::headerUnits];
+    Value &headerUnitJson = buildCacheBuffer[targetCacheIndex][Indices::BuildCache::CppBuild::headerUnits];
     const uint64_t index = valueIndexInSubArray(headerUnitJson, node->getValue());
     if (index == UINT64_MAX)
     {
@@ -359,17 +359,17 @@ void CppSourceTarget::copyBuildCache(vector<char> &buildBuffer)
 {
     for (const SourceNode *source : srcFileDeps)
     {
-        buildBuffer.insert(buildBuffer.end(), source->buildCache, source->buildCache + source->buildCacheSize);
+        buildBuffer.insert(buildBuffer.end(), source->buildCacheBuffer, source->buildCacheBuffer + source->buildCacheSize);
     }
 
     for (const SMFile *smFile : modFileDeps)
     {
-        buildBuffer.insert(buildBuffer.end(), smFile->buildCache, smFile->buildCache + smFile->buildCacheSize);
+        buildBuffer.insert(buildBuffer.end(), smFile->buildCacheBuffer, smFile->buildCacheBuffer + smFile->buildCacheSize);
     }
 
     for (const SMFile *smFile : headerUnitsSet)
     {
-        buildBuffer.insert(buildBuffer.end(), smFile->buildCache, smFile->buildCache + smFile->buildCacheSize);
+        buildBuffer.insert(buildBuffer.end(), smFile->buildCacheBuffer, smFile->buildCacheBuffer + smFile->buildCacheSize);
     }
 }
 

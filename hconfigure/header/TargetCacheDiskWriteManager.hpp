@@ -29,10 +29,9 @@ struct ColoredStringForPrint
 
 struct UpdatedCache
 {
-    BuildCache::Cpp::ModuleFile cache;
-    CppSourceTarget *target;
-    bool isSource;
-    UpdatedCache(CppSourceTarget *target_, BuildCache::Cpp::ModuleFile cache_, bool isSource_);
+    TargetCache *target;
+    void *cache;
+    UpdatedCache(TargetCache *target_, void *cache_);
 };
 
 class TargetCacheDiskWriteManager

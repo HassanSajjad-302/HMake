@@ -40,9 +40,10 @@ struct CompareSourceNode
 class SourceNode : public ObjectFile
 {
   public:
+    BuildCache::Cpp::SourceFile buildCache;
     CppSourceTarget *target;
     const Node *node;
-    char *buildCache;
+    char *buildCacheBuffer;
     uint32_t buildCacheSize = 0;
     uint32_t indexInBuildCache = -1;
     char *sourceNodeBuildCache;

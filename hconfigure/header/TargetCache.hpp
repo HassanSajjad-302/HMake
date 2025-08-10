@@ -23,11 +23,13 @@ struct ConfigCacheTarget
 inline vector<ConfigCacheTarget> configCacheTargets;
 inline flat_hash_map<string, uint32_t> nameToIndexMap;
 
-struct TargetCache
+class TargetCache
 {
+public:`
     /// Needed to address in configCacheTargets;
     uint32_t targetCacheIndex = -1;
     explicit TargetCache(const string &name);
+    virtual void updateBuildCache(void *ptr);
 };
 
 /// Stores either compile-commands or its based on the USE_COMMAND_HASH CMake configuration macro.

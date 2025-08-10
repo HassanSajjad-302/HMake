@@ -92,8 +92,8 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
                 // because cached compile-command would be different
                 if (realBTarget.exitStatus == EXIT_SUCCESS)
                 {
-                    sourceJson[CppBuild::SourceFiles::compileCommandWithTool] =
-                        target->compileCommandWithTool.getHash();
+                    BuildCache::Cpp::SourceFile s;
+                    s.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
                     postCompile.parseHeaderDeps(*this);
                 }
 
