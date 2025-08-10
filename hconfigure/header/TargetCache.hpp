@@ -36,7 +36,7 @@ struct CCOrHash
 #ifdef USE_COMMAND_HASH
     uint32_t hash{};
 #else
-    string_view compilerCommand;
+    string_view hash;
 #endif
 };
 
