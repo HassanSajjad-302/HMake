@@ -82,19 +82,13 @@ enum class SM_FILE_TYPE : char
     PRIMARY_IMPLEMENTATION = 5,
 };
 
-struct ValueObjectFileMapping
-{
-    // should be const
-    string_view logicalName;
-    Node *objectFile;
-
-    ValueObjectFileMapping(string_view logicalName_, Node *objectFile_);
-};
-
 struct SMFile : SourceNode // Scanned Module Rule
 {
+    BuildCache::Cpp::ModuleFile::SmRules smRulesCache;
+    CCOrHash &scanningCommandWithToolCache = buildCache.compileCommandWithTool;
+    CCOrHash compileCommandWithToolCache;
     string logicalName;
-    vector<ValueObjectFileMapping> logicalNameObjectFileMapping;
+    vector<BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep> modMap;
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // depends on is consuming it another way.
@@ -135,8 +129,6 @@ struct SMFile : SourceNode // Scanned Module Rule
     bool calledOnce = false;
     void saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
                                      StaticVector<string_view, 1000> &includeNames);
-    static void initializeModuleJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
-                                     const CppSourceTarget &target);
     InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
     void initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder);
     void initializeHeaderUnits(Builder &builder, const StaticVector<string_view, 1000> &includeNames);

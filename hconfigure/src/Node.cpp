@@ -302,7 +302,7 @@ Node *Node::getNodeFromValue(const Value &value, bool isFile, bool mayNotExist)
 
 Node *Node::getHalfNode(const uint32_t index)
 {
-    return nodeIndices[nodeIndexOrFilePath.index];
+    return nodeIndices[index];
 }
 
 Node *Node::tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, bool isFile, bool mayNotExist)

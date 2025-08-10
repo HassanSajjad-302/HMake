@@ -809,7 +809,10 @@ void CppSourceTarget::resolveRequirePaths()
                         atomic_ref(smFile->fileStatus).store(true);
                     }
                 }
-                smFile->logicalNameObjectFileMapping.emplace_back(require.logicalName, found->objectFileOutputFileNode);
+                BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep dep;
+                dep.logicalName = require.logicalName;
+                dep.fullPath = found->objectFileOutputFileNode;
+                smFile->modMap.emplace_back(dep);
             }
             else
             {

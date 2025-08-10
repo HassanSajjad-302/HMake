@@ -26,7 +26,6 @@ inline flat_hash_map<string, uint32_t> nameToIndexMap;
 class TargetCache
 {
 public:
-
     /// Needed to address in configCacheTargets;
     uint32_t targetCacheIndex = -1;
     explicit TargetCache(const string &name);

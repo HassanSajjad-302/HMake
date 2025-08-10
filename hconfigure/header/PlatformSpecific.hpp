@@ -66,7 +66,7 @@ bool compareStringsFromEnd(string_view lhs, string_view rhs);
 void lowerCasePStringOnWindows(char *ptr, uint64_t size);
 bool childInParentPathNormalized(string_view parent, string_view child);
 
-namespace Indices
+/*namespace Indices
 {
 
 namespace ConfigCache
@@ -156,6 +156,6 @@ constexpr static unsigned objectFiles = 1;
 } // namespace LinkBuild
 
 } // namespace BuildCache
-} // namespace Indices
+} // namespace Indices*/
 
 #endif // HMAKE_PLATFORMSPECIFIC_HPP
