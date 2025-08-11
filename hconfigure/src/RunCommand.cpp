@@ -364,18 +364,6 @@ bool PostCompile::ignoreHeaderFile(const string_view child) const
     return false;
 }
 
-bool isNodeInArray(const vector<Node *> &nodesArray, const Node *node)
-{
-    for (const Node *n2 : nodesArray)
-    {
-        if (n2 == node)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
 void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &output) const
 {
     const string includeFileNote = "Note: including file:";
@@ -458,7 +446,8 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
                     {
                         lowerCasePStringOnWindows(const_cast<char *>(headerView.data()), headerView.size());
 
-                        if (Node *headerNode = Node::getHalfNode(headerView); !isNodeInArray(*headerFiles, headerNode))
+                        if (Node *headerNode = Node::getHalfNode(headerView);
+                            std::ranges::find(*headerFiles, headerNode) != headerFiles->end())
                         {
                             headerFiles->emplace_back(headerNode);
                         }

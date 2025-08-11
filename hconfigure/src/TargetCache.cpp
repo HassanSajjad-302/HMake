@@ -78,7 +78,7 @@ string_view readStringView(const char *ptr, uint32_t &bytesRead)
     return {ptr + offset, strSize};
 }
 
-Node *readNode(const char *ptr, uint32_t &bytesRead)
+Node *readHalfNode(const char *ptr, uint32_t &bytesRead)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     return Node::getHalfNode(readUint32(ptr, bytesRead));
@@ -116,7 +116,7 @@ ConfigCache::Cpp readCppConfigCache(const char *ptr, uint32_t &bytesRead)
     cfg.sourceFiles = readNodeSpan(ptr, bytesRead);
     cfg.moduleFiles = readNodeSpan(ptr, bytesRead);
     cfg.headerUnits = readNodeSpan(ptr, bytesRead);
-    cfg.buildCacheFilesDirPath = readNode(ptr, bytesRead);
+    cfg.buildCacheFilesDirPath = readHalfNode(ptr, bytesRead);
     return cfg;
 }
 
@@ -125,15 +125,15 @@ ConfigCache::Link readLinkConfigCache(const char *ptr, uint32_t &bytesRead)
     ConfigCache::Link ln;
     ln.reqLibraryDirsArray = readNodeSpan(ptr, bytesRead);
     ln.useReqLibraryDirsArray = readNodeSpan(ptr, bytesRead);
-    ln.outputFileNode = readNode(ptr, bytesRead);
-    ln.buildCacheFilesDirPath = readNode(ptr, bytesRead);
+    ln.outputFileNode = readHalfNode(ptr, bytesRead);
+    ln.buildCacheFilesDirPath = readHalfNode(ptr, bytesRead);
     return ln;
 }
 
 BuildCache::Cpp::SourceFile readSourceFileBuildCache(const char *ptr, uint32_t &bytesRead)
 {
     BuildCache::Cpp::SourceFile sf;
-    sf.fullPath = readNode(ptr, bytesRead);
+    sf.fullPath = readHalfNode(ptr, bytesRead);
     sf.compileCommandWithTool = readCCOrHash(ptr, bytesRead);
     sf.headerFiles = readNodeSpan(ptr, bytesRead);
     return sf;
@@ -172,7 +172,7 @@ void ModuleFileCache::initialize(const char *ptr, uint32_t &bytesRead)
     vector<BuildCache::Cpp::SourceFile> for (uint32_t i = 0; i < count; ++i)
     {
         BuildCache::Cpp::SourceFile sf;
-        sf.fullPath = readNode(ptr, bytesRead);
+        sf.fullPath = readHalfNode(ptr, bytesRead);
         sf.compileCommandWithTool = readCCOrHash(ptr, bytesRead);
         sf.headerFiles = readNodeSpan(ptr, bytesRead);
     }
@@ -182,7 +182,7 @@ void ModuleFileCache::initialize(const char *ptr, uint32_t &bytesRead)
 BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep readSingleHeaderUnitDep(const char *ptr, uint32_t &bytesRead)
 {
     BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep huDep;
-    huDep.fullPath = readNode(ptr, bytesRead);
+    huDep.fullPath = readHalfNode(ptr, bytesRead);
     huDep.angle = readBool(ptr, bytesRead);
     huDep.targetIndex = readUint32(ptr, bytesRead);
     huDep.myIndex = readUint32(ptr, bytesRead);
@@ -200,7 +200,7 @@ span<ModuleFileCache::SmRules::SingleHeaderUnitDep> readSingleHeaderUnitDepSpan(
 BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep readSingleModuleDep(const char *ptr, uint32_t &bytesRead)
 {
     BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep d;
-    d.fullPath = readNode(ptr, bytesRead);
+    d.fullPath = readHalfNode(ptr, bytesRead);
     d.logicalName = string(readStringView(ptr, bytesRead));
     return d;
 }

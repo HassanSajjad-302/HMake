@@ -52,7 +52,9 @@ class PLOAT : public BTarget, public TargetCache
 
   public:
     string outputName;
+    uint32_t configCacheBytesRead = 0;
 #endif
+    vector<char> configCacheBuffer;
 
   public:
     string useReqLinkerFlags;

@@ -135,7 +135,7 @@ using ModuleFileCache = BuildCache::Cpp::ModuleFile;
 bool readBool(const char *ptr, uint32_t &bytesRead);
 uint32_t readUint32(const char *ptr, uint32_t &bytesRead);
 string_view readStringView(const char *ptr, uint32_t &bytesRead);
-Node *readNode(const char *ptr, uint32_t &bytesRead);
+Node *readHalfNode(const char *ptr, uint32_t &bytesRead);
 CCOrHash readCCOrHash(const char *ptr, uint32_t &bytesRead);
 span<Node *> readNodeSpan(const char *ptr, uint32_t &bytesRead);
 ConfigCache::Cpp readCppConfigCache(const char *ptr, uint32_t &bytesRead);
@@ -195,7 +195,7 @@ template <typename T> void readInclDirsAtBuildTime(const char *ptr, uint32_t &by
     include.reserve(reserveSize * sizeof(T) + sizeof(uint32_t));
     for (uint32_t i = 0; i < include.size(); ++i)
     {
-        Node *node = readNode(ptr + bytesRead, bytesRead);
+        Node *node = readHalfNode(ptr + bytesRead, bytesRead);
         bool isStandard = readBool(ptr + bytesRead, bytesRead);
         bool ignoreHeaderDeps = readBool(ptr + bytesRead, bytesRead);
         if constexpr (std::is_same_v<T, InclNodeTargetMap>)

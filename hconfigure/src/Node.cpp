@@ -113,15 +113,6 @@ string Node::getFileName() const
     return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end()};
 }
 
-NodeIndexOrFilePath Node::getNodeIndexOrFilePath() const
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    return NodeIndexOrFilePath(myId);
-#else
-    return NodeIndexOrFilePath(filePath);
-#endif
-}
-
 // TODO
 // See if we can use new functions with absolute paths. So, only lexically_normal is called.
 path Node::getFinalNodePathFromPath(path filePath)
@@ -303,19 +294,6 @@ Node *Node::getNodeFromValue(const Value &value, bool isFile, bool mayNotExist)
 Node *Node::getHalfNode(const uint32_t index)
 {
     return nodeIndices[index];
-}
-
-Node *Node::tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, bool isFile, bool mayNotExist)
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[value.GetUint64()];
-    systemCheckSucceeded = node->trySystemCheck(isFile, mayNotExist);
-#else
-    Node *node =
-        Node::getNodeFromNormalizedString(string_view(value.GetString(), value.GetStringLength()), isFile, mayNotExist);
-    systemCheckSucceeded = true;
-#endif
-    return node;
 }
 
 rapidjson::Type Node::getType()

@@ -24,6 +24,7 @@ class LOAT : public PLOAT
     using BaseType = PLOAT;
 
   public:
+    BuildCache::Link linkBuildCache;
     string reqLinkerFlags;
     string_view linkOrArchiveCommandWithoutTargets;
     string linkOrArchiveCommandWithTargets;
@@ -50,6 +51,7 @@ class LOAT : public PLOAT
 
     void setFileStatus();
     void updateBTarget(Builder &builder, unsigned short round) override;
+    void updateBuildCache(void *ptr) override;
     void writeTargetConfigCacheAtConfigureTime();
     void readConfigCacheAtBuildTime();
 

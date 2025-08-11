@@ -108,13 +108,7 @@ void LOAT::setFileStatus()
     commandWithoutTargetsWithTool.setCommand(config.linkerFeatures.linker.bTPath.string() + " " +
                                              string(linkOrArchiveCommandWithoutTargets));
 
-    namespace LinkBuild = Indices::BuildCache::LinkBuild;
-    if (getBuildCache().Empty())
-    {
-        fileStatus = true;
-    }
-
-    if (!atomic_ref(fileStatus).load())
+    if (!fileStatus)
     {
         outputFileNode->ensureSystemCheckCalled(true, true);
         if (outputFileNode->doesNotExist)
@@ -123,7 +117,7 @@ void LOAT::setFileStatus()
         }
         else
         {
-            if (getBuildCache()[LinkBuild::commandWithoutArgumentsWithTools] == commandWithoutTargetsWithTool.getHash())
+            if (linkBuildCache.commandWithoutArgumentsWithTools.hash == commandWithoutTargetsWithTool.getHash())
             {
                 bool needsUpdate = false;
                 if (!evaluate(TargetType::LIBRARY_STATIC))
@@ -148,7 +142,8 @@ void LOAT::setFileStatus()
 
                 for (const ObjectFile *objectFile : objectFiles)
                 {
-                    if (!isNodeInValue(getBuildCache()[LinkBuild::objectFiles], *objectFile->objectFileOutputFileNode))
+                    if (std::ranges::find(linkBuildCache.objectFiles, objectFile->objectFileOutputFileNode) ==
+                        linkBuildCache.objectFiles.end())
                     {
                         needsUpdate = true;
                         break;
@@ -254,40 +249,24 @@ void LOAT::updateBTarget(Builder &builder, unsigned short round)
             realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
             if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
             {
-                Value *objectFilesValue;
+                linkBuildCache.commandWithoutArgumentsWithTools.hash = commandWithoutTargetsWithTool.getHash();
+                vector<Node *> *objectFilesCache = new vector<Node *>;
+                objectFilesCache->reserve(objectFiles.size());
 
-                namespace LinkBuild = Indices::BuildCache::LinkBuild;
-                if (buildOrConfigCacheCopy.Empty())
-                {
-                    buildOrConfigCacheCopy.PushBack(commandWithoutTargetsWithTool.getHash(), cacheAlloc);
-                    buildOrConfigCacheCopy.PushBack(Value(kArrayType), cacheAlloc);
-                    objectFilesValue = buildOrConfigCacheCopy.End() - 1;
-                }
-                else
-                {
-                    buildOrConfigCacheCopy[LinkBuild::commandWithoutArgumentsWithTools] =
-                        commandWithoutTargetsWithTool.getHash();
-                    objectFilesValue = &buildOrConfigCacheCopy[LinkBuild::objectFiles];
-                    objectFilesValue->Clear();
-                }
-
-                objectFilesValue->Reserve(objectFiles.size(), cacheAlloc);
                 for (const ObjectFile *objectFile : objectFiles)
                 {
-                    objectFilesValue->PushBack(objectFile->objectFileOutputFileNode->getValue(), cacheAlloc);
+                    objectFilesCache->emplace_back(objectFile->objectFileOutputFileNode);
                 }
             }
 
             {
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
                 {
-                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, false,
-                                                                std::move(buildOrConfigCacheCopy), targetCacheIndex);
+                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, this, nullptr);
                 }
                 else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
                 {
-                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, false,
-                                                                std::move(buildOrConfigCacheCopy), targetCacheIndex);
+                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, this, nullptr);
                 }
             }
 
@@ -328,16 +307,21 @@ void LOAT::updateBTarget(Builder &builder, unsigned short round)
     }
 }
 
+void LOAT::updateBuildCache(void *ptr)
+{
+    // TODO
+}
+
 void LOAT::writeTargetConfigCacheAtConfigureTime()
 {
-    buildOrConfigCacheCopy.PushBack(buildCacheFilesDirPathNode->getValue(), cacheAlloc);
-    copyBackConfigCacheMutexLocked();
+    writeNode(configCacheBuffer, buildCacheFilesDirPathNode);
+    configCacheTargets[targetCacheIndex].configCache = span(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
 void LOAT::readConfigCacheAtBuildTime()
 {
-    buildCacheFilesDirPathNode =
-        Node::getHalfNode(getConfigCache()[Indices::ConfigCache::LinkConfig::buildCacheFilesDirPath]);
+    buildCacheFilesDirPathNode = readHalfNode(
+        configCacheTargets[targetCacheIndex].configCache.data() + configCacheBytesRead, configCacheBytesRead);
 }
 
 string LOAT::getTarjanNodeName() const
@@ -671,8 +655,7 @@ string LOAT::getLinkOrArchiveCommandPrint()
             {
                 if (lcpSettings.libraryDirs.printLevel != PathPrintLevel::NO)
                 {
-                    linkOrArchiveCommandPrint +=
-                        getLibraryDirectoryFlag() +
+                    linkOrArchiveCommandPrint += getLibraryDirectoryFlag() +
                                                  getReducedPath(libDirNode.node->filePath, lcpSettings.libraryDirs) +
                                                  " ";
                 }

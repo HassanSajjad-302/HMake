@@ -12,6 +12,7 @@ import "SMFile.hpp";
 #include "SMFile.hpp"
 #include <utility>
 #endif
+#include "JConsts.hpp"
 
 string PLOAT::getOutputName() const
 {
@@ -84,7 +85,6 @@ void PLOAT::updateBTarget(Builder &builder, unsigned short round)
     }
     else if (round == 2)
     {
-
         if constexpr (bsMode == BSMode::BUILD)
         {
             readConfigCacheAtBuildTime();
@@ -135,46 +135,41 @@ void PLOAT::updateBTarget(Builder &builder, unsigned short round)
 
 void PLOAT::writeTargetConfigCacheAtConfigureTime()
 {
-    namespace LinkConfig = Indices::ConfigCache::LinkConfig;
-
-    buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    Value &libDirsConfigCache = buildOrConfigCacheCopy[LinkConfig::reqLibraryDirsArray];
-    libDirsConfigCache.Reserve(reqLibraryDirs.size(), cacheAlloc);
-
+    writeUint32(configCacheBuffer, reqLibraryDirs.size());
     for (const LibDirNode &libDirNode : reqLibraryDirs)
     {
-        libDirsConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
+        writeNode(configCacheBuffer, libDirNode.node);
     }
 
-    buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    Value &useLibDirsConfigCache = buildOrConfigCacheCopy[LinkConfig::useReqLibraryDirsArray];
-    useLibDirsConfigCache.Reserve(useReqLibraryDirs.size(), cacheAlloc);
-
+    writeUint32(configCacheBuffer, useReqLibraryDirs.size());
     for (const LibDirNode &libDirNode : useReqLibraryDirs)
     {
-        useLibDirsConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
+        writeNode(configCacheBuffer, libDirNode.node);
     }
 
-    buildOrConfigCacheCopy.PushBack(outputFileNode->getValue(), cacheAlloc);
-    copyBackConfigCacheMutexLocked();
+    writeNode(configCacheBuffer, outputFileNode);
+    configCacheTargets[targetCacheIndex].configCache = span(configCacheBuffer.begin(), configCacheBuffer.size());
 }
 
 void PLOAT::readConfigCacheAtBuildTime()
 {
-    namespace LinkConfig = Indices::ConfigCache::LinkConfig;
-
-    Value &reqLibDirsConfigCache = getConfigCache()[LinkConfig::reqLibraryDirsArray];
-    reqLibraryDirs.reserve(reqLibDirsConfigCache.Size());
-    for (const Value &value : reqLibDirsConfigCache.GetArray())
+    const span<char> configCache = configCacheTargets[targetCacheIndex].configCache;
+    uint32_t size = readUint32(configCache.data() + configCacheBytesRead, configCacheBytesRead);
+    reqLibraryDirs.resize(size);
+    for (uint32_t i = 0; i < size; ++i)
     {
-        reqLibraryDirs.emplace_back(Node::getNodeFromValue(value, false), true);
+        Node *node = readHalfNode(configCache.data() + configCacheBytesRead, configCacheBytesRead);
+        node->ensureSystemCheckCalled(false);
+        reqLibraryDirs.emplace_back(node, true);
     }
 
-    Value &useReqLibDirsConfigCache = getConfigCache()[LinkConfig::useReqLibraryDirsArray];
-    useReqLibraryDirs.reserve(useReqLibDirsConfigCache.Size());
-    for (const Value &value : useReqLibDirsConfigCache.GetArray())
+    size = readUint32(configCache.data() + configCacheBytesRead, configCacheBytesRead);
+    useReqLibraryDirs.resize(size);
+    for (uint32_t i = 0; i < size; ++i)
     {
-        useReqLibraryDirs.emplace_back(Node::getNodeFromValue(value, false), true);
+        Node *node = readHalfNode(configCache.data() + configCacheBytesRead, configCacheBytesRead);
+        node->ensureSystemCheckCalled(false);
+        useReqLibraryDirs.emplace_back(node, true);
     }
 }
 

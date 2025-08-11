@@ -461,14 +461,14 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     const uint32_t sourceSize = readUint32(ptr + configRead, configRead);
     for (uint32_t i = 0; i < sourceSize; ++i)
     {
-        SourceNode *srcNode = srcFileDeps.emplace_back(new SourceNode(this, readNode(ptr + configRead, configRead)));
+        SourceNode *srcNode = srcFileDeps.emplace_back(new SourceNode(this, readHalfNode(ptr + configRead, configRead)));
         addDependencyNoMutex<0>(*srcNode);
     }
 
     const uint32_t modSize = readUint32(ptr + configRead, configRead);
     for (uint32_t i = 0; i < modSize; ++i)
     {
-        SMFile *smFile = modFileDeps.emplace_back(new SMFile(this, readNode(ptr + configRead, configRead)));
+        SMFile *smFile = modFileDeps.emplace_back(new SMFile(this, readHalfNode(ptr + configRead, configRead)));
         smFile->isInterface = readBool(ptr + configRead, configRead);
         addDependencyNoMutex<0>(*smFile);
         resolveRequirePathBTarget.addDependencyNoMutex<0>(*smFile);
