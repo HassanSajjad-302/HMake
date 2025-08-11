@@ -653,15 +653,10 @@ void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
 
 void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_view, 1000> &includeNames)
 {
-    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
-
-    for (uint64_t i = 0; i < sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].Size(); ++i)
+    for (uint32_t i = 0; i < smRulesCache.headerUnitArray.size(); ++i)
     {
-        Value &requireValue = sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray][i];
-        namespace SingleHeaderUnitDep = ModuleFiles::SmRules::SingleHeaderUnitDep;
-
-        Node *headerUnitNode = Node::getNodeFromValue(requireValue[SingleHeaderUnitDep::fullPath], true);
-        auto [nodeDir, huDirTarget] = findHeaderUnitTarget(headerUnitNode);
+        BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu = smRulesCache.headerUnitArray[i];
+        auto [nodeDir, huDirTarget] = findHeaderUnitTarget(hu.fullPath);
 
         SMFile *headerUnit = nullptr;
         bool doLoad = false;
@@ -675,10 +670,9 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
         else
         {
             huDirTarget->headerUnitsMutex.lock();
-            if (const auto it = huDirTarget->headerUnitsSet.find(headerUnitNode);
-                it == huDirTarget->headerUnitsSet.end())
+            if (const auto it = huDirTarget->headerUnitsSet.find(hu.fullPath); it == huDirTarget->headerUnitsSet.end())
             {
-                headerUnit = new SMFile(huDirTarget, headerUnitNode);
+                headerUnit = new SMFile(huDirTarget, hu.fullPath);
                 headerUnit->addedForRoundOne = true;
                 huDirTarget->headerUnitsSet.emplace(headerUnit).first;
 
@@ -691,8 +685,6 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
 
                 atomic_ref(headerUnit->indexInBuildCache)
                     .store(huDirTarget->newHeaderUnitsSize.fetch_add(1) + huDirTarget->oldHeaderUnits.size());
-                initializeModuleJson(headerUnit->sourceJson, headerUnit->node, headerUnit->sourceNodeAllocator,
-                                     *headerUnit->target);
 
                 headerUnit->type = SM_FILE_TYPE::HEADER_UNIT;
                 headerUnit->logicalName = string(includeNames[i]);
@@ -727,7 +719,7 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
         }
 
         // Should be true if JConsts::lookupMethod == "include-angle";
-        headerUnitsConsumptionData.emplace(headerUnit, requireValue[SingleHeaderUnitDep::angle].GetUint64());
+        headerUnitsConsumptionData.emplace(headerUnit, hu.angle);
         addDependencyDelayed<0>(*headerUnit);
 
         if (doLoad)
@@ -736,8 +728,8 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
                 ;
         }
 
-        requireValue[SingleHeaderUnitDep::targetIndex] = huDirTarget->targetCacheIndex;
-        requireValue[SingleHeaderUnitDep::myIndex] = headerUnit->indexInBuildCache;
+        hu.targetIndex = huDirTarget->targetCacheIndex;
+        hu.myIndex = headerUnit->indexInBuildCache;
     }
 }
 
@@ -755,18 +747,16 @@ void SMFile::addNewBTargetInFinalBTargetsRound1(Builder &builder)
 
 void SMFile::setSMFileType()
 {
-    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
-
-    if (sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::isInterface].GetUint64())
+    if (smRulesCache.isInterface)
     {
-        if (sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::exportName].GetStringLength())
+        if (!smRulesCache.exportName.empty())
         {
             type = logicalName.contains(':') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
         }
     }
     else
     {
-        if (sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::exportName].GetStringLength())
+        if (!smRulesCache.exportName.empty())
         {
             type = SM_FILE_TYPE::PARTITION_IMPLEMENTATION;
         }
@@ -779,9 +769,6 @@ void SMFile::setSMFileType()
 
 void SMFile::checkObjectFileOutdatedHeaderUnits()
 {
-    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
-    namespace SingleHeaderUnitDep = ModuleFiles::SmRules::SingleHeaderUnitDep;
-
     if (isObjectFileOutdatedCallCompleted || atomic_ref(isObjectFileOutdatedCallCompleted).load())
     {
         return;
@@ -794,9 +781,10 @@ void SMFile::checkObjectFileOutdatedHeaderUnits()
         return;
     }
 
-    for (Value &value : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
+    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu : smRulesCache.headerUnitArray)
     {
-        CppSourceTarget *localTarget = cppSourceTargets[value[SingleHeaderUnitDep::targetIndex].GetUint64()];
+        CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
+
         if (!localTarget)
         {
             // TODO
@@ -806,7 +794,7 @@ void SMFile::checkObjectFileOutdatedHeaderUnits()
             return;
         }
 
-        SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetUint64()];
+        SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
 
         if (!headerUnit.isObjectFileOutdatedCallCompleted &&
             !atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
@@ -829,9 +817,6 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
     // If smrules file exists, and is updated, then it won't be updated. This can happen when, because of
     // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the
     // .m.o file.
-
-    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
-    namespace SingleHeaderUnitDep = ModuleFiles::SmRules::SingleHeaderUnitDep;
 
     if (isSMRuleFileOutdatedCallCompleted || atomic_ref(isSMRuleFileOutdatedCallCompleted).load())
     {
@@ -857,10 +842,9 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
     }
 
     // We assume that all header-files systemCheck has already been called and that they exist.
-    for (const Value &value : sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].GetArray())
+    for (const Node *headerNode : buildCache.headerFiles)
     {
-        if (const Node *headerNode = Node::getHalfNode(value);
-            headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
+        if (headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
         {
             isSMRuleFileOutdated = true;
             atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
@@ -868,9 +852,9 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
         }
     }
 
-    for (Value &value : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
+    for (BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu : smRulesCache.headerUnitArray)
     {
-        CppSourceTarget *localTarget = cppSourceTargets[value[SingleHeaderUnitDep::targetIndex].GetUint64()];
+        CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
         if (!localTarget)
         {
             isSMRuleFileOutdated = true;
@@ -878,7 +862,7 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
             return;
         }
 
-        SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetInt()];
+        SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
 
         if (!headerUnit.isSMRuleFileOutdatedCallCompleted &&
             !atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
@@ -898,25 +882,22 @@ void SMFile::checkSMRulesFileOutdatedHeaderUnits()
 
 void SMFile::checkObjectFileOutdatedModules()
 {
-    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
-    namespace SingleHeaderUnitDep = ModuleFiles::SmRules::SingleHeaderUnitDep;
-
     if (checkHeaderFiles(objectFileOutputFileNode))
     {
         isObjectFileOutdated = true;
         return;
     }
 
-    for (Value &value : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
+    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu : smRulesCache.headerUnitArray)
     {
-        CppSourceTarget *localTarget = cppSourceTargets[value[SingleHeaderUnitDep::targetIndex].GetUint64()];
+        CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
         if (!localTarget)
         {
             isObjectFileOutdated = true;
             return;
         }
 
-        SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetUint64()];
+        SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
 
         if (!headerUnit.isObjectFileOutdatedCallCompleted &&
             !atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
@@ -938,9 +919,6 @@ void SMFile::checkSMRulesFileOutdatedModules()
     // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the
     // .m.o file.
 
-    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
-    namespace SingleHeaderUnitDep = ModuleFiles::SmRules::SingleHeaderUnitDep;
-
     if (isSMRulesJsonSet)
     {
         isSMRuleFileOutdated = false;
@@ -958,26 +936,25 @@ void SMFile::checkSMRulesFileOutdatedModules()
     }
 
     // We assume that all header-files systemCheck has already been called and that they exist.
-    for (const Value &value : sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles].GetArray())
+    for (const Node *headerNode : buildCache.headerFiles)
     {
-        if (const Node *headerNode = Node::getHalfNode(value);
-            headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
+        if (headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
         {
             isSMRuleFileOutdated = true;
             return;
         }
     }
 
-    for (Value &value : sourceJson[ModuleFiles::smRules][ModuleFiles::SmRules::headerUnitArray].GetArray())
+    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu : smRulesCache.headerUnitArray)
     {
-        CppSourceTarget *localTarget = cppSourceTargets[value[SingleHeaderUnitDep::targetIndex].GetUint64()];
+        CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
         if (!localTarget)
         {
             isSMRuleFileOutdated = true;
             return;
         }
 
-        SMFile &headerUnit = localTarget->oldHeaderUnits[value[SingleHeaderUnitDep::myIndex].GetInt()];
+        SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
 
         if (!headerUnit.isSMRuleFileOutdatedCallCompleted &&
             !atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
