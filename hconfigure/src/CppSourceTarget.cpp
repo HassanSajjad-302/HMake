@@ -374,7 +374,7 @@ void CppSourceTarget::checkAndCopyBuildCache(vector<char> &buildBuffer)
     }
 }
 
-template <typename T> uint32_t findNodeInSourceCache(const vector<T>& sourceCache, const Node *node)
+template <typename T> uint32_t findNodeInSourceCache(const vector<T> &sourceCache, const Node *node)
 {
     for (uint32_t i = 0; i < sourceCache.size(); ++i)
     {

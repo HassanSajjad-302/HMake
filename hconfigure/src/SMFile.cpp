@@ -514,7 +514,6 @@ unique_ptr<vector<char>> readValueFromFile(const string_view fileName, Document 
     return buffer;
 }
 
-
 void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
                                          StaticVector<string_view, 1000> &includeNames)
 {
