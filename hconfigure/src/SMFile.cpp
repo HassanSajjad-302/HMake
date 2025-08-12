@@ -560,7 +560,7 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
                 // lower-cased before saving for further use
                 string_view str(sourcePathIt->value.GetString(), sourcePathIt->value.GetStringLength());
                 lowerCasePStringOnWindows(const_cast<char *>(str.data()), str.size());
-                hu.fullPath = Node::getHalfNode(str);
+                hu.node = Node::getHalfNode(str);
 
                 hu.angle = requireValue.FindMember(Value(svtogsr(JConsts::lookupMethod)))->value ==
                            Value(svtogsr(JConsts::includeAngle));
@@ -654,7 +654,7 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
     for (uint32_t i = 0; i < smRulesCache.headerUnitArray.size(); ++i)
     {
         BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu = smRulesCache.headerUnitArray[i];
-        auto [nodeDir, huDirTarget] = findHeaderUnitTarget(hu.fullPath);
+        auto [nodeDir, huDirTarget] = findHeaderUnitTarget(hu.node);
 
         SMFile *headerUnit = nullptr;
         bool doLoad = false;
@@ -668,9 +668,9 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
         else
         {
             huDirTarget->headerUnitsMutex.lock();
-            if (const auto it = huDirTarget->headerUnitsSet.find(hu.fullPath); it == huDirTarget->headerUnitsSet.end())
+            if (const auto it = huDirTarget->headerUnitsSet.find(hu.node); it == huDirTarget->headerUnitsSet.end())
             {
-                headerUnit = new SMFile(huDirTarget, hu.fullPath);
+                headerUnit = new SMFile(huDirTarget, hu.node);
                 headerUnit->addedForRoundOne = true;
                 huDirTarget->headerUnitsSet.emplace(headerUnit).first;
 

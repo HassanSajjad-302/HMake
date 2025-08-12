@@ -324,7 +324,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             compileCommandWithTool.setCommand(configuration->compilerFeatures.compiler.bTPath.string() + " " +
                                               compileCommand);
 
-            cppBuildCache.initialize(targetCacheIndex);
+            cppBuildCache.deserialize(targetCacheIndex);
             if (!cppBuildCache.headerUnits.empty())
             {
                 oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
@@ -356,6 +356,11 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             populateResolveRequirePathDependencies();
         }
     }
+}
+
+void CppSourceTarget::writeBuildCache(vector<char> &buffer)
+{
+
 }
 
 void CppSourceTarget::checkAndCopyBuildCache(vector<char> &buildBuffer)
@@ -447,7 +452,8 @@ template <typename T> void writeIncDirsAtConfigTime(vector<char> &buffer, const 
     }
 }
 
-template <typename T> void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &include, CppSourceTarget *target)
+template <typename T>
+void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &include, CppSourceTarget *target)
 {
     const uint32_t reserveSize = readUint32(ptr + bytesRead, bytesRead);
     include.reserve(reserveSize * sizeof(T) + sizeof(uint32_t));
@@ -460,7 +466,8 @@ template <typename T> void readInclDirsAtBuildTime(const char *ptr, uint32_t &by
         {
             const bool targetCacheIndex = readBool(ptr + bytesRead, bytesRead);
             const bool headerUnitIndex = readBool(ptr + bytesRead, bytesRead);
-            include.emplace_back(HeaderUnitNode(node, isStandard, ignoreHeaderDeps, targetCacheIndex, headerUnitIndex), target);
+            include.emplace_back(HeaderUnitNode(node, isStandard, ignoreHeaderDeps, targetCacheIndex, headerUnitIndex),
+                                 target);
         }
         else
         {
@@ -492,7 +499,7 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
 
         configCacheTargets[targetCacheIndex].configCache = span{configBuffer->data(), configBuffer->size()};
 
-        cppBuildCache.initialize(targetCacheIndex);
+        cppBuildCache.deserialize(targetCacheIndex);
         adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
         adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
         auto *buildBuffer = new vector<char>;

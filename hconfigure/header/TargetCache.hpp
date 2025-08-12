@@ -35,6 +35,7 @@ class TargetCache
     uint32_t targetCacheIndex = -1;
     explicit TargetCache(const string &name);
     virtual void updateBuildCache(void *ptr);
+    virtual void writeBuildCache(vector<char> &buffer);
 };
 
 /// Stores either compile-commands or its based on the USE_COMMAND_HASH CMake configuration macro.
@@ -84,8 +85,9 @@ struct BuildCache
         {
             Node *node;
             CCOrHash compileCommandWithTool;
-            span<Node *> headerFiles;
-            void initialize(const char *ptr, uint32_t &bytesRead);
+            vector<Node *> headerFiles;
+            void serialize(vector<char> &buffer) const;
+            void deserialize(const char *ptr, uint32_t &bytesRead);
         };
 
         struct ModuleFile
@@ -94,38 +96,42 @@ struct BuildCache
             {
                 struct SingleHeaderUnitDep
                 {
-                    Node *fullPath;
+                    Node *node;
                     bool angle{};
                     uint32_t targetIndex{};
                     uint32_t myIndex{};
-                    void initialize(const char *ptr, uint32_t &bytesRead);
+                    void serialize(vector<char> &buffer) const;
+                    void deserialize(const char *ptr, uint32_t &bytesRead);
                 };
 
                 struct SingleModuleDep
                 {
                     Node *fullPath;
                     string_view logicalName;
-                    void initialize(const char *ptr, uint32_t &bytesRead);
+                    void serialize(vector<char> &buffer) const;
+                    void deserialize(const char *ptr, uint32_t &bytesRead);
                 };
 
                 string_view exportName;
                 bool isInterface{};
-                span<SingleHeaderUnitDep> headerUnitArray;
-                span<SingleModuleDep> moduleArray;
-                void initialize(const char *ptr, uint32_t &bytesRead);
+                vector<SingleHeaderUnitDep> headerUnitArray;
+                vector<SingleModuleDep> moduleArray;
+                void serialize(vector<char> &buffer) const;
+                void deserialize(const char *ptr, uint32_t &bytesRead);
             };
 
             SourceFile srcFile;
             SmRules smRules;
             CCOrHash compileCommandWithTool;
-            void initialize(const char *ptr, uint32_t &bytesRead);
+            void serialize(vector<char> &buffer) const;
+            void deserialize(const char *ptr, uint32_t &bytesRead);
         };
 
-        span<SourceFile> srcFiles;
-        span<ModuleFile> modFiles;
-        span<ModuleFile> headerUnits;
-        void initialize(uint32_t targetCacheIndex);
-        span<SourceFile> readSourceFilesBuildCacheSpan(const char *ptr, uint32_t &bytesRead);
+        vector<SourceFile> srcFiles;
+        vector<ModuleFile> modFiles;
+        vector<ModuleFile> headerUnits;
+        void serialize(vector<char> &buffer) const;
+        void deserialize(uint32_t targetCacheIndex);
     };
 
     struct Link
@@ -135,7 +141,7 @@ struct BuildCache
     };
 };
 
-using ModuleFileCache = BuildCache::Cpp::ModuleFile;
+using ModuleFile = BuildCache::Cpp::ModuleFile;
 
 bool readBool(const char *ptr, uint32_t &bytesRead);
 uint32_t readUint32(const char *ptr, uint32_t &bytesRead);
@@ -145,32 +151,15 @@ CCOrHash readCCOrHash(const char *ptr, uint32_t &bytesRead);
 span<Node *> readNodeSpan(const char *ptr, uint32_t &bytesRead);
 ConfigCache::Cpp readCppConfigCache(const char *ptr, uint32_t &bytesRead);
 ConfigCache::Link readLinkConfigCache(const char *ptr, uint32_t &bytesRead);
-BuildCache::Cpp::SourceFile readSourceFileBuildCache(const char *ptr, uint32_t &bytesRead);
-ModuleFileCache::SmRules::SingleHeaderUnitDep readSingleHeaderUnitDep(const char *ptr, uint32_t &bytesRead);
-span<ModuleFileCache::SmRules::SingleHeaderUnitDep> readSingleHeaderUnitDepSpan(const char *ptr, uint32_t &bytesRead);
-ModuleFileCache::SmRules::SingleModuleDep readSingleModuleDep(const char *ptr, uint32_t &bytesRead);
-span<ModuleFileCache::SmRules::SingleModuleDep> readSingleModuleDepSpan(const char *ptr, uint32_t &bytesRead);
-ModuleFileCache::SmRules readSMRules(const char *ptr, uint32_t &bytesRead);
-ModuleFileCache readModuleFileBuildCache(const char *ptr, uint32_t &bytesRead);
-span<ModuleFileCache> readModuleFilesBuildCacheSpan(const char *ptr, uint32_t &bytesRead);
-BuildCache::Cpp readCppBuildCache(const char *ptr, uint32_t &bytesRead);
 BuildCache::Link readLinkBuildCache(const char *ptr, uint32_t &bytesRead);
 
 void writeBool(vector<char> &buffer, const bool &value);
-void writeUint32(vector<char> &buffer, const uint32_t &data);
+void writeUint32(vector<char> &buffer, uint32_t data);
 void writeStringView(vector<char> &buffer, const string_view &data);
 void writeNode(vector<char> &buffer, const Node *value);
 void writeCCOrHash(vector<char> &buffer, const CCOrHash &value);
-void writeNodeSpan(vector<char> &buffer, span<Node *> array);
+void writeNodeVector(vector<char> &buffer, const vector<Node *> &array);
 void writeCppConfigCache(vector<char> &buffer, const ConfigCache::Cpp &data);
 void writeLinkConfigCache(vector<char> &buffer, const ConfigCache::Link &data);
-void writeSourceFileBuildCache(vector<char> &buffer, const BuildCache::Cpp::SourceFile &data);
-void writeSourceFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::SourceFile> &data);
-void writeSingleHeaderUnitDep(vector<char> &buffer, const ModuleFileCache::SmRules::SingleHeaderUnitDep &data);
-void writeSingleModuleDep(vector<char> &buffer, const ModuleFileCache::SmRules::SingleModuleDep &data);
-void writeSMRules(vector<char> &buffer, const ModuleFileCache::SmRules &data);
-void writeModuleFileBuildCache(vector<char> &buffer, const ModuleFileCache &data);
-void writeModuleFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::ModuleFile> &data);
-void writeCppBuildCache(vector<char> &buffer, const BuildCache::Cpp &data);
 void writeLinkBuildCache(vector<char> &buffer, const BuildCache::Link &data);
 #endif // TARGETCACHE_HPP
