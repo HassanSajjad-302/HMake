@@ -237,6 +237,10 @@ void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
     {
         if (source.node == node)
         {
+            printErrorMessage(
+                FORMAT("Attempting to add {} twice in source-files in cpptarget {}. second insertiion ignored.\n",
+                       node->filePath, name));
+            return;
         }
     }
     srcFileDeps.emplace_back(this, node);
@@ -248,31 +252,33 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, const bool isI
     {
         if (smFile.node == node)
         {
+            printErrorMessage(
+                FORMAT("Attempting to add {} twice in module-files in cpptarget {}. second insertiion ignored.\n",
+                       node->filePath, name));
+            return;
         }
     }
     modFileDeps.emplace_back(this, node).isInterface = true;
 }
 
-/*void CppSourceTarget::actuallyAddHeaderUnitConfigTime(const Node *node)
+void CppSourceTarget::actuallyAddHeaderUnitConfigTime(const Node *node)
 {
-    for (const SMFile *smFile : oldHeaderUnits)
+    for (const SMFile &smFile : oldHeaderUnits)
     {
-        if (smFile->node == node)
+        if (smFile.node == node)
         {
+            printErrorMessage(
+                FORMAT("Attempting to add {} twice in header-units in cpptarget {}. second insertiion ignored.\n",
+                       node->filePath, name));
+            return;
         }
     }
-    const auto &m = modFileDeps.emplace_back(new SMFile(this, node));
-    m->isInterface = isInterface;
-    // TODO
-    /*assert(bsMode == BSMode::CONFIGURE);
-    namespace CppConfig = Indices::ConfigCache::CppConfig;
-    // No check for uniques since this is checked in writeConfigCacheAtConfigTime
-    buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);#1#
 }
 
 uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit)
 {
-    namespace CppConfig = Indices::ConfigCache::CppConfig;
+    HMAKE_HMAKE_INTERNAL_ERROR
+    /*namespace CppConfig = Indices::ConfigCache::CppConfig;
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
     buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
     Value &headerUnitJson = buildCacheBuffer[targetCacheIndex][Indices::BuildCache::CppBuild::headerUnits];
@@ -286,8 +292,8 @@ uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const str
             Value().SetString(svtogsr(headerUnit), cacheAlloc), cacheAlloc);
         return size;
     }
-    return index;
-}*/
+    return index;*/
+}
 
 void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round)
 {
@@ -509,6 +515,23 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
 
         adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
         adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
+
+        for (SMFile &hu : oldHeaderUnits)
+        {
+            bool found = false;
+            for (const ModuleFile &cacheHu : cppBuildCache.headerUnits)
+            {
+                if (cacheHu.srcFile.node == hu.node)
+                {
+                    found = true;
+                }
+            }
+            if (!found)
+            {
+                ModuleFile &mod = cppBuildCache.headerUnits.emplace_back();
+                mod.srcFile.node = const_cast<Node *>(hu.node);
+            }
+        }
     }
 }
 
@@ -527,8 +550,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     const uint32_t sourceSize = readUint32(ptr + configRead, configRead);
     for (uint32_t i = 0; i < sourceSize; ++i)
     {
-        SourceNode &srcNode =
-            srcFileDeps.emplace_back(this, readHalfNode(ptr + configRead, configRead));
+        SourceNode &srcNode = srcFileDeps.emplace_back(this, readHalfNode(ptr + configRead, configRead));
         addDependencyNoMutex<0>(srcNode);
     }
 
@@ -818,8 +840,7 @@ void CppSourceTarget::resolveRequirePaths()
     {
         SMFile &smFile = modFileDeps[i];
 
-        for (auto &[fullPath, logicalName] :
-             cppBuildCache.modFiles[i].smRules.moduleArray)
+        for (auto &[fullPath, logicalName] : cppBuildCache.modFiles[i].smRules.moduleArray)
         {
             if (logicalName == smFile.logicalName)
             {
