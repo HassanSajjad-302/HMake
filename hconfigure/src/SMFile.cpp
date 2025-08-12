@@ -209,7 +209,7 @@ void SourceNode::setSourceNodeFileStatus()
 
 void SourceNode::updateBuildCache()
 {
-    target->cppBuildCache.srcFiles[indexInBuildCache] = buildCache;
+    target->cppBuildCache.srcFiles[indexInBuildCache] = std::move(buildCache);
 }
 
 void to_json(Json &j, const SourceNode &sourceNode)
@@ -464,7 +464,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
                 // cached compile-command would be different
                 compileCommandWithToolCache.hash = target->compileCommandWithTool.getHash();
-                smRulesCache.moduleArray = span(modMap.data(), modMap.size());
+                smRulesCache.moduleArray = std::move(modMap);
             }
             postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, target, this);
         }
@@ -490,6 +490,31 @@ string SMFile::getOutputFileName() const
     return node->getFileName();
 }
 
+unique_ptr<vector<char>> readValueFromFile(const string_view fileName, Document &document)
+{
+    // Read whole file into a buffer
+    FILE *fp;
+    fopen_s(&fp, fileName.data(), "r");
+    fseek(fp, 0, SEEK_END);
+    const size_t filesize = (size_t)ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    unique_ptr<vector<char>> buffer = std::make_unique<vector<char>>(filesize + 1);
+    const size_t readLength = fread(buffer->begin().operator->(), 1, filesize, fp);
+    if (fclose(fp) != 0)
+    {
+        printErrorMessage("Error closing the file \n");
+    }
+
+    // TODO
+    //  What should this be for wchar_t
+    (*buffer)[readLength] = '\0';
+
+    // In situ parsing the buffer into d, buffer will also be modified
+    document.ParseInsitu(buffer->begin().operator->());
+    return buffer;
+}
+
+
 void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
                                          StaticVector<string_view, 1000> &includeNames)
 {
@@ -501,9 +526,7 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
     // The assumption is that clang only outputs scanning data during scanning on output while MSVC outputs nothing.
     if (smrulesFileOutputClang.empty())
     {
-        // TODO
-        // add readValueFromFile
-        // smRuleFileBuffer = readValueFromFile(smRuleFileNode->filePath, d);
+        smRuleFileBuffer = readValueFromFile(smRuleFileNode->filePath, d);
     }
     else
     {
@@ -981,8 +1004,10 @@ BTargetType SMFile::getBTargetType() const
 
 void SMFile::updateBuildCache()
 {
-    // TODO
-    target->cppBuildCache.modFiles[indexInBuildCache].srcFile = buildCache;
+    auto &[srcFile, smRules, compileCommandWithTool] = target->cppBuildCache.modFiles[indexInBuildCache];
+    srcFile = std::move(buildCache);
+    smRules = std::move(smRulesCache);
+    compileCommandWithTool.hash = compileCommandWithToolCache.hash;
 }
 
 thread_local vector<SMFile *> allSMFileDependenciesRoundZeroGlobal;

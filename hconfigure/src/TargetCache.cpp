@@ -200,7 +200,7 @@ void ModuleFile::SmRules::serialize(vector<char> &buffer) const
     writeUint32(buffer, headerUnitArray.size());
     for (const SingleHeaderUnitDep &h : headerUnitArray)
     {
-       h.serialize(buffer);
+        h.serialize(buffer);
     }
 
     writeUint32(buffer, moduleArray.size());

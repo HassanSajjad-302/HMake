@@ -360,7 +360,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
 
 void CppSourceTarget::writeBuildCache(vector<char> &buffer)
 {
-
+    cppBuildCache.serialize(buffer);
 }
 
 void CppSourceTarget::checkAndCopyBuildCache(vector<char> &buildBuffer)
@@ -374,7 +374,7 @@ void CppSourceTarget::checkAndCopyBuildCache(vector<char> &buildBuffer)
     }
 }
 
-template <typename T> uint32_t findNodeInSourceCache(const span<T> sourceCache, const Node *node)
+template <typename T> uint32_t findNodeInSourceCache(const vector<T>& sourceCache, const Node *node)
 {
     for (uint32_t i = 0; i < sourceCache.size(); ++i)
     {
@@ -397,7 +397,7 @@ template <typename T> uint32_t findNodeInSourceCache(const span<T> sourceCache, 
 
 /// This adjusts build cache during config time so the source and module-files point to the same index as in the config
 /// cache.
-template <typename T, typename U> void adjustBuildCache(span<T> &oldCache, const vector<U *> &sourceFiles)
+template <typename T, typename U> void adjustBuildCache(vector<T> &oldCache, const vector<U *> &sourceFiles)
 {
     auto *newCache = new vector<T>{oldCache.begin(), oldCache.end()};
     newCache->resize(oldCache.size() + sourceFiles.size());
@@ -417,7 +417,7 @@ template <typename T, typename U> void adjustBuildCache(span<T> &oldCache, const
     }
 
     newCache->resize(newlyFounded + oldCache.size());
-    oldCache = span(newCache->data(), newlyFounded + oldCache.size());
+    oldCache = std::move(*newCache);
 }
 
 template <typename T> static const InclNode &getNode(const T &t)
@@ -500,9 +500,9 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
         configCacheTargets[targetCacheIndex].configCache = span{configBuffer->data(), configBuffer->size()};
 
         cppBuildCache.deserialize(targetCacheIndex);
+
         adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
         adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
-        auto *buildBuffer = new vector<char>;
     }
 }
 
