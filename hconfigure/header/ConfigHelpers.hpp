@@ -14,18 +14,6 @@ import "TargetCache.hpp";
 #include "TargetCache.hpp"
 #endif
 
-template <typename T> static const InclNode &getNode(const T &t)
-{
-    if constexpr (std::is_same_v<T, InclNodeTargetMap>)
-    {
-        return t.inclNode;
-    }
-    else if constexpr (std::is_same_v<T, InclNode>)
-    {
-        return t;
-    }
-}
-
 template <typename T> const Node *getNodeForEquality(const T &t)
 {
     if constexpr (std::is_same_v<T, struct InclNodeTargetMap>)

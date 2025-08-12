@@ -94,8 +94,6 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
                     postCompile.parseHeaderDeps(*this);
                 }
 
-                targetCacheDiskWriteManager.vecMutex.lock();
-                ++target->cacheUpdateCount;
                 postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, target, this);
             }
         }

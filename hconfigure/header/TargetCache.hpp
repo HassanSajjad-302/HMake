@@ -14,8 +14,13 @@ using phmap::flat_hash_map;
 
 struct ConfigCacheTarget
 {
+    class TargetCache *targetCache;
     // string will have 4 byte size instead of 8 byte size.
     span<char> name;
+    // At config-time the conif-cache and build-cache are written once using the following variables.
+    // While at build-time, the build-cache is written multiple times to save progress as more files are built so it is
+    // written using the TargetCache::updateBuildCache function using the above targetCache pointer. This is done by
+    // TargetCacheDiskWriteManager.
     span<char> configCache;
     span<char> buildCache;
 };
@@ -25,7 +30,7 @@ inline flat_hash_map<string, uint32_t> nameToIndexMap;
 
 class TargetCache
 {
-public:
+  public:
     /// Needed to address in configCacheTargets;
     uint32_t targetCacheIndex = -1;
     explicit TargetCache(const string &name);
@@ -77,7 +82,7 @@ struct BuildCache
     {
         struct SourceFile
         {
-            Node *fullPath;
+            Node *node;
             CCOrHash compileCommandWithTool;
             span<Node *> headerFiles;
             void initialize(const char *ptr, uint32_t &bytesRead);
@@ -168,46 +173,4 @@ void writeModuleFileBuildCache(vector<char> &buffer, const ModuleFileCache &data
 void writeModuleFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::ModuleFile> &data);
 void writeCppBuildCache(vector<char> &buffer, const BuildCache::Cpp &data);
 void writeLinkBuildCache(vector<char> &buffer, const BuildCache::Link &data);
-
-template <typename T> void writeIncDirsAtConfigTime(vector<char> *buffer, const vector<T> &include)
-{
-    buffer->reserve(include.size() * sizeof(T) + sizeof(uint32_t));
-    writeUint32(buffer, include.size());
-    for (auto &elem : include)
-    {
-        const InclNode &inclNode = getNode(elem);
-        writeNode(*buffer, include.node);
-        writeBool(*buffer, inclNode.isStandard);
-        writeBool(*buffer, inclNode.ignoreHeaderDeps);
-        if constexpr (std::is_same_v<T, InclNodeTargetMap>)
-        {
-            auto &headerUnitNode = static_cast<const HeaderUnitNode &>(inclNode);
-
-            writeBool(*buffer, headerUnitNode.targetCacheIndex);
-            writeBool(*buffer, headerUnitNode.headerUnitIndex);
-        }
-    }
-}
-
-template <typename T> void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &include)
-{
-    const uint32_t reserveSize = readUint32(ptr + bytesRead, bytesRead);
-    include.reserve(reserveSize * sizeof(T) + sizeof(uint32_t));
-    for (uint32_t i = 0; i < include.size(); ++i)
-    {
-        Node *node = readHalfNode(ptr + bytesRead, bytesRead);
-        bool isStandard = readBool(ptr + bytesRead, bytesRead);
-        bool ignoreHeaderDeps = readBool(ptr + bytesRead, bytesRead);
-        if constexpr (std::is_same_v<T, InclNodeTargetMap>)
-        {
-            bool targetCacheIndex = readBool(ptr + bytesRead, bytesRead);
-            bool headerUnitIndex = readBool(ptr + bytesRead, bytesRead);
-            include.emplace_back(node, isStandard, ignoreHeaderDeps, targetCacheIndex, headerUnitIndex);
-        }
-        else
-        {
-            include.emplace_back(node, isStandard, ignoreHeaderDeps);
-        }
-    }
-}
 #endif // TARGETCACHE_HPP

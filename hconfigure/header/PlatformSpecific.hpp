@@ -108,7 +108,7 @@ constexpr static unsigned headerUnits = 2;
 
 namespace SourceFiles
 {
-constexpr static unsigned fullPath = 0;
+constexpr static unsigned node = 0;
 constexpr static unsigned compileCommandWithTool = 1;
 constexpr static unsigned headerFiles = 2;
 } // namespace SourceFiles
@@ -116,7 +116,7 @@ constexpr static unsigned headerFiles = 2;
 namespace ModuleFiles
 {
 using namespace SourceFiles;
-constexpr static unsigned fullPath = 0;
+constexpr static unsigned node = 0;
 constexpr static unsigned scanningCommandWithTool = 1;
 constexpr static unsigned headerFiles = 2;
 constexpr static unsigned smRules = 3;
@@ -130,7 +130,7 @@ constexpr static unsigned moduleArray = 3;
 
 namespace SingleHeaderUnitDep
 {
-constexpr static unsigned fullPath = 0;
+constexpr static unsigned node = 0;
 // Maybe store this info in logicalName and extract it from there
 constexpr static unsigned angle = 1;
 constexpr static unsigned targetIndex = 2;
@@ -141,7 +141,7 @@ namespace SingleModuleDep
 {
 // This is the value of the source-path key and is assigned before saving. So, in next build in
 // resolveRequirePaths, we check that whether we are resolving to the same module.
-constexpr static unsigned fullPath = 0;
+constexpr static unsigned node = 0;
 constexpr static unsigned logicalName = 1;
 } // namespace SingleModuleDep
 } // namespace SmRules

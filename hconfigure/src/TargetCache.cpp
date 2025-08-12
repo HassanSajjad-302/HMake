@@ -133,7 +133,7 @@ ConfigCache::Link readLinkConfigCache(const char *ptr, uint32_t &bytesRead)
 BuildCache::Cpp::SourceFile readSourceFileBuildCache(const char *ptr, uint32_t &bytesRead)
 {
     BuildCache::Cpp::SourceFile sf;
-    sf.fullPath = readHalfNode(ptr, bytesRead);
+    sf.node = readHalfNode(ptr, bytesRead);
     sf.compileCommandWithTool = readCCOrHash(ptr, bytesRead);
     sf.headerFiles = readNodeSpan(ptr, bytesRead);
     return sf;
@@ -172,7 +172,7 @@ void ModuleFileCache::initialize(const char *ptr, uint32_t &bytesRead)
     vector<BuildCache::Cpp::SourceFile> for (uint32_t i = 0; i < count; ++i)
     {
         BuildCache::Cpp::SourceFile sf;
-        sf.fullPath = readHalfNode(ptr, bytesRead);
+        sf.node = readHalfNode(ptr, bytesRead);
         sf.compileCommandWithTool = readCCOrHash(ptr, bytesRead);
         sf.headerFiles = readNodeSpan(ptr, bytesRead);
     }
@@ -324,7 +324,7 @@ void writeLinkConfigCache(vector<char> &buffer, const ConfigCache::Link &data)
 
 void writeSourceFileBuildCache(vector<char> &buffer, const BuildCache::Cpp::SourceFile &data)
 {
-    writeNode(buffer, data.fullPath);
+    writeNode(buffer, data.node);
     writeCCOrHash(buffer, data.compileCommandWithTool);
     writeNodeSpan(buffer, data.headerFiles);
 }

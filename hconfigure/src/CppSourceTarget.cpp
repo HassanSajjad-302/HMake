@@ -166,13 +166,6 @@ void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles, LO
 void CppSourceTarget::updateBuildCache(void *ptr)
 {
     static_cast<SourceNode *>(ptr)->updateBuildCache();
-    --cacheUpdateCount;
-    if (!cacheUpdateCount)
-    {
-        // call the right write function.
-        // todo
-        // writeCppBuildCache()
-    }
 }
 
 void CppSourceTarget::populateTransitiveProperties()
@@ -246,7 +239,7 @@ void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
         {
         }
     }
-    srcFileDeps.emplace_back(this, node);
+    srcFileDeps.emplace_back(new SourceNode(this, node));
 }
 
 void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, const bool isInterface)
@@ -257,7 +250,7 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, const bool isI
         {
         }
     }
-    const auto &m = modFileDeps.emplace_back(this, node);
+    const auto &m = modFileDeps.emplace_back(new SMFile(this, node));
     m->isInterface = isInterface;
 }
 
@@ -337,9 +330,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                 oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
                 for (uint64_t i = 0; i < cppBuildCache.headerUnits.size(); ++i)
                 {
-                    namespace ModuleFiles = Indices::BuildCache::CppBuild::ModuleFiles;
-
-                    oldHeaderUnits.emplace_back(this, cppBuildCache.headerUnits[i].srcFile.fullPath);
+                    oldHeaderUnits.emplace_back(this, cppBuildCache.headerUnits[i].srcFile.node);
                     oldHeaderUnits[i].isAnOlderHeaderUnit = true;
                     oldHeaderUnits[i].indexInBuildCache = i;
                     headerUnitsSet.emplace(&oldHeaderUnits[i]);
@@ -382,7 +373,16 @@ template <typename T> uint32_t findNodeInSourceCache(const span<T> sourceCache, 
 {
     for (uint32_t i = 0; i < sourceCache.size(); ++i)
     {
-        if (sourceCache[i].fullPath == node)
+        Node *node2;
+        if constexpr (std::is_same_v<T, BuildCache::Cpp::ModuleFile>)
+        {
+            node2 = sourceCache[i].srcFile.node;
+        }
+        else
+        {
+            node2 = sourceCache[i].node;
+        }
+        if (node2 == node)
         {
             return i;
         }
@@ -415,53 +415,107 @@ template <typename T, typename U> void adjustBuildCache(span<T> &oldCache, const
     oldCache = span(newCache->data(), newlyFounded + oldCache.size());
 }
 
+template <typename T> static const InclNode &getNode(const T &t)
+{
+    if constexpr (std::is_same_v<T, InclNodeTargetMap>)
+    {
+        return t.inclNode;
+    }
+    else if constexpr (std::is_same_v<T, InclNode>)
+    {
+        return t;
+    }
+}
+
+template <typename T> void writeIncDirsAtConfigTime(vector<char> &buffer, const vector<T> &include)
+{
+    buffer.reserve(include.size() * sizeof(T) + sizeof(uint32_t));
+    writeUint32(buffer, include.size());
+    for (auto &elem : include)
+    {
+        const InclNode &inclNode = getNode(elem);
+        writeNode(buffer, inclNode.node);
+        writeBool(buffer, inclNode.isStandard);
+        writeBool(buffer, inclNode.ignoreHeaderDeps);
+        if constexpr (std::is_same_v<T, InclNodeTargetMap>)
+        {
+            auto &headerUnitNode = static_cast<const HeaderUnitNode &>(inclNode);
+
+            writeBool(buffer, headerUnitNode.targetCacheIndex);
+            writeBool(buffer, headerUnitNode.headerUnitIndex);
+        }
+    }
+}
+
+template <typename T> void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &include, CppSourceTarget *target)
+{
+    const uint32_t reserveSize = readUint32(ptr + bytesRead, bytesRead);
+    include.reserve(reserveSize * sizeof(T) + sizeof(uint32_t));
+    for (uint32_t i = 0; i < include.size(); ++i)
+    {
+        Node *node = readHalfNode(ptr + bytesRead, bytesRead);
+        bool isStandard = readBool(ptr + bytesRead, bytesRead);
+        bool ignoreHeaderDeps = readBool(ptr + bytesRead, bytesRead);
+        if constexpr (std::is_same_v<T, InclNodeTargetMap>)
+        {
+            const bool targetCacheIndex = readBool(ptr + bytesRead, bytesRead);
+            const bool headerUnitIndex = readBool(ptr + bytesRead, bytesRead);
+            include.emplace_back(HeaderUnitNode(node, isStandard, ignoreHeaderDeps, targetCacheIndex, headerUnitIndex), target);
+        }
+        else
+        {
+            include.emplace_back(node, isStandard, ignoreHeaderDeps);
+        }
+    }
+}
+
 void CppSourceTarget::writeCacheAtConfigTime(const bool before)
 {
     if (before)
     {
-        auto *buffer = new vector<char>;
-        writeIncDirsAtConfigTime(buffer, reqIncls);
-        writeIncDirsAtConfigTime(buffer, useReqIncls);
-        writeIncDirsAtConfigTime(buffer, reqHuDirs);
-        writeIncDirsAtConfigTime(buffer, useReqHuDirs);
+        auto *configBuffer = new vector<char>{};
+        writeIncDirsAtConfigTime(*configBuffer, reqIncls);
+        writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
+        writeIncDirsAtConfigTime(*configBuffer, reqHuDirs);
+        writeIncDirsAtConfigTime(*configBuffer, useReqHuDirs);
 
         for (const SourceNode *source : srcFileDeps)
         {
-            writeNode(*buffer, source->node);
+            writeNode(*configBuffer, source->node);
         }
 
         for (const SMFile *smFile : modFileDeps)
         {
-            writeNode(*buffer, smFile->node);
-            writeBool(*buffer, smFile->isInterface);
+            writeNode(*configBuffer, smFile->node);
+            writeBool(*configBuffer, smFile->isInterface);
         }
 
-        configCacheTargets[targetCacheIndex].configCache = span{buffer->data(), buffer->size()};
+        configCacheTargets[targetCacheIndex].configCache = span{configBuffer->data(), configBuffer->size()};
 
         cppBuildCache.initialize(targetCacheIndex);
         adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
         adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
+        auto *buildBuffer = new vector<char>;
     }
 }
 
 void CppSourceTarget::readConfigCacheAtBuildTime()
 {
-    namespace ConfigCache = Indices::ConfigCache::CppConfig;
-
     const span<char> configCache = configCacheTargets[targetCacheIndex].configCache;
 
     uint32_t configRead = 0;
     const char *ptr = configCache.data();
 
-    readInclDirsAtBuildTime(ptr + configRead, configRead, reqIncls);
-    readInclDirsAtBuildTime(ptr + configRead, configRead, useReqIncls);
-    readInclDirsAtBuildTime(ptr + configRead, configRead, reqHuDirs);
-    readInclDirsAtBuildTime(ptr + configRead, configRead, useReqHuDirs);
+    readInclDirsAtBuildTime(ptr + configRead, configRead, reqIncls, this);
+    readInclDirsAtBuildTime(ptr + configRead, configRead, useReqIncls, this);
+    readInclDirsAtBuildTime(ptr + configRead, configRead, reqHuDirs, this);
+    readInclDirsAtBuildTime(ptr + configRead, configRead, useReqHuDirs, this);
 
     const uint32_t sourceSize = readUint32(ptr + configRead, configRead);
     for (uint32_t i = 0; i < sourceSize; ++i)
     {
-        SourceNode *srcNode = srcFileDeps.emplace_back(new SourceNode(this, readHalfNode(ptr + configRead, configRead)));
+        SourceNode *srcNode =
+            srcFileDeps.emplace_back(new SourceNode(this, readHalfNode(ptr + configRead, configRead)));
         addDependencyNoMutex<0>(*srcNode);
     }
 
