@@ -114,9 +114,9 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     // be used.
     HashedCommand compileCommandWithTool;
 
-    vector<SourceNode *> srcFileDeps;
+    vector<SourceNode> srcFileDeps;
     // Comparator used is same as for SourceNode
-    vector<SMFile *> modFileDeps;
+    vector<SMFile> modFileDeps;
 
     vector<SMFile> oldHeaderUnits;
     BuildCache::Cpp::ModuleFile headerUnitsCache;
@@ -146,7 +146,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     string getDependenciesPString() const;
     void resolveRequirePaths();
-    void initializeCppBuildCache() const;
+    void initializeCppBuildCache();
     void populateResolveRequirePathDependencies();
     static string getInfrastructureFlags(const Compiler &compiler, bool showIncludes) ;
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
@@ -180,7 +180,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void actuallyAddSourceFileConfigTime(Node *node);
     void actuallyAddModuleFileConfigTime(Node *node, bool isInterface);
     void actuallyAddHeaderUnitConfigTime(const Node *node);
-    //uint64_t actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit);
+    uint64_t actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit);
 
     template <typename... U> CppSourceTarget &publicDeps(CppSourceTarget *dep, const U... deps);
     template <typename... U> CppSourceTarget &privateDeps(CppSourceTarget *dep, const U... deps);
