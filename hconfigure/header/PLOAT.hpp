@@ -56,7 +56,6 @@ class PLOAT : public BTarget, public TargetCache
 #endif
     vector<char> configCacheBuffer;
 
-  public:
     string useReqLinkerFlags;
     Configuration &config;
     Node *outputFileNode = nullptr;

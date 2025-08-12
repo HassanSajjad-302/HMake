@@ -387,7 +387,6 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
     }
     else
     {
-        vector<Node *> *headerFiles = new vector<Node *>();
         string treatedOutput;
 
         uint64_t startPos = 0;
@@ -416,6 +415,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
         }
         lineEnd = output.find('\n', startPos);
 
+        vector<Node *> &headerFiles = sourceNode.buildCache.headerFiles;
         while (true)
         {
 
@@ -447,9 +447,9 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
                         lowerCasePStringOnWindows(const_cast<char *>(headerView.data()), headerView.size());
 
                         if (Node *headerNode = Node::getHalfNode(headerView);
-                            std::ranges::find(*headerFiles, headerNode) != headerFiles->end())
+                            std::ranges::find(headerFiles, headerNode) != headerFiles.end())
                         {
-                            headerFiles->emplace_back(headerNode);
+                            headerFiles.emplace_back(headerNode);
                         }
                     }
                 }
@@ -480,8 +480,6 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
             }*/
             lineEnd = output.find('\n', startPos);
         }
-
-        const_cast<span<Node *> &>(sourceNode.buildCache.headerFiles) = span(headerFiles->data(), headerFiles->size());
     }
 }
 
@@ -499,7 +497,6 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const
 
         if (headerDeps.size() > 2)
         {
-            vector<Node *> *headerFiles = new vector<Node *>();
             for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
             {
                 const size_t pos = iter->find_first_not_of(" ");
@@ -507,10 +504,9 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const
                 if (const string_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
                     !ignoreHeaderFile(headerView))
                 {
-                    headerFiles->emplace_back(Node::getHalfNode(headerView));
+                    sourceNode.buildCache.headerFiles.emplace_back(Node::getHalfNode(headerView));
                 }
             }
-            sourceNode.buildCache.headerFiles = span(headerFiles->data(), headerFiles->size());
         }
     }
 }

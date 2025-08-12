@@ -223,7 +223,7 @@ void LOAT::setFileStatus()
     }
 }
 
-void LOAT::updateBTarget(Builder &builder, unsigned short round)
+void LOAT::updateBTarget(Builder &builder, const unsigned short round)
 {
     PLOAT::updateBTarget(builder, round);
     RealBTarget &realBTarget = realBTargets[round];
@@ -247,27 +247,28 @@ void LOAT::updateBTarget(Builder &builder, unsigned short round)
                 postBasicLinkOrArchive = std::make_shared<RunCommand>(Link());
             }
             realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
+
             if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
             {
-                linkBuildCache.commandWithoutArgumentsWithTools.hash = commandWithoutTargetsWithTool.getHash();
-                vector<Node *> *objectFilesCache = new vector<Node *>;
+                updatedBuildCache.commandWithoutArgumentsWithTools.hash = commandWithoutTargetsWithTool.getHash();
+                vector<Node *> *objectFilesCache = new vector<Node *>{};
                 objectFilesCache->reserve(objectFiles.size());
 
                 for (const ObjectFile *objectFile : objectFiles)
                 {
                     objectFilesCache->emplace_back(objectFile->objectFileOutputFileNode);
                 }
+                updatedBuildCache.objectFiles = std::move(*objectFilesCache);
             }
 
+            // We have to pass the linkBuildCache since we can not update it in multithreaded mode.
+            if (linkTargetType == TargetType::LIBRARY_STATIC)
             {
-                if (linkTargetType == TargetType::LIBRARY_STATIC)
-                {
-                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, this, nullptr);
-                }
-                else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
-                {
-                    postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, this, nullptr);
-                }
+                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, this, nullptr);
+            }
+            else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+            {
+                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, this, nullptr);
             }
 
             if constexpr (os == OS::NT)
@@ -309,7 +310,7 @@ void LOAT::updateBTarget(Builder &builder, unsigned short round)
 
 void LOAT::updateBuildCache(void *ptr)
 {
-    // TODO
+    linkBuildCache = std::move(updatedBuildCache);
 }
 
 void LOAT::writeTargetConfigCacheAtConfigureTime()

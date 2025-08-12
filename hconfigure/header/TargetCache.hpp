@@ -137,7 +137,7 @@ struct BuildCache
     struct Link
     {
         CCOrHash commandWithoutArgumentsWithTools;
-        span<Node *> objectFiles;
+        vector<Node *> objectFiles;
     };
 };
 

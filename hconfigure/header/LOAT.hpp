@@ -25,6 +25,7 @@ class LOAT : public PLOAT
 
   public:
     BuildCache::Link linkBuildCache;
+    BuildCache::Link updatedBuildCache;
     string reqLinkerFlags;
     string_view linkOrArchiveCommandWithoutTargets;
     string linkOrArchiveCommandWithTargets;

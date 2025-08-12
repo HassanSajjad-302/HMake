@@ -261,9 +261,9 @@ void writeConfigBuffer(vector<char> &buffer)
 
 void writeBuildBuffer(vector<char> &buffer)
 {
-    for (ConfigCacheTarget &configCacheTarget : configCacheTargets)
+    for (const ConfigCacheTarget &configCacheTarget : configCacheTargets)
     {
-        writeStringView(buffer, configCacheTarget.buildCache);
+        configCacheTarget.targetCache->writeBuildCache(buffer);
     }
 }
 
