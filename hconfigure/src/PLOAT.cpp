@@ -148,14 +148,14 @@ void PLOAT::writeTargetConfigCacheAtConfigureTime()
     }
 
     writeNode(configCacheBuffer, outputFileNode);
-    configCacheTargets[targetCacheIndex].configCache = span(configCacheBuffer.begin(), configCacheBuffer.size());
+    configCacheTargets[targetCacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
 void PLOAT::readConfigCacheAtBuildTime()
 {
-    const span<char> configCache = configCacheTargets[targetCacheIndex].configCache;
+    const string_view configCache = configCacheTargets[targetCacheIndex].configCache;
     uint32_t size = readUint32(configCache.data() + configCacheBytesRead, configCacheBytesRead);
-    reqLibraryDirs.resize(size);
+    reqLibraryDirs.reserve(size);
     for (uint32_t i = 0; i < size; ++i)
     {
         Node *node = readHalfNode(configCache.data() + configCacheBytesRead, configCacheBytesRead);
@@ -164,7 +164,7 @@ void PLOAT::readConfigCacheAtBuildTime()
     }
 
     size = readUint32(configCache.data() + configCacheBytesRead, configCacheBytesRead);
-    useReqLibraryDirs.resize(size);
+    useReqLibraryDirs.reserve(size);
     for (uint32_t i = 0; i < size; ++i)
     {
         Node *node = readHalfNode(configCache.data() + configCacheBytesRead, configCacheBytesRead);

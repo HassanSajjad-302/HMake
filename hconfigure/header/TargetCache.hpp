@@ -16,13 +16,13 @@ struct ConfigCacheTarget
 {
     class TargetCache *targetCache;
     // string will have 4 byte size instead of 8 byte size.
-    span<char> name;
+    string_view name;
     // At config-time the conif-cache and build-cache are written once using the following variables.
     // While at build-time, the build-cache is written multiple times to save progress as more files are built so it is
     // written using the TargetCache::updateBuildCache function using the above targetCache pointer. This is done by
     // TargetCacheDiskWriteManager.
-    span<char> configCache;
-    span<char> buildCache;
+    string_view configCache;
+    string_view buildCache;
 };
 
 inline vector<ConfigCacheTarget> configCacheTargets;

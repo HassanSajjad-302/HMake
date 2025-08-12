@@ -278,6 +278,7 @@ void CppSourceTarget::actuallyAddHeaderUnitConfigTime(const Node *node)
 uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit)
 {
     HMAKE_HMAKE_INTERNAL_ERROR
+    return 33;
     /*namespace CppConfig = Indices::ConfigCache::CppConfig;
     // No check for uniques since this is checked in writeConfigCacheAtConfigTime
     buildOrConfigCacheCopy[CppConfig::headerUnits].PushBack(node->getValue(), cacheAlloc);
@@ -377,6 +378,8 @@ void CppSourceTarget::writeBuildCache(vector<char> &buffer)
 
 void CppSourceTarget::checkAndCopyBuildCache(vector<char> &buildBuffer)
 {
+    // TODO
+    // need to be reviewed
     if (newHeaderUnitsSize)
     {
         auto *headerUnitsCache = new vector<BuildCache::Cpp::ModuleFile>{};
@@ -509,7 +512,7 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
             writeBool(*configBuffer, smFile.isInterface);
         }
 
-        configCacheTargets[targetCacheIndex].configCache = span{configBuffer->data(), configBuffer->size()};
+        configCacheTargets[targetCacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
 
         cppBuildCache.deserialize(targetCacheIndex);
 
@@ -537,7 +540,7 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
 
 void CppSourceTarget::readConfigCacheAtBuildTime()
 {
-    const span<char> configCache = configCacheTargets[targetCacheIndex].configCache;
+    const string_view configCache = configCacheTargets[targetCacheIndex].configCache;
 
     uint32_t configRead = 0;
     const char *ptr = configCache.data();
@@ -1174,6 +1177,7 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget &pt
 
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget &ptr)
 {
+    return *this;
     /*save(ptr);
 
     if constexpr (bsMode == BSMode::CONFIGURE)

@@ -316,7 +316,7 @@ void LOAT::updateBuildCache(void *ptr)
 void LOAT::writeTargetConfigCacheAtConfigureTime()
 {
     writeNode(configCacheBuffer, buildCacheFilesDirPathNode);
-    configCacheTargets[targetCacheIndex].configCache = span(configCacheBuffer.data(), configCacheBuffer.size());
+    configCacheTargets[targetCacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
 void LOAT::readConfigCacheAtBuildTime()

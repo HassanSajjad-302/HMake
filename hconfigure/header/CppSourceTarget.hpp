@@ -610,7 +610,6 @@ template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const str
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        using namespace Indices::ConfigCache;
         actuallyAddHeaderUnitConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true));
     }
 

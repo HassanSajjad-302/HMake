@@ -166,7 +166,7 @@ void TargetCacheDiskWriteManager::endOfRound()
     {
         for (uint64_t i = 0; i < s; ++i)
         {
-            copyJsonBTargets[i]->copyBuildCache(buildBufferLocal);
+            copyJsonBTargets[i]->checkAndCopyBuildCache(buildBufferLocal);
             copyJsonBTargets[i] = nullptr;
         }
         writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
