@@ -342,6 +342,9 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                     oldHeaderUnits.emplace_back(this, cppBuildCache.headerUnits[i].srcFile.node);
                     oldHeaderUnits[i].isAnOlderHeaderUnit = true;
                     oldHeaderUnits[i].indexInBuildCache = i;
+                    oldHeaderUnits[i].buildCache = cppBuildCache.headerUnits[i].srcFile;
+                    oldHeaderUnits[i].smRulesCache = cppBuildCache.headerUnits[i].smRules;
+                    oldHeaderUnits[i].compileCommandWithToolCache = cppBuildCache.headerUnits[i].compileCommandWithTool;
                     headerUnitsSet.emplace(&oldHeaderUnits[i]);
                 }
 
@@ -939,11 +942,15 @@ void CppSourceTarget::initializeCppBuildCache()
     for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
     {
         srcFileDeps[i].indexInBuildCache = i;
+        srcFileDeps[i].buildCache = cppBuildCache.srcFiles[i];
     }
 
     for (uint32_t i = 0; i < modFileDeps.size(); ++i)
     {
         modFileDeps[i].indexInBuildCache = i;
+        modFileDeps[i].buildCache = cppBuildCache.modFiles[i].srcFile;
+        modFileDeps[i].smRulesCache = cppBuildCache.modFiles[i].smRules;
+        modFileDeps[i].compileCommandWithToolCache = cppBuildCache.modFiles[i].compileCommandWithTool;
     }
 }
 
