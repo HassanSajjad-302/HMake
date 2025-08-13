@@ -31,12 +31,12 @@ TargetCache::TargetCache(const string &name)
     {
         if (it == nameToIndexMap.end())
         {
-            targetCacheIndex = FileTargetCaches.size();
+            cahceIndex = fileTargetCaches.size();
             fileTargetCaches.emplace_back().name = name;
         }
         else
         {
-            targetCacheIndex = it->second;
+            cahceIndex = it->second;
         }
 
         checkForSameTargetName(name);
@@ -50,7 +50,7 @@ TargetCache::TargetCache(const string &name)
                 name));
             errorExit();
         }
-        targetCacheIndex = it->second;
+        cahceIndex = it->second;
     }
 }
 

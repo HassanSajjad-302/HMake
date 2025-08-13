@@ -316,13 +316,13 @@ void LOAT::updateBuildCache(void *ptr)
 void LOAT::writeTargetConfigCacheAtConfigureTime()
 {
     writeNode(configCacheBuffer, buildCacheFilesDirPathNode);
-    fileTargetCaches[targetCacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
+    fileTargetCaches[cahceIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
 void LOAT::readConfigCacheAtBuildTime()
 {
     buildCacheFilesDirPathNode = readHalfNode(
-        fileTargetCaches[targetCacheIndex].configCache.data() + configCacheBytesRead, configCacheBytesRead);
+        fileTargetCaches[cahceIndex].configCache.data() + configCacheBytesRead, configCacheBytesRead);
 }
 
 string LOAT::getTarjanNodeName() const

@@ -52,13 +52,14 @@ class PLOAT : public BTarget, public TargetCache
 
   public:
     string outputName;
-    uint32_t configCacheBytesRead = 0;
 #endif
-    vector<char> configCacheBuffer;
 
+public:
     string useReqLinkerFlags;
     Configuration &config;
     Node *outputFileNode = nullptr;
+    vector<char> configCacheBuffer;
+    uint32_t configCacheBytesRead = 0;
 
     string getOutputName() const;
     string getActualOutputName() const;

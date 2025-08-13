@@ -337,7 +337,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             compileCommandWithTool.setCommand(configuration->compilerFeatures.compiler.bTPath.string() + " " +
                                               compileCommand);
 
-            cppBuildCache.deserialize(targetCacheIndex);
+            cppBuildCache.deserialize(cahceIndex);
             if (!cppBuildCache.headerUnits.empty())
             {
                 oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
@@ -512,9 +512,9 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
             writeBool(*configBuffer, smFile.isInterface);
         }
 
-        fileTargetCaches[targetCacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
+        fileTargetCaches[cahceIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
 
-        cppBuildCache.deserialize(targetCacheIndex);
+        cppBuildCache.deserialize(cahceIndex);
 
         adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
         adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
@@ -540,7 +540,7 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
 
 void CppSourceTarget::readConfigCacheAtBuildTime()
 {
-    const string_view configCache = fileTargetCaches[targetCacheIndex].configCache;
+    const string_view configCache = fileTargetCaches[cahceIndex].configCache;
 
     uint32_t configRead = 0;
     const char *ptr = configCache.data();

@@ -45,7 +45,7 @@ string_view PLOAT::getOutputDirectoryV() const
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_), linkTargetType{linkTargetType_}
 {
-    outputFileNode = Node::getHalfNode(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
+    outputFileNode = readHalfNode(fileTargetCaches[cahceIndex].configCache.data(), configCacheBytesRead);
 }
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_,
@@ -53,7 +53,7 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, Targ
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), linkTargetType(linkTargetType_)
 
 {
-    outputFileNode = Node::getHalfNode(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
+    outputFileNode = readHalfNode(fileTargetCaches[cahceIndex].configCache.data(), configCacheBytesRead);
 }
 
 #else
@@ -135,6 +135,8 @@ void PLOAT::updateBTarget(Builder &builder, unsigned short round)
 
 void PLOAT::writeTargetConfigCacheAtConfigureTime()
 {
+    writeNode(configCacheBuffer, outputFileNode);
+
     writeUint32(configCacheBuffer, reqLibraryDirs.size());
     for (const LibDirNode &libDirNode : reqLibraryDirs)
     {
@@ -147,13 +149,12 @@ void PLOAT::writeTargetConfigCacheAtConfigureTime()
         writeNode(configCacheBuffer, libDirNode.node);
     }
 
-    writeNode(configCacheBuffer, outputFileNode);
-    fileTargetCaches[targetCacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
+    fileTargetCaches[cahceIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
 void PLOAT::readConfigCacheAtBuildTime()
 {
-    const string_view configCache = fileTargetCaches[targetCacheIndex].configCache;
+    const string_view configCache = fileTargetCaches[cahceIndex].configCache;
     uint32_t size = readUint32(configCache.data() + configCacheBytesRead, configCacheBytesRead);
     reqLibraryDirs.reserve(size);
     for (uint32_t i = 0; i < size; ++i)

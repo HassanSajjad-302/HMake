@@ -32,7 +32,7 @@ class TargetCache
 {
   public:
     /// Needed to address in fileTargetCaches;
-    uint32_t targetCacheIndex = -1;
+    uint32_t cahceIndex = -1;
     explicit TargetCache(const string &name);
     virtual void updateBuildCache(void *ptr);
     virtual void writeBuildCache(vector<char> &buffer);
