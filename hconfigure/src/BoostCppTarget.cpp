@@ -104,7 +104,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         for (uint64_t i = 0; i < count; ++i)
         {
             auto boostExampleOrTest =
-                static_cast<BoostExampleOrTestType>(readBool(configCache.data() + bytesRead, bytesRead));
+                static_cast<BoostExampleOrTestType>(readBool(configCache.data(), bytesRead));
             string unitTestName = removeDashCppFromName(mainTarget.getSourceTarget().name) + slashc;
             unitTestName += readStringView(configCache.data(), bytesRead);
             bool explicitBuild = false;

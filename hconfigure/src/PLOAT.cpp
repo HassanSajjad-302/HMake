@@ -59,14 +59,14 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, Targ
 #else
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_)
-    : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_),
+    : BTarget(outputName_, false, false), TargetCache(name), config(config_),
       outputName{getLastNameAfterSlash(outputName_)}, linkTargetType{linkTargetType_}, outputDirectory(std::move(dir))
 {
 }
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_,
              bool buildExplicit, bool makeDirectory)
-    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), outputName(outputName_),
+    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name), config(config_), outputName(outputName_),
       linkTargetType(linkTargetType_), outputDirectory(std::move(dir))
 
 {
@@ -155,7 +155,7 @@ void PLOAT::writeTargetConfigCacheAtConfigureTime()
 void PLOAT::readConfigCacheAtBuildTime()
 {
     const string_view configCache = fileTargetCaches[cacheIndex].configCache;
-    uint32_t size = readUint32(configCache.data() + configCacheBytesRead, configCacheBytesRead);
+    uint32_t size = readUint32(configCache.data(), configCacheBytesRead);
     reqLibraryDirs.reserve(size);
     for (uint32_t i = 0; i < size; ++i)
     {
@@ -164,7 +164,7 @@ void PLOAT::readConfigCacheAtBuildTime()
         reqLibraryDirs.emplace_back(node, true);
     }
 
-    size = readUint32(configCache.data() + configCacheBytesRead, configCacheBytesRead);
+    size = readUint32(configCache.data(), configCacheBytesRead);
     useReqLibraryDirs.reserve(size);
     for (uint32_t i = 0; i < size; ++i)
     {

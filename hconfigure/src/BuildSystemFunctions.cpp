@@ -200,18 +200,14 @@ bool configureOrBuild()
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         cache.registerCacheVariables();
-        vector<char> configCache;
-        for (const FileTargetCache &target : fileTargetCaches)
-        {
-            configCache.insert(configCache.end(), target.configCache.data(),
-                               target.configCache.data() + target.configCache.size());
-        }
-        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),
-                                    configCache);
 
-        vector<char> buildCache;
-        writeBuildBuffer(buildCache);
-        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
+        vector<char> buffer;
+        writeConfigBuffer(buffer);
+        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"), buffer);
+
+        buffer.clear();
+        writeBuildBuffer(buffer);
+        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buffer);
     }
     return b.errorHappenedInRoundMode;
 }

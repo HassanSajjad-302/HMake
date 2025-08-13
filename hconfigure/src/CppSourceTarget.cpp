@@ -102,26 +102,26 @@ std::size_t CppSourceTarget::SMFileHash::operator()(const Node *node) const
 }
 
 CppSourceTarget::CppSourceTarget(const string &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, false, false), TargetCache(name_), configuration(configuration_)
+    : ObjectFileProducerWithDS(name_, false, false), TargetCache(name), configuration(configuration_)
 {
     initializeCppSourceTarget(name_, "");
 }
 
 CppSourceTarget::CppSourceTarget(const bool buildExplicit, const string &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name_), configuration(configuration_)
+    : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name), configuration(configuration_)
 {
     initializeCppSourceTarget(name_, "");
 }
 
 CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, false, false), TargetCache(name_), configuration(configuration_)
+    : ObjectFileProducerWithDS(name_, false, false), TargetCache(name), configuration(configuration_)
 {
     initializeCppSourceTarget(name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
 }
 
 CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const bool buildExplicit, const string &name_,
                                  Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name_), configuration(configuration_)
+    : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name), configuration(configuration_)
 {
     initializeCppSourceTarget(name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
 }
@@ -431,7 +431,7 @@ template <typename T, typename U> void adjustBuildCache(vector<T> &oldCache, con
         }
         if constexpr (std::is_same_v<T, BuildCache::Cpp::ModuleFile>)
         {
-           (*newCache)[i].srcFile.node = const_cast<Node *>(sourceFiles[i].node);
+            (*newCache)[i].srcFile.node = const_cast<Node *>(sourceFiles[i].node);
         }
         else
         {
@@ -457,7 +457,6 @@ template <typename T> static const InclNode &getNode(const T &t)
 
 template <typename T> void writeIncDirsAtConfigTime(vector<char> &buffer, const vector<T> &include)
 {
-    buffer.reserve(include.size() * sizeof(T) + sizeof(uint32_t));
     writeUint32(buffer, include.size());
     for (auto &elem : include)
     {
@@ -480,7 +479,7 @@ void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &in
 {
     const uint32_t reserveSize = readUint32(ptr, bytesRead);
     include.reserve(reserveSize * sizeof(T) + sizeof(uint32_t));
-    for (uint32_t i = 0; i < include.size(); ++i)
+    for (uint32_t i = 0; i < reserveSize; ++i)
     {
         Node *node = readHalfNode(ptr, bytesRead);
         bool isStandard = readBool(ptr, bytesRead);
@@ -509,11 +508,13 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
         writeIncDirsAtConfigTime(*configBuffer, reqHuDirs);
         writeIncDirsAtConfigTime(*configBuffer, useReqHuDirs);
 
+        writeUint32(*configBuffer, srcFileDeps.size());
         for (const SourceNode &source : srcFileDeps)
         {
             writeNode(*configBuffer, source.node);
         }
 
+        writeUint32(*configBuffer, modFileDeps.size());
         for (const SMFile &smFile : modFileDeps)
         {
             writeNode(*configBuffer, smFile.node);
@@ -558,11 +559,11 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     readInclDirsAtBuildTime(ptr, configRead, reqHuDirs, this);
     readInclDirsAtBuildTime(ptr, configRead, useReqHuDirs, this);
 
-    const uint32_t sourceSize = readUint32(ptr + configRead, configRead);
+    const uint32_t sourceSize = readUint32(ptr, configRead);
     for (uint32_t i = 0; i < sourceSize; ++i)
     {
-        SourceNode &srcNode = srcFileDeps.emplace_back(this, readHalfNode(ptr, configRead));
-        addDependencyNoMutex<0>(srcNode);
+        SourceNode &src = srcFileDeps.emplace_back(this, readHalfNode(ptr, configRead));
+        addDependencyNoMutex<0>(src);
     }
 
     const uint32_t modSize = readUint32(ptr, configRead);

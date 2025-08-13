@@ -221,13 +221,13 @@ void readConfigCache()
     const char *ptr = configCacheGlobal.data();
     while (bufferRead != bufferSize)
     {
-        FileTargetCache configCacheTarget;
+        FileTargetCache fileCacheTarget;
 
-        configCacheTarget.name = readStringView(ptr, bufferRead);
-        configCacheTarget.configCache = readStringView(ptr, bufferRead);
+        fileCacheTarget.name = readStringView(ptr, bufferRead);
+        fileCacheTarget.configCache = readStringView(ptr, bufferRead);
 
-        fileTargetCaches.emplace_back(configCacheTarget);
-        nameToIndexMap.emplace(configCacheTarget.name, count);
+        fileTargetCaches.emplace_back(fileCacheTarget);
+        nameToIndexMap.emplace(fileCacheTarget.name, count);
 
         ++count;
     }
@@ -239,12 +239,9 @@ void readBuildCache()
     uint32_t bufferRead = 0;
 
     const char *ptr = buildCacheGlobal.data();
-    for (FileTargetCache configCacheTarget : fileTargetCaches)
+    for (FileTargetCache fileCacheTarget : fileTargetCaches)
     {
-        const uint32_t dataSize = readUint32(ptr, bufferRead);
-        const char *ptr = buildCacheGlobal.data() + bufferRead;
-        bufferRead += dataSize;
-        configCacheTarget.buildCache = string_view(ptr, dataSize);
+        fileCacheTarget.buildCache = readStringView(ptr, bufferRead);
     }
 
     if (bufferRead != bufferSize)
@@ -254,18 +251,26 @@ void readBuildCache()
 
 void writeConfigBuffer(vector<char> &buffer)
 {
-    for (FileTargetCache &configCacheTarget : fileTargetCaches)
+    for (FileTargetCache &fileCacheTarget : fileTargetCaches)
     {
-        writeStringView(buffer, configCacheTarget.name);
-        writeStringView(buffer, configCacheTarget.configCache);
+        writeStringView(buffer, fileCacheTarget.name);
+        writeStringView(buffer, fileCacheTarget.configCache);
     }
 }
 
 void writeBuildBuffer(vector<char> &buffer)
 {
-    for (const FileTargetCache &configCacheTarget : fileTargetCaches)
+    buffer = vector<char>();
+    for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
     {
-        configCacheTarget.targetCache->writeBuildCache(buffer);
+        uint32_t ourSize = 0;
+        const uint32_t currentSize = buffer.size();
+        // reserve space of 4bytes. actual oursize is written after the writebuildCache call is completed.
+        writeUint32(buffer, ourSize);
+        fileCacheTarget.targetCache->writeBuildCache(buffer);
+        ourSize = buffer.size() - currentSize;
+        const char *ptr = reinterpret_cast<char*>(&ourSize);
+        buffer.insert(buffer.begin() + currentSize, ptr, ptr + sizeof(ourSize));
     }
 }
 

@@ -68,7 +68,7 @@ void TargetCache::writeBuildCache(vector<char> &buffer)
 bool readBool(const char *ptr, uint32_t &bytesRead)
 {
     bool result;
-    memcpy(&result, ptr, sizeof(result));
+    memcpy(&result, ptr + bytesRead, sizeof(result));
     bytesRead += sizeof(result);
     return result;
 }
@@ -76,14 +76,14 @@ bool readBool(const char *ptr, uint32_t &bytesRead)
 uint32_t readUint32(const char *ptr, uint32_t &bytesRead)
 {
     uint32_t result;
-    memcpy(&result, ptr, sizeof(result));
+    memcpy(&result, ptr + bytesRead, sizeof(result));
     bytesRead += sizeof(result);
     return result;
 }
 
 string_view readStringView(const char *ptr, uint32_t &bytesRead)
 {
-    uint32_t strSize = readUint32(ptr + bytesRead, bytesRead);
+    uint32_t strSize = readUint32(ptr, bytesRead);
     const uint32_t offset = bytesRead;
     bytesRead += strSize;
     return {ptr + offset, strSize};
@@ -229,6 +229,7 @@ void BuildCache::Cpp::deserialize(const uint32_t targetCacheIndex)
     const string_view str = fileTargetCaches[targetCacheIndex].buildCache;
     if (str.empty())
     {
+        // can happen at config-time when the target is newly added.
         return;
     }
     uint32_t bytesRead = 0;
