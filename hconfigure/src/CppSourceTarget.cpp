@@ -321,10 +321,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             writeCacheAtConfigTime(true);
         }
 
-        if constexpr (bsMode == BSMode::BUILD)
-        {
-            readConfigCacheAtBuildTime();
-        }
         populateReqAndUseReqDeps();
         // Needed to maintain ordering between different includes specification.
         reqIncSizeBeforePopulate = reqIncls.size();
@@ -560,13 +556,15 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     readInclDirsAtBuildTime(ptr, configRead, useReqHuDirs, this);
 
     const uint32_t sourceSize = readUint32(ptr, configRead);
+    srcFileDeps.reserve(sourceSize);
     for (uint32_t i = 0; i < sourceSize; ++i)
     {
-        SourceNode &src = srcFileDeps.emplace_back(this, readHalfNode(ptr, configRead));
-        addDependencyNoMutex<0>(src);
+        srcFileDeps.emplace_back(this, readHalfNode(ptr, configRead));
+        addDependencyNoMutex<0>(srcFileDeps[i]);
     }
 
     const uint32_t modSize = readUint32(ptr, configRead);
+    modFileDeps.reserve(modSize);
     for (uint32_t i = 0; i < modSize; ++i)
     {
         SMFile &smFile = modFileDeps.emplace_back(this, readHalfNode(ptr + configRead, configRead));
@@ -939,7 +937,7 @@ void CppSourceTarget::initializeCppBuildCache()
         srcFileDeps[i].indexInBuildCache = i;
     }
 
-    for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
+    for (uint32_t i = 0; i < modFileDeps.size(); ++i)
     {
         modFileDeps[i].indexInBuildCache = i;
     }

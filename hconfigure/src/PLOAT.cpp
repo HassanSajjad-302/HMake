@@ -159,7 +159,7 @@ void PLOAT::readConfigCacheAtBuildTime()
     reqLibraryDirs.reserve(size);
     for (uint32_t i = 0; i < size; ++i)
     {
-        Node *node = readHalfNode(configCache.data() + configCacheBytesRead, configCacheBytesRead);
+        Node *node = readHalfNode(configCache.data(), configCacheBytesRead);
         node->ensureSystemCheckCalled(false);
         reqLibraryDirs.emplace_back(node, true);
     }
@@ -168,7 +168,7 @@ void PLOAT::readConfigCacheAtBuildTime()
     useReqLibraryDirs.reserve(size);
     for (uint32_t i = 0; i < size; ++i)
     {
-        Node *node = readHalfNode(configCache.data() + configCacheBytesRead, configCacheBytesRead);
+        Node *node = readHalfNode(configCache.data(), configCacheBytesRead);
         node->ensureSystemCheckCalled(false);
         useReqLibraryDirs.emplace_back(node, true);
     }

@@ -269,7 +269,7 @@ void writeBuildBuffer(vector<char> &buffer)
         writeUint32(buffer, ourSize);
         fileCacheTarget.targetCache->writeBuildCache(buffer);
         ourSize = buffer.size() - currentSize;
-        const char *ptr = reinterpret_cast<char*>(&ourSize);
+        const char *ptr = reinterpret_cast<char *>(&ourSize);
         buffer.insert(buffer.begin() + currentSize, ptr, ptr + sizeof(ourSize));
     }
 }
