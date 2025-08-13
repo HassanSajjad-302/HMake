@@ -487,8 +487,8 @@ CppSourceTarget &CppSourceTarget::publicHUDirsBigHu(const string &include, const
         {
             uint64_t headerUnitsIndex =
                 actuallyAddBigHuConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true), logicalName);
-            actuallyAddInclude(reqHuDirs, this, include, cahceIndex, headerUnitsIndex);
-            actuallyAddInclude(useReqHuDirs, this, include, cahceIndex, headerUnitsIndex);
+            actuallyAddInclude(reqHuDirs, this, include, cacheIndex, headerUnitsIndex);
+            actuallyAddInclude(useReqHuDirs, this, include, cacheIndex, headerUnitsIndex);
         }
     }
 
@@ -512,7 +512,7 @@ CppSourceTarget &CppSourceTarget::privateHUDirsBigHu(const string &include, cons
         {
             uint64_t headerUnitsIndex =
                 actuallyAddBigHuConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true), logicalName);
-            actuallyAddInclude(reqHuDirs, this, include, cahceIndex, headerUnitsIndex);
+            actuallyAddInclude(reqHuDirs, this, include, cacheIndex, headerUnitsIndex);
         }
     }
 

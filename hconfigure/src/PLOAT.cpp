@@ -45,7 +45,7 @@ string_view PLOAT::getOutputDirectoryV() const
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_), linkTargetType{linkTargetType_}
 {
-    outputFileNode = readHalfNode(fileTargetCaches[cahceIndex].configCache.data(), configCacheBytesRead);
+    outputFileNode = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
 }
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_,
@@ -53,7 +53,7 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, Targ
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), linkTargetType(linkTargetType_)
 
 {
-    outputFileNode = readHalfNode(fileTargetCaches[cahceIndex].configCache.data(), configCacheBytesRead);
+    outputFileNode = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
 }
 
 #else
@@ -149,12 +149,12 @@ void PLOAT::writeTargetConfigCacheAtConfigureTime()
         writeNode(configCacheBuffer, libDirNode.node);
     }
 
-    fileTargetCaches[cahceIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
+    fileTargetCaches[cacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
 void PLOAT::readConfigCacheAtBuildTime()
 {
-    const string_view configCache = fileTargetCaches[cahceIndex].configCache;
+    const string_view configCache = fileTargetCaches[cacheIndex].configCache;
     uint32_t size = readUint32(configCache.data() + configCacheBytesRead, configCacheBytesRead);
     reqLibraryDirs.reserve(size);
     for (uint32_t i = 0; i < size; ++i)

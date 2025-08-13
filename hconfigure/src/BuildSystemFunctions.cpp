@@ -28,9 +28,9 @@ using fmt::print, std::filesystem::current_path, std::filesystem::directory_iter
 string getFileNameJsonOrOut(const string &name)
 {
 #ifdef USE_JSON_FILE_COMPRESSION
-    return name + ".out";
+    return name + ".bin.lz4";
 #else
-    return name + ".json";
+    return name + ".bin";
 #endif
 }
 

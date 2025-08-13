@@ -31,12 +31,12 @@ TargetCache::TargetCache(const string &name)
     {
         if (it == nameToIndexMap.end())
         {
-            cahceIndex = fileTargetCaches.size();
+            cacheIndex = fileTargetCaches.size();
             fileTargetCaches.emplace_back().name = name;
         }
         else
         {
-            cahceIndex = it->second;
+            cacheIndex = it->second;
         }
 
         checkForSameTargetName(name);
@@ -50,8 +50,9 @@ TargetCache::TargetCache(const string &name)
                 name));
             errorExit();
         }
-        cahceIndex = it->second;
+        cacheIndex = it->second;
     }
+    fileTargetCaches[cacheIndex].targetCache = this;
 }
 
 void TargetCache::updateBuildCache(void *ptr)
@@ -103,7 +104,7 @@ CCOrHash readCCOrHash(const char *ptr, uint32_t &bytesRead)
 #ifdef USE_COMMAND_HASH
     cmd.hash = readUint32(ptr, bytesRead);
 #else
-    cmd.compilerCommand = readStringView(ptr, bytesRead);
+    cmd.hash = readStringView(ptr, bytesRead);
 #endif
     return cmd;
 }
@@ -225,22 +226,26 @@ void BuildCache::Cpp::serialize(vector<char> &buffer) const
 
 void BuildCache::Cpp::deserialize(const uint32_t targetCacheIndex)
 {
-    const string_view configCache = fileTargetCaches[targetCacheIndex].configCache;
+    const string_view str = fileTargetCaches[targetCacheIndex].buildCache;
+    if (str.empty())
+    {
+        return;
+    }
     uint32_t bytesRead = 0;
-    srcFiles.resize(readUint32(configCache.data(), bytesRead));
+    srcFiles.resize(readUint32(str.data(), bytesRead));
     for (SourceFile &source : srcFiles)
     {
-        source.deserialize(configCache.data(), bytesRead);
+        source.deserialize(str.data(), bytesRead);
     }
-    modFiles.resize(readUint32(configCache.data(), bytesRead));
+    modFiles.resize(readUint32(str.data(), bytesRead));
     for (ModuleFile &modFile : modFiles)
     {
-        modFile.deserialize(configCache.data(), bytesRead);
+        modFile.deserialize(str.data(), bytesRead);
     }
-    headerUnits.resize(readUint32(configCache.data(), bytesRead));
+    headerUnits.resize(readUint32(str.data(), bytesRead));
     for (ModuleFile &hud : headerUnits)
     {
-        hud.deserialize(configCache.data(), bytesRead);
+        hud.deserialize(str.data(), bytesRead);
     }
 }
 
@@ -276,12 +281,12 @@ void writeNode(vector<char> &buffer, const Node *node)
 #endif
 }
 
-void writeCCOrHash(vector<char> &buffer, const CCOrHash &value)
+void writeCCOrHash(vector<char> &buffer, const CCOrHash &hash)
 {
 #ifdef USE_COMMAND_HASH
-    writeUint32(buffer, value.hash);
+    writeUint32(buffer, hash.hash);
 #else
-    writeStringView(buffer, value.compilerCommand);
+    writeStringView(buffer, hash.hash);
 #endif
 }
 

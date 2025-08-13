@@ -32,7 +32,7 @@ class TargetCache
 {
   public:
     /// Needed to address in fileTargetCaches;
-    uint32_t cahceIndex = -1;
+    uint32_t cacheIndex = -1;
     explicit TargetCache(const string &name);
     virtual void updateBuildCache(void *ptr);
     virtual void writeBuildCache(vector<char> &buffer);
@@ -154,6 +154,6 @@ void writeUint8(vector<char> &buffer, const uint8_t &data);
 void writeUint32(vector<char> &buffer, uint32_t data);
 void writeStringView(vector<char> &buffer, const string_view &data);
 void writeNode(vector<char> &buffer, const Node *node);
-void writeCCOrHash(vector<char> &buffer, const CCOrHash &value);
+void writeCCOrHash(vector<char> &buffer, const CCOrHash &hash);
 void writeNodeVector(vector<char> &buffer, const vector<Node *> &array);
 #endif // TARGETCACHE_HPP

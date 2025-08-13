@@ -67,7 +67,7 @@ set(HCONFIGURE_SOURCES
 
 set(INCLUDE_BUILD ON)
 set(INCLUDE_CONFIGURE ON)
-set(HMAKE_USE_SMALL_FILE ON BOOL "use full file or small file(compressed, indices, hashed) for storing cache.")
+set(HMAKE_USE_SMALL_FILE OFF BOOL "use full file or small file(compressed, indices, hashed) for storing cache.")
 set(HelperSource Projects/Boost/hmake.cpp)
 
 
@@ -216,6 +216,29 @@ add_executable(copy copy.cpp)
 target_link_libraries(copy PRIVATE hconfigure-c)
 
 add_executable(benchmark Examples/benchmark/benchmark.cpp)
+
+
+function(add_dual_executables)
+    math(EXPR count "${ARGC} / 2")
+    foreach (i RANGE 0 ${count})
+        math(EXPR idx_name "${i} * 2")
+        math(EXPR idx_src "${idx_name} + 1")
+
+        if (idx_src LESS ARGC)
+            list(GET ARGV ${idx_name} base_name)
+            list(GET ARGV ${idx_src} src_file)
+
+            add_executable("${base_name}Config" "${src_file}")
+            target_link_libraries("${base_name}Config" PRIVATE hconfigure-c)
+
+            add_executable("${base_name}Build" "${src_file}")
+            target_link_libraries("${base_name}Build" PRIVATE hconfigure-b)
+        endif ()
+    endforeach ()
+endfunction()
+
+add_dual_executables(Example1 Examples/Example1/hmake.cpp
+        Example2 Examples/Example2/hmake.cpp)
 
 # TODO
 # https://rapidjson.org/group___r_a_p_i_d_j_s_o_n___c_o_n_f_i_g.html

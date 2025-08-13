@@ -337,7 +337,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             compileCommandWithTool.setCommand(configuration->compilerFeatures.compiler.bTPath.string() + " " +
                                               compileCommand);
 
-            cppBuildCache.deserialize(cahceIndex);
+            cppBuildCache.deserialize(cacheIndex);
             if (!cppBuildCache.headerUnits.empty())
             {
                 oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
@@ -429,6 +429,14 @@ template <typename T, typename U> void adjustBuildCache(vector<T> &oldCache, con
         {
             std::swap((*newCache)[i], (*newCache)[cacheIndex]);
         }
+        if constexpr (std::is_same_v<T, BuildCache::Cpp::ModuleFile>)
+        {
+           (*newCache)[i].srcFile.node = const_cast<Node *>(sourceFiles[i].node);
+        }
+        else
+        {
+            (*newCache)[i].node = const_cast<Node *>(sourceFiles[i].node);
+        }
     }
 
     newCache->resize(newlyFounded + oldCache.size());
@@ -512,14 +520,14 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
             writeBool(*configBuffer, smFile.isInterface);
         }
 
-        fileTargetCaches[cahceIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
+        fileTargetCaches[cacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
 
-        cppBuildCache.deserialize(cahceIndex);
+        cppBuildCache.deserialize(cacheIndex);
 
         adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
         adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
 
-        for (SMFile &hu : oldHeaderUnits)
+        for (const SMFile &hu : oldHeaderUnits)
         {
             bool found = false;
             for (const ModuleFile &cacheHu : cppBuildCache.headerUnits)
@@ -540,7 +548,7 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
 
 void CppSourceTarget::readConfigCacheAtBuildTime()
 {
-    const string_view configCache = fileTargetCaches[cahceIndex].configCache;
+    const string_view configCache = fileTargetCaches[cacheIndex].configCache;
 
     uint32_t configRead = 0;
     const char *ptr = configCache.data();

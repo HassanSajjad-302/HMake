@@ -724,7 +724,7 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
                 ;
         }
 
-        hu.targetIndex = huDirTarget->cahceIndex;
+        hu.targetIndex = huDirTarget->cacheIndex;
         hu.myIndex = headerUnit->indexInBuildCache;
     }
 }

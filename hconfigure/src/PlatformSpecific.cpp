@@ -186,7 +186,7 @@ vector<char> readBufferFromFile(const string &fileName)
 vector<char> readBufferFromCompressedFile(const string &fileName)
 {
 #ifndef USE_JSON_FILE_COMPRESSION
-    return readBufferFromFile(fileName, fileBuffer);
+    return readBufferFromFile(fileName);
 #else
     vector<char> compressedBuffer = readBufferFromFile(fileName);
     vector<char> fileBuffer;
@@ -291,7 +291,7 @@ extern string GetLastErrorString();
 // In configure mode only 2 files target-cache.json and nodes.json are written which are written at the end.
 // While in build-mode TargetCacheDisWriteManager asynchronously writes these files multiple times as the data is
 // updated. Hence, these file write is atomic in build mode
-static void writeFile(const string &fileName, const char *buffer, uint64_t bufferSize, bool binary)
+static void writeFileAtomically(const string &fileName, const char *buffer, uint64_t bufferSize, bool binary)
 {
     const string str = fileName + ".tmp";
     if constexpr (bsMode == BSMode::BUILD)
@@ -380,15 +380,10 @@ static void writeFile(const string &fileName, const char *buffer, uint64_t buffe
     }
 }
 
-void writeBufferToFile(const string &fileName, const vector<char> &fileBuffer)
-{
-    writeFile(fileName, fileBuffer.data(), fileBuffer.size(), false);
-}
-
 void writeBufferToCompressedFile(const string &fileName, const vector<char> &fileBuffer)
 {
 #ifndef USE_JSON_FILE_COMPRESSION
-    writeValueToFile(std::move(fileName), value);
+    writeFileAtomically(fileName, fileBuffer.data(), fileBuffer.size(), true);
 #else
     const uint64_t maxCompressedSize = LZ4_compressBound(fileBuffer.size());
 
@@ -406,7 +401,7 @@ void writeBufferToCompressedFile(const string &fileName, const vector<char> &fil
     }
     *reinterpret_cast<uint64_t *>(compressed.data()) = fileBuffer.size();
 
-    writeFile(fileName, compressed.c_str(), compressedSize + 8, true);
+    writeFileAtomically(fileName, compressed.c_str(), compressedSize + 8, true);
 #endif
 }
 
