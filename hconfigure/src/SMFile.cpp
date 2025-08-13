@@ -490,30 +490,6 @@ string SMFile::getOutputFileName() const
     return node->getFileName();
 }
 
-unique_ptr<vector<char>> readValueFromFile(const string_view fileName, Document &document)
-{
-    // Read whole file into a buffer
-    FILE *fp;
-    fopen_s(&fp, fileName.data(), "r");
-    fseek(fp, 0, SEEK_END);
-    const size_t filesize = (size_t)ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    unique_ptr<vector<char>> buffer = std::make_unique<vector<char>>(filesize + 1);
-    const size_t readLength = fread(buffer->begin().operator->(), 1, filesize, fp);
-    if (fclose(fp) != 0)
-    {
-        printErrorMessage("Error closing the file \n");
-    }
-
-    // TODO
-    //  What should this be for wchar_t
-    (*buffer)[readLength] = '\0';
-
-    // In situ parsing the buffer into d, buffer will also be modified
-    document.ParseInsitu(buffer->begin().operator->());
-    return buffer;
-}
-
 void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
                                          StaticVector<string_view, 1000> &includeNames)
 {

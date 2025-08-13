@@ -65,7 +65,7 @@ set(HCONFIGURE_SOURCES
         3rdParty/mimalloc/src/static.c
         hconfigure/src/BoostCppTarget.cpp)
 
-set(INCLUDE_BUILD OFF)
+set(INCLUDE_BUILD ON)
 set(INCLUDE_CONFIGURE ON)
 set(HMAKE_USE_SMALL_FILE ON BOOL "use full file or small file(compressed, indices, hashed) for storing cache.")
 set(HelperSource Projects/Boost/hmake.cpp)

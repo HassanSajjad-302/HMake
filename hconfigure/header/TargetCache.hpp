@@ -148,18 +148,12 @@ uint32_t readUint32(const char *ptr, uint32_t &bytesRead);
 string_view readStringView(const char *ptr, uint32_t &bytesRead);
 Node *readHalfNode(const char *ptr, uint32_t &bytesRead);
 CCOrHash readCCOrHash(const char *ptr, uint32_t &bytesRead);
-span<Node *> readNodeSpan(const char *ptr, uint32_t &bytesRead);
-ConfigCache::Cpp readCppConfigCache(const char *ptr, uint32_t &bytesRead);
-ConfigCache::Link readLinkConfigCache(const char *ptr, uint32_t &bytesRead);
-BuildCache::Link readLinkBuildCache(const char *ptr, uint32_t &bytesRead);
 
 void writeBool(vector<char> &buffer, const bool &value);
+void writeUint8(vector<char> &buffer, const uint8_t &data);
 void writeUint32(vector<char> &buffer, uint32_t data);
 void writeStringView(vector<char> &buffer, const string_view &data);
-void writeNode(vector<char> &buffer, const Node *value);
+void writeNode(vector<char> &buffer, const Node *node);
 void writeCCOrHash(vector<char> &buffer, const CCOrHash &value);
 void writeNodeVector(vector<char> &buffer, const vector<Node *> &array);
-void writeCppConfigCache(vector<char> &buffer, const ConfigCache::Cpp &data);
-void writeLinkConfigCache(vector<char> &buffer, const ConfigCache::Link &data);
-void writeLinkBuildCache(vector<char> &buffer, const BuildCache::Link &data);
 #endif // TARGETCACHE_HPP

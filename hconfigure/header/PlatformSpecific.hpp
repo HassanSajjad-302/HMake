@@ -65,6 +65,7 @@ void writeBufferToFile(const string &fileName, const vector<char> &fileBuffer);
 bool compareStringsFromEnd(string_view lhs, string_view rhs);
 void lowerCasePStringOnWindows(char *ptr, uint64_t size);
 bool childInParentPathNormalized(string_view parent, string_view child);
+unique_ptr<vector<char>> readValueFromFile(string_view fileName, Document &document);
 
 /*namespace Indices
 {

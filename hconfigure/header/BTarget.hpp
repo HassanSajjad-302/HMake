@@ -140,7 +140,7 @@ class BTarget // BTarget
         // provide some way to get at letters_
     };
 
-    // This not needed currently
+    // This is currently not needed
     /*inline static array<array<BTarget *, 10>, 3> roundEndTargets;
     inline static array<atomic<uint64_t>, 3> roundEndTargetsCount{0, 0, 0};*/
 

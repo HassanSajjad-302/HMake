@@ -32,7 +32,7 @@ TargetCache::TargetCache(const string &name)
         if (it == nameToIndexMap.end())
         {
             targetCacheIndex = configCacheTargets.size();
-            configCacheTargets.emplace_back(name);
+            configCacheTargets.emplace_back().name = name;
         }
         else
         {
@@ -106,44 +106,6 @@ CCOrHash readCCOrHash(const char *ptr, uint32_t &bytesRead)
     cmd.compilerCommand = readStringView(ptr, bytesRead);
 #endif
     return cmd;
-}
-
-span<Node *> readNodeSpan(const char *ptr, uint32_t &bytesRead)
-{
-    uint32_t count = readUint32(ptr, bytesRead);
-    const uint32_t offset = bytesRead;
-    bytesRead += count * sizeof(Node *);
-    return {(Node **)(ptr + offset), count};
-}
-
-ConfigCache::Cpp readCppConfigCache(const char *ptr, uint32_t &bytesRead)
-{
-    ConfigCache::Cpp cfg;
-    cfg.reqInclsArray = readNodeSpan(ptr, bytesRead);
-    cfg.useReqInclsArray = readNodeSpan(ptr, bytesRead);
-    cfg.reqHUDirsArray = readNodeSpan(ptr, bytesRead);
-    cfg.useReqHUDirsArray = readNodeSpan(ptr, bytesRead);
-    cfg.sourceFiles = readNodeSpan(ptr, bytesRead);
-    cfg.moduleFiles = readNodeSpan(ptr, bytesRead);
-    cfg.headerUnits = readNodeSpan(ptr, bytesRead);
-    cfg.buildCacheFilesDirPath = readHalfNode(ptr, bytesRead);
-    return cfg;
-}
-
-ConfigCache::Link readLinkConfigCache(const char *ptr, uint32_t &bytesRead)
-{
-    ConfigCache::Link ln;
-    ln.reqLibraryDirsArray = readNodeSpan(ptr, bytesRead);
-    ln.useReqLibraryDirsArray = readNodeSpan(ptr, bytesRead);
-    ln.outputFileNode = readHalfNode(ptr, bytesRead);
-    ln.buildCacheFilesDirPath = readHalfNode(ptr, bytesRead);
-    return ln;
-}
-
-BuildCache::Cpp::SourceFile readSourceFileBuildCache(const char *ptr, uint32_t &bytesRead)
-{
-    BuildCache::Cpp::SourceFile sf;
-    return sf;
 }
 
 void BuildCache::Cpp::SourceFile::serialize(vector<char> &buffer) const
@@ -254,9 +216,9 @@ void BuildCache::Cpp::serialize(vector<char> &buffer) const
     }
 }
 
-void BuildCache::Cpp::deserialize(uint32_t targetCacheIndex)
+void BuildCache::Cpp::deserialize(const uint32_t targetCacheIndex)
 {
-    span<char> configCache = configCacheTargets[targetCacheIndex].configCache;
+    const string_view configCache = configCacheTargets[targetCacheIndex].configCache;
     uint32_t bytesRead = 0;
     srcFiles.resize(readUint32(configCache.data(), bytesRead));
     for (SourceFile &source : srcFiles)
@@ -275,17 +237,15 @@ void BuildCache::Cpp::deserialize(uint32_t targetCacheIndex)
     }
 }
 
-BuildCache::Link readLinkBuildCache(const char *ptr, uint32_t &bytesRead)
-{
-    BuildCache::Link ln;
-    ln.commandWithoutArgumentsWithTools = readCCOrHash(ptr, bytesRead);
-    ln.objectFiles = readNodeSpan(ptr, bytesRead);
-    return ln;
-}
-
 void writeBool(vector<char> &buffer, const bool &value)
 {
     buffer.emplace_back(static_cast<char>(value));
+}
+
+void writeUint8(vector<char> &buffer, const uint8_t &data)
+{
+    const auto ptr = reinterpret_cast<const char *>(&data);
+    buffer.insert(buffer.end(), ptr, ptr + sizeof(data));
 }
 
 void writeUint32(vector<char> &buffer, const uint32_t data)
@@ -300,12 +260,12 @@ void writeStringView(vector<char> &buffer, const string_view &data)
     buffer.insert(buffer.end(), data.begin(), data.end());
 }
 
-void writeNode(vector<char> &buffer, const Node *value)
+void writeNode(vector<char> &buffer, const Node *node)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    writeUint32(buffer, value.index);
+    writeUint32(buffer, node->myId);
 #else
-    writeStringView(buffer, value.filePath);
+    writeStringView(buffer, node->filePath);
 #endif
 }
 
@@ -325,96 +285,4 @@ void writeNodeVector(vector<char> &buffer, const vector<Node *> &array)
     {
         writeNode(buffer, e);
     }
-}
-
-void writeCppConfigCache(vector<char> &buffer, const ConfigCache::Cpp &data)
-{
-    writeNodeSpan(buffer, data.reqInclsArray);
-    writeNodeSpan(buffer, data.useReqInclsArray);
-    writeNodeVector(buffer, data.reqHUDirsArray);
-    writeNodeVector(buffer, data.useReqHUDirsArray);
-    writeNodeVector(buffer, data.sourceFiles);
-    writeNodeVector(buffer, data.moduleFiles);
-    writeNodeVector(buffer, data.headerUnits);
-    writeNode *(buffer, data.buildCacheFilesDirPath);
-}
-
-void writeLinkConfigCache(vector<char> &buffer, const ConfigCache::Link &data)
-{
-    writeNodeVector(buffer, data.reqLibraryDirsArray);
-    writeNodeVector(buffer, data.useReqLibraryDirsArray);
-    writeNode(buffer, data.outputFileNode);
-    writeNode(buffer, data.buildCacheFilesDirPath);
-}
-
-void writeSourceFileBuildCache(vector<char> &buffer, const BuildCache::Cpp::SourceFile &data)
-{
-}
-
-void writeSourceFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::SourceFile> &data)
-{
-    writeUint32(buffer, static_cast<uint32_t>(data.size()));
-    for (auto &e : data)
-    {
-        writeSourceFileBuildCache(buffer, e);
-    }
-}
-
-void writeSingleHeaderUnitDep(vector<char> &buffer,
-                              const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &data)
-{
-}
-
-void writeSingleModuleDep(vector<char> &buffer, const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &data)
-{
-    writeNode *(buffer, data.fullPath);
-    writeStringView(buffer, data.logicalName);
-}
-
-void writeSMRules(vector<char> &buffer, const BuildCache::Cpp::ModuleFile::SmRules &data)
-{
-    writeStringView(buffer, data.exportName);
-    writeBool(buffer, data.isInterface);
-
-    writeUint32(buffer, static_cast<uint32_t>(data.headerUnitArray.size()));
-    for (auto &h : data.headerUnitArray)
-    {
-        writeSingleHeaderUnitDep(buffer, h);
-    }
-
-    writeUint32(buffer, static_cast<uint32_t>(data.moduleArray.size()));
-    for (auto &m : data.moduleArray)
-    {
-        writeSingleModuleDep(buffer, m);
-    }
-}
-
-void writeModuleFileBuildCache(vector<char> &buffer, const BuildCache::Cpp::ModuleFile &data)
-{
-    writeSourceFileBuildCache(buffer, data.srcFile);
-    writeNodeVector(buffer, data.headerFiles);
-    writeSMRules(buffer, data.smRules);
-    writeCCOrHash(buffer, data.compileCommandWithTool);
-}
-
-void writeModuleFileBuildCacheSpan(vector<char> &buffer, const span<BuildCache::Cpp::ModuleFile> &data)
-{
-    writeUint32(buffer, static_cast<uint32_t>(data.size()));
-    for (auto &e : data)
-    {
-        writeModuleFileBuildCache(buffer, e);
-    }
-}
-
-void writeCppBuildCache(vector<char> &buffer, const BuildCache::Cpp &data)
-{
-    writeSourceFileBuildCacheSpan(buffer, data.srcFiles);
-    writeModuleFileBuildCacheSpan(buffer, data.modFiles);
-    writeModuleFileBuildCacheSpan(buffer, data.headerUnits);
-}
-
-void writeLinkBuildCache(vector<char> &buffer, const BuildCache::Link &data)
-{
-    writeCCOrHash(buffer, data.commandWithoutArgumentsWithTools);
-    writeNodeVector(buffer, data.objectFiles);
 }
