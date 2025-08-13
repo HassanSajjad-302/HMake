@@ -201,7 +201,7 @@ bool configureOrBuild()
     {
         cache.registerCacheVariables();
         vector<char> configCache;
-        for (const ConfigCacheTarget &target : configCacheTargets)
+        for (const FileTargetCache &target : fileTargetCaches)
         {
             configCache.insert(configCache.end(), target.configCache.data(),
                                target.configCache.data() + target.configCache.size());

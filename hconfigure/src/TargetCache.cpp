@@ -31,8 +31,8 @@ TargetCache::TargetCache(const string &name)
     {
         if (it == nameToIndexMap.end())
         {
-            targetCacheIndex = configCacheTargets.size();
-            configCacheTargets.emplace_back().name = name;
+            targetCacheIndex = FileTargetCaches.size();
+            fileTargetCaches.emplace_back().name = name;
         }
         else
         {
@@ -218,7 +218,7 @@ void BuildCache::Cpp::serialize(vector<char> &buffer) const
 
 void BuildCache::Cpp::deserialize(const uint32_t targetCacheIndex)
 {
-    const string_view configCache = configCacheTargets[targetCacheIndex].configCache;
+    const string_view configCache = fileTargetCaches[targetCacheIndex].configCache;
     uint32_t bytesRead = 0;
     srcFiles.resize(readUint32(configCache.data(), bytesRead));
     for (SourceFile &source : srcFiles)

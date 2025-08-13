@@ -12,7 +12,7 @@ import "SpecialNodes.hpp";
 
 using phmap::flat_hash_map;
 
-struct ConfigCacheTarget
+struct FileTargetCache
 {
     class TargetCache *targetCache;
     // string will have 4 byte size instead of 8 byte size.
@@ -25,13 +25,13 @@ struct ConfigCacheTarget
     string_view buildCache;
 };
 
-inline vector<ConfigCacheTarget> configCacheTargets;
+inline vector<FileTargetCache> fileTargetCaches;
 inline flat_hash_map<string, uint32_t> nameToIndexMap;
 
 class TargetCache
 {
   public:
-    /// Needed to address in configCacheTargets;
+    /// Needed to address in fileTargetCaches;
     uint32_t targetCacheIndex = -1;
     explicit TargetCache(const string &name);
     virtual void updateBuildCache(void *ptr);

@@ -148,12 +148,12 @@ void PLOAT::writeTargetConfigCacheAtConfigureTime()
     }
 
     writeNode(configCacheBuffer, outputFileNode);
-    configCacheTargets[targetCacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
+    fileTargetCaches[targetCacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
 void PLOAT::readConfigCacheAtBuildTime()
 {
-    const string_view configCache = configCacheTargets[targetCacheIndex].configCache;
+    const string_view configCache = fileTargetCaches[targetCacheIndex].configCache;
     uint32_t size = readUint32(configCache.data() + configCacheBytesRead, configCacheBytesRead);
     reqLibraryDirs.reserve(size);
     for (uint32_t i = 0; i < size; ++i)

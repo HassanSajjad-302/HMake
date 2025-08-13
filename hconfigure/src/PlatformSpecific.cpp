@@ -220,12 +220,12 @@ void readConfigCache()
     uint32_t count = 0;
     while (bufferRead != bufferSize)
     {
-        ConfigCacheTarget configCacheTarget;
+        FileTargetCache configCacheTarget;
 
         configCacheTarget.name = readStringView(configCacheGlobal.data() + bufferRead, bufferRead);
         configCacheTarget.configCache = readStringView(configCacheGlobal.data() + bufferRead, bufferRead);
 
-        configCacheTargets.emplace_back(configCacheTarget);
+        fileTargetCaches.emplace_back(configCacheTarget);
         nameToIndexMap.emplace(configCacheTarget.name, count);
 
         ++count;
@@ -237,7 +237,7 @@ void readBuildCache()
     const uint32_t bufferSize = buildCacheGlobal.size();
     uint32_t bufferRead = 0;
 
-    for (ConfigCacheTarget configCacheTarget : configCacheTargets)
+    for (FileTargetCache configCacheTarget : fileTargetCaches)
     {
         const uint32_t dataSize = readUint32(buildCacheGlobal.data() + bufferRead, bufferRead);
         const char *ptr = buildCacheGlobal.data() + bufferRead;
@@ -252,7 +252,7 @@ void readBuildCache()
 
 void writeConfigBuffer(vector<char> &buffer)
 {
-    for (ConfigCacheTarget &configCacheTarget : configCacheTargets)
+    for (FileTargetCache &configCacheTarget : fileTargetCaches)
     {
         writeStringView(buffer, configCacheTarget.name);
         writeStringView(buffer, configCacheTarget.configCache);
@@ -261,7 +261,7 @@ void writeConfigBuffer(vector<char> &buffer)
 
 void writeBuildBuffer(vector<char> &buffer)
 {
-    for (const ConfigCacheTarget &configCacheTarget : configCacheTargets)
+    for (const FileTargetCache &configCacheTarget : fileTargetCaches)
     {
         configCacheTarget.targetCache->writeBuildCache(buffer);
     }
