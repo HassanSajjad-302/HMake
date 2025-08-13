@@ -239,13 +239,14 @@ void readBuildCache()
     uint32_t bufferRead = 0;
 
     const char *ptr = buildCacheGlobal.data();
-    for (FileTargetCache fileCacheTarget : fileTargetCaches)
+    for (FileTargetCache &fileCacheTarget : fileTargetCaches)
     {
         fileCacheTarget.buildCache = readStringView(ptr, bufferRead);
     }
 
     if (bufferRead != bufferSize)
     {
+        HMAKE_HMAKE_INTERNAL_ERROR
     }
 }
 
@@ -263,14 +264,12 @@ void writeBuildBuffer(vector<char> &buffer)
     buffer = vector<char>();
     for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
     {
-        uint32_t ourSize = 0;
         const uint32_t currentSize = buffer.size();
-        // reserve space of 4bytes. actual oursize is written after the writebuildCache call is completed.
-        writeUint32(buffer, ourSize);
+        // reserve space of 4bytes.
+        writeUint32(buffer, 0);
         fileCacheTarget.targetCache->writeBuildCache(buffer);
-        ourSize = buffer.size() - currentSize;
-        const char *ptr = reinterpret_cast<char *>(&ourSize);
-        buffer.insert(buffer.begin() + currentSize, ptr, ptr + sizeof(ourSize));
+        const uint32_t size = buffer.size() - (currentSize + 4);
+        *static_cast<uint32_t *>(static_cast<void *>(&buffer[currentSize])) = size;
     }
 }
 
