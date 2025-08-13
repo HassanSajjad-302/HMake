@@ -517,6 +517,8 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
             writeBool(*configBuffer, smFile.isInterface);
         }
 
+        writeNode(*configBuffer, buildCacheFilesDirPathNode);
+
         fileTargetCaches[cacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
 
         cppBuildCache.deserialize(cacheIndex);
@@ -574,9 +576,11 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
         addDependencyNoMutex<1>(smFile);
     }
 
+    buildCacheFilesDirPathNode = readHalfNode(ptr, configRead);
+
     if (configRead != configCache.size())
     {
-        // error
+        HMAKE_HMAKE_INTERNAL_ERROR
     }
 }
 

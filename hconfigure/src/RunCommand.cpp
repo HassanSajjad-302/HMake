@@ -290,25 +290,26 @@ void RunCommand::executePrintRoutine(uint32_t color, TargetCache *target, void *
 {
     bool notify = false;
 
-    if (exitStatus == EXIT_SUCCESS)
     {
-        targetCacheDiskWriteManager.updatedCaches.emplace_back(target, cache);
-        notify = true;
+        std::lock_guard _(targetCacheDiskWriteManager.vecMutex);
+        if (exitStatus == EXIT_SUCCESS)
+        {
+            targetCacheDiskWriteManager.updatedCaches.emplace_back(target, cache);
+            notify = true;
+        }
+
+        // TODO
+        // these print commands formatting should be outside the mutex.
+        targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", printCommand + " " + getThreadId() + "\n"),
+                                                          color, true);
+
+        if (!commandOutput.empty())
+        {
+            targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", commandOutput + "\n"),
+                                                              static_cast<int>(fmt::color::light_green), true);
+            notify = true;
+        }
     }
-
-    // TODO
-    // these print commands formatting should be outside the mutex.
-    targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", printCommand + " " + getThreadId() + "\n"), color,
-                                                      true);
-
-    if (!commandOutput.empty())
-    {
-        targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", commandOutput + "\n"),
-                                                          static_cast<int>(fmt::color::light_green), true);
-        notify = true;
-    }
-
-    targetCacheDiskWriteManager.vecMutex.unlock();
     if (notify)
     {
         targetCacheDiskWriteManager.vecCond.notify_one();
