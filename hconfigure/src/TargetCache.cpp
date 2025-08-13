@@ -188,6 +188,13 @@ void ModuleFile::SmRules::deserialize(const char *ptr, uint32_t &bytesRead)
     }
 }
 
+void ModuleFile::serialize(vector<char> &buffer) const
+{
+    srcFile.serialize(buffer);
+    smRules.serialize(buffer);
+    writeCCOrHash(buffer, compileCommandWithTool);
+}
+
 void ModuleFile::deserialize(const char *ptr, uint32_t &bytesRead)
 {
     srcFile.deserialize(ptr, bytesRead);
