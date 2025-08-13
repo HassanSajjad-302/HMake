@@ -572,10 +572,10 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     modFileDeps.reserve(modSize);
     for (uint32_t i = 0; i < modSize; ++i)
     {
-        SMFile &smFile = modFileDeps.emplace_back(this, readHalfNode(ptr + configRead, configRead));
+        SMFile &smFile = modFileDeps.emplace_back(this, readHalfNode(ptr, configRead));
         smFile.isInterface = readBool(ptr, configRead);
         addDependencyNoMutex<0>(smFile);
-        resolveRequirePathBTarget.addDependencyNoMutex<0>(smFile);
+        resolveRequirePathBTarget.addDependencyNoMutex<1>(smFile);
         addDependencyNoMutex<1>(smFile);
     }
 
@@ -857,7 +857,7 @@ void CppSourceTarget::resolveRequirePaths()
     {
         SMFile &smFile = modFileDeps[i];
 
-        for (auto &[fullPath, logicalName] : cppBuildCache.modFiles[i].smRules.moduleArray)
+        for (auto &[fullPath, logicalName] : smFile.smRulesCache.moduleArray)
         {
             if (logicalName == smFile.logicalName)
             {

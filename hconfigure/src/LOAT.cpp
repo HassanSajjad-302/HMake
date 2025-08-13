@@ -128,7 +128,7 @@ void LOAT::setFileStatus()
             }
             if (bytesRead != buildCache.size())
             {
-               HMAKE_HMAKE_INTERNAL_ERROR
+                HMAKE_HMAKE_INTERNAL_ERROR
             }
             if (linkBuildCache.commandWithoutArgumentsWithTools.hash == commandWithoutTargetsWithTool.getHash())
             {

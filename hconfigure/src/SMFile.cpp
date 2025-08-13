@@ -565,6 +565,9 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
             }
         }
     }
+
+    smRulesCache.moduleArray = std::move(*modDeps);
+    smRulesCache.headerUnitArray = std::move(*huDeps);
 }
 
 InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) const
