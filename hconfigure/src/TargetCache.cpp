@@ -82,8 +82,8 @@ uint32_t readUint32(const char *ptr, uint32_t &bytesRead)
 
 string_view readStringView(const char *ptr, uint32_t &bytesRead)
 {
-    uint32_t strSize = readUint32(ptr, bytesRead);
-    uint32_t offset = bytesRead;
+    uint32_t strSize = readUint32(ptr + bytesRead, bytesRead);
+    const uint32_t offset = bytesRead;
     bytesRead += strSize;
     return {ptr + offset, strSize};
 }

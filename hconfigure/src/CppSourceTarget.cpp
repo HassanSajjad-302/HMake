@@ -470,17 +470,17 @@ template <typename T> void writeIncDirsAtConfigTime(vector<char> &buffer, const 
 template <typename T>
 void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &include, CppSourceTarget *target)
 {
-    const uint32_t reserveSize = readUint32(ptr + bytesRead, bytesRead);
+    const uint32_t reserveSize = readUint32(ptr, bytesRead);
     include.reserve(reserveSize * sizeof(T) + sizeof(uint32_t));
     for (uint32_t i = 0; i < include.size(); ++i)
     {
-        Node *node = readHalfNode(ptr + bytesRead, bytesRead);
-        bool isStandard = readBool(ptr + bytesRead, bytesRead);
-        bool ignoreHeaderDeps = readBool(ptr + bytesRead, bytesRead);
+        Node *node = readHalfNode(ptr, bytesRead);
+        bool isStandard = readBool(ptr, bytesRead);
+        bool ignoreHeaderDeps = readBool(ptr, bytesRead);
         if constexpr (std::is_same_v<T, InclNodeTargetMap>)
         {
-            const bool targetCacheIndex = readBool(ptr + bytesRead, bytesRead);
-            const bool headerUnitIndex = readBool(ptr + bytesRead, bytesRead);
+            const bool targetCacheIndex = readBool(ptr, bytesRead);
+            const bool headerUnitIndex = readBool(ptr, bytesRead);
             include.emplace_back(HeaderUnitNode(node, isStandard, ignoreHeaderDeps, targetCacheIndex, headerUnitIndex),
                                  target);
         }
@@ -545,23 +545,23 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     uint32_t configRead = 0;
     const char *ptr = configCache.data();
 
-    readInclDirsAtBuildTime(ptr + configRead, configRead, reqIncls, this);
-    readInclDirsAtBuildTime(ptr + configRead, configRead, useReqIncls, this);
-    readInclDirsAtBuildTime(ptr + configRead, configRead, reqHuDirs, this);
-    readInclDirsAtBuildTime(ptr + configRead, configRead, useReqHuDirs, this);
+    readInclDirsAtBuildTime(ptr, configRead, reqIncls, this);
+    readInclDirsAtBuildTime(ptr, configRead, useReqIncls, this);
+    readInclDirsAtBuildTime(ptr, configRead, reqHuDirs, this);
+    readInclDirsAtBuildTime(ptr, configRead, useReqHuDirs, this);
 
     const uint32_t sourceSize = readUint32(ptr + configRead, configRead);
     for (uint32_t i = 0; i < sourceSize; ++i)
     {
-        SourceNode &srcNode = srcFileDeps.emplace_back(this, readHalfNode(ptr + configRead, configRead));
+        SourceNode &srcNode = srcFileDeps.emplace_back(this, readHalfNode(ptr, configRead));
         addDependencyNoMutex<0>(srcNode);
     }
 
-    const uint32_t modSize = readUint32(ptr + configRead, configRead);
+    const uint32_t modSize = readUint32(ptr, configRead);
     for (uint32_t i = 0; i < modSize; ++i)
     {
         SMFile &smFile = modFileDeps.emplace_back(this, readHalfNode(ptr + configRead, configRead));
-        smFile.isInterface = readBool(ptr + configRead, configRead);
+        smFile.isInterface = readBool(ptr, configRead);
         addDependencyNoMutex<0>(smFile);
         resolveRequirePathBTarget.addDependencyNoMutex<0>(smFile);
         addDependencyNoMutex<1>(smFile);

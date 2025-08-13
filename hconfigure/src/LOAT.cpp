@@ -321,7 +321,8 @@ void LOAT::writeTargetConfigCacheAtConfigureTime()
 
 void LOAT::readConfigCacheAtBuildTime()
 {
-    buildCacheFilesDirPathNode = readHalfNode(fileTargetCaches[cahceIndex].configCache.data() + configCacheBytesRead, configCacheBytesRead);
+    buildCacheFilesDirPathNode =
+        readHalfNode(fileTargetCaches[cahceIndex].configCache.data() + configCacheBytesRead, configCacheBytesRead);
 }
 
 string LOAT::getTarjanNodeName() const
