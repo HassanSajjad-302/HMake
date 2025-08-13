@@ -117,6 +117,19 @@ void LOAT::setFileStatus()
         }
         else
         {
+            const string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
+            uint32_t bytesRead = 0;
+            linkBuildCache.commandWithoutArgumentsWithTools = readCCOrHash(buildCache.data(), bytesRead);
+            const uint32_t objCacheSize = readUint32(buildCache.data(), bytesRead);
+            linkBuildCache.objectFiles.reserve(objCacheSize);
+            for (uint32_t i = 0; i < objCacheSize; ++i)
+            {
+                linkBuildCache.objectFiles.emplace_back(readHalfNode(buildCache.data(), bytesRead));
+            }
+            if (bytesRead != buildCache.size())
+            {
+               HMAKE_HMAKE_INTERNAL_ERROR
+            }
             if (linkBuildCache.commandWithoutArgumentsWithTools.hash == commandWithoutTargetsWithTool.getHash())
             {
                 bool needsUpdate = false;
@@ -311,6 +324,16 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round)
 void LOAT::updateBuildCache(void *ptr)
 {
     linkBuildCache = std::move(updatedBuildCache);
+}
+
+void LOAT::writeBuildCache(vector<char> &buffer)
+{
+    writeCCOrHash(buffer, linkBuildCache.commandWithoutArgumentsWithTools);
+    writeUint32(buffer, linkBuildCache.objectFiles.size());
+    for (const Node *node : linkBuildCache.objectFiles)
+    {
+        writeNode(buffer, node);
+    }
 }
 
 void LOAT::writeTargetConfigCacheAtConfigureTime()

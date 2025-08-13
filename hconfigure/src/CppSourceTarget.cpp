@@ -467,8 +467,8 @@ template <typename T> void writeIncDirsAtConfigTime(vector<char> &buffer, const 
         {
             auto &headerUnitNode = static_cast<const HeaderUnitNode &>(inclNode);
 
-            writeBool(buffer, headerUnitNode.targetCacheIndex);
-            writeBool(buffer, headerUnitNode.headerUnitIndex);
+            writeUint32(buffer, headerUnitNode.targetCacheIndex);
+            writeUint32(buffer, headerUnitNode.headerUnitIndex);
         }
     }
 }
@@ -485,8 +485,8 @@ void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &in
         bool ignoreHeaderDeps = readBool(ptr, bytesRead);
         if constexpr (std::is_same_v<T, InclNodeTargetMap>)
         {
-            const bool targetCacheIndex = readBool(ptr, bytesRead);
-            const bool headerUnitIndex = readBool(ptr, bytesRead);
+            const bool targetCacheIndex = readUint32(ptr, bytesRead);
+            const bool headerUnitIndex = readUint32(ptr, bytesRead);
             include.emplace_back(HeaderUnitNode(node, isStandard, ignoreHeaderDeps, targetCacheIndex, headerUnitIndex),
                                  target);
         }

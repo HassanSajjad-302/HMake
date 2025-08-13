@@ -58,21 +58,29 @@ struct ConfigCache
             bool isStandard = false;
             bool ignoreHeaderDeps = false;
         };
-        span<InclNode> reqInclsArray;
-        span<InclNode> useReqInclsArray;
-        span<Node *> reqHUDirsArray;
-        span<Node *> useReqHUDirsArray;
-        span<Node *> sourceFiles;
-        span<Node *> moduleFiles;
-        span<Node *> headerUnits;
+        struct HuNode
+        {
+            Node *node;
+            bool isStandard = false;
+            bool ignoreHeader = false;
+            uint32_t targetCacheIndex = -1;
+            uint32_t headerUnitIndex = -1;
+        };
+        vector<InclNode> reqInclsArray;
+        vector<InclNode> useReqInclsArray;
+        vector<HuNode> reqHUDirsArray;
+        vector<HuNode> useReqHUDirsArray;
+        vector<Node *> sourceFiles;
+        vector<Node *> moduleFiles;
+        vector<Node *> headerUnits;
         Node *buildCacheFilesDirPath;
     };
 
     struct Link
     {
-        span<Node *> reqLibraryDirsArray;
-        span<Node *> useReqLibraryDirsArray;
         Node *outputFileNode;
+        vector<Node *> reqLibraryDirsArray;
+        vector<Node *> useReqLibraryDirsArray;
         Node *buildCacheFilesDirPath;
     };
 };

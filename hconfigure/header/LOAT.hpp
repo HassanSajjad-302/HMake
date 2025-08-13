@@ -53,6 +53,7 @@ class LOAT : public PLOAT
     void setFileStatus();
     void updateBTarget(Builder &builder, unsigned short round) override;
     void updateBuildCache(void *ptr) override;
+    void writeBuildCache(vector<char> &buffer) override;
     void writeTargetConfigCacheAtConfigureTime();
     void readConfigCacheAtBuildTime();
 
