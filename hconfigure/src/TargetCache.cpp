@@ -63,6 +63,8 @@ void TargetCache::updateBuildCache(void *ptr)
 
 void TargetCache::writeBuildCache(vector<char> &buffer)
 {
+    string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
+    buffer.insert(buffer.end(), buildCache.begin(), buildCache.end());
 }
 
 bool readBool(const char *ptr, uint32_t &bytesRead)

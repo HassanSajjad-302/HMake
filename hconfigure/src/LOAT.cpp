@@ -316,7 +316,7 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round)
 
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            writeTargetConfigCacheAtConfigureTime();
+            writeCacheAtConfigureTime();
         }
     }
 }
@@ -328,6 +328,12 @@ void LOAT::updateBuildCache(void *ptr)
 
 void LOAT::writeBuildCache(vector<char> &buffer)
 {
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        PLOAT::writeBuildCache(buffer);
+        return;
+    }
+
     writeCCOrHash(buffer, linkBuildCache.commandWithoutArgumentsWithTools);
     writeUint32(buffer, linkBuildCache.objectFiles.size());
     for (const Node *node : linkBuildCache.objectFiles)
@@ -336,7 +342,7 @@ void LOAT::writeBuildCache(vector<char> &buffer)
     }
 }
 
-void LOAT::writeTargetConfigCacheAtConfigureTime()
+void LOAT::writeCacheAtConfigureTime()
 {
     writeNode(configCacheBuffer, buildCacheFilesDirPathNode);
     fileTargetCaches[cacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
