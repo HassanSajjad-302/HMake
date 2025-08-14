@@ -87,7 +87,6 @@ struct SMFile : SourceNode // Scanned Module Rule
     // buildCache.compileCommandWithToolCache is scanning command while this is the compile command.
     CCOrHash compileCommandWithToolCache;
     string logicalName;
-    vector<BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep> modMap;
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // depends on is consuming it another way.

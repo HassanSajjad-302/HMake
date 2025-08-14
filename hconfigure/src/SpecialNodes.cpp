@@ -46,11 +46,12 @@ bool operator<(const InclNode &lhs, const InclNode &rhs)
 }
 
 HeaderUnitNode::HeaderUnitNode(Node *node_, const bool isStandard_, const bool ignoreHeaderDeps_,
-                               const uint64_t targetCacheIndex_, const uint64_t headerUnitIndex_)
+                               const uint32_t targetCacheIndex_, const uint32_t headerUnitIndex_)
     : InclNode(node_, isStandard_, ignoreHeaderDeps_), targetCacheIndex(targetCacheIndex_),
       headerUnitIndex(headerUnitIndex_)
 {
 }
+
 bool HeaderUnitNode::emplaceInList(list<HeaderUnitNode> &includes, HeaderUnitNode &libDirNode)
 {
     for (const HeaderUnitNode &include : includes)

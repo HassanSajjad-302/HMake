@@ -34,10 +34,10 @@ bool operator<(const InclNode &lhs, const InclNode &rhs);
 class HeaderUnitNode : public InclNode
 {
   public:
-    uint64_t targetCacheIndex = UINT64_MAX;
-    uint64_t headerUnitIndex = UINT64_MAX;
+    uint32_t targetCacheIndex = -1;
+    uint32_t headerUnitIndex = -1;
     explicit HeaderUnitNode(Node *node_, bool isStandard_ = false, bool ignoreHeaderDeps_ = false,
-                            uint64_t targetCacheIndex_ = UINT32_MAX, uint64_t headerUnitIndex_ = UINT32_MAX);
+                            uint32_t targetCacheIndex_ = UINT32_MAX, uint32_t headerUnitIndex_ = UINT32_MAX);
     static bool emplaceInList(list<HeaderUnitNode> &includes, HeaderUnitNode &libDirNode);
 };
 

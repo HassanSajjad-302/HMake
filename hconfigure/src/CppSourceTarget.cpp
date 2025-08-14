@@ -140,6 +140,7 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
 
     if constexpr (bsMode == BSMode::BUILD)
     {
+        cppSourceTargets[cacheIndex] = this;
         readConfigCacheAtBuildTime();
     }
 }
@@ -345,6 +346,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                     oldHeaderUnits[i].buildCache = cppBuildCache.headerUnits[i].srcFile;
                     oldHeaderUnits[i].smRulesCache = cppBuildCache.headerUnits[i].smRules;
                     oldHeaderUnits[i].compileCommandWithToolCache = cppBuildCache.headerUnits[i].compileCommandWithTool;
+                    oldHeaderUnits[i].type = SM_FILE_TYPE::HEADER_UNIT;
                     headerUnitsSet.emplace(&oldHeaderUnits[i]);
                 }
 
@@ -930,7 +932,7 @@ void CppSourceTarget::resolveRequirePaths()
                 BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep dep;
                 dep.logicalName = logicalName;
                 dep.fullPath = found->objectFileOutputFileNode;
-                smFile.modMap.emplace_back(dep);
+                smFile.smRulesCache.moduleArray[i].fullPath = found->objectFileOutputFileNode;
             }
             else
             {

@@ -464,7 +464,6 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                 // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
                 // cached compile-command would be different
                 compileCommandWithToolCache.hash = target->compileCommandWithTool.getHash();
-                smRulesCache.moduleArray = std::move(modMap);
             }
             postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, target, this);
         }
@@ -584,12 +583,9 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
         {
             if (huDirTarget && huDirTarget != targetLocal)
             {
-                if (huDirTarget != targetLocal)
-                {
-                    printErrorMessage(FORMAT("Module Header Unit\n{}\n belongs to two different Targets\n{}\n{}\n",
-                                             headerUnitNode->filePath, nodeDir->node->filePath, inclNode.node->filePath,
-                                             settings.pcSettings.toolErrorOutput));
-                }
+                printErrorMessage(FORMAT("Module Header Unit\n{}\n belongs to two different Targets\n{}\n{}\n",
+                                         headerUnitNode->filePath, nodeDir->node->filePath, inclNode.node->filePath,
+                                         settings.pcSettings.toolErrorOutput));
             }
             huDirTarget = targetLocal;
             nodeDir = &inclNode;
@@ -661,40 +657,33 @@ void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_v
         bool doLoad = false;
         bool alreadyAddedInHeaderUnitSet = false;
 
-        if (nodeDir && nodeDir->headerUnitIndex != UINT32_MAX)
+        huDirTarget->headerUnitsMutex.lock();
+        if (const auto it = huDirTarget->headerUnitsSet.find(hu.node); it == huDirTarget->headerUnitsSet.end())
         {
-            headerUnit = &cppSourceTargets[nodeDir->targetCacheIndex]->oldHeaderUnits[nodeDir->headerUnitIndex];
-            alreadyAddedInHeaderUnitSet = true;
+            headerUnit = new SMFile(huDirTarget, hu.node);
+            headerUnit->addedForRoundOne = true;
+            huDirTarget->headerUnitsSet.emplace(headerUnit);
+
+            huDirTarget->headerUnitsMutex.unlock();
+
+            /*if (nodeDir->ignoreHeaderDeps)
+            {
+                headerUnit->ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
+            }*/
+
+            atomic_ref(headerUnit->indexInBuildCache)
+                .store(huDirTarget->newHeaderUnitsSize.fetch_add(1) + huDirTarget->oldHeaderUnits.size());
+
+            headerUnit->type = SM_FILE_TYPE::HEADER_UNIT;
+            headerUnit->logicalName = string(includeNames[i]);
+            headerUnit->buildCache.node = const_cast<Node *>(headerUnit->node);
+            headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
         }
         else
         {
-            huDirTarget->headerUnitsMutex.lock();
-            if (const auto it = huDirTarget->headerUnitsSet.find(hu.node); it == huDirTarget->headerUnitsSet.end())
-            {
-                headerUnit = new SMFile(huDirTarget, hu.node);
-                headerUnit->addedForRoundOne = true;
-                huDirTarget->headerUnitsSet.emplace(headerUnit);
-
-                huDirTarget->headerUnitsMutex.unlock();
-
-                /*if (nodeDir->ignoreHeaderDeps)
-                {
-                    headerUnit->ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
-                }*/
-
-                atomic_ref(headerUnit->indexInBuildCache)
-                    .store(huDirTarget->newHeaderUnitsSize.fetch_add(1) + huDirTarget->oldHeaderUnits.size());
-
-                headerUnit->type = SM_FILE_TYPE::HEADER_UNIT;
-                headerUnit->logicalName = string(includeNames[i]);
-                headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
-            }
-            else
-            {
-                headerUnit = *it;
-                huDirTarget->headerUnitsMutex.unlock();
-                alreadyAddedInHeaderUnitSet = true;
-            }
+            headerUnit = *it;
+            huDirTarget->headerUnitsMutex.unlock();
+            alreadyAddedInHeaderUnitSet = true;
         }
 
         if (alreadyAddedInHeaderUnitSet)
