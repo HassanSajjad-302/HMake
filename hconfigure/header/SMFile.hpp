@@ -84,7 +84,7 @@ enum class SM_FILE_TYPE : char
 struct SMFile : SourceNode // Scanned Module Rule
 {
     BuildCache::Cpp::ModuleFile::SmRules smRulesCache;
-    CCOrHash &scanningCommandWithToolCache = buildCache.compileCommandWithTool;
+    // buildCache.compileCommandWithToolCache is scanning command while this is the compile command.
     CCOrHash compileCommandWithToolCache;
     string logicalName;
     vector<BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep> modMap;
@@ -126,7 +126,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     void updateBTarget(Builder &builder, unsigned short round) override;
     string getOutputFileName() const;
     bool calledOnce = false;
-    void saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
+    void saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang,
                                      StaticVector<string_view, 1000> &includeNames);
     InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
     void initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder);

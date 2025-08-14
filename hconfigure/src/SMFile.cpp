@@ -304,7 +304,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
         objectFileOutputFileNode = Node::getNodeFromNormalizedString(
             target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".ifc", true, true);
 
-        if (scanningCommandWithToolCache.hash != target->compileCommandWithTool.getHash())
+        if (buildCache.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
         {
             isObjectFileOutdated = true;
             isObjectFileOutdatedCallCompleted = true;
@@ -339,7 +339,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
                     target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".m.o", true, true);
             }
 
-            if (scanningCommandWithToolCache.hash != target->compileCommandWithTool.getHash())
+            if (buildCache.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
             {
                 isObjectFileOutdated = true;
                 isSMRuleFileOutdated = true;
@@ -398,7 +398,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             realBTarget.exitStatus = postCompile.exitStatus;
             if (realBTarget.exitStatus == EXIT_SUCCESS)
             {
-                scanningCommandWithToolCache.hash = target->compileCommandWithTool.getHash();
+                buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
                 postCompile.parseHeaderDeps(*this);
                 (type == SM_FILE_TYPE::HEADER_UNIT ? target->headerUnitScanned : target->moduleFileScanned) = true;
                 smrulesFileOutputClang = std::move(postCompile.commandOutput);
@@ -414,7 +414,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round)
             if (isSMRuleFileOutdated)
             {
                 StaticVector<string_view, 1000> includeNames;
-                saveSMRulesJsonToSourceJson(smrulesFileOutputClang, includeNames);
+                saveSMRulesJsonToSMRulesCache(smrulesFileOutputClang, includeNames);
                 initializeHeaderUnits(builder, includeNames);
             }
             else
@@ -490,9 +490,10 @@ string SMFile::getOutputFileName() const
     return node->getFileName();
 }
 
-void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
-                                         StaticVector<string_view, 1000> &includeNames)
+void SMFile::saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang,
+                                           StaticVector<string_view, 1000> &includeNames)
 {
+    smRulesCache = BuildCache::Cpp::ModuleFile::SmRules{};
     // We get half-node since we trust the compiler to have generated if it is returning true
     const Node *smRuleFileNode =
         Node::getHalfNode(target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".smrules");
@@ -529,14 +530,16 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
     }
 
     // Pushing header-unit array and module-array
-    auto *modDeps = new vector<BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep>{};
-    auto *huDeps = new vector<BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep>{};
 
     for (auto it = rule.FindMember(svtogsr(JConsts::requires_)); it != rule.MemberEnd(); ++it)
     {
+        if (type == SM_FILE_TYPE::HEADER_UNIT)
+        {
+            smRulesCache.headerUnitArray.reserve(it->value.GetArray().Size());
+        }
         for (Value &requireValue : it->value.GetArray())
         {
-            Value &logicalName = requireValue.FindMember(Value(svtogsr(JConsts::logicalName)))->value;
+            Value &logicalNameSMRules = requireValue.FindMember(Value(svtogsr(JConsts::logicalName)))->value;
 
             if (auto sourcePathIt = requireValue.FindMember(Value(svtogsr(JConsts::sourcePath)));
                 sourcePathIt == requireValue.MemberEnd())
@@ -545,15 +548,15 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
                 // This source-path will be saved before saving and then will be checked in next invocations in
                 // resolveRequirePaths function.
 
-                BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep m;
-                m.logicalName = vtosv(logicalName);
-                modDeps->emplace_back(m);
+                auto &[fullPath, logicalName] = smRulesCache.moduleArray.emplace_back();
+                logicalName = vtosv(logicalNameSMRules);
             }
             else
             {
-                includeNames.emplace_back({logicalName.GetString(), logicalName.GetStringLength()});
+                includeNames.emplace_back({logicalNameSMRules.GetString(), logicalNameSMRules.GetStringLength()});
 
-                BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep hu;
+                BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu =
+                    smRulesCache.headerUnitArray.emplace_back();
 
                 // lower-cased before saving for further use
                 string_view str(sourcePathIt->value.GetString(), sourcePathIt->value.GetStringLength());
@@ -565,9 +568,6 @@ void SMFile::saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
             }
         }
     }
-
-    smRulesCache.moduleArray = std::move(*modDeps);
-    smRulesCache.headerUnitArray = std::move(*huDeps);
 }
 
 InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) const
@@ -983,9 +983,20 @@ BTargetType SMFile::getBTargetType() const
 void SMFile::updateBuildCache()
 {
     auto &[srcFile, smRules, compileCommandWithTool] = target->cppBuildCache.modFiles[indexInBuildCache];
-    srcFile = std::move(buildCache);
-    smRules = std::move(smRulesCache);
-    compileCommandWithTool.hash = compileCommandWithToolCache.hash;
+    if (Builder::round == 1)
+    {
+        // moduleArray is not yet moved as it is used in resolveRequiredPaths and is later updated in
+        // SMFile::updateBTarget round 0.
+        srcFile = std::move(buildCache);
+        smRules.headerUnitArray = std::move(smRulesCache.headerUnitArray);
+        smRules.exportName = smRulesCache.exportName;
+        smRules.isInterface = smRulesCache.isInterface;
+    }
+    else
+    {
+        smRules.moduleArray = std::move(smRulesCache.moduleArray);
+        compileCommandWithTool.hash = compileCommandWithToolCache.hash;
+    }
 }
 
 thread_local vector<SMFile *> allSMFileDependenciesRoundZeroGlobal;

@@ -160,7 +160,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void checkAndCopyBuildCache(vector<char> &buildBuffer);
     void writeCacheAtConfigTime(bool before);
     void readConfigCacheAtBuildTime();
-    void updateBuildCache(BuildCache::Cpp::ModuleFile &cache, bool isSource);
     string getTarjanNodeName() const override;
 
     CppSourceTarget(const string &name_, Configuration *configuration_);

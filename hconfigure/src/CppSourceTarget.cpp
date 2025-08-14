@@ -308,7 +308,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     }
     else if (round == 1)
     {
-        initializeCppBuildCache();
         if (headerUnitScanned || moduleFileScanned)
         {
             targetCacheDiskWriteManager.updateCacheOnRoundEndCppSourceTarget(this);
@@ -366,6 +365,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         {
             setSourceCompileCommandPrintFirstHalf();
             populateResolveRequirePathDependencies();
+            initializeCppBuildCache();
         }
     }
 }
@@ -585,10 +585,6 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     {
         HMAKE_HMAKE_INTERNAL_ERROR
     }
-}
-
-void CppSourceTarget::updateBuildCache(BuildCache::Cpp::ModuleFile &cache, bool isSource)
-{
 }
 
 string CppSourceTarget::getTarjanNodeName() const
