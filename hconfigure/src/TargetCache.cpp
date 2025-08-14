@@ -120,10 +120,11 @@ void BuildCache::Cpp::SourceFile::deserialize(const char *ptr, uint32_t &bytesRe
 {
     node = readHalfNode(ptr, bytesRead);
     compileCommandWithTool = readCCOrHash(ptr, bytesRead);
-    headerFiles.reserve(readUint32(ptr, bytesRead));
-    for (Node *&n2 : headerFiles)
+    const uint32_t headerSize = readUint32(ptr, bytesRead);
+    headerFiles.reserve(headerSize);
+    for (uint32_t i = 0; i < headerSize; ++i)
     {
-        n2 = readHalfNode(ptr, bytesRead);
+        headerFiles.emplace_back(readHalfNode(ptr, bytesRead));
     }
 }
 

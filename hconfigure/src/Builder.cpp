@@ -39,7 +39,7 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    if (const unsigned int launchThreads = settings.maximumBuildThreads; launchThreads)
+    if (const unsigned int launchThreads = 1; launchThreads)
     {
         numberOfLaunchedThreads = launchThreads;
 

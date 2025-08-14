@@ -246,7 +246,10 @@ add_dual_executables(Example1 Examples/Example1/hmake.cpp
         Example7 Examples/Example7/hmake.cpp
         Example8 Examples/Example8/hmake.cpp
         Example9 Examples/Example9/hmake.cpp
-        Example10 Examples/Example10/hmake.cpp)
+        Example10 Examples/Example10/hmake.cpp
+        Test1 Tests/Stage/Test1/hmake.cpp
+        Test2 Tests/Stage/Test2/hmake.cpp
+        Test3 Tests/Stage/Test3/hmake.cpp)
 
 # TODO
 # https://rapidjson.org/group___r_a_p_i_d_j_s_o_n___c_o_n_f_i_g.html

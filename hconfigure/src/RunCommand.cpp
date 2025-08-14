@@ -448,7 +448,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
                         lowerCasePStringOnWindows(const_cast<char *>(headerView.data()), headerView.size());
 
                         if (Node *headerNode = Node::getHalfNode(headerView);
-                            std::ranges::find(headerFiles, headerNode) != headerFiles.end())
+                            std::ranges::find(headerFiles, headerNode) == headerFiles.end())
                         {
                             headerFiles.emplace_back(headerNode);
                         }
