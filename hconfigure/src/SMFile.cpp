@@ -982,7 +982,16 @@ BTargetType SMFile::getBTargetType() const
 
 void SMFile::updateBuildCache()
 {
-    auto &[srcFile, smRules, compileCommandWithTool] = target->cppBuildCache.modFiles[indexInBuildCache];
+    BuildCache::Cpp::ModuleFile *modFile;
+    if (type == SM_FILE_TYPE::HEADER_UNIT)
+    {
+        modFile = &target->cppBuildCache.headerUnits[indexInBuildCache];
+    }
+    else
+    {
+        modFile = &target->cppBuildCache.modFiles[indexInBuildCache];
+    }
+    auto &[srcFile, smRules, compileCommandWithTool] = *modFile;
     if (Builder::round == 1)
     {
         // moduleArray is not yet moved as it is used in resolveRequiredPaths and is later updated in

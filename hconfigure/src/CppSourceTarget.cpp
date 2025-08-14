@@ -333,6 +333,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                                               compileCommand);
 
             cppBuildCache.deserialize(cacheIndex);
+            initializeCppBuildCache();
             if (!cppBuildCache.headerUnits.empty())
             {
                 oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
@@ -365,7 +366,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         {
             setSourceCompileCommandPrintFirstHalf();
             populateResolveRequirePathDependencies();
-            initializeCppBuildCache();
         }
     }
 }
@@ -377,14 +377,31 @@ void CppSourceTarget::writeBuildCache(vector<char> &buffer)
 
 void CppSourceTarget::checkAndCopyBuildCache(vector<char> &buildBuffer)
 {
-    // TODO
-    // need to be reviewed
     if (newHeaderUnitsSize)
     {
-        auto *headerUnitsCache = new vector<BuildCache::Cpp::ModuleFile>{};
-        headerUnitsCache->reserve(newHeaderUnitsSize + oldHeaderUnits.size());
-        headerUnitsCache->insert(headerUnitsCache->end(), cppBuildCache.headerUnits.begin(),
-                                 cppBuildCache.headerUnits.end());
+        cppBuildCache.headerUnits.resize(newHeaderUnitsSize + cppBuildCache.headerUnits.size());
+    }
+
+    if (headerUnitScanned)
+    {
+        for (SMFile *hu : headerUnitsSet)
+        {
+            if (hu->isSMRuleFileOutdated)
+            {
+                hu->updateBuildCache();
+            }
+        }
+    }
+
+    if (moduleFileScanned)
+    {
+        for (SMFile &modFile : modFileDeps)
+        {
+            if (modFile.isSMRuleFileOutdated)
+            {
+                modFile.updateBuildCache();
+            }
+        }
     }
 }
 

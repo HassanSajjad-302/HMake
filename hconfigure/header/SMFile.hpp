@@ -127,7 +127,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     string getOutputFileName() const;
     bool calledOnce = false;
     void saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang,
-                                     StaticVector<string_view, 1000> &includeNames);
+                                       StaticVector<string_view, 1000> &includeNames);
     InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
     void initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder);
     void initializeHeaderUnits(Builder &builder, const StaticVector<string_view, 1000> &includeNames);
