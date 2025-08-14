@@ -933,7 +933,7 @@ void CppSourceTarget::resolveRequirePaths()
                 BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep dep;
                 dep.logicalName = logicalName;
                 dep.fullPath = found->objectFileOutputFileNode;
-                smFile.smRulesCache.moduleArray[i].fullPath = found->objectFileOutputFileNode;
+                fullPath = found->objectFileOutputFileNode;
             }
             else
             {
