@@ -492,7 +492,6 @@ string SMFile::getOutputFileName() const
 void SMFile::saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang,
                                            StaticVector<string_view, 1000> &includeNames)
 {
-    smRulesCache = BuildCache::Cpp::ModuleFile::SmRules{};
     // We get half-node since we trust the compiler to have generated if it is returning true
     const Node *smRuleFileNode =
         Node::getHalfNode(target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".smrules");
@@ -510,6 +509,7 @@ void SMFile::saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang,
     }
 
     Value &rule = d.FindMember(svtogsr(JConsts::rules))->value[0];
+    smRulesCache = BuildCache::Cpp::ModuleFile::SmRules{};
 
     if (const auto it = rule.FindMember(svtogsr(JConsts::provides)); it == rule.MemberEnd())
     {

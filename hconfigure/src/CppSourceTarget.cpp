@@ -340,7 +340,8 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                 oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
                 for (uint64_t i = 0; i < cppBuildCache.headerUnits.size(); ++i)
                 {
-                    oldHeaderUnits.emplace_back(this, cppBuildCache.headerUnits[i].srcFile.node);
+                    oldHeaderUnits.emplace_back(this, cppBuildCache.headerUnits[i].srcFile.node,
+                                                string(cppBuildCache.headerUnits[i].smRules.exportName));
                     oldHeaderUnits[i].isAnOlderHeaderUnit = true;
                     oldHeaderUnits[i].indexInBuildCache = i;
                     oldHeaderUnits[i].buildCache = cppBuildCache.headerUnits[i].srcFile;
