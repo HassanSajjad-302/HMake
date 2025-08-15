@@ -178,7 +178,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     CppSourceTarget &initializePublicHuDirsFromReqIncls();
     void actuallyAddSourceFileConfigTime(Node *node);
     void actuallyAddModuleFileConfigTime(Node *node, bool isInterface);
-    void actuallyAddHeaderUnitConfigTime(const Node *node);
+    void actuallyAddHeaderUnitConfigTime(Node *node);
     uint64_t actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit);
 
     template <typename... U> CppSourceTarget &publicDeps(CppSourceTarget *dep, const U... deps);

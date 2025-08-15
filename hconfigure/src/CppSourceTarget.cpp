@@ -259,10 +259,10 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, const bool isI
             return;
         }
     }
-    modFileDeps.emplace_back(this, node).isInterface = true;
+    modFileDeps.emplace_back(this, node).isInterface = isInterface;
 }
 
-void CppSourceTarget::actuallyAddHeaderUnitConfigTime(const Node *node)
+void CppSourceTarget::actuallyAddHeaderUnitConfigTime(Node *node)
 {
     for (const SMFile &smFile : oldHeaderUnits)
     {
@@ -274,6 +274,7 @@ void CppSourceTarget::actuallyAddHeaderUnitConfigTime(const Node *node)
             return;
         }
     }
+    oldHeaderUnits.emplace_back(this, node);
 }
 
 uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit)
@@ -540,6 +541,12 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
             writeBool(*configBuffer, smFile.isInterface);
         }
 
+        writeUint32(*configBuffer, oldHeaderUnits.size());
+        for (const SMFile &smFile : oldHeaderUnits)
+        {
+            writeNode(*configBuffer, smFile.node);
+        }
+
         writeNode(*configBuffer, buildCacheFilesDirPathNode);
 
         fileTargetCaches[cacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
@@ -549,6 +556,7 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
         adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
         adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
 
+        /*
         for (const SMFile &hu : oldHeaderUnits)
         {
             bool found = false;
@@ -564,7 +572,7 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
                 ModuleFile &mod = cppBuildCache.headerUnits.emplace_back();
                 mod.srcFile.node = const_cast<Node *>(hu.node);
             }
-        }
+        }*/
     }
 }
 
@@ -597,6 +605,13 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
         addDependencyNoMutex<0>(smFile);
         resolveRequirePathBTarget.addDependencyNoMutex<1>(smFile);
         addDependencyNoMutex<1>(smFile);
+    }
+
+    const uint32_t huSize = readUint32(ptr, configRead);
+    for (uint32_t i = 0; i < huSize; ++i)
+    {
+        hasManuallySpecifiedHeaderUnits = true;
+        configuration->moduleFilesToTarget.emplace(readHalfNode(ptr, configRead), this);
     }
 
     buildCacheFilesDirPathNode = readHalfNode(ptr, configRead);

@@ -75,7 +75,7 @@ Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
     node = this;
     myId = atomic_ref(idCount).fetch_add(1);
     nodeIndices[myId] = this;
-    ++idCountCompleted;
+    ++atomic_ref(idCountCompleted);
     return;
     if (buildSpecificationCompleted)
     {
