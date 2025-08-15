@@ -67,6 +67,24 @@ void TargetCache::writeBuildCache(vector<char> &buffer)
     buffer.insert(buffer.end(), buildCache.begin(), buildCache.end());
 }
 
+void CCOrHash::serialize(vector<char> &buffer) const
+{
+#ifdef USE_COMMAND_HASH
+    writeUint64(buffer, hash);
+#else
+    writeStringView(buffer, hash);
+#endif
+}
+
+void CCOrHash::deserialize(const char *ptr, uint32_t &bytesRead)
+{
+#ifdef USE_COMMAND_HASH
+    hash = readUint64(ptr, bytesRead);
+#else
+    hash = readStringView(ptr, bytesRead);
+#endif
+}
+
 bool readBool(const char *ptr, uint32_t &bytesRead)
 {
     bool result;
@@ -78,6 +96,14 @@ bool readBool(const char *ptr, uint32_t &bytesRead)
 uint32_t readUint32(const char *ptr, uint32_t &bytesRead)
 {
     uint32_t result;
+    memcpy(&result, ptr + bytesRead, sizeof(result));
+    bytesRead += sizeof(result);
+    return result;
+}
+
+uint64_t readUint64(const char *ptr, uint32_t &bytesRead)
+{
+    uint64_t result;
     memcpy(&result, ptr + bytesRead, sizeof(result));
     bytesRead += sizeof(result);
     return result;
@@ -100,28 +126,17 @@ Node *readHalfNode(const char *ptr, uint32_t &bytesRead)
 #endif
 }
 
-CCOrHash readCCOrHash(const char *ptr, uint32_t &bytesRead)
-{
-    CCOrHash cmd;
-#ifdef USE_COMMAND_HASH
-    cmd.hash = readUint32(ptr, bytesRead);
-#else
-    cmd.hash = readStringView(ptr, bytesRead);
-#endif
-    return cmd;
-}
-
 void BuildCache::Cpp::SourceFile::serialize(vector<char> &buffer) const
 {
     writeNode(buffer, node);
-    writeCCOrHash(buffer, compileCommandWithTool);
+    compileCommandWithTool.serialize(buffer);
     writeNodeVector(buffer, headerFiles);
 }
 
 void BuildCache::Cpp::SourceFile::deserialize(const char *ptr, uint32_t &bytesRead)
 {
     node = readHalfNode(ptr, bytesRead);
-    compileCommandWithTool = readCCOrHash(ptr, bytesRead);
+    compileCommandWithTool.deserialize(ptr, bytesRead);
     const uint32_t headerSize = readUint32(ptr, bytesRead);
     headerFiles.reserve(headerSize);
     for (uint32_t i = 0; i < headerSize; ++i)
@@ -196,14 +211,14 @@ void ModuleFile::serialize(vector<char> &buffer) const
 {
     srcFile.serialize(buffer);
     smRules.serialize(buffer);
-    writeCCOrHash(buffer, compileCommandWithTool);
+    compileCommandWithTool.serialize(buffer);
 }
 
 void ModuleFile::deserialize(const char *ptr, uint32_t &bytesRead)
 {
     srcFile.deserialize(ptr, bytesRead);
     smRules.deserialize(ptr, bytesRead);
-    compileCommandWithTool = readCCOrHash(ptr, bytesRead);
+    compileCommandWithTool.deserialize(ptr, bytesRead);
 }
 
 void BuildCache::Cpp::serialize(vector<char> &buffer) const
@@ -270,6 +285,12 @@ void writeUint32(vector<char> &buffer, const uint32_t data)
     buffer.insert(buffer.end(), ptr, ptr + sizeof(data));
 }
 
+void writeUint64(vector<char> &buffer, const uint64_t data)
+{
+    const auto ptr = reinterpret_cast<const char *>(&data);
+    buffer.insert(buffer.end(), ptr, ptr + sizeof(data));
+}
+
 void writeStringView(vector<char> &buffer, const string_view &data)
 {
     writeUint32(buffer, data.size());
@@ -282,15 +303,6 @@ void writeNode(vector<char> &buffer, const Node *node)
     writeUint32(buffer, node->myId);
 #else
     writeStringView(buffer, node->filePath);
-#endif
-}
-
-void writeCCOrHash(vector<char> &buffer, const CCOrHash &hash)
-{
-#ifdef USE_COMMAND_HASH
-    writeUint32(buffer, hash.hash);
-#else
-    writeStringView(buffer, hash.hash);
 #endif
 }
 

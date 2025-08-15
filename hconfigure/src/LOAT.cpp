@@ -321,7 +321,7 @@ void LOAT::writeBuildCache(vector<char> &buffer)
         return;
     }
 
-    writeCCOrHash(buffer, linkBuildCache.commandWithoutArgumentsWithTools);
+    linkBuildCache.commandWithoutArgumentsWithTools.serialize(buffer);
     writeUint32(buffer, linkBuildCache.objectFiles.size());
     for (const Node *node : linkBuildCache.objectFiles)
     {
@@ -347,7 +347,7 @@ void LOAT::readCacheAtBuildTime()
     if (!buildCache.empty())
     {
         uint32_t bytesRead = 0;
-        linkBuildCache.commandWithoutArgumentsWithTools = readCCOrHash(buildCache.data(), bytesRead);
+        linkBuildCache.commandWithoutArgumentsWithTools.deserialize(buildCache.data(), bytesRead);
         const uint32_t objCacheSize = readUint32(buildCache.data(), bytesRead);
         linkBuildCache.objectFiles.reserve(objCacheSize);
         for (uint32_t i = 0; i < objCacheSize; ++i)

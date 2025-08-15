@@ -42,10 +42,13 @@ class TargetCache
 struct CCOrHash
 {
 #ifdef USE_COMMAND_HASH
-    uint32_t hash{};
+    uint64_t hash{};
 #else
     string_view hash;
 #endif
+
+    void serialize(vector<char> &buffer) const;
+    void deserialize(const char *ptr, uint32_t &bytesRead);
 };
 
 struct ConfigCache
@@ -153,15 +156,15 @@ using ModuleFile = BuildCache::Cpp::ModuleFile;
 
 bool readBool(const char *ptr, uint32_t &bytesRead);
 uint32_t readUint32(const char *ptr, uint32_t &bytesRead);
+uint64_t readUint64(const char *ptr, uint32_t &bytesRead);
 string_view readStringView(const char *ptr, uint32_t &bytesRead);
 Node *readHalfNode(const char *ptr, uint32_t &bytesRead);
-CCOrHash readCCOrHash(const char *ptr, uint32_t &bytesRead);
 
 void writeBool(vector<char> &buffer, const bool &value);
 void writeUint8(vector<char> &buffer, const uint8_t &data);
 void writeUint32(vector<char> &buffer, uint32_t data);
+void writeUint64(vector<char> &buffer, uint64_t data);
 void writeStringView(vector<char> &buffer, const string_view &data);
 void writeNode(vector<char> &buffer, const Node *node);
-void writeCCOrHash(vector<char> &buffer, const CCOrHash &hash);
 void writeNodeVector(vector<char> &buffer, const vector<Node *> &array);
 #endif // TARGETCACHE_HPP
