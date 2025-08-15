@@ -14,7 +14,7 @@ using phmap::flat_hash_map;
 
 struct FileTargetCache
 {
-    class TargetCache *targetCache;
+    class TargetCache *targetCache = nullptr;
     // string will have 4 byte size instead of 8 byte size.
     string_view name;
     // At config-time the conif-cache and build-cache are written once using the following variables.

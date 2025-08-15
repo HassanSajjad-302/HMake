@@ -267,7 +267,14 @@ void writeBuildBuffer(vector<char> &buffer)
         const uint32_t currentSize = buffer.size();
         // reserve space of 4bytes.
         writeUint32(buffer, 0);
-        fileCacheTarget.targetCache->writeBuildCache(buffer);
+        if (fileCacheTarget.targetCache)
+        {
+            fileCacheTarget.targetCache->writeBuildCache(buffer);
+        }
+        else
+        {
+            buffer.insert(buffer.end(), fileCacheTarget.buildCache.begin(), fileCacheTarget.buildCache.end());
+        }
         const uint32_t size = buffer.size() - (currentSize + 4);
         *static_cast<uint32_t *>(static_cast<void *>(&buffer[currentSize])) = size;
     }
