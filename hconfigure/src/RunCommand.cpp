@@ -417,6 +417,7 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
         lineEnd = output.find('\n', startPos);
 
         vector<Node *> &headerFiles = sourceNode.buildCache.headerFiles;
+        headerFiles.clear();
         while (true)
         {
 
@@ -498,6 +499,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const
 
         if (headerDeps.size() > 2)
         {
+            sourceNode.buildCache.headerFiles.clear();
             for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
             {
                 const size_t pos = iter->find_first_not_of(" ");
