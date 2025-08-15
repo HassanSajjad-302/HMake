@@ -157,7 +157,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void updateBTarget(Builder &builder, unsigned short round) override;
     void writeBuildCache(vector<char> &buffer) override;
-    void checkAndCopyBuildCache(vector<char> &buildBuffer);
+    void checkAndCopyBuildCache();
     void writeCacheAtConfigTime(bool before);
     void readConfigCacheAtBuildTime();
     string getTarjanNodeName() const override;

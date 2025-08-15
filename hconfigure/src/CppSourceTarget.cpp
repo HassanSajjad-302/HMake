@@ -378,7 +378,7 @@ void CppSourceTarget::writeBuildCache(vector<char> &buffer)
     cppBuildCache.serialize(buffer);
 }
 
-void CppSourceTarget::checkAndCopyBuildCache(vector<char> &buildBuffer)
+void CppSourceTarget::checkAndCopyBuildCache()
 {
     if (newHeaderUnitsSize)
     {
