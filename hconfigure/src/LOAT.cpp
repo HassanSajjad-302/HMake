@@ -117,19 +117,6 @@ void LOAT::setFileStatus()
         }
         else
         {
-            const string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
-            uint32_t bytesRead = 0;
-            linkBuildCache.commandWithoutArgumentsWithTools = readCCOrHash(buildCache.data(), bytesRead);
-            const uint32_t objCacheSize = readUint32(buildCache.data(), bytesRead);
-            linkBuildCache.objectFiles.reserve(objCacheSize);
-            for (uint32_t i = 0; i < objCacheSize; ++i)
-            {
-                linkBuildCache.objectFiles.emplace_back(readHalfNode(buildCache.data(), bytesRead));
-            }
-            if (bytesRead != buildCache.size())
-            {
-                HMAKE_HMAKE_INTERNAL_ERROR
-            }
             if (linkBuildCache.commandWithoutArgumentsWithTools.hash == commandWithoutTargetsWithTool.getHash())
             {
                 bool needsUpdate = false;
@@ -304,7 +291,7 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round)
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
-            readConfigCacheAtBuildTime();
+            readCacheAtBuildTime();
         }
         if (!evaluate(TargetType::LIBRARY_STATIC))
         {
@@ -348,9 +335,30 @@ void LOAT::writeCacheAtConfigureTime()
     fileTargetCaches[cacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
-void LOAT::readConfigCacheAtBuildTime()
+void LOAT::readCacheAtBuildTime()
 {
     buildCacheFilesDirPathNode = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
+    if (fileTargetCaches[cacheIndex].configCache.size() != configCacheBytesRead)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+    }
+
+    const string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
+    if (!buildCache.empty())
+    {
+        uint32_t bytesRead = 0;
+        linkBuildCache.commandWithoutArgumentsWithTools = readCCOrHash(buildCache.data(), bytesRead);
+        const uint32_t objCacheSize = readUint32(buildCache.data(), bytesRead);
+        linkBuildCache.objectFiles.reserve(objCacheSize);
+        for (uint32_t i = 0; i < objCacheSize; ++i)
+        {
+            linkBuildCache.objectFiles.emplace_back(readHalfNode(buildCache.data(), bytesRead));
+        }
+        if (bytesRead != buildCache.size())
+        {
+            HMAKE_HMAKE_INTERNAL_ERROR
+        }
+    }
 }
 
 string LOAT::getTarjanNodeName() const

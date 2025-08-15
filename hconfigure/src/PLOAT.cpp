@@ -87,7 +87,7 @@ void PLOAT::updateBTarget(Builder &builder, unsigned short round)
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
-            readConfigCacheAtBuildTime();
+            readCacheAtBuildTime();
         }
         else
         {
@@ -152,7 +152,7 @@ void PLOAT::writeTargetConfigCacheAtConfigureTime()
     fileTargetCaches[cacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
-void PLOAT::readConfigCacheAtBuildTime()
+void PLOAT::readCacheAtBuildTime()
 {
     const string_view configCache = fileTargetCaches[cacheIndex].configCache;
     uint32_t size = readUint32(configCache.data(), configCacheBytesRead);

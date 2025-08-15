@@ -55,7 +55,7 @@ class LOAT : public PLOAT
     void updateBuildCache(void *ptr) override;
     void writeBuildCache(vector<char> &buffer) override;
     void writeCacheAtConfigureTime();
-    void readConfigCacheAtBuildTime();
+    void readCacheAtBuildTime();
 
     string getTarjanNodeName() const override;
     RunCommand Archive();

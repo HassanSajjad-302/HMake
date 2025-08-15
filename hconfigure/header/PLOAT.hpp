@@ -74,7 +74,7 @@ public:
 
   private:
     void writeTargetConfigCacheAtConfigureTime();
-    void readConfigCacheAtBuildTime();
+    void readCacheAtBuildTime();
 
   public:
     node_hash_map<PLOAT *, PrebuiltDep> reqDeps;
