@@ -80,7 +80,7 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
 
 BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_, const bool headerOnly,
                                const bool hasBigHeader, const bool createTestsTarget, const bool createExamplesTarget)
-    : TargetCache(configuration_->name + "Boost_" + name), configuration(configuration_),
+    : TargetCache(*new string(configuration_->name + "Boost_" + name)), configuration(configuration_),
       mainTarget(getMainTarget(name, configuration_, headerOnly, hasBigHeader))
 {
 
@@ -208,6 +208,6 @@ void BoostCppTarget::copyConfigCache()
     {
         const auto ptr = reinterpret_cast<const char *>(&testsOrExamplesCount);
         configBuffer.insert(configBuffer.begin(), ptr, ptr + sizeof(testsOrExamplesCount));
-        fileTargetCaches[cacheIndex].configCache = string(configBuffer.data(), configBuffer.size());
+        fileTargetCaches[cacheIndex].configCache = string_view(configBuffer.data(), configBuffer.size());
     }
 }
