@@ -1,5 +1,5 @@
 #include "private-lib3.hpp"
-#include "public-lib3.hpp"
+import "public-lib3.hpp";
 
 unsigned short getValueLib3()
 {
