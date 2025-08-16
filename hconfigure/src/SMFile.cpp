@@ -1019,6 +1019,7 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
         }
     }
 
+    allSMFileDependenciesRoundZero.reserve(uniqueElements.size());
     for (SMFile *smFile : uniqueElements)
     {
         allSMFileDependenciesRoundZero.emplace_back(smFile);
