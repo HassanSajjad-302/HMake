@@ -43,23 +43,6 @@ bool InclNodePointerComparator::operator()(const InclNode &lhs, const InclNode &
     return lhs.node < rhs.node;
 }
 
-ResolveRequirePathBTarget::ResolveRequirePathBTarget(CppSourceTarget *target_) : target(target_)
-{
-}
-
-void ResolveRequirePathBTarget::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
-{
-    if (round == 1 && realBTargets[1].exitStatus == EXIT_SUCCESS)
-    {
-        target->resolveRequirePaths();
-    }
-}
-
-string ResolveRequirePathBTarget::getTarjanNodeName() const
-{
-    return "ResolveRequirePath " + target->name;
-}
-
 RequireNameTargetId::RequireNameTargetId(const uint64_t id_, string_view requireName_)
     : id(id_), requireName(requireName_)
 {
@@ -305,6 +288,10 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     }
     else if (round == 1)
     {
+       if (realBTargets[1].exitStatus == EXIT_SUCCESS)
+       {
+           resolveRequirePaths();
+       }
     }
     else if (round == 2)
     {
@@ -331,7 +318,13 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         cppBuildCache.deserialize(cacheIndex);
         initializeCppBuildCache();
         setSourceCompileCommandPrintFirstHalf();
-        populateResolveRequirePathDependencies();
+        for (CppSourceTarget *cppSourceTarget : reqDeps)
+        {
+            if (!cppSourceTarget->modFileDeps.empty())
+            {
+                addDependencyDelayed<1>(*cppSourceTarget);
+            }
+        }
         if (!cppBuildCache.headerUnits.empty())
         {
             oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
@@ -589,7 +582,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
         SMFile &smFile = modFileDeps.emplace_back(this, readHalfNode(ptr, configRead));
         smFile.isInterface = readBool(ptr, configRead);
         addDependencyNoMutex<0>(smFile);
-        resolveRequirePathBTarget.addDependencyNoMutex<1>(smFile);
+        addDependencyNoMutex<1>(smFile);
     }
 
     const uint32_t huSize = readUint32(ptr, configRead);
@@ -967,17 +960,6 @@ void CppSourceTarget::initializeCppBuildCache()
         modFileDeps[i].buildCache = cppBuildCache.modFiles[i].srcFile;
         modFileDeps[i].smRulesCache = cppBuildCache.modFiles[i].smRules;
         modFileDeps[i].compileCommandWithToolCache = cppBuildCache.modFiles[i].compileCommandWithTool;
-    }
-}
-
-void CppSourceTarget::populateResolveRequirePathDependencies()
-{
-    for (CppSourceTarget *cppSourceTarget : reqDeps)
-    {
-        if (!cppSourceTarget->modFileDeps.empty())
-        {
-            resolveRequirePathBTarget.addDependencyDelayed<1>(cppSourceTarget->resolveRequirePathBTarget);
-        }
     }
 }
 

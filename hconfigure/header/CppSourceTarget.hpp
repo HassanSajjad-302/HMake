@@ -40,14 +40,6 @@ struct InclNodePointerComparator
     bool operator()(const InclNode &lhs, const InclNode &rhs) const;
 };
 
-struct ResolveRequirePathBTarget final : BTarget
-{
-    CppSourceTarget *target;
-    explicit ResolveRequirePathBTarget(CppSourceTarget *target_);
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
-    string getTarjanNodeName() const override;
-};
-
 struct RequireNameTargetId
 {
     uint64_t id;
@@ -87,7 +79,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     friend struct ResolveRequirePathBTarget;
 
   public:
-    ResolveRequirePathBTarget resolveRequirePathBTarget{this};
     BuildCache::Cpp cppBuildCache;
 
     flat_hash_set<Define> reqCompileDefinitions;
@@ -143,7 +134,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     string getDependenciesPString() const;
     void resolveRequirePaths();
     void initializeCppBuildCache();
-    void populateResolveRequirePathDependencies();
     static string getInfrastructureFlags(const Compiler &compiler, bool showIncludes);
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
     string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
