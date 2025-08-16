@@ -88,7 +88,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
   public:
     ResolveRequirePathBTarget resolveRequirePathBTarget{this};
-    mutex headerUnitsMutex;
     BuildCache::Cpp cppBuildCache;
 
     flat_hash_set<Define> reqCompileDefinitions;
@@ -97,8 +96,8 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     // Written mutex locked in round 1 updateBTarget
     flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnitsSet;
 
-    vector<InclNodeTargetMap> useReqHuDirs;
-    vector<InclNodeTargetMap> reqHuDirs;
+    vector<HuTargetPlusDir> useReqHuDirs;
+    vector<HuTargetPlusDir> reqHuDirs;
 
     using BaseType = CSourceTarget;
 
@@ -135,10 +134,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     bool hasManuallySpecifiedHeaderUnits = false;
 
-    // Set to true if module smrule is read so that latest cache could be stored.
-    bool moduleFileScanned = false;
-    // set to true if a source or smrule of a header-unit is updated so that latest cache could be stored.
-    bool headerUnitScanned = false;
+    bool addedInCopyJson = false;
 
     void setCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();

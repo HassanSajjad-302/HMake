@@ -207,7 +207,7 @@ template <unsigned short round, typename... U> void BTarget::addDependency(BTarg
     {
         RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
         dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
-        ++atomic_ref(realBTargets[round].dependenciesSize);
+        ++realBTargets[round].dependenciesSize;
     }
 
     if constexpr (sizeof...(bTargets))

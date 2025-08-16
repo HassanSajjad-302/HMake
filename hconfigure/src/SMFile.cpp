@@ -402,7 +402,6 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
             {
                 buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
                 postCompile.parseHeaderDeps(*this);
-                (type == SM_FILE_TYPE::HEADER_UNIT ? target->headerUnitScanned : target->moduleFileScanned) = true;
                 smrulesFileOutputClang = std::move(postCompile.commandOutput);
             }
             else
@@ -411,6 +410,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
                 postCompile.executePrintRoutineRoundOne(*this);
             }
         }
+
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
             includeNames.reserve(4 * 1024);
@@ -439,12 +439,26 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
 
             if (isSMRuleFileOutdated)
             {
+                huDirPlusTargets.clear();
+                for (const auto &singleHuDep : smRulesCache.headerUnitArray)
+                {
+                    huDirPlusTargets.emplace_back(findHeaderUnitTarget(singleHuDep.node));
+                }
+                builder.executeMutex.lock();
                 initializeHeaderUnits(builder);
+                if (!target->addedInCopyJson)
+                {
+                    targetCacheDiskWriteManager.copyJsonBTargets.emplace_back(target);
+                    target->addedInCopyJson = true;
+                }
             }
             else
             {
+                builder.executeMutex.lock();
                 initializeNewHeaderUnitsSMRulesNotOutdated(builder);
             }
+            builder.addNewTopBeUpdatedTargets(this);
+            isComplete = true;
         }
     }
     else if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
@@ -640,10 +654,11 @@ void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
         CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
         SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
 
-        if (!addedForRoundOne && !atomic_ref(headerUnit.addedForRoundOne).exchange(true))
+        if (!headerUnit.addedForRoundOne)
         {
-            headerUnit.addNewBTargetInFinalBTargetsRound1(builder);
-            headerUnit.realBTargets[0].addInTarjanNodeBTarget(0);
+            headerUnit.addedForRoundOne = true;
+            builder.updateBTargets.emplace(&headerUnit);
+            builder.updateBTargetsSizeGoal += 1;
         }
 
         // Should be true if JConsts::lookupMethod == "include-angle";
@@ -656,29 +671,26 @@ void SMFile::initializeHeaderUnits(Builder &builder)
 {
     for (uint32_t i = 0; i < smRulesCache.headerUnitArray.size(); ++i)
     {
-        BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu = smRulesCache.headerUnitArray[i];
-        auto [nodeDir, huDirTarget] = findHeaderUnitTarget(hu.node);
+        auto &singleHuDep = smRulesCache.headerUnitArray[i];
+        auto [nodeDir, huDirTarget] = huDirPlusTargets[i];
 
         SMFile *headerUnit = nullptr;
-        bool doLoad = false;
-        bool alreadyAddedInHeaderUnitSet = false;
 
-        huDirTarget->headerUnitsMutex.lock();
-        if (const auto it = huDirTarget->headerUnitsSet.find(hu.node); it == huDirTarget->headerUnitsSet.end())
+        if (const auto it = huDirTarget->headerUnitsSet.find(singleHuDep.node); it == huDirTarget->headerUnitsSet.end())
         {
-            headerUnit = new SMFile(huDirTarget, hu.node);
+            headerUnit = new SMFile(huDirTarget, singleHuDep.node);
+            // not needed for new header-units since the doubt is only about older header-units that whether they have
+            // been added or not.
             headerUnit->addedForRoundOne = true;
             huDirTarget->headerUnitsSet.emplace(headerUnit);
-
-            huDirTarget->headerUnitsMutex.unlock();
 
             /*if (nodeDir->ignoreHeaderDeps)
             {
                 headerUnit->ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
             }*/
 
-            atomic_ref(headerUnit->indexInBuildCache)
-                .store(huDirTarget->newHeaderUnitsSize.fetch_add(1) + huDirTarget->oldHeaderUnits.size());
+            headerUnit->indexInBuildCache = huDirTarget->newHeaderUnitsSize + huDirTarget->oldHeaderUnits.size();
+            ++huDirTarget->newHeaderUnitsSize;
 
             headerUnit->type = SM_FILE_TYPE::HEADER_UNIT;
             headerUnit->logicalName = string(includeNames[i]);
@@ -688,55 +700,32 @@ void SMFile::initializeHeaderUnits(Builder &builder)
         else
         {
             headerUnit = *it;
-            huDirTarget->headerUnitsMutex.unlock();
-            alreadyAddedInHeaderUnitSet = true;
-        }
 
-        if (alreadyAddedInHeaderUnitSet)
-        {
-            if (headerUnit->isAnOlderHeaderUnit)
+            if (headerUnit->isAnOlderHeaderUnit && !headerUnit->addedForRoundOne)
             {
-                if (!addedForRoundOne && !atomic_ref(headerUnit->addedForRoundOne).exchange(true))
-                {
-                    headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
-                    headerUnit->realBTargets[0].addInTarjanNodeBTarget(0);
-                }
-            }
-            // Older header-units indexInBuildCache already set.
-            else
-            {
-                // We don't know whether the other thread has set the headerUnitIndex yet. But the while loop is not run
-                // here. So, in-case the other thread has just acquired headerUnitsMutex, it could set the
-                // headerUnitIndex so we don't loop much
-                doLoad = true;
+                headerUnit->addedForRoundOne = true;
+                headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
             }
         }
 
         // Should be true if JConsts::lookupMethod == "include-angle";
-        headerUnitsConsumptionData.emplace(headerUnit, hu.angle);
+        headerUnitsConsumptionData.emplace(headerUnit, singleHuDep.angle);
         addDependencyDelayed<0>(*headerUnit);
 
-        if (doLoad)
-        {
-            while (atomic_ref(headerUnit->indexInBuildCache).load() == UINT64_MAX)
-                ;
-        }
-
-        hu.targetIndex = huDirTarget->cacheIndex;
-        hu.myIndex = headerUnit->indexInBuildCache;
+        singleHuDep.targetIndex = huDirTarget->cacheIndex;
+        singleHuDep.myIndex = headerUnit->indexInBuildCache;
     }
 }
 
 void SMFile::addNewBTargetInFinalBTargetsRound1(Builder &builder)
 {
+    builder.updateBTargets.emplace(this);
+    if (!target->addedInCopyJson)
     {
-        std::lock_guard lk(builder.executeMutex);
-        builder.updateBTargets.emplace(this);
-        // This locks double mutex. Reasoning for performing it in single lock is difficult.
-        target->addDependency<1>(*this);
-        builder.updateBTargetsSizeGoal += 1;
+        targetCacheDiskWriteManager.copyJsonBTargets.emplace_back(target);
+        target->addedInCopyJson = true;
     }
-    builder.cond.notify_one();
+    builder.updateBTargetsSizeGoal += 1;
 }
 
 void SMFile::setSMFileType()

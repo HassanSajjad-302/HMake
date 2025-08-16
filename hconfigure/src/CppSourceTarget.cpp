@@ -186,16 +186,11 @@ void CppSourceTarget::populateTransitiveProperties()
         }
         reqCompilerFlags += cppSourceTarget->useReqCompilerFlags;
 
-        for (InclNodeTargetMap &inclNodeTargetMap : cppSourceTarget->useReqHuDirs)
+        for (HuTargetPlusDir &inclNodeTargetMap : cppSourceTarget->useReqHuDirs)
         {
             // Configure-time check
             actuallyAddInclude(reqHuDirs, this, inclNodeTargetMap.inclNode.node->filePath);
             reqHuDirs.emplace_back(inclNodeTargetMap);
-        }
-
-        if (!cppSourceTarget->useReqHuDirs.empty() || cppSourceTarget->hasManuallySpecifiedHeaderUnits)
-        {
-            cppSourceTarget->addDependencyDelayed<1>(*this);
         }
     }
 }
@@ -310,10 +305,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     }
     else if (round == 1)
     {
-        if (headerUnitScanned || moduleFileScanned)
-        {
-            targetCacheDiskWriteManager.updateCacheOnRoundEndCppSourceTarget(this);
-        }
     }
     else if (round == 2)
     {
@@ -381,25 +372,25 @@ void CppSourceTarget::checkAndCopyBuildCache()
         cppBuildCache.headerUnits.resize(newHeaderUnitsSize + cppBuildCache.headerUnits.size());
     }
 
-    if (headerUnitScanned)
+    for (SMFile *hu : headerUnitsSet)
     {
-        for (SMFile *hu : headerUnitsSet)
+        if (hu->isSMRuleFileOutdated)
         {
-            if (hu->isSMRuleFileOutdated)
+            hu->updateBuildCache();
+            if (hu->isAnOlderHeaderUnit)
             {
-                hu->updateBuildCache();
+                // TODO
+                // this remains. and
+                hu->realBTargets[0].addInTarjanNodeBTarget(0);
             }
         }
     }
 
-    if (moduleFileScanned)
+    for (SMFile &modFile : modFileDeps)
     {
-        for (SMFile &modFile : modFileDeps)
+        if (modFile.isSMRuleFileOutdated)
         {
-            if (modFile.isSMRuleFileOutdated)
-            {
-                modFile.updateBuildCache();
-            }
+            modFile.updateBuildCache();
         }
     }
 }
@@ -460,7 +451,7 @@ template <typename T, typename U> void adjustBuildCache(vector<T> &oldCache, con
 
 template <typename T> static const InclNode &getNode(const T &t)
 {
-    if constexpr (std::is_same_v<T, InclNodeTargetMap>)
+    if constexpr (std::is_same_v<T, HuTargetPlusDir>)
     {
         return t.inclNode;
     }
@@ -479,7 +470,7 @@ template <typename T> void writeIncDirsAtConfigTime(vector<char> &buffer, const 
         writeNode(buffer, inclNode.node);
         writeBool(buffer, inclNode.isStandard);
         writeBool(buffer, inclNode.ignoreHeaderDeps);
-        if constexpr (std::is_same_v<T, InclNodeTargetMap>)
+        if constexpr (std::is_same_v<T, HuTargetPlusDir>)
         {
             auto &headerUnitNode = static_cast<const HeaderUnitNode &>(inclNode);
 
@@ -499,7 +490,7 @@ void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &in
         Node *node = readHalfNode(ptr, bytesRead);
         bool isStandard = readBool(ptr, bytesRead);
         bool ignoreHeaderDeps = readBool(ptr, bytesRead);
-        if constexpr (std::is_same_v<T, InclNodeTargetMap>)
+        if constexpr (std::is_same_v<T, HuTargetPlusDir>)
         {
             const bool targetCacheIndex = readUint32(ptr, bytesRead);
             const bool headerUnitIndex = readUint32(ptr, bytesRead);
@@ -599,7 +590,6 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
         smFile.isInterface = readBool(ptr, configRead);
         addDependencyNoMutex<0>(smFile);
         resolveRequirePathBTarget.addDependencyNoMutex<1>(smFile);
-        addDependencyNoMutex<1>(smFile);
     }
 
     const uint32_t huSize = readUint32(ptr, configRead);

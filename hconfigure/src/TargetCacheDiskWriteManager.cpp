@@ -24,14 +24,8 @@ TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
-        copyJsonBTargets.resize(4096 * 4);
+        copyJsonBTargets.reserve(4096 * 4);
     }
-}
-
-void TargetCacheDiskWriteManager::updateCacheOnRoundEndCppSourceTarget(CppSourceTarget *target)
-{
-    const uint64_t i = cppSourceTargets.fetch_add(1);
-    copyJsonBTargets[i] = target;
 }
 
 void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
@@ -162,12 +156,11 @@ void TargetCacheDiskWriteManager::endOfRound()
     // round 1 hence only in BSMode::BUILD.
     writeNodesCacheIfNewNodesAdded();
 
-    if (const uint64_t s = cppSourceTargets.load())
+    if (!copyJsonBTargets.empty())
     {
-        for (uint64_t i = 0; i < s; ++i)
+        for (CppSourceTarget *t : copyJsonBTargets)
         {
-            copyJsonBTargets[i]->checkAndCopyBuildCache();
-            copyJsonBTargets[i] = nullptr;
+            t->checkAndCopyBuildCache();
         }
         writeBuildBuffer(buildBufferLocal);
         writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),

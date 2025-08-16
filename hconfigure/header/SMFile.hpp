@@ -118,6 +118,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
 
     inline static thread_local vector<string_view> includeNames;
+    inline static thread_local vector<InclNodePointerTargetMap> huDirPlusTargets;
     SMFile(CppSourceTarget *target_, Node *node_);
     SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
     void checkHeaderFilesIfSMRulesJsonSet();

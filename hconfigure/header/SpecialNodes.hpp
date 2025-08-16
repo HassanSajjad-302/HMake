@@ -41,11 +41,11 @@ class HeaderUnitNode : public InclNode
     static bool emplaceInList(list<HeaderUnitNode> &includes, HeaderUnitNode &libDirNode);
 };
 
-struct InclNodeTargetMap
+struct HuTargetPlusDir
 {
     HeaderUnitNode inclNode;
     class CppSourceTarget *cppSourceTarget;
-    InclNodeTargetMap(HeaderUnitNode inclNode_, CppSourceTarget *cppSourceTarget_);
+    HuTargetPlusDir(HeaderUnitNode inclNode_, CppSourceTarget *cppSourceTarget_);
 };
 
 struct InclNodePointerTargetMap
@@ -57,9 +57,9 @@ struct InclNodePointerTargetMap
 
 void actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool isStandard = false,
                         bool ignoreHeaderDeps = false);
-void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *target, const string &include,
+void actuallyAddInclude(vector<HuTargetPlusDir> &inclNodes, CppSourceTarget *target, const string &include,
                         bool isStandard = false, bool ignoreHeaderDeps = false);
-void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *target, const string &include,
+void actuallyAddInclude(vector<HuTargetPlusDir> &inclNodes, CppSourceTarget *target, const string &include,
                         uint64_t targetCacheIndex, uint64_t headerUnitIndex, bool isStandard = false,
                         bool ignoreHeaderDeps = false);
 

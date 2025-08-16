@@ -16,7 +16,7 @@ import "TargetCache.hpp";
 
 template <typename T> const Node *getNodeForEquality(const T &t)
 {
-    if constexpr (std::is_same_v<T, struct InclNodeTargetMap>)
+    if constexpr (std::is_same_v<T, struct HuTargetPlusDir>)
     {
         return t.inclNode.node;
     }

@@ -56,12 +56,8 @@ class TargetCacheDiskWriteManager
     uint64_t nodesSizeBefore = 0;
     uint64_t nodesSizeStart = 0;
     bool exitAfterThis = false;
-    // TODO
-    // Make this global
-    atomic<uint64_t> cppSourceTargets = 0;
 
     TargetCacheDiskWriteManager();
-    void updateCacheOnRoundEndCppSourceTarget(CppSourceTarget *target);
     void writeNodesCacheIfNewNodesAdded();
     ~TargetCacheDiskWriteManager();
     void initialize();
