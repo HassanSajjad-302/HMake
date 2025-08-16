@@ -9,6 +9,7 @@ import "CppSourceTarget.hpp";
 import "JConsts.hpp";
 import "RunCommand.hpp";
 import "Settings.hpp";
+import "StaticVector.hpp";
 import "TargetCacheDiskWriteManager.hpp";
 import "Utilities.hpp";
 import <filesystem>;
@@ -24,6 +25,7 @@ import <utility>;
 #include "JConsts.hpp"
 #include "RunCommand.hpp"
 #include "Settings.hpp"
+#include "StaticVector.hpp"
 #include "TargetCacheDiskWriteManager.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
@@ -411,15 +413,11 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
         }
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
+            includeNames.reserve(4 * 1024);
+            includeNames.clear();
             if (isSMRuleFileOutdated)
             {
-                StaticVector<string_view, 1000> includeNames;
-                saveSMRulesJsonToSMRulesCache(smrulesFileOutputClang, includeNames);
-                initializeHeaderUnits(builder, includeNames);
-            }
-            else
-            {
-                initializeNewHeaderUnitsSMRulesNotOutdated(builder);
+                saveSMRulesJsonToSMRulesCache(smrulesFileOutputClang);
             }
             if (type != SM_FILE_TYPE::HEADER_UNIT)
             {
@@ -438,6 +436,15 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
 
             assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
             target->addDependencyDelayed<0>(*this);
+
+            if (isSMRuleFileOutdated)
+            {
+                initializeHeaderUnits(builder);
+            }
+            else
+            {
+                initializeNewHeaderUnitsSMRulesNotOutdated(builder);
+            }
         }
     }
     else if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
@@ -489,8 +496,7 @@ string SMFile::getOutputFileName() const
     return node->getFileName();
 }
 
-void SMFile::saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang,
-                                           StaticVector<string_view, 1000> &includeNames)
+void SMFile::saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang)
 {
     // We get half-node since we trust the compiler to have generated if it is returning true
     const Node *smRuleFileNode =
@@ -552,7 +558,7 @@ void SMFile::saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang,
             }
             else
             {
-                includeNames.emplace_back({logicalNameSMRules.GetString(), logicalNameSMRules.GetStringLength()});
+                includeNames.emplace_back(logicalNameSMRules.GetString(), logicalNameSMRules.GetStringLength());
 
                 BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu =
                     smRulesCache.headerUnitArray.emplace_back();
@@ -646,7 +652,7 @@ void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
     }
 }
 
-void SMFile::initializeHeaderUnits(Builder &builder, const StaticVector<string_view, 1000> &includeNames)
+void SMFile::initializeHeaderUnits(Builder &builder)
 {
     for (uint32_t i = 0; i < smRulesCache.headerUnitArray.size(); ++i)
     {

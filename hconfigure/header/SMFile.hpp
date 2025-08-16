@@ -3,7 +3,6 @@
 
 #ifdef USE_HEADER_UNITS
 import "SpecialNodes.hpp";
-import "StaticVector.hpp";
 import "ObjectFile.hpp";
 import <filesystem>;
 import <list>;
@@ -13,7 +12,6 @@ import <atomic>;
 #else
 #include "ObjectFile.hpp"
 #include "SpecialNodes.hpp"
-#include "StaticVector.hpp"
 #include "btree.h"
 #include "nlohmann/json.hpp"
 #include <atomic>
@@ -118,6 +116,8 @@ struct SMFile : SourceNode // Scanned Module Rule
     // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
     // ignoreHeaderDeps is true
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
+
+    inline static thread_local vector<string_view> includeNames;
     SMFile(CppSourceTarget *target_, Node *node_);
     SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
     void checkHeaderFilesIfSMRulesJsonSet();
@@ -125,11 +125,10 @@ struct SMFile : SourceNode // Scanned Module Rule
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     string getOutputFileName() const;
     bool calledOnce = false;
-    void saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang,
-                                       StaticVector<string_view, 1000> &includeNames);
+    void saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang);
     InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
     void initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder);
-    void initializeHeaderUnits(Builder &builder, const StaticVector<string_view, 1000> &includeNames);
+    void initializeHeaderUnits(Builder &builder);
     void addNewBTargetInFinalBTargetsRound1(Builder &builder);
     void setSMFileType();
     // In case of header-units, this check the ifc file.
