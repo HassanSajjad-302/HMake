@@ -187,10 +187,8 @@ class BTarget // BTarget
 
     virtual string getTarjanNodeName() const;
     virtual BTargetType getBTargetType() const;
-    virtual void updateBTarget(class Builder &builder, unsigned short round);
+    virtual void updateBTarget(Builder &builder, unsigned short round);
     virtual void endOfRound(Builder &builder, unsigned short round);
-
-    template <unsigned short round> void addEndOfRoundBTarget();
 
     template <unsigned short round, typename... U> void addDependency(BTarget &dependency, U &...bTargets);
     template <unsigned short round, typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
@@ -202,23 +200,15 @@ bool operator<(const BTarget &lhs, const BTarget &rhs);
 
 inline std::mutex dependencyMutex[3];
 
-template <unsigned short round> void BTarget::addEndOfRoundBTarget()
-{
-    /*const uint64_t i = roundEndTargetsCount[round].fetch_add(1);
-    roundEndTargets[round][i] = this;*/
-}
-
+/// should only be called with executeMutex locked
 template <unsigned short round, typename... U> void BTarget::addDependency(BTarget &dependency, U &...bTargets)
 {
-    {
-        lock_guard lk{dependencyMutex[round]};
         if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
         {
             RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
             dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
             ++atomic_ref(realBTargets[round].dependenciesSize);
         }
-    }
 
     if constexpr (sizeof...(bTargets))
     {

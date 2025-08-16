@@ -991,7 +991,7 @@ void CppSourceTarget::populateResolveRequirePathDependencies()
     {
         if (!cppSourceTarget->modFileDeps.empty())
         {
-            resolveRequirePathBTarget.addDependency<1>(cppSourceTarget->resolveRequirePathBTarget);
+            resolveRequirePathBTarget.addDependencyDelayed<1>(cppSourceTarget->resolveRequirePathBTarget);
         }
     }
 }
