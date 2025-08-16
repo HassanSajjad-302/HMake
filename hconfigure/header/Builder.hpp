@@ -136,6 +136,7 @@ class Builder
   public:
     explicit Builder();
     void execute();
+    void addNewTopBeUpdatedTargets(BTarget *bTarget);
     void incrementNumberOfSleepingThreads();
     void decrementNumberOfSleepingThreads();
 };

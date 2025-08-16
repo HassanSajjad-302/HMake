@@ -225,25 +225,50 @@ void Builder::execute()
         {
             bTarget->setSelectiveBuild();
         }
-        bTarget->updateBTarget(*this, round);
-        DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
-        executeMutex.lock();
-        if (realBTarget->exitStatus != EXIT_SUCCESS)
-        {
-            errorHappenedInRoundMode = true;
-        }
-
-        // bTargetDepType is only considered in round 0.
-        if (!realBTarget->isUpdated)
+        bool isComplete = false;
+        bTarget->updateBTarget(*this, round, isComplete);
+        if (isComplete)
         {
             continue;
         }
-        if (round)
-        {
-            for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
-            {
-                RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
+        executeMutex.lock();
+        addNewTopBeUpdatedTargets(bTarget);
+    }
+}
 
+void Builder::addNewTopBeUpdatedTargets(BTarget *bTarget)
+{
+    const RealBTarget *realBTarget = &bTarget->realBTargets[round];
+    DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
+    if (realBTarget->exitStatus != EXIT_SUCCESS)
+    {
+        errorHappenedInRoundMode = true;
+    }
+
+    if (round)
+    {
+        for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
+        {
+            RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
+
+            if (realBTarget->exitStatus != EXIT_SUCCESS)
+            {
+                dependentRealBTarget.exitStatus = EXIT_FAILURE;
+            }
+            --dependentRealBTarget.dependenciesSize;
+            if (!dependentRealBTarget.dependenciesSize)
+            {
+                updateBTargets.emplace(dependent);
+            }
+        }
+    }
+    else
+    {
+        for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
+        {
+            RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
+            if (bTargetDepType == BTargetDepType::FULL)
+            {
                 if (realBTarget->exitStatus != EXIT_SUCCESS)
                 {
                     dependentRealBTarget.exitStatus = EXIT_FAILURE;
@@ -255,29 +280,10 @@ void Builder::execute()
                 }
             }
         }
-        else
-        {
-            for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
-            {
-                RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
-                if (bTargetDepType == BTargetDepType::FULL)
-                {
-                    if (realBTarget->exitStatus != EXIT_SUCCESS)
-                    {
-                        dependentRealBTarget.exitStatus = EXIT_FAILURE;
-                    }
-                    --dependentRealBTarget.dependenciesSize;
-                    if (!dependentRealBTarget.dependenciesSize)
-                    {
-                        updateBTargets.emplace(dependent);
-                    }
-                }
-            }
-        }
-
-        DEBUG_EXECUTE(FORMAT("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round, __LINE__,
-                             updateBTargets.size(), updateBTargetsSizeGoal, getThreadId()));
     }
+
+    DEBUG_EXECUTE(FORMAT("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round, __LINE__,
+                         updateBTargets.size(), updateBTargetsSizeGoal, getThreadId()));
 }
 
 void Builder::incrementNumberOfSleepingThreads()

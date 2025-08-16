@@ -74,7 +74,7 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, Targ
 
 #endif
 
-void PLOAT::updateBTarget(Builder &builder, unsigned short round)
+void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     if (round == 1)
     {

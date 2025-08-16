@@ -341,7 +341,7 @@ BTargetType BTarget::getBTargetType() const
     return BTargetType::DEFAULT;
 }
 
-void BTarget::updateBTarget(Builder &, unsigned short)
+void BTarget::updateBTarget(Builder &, unsigned short, bool &isComplete)
 {
 }
 

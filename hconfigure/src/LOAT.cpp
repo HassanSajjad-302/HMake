@@ -223,9 +223,9 @@ void LOAT::setFileStatus()
     }
 }
 
-void LOAT::updateBTarget(Builder &builder, const unsigned short round)
+void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
-    PLOAT::updateBTarget(builder, round);
+    PLOAT::updateBTarget(builder, round, isComplete);
     RealBTarget &realBTarget = realBTargets[round];
     if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
     {

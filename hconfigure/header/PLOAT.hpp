@@ -54,7 +54,7 @@ class PLOAT : public BTarget, public TargetCache
     string outputName;
 #endif
 
-public:
+  public:
     string useReqLinkerFlags;
     Configuration &config;
     Node *outputFileNode = nullptr;
@@ -70,7 +70,7 @@ public:
           bool buildExplicit, bool makeDirectory);
 
     template <typename T> bool evaluate(T property) const;
-    void updateBTarget(Builder &builder, unsigned short round) override;
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
 
   private:
     void writeTargetConfigCacheAtConfigureTime();

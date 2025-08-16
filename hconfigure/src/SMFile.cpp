@@ -68,7 +68,7 @@ string SourceNode::getTarjanNodeName() const
     return node->filePath;
 }
 
-void SourceNode::updateBTarget(Builder &builder, const unsigned short round)
+void SourceNode::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     if (!round)
     {
@@ -293,7 +293,7 @@ void SMFile::setLogicalNameAndAddToRequirePath()
     }
 }
 
-void SMFile::updateBTarget(Builder &builder, const unsigned short round)
+void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     RealBTarget &realBTarget = realBTargets[round];
     if (round == 2 && type == SM_FILE_TYPE::HEADER_UNIT)

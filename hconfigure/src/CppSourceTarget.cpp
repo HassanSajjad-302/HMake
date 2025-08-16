@@ -47,7 +47,7 @@ ResolveRequirePathBTarget::ResolveRequirePathBTarget(CppSourceTarget *target_) :
 {
 }
 
-void ResolveRequirePathBTarget::updateBTarget(Builder &builder, const unsigned short round)
+void ResolveRequirePathBTarget::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     if (round == 1 && realBTargets[1].exitStatus == EXIT_SUCCESS)
     {
@@ -298,7 +298,7 @@ uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const str
     return index;*/
 }
 
-void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round)
+void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     if (!round)
     {
@@ -327,49 +327,44 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         reqIncSizeBeforePopulate = reqIncls.size();
         populateTransitiveProperties();
 
-        if constexpr (bsMode == BSMode::BUILD)
-        {
-            // getCompileCommand will be later on called concurrently therefore need to set this before.
-            setCompileCommand();
-            compileCommandWithTool.setCommand(configuration->compilerFeatures.compiler.bTPath.string() + " " +
-                                              compileCommand);
-
-            cppBuildCache.deserialize(cacheIndex);
-            initializeCppBuildCache();
-            if (!cppBuildCache.headerUnits.empty())
-            {
-                oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
-                for (uint64_t i = 0; i < cppBuildCache.headerUnits.size(); ++i)
-                {
-                    oldHeaderUnits.emplace_back(this, cppBuildCache.headerUnits[i].srcFile.node,
-                                                string(cppBuildCache.headerUnits[i].smRules.exportName));
-                    oldHeaderUnits[i].isAnOlderHeaderUnit = true;
-                    oldHeaderUnits[i].indexInBuildCache = i;
-                    oldHeaderUnits[i].buildCache = cppBuildCache.headerUnits[i].srcFile;
-                    oldHeaderUnits[i].smRulesCache = cppBuildCache.headerUnits[i].smRules;
-                    oldHeaderUnits[i].compileCommandWithToolCache = cppBuildCache.headerUnits[i].compileCommandWithTool;
-                    oldHeaderUnits[i].type = SM_FILE_TYPE::HEADER_UNIT;
-                    headerUnitsSet.emplace(&oldHeaderUnits[i]);
-                }
-
-                lock_guard l(builder.executeMutex);
-                for (SMFile *headerUnit : headerUnitsSet)
-                {
-                    builder.updateBTargets.emplace(headerUnit);
-                }
-                builder.updateBTargetsSizeGoal += oldHeaderUnits.size();
-                builder.cond.notify_one();
-            }
-        }
-
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            writeCacheAtConfigTime(false);
+            return;
         }
-        else
+
+        // getCompileCommand will be later on called concurrently therefore need to set this before.
+        setCompileCommand();
+        compileCommandWithTool.setCommand(configuration->compilerFeatures.compiler.bTPath.string() + " " +
+                                          compileCommand);
+
+        cppBuildCache.deserialize(cacheIndex);
+        initializeCppBuildCache();
+        setSourceCompileCommandPrintFirstHalf();
+        populateResolveRequirePathDependencies();
+        if (!cppBuildCache.headerUnits.empty())
         {
-            setSourceCompileCommandPrintFirstHalf();
-            populateResolveRequirePathDependencies();
+            oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
+            for (uint64_t i = 0; i < cppBuildCache.headerUnits.size(); ++i)
+            {
+                oldHeaderUnits.emplace_back(this, cppBuildCache.headerUnits[i].srcFile.node,
+                                            string(cppBuildCache.headerUnits[i].smRules.exportName));
+                oldHeaderUnits[i].isAnOlderHeaderUnit = true;
+                oldHeaderUnits[i].indexInBuildCache = i;
+                oldHeaderUnits[i].buildCache = cppBuildCache.headerUnits[i].srcFile;
+                oldHeaderUnits[i].smRulesCache = cppBuildCache.headerUnits[i].smRules;
+                oldHeaderUnits[i].compileCommandWithToolCache = cppBuildCache.headerUnits[i].compileCommandWithTool;
+                oldHeaderUnits[i].type = SM_FILE_TYPE::HEADER_UNIT;
+                headerUnitsSet.emplace(&oldHeaderUnits[i]);
+            }
+
+            builder.executeMutex.lock();
+            for (SMFile *headerUnit : headerUnitsSet)
+            {
+                builder.updateBTargets.emplace(headerUnit);
+            }
+            builder.updateBTargetsSizeGoal += oldHeaderUnits.size();
+            builder.addNewTopBeUpdatedTargets(this);
+            isComplete = true;
         }
     }
 }

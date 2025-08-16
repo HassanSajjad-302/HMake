@@ -51,7 +51,7 @@ class LOAT : public PLOAT
     BTargetType getBTargetType() const override;
 
     void setFileStatus();
-    void updateBTarget(Builder &builder, unsigned short round) override;
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     void updateBuildCache(void *ptr) override;
     void writeBuildCache(vector<char> &buffer) override;
     void writeCacheAtConfigureTime();

@@ -53,7 +53,7 @@ class SourceNode : public ObjectFile
   public:
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     string getTarjanNodeName() const override;
-    void updateBTarget(Builder &builder, unsigned short round) override;
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     bool checkHeaderFiles(const Node *compareNode) const;
     void setSourceNodeFileStatus();
     virtual void updateBuildCache();
@@ -122,7 +122,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
     void checkHeaderFilesIfSMRulesJsonSet();
     void setLogicalNameAndAddToRequirePath();
-    void updateBTarget(Builder &builder, unsigned short round) override;
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     string getOutputFileName() const;
     bool calledOnce = false;
     void saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang,

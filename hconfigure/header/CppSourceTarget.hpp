@@ -44,7 +44,7 @@ struct ResolveRequirePathBTarget final : BTarget
 {
     CppSourceTarget *target;
     explicit ResolveRequirePathBTarget(CppSourceTarget *target_);
-    void updateBTarget(Builder &builder, unsigned short round) override;
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     string getTarjanNodeName() const override;
 };
 
@@ -148,14 +148,14 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void resolveRequirePaths();
     void initializeCppBuildCache();
     void populateResolveRequirePathDependencies();
-    static string getInfrastructureFlags(const Compiler &compiler, bool showIncludes) ;
+    static string getInfrastructureFlags(const Compiler &compiler, bool showIncludes);
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
     string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
     PostCompile CompileSMFile(const SMFile &smFile);
     PostCompile updateSourceNodeBTarget(const SourceNode &sourceNode);
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
-    void updateBTarget(Builder &builder, unsigned short round) override;
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     void writeBuildCache(vector<char> &buffer) override;
     void checkAndCopyBuildCache();
     void writeCacheAtConfigTime(bool before);
