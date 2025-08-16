@@ -997,53 +997,31 @@ void SMFile::updateBuildCache()
     }
 }
 
-thread_local vector<SMFile *> allSMFileDependenciesRoundZeroGlobal;
 // TODO
 // Propose the idea of big smfile. This combined with markArchivePoint could result in much increased in performance.
 void SMFile::setFileStatusAndPopulateAllDependencies()
 {
-    allSMFileDependenciesRoundZeroGlobal.clear();
-    allSMFileDependenciesRoundZeroGlobal.reserve(1024 * 16);
-
+    flat_hash_set<SMFile *> uniqueElements;
     for (auto &[dependency, ignore] : realBTargets[0].dependencies)
     {
         if (dependency->getBTargetType() == BTargetType::SMFILE)
         {
             if (auto *smFile = static_cast<SMFile *>(dependency))
             {
-                allSMFileDependenciesRoundZeroGlobal.emplace_back(smFile);
-                for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
+                if (uniqueElements.emplace(smFile).second)
                 {
-                    allSMFileDependenciesRoundZeroGlobal.emplace_back(smFileDep);
+                    for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
+                    {
+                        uniqueElements.emplace(smFileDep);
+                    }
                 }
             }
         }
     }
 
-    if (allSMFileDependenciesRoundZeroGlobal.size() < 64)
+    for (SMFile *smFile : uniqueElements)
     {
-
-        std::sort(allSMFileDependenciesRoundZeroGlobal.begin(), allSMFileDependenciesRoundZeroGlobal.end());
-
-        const auto uniqueEndIt =
-            std::unique(allSMFileDependenciesRoundZeroGlobal.begin(), allSMFileDependenciesRoundZeroGlobal.end());
-
-        for (auto it = allSMFileDependenciesRoundZeroGlobal.begin(); it != uniqueEndIt; ++it)
-        {
-            allSMFileDependenciesRoundZero.emplace_back(*it);
-        }
-    }
-    else
-    {
-        flat_hash_set<SMFile *> uniqueElements;
-        for (SMFile *smFile : allSMFileDependenciesRoundZeroGlobal)
-        {
-            const auto &[it, ok] = uniqueElements.emplace(smFile);
-            if (ok)
-            {
-                allSMFileDependenciesRoundZero.emplace_back(const_cast<SMFile *>(*it));
-            }
-        }
+        allSMFileDependenciesRoundZero.emplace_back(smFile);
     }
 
     if (!fileStatus)

@@ -396,6 +396,8 @@ void LOAT::setLinkOrArchiveCommands()
     const Linker &linker = config.linkerFeatures.linker;
     const Archiver &archiver = config.linkerFeatures.archiver;
 
+    linkOrArchiveCommandWithTargets.reserve(1024);
+
     if (linkTargetType == TargetType::LIBRARY_STATIC)
     {
         linkOrArchiveCommandWithTargets = archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
