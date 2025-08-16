@@ -80,7 +80,7 @@ void initializeCache(BSMode bsMode_);
 inline const string dashCpp = "-cpp";
 inline const string dashLink = "-link";
 
-inline bool buildSpecificationCompleted = false;
+inline bool singleThreadRunning = false;
 
 typedef void (*PrintMessage)(const string &message);
 typedef void (*PrintMessageColor)(const string &message, uint32_t color);

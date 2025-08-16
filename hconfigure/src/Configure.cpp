@@ -111,7 +111,7 @@ int main2(const int argc, char **argv)
     constructGlobals();
     initializeCache(bsMode);
     (*buildSpecificationFuncPtr)();
-    buildSpecificationCompleted = true;
+    singleThreadRunning = true;
     const bool errorHappened = configureOrBuild();
     destructGlobals();
     fflush(stdout);

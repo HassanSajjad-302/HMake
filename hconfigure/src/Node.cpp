@@ -77,7 +77,7 @@ Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
     nodeIndices[myId] = this;
     ++atomic_ref(idCountCompleted);
     return;
-    if (buildSpecificationCompleted)
+    if (singleThreadRunning)
     {
         myId = atomic_ref(idCount).fetch_add(1);
     }
@@ -89,7 +89,7 @@ Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
 
     nodeIndices[myId] = this;
 
-    if (buildSpecificationCompleted)
+    if (singleThreadRunning)
     {
         ++atomic_ref(idCountCompleted);
     }
@@ -186,12 +186,8 @@ Node *Node::getNodeFromNormalizedString(string p, const bool isFile, const bool 
     using Map = decltype(nodeAllFiles);
 
     if (nodeAllFiles.lazy_emplace_l(
-        string_view(p), [&](const Map::value_type &node_) {
-            node = const_cast<Node *>(&node_);
-        },
-        [&](const Map::constructor &constructor) {
-            constructor(node, p);
-        }))
+            string_view(p), [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const Map::constructor &constructor) { constructor(node, p); }))
     {
     }
 
@@ -206,12 +202,8 @@ Node *Node::getNodeFromNormalizedString(const string_view p, const bool isFile, 
     using Map = decltype(nodeAllFiles);
 
     if (nodeAllFiles.lazy_emplace_l(
-        p, [&](const Map::value_type &node_) {
-            node = const_cast<Node *>(&node_);
-        },
-        [&](const Map::constructor &constructor) {
-            constructor(node, string(p));
-        }))
+            p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const Map::constructor &constructor) { constructor(node, string(p)); }))
     {
     }
 
@@ -226,12 +218,8 @@ Node *Node::getNodeFromNormalizedStringNoSystemCheckCalled(string_view p)
     using Map = decltype(nodeAllFiles);
 
     if (nodeAllFiles.lazy_emplace_l(
-        p, [&](const Map::value_type &node_) {
-            node = const_cast<Node *>(&node_);
-        },
-        [&](const Map::constructor &constructor) {
-            constructor(node, string(p));
-        }))
+            p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const Map::constructor &constructor) { constructor(node, string(p)); }))
     {
     }
 
@@ -267,12 +255,8 @@ Node *Node::getHalfNode(const string_view p)
     using Map = decltype(nodeAllFiles);
 
     if (nodeAllFiles.lazy_emplace_l(
-        p, [&](const Map::value_type &node_) {
-            node = const_cast<Node *>(&node_);
-        },
-        [&](const Map::constructor &constructor) {
-            constructor(node, string(p));
-        }))
+            p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const Map::constructor &constructor) { constructor(node, string(p)); }))
     {
     }
 

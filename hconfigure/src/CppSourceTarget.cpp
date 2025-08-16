@@ -288,10 +288,10 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     }
     else if (round == 1)
     {
-       if (realBTargets[1].exitStatus == EXIT_SUCCESS)
-       {
-           resolveRequirePaths();
-       }
+        if (realBTargets[1].exitStatus == EXIT_SUCCESS)
+        {
+            resolveRequirePaths();
+        }
     }
     else if (round == 2)
     {
@@ -372,8 +372,6 @@ void CppSourceTarget::checkAndCopyBuildCache()
             hu->updateBuildCache();
             if (hu->isAnOlderHeaderUnit)
             {
-                // TODO
-                // this remains. and
                 hu->realBTargets[0].addInTarjanNodeBTarget(0);
             }
         }

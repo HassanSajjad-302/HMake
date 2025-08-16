@@ -145,7 +145,7 @@ void RealBTarget::checkForCycle()
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarget(bTarget_)
 {
     uint32_t i;
-    if (buildSpecificationCompleted)
+    if (singleThreadRunning)
     {
         i = BTarget::tarjanNodesCount[round_].fetch_add(1);
     }
@@ -162,7 +162,7 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
     if (add)
     {
         uint32_t i;
-        if (buildSpecificationCompleted)
+        if (singleThreadRunning)
         {
             i = BTarget::tarjanNodesCount[round_].fetch_add(1);
         }
@@ -178,7 +178,7 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
 void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
 {
     uint32_t i;
-    if (buildSpecificationCompleted)
+    if (singleThreadRunning)
     {
         i = BTarget::tarjanNodesCount[round_].fetch_add(1);
     }
@@ -198,7 +198,7 @@ static string lowerCase(string str)
 
 BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}
 {
-    if (buildSpecificationCompleted)
+    if (singleThreadRunning)
     {
         id = atomic_ref(total).fetch_add(1);
     }
@@ -213,7 +213,7 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
     : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}, name(lowerCase(std::move(name_))),
       buildExplicit(buildExplicit_)
 {
-    if (buildSpecificationCompleted)
+    if (singleThreadRunning)
     {
         id = atomic_ref(total).fetch_add(1);
     }
@@ -238,7 +238,7 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
 BTarget::BTarget(const bool add0, const bool add1, const bool add2)
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)}
 {
-    if (buildSpecificationCompleted)
+    if (singleThreadRunning)
     {
         id = atomic_ref(total).fetch_add(1);
     }
@@ -254,7 +254,7 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)},
       name(lowerCase(std::move(name_))), buildExplicit(buildExplicit_)
 {
-    if (buildSpecificationCompleted)
+    if (singleThreadRunning)
     {
         id = atomic_ref(total).fetch_add(1);
     }

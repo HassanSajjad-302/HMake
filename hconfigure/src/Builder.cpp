@@ -116,6 +116,7 @@ void Builder::execute()
                                      numberOfSleepingThreads.load(), numberOfLaunchedThreads, getThreadId()));
                 if (numberOfSleepingThreads == numberOfLaunchedThreads - 1)
                 {
+                    singleThreadRunning = true;
                     DEBUG_EXECUTE(FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads",
                                          getThreadId()));
 
@@ -183,6 +184,7 @@ void Builder::execute()
                         returnAfterWakeup = true;
                     }
 
+                    singleThreadRunning = false;
                     executeMutex.unlock();
                     cond.notify_one();
                     DEBUG_EXECUTE(FORMAT("{} Locking after notifying one after round decrement {} {}\n", round,
