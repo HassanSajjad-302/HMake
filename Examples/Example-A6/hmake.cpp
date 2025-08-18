@@ -3,10 +3,10 @@
 struct OurTarget : public BTarget
 {
     unsigned short low, high;
-    explicit OurTarget(unsigned short low_, unsigned short high_) : low(low_), high(high_)
+    explicit OurTarget(unsigned short low_, unsigned short high_) : low(low_), high(high_), BTarget(true, false, false)
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round) override
+    void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {
@@ -24,7 +24,7 @@ OurTarget *a, *b, *c;
 
 struct OurTarget2 : public BTarget
 {
-    void updateBTarget(Builder &builder, unsigned short round) override
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {
@@ -35,8 +35,8 @@ struct OurTarget2 : public BTarget
             b->addDependency<0>(*c);
 
             {
-                std::lock_guard<std::mutex> lk(builder.executeMutex);
-                builder.updateBTargetsIterator = builder.updateBTargets.emplace(builder.updateBTargetsIterator, c);
+                std::lock_guard lk(builder.executeMutex);
+                builder.updateBTargets.emplace(c);
                 builder.updateBTargetsSizeGoal += 3;
             }
             builder.cond.notify_one();

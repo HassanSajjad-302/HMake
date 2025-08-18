@@ -40,19 +40,11 @@ struct InclNodePointerComparator
     bool operator()(const InclNode &lhs, const InclNode &rhs) const;
 };
 
-struct ResolveRequirePathBTarget final : BTarget
-{
-    CppSourceTarget *target;
-    explicit ResolveRequirePathBTarget(CppSourceTarget *target_);
-    void updateBTarget(Builder &builder, unsigned short round) override;
-    string getTarjanNodeName() const override;
-};
-
 struct RequireNameTargetId
 {
     uint64_t id;
     string requireName;
-    RequireNameTargetId(uint64_t id_, string requirePath_);
+    RequireNameTargetId(uint64_t id_, string_view requirePath_);
     bool operator==(const RequireNameTargetId &other) const;
 };
 
@@ -87,8 +79,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     friend struct ResolveRequirePathBTarget;
 
   public:
-    ResolveRequirePathBTarget resolveRequirePathBTarget{this};
-    mutex headerUnitsMutex;
+    BuildCache::Cpp cppBuildCache;
 
     flat_hash_set<Define> reqCompileDefinitions;
     flat_hash_set<Define> useReqCompileDefinitions;
@@ -96,8 +87,8 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     // Written mutex locked in round 1 updateBTarget
     flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnitsSet;
 
-    vector<InclNodeTargetMap> useReqHuDirs;
-    vector<InclNodeTargetMap> reqHuDirs;
+    vector<HuTargetPlusDir> useReqHuDirs;
+    vector<HuTargetPlusDir> reqHuDirs;
 
     using BaseType = CSourceTarget;
 
@@ -118,6 +109,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     vector<SMFile> modFileDeps;
 
     vector<SMFile> oldHeaderUnits;
+    BuildCache::Cpp::ModuleFile headerUnitsCache;
 
     vector<InclNode> reqIncls;
     vector<InclNode> useReqIncls;
@@ -127,15 +119,13 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     Node *buildCacheFilesDirPathNode = nullptr;
     // reqIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
+    unsigned short cacheUpdateCount = 0;
 
     atomic<uint64_t> newHeaderUnitsSize = 0;
 
     bool hasManuallySpecifiedHeaderUnits = false;
 
-    // Set to true if module smrule is read so that latest cache could be stored.
-    bool moduleFileScanned = false;
-    // set to true if a source or smrule of a header-unit is updated so that latest cache could be stored.
-    bool headerUnitScanned = false;
+    bool addedInCopyJson = false;
 
     void setCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
@@ -143,19 +133,18 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     string getDependenciesPString() const;
     void resolveRequirePaths();
-    void populateSourceNodes();
-    void parseModuleSourceFiles(Builder &builder);
-    void populateResolveRequirePathDependencies();
-    static string getInfrastructureFlags(const Compiler &compiler, bool showIncludes) ;
+    void initializeCppBuildCache();
+    static string getInfrastructureFlags(const Compiler &compiler, bool showIncludes);
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
     string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
     PostCompile CompileSMFile(const SMFile &smFile);
     PostCompile updateSourceNodeBTarget(const SourceNode &sourceNode);
 
     PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
-    void updateBTarget(Builder &builder, unsigned short round) override;
-    void copyJson() override;
-    void writeTargetConfigCacheAtConfigureTime(bool before);
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
+    void writeBuildCache(vector<char> &buffer) override;
+    void checkAndCopyBuildCache();
+    void writeCacheAtConfigTime(bool before);
     void readConfigCacheAtBuildTime();
     string getTarjanNodeName() const override;
 
@@ -168,14 +157,14 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void initializeCppSourceTarget(const string &name_, string buildCacheFilesDirPath);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const override;
+    void updateBuildCache(void *ptr) override;
     void populateTransitiveProperties();
-    void adjustHeaderUnitsValueArrayPointers();
 
     CppSourceTarget &initializeUseReqInclsFromReqIncls();
     CppSourceTarget &initializePublicHuDirsFromReqIncls();
-    void actuallyAddSourceFileConfigTime(const Node *node);
-    void actuallyAddModuleFileConfigTime(const Node *node, bool isInterface);
-    void actuallyAddHeaderUnitConfigTime(const Node *node);
+    void actuallyAddSourceFileConfigTime(Node *node);
+    void actuallyAddModuleFileConfigTime(Node *node, bool isInterface);
+    void actuallyAddHeaderUnitConfigTime(Node *node);
     uint64_t actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit);
 
     template <typename... U> CppSourceTarget &publicDeps(CppSourceTarget *dep, const U... deps);
@@ -483,8 +472,8 @@ CppSourceTarget &CppSourceTarget::publicHUDirsBigHu(const string &include, const
         {
             uint64_t headerUnitsIndex =
                 actuallyAddBigHuConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true), logicalName);
-            actuallyAddInclude(reqHuDirs, this, include, targetCacheIndex, headerUnitsIndex);
-            actuallyAddInclude(useReqHuDirs, this, include, targetCacheIndex, headerUnitsIndex);
+            actuallyAddInclude(reqHuDirs, this, include, cacheIndex, headerUnitsIndex);
+            actuallyAddInclude(useReqHuDirs, this, include, cacheIndex, headerUnitsIndex);
         }
     }
 
@@ -508,7 +497,7 @@ CppSourceTarget &CppSourceTarget::privateHUDirsBigHu(const string &include, cons
         {
             uint64_t headerUnitsIndex =
                 actuallyAddBigHuConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true), logicalName);
-            actuallyAddInclude(reqHuDirs, this, include, targetCacheIndex, headerUnitsIndex);
+            actuallyAddInclude(reqHuDirs, this, include, cacheIndex, headerUnitsIndex);
         }
     }
 
@@ -606,7 +595,6 @@ template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const str
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        using namespace Indices::ConfigCache;
         actuallyAddHeaderUnitConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true));
     }
 

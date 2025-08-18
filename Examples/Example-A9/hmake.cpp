@@ -8,7 +8,7 @@ struct OurTarget : BTarget
         : BTarget(std::move(name), buildExplicit, makeDirectory, true, false, true), message{std::move(str)}
     {
     }
-    void updateBTarget(Builder &builder, const unsigned short round) override
+    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
     {
         if (round == 0 && selectiveBuild)
         {

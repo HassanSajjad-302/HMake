@@ -114,6 +114,8 @@ class BoostCppTarget : TargetCache
     vector<ExampleOrTest> examplesOrTests;
     vector<DSC<CppSourceTarget> *> dscTestDepsPrivate;
     vector<CppSourceTarget *> cppTestDepsPrivate;
+    vector<char> configBuffer;
+    uint32_t testsOrExamplesCount = 0;
 
     BoostCppTarget(const string &name, Configuration *configuration_, bool headerOnly = true, bool hasBigHeader = true,
                    bool createTestsTarget = false, bool createExamplesTarget = false);
@@ -383,13 +385,12 @@ void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &targ
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
-    const string pushName =
-        target.getInnerBuildDirExcludingFileName<EOT>() + slashc + getNameBeforeLastPeriod(fileName);
-    const string name = configurationNamePlusTargetName + pushName;
+    const string *pushName =
+        new string(target.getInnerBuildDirExcludingFileName<EOT>() + slashc + getNameBeforeLastPeriod(fileName));
+    const string name = configurationNamePlusTargetName + *pushName;
 
-    target.buildOrConfigCacheCopy.PushBack(static_cast<uint8_t>(EOT), target.cacheAlloc);
-    target.buildOrConfigCacheCopy.PushBack(
-        Value(kStringType).SetString(pushName.c_str(), pushName.size(), target.cacheAlloc), target.cacheAlloc);
+    writeUint8(target.configBuffer, static_cast<uint8_t>(EOT));
+    writeStringView(target.configBuffer, *pushName);
 
     target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
 }
@@ -418,13 +419,12 @@ void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &
 
     const string buildCacheFilesDirPath =
         configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
-    const string pushName =
-        target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc + getNameBeforeLastPeriod(fileName);
-    const string name = configurationNamePlusTargetName + pushName;
+    const string *pushName = new string(target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc +
+                                        getNameBeforeLastPeriod(fileName));
+    const string name = configurationNamePlusTargetName + *pushName;
 
-    target.buildOrConfigCacheCopy.PushBack(static_cast<uint8_t>(EOT), target.cacheAlloc);
-    target.buildOrConfigCacheCopy.PushBack(
-        Value(kStringType).SetString(pushName.c_str(), pushName.size(), target.cacheAlloc), target.cacheAlloc);
+    writeUint8(target.configBuffer, static_cast<uint8_t>(EOT));
+    writeStringView(target.configBuffer, *pushName);
 
     target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
 }

@@ -11,6 +11,7 @@ import <mutex>;
 #include <mutex>
 #include <utility>
 #endif
+#include "TargetCache.hpp"
 
 using std::filesystem::directory_entry, std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard,
     std::mutex, std::atomic_ref;
@@ -72,9 +73,30 @@ std::size_t NodeHash::operator()(const string_view &str) const
 Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
 {
     node = this;
-    myId = idCount.fetch_add(1);
+    myId = atomic_ref(idCount).fetch_add(1);
     nodeIndices[myId] = this;
-    ++idCountCompleted;
+    ++atomic_ref(idCountCompleted);
+    return;
+    if (singleThreadRunning)
+    {
+        myId = atomic_ref(idCount).fetch_add(1);
+    }
+    else
+    {
+        myId = idCount;
+        ++idCount;
+    }
+
+    nodeIndices[myId] = this;
+
+    if (singleThreadRunning)
+    {
+        ++atomic_ref(idCountCompleted);
+    }
+    else
+    {
+        ++idCountCompleted;
+    }
 }
 
 // This function is called single-threaded. While the above is called multithreaded in lambdas passed to nodeAllFiles
@@ -89,15 +111,6 @@ Node::Node(string filePath_) : filePath(std::move(filePath_))
 string Node::getFileName() const
 {
     return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end()};
-}
-
-Value Node::getValue() const
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    return Value(myId);
-#else
-    return Value(svtogsr(filePath));
-#endif
 }
 
 // TODO
@@ -127,7 +140,7 @@ path Node::getFinalNodePathFromPath(path filePath)
 
 void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
 {
-    if (atomic_ref(systemCheckCompleted).load())
+    if (systemCheckCompleted || atomic_ref(systemCheckCompleted).load())
     {
         return;
     }
@@ -149,6 +162,11 @@ void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
 
 bool Node::trySystemCheck(const bool isFile, const bool mayNotExist)
 {
+    if (systemCheckCompleted)
+    {
+        return true;
+    }
+
     // If systemCheck was not called previously or isn't being called, call it.
     if (!atomic_ref(systemCheckCalled).exchange(true))
     {
@@ -157,11 +175,7 @@ bool Node::trySystemCheck(const bool isFile, const bool mayNotExist)
         return true;
     }
 
-    if (atomic_ref(systemCheckCompleted).load())
-    {
-        return true;
-    }
-
+    // performSystemCheck is being called by some other thread.
     return false;
 }
 
@@ -234,7 +248,7 @@ Node *Node::addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFileP
     return const_cast<Node *>(nodeAllFiles.emplace(std::move(normalizedFilePath)).first.operator->());
 }
 
-Node *Node::getHalfNodeFromNormalizedString(const string_view p)
+Node *Node::getHalfNode(const string_view p)
 {
     Node *node = nullptr;
 
@@ -261,33 +275,9 @@ Node *Node::getNodeFromValue(const Value &value, bool isFile, bool mayNotExist)
     return node;
 }
 
-Node *Node::getHalfNodeFromValue(const Value &value)
+Node *Node::getHalfNode(const uint32_t index)
 {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[value.GetUint64()];
-#else
-    Node *node =
-        getNodeFromNormalizedStringNoSystemCheckCalled(string_view(value.GetString(), value.GetStringLength()));
-#endif
-    return node;
-}
-
-Node *Node::tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, bool isFile, bool mayNotExist)
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[value.GetUint64()];
-    systemCheckSucceeded = node->trySystemCheck(isFile, mayNotExist);
-#else
-    Node *node =
-        Node::getNodeFromNormalizedString(string_view(value.GetString(), value.GetStringLength()), isFile, mayNotExist);
-    systemCheckSucceeded = true;
-#endif
-    return node;
-}
-
-Node *Node::getLastNodeAdded()
-{
-    return nodeIndices[idCountCompleted - 1];
+    return nodeIndices[index];
 }
 
 rapidjson::Type Node::getType()

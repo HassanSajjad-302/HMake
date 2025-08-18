@@ -306,7 +306,7 @@ OurTarget *a, *b, *c;
 
 struct OurTarget2 : public BTarget
 {
-    void updateBTarget(Builder &builder, unsigned short round) override
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {
@@ -374,7 +374,7 @@ BTarget b, c;
 
 struct OurTarget : public BTarget
 {
-    void updateBTarget(Builder &builder, unsigned short round) override
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {
@@ -421,7 +421,7 @@ BTarget *a;
 
 struct OurTarget : public BTarget
 {
-    void updateBTarget(Builder &builder, unsigned short round) override
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {

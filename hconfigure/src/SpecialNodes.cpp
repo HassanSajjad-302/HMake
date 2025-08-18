@@ -45,12 +45,13 @@ bool operator<(const InclNode &lhs, const InclNode &rhs)
            std::tie(rhs.node, rhs.isStandard, rhs.ignoreHeaderDeps);
 }
 
-HeaderUnitNode::HeaderUnitNode(Node *node_, const uint64_t targetCacheIndex_, const uint64_t headerUnitIndex_,
-                               const bool isStandard_, const bool ignoreHeaderDeps_)
+HeaderUnitNode::HeaderUnitNode(Node *node_, const bool isStandard_, const bool ignoreHeaderDeps_,
+                               const uint32_t targetCacheIndex_, const uint32_t headerUnitIndex_)
     : InclNode(node_, isStandard_, ignoreHeaderDeps_), targetCacheIndex(targetCacheIndex_),
       headerUnitIndex(headerUnitIndex_)
 {
 }
+
 bool HeaderUnitNode::emplaceInList(list<HeaderUnitNode> &includes, HeaderUnitNode &libDirNode)
 {
     for (const HeaderUnitNode &include : includes)
@@ -64,7 +65,7 @@ bool HeaderUnitNode::emplaceInList(list<HeaderUnitNode> &includes, HeaderUnitNod
     return true;
 }
 
-InclNodeTargetMap::InclNodeTargetMap(HeaderUnitNode inclNode_, CppSourceTarget *cppSourceTarget_)
+HuTargetPlusDir::HuTargetPlusDir(HeaderUnitNode inclNode_, CppSourceTarget *cppSourceTarget_)
     : inclNode(inclNode_), cppSourceTarget(cppSourceTarget_)
 {
 }
@@ -96,14 +97,14 @@ void actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool
     }
 }
 
-void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *target, const string &include,
+void actuallyAddInclude(vector<HuTargetPlusDir> &inclNodes, CppSourceTarget *target, const string &include,
                         bool isStandard, bool ignoreHeaderDeps)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         Node *node = Node::getNodeFromNonNormalizedPath(include, false);
         bool found = false;
-        for (const InclNodeTargetMap &inclNode : inclNodes)
+        for (const HuTargetPlusDir &inclNode : inclNodes)
         {
             if (inclNode.inclNode.node->myId == node->myId)
             {
@@ -119,14 +120,14 @@ void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *t
     }
 }
 
-void actuallyAddInclude(vector<InclNodeTargetMap> &inclNodes, CppSourceTarget *target, const string &include,
+void actuallyAddInclude(vector<HuTargetPlusDir> &inclNodes, CppSourceTarget *target, const string &include,
                         uint64_t targetCacheIndex, uint64_t headerUnitIndex, bool isStandard, bool ignoreHeaderDeps)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         Node *node = Node::getNodeFromNonNormalizedPath(include, false);
         bool found = false;
-        for (const InclNodeTargetMap &inclNode : inclNodes)
+        for (const HuTargetPlusDir &inclNode : inclNodes)
         {
             if (inclNode.inclNode.node->myId == node->myId)
             {

@@ -58,6 +58,8 @@ class PLOAT : public BTarget, public TargetCache
     string useReqLinkerFlags;
     Configuration &config;
     Node *outputFileNode = nullptr;
+    vector<char> configCacheBuffer;
+    uint32_t configCacheBytesRead = 0;
 
     string getOutputName() const;
     string getActualOutputName() const;
@@ -68,11 +70,11 @@ class PLOAT : public BTarget, public TargetCache
           bool buildExplicit, bool makeDirectory);
 
     template <typename T> bool evaluate(T property) const;
-    void updateBTarget(Builder &builder, unsigned short round) override;
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
 
   private:
     void writeTargetConfigCacheAtConfigureTime();
-    void readConfigCacheAtBuildTime();
+    void readCacheAtBuildTime();
 
   public:
     node_hash_map<PLOAT *, PrebuiltDep> reqDeps;

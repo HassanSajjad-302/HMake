@@ -12,6 +12,7 @@ import "SMFile.hpp";
 #include "SMFile.hpp"
 #include <utility>
 #endif
+#include "JConsts.hpp"
 
 string PLOAT::getOutputName() const
 {
@@ -42,30 +43,30 @@ string_view PLOAT::getOutputDirectoryV() const
 
 #ifdef BUILD_MODE
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_)
-    : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_), linkTargetType{linkTargetType_}
+    : BTarget(outputName_, false, false), TargetCache(name), config(config_), linkTargetType{linkTargetType_}
 {
-    outputFileNode = Node::getHalfNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
+    outputFileNode = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
 }
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_,
              bool buildExplicit, bool makeDirectory)
-    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), linkTargetType(linkTargetType_)
+    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name), config(config_), linkTargetType(linkTargetType_)
 
 {
-    outputFileNode = Node::getHalfNodeFromValue(getConfigCache()[Indices::ConfigCache::LinkConfig::outputFileNode]);
+    outputFileNode = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
 }
 
 #else
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_)
-    : BTarget(outputName_, false, false), TargetCache(outputName_), config(config_),
+    : BTarget(outputName_, false, false), TargetCache(name), config(config_),
       outputName{getLastNameAfterSlash(outputName_)}, linkTargetType{linkTargetType_}, outputDirectory(std::move(dir))
 {
 }
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_,
              bool buildExplicit, bool makeDirectory)
-    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name_), config(config_), outputName(outputName_),
+    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name), config(config_), outputName(outputName_),
       linkTargetType(linkTargetType_), outputDirectory(std::move(dir))
 
 {
@@ -73,7 +74,7 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, string dir, Targ
 
 #endif
 
-void PLOAT::updateBTarget(Builder &builder, unsigned short round)
+void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     if (round == 1)
     {
@@ -84,10 +85,9 @@ void PLOAT::updateBTarget(Builder &builder, unsigned short round)
     }
     else if (round == 2)
     {
-
         if constexpr (bsMode == BSMode::BUILD)
         {
-            readConfigCacheAtBuildTime();
+            readCacheAtBuildTime();
         }
         else
         {
@@ -135,46 +135,42 @@ void PLOAT::updateBTarget(Builder &builder, unsigned short round)
 
 void PLOAT::writeTargetConfigCacheAtConfigureTime()
 {
-    namespace LinkConfig = Indices::ConfigCache::LinkConfig;
+    writeNode(configCacheBuffer, outputFileNode);
 
-    buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    Value &libDirsConfigCache = buildOrConfigCacheCopy[LinkConfig::reqLibraryDirsArray];
-    libDirsConfigCache.Reserve(reqLibraryDirs.size(), cacheAlloc);
-
+    writeUint32(configCacheBuffer, reqLibraryDirs.size());
     for (const LibDirNode &libDirNode : reqLibraryDirs)
     {
-        libDirsConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
+        writeNode(configCacheBuffer, libDirNode.node);
     }
 
-    buildOrConfigCacheCopy.PushBack(kArrayType, cacheAlloc);
-    Value &useLibDirsConfigCache = buildOrConfigCacheCopy[LinkConfig::useReqLibraryDirsArray];
-    useLibDirsConfigCache.Reserve(useReqLibraryDirs.size(), cacheAlloc);
-
+    writeUint32(configCacheBuffer, useReqLibraryDirs.size());
     for (const LibDirNode &libDirNode : useReqLibraryDirs)
     {
-        useLibDirsConfigCache.PushBack(libDirNode.node->getValue(), cacheAlloc);
+        writeNode(configCacheBuffer, libDirNode.node);
     }
 
-    buildOrConfigCacheCopy.PushBack(outputFileNode->getValue(), cacheAlloc);
-    copyBackConfigCacheMutexLocked();
+    fileTargetCaches[cacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
-void PLOAT::readConfigCacheAtBuildTime()
+void PLOAT::readCacheAtBuildTime()
 {
-    namespace LinkConfig = Indices::ConfigCache::LinkConfig;
-
-    Value &reqLibDirsConfigCache = getConfigCache()[LinkConfig::reqLibraryDirsArray];
-    reqLibraryDirs.reserve(reqLibDirsConfigCache.Size());
-    for (const Value &value : reqLibDirsConfigCache.GetArray())
+    const string_view configCache = fileTargetCaches[cacheIndex].configCache;
+    uint32_t size = readUint32(configCache.data(), configCacheBytesRead);
+    reqLibraryDirs.reserve(size);
+    for (uint32_t i = 0; i < size; ++i)
     {
-        reqLibraryDirs.emplace_back(Node::getNodeFromValue(value, false), true);
+        Node *node = readHalfNode(configCache.data(), configCacheBytesRead);
+        node->ensureSystemCheckCalled(false);
+        reqLibraryDirs.emplace_back(node, true);
     }
 
-    Value &useReqLibDirsConfigCache = getConfigCache()[LinkConfig::useReqLibraryDirsArray];
-    useReqLibraryDirs.reserve(useReqLibDirsConfigCache.Size());
-    for (const Value &value : useReqLibDirsConfigCache.GetArray())
+    size = readUint32(configCache.data(), configCacheBytesRead);
+    useReqLibraryDirs.reserve(size);
+    for (uint32_t i = 0; i < size; ++i)
     {
-        useReqLibraryDirs.emplace_back(Node::getNodeFromValue(value, false), true);
+        Node *node = readHalfNode(configCache.data(), configCacheBytesRead);
+        node->ensureSystemCheckCalled(false);
+        useReqLibraryDirs.emplace_back(node, true);
     }
 }
 
@@ -224,6 +220,8 @@ void PLOAT::addReqDepsToBTargetDependencies()
     {
         for (auto &[PLOAT, prebuiltDep] : reqDeps)
         {
+            // TODO
+            // add addLooseDependencyDelayed
             addLooseDependency<0>(*PLOAT);
         }
     }

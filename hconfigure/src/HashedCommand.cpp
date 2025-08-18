@@ -28,16 +28,14 @@ string HashedCommand::getCommand() const
     return command;
 }
 
-Value HashedCommand::getHash() const
-{
-
 #ifdef USE_COMMAND_HASH
-
-    return Value(hash);
-
-#else
-
-    return Value(svtogsr(command));
-
-#endif
+uint64_t HashedCommand::getHash() const
+{
+    return hash;
 }
+#else
+string_view HashedCommand::getHash() const
+{
+    return command;
+}
+#endif

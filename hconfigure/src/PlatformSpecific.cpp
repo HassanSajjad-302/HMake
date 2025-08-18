@@ -1,18 +1,20 @@
 
 #ifdef USE_HEADER_UNITS
-#include "BuildSystemFunctions.hpp"
-import <iostream>;
+import "BuildSystemFunctions.hpp";
+import "Node.hpp";
 import "PlatformSpecific.hpp";
 import "lz4.h";
 import "rapidjson/prettywriter.h";
 import "rapidjson/writer.h";
 import <cstdio>;
+import <iostream>;
 #ifdef WIN32
 import <Windows.h>;
 #endif
 #else
-#include "BuildSystemFunctions.hpp"
 #include "PlatformSpecific.hpp"
+#include "BuildSystemFunctions.hpp"
+#include "Node.hpp"
 #include "lz4.h"
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/writer.h"
@@ -23,7 +25,7 @@ import <Windows.h>;
 #include <Windows.h>
 #endif
 #endif
-#include <Node.hpp>
+#include "JConsts.hpp"
 
 // Copied from https://stackoverflow.com/a/208431
 class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>::state_type>
@@ -127,23 +129,8 @@ struct RHPOStream
 RHPOStream::RHPOStream(const string_view fileName)
 {
     fp = fopen(fileName.data(), "wb");
-    /*/* multiple fputs() calls like: #1#
-
-    /* get fd of the FILE pointer #1#
-    int fd = _fileno(fp);
-#ifndef WIN32
-    ret = fsync(fd);
-#else
-    ret = _commit(fd);
-    fclose(fp);*/
-
-    if constexpr (std::same_as<char, wchar_t>)
-    {
-        auto *unicodeFacet = new UTF16Facet();
-        const std::locale unicodeLocale(std::cout.getloc(), unicodeFacet);
-        // of->imbue(unicodeLocale);
-    }
 }
+
 RHPOStream::~RHPOStream()
 {
     int result = fclose(fp);
@@ -166,6 +153,123 @@ void RHPOStream::Flush()
     }
 }
 
+vector<char> readBufferFromFile(const string &fileName)
+{
+    vector<char> fileBuffer;
+    FILE *fp;
+
+#ifdef WIN32
+    fopen_s(&fp, fileName.data(), "rb");
+#else
+    fp = fopen(fileName.c_str(), "r");
+#endif
+
+    fseek(fp, 0, SEEK_END);
+    const size_t filesize = (size_t)ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    fileBuffer.resize(filesize);
+    const uint64_t readLength = fread(fileBuffer.data(), 1, filesize, fp);
+    fclose(fp);
+    return fileBuffer;
+}
+
+vector<char> readBufferFromCompressedFile(const string &fileName)
+{
+#ifndef USE_JSON_FILE_COMPRESSION
+    return readBufferFromFile(fileName);
+#else
+    vector<char> compressedBuffer = readBufferFromFile(fileName);
+    vector<char> fileBuffer;
+    fileBuffer.resize(*reinterpret_cast<uint64_t *>(compressedBuffer.data()));
+
+    const int decompressSize =
+        LZ4_decompress_safe(&compressedBuffer[8], fileBuffer.data(), compressedBuffer.size() - 8, fileBuffer.size());
+
+    if (decompressSize < 0)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+        errorExit();
+    }
+
+    if (fileBuffer.size() != decompressSize)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+        errorExit();
+    }
+
+    return fileBuffer;
+
+#endif
+}
+
+void readConfigCache()
+{
+    const uint32_t bufferSize = configCacheGlobal.size();
+    uint32_t bufferRead = 0;
+
+    uint32_t count = 0;
+    const char *ptr = configCacheGlobal.data();
+    while (bufferRead != bufferSize)
+    {
+        FileTargetCache fileCacheTarget;
+
+        fileCacheTarget.name = readStringView(ptr, bufferRead);
+        fileCacheTarget.configCache = readStringView(ptr, bufferRead);
+
+        fileTargetCaches.emplace_back(fileCacheTarget);
+        nameToIndexMap.emplace(fileCacheTarget.name, count);
+
+        ++count;
+    }
+}
+
+void readBuildCache()
+{
+    const uint32_t bufferSize = buildCacheGlobal.size();
+    uint32_t bufferRead = 0;
+
+    const char *ptr = buildCacheGlobal.data();
+    for (FileTargetCache &fileCacheTarget : fileTargetCaches)
+    {
+        fileCacheTarget.buildCache = readStringView(ptr, bufferRead);
+    }
+
+    if (bufferRead != bufferSize)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+    }
+}
+
+void writeConfigBuffer(vector<char> &buffer)
+{
+    for (FileTargetCache &fileCacheTarget : fileTargetCaches)
+    {
+        writeStringView(buffer, fileCacheTarget.name);
+        writeStringView(buffer, fileCacheTarget.configCache);
+    }
+}
+
+void writeBuildBuffer(vector<char> &buffer)
+{
+    buffer = vector<char>();
+    for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
+    {
+        const uint32_t currentSize = buffer.size();
+        // reserve space of 4bytes.
+        writeUint32(buffer, 0);
+        if (fileCacheTarget.targetCache)
+        {
+            fileCacheTarget.targetCache->writeBuildCache(buffer);
+        }
+        else
+        {
+            buffer.insert(buffer.end(), fileCacheTarget.buildCache.begin(), fileCacheTarget.buildCache.end());
+        }
+        const uint32_t size = buffer.size() - (currentSize + 4);
+        *static_cast<uint32_t *>(static_cast<void *>(&buffer[currentSize])) = size;
+    }
+}
+
 void prettyWriteValueToFile(const string_view fileName, const Value &value)
 {
     RHPOStream stream(fileName);
@@ -177,45 +281,9 @@ void prettyWriteValueToFile(const string_view fileName, const Value &value)
     }
 }
 
-size_t valueIndexInArray(const Value &value, const Value &element)
-{
-    for (size_t i = 0; i < value.Size(); ++i)
-    {
-        if (element == value[i])
-        {
-            return i;
-        }
-    }
-    return UINT64_MAX;
-}
-
 #ifndef _WIN32
 #define fopen_s(pFile, filename, mode) ((*(pFile)) = fopen((filename), (mode))) == NULL
 #endif
-
-unique_ptr<vector<char>> readValueFromFile(const string_view fileName, Document &document)
-{
-    // Read whole file into a buffer
-    FILE *fp;
-    fopen_s(&fp, fileName.data(), "r");
-    fseek(fp, 0, SEEK_END);
-    const size_t filesize = (size_t)ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    unique_ptr<vector<char>> buffer = std::make_unique<vector<char>>(filesize + 1);
-    const size_t readLength = fread(buffer->begin().operator->(), 1, filesize, fp);
-    if (fclose(fp) != 0)
-    {
-        printErrorMessage("Error closing the file \n");
-    }
-
-    // TODO
-    //  What should this be for wchar_t
-    (*buffer)[readLength] = '\0';
-
-    // In situ parsing the buffer into d, buffer will also be modified
-    document.ParseInsitu(buffer->begin().operator->());
-    return buffer;
-}
 
 using rapidjson::StringBuffer, rapidjson::Writer, rapidjson::PrettyWriter, rapidjson::UTF8;
 
@@ -224,20 +292,20 @@ extern string GetLastErrorString();
 // In configure mode only 2 files target-cache.json and nodes.json are written which are written at the end.
 // While in build-mode TargetCacheDisWriteManager asynchronously writes these files multiple times as the data is
 // updated. Hence, these file write is atomic in build mode
-static void writeFile(string fileName, const char *buffer, uint64_t bufferSize, bool binary)
+static void writeFileAtomically(const string &fileName, const char *buffer, uint64_t bufferSize, bool binary)
 {
     const string str = fileName + ".tmp";
     if constexpr (bsMode == BSMode::BUILD)
     {
 #ifdef WIN32
         // Open the existing file for writing, replacing its content
-        HANDLE hFile = CreateFile(str.c_str(),
-                                  GENERIC_WRITE,         // Open for writing
-                                  0,                     // Do not share
-                                  NULL,                  // Default security
-                                  CREATE_ALWAYS,         // Always create a new file (replace if exists)
-                                  FILE_ATTRIBUTE_NORMAL, // Normal file
-                                  NULL                   // No template
+        const HANDLE hFile = CreateFile(str.c_str(),
+                                        GENERIC_WRITE,         // Open for writing
+                                        0,                     // Do not share
+                                        NULL,                  // Default security
+                                        CREATE_ALWAYS,         // Always create a new file (replace if exists)
+                                        FILE_ATTRIBUTE_NORMAL, // Normal file
+                                        NULL                   // No template
         );
 
         // Check if the file handle is valid
@@ -250,7 +318,7 @@ static void writeFile(string fileName, const char *buffer, uint64_t bufferSize, 
         DWORD bytesWritten;
 
         // Write to the file
-        if (!WriteFile(hFile, buffer, bufferSize, &bytesWritten, NULL))
+        if (!WriteFile(hFile, buffer, bufferSize, &bytesWritten, nullptr))
         {
             printErrorMessage(FORMAT("Failed to write to file. Error: {}\n", GetLastErrorString()));
             CloseHandle(hFile);
@@ -313,137 +381,29 @@ static void writeFile(string fileName, const char *buffer, uint64_t bufferSize, 
     }
 }
 
-void writeValueToFile(string fileName, const Value &value)
-{
-    StringBuffer buffer;
-    Writer writer(buffer);
-    value.Accept(writer);
-    writeFile(std::move(fileName), buffer.GetString(), buffer.GetSize(), false);
-}
-
-unique_ptr<vector<char>> readValueFromCompressedFile(const string_view fileName, Document &document)
+void writeBufferToCompressedFile(const string &fileName, const vector<char> &fileBuffer)
 {
 #ifndef USE_JSON_FILE_COMPRESSION
-    return readValueFromFile(fileName, document);
+    writeFileAtomically(fileName, fileBuffer.data(), fileBuffer.size(), true);
 #else
-    // Read whole file into a buffer
-    unique_ptr<vector<char>> fileBuffer;
-    uint64_t readLength;
-    {
-        FILE *fp;
-        fopen_s(&fp, fileName.data(), "rb");
-        fseek(fp, 0, SEEK_END);
-        const size_t filesize = (size_t)ftell(fp);
-        fseek(fp, 0, SEEK_SET);
-        fileBuffer = std::make_unique<vector<char>>(filesize);
-        readLength = fread(fileBuffer->begin().operator->(), 1, filesize, fp);
-        fclose(fp);
-    }
+    const uint64_t maxCompressedSize = LZ4_compressBound(fileBuffer.size());
 
-    uint64_t decompressedSize = *reinterpret_cast<uint64_t *>(&(*fileBuffer)[0]);
-    unique_ptr<vector<char>> decompressedBuffer = std::make_unique<vector<char>>(decompressedSize + 1);
-
-    int decompressSize =
-        LZ4_decompress_safe(&(*fileBuffer)[8], &(*decompressedBuffer)[0], readLength - 8, decompressedSize);
-
-    if (decompressSize < 0)
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
-        exit(EXIT_FAILURE);
-    }
-
-    if (decompressedSize != decompressSize)
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
-        exit(EXIT_FAILURE);
-    }
-
-    // TODO
-    //  What should this be for wchar_t
-    // Neccessary for in-situ parsing
-    (*decompressedBuffer)[decompressSize] = '\0';
-
-    // In situ parsing the buffer into d, buffer will also be modified
-    document.ParseInsitu(&(*decompressedBuffer)[0]);
-
-    /*rapidjson::StringBuffer buffer;
-    rapidjson::Writer writer(buffer);
-    document.Accept(writer);
-    std::ofstream("nodes2.json") << string(buffer.GetString(), buffer.GetLength());*/
-    return decompressedBuffer;
-#endif
-}
-
-void writeValueToCompressedFile(string fileName, const Value &value)
-{
-#ifndef USE_JSON_FILE_COMPRESSION
-    writeValueToFile(std::move(fileName), value);
-#else
-    rapidjson::StringBuffer buffer;
-    rapidjson::Writer writer(buffer);
-    value.Accept(writer);
-
-    // printMessage(FORMAT("file {} \n{}\n", fileName, string(buffer.GetString(), buffer.GetLength())));
     string compressed;
-    const uint64_t maxCompressedSize = LZ4_compressBound(buffer.GetLength());
-    // first eight bytes for the compressed size
-    compressed.reserve(maxCompressedSize + 8);
+    compressed.resize(maxCompressedSize + 8);
 
-    int compressedSize = LZ4_compress_default(buffer.GetString(), const_cast<char *>(compressed.c_str()) + 8,
-                                              buffer.GetLength(), maxCompressedSize);
+    const int compressedSize =
+        LZ4_compress_default(fileBuffer.data(), compressed.data() + 8, fileBuffer.size(), maxCompressedSize);
 
     // printMessage(FORMAT("\n{}\n{}\n", buffer.GetLength(), compressedSize + 8));
     if (!compressedSize)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
-        exit(EXIT_FAILURE);
+        errorExit();
     }
-    *reinterpret_cast<uint64_t *>(const_cast<char *>(compressed.c_str())) = buffer.GetLength();
+    *reinterpret_cast<uint64_t *>(compressed.data()) = fileBuffer.size();
 
-    writeFile(std::move(fileName), compressed.c_str(), compressedSize + 8, true);
+    writeFileAtomically(fileName, compressed.c_str(), compressedSize + 8, true);
 #endif
-}
-
-uint64_t valueIndexInSubArray(const Value &value, const Value &element)
-{
-    for (uint64_t i = 0; i < value.Size(); ++i)
-    {
-        if (element == value[i][0])
-        {
-            return i;
-        }
-    }
-    return UINT64_MAX;
-}
-
-inline uint64_t currentTargetIndex = 0;
-uint64_t valueIndexInSubArrayConsidered(const Value &value, const Value &element)
-{
-    const uint64_t old = currentTargetIndex;
-    for (uint64_t i = currentTargetIndex; i < value.Size(); ++i)
-    {
-        if (const Value &v = value[i]; !v.Empty())
-        {
-            if (v[0] == element)
-            {
-                currentTargetIndex = i;
-                return i;
-            }
-        }
-    }
-    for (uint64_t i = 0; i < currentTargetIndex; ++i)
-    {
-        if (const Value &v = value[i]; !v.Empty())
-        {
-            if (v[0] == element)
-            {
-                currentTargetIndex = i;
-                return i;
-            }
-        }
-    }
-    currentTargetIndex = old;
-    return UINT64_MAX;
 }
 
 bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
@@ -460,30 +420,6 @@ bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
         }
     }
     return true;
-}
-
-uint64_t nodeIndexInValueArray(const Value &value, const Node &node)
-{
-    for (uint64_t i = 0; i < value.Size(); ++i)
-    {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-        bool found = value[i].GetUint64() == node.myId;
-#else
-        bool found =
-            compareStringsFromEnd(string_view(value[i].GetString(), value[i].GetStringLength()), node.filePath);
-#endif
-
-        if (found)
-        {
-            return i;
-        }
-    }
-    return UINT64_MAX;
-}
-
-bool isNodeInValue(const Value &value, const Node &node)
-{
-    return nodeIndexInValueArray(value, node) != UINT64_MAX;
 }
 
 void lowerCasePStringOnWindows(char *ptr, const uint64_t size)
@@ -507,4 +443,28 @@ bool childInParentPathNormalized(const string_view parent, const string_view chi
     }
 
     return compareStringsFromEnd(parent, string_view(child.data(), parent.size()));
+}
+
+unique_ptr<vector<char>> readValueFromFile(const string_view fileName, Document &document)
+{
+    // Read whole file into a buffer
+    FILE *fp;
+    fopen_s(&fp, fileName.data(), "r");
+    fseek(fp, 0, SEEK_END);
+    const size_t filesize = (size_t)ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    unique_ptr<vector<char>> buffer = std::make_unique<vector<char>>(filesize + 1);
+    const size_t readLength = fread(buffer->begin().operator->(), 1, filesize, fp);
+    if (fclose(fp) != 0)
+    {
+        printErrorMessage("Error closing the file \n");
+    }
+
+    // TODO
+    //  What should this be for wchar_t
+    (*buffer)[readLength] = '\0';
+
+    // In situ parsing the buffer into d, buffer will also be modified
+    document.ParseInsitu(buffer->begin().operator->());
+    return buffer;
 }

@@ -14,6 +14,7 @@ import <condition_variable>;
 #include <atomic>
 #include <condition_variable>
 #endif
+#include "TargetCache.hpp"
 
 using std::atomic;
 
@@ -26,18 +27,11 @@ struct ColoredStringForPrint
     ColoredStringForPrint(string _msg, uint32_t _color, bool _isColored);
 };
 
-struct ValueAndIndices
+struct UpdatedCache
 {
-    Value value;
-    uint64_t index0;
-    uint64_t index1;
-    uint64_t index2;
-    uint64_t index3;
-    uint64_t index4;
-    explicit ValueAndIndices(Value _value, uint64_t _index0, uint64_t _index1, uint64_t _index2, uint64_t _index3,
-                             uint64_t _index4);
-    Value &getTargetValue() const;
-    void copyToCentralTargetCache();
+    TargetCache *target;
+    void *cache;
+    UpdatedCache(TargetCache *target_, void *cache_);
 };
 
 class TargetCacheDiskWriteManager
@@ -47,25 +41,23 @@ class TargetCacheDiskWriteManager
     std::condition_variable vecCond{};
     std::unique_lock<std::mutex> vecLock{vecMutex, std::defer_lock_t{}};
     vector<ColoredStringForPrint> strCache;
-    vector<ValueAndIndices> valueCache;
+    vector<UpdatedCache> updatedCaches;
 
   private:
     vector<ColoredStringForPrint> strCacheLocal;
-    vector<ValueAndIndices> valueCacheLocal;
+    vector<UpdatedCache> updatedCachesLocal;
+    vector<char> buildBufferLocal;
 
   public:
-    vector<class BTarget *> copyJsonBTargets;
+    vector<CppSourceTarget *> copyJsonBTargets;
+    vector<char> buildBuffer;
     RAPIDJSON_DEFAULT_ALLOCATOR writeBuildCacheAllocator;
     std::thread diskWriteManagerThread;
     uint64_t nodesSizeBefore = 0;
     uint64_t nodesSizeStart = 0;
     bool exitAfterThis = false;
-    // TODO
-    // Make this global
-    atomic<uint64_t> copyJsonBTargetsCount = 0;
 
     TargetCacheDiskWriteManager();
-    void addNewBTargetInCopyJsonBTargetsCount(BTarget *bTarget);
     void writeNodesCacheIfNewNodesAdded();
     ~TargetCacheDiskWriteManager();
     void initialize();

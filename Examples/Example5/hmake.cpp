@@ -8,7 +8,7 @@ struct CopySharedLib final : public BTarget
     CopySharedLib(const string &copyFrom_, const string &copyTo_) : copyFrom(copyFrom_), copyTo(copyTo_)
     {
     }
-    void updateBTarget(Builder &, unsigned short) override
+    void updateBTarget(Builder &, unsigned short, bool &isComplete) override
     {
         if (realBTargets[0].exitStatus == EXIT_SUCCESS && atomic_ref(fileStatus).load())
         {

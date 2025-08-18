@@ -28,9 +28,9 @@ using fmt::print, std::filesystem::current_path, std::filesystem::directory_iter
 string getFileNameJsonOrOut(const string &name)
 {
 #ifdef USE_JSON_FILE_COMPRESSION
-    return name + ".out";
+    return name + ".bin.lz4";
 #else
-    return name + ".json";
+    return name + ".bin";
 #endif
 }
 
@@ -39,16 +39,24 @@ void initializeCache(const BSMode bsMode_)
     cache.initializeCacheVariableFromCacheFile();
     toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
 
-    if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes")); exists(p))
+    if (const auto p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes")); exists(p))
     {
         const string str = p.string();
-        nodesCacheBuffer = readValueFromCompressedFile(str, nodesCacheJson);
+        nodesCacheGlobal = readBufferFromCompressedFile(str);
 
-        // node is constructed from cache. It is emplaced in the hash set and also in nodeIndices.
-        // However performSystemCheck is not called and is called in multi-threaded fashion.
-        for (Value &value : nodesCacheJson.GetArray())
+        // The Node is constructed from cache. It is placed in the hash set and also in nodeIndices.
+        // However, performSystemCheck is not called and is called in multithreaded fashion.
+
+        const uint64_t bufferSize = nodesCacheGlobal.size();
+        uint64_t bufferRead = 0;
+        while (bufferRead != bufferSize)
         {
-            Node::addHalfNodeFromNormalizedStringSingleThreaded(string(value.GetString(), value.GetStringLength()));
+            uint16_t nodeFilePathSize;
+            memcpy(&nodeFilePathSize, nodesCacheGlobal.data() + bufferRead, sizeof(uint16_t));
+            bufferRead += sizeof(uint16_t);
+            Node::addHalfNodeFromNormalizedStringSingleThreaded(
+                string(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
+            bufferRead += nodeFilePathSize;
         }
         targetCacheDiskWriteManager.initialize();
     }
@@ -68,28 +76,31 @@ void initializeCache(const BSMode bsMode_)
     if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache")); exists(p))
     {
         const string str = p.string();
-        configCacheBuffer = readValueFromCompressedFile(str, configCache);
+        configCacheGlobal = readBufferFromCompressedFile(str);
     }
     else
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
             printErrorMessage(FORMAT("{} does not exist. Exiting\n", p.string().c_str()));
-            exit(EXIT_FAILURE);
+            errorExit();
         }
     }
+
+    readConfigCache();
 
     if (const path p = path(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache")); exists(p))
     {
         const string str = p.string();
-        buildCacheBuffer = readValueFromCompressedFile(str, buildCache);
+        buildCacheGlobal = readBufferFromCompressedFile(str);
+        readBuildCache();
     }
     else
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
             printErrorMessage(FORMAT("{} does not exist. Exiting\n", p.string().c_str()));
-            exit(EXIT_FAILURE);
+            errorExit();
         }
     }
 
@@ -156,7 +167,7 @@ void printErrorMessage(const string &message)
     //  print(stderr, "{}", to_string(std::stacktrace::current()));
 #endif
 
-    exit(EXIT_FAILURE);
+    errorExit();
 }
 
 void printErrorMessageNoReturn(const string &message)
@@ -189,9 +200,14 @@ bool configureOrBuild()
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         cache.registerCacheVariables();
-        writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"),
-                                   configCache);
-        writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
+
+        vector<char> buffer;
+        writeConfigBuffer(buffer);
+        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"), buffer);
+
+        buffer.clear();
+        writeBuildBuffer(buffer);
+        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buffer);
     }
     return b.errorHappenedInRoundMode;
 }
@@ -199,11 +215,19 @@ bool configureOrBuild()
 void constructGlobals()
 {
     std::construct_at(&targetCacheDiskWriteManager);
+    BTarget::centralRegistryForTwoBTargetsVector.emplace_back(&BTarget::twoBTargetsVector);
 }
 
 void destructGlobals()
 {
     std::destroy_at(&targetCacheDiskWriteManager);
+}
+
+void errorExit()
+{
+    fflush(stdout);
+    fflush(stderr);
+    std::_Exit(EXIT_FAILURE);
 }
 
 string getLastNameAfterSlash(string_view name)

@@ -79,7 +79,7 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     expected += (os == OS::NT ? 1 : 2) * updates.sourceFiles;
 
     // expected += 3 * updates.errorFiles;
-    expected += 2 * updates.moduleFiles;
+    expected += 1 * updates.moduleFiles;
 
     expected += (os == OS::NT ? 0 : 1) * updates.errorFiles;
 

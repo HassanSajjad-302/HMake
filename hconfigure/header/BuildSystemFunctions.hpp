@@ -29,14 +29,11 @@ using Json = nlohmann::json; // Unordered json
 
 inline flat_hash_set<string> cmdTargets;
 inline mutex configCacheMutex;
-inline Document configCache(kArrayType);
-inline unique_ptr<vector<char>> configCacheBuffer;
-inline Document buildCache(kArrayType);
-inline unique_ptr<vector<char>> buildCacheBuffer;
-inline Document nodesCacheJson(kArrayType);
-inline unique_ptr<vector<char>> nodesCacheBuffer;
+inline vector<char> configCacheGlobal;
+inline vector<char> buildCacheGlobal;
+inline vector<char> nodesCacheGlobal;
 
-inline auto &ralloc = buildCache.GetAllocator();
+// inline auto &ralloc = buildCacheBuffer.GetAllocator();
 
 // Node representing source dir
 inline class Node *srcNode;
@@ -83,6 +80,8 @@ void initializeCache(BSMode bsMode_);
 inline const string dashCpp = "-cpp";
 inline const string dashLink = "-link";
 
+inline bool singleThreadRunning = false;
+
 typedef void (*PrintMessage)(const string &message);
 typedef void (*PrintMessageColor)(const string &message, uint32_t color);
 
@@ -112,6 +111,7 @@ string_view removeDashCppFromNameSV(string_view name);
 bool configureOrBuild();
 void constructGlobals();
 void destructGlobals();
+void errorExit();
 
 #define GLOBAL_VARIABLE(type, var)                                                                                     \
     inline char _##var[sizeof(type)];                                                                                  \

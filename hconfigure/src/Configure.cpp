@@ -14,7 +14,7 @@ bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuratio
     }
     for (const Configuration &configuration : targets<Configuration>)
     {
-        if (const_cast<Configuration &>(configuration).isHBuildInSameOrChildDirectory())
+        if (configuration.isHBuildInSameOrChildDirectory())
         {
             (*ptr)(const_cast<Configuration &>(configuration));
         }
@@ -111,11 +111,22 @@ int main2(const int argc, char **argv)
     constructGlobals();
     initializeCache(bsMode);
     (*buildSpecificationFuncPtr)();
+    singleThreadRunning = true;
     const bool errorHappened = configureOrBuild();
     destructGlobals();
+    fflush(stdout);
+    fflush(stderr);
+#ifdef NDEBUG
+    if (errorHappened)
+    {
+        std::_Exit(EXIT_FAILURE);
+    }
+    std::_Exit(EXIT_SUCCESS);
+#else
     if (errorHappened)
     {
         exit(EXIT_FAILURE);
     }
-    return EXIT_SUCCESS;
+    exit(EXIT_SUCCESS);
+#endif
 }

@@ -285,51 +285,31 @@ RunCommand::RunCommand(path toolPath, const string &runCommand, string printComm
         bool breakpoint = true;
     }
 }
-void RunCommand::executePrintRoutine(uint32_t color, const bool printOnlyOnError, Value sourceJson, uint64_t _index0,
-                                     uint64_t _index1, uint64_t _index2, uint64_t _index3, uint64_t _index4) const
+
+void RunCommand::executePrintRoutine(uint32_t color, TargetCache *target, void *cache) const
 {
     bool notify = false;
+
     {
-
-        lock_guard _(targetCacheDiskWriteManager.vecMutex);
-
+        std::lock_guard _(targetCacheDiskWriteManager.vecMutex);
         if (exitStatus == EXIT_SUCCESS)
         {
-            targetCacheDiskWriteManager.valueCache.emplace_back(std::move(sourceJson), _index0, _index1, _index2,
-                                                                _index3, _index4);
+            targetCacheDiskWriteManager.updatedCaches.emplace_back(target, cache);
             notify = true;
         }
 
-        if (printOnlyOnError)
+        // TODO
+        // these print commands formatting should be outside the mutex.
+        targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", printCommand + " " + getThreadId() + "\n"),
+                                                          color, true);
+
+        if (!commandOutput.empty())
         {
-            targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", printCommand + " " + getThreadId() + "\n"),
-                                                              color, true);
+            targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", commandOutput + "\n"),
+                                                              static_cast<int>(fmt::color::light_green), true);
             notify = true;
-            if (exitStatus != EXIT_SUCCESS)
-            {
-                if (!commandOutput.empty())
-                {
-                    targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", commandOutput + "\n"),
-                                                                      settings.pcSettings.toolErrorOutput, true);
-                    notify = true;
-                }
-            }
-        }
-        else
-        {
-
-            targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", printCommand + " " + getThreadId() + "\n"),
-                                                              color, true);
-
-            if (!commandOutput.empty())
-            {
-                targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", commandOutput + "\n"),
-                                                                  static_cast<int>(fmt::color::light_green), true);
-                notify = true;
-            }
         }
     }
-
     if (notify)
     {
         targetCacheDiskWriteManager.vecCond.notify_one();
@@ -368,7 +348,7 @@ bool PostCompile::ignoreHeaderFile(const string_view child) const
     // optimization. If a file is in subdir of environment include, it is
     // still marked as dependency. It is not checked if any of environment
     // includes is related(equivalent, subdir) with any of normal includes
-    // or vice-versa.
+    // or vice versa.
 
     // std::path::equivalent is not used as it is slow
     // It is assumed that both paths are normalized strings
@@ -387,9 +367,6 @@ bool PostCompile::ignoreHeaderFile(const string_view child) const
 
 void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &output) const
 {
-    Value &headerDepsJson = sourceNode.sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles];
-    headerDepsJson.Clear();
-
     const string includeFileNote = "Note: including file:";
 
     if (sourceNode.ignoreHeaderDeps && settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
@@ -439,6 +416,8 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
         }
         lineEnd = output.find('\n', startPos);
 
+        vector<Node *> &headerFiles = sourceNode.buildCache.headerFiles;
+        headerFiles.clear();
         while (true)
         {
 
@@ -463,14 +442,16 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
 
                     // TODO
                     // If compile-command is all lower-cased, then this might not be needed
+                    // Some compilers can input same header-file twice, if that is the case, then we should first make
+                    // the array unique.
                     if (!ignoreHeaderFile(headerView))
                     {
                         lowerCasePStringOnWindows(const_cast<char *>(headerView.data()), headerView.size());
 
-                        if (const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
-                            !isNodeInValue(headerDepsJson, *headerNode))
+                        if (Node *headerNode = Node::getHalfNode(headerView);
+                            std::ranges::find(headerFiles, headerNode) == headerFiles.end())
                         {
-                            headerDepsJson.PushBack(headerNode->getValue(), sourceNode.sourceNodeAllocator);
+                            headerFiles.emplace_back(headerNode);
                         }
                     }
                 }
@@ -493,13 +474,12 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
             if (output.size() == startPos)
             {
                 output = std::move(treatedOutput);
-                return;
                 break;
             }
-            if (lineEnd > output.size() - 5)
+            /*if (lineEnd > output.size() - 5)
             {
                 bool breakpoint = true;
-            }
+            }*/
             lineEnd = output.find('\n', startPos);
         }
     }
@@ -507,20 +487,19 @@ void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &ou
 
 void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const
 {
-    Value &headerDepsJson = sourceNode.sourceJson[Indices::BuildCache::CppBuild::SourceFiles::headerFiles];
-    headerDepsJson.Clear();
     if (!sourceNode.ignoreHeaderDeps)
     {
         const string headerFileContents =
             fileToPString(target.buildCacheFilesDirPathNode->filePath + slashc + sourceNode.node->getFileName() + ".d");
         vector<string> headerDeps = split(headerFileContents, "\n");
 
-        // First 2 lines are skipped as these are .o and .cpp file.
+        // The First 2 lines are skipped as these are .o and .cpp file.
         // If the file is preprocessed, it does not generate the extra line
         const auto endIt = headerDeps.end() - 1;
 
         if (headerDeps.size() > 2)
         {
+            sourceNode.buildCache.headerFiles.clear();
             for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
             {
                 const size_t pos = iter->find_first_not_of(" ");
@@ -528,8 +507,7 @@ void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const
                 if (const string_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
                     !ignoreHeaderFile(headerView))
                 {
-                    const Node *headerNode = Node::getHalfNodeFromNormalizedString(headerView);
-                    headerDepsJson.PushBack(headerNode->getValue(), sourceNode.sourceNodeAllocator);
+                    sourceNode.buildCache.headerFiles.emplace_back(Node::getHalfNode(headerView));
                 }
             }
         }

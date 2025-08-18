@@ -11,6 +11,7 @@ import <atomic>;
 #include "phmap.h"
 #include <atomic>
 #endif
+#include "TargetCache.hpp"
 
 using std::atomic, std::lock_guard, std::filesystem::file_time_type;
 
@@ -39,24 +40,22 @@ class Node
 
     file_time_type lastWriteTime;
 
-    inline static atomic<uint32_t> idCount = 0;
-    inline static atomic<uint32_t> idCountCompleted = 0;
+    inline static uint32_t idCount = 0;
+    inline static uint32_t idCountCompleted = 0;
     // Used in multi-threading context. So, can not emplace_back. size should be same as size of nodeAllFiles
-    inline static vector<Node *> nodeIndices{10000};
+    inline static vector<Node *> nodeIndices{20000};
     uint32_t myId = UINT32_MAX;
 
     // While following are not atomic to keep Node copyable and moveable, all operations on these bools are done
     // atomically.
     bool systemCheckCompleted{false};
 
-  // private:
+    // private:
     bool systemCheckCalled = false;
 
-  public:
     Node(Node *&node, string filePath_);
     explicit Node(string filePath_);
     string getFileName() const;
-    Value getValue() const;
 
     static path getFinalNodePathFromPath(path filePath);
 
@@ -76,13 +75,10 @@ class Node
     static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
 
     static Node *addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath);
-    static Node *getHalfNodeFromNormalizedString(string_view p);
+    static Node *getHalfNode(string_view p);
     static Node *getNodeFromValue(const Value &value, bool isFile, bool mayNotExist = false);
-    static Node *getHalfNodeFromValue(const Value &value);
-    static Node *tryGetNodeFromValue(bool &systemCheckSucceeded, const Value &value, bool isFile,
-                                      bool mayNotExist = false);
+    static Node *getHalfNode(uint32_t);
 
-    static Node *getLastNodeAdded();
     static rapidjson::Type getType();
 
   private:

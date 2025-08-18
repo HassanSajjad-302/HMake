@@ -6,9 +6,9 @@ struct OurTarget : public BTarget
     explicit OurTarget(string str) : message{std::move(str)}
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round) override
+    void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete) override
     {
-        if(round == 0 || round == 1)
+        if (round == 0 || round == 1)
         {
             printMessage(FORMAT("{}\n", message));
         }

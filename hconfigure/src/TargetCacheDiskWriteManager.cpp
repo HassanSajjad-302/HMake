@@ -8,46 +8,16 @@ import "Node.hpp";
 #include "BTarget.hpp"
 #include "Node.hpp"
 #endif
+#include "CppSourceTarget.hpp"
+#include "TargetCache.hpp"
 
-ColoredStringForPrint::ColoredStringForPrint(string _msg, uint32_t _color, bool _isColored)
+ColoredStringForPrint::ColoredStringForPrint(string _msg, const uint32_t _color, const bool _isColored)
     : msg(std::move(_msg)), color(_color), isColored(_isColored)
 {
 }
-ValueAndIndices::ValueAndIndices(Value _value, const uint64_t _index0, const uint64_t _index1, const uint64_t _index2,
-                                 const uint64_t _index3, const uint64_t _index4)
 
-    : value{std::move(_value)}, index0{_index0}, index1{_index1}, index2{_index2}, index3{_index3}, index4{_index4}
+UpdatedCache::UpdatedCache(TargetCache *target_, void *cache_) : target(target_), cache(cache_)
 {
-}
-
-Value &ValueAndIndices::getTargetValue() const
-{
-    Value &target0 = buildCache;
-    if (index0 == UINT64_MAX)
-    {
-        return target0;
-    }
-    Value &target1 = target0[index0];
-    if (index1 == UINT64_MAX)
-    {
-        return target1;
-    }
-    Value &target2 = target1[index1];
-    if (index2 == UINT64_MAX)
-    {
-        return target2;
-    }
-    Value &target3 = target2[index2];
-    if (index3 == UINT64_MAX)
-    {
-        return target3;
-    }
-    Value &target4 = target3[index3];
-    if (index4 == UINT64_MAX)
-    {
-        return target4;
-    }
-    return target4[index4];
 }
 
 TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
@@ -55,37 +25,25 @@ TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
     if constexpr (bsMode == BSMode::BUILD)
     {
         copyJsonBTargets.reserve(4096 * 4);
-#ifdef NDEBUG
-        std::memset(copyJsonBTargets.data(), 0, 10000 * sizeof(void *));
-#else
-        // satisify the sanitizer and iterator based debuggerr
-        for (int i = 0; i < 4096 * 4; ++i)
-        {
-            copyJsonBTargets.emplace_back(nullptr);
-        }
-#endif
     }
-}
-
-void TargetCacheDiskWriteManager::addNewBTargetInCopyJsonBTargetsCount(BTarget *bTarget)
-{
-    const uint64_t i = copyJsonBTargetsCount.fetch_add(1);
-    copyJsonBTargets[i] = bTarget;
 }
 
 void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
 {
-    if (const uint64_t newNodesSize = Node::idCountCompleted.load(); newNodesSize != nodesSizeBefore)
+    if (const uint64_t newNodesSize = atomic_ref(Node::idCountCompleted).load(); newNodesSize != nodesSizeBefore)
     {
         // printMessage(FORMAT("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
         //                          nodesSizeBefore, newNodesSize));
         for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
         {
-            nodesCacheJson.PushBack(
-                Value(Node::nodeIndices[i]->filePath.c_str(), Node::nodeIndices[i]->filePath.size()), ralloc);
+            const string &str = Node::nodeIndices[i]->filePath;
+            uint16_t strSize = str.size();
+            const auto ptr = reinterpret_cast<const char *>(&strSize);
+            nodesCacheGlobal.insert(nodesCacheGlobal.end(), ptr, ptr + 2);
+            nodesCacheGlobal.insert(nodesCacheGlobal.end(), str.begin(), str.end());
         }
         nodesSizeBefore = newNodesSize;
-        writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheJson);
+        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheGlobal);
     }
 }
 
@@ -113,40 +71,41 @@ void TargetCacheDiskWriteManager::initialize()
         // Allocate this and all the other globals in one function call.
         strCache.reserve(1000);
         strCacheLocal.reserve(1000);
-        valueCache.reserve(1000);
-        valueCacheLocal.reserve(1000);
+        updatedCaches.reserve(1000);
+        updatedCachesLocal.reserve(1000);
     }
 
-    nodesSizeBefore = nodesCacheJson.Size();
+    nodesSizeBefore = Node::idCountCompleted;
     nodesSizeStart = nodesSizeBefore;
 }
 
-void TargetCacheDiskWriteManager::performThreadOperations(bool doUnlockAndRelock)
+void TargetCacheDiskWriteManager::performThreadOperations(const bool doUnlockAndRelock)
 {
     if (!strCache.empty())
     {
         // Should be based on if a new node is entered.
         strCacheLocal.swap(strCache);
-        valueCacheLocal.swap(valueCache);
+        updatedCachesLocal.swap(updatedCaches);
         strCache.clear();
-        valueCache.clear();
+        updatedCaches.clear();
 
         if (doUnlockAndRelock)
         {
-
             vecMutex.unlock();
         }
 
         writeNodesCacheIfNewNodesAdded();
 
-        if (!valueCacheLocal.empty())
+        if (!updatedCachesLocal.empty())
         {
-            for (ValueAndIndices &p : valueCacheLocal)
+            for (const UpdatedCache &p : updatedCachesLocal)
             {
-                p.getTargetValue() = std::move(p.value);
+                p.target->updateBuildCache(p.cache);
             }
-            writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                       buildCache);
+
+            writeBuildBuffer(buildBufferLocal);
+            writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                        buildBufferLocal);
         }
         // Copying value from array to central value
 
@@ -190,21 +149,22 @@ void TargetCacheDiskWriteManager::start()
 
 void TargetCacheDiskWriteManager::endOfRound()
 {
-    // This function is executed in first thread. After that the destructor of this manager is excuted in this thread
-    // which waits for the thread to finish.
+    // This function is executed in the first thread. After that, the destructor of this manager is executed in this
+    // thread which waits for the thread to finish.
 
     // This will still copy even if an error has happened. This will copy only in
     // round 1 hence only in BSMode::BUILD.
     writeNodesCacheIfNewNodesAdded();
 
-    if (const uint64_t s = copyJsonBTargetsCount.load())
+    if (!copyJsonBTargets.empty())
     {
-        for (uint64_t i = 0; i < s; ++i)
+        for (CppSourceTarget *t : copyJsonBTargets)
         {
-            copyJsonBTargets[i]->copyJson();
-            copyJsonBTargets[i] = nullptr;
+            t->checkAndCopyBuildCache();
         }
-        writeValueToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buildCache);
+        writeBuildBuffer(buildBufferLocal);
+        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                    buildBufferLocal);
     }
 
     diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, &targetCacheDiskWriteManager);

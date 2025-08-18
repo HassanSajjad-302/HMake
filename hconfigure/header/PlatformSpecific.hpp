@@ -16,53 +16,59 @@ import <vector>;
 #include "rapidjson/encodings.h"
 #include <filesystem>
 #include <fstream>
+#include <span>
 #include <string>
 #include <vector>
 #endif
+#include "phmap.h"
 
 using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector,
-    rapidjson::Document, rapidjson::Value, std::string_view, rapidjson::GenericStringRef;
+    rapidjson::Document, rapidjson::Value, std::string_view, rapidjson::GenericStringRef, std::span;
 
-// There is nothing platform specific in this file. It is just another BuildSystemFunctions.hpp file. Some functions go
+// There is nothing platform-specific in this file. It is just another BuildSystemFunctions.hpp file. Some functions go
 // there, some go here.
 
 #define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
-#define CALL_ONLY_AT_CONFIGURE_TIME
 
 // value to string_view
 inline string_view vtosv(const Value &v)
 {
     return {v.GetString(), v.GetStringLength()};
 }
+
 // string_view to GenericstringRef
 inline GenericStringRef<char> svtogsr(string_view str)
 {
     return {str.data(), static_cast<rapidjson::SizeType>(str.size())};
 }
+
+vector<char> readBufferFromFile(const string &fileName);
+vector<char> readBufferFromCompressedFile(const string &fileName);
+
+void readConfigCache();
+void readBuildCache();
+
+void writeConfigBuffer(vector<char> &buffer);
+void writeBuildBuffer(vector<char> &buffer);
+
 void prettyWriteValueToFile(string_view fileName, const Value &value);
 // While decompressing lz4 file, we allocate following + 1 the buffer size.
 // So, we have compressed filee * bufferMultiplier times the space.
 // Also, while storing we check that the original file size / compresseed file size
 // is not equal to or greater than bufferMultiplier. Hence validating our assumption.
-unique_ptr<vector<char>> readValueFromFile(string_view fileName, Document &document);
-void writeValueToFile(string fileName, const Value &value);
-unique_ptr<vector<char>> readValueFromCompressedFile(string_view fileName, Document &document);
-void writeValueToCompressedFile(string fileName, const Value &value);
-uint64_t valueIndexInSubArray(const Value &value, const Value &element);
-// This will consider the currentCacheIndex in its search
-uint64_t valueIndexInSubArrayConsidered(const Value &value, const Value &element);
+void writeBufferToCompressedFile(const string &fileName, const vector<char> &fileBuffer);
 bool compareStringsFromEnd(string_view lhs, string_view rhs);
-uint64_t nodeIndexInValueArray(const Value &value, const class Node &node);
-bool isNodeInValue(const Value &value, const Node &node);
 void lowerCasePStringOnWindows(char *ptr, uint64_t size);
 bool childInParentPathNormalized(string_view parent, string_view child);
+unique_ptr<vector<char>> readValueFromFile(string_view fileName, Document &document);
 
-namespace Indices
+/*namespace Indices
 {
 
 namespace ConfigCache
 {
 constexpr static unsigned name = 0;
+
 namespace CppConfig
 {
 constexpr static unsigned name = 0;
@@ -98,7 +104,7 @@ constexpr static unsigned headerUnits = 2;
 
 namespace SourceFiles
 {
-constexpr static unsigned fullPath = 0;
+constexpr static unsigned node = 0;
 constexpr static unsigned compileCommandWithTool = 1;
 constexpr static unsigned headerFiles = 2;
 } // namespace SourceFiles
@@ -106,7 +112,7 @@ constexpr static unsigned headerFiles = 2;
 namespace ModuleFiles
 {
 using namespace SourceFiles;
-constexpr static unsigned fullPath = 0;
+constexpr static unsigned node = 0;
 constexpr static unsigned scanningCommandWithTool = 1;
 constexpr static unsigned headerFiles = 2;
 constexpr static unsigned smRules = 3;
@@ -120,7 +126,7 @@ constexpr static unsigned moduleArray = 3;
 
 namespace SingleHeaderUnitDep
 {
-constexpr static unsigned fullPath = 0;
+constexpr static unsigned node = 0;
 // Maybe store this info in logicalName and extract it from there
 constexpr static unsigned angle = 1;
 constexpr static unsigned targetIndex = 2;
@@ -131,7 +137,7 @@ namespace SingleModuleDep
 {
 // This is the value of the source-path key and is assigned before saving. So, in next build in
 // resolveRequirePaths, we check that whether we are resolving to the same module.
-constexpr static unsigned fullPath = 0;
+constexpr static unsigned node = 0;
 constexpr static unsigned logicalName = 1;
 } // namespace SingleModuleDep
 } // namespace SmRules
@@ -146,6 +152,6 @@ constexpr static unsigned objectFiles = 1;
 } // namespace LinkBuild
 
 } // namespace BuildCache
-} // namespace Indices
+} // namespace Indices*/
 
 #endif // HMAKE_PLATFORMSPECIFIC_HPP

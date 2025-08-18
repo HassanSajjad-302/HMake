@@ -7,18 +7,19 @@ set(HMAKE_USE_THREAD_SANITIZER OFF BOOL "Whether to use thread-sanitizer on Linu
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 
     if ("${HMAKE_USE_THREAD_SANITIZER}" MATCHES ON)
-        add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address -fno-omit-frame-pointer)
+        add_compile_options(-fsanitize=address)
     endif ()
 
     add_compile_options(-fno-exceptions -fno-rtti)
-    add_compile_options(-std=c++2b)
 elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
+
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Release>:Release>")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
     if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         add_compile_options(/fsanitize=address)
     endif ()
-
-    set(CMAKE_CXX_STANDARD 23)
 
     string(REGEX REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     string(REGEX REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -66,10 +67,10 @@ set(INCLUDE_CONFIGURE ON)
 set(HMAKE_USE_SMALL_FILE ON BOOL "use full file or small file(compressed, indices, hashed) for storing cache.")
 set(HelperSource Projects/Boost/hmake.cpp)
 
-
 if (${INCLUDE_CONFIGURE})
 
     add_library(hconfigure-c STATIC ${HCONFIGURE_SOURCES})
+    target_compile_features(hconfigure-c PUBLIC cxx_std_23)
 
     if (UNIX)
         target_compile_options(hconfigure-c PRIVATE -fPIC)
@@ -114,6 +115,8 @@ endif ()
 if (${INCLUDE_BUILD})
 
     add_library(hconfigure-b STATIC ${HCONFIGURE_SOURCES})
+    target_compile_features(hconfigure-b PUBLIC cxx_std_23)
+
 
     target_compile_definitions(hconfigure-b PUBLIC BUILD_MODE)
 
@@ -210,6 +213,47 @@ add_executable(copy copy.cpp)
 target_link_libraries(copy PRIVATE hconfigure-c)
 
 add_executable(benchmark Examples/benchmark/benchmark.cpp)
+
+
+function(add_dual_executables)
+    math(EXPR count "${ARGC} / 2")
+    foreach (i RANGE 0 ${count})
+        math(EXPR idx_name "${i} * 2")
+        math(EXPR idx_src "${idx_name} + 1")
+
+        if (idx_src LESS ARGC)
+            list(GET ARGV ${idx_name} base_name)
+            list(GET ARGV ${idx_src} src_file)
+
+            add_executable("${base_name}Config" "${src_file}")
+            target_link_libraries("${base_name}Config" PRIVATE hconfigure-c)
+
+            add_executable("${base_name}Build" "${src_file}")
+            target_link_libraries("${base_name}Build" PRIVATE hconfigure-b)
+        endif ()
+    endforeach ()
+endfunction()
+
+add_dual_executables(Example1 Examples/Example1/hmake.cpp
+        Example2 Examples/Example2/hmake.cpp
+        Example3 Examples/Example3/hmake.cpp
+        Example4 Examples/Example4/hmake.cpp
+        Example5 Examples/Example5/hmake.cpp
+        Example6 Examples/Example6/hmake.cpp
+        Example7 Examples/Example7/hmake.cpp
+        Example8 Examples/Example8/hmake.cpp
+        Example9 Examples/Example9/hmake.cpp
+        Example10 Examples/Example10/hmake.cpp
+        Example-A1 Examples/Example-A1/hmake.cpp
+        Example-A2 Examples/Example-A2/hmake.cpp
+        Example-A3 Examples/Example-A3/hmake.cpp
+        Example-A4 Examples/Example-A4/hmake.cpp
+        Example-A5 Examples/Example-A5/hmake.cpp
+        Example-A6 Examples/Example-A6/hmake.cpp
+        Test1 Tests/Stage/Test1/hmake.cpp
+        Test2 Tests/Stage/Test2/hmake.cpp
+        Test3 Tests/Stage/Test3/hmake.cpp
+        Boost Projects/Boost/hmake.cpp)
 
 # TODO
 # https://rapidjson.org/group___r_a_p_i_d_j_s_o_n___c_o_n_f_i_g.html

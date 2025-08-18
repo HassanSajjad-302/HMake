@@ -80,14 +80,13 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
 
 BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_, const bool headerOnly,
                                const bool hasBigHeader, const bool createTestsTarget, const bool createExamplesTarget)
-    : TargetCache(configuration_->name + "Boost_" + name), configuration(configuration_),
+    : TargetCache(*new string(configuration_->name + "Boost_" + name)), configuration(configuration_),
       mainTarget(getMainTarget(name, configuration_, headerOnly, hasBigHeader))
 {
 
     // Reads config-cache at build-time and
     if constexpr (bsMode == BSMode::BUILD)
     {
-        Value &targetConfigCache = getConfigCache();
         if (createTestsTarget)
         {
             string testsLocation = configuration->name + slashc + name + slashc + "Tests";
@@ -98,16 +97,15 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
             string examplesLocation = configuration->name + slashc + name + slashc + "Examples";
             testTarget = &targets<BTarget>.emplace_back(std::move(examplesLocation), true, false, true, false, true);
         }
-        if (targetConfigCache.Size() < 2)
+
+        string_view configCache = fileTargetCaches[cacheIndex].configCache;
+        uint32_t bytesRead = 0;
+        uint32_t count = readUint32(configCache.data(), bytesRead);
+        for (uint64_t i = 0; i < count; ++i)
         {
-            return;
-        }
-        for (uint64_t i = 1; i < targetConfigCache.Size(); i += 2)
-        {
-            auto boostExampleOrTest = static_cast<BoostExampleOrTestType>(targetConfigCache[i].GetUint());
-            const string unitTestName =
-                removeDashCppFromName(mainTarget.getSourceTarget().name) + slashc +
-                string(targetConfigCache[i + 1].GetString(), targetConfigCache[i + 1].GetStringLength());
+            auto boostExampleOrTest = static_cast<BoostExampleOrTestType>(readBool(configCache.data(), bytesRead));
+            string unitTestName = removeDashCppFromName(mainTarget.getSourceTarget().name) + slashc;
+            unitTestName += readStringView(configCache.data(), bytesRead);
             bool explicitBuild = false;
             bool isExample = false;
             if (boostExampleOrTest == BoostExampleOrTestType::EXAMPLE ||
@@ -165,6 +163,10 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
             }
         }
     }
+    else
+    {
+        writeUint32(configBuffer, 0);
+    }
 }
 
 BoostCppTarget &BoostCppTarget::assignPrivateTestDeps()
@@ -204,6 +206,8 @@ void BoostCppTarget::copyConfigCache()
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        configCache[targetCacheIndex].CopyFrom(buildOrConfigCacheCopy, ralloc);
+        const auto ptr = reinterpret_cast<const char *>(&testsOrExamplesCount);
+        configBuffer.insert(configBuffer.begin(), ptr, ptr + sizeof(testsOrExamplesCount));
+        fileTargetCaches[cacheIndex].configCache = string_view(configBuffer.data(), configBuffer.size());
     }
 }

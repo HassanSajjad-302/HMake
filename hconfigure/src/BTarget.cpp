@@ -20,10 +20,11 @@ using std::filesystem::create_directories, std::ofstream, std::filesystem::curre
 BTarget::StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets()
 {
     // 1MB. Deallocated after round.
-    tarjanNodesBTargets.fill(vector<RealBTarget *>{1024 * 1024});
-    auto *p = &tarjanNodesBTargets[0];
-    // 2MB. Deallocated after round.
-    twoBTargetsVector.fill(vector<TwoBTargets>{1024 * 1024});
+    for (span<RealBTarget *> &realBTargets : tarjanNodesBTargets)
+    {
+        const auto buffer = new char[1024 * 1024 * 2]; // 2 MB
+        realBTargets = span(reinterpret_cast<RealBTarget **>(buffer), 1024 * 1024 * 2 / sizeof(RealBTarget *));
+    }
 }
 
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
@@ -40,7 +41,7 @@ bool IndexInTopologicalSortComparatorRoundTwo::operator()(const BTarget *lhs, co
 
 void RealBTarget::clearTarjanNodes()
 {
-    for (RealBTarget *i : *tarjanNodes)
+    for (RealBTarget *i : tarjanNodes)
     {
         if (i)
         {
@@ -59,7 +60,7 @@ void RealBTarget::findSCCS(unsigned short round)
     cycle.clear();
     nodesStack.clear();
     topologicalSort.clear();
-    for (RealBTarget *tarjanNode : *tarjanNodes)
+    for (RealBTarget *tarjanNode : tarjanNodes)
     {
         if (tarjanNode && !tarjanNode->initialized)
         {
@@ -138,13 +139,22 @@ void RealBTarget::checkForCycle()
             }
         }
         printErrorMessage(errorString);
-        exit(EXIT_FAILURE);
+        errorExit();
     }
 }
 
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarget(bTarget_)
 {
-    const uint32_t i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+    uint32_t i;
+    if (singleThreadRunning)
+    {
+        i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+    }
+    else
+    {
+        i = BTarget::tarjanNodesCount[round_];
+        ++BTarget::tarjanNodesCount[round_];
+    }
     BTarget::tarjanNodesBTargets[round_][i] = this;
 }
 
@@ -152,14 +162,32 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
 {
     if (add)
     {
-        const uint32_t i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+        uint32_t i;
+        if (singleThreadRunning)
+        {
+            i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+        }
+        else
+        {
+            i = BTarget::tarjanNodesCount[round_];
+            ++BTarget::tarjanNodesCount[round_];
+        }
         BTarget::tarjanNodesBTargets[round_][i] = this;
     }
 }
 
 void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
 {
-    const uint32_t i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+    uint32_t i;
+    if (singleThreadRunning)
+    {
+        i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+    }
+    else
+    {
+        i = BTarget::tarjanNodesCount[round_];
+        ++BTarget::tarjanNodesCount[round_];
+    }
     BTarget::tarjanNodesBTargets[round_][i] = this;
 }
 
@@ -171,14 +199,30 @@ static string lowerCase(string str)
 
 BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}
 {
-    id = atomic_ref(total).fetch_add(1);
+    if (singleThreadRunning)
+    {
+        id = atomic_ref(total).fetch_add(1);
+    }
+    else
+    {
+        id = total;
+        ++total;
+    }
 }
 
 BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
     : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}, name(lowerCase(std::move(name_))),
       buildExplicit(buildExplicit_)
 {
-    id = atomic_ref(total).fetch_add(1);
+    if (singleThreadRunning)
+    {
+        id = atomic_ref(total).fetch_add(1);
+    }
+    else
+    {
+        id = total;
+        ++total;
+    }
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (makeDirectory)
@@ -195,7 +239,15 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
 BTarget::BTarget(const bool add0, const bool add1, const bool add2)
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)}
 {
-    id = atomic_ref(total).fetch_add(1);
+    if (singleThreadRunning)
+    {
+        id = atomic_ref(total).fetch_add(1);
+    }
+    else
+    {
+        id = total;
+        ++total;
+    }
 }
 
 BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, const bool add0, const bool add1,
@@ -203,7 +255,15 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)},
       name(lowerCase(std::move(name_))), buildExplicit(buildExplicit_)
 {
-    id = atomic_ref(total).fetch_add(1);
+    if (singleThreadRunning)
+    {
+        id = atomic_ref(total).fetch_add(1);
+    }
+    else
+    {
+        id = total;
+        ++total;
+    }
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (makeDirectory)
@@ -237,21 +297,25 @@ void BTarget::runEndOfRoundTargets(Builder &builder, uint16_t round)
 {
     if (round == 2)
     {
-        tarjanNodesBTargets[round].clear();
-        for (uint64_t i = 0; i < twoBTargetsVectorSize[1]; ++i)
+        delete[] tarjanNodesBTargets[round].data();
+        for (auto *twoBTargetsVectorLocal : centralRegistryForTwoBTargetsVector)
         {
-            auto &[b, dep] = twoBTargetsVector[1][i];
-            b->addDependencyNoMutex<1>(*dep);
+            for (auto [b, dep] : (*twoBTargetsVectorLocal)[1])
+            {
+                b->addDependencyNoMutex<1>(*dep);
+            }
         }
     }
     else if (round == 1)
     {
         targetCacheDiskWriteManager.endOfRound();
-        tarjanNodesBTargets[round].clear();
-        for (uint64_t i = 0; i < twoBTargetsVectorSize[0]; ++i)
+        delete[] tarjanNodesBTargets[round].data();
+        for (auto *twoBTargetsVectorLocal : centralRegistryForTwoBTargetsVector)
         {
-            auto &[b, dep] = twoBTargetsVector[0][i];
-            b->addDependencyNoMutex<0>(*dep);
+            for (auto [b, dep] : (*twoBTargetsVectorLocal)[0])
+            {
+                b->addDependencyNoMutex<0>(*dep);
+            }
         }
     }
 
@@ -278,19 +342,11 @@ BTargetType BTarget::getBTargetType() const
     return BTargetType::DEFAULT;
 }
 
-void BTarget::updateBTarget(Builder &, unsigned short)
+void BTarget::updateBTarget(Builder &, unsigned short, bool &isComplete)
 {
 }
 
 void BTarget::endOfRound(Builder &builder, unsigned short round)
-{
-}
-
-void BTarget::copyJson()
-{
-}
-
-void BTarget::buildSpecificationCompleted()
 {
 }
 

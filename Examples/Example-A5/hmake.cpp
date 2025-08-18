@@ -8,7 +8,7 @@ struct OurTarget : public BTarget
     explicit OurTarget(string name_, bool error_ = false) : name{std::move(name_)}, error(error_)
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round) override
+    void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete) override
     {
         if (round == roundLocal)
         {

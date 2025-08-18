@@ -18,9 +18,9 @@ struct RunCommand
     // command is 3 parts. 1) tool path 2) command without output and error files 3) output and error files.
     // while print is 2 parts. 1) tool path and command without output and error files. 2) output and error files.
     RunCommand(path toolPath, const string &runCommand, string printCommand_, bool isTarget_);
-    void executePrintRoutine(uint32_t color, bool printOnlyOnError, Value sourceJson, uint64_t _index0 = UINT64_MAX,
-                             uint64_t _index1 = UINT64_MAX, uint64_t _index2 = UINT64_MAX,
-                             uint64_t _index3 = UINT64_MAX, uint64_t _index4 = UINT64_MAX) const;
+
+    // should lock targetCacheDiskWriteManager.vecMutex before calling this function.
+    void executePrintRoutine(uint32_t color, class TargetCache *target, void *cache) const;
     void executePrintRoutineRoundOne(struct SMFile const &smFile) const;
 };
 

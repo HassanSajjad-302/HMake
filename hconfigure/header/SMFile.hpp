@@ -3,7 +3,6 @@
 
 #ifdef USE_HEADER_UNITS
 import "SpecialNodes.hpp";
-import "StaticVector.hpp";
 import "ObjectFile.hpp";
 import <filesystem>;
 import <list>;
@@ -13,7 +12,6 @@ import <atomic>;
 #else
 #include "ObjectFile.hpp"
 #include "SpecialNodes.hpp"
-#include "StaticVector.hpp"
 #include "btree.h"
 #include "nlohmann/json.hpp"
 #include <atomic>
@@ -40,11 +38,10 @@ struct CompareSourceNode
 class SourceNode : public ObjectFile
 {
   public:
-    RAPIDJSON_DEFAULT_ALLOCATOR sourceNodeAllocator;
-    Value sourceJson{kArrayType};
+    BuildCache::Cpp::SourceFile buildCache;
     CppSourceTarget *target;
     const Node *node;
-    uint64_t indexInBuildCache = UINT64_MAX;
+    uint32_t indexInBuildCache = -1;
     bool ignoreHeaderDeps = false;
     SourceNode(CppSourceTarget *target_, Node *node_);
 
@@ -54,11 +51,10 @@ class SourceNode : public ObjectFile
   public:
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     string getTarjanNodeName() const override;
-    static void initializeSourceJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
-                                     const CppSourceTarget &target);
-    void updateBTarget(Builder &builder, unsigned short round) override;
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     bool checkHeaderFiles(const Node *compareNode) const;
     void setSourceNodeFileStatus();
+    virtual void updateBuildCache();
 };
 
 void to_json(Json &j, const SourceNode &sourceNode);
@@ -83,19 +79,12 @@ enum class SM_FILE_TYPE : char
     PRIMARY_IMPLEMENTATION = 5,
 };
 
-struct ValueObjectFileMapping
-{
-    // should be const
-    Value *requireJson;
-    Node *objectFileOutputFilePath;
-
-    ValueObjectFileMapping(Value *requireJson_, Node *objectFileOutputFilePath_);
-};
-
 struct SMFile : SourceNode // Scanned Module Rule
 {
+    BuildCache::Cpp::ModuleFile::SmRules smRulesCache;
+    // buildCache.compileCommandWithToolCache is scanning command while this is the compile command.
+    CCOrHash compileCommandWithToolCache;
     string logicalName;
-    vector<ValueObjectFileMapping> valueObjectFileMapping;
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // depends on is consuming it another way.
@@ -104,7 +93,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     // TODO
     // Maybe use vector and do in-place sorting especially if big hu are used since the number of elements become really
     // small.
-    btree_set<SMFile *, IndexInTopologicalSortComparatorRoundZero> allSMFileDependenciesRoundZero;
+    vector<SMFile *> allSMFileDependenciesRoundZero;
 
     unique_ptr<vector<char>> smRuleFileBuffer;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
@@ -127,20 +116,20 @@ struct SMFile : SourceNode // Scanned Module Rule
     // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
     // ignoreHeaderDeps is true
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
+
+    inline static thread_local vector<string_view> includeNames;
+    inline static thread_local vector<InclNodePointerTargetMap> huDirPlusTargets;
     SMFile(CppSourceTarget *target_, Node *node_);
     SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
     void checkHeaderFilesIfSMRulesJsonSet();
     void setLogicalNameAndAddToRequirePath();
-    void updateBTarget(Builder &builder, unsigned short round) override;
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     string getOutputFileName() const;
     bool calledOnce = false;
-    void saveSMRulesJsonToSourceJson(const string &smrulesFileOutputClang,
-                                     StaticVector<string_view, 1000> &includeNames);
-    static void initializeModuleJson(Value &j, const Node *node, decltype(ralloc) &sourceNodeAllocator,
-                                     const CppSourceTarget &target);
+    void saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang);
     InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
     void initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder);
-    void initializeHeaderUnits(Builder &builder, const StaticVector<string_view, 1000> &includeNames);
+    void initializeHeaderUnits(Builder &builder);
     void addNewBTargetInFinalBTargetsRound1(Builder &builder);
     void setSMFileType();
     // In case of header-units, this check the ifc file.
@@ -150,6 +139,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     void checkSMRulesFileOutdatedModules();
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
+    void updateBuildCache() override;
     void setFileStatusAndPopulateAllDependencies();
     string getFlag() const;
     string getFlagPrint() const;

@@ -1,5 +1,6 @@
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
+#include <span>
 #ifdef USE_HEADER_UNITS
 import "parallel-hashmap/parallel_hashmap/phmap.h";
 import <vector>;
@@ -58,7 +59,7 @@ class RealBTarget
     inline static vector<BTarget *> topologicalSort;
 
     // Input
-    inline static vector<RealBTarget *> *tarjanNodes;
+    inline static std::span<RealBTarget *> tarjanNodes;
 
     // Find Strongly Connected Components
     static void findSCCS(unsigned short round);
@@ -140,18 +141,20 @@ class BTarget // BTarget
         // provide some way to get at letters_
     };
 
-    // This not needed currently
+    // This is currently not needed
     /*inline static array<array<BTarget *, 10>, 3> roundEndTargets;
     inline static array<atomic<uint64_t>, 3> roundEndTargetsCount{0, 0, 0};*/
 
   public:
     // vector because we clear this memory at the end of the round
-    inline static array<vector<RealBTarget *>, 3> tarjanNodesBTargets;
+    inline static array<std::span<RealBTarget *>, 3> tarjanNodesBTargets;
     inline static array<atomic<uint32_t>, 3> tarjanNodesCount{0, 0, 0};
 
   private:
-    inline static array<vector<TwoBTargets>, 2> twoBTargetsVector;
-    inline static array<atomic<uint32_t>, 2> twoBTargetsVectorSize{0, 0};
+    inline static thread_local array<vector<TwoBTargets>, 2> twoBTargetsVector;
+    inline static vector<array<vector<TwoBTargets>, 2> *> centralRegistryForTwoBTargetsVector{};
+    friend class Builder;
+    friend void constructGlobals();
 
     inline static StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
   public:
@@ -185,12 +188,8 @@ class BTarget // BTarget
 
     virtual string getTarjanNodeName() const;
     virtual BTargetType getBTargetType() const;
-    virtual void updateBTarget(class Builder &builder, unsigned short round);
+    virtual void updateBTarget(Builder &builder, unsigned short round, bool &isComplete);
     virtual void endOfRound(Builder &builder, unsigned short round);
-    virtual void copyJson();
-    virtual void buildSpecificationCompleted();
-
-    template <unsigned short round> void addEndOfRoundBTarget();
 
     template <unsigned short round, typename... U> void addDependency(BTarget &dependency, U &...bTargets);
     template <unsigned short round, typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
@@ -202,22 +201,14 @@ bool operator<(const BTarget &lhs, const BTarget &rhs);
 
 inline std::mutex dependencyMutex[3];
 
-template <unsigned short round> void BTarget::addEndOfRoundBTarget()
-{
-    /*const uint64_t i = roundEndTargetsCount[round].fetch_add(1);
-    roundEndTargets[round][i] = this;*/
-}
-
+/// should only be called with executeMutex locked
 template <unsigned short round, typename... U> void BTarget::addDependency(BTarget &dependency, U &...bTargets)
 {
+    if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
     {
-        lock_guard lk{dependencyMutex[round]};
-        if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
-        {
-            RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
-            dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
-            ++atomic_ref(realBTargets[round].dependenciesSize);
-        }
+        RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
+        dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
+        ++realBTargets[round].dependenciesSize;
     }
 
     if constexpr (sizeof...(bTargets))
@@ -243,11 +234,11 @@ template <unsigned short round, typename... U> void BTarget::addLooseDependency(
 
 template <unsigned short round, typename... U> void BTarget::addDependencyDelayed(BTarget &dependency, U &...bTargets)
 {
-    twoBTargetsVector[round][twoBTargetsVectorSize[round].fetch_add(1)] = TwoBTargets{.b = this, .dep = &dependency};
+    twoBTargetsVector[round].emplace_back(TwoBTargets{.b = this, .dep = &dependency});
 
     if constexpr (sizeof...(bTargets))
     {
-        addDependencyPost<round>(bTargets...);
+        addDependencyDelayed<round>(bTargets...);
     }
 }
 
@@ -258,7 +249,7 @@ template <unsigned short round> void BTarget::addDependencyNoMutex(BTarget &depe
     {
         RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
         dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
-        ++atomic_ref(realBTargets[round].dependenciesSize);
+        ++realBTargets[round].dependenciesSize;
     }
 }
 
