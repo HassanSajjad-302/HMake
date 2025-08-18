@@ -30,8 +30,8 @@ void configurationSpecification(Configuration &config)
     animal.getSourceTarget().sourceFiles("../Example4/main.cpp");
 
     p = new CopySharedLib(catShared.getPLOAT().outputFileNode->filePath, animal.getPLOAT().outputFileNode->filePath);
-    p->addDependency<0>(animal.getPLOAT());
-    p->addDependency<0>(catShared.getPLOAT());
+    p->addDepNow<0>(animal.getPLOAT());
+    p->addDepNow<0>(catShared.getPLOAT());
 }
 
 void buildSpecification()

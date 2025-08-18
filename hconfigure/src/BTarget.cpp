@@ -17,6 +17,11 @@ import <utility>;
 using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::mutex, std::lock_guard,
     std::filesystem::create_directory;
 
+BTarget::LaterDep::LaterDep(BTarget *b_, BTarget *dep_, BTargetDepType type_, bool doBoth_)
+    : b(b_), dep(dep_), type(type_), doBoth(doBoth_)
+{
+}
+
 BTarget::StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets()
 {
     // 1MB. Deallocated after round.
@@ -295,37 +300,36 @@ void BTarget::receiveNotificationPostBuildSpecification()
 
 void BTarget::runEndOfRoundTargets(Builder &builder, uint16_t round)
 {
-    if (round == 2)
-    {
-        delete[] tarjanNodesBTargets[round].data();
-        for (auto *twoBTargetsVectorLocal : centralRegistryForTwoBTargetsVector)
-        {
-            for (auto [b, dep] : (*twoBTargetsVectorLocal)[1])
-            {
-                b->addDependencyNoMutex<1>(*dep);
-            }
-        }
-    }
-    else if (round == 1)
+    if (round == 1)
     {
         targetCacheDiskWriteManager.endOfRound();
-        delete[] tarjanNodesBTargets[round].data();
-        for (auto *twoBTargetsVectorLocal : centralRegistryForTwoBTargetsVector)
+    }
+
+    delete[] tarjanNodesBTargets[round].data();
+
+    if (!round)
+    {
+        return;
+    }
+
+    for (array<vector<LaterDep>, 2> *laterDeps : laterDepsCentral)
+    {
+        for (const uint16_t r = round - 1; LaterDep & later : (*laterDeps)[r])
         {
-            for (auto [b, dep] : (*twoBTargetsVectorLocal)[0])
+            // first emplace in dependents, if ok, then emplace in dependencies based on doBoth variable.
+            if (later.dep->realBTargets[r].dependents.try_emplace(later.b, later.type).second)
             {
-                b->addDependencyNoMutex<0>(*dep);
+                if (later.doBoth)
+                {
+                    later.b->realBTargets[r].dependencies.emplace(later.dep, later.type);
+                    if (later.type == BTargetDepType::FULL)
+                    {
+                        ++later.b->realBTargets[r].dependenciesSize;
+                    }
+                }
             }
         }
     }
-
-    /*for (BTarget *t : roundEndTargets[round])
-    {
-        if (t != nullptr)
-        {
-            t->endOfRound(builder, round);
-        }
-    }*/
 }
 
 BTarget::~BTarget()

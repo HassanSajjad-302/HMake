@@ -215,7 +215,7 @@ bool configureOrBuild()
 void constructGlobals()
 {
     std::construct_at(&targetCacheDiskWriteManager);
-    BTarget::centralRegistryForTwoBTargetsVector.emplace_back(&BTarget::twoBTargetsVector);
+    BTarget::laterDepsCentral.emplace_back(&BTarget::laterDepsLocal);
 }
 
 void destructGlobals()

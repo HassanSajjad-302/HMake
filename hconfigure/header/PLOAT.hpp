@@ -127,7 +127,7 @@ void to_json(Json &json, const PLOAT &PLOAT);
 template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
 {
     useReqDeps.emplace(&ploat, PrebuiltDep{});
-    addDependencyNoMutex<2>(ploat);
+    addDepNow<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
         return interfaceDeps(ploats...);
@@ -138,7 +138,7 @@ template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
 template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, U... ploats)
 {
     reqDeps.emplace(&ploat, PrebuiltDep{});
-    addDependencyNoMutex<2>(ploat);
+    addDepNow<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
         return privateDeps(ploats...);
@@ -150,7 +150,7 @@ template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, U... ploats)
 {
     reqDeps.emplace(&ploat, PrebuiltDep{});
     useReqDeps.emplace(&ploat, PrebuiltDep{});
-    addDependencyNoMutex<2>(ploat);
+    addDepNow<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
         return publicDeps(ploats...);
@@ -164,17 +164,17 @@ template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat,
     {
         reqDeps.emplace(&ploat, PrebuiltDep{});
         useReqDeps.emplace(&ploat, PrebuiltDep{});
-        addDependencyNoMutex<2>(ploat);
+        addDepNow<2>(ploat);
     }
     else if (depType == DepType::PRIVATE)
     {
         reqDeps.emplace(&ploat, PrebuiltDep{});
-        addDependencyNoMutex<2>(ploat);
+        addDepNow<2>(ploat);
     }
     else
     {
         useReqDeps.emplace(&ploat, PrebuiltDep{});
-        addDependencyNoMutex<2>(ploat);
+        addDepNow<2>(ploat);
     }
     if constexpr (sizeof...(ploats))
     {
@@ -196,7 +196,7 @@ template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, PrebuiltDep p
 template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
 {
     reqDeps.emplace(&ploat, prebuiltDep);
-    addDependencyNoMutex<2>(ploat);
+    addDepNow<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
         return privateDeps(ploats...);
@@ -208,7 +208,7 @@ template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, PrebuiltDep preb
 {
     reqDeps.emplace(&ploat, prebuiltDep);
     useReqDeps.emplace(&ploat, prebuiltDep);
-    addDependencyNoMutex<2>(ploat);
+    addDepNow<2>(ploat);
     if constexpr (sizeof...(ploats))
     {
         return publicDeps(ploats...);
@@ -222,12 +222,12 @@ template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat,
     {
         reqDeps.emplace(&ploat, prebuiltDep);
         useReqDeps.emplace(&ploat, prebuiltDep);
-        addDependencyNoMutex<2>(ploat);
+        addDepNow<2>(ploat);
     }
     else if (depType == DepType::PRIVATE)
     {
         reqDeps.emplace(&ploat, prebuiltDep);
-        addDependencyNoMutex<2>(ploat);
+        addDepNow<2>(ploat);
     }
     else
     {

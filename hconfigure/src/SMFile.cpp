@@ -435,7 +435,6 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
             }
 
             assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
-            target->addDependencyDelayed<0>(*this);
 
             if (isSMRuleFileOutdated)
             {
@@ -655,7 +654,7 @@ void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
 
         // Should be true if JConsts::lookupMethod == "include-angle";
         headerUnitsConsumptionData.emplace(&headerUnit, hu.angle);
-        addDependencyDelayed<0>(headerUnit);
+        addDepHalfNowHalfLater<0>(headerUnit);
     }
 
     builder.executeMutex.lock();
@@ -716,7 +715,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
 
         // Should be true if JConsts::lookupMethod == "include-angle";
         headerUnitsConsumptionData.emplace(headerUnit, singleHuDep.angle);
-        addDependencyDelayed<0>(*headerUnit);
+        addDepHalfNowHalfLater<0>(*headerUnit);
 
         singleHuDep.targetIndex = huDirTarget->cacheIndex;
         singleHuDep.myIndex = headerUnit->indexInBuildCache;

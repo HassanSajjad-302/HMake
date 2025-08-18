@@ -16,9 +16,9 @@ OurTarget b("World");
 OurTarget c("HMake");
 void buildSpecification()
 {
-    a.addDependency<0>(b);
-    b.addDependency<0>(c);
-    c.addDependency<0>(a);
+    a.addDepNow<0>(b);
+    b.addDepNow<0>(c);
+    c.addDepNow<0>(a);
 }
 
 MAIN_FUNCTION

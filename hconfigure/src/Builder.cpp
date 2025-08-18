@@ -45,14 +45,14 @@ Builder::Builder()
 
         for (uint64_t i = 0; i < launchThreads - 1; ++i)
         {
-            BTarget::centralRegistryForTwoBTargetsVector.emplace_back(nullptr);
+            BTarget::laterDepsCentral.emplace_back(nullptr);
         }
 
         while (threads.size() != launchThreads - 1)
         {
             uint64_t index = threads.size() + 1;
             threads.emplace_back(new thread([this, index] {
-                BTarget::centralRegistryForTwoBTargetsVector[index] = &BTarget::twoBTargetsVector;
+                BTarget::laterDepsCentral[index] = &BTarget::laterDepsLocal;
                 execute();
             }));
         }

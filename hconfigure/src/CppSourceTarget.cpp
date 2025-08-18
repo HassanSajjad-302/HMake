@@ -322,7 +322,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         {
             if (!cppSourceTarget->modFileDeps.empty())
             {
-                addDependencyDelayed<1>(*cppSourceTarget);
+                addDepHalfNowHalfLater<1>(*cppSourceTarget);
             }
         }
         if (!cppBuildCache.headerUnits.empty())
@@ -375,6 +375,7 @@ void CppSourceTarget::checkAndCopyBuildCache()
                 hu->realBTargets[0].addInTarjanNodeBTarget(0);
             }
         }
+            addDepNow<0>(*hu);
     }
 
     for (SMFile &modFile : modFileDeps)
@@ -570,7 +571,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     for (uint32_t i = 0; i < sourceSize; ++i)
     {
         srcFileDeps.emplace_back(this, readHalfNode(ptr, configRead));
-        addDependencyNoMutex<0>(srcFileDeps[i]);
+        addDepNow<0>(srcFileDeps[i]);
     }
 
     const uint32_t modSize = readUint32(ptr, configRead);
@@ -579,14 +580,17 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     {
         SMFile &smFile = modFileDeps.emplace_back(this, readHalfNode(ptr, configRead));
         smFile.isInterface = readBool(ptr, configRead);
-        addDependencyNoMutex<0>(smFile);
-        addDependencyNoMutex<1>(smFile);
+        addDepNow<0>(smFile);
+        addDepNow<1>(smFile);
     }
 
     const uint32_t huSize = readUint32(ptr, configRead);
-    for (uint32_t i = 0; i < huSize; ++i)
+    if (huSize)
     {
         hasManuallySpecifiedHeaderUnits = true;
+    }
+    for (uint32_t i = 0; i < huSize; ++i)
+    {
         configuration->moduleFilesToTarget.emplace(readHalfNode(ptr, configRead), this);
     }
 
@@ -913,7 +917,7 @@ void CppSourceTarget::resolveRequirePaths()
 
             if (found)
             {
-                smFile.addDependencyDelayed<0>(const_cast<SMFile &>(*found));
+                smFile.addDepLater<0>(const_cast<SMFile &>(*found));
                 if (!smFile.fileStatus && !atomic_ref(smFile.fileStatus).load())
                 {
                     if (fullPath != found->objectFileOutputFileNode)

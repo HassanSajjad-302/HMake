@@ -227,7 +227,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::publicDeps(CppSourceT
 {
     reqDeps.emplace(dep);
     useReqDeps.emplace(dep);
-    addDependencyNoMutex<2>(*dep);
+    addDepNow<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return publicDeps(deps...);
@@ -238,7 +238,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::publicDeps(CppSourceT
 template <typename... U> CppSourceTarget &CppSourceTarget::privateDeps(CppSourceTarget *dep, const U... deps)
 {
     reqDeps.emplace(dep);
-    addDependencyNoMutex<2>(*dep);
+    addDepNow<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return privateDeps(deps...);
@@ -249,7 +249,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::privateDeps(CppSource
 template <typename... U> CppSourceTarget &CppSourceTarget::interfaceDeps(CppSourceTarget *dep, const U... deps)
 {
     useReqDeps.emplace(dep);
-    addDependencyNoMutex<2>(*dep);
+    addDepNow<2>(*dep);
     if constexpr (sizeof...(deps))
     {
         return interfaceDeps(deps...);
@@ -264,17 +264,17 @@ CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const DepType depen
     {
         reqDeps.emplace(dep);
         useReqDeps.emplace(dep);
-        addDependencyNoMutex<2>(*dep);
+        addDepNow<2>(*dep);
     }
     else if (dependency == DepType::PRIVATE)
     {
         reqDeps.emplace(dep);
-        addDependencyNoMutex<2>(*dep);
+        addDepNow<2>(*dep);
     }
     else
     {
         useReqDeps.emplace(dep);
-        addDependencyNoMutex<2>(*dep);
+        addDepNow<2>(*dep);
     }
     if constexpr (sizeof...(cppSourceTargets))
     {

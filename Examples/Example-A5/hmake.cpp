@@ -28,8 +28,8 @@ struct OurTarget : public BTarget
 OurTarget a("Hello"), b("World"), c("HMake"), d("CMake"), e("Ninja", true), f("XMake"), g("build2", true), h("Boost");
 void buildSpecification()
 {
-    d.addDependency<roundLocal>(e);
-    h.addDependency<roundLocal>(g);
+    d.addDepNow<roundLocal>(e);
+    h.addDepNow<roundLocal>(g);
 }
 
 MAIN_FUNCTION

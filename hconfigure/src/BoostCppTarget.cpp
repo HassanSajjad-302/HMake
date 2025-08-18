@@ -138,7 +138,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
                 if (testTarget)
                 {
-                    testTarget->addDependencyNoMutex<0>(cppTarget);
+                    testTarget->addDepNow<0>(cppTarget);
                 }
             }
             else
@@ -150,14 +150,14 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
                 {
                     if (examplesTarget)
                     {
-                        examplesTarget->addDependencyNoMutex<0>(uintTest.getLOAT());
+                        examplesTarget->addDepNow<0>(uintTest.getLOAT());
                     }
                 }
                 else
                 {
                     if (testTarget)
                     {
-                        testTarget->addDependencyNoMutex<0>(uintTest.getLOAT());
+                        testTarget->addDepNow<0>(uintTest.getLOAT());
                     }
                 }
             }

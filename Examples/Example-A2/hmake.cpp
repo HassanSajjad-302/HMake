@@ -19,8 +19,8 @@ OurTarget a("Hello");
 OurTarget b("World");
 void buildSpecification()
 {
-    b.addDependency<0>(a);
-    a.addDependency<1>(b);
+    b.addDepNow<0>(a);
+    a.addDepNow<1>(b);
 }
 
 MAIN_FUNCTION

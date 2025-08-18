@@ -1,5 +1,7 @@
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
+#include "BTarget.hpp"
+
 #include <span>
 #ifdef USE_HEADER_UNITS
 import "parallel-hashmap/parallel_hashmap/phmap.h";
@@ -128,10 +130,14 @@ inline vector<BTarget *> postBuildSpecificationArray;
 class BTarget // BTarget
 {
     friend RealBTarget;
-    struct TwoBTargets
+    struct LaterDep
     {
         BTarget *b;
         BTarget *dep;
+        BTargetDepType type;
+        // dependency or dependent
+        bool doBoth;
+        LaterDep(BTarget *b_, BTarget *dep_, BTargetDepType type_, bool doBoth_);
     };
     class StaticInitializationTarjanNodesBTargets
     {
@@ -151,8 +157,8 @@ class BTarget // BTarget
     inline static array<atomic<uint32_t>, 3> tarjanNodesCount{0, 0, 0};
 
   private:
-    inline static thread_local array<vector<TwoBTargets>, 2> twoBTargetsVector;
-    inline static vector<array<vector<TwoBTargets>, 2> *> centralRegistryForTwoBTargetsVector{};
+    inline static thread_local array<vector<LaterDep>, 2> laterDepsLocal;
+    inline static vector<array<vector<LaterDep>, 2> *> laterDepsCentral{};
     friend class Builder;
     friend void constructGlobals();
 
@@ -191,66 +197,60 @@ class BTarget // BTarget
     virtual void updateBTarget(Builder &builder, unsigned short round, bool &isComplete);
     virtual void endOfRound(Builder &builder, unsigned short round);
 
-    template <unsigned short round, typename... U> void addDependency(BTarget &dependency, U &...bTargets);
-    template <unsigned short round, typename... U> void addLooseDependency(BTarget &dependency, U &...bTargets);
-
-    template <unsigned short round, typename... U> void addDependencyDelayed(BTarget &dependency, U &...bTargets);
-    template <unsigned short round> void addDependencyNoMutex(BTarget &dependency);
+    template <unsigned short round> void addDepNow(BTarget &dep);
+    template <unsigned short round> void addDepLooseNow(BTarget &dep);
+    template <unsigned short round> void addDepHalfNowHalfLater(BTarget &dep);
+    template <unsigned short round> void addDepLooseHalfNowHalfLater(BTarget &dep);
+    template <unsigned short round> void addDepLater(BTarget &dep);
+    template <unsigned short round> void addDepLooseLater(BTarget &dep);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
-inline std::mutex dependencyMutex[3];
-
-/// should only be called with executeMutex locked
-template <unsigned short round, typename... U> void BTarget::addDependency(BTarget &dependency, U &...bTargets)
+template <unsigned short round> void BTarget::addDepNow(BTarget &dep)
 {
-    if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
+    if (realBTargets[round].dependencies.try_emplace(&dep, BTargetDepType::FULL).second)
     {
-        RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
-        dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
+        RealBTarget &depRealBTarget = dep.realBTargets[round];
+        depRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
         ++realBTargets[round].dependenciesSize;
     }
+}
 
-    if constexpr (sizeof...(bTargets))
+template <unsigned short round> void BTarget::addDepLooseNow(BTarget &dep)
+{
+    if (realBTargets[round].dependencies.try_emplace(&dep, BTargetDepType::LOOSE).second)
     {
-        addDependency<round>(bTargets...);
+        RealBTarget &depRealBTarget = dep.realBTargets[round];
+        depRealBTarget.dependents.try_emplace(this, BTargetDepType::LOOSE);
     }
 }
 
-template <unsigned short round, typename... U> void BTarget::addLooseDependency(BTarget &dependency, U &...bTargets)
+template <unsigned short round> void BTarget::addDepHalfNowHalfLater(BTarget &dep)
 {
-    lock_guard lk{dependencyMutex[round]};
-    if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::LOOSE).second)
+    if (realBTargets[round].dependencies.try_emplace(&dep, BTargetDepType::FULL).second)
     {
-        RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
-        dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::LOOSE);
-    }
-
-    if constexpr (sizeof...(bTargets))
-    {
-        addLooseDependency<round>(bTargets...);
-    }
-}
-
-template <unsigned short round, typename... U> void BTarget::addDependencyDelayed(BTarget &dependency, U &...bTargets)
-{
-    twoBTargetsVector[round].emplace_back(TwoBTargets{.b = this, .dep = &dependency});
-
-    if constexpr (sizeof...(bTargets))
-    {
-        addDependencyDelayed<round>(bTargets...);
-    }
-}
-
-template <unsigned short round> void BTarget::addDependencyNoMutex(BTarget &dependency)
-{
-    // adding in both dependencies and deps is duplicating. One should be removed.
-    if (realBTargets[round].dependencies.try_emplace(&dependency, BTargetDepType::FULL).second)
-    {
-        RealBTarget &dependencyRealBTarget = dependency.realBTargets[round];
-        dependencyRealBTarget.dependents.try_emplace(this, BTargetDepType::FULL);
         ++realBTargets[round].dependenciesSize;
+        laterDepsLocal[round].emplace_back(this, &dep, BTargetDepType::FULL, false);
     }
+}
+
+template <unsigned short round> void BTarget::addDepLooseHalfNowHalfLater(BTarget &dep)
+{
+    if (realBTargets[round].dependencies.try_emplace(&dep, BTargetDepType::LOOSE).second)
+    {
+        ++realBTargets[round].dependenciesSize;
+        laterDepsLocal[round].emplace_back(this, &dep, BTargetDepType::LOOSE, false);
+    }
+}
+
+template <unsigned short round> void BTarget::addDepLater(BTarget &dep)
+{
+    laterDepsLocal[round].emplace_back(this, &dep, BTargetDepType::FULL, true);
+}
+
+template <unsigned short round> void BTarget::addDepLooseLater(BTarget &dep)
+{
+    laterDepsLocal[round].emplace_back(this, &dep, BTargetDepType::LOOSE, true);
 }
 
 #endif // HMAKE_BASICTARGETS_HPP

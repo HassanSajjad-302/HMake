@@ -31,8 +31,8 @@ struct OurTarget2 : public BTarget
             a = new OurTarget(10, 40);
             b = new OurTarget(50, 80);
             c = new OurTarget(800, 1000);
-            a->addDependency<0>(*c);
-            b->addDependency<0>(*c);
+            a->addDepNow<0>(*c);
+            b->addDepNow<0>(*c);
 
             {
                 std::lock_guard lk(builder.executeMutex);
