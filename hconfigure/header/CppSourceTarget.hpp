@@ -105,6 +105,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     vector<SourceNode *> srcFileDeps;
     // Comparator used is same as for SourceNode
     vector<SMFile *> modFileDeps;
+    vector<SMFile *> imodFileDeps;
 
     vector<SMFile> oldHeaderUnits;
     BuildCache::Cpp::ModuleFile headerUnitsCache;

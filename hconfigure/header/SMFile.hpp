@@ -90,17 +90,13 @@ struct SMFile : SourceNode // Scanned Module Rule
     // buildCache.compileCommandWithToolCache is scanning command while this is the compile command.
     CCOrHash compileCommandWithToolCache;
     string logicalName;
-    // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
-    // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
-    // depends on is consuming it another way.
-    flat_hash_map<const SMFile *, bool> headerUnitsConsumptionData;
 
     // TODO
     // Maybe use vector and do in-place sorting especially if big hu are used since the number of elements become really
     // small.
     vector<SMFile *> allSMFileDependenciesRoundZero;
+    Node *interfaceNode;
 
-    unique_ptr<vector<char>> smRuleFileBuffer;
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 
     bool isInterface = false;

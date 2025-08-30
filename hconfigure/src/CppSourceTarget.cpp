@@ -227,27 +227,35 @@ void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
 
 void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, const bool isInterface)
 {
-    for (const SMFile *smFile : modFileDeps)
-    {
-        if (smFile->node == node)
-        {
-            printErrorMessage(
-                FORMAT("Attempting to add {} twice in module-files in cpptarget {}. second insertiion ignored.\n",
-                       node->filePath, name));
-            return;
-        }
-    }
-    SMFile *smFile = modFileDeps.emplace_back(new SMFile(this, node));
-    smFile->isInterface = isInterface;
-    string fileName = smFile->node->getFileName();
-    string ext = {fileName.begin() + fileName.find_last_of('.') + 1, fileName.end()};
+    string fileName = node->getFileName();
+    const string ext = {fileName.begin() + fileName.find_last_of('.') + 1, fileName.end()};
     if (ext == ".cppm" || ext == ".ixx")
     {
-        smFile->type = fileName.contains('-') ? SM_FILE_TYPE::PRIMARY_EXPORT : SM_FILE_TYPE::PARTITION_EXPORT;
+        for (const SMFile *smFile : imodFileDeps)
+        {
+            if (smFile->node == node)
+            {
+                printErrorMessage(
+                    FORMAT("Attempting to add {} twice in module-files in cpptarget {}. second insertiion ignored.\n",
+                           node->filePath, name));
+                return;
+            }
+        }
+        imodFileDeps.emplace_back(new SMFile(this, node));
     }
     else
     {
-        smFile->type = SM_FILE_TYPE::PARTITION_IMPLEMENTATION;
+        for (const SMFile *smFile : modFileDeps)
+        {
+            if (smFile->node == node)
+            {
+                printErrorMessage(
+                    FORMAT("Attempting to add {} twice in module-files in cpptarget {}. second insertiion ignored.\n",
+                           node->filePath, name));
+                return;
+            }
+        }
+        modFileDeps.emplace_back(new SMFile(this, node));
     }
 }
 
@@ -497,11 +505,24 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
         }
 
         writeUint32(*configBuffer, modFileDeps.size());
-        for (const SMFile *smFile : modFileDeps)
+        for (SMFile *smFile : modFileDeps)
         {
+            smFile->objectNode = Node::getNodeFromNormalizedString(
+                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
             writeNode(*configBuffer, smFile->node);
-            writeBool(*configBuffer, smFile->isInterface);
-            writeUint8(*configBuffer, static_cast<uint8_t>(smFile->type));
+            writeNode(*configBuffer, smFile->objectNode);
+        }
+
+        writeUint32(*configBuffer, imodFileDeps.size());
+        for (SMFile *smFile : imodFileDeps)
+        {
+            smFile->objectNode = Node::getNodeFromNormalizedString(
+                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
+            smFile->interfaceNode = Node::getNodeFromNormalizedString(
+                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".ifc", true, true);
+            writeNode(*configBuffer, smFile->node);
+            writeNode(*configBuffer, smFile->objectNode);
+            writeNode(*configBuffer, smFile->interfaceNode);
         }
 
         writeUint32(*configBuffer, oldHeaderUnits.size());
@@ -518,6 +539,7 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
 
         adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
         adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
+        adjustBuildCache(cppBuildCache.imodFiles, imodFileDeps);
     }
 }
 
@@ -548,8 +570,19 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     for (uint32_t i = 0; i < modSize; ++i)
     {
         SMFile *smFile = modFileDeps.emplace_back(new SMFile(this, readHalfNode(ptr, configRead)));
-        smFile->isInterface = readBool(ptr, configRead);
-        smFile->type = static_cast<SM_FILE_TYPE>(readUint8(ptr, configRead));
+        smFile->objectNode = readHalfNode(ptr, configRead);
+
+        addDepNow<0>(*smFile);
+    }
+
+    const uint32_t imodSize = readUint32(ptr, configRead);
+    modFileDeps.reserve(imodSize);
+    for (uint32_t i = 0; i < imodSize; ++i)
+    {
+        SMFile *smFile = modFileDeps.emplace_back(new SMFile(this, readHalfNode(ptr, configRead)));
+        smFile->objectNode = readHalfNode(ptr, configRead);
+        smFile->interfaceNode = readHalfNode(ptr, configRead);
+
         addDepNow<0>(*smFile);
     }
 

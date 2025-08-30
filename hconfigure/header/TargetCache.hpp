@@ -140,6 +140,7 @@ struct BuildCache
 
         vector<SourceFile> srcFiles;
         vector<ModuleFile> modFiles;
+        vector<ModuleFile> imodFiles;
         vector<ModuleFile> headerUnits;
         void serialize(vector<char> &buffer) const;
         void deserialize(uint32_t targetCacheIndex);

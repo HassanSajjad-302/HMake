@@ -243,6 +243,12 @@ void BuildCache::Cpp::serialize(vector<char> &buffer) const
         mf.serialize(buffer);
     }
 
+    writeUint32(buffer, imodFiles.size());
+    for (const ModuleFile &mf : imodFiles)
+    {
+        mf.serialize(buffer);
+    }
+
     writeUint32(buffer, headerUnits.size());
     for (const ModuleFile &hud : headerUnits)
     {
@@ -266,6 +272,11 @@ void BuildCache::Cpp::deserialize(const uint32_t targetCacheIndex)
     }
     modFiles.resize(readUint32(str.data(), bytesRead));
     for (ModuleFile &modFile : modFiles)
+    {
+        modFile.deserialize(str.data(), bytesRead);
+    }
+    imodFiles.resize(readUint32(str.data(), bytesRead));
+    for (ModuleFile &modFile : imodFiles)
     {
         modFile.deserialize(str.data(), bytesRead);
     }
