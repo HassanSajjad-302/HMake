@@ -6,11 +6,12 @@ import "BuildSystemFunctions.hpp";
 import "Builder.hpp";
 import "Configuration.hpp";
 import "CppSourceTarget.hpp";
+import "IPCManagerBS.hpp";
 import "JConsts.hpp";
 import "RunCommand.hpp";
 import "Settings.hpp";
 import "StaticVector.hpp";
-import "TargetCacheDiskWriteManager.hpp";
+import "CacheWriteManager.hpp";
 import "Utilities.hpp";
 import <filesystem>;
 import <fstream>;
@@ -20,20 +21,21 @@ import <utility>;
 #include "SMFile.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
+#include "CacheWriteManager.hpp"
 #include "Configuration.hpp"
 #include "CppSourceTarget.hpp"
+#include "IPCManagerBS.hpp"
 #include "JConsts.hpp"
 #include "RunCommand.hpp"
 #include "Settings.hpp"
 #include "StaticVector.hpp"
-#include "TargetCacheDiskWriteManager.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
 #include <mutex>
 #include <utility>
 #endif
 
-using std::tie, std::ifstream, std::exception, std::lock_guard;
+using std::tie, std::ifstream, std::exception, std::lock_guard, N2978::IPCManagerBS;
 
 bool CompareSourceNode::operator()(const SourceNode &lhs, const SourceNode &rhs) const
 {
@@ -50,122 +52,276 @@ bool CompareSourceNode::operator()(const SourceNode &lhs, const Node *rhs) const
     return lhs.node < rhs;
 }
 
-SourceNode::SourceNode(CppSourceTarget *target_, Node *node_) : target(target_), node{node_}
+SourceNode::SourceNode(CppSourceTarget *target_, Node *node_) : ObjectFile(true, false), target(target_), node{node_}
 {
 }
 
-SourceNode::SourceNode(CppSourceTarget *target_, const Node *node_, const bool add0, const bool add1, const bool add2)
-    : ObjectFile(add0, add1, add2), target(target_), node{node_}
+SourceNode::SourceNode(CppSourceTarget *target_, const Node *node_, const bool add0, const bool add1)
+    : ObjectFile(add0, add1), target(target_), node{node_}
 {
 }
 
 string SourceNode::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
 {
-    return getReducedPath(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".o",
-                          pathPrint);
+    return getReducedPath(target->myBuildDir->filePath + slashc + node->getFileName() + ".o", pathPrint);
 }
 
-string SourceNode::getTarjanNodeName() const
+string SourceNode::getPrintName() const
 {
     return node->filePath;
 }
 
+void SourceNode::initializeBuildCache(const uint32_t index)
+{
+    indexInBuildCache = index;
+    buildCache = target->cppBuildCache.srcFiles[index];
+    if (buildCache.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
+    {
+        fileStatus = true;
+    }
+    else
+    {
+        const_cast<bool &>(node->toBeChecked) = true;
+        objectNode->toBeChecked = true;
+        for (Node *headerFile : buildCache.headerFiles)
+        {
+            headerFile->toBeChecked = true;
+        }
+    }
+}
+
+void SourceNode::completeCompilation()
+{
+    const Compiler &compiler = target->configuration->compilerFeatures.compiler;
+    string compileCommand = "\"" + compiler.bTPath.generic_string() + "\" " + target->compileCommand;
+    if (compiler.bTFamily == BTFamily::MSVC)
+    {
+        compileCommand += "-c /nologo /showIncludes \"" + node->filePath + "\" /Fo\"" + objectNode->filePath + "\"";
+    }
+    else if (compiler.bTFamily == BTFamily::GCC)
+    {
+        compileCommand += "-c -MMD \"" + node->filePath + "\" -o \"" + objectNode->filePath + "\"";
+    }
+
+    const RunCommand r(compileCommand);
+    auto [output, exitStatus] = r.endProcess();
+    realBTargets[0].exitStatus = exitStatus;
+    // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed
+    // because cached compile-command would be different
+    if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+    {
+        buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+        parseHeaderDeps(output);
+    }
+
+    const string printCommand =
+        target->getSourceCompileCommandPrintFirstHalf() + target->getCompileCommandPrintSecondPart(*this);
+    CacheWriteManager::addNewEntry(exitStatus, target, this, settings.pcSettings.compileCommandColor, printCommand,
+                                   output);
+}
+
 void SourceNode::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
-    if (!round)
+    if (!round && selectiveBuild)
     {
-        RealBTarget &realBTarget = realBTargets[0];
-        if (selectiveBuild)
+        setSourceNodeFileStatus();
+        if (fileStatus)
         {
-            const_cast<Node *>(node)->ensureSystemCheckCalled(true);
+            assignFileStatusToDependents(0);
+            completeCompilation();
+        }
+    }
+}
 
-            objectFileOutputFileNode = Node::getNodeFromNormalizedString(
-                target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".o", true, true);
+bool SourceNode::ignoreHeaderFile(const string_view child) const
+{
+    //  Premature Optimization Hahacd
+    // TODO:
+    //  Add a key in hconfigure that informs hbuild that the library isn't to be
+    //  updated, so includes from the dirs coming from it aren't mentioned
+    //  in targetCache and neither are those libraries checked for an edit for
+    //  faster startup times.
 
-            setSourceNodeFileStatus();
-            if (fileStatus)
+    // If a file is in environment includes, it is not marked as dependency as an
+    // optimization. If a file is in subdir of environment include, it is
+    // still marked as dependency. It is not checked if any of environment
+    // includes is related(equivalent, subdir) with any of normal includes
+    // or vice versa.
+
+    // std::path::equivalent is not used as it is slow
+    // It is assumed that both paths are normalized strings
+    for (const InclNode &inclNode : target->reqIncls)
+    {
+        if (inclNode.ignoreHeaderDeps)
+        {
+            if (childInParentPathNormalized(inclNode.node->filePath, child))
             {
-                assignFileStatusToDependents(0);
-                PostCompile postCompile = target->updateSourceNodeBTarget(*this);
-                realBTarget.exitStatus = postCompile.exitStatus;
-                // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed
-                // because cached compile-command would be different
-                if (realBTarget.exitStatus == EXIT_SUCCESS)
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void SourceNode::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
+{
+    const string includeFileNote = "Note: including file:";
+
+    if (ignoreHeaderDeps && settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
+    {
+        // TODO
+        //  Merge this if in the following else.
+        vector<string> outputLines = split(output, "\n");
+        for (auto iter = outputLines.begin(); iter != outputLines.end();)
+        {
+            if (iter->contains(includeFileNote))
+            {
+                iter = outputLines.erase(iter);
+            }
+            else
+            {
+                ++iter;
+            }
+        }
+        return;
+    }
+    string treatedOutput;
+
+    uint64_t startPos = 0;
+    uint64_t lineEnd = output.find('\n');
+    if (lineEnd == string::npos)
+    {
+        return;
+    }
+
+    string_view line(output.begin() + startPos, output.begin() + lineEnd + 1);
+
+    if (!settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
+    {
+        treatedOutput.append(line);
+    }
+
+    startPos = lineEnd + 1;
+    if (output.size() == startPos)
+    {
+        output = std::move(treatedOutput);
+        return;
+    }
+    if (lineEnd > output.size() - 5)
+    {
+        bool breakpoint = true;
+    }
+    lineEnd = output.find('\n', startPos);
+
+    buildCache.headerFiles.clear();
+    while (true)
+    {
+
+        line = string_view(output.begin() + startPos, output.begin() + lineEnd + 1);
+        if (size_t pos = line.find(includeFileNote); pos != string::npos)
+        {
+            pos = line.find_first_not_of(' ', includeFileNote.size());
+
+            if (line.size() >= pos + 1)
+            {
+                // Last character is \r for some reason with MSVC.
+                const uint8_t sub = isClang ? 1 : 2;
+                // MSVC compiler can output header-includes with / as path separator
+
+                for (auto it = line.begin() + pos; it != line.end() - sub; ++it)
                 {
-                    buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
-                    postCompile.parseHeaderDeps(*this);
+                    if (*it == '/')
+                    {
+                        const_cast<char &>(*it) = '\\';
+                    }
                 }
 
-                postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, target, this);
+                string_view headerView{line.begin() + pos, line.end() - sub};
+
+                // TODO
+                // If compile-command is all lower-cased, then this might not be needed
+                // Some compilers can input same header-file twice, if that is the case, then we should first make
+                // the array unique.
+                if (!ignoreHeaderFile(headerView))
+                {
+                    lowerCasePStringOnWindows(const_cast<char *>(headerView.data()), headerView.size());
+
+                    if (Node *headerNode = Node::getHalfNode(headerView);
+                        !std::ranges::contains(buildCache.headerFiles, headerNode))
+                    {
+                        buildCache.headerFiles.emplace_back(headerNode);
+                    }
+                }
+            }
+            else
+            {
+                printErrorMessage(FORMAT("Empty Header Include {}\n", line));
+            }
+
+            if (!settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
+            {
+                treatedOutput.append(line);
+            }
+        }
+        else
+        {
+            treatedOutput.append(line);
+        }
+
+        startPos = lineEnd + 1;
+        if (output.size() == startPos)
+        {
+            output = std::move(treatedOutput);
+            break;
+        }
+        /*if (lineEnd > output.size() - 5)
+        {
+            bool breakpoint = true;
+        }*/
+        lineEnd = output.find('\n', startPos);
+    }
+}
+
+void SourceNode::parseDepsFromGCCDepsOutput()
+{
+    if (ignoreHeaderDeps)
+    {
+        return;
+    }
+    const string headerFileContents = fileToPString(target->myBuildDir->filePath + slashc + node->getFileName() + ".d");
+    vector<string> headerDeps = split(headerFileContents, "\n");
+
+    // The First 2 lines are skipped as these are .o and .cpp file.
+    // If the file is preprocessed, it does not generate the extra line
+    const auto endIt = headerDeps.end() - 1;
+
+    if (headerDeps.size() > 2)
+    {
+        buildCache.headerFiles.clear();
+        for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
+        {
+            const size_t pos = iter->find_first_not_of(" ");
+            auto it = iter->begin() + pos;
+            if (const string_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
+                !ignoreHeaderFile(headerView))
+            {
+                buildCache.headerFiles.emplace_back(Node::getHalfNode(headerView));
             }
         }
     }
 }
 
-bool SourceNode::checkHeaderFiles(const Node *compareNode) const
+void SourceNode::parseHeaderDeps(string &output)
 {
-    StaticVector<Node *, 1000> headerFilesUnChecked;
-
-    for (Node *headerNode : buildCache.headerFiles)
+    if (target->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
     {
-        if (headerNode->trySystemCheck(true, true))
-        {
-            if (headerNode->doesNotExist)
-            {
-                return true;
-            }
-
-            if (headerNode->lastWriteTime > compareNode->lastWriteTime)
-            {
-                return true;
-            }
-        }
-        else
-        {
-            headerFilesUnChecked.emplace_back(headerNode);
-        }
+        parseDepsFromMSVCTextOutput(output,
+                                    target->configuration->compilerFeatures.compiler.btSubFamily == BTSubFamily::CLANG);
     }
-
-    if (!headerFilesUnChecked.empty())
+    else
     {
-        uint64_t uncheckedCountOld = headerFilesUnChecked.size();
-        while (true)
-        {
-            bool zeroLeft = true;
-            uint64_t uncheckedCountNew = 0;
-            for (uint64_t i = 0; i < uncheckedCountOld; ++i)
-            {
-                if (Node *headerNode = headerFilesUnChecked[i];
-                    headerNode->systemCheckCompleted || atomic_ref(headerNode->systemCheckCompleted).load())
-                {
-                    if (headerNode->doesNotExist)
-                    {
-                        return true;
-                    }
-
-                    if (headerNode->lastWriteTime > compareNode->lastWriteTime)
-                    {
-                        return true;
-                    }
-                }
-                else
-                {
-                    headerFilesUnChecked[uncheckedCountNew] = headerNode;
-                    ++uncheckedCountNew;
-                    zeroLeft = false;
-                }
-            }
-
-            if (zeroLeft)
-            {
-                break;
-            }
-
-            uncheckedCountOld = uncheckedCountNew;
-        }
+        parseDepsFromGCCDepsOutput();
     }
-
-    return false;
 }
 
 // An invariant is that paths are lexically normalized.
@@ -185,27 +341,24 @@ bool pathContainsFile(string_view dir, const string_view file)
 
 void SourceNode::setSourceNodeFileStatus()
 {
-    if (buildCache.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
+    if (fileStatus)
+    {
+        return;
+    }
+
+    if (objectNode->fileType == file_type::not_found || node->lastWriteTime > objectNode->lastWriteTime)
     {
         fileStatus = true;
         return;
     }
 
-    if (objectFileOutputFileNode->doesNotExist)
+    for (const Node *headerNode : buildCache.headerFiles)
     {
-        fileStatus = true;
-        return;
-    }
-
-    if (node->lastWriteTime > objectFileOutputFileNode->lastWriteTime)
-    {
-        fileStatus = true;
-        return;
-    }
-
-    if (checkHeaderFiles(objectFileOutputFileNode))
-    {
-        fileStatus = true;
+        if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > objectNode->lastWriteTime)
+        {
+            fileStatus = true;
+            return;
+        }
     }
 }
 
@@ -234,42 +387,15 @@ SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node
 }
 
 SMFile::SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_)
-    : SourceNode(target_, node_, false, false, false), logicalName(std::move(logicalName_)),
-      type(SM_FILE_TYPE::HEADER_UNIT)
+    : SourceNode(target_, node_, false, false), logicalName(std::move(logicalName_)), type(SM_FILE_TYPE::HEADER_UNIT)
 {
 }
 
-void SMFile::checkHeaderFilesIfSMRulesJsonSet()
+void SMFile::initializeBuildCache(uint32_t index)
 {
-    if (isSMRulesJsonSet)
-    {
-        // Check all header-files and set fileStatus to true.
-
-        if (compileCommandWithToolCache.hash != target->compileCommandWithTool.getHash())
-        {
-            fileStatus = true;
-            return;
-        }
-
-        if (objectFileOutputFileNode->doesNotExist)
-        {
-            fileStatus = true;
-            return;
-        }
-
-        if (node->lastWriteTime > objectFileOutputFileNode->lastWriteTime)
-        {
-            fileStatus = true;
-            return;
-        }
-
-        // While header-units are checked in shouldGenerateSMFileInRoundOne, they are not checked here.
-        // Because, if a header-unit of ours is updated, because we are dependent of it, we will be updated as-well.
-        if (checkHeaderFiles(objectFileOutputFileNode))
-        {
-            fileStatus = true;
-        }
-    }
+    SourceNode::initializeBuildCache(index);
+    smRulesCache = target->cppBuildCache.modFiles[index].smRules;
+    compileCommandWithToolCache = target->cppBuildCache.modFiles[index].compileCommandWithTool;
 }
 
 void SMFile::setLogicalNameAndAddToRequirePath()
@@ -290,135 +416,118 @@ void SMFile::setLogicalNameAndAddToRequirePath()
         {
             printErrorMessage(
                 FORMAT("In target:\n{}\nModule name:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
-                       target->getTarjanNodeName(), logicalName, node->filePath, val->node->filePath));
+                       target->getPrintName(), logicalName, node->filePath, val->node->filePath));
         }
     }
 }
 
 void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
-    RealBTarget &realBTarget = realBTargets[round];
-    if (round == 2 && type == SM_FILE_TYPE::HEADER_UNIT)
+    if (!round)
     {
-        const_cast<Node *>(node)->ensureSystemCheckCalled(true, true);
+        RealBTarget &realBTarget = realBTargets[round];
 
-        // This holds the pointer to bmi file instead of an object file in-case of a header-unit.
-        objectFileOutputFileNode = Node::getNodeFromNormalizedString(
-            target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".ifc", true, true);
+        if (type == SM_FILE_TYPE::HEADER_UNIT)
+        {
+            objectNode = Node::getNodeFromNormalizedString(
+                target->myBuildDir->filePath + slashc + getOutputFileName() + ".ifc", true, true);
+        }
+        else
+        {
+            objectNode = Node::getNodeFromNormalizedString(
+                target->myBuildDir->filePath + slashc + getOutputFileName() + ".m.o", true, true);
+        }
 
         if (buildCache.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
         {
             isObjectFileOutdated = true;
             isObjectFileOutdatedCallCompleted = true;
-            isSMRuleFileOutdated = true;
-            isSMRuleFileOutdatedCallCompleted = true;
             return;
         }
 
-        if (node->doesNotExist || objectFileOutputFileNode->doesNotExist ||
-            node->lastWriteTime > objectFileOutputFileNode->lastWriteTime)
+        if (node->fileType == file_type::not_found || objectNode->fileType == file_type::not_found ||
+            node->lastWriteTime > objectNode->lastWriteTime)
         {
             isObjectFileOutdated = true;
-            isObjectFileOutdatedCallCompleted = true;
+            atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
         }
-    }
-    else if (round == 1 && realBTarget.exitStatus == EXIT_SUCCESS)
-    {
-        if (!isAnOlderHeaderUnit)
+
+        if (!isObjectFileOutdated)
         {
-            // TODO
-            // Move this at the end of scope and use getHalfNode if isSMRuleFileOutdated is true. Avoid the filesystem
-            // call.
             if (type == SM_FILE_TYPE::HEADER_UNIT)
-            {
-                objectFileOutputFileNode = Node::getNodeFromNormalizedString(
-                    target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".ifc", true, true);
-            }
-            else
-            {
-                const_cast<Node *>(node)->ensureSystemCheckCalled(true);
-                objectFileOutputFileNode = Node::getNodeFromNormalizedString(
-                    target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".m.o", true, true);
-            }
-
-            if (buildCache.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
-            {
-                isObjectFileOutdated = true;
-                isSMRuleFileOutdated = true;
-
-                // Following variables are only accessed in parallel for older header-units in is*Outdated functions.
-                isObjectFileOutdatedCallCompleted = true;
-                isSMRuleFileOutdatedCallCompleted = true;
-            }
-            else if (node->doesNotExist || objectFileOutputFileNode->doesNotExist ||
-                     node->lastWriteTime > objectFileOutputFileNode->lastWriteTime)
-            {
-                isObjectFileOutdated = true;
-                atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
-            }
-        }
-
-        if (type == SM_FILE_TYPE::HEADER_UNIT)
-        {
-
-            if (!isObjectFileOutdated)
             {
                 checkObjectFileOutdatedHeaderUnits();
             }
-            if (isObjectFileOutdated)
-            {
-                fileStatus = true;
-                if (!isSMRuleFileOutdated)
-                {
-                    checkSMRulesFileOutdatedHeaderUnits();
-                }
-            }
-        }
-        else
-        {
-            // Modules checkOutdated functions do not set callCompleted variables since those are never accessed.
-            if (!isObjectFileOutdated)
+            else
             {
                 checkObjectFileOutdatedModules();
             }
-            if (isObjectFileOutdated)
-            {
-                fileStatus = true;
-                if (!isSMRuleFileOutdated)
-                {
-                    checkSMRulesFileOutdatedModules();
-                }
-            }
         }
 
-        string smrulesFileOutputClang;
-        if (isSMRuleFileOutdated)
+        if (isObjectFileOutdated)
         {
-            // TODO
-            //  Expose setting for printOnlyOnError
-            PostCompile postCompile = target->GenerateSMRulesFile(*this, true);
-            realBTarget.exitStatus = postCompile.exitStatus;
-            if (realBTarget.exitStatus == EXIT_SUCCESS)
+            fileStatus = true;
+        }
+
+        if (fileStatus)
+        {
+            IPCManagerBS *ipcManager = nullptr;
+            if (auto r = N2978::makeIPCManagerBS(objectNode->filePath); r)
             {
-                buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
-                postCompile.parseHeaderDeps(*this);
-                smrulesFileOutputClang = std::move(postCompile.commandOutput);
+                *ipcManager = *r;
             }
             else
             {
-                bool breakpoint = true;
-                postCompile.executePrintRoutineRoundOne(*this);
+                printErrorMessage(FORMAT("Could not make the build-system manager {}\n", objectNode->filePath));
             }
+
+            // todo
+            // compile command construction and running
+
+            char buffer[320];
+            N2978::CTB type;
+            if (const auto &r = ipcManager->receiveMessage(buffer, type); r)
+            {
+                if (type == N2978::CTB::MODULE)
+                {
+                    N2978::CTBModule &mod = reinterpret_cast<N2978::CTBModule &>(buffer);
+                }
+                else if (type == N2978::CTB::NON_MODULE)
+                {
+                    N2978::CTBNonModule &nonMod = reinterpret_cast<N2978::CTBNonModule &>(buffer);
+                }
+                else if (type == N2978::CTB::NON_MODULE)
+                {
+                }
+            }
+
+            assignFileStatusToDependents(0);
+            const string compileCommand = target->compileCommand + getCompileCommand();
+            const RunCommand r(compileCommand);
+
+            auto [output, exitStatus] = r.endProcess();
+            realBTargets[0].exitStatus = exitStatus;
+            // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed
+            // because cached compile-command would be different
+            if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+            {
+                buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+                parseHeaderDeps(output);
+            }
+
+            const string printCommand =
+                target->getSourceCompileCommandPrintFirstHalf() + target->getCompileCommandPrintSecondPart(*this);
+            CacheWriteManager::addNewEntry(exitStatus, target, this, settings.pcSettings.compileCommandColor,
+                                           printCommand, output);
         }
+
+        string smrulesFileOutputClang;
 
         if (realBTarget.exitStatus == EXIT_SUCCESS)
         {
             includeNames.reserve(4 * 1024);
             includeNames.clear();
-            if (isSMRuleFileOutdated)
-            {
-                saveSMRulesJsonToSMRulesCache(smrulesFileOutputClang);
-            }
+
             if (type != SM_FILE_TYPE::HEADER_UNIT)
             {
                 setSMFileType();
@@ -429,62 +538,16 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
                     if (logicalName == logicalName2)
                     {
                         printErrorMessage(FORMAT("In target\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                 target->getTarjanNodeName(), node->filePath));
+                                                 target->getPrintName(), node->filePath));
                     }
                 }
             }
 
             assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
 
-            if (isSMRuleFileOutdated)
-            {
-                huDirPlusTargets.clear();
-                for (const auto &singleHuDep : smRulesCache.headerUnitArray)
-                {
-                    huDirPlusTargets.emplace_back(findHeaderUnitTarget(singleHuDep.node));
-                }
-                builder.executeMutex.lock();
-                initializeHeaderUnits(builder);
-                if (!target->addedInCopyJson)
-                {
-                    targetCacheDiskWriteManager.copyJsonBTargets.emplace_back(target);
-                    target->addedInCopyJson = true;
-                }
-            }
-            else
-            {
-                initializeNewHeaderUnitsSMRulesNotOutdated(builder);
-            }
-            builder.addNewTopBeUpdatedTargets(this);
+            initializeNewHeaderUnitsSMRulesNotOutdated(builder);
+            builder.addNewTopBeUpdatedTargets(&this->realBTargets[round]);
             isComplete = true;
-        }
-    }
-    else if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
-    {
-        checkHeaderFilesIfSMRulesJsonSet();
-        setFileStatusAndPopulateAllDependencies();
-
-        if (!fileStatus)
-        {
-            if (compileCommandWithToolCache.hash != target->compileCommandWithTool.getHash())
-            {
-                fileStatus = true;
-            }
-        }
-
-        if (fileStatus)
-        {
-            assignFileStatusToDependents(0);
-            const PostCompile postCompile = target->CompileSMFile(*this);
-            realBTarget.exitStatus = postCompile.exitStatus;
-
-            if (realBTarget.exitStatus == EXIT_SUCCESS)
-            {
-                // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed because
-                // cached compile-command would be different
-                compileCommandWithToolCache.hash = target->compileCommandWithTool.getHash();
-            }
-            postCompile.executePrintRoutine(settings.pcSettings.compileCommandColor, target, this);
         }
     }
 }
@@ -512,7 +575,7 @@ void SMFile::saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang)
 {
     // We get half-node since we trust the compiler to have generated if it is returning true
     const Node *smRuleFileNode =
-        Node::getHalfNode(target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".smrules");
+        Node::getHalfNode(target->myBuildDir->filePath + slashc + getOutputFileName() + ".smrules");
 
     Document d;
     // The assumption is that clang only outputs scanning data during scanning on output while MSVC outputs nothing.
@@ -654,7 +717,7 @@ void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
 
         // Should be true if JConsts::lookupMethod == "include-angle";
         headerUnitsConsumptionData.emplace(&headerUnit, hu.angle);
-        addDepHalfNowHalfLater<0>(headerUnit);
+        addDepHalfNowHalfLater(headerUnit);
     }
 
     builder.executeMutex.lock();
@@ -666,7 +729,7 @@ void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
         if (!headerUnit.addedForRoundOne)
         {
             headerUnit.addedForRoundOne = true;
-            builder.updateBTargets.emplace(&headerUnit);
+            builder.updateBTargets.emplace(&headerUnit.realBTargets[1]);
             builder.updateBTargetsSizeGoal += 1;
         }
     }
@@ -700,37 +763,24 @@ void SMFile::initializeHeaderUnits(Builder &builder)
             headerUnit->type = SM_FILE_TYPE::HEADER_UNIT;
             headerUnit->logicalName = string(includeNames[i]);
             headerUnit->buildCache.node = const_cast<Node *>(headerUnit->node);
-            headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
         }
         else
         {
             headerUnit = *it;
 
-            if (headerUnit->isAnOlderHeaderUnit && !headerUnit->addedForRoundOne)
+            if (!headerUnit->addedForRoundOne)
             {
                 headerUnit->addedForRoundOne = true;
-                headerUnit->addNewBTargetInFinalBTargetsRound1(builder);
             }
         }
 
         // Should be true if JConsts::lookupMethod == "include-angle";
         headerUnitsConsumptionData.emplace(headerUnit, singleHuDep.angle);
-        addDepHalfNowHalfLater<0>(*headerUnit);
+        addDepHalfNowHalfLater(*headerUnit);
 
         singleHuDep.targetIndex = huDirTarget->cacheIndex;
         singleHuDep.myIndex = headerUnit->indexInBuildCache;
     }
-}
-
-void SMFile::addNewBTargetInFinalBTargetsRound1(Builder &builder)
-{
-    builder.updateBTargets.emplace(this);
-    if (!target->addedInCopyJson)
-    {
-        targetCacheDiskWriteManager.copyJsonBTargets.emplace_back(target);
-        target->addedInCopyJson = true;
-    }
-    builder.updateBTargetsSizeGoal += 1;
 }
 
 void SMFile::setSMFileType()
@@ -759,13 +809,6 @@ void SMFile::checkObjectFileOutdatedHeaderUnits()
 {
     if (isObjectFileOutdatedCallCompleted || atomic_ref(isObjectFileOutdatedCallCompleted).load())
     {
-        return;
-    }
-
-    if (checkHeaderFiles(objectFileOutputFileNode))
-    {
-        isObjectFileOutdated = true;
-        atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
         return;
     }
 
@@ -800,82 +843,8 @@ void SMFile::checkObjectFileOutdatedHeaderUnits()
     atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
 }
 
-void SMFile::checkSMRulesFileOutdatedHeaderUnits()
-{
-    // If smrules file exists, and is updated, then it won't be updated. This can happen when, because of
-    // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the
-    // .m.o file.
-
-    if (isSMRuleFileOutdatedCallCompleted || atomic_ref(isSMRuleFileOutdatedCallCompleted).load())
-    {
-        return;
-    }
-
-    if (isSMRulesJsonSet)
-    {
-        isSMRuleFileOutdated = false;
-        atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
-        return;
-    }
-
-    const Node *smRuleFileNode = Node::getNodeFromNonNormalizedPath(
-        target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".smrules", true, true);
-
-    if (smRuleFileNode->doesNotExist || node->lastWriteTime > smRuleFileNode->lastWriteTime)
-
-    {
-        isSMRuleFileOutdated = true;
-        atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
-        return;
-    }
-
-    // We assume that all header-files systemCheck has already been called and that they exist.
-    for (const Node *headerNode : buildCache.headerFiles)
-    {
-        if (headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
-        {
-            isSMRuleFileOutdated = true;
-            atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
-            return;
-        }
-    }
-
-    for (BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu : smRulesCache.headerUnitArray)
-    {
-        CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
-        if (!localTarget)
-        {
-            isSMRuleFileOutdated = true;
-            atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
-            return;
-        }
-
-        SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
-
-        if (!headerUnit.isSMRuleFileOutdatedCallCompleted &&
-            !atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
-        {
-            headerUnit.checkSMRulesFileOutdatedHeaderUnits();
-        }
-
-        if (headerUnit.isSMRuleFileOutdated)
-        {
-            isSMRuleFileOutdated = true;
-            atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
-            return;
-        }
-    }
-    atomic_ref(isSMRuleFileOutdatedCallCompleted).store(true);
-}
-
 void SMFile::checkObjectFileOutdatedModules()
 {
-    if (checkHeaderFiles(objectFileOutputFileNode))
-    {
-        isObjectFileOutdated = true;
-        return;
-    }
-
     for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu : smRulesCache.headerUnitArray)
     {
         CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
@@ -901,67 +870,9 @@ void SMFile::checkObjectFileOutdatedModules()
     }
 }
 
-void SMFile::checkSMRulesFileOutdatedModules()
-{
-    // If smrules file exists, and is updated, then it won't be updated. This can happen when, because of
-    // selectiveBuild, previous invocation of hbuild has updated target smrules file but didn't update the
-    // .m.o file.
-
-    if (isSMRulesJsonSet)
-    {
-        isSMRuleFileOutdated = false;
-        return;
-    }
-
-    const Node *smRuleFileNode = Node::getNodeFromNonNormalizedPath(
-        target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".smrules", true, true);
-
-    if (smRuleFileNode->doesNotExist || node->lastWriteTime > smRuleFileNode->lastWriteTime)
-
-    {
-        isSMRuleFileOutdated = true;
-        return;
-    }
-
-    // We assume that all header-files systemCheck has already been called and that they exist.
-    for (const Node *headerNode : buildCache.headerFiles)
-    {
-        if (headerNode->lastWriteTime > smRuleFileNode->lastWriteTime)
-        {
-            isSMRuleFileOutdated = true;
-            return;
-        }
-    }
-
-    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu : smRulesCache.headerUnitArray)
-    {
-        CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
-        if (!localTarget)
-        {
-            isSMRuleFileOutdated = true;
-            return;
-        }
-
-        SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
-
-        if (!headerUnit.isSMRuleFileOutdatedCallCompleted &&
-            !atomic_ref(headerUnit.isSMRuleFileOutdatedCallCompleted).load())
-        {
-            headerUnit.checkSMRulesFileOutdatedHeaderUnits();
-        }
-
-        if (headerUnit.isSMRuleFileOutdated)
-        {
-            isSMRuleFileOutdated = true;
-            return;
-        }
-    }
-}
-
 string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
 {
-    return getReducedPath(target->buildCacheFilesDirPathNode->filePath + slashc + node->getFileName() + ".m.o",
-                          pathPrint);
+    return getReducedPath(target->myBuildDir->filePath + slashc + node->getFileName() + ".m.o", pathPrint);
 }
 
 BTargetType SMFile::getBTargetType() const
@@ -997,6 +908,32 @@ void SMFile::updateBuildCache()
     }
 }
 
+string SMFile::getCompileCommand()
+{
+    string s;
+    if (const Compiler &c = target->configuration->compilerFeatures.compiler;
+        c.bTFamily == BTFamily::GCC && c.btSubFamily == BTSubFamily::CLANG)
+    {
+        if (type == SM_FILE_TYPE::HEADER_UNIT)
+        {
+            s = "-fmodule-header=user -o \"" + objectNode->filePath + "\" -noScanIPC -xc++-header \"" + node->filePath +
+                '\"';
+        }
+        else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
+        {
+            s = "-fmodules-reduced-bmi -o \"" + objectNode->filePath + "\" -noScanIPC -c -xc++-module \"" +
+                node->filePath + "\" -fmodule-output=\"" + target->myBuildDir->filePath + slashc + getOutputFileName() +
+                ".ifc\"";
+        }
+        else
+        {
+            s = "-o \"" + objectNode->filePath + "\" -noScanIPC -c \"" + node->filePath + '\"';
+        }
+    }
+
+    return s;
+}
+
 // TODO
 // Propose the idea of big smfile. This combined with markArchivePoint could result in much increased in performance.
 void SMFile::setFileStatusAndPopulateAllDependencies()
@@ -1004,9 +941,9 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
     flat_hash_set<SMFile *> uniqueElements;
     for (auto &[dependency, ignore] : realBTargets[0].dependencies)
     {
-        if (dependency->getBTargetType() == BTargetType::SMFILE)
+        if (dependency->bTarget->getBTargetType() == BTargetType::SMFILE)
         {
-            if (auto *smFile = static_cast<SMFile *>(dependency))
+            if (auto *smFile = static_cast<SMFile *>(dependency->bTarget))
             {
                 if (uniqueElements.emplace(smFile).second)
                 {
@@ -1029,7 +966,7 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
     {
         for (const SMFile *smFile : allSMFileDependenciesRoundZero)
         {
-            if (smFile->objectFileOutputFileNode->lastWriteTime > objectFileOutputFileNode->lastWriteTime)
+            if (smFile->objectNode->lastWriteTime > objectNode->lastWriteTime)
             {
                 fileStatus = true;
                 break;
@@ -1061,14 +998,12 @@ string SMFile::getFlag() const
         if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
             str = "/interface ";
-            str += "/ifcOutput" +
-                   addQuotes(target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".ifc") +
-                   " ";
+            str += "/ifcOutput" + addQuotes(target->myBuildDir->filePath + slashc + getOutputFileName() + ".ifc") + " ";
         }
         else if (type == SM_FILE_TYPE::HEADER_UNIT)
         {
             str = "/exportHeader ";
-            str += "/ifcOutput" + addQuotes(objectFileOutputFileNode->filePath) + " ";
+            str += "/ifcOutput" + addQuotes(objectNode->filePath) + " ";
         }
         else if (type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
         {
@@ -1077,7 +1012,7 @@ string SMFile::getFlag() const
 
         if (type != SM_FILE_TYPE::HEADER_UNIT)
         {
-            str += "/Fo" + addQuotes(objectFileOutputFileNode->filePath);
+            str += "/Fo" + addQuotes(objectNode->filePath);
         }
     }
     else if (target->evaluate(BTFamily::GCC))
@@ -1104,14 +1039,14 @@ string SMFile::getFlag() const
 
         if (type != SM_FILE_TYPE::PRIMARY_IMPLEMENTATION)
         {
-            str += "-fmodule-output=" +
-                   addQuotes(target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".ifc") +
-                   " ";
+            str +=
+                "-fmodule-output=" + addQuotes(target->myBuildDir->filePath + slashc + getOutputFileName() + ".ifc") +
+                " ";
         }
 
         if (type != SM_FILE_TYPE::HEADER_UNIT)
         {
-            str += "-o " + addQuotes(objectFileOutputFileNode->filePath);
+            str += "-o " + addQuotes(objectNode->filePath);
         }
     }
 
@@ -1139,10 +1074,9 @@ string SMFile::getFlagPrint() const
 
             if (ccpSettings.ifcOutputFile.printLevel != PathPrintLevel::NO)
             {
-                str +=
-                    getReducedPath(target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".ifc",
-                                   ccpSettings.ifcOutputFile) +
-                    " ";
+                str += getReducedPath(target->myBuildDir->filePath + slashc + getOutputFileName() + ".ifc",
+                                      ccpSettings.ifcOutputFile) +
+                       " ";
             }
         }
         else if (type == SM_FILE_TYPE::HEADER_UNIT)
@@ -1152,7 +1086,7 @@ string SMFile::getFlagPrint() const
 
             if (ccpSettings.ifcOutputFile.printLevel != PathPrintLevel::NO)
             {
-                str += getReducedPath(objectFileOutputFileNode->filePath, ccpSettings.ifcOutputFile) + " ";
+                str += getReducedPath(objectNode->filePath, ccpSettings.ifcOutputFile) + " ";
             }
         }
         else if (type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
@@ -1165,7 +1099,7 @@ string SMFile::getFlagPrint() const
             str += infra ? "/Fo" : "";
             if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
             {
-                str += getReducedPath(objectFileOutputFileNode->filePath, ccpSettings.objectFile) + " ";
+                str += getReducedPath(objectNode->filePath, ccpSettings.objectFile) + " ";
             }
         }
     }
@@ -1221,8 +1155,7 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
     if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT ||
         type == SM_FILE_TYPE::PARTITION_IMPLEMENTATION)
     {
-        const string ifcFilePath =
-            addQuotes(target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".ifc");
+        const string ifcFilePath = addQuotes(target->myBuildDir->filePath + slashc + getOutputFileName() + ".ifc");
         str = "/reference " + logicalName + "=" + ifcFilePath + " ";
     }
     else if (type == SM_FILE_TYPE::HEADER_UNIT)
@@ -1233,7 +1166,7 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
         const string angleStr = dependentSMFile.headerUnitsConsumptionData.find(this)->second ? "angle" : "quote";
         str += "/headerUnit:";
         str += angleStr + " ";
-        str += logicalName + "=" + addQuotes(objectFileOutputFileNode->filePath) + " ";
+        str += logicalName + "=" + addQuotes(objectNode->filePath) + " ";
     }
     else
     {
@@ -1244,7 +1177,7 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
 
 string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
 {
-    const string ifcFilePath = target->buildCacheFilesDirPathNode->filePath + slashc + getOutputFileName() + ".ifc";
+    const string ifcFilePath = target->myBuildDir->filePath + slashc + getOutputFileName() + ".ifc";
     const CompileCommandPrintSettings &ccpSettings = settings.ccpSettings;
     auto getRequireIFCPathOrLogicalName = [&](const string &logicalName_) {
         return ccpSettings.onlyLogicalNameOfRequireIFC
@@ -1310,7 +1243,7 @@ string SMFile::getModuleCompileCommandPrintLastHalf() const
 
     moduleCompileCommandPrintLastHalf +=
         ccpSettings.infrastructureFlags
-            ? target->getInfrastructureFlags(target->configuration->compilerFeatures.compiler, false)
+            ? target->getInfrastructureFlags(target->configuration->compilerFeatures.compiler)
             : "";
     moduleCompileCommandPrintLastHalf += getReducedPath(node->filePath, ccpSettings.sourceFile) + " ";
     moduleCompileCommandPrintLastHalf += getFlagPrint();

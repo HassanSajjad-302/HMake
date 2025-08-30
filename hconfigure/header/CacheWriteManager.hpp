@@ -1,7 +1,7 @@
 
 
-#ifndef TARGETCACHEDISKWRITEMANAGER_HPP
-#define TARGETCACHEDISKWRITEMANAGER_HPP
+#ifndef CACHEWRITEMANAGER_HPP
+#define CACHEWRITEMANAGER_HPP
 
 #ifdef USE_HEADER_UNITS
 import "BuildSystemFunctions.hpp";
@@ -34,7 +34,7 @@ struct UpdatedCache
     UpdatedCache(TargetCache *target_, void *cache_);
 };
 
-class TargetCacheDiskWriteManager
+class CacheWriteManager
 {
   public:
     mutex vecMutex;
@@ -49,7 +49,6 @@ class TargetCacheDiskWriteManager
     vector<char> buildBufferLocal;
 
   public:
-    vector<CppSourceTarget *> copyJsonBTargets;
     vector<char> buildBuffer;
     RAPIDJSON_DEFAULT_ALLOCATOR writeBuildCacheAllocator;
     std::thread diskWriteManagerThread;
@@ -57,15 +56,16 @@ class TargetCacheDiskWriteManager
     uint64_t nodesSizeStart = 0;
     bool exitAfterThis = false;
 
-    TargetCacheDiskWriteManager();
+    static void addNewEntry(bool exitStatus, TargetCache *target, void *cache, uint32_t color,
+                            const string &printCommand, const string &output);
     void writeNodesCacheIfNewNodesAdded();
-    ~TargetCacheDiskWriteManager();
+    ~CacheWriteManager();
     void initialize();
     void performThreadOperations(bool doUnlockAndRelock);
     void start();
     void endOfRound();
 };
 
-GLOBAL_VARIABLE(TargetCacheDiskWriteManager, targetCacheDiskWriteManager)
+GLOBAL_VARIABLE(CacheWriteManager, cacheWriteManager)
 
-#endif // TARGETCACHEDISKWRITEMANAGER_HPP
+#endif // CACHEWRITEMANAGER_HPP

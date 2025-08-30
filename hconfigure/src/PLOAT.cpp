@@ -78,13 +78,6 @@ void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &is
 {
     if (round == 1)
     {
-        for (ObjectFileProducer *objectFileProducer : objectFileProducers)
-        {
-            addDepHalfNowHalfLater<0>(*objectFileProducer);
-        }
-    }
-    else if (round == 2)
-    {
         if constexpr (bsMode == BSMode::BUILD)
         {
             readCacheAtBuildTime();
@@ -95,7 +88,7 @@ void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &is
 #ifndef BUILD_MODE
             actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
             Node *outputDirectoryNode = Node::getNodeFromNonNormalizedString(outputDirectory, false, true);
-            if (outputDirectoryNode->doesNotExist)
+            if (outputDirectoryNode->fileType == file_type::not_found)
             {
                 // TODO
                 // Throw Exception. Also Replace outputDirectory with outputNode initialized in the constructor.
@@ -130,6 +123,11 @@ void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &is
                 reqLibraryDirs.emplace_back(libDirNode.node, libDirNode.isStandard);
             }
         }
+
+        for (ObjectFileProducer *objectFileProducer : objectFileProducers)
+        {
+            addDepHalfNowHalfLater(*objectFileProducer);
+        }
     }
 }
 
@@ -160,7 +158,6 @@ void PLOAT::readCacheAtBuildTime()
     for (uint32_t i = 0; i < size; ++i)
     {
         Node *node = readHalfNode(configCache.data(), configCacheBytesRead);
-        node->ensureSystemCheckCalled(false);
         reqLibraryDirs.emplace_back(node, true);
     }
 
@@ -169,7 +166,6 @@ void PLOAT::readCacheAtBuildTime()
     for (uint32_t i = 0; i < size; ++i)
     {
         Node *node = readHalfNode(configCache.data(), configCacheBytesRead);
-        node->ensureSystemCheckCalled(false);
         useReqLibraryDirs.emplace_back(node, true);
     }
 }
@@ -220,16 +216,14 @@ void PLOAT::addReqDepsToBTargetDependencies()
     {
         for (auto &[PLOAT, prebuiltDep] : reqDeps)
         {
-            // TODO
-            // add addLooseDependencyDelayed
-            addDepLooseNow<0>(*PLOAT);
+            addDepLooseHalfNowHalfLater(*PLOAT);
         }
     }
     else
     {
         for (auto &[PLOAT, prebuiltDep] : reqDeps)
         {
-            addDepHalfNowHalfLater<0>(*PLOAT);
+            addDepHalfNowHalfLater(*PLOAT);
         }
     }
 }
@@ -241,5 +235,5 @@ bool operator<(const PLOAT &lhs, const PLOAT &rhs)
 
 void to_json(Json &json, const PLOAT &PLOAT)
 {
-    json = PLOAT.getTarjanNodeName();
+    json = PLOAT.getPrintName();
 }

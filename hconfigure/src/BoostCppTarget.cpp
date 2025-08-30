@@ -90,12 +90,12 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         if (createTestsTarget)
         {
             string testsLocation = configuration->name + slashc + name + slashc + "Tests";
-            testTarget = &targets<BTarget>.emplace_back(std::move(testsLocation), true, false, true, false, true);
+            testTarget = &targets<BTarget>.emplace_back(std::move(testsLocation), true, false, true, false);
         }
         if (createExamplesTarget)
         {
             string examplesLocation = configuration->name + slashc + name + slashc + "Examples";
-            testTarget = &targets<BTarget>.emplace_back(std::move(examplesLocation), true, false, true, false, true);
+            testTarget = &targets<BTarget>.emplace_back(std::move(examplesLocation), true, false, true, false);
         }
 
         string_view configCache = fileTargetCaches[cacheIndex].configCache;

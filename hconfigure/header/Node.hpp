@@ -13,7 +13,7 @@ import <atomic>;
 #endif
 #include "TargetCache.hpp"
 
-using std::atomic, std::lock_guard, std::filesystem::file_time_type;
+using std::atomic, std::lock_guard, std::filesystem::file_time_type, std::filesystem::file_type;
 
 class Node;
 struct NodeEqual
@@ -38,6 +38,7 @@ class Node
   public:
     string filePath;
 
+    file_type fileType;
     file_time_type lastWriteTime;
 
     inline static uint32_t idCount = 0;
@@ -52,6 +53,7 @@ class Node
 
     // private:
     bool systemCheckCalled = false;
+    bool toBeChecked = false;
 
     Node(Node *&node, string filePath_);
     explicit Node(string filePath_);
@@ -59,11 +61,8 @@ class Node
 
     static path getFinalNodePathFromPath(path filePath);
 
+    void performSystemCheck();
     void ensureSystemCheckCalled(bool isFile, bool mayNotExist = false);
-
-    // This function does not do the while looping waiting for the other threads to call performSystemCheck. It either
-    // calls performSystemCheck or returns.
-    bool trySystemCheck(bool isFile, bool mayNotExist = false);
 
     static Node *getNodeFromNormalizedString(string p, bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNormalizedString(string_view p, bool isFile, bool mayNotExist = false);
@@ -81,11 +80,6 @@ class Node
 
     static rapidjson::Type getType();
 
-  private:
-    void performSystemCheck(bool isFile, bool mayNotExist);
-
-  public:
-    bool doesNotExist = false;
     static void clearNodes();
 };
 

@@ -8,8 +8,8 @@ struct OurTarget : public BTarget
     {
         if (round == 0)
         {
-            b.addDependency<0>(c);
-            c.addDependency<0>(b);
+            b.addDepNow<0>(c);
+            c.addDepNow<0>(b);
         }
     }
 };
@@ -18,8 +18,8 @@ OurTarget target;
 
 void buildSpecification()
 {
-    b.addDependency<0>(target);
-    c.addDependency<0>(target);
+    b.addDepNow<0>(target);
+    c.addDepNow<0>(target);
 }
 
 MAIN_FUNCTION

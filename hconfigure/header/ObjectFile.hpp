@@ -16,9 +16,9 @@ class ObjectFile : public BTarget
 {
 public:
     ObjectFile();
-    ObjectFile(bool add0, bool add1, bool add2);
-    Node *objectFileOutputFileNode = nullptr;
-    virtual string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
+  ObjectFile(bool add0, bool add1);
+  Node *objectNode = nullptr;
+  virtual string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
 };
 
 #endif //OBJECTFILE_HPP

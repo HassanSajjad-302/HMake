@@ -156,7 +156,6 @@ void to_json(Json &j, const VSTools &vsTool)
     j[JConsts::compiler] = vsTool.compiler;
     j[JConsts::linker] = vsTool.linker;
     j[JConsts::archiver] = vsTool.archiver;
-    j[JConsts::scanner] = vsTool.scanner;
     j[JConsts::hostArchitecture] = vsTool.hostArch;
     j[JConsts::hostArddressModel] = vsTool.hostAM;
     j[JConsts::targetArchitecture] = vsTool.targetArch;
@@ -172,7 +171,6 @@ void from_json(const Json &j, VSTools &vsTool)
     vsTool.compiler = j.at(JConsts::compiler).get<Compiler>();
     vsTool.linker = j.at(JConsts::linker).get<Linker>();
     vsTool.archiver = j.at(JConsts::archiver).get<Archiver>();
-    vsTool.scanner = j.at(JConsts::scanner).get<ScannerTool>();
     vsTool.hostArch = j.at(JConsts::hostArchitecture).get<Arch>();
     vsTool.hostAM = j.at(JConsts::hostArddressModel).get<AddressModel>();
     vsTool.targetArch = j.at(JConsts::targetArchitecture).get<Arch>();
@@ -296,7 +294,6 @@ void ToolsCache::detectToolsAndInitialize()
         linuxTools.emplace_back(Compiler(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/c++"));
         linkers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/c++");
         archivers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/ar");
-        scanners.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/c++");
     }
 }
 
@@ -314,7 +311,6 @@ void to_json(Json &j, const ToolsCache &toolsCacheLocal)
     j[JConsts::compilerArray] = toolsCacheLocal.compilers;
     j[JConsts::linkerArray] = toolsCacheLocal.linkers;
     j[JConsts::archiverArray] = toolsCacheLocal.archivers;
-    j[JConsts::scannerArray] = toolsCacheLocal.scanners;
 }
 
 void from_json(const Json &j, ToolsCache &toolsCacheLocal)
@@ -324,5 +320,4 @@ void from_json(const Json &j, ToolsCache &toolsCacheLocal)
     toolsCacheLocal.compilers = j.at(JConsts::compilerArray).get<vector<Compiler>>();
     toolsCacheLocal.linkers = j.at(JConsts::linkerArray).get<vector<Linker>>();
     toolsCacheLocal.archivers = j.at(JConsts::archiverArray).get<vector<Archiver>>();
-    toolsCacheLocal.scanners = j.at(JConsts::scannerArray).get<vector<ScannerTool>>();
 }

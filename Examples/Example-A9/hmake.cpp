@@ -5,7 +5,7 @@ struct OurTarget : BTarget
 {
     string message;
     explicit OurTarget(string str, string name = "", const bool makeDirectory = true, const bool buildExplicit = false)
-        : BTarget(std::move(name), buildExplicit, makeDirectory, true, false, true), message{std::move(str)}
+        : BTarget(std::move(name), buildExplicit, makeDirectory, true, true, false), message{std::move(str)}
     {
     }
     void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
@@ -27,7 +27,7 @@ void buildSpecification()
     OurTarget *d = new OurTarget("D", "D");
     OurTarget *e = new OurTarget("E", "E");
     OurTarget *f = new OurTarget("F");
-    c->addDependency<0>(*e);
+    c->addDepNow<0>(*e);
 }
 
 MAIN_FUNCTION

@@ -1,4 +1,5 @@
 
+#include "CacheWriteManager.hpp"
 #ifdef USE_HEADER_UNITS
 import "LOAT.hpp";
 import "BuildSystemFunctions.hpp";
@@ -10,9 +11,9 @@ import <fstream>;
 import <stack>;
 import <utility>;
 #else
-#include "LOAT.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CppSourceTarget.hpp"
+#include "LOAT.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
 #include <stack>
@@ -110,8 +111,7 @@ void LOAT::setFileStatus()
 
     if (!fileStatus)
     {
-        outputFileNode->ensureSystemCheckCalled(true, true);
-        if (outputFileNode->doesNotExist)
+        if (outputFileNode->fileType == file_type::not_found)
         {
             fileStatus = true;
         }
@@ -142,14 +142,14 @@ void LOAT::setFileStatus()
 
                 for (const ObjectFile *objectFile : objectFiles)
                 {
-                    if (std::ranges::find(linkBuildCache.objectFiles, objectFile->objectFileOutputFileNode) ==
+                    if (std::ranges::find(linkBuildCache.objectFiles, objectFile->objectNode) ==
                         linkBuildCache.objectFiles.end())
                     {
                         needsUpdate = true;
                         break;
                     }
 
-                    if (objectFile->objectFileOutputFileNode->lastWriteTime > outputFileNode->lastWriteTime)
+                    if (objectFile->objectNode->lastWriteTime > outputFileNode->lastWriteTime)
                     {
                         needsUpdate = true;
                         break;
@@ -198,7 +198,7 @@ void LOAT::setFileStatus()
 
                         if (const Node *copiedDLLNode = Node::getNodeFromNormalizedString(
                                 string(getOutputDirectoryV()) + slashc + ploat->getActualOutputName(), true, true);
-                            copiedDLLNode->doesNotExist)
+                            copiedDLLNode->fileType == file_type::not_found)
                         {
                             dllsToBeCopied.emplace_back(ploat);
                         }
@@ -237,36 +237,42 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
 
         if (fileStatus)
         {
-            shared_ptr<RunCommand> postBasicLinkOrArchive;
+            string toolPath = "\"";
             if (linkTargetType == TargetType::LIBRARY_STATIC)
             {
-                postBasicLinkOrArchive = std::make_shared<RunCommand>(Archive());
+                toolPath += config.linkerFeatures.archiver.bTPath.generic_string() + "\" ";
             }
             else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
             {
-                postBasicLinkOrArchive = std::make_shared<RunCommand>(Link());
+                toolPath += config.linkerFeatures.linker.bTPath.generic_string() + "\" ";
             }
-            realBTarget.exitStatus = postBasicLinkOrArchive->exitStatus;
 
-            if (postBasicLinkOrArchive->exitStatus == EXIT_SUCCESS)
+            const string linkCommand = toolPath + linkOrArchiveCommandWithTargets;
+            const RunCommand r(linkCommand);
+            const auto [output, exitStatus] = r.endProcess();
+            realBTarget.exitStatus = exitStatus;
+
+            if (realBTarget.exitStatus == EXIT_SUCCESS)
             {
                 updatedBuildCache.commandWithoutArgumentsWithTools.hash = commandWithoutTargetsWithTool.getHash();
                 updatedBuildCache.objectFiles.reserve(objectFiles.size());
                 updatedBuildCache.objectFiles.clear();
                 for (const ObjectFile *objectFile : objectFiles)
                 {
-                    updatedBuildCache.objectFiles.emplace_back(objectFile->objectFileOutputFileNode);
+                    updatedBuildCache.objectFiles.emplace_back(objectFile->objectNode);
                 }
             }
 
             // We have to pass the linkBuildCache since we can not update it in multithreaded mode.
             if (linkTargetType == TargetType::LIBRARY_STATIC)
             {
-                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.archiveCommandColor, this, nullptr);
+                CacheWriteManager::addNewEntry(exitStatus, this, nullptr, settings.pcSettings.archiveCommandColor,
+                                               getLinkOrArchiveCommandPrint(), output);
             }
             else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
             {
-                postBasicLinkOrArchive->executePrintRoutine(settings.pcSettings.linkCommandColor, this, nullptr);
+                CacheWriteManager::addNewEntry(exitStatus, this, nullptr, settings.pcSettings.linkCommandColor,
+                                               getLinkOrArchiveCommandPrint(), output);
             }
 
             if constexpr (os == OS::NT)
@@ -285,11 +291,12 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
             }
         }
     }
-    else if (round == 2)
+    else if (round == 1)
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
             readCacheAtBuildTime();
+            outputFileNode->toBeChecked = true;
         }
         if (!evaluate(TargetType::LIBRARY_STATIC))
         {
@@ -359,7 +366,7 @@ void LOAT::readCacheAtBuildTime()
     }
 }
 
-string LOAT::getTarjanNodeName() const
+string LOAT::getPrintName() const
 {
     string str;
     if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -375,17 +382,6 @@ string LOAT::getTarjanNodeName() const
         str = "Executable";
     }
     return str + " " + configureNode->filePath + slashc + name;
-}
-
-RunCommand LOAT::Archive()
-{
-    return {config.linkerFeatures.archiver.bTPath, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(),
-            true};
-}
-
-RunCommand LOAT::Link()
-{
-    return {config.linkerFeatures.linker.bTPath, linkOrArchiveCommandWithTargets, getLinkOrArchiveCommandPrint(), true};
 }
 
 void LOAT::setLinkOrArchiveCommands()
@@ -452,7 +448,7 @@ void LOAT::setLinkOrArchiveCommands()
 
     for (const ObjectFile *objectFile : objectFiles)
     {
-        linkOrArchiveCommandWithTargets += addQuotes(objectFile->objectFileOutputFileNode->filePath) + " ";
+        linkOrArchiveCommandWithTargets += addQuotes(objectFile->objectNode->filePath) + " ";
     }
 
     if (linkTargetType != TargetType::LIBRARY_STATIC)

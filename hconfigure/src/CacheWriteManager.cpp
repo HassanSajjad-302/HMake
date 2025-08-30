@@ -1,10 +1,10 @@
 
 #ifdef USE_HEADER_UNITS
 import "BTarget.hpp";
-import "TargetCacheDiskWriteManager.hpp";
+import "CacheWriteManager.hpp";
 import "Node.hpp";
 #else
-#include "TargetCacheDiskWriteManager.hpp"
+#include "CacheWriteManager.hpp"
 #include "BTarget.hpp"
 #include "Node.hpp"
 #endif
@@ -20,15 +20,49 @@ UpdatedCache::UpdatedCache(TargetCache *target_, void *cache_) : target(target_)
 {
 }
 
-TargetCacheDiskWriteManager::TargetCacheDiskWriteManager()
+string getThreadId()
 {
-    if constexpr (bsMode == BSMode::BUILD)
+    const auto myId = std::this_thread::get_id();
+    std::stringstream ss;
+    ss << myId;
+    string threadId = ss.str();
+    return threadId;
+}
+
+void CacheWriteManager::addNewEntry(const bool exitStatus, TargetCache *target, void *cache, uint32_t color,
+                                    const string &printCommand, const string &output)
+{
+    bool notify = false;
+
     {
-        copyJsonBTargets.reserve(4096 * 4);
+        string printFormat = FORMAT("{}", printCommand + " " + getThreadId() + "\n");
+        string outputFormat = FORMAT("{}", output + "\n");
+
+        std::lock_guard _(cacheWriteManager.vecMutex);
+        if (exitStatus == EXIT_SUCCESS)
+        {
+            cacheWriteManager.updatedCaches.emplace_back(target, cache);
+            notify = true;
+        }
+
+        // TODO
+        // these print commands formatting should be outside the mutex.
+        cacheWriteManager.strCache.emplace_back(std::move(printFormat), color, true);
+
+        if (!output.empty())
+        {
+            cacheWriteManager.strCache.emplace_back(std::move(outputFormat), static_cast<int>(fmt::color::light_green),
+                                                    true);
+            notify = true;
+        }
+    }
+    if (notify)
+    {
+        cacheWriteManager.vecCond.notify_one();
     }
 }
 
-void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
+void CacheWriteManager::writeNodesCacheIfNewNodesAdded()
 {
     if (const uint64_t newNodesSize = atomic_ref(Node::idCountCompleted).load(); newNodesSize != nodesSizeBefore)
     {
@@ -47,7 +81,7 @@ void TargetCacheDiskWriteManager::writeNodesCacheIfNewNodesAdded()
     }
 }
 
-TargetCacheDiskWriteManager::~TargetCacheDiskWriteManager()
+CacheWriteManager::~CacheWriteManager()
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -55,15 +89,15 @@ TargetCacheDiskWriteManager::~TargetCacheDiskWriteManager()
     }
     else
     {
-        targetCacheDiskWriteManager.vecMutex.lock();
-        targetCacheDiskWriteManager.exitAfterThis = true;
-        targetCacheDiskWriteManager.vecMutex.unlock();
-        targetCacheDiskWriteManager.vecCond.notify_one();
+        cacheWriteManager.vecMutex.lock();
+        cacheWriteManager.exitAfterThis = true;
+        cacheWriteManager.vecMutex.unlock();
+        cacheWriteManager.vecCond.notify_one();
         diskWriteManagerThread.join();
     }
 }
 
-void TargetCacheDiskWriteManager::initialize()
+void CacheWriteManager::initialize()
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -79,7 +113,7 @@ void TargetCacheDiskWriteManager::initialize()
     nodesSizeStart = nodesSizeBefore;
 }
 
-void TargetCacheDiskWriteManager::performThreadOperations(const bool doUnlockAndRelock)
+void CacheWriteManager::performThreadOperations(const bool doUnlockAndRelock)
 {
     if (!strCache.empty())
     {
@@ -128,7 +162,7 @@ void TargetCacheDiskWriteManager::performThreadOperations(const bool doUnlockAnd
     }
 }
 
-void TargetCacheDiskWriteManager::start()
+void CacheWriteManager::start()
 {
     vecMutex.lock();
 
@@ -147,25 +181,12 @@ void TargetCacheDiskWriteManager::start()
     }
 }
 
-void TargetCacheDiskWriteManager::endOfRound()
+void CacheWriteManager::endOfRound()
 {
     // This function is executed in the first thread. After that, the destructor of this manager is executed in this
     // thread which waits for the thread to finish.
 
     // This will still copy even if an error has happened. This will copy only in
     // round 1 hence only in BSMode::BUILD.
-    writeNodesCacheIfNewNodesAdded();
-
-    if (!copyJsonBTargets.empty())
-    {
-        for (CppSourceTarget *t : copyJsonBTargets)
-        {
-            t->checkAndCopyBuildCache();
-        }
-        writeBuildBuffer(buildBufferLocal);
-        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
-                                    buildBufferLocal);
-    }
-
-    diskWriteManagerThread = std::thread(&TargetCacheDiskWriteManager::start, &targetCacheDiskWriteManager);
+    diskWriteManagerThread = std::thread(&CacheWriteManager::start, &cacheWriteManager);
 }

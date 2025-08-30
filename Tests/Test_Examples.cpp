@@ -180,11 +180,7 @@ TEST(AExamplesTest, Example_A4)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A4"));
     string output;
     ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_FAILURE);
-    string str = R"(There is a Cyclic-Dependency.
-BTarget 2 Depends On BTarget 1.
-BTarget 1 Depends On BTarget 0.
-BTarget 0 Depends On BTarget 2.
-)";
+    string str = "Cycle found: BTarget 0 -> BTarget 1 -> BTarget 2 -> BTarget 0\n";
     string result = removeColorCodes(output);
     ASSERT_EQ(result, str);
 }
@@ -234,10 +230,7 @@ TEST(AExamplesTest, Example_A7)
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A7"));
     string output;
     ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_FAILURE);
-    string str = R"(There is a Cyclic-Dependency.
-BTarget 1 Depends On BTarget 0.
-BTarget 0 Depends On BTarget 1.
-)";
+    string str = "Cycle found: BTarget 0 -> BTarget 1 -> BTarget 0\n";
     string result = removeColorCodes(output);
     ASSERT_EQ(result, str);
 }

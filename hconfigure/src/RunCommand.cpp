@@ -1,44 +1,12 @@
 
 #ifdef USE_HEADER_UNITS
 import "RunCommand.hpp";
-import "BuildSystemFunctions.hpp";
-import "CppSourceTarget.hpp";
-import "TargetCacheDiskWriteManager.hpp";
-import "subprocess/subprocess.h";
-import "Utilities.hpp";
 #else
 #include "RunCommand.hpp"
-#include "BuildSystemFunctions.hpp"
-#include "CppSourceTarget.hpp"
-#include "TargetCacheDiskWriteManager.hpp"
-#include "Utilities.hpp"
 #endif
-#include <Configuration.hpp>
 
 #ifdef WIN32
 #include <Windows.h>
-
-// Copied From Ninja code-base.
-/// Wraps a synchronous execution of a CL subprocess.
-struct CLWrapper
-{
-    CLWrapper() : env_block_(nullptr)
-    {
-    }
-
-    /// Set the environment block (as suitable for CreateProcess) to be used
-    /// by Run().
-    void SetEnvBlock(void *env_block)
-    {
-        env_block_ = env_block;
-    }
-
-    /// Start a process and gather its raw output.  Returns its exit code.
-    /// Crashes (calls Fatal()) on error.
-    int Run(const std::string &command, std::string *output) const;
-
-    void *env_block_;
-};
 
 // TODO
 //  Error should throw and not exit
@@ -60,6 +28,7 @@ void Fatal(const char *msg, ...)
     exit(1);
 #endif
 }
+
 string GetLastErrorString()
 {
     DWORD err = GetLastError();
@@ -92,13 +61,13 @@ void Win32Fatal(const char *function, const char *hint = nullptr)
     }
 }
 
-int CLWrapper::Run(const string &command, string *output) const
+void RunCommand::startProcess(const string &command)
 {
     SECURITY_ATTRIBUTES security_attributes = {};
     security_attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
     security_attributes.bInheritHandle = TRUE;
 
-    HANDLE stdout_read, stdout_write;
+    HANDLE stdout_write;
     if (!CreatePipe(&stdout_read, &stdout_write, &security_attributes, 0))
         Win32Fatal("CreatePipe");
 
@@ -113,16 +82,22 @@ int CLWrapper::Run(const string &command, string *output) const
     startup_info.dwFlags |= STARTF_USESTDHANDLES;
 
     if (!CreateProcessA(nullptr, (char *)command.c_str(), nullptr, nullptr,
-                        /* inherit handles */ TRUE, 0, env_block_, nullptr, &startup_info, &process_info))
+                        /* inherit handles */ TRUE, 0, nullptr, nullptr, &startup_info, &process_info))
     {
         Win32Fatal("CreateProcess");
     }
+    hProcess = process_info.hProcess;
+    hThread = process_info.hThread;
 
     if (!CloseHandle(stdout_write))
     {
         Win32Fatal("CloseHandle");
     }
+}
 
+RunCommand::OutputAndStatus RunCommand::endProcess() const
+{
+    OutputAndStatus o;
     // Read all output of the subprocess.
     DWORD read_len = 1;
     while (read_len)
@@ -133,22 +108,23 @@ int CLWrapper::Run(const string &command, string *output) const
         {
             Win32Fatal("ReadFile");
         }
-        output->append(buf, read_len);
+        o.output.append(buf, read_len);
     }
 
     // Wait for it to exit and grab its exit code.
-    if (WaitForSingleObject(process_info.hProcess, INFINITE) == WAIT_FAILED)
+    if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
         Win32Fatal("WaitForSingleObject");
     DWORD exit_code = 0;
-    if (!GetExitCodeProcess(process_info.hProcess, &exit_code))
+    if (!GetExitCodeProcess(hProcess, &exit_code))
         Win32Fatal("GetExitCodeProcess");
 
-    if (!CloseHandle(stdout_read) || !CloseHandle(process_info.hProcess) || !CloseHandle(process_info.hThread))
+    if (!CloseHandle(stdout_read) || !CloseHandle(hProcess) || !CloseHandle(hThread))
     {
         Win32Fatal("CloseHandle");
     }
 
-    return exit_code;
+    o.exitStatus = exit_code;
+    return o;
 }
 
 #else
@@ -254,277 +230,11 @@ struct CLWrapper
 
 #endif
 
-using std::ofstream, fmt::format, std::stringstream;
-
-string getThreadId()
+RunCommand::RunCommand(const string &runCommand)
 {
-    const auto myId = std::this_thread::get_id();
-    stringstream ss;
-    ss << myId;
-    string threadId = ss.str();
-    return threadId;
-}
-
-RunCommand::RunCommand(path toolPath, const string &runCommand, string printCommand_, bool isTarget_)
-    : printCommand(std::move(printCommand_))
-{
-
 #ifdef _WIN32
-
-    string j = addQuotes(toolPath.string()) + ' ' + runCommand;
-    {
-        exitStatus = CLWrapper{}.Run(j, &commandOutput);
-    }
-
+    startProcess(runCommand);
 #else
-    string j = addQuotes(toolPath.string()) + ' ' + runCommand;
     exitStatus = CLWrapper::Run(j, &commandOutput);
 #endif
-    if (exitStatus != EXIT_SUCCESS)
-    {
-        bool breakpoint = true;
-    }
-}
-
-void RunCommand::executePrintRoutine(uint32_t color, TargetCache *target, void *cache) const
-{
-    bool notify = false;
-
-    {
-        std::lock_guard _(targetCacheDiskWriteManager.vecMutex);
-        if (exitStatus == EXIT_SUCCESS)
-        {
-            targetCacheDiskWriteManager.updatedCaches.emplace_back(target, cache);
-            notify = true;
-        }
-
-        // TODO
-        // these print commands formatting should be outside the mutex.
-        targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", printCommand + " " + getThreadId() + "\n"),
-                                                          color, true);
-
-        if (!commandOutput.empty())
-        {
-            targetCacheDiskWriteManager.strCache.emplace_back(FORMAT("{}", commandOutput + "\n"),
-                                                              static_cast<int>(fmt::color::light_green), true);
-            notify = true;
-        }
-    }
-    if (notify)
-    {
-        targetCacheDiskWriteManager.vecCond.notify_one();
-    }
-}
-
-inline mutex roundOneMutex;
-void RunCommand::executePrintRoutineRoundOne(const SMFile &smFile) const
-{
-    lock_guard _{roundOneMutex};
-    if (exitStatus != EXIT_SUCCESS)
-    {
-        printErrorMessageNoReturn(
-            FORMAT("Scanning Failed for {} of Target {}\n", smFile.node->filePath, smFile.target->name));
-        printErrorMessageNoReturn(FORMAT("{}", commandOutput));
-    }
-}
-
-PostCompile::PostCompile(const CppSourceTarget &target_, const path &toolPath, const string &commandFirstHalf,
-                         string printCommandFirstHalf)
-    : RunCommand(toolPath, commandFirstHalf, std::move(printCommandFirstHalf), false),
-      target{const_cast<CppSourceTarget &>(target_)}
-{
-}
-
-bool PostCompile::ignoreHeaderFile(const string_view child) const
-{
-    //  Premature Optimization Hahacd
-    // TODO:
-    //  Add a key in hconfigure that informs hbuild that the library isn't to be
-    //  updated, so includes from the dirs coming from it aren't mentioned
-    //  in targetCache and neither are those libraries checked for an edit for
-    //  faster startup times.
-
-    // If a file is in environment includes, it is not marked as dependency as an
-    // optimization. If a file is in subdir of environment include, it is
-    // still marked as dependency. It is not checked if any of environment
-    // includes is related(equivalent, subdir) with any of normal includes
-    // or vice versa.
-
-    // std::path::equivalent is not used as it is slow
-    // It is assumed that both paths are normalized strings
-    for (const InclNode &inclNode : target.reqIncls)
-    {
-        if (inclNode.ignoreHeaderDeps)
-        {
-            if (childInParentPathNormalized(inclNode.node->filePath, child))
-            {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-void PostCompile::parseDepsFromMSVCTextOutput(SourceNode &sourceNode, string &output) const
-{
-    const string includeFileNote = "Note: including file:";
-
-    if (sourceNode.ignoreHeaderDeps && settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
-    {
-        // TODO
-        //  Merge this if in the following else.
-        vector<string> outputLines = split(output, "\n");
-        for (auto iter = outputLines.begin(); iter != outputLines.end();)
-        {
-            if (iter->contains(includeFileNote))
-            {
-                iter = outputLines.erase(iter);
-            }
-            else
-            {
-                ++iter;
-            }
-        }
-    }
-    else
-    {
-        string treatedOutput;
-
-        uint64_t startPos = 0;
-        uint64_t lineEnd = output.find('\n');
-        if (lineEnd == string::npos)
-        {
-            return;
-        }
-
-        string_view line(output.begin() + startPos, output.begin() + lineEnd + 1);
-
-        if (!settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
-        {
-            treatedOutput.append(line);
-        }
-
-        startPos = lineEnd + 1;
-        if (output.size() == startPos)
-        {
-            output = std::move(treatedOutput);
-            return;
-        }
-        if (lineEnd > output.size() - 5)
-        {
-            bool breakpoint = true;
-        }
-        lineEnd = output.find('\n', startPos);
-
-        vector<Node *> &headerFiles = sourceNode.buildCache.headerFiles;
-        headerFiles.clear();
-        while (true)
-        {
-
-            line = string_view(output.begin() + startPos, output.begin() + lineEnd + 1);
-            if (size_t pos = line.find(includeFileNote); pos != string::npos)
-            {
-                pos = line.find_first_not_of(' ', includeFileNote.size());
-
-                if (line.size() >= pos + 1)
-                {
-                    // MSVC compiler can output header-includes with / as path separator
-                    for (auto it = line.begin() + pos; it != line.end() - 2; ++it)
-                    {
-                        if (*it == '/')
-                        {
-                            const_cast<char &>(*it) = '\\';
-                        }
-                    }
-
-                    // Last character is \r for some reason.
-                    string_view headerView{line.begin() + pos, line.end() - 2};
-
-                    // TODO
-                    // If compile-command is all lower-cased, then this might not be needed
-                    // Some compilers can input same header-file twice, if that is the case, then we should first make
-                    // the array unique.
-                    if (!ignoreHeaderFile(headerView))
-                    {
-                        lowerCasePStringOnWindows(const_cast<char *>(headerView.data()), headerView.size());
-
-                        if (Node *headerNode = Node::getHalfNode(headerView);
-                            std::ranges::find(headerFiles, headerNode) == headerFiles.end())
-                        {
-                            headerFiles.emplace_back(headerNode);
-                        }
-                    }
-                }
-                else
-                {
-                    printErrorMessage(FORMAT("Empty Header Include {}\n", line));
-                }
-
-                if (!settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
-                {
-                    treatedOutput.append(line);
-                }
-            }
-            else
-            {
-                treatedOutput.append(line);
-            }
-
-            startPos = lineEnd + 1;
-            if (output.size() == startPos)
-            {
-                output = std::move(treatedOutput);
-                break;
-            }
-            /*if (lineEnd > output.size() - 5)
-            {
-                bool breakpoint = true;
-            }*/
-            lineEnd = output.find('\n', startPos);
-        }
-    }
-}
-
-void PostCompile::parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const
-{
-    if (!sourceNode.ignoreHeaderDeps)
-    {
-        const string headerFileContents =
-            fileToPString(target.buildCacheFilesDirPathNode->filePath + slashc + sourceNode.node->getFileName() + ".d");
-        vector<string> headerDeps = split(headerFileContents, "\n");
-
-        // The First 2 lines are skipped as these are .o and .cpp file.
-        // If the file is preprocessed, it does not generate the extra line
-        const auto endIt = headerDeps.end() - 1;
-
-        if (headerDeps.size() > 2)
-        {
-            sourceNode.buildCache.headerFiles.clear();
-            for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
-            {
-                const size_t pos = iter->find_first_not_of(" ");
-                auto it = iter->begin() + pos;
-                if (const string_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
-                    !ignoreHeaderFile(headerView))
-                {
-                    sourceNode.buildCache.headerFiles.emplace_back(Node::getHalfNode(headerView));
-                }
-            }
-        }
-    }
-}
-
-void PostCompile::parseHeaderDeps(SourceNode &sourceNode)
-{
-    if (target.configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
-    {
-        parseDepsFromMSVCTextOutput(sourceNode, commandOutput);
-    }
-    else
-    {
-        if (exitStatus == EXIT_SUCCESS)
-        {
-            parseDepsFromGCCDepsOutput(sourceNode);
-        }
-    }
 }

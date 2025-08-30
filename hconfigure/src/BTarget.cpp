@@ -3,21 +3,21 @@
 import "BTarget.hpp";
 import "BuildSystemFunctions.hpp";
 import "CppSourceTarget.hpp";
-import "TargetCacheDiskWriteManager.hpp";
+import "CacheWriteManager.hpp";
 import <filesystem>;
 import <utility>;
 #else
 #include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
+#include "CacheWriteManager.hpp"
 #include "CppSourceTarget.hpp"
-#include "TargetCacheDiskWriteManager.hpp"
 #include <filesystem>
 #include <utility>
 #endif
 using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::mutex, std::lock_guard,
     std::filesystem::create_directory;
 
-BTarget::LaterDep::LaterDep(BTarget *b_, BTarget *dep_, BTargetDepType type_, bool doBoth_)
+BTarget::LaterDep::LaterDep(RealBTarget *b_, RealBTarget *dep_, BTargetDepType type_, bool doBoth_)
     : b(b_), dep(dep_), type(type_), doBoth(doBoth_)
 {
 }
@@ -44,108 +44,129 @@ bool IndexInTopologicalSortComparatorRoundTwo::operator()(const BTarget *lhs, co
            const_cast<BTarget *>(rhs)->realBTargets[2].indexInTopologicalSort;
 }
 
-void RealBTarget::clearTarjanNodes()
+void RealBTarget::sortGraph()
 {
-    for (RealBTarget *i : tarjanNodes)
-    {
-        if (i)
-        {
-            i->nodeIndex = 0;
-            i->lowLink = 0;
-            i->initialized = false;
-            i->onStack = false;
-        }
-    }
-}
-
-void RealBTarget::findSCCS(unsigned short round)
-{
-    index = 0;
+    noEdges.clear();
+    sorted.clear();
+    sorted.resize(graphEdges.size());
     cycleExists = false;
-    cycle.clear();
-    nodesStack.clear();
-    topologicalSort.clear();
-    for (RealBTarget *tarjanNode : tarjanNodes)
-    {
-        if (tarjanNode && !tarjanNode->initialized)
-        {
-            tarjanNode->strongConnect(round);
-        }
-    }
-}
 
-void RealBTarget::strongConnect(unsigned short round)
-{
-    initialized = true;
-    nodeIndex = index;
-    lowLink = index;
-    ++index;
-    nodesStack.emplace_back(this);
-    onStack = true;
-
-    for (auto &[bTarget, bTargetDepType] : dependencies)
+    uint32_t edgesCount = 0;
+    uint32_t index = graphEdges.size() - 1;
+    for (RealBTarget *r : graphEdges)
     {
-        RealBTarget &tarjandep = bTarget->realBTargets[round];
-        if (!tarjandep.initialized)
+        r->dependentsCount = r->dependents.size();
+        if (!r->dependentsCount)
         {
-            tarjandep.strongConnect(round);
-            lowLink = std::min(lowLink, tarjandep.lowLink);
+            noEdges.emplace(r);
         }
-        else if (tarjandep.onStack)
-        {
-            lowLink = std::min(lowLink, tarjandep.nodeIndex);
-        }
+        edgesCount += r->dependentsCount;
     }
 
-    if (lowLink == nodeIndex)
+    while (!noEdges.empty())
     {
-        vector<RealBTarget *> tempCycle;
-        while (true)
+        auto it = noEdges.begin();
+        sorted[index] = it.operator*();
+        --index;
+        for (auto [m, _] : (*it)->dependencies)
         {
-            RealBTarget *tarjanTemp = nodesStack.back();
-            nodesStack.pop_back();
-            tarjanTemp->onStack = false;
-            tempCycle.emplace_back(tarjanTemp);
-            if (tarjanTemp->bTarget == this->bTarget)
+            --edgesCount;
+            if (!--m->dependentsCount)
             {
-                break;
+                noEdges.emplace(m);
             }
         }
-        if (tempCycle.size() > 1)
-        {
-            for (const RealBTarget *c : tempCycle)
-            {
-                cycle.emplace_back(const_cast<BTarget *>(c->bTarget));
-            }
-            cycleExists = true;
-            return;
-        }
+        it = noEdges.erase(it);
     }
-    topologicalSort.emplace_back(const_cast<BTarget *>(bTarget));
-}
 
-void RealBTarget::checkForCycle()
-{
-    if (cycleExists)
+    if (edgesCount)
     {
-        string errorString = "There is a Cyclic-Dependency.\n";
-        size_t cycleSize = cycle.size();
-        for (unsigned int i = 0; i < cycleSize; ++i)
+        cycleExists = true;
+
+        // Find all nodes that are part of cycles
+        // These are nodes that still have dependentsCount > 0
+        for (RealBTarget *r : graphEdges)
         {
-            if (i == cycleSize - 1)
+            if (r->dependentsCount > 0)
             {
-                errorString +=
-                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[0]->getTarjanNodeName());
-            }
-            else
-            {
-                errorString +=
-                    FORMAT("{} Depends On {}.\n", cycle[i]->getTarjanNodeName(), cycle[i + 1]->getTarjanNodeName());
+                cycle.emplace_back(r);
             }
         }
+
+        string errorString;
+
+        // This function finds actual cycles using DFS from nodes still in the graph
+        flat_hash_set<RealBTarget *> visited;
+        flat_hash_set<RealBTarget *> recursionStack;
+        vector<RealBTarget *> currentPath;
+
+        for (RealBTarget *node : cycle)
+        {
+            if (visited.find(node) == visited.end())
+            {
+                if (findCycleDFS(node, visited, recursionStack, currentPath, errorString))
+                {
+                    break; // Found one cycle, that's enough for error reporting
+                }
+            }
+        }
+
         printErrorMessage(errorString);
         errorExit();
     }
+}
+
+void RealBTarget::printSortedGraph()
+{
+    for (RealBTarget *rb : sorted)
+    {
+        printMessage(rb->bTarget->getPrintName() + '\n');
+    }
+    fflush(stdout);
+}
+
+bool RealBTarget::findCycleDFS(RealBTarget *node, flat_hash_set<RealBTarget *> &visited,
+                               flat_hash_set<RealBTarget *> &recursionStack, vector<RealBTarget *> &currentPath,
+                               string &errorString)
+{
+    visited.insert(node);
+    recursionStack.insert(node);
+    currentPath.push_back(node);
+
+    // Only consider dependencies that are still part of the cycle
+    for (auto [dependency, _] : node->dependencies)
+    {
+        // Only follow edges to nodes that are part of the cycle
+        if (dependency->dependentsCount > 0)
+        {
+            if (recursionStack.find(dependency) != recursionStack.end())
+            {
+                // Found a cycle! Print the path from dependency back to current node
+                auto cycleStart = find(currentPath.begin(), currentPath.end(), dependency);
+                if (cycleStart != currentPath.end())
+                {
+                    errorString += "Cycle found: ";
+                    for (auto it = cycleStart; it != currentPath.end(); ++it)
+                    {
+                        errorString += (*it)->bTarget->getPrintName() + " -> ";
+                    }
+                    errorString += dependency->bTarget->getPrintName() + "\n";
+                    return true;
+                }
+            }
+            else if (visited.find(dependency) == visited.end())
+            {
+                if (findCycleDFS(dependency, visited, recursionStack, currentPath, errorString))
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    recursionStack.erase(node);
+    currentPath.pop_back();
+    return false;
 }
 
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarget(bTarget_)
@@ -202,7 +223,7 @@ static string lowerCase(string str)
     return str;
 }
 
-BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}
+BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1)}
 {
     if (singleThreadRunning)
     {
@@ -216,7 +237,7 @@ BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), Re
 }
 
 BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
-    : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1), RealBTarget(this, 2)}, name(lowerCase(std::move(name_))),
+    : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1)}, name(lowerCase(std::move(name_))),
       buildExplicit(buildExplicit_)
 {
     if (singleThreadRunning)
@@ -241,8 +262,8 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
     }
 }
 
-BTarget::BTarget(const bool add0, const bool add1, const bool add2)
-    : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)}
+BTarget::BTarget(const bool add0, const bool add1)
+    : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1)}
 {
     if (singleThreadRunning)
     {
@@ -255,10 +276,9 @@ BTarget::BTarget(const bool add0, const bool add1, const bool add2)
     }
 }
 
-BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, const bool add0, const bool add1,
-                 const bool add2)
-    : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1), RealBTarget(this, 2, add2)},
-      name(lowerCase(std::move(name_))), buildExplicit(buildExplicit_)
+BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, const bool add0, const bool add1)
+    : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1)}, name(lowerCase(std::move(name_))),
+      buildExplicit(buildExplicit_)
 {
     if (singleThreadRunning)
     {
@@ -288,7 +308,7 @@ void BTarget::assignFileStatusToDependents(const unsigned short round)
     {
         if (bTargetDepType == BTargetDepType::FULL)
         {
-            atomic_ref(dependent->fileStatus).store(true);
+            atomic_ref(dependent->bTarget->fileStatus).store(true);
         }
     }
 }
@@ -298,33 +318,28 @@ void BTarget::receiveNotificationPostBuildSpecification()
     postBuildSpecificationArray.emplace_back(this);
 }
 
-void BTarget::runEndOfRoundTargets(Builder &builder, uint16_t round)
+void BTarget::runEndOfRoundTargets()
 {
-    if (round == 1)
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        targetCacheDiskWriteManager.endOfRound();
+        cacheWriteManager.endOfRound();
     }
 
-    delete[] tarjanNodesBTargets[round].data();
+    delete[] tarjanNodesBTargets[1].data();
 
-    if (!round)
+    for (vector<LaterDep> *laterDeps : laterDepsCentral)
     {
-        return;
-    }
-
-    for (array<vector<LaterDep>, 2> *laterDeps : laterDepsCentral)
-    {
-        for (const uint16_t r = round - 1; LaterDep & later : (*laterDeps)[r])
+        for (LaterDep &later : *laterDeps)
         {
             // first emplace in dependents, if ok, then emplace in dependencies based on doBoth variable.
-            if (later.dep->realBTargets[r].dependents.try_emplace(later.b, later.type).second)
+            if (later.dep->dependents.try_emplace(later.b, later.type).second)
             {
                 if (later.doBoth)
                 {
-                    later.b->realBTargets[r].dependencies.emplace(later.dep, later.type);
+                    later.b->dependencies.emplace(later.dep, later.type);
                     if (later.type == BTargetDepType::FULL)
                     {
-                        ++later.b->realBTargets[r].dependenciesSize;
+                        ++later.b->dependenciesSize;
                     }
                 }
             }
@@ -336,8 +351,12 @@ BTarget::~BTarget()
 {
 }
 
-string BTarget::getTarjanNodeName() const
+string BTarget::getPrintName() const
 {
+    if (!name.empty())
+    {
+        return name;
+    }
     return FORMAT("BTarget {}", id);
 }
 
@@ -352,6 +371,33 @@ void BTarget::updateBTarget(Builder &, unsigned short, bool &isComplete)
 
 void BTarget::endOfRound(Builder &builder, unsigned short round)
 {
+}
+
+void BTarget::addDepHalfNowHalfLater(BTarget &dep)
+{
+    if (realBTargets[0].dependencies.try_emplace(&dep.realBTargets[0], BTargetDepType::FULL).second)
+    {
+        ++realBTargets[0].dependenciesSize;
+        laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::FULL, false);
+    }
+}
+
+void BTarget::addDepLooseHalfNowHalfLater(BTarget &dep)
+{
+    if (realBTargets[0].dependencies.try_emplace(&dep.realBTargets[0], BTargetDepType::LOOSE).second)
+    {
+        laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::LOOSE, false);
+    }
+}
+
+void BTarget::addDepLater(BTarget &dep)
+{
+    laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::FULL, true);
+}
+
+void BTarget::addDepLooseLater(BTarget &dep)
+{
+    laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::LOOSE, true);
 }
 
 bool operator<(const BTarget &lhs, const BTarget &rhs)

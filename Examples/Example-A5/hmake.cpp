@@ -1,6 +1,6 @@
 #include "Configure.hpp"
 
-constexpr unsigned short roundLocal = 1;
+constexpr unsigned short roundLocal = 0;
 struct OurTarget : public BTarget
 {
     string name;

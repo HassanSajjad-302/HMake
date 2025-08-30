@@ -5,7 +5,7 @@ import "Builder.hpp";
 import "Cache.hpp";
 import <DSC.hpp>;
 import "CppSourceTarget.hpp";
-import "TargetCacheDiskWriteManager.hpp";
+import "CacheWriteManager.hpp";
 import "fmt/format.h";
 import <filesystem>;
 import <fstream>;
@@ -14,8 +14,8 @@ import <stacktrace>;
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "Cache.hpp"
+#include "CacheWriteManager.hpp"
 #include "CppSourceTarget.hpp"
-#include "TargetCacheDiskWriteManager.hpp"
 #include "fmt/format.h"
 #include <DSC.hpp>
 #include <filesystem>
@@ -58,7 +58,7 @@ void initializeCache(const BSMode bsMode_)
                 string(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
             bufferRead += nodeFilePathSize;
         }
-        targetCacheDiskWriteManager.initialize();
+        cacheWriteManager.initialize();
     }
 
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
@@ -214,13 +214,13 @@ bool configureOrBuild()
 
 void constructGlobals()
 {
-    std::construct_at(&targetCacheDiskWriteManager);
+    std::construct_at(&cacheWriteManager);
     BTarget::laterDepsCentral.emplace_back(&BTarget::laterDepsLocal);
 }
 
 void destructGlobals()
 {
-    std::destroy_at(&targetCacheDiskWriteManager);
+    std::destroy_at(&cacheWriteManager);
 }
 
 void errorExit()

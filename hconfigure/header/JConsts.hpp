@@ -138,9 +138,7 @@ struct JConsts
     inline static const string requires_ = "requires";
     inline static const string rules = "rules";
     inline static const string run = "run";
-    inline static const string scanner = "scanner";
     inline static const string scannerSelectedArrayIndex = "scanner-selected-array-index";
-    inline static const string scannerArray = "scanner-array";
     inline static const string shared = "shared";
     inline static const string showPercentage = "show-percentage";
     inline static const string smFileType = "smfile-type";
@@ -150,6 +148,7 @@ struct JConsts
     inline static const string sourceFile = "source-file";
     inline static const string sourcePath = "source-path";
     inline static const string srcFile = "src-file";
+    inline static const string subFamily = "sub-family";
     inline static const string static_ = "static";
     inline static const string targetAddressModel = "target-address-model";
     inline static const string targetArchitecture = "target-architecture";
@@ -170,4 +169,3 @@ struct JConsts
 };
 
 #endif // HMAKE_JCONSTS_H
-

@@ -20,7 +20,7 @@ struct FileTargetCache
     // At config-time the conif-cache and build-cache are written once using the following variables.
     // While at build-time, the build-cache is written multiple times to save progress as more files are built so it is
     // written using the TargetCache::updateBuildCache function using the above targetCache pointer. This is done by
-    // TargetCacheDiskWriteManager.
+    // CacheWriteManager.
     string_view configCache;
     string_view buildCache;
 };
@@ -155,6 +155,7 @@ struct BuildCache
 using ModuleFile = BuildCache::Cpp::ModuleFile;
 
 bool readBool(const char *ptr, uint32_t &bytesRead);
+uint8_t readUint8(const char *ptr, uint32_t &bytesRead);
 uint32_t readUint32(const char *ptr, uint32_t &bytesRead);
 uint64_t readUint64(const char *ptr, uint32_t &bytesRead);
 string_view readStringView(const char *ptr, uint32_t &bytesRead);

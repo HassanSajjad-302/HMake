@@ -46,13 +46,18 @@ class SourceNode : public ObjectFile
     SourceNode(CppSourceTarget *target_, Node *node_);
 
   protected:
-    SourceNode(CppSourceTarget *target_, const Node *node_, bool add0, bool add1, bool add2);
+    SourceNode(CppSourceTarget *target_, const Node *node_, bool add0, bool add1);
 
   public:
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
-    string getTarjanNodeName() const override;
+    string getPrintName() const override;
+    void initializeBuildCache(uint32_t index);
+    void completeCompilation();
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
-    bool checkHeaderFiles(const Node *compareNode) const;
+    bool ignoreHeaderFile(string_view child) const;
+    void parseDepsFromMSVCTextOutput(string &output, bool isClang);
+    void parseDepsFromGCCDepsOutput();
+    void parseHeaderDeps(string &output);
     void setSourceNodeFileStatus();
     virtual void updateBuildCache();
 };
@@ -99,16 +104,12 @@ struct SMFile : SourceNode // Scanned Module Rule
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 
     bool isInterface = false;
-    bool isSMRulesJsonSet = false;
-    bool isAnOlderHeaderUnit = false;
     // In case of header-unit, it is a bmi-file.
     bool isObjectFileOutdated = false;
-    bool isSMRuleFileOutdated = false;
 
     // In case of header-unit, it is a bmi-file.
     // atomic
     bool isObjectFileOutdatedCallCompleted = false;
-    bool isSMRuleFileOutdatedCallCompleted = false;
     // This is used to prevent header-unit addition in BTargets list more than once since the same header-unit could be
     // potentially discovered more than once.
     bool addedForRoundOne = false;
@@ -121,7 +122,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     inline static thread_local vector<InclNodePointerTargetMap> huDirPlusTargets;
     SMFile(CppSourceTarget *target_, Node *node_);
     SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
-    void checkHeaderFilesIfSMRulesJsonSet();
+    void initializeBuildCache(uint32_t index);
     void setLogicalNameAndAddToRequirePath();
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     string getOutputFileName() const;
@@ -130,16 +131,14 @@ struct SMFile : SourceNode // Scanned Module Rule
     InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
     void initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder);
     void initializeHeaderUnits(Builder &builder);
-    void addNewBTargetInFinalBTargetsRound1(Builder &builder);
     void setSMFileType();
     // In case of header-units, this check the ifc file.
     void checkObjectFileOutdatedHeaderUnits();
-    void checkSMRulesFileOutdatedHeaderUnits();
     void checkObjectFileOutdatedModules();
-    void checkSMRulesFileOutdatedModules();
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
     void updateBuildCache() override;
+    string getCompileCommand();
     void setFileStatusAndPopulateAllDependencies();
     string getFlag() const;
     string getFlagPrint() const;

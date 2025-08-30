@@ -1,17 +1,14 @@
 
+#include "Node.hpp"
 #ifdef USE_HEADER_UNITS
 import "Builder.hpp";
-import "BTarget.hpp";
 import "Settings.hpp";
-import "Utilities.hpp";
 import <mutex>;
 import <stack>;
 import <thread>;
 #else
 #include "Builder.hpp"
-#include "BTarget.hpp"
 #include "Settings.hpp"
-#include "Utilities.hpp"
 #include <mutex>
 #include <stack>
 #include <thread>
@@ -21,38 +18,36 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 
 Builder::Builder()
 {
-    round = 2;
-    RealBTarget::tarjanNodes = span(BTarget::tarjanNodesBTargets[round].data(), BTarget::tarjanNodesCount[round]);
-    RealBTarget::findSCCS(round);
-    RealBTarget::checkForCycle();
+    round = 1;
+    RealBTarget::graphEdges = span(BTarget::tarjanNodesBTargets[round].data(), BTarget::tarjanNodesCount[round]);
+    RealBTarget::sortGraph();
 
-    for (BTarget *target : RealBTarget::topologicalSort)
+    for (RealBTarget *rb : RealBTarget::sorted)
     {
-        if (!target->realBTargets[round].dependenciesSize)
+        if (!rb->dependenciesSize)
         {
-            updateBTargets.emplaceBackBeforeRound(target);
+            updateBTargets.emplace_back(rb);
         }
     }
 
-    updateBTargets.initializeForRound(round);
-    updateBTargetsSizeGoal = RealBTarget::topologicalSort.size();
+    updateBTargetsSizeGoal = RealBTarget::sorted.size();
 
     vector<thread *> threads;
 
-    if (const unsigned int launchThreads = settings.maximumBuildThreads; launchThreads)
+    numberOfLaunchedThreads = settings.maximumBuildThreads;
+    if (numberOfLaunchedThreads)
     {
-        numberOfLaunchedThreads = launchThreads;
-
-        for (uint64_t i = 0; i < launchThreads - 1; ++i)
+        for (uint64_t i = 0; i < numberOfLaunchedThreads - 1; ++i)
         {
             BTarget::laterDepsCentral.emplace_back(nullptr);
         }
 
-        while (threads.size() != launchThreads - 1)
+        while (threads.size() != numberOfLaunchedThreads - 1)
         {
             uint64_t index = threads.size() + 1;
             threads.emplace_back(new thread([this, index] {
                 BTarget::laterDepsCentral[index] = &BTarget::laterDepsLocal;
+                myThreadId = index;
                 execute();
             }));
         }
@@ -84,182 +79,217 @@ extern string getThreadId();
 unsigned short count = 0;
 #endif
 
-vector<std::thread::id> threadIds;
+template <typename T> std::vector<std::span<T>> divideInChunk(std::vector<T> &v, uint16_t n)
+{
+
+    std::vector<std::span<T>> result;
+    result.reserve(n);
+    // If n is 1, return vector containing one span of the entire vector
+    if (n == 1)
+    {
+        result.emplace_back(std::span<T>(v.data(), v.size()));
+        return result;
+    }
+
+    // If n is greater than vector size, create n spans where first v.size() spans
+    // contain one element each, and remaining spans are empty
+    if (n > v.size())
+    {
+
+        // Create spans for existing elements (one element per span)
+        for (size_t i = 0; i < v.size(); ++i)
+        {
+            result.emplace_back(v.data() + i, 1);
+        }
+
+        // Fill remaining spans as empty
+        for (size_t i = v.size(); i < n; ++i)
+        {
+            result.emplace_back();
+        }
+
+        return result;
+    }
+
+    // Normal case: divide vector into n chunks
+    size_t chunk_size = v.size() / n;
+    size_t remainder = v.size() % n;
+    size_t start_pos = 0;
+
+    for (uint16_t i = 0; i < n; ++i)
+    {
+        // First 'remainder' chunks get an extra element
+        size_t current_chunk_size = chunk_size + (i < remainder ? 1 : 0);
+
+        result.emplace_back(v.data() + start_pos, current_chunk_size);
+        start_pos += current_chunk_size;
+    }
+
+    return result;
+}
 
 void Builder::execute()
 {
-    BTarget *bTarget = nullptr;
-    const RealBTarget *realBTarget = nullptr;
+    const RealBTarget *rb = nullptr;
 
     DEBUG_EXECUTE(
         FORMAT("{} Locking Update Mutex {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(), getThreadId()));
     std::unique_lock lk(executeMutex);
+    BTarget *last;
     while (true)
     {
-        while (true)
+        if (exeMode == ExecuteMode::GENERAL)
         {
-            const unsigned short roundLocal = round;
-            bool shouldBreak = false;
-
-            if (bTarget = updateBTargets.getItem(); bTarget)
+            if (rb = updateBTargets.getItem(); rb)
             {
                 DEBUG_EXECUTE(FORMAT("{} update-executing {} {}\n", round, __LINE__, getThreadId()));
-                realBTarget = &bTarget->realBTargets[round];
                 DEBUG_EXECUTE(FORMAT("{} UnLocking Update Mutex {} {}\n", round, __LINE__, getThreadId()));
                 executeMutex.unlock();
                 cond.notify_one();
-                shouldBreak = true;
-            }
-            else if (updateBTargets.size() == updateBTargetsSizeGoal)
-            {
-                DEBUG_EXECUTE(FORMAT("{} updateBTargets.size() == updateBTargetsSizeGoal {} {} {}\n", round,
-                                     numberOfSleepingThreads.load(), numberOfLaunchedThreads, getThreadId()));
-                if (numberOfSleepingThreads == numberOfLaunchedThreads - 1)
+
+                if (round == 1)
                 {
-                    singleThreadRunning = true;
-                    DEBUG_EXECUTE(FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads",
-                                         getThreadId()));
+                    rb->bTarget->setSelectiveBuild();
+                }
+                bool isComplete = false;
+                last = rb->bTarget;
+                rb->bTarget->updateBTarget(*this, round, isComplete);
+                if (isComplete)
+                {
+                    continue;
+                }
+                executeMutex.lock();
+                addNewTopBeUpdatedTargets(rb);
 
-                    BTarget::runEndOfRoundTargets(*this, round);
-                    if (round > roundGoal && !errorHappenedInRoundMode)
+                continue;
+            }
+
+            if (updateBTargets.size() == updateBTargetsSizeGoal &&
+                numberOfSleepingThreads == numberOfLaunchedThreads - 1)
+            {
+                if constexpr (bsMode == BSMode::BUILD)
+                {
+                    if (round && !errorHappenedInRoundMode)
                     {
-                        --round;
-                        RealBTarget::tarjanNodes =
-                            span(BTarget::tarjanNodesBTargets[round].data(), BTarget::tarjanNodesCount[round]);
-                        RealBTarget::findSCCS(round);
-                        RealBTarget::checkForCycle();
-
-                        updateBTargets.clear();
-                        updateBTargetsSizeGoal = 0;
-
-                        if (!round)
+                        uncheckedNodesCentral.reserve(Node::idCountCompleted);
+                        for (uint32_t i = 0; i < Node::idCountCompleted; ++i)
                         {
-                            if (const size_t topSize = RealBTarget::topologicalSort.size())
+                            if (Node::nodeIndices[i]->toBeChecked)
                             {
-                                for (size_t i = RealBTarget::topologicalSort.size(); i-- > 0;)
-                                {
-                                    BTarget &localBTarget = *RealBTarget::topologicalSort[i];
-                                    RealBTarget &localReal = localBTarget.realBTargets[0];
-
-                                    localReal.indexInTopologicalSort = topSize - (i + 1);
-
-                                    if (localBTarget.selectiveBuild)
-                                    {
-                                        for (auto &[dependency, bTargetDepType] : localReal.dependencies)
-                                        {
-                                            if (bTargetDepType == BTargetDepType::FULL)
-                                            {
-                                                dependency->selectiveBuild = true;
-                                            }
-                                        }
-                                    }
-
-                                    if (!localReal.dependenciesSize)
-                                    {
-                                        updateBTargets.emplaceFrontBeforeLastRound(&localBTarget);
-                                    }
-                                }
-                            }
-
-                            updateBTargetsSizeGoal = RealBTarget::topologicalSort.size();
-                        }
-                        else
-                        {
-                            // In rounds 2 and 1 all the targets will be updated.
-                            // Index is only needed in round zero. Perform only for round one.
-                            for (uint64_t i = 0; i < RealBTarget::topologicalSort.size(); ++i)
-                            {
-                                if (!RealBTarget::topologicalSort[i]->realBTargets[round].dependenciesSize)
-                                {
-                                    updateBTargets.emplaceBackBeforeRound(RealBTarget::topologicalSort[i]);
-                                }
-                                RealBTarget::topologicalSort[i]->realBTargets[round].indexInTopologicalSort = i;
+                                uncheckedNodesCentral.emplace_back(Node::nodeIndices[i]);
                             }
                         }
-
-                        updateBTargetsSizeGoal = RealBTarget::topologicalSort.size();
-                        updateBTargets.initializeForRound(round);
-                    }
-                    else
-                    {
-                        returnAfterWakeup = true;
-                    }
-
-                    singleThreadRunning = false;
-                    executeMutex.unlock();
-                    cond.notify_one();
-                    DEBUG_EXECUTE(FORMAT("{} Locking after notifying one after round decrement {} {}\n", round,
-                                         __LINE__, getThreadId()));
-                    executeMutex.lock();
-                    if (returnAfterWakeup)
-                    {
-                        DEBUG_EXECUTE(
-                            FORMAT("{} Returning after roundGoal Achieved{} {}\n", round, __LINE__, getThreadId()));
-                        return;
+                        uncheckedNodes = divideInChunk(uncheckedNodesCentral, numberOfLaunchedThreads);
+                        exeMode = ExecuteMode::NODE_CHECK;
+                        executeMutex.unlock();
+                        cond.notify_all();
+                        executeMutex.lock();
+                        continue;
                     }
                 }
-            }
 
-            if (shouldBreak)
-            {
-                break;
-            }
-
-            if (roundLocal == round)
-            {
-                DEBUG_EXECUTE(FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(),
+                returnAfterWakeup = true;
+                lk.release();
+                executeMutex.unlock();
+                cond.notify_one();
+                DEBUG_EXECUTE(FORMAT("{} Locking after notifying one after round decrement {} {}\n", round, __LINE__,
                                      getThreadId()));
-                incrementNumberOfSleepingThreads();
-                cond.wait(lk);
-                decrementNumberOfSleepingThreads();
-                DEBUG_EXECUTE(FORMAT("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__,
-                                     numberOfSleepingThreads.load(), getThreadId()));
-                if (returnAfterWakeup)
+                DEBUG_EXECUTE(FORMAT("{} Returning after roundGoal Achieved{} {}\n", round, __LINE__, getThreadId()));
+                return;
+            }
+        }
+        else if (exeMode == ExecuteMode::NODE_CHECK)
+        {
+            executeMutex.unlock();
+            for (Node *node : uncheckedNodes[myThreadId])
+            {
+                node->performSystemCheck();
+            }
+            executeMutex.lock();
+            if (numberOfSleepingThreads == numberOfLaunchedThreads - 1)
+            {
+                singleThreadRunning = true;
+                DEBUG_EXECUTE(
+                    FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
+
+                BTarget::runEndOfRoundTargets();
+                --round;
+                RealBTarget::graphEdges =
+                    span(BTarget::tarjanNodesBTargets[round].data(), BTarget::tarjanNodesCount[round]);
+                RealBTarget::sortGraph();
+                // RealBTarget::printSortedGraph();
+
+                updateBTargets.clear();
+                updateBTargetsSizeGoal = 0;
+
+                if (const size_t topSize = RealBTarget::sorted.size())
                 {
-                    cond.notify_one();
-                    DEBUG_EXECUTE(FORMAT("{} returning after wakeup from condition variable {} {}\n", round, __LINE__,
-                                         getThreadId()));
-                    return;
+                    for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
+                    {
+                        RealBTarget &localRb = *RealBTarget::sorted[i];
+
+                        localRb.indexInTopologicalSort = topSize - (i + 1);
+
+                        if (localRb.bTarget->selectiveBuild)
+                        {
+                            for (auto &[dependency, bTargetDepType] : localRb.dependencies)
+                            {
+                                if (bTargetDepType == BTargetDepType::FULL)
+                                {
+                                    dependency->bTarget->selectiveBuild = true;
+                                }
+                            }
+                        }
+
+                        if (!localRb.dependenciesSize)
+                        {
+                            updateBTargets.emplace_front(&localRb);
+                        }
+                    }
                 }
+
+                updateBTargetsSizeGoal = RealBTarget::sorted.size();
+                exeMode = ExecuteMode::GENERAL;
+                singleThreadRunning = false;
+                continue;
             }
         }
 
-        if (round == 2)
+        DEBUG_EXECUTE(
+            FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(), getThreadId()));
+        incrementNumberOfSleepingThreads();
+        cond.wait(lk);
+        decrementNumberOfSleepingThreads();
+        DEBUG_EXECUTE(FORMAT("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__,
+                             numberOfSleepingThreads.load(), getThreadId()));
+        if (returnAfterWakeup)
         {
-            bTarget->setSelectiveBuild();
+            cond.notify_one();
+            DEBUG_EXECUTE(
+                FORMAT("{} returning after wakeup from condition variable {} {}\n", round, __LINE__, getThreadId()));
+            return;
         }
-        bool isComplete = false;
-        bTarget->updateBTarget(*this, round, isComplete);
-        if (isComplete)
-        {
-            continue;
-        }
-        executeMutex.lock();
-        addNewTopBeUpdatedTargets(bTarget);
     }
 }
 
-void Builder::addNewTopBeUpdatedTargets(BTarget *bTarget)
+void Builder::addNewTopBeUpdatedTargets(const RealBTarget *rb)
 {
-    const RealBTarget *realBTarget = &bTarget->realBTargets[round];
     DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
-    if (realBTarget->exitStatus != EXIT_SUCCESS)
+    if (rb->exitStatus != EXIT_SUCCESS)
     {
         errorHappenedInRoundMode = true;
     }
 
     if (round)
     {
-        for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
+        for (auto &[dependent, bTargetDepType] : rb->dependents)
         {
-            RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
-
-            if (realBTarget->exitStatus != EXIT_SUCCESS)
+            if (rb->exitStatus != EXIT_SUCCESS)
             {
-                dependentRealBTarget.exitStatus = EXIT_FAILURE;
+                dependent->exitStatus = EXIT_FAILURE;
             }
-            --dependentRealBTarget.dependenciesSize;
-            if (!dependentRealBTarget.dependenciesSize)
+            --dependent->dependenciesSize;
+            if (!dependent->dependenciesSize)
             {
                 updateBTargets.emplace(dependent);
             }
@@ -267,17 +297,16 @@ void Builder::addNewTopBeUpdatedTargets(BTarget *bTarget)
     }
     else
     {
-        for (auto &[dependent, bTargetDepType] : bTarget->realBTargets[round].dependents)
+        for (auto &[dependent, bTargetDepType] : rb->dependents)
         {
-            RealBTarget &dependentRealBTarget = dependent->realBTargets[round];
             if (bTargetDepType == BTargetDepType::FULL)
             {
-                if (realBTarget->exitStatus != EXIT_SUCCESS)
+                if (rb->exitStatus != EXIT_SUCCESS)
                 {
-                    dependentRealBTarget.exitStatus = EXIT_FAILURE;
+                    dependent->exitStatus = EXIT_FAILURE;
                 }
-                --dependentRealBTarget.dependenciesSize;
-                if (!dependentRealBTarget.dependenciesSize)
+                --dependent->dependenciesSize;
+                if (!dependent->dependenciesSize)
                 {
                     updateBTargets.emplace(dependent);
                 }
@@ -293,12 +322,7 @@ void Builder::incrementNumberOfSleepingThreads()
 {
     if (numberOfSleepingThreads == numberOfLaunchedThreads - 1)
     {
-        RealBTarget::clearTarjanNodes();
-        RealBTarget::findSCCS(round);
-
-        // If a cycle happened this will throw an error, otherwise following exception will be thrown.
-        RealBTarget::checkForCycle();
-
+        RealBTarget::sortGraph();
         printErrorMessage("HMake API misuse.\n");
     }
     ++numberOfSleepingThreads;

@@ -68,13 +68,25 @@ void from_json(const Json &json, BTFamily &bTFamily)
     {
         bTFamily = BTFamily::GCC;
     }
-    else if (json == JConsts::msvc)
+    else
     {
         bTFamily = BTFamily::MSVC;
     }
-    else if (json == JConsts::clang)
+}
+
+void to_json(Json &json, const BTSubFamily &btSubFamily)
+{
+    if (btSubFamily == BTSubFamily::CLANG)
     {
-        bTFamily = BTFamily::CLANG;
+        json = JConsts::clang;
+    }
+}
+
+void from_json(const Json &json, BTSubFamily &btSubFamily)
+{
+    if (json == JConsts::clang)
+    {
+        btSubFamily = BTSubFamily::CLANG;
     }
 }
 
@@ -86,15 +98,17 @@ BuildTool::BuildTool(const BTFamily btFamily_, const Version btVersion_, path bt
 void to_json(Json &json, const BuildTool &buildTool)
 {
     json[JConsts::family] = buildTool.bTFamily;
-    json[JConsts::path] = buildTool.bTPath.string();
+    json[JConsts::subFamily] = buildTool.btSubFamily;
     json[JConsts::version] = buildTool.bTVersion;
+    json[JConsts::path] = buildTool.bTPath.string();
 }
 
 void from_json(const Json &json, BuildTool &buildTool)
 {
-    buildTool.bTPath = json.at(JConsts::path).get<string>();
     buildTool.bTFamily = json.at(JConsts::family).get<BTFamily>();
+    buildTool.btSubFamily = json.at(JConsts::subFamily).get<BTSubFamily>();
     buildTool.bTVersion = json.at(JConsts::version).get<Version>();
+    buildTool.bTPath = json.at(JConsts::path).get<string>();
 }
 
 Compiler::Compiler(const BTFamily btFamily_, const Version btVersion_, path btPath_)
@@ -108,11 +122,6 @@ Linker::Linker(const BTFamily btFamily_, const Version btVersion_, path btPath_)
 }
 
 Archiver::Archiver(const BTFamily btFamily_, const Version btVersion_, path btPath_)
-    : BuildTool(btFamily_, btVersion_, std::move(btPath_))
-{
-}
-
-ScannerTool::ScannerTool(const BTFamily btFamily_, const Version btVersion_, path btPath_)
     : BuildTool(btFamily_, btVersion_, std::move(btPath_))
 {
 }

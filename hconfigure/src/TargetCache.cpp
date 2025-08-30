@@ -93,6 +93,14 @@ bool readBool(const char *ptr, uint32_t &bytesRead)
     return result;
 }
 
+uint8_t readUint8(const char *ptr, uint32_t &bytesRead)
+{
+    uint8_t result;
+    memcpy(&result, ptr + bytesRead, sizeof(result));
+    bytesRead += sizeof(result);
+    return result;
+}
+
 uint32_t readUint32(const char *ptr, uint32_t &bytesRead)
 {
     uint32_t result;

@@ -92,8 +92,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     using BaseType = CSourceTarget;
 
-    friend struct PostCompile;
-
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
     string compileCommand;
     string sourceCompileCommandPrintFirstHalf;
@@ -104,9 +102,9 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     // be used.
     HashedCommand compileCommandWithTool;
 
-    vector<SourceNode> srcFileDeps;
+    vector<SourceNode *> srcFileDeps;
     // Comparator used is same as for SourceNode
-    vector<SMFile> modFileDeps;
+    vector<SMFile *> modFileDeps;
 
     vector<SMFile> oldHeaderUnits;
     BuildCache::Cpp::ModuleFile headerUnitsCache;
@@ -116,7 +114,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     Configuration *configuration = nullptr;
 
-    Node *buildCacheFilesDirPathNode = nullptr;
+    Node *myBuildDir = nullptr;
     // reqIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
     unsigned short cacheUpdateCount = 0;
@@ -129,24 +127,18 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     void setCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
-    inline string &getSourceCompileCommandPrintFirstHalf();
+    string &getSourceCompileCommandPrintFirstHalf();
 
     string getDependenciesPString() const;
     void resolveRequirePaths();
-    void initializeCppBuildCache();
-    static string getInfrastructureFlags(const Compiler &compiler, bool showIncludes);
+    static string getInfrastructureFlags(const Compiler &compiler);
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
     string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
-    PostCompile CompileSMFile(const SMFile &smFile);
-    PostCompile updateSourceNodeBTarget(const SourceNode &sourceNode);
-
-    PostCompile GenerateSMRulesFile(const SMFile &smFile, bool printOnlyOnError);
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     void writeBuildCache(vector<char> &buffer) override;
-    void checkAndCopyBuildCache();
     void writeCacheAtConfigTime(bool before);
     void readConfigCacheAtBuildTime();
-    string getTarjanNodeName() const override;
+    string getPrintName() const override;
 
     CppSourceTarget(const string &name_, Configuration *configuration_);
     CppSourceTarget(bool buildExplicit, const string &name_, Configuration *configuration_);
@@ -227,7 +219,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::publicDeps(CppSourceT
 {
     reqDeps.emplace(dep);
     useReqDeps.emplace(dep);
-    addDepNow<2>(*dep);
+    addDepNow<1>(*dep);
     if constexpr (sizeof...(deps))
     {
         return publicDeps(deps...);
@@ -238,7 +230,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::publicDeps(CppSourceT
 template <typename... U> CppSourceTarget &CppSourceTarget::privateDeps(CppSourceTarget *dep, const U... deps)
 {
     reqDeps.emplace(dep);
-    addDepNow<2>(*dep);
+    addDepNow<1>(*dep);
     if constexpr (sizeof...(deps))
     {
         return privateDeps(deps...);
@@ -249,7 +241,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::privateDeps(CppSource
 template <typename... U> CppSourceTarget &CppSourceTarget::interfaceDeps(CppSourceTarget *dep, const U... deps)
 {
     useReqDeps.emplace(dep);
-    addDepNow<2>(*dep);
+    addDepNow<1>(*dep);
     if constexpr (sizeof...(deps))
     {
         return interfaceDeps(deps...);
@@ -264,17 +256,17 @@ CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const DepType depen
     {
         reqDeps.emplace(dep);
         useReqDeps.emplace(dep);
-        addDepNow<2>(*dep);
+        addDepNow<1>(*dep);
     }
     else if (dependency == DepType::PRIVATE)
     {
         reqDeps.emplace(dep);
-        addDepNow<2>(*dep);
+        addDepNow<1>(*dep);
     }
     else
     {
         useReqDeps.emplace(dep);
-        addDepNow<2>(*dep);
+        addDepNow<1>(*dep);
     }
     if constexpr (sizeof...(cppSourceTargets))
     {

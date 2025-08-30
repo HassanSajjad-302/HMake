@@ -30,17 +30,24 @@ void from_json(const Json &j, Version &v);
 
 enum class BTFamily : char
 {
-    NOT_assignED,
     GCC,
     MSVC,
-    CLANG,
 };
 void to_json(Json &json, const BTFamily &bTFamily);
 void from_json(const Json &json, BTFamily &bTFamily);
 
+enum class BTSubFamily : char
+{
+    NONE,
+    CLANG,
+};
+void to_json(Json &json, const BTSubFamily &btSubFamily);
+void from_json(const Json &json, BTSubFamily &btSubFamily);
+
 struct BuildTool
 {
-    BTFamily bTFamily = BTFamily::NOT_assignED;
+    BTFamily bTFamily{};
+    BTSubFamily btSubFamily{};
     Version bTVersion;
     path bTPath;
     BuildTool(BTFamily btFamily_, Version btVersion_, path btPath_);
@@ -68,11 +75,4 @@ struct Archiver : BuildTool
     Archiver() = default;
 };
 
-struct ScannerTool : BuildTool
-{
-    ScannerTool(BTFamily btFamily_, Version btVersion_, path btPath_);
-    ScannerTool() = default;
-};
-
 #endif // HMAKE_BUILDTOOLS_HPP
-

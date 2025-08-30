@@ -138,8 +138,23 @@ path Node::getFinalNodePathFromPath(path filePath)
     return filePath;
 }
 
+void Node::performSystemCheck()
+{
+    const auto entry = directory_entry(filePath);
+    fileType = entry.status().type();
+    if (fileType == file_type::regular)
+    {
+        lastWriteTime = entry.last_write_time();
+    }
+}
+
 void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
 {
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        bool shouldNotBeCalled = true;
+    }
+
     if (systemCheckCompleted || atomic_ref(systemCheckCompleted).load())
     {
         return;
@@ -148,7 +163,12 @@ void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
     // If systemCheck was not called previously or isn't being called, call it.
     if (!atomic_ref(systemCheckCalled).exchange(true))
     {
-        performSystemCheck(isFile, mayNotExist);
+        performSystemCheck();
+        if (fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
+        {
+            printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath, isFile ? "regular" : "dir",
+                                     getStatusPString(filePath)));
+        }
         atomic_ref(systemCheckCompleted).store(true);
         return;
     }
@@ -158,25 +178,6 @@ void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
     {
         // std::this_thread::sleep_for(std::chrono::nanoseconds(100));
     }
-}
-
-bool Node::trySystemCheck(const bool isFile, const bool mayNotExist)
-{
-    if (systemCheckCompleted)
-    {
-        return true;
-    }
-
-    // If systemCheck was not called previously or isn't being called, call it.
-    if (!atomic_ref(systemCheckCalled).exchange(true))
-    {
-        performSystemCheck(isFile, mayNotExist);
-        atomic_ref(systemCheckCompleted).store(true);
-        return true;
-    }
-
-    // performSystemCheck is being called by some other thread.
-    return false;
 }
 
 Node *Node::getNodeFromNormalizedString(string p, const bool isFile, const bool mayNotExist)
@@ -287,79 +288,6 @@ rapidjson::Type Node::getType()
 #else
     return rapidjson::kStringType;
 #endif
-}
-
-void Node::performSystemCheck(const bool isFile, const bool mayNotExist)
-{
-    // TODO
-    // nodeAllFiles is initialized with 10000. This may not be enough. Either have a counter which is incremented here
-    // which warns on 90% usage and errors out at 100% Or warn the user at the end if 80% is used. Or do both
-    if (systemCheckCompleted)
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
-    }
-
-    {
-        if (const directory_entry entry = directory_entry(filePath);
-            entry.status().type() == (isFile ? file_type::regular : file_type::directory))
-        {
-            lastWriteTime = entry.last_write_time();
-        }
-        else
-        {
-            if (!mayNotExist || entry.status().type() != file_type::not_found)
-            {
-                printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath, isFile ? "regular" : "dir",
-                                         getStatusPString(filePath)));
-            }
-            doesNotExist = true;
-        }
-    }
-
-    /////////////////////////////////
-    /*WIN32_FIND_DATA findFileData;
-    HANDLE hFind = FindFirstFileEx((isFile ? filePath : filePath + "\\*").c_str(), FindExInfoBasic, &findFileData,
-                                   FindExSearchNameMatch, nullptr, 0);
-
-    if (hFind == INVALID_HANDLE_VALUE)
-    {
-        if (mayNotExist)
-        {
-            doesNotExist = true;
-        }
-        else
-        {
-            printErrorMessage(FORMAT("FindFirstFileEx failed {}\n", GetLastError()));
-            printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath,
-                                          isFile ? "regular" : "dir", getStatusPString(filePath)));
-        }
-    }
-
-    if (isFile)
-    {
-        auto [dwLowDateTime, dwHighDateTime] = findFileData.ftLastWriteTime;
-        const uint64_t a = static_cast<__int64>(dwHighDateTime) << 32 | dwLowDateTime;
-        lastWriteTime = file_time_type(file_time_type::duration(a));
-    }
-    else
-    {
-        if (findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-        {
-            auto [dwLowDateTime, dwHighDateTime] = findFileData.ftLastWriteTime;
-            const uint64_t a = static_cast<__int64>(dwHighDateTime) << 32 | dwLowDateTime;
-            lastWriteTime = file_time_type(file_time_type::duration(a));
-        }
-        else
-        {
-            printErrorMessage(FORMAT("FindFirstFileEx failed {}\n", GetLastError()));
-            printErrorMessage(
-                FORMAT("{} is not a dir file. File Type is {}\n", filePath, getStatusPString(filePath)));
-        }
-    }
-
-    FindClose(hFind)*/
-    ;
-    /////////////////////////////////////
 }
 
 void Node::clearNodes()

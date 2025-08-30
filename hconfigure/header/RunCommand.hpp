@@ -3,39 +3,31 @@
 #define HMAKE_RUNCOMMAND_HPP
 
 #ifdef USE_HEADER_UNITS
-import "Settings.hpp";
+import "string";
 #else
-#include "Settings.hpp"
+#include "string"
 #endif
 
-// Maybe use CRTP and inherit both SourceNode and LOAT from it. exitStatus is being copied currently.
+using std::string;
+
 struct RunCommand
 {
-    string printCommand;
-    string commandOutput;
-    int exitStatus;
+    struct OutputAndStatus
+    {
+        string output;
+        int exitStatus;
+    };
+#ifdef _WIN32
+    void *stdout_read;
+    void *hProcess;
+    void *hThread;
+#endif
 
     // command is 3 parts. 1) tool path 2) command without output and error files 3) output and error files.
     // while print is 2 parts. 1) tool path and command without output and error files. 2) output and error files.
-    RunCommand(path toolPath, const string &runCommand, string printCommand_, bool isTarget_);
-
-    // should lock targetCacheDiskWriteManager.vecMutex before calling this function.
-    void executePrintRoutine(uint32_t color, class TargetCache *target, void *cache) const;
-    void executePrintRoutineRoundOne(struct SMFile const &smFile) const;
-};
-
-class CppSourceTarget;
-struct PostCompile : RunCommand
-{
-    CppSourceTarget &target;
-
-    explicit PostCompile(const CppSourceTarget &target_, const path &toolPath, const string &commandFirstHalf,
-                         string printCommandFirstHalf);
-
-    bool ignoreHeaderFile(string_view child) const;
-    void parseDepsFromMSVCTextOutput(struct SourceNode &sourceNode, string &output) const;
-    void parseDepsFromGCCDepsOutput(SourceNode &sourceNode) const;
-    void parseHeaderDeps(SourceNode &sourceNode);
+    explicit RunCommand(const string &runCommand);
+    void startProcess(const string &command);
+    OutputAndStatus endProcess() const;
 };
 
 #endif // HMAKE_RUNCOMMAND_HPP

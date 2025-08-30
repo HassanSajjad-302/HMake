@@ -27,6 +27,8 @@ inline char slashc = '/';
 
 using Json = nlohmann::json; // Unordered json
 
+inline thread_local uint16_t myThreadId = 0;
+
 inline flat_hash_set<string> cmdTargets;
 inline mutex configCacheMutex;
 inline vector<char> configCacheGlobal;

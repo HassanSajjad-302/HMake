@@ -57,9 +57,7 @@ class LOAT : public PLOAT
     void writeCacheAtConfigureTime();
     void readCacheAtBuildTime();
 
-    string getTarjanNodeName() const override;
-    RunCommand Archive();
-    RunCommand Link();
+    string getPrintName() const override;
     void setLinkOrArchiveCommands();
     string getLinkOrArchiveCommandPrint();
     template <typename T> bool evaluate(T property) const;

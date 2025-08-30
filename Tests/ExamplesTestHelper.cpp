@@ -13,7 +13,8 @@ void ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject()
 {
     if (exists(path("Build")))
     {
-        remove_all(path("Build"));
+        for (const auto &entry : std::filesystem::directory_iterator("Build"))
+            std::filesystem::remove_all(entry.path());
     }
     create_directory("Build");
     current_path("Build");

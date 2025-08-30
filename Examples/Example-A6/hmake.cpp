@@ -36,7 +36,7 @@ struct OurTarget2 : public BTarget
 
             {
                 std::lock_guard lk(builder.executeMutex);
-                builder.updateBTargets.emplace(c);
+                builder.updateBTargets.emplace(&c->realBTargets[0]);
                 builder.updateBTargetsSizeGoal += 3;
             }
             builder.cond.notify_one();
