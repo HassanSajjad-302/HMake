@@ -117,7 +117,7 @@ struct BuildCache
 
                 struct SingleModuleDep
                 {
-                    Node *fullPath;
+                    Node *node;
                     string_view logicalName;
                     void serialize(vector<char> &buffer) const;
                     void deserialize(const char *ptr, uint32_t &bytesRead);
@@ -133,13 +133,13 @@ struct BuildCache
 
             SourceFile srcFile;
             SmRules smRules;
-            CCOrHash compileCommandWithTool;
             void serialize(vector<char> &buffer) const;
             void deserialize(const char *ptr, uint32_t &bytesRead);
         };
 
         vector<SourceFile> srcFiles;
         vector<ModuleFile> modFiles;
+        vector<ModuleFile> imodFiles;
         vector<ModuleFile> headerUnits;
         void serialize(vector<char> &buffer) const;
         void deserialize(uint32_t targetCacheIndex);

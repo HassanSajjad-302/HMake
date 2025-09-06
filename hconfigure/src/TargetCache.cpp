@@ -171,13 +171,13 @@ void ModuleFile::SmRules::SingleHeaderUnitDep::deserialize(const char *ptr, uint
 
 void ModuleFile::SmRules::SingleModuleDep::serialize(vector<char> &buffer) const
 {
-    writeNode(buffer, fullPath);
+    writeNode(buffer, node);
     writeStringView(buffer, logicalName);
 }
 
 void ModuleFile::SmRules::SingleModuleDep::deserialize(const char *ptr, uint32_t &bytesRead)
 {
-    fullPath = readHalfNode(ptr, bytesRead);
+    node = readHalfNode(ptr, bytesRead);
     logicalName = readStringView(ptr, bytesRead);
 }
 
@@ -219,14 +219,12 @@ void ModuleFile::serialize(vector<char> &buffer) const
 {
     srcFile.serialize(buffer);
     smRules.serialize(buffer);
-    compileCommandWithTool.serialize(buffer);
 }
 
 void ModuleFile::deserialize(const char *ptr, uint32_t &bytesRead)
 {
     srcFile.deserialize(ptr, bytesRead);
     smRules.deserialize(ptr, bytesRead);
-    compileCommandWithTool.deserialize(ptr, bytesRead);
 }
 
 void BuildCache::Cpp::serialize(vector<char> &buffer) const
@@ -239,6 +237,12 @@ void BuildCache::Cpp::serialize(vector<char> &buffer) const
 
     writeUint32(buffer, modFiles.size());
     for (const ModuleFile &mf : modFiles)
+    {
+        mf.serialize(buffer);
+    }
+
+    writeUint32(buffer, imodFiles.size());
+    for (const ModuleFile &mf : imodFiles)
     {
         mf.serialize(buffer);
     }
@@ -266,6 +270,11 @@ void BuildCache::Cpp::deserialize(const uint32_t targetCacheIndex)
     }
     modFiles.resize(readUint32(str.data(), bytesRead));
     for (ModuleFile &modFile : modFiles)
+    {
+        modFile.deserialize(str.data(), bytesRead);
+    }
+    imodFiles.resize(readUint32(str.data(), bytesRead));
+    for (ModuleFile &modFile : imodFiles)
     {
         modFile.deserialize(str.data(), bytesRead);
     }

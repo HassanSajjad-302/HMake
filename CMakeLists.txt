@@ -59,7 +59,11 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/ConfigHelpers.cpp
         hconfigure/src/HashValues.cpp
         hconfigure/src/TargetCache.cpp
-        hconfigure/src/TargetCacheDiskWriteManager.cpp
+        hconfigure/src/CacheWriteManager.cpp
+        hconfigure/src/IPCManagerBS.cpp
+        hconfigure/src/IPCManagerCompiler.cpp
+        hconfigure/src/Manager.cpp
+        3rdParty/mimalloc/src/static.c
         hconfigure/src/BoostCppTarget.cpp)
 
 set(INCLUDE_BUILD ON)
@@ -83,6 +87,7 @@ if (${INCLUDE_CONFIGURE})
             PUBLIC 3rdParty/rapidjson/include
             PUBLIC 3rdParty/parallel-hashmap/parallel_hashmap
             PUBLIC 3rdParty/lz4/lib
+            PUBLIC 3rdParty/mimalloc/include
     )
 
     add_executable(htools htools/main.cpp)
@@ -131,6 +136,7 @@ if (${INCLUDE_BUILD})
             PUBLIC 3rdParty/rapidjson/include
             PUBLIC 3rdParty/parallel-hashmap/parallel_hashmap
             PUBLIC 3rdParty/lz4/lib
+            PUBLIC 3rdParty/mimalloc/include
     )
 
     if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
@@ -250,6 +256,8 @@ add_dual_executables(Example1 Examples/Example1/hmake.cpp
         Example-A4 Examples/Example-A4/hmake.cpp
         Example-A5 Examples/Example-A5/hmake.cpp
         Example-A6 Examples/Example-A6/hmake.cpp
+        Example-A7 Examples/Example-A7/hmake.cpp
+        Example-A9 Examples/Example-A9/hmake.cpp
         Test1 Tests/Stage/Test1/hmake.cpp
         Test2 Tests/Stage/Test2/hmake.cpp
         Test3 Tests/Stage/Test3/hmake.cpp

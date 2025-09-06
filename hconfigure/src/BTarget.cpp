@@ -202,6 +202,17 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
     }
 }
 
+void RealBTarget::assignFileStatusToDependents()
+{
+    for (auto &[dependent, bTargetDepType] : dependents)
+    {
+        if (bTargetDepType == BTargetDepType::FULL)
+        {
+            dependent->updateStatus = UpdateStatus::NEEDS_UPDATE;
+        }
+    }
+}
+
 void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
 {
     uint32_t i;
@@ -299,17 +310,6 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
     if (name.starts_with("conventional\\conventional\\"))
     {
         bool breakpoint = true;
-    }
-}
-
-void BTarget::assignFileStatusToDependents(const unsigned short round)
-{
-    for (auto &[dependent, bTargetDepType] : realBTargets[round].dependents)
-    {
-        if (bTargetDepType == BTargetDepType::FULL)
-        {
-            atomic_ref(dependent->bTarget->fileStatus).store(true);
-        }
     }
 }
 

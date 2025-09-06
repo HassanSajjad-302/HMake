@@ -58,6 +58,7 @@ class Node
     Node(Node *&node, string filePath_);
     explicit Node(string filePath_);
     string getFileName() const;
+    string getFileStem() const;
 
     static path getFinalNodePathFromPath(path filePath);
 
