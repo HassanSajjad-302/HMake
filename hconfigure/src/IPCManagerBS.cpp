@@ -113,7 +113,19 @@ tl::expected<void, string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[320], 
             // Is the client already connected?
             if (GetLastError() != ERROR_PIPE_CONNECTED)
             {
-                return tl::unexpected(getErrorString());
+
+                DWORD bytesAvail = 0;
+                DWORD bytesLeftThisMessage = 0;
+
+                // PeekNamedPipe returns FALSE if pipe is disconnected
+                if (PeekNamedPipe(hPipe, nullptr, 0, nullptr, &bytesAvail, &bytesLeftThisMessage))
+                {
+                    // compiler process ended and has left a message for us.
+                }
+                else
+                {
+                    return tl::unexpected(getErrorString());
+                }
             }
         }
 #else

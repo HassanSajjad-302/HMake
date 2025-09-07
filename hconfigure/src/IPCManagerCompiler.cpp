@@ -115,7 +115,6 @@ tl::expected<void, string> IPCManagerCompiler::receiveBTCLastMessage() const
 tl::expected<BTCModule, string> IPCManagerCompiler::receiveBTCModule(const CTBModule &moduleName) const
 {
 
-    // raise(SIGTRAP); // At the location of the BP.
     vector<char> buffer = getBufferWithType(CTB::MODULE);
     writeString(buffer, moduleName.moduleName);
     if (const auto &r = writeInternal(buffer); !r)

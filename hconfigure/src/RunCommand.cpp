@@ -104,7 +104,8 @@ RunCommand::OutputAndStatus RunCommand::endProcess() const
     {
         char buf[64 << 10];
         read_len = 0;
-        if (!::ReadFile(stdout_read, buf, sizeof(buf), &read_len, nullptr) && GetLastError() != ERROR_BROKEN_PIPE)
+        bool out = ::ReadFile(stdout_read, buf, sizeof(buf), &read_len, nullptr);
+        if (!out && GetLastError() != ERROR_BROKEN_PIPE)
         {
             Win32Fatal("ReadFile");
         }

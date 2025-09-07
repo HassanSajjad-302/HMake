@@ -599,6 +599,7 @@ bool SMFile::build(Builder &builder)
             {
                 const auto &lastMessage = reinterpret_cast<N2978::CTBLastMessage &>(buffer);
 
+                ipcManager->closeConnection();
                 auto [output, exitStatus] = run.endProcess();
                 rb.exitStatus = exitStatus;
                 assert(rb.exitStatus == lastMessage.errorOccurred && "error-status mismatch");
