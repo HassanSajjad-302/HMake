@@ -230,11 +230,13 @@ struct CLWrapper
 
 #endif
 
-RunCommand::RunCommand(const string &runCommand)
+RunCommand::RunCommand()
 {
-#ifdef _WIN32
-    startProcess(runCommand);
-#else
-    exitStatus = CLWrapper::Run(j, &commandOutput);
-#endif
+    /*
+                                #ifdef _WIN32
+                                    startProcess(runCommand);
+                                #else
+                                    exitStatus = CLWrapper::Run(j, &commandOutput);
+                                #endif
+                                */
 }

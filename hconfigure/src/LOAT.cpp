@@ -89,6 +89,7 @@ void LOAT::setFileStatus()
         sortedPrebuiltDependencies.emplace(pre, &dep);
     }
 
+    RealBTarget &rb = realBTargets[0];
     for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
     {
         objectFileProducer->getObjectFiles(&objectFiles, this);
@@ -98,9 +99,10 @@ void LOAT::setFileStatus()
     {
         if (evaluate(TargetType::LIBRARY_STATIC))
         {
-            fileStatus = false;
+            rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
             return;
         }
+        printErrorMessage(FORMAT("Target {} has no object-files.\n", name));
         // TODO
         // Throw Exception. Shared Library or Executable cannot have zero object-files.
     }
@@ -109,11 +111,11 @@ void LOAT::setFileStatus()
     commandWithoutTargetsWithTool.setCommand(config.linkerFeatures.linker.bTPath.string() + " " +
                                              string(linkOrArchiveCommandWithoutTargets));
 
-    if (!fileStatus)
+    if (rb.updateStatus != UpdateStatus::NEEDS_UPDATE)
     {
         if (outputFileNode->fileType == file_type::not_found)
         {
-            fileStatus = true;
+            rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
         }
         else
         {
@@ -157,12 +159,12 @@ void LOAT::setFileStatus()
                 }
                 if (needsUpdate)
                 {
-                    fileStatus = true;
+                    rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
                 }
             }
             else
             {
-                fileStatus = true;
+                rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
             }
         }
     }
@@ -170,7 +172,8 @@ void LOAT::setFileStatus()
     if constexpr (os == OS::NT)
     {
         if (linkTargetType == TargetType::EXECUTABLE &&
-            config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES && atomic_ref(fileStatus).load())
+            config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
+            rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
             flat_hash_set<PLOAT *> checked;
             // TODO:
@@ -187,7 +190,7 @@ void LOAT::setFileStatus()
                 allDeps.pop();
                 if (ploat->evaluate(TargetType::LIBRARY_SHARED))
                 {
-                    if (atomic_ref(ploat->fileStatus).load())
+                    if (rb.updateStatus == UpdateStatus::UPDATED)
                     {
                         // latest dll will be built and copied
                         dllsToBeCopied.emplace_back(ploat);
@@ -230,12 +233,13 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
     if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
     {
         setFileStatus();
-        if (fileStatus)
+        RealBTarget &rb = realBTargets[0];
+        if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
-            assignFileStatusToDependents(0);
+            rb.assignFileStatusToDependents();
         }
 
-        if (fileStatus)
+        if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
             string toolPath = "\"";
             if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -248,7 +252,8 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
             }
 
             const string linkCommand = toolPath + linkOrArchiveCommandWithTargets;
-            const RunCommand r(linkCommand);
+            RunCommand r;
+            r.startProcess(linkCommand);
             const auto [output, exitStatus] = r.endProcess();
             realBTarget.exitStatus = exitStatus;
 

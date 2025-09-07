@@ -113,6 +113,11 @@ string Node::getFileName() const
     return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end()};
 }
 
+string Node::getFileStem() const
+{
+    return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.begin() + filePath.find_last_of('.')};
+}
+
 // TODO
 // See if we can use new functions with absolute paths. So, only lexically_normal is called.
 path Node::getFinalNodePathFromPath(path filePath)

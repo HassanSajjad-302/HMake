@@ -886,6 +886,8 @@ void CppCompilerFeatures::initialize()
             compiler = toolsCache.compilers[cache.selectedCompilerArrayIndex];
         }
     }
+    compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-release\bin\clang-cl)";
+    compiler.btSubFamily = BTSubFamily::CLANG;
 }
 
 void CppCompilerFeatures::setConfigType(const ConfigType configType_)

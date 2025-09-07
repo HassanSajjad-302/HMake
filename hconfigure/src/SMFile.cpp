@@ -6,9 +6,7 @@ import "BuildSystemFunctions.hpp";
 import "Builder.hpp";
 import "Configuration.hpp";
 import "CppSourceTarget.hpp";
-import "IPCManagerBS.hpp";
 import "JConsts.hpp";
-import "RunCommand.hpp";
 import "Settings.hpp";
 import "StaticVector.hpp";
 import "CacheWriteManager.hpp";
@@ -24,9 +22,7 @@ import <utility>;
 #include "CacheWriteManager.hpp"
 #include "Configuration.hpp"
 #include "CppSourceTarget.hpp"
-#include "IPCManagerBS.hpp"
 #include "JConsts.hpp"
-#include "RunCommand.hpp"
 #include "Settings.hpp"
 #include "StaticVector.hpp"
 #include "Utilities.hpp"
@@ -74,10 +70,9 @@ string SourceNode::getPrintName() const
 void SourceNode::initializeBuildCache(const uint32_t index)
 {
     indexInBuildCache = index;
-    buildCache = target->cppBuildCache.srcFiles[index];
     if (buildCache.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
     {
-        fileStatus = true;
+        realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
     }
     else
     {
@@ -103,7 +98,8 @@ void SourceNode::completeCompilation()
         compileCommand += "-c -MMD \"" + node->filePath + "\" -o \"" + objectNode->filePath + "\"";
     }
 
-    const RunCommand r(compileCommand);
+    RunCommand r;
+    r.startProcess(compileCommand);
     auto [output, exitStatus] = r.endProcess();
     realBTargets[0].exitStatus = exitStatus;
     // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed
@@ -125,9 +121,9 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round, boo
     if (!round && selectiveBuild)
     {
         setSourceNodeFileStatus();
-        if (fileStatus)
+        if (RealBTarget &rb = realBTargets[0]; rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
-            assignFileStatusToDependents(0);
+            rb.assignFileStatusToDependents();
             completeCompilation();
         }
     }
@@ -341,14 +337,15 @@ bool pathContainsFile(string_view dir, const string_view file)
 
 void SourceNode::setSourceNodeFileStatus()
 {
-    if (fileStatus)
+    RealBTarget &rb = realBTargets[0];
+    if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
     {
         return;
     }
 
     if (objectNode->fileType == file_type::not_found || node->lastWriteTime > objectNode->lastWriteTime)
     {
-        fileStatus = true;
+        rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
         return;
     }
 
@@ -356,7 +353,7 @@ void SourceNode::setSourceNodeFileStatus()
     {
         if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > objectNode->lastWriteTime)
         {
-            fileStatus = true;
+            rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
             return;
         }
     }
@@ -391,11 +388,31 @@ SMFile::SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_)
 {
 }
 
-void SMFile::initializeBuildCache(uint32_t index)
+void SMFile::initializeBuildCache(const uint32_t index)
 {
     SourceNode::initializeBuildCache(index);
-    smRulesCache = target->cppBuildCache.modFiles[index].smRules;
-    compileCommandWithToolCache = target->cppBuildCache.modFiles[index].compileCommandWithTool;
+    if (realBTargets[0].updateStatus == UpdateStatus::NEEDS_UPDATE)
+    {
+        return;
+    }
+    if (type == SM_FILE_TYPE::HEADER_UNIT)
+    {
+        interfaceNode->toBeChecked = true;
+        smRulesCache = target->cppBuildCache.headerUnits[index].smRules;
+    }
+    else
+    {
+        objectNode->toBeChecked = true;
+        if (type == SM_FILE_TYPE::PARTITION_EXPORT || type == SM_FILE_TYPE::PRIMARY_EXPORT)
+        {
+            interfaceNode->toBeChecked = true;
+            smRulesCache = target->cppBuildCache.imodFiles[index].smRules;
+        }
+        else
+        {
+            smRulesCache = target->cppBuildCache.modFiles[index].smRules;
+        }
+    }
 }
 
 void SMFile::setLogicalNameAndAddToRequirePath()
@@ -421,133 +438,234 @@ void SMFile::setLogicalNameAndAddToRequirePath()
     }
 }
 
+SMFile *SMFile::findModule(const string &moduleName) const
+{
+    SMFile *found = nullptr;
+
+    if (const auto it = target->imodNames.find(moduleName); it != target->imodNames.end())
+    {
+        found = it->second;
+    }
+
+    if (!moduleName.contains(':'))
+    {
+        for (CppSourceTarget *req : target->reqDeps)
+        {
+            if (auto it2 = req->imodNames.find(moduleName); it2 != req->imodNames.end())
+            {
+                if (found)
+                {
+                    printErrorMessage(FORMAT("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
+                                             "from target\n{}\n2){}\n from target\n{}\n",
+                                             moduleName, found->node->filePath, found->target->name,
+                                             it2->second->node->filePath, it2->second->target->name));
+                }
+                else
+                {
+                    found = it2->second;
+                }
+            }
+        }
+    }
+
+    if (!found)
+    {
+        if (moduleName.contains(':'))
+        {
+            printErrorMessage(
+                FORMAT("No File in the target\n{}\n provides this module\n{}.\n", target->name, moduleName));
+        }
+        else
+        {
+            printErrorMessage(
+                FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
+                       target->name, target->getDependenciesString(), moduleName));
+        }
+    }
+
+    return found;
+}
+
+void SMFile::sendModule(SMFile &mod)
+{
+    N2978::BTCModule btcModule;
+    btcModule.requested.filePath = mod.interfaceNode->filePath;
+
+    // once clang todo is completed, this check will be removed.
+    if (allSMFileDependencies.emplace(&mod).second)
+    {
+        // we already sent this. but has been re-requested as clang asks for the big-hu on small-hu
+        // presence.
+
+        N2978::ModuleDep dep;
+        for (SMFile *smFile : mod.allSMFileDependencies)
+        {
+            if (allSMFileDependencies.emplace(smFile).second)
+            {
+                dep.isHeaderUnit = smFile->type == SM_FILE_TYPE::HEADER_UNIT;
+                dep.file.filePath = smFile->interfaceNode->filePath;
+                if (!dep.isHeaderUnit)
+                {
+                    dep.logicalName = smFile->logicalName;
+                }
+                btcModule.deps.emplace_back(std::move(dep));
+            }
+        }
+    }
+
+    if (const auto &r2 = ipcManager->sendMessage(btcModule); !r2)
+    {
+        printErrorMessage(FORMAT("send-message fail of module-file {}\n for module-file {}\n of target {}\n.",
+                                 mod.node->filePath, node->filePath, target->name));
+    }
+}
+
+void SMFile::sendHeaderUnit(SMFile &hu)
+{
+}
+
+void SMFile::saveBuildCache()
+{
+    for (SMFile *smFile : allSMFileDependencies)
+    {
+        if (type == SM_FILE_TYPE::HEADER_UNIT)
+        {
+        }
+        else
+        {
+            BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep modDep;
+            modDep.node = smFile->objectNode;
+            modDep.logicalName = smFile->logicalName;
+            smRulesCache.moduleArray.emplace_back(modDep);
+        }
+    }
+}
+
+bool SMFile::build(Builder &builder)
+{
+    if (waitingFor)
+    {
+        if (waitingFor->type == SM_FILE_TYPE::HEADER_UNIT)
+        {
+            sendHeaderUnit(*waitingFor);
+        }
+        else
+        {
+            sendModule(*waitingFor);
+        }
+    }
+
+    RealBTarget &rb = realBTargets[0];
+    while (true)
+    {
+        char buffer[320];
+        N2978::CTB type;
+        if (const auto &r = ipcManager->receiveMessage(buffer, type); r)
+        {
+            if (type == N2978::CTB::MODULE)
+            {
+                SMFile *found = findModule(reinterpret_cast<N2978::CTBModule &>(buffer).moduleName);
+
+                // clang todo with big hu means that this check will be removed. However, in test3, we are not using
+                // big-hu.
+                if (allSMFileDependencies.contains(found))
+                {
+                    printErrorMessage(
+                        FORMAT("Warning: already sent the module {}\n with logical-name{}\n requested in {}\n.",
+                               found->node->filePath, found->logicalName, node->filePath));
+                }
+
+                RealBTarget &foundRb = found->realBTargets[0];
+                if (foundRb.updateStatus != UpdateStatus::UPDATED)
+                {
+                    waitingFor = found;
+                    builder.executeMutex.lock();
+                    if (foundRb.updateStatus != UpdateStatus::UPDATED)
+                    {
+                        fflush(stdout);
+                        foundRb.dependents.emplace(&rb, BTargetDepType::FULL);
+                        rb.dependencies.emplace(&foundRb, BTargetDepType::FULL);
+                        ++rb.dependenciesSize;
+                        ++builder.updateBTargetsSizeGoal;
+                        return true;
+                    }
+                    // was updated while we obtained the lock
+                    builder.executeMutex.unlock();
+                }
+
+                sendModule(*found);
+            }
+            else if (type == N2978::CTB::LAST_MESSAGE)
+            {
+                const auto &lastMessage = reinterpret_cast<N2978::CTBLastMessage &>(buffer);
+
+                auto [output, exitStatus] = run.endProcess();
+                rb.exitStatus = exitStatus;
+                assert(rb.exitStatus == lastMessage.errorOccurred && "error-status mismatch");
+
+                // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed
+                // because cached compile-command would be different
+                if (rb.exitStatus == EXIT_SUCCESS)
+                {
+                    buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+                    logicalName = lastMessage.logicalName;
+                    saveBuildCache();
+                }
+
+                const string printCommand =
+                    target->getSourceCompileCommandPrintFirstHalf() + target->getCompileCommandPrintSecondPart(*this);
+                CacheWriteManager::addNewEntry(exitStatus, target, this, settings.pcSettings.compileCommandColor,
+                                               printCommand, output);
+                return false;
+            }
+            else
+            {
+                printErrorMessage("Header-unit received\n. Not supported yet.\n");
+            }
+        }
+        else
+        {
+            printErrorMessage(
+                FORMAT("receive-message fail for module-file {}\n of target {}\n.", node->filePath, target->name));
+        }
+    }
+}
+
 void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     if (!round)
     {
-        RealBTarget &realBTarget = realBTargets[round];
-
-        if (type == SM_FILE_TYPE::HEADER_UNIT)
+        if (waitingFor)
         {
-            objectNode = Node::getNodeFromNormalizedString(
-                target->myBuildDir->filePath + slashc + getOutputFileName() + ".ifc", true, true);
-        }
-        else
-        {
-            objectNode = Node::getNodeFromNormalizedString(
-                target->myBuildDir->filePath + slashc + getOutputFileName() + ".m.o", true, true);
-        }
-
-        if (buildCache.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
-        {
-            isObjectFileOutdated = true;
-            isObjectFileOutdatedCallCompleted = true;
+            isComplete = build(builder);
             return;
         }
 
-        if (node->fileType == file_type::not_found || objectNode->fileType == file_type::not_found ||
-            node->lastWriteTime > objectNode->lastWriteTime)
+        if (realBTargets[0].exitStatus == EXIT_SUCCESS)
         {
-            isObjectFileOutdated = true;
-            atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
-        }
-
-        if (!isObjectFileOutdated)
-        {
-            if (type == SM_FILE_TYPE::HEADER_UNIT)
+            setFileStatusAndPopulateAllDependencies();
+            RealBTarget &rb = realBTargets[0];
+            if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
             {
-                checkObjectFileOutdatedHeaderUnits();
-            }
-            else
-            {
-                checkObjectFileOutdatedModules();
-            }
-        }
+                rb.assignFileStatusToDependents();
 
-        if (isObjectFileOutdated)
-        {
-            fileStatus = true;
-        }
-
-        if (fileStatus)
-        {
-            IPCManagerBS *ipcManager = nullptr;
-            if (auto r = N2978::makeIPCManagerBS(objectNode->filePath); r)
-            {
-                *ipcManager = *r;
-            }
-            else
-            {
-                printErrorMessage(FORMAT("Could not make the build-system manager {}\n", objectNode->filePath));
-            }
-
-            // todo
-            // compile command construction and running
-
-            char buffer[320];
-            N2978::CTB type;
-            if (const auto &r = ipcManager->receiveMessage(buffer, type); r)
-            {
-                if (type == N2978::CTB::MODULE)
+                if (auto r = N2978::makeIPCManagerBS(type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode->filePath
+                                                                                       : objectNode->filePath);
+                    r)
                 {
-                    N2978::CTBModule &mod = reinterpret_cast<N2978::CTBModule &>(buffer);
+                    ipcManager = new IPCManagerBS(*r);
                 }
-                else if (type == N2978::CTB::NON_MODULE)
+                else
                 {
-                    N2978::CTBNonModule &nonMod = reinterpret_cast<N2978::CTBNonModule &>(buffer);
+                    printErrorMessage(FORMAT("Could not make the build-system manager {}\n", objectNode->filePath));
                 }
-                else if (type == N2978::CTB::NON_MODULE)
-                {
-                }
+
+                const string compileCommand = "\"" +
+                                              target->configuration->compilerFeatures.compiler.bTPath.generic_string() +
+                                              "\" " + target->compileCommand + getCompileCommand();
+                run.startProcess(compileCommand);
+                isComplete = build(builder);
             }
-
-            assignFileStatusToDependents(0);
-            const string compileCommand = target->compileCommand + getCompileCommand();
-            const RunCommand r(compileCommand);
-
-            auto [output, exitStatus] = r.endProcess();
-            realBTargets[0].exitStatus = exitStatus;
-            // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed
-            // because cached compile-command would be different
-            if (realBTargets[0].exitStatus == EXIT_SUCCESS)
-            {
-                buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
-                parseHeaderDeps(output);
-            }
-
-            const string printCommand =
-                target->getSourceCompileCommandPrintFirstHalf() + target->getCompileCommandPrintSecondPart(*this);
-            CacheWriteManager::addNewEntry(exitStatus, target, this, settings.pcSettings.compileCommandColor,
-                                           printCommand, output);
-        }
-
-        string smrulesFileOutputClang;
-
-        if (realBTarget.exitStatus == EXIT_SUCCESS)
-        {
-            includeNames.reserve(4 * 1024);
-            includeNames.clear();
-
-            if (type != SM_FILE_TYPE::HEADER_UNIT)
-            {
-                setSMFileType();
-                setLogicalNameAndAddToRequirePath();
-
-                for (auto &[_, logicalName2] : smRulesCache.moduleArray)
-                {
-                    if (logicalName == logicalName2)
-                    {
-                        printErrorMessage(FORMAT("In target\n{}\nModule\n{}\n can not depend on itself.\n",
-                                                 target->getPrintName(), node->filePath));
-                    }
-                }
-            }
-
-            assert(type != SM_FILE_TYPE::NOT_ASSIGNED && "Type Not Assigned");
-
-            initializeNewHeaderUnitsSMRulesNotOutdated(builder);
-            builder.addNewTopBeUpdatedTargets(&this->realBTargets[round]);
-            isComplete = true;
         }
     }
 }
@@ -556,8 +674,8 @@ string SMFile::getOutputFileName() const
 {
     if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
-        // node->getFileName() is not used to prevent error in case header-file with same fileName exists in 2 different
-        // include directories. But is being included by different logicalName.
+        // node->getFileName() is not used to prevent error in case header-file with same fileName exists in 2
+        // different include directories. But is being included by different logicalName.
         string str = logicalName;
         for (char &c : str)
         {
@@ -581,7 +699,7 @@ void SMFile::saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang)
     // The assumption is that clang only outputs scanning data during scanning on output while MSVC outputs nothing.
     if (smrulesFileOutputClang.empty())
     {
-        smRuleFileBuffer = readValueFromFile(smRuleFileNode->filePath, d);
+        // smRuleFileBuffer = readValueFromFile(smRuleFileNode->filePath, d);
     }
     else
     {
@@ -642,9 +760,6 @@ void SMFile::saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang)
                 string_view str(sourcePathIt->value.GetString(), sourcePathIt->value.GetStringLength());
                 lowerCasePStringOnWindows(const_cast<char *>(str.data()), str.size());
                 hu.node = Node::getHalfNode(str);
-
-                hu.angle = requireValue.FindMember(Value(svtogsr(JConsts::lookupMethod)))->value ==
-                           Value(svtogsr(JConsts::includeAngle));
             }
         }
     }
@@ -715,8 +830,6 @@ void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
         CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
         SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
 
-        // Should be true if JConsts::lookupMethod == "include-angle";
-        headerUnitsConsumptionData.emplace(&headerUnit, hu.angle);
         addDepHalfNowHalfLater(headerUnit);
     }
 
@@ -747,8 +860,8 @@ void SMFile::initializeHeaderUnits(Builder &builder)
         if (const auto it = huDirTarget->headerUnitsSet.find(singleHuDep.node); it == huDirTarget->headerUnitsSet.end())
         {
             headerUnit = new SMFile(huDirTarget, singleHuDep.node);
-            // not needed for new header-units since the doubt is only about older header-units that whether they have
-            // been added or not.
+            // not needed for new header-units since the doubt is only about older header-units that whether they
+            // have been added or not.
             headerUnit->addedForRoundOne = true;
             huDirTarget->headerUnitsSet.emplace(headerUnit);
 
@@ -774,8 +887,6 @@ void SMFile::initializeHeaderUnits(Builder &builder)
             }
         }
 
-        // Should be true if JConsts::lookupMethod == "include-angle";
-        headerUnitsConsumptionData.emplace(headerUnit, singleHuDep.angle);
         addDepHalfNowHalfLater(*headerUnit);
 
         singleHuDep.targetIndex = huDirTarget->cacheIndex;
@@ -805,71 +916,6 @@ void SMFile::setSMFileType()
     }
 }
 
-void SMFile::checkObjectFileOutdatedHeaderUnits()
-{
-    if (isObjectFileOutdatedCallCompleted || atomic_ref(isObjectFileOutdatedCallCompleted).load())
-    {
-        return;
-    }
-
-    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu : smRulesCache.headerUnitArray)
-    {
-        CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
-
-        if (!localTarget)
-        {
-            // TODO
-            // Maybe we can set isObjectFileSMRuleFileOutdated here as well.
-            isObjectFileOutdated = true;
-            atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
-            return;
-        }
-
-        SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
-
-        if (!headerUnit.isObjectFileOutdatedCallCompleted &&
-            !atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
-        {
-            headerUnit.checkObjectFileOutdatedHeaderUnits();
-        }
-
-        if (headerUnit.isObjectFileOutdated)
-        {
-            isObjectFileOutdated = true;
-            atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
-            return;
-        }
-    }
-    atomic_ref(isObjectFileOutdatedCallCompleted).store(true);
-}
-
-void SMFile::checkObjectFileOutdatedModules()
-{
-    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu : smRulesCache.headerUnitArray)
-    {
-        CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
-        if (!localTarget)
-        {
-            isObjectFileOutdated = true;
-            return;
-        }
-
-        SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
-
-        if (!headerUnit.isObjectFileOutdatedCallCompleted &&
-            !atomic_ref(headerUnit.isObjectFileOutdatedCallCompleted).load())
-        {
-            headerUnit.checkObjectFileOutdatedHeaderUnits();
-        }
-
-        if (headerUnit.isObjectFileOutdated)
-        {
-            isObjectFileOutdated = true;
-            return;
-        }
-    }
-}
-
 string SMFile::getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const
 {
     return getReducedPath(target->myBuildDir->filePath + slashc + node->getFileName() + ".m.o", pathPrint);
@@ -887,32 +933,26 @@ void SMFile::updateBuildCache()
     {
         modFile = &target->cppBuildCache.headerUnits[indexInBuildCache];
     }
+    else if (type == SM_FILE_TYPE::PARTITION_EXPORT || type == SM_FILE_TYPE::PRIMARY_EXPORT)
+    {
+        modFile = &target->cppBuildCache.imodFiles[indexInBuildCache];
+    }
     else
     {
         modFile = &target->cppBuildCache.modFiles[indexInBuildCache];
     }
-    auto &[srcFile, smRules, compileCommandWithTool] = *modFile;
-    if (Builder::round == 1)
-    {
-        // moduleArray is not yet moved as it is used in resolveRequiredPaths and is later updated in
-        // SMFile::updateBTarget round 0.
-        srcFile = std::move(buildCache);
-        smRules.headerUnitArray = std::move(smRulesCache.headerUnitArray);
-        smRules.exportName = smRulesCache.exportName;
-        smRules.isInterface = smRulesCache.isInterface;
-    }
-    else
-    {
-        smRules.moduleArray = std::move(smRulesCache.moduleArray);
-        compileCommandWithTool.hash = compileCommandWithToolCache.hash;
-    }
+
+    auto &[srcFile, smRules] = *modFile;
+    srcFile.compileCommandWithTool.hash = buildCache.compileCommandWithTool.hash;
+    srcFile.headerFiles = buildCache.headerFiles;
+    smRules = std::move(smRulesCache);
 }
 
-string SMFile::getCompileCommand()
+string SMFile::getCompileCommand() const
 {
     string s;
     if (const Compiler &c = target->configuration->compilerFeatures.compiler;
-        c.bTFamily == BTFamily::GCC && c.btSubFamily == BTSubFamily::CLANG)
+        c.bTFamily == BTFamily::MSVC && c.btSubFamily == BTSubFamily::CLANG)
     {
         if (type == SM_FILE_TYPE::HEADER_UNIT)
         {
@@ -934,55 +974,65 @@ string SMFile::getCompileCommand()
     return s;
 }
 
-// TODO
-// Propose the idea of big smfile. This combined with markArchivePoint could result in much increased in performance.
 void SMFile::setFileStatusAndPopulateAllDependencies()
 {
-    flat_hash_set<SMFile *> uniqueElements;
-    for (auto &[dependency, ignore] : realBTargets[0].dependencies)
+    RealBTarget &rb = realBTargets[0];
+    if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
     {
-        if (dependency->bTarget->getBTargetType() == BTargetType::SMFILE)
-        {
-            if (auto *smFile = static_cast<SMFile *>(dependency->bTarget))
-            {
-                if (uniqueElements.emplace(smFile).second)
-                {
-                    for (SMFile *smFileDep : smFile->allSMFileDependenciesRoundZero)
-                    {
-                        uniqueElements.emplace(smFileDep);
-                    }
-                }
-            }
-        }
+        return;
     }
 
-    allSMFileDependenciesRoundZero.reserve(uniqueElements.size());
-    for (SMFile *smFile : uniqueElements)
+    if (node->fileType == file_type::not_found)
     {
-        allSMFileDependenciesRoundZero.emplace_back(smFile);
+        printErrorMessage(FORMAT("Module-file {}\n of target {}\n not found.\n", node->filePath, target->name));
     }
 
-    if (!fileStatus)
+    if (objectNode->fileType == file_type::not_found || node->lastWriteTime > objectNode->lastWriteTime)
     {
-        for (const SMFile *smFile : allSMFileDependenciesRoundZero)
-        {
-            if (smFile->objectNode->lastWriteTime > objectNode->lastWriteTime)
-            {
-                fileStatus = true;
-                break;
-            }
-        }
+        rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
+        return;
     }
 
-    if (fileStatus)
+    // todo
+    // module-cache and header-unit cache will be mixed
+
+    bool needsUpdate = false;
+    for (auto &[node, depModName] : smRulesCache.moduleArray)
     {
-        for (SMFile *smFile : allSMFileDependenciesRoundZero)
+        SMFile *f = findModule(string(depModName));
+
+        // some other file is providing this module. so this needs to be rebuilt.
+        if (f->objectNode != node)
         {
-            for (auto &h : smFile->headerUnitsConsumptionData)
-            {
-                headerUnitsConsumptionData.emplace(h);
-            }
+            needsUpdate = true;
+            break;
         }
+
+        if (f->node->lastWriteTime > objectNode->lastWriteTime)
+        {
+            needsUpdate = true;
+            break;
+        }
+
+        if (f->objectNode->lastWriteTime > objectNode->lastWriteTime)
+        {
+            needsUpdate = true;
+            break;
+        }
+
+        allSMFileDependencies.emplace(f);
+    }
+
+    if (needsUpdate)
+    {
+        allSMFileDependencies.clear();
+        realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
+        return;
+    }
+
+    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache.headerUnitArray)
+    {
+        allSMFileDependencies.emplace(&cppSourceTargets[h.targetIndex]->oldHeaderUnits[h.myIndex]);
     }
 }
 
@@ -1235,7 +1285,7 @@ string SMFile::getModuleCompileCommandPrintLastHalf() const
     string moduleCompileCommandPrintLastHalf;
     if (ccpSettings.requireIFCs.printLevel != PathPrintLevel::NO)
     {
-        for (const SMFile *smFile : allSMFileDependenciesRoundZero)
+        for (const SMFile *smFile : allSMFileDependencies)
         {
             moduleCompileCommandPrintLastHalf += smFile->getRequireFlagPrint(*this);
         }

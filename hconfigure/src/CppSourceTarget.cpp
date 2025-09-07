@@ -130,13 +130,12 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
 
 void CppSourceTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const
 {
-    btree_set<const SMFile *, IndexInTopologicalSortComparatorRoundZero> sortedSMFileDependencies;
     for (const SMFile *objectFile : modFileDeps)
     {
-        sortedSMFileDependencies.emplace(objectFile);
+        objectFiles->emplace_back(objectFile);
     }
 
-    for (const SMFile *objectFile : sortedSMFileDependencies)
+    for (const SMFile *objectFile : imodFileDeps)
     {
         objectFiles->emplace_back(objectFile);
     }
@@ -227,27 +226,35 @@ void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
 
 void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, const bool isInterface)
 {
-    for (const SMFile *smFile : modFileDeps)
+    string fileName = node->getFileName();
+    const string ext = {fileName.begin() + fileName.find_last_of('.') + 1, fileName.end()};
+    if (ext == "cppm" || ext == "ixx")
     {
-        if (smFile->node == node)
+        for (const SMFile *smFile : imodFileDeps)
         {
-            printErrorMessage(
-                FORMAT("Attempting to add {} twice in module-files in cpptarget {}. second insertiion ignored.\n",
-                       node->filePath, name));
-            return;
+            if (smFile->node == node)
+            {
+                printErrorMessage(
+                    FORMAT("Attempting to add {} twice in module-files in cpptarget {}. second insertiion ignored.\n",
+                           node->filePath, name));
+                return;
+            }
         }
-    }
-    SMFile *smFile = modFileDeps.emplace_back(new SMFile(this, node));
-    smFile->isInterface = isInterface;
-    string fileName = smFile->node->getFileName();
-    string ext = {fileName.begin() + fileName.find_last_of('.') + 1, fileName.end()};
-    if (ext == ".cppm" || ext == ".ixx")
-    {
-        smFile->type = fileName.contains('-') ? SM_FILE_TYPE::PRIMARY_EXPORT : SM_FILE_TYPE::PARTITION_EXPORT;
+        imodFileDeps.emplace_back(new SMFile(this, node));
     }
     else
     {
-        smFile->type = SM_FILE_TYPE::PARTITION_IMPLEMENTATION;
+        for (const SMFile *smFile : modFileDeps)
+        {
+            if (smFile->node == node)
+            {
+                printErrorMessage(
+                    FORMAT("Attempting to add {} twice in module-files in cpptarget {}. second insertiion ignored.\n",
+                           node->filePath, name));
+                return;
+            }
+        }
+        modFileDeps.emplace_back(new SMFile(this, node));
     }
 }
 
@@ -291,10 +298,10 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
 {
     if (!round)
     {
-        if (fileStatus)
+        if (realBTargets[0].updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
             // This is necessary since objectFile->outputFileNode is not updated once after it is compiled.
-            assignFileStatusToDependents(0);
+            realBTargets[0].assignFileStatusToDependents();
         }
     }
     else if (round == 1)
@@ -322,12 +329,21 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         cppBuildCache.deserialize(cacheIndex);
         for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
         {
+            srcFileDeps[i]->buildCache = cppBuildCache.srcFiles[i];
             srcFileDeps[i]->initializeBuildCache(i);
         }
         for (uint32_t i = 0; i < modFileDeps.size(); ++i)
         {
+            modFileDeps[i]->buildCache = cppBuildCache.modFiles[i].srcFile;
             modFileDeps[i]->initializeBuildCache(i);
         }
+
+        for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
+        {
+            imodFileDeps[i]->buildCache = cppBuildCache.imodFiles[i].srcFile;
+            imodFileDeps[i]->initializeBuildCache(i);
+        }
+
         setSourceCompileCommandPrintFirstHalf();
         for (const CppSourceTarget *cppSourceTarget : reqDeps)
         {
@@ -345,7 +361,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                 oldHeaderUnits[i].indexInBuildCache = i;
                 oldHeaderUnits[i].buildCache = cppBuildCache.headerUnits[i].srcFile;
                 oldHeaderUnits[i].smRulesCache = cppBuildCache.headerUnits[i].smRules;
-                oldHeaderUnits[i].compileCommandWithToolCache = cppBuildCache.headerUnits[i].compileCommandWithTool;
                 oldHeaderUnits[i].type = SM_FILE_TYPE::HEADER_UNIT;
                 headerUnitsSet.emplace(&oldHeaderUnits[i]);
             }
@@ -497,17 +512,33 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
         }
 
         writeUint32(*configBuffer, modFileDeps.size());
-        for (const SMFile *smFile : modFileDeps)
+        for (SMFile *smFile : modFileDeps)
         {
+            smFile->objectNode = Node::getNodeFromNormalizedString(
+                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
             writeNode(*configBuffer, smFile->node);
-            writeBool(*configBuffer, smFile->isInterface);
-            writeUint8(*configBuffer, static_cast<uint8_t>(smFile->type));
+            writeNode(*configBuffer, smFile->objectNode);
+        }
+
+        writeUint32(*configBuffer, imodFileDeps.size());
+        for (SMFile *smFile : imodFileDeps)
+        {
+            smFile->objectNode = Node::getNodeFromNormalizedString(
+                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
+            smFile->interfaceNode = Node::getNodeFromNormalizedString(
+                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".ifc", true, true);
+            writeNode(*configBuffer, smFile->node);
+            writeNode(*configBuffer, smFile->objectNode);
+            writeNode(*configBuffer, smFile->interfaceNode);
         }
 
         writeUint32(*configBuffer, oldHeaderUnits.size());
-        for (const SMFile &smFile : oldHeaderUnits)
+        for (SMFile &smFile : oldHeaderUnits)
         {
+            smFile.interfaceNode = Node::getNodeFromNormalizedString(
+                myBuildDir->filePath + slashc + smFile.node->getFileName() + ".ifc", true, true);
             writeNode(*configBuffer, smFile.node);
+            writeNode(*configBuffer, smFile.interfaceNode);
         }
 
         writeNode(*configBuffer, myBuildDir);
@@ -518,6 +549,7 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
 
         adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
         adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
+        adjustBuildCache(cppBuildCache.imodFiles, imodFileDeps);
     }
 }
 
@@ -548,8 +580,24 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     for (uint32_t i = 0; i < modSize; ++i)
     {
         SMFile *smFile = modFileDeps.emplace_back(new SMFile(this, readHalfNode(ptr, configRead)));
-        smFile->isInterface = readBool(ptr, configRead);
-        smFile->type = static_cast<SM_FILE_TYPE>(readUint8(ptr, configRead));
+        smFile->objectNode = readHalfNode(ptr, configRead);
+        smFile->type = SM_FILE_TYPE::PRIMARY_IMPLEMENTATION;
+
+        addDepNow<0>(*smFile);
+    }
+
+    const uint32_t imodSize = readUint32(ptr, configRead);
+    imodFileDeps.reserve(imodSize);
+    for (uint32_t i = 0; i < imodSize; ++i)
+    {
+        SMFile *smFile = imodFileDeps.emplace_back(new SMFile(this, readHalfNode(ptr, configRead)));
+        smFile->objectNode = readHalfNode(ptr, configRead);
+        smFile->interfaceNode = readHalfNode(ptr, configRead);
+        string str = smFile->node->getFileStem();
+        smFile->type = str.contains('-') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
+        smFile->logicalName = str;
+        imodNames.emplace(std::move(str), smFile);
+
         addDepNow<0>(*smFile);
     }
 
@@ -820,7 +868,7 @@ string &CppSourceTarget::getSourceCompileCommandPrintFirstHalf()
     return sourceCompileCommandPrintFirstHalf;
 }
 
-string CppSourceTarget::getDependenciesPString() const
+string CppSourceTarget::getDependenciesString() const
 {
     string deps;
     for (const CppSourceTarget *cppSourceTarget : reqDeps)
@@ -875,7 +923,7 @@ void CppSourceTarget::resolveRequirePaths()
                             printErrorMessage(
                                 FORMAT("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
                                        "from target\n{}\n2){}\n from target\n{}\n",
-                                       getPrintName(), getDependenciesPString(), logicalName, found->node->filePath,
+                                       getPrintName(), getDependenciesString(), logicalName, found->node->filePath,
                                        found->node->filePath));
                         }
                         found = found2;
@@ -885,7 +933,7 @@ void CppSourceTarget::resolveRequirePaths()
 
             if (found)
             {
-                smFile->addDepLater(const_cast<SMFile &>(*found));
+                /*smFile->addDepLater(const_cast<SMFile &>(*found));
                 if (!smFile->fileStatus && !atomic_ref(smFile->fileStatus).load())
                 {
                     if (fullPath != found->objectNode)
@@ -895,8 +943,8 @@ void CppSourceTarget::resolveRequirePaths()
                 }
                 BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep dep;
                 dep.logicalName = logicalName;
-                dep.fullPath = found->objectNode;
-                fullPath = found->objectNode;
+                dep.node = found->objectNode;
+                fullPath = found->objectNode;*/
             }
             else
             {
@@ -909,7 +957,7 @@ void CppSourceTarget::resolveRequirePaths()
                 {
                     printErrorMessage(
                         FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
-                               getPrintName(), getDependenciesPString(), logicalName));
+                               getPrintName(), getDependenciesString(), logicalName));
                 }
             }
         }

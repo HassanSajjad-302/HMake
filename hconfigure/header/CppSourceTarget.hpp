@@ -83,6 +83,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     flat_hash_set<Define> reqCompileDefinitions;
     flat_hash_set<Define> useReqCompileDefinitions;
+    flat_hash_map<string, SMFile *> imodNames;
 
     // Written mutex locked in round 1 updateBTarget
     flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnitsSet;
@@ -103,9 +104,8 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     HashedCommand compileCommandWithTool;
 
     vector<SourceNode *> srcFileDeps;
-    // Comparator used is same as for SourceNode
     vector<SMFile *> modFileDeps;
-
+    vector<SMFile *> imodFileDeps;
     vector<SMFile> oldHeaderUnits;
     BuildCache::Cpp::ModuleFile headerUnitsCache;
 
@@ -129,7 +129,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void setSourceCompileCommandPrintFirstHalf();
     string &getSourceCompileCommandPrintFirstHalf();
 
-    string getDependenciesPString() const;
+    string getDependenciesString() const;
     void resolveRequirePaths();
     static string getInfrastructureFlags(const Compiler &compiler);
     string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;

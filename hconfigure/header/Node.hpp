@@ -39,7 +39,7 @@ class Node
     string filePath;
 
     file_type fileType;
-    file_time_type lastWriteTime;
+    file_time_type lastWriteTime{file_time_type::duration{UINT64_MAX}};
 
     inline static uint32_t idCount = 0;
     inline static uint32_t idCountCompleted = 0;
@@ -58,6 +58,7 @@ class Node
     Node(Node *&node, string filePath_);
     explicit Node(string filePath_);
     string getFileName() const;
+    string getFileStem() const;
 
     static path getFinalNodePathFromPath(path filePath);
 

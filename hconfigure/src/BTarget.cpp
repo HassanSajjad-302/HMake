@@ -46,7 +46,9 @@ bool IndexInTopologicalSortComparatorRoundTwo::operator()(const BTarget *lhs, co
 
 void RealBTarget::sortGraph()
 {
-    noEdges.clear();
+    vector<RealBTarget *> noEdges;
+    uint32_t noEdgesCount = 0;
+
     sorted.clear();
     sorted.resize(graphEdges.size());
     cycleExists = false;
@@ -58,25 +60,25 @@ void RealBTarget::sortGraph()
         r->dependentsCount = r->dependents.size();
         if (!r->dependentsCount)
         {
-            noEdges.emplace(r);
+            noEdges.emplace_back(r);
         }
         edgesCount += r->dependentsCount;
     }
 
-    while (!noEdges.empty())
+    while (noEdges.size() != noEdgesCount)
     {
-        auto it = noEdges.begin();
-        sorted[index] = it.operator*();
+        RealBTarget *rb = noEdges[noEdgesCount];
+        sorted[index] = rb;
         --index;
-        for (auto [m, _] : (*it)->dependencies)
+        for (auto [m, _] : rb->dependencies)
         {
             --edgesCount;
             if (!--m->dependentsCount)
             {
-                noEdges.emplace(m);
+                noEdges.emplace_back(m);
             }
         }
-        it = noEdges.erase(it);
+        ++noEdgesCount;
     }
 
     if (edgesCount)
@@ -202,6 +204,17 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
     }
 }
 
+void RealBTarget::assignFileStatusToDependents()
+{
+    for (auto &[dependent, bTargetDepType] : dependents)
+    {
+        if (bTargetDepType == BTargetDepType::FULL)
+        {
+            dependent->updateStatus = UpdateStatus::NEEDS_UPDATE;
+        }
+    }
+}
+
 void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
 {
     uint32_t i;
@@ -299,17 +312,6 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
     if (name.starts_with("conventional\\conventional\\"))
     {
         bool breakpoint = true;
-    }
-}
-
-void BTarget::assignFileStatusToDependents(const unsigned short round)
-{
-    for (auto &[dependent, bTargetDepType] : realBTargets[round].dependents)
-    {
-        if (bTargetDepType == BTargetDepType::FULL)
-        {
-            atomic_ref(dependent->bTarget->fileStatus).store(true);
-        }
     }
 }
 

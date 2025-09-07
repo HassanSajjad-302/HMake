@@ -2,6 +2,8 @@
 #define HMAKE_SMFILE_HPP
 
 #ifdef USE_HEADER_UNITS
+import "IPCManagerBS.hpp";
+import "RunCommand.hpp";
 import "SpecialNodes.hpp";
 import "ObjectFile.hpp";
 import <filesystem>;
@@ -10,7 +12,9 @@ import <utility>;
 import <vector>;
 import <atomic>;
 #else
+#include "IPCManagerBS.hpp"
 #include "ObjectFile.hpp"
+#include "RunCommand.hpp"
 #include "SpecialNodes.hpp"
 #include "btree.h"
 #include "nlohmann/json.hpp"
@@ -87,9 +91,8 @@ enum class SM_FILE_TYPE : char
 struct SMFile : SourceNode // Scanned Module Rule
 {
     BuildCache::Cpp::ModuleFile::SmRules smRulesCache;
-    // buildCache.compileCommandWithToolCache is scanning command while this is the compile command.
-    CCOrHash compileCommandWithToolCache;
     string logicalName;
+
     // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
     // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
     // depends on is consuming it another way.
@@ -98,12 +101,15 @@ struct SMFile : SourceNode // Scanned Module Rule
     // TODO
     // Maybe use vector and do in-place sorting especially if big hu are used since the number of elements become really
     // small.
-    vector<SMFile *> allSMFileDependenciesRoundZero;
+    flat_hash_set<SMFile *> allSMFileDependencies;
+    Node *interfaceNode;
+    SMFile *waitingFor = nullptr;
 
-    unique_ptr<vector<char>> smRuleFileBuffer;
+    N2978::IPCManagerBS *ipcManager;
+    RunCommand run;
+
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 
-    bool isInterface = false;
     // In case of header-unit, it is a bmi-file.
     bool isObjectFileOutdated = false;
 
@@ -124,6 +130,11 @@ struct SMFile : SourceNode // Scanned Module Rule
     SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
     void initializeBuildCache(uint32_t index);
     void setLogicalNameAndAddToRequirePath();
+    SMFile *findModule(const string &moduleName) const;
+    void sendModule(SMFile &mod);
+    void sendHeaderUnit(SMFile &hu);
+    void saveBuildCache();
+    bool build(Builder &builder);
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     string getOutputFileName() const;
     bool calledOnce = false;
@@ -133,12 +144,10 @@ struct SMFile : SourceNode // Scanned Module Rule
     void initializeHeaderUnits(Builder &builder);
     void setSMFileType();
     // In case of header-units, this check the ifc file.
-    void checkObjectFileOutdatedHeaderUnits();
-    void checkObjectFileOutdatedModules();
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;
     void updateBuildCache() override;
-    string getCompileCommand();
+    string getCompileCommand() const;
     void setFileStatusAndPopulateAllDependencies();
     string getFlag() const;
     string getFlagPrint() const;

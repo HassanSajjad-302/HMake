@@ -34,7 +34,7 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    numberOfLaunchedThreads = settings.maximumBuildThreads;
+    numberOfLaunchedThreads = 1;
     if (numberOfLaunchedThreads)
     {
         for (uint64_t i = 0; i < numberOfLaunchedThreads - 1; ++i)
@@ -130,12 +130,11 @@ template <typename T> std::vector<std::span<T>> divideInChunk(std::vector<T> &v,
 
 void Builder::execute()
 {
-    const RealBTarget *rb = nullptr;
+    RealBTarget *rb = nullptr;
 
     DEBUG_EXECUTE(
         FORMAT("{} Locking Update Mutex {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(), getThreadId()));
     std::unique_lock lk(executeMutex);
-    BTarget *last;
     while (true)
     {
         if (exeMode == ExecuteMode::GENERAL)
@@ -152,12 +151,12 @@ void Builder::execute()
                     rb->bTarget->setSelectiveBuild();
                 }
                 bool isComplete = false;
-                last = rb->bTarget;
                 rb->bTarget->updateBTarget(*this, round, isComplete);
                 if (isComplete)
                 {
                     continue;
                 }
+                atomic_ref(rb->updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
                 executeMutex.lock();
                 addNewTopBeUpdatedTargets(rb);
 

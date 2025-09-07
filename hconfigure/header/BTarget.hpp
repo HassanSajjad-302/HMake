@@ -48,9 +48,15 @@ enum class BTargetDepType : bool
     LOOSE,
 };
 
+enum class UpdateStatus
+{
+    NEEDS_UPDATE,
+    ALREADY_UPDATED,
+    UPDATED,
+};
+
 class RealBTarget
 {
-    inline static phmap::flat_hash_set<RealBTarget *> noEdges;
     inline static vector<RealBTarget *> cycle;
     inline static bool cycleExists = false;
     // used in sorting
@@ -106,11 +112,11 @@ class RealBTarget
 
     // short supportsThread = -1;
 
-    // Set it to false, and build-system will not decrement dependenciesSize of the dependents RealBTargets
-    bool isUpdated = true;
+    UpdateStatus updateStatus = UpdateStatus::ALREADY_UPDATED;
 
     RealBTarget(BTarget *bTarget_, unsigned short round_);
     RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
+    void assignFileStatusToDependents();
     void addInTarjanNodeBTarget(unsigned short round_);
 };
 
@@ -171,7 +177,6 @@ class BTarget // BTarget
     // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
     // float totalTimeTaken = 0.0f;
     bool selectiveBuild = false;
-    bool fileStatus = false;
     bool buildExplicit = false;
 
     BTarget();
@@ -184,7 +189,6 @@ class BTarget // BTarget
     void setSelectiveBuild();
     bool isHBuildInSameOrChildDirectory() const;
 
-    void assignFileStatusToDependents(unsigned short round);
     void receiveNotificationPostBuildSpecification();
     static void runEndOfRoundTargets();
 
