@@ -98,19 +98,6 @@ void RunCommand::startProcess(const string &command)
 RunCommand::OutputAndStatus RunCommand::endProcess() const
 {
     OutputAndStatus o;
-    // Read all output of the subprocess.
-    DWORD read_len = 1;
-    while (read_len)
-    {
-        char buf[64 << 10];
-        read_len = 0;
-        bool out = ::ReadFile(stdout_read, buf, sizeof(buf), &read_len, nullptr);
-        if (!out && GetLastError() != ERROR_BROKEN_PIPE)
-        {
-            Win32Fatal("ReadFile");
-        }
-        o.output.append(buf, read_len);
-    }
 
     // Wait for it to exit and grab its exit code.
     if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
@@ -118,6 +105,47 @@ RunCommand::OutputAndStatus RunCommand::endProcess() const
     DWORD exit_code = 0;
     if (!GetExitCodeProcess(hProcess, &exit_code))
         Win32Fatal("GetExitCodeProcess");
+
+    // Read all output of the subprocess.
+    DWORD read_len = 1;
+    while (read_len)
+    {
+        {
+
+            // We have to peak because the Read blocks even though the process has ended.
+            // Needs to be investigated further.
+            // While this could be a bug, using proccess explorer I confirmed that there is no extra handle
+            // once the process exits. and there is no child process running at that time either.
+
+            DWORD bytes_available = 0;
+            if (!PeekNamedPipe(stdout_read, nullptr, 0, nullptr, &bytes_available, nullptr))
+            {
+                DWORD error = GetLastError();
+                if (error == ERROR_BROKEN_PIPE)
+                {
+                    break; // Normal termination
+                }
+                Win32Fatal("PeekNamedPipe");
+            }
+
+            if (bytes_available == 0)
+            {
+                break;
+            }
+        }
+
+        char buf[64 << 10];
+        read_len = 0;
+        if (const bool out = ReadFile(stdout_read, buf, sizeof(buf), &read_len, nullptr); !out)
+        {
+            if (GetLastError() == ERROR_BROKEN_PIPE)
+            {
+                break;
+            }
+            Win32Fatal("ReadFile");
+        }
+        o.output.append(buf, read_len);
+    }
 
     if (!CloseHandle(stdout_read) || !CloseHandle(hProcess) || !CloseHandle(hThread))
     {
