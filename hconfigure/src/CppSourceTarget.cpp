@@ -59,31 +59,6 @@ uint64_t RequireNameTargetIdHash::operator()(const RequireNameTargetId &req) con
     return rapidhash(&hash, sizeof(hash));
 }
 
-bool CppSourceTarget::SMFileEqual::operator()(const SMFile *lhs, const SMFile *rhs) const
-{
-    return lhs->node == rhs->node;
-}
-
-bool CppSourceTarget::SMFileEqual::operator()(const SMFile *lhs, const Node *rhs) const
-{
-    return lhs->node == rhs;
-}
-
-bool CppSourceTarget::SMFileEqual::operator()(const Node *lhs, const SMFile *rhs) const
-{
-    return lhs == rhs->node;
-}
-
-std::size_t CppSourceTarget::SMFileHash::operator()(const SMFile *node) const
-{
-    return reinterpret_cast<uint64_t>(node->node);
-}
-
-std::size_t CppSourceTarget::SMFileHash::operator()(const Node *node) const
-{
-    return reinterpret_cast<uint64_t>(node);
-}
-
 CppSourceTarget::CppSourceTarget(const string &name_, Configuration *configuration_)
     : ObjectFileProducerWithDS(name_, false, false), TargetCache(name), configuration(configuration_)
 {
@@ -190,7 +165,7 @@ CppSourceTarget &CppSourceTarget::initializeUseReqInclsFromReqIncls()
             {
                 useReqIncls.emplace_back(include);
             }
-            useReqHeaderFiles = reqHeaderFiles;
+            useReqHeaderNameMapping = reqHeaderNameMapping;
         }
     }
 
@@ -358,18 +333,23 @@ void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, b
             return;
         }
 
-        vector<HeaderFile> &headerFiles = addInReq ? reqHeaderFiles : useReqHeaderFiles;
         for (const auto &p : recursive_directory_iterator(node->filePath))
         {
             if (p.is_regular_file())
             {
                 string str = p.path().string();
-                HeaderFile h;
-                h.logicalName = {str.data() + node->filePath.size(), str.size()};
+                const string *logicalName =
+                    new string{str.data() + node->filePath.size() + 1, str.size() - node->filePath.size() - 1};
                 lowerCaseOnWindows(str.data(), str.size());
                 Node *n = Node::getHalfNode(str);
-                h.node = n;
-                headerFiles.emplace_back(h);
+                if (const auto &[pos, ok] = reqHeaderNameMapping.emplace(*logicalName, HeaderFileOrUnit{.node = node});
+                    !ok)
+                {
+                    printErrorMessage(
+                        FORMAT("There is already a Header-File or Header-Unit entry\n{}\n for name {}\n. Error "
+                               "happened while adding include {} for target {}.\n",
+                               pos->second.node->filePath, *logicalName, include, name));
+                }
             }
         }
     }
@@ -443,14 +423,14 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                 oldHeaderUnits[i].buildCache = cppBuildCache.headerUnits[i].srcFile;
                 oldHeaderUnits[i].smRulesCache = cppBuildCache.headerUnits[i].smRules;
                 oldHeaderUnits[i].type = SM_FILE_TYPE::HEADER_UNIT;
-                headerUnitsSet.emplace(&oldHeaderUnits[i]);
+                // headerUnitsSet.emplace(&oldHeaderUnits[i]);
             }
 
             builder.executeMutex.lock();
-            for (SMFile *headerUnit : headerUnitsSet)
-            {
-                builder.updateBTargets.emplace(&headerUnit->realBTargets[1]);
-            }
+            // for (SMFile *headerUnit : headerUnitsSet)
+            // {
+            //     builder.updateBTargets.emplace(&headerUnit->realBTargets[1]);
+            // }
             builder.updateBTargetsSizeGoal += oldHeaderUnits.size();
             builder.addNewTopBeUpdatedTargets(&this->realBTargets[round]);
             isComplete = true;
@@ -572,22 +552,64 @@ void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &in
     }
 }
 
-void writeHeaderFilesAtConfigTime(vector<char> &buffer, vector<HeaderFile> &headers)
+void writeHeaderFilesOrUnitsAtConfigTime(vector<char> &buffer,
+                                         flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping)
 {
+    uint32_t headerFileCount = 0;
+    for (const auto &[s, h] : headerNameMapping)
+    {
+        if (h.node)
+        {
+            ++headerFileCount;
+        }
+    }
+
+    const uint32_t headerUnitCount = headerNameMapping.size() - headerFileCount;
+
+    writeUint32(buffer, headerFileCount);
+    for (const auto &[s, h] : headerNameMapping)
+    {
+        if (h.node)
+        {
+            writeStringView(buffer, s);
+            writeNode(buffer, h.node);
+        }
+    }
+
+    writeUint32(buffer, headerUnitCount);
+    for (const auto &[s, h] : headerNameMapping)
+    {
+        if (!h.node)
+        {
+            writeStringView(buffer, s);
+            writeUint32(buffer, h.smFile->indexInBuildCache);
+        }
+    }
 }
 
-void readHeaderFilesAtConfigTime(const char *ptr, uint32_t &bytesRead, vector<HeaderFile> &include,
-                                 CppSourceTarget *target)
+void readHeaderFilesAtBuildTime(const char *ptr, uint32_t &bytesRead,
+                                flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping)
 {
+    const uint32_t includeSize = readUint32(ptr, bytesRead);
+    for (uint32_t i = 0; i < includeSize; ++i)
+    {
+        string_view name = readStringView(ptr, bytesRead);
+        Node *node = readHalfNode(ptr, bytesRead);
+        headerNameMapping.emplace(name, HeaderFileOrUnit{.node = node});
+    }
 }
 
-void writeHeaderUnitsAtConfigTime(vector<char> &buffer, vector<HeaderUnit> &headers)
+void readHeaderUnitesAtBuildTime(const char *ptr, uint32_t &bytesRead,
+                                 flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping,
+                                 vector<SMFile> &headerUnits)
 {
-}
-
-void readHeaderUnitsAtConfigTime(const char *ptr, uint32_t &bytesRead, vector<HeaderUnit> &include,
-                                 CppSourceTarget *target)
-{
+    const uint32_t includeSize = readUint32(ptr, bytesRead);
+    for (uint32_t i = 0; i < includeSize; ++i)
+    {
+        string_view name = readStringView(ptr, bytesRead);
+        const uint32_t index = readUint32(ptr, bytesRead);
+        headerNameMapping.emplace(name, HeaderFileOrUnit{.smFile = &headerUnits[index]});
+    }
 }
 
 void CppSourceTarget::writeCacheAtConfigTime(const bool before)
@@ -595,26 +617,6 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
     if (before)
     {
         auto *configBuffer = new vector<char>{};
-
-        writeUint8(*configBuffer, static_cast<uint8_t>(targetType));
-        if (targetType == CppTargetType::SOURCE)
-        {
-            if (targetType == CppTargetType::SOURCE)
-            {
-                writeIncDirsAtConfigTime(*configBuffer, reqIncls);
-                writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
-            }
-            else
-            {
-                writeHeaderFilesAtConfigTime(*configBuffer, reqHeaderFiles);
-                writeHeaderFilesAtConfigTime(*configBuffer, useReqHeaderFiles);
-                writeHeaderUnitsAtConfigTime(*configBuffer, reqHeaderUnits);
-                writeHeaderUnitsAtConfigTime(*configBuffer, useReqHeaderUnits);
-            }
-        }
-        else
-        {
-        }
 
         writeUint32(*configBuffer, srcFileDeps.size());
         for (SourceNode *source : srcFileDeps)
@@ -658,6 +660,17 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
 
         writeNode(*configBuffer, myBuildDir);
 
+        if (targetType == CppTargetType::SOURCE)
+        {
+            writeIncDirsAtConfigTime(*configBuffer, reqIncls);
+            writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
+        }
+        else
+        {
+            writeHeaderFilesOrUnitsAtConfigTime(*configBuffer, reqHeaderNameMapping);
+            writeHeaderFilesOrUnitsAtConfigTime(*configBuffer, useReqHeaderNameMapping);
+        }
+
         fileTargetCaches[cacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
 
         cppBuildCache.deserialize(cacheIndex);
@@ -674,11 +687,6 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
 
     uint32_t configRead = 0;
     const char *ptr = configCache.data();
-
-    readInclDirsAtBuildTime(ptr, configRead, reqIncls, this);
-    readInclDirsAtBuildTime(ptr, configRead, useReqIncls, this);
-    readInclDirsAtBuildTime(ptr, configRead, reqHuDirs, this);
-    readInclDirsAtBuildTime(ptr, configRead, useReqHuDirs, this);
 
     const uint32_t sourceSize = readUint32(ptr, configRead);
     srcFileDeps.reserve(sourceSize);
@@ -727,6 +735,17 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     }
 
     myBuildDir = readHalfNode(ptr, configRead);
+
+    if (targetType == CppTargetType::SOURCE)
+    {
+        readInclDirsAtBuildTime(ptr, configRead, reqIncls, this);
+        readInclDirsAtBuildTime(ptr, configRead, useReqIncls, this);
+    }
+    else
+    {
+        readHeaderFilesAtBuildTime(ptr, configRead, reqHeaderNameMapping);
+        readHeaderFilesAtBuildTime(ptr, configRead, reqHeaderNameMapping);
+    }
 
     if (configRead != configCache.size())
     {

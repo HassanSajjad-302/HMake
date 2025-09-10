@@ -47,14 +47,14 @@ void Configuration::initialize()
                 {
                     for (const string &str : toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs)
                     {
-                        actuallyAddInclude(stdCppTarget->getSourceTarget().reqIncls, str, true, true);
+                        stdCppTarget->getSourceTarget().actuallyAddInclude(str, true, true, true);
                     }
                 }
                 else
                 {
                     for (const string &str : toolsCache.linuxTools[cache.selectedCompilerArrayIndex].includeDirs)
                     {
-                        actuallyAddInclude(stdCppTarget->getSourceTarget().reqIncls, str, true, true);
+                        stdCppTarget->getSourceTarget().actuallyAddInclude(str, true, true, true);
                     }
                 }
                 stdCppTarget->getSourceTarget()

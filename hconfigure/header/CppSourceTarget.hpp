@@ -61,21 +61,7 @@ enum class CppTargetType : uint8_t
     MODULE = 2,
 };
 
-struct HeaderFile
-{
-    string logicalName;
-    Node *node;
-};
-
-struct HeaderUnit
-{
-    string logicalName;
-    /// index in CppSourceTarget::headerUnits
-    uint32_t index;
-};
-
-// HeaderFileOrHeaderUnit
-struct HFOHU
+struct HeaderFileOrUnit
 {
     SMFile *smFile = nullptr;
     Node *node = nullptr;
@@ -114,12 +100,8 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     vector<InclNode> reqIncls;
     vector<InclNode> useReqIncls;
 
-    vector<HeaderFile> reqHeaderFiles;
-    vector<HeaderFile> useReqHeaderFiles;
-    vector<HeaderUnit> reqHeaderUnits;
-    vector<HeaderUnit> useReqHeaderUnits;
-
-    flat_hash_map<string, HFOHU> headerNameMapping;
+    flat_hash_map<string_view, HeaderFileOrUnit> reqHeaderNameMapping;
+    flat_hash_map<string_view, HeaderFileOrUnit> useReqHeaderNameMapping;
 
     Configuration *configuration = nullptr;
 

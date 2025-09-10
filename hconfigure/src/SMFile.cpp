@@ -774,6 +774,7 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
 
     // Iterating over all header-unit-dirs of the target to find out which header-unit dir this header-unit
     // comes from and which target that header-unit-dir belongs to if any
+    /*
     for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
     {
         if (pathContainsFile(inclNode.node->filePath, headerUnitNode->filePath))
@@ -788,6 +789,7 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
             nodeDir = &inclNode;
         }
     }
+    */
 
     if (huDirTarget)
     {
@@ -816,10 +818,12 @@ InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) cons
     string errorMessage = FORMAT("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin "
                                  "Target\n{}.\nSearched for header-unit target in the following reqHuDirs.\n",
                                  headerUnitNode->filePath, node->filePath, target->name);
+    /*
     for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
     {
         errorMessage += FORMAT("HuDirTarget {} inclNode {}\n", targetLocal->name, inclNode.node->filePath);
     }
+    */
 
     printErrorMessage(errorMessage);
 }
@@ -858,6 +862,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
 
         SMFile *headerUnit = nullptr;
 
+        /*
         if (const auto it = huDirTarget->headerUnitsSet.find(singleHuDep.node); it == huDirTarget->headerUnitsSet.end())
         {
             headerUnit = new SMFile(huDirTarget, singleHuDep.node);
@@ -869,7 +874,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
             /*if (nodeDir->ignoreHeaderDeps)
             {
                 headerUnit->ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
-            }*/
+            }#1#
 
             headerUnit->indexInBuildCache = huDirTarget->newHeaderUnitsSize + huDirTarget->oldHeaderUnits.size();
             ++huDirTarget->newHeaderUnitsSize;
@@ -887,6 +892,7 @@ void SMFile::initializeHeaderUnits(Builder &builder)
                 headerUnit->addedForRoundOne = true;
             }
         }
+        */
 
         addDepHalfNowHalfLater(*headerUnit);
 
