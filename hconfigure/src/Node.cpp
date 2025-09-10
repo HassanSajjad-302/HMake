@@ -73,32 +73,9 @@ std::size_t NodeHash::operator()(const string_view &str) const
 Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
 {
     node = this;
-    myId = atomic_ref(idCount).fetch_add(1);
+    myId = atomic_ref(idCount).fetch_add(1, std::memory_order_relaxed);
     nodeIndices[myId] = this;
-    ++atomic_ref(idCountCompleted);
-    return;
-    // not needed as no new node should be discovered in build-mode.
-    // and config-time discovered nodes will be initialized using following constructor.
-    if (isOneThreadRunning)
-    {
-        myId = idCount;
-        ++idCount;
-    }
-    else
-    {
-        myId = atomic_ref(idCount).fetch_add(1);
-    }
-
-    nodeIndices[myId] = this;
-
-    if (isOneThreadRunning)
-    {
-        ++idCountCompleted;
-    }
-    else
-    {
-        ++atomic_ref(idCountCompleted);
-    }
+    atomic_ref(idCountCompleted).fetch_add(1, std::memory_order_release);
 }
 
 // This function is called single-threaded. While the above is called multithreaded in lambdas passed to nodeAllFiles

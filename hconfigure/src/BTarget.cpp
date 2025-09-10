@@ -176,7 +176,7 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarg
     uint32_t i;
     if (isOneThreadRunning)
     {
-        i = BTarget::realBTargetsArrayCount[round_].fetch_add(1);
+        i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
     }
     else
     {
@@ -193,7 +193,7 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
         uint32_t i;
         if (isOneThreadRunning)
         {
-            i = BTarget::realBTargetsArrayCount[round_].fetch_add(1);
+            i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
         }
         else
         {
@@ -220,7 +220,7 @@ void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
     uint32_t i;
     if (isOneThreadRunning)
     {
-        i = BTarget::realBTargetsArrayCount[round_].fetch_add(1);
+        i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
     }
     else
     {
@@ -245,7 +245,7 @@ BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1)}
     }
     else
     {
-        id = atomic_ref(total).fetch_add(1);
+        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
     }
 }
 
@@ -260,7 +260,7 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
     }
     else
     {
-        id = atomic_ref(total).fetch_add(1);
+        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
     }
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -285,7 +285,7 @@ BTarget::BTarget(const bool add0, const bool add1)
     }
     else
     {
-        id = atomic_ref(total).fetch_add(1);
+        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
     }
 }
 
@@ -300,7 +300,7 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
     }
     else
     {
-        id = atomic_ref(total).fetch_add(1);
+        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
     }
     if constexpr (bsMode == BSMode::CONFIGURE)
     {

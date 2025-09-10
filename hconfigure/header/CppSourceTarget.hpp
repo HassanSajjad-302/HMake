@@ -86,34 +86,12 @@ struct HFOHU
 // use -TC flag with MSVC
 class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public TargetCache
 {
-    struct SMFileEqual
-    {
-        using is_transparent = void;
-
-        bool operator()(const SMFile *lhs, const SMFile *rhs) const;
-        bool operator()(const SMFile *lhs, const Node *rhs) const;
-        bool operator()(const Node *lhs, const SMFile *rhs) const;
-    };
-
-    struct SMFileHash
-    {
-        using is_transparent = void; // or std::equal_to<>
-
-        std::size_t operator()(const SMFile *node) const;
-        std::size_t operator()(const Node *node) const;
-    };
-
-    friend struct ResolveRequirePathBTarget;
-
   public:
     BuildCache::Cpp cppBuildCache;
 
     flat_hash_set<Define> reqCompileDefinitions;
     flat_hash_set<Define> useReqCompileDefinitions;
     flat_hash_map<string, SMFile *> imodNames;
-
-    // Written mutex locked in round 1 updateBTarget
-    flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnitsSet;
 
     using BaseType = CSourceTarget;
 
