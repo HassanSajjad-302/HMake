@@ -335,18 +335,18 @@ void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, b
         {
             if (p.is_regular_file())
             {
-                string str = p.path().string();
+                auto *str = new string(p.path().string());
                 const string *logicalName =
-                    new string{str.data() + node->filePath.size() + 1, str.size() - node->filePath.size() - 1};
-                lowerCaseOnWindows(str.data(), str.size());
-                Node *n = Node::getHalfNode(str);
-                if (const auto &[pos, ok] = reqHeaderNameMapping.emplace(*logicalName, HeaderFileOrUnit{.node = node});
+                    new string{str->data() + node->filePath.size() + 1, str->size() - node->filePath.size() - 1};
+                lowerCaseOnWindows(str->data(), str->size());
+                Node *n = Node::getHalfNode(*str);
+                if (const auto &[pos, ok] = reqHeaderNameMapping.emplace(*logicalName, HeaderFileOrUnit{.node = n});
                     !ok)
                 {
-                    printErrorMessage(
-                        FORMAT("There is already a Header-File or Header-Unit entry\n{}\n for name {}\n. Error "
-                               "happened while adding include {} for target {}.\n",
-                               pos->second.node->filePath, *logicalName, include, name));
+                    // printErrorMessage(
+                    //     FORMAT("There is already a Header-File or Header-Unit entry\n{}\n for name {}\n. Error "
+                    //            "happened while adding include {} for target {}.\n",
+                    //            pos->second.node->filePath, *logicalName, n->filePath, name));
                 }
             }
         }
@@ -742,7 +742,9 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     else
     {
         readHeaderFilesAtBuildTime(ptr, configRead, reqHeaderNameMapping);
-        readHeaderFilesAtBuildTime(ptr, configRead, reqHeaderNameMapping);
+        readHeaderUnitesAtBuildTime(ptr, configRead, reqHeaderNameMapping, oldHeaderUnits);
+        readHeaderFilesAtBuildTime(ptr, configRead, useReqHeaderNameMapping);
+        readHeaderUnitesAtBuildTime(ptr, configRead, reqHeaderNameMapping, oldHeaderUnits);
     }
 
     if (configRead != configCache.size())

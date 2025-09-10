@@ -13,8 +13,8 @@ import <iostream>;
 import <Windows.h>;
 #endif
 #else
-#include "BuildSystemFunctions.hpp"
 #include "PlatformSpecific.hpp"
+#include "BuildSystemFunctions.hpp"
 #include "TargetCache.hpp"
 #include "lz4.h"
 #include "rapidjson/prettywriter.h"
