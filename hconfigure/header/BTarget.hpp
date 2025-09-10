@@ -155,8 +155,8 @@ class BTarget // BTarget
 
   public:
     // vector because we clear this memory at the end of the round
-    inline static array<std::span<RealBTarget *>, 2> tarjanNodesBTargets;
-    inline static array<atomic<uint32_t>, 2> tarjanNodesCount{0, 0};
+    inline static array<std::span<RealBTarget *>, 2> realBTargetsGlobal;
+    inline static array<atomic<uint32_t>, 2> realBTargetsArrayCount{0, 0};
 
   private:
     inline static thread_local vector<LaterDep> laterDepsLocal;
@@ -166,7 +166,7 @@ class BTarget // BTarget
 
     inline static StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
   public:
-    inline static size_t total = 0;
+    inline static uint32_t total = 0;
 
     array<RealBTarget, 2> realBTargets;
 

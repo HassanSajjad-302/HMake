@@ -19,7 +19,7 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 Builder::Builder()
 {
     round = 1;
-    RealBTarget::graphEdges = span(BTarget::tarjanNodesBTargets[round].data(), BTarget::tarjanNodesCount[round]);
+    RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
     RealBTarget::sortGraph();
 
     for (RealBTarget *rb : RealBTarget::sorted)
@@ -207,14 +207,14 @@ void Builder::execute()
             executeMutex.lock();
             if (numberOfSleepingThreads == numberOfLaunchedThreads - 1)
             {
-                singleThreadRunning = true;
+                isOneThreadRunning = true;
                 DEBUG_EXECUTE(
                     FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
 
                 BTarget::runEndOfRoundTargets();
                 --round;
                 RealBTarget::graphEdges =
-                    span(BTarget::tarjanNodesBTargets[round].data(), BTarget::tarjanNodesCount[round]);
+                    span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
                 RealBTarget::sortGraph();
                 // RealBTarget::printSortedGraph();
 
@@ -249,7 +249,7 @@ void Builder::execute()
 
                 updateBTargetsSizeGoal = RealBTarget::sorted.size();
                 exeMode = ExecuteMode::GENERAL;
-                singleThreadRunning = false;
+                isOneThreadRunning = false;
                 continue;
             }
         }

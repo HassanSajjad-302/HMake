@@ -77,25 +77,27 @@ Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
     nodeIndices[myId] = this;
     ++atomic_ref(idCountCompleted);
     return;
-    if (singleThreadRunning)
-    {
-        myId = atomic_ref(idCount).fetch_add(1);
-    }
-    else
+    // not needed as no new node should be discovered in build-mode.
+    // and config-time discovered nodes will be initialized using following constructor.
+    if (isOneThreadRunning)
     {
         myId = idCount;
         ++idCount;
     }
+    else
+    {
+        myId = atomic_ref(idCount).fetch_add(1);
+    }
 
     nodeIndices[myId] = this;
 
-    if (singleThreadRunning)
+    if (isOneThreadRunning)
     {
-        ++atomic_ref(idCountCompleted);
+        ++idCountCompleted;
     }
     else
     {
-        ++idCountCompleted;
+        ++atomic_ref(idCountCompleted);
     }
 }
 
