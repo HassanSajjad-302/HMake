@@ -155,11 +155,14 @@ void CppSourceTarget::populateTransitiveProperties()
 {
     for (CppSourceTarget *cppSourceTarget : reqDeps)
     {
-        for (const InclNode &inclNode : cppSourceTarget->useReqIncls)
+        if (targetType != CppTargetType::MODULE)
         {
-            // Configure-time check.
-            actuallyAddInclude(reqIncls, inclNode.node->filePath);
-            reqIncls.emplace_back(inclNode);
+            for (const InclNode &inclNode : cppSourceTarget->useReqIncls)
+            {
+                // Configure-time check.
+                actuallyAddInclude(inclNode.node->filePath, true);
+                reqIncls.emplace_back(inclNode);
+            }
         }
         reqCompilerFlags += cppSourceTarget->useReqCompilerFlags;
         for (const Define &define : cppSourceTarget->useReqCompileDefinitions)
@@ -167,13 +170,6 @@ void CppSourceTarget::populateTransitiveProperties()
             reqCompileDefinitions.emplace(define);
         }
         reqCompilerFlags += cppSourceTarget->useReqCompilerFlags;
-
-        for (HuTargetPlusDir &inclNodeTargetMap : cppSourceTarget->useReqHuDirs)
-        {
-            // Configure-time check
-            actuallyAddInclude(reqHuDirs, this, inclNodeTargetMap.inclNode.node->filePath);
-            reqHuDirs.emplace_back(inclNodeTargetMap);
-        }
     }
 }
 
@@ -181,9 +177,20 @@ CppSourceTarget &CppSourceTarget::initializeUseReqInclsFromReqIncls()
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        for (const InclNode &include : reqIncls)
+        if (targetType == CppTargetType::SOURCE)
         {
-            actuallyAddInclude(useReqIncls, include.node->filePath, include.isStandard, include.ignoreHeaderDeps);
+            for (const InclNode &include : reqIncls)
+            {
+                actuallyAddInclude(include.node->filePath, true, include.isStandard, include.ignoreHeaderDeps);
+            }
+        }
+        else
+        {
+            for (const InclNode &include : reqIncls)
+            {
+                useReqIncls.emplace_back(include);
+            }
+            useReqHeaderFiles = reqHeaderFiles;
         }
     }
 
@@ -198,10 +205,12 @@ CppSourceTarget &CppSourceTarget::initializePublicHuDirsFromReqIncls()
         {
             if (evaluate(TreatModuleAsSource::NO))
             {
+                /*
                 actuallyAddInclude(reqHuDirs, this, include.node->filePath, include.isStandard,
                                    include.ignoreHeaderDeps);
                 actuallyAddInclude(useReqHuDirs, this, include.node->filePath, include.isStandard,
                                    include.ignoreHeaderDeps);
+            */
             }
         }
     }
@@ -211,6 +220,14 @@ CppSourceTarget &CppSourceTarget::initializePublicHuDirsFromReqIncls()
 
 void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
 {
+    if (targetType == CppTargetType::MODULE)
+    {
+        printErrorMessage(
+            FORMAT("CppSourceTarget {}\n already has module-files but now source-file {} is being added.\n", name,
+                   node->filePath));
+    }
+
+    targetType = CppTargetType::SOURCE;
     for (const SourceNode *source : srcFileDeps)
     {
         if (source->node == node)
@@ -226,6 +243,15 @@ void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
 
 void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, const bool isInterface)
 {
+    if (targetType == CppTargetType::SOURCE)
+    {
+        printErrorMessage(
+            FORMAT("CppSourceTarget {}\n already has source-files but now module-file {} is being added.\n", name,
+                   node->filePath));
+    }
+
+    targetType = CppTargetType::MODULE;
+
     string fileName = node->getFileName();
     const string ext = {fileName.begin() + fileName.find_last_of('.') + 1, fileName.end()};
     if (ext == "cppm" || ext == "ixx")
@@ -260,6 +286,16 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, const bool isI
 
 void CppSourceTarget::actuallyAddHeaderUnitConfigTime(Node *node)
 {
+
+    if (targetType == CppTargetType::SOURCE)
+    {
+        printErrorMessage(
+            FORMAT("CppSourceTarget {}\n already has source-files but now header-unit {} is being added.\n", name,
+                   node->filePath));
+    }
+
+    targetType = CppTargetType::MODULE;
+
     for (const SMFile &smFile : oldHeaderUnits)
     {
         if (smFile.node == node)
@@ -292,6 +328,51 @@ uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const str
         return size;
     }
     return index;*/
+}
+
+void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, bool isStandard, bool ignoreHeaderDeps)
+{
+
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        Node *node = Node::getNodeFromNonNormalizedPath(include, false);
+        bool found = false;
+        vector<InclNode> &inclNodes = addInReq ? reqIncls : useReqIncls;
+        for (const InclNode &inclNode : inclNodes)
+        {
+            if (inclNode.node->myId == node->myId)
+            {
+                found = true;
+                printErrorMessage(FORMAT("Include {} is already added.\n", node->filePath));
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            inclNodes.emplace_back(node, isStandard, ignoreHeaderDeps);
+        }
+
+        if (targetType == CppTargetType::SOURCE)
+        {
+            return;
+        }
+
+        vector<HeaderFile> &headerFiles = addInReq ? reqHeaderFiles : useReqHeaderFiles;
+        for (const auto &p : recursive_directory_iterator(node->filePath))
+        {
+            if (p.is_regular_file())
+            {
+                string str = p.path().string();
+                HeaderFile h;
+                h.logicalName = {str.data() + node->filePath.size(), str.size()};
+                lowerCaseOnWindows(str.data(), str.size());
+                Node *n = Node::getHalfNode(str);
+                h.node = n;
+                headerFiles.emplace_back(h);
+            }
+        }
+    }
 }
 
 void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
@@ -491,15 +572,49 @@ void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &in
     }
 }
 
+void writeHeaderFilesAtConfigTime(vector<char> &buffer, vector<HeaderFile> &headers)
+{
+}
+
+void readHeaderFilesAtConfigTime(const char *ptr, uint32_t &bytesRead, vector<HeaderFile> &include,
+                                 CppSourceTarget *target)
+{
+}
+
+void writeHeaderUnitsAtConfigTime(vector<char> &buffer, vector<HeaderUnit> &headers)
+{
+}
+
+void readHeaderUnitsAtConfigTime(const char *ptr, uint32_t &bytesRead, vector<HeaderUnit> &include,
+                                 CppSourceTarget *target)
+{
+}
+
 void CppSourceTarget::writeCacheAtConfigTime(const bool before)
 {
     if (before)
     {
         auto *configBuffer = new vector<char>{};
-        writeIncDirsAtConfigTime(*configBuffer, reqIncls);
-        writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
-        writeIncDirsAtConfigTime(*configBuffer, reqHuDirs);
-        writeIncDirsAtConfigTime(*configBuffer, useReqHuDirs);
+
+        writeUint8(*configBuffer, static_cast<uint8_t>(targetType));
+        if (targetType == CppTargetType::SOURCE)
+        {
+            if (targetType == CppTargetType::SOURCE)
+            {
+                writeIncDirsAtConfigTime(*configBuffer, reqIncls);
+                writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
+            }
+            else
+            {
+                writeHeaderFilesAtConfigTime(*configBuffer, reqHeaderFiles);
+                writeHeaderFilesAtConfigTime(*configBuffer, useReqHeaderFiles);
+                writeHeaderUnitsAtConfigTime(*configBuffer, reqHeaderUnits);
+                writeHeaderUnitsAtConfigTime(*configBuffer, useReqHeaderUnits);
+            }
+        }
+        else
+        {
+        }
 
         writeUint32(*configBuffer, srcFileDeps.size());
         for (SourceNode *source : srcFileDeps)

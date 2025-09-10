@@ -422,7 +422,7 @@ bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
     return true;
 }
 
-void lowerCasePStringOnWindows(char *ptr, const uint64_t size)
+void lowerCaseOnWindows(char *ptr, const uint64_t size)
 {
     if constexpr (os == OS::NT)
     {

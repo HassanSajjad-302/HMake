@@ -312,7 +312,7 @@ BoostCppTarget::GetEnds<EOT, iteratorTargetType, bsm> BoostCppTarget::GetEnds<EO
         }
         finalEndString += slashc;
         finalEndString += endsWith;
-        lowerCasePStringOnWindows(finalEndString.data(), finalEndString.size());
+        lowerCaseOnWindows(finalEndString.data(), finalEndString.size());
         for (const ExampleOrTest &exampleOrTest_ : examplesOrTests)
         {
             if constexpr (EOT == BoostExampleOrTestType::COMPILE_TEST ||
@@ -362,7 +362,7 @@ BoostCppTarget::GetEnds<EOT, iteratorTargetType, bsm> BoostCppTarget::GetEnds<EO
         }
         finalEndString += slashc;
         finalEndString += endsWith;
-        lowerCasePStringOnWindows(finalEndString.data(), finalEndString.size());
+        lowerCaseOnWindows(finalEndString.data(), finalEndString.size());
         for (; exampleOrTest != examplesOrTests.begin().operator->() + examplesOrTests.size(); ++exampleOrTest)
         {
             if (exampleOrTest->targetType == EOT &&

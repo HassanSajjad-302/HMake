@@ -5,16 +5,7 @@ void configurationSpecification(Configuration &config)
     config.assign(config.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b);
 
     DSC<CppSourceTarget> &lib4 = config.getCppStaticDSC("lib4");
-    lib4.getSourceTarget().publicIncludes("lib4/public");
-    bool useLib4Cpp = CacheVariable<bool>("use-lib4.cpp", true).value;
-    if (useLib4Cpp)
-    {
-        lib4.getSourceTarget().sourceFiles("lib4/private/lib4.cpp");
-    }
-    else
-    {
-        lib4.getSourceTarget().sourceFiles("lib4/private/temp.cpp");
-    }
+    lib4.getSourceTarget().sourceDirsRE("lib4/private", ".*cpp").publicIncludes("lib4/public");
 
     DSC<CppSourceTarget> &lib3 = config.getCppStaticDSC("lib3").publicDeps(lib4);
     lib3.getSourceTarget().sourceDirsRE("lib3/private", ".*cpp").publicIncludes("lib3/public");

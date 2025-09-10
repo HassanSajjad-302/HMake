@@ -240,7 +240,7 @@ void SourceNode::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
                 // the array unique.
                 if (!ignoreHeaderFile(headerView))
                 {
-                    lowerCasePStringOnWindows(const_cast<char *>(headerView.data()), headerView.size());
+                    lowerCaseOnWindows(const_cast<char *>(headerView.data()), headerView.size());
 
                     if (Node *headerNode = Node::getHalfNode(headerView);
                         !std::ranges::contains(buildCache.headerFiles, headerNode))
@@ -759,7 +759,7 @@ void SMFile::saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang)
 
                 // lower-cased before saving for further use
                 string_view str(sourcePathIt->value.GetString(), sourcePathIt->value.GetStringLength());
-                lowerCasePStringOnWindows(const_cast<char *>(str.data()), str.size());
+                lowerCaseOnWindows(const_cast<char *>(str.data()), str.size());
                 hu.node = Node::getHalfNode(str);
             }
         }

@@ -54,6 +54,33 @@ struct RequireNameTargetIdHash
 };
 inline phmap::parallel_flat_hash_map_m<RequireNameTargetId, SMFile *, RequireNameTargetIdHash> requirePaths2;
 
+enum class CppTargetType : uint8_t
+{
+    NOT_ASSIGNED = 0,
+    SOURCE = 1,
+    MODULE = 2,
+};
+
+struct HeaderFile
+{
+    string logicalName;
+    Node *node;
+};
+
+struct HeaderUnit
+{
+    string logicalName;
+    /// index in CppSourceTarget::headerUnits
+    uint32_t index;
+};
+
+// HeaderFileOrHeaderUnit
+struct HFOHU
+{
+    SMFile *smFile = nullptr;
+    Node *node = nullptr;
+};
+
 // TODO
 // HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
 // use -TC flag with MSVC
@@ -88,9 +115,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     // Written mutex locked in round 1 updateBTarget
     flat_hash_set<SMFile *, SMFileHash, SMFileEqual> headerUnitsSet;
 
-    vector<HuTargetPlusDir> useReqHuDirs;
-    vector<HuTargetPlusDir> reqHuDirs;
-
     using BaseType = CSourceTarget;
 
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
@@ -112,6 +136,13 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     vector<InclNode> reqIncls;
     vector<InclNode> useReqIncls;
 
+    vector<HeaderFile> reqHeaderFiles;
+    vector<HeaderFile> useReqHeaderFiles;
+    vector<HeaderUnit> reqHeaderUnits;
+    vector<HeaderUnit> useReqHeaderUnits;
+
+    flat_hash_map<string, HFOHU> headerNameMapping;
+
     Configuration *configuration = nullptr;
 
     Node *myBuildDir = nullptr;
@@ -124,6 +155,8 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     bool hasManuallySpecifiedHeaderUnits = false;
 
     bool addedInCopyJson = false;
+
+    CppTargetType targetType = CppTargetType::NOT_ASSIGNED;
 
     void setCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
@@ -158,6 +191,8 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void actuallyAddModuleFileConfigTime(Node *node, bool isInterface);
     void actuallyAddHeaderUnitConfigTime(Node *node);
     uint64_t actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit);
+    void actuallyAddInclude(const string &include, bool addInReq, bool isStandard = false,
+                            bool ignoreHeaderDeps = false);
 
     template <typename... U> CppSourceTarget &publicDeps(CppSourceTarget *dep, const U... deps);
     template <typename... U> CppSourceTarget &privateDeps(CppSourceTarget *dep, const U... deps);
@@ -280,8 +315,8 @@ CppSourceTarget &CppSourceTarget::publicIncludes(const string &include, U... inc
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        actuallyAddInclude(reqIncls, include);
-        actuallyAddInclude(useReqIncls, include);
+        actuallyAddInclude(include, true);
+        actuallyAddInclude(include, false);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -299,7 +334,7 @@ CppSourceTarget &CppSourceTarget::privateIncludes(const string &include, U... in
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        actuallyAddInclude(reqIncls, include);
+        actuallyAddInclude(include, true);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -317,7 +352,7 @@ CppSourceTarget &CppSourceTarget::interfaceIncludes(const string &include, U... 
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        actuallyAddInclude(useReqIncls, include);
+        actuallyAddInclude(include, false);
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -337,15 +372,9 @@ CppSourceTarget &CppSourceTarget::publicHUIncludes(const string &include, U... i
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(reqHuDirs, this, include);
-            actuallyAddInclude(useReqHuDirs, this, include);
-            actuallyAddInclude(reqIncls, include);
-            actuallyAddInclude(useReqIncls, include);
         }
         else
         {
-            actuallyAddInclude(reqIncls, include);
-            actuallyAddInclude(useReqIncls, include);
         }
     }
 
@@ -364,6 +393,7 @@ CppSourceTarget &CppSourceTarget::privateHUIncludes(const string &include, U... 
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
+        /*
         if (evaluate(TreatModuleAsSource::NO))
         {
             actuallyAddInclude(reqHuDirs, this, include);
@@ -373,6 +403,7 @@ CppSourceTarget &CppSourceTarget::privateHUIncludes(const string &include, U... 
         {
             actuallyAddInclude(reqIncls, include);
         }
+    */
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -390,6 +421,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const string &include, U..
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
+        /*
         if (evaluate(TreatModuleAsSource::NO))
         {
             actuallyAddInclude(useReqHuDirs, this, include);
@@ -399,6 +431,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const string &include, U..
         {
             actuallyAddInclude(useReqIncls, include);
         }
+    */
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -418,8 +451,10 @@ CppSourceTarget &CppSourceTarget::publicHUDirs(const string &include, U... inclu
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
+            /*
             actuallyAddInclude(reqHuDirs, this, include);
             actuallyAddInclude(useReqHuDirs, this, include);
+        */
         }
     }
 
@@ -440,7 +475,7 @@ CppSourceTarget &CppSourceTarget::privateHUDirs(const string &include, U... incl
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(reqHuDirs, this, include);
+            // actuallyAddInclude(reqHuDirs, this, include);
         }
     }
 
@@ -464,8 +499,8 @@ CppSourceTarget &CppSourceTarget::publicHUDirsBigHu(const string &include, const
         {
             uint64_t headerUnitsIndex =
                 actuallyAddBigHuConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true), logicalName);
-            actuallyAddInclude(reqHuDirs, this, include, cacheIndex, headerUnitsIndex);
-            actuallyAddInclude(useReqHuDirs, this, include, cacheIndex, headerUnitsIndex);
+            // actuallyAddInclude(reqHuDirs, this, include, cacheIndex, headerUnitsIndex);
+            // actuallyAddInclude(useReqHuDirs, this, include, cacheIndex, headerUnitsIndex);
         }
     }
 
@@ -489,7 +524,7 @@ CppSourceTarget &CppSourceTarget::privateHUDirsBigHu(const string &include, cons
         {
             uint64_t headerUnitsIndex =
                 actuallyAddBigHuConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true), logicalName);
-            actuallyAddInclude(reqHuDirs, this, include, cacheIndex, headerUnitsIndex);
+            // actuallyAddInclude(reqHuDirs, this, include, cacheIndex, headerUnitsIndex);
         }
     }
 
@@ -510,7 +545,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUDirs(const string &include, U... in
     {
         if (evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(useReqHuDirs, this, include);
+            // actuallyAddInclude(useReqHuDirs, this, include);
         }
     }
 

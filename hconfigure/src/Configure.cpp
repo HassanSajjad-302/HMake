@@ -65,7 +65,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
         configurePathString = current_path().string();
     }
 
-    lowerCasePStringOnWindows(configurePathString.data(), configurePathString.size());
+    lowerCaseOnWindows(configurePathString.data(), configurePathString.size());
     configureNode = Node::getNodeFromNormalizedString(configurePathString, false);
 
     if constexpr (bsMode == BSMode::BUILD)
@@ -73,7 +73,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
         for (int i = 1; i < argc; ++i)
         {
             string targetArgFullPath = (current_path() / argv[i]).lexically_normal().string();
-            lowerCasePStringOnWindows(targetArgFullPath.data(), targetArgFullPath.size());
+            lowerCaseOnWindows(targetArgFullPath.data(), targetArgFullPath.size());
             if (targetArgFullPath.size() <= configureNode->filePath.size())
             {
                 printErrorMessage(FORMAT("Invalid Command-Line Argument {}\n", argv[i]));

@@ -232,7 +232,7 @@ void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
 
 static string lowerCase(string str)
 {
-    lowerCasePStringOnWindows(str.data(), str.size());
+    lowerCaseOnWindows(str.data(), str.size());
     return str;
 }
 
