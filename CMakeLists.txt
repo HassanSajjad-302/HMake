@@ -56,7 +56,6 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/ObjectFile.cpp
         hconfigure/src/SpecialNodes.cpp
         3rdParty/lz4/lib/lz4.c
-        hconfigure/src/ConfigHelpers.cpp
         hconfigure/src/HashValues.cpp
         hconfigure/src/TargetCache.cpp
         hconfigure/src/CacheWriteManager.cpp

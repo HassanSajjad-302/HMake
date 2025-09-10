@@ -36,7 +36,7 @@ void removeTroublingHu(const string_view *headerUnitsJsonDirs, uint64_t headerUn
 
         for (uint64_t i = 0; i < headerUnitsJsonEntrySize; i += 2)
         {
-            Document d;
+            /*Document d;
             string fileName = boostDir + string(headerUnitsJsonEntry[i]) + slashc + str;
             auto a = readValueFromFile(fileName, d);
             Value &m = d.FindMember("BuildAsHeaderUnits")->value.GetArray();
@@ -48,7 +48,7 @@ void removeTroublingHu(const string_view *headerUnitsJsonDirs, uint64_t headerUn
                     m.Erase(&m[j]);
                     prettyWriteValueToFile(fileName, d);
                 }
-            }
+            }*/
         }
     }
 }

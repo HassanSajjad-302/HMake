@@ -3,6 +3,7 @@
 import "BuildSystemFunctions.hpp";
 import "Node.hpp";
 import "PlatformSpecific.hpp";
+import "TargetCache.hpp";
 import "lz4.h";
 import "rapidjson/prettywriter.h";
 import "rapidjson/writer.h";
@@ -12,20 +13,20 @@ import <iostream>;
 import <Windows.h>;
 #endif
 #else
-#include "PlatformSpecific.hpp"
 #include "BuildSystemFunctions.hpp"
-#include "Node.hpp"
+#include "PlatformSpecific.hpp"
+#include "TargetCache.hpp"
 #include "lz4.h"
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/writer.h"
 #include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <utility>
 #ifdef WIN32
 #include <Windows.h>
 #endif
 #endif
-#include "JConsts.hpp"
 
 // Copied from https://stackoverflow.com/a/208431
 class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>::state_type>
@@ -270,17 +271,6 @@ void writeBuildBuffer(vector<char> &buffer)
     }
 }
 
-void prettyWriteValueToFile(const string_view fileName, const Value &value)
-{
-    RHPOStream stream(fileName);
-    rapidjson::PrettyWriter<RHPOStream> writer(stream, nullptr);
-    if (!value.Accept(writer))
-    {
-        // TODO Check what error
-        printErrorMessage(FORMAT("Error Happened in parsing file {}\n", fileName.data()));
-    }
-}
-
 #ifndef _WIN32
 #define fopen_s(pFile, filename, mode) ((*(pFile)) = fopen((filename), (mode))) == NULL
 #endif
@@ -443,28 +433,4 @@ bool childInParentPathNormalized(const string_view parent, const string_view chi
     }
 
     return compareStringsFromEnd(parent, string_view(child.data(), parent.size()));
-}
-
-unique_ptr<vector<char>> readValueFromFile(const string_view fileName, Document &document)
-{
-    // Read whole file into a buffer
-    FILE *fp;
-    fopen_s(&fp, fileName.data(), "r");
-    fseek(fp, 0, SEEK_END);
-    const size_t filesize = (size_t)ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    unique_ptr<vector<char>> buffer = std::make_unique<vector<char>>(filesize + 1);
-    const size_t readLength = fread(buffer->begin().operator->(), 1, filesize, fp);
-    if (fclose(fp) != 0)
-    {
-        printErrorMessage("Error closing the file \n");
-    }
-
-    // TODO
-    //  What should this be for wchar_t
-    (*buffer)[readLength] = '\0';
-
-    // In situ parsing the buffer into d, buffer will also be modified
-    document.ParseInsitu(buffer->begin().operator->());
-    return buffer;
 }

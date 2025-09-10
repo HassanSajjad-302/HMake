@@ -5,12 +5,10 @@
 
 #ifdef USE_HEADER_UNITS
 import "BuildSystemFunctions.hpp";
-import "rapidjson/document.h";
 import <atomic>;
 import <condition_variable>;
 #else
 #include "BuildSystemFunctions.hpp"
-#include "rapidjson/document.h"
 #include <atomic>
 #include <condition_variable>
 #endif
@@ -18,7 +16,6 @@ import <condition_variable>;
 
 using std::atomic;
 
-using rapidjson::Value;
 struct ColoredStringForPrint
 {
     string msg;
@@ -50,7 +47,6 @@ class CacheWriteManager
 
   public:
     vector<char> buildBuffer;
-    RAPIDJSON_DEFAULT_ALLOCATOR writeBuildCacheAllocator;
     std::thread diskWriteManagerThread;
     uint64_t nodesSizeBefore = 0;
     uint64_t nodesSizeStart = 0;

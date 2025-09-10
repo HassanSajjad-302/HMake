@@ -5,6 +5,7 @@
 import "IPCManagerBS.hpp";
 import "RunCommand.hpp";
 import "SpecialNodes.hpp";
+import "TargetCache.hpp";
 import "ObjectFile.hpp";
 import <filesystem>;
 import <list>;
@@ -16,6 +17,7 @@ import <atomic>;
 #include "ObjectFile.hpp"
 #include "RunCommand.hpp"
 #include "SpecialNodes.hpp"
+#include "TargetCache.hpp"
 #include "btree.h"
 #include "nlohmann/json.hpp"
 #include <atomic>

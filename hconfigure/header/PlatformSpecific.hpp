@@ -4,43 +4,27 @@
 
 #ifdef USE_HEADER_UNITS
 import "fmt/format.h";
-import <string>;
+import "phmap.h";
 import <filesystem>;
-import "rapidjson/document.h";
-import "rapidjson/encodings.h";
-import <fstream>;
+import <span>;
+import <string>;
 import <vector>;
 #else
 #include "fmt/format.h"
-#include "rapidjson/document.h"
-#include "rapidjson/encodings.h"
+#include "phmap.h"
 #include <filesystem>
-#include <fstream>
 #include <span>
 #include <string>
 #include <vector>
 #endif
-#include "phmap.h"
 
 using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector,
-    rapidjson::Document, rapidjson::Value, std::string_view, rapidjson::GenericStringRef, std::span;
+    std::span, std::string_view;
 
 // There is nothing platform-specific in this file. It is just another BuildSystemFunctions.hpp file. Some functions go
 // there, some go here.
 
 #define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
-
-// value to string_view
-inline string_view vtosv(const Value &v)
-{
-    return {v.GetString(), v.GetStringLength()};
-}
-
-// string_view to GenericstringRef
-inline GenericStringRef<char> svtogsr(string_view str)
-{
-    return {str.data(), static_cast<rapidjson::SizeType>(str.size())};
-}
 
 vector<char> readBufferFromFile(const string &fileName);
 vector<char> readBufferFromCompressedFile(const string &fileName);
@@ -51,7 +35,6 @@ void readBuildCache();
 void writeConfigBuffer(vector<char> &buffer);
 void writeBuildBuffer(vector<char> &buffer);
 
-void prettyWriteValueToFile(string_view fileName, const Value &value);
 // While decompressing lz4 file, we allocate following + 1 the buffer size.
 // So, we have compressed filee * bufferMultiplier times the space.
 // Also, while storing we check that the original file size / compresseed file size
@@ -60,7 +43,6 @@ void writeBufferToCompressedFile(const string &fileName, const vector<char> &fil
 bool compareStringsFromEnd(string_view lhs, string_view rhs);
 void lowerCaseOnWindows(char *ptr, uint64_t size);
 bool childInParentPathNormalized(string_view parent, string_view child);
-unique_ptr<vector<char>> readValueFromFile(string_view fileName, Document &document);
 
 /*namespace Indices
 {

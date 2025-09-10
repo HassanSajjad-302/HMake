@@ -3,7 +3,6 @@
 import "CppSourceTarget.hpp";
 import "BuildSystemFunctions.hpp";
 import "Builder.hpp";
-import "ConfigHelpers.hpp";
 import "Configuration.hpp";
 import "LOAT.hpp";
 import "rapidhash.h";
@@ -18,7 +17,6 @@ import <utility>;
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "CacheWriteManager.hpp"
-#include "ConfigHelpers.hpp"
 #include "Configuration.hpp"
 #include "LOAT.hpp"
 #include "Utilities.hpp"

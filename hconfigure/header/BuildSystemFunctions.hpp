@@ -14,8 +14,7 @@ import "nlohmann/json.hpp";
 #include <mutex>
 #endif
 
-using std::mutex, std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set, rapidjson::kArrayType,
-    rapidjson::kStringType;
+using std::mutex, std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set;
 
 // Named as slashc to avoid collision with a declaration in nlohmann/json which causes warnings. Will be removed later
 // when nlohmann/json is removed.

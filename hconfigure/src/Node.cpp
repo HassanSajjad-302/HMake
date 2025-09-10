@@ -99,7 +99,7 @@ string Node::getFileStem() const
 
 // TODO
 // See if we can use new functions with absolute paths. So, only lexically_normal is called.
-path Node::getFinalNodePathFromPath(path filePath)
+static string getNormalizedPath(path filePath)
 {
     if (filePath.is_relative())
     {
@@ -119,7 +119,7 @@ path Node::getFinalNodePathFromPath(path filePath)
             *it = std::tolower(*it);
         }
     }
-    return filePath;
+    return filePath.string();
 }
 
 void Node::performSystemCheck()
@@ -134,9 +134,17 @@ void Node::performSystemCheck()
 
 void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
 {
-    if constexpr (bsMode == BSMode::BUILD)
+    if (isOneThreadRunning)
     {
-        bool shouldNotBeCalled = true;
+        performSystemCheck();
+        if (fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
+        {
+            printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath, isFile ? "regular" : "dir",
+                                     getStatusPString(filePath)));
+        }
+        systemCheckCalled = true;
+        systemCheckCompleted = true;
+        return;
     }
 
     if (systemCheckCompleted || atomic_ref(systemCheckCompleted).load())
@@ -196,36 +204,14 @@ Node *Node::getNodeFromNormalizedString(const string_view p, const bool isFile, 
     return node;
 }
 
-Node *Node::getNodeFromNormalizedStringNoSystemCheckCalled(string_view p)
-{
-    Node *node = nullptr;
-
-    using Map = decltype(nodeAllFiles);
-
-    if (nodeAllFiles.lazy_emplace_l(
-            p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(node, string(p)); }))
-    {
-    }
-
-    return node;
-}
-
 Node *Node::getNodeFromNonNormalizedString(const string &p, const bool isFile, const bool mayNotExist)
 {
-    const path filePath = getFinalNodePathFromPath(p);
-    return getNodeFromNormalizedString(filePath.string(), isFile, mayNotExist);
-}
-
-Node *Node::getNodeFromNormalizedPath(const path &p, const bool isFile, const bool mayNotExist)
-{
-    return getNodeFromNormalizedString(p.string(), isFile, mayNotExist);
+    return getNodeFromNormalizedString(getNormalizedPath(p), isFile, mayNotExist);
 }
 
 Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const bool mayNotExist)
 {
-    const path filePath = getFinalNodePathFromPath(p);
-    return getNodeFromNormalizedString(filePath.string(), isFile, mayNotExist);
+    return getNodeFromNormalizedString(getNormalizedPath(p), isFile, mayNotExist);
 }
 
 Node *Node::addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath)
@@ -248,30 +234,9 @@ Node *Node::getHalfNode(const string_view p)
     return node;
 }
 
-Node *Node::getNodeFromValue(const Value &value, bool isFile, bool mayNotExist)
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    Node *node = nodeIndices[value.GetUint64()];
-    node->ensureSystemCheckCalled(isFile, mayNotExist);
-#else
-    Node *node =
-        getNodeFromNormalizedString(string_view(value.GetString(), value.GetStringLength()), isFile, mayNotExist);
-#endif
-    return node;
-}
-
 Node *Node::getHalfNode(const uint32_t index)
 {
     return nodeIndices[index];
-}
-
-rapidjson::Type Node::getType()
-{
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    return rapidjson::kNumberType;
-#else
-    return rapidjson::kStringType;
-#endif
 }
 
 void Node::clearNodes()
