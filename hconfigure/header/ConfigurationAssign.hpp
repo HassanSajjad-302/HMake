@@ -94,6 +94,10 @@ template <typename T, typename... Property> Configuration &Configuration::assign
             buildExamples = BuildExamples::NO;
         }
     }
+    else if constexpr (std::is_same_v<decltype(property), CppBuildMode>)
+    {
+        cppBuildMode = property;
+    }
     // CommonFeatures
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {

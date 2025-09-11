@@ -12,7 +12,7 @@ using std::filesystem::directory_iterator;
 
 // Currently, the tests are not run after compilation, neither does the build-system compares the output.
 // Build-system does not support the fail-tests either.
-enum class BoostExampleOrTestType : char
+enum class BoostExampleOrTestType : uint8_t
 {
     RUN_TEST,
     COMPILE_TEST,
@@ -36,7 +36,7 @@ struct ExampleOrTest
     BoostExampleOrTestType targetType;
 };
 
-enum class IteratorTargetType : char
+enum class IteratorTargetType : uint8_t
 {
     DSC_CPP,
     CPP,

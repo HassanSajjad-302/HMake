@@ -44,7 +44,7 @@ inline Node *configureNode;
 
 inline Node *currentNode;
 
-enum class BSMode : char // Build System Mode
+enum class BSMode : uint8_t // Build System Mode
 {
     CONFIGURE = 0,
     BUILD = 1,

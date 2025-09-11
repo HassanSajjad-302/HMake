@@ -64,7 +64,7 @@ enum class DefineDLLInterface : bool
 // all optional features have extra enum value OFF declared here. A feature default value is given by the first value
 // listed in the feature declaration which is imitated in CompilerFeautres and LinkerFeatures.
 
-enum class Arch : char // Architecture
+enum class Arch : uint8_t // Architecture
 {
     X86,
     IA64,
@@ -88,7 +88,7 @@ enum class Arch : char // Architecture
 void to_json(Json &j, const Arch &arch);
 void from_json(const Json &j, Arch &arch);
 
-enum class AddressModel : char // AddressModel
+enum class AddressModel : uint8_t // AddressModel
 {
     A_16,
     A_32,
@@ -130,7 +130,7 @@ enum class Threading : bool
     MULTI
 };
 
-enum class Warnings : char
+enum class Warnings : uint8_t
 {
     ON,
     ALL,
@@ -181,7 +181,7 @@ enum class Profiling : bool
     ON,
 };
 
-enum class Visibility : char
+enum class Visibility : uint8_t
 {
     OFF,
     GLOBAL,
@@ -189,7 +189,7 @@ enum class Visibility : char
     PROTECTED,
 };
 
-enum class ConfigType : char
+enum class ConfigType : uint8_t
 {
     DEBUG,
     RELEASE,
@@ -197,28 +197,28 @@ enum class ConfigType : char
     NONE,
 };
 
-enum class AddressSanitizer : char
+enum class AddressSanitizer : uint8_t
 {
     OFF,
     NORECOVER,
     ON,
 };
 
-enum class LeakSanitizer : char
+enum class LeakSanitizer : uint8_t
 {
     OFF,
     NORECOVER,
     ON,
 };
 
-enum class ThreadSanitizer : char
+enum class ThreadSanitizer : uint8_t
 {
     OFF,
     NORECOVER,
     ON,
 };
 
-enum class UndefinedSanitizer : char
+enum class UndefinedSanitizer : uint8_t
 {
     OFF,
     NORECOVER,
@@ -231,14 +231,14 @@ enum class LTO : bool
     ON,
 };
 
-enum class LTOMode : char
+enum class LTOMode : uint8_t
 {
     FAT,
     FULL,
     THIN,
 };
 
-enum class StdLib : char
+enum class StdLib : uint8_t
 {
     NATIVE,
     GNU,
@@ -273,7 +273,7 @@ string getActualNameFromTargetName(TargetType targetType, enum OS osLocal, const
 string getTargetNameFromActualName(TargetType targetType, enum OS osLocal, const string &actualName);
 string getSlashedExecutableName(const string &name);
 
-enum class CxxSTD : char
+enum class CxxSTD : uint8_t
 {
     V_98,
     V_03,
@@ -292,14 +292,14 @@ enum class CxxSTD : char
     V_LATEST,
 };
 
-enum class CxxSTDDialect : char
+enum class CxxSTDDialect : uint8_t
 {
     ISO,
     GNU,
     MS,
 };
 
-enum class TargetOS : char
+enum class TargetOS : uint8_t
 {
     AIX,
     ANDROID,
@@ -328,7 +328,7 @@ enum class TargetOS : char
     NONE,
 };
 
-enum class Language : char
+enum class Language : uint8_t
 {
     C,
     CPP,
@@ -336,7 +336,7 @@ enum class Language : char
     OBJECTIVE_CPP,
 };
 
-enum class Optimization : char
+enum class Optimization : uint8_t
 {
     OFF,
     SPEED,
@@ -345,21 +345,21 @@ enum class Optimization : char
     DEBUG,
 };
 
-enum class Inlining : char
+enum class Inlining : uint8_t
 {
     OFF,
     ON,
     FULL,
 };
 
-enum class Vectorize : char
+enum class Vectorize : uint8_t
 {
     OFF,
     ON,
     FULL,
 };
 
-enum class UserInterface : char
+enum class UserInterface : uint8_t
 {
     CONSOLE,
     GUI,
@@ -645,7 +645,7 @@ enum class InstructionSet : unsigned short
 };
 
 // Declared on Line 2143 in msvc.jam
-enum class CpuType : char
+enum class CpuType : uint8_t
 {
     G5,
     G6,

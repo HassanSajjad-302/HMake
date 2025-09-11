@@ -72,7 +72,7 @@ void to_json(Json &j, const SourceNode &sourceNode);
 void to_json(Json &j, const SourceNode *sourceNode);
 bool operator<(const SourceNode &lhs, const SourceNode &rhs);
 
-enum class SM_REQUIRE_TYPE : char
+enum class SM_REQUIRE_TYPE : uint8_t
 {
     NOT_assignED = 0,
     PRIMARY_EXPORT = 1,
@@ -80,7 +80,7 @@ enum class SM_REQUIRE_TYPE : char
     HEADER_UNIT = 3,
 };
 
-enum class SM_FILE_TYPE : char
+enum class SM_FILE_TYPE : uint8_t
 {
     NOT_ASSIGNED = 0,
     PRIMARY_EXPORT = 1,

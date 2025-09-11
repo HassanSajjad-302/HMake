@@ -15,7 +15,7 @@ import <thread>;
 
 using Json = nlohmann::json;
 
-enum class PathPrintLevel : char
+enum class PathPrintLevel : uint8_t
 {
     NO = 0,
     HALF = 1,
@@ -144,4 +144,3 @@ void from_json(const Json &json, Settings &settings_);
 string getReducedPath(string_view subjectPath, const PathPrint &pathPrint);
 inline Settings settings;
 #endif // HMAKE_SETTINGS_HPP
-

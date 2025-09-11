@@ -27,7 +27,7 @@ struct RunCommand
     // while print is 2 parts. 1) tool path and command without output and error files. 2) output and error files.
     explicit RunCommand();
     void startProcess(const string &command);
-    OutputAndStatus endProcess() const;
+    OutputAndStatus endProcess(bool endModuleProcess) const;
 };
 
 #endif // HMAKE_RUNCOMMAND_HPP

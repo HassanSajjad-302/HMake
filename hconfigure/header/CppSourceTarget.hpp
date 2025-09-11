@@ -54,13 +54,6 @@ struct RequireNameTargetIdHash
 };
 inline phmap::parallel_flat_hash_map_m<RequireNameTargetId, SMFile *, RequireNameTargetIdHash> requirePaths2;
 
-enum class CppTargetType : uint8_t
-{
-    NOT_ASSIGNED = 0,
-    SOURCE = 1,
-    MODULE = 2,
-};
-
 struct HeaderFileOrUnit
 {
     SMFile *smFile = nullptr;
@@ -116,8 +109,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     bool addedInCopyJson = false;
 
-    CppTargetType targetType = CppTargetType::NOT_ASSIGNED;
-
     void setCompileCommand();
     void setSourceCompileCommandPrintFirstHalf();
     string &getSourceCompileCommandPrintFirstHalf();
@@ -146,9 +137,8 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void populateTransitiveProperties();
 
     CppSourceTarget &initializeUseReqInclsFromReqIncls();
-    CppSourceTarget &initializePublicHuDirsFromReqIncls();
     void actuallyAddSourceFileConfigTime(Node *node);
-    void actuallyAddModuleFileConfigTime(Node *node, bool isInterface);
+    void actuallyAddModuleFileConfigTime(Node *node);
     void actuallyAddHeaderUnitConfigTime(Node *node);
     uint64_t actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit);
     void actuallyAddInclude(const string &include, bool addInReq, bool isStandard = false,
@@ -544,7 +534,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const str
         {
             return sourceFiles(modFile, moduleFilePString...);
         }
-        actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), false);
+        actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true));
     }
 
     if constexpr (sizeof...(moduleFilePString))
@@ -565,7 +555,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::interfaceFiles(const 
         {
             return sourceFiles(modFile, moduleFilePString...);
         }
-        actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true), true);
+        actuallyAddModuleFileConfigTime(Node::getNodeFromNonNormalizedString(modFile, true));
     }
 
     if constexpr (sizeof...(moduleFilePString))

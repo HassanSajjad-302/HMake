@@ -9,7 +9,7 @@
 
 using Json = nlohmann::json;
 
-enum class TargetType : char
+enum class TargetType : uint8_t
 {
     EXECUTABLE,
     LIBRARY_STATIC,

@@ -95,56 +95,85 @@ void RunCommand::startProcess(const string &command)
     }
 }
 
-RunCommand::OutputAndStatus RunCommand::endProcess() const
+RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
 {
+    // We need endModuleProcess because the Read blocks even though the process has ended.
+    // Needs to be investigated further.
+    // While this could be a bug, using process explorer, I confirmed that there is no extra handle
+    // once the build-system exits. and there is no child process running at that time either.
+
     OutputAndStatus o;
-
-    // Wait for it to exit and grab its exit code.
-    if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
-        Win32Fatal("WaitForSingleObject");
     DWORD exit_code = 0;
-    if (!GetExitCodeProcess(hProcess, &exit_code))
-        Win32Fatal("GetExitCodeProcess");
 
-    // Read all output of the subprocess.
-    DWORD read_len = 1;
-    while (read_len)
+    if (endModuleProcess)
     {
+        // Wait for it to exit and grab its exit code.
+        if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
+            Win32Fatal("WaitForSingleObject");
+        if (!GetExitCodeProcess(hProcess, &exit_code))
+            Win32Fatal("GetExitCodeProcess");
+
+        // Read all output of the subprocess.
+        DWORD read_len = 1;
+        while (read_len)
         {
-
-            // We have to peak because the Read blocks even though the process has ended.
-            // Needs to be investigated further.
-            // While this could be a bug, using proccess explorer I confirmed that there is no extra handle
-            // once the process exits. and there is no child process running at that time either.
-
-            DWORD bytes_available = 0;
-            if (!PeekNamedPipe(stdout_read, nullptr, 0, nullptr, &bytes_available, nullptr))
             {
-                DWORD error = GetLastError();
-                if (error == ERROR_BROKEN_PIPE)
+
+                // workaround as mentioned above.
+                DWORD bytes_available = 0;
+                if (!PeekNamedPipe(stdout_read, nullptr, 0, nullptr, &bytes_available, nullptr))
                 {
-                    break; // Normal termination
+                    DWORD error = GetLastError();
+                    if (error == ERROR_BROKEN_PIPE)
+                    {
+                        break; // Normal termination
+                    }
+                    Win32Fatal("PeekNamedPipe");
                 }
-                Win32Fatal("PeekNamedPipe");
+
+                if (bytes_available == 0)
+                {
+                    break;
+                }
             }
 
-            if (bytes_available == 0)
+            char buf[64 << 10];
+            read_len = 0;
+            if (const bool out = ReadFile(stdout_read, buf, sizeof(buf), &read_len, nullptr); !out)
             {
-                break;
+                if (GetLastError() == ERROR_BROKEN_PIPE)
+                {
+                    break;
+                }
+                Win32Fatal("ReadFile");
             }
+            o.output.append(buf, read_len);
         }
-
-        char buf[64 << 10];
-        read_len = 0;
-        if (const bool out = ReadFile(stdout_read, buf, sizeof(buf), &read_len, nullptr); !out)
+    }
+    else
+    {
+        // Read all output of the subprocess.
+        DWORD read_len = 1;
+        while (read_len)
         {
-            if (GetLastError() == ERROR_BROKEN_PIPE)
+            char buf[64 << 10];
+            read_len = 0;
+            if (const bool out = ReadFile(stdout_read, buf, sizeof(buf), &read_len, nullptr); !out)
             {
-                break;
+                if (GetLastError() == ERROR_BROKEN_PIPE)
+                {
+                    break;
+                }
+                Win32Fatal("ReadFile");
             }
-            Win32Fatal("ReadFile");
+            o.output.append(buf, read_len);
         }
-        o.output.append(buf, read_len);
+
+        // Wait for it to exit and grab its exit code.
+        if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
+            Win32Fatal("WaitForSingleObject");
+        if (!GetExitCodeProcess(hProcess, &exit_code))
+            Win32Fatal("GetExitCodeProcess");
     }
 
     if (!CloseHandle(stdout_read) || !CloseHandle(hProcess) || !CloseHandle(hThread))

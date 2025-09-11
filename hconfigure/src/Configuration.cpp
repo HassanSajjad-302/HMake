@@ -57,9 +57,7 @@ void Configuration::initialize()
                         stdCppTarget->getSourceTarget().actuallyAddInclude(str, true, true, true);
                     }
                 }
-                stdCppTarget->getSourceTarget()
-                    .initializeUseReqInclsFromReqIncls()
-                    .initializePublicHuDirsFromReqIncls();
+                stdCppTarget->getSourceTarget().initializeUseReqInclsFromReqIncls();
             }
             if (cache.isLinkerInToolsArray)
             {

@@ -100,7 +100,7 @@ void SourceNode::completeCompilation()
 
     RunCommand r;
     r.startProcess(compileCommand);
-    auto [output, exitStatus] = r.endProcess();
+    auto [output, exitStatus] = r.endProcess(false);
     realBTargets[0].exitStatus = exitStatus;
     // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed
     // because cached compile-command would be different
@@ -600,7 +600,7 @@ bool SMFile::build(Builder &builder)
                 const auto &lastMessage = reinterpret_cast<N2978::CTBLastMessage &>(buffer);
 
                 ipcManager->closeConnection();
-                auto [output, exitStatus] = run.endProcess();
+                auto [output, exitStatus] = run.endProcess(true);
                 rb.exitStatus = exitStatus;
                 assert(rb.exitStatus == lastMessage.errorOccurred && "error-status mismatch");
 

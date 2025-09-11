@@ -7,7 +7,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration();
+    getConfiguration().assign(CppBuildMode::MODULE);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

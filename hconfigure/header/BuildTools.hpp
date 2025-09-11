@@ -11,7 +11,7 @@ import <filesystem>;
 using std::filesystem::path;
 using Json = nlohmann::json;
 
-enum class Platform : char
+enum class Platform : uint8_t
 {
     LINUX,
     WINDOWS
@@ -28,7 +28,7 @@ struct Version
 void to_json(Json &j, const Version &p);
 void from_json(const Json &j, Version &v);
 
-enum class BTFamily : char
+enum class BTFamily : uint8_t
 {
     GCC,
     MSVC,
@@ -36,7 +36,7 @@ enum class BTFamily : char
 void to_json(Json &json, const BTFamily &bTFamily);
 void from_json(const Json &json, BTFamily &bTFamily);
 
-enum class BTSubFamily : char
+enum class BTSubFamily : uint8_t
 {
     NONE,
     CLANG,
