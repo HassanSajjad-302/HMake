@@ -226,10 +226,9 @@ void SourceNode::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
                 // If compile-command is all lower-cased, then this might not be needed
                 // Some compilers can input same header-file twice, if that is the case, then we should first make
                 // the array unique.
+                lowerCaseOnWindows(const_cast<char *>(headerView.data()), headerView.size());
                 if (!ignoreHeaderFile(headerView))
                 {
-                    lowerCaseOnWindows(const_cast<char *>(headerView.data()), headerView.size());
-
                     if (Node *headerNode = Node::getHalfNode(headerView); !headerFiles.contains(headerNode))
                     {
                         headerFiles.emplace(headerNode);
