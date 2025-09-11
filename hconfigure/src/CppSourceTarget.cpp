@@ -357,19 +357,16 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         cppBuildCache.deserialize(cacheIndex);
         for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
         {
-            srcFileDeps[i]->buildCache = cppBuildCache.srcFiles[i];
             srcFileDeps[i]->initializeBuildCache(i);
         }
         for (uint32_t i = 0; i < modFileDeps.size(); ++i)
         {
-            modFileDeps[i]->buildCache = cppBuildCache.modFiles[i].srcFile;
-            modFileDeps[i]->initializeBuildCache(i);
+            modFileDeps[i]->initializeBuildCache(cppBuildCache.modFiles[i], i);
         }
 
         for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
         {
-            imodFileDeps[i]->buildCache = cppBuildCache.imodFiles[i].srcFile;
-            imodFileDeps[i]->initializeBuildCache(i);
+            imodFileDeps[i]->initializeBuildCache(cppBuildCache.imodFiles[i], i);
         }
 
         setSourceCompileCommandPrintFirstHalf();
@@ -387,7 +384,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                 oldHeaderUnits.emplace_back(this, cppBuildCache.headerUnits[i].srcFile.node,
                                             string(cppBuildCache.headerUnits[i].smRules.exportName));
                 oldHeaderUnits[i].indexInBuildCache = i;
-                oldHeaderUnits[i].buildCache = cppBuildCache.headerUnits[i].srcFile;
                 oldHeaderUnits[i].smRulesCache = cppBuildCache.headerUnits[i].smRules;
                 oldHeaderUnits[i].type = SM_FILE_TYPE::HEADER_UNIT;
                 // headerUnitsSet.emplace(&oldHeaderUnits[i]);

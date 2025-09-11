@@ -1,4 +1,5 @@
 
+#include "TargetCache.hpp"
 #ifdef USE_HEADER_UNITS
 import "SMFile.hpp";
 
@@ -16,13 +17,13 @@ import <fstream>;
 import <mutex>;
 import <utility>;
 #else
-#include "SMFile.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "CacheWriteManager.hpp"
 #include "Configuration.hpp"
 #include "CppSourceTarget.hpp"
 #include "JConsts.hpp"
+#include "SMFile.hpp"
 #include "Settings.hpp"
 #include "StaticVector.hpp"
 #include "Utilities.hpp"
@@ -70,6 +71,7 @@ string SourceNode::getPrintName() const
 void SourceNode::initializeBuildCache(const uint32_t index)
 {
     indexInBuildCache = index;
+    const BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[index];
     if (buildCache.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
@@ -106,7 +108,7 @@ void SourceNode::completeCompilation()
     // because cached compile-command would be different
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
-        buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+        compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
         parseHeaderDeps(output);
     }
 
@@ -131,20 +133,6 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round, boo
 
 bool SourceNode::ignoreHeaderFile(const string_view child) const
 {
-    //  Premature Optimization Hahacd
-    // TODO:
-    //  Add a key in hconfigure that informs hbuild that the library isn't to be
-    //  updated, so includes from the dirs coming from it aren't mentioned
-    //  in targetCache and neither are those libraries checked for an edit for
-    //  faster startup times.
-
-    // If a file is in environment includes, it is not marked as dependency as an
-    // optimization. If a file is in subdir of environment include, it is
-    // still marked as dependency. It is not checked if any of environment
-    // includes is related(equivalent, subdir) with any of normal includes
-    // or vice versa.
-
-    // std::path::equivalent is not used as it is slow
     // It is assumed that both paths are normalized strings
     for (const InclNode &inclNode : target->reqIncls)
     {
@@ -209,7 +197,7 @@ void SourceNode::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
     }
     lineEnd = output.find('\n', startPos);
 
-    buildCache.headerFiles.clear();
+    headerFiles.clear();
     while (true)
     {
 
@@ -242,10 +230,9 @@ void SourceNode::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
                 {
                     lowerCaseOnWindows(const_cast<char *>(headerView.data()), headerView.size());
 
-                    if (Node *headerNode = Node::getHalfNode(headerView);
-                        !std::ranges::contains(buildCache.headerFiles, headerNode))
+                    if (Node *headerNode = Node::getHalfNode(headerView); !headerFiles.contains(headerNode))
                     {
-                        buildCache.headerFiles.emplace_back(headerNode);
+                        headerFiles.emplace(headerNode);
                     }
                 }
             }
@@ -293,7 +280,7 @@ void SourceNode::parseDepsFromGCCDepsOutput()
 
     if (headerDeps.size() > 2)
     {
-        buildCache.headerFiles.clear();
+        headerFiles.clear();
         for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
         {
             const size_t pos = iter->find_first_not_of(" ");
@@ -301,7 +288,7 @@ void SourceNode::parseDepsFromGCCDepsOutput()
             if (const string_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
                 !ignoreHeaderFile(headerView))
             {
-                buildCache.headerFiles.emplace_back(Node::getHalfNode(headerView));
+                headerFiles.emplace(Node::getHalfNode(headerView));
             }
         }
     }
@@ -349,7 +336,8 @@ void SourceNode::setSourceNodeFileStatus()
         return;
     }
 
-    for (const Node *headerNode : buildCache.headerFiles)
+    for (vector<Node *> &headers = target->cppBuildCache.srcFiles[indexInBuildCache].headerFiles;
+         const Node *headerNode : headers)
     {
         if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > objectNode->lastWriteTime)
         {
@@ -361,7 +349,13 @@ void SourceNode::setSourceNodeFileStatus()
 
 void SourceNode::updateBuildCache()
 {
-    target->cppBuildCache.srcFiles[indexInBuildCache] = std::move(buildCache);
+    BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[indexInBuildCache];
+    buildCache.compileCommandWithTool = compileCommandWithTool;
+    buildCache.headerFiles.clear();
+    for (Node *header : headerFiles)
+    {
+        buildCache.headerFiles.emplace_back(header);
+    }
 }
 
 void to_json(Json &j, const SourceNode &sourceNode)
@@ -388,17 +382,27 @@ SMFile::SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_)
 {
 }
 
-void SMFile::initializeBuildCache(const uint32_t index)
+void SMFile::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const uint32_t index)
 {
-    SourceNode::initializeBuildCache(index);
-    if (realBTargets[0].updateStatus == UpdateStatus::NEEDS_UPDATE)
+    indexInBuildCache = index;
+
+    if (modCache.srcFile.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
     {
+        realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
         return;
     }
+
+    const_cast<bool &>(node->toBeChecked) = true;
+    objectNode->toBeChecked = true;
+    for (const vector<Node *> headers = modCache.srcFile.headerFiles; Node * headerFile : headers)
+    {
+        headerFile->toBeChecked = true;
+    }
+
+    smRulesCache = modCache.smRules;
     if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
         interfaceNode->toBeChecked = true;
-        smRulesCache = target->cppBuildCache.headerUnits[index].smRules;
     }
     else
     {
@@ -406,11 +410,6 @@ void SMFile::initializeBuildCache(const uint32_t index)
         if (type == SM_FILE_TYPE::PARTITION_EXPORT || type == SM_FILE_TYPE::PRIMARY_EXPORT)
         {
             interfaceNode->toBeChecked = true;
-            smRulesCache = target->cppBuildCache.imodFiles[index].smRules;
-        }
-        else
-        {
-            smRulesCache = target->cppBuildCache.modFiles[index].smRules;
         }
     }
 }
@@ -595,6 +594,17 @@ bool SMFile::build(Builder &builder)
 
                 sendModule(*found);
             }
+            else if (type == N2978::CTB::NON_MODULE)
+            {
+                N2978::CTBNonModule &nonModule = reinterpret_cast<N2978::CTBNonModule &>(buffer);
+                if (nonModule.isHeaderUnit == true)
+                {
+                    printErrorMessage("isHeaderUnit = true. Unexpected message received.\n");
+                }
+                else
+                {
+                }
+            }
             else if (type == N2978::CTB::LAST_MESSAGE)
             {
                 const auto &lastMessage = reinterpret_cast<N2978::CTBLastMessage &>(buffer);
@@ -608,7 +618,7 @@ bool SMFile::build(Builder &builder)
                 // because cached compile-command would be different
                 if (rb.exitStatus == EXIT_SUCCESS)
                 {
-                    buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+                    compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
                     logicalName = lastMessage.logicalName;
                     saveBuildCache();
                 }
@@ -874,8 +884,11 @@ void SMFile::updateBuildCache()
     }
 
     auto &[srcFile, smRules] = *modFile;
-    srcFile.compileCommandWithTool.hash = buildCache.compileCommandWithTool.hash;
-    srcFile.headerFiles = buildCache.headerFiles;
+    srcFile.compileCommandWithTool.hash = compileCommandWithTool.hash;
+    for (Node *header : headerFiles)
+    {
+        srcFile.headerFiles.emplace_back(header);
+    }
     smRules = std::move(smRulesCache);
 }
 

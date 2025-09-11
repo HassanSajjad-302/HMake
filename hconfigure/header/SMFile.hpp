@@ -44,7 +44,8 @@ struct CompareSourceNode
 class SourceNode : public ObjectFile
 {
   public:
-    BuildCache::Cpp::SourceFile buildCache;
+    CCOrHash compileCommandWithTool;
+    flat_hash_set<Node *> headerFiles;
     CppSourceTarget *target;
     const Node *node;
     uint32_t indexInBuildCache = -1;
@@ -130,7 +131,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     inline static thread_local vector<InclNodePointerTargetMap> huDirPlusTargets;
     SMFile(CppSourceTarget *target_, Node *node_);
     SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
-    void initializeBuildCache(uint32_t index);
+    void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index);
     void setLogicalNameAndAddToRequirePath();
     SMFile *findModule(const string &moduleName) const;
     void sendModule(SMFile &mod);
