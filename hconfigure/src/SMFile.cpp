@@ -490,11 +490,11 @@ void SMFile::sendModule(SMFile &mod)
     btcModule.requested.filePath = mod.interfaceNode->filePath;
 
     // once clang todo is completed, this check will be removed.
+    // we already sent this. but has been re-requested as clang asks for the big-hu once it sees an include even if that
+    // header-unit is already sent as module-dep or hu-dep.
+    // This emplace will be moved in the sendModule as-well.
     if (allSMFileDependencies.emplace(&mod).second)
     {
-        // we already sent this. but has been re-requested as clang asks for the big-hu on small-hu
-        // presence.
-
         N2978::ModuleDep dep;
         for (SMFile *smFile : mod.allSMFileDependencies)
         {
@@ -539,6 +539,33 @@ void SMFile::saveBuildCache()
     }
 }
 
+void SMFile::duplicateHeaderFileOrUnitError(const string &headerName, HeaderFileOrUnit &first, HeaderFileOrUnit &second,
+                                            CppSourceTarget *firstTarget, CppSourceTarget *secondTarget)
+{
+    string str = FORMAT("For CTBNonModule {} received from module-file {} of target {}, "
+                        "there are duplicate entries.\n",
+                        headerName, node->filePath, target->name);
+    if (first.node)
+    {
+        str += FORMAT("Header-File {} of target {}", first.node->filePath, firstTarget->name);
+    }
+    else
+    {
+        str += FORMAT("Header-Unit {} of target {}", first.smFile->node->filePath, firstTarget->name);
+    }
+
+    if (second.node)
+    {
+        str += FORMAT("Header-File {} of target {}", second.node->filePath, secondTarget->name);
+    }
+    else
+    {
+        str += FORMAT("Header-Unit {} of target {}", second.smFile->node->filePath, secondTarget->name);
+    }
+
+    printErrorMessage(str);
+}
+
 bool SMFile::build(Builder &builder)
 {
     if (waitingFor)
@@ -564,10 +591,9 @@ bool SMFile::build(Builder &builder)
             {
                 SMFile *found = findModule(reinterpret_cast<N2978::CTBModule &>(buffer).moduleName);
 
-                // clang todo with big hu means that this check will be removed. However, in test3, we are not using
-                // big-hu.
                 if (allSMFileDependencies.contains(found))
                 {
+                    // the following is to be commented temporarily.
                     printErrorMessage(
                         FORMAT("Warning: already sent the module {}\n with logical-name{}\n requested in {}\n.",
                                found->node->filePath, found->logicalName, node->filePath));
@@ -600,8 +626,78 @@ bool SMFile::build(Builder &builder)
                 {
                     printErrorMessage("isHeaderUnit = true. Unexpected message received.\n");
                 }
+
+                HeaderFileOrUnit *found = nullptr;
+                CppSourceTarget *foundTarget = nullptr;
+                if (const auto &it = target->reqHeaderNameMapping.find(nonModule.logicalName);
+                    it != target->reqHeaderNameMapping.end())
+                {
+                    found = &it->second;
+                    foundTarget = target;
+                }
+
+                for (CppSourceTarget *t : target->reqDeps)
+                {
+                    if (const auto &it = t->useReqHeaderNameMapping.find(nonModule.logicalName);
+                        it != t->useReqHeaderNameMapping.end())
+                    {
+                        if (found)
+                        {
+                            duplicateHeaderFileOrUnitError(nonModule.logicalName, *found, it->second, foundTarget, t);
+                        }
+                        found = &it->second;
+                        foundTarget = t;
+                    }
+                }
+
+                if (nonModule.isHeaderUnit && !found->smFile)
+                {
+                    printErrorMessage(FORMAT("Could not find the header-unit {} requested by file {}\n in target {}.\n",
+                                             nonModule.logicalName, node->filePath, target->name));
+                }
+
+                N2978::BTCNonModule response;
+                if (found->node)
+                {
+                    response.filePath = found->node->filePath;
+                    response.isHeaderUnit = false;
+                    response.user = true;
+
+                    if (const auto &r2 = ipcManager->sendMessage(response); !r2)
+                    {
+                        printErrorMessage(
+                            FORMAT("send-message fail of header-file {}\n for module-file {}\n of target {}\n.",
+                                   found->node->filePath, node->filePath, target->name));
+                    }
+                }
                 else
                 {
+                    if (allSMFileDependencies.contains(found->smFile))
+                    {
+                        printErrorMessage(FORMAT("Error: Compiler made a re-request. Already sent the module {}\n with "
+                                                 "logical-name{}\n requested in {}\n.",
+                                                 found->node->filePath, found->smFile->logicalName, node->filePath));
+                    }
+
+                    RealBTarget &foundRb = found->smFile->realBTargets[0];
+                    if (foundRb.updateStatus != UpdateStatus::UPDATED)
+                    {
+                        waitingFor = found->smFile;
+                        builder.executeMutex.lock();
+                        if (foundRb.updateStatus != UpdateStatus::UPDATED)
+                        {
+                            fflush(stdout);
+                            foundRb.dependents.emplace(&rb, BTargetDepType::FULL);
+                            rb.dependencies.emplace(&foundRb, BTargetDepType::FULL);
+                            ++rb.dependenciesSize;
+                            ++builder.updateBTargetsSizeGoal;
+                            return true;
+                        }
+                        // was updated while we obtained the lock
+                        builder.executeMutex.unlock();
+                    }
+
+                    sendHeaderUnit(*found->smFile);
                 }
             }
             else if (type == N2978::CTB::LAST_MESSAGE)
@@ -930,7 +1026,9 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
         printErrorMessage(FORMAT("Module-file {}\n of target {}\n not found.\n", node->filePath, target->name));
     }
 
-    if (objectNode->fileType == file_type::not_found || node->lastWriteTime > objectNode->lastWriteTime)
+    Node *endNode = type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode : objectNode;
+
+    if (endNode->fileType == file_type::not_found || node->lastWriteTime > endNode->lastWriteTime)
     {
         rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
         return;

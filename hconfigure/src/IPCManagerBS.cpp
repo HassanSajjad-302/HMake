@@ -15,12 +15,11 @@
 #include <sys/un.h>
 #include <unistd.h>
 #endif
-using std::string;
 
 namespace N2978
 {
 
-tl::expected<IPCManagerBS, string> makeIPCManagerBS(string BMIIfHeaderUnitObjOtherwisePath)
+tl::expected<IPCManagerBS, std::string> makeIPCManagerBS(std::string BMIIfHeaderUnitObjOtherwisePath)
 {
 #ifdef _WIN32
     BMIIfHeaderUnitObjOtherwisePath = R"(\\.\pipe\)" + BMIIfHeaderUnitObjOtherwisePath;
@@ -103,7 +102,7 @@ IPCManagerBS::IPCManagerBS(const int fdSocket_)
 #endif
 
 bool checked = false;
-tl::expected<void, string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[320], CTB &messageType) const
+tl::expected<void, std::string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[320], CTB &messageType) const
 {
     if (!connectedToCompiler)
     {
@@ -254,11 +253,12 @@ tl::expected<void, string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[320], 
     return {};
 }
 
-tl::expected<void, string> IPCManagerBS::sendMessage(const BTCModule &moduleFile) const
+tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCModule &moduleFile) const
 {
-    vector<char> buffer;
+    std::vector<char> buffer;
     writeProcessMappingOfBMIFile(buffer, moduleFile.requested);
-    writeVectorOfModuleDep(buffer, moduleFile.deps);
+    buffer.emplace_back(moduleFile.user);
+    writeVectorOfModuleDep(buffer, moduleFile.modDeps);
     if (const auto &r = writeInternal(buffer); !r)
     {
         return tl::unexpected(r.error());
@@ -266,14 +266,16 @@ tl::expected<void, string> IPCManagerBS::sendMessage(const BTCModule &moduleFile
     return {};
 }
 
-tl::expected<void, string> IPCManagerBS::sendMessage(const BTCNonModule &nonModule) const
+tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCNonModule &nonModule) const
 {
-    vector<char> buffer;
+    std::vector<char> buffer;
     buffer.emplace_back(nonModule.isHeaderUnit);
-    writeString(buffer, nonModule.filePath);
     buffer.emplace_back(nonModule.user);
+    writeString(buffer, nonModule.filePath);
     writeUInt32(buffer, nonModule.fileSize);
-    writeVectorOfHuDep(buffer, nonModule.deps);
+    writeVectorOfStrings(buffer, nonModule.logicalNames);
+    writeVectorOfHeaderFiles(buffer, nonModule.headerFiles);
+    writeVectorOfHuDeps(buffer, nonModule.huDeps);
     if (const auto &r = writeInternal(buffer); !r)
     {
         return tl::unexpected(r.error());
@@ -281,9 +283,9 @@ tl::expected<void, string> IPCManagerBS::sendMessage(const BTCNonModule &nonModu
     return {};
 }
 
-tl::expected<void, string> IPCManagerBS::sendMessage(const BTCLastMessage &) const
+tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCLastMessage &) const
 {
-    vector<char> buffer;
+    std::vector<char> buffer;
     buffer.emplace_back(true);
     if (const auto &r = writeInternal(buffer); !r)
     {
@@ -292,7 +294,7 @@ tl::expected<void, string> IPCManagerBS::sendMessage(const BTCLastMessage &) con
     return {};
 }
 
-tl::expected<ProcessMappingOfBMIFile, string> IPCManagerBS::createSharedMemoryBMIFile(const BMIFile &bmiFile)
+tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerBS::createSharedMemoryBMIFile(const BMIFile &bmiFile)
 {
     ProcessMappingOfBMIFile sharedFile{};
 #ifdef _WIN32
@@ -328,7 +330,8 @@ tl::expected<ProcessMappingOfBMIFile, string> IPCManagerBS::createSharedMemoryBM
 #endif
 }
 
-tl::expected<void, string> IPCManagerBS::closeBMIFileMapping(const ProcessMappingOfBMIFile &processMappingOfBMIFile)
+tl::expected<void, std::string> IPCManagerBS::closeBMIFileMapping(
+    const ProcessMappingOfBMIFile &processMappingOfBMIFile)
 {
 #ifdef _WIN32
     CloseHandle(processMappingOfBMIFile.mapping);

@@ -137,6 +137,9 @@ struct SMFile : SourceNode // Scanned Module Rule
     void sendModule(SMFile &mod);
     void sendHeaderUnit(SMFile &hu);
     void saveBuildCache();
+    void duplicateHeaderFileOrUnitError(const string &headerName, struct HeaderFileOrUnit &first,
+                                        HeaderFileOrUnit &second, CppSourceTarget *firstTarget,
+                                        CppSourceTarget *secondTarget);
     bool build(Builder &builder);
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     string getOutputFileName() const;
