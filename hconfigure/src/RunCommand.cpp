@@ -61,8 +61,22 @@ void Win32Fatal(const char *function, const char *hint = nullptr)
     }
 }
 
-void RunCommand::startProcess(const string &command)
+void RunCommand::startProcess(const string &command, bool isModuleProcess)
 {
+    PROCESS_INFORMATION process_info = {};
+    STARTUPINFOA startup_info = {};
+
+    if (isModuleProcess)
+    {
+        if (!CreateProcessA(nullptr, (char *)command.c_str(), nullptr, nullptr,
+                            /* inherit handles */ TRUE, 0, nullptr, nullptr, &startup_info, &process_info))
+        {
+            Win32Fatal("CreateProcess");
+        }
+        hProcess = process_info.hProcess;
+        return;
+    }
+
     SECURITY_ATTRIBUTES security_attributes = {};
     security_attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
     security_attributes.bInheritHandle = TRUE;
@@ -74,8 +88,6 @@ void RunCommand::startProcess(const string &command)
     if (!SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0))
         Win32Fatal("SetHandleInformation");
 
-    PROCESS_INFORMATION process_info = {};
-    STARTUPINFOA startup_info = {};
     startup_info.cb = sizeof(STARTUPINFOA);
     startup_info.hStdError = stdout_write;
     startup_info.hStdOutput = stdout_write;
@@ -113,41 +125,9 @@ RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
         if (!GetExitCodeProcess(hProcess, &exit_code))
             Win32Fatal("GetExitCodeProcess");
 
-        // Read all output of the subprocess.
-        DWORD read_len = 1;
-        while (read_len)
+        if (!CloseHandle(hProcess))
         {
-            {
-
-                // workaround as mentioned above.
-                DWORD bytes_available = 0;
-                if (!PeekNamedPipe(stdout_read, nullptr, 0, nullptr, &bytes_available, nullptr))
-                {
-                    DWORD error = GetLastError();
-                    if (error == ERROR_BROKEN_PIPE)
-                    {
-                        break; // Normal termination
-                    }
-                    Win32Fatal("PeekNamedPipe");
-                }
-
-                if (bytes_available == 0)
-                {
-                    break;
-                }
-            }
-
-            char buf[64 << 10];
-            read_len = 0;
-            if (const bool out = ReadFile(stdout_read, buf, sizeof(buf), &read_len, nullptr); !out)
-            {
-                if (GetLastError() == ERROR_BROKEN_PIPE)
-                {
-                    break;
-                }
-                Win32Fatal("ReadFile");
-            }
-            o.output.append(buf, read_len);
+            Win32Fatal("CloseHandle");
         }
     }
     else
@@ -174,11 +154,11 @@ RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
             Win32Fatal("WaitForSingleObject");
         if (!GetExitCodeProcess(hProcess, &exit_code))
             Win32Fatal("GetExitCodeProcess");
-    }
 
-    if (!CloseHandle(stdout_read) || !CloseHandle(hProcess) || !CloseHandle(hThread))
-    {
-        Win32Fatal("CloseHandle");
+        if (!CloseHandle(stdout_read) || !CloseHandle(hProcess) || !CloseHandle(hThread))
+        {
+            Win32Fatal("CloseHandle");
+        }
     }
 
     o.exitStatus = exit_code;

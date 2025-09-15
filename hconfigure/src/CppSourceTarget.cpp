@@ -305,10 +305,20 @@ void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, b
             if (p.is_regular_file())
             {
                 auto *str = new string(p.path().string());
-                const string *logicalName =
+                string *logicalName =
                     new string{str->data() + node->filePath.size() + 1, str->size() - node->filePath.size() - 1};
                 lowerCaseOnWindows(str->data(), str->size());
                 Node *n = Node::getHalfNode(*str);
+                if constexpr (os == OS::NT)
+                {
+                    for (char &c : *logicalName)
+                    {
+                        if (c == '\\')
+                        {
+                            c = '/';
+                        }
+                    }
+                }
                 if (const auto &[pos, ok] = reqHeaderNameMapping.emplace(*logicalName, HeaderFileOrUnit{.node = n});
                     !ok)
                 {

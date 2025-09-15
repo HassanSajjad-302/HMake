@@ -984,7 +984,12 @@ CompilerFlags CppCompilerFeatures::getCompilerFlags() const
         flags.OPTIONS_COMPILE += GET_FLAG_evaluate(Warnings::OFF, "/wd4996 ");
         flags.OPTIONS_COMPILE += "/Zc:inline ";
         flags.OPTIONS_COMPILE += GET_FLAG_evaluate(OR(Optimization::SPEED, Optimization::SPACE), "/Gw ");
-        flags.CPP_FLAGS_COMPILE_CPP += "/Zc:throwingNew ";
+
+        if (compiler.btSubFamily != BTSubFamily::CLANG)
+        {
+            // Clang does not recoginze this
+            flags.CPP_FLAGS_COMPILE_CPP += "/Zc:throwingNew ";
+        }
 
         // Line 492
         flags.OPTIONS_COMPILE += GET_FLAG_evaluate(AddressSanitizer::ON, "/fsanitize=address /FS ");

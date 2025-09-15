@@ -134,15 +134,22 @@ tl::expected<void, string> writeAll(const int fd, const char *buffer, const uint
 tl::expected<void, std::string> Manager::writeInternal(const std::vector<char> &buffer) const
 {
 #ifdef _WIN32
-    const bool success = WriteFile(hPipe,         // pipe handle
-                                   buffer.data(), // message
-                                   buffer.size(), // message length
-                                   nullptr,       // bytes written
-                                   nullptr);      // not overlapped
+    bool success = WriteFile(hPipe,         // pipe handle
+                             buffer.data(), // message
+                             buffer.size(), // message length
+                             nullptr,       // bytes written
+                             nullptr);      // not overlapped
     if (!success)
     {
         return tl::unexpected(getErrorString());
     }
+
+    success = FlushFileBuffers(hPipe);
+    if (!success)
+    {
+        return tl::unexpected(getErrorString());
+    }
+
 #else
     if (const auto &r = writeAll(fdSocket, buffer.data(), buffer.size()); !r)
     {

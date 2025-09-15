@@ -253,7 +253,7 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
 
             const string linkCommand = toolPath + linkOrArchiveCommandWithTargets;
             RunCommand r;
-            r.startProcess(linkCommand);
+            r.startProcess(linkCommand, false);
             const auto [output, exitStatus] = r.endProcess(false);
             realBTarget.exitStatus = exitStatus;
 

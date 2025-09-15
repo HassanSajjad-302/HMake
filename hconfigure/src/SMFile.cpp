@@ -101,7 +101,7 @@ void SourceNode::completeCompilation()
     }
 
     RunCommand r;
-    r.startProcess(compileCommand);
+    r.startProcess(compileCommand, false);
     auto [output, exitStatus] = r.endProcess(false);
     realBTargets[0].exitStatus = exitStatus;
     // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed
@@ -504,9 +504,9 @@ void SMFile::sendModule(SMFile &mod)
                 dep.file.filePath = smFile->interfaceNode->filePath;
                 if (!dep.isHeaderUnit)
                 {
-                    dep.logicalName = smFile->logicalName;
+                    dep.logicalNames.emplace_back(smFile->logicalName);
                 }
-                btcModule.deps.emplace_back(std::move(dep));
+                btcModule.modDeps.emplace_back(std::move(dep));
             }
         }
     }
@@ -566,6 +566,8 @@ void SMFile::duplicateHeaderFileOrUnitError(const string &headerName, HeaderFile
     printErrorMessage(str);
 }
 
+uint32_t sendCount = 0;
+string rr;
 bool SMFile::build(Builder &builder)
 {
     if (waitingFor)
@@ -587,6 +589,12 @@ bool SMFile::build(Builder &builder)
         N2978::CTB type;
         if (const auto &r = ipcManager->receiveMessage(buffer, type); r)
         {
+            ++sendCount;
+            if (sendCount == 72)
+            {
+                /*const auto &p = run.endProcess(false);
+                bool breakpoint = false;*/
+            }
             if (type == N2978::CTB::MODULE)
             {
                 SMFile *found = findModule(reinterpret_cast<N2978::CTBModule &>(buffer).moduleName);
@@ -622,6 +630,7 @@ bool SMFile::build(Builder &builder)
             else if (type == N2978::CTB::NON_MODULE)
             {
                 N2978::CTBNonModule &nonModule = reinterpret_cast<N2978::CTBNonModule &>(buffer);
+                rr.append(nonModule.logicalName + "\n");
                 if (nonModule.isHeaderUnit == true)
                 {
                     printErrorMessage("isHeaderUnit = true. Unexpected message received.\n");
@@ -659,6 +668,10 @@ bool SMFile::build(Builder &builder)
                 N2978::BTCNonModule response;
                 if (found->node)
                 {
+                    if (sendCount == 72)
+                    {
+                        bool breakpoint = true;
+                    }
                     response.filePath = found->node->filePath;
                     response.isHeaderUnit = false;
                     response.user = true;
@@ -705,7 +718,7 @@ bool SMFile::build(Builder &builder)
                 const auto &lastMessage = reinterpret_cast<N2978::CTBLastMessage &>(buffer);
 
                 ipcManager->closeConnection();
-                auto [output, exitStatus] = run.endProcess(true);
+                auto [_, exitStatus] = run.endProcess(true);
                 rb.exitStatus = exitStatus;
                 assert(rb.exitStatus == lastMessage.errorOccurred && "error-status mismatch");
 
@@ -721,7 +734,7 @@ bool SMFile::build(Builder &builder)
                 const string printCommand =
                     target->getSourceCompileCommandPrintFirstHalf() + target->getCompileCommandPrintSecondPart(*this);
                 CacheWriteManager::addNewEntry(exitStatus, target, this, settings.pcSettings.compileCommandColor,
-                                               printCommand, output);
+                                               printCommand, lastMessage.errorOutput);
                 return false;
             }
             else
@@ -769,7 +782,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
                 const string compileCommand = "\"" +
                                               target->configuration->compilerFeatures.compiler.bTPath.generic_string() +
                                               "\" " + target->compileCommand + getCompileCommand();
-                run.startProcess(compileCommand);
+                run.startProcess(compileCommand, true);
                 isComplete = build(builder);
             }
         }
