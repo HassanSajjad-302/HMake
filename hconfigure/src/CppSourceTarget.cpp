@@ -556,6 +556,7 @@ void writeHeaderFilesOrUnitsAtConfigTime(vector<char> &buffer,
         {
             writeStringView(buffer, s);
             writeNode(buffer, h.data.node);
+            writeBool(buffer, h.isSystem);
         }
     }
 
@@ -566,6 +567,7 @@ void writeHeaderFilesOrUnitsAtConfigTime(vector<char> &buffer,
         {
             writeStringView(buffer, s);
             writeUint32(buffer, h.data.smFile->indexInBuildCache);
+            writeBool(buffer, h.isSystem);
         }
     }
 }
@@ -578,7 +580,7 @@ void readHeaderFilesAtBuildTime(const char *ptr, uint32_t &bytesRead,
     {
         string_view name = readStringView(ptr, bytesRead);
         Node *node = readHalfNode(ptr, bytesRead);
-        bool isStandard = readBool(ptr, bytesRead);
+        const bool isStandard = readBool(ptr, bytesRead);
         headerNameMapping.emplace(name, HeaderFileOrUnit{node, isStandard});
     }
 }
@@ -592,7 +594,7 @@ void readHeaderUnitesAtBuildTime(const char *ptr, uint32_t &bytesRead,
     {
         string_view name = readStringView(ptr, bytesRead);
         const uint32_t index = readUint32(ptr, bytesRead);
-        bool isStandard = readBool(ptr, bytesRead);
+        const bool isStandard = readBool(ptr, bytesRead);
         headerNameMapping.emplace(name, HeaderFileOrUnit{&headerUnits[index], isStandard});
     }
 }

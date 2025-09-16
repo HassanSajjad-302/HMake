@@ -56,8 +56,7 @@ inline phmap::parallel_flat_hash_map_m<RequireNameTargetId, SMFile *, RequireNam
 
 struct HeaderFileOrUnit
 {
-    union
-    {
+    union {
         SMFile *smFile;
         Node *node;
     } data;

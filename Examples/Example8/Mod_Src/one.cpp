@@ -1,4 +1,4 @@
-// #include "iostream"
+#include "iostream"
 import two;
 import three;
 
@@ -11,5 +11,5 @@ void func1()
 int main()
 {
     func1();
-    //  std::cout << "Hello World" << std::endl;
+    std::cout << "Hello World" << std::endl;
 }
