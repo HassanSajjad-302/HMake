@@ -56,8 +56,15 @@ inline phmap::parallel_flat_hash_map_m<RequireNameTargetId, SMFile *, RequireNam
 
 struct HeaderFileOrUnit
 {
-    SMFile *smFile = nullptr;
-    Node *node = nullptr;
+    union
+    {
+        SMFile *smFile;
+        Node *node;
+    } data;
+    bool isUnit;
+    bool isSystem;
+    explicit HeaderFileOrUnit(SMFile *smFile_, bool isSystem_);
+    explicit HeaderFileOrUnit(Node *node_, bool isSystem_);
 };
 
 // TODO

@@ -57,6 +57,16 @@ uint64_t RequireNameTargetIdHash::operator()(const RequireNameTargetId &req) con
     return rapidhash(&hash, sizeof(hash));
 }
 
+HeaderFileOrUnit::HeaderFileOrUnit(SMFile *smFile_, const bool isSystem_)
+    : data{.smFile = smFile_}, isUnit(true), isSystem(isSystem_)
+{
+}
+
+HeaderFileOrUnit::HeaderFileOrUnit(Node *node_, const bool isSystem_)
+    : data{.node = node_}, isUnit(false), isSystem(isSystem_)
+{
+}
+
 CppSourceTarget::CppSourceTarget(const string &name_, Configuration *configuration_)
     : ObjectFileProducerWithDS(name_, false, false), TargetCache(name), configuration(configuration_)
 {
@@ -319,7 +329,7 @@ void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, b
                         }
                     }
                 }
-                if (const auto &[pos, ok] = reqHeaderNameMapping.emplace(*logicalName, HeaderFileOrUnit{.node = n});
+                if (const auto &[pos, ok] = reqHeaderNameMapping.emplace(*logicalName, HeaderFileOrUnit{n, isStandard});
                     !ok)
                 {
                     // printErrorMessage(
@@ -531,7 +541,7 @@ void writeHeaderFilesOrUnitsAtConfigTime(vector<char> &buffer,
     uint32_t headerFileCount = 0;
     for (const auto &[s, h] : headerNameMapping)
     {
-        if (h.node)
+        if (!h.isUnit)
         {
             ++headerFileCount;
         }
@@ -542,20 +552,20 @@ void writeHeaderFilesOrUnitsAtConfigTime(vector<char> &buffer,
     writeUint32(buffer, headerFileCount);
     for (const auto &[s, h] : headerNameMapping)
     {
-        if (h.node)
+        if (!h.isUnit)
         {
             writeStringView(buffer, s);
-            writeNode(buffer, h.node);
+            writeNode(buffer, h.data.node);
         }
     }
 
     writeUint32(buffer, headerUnitCount);
     for (const auto &[s, h] : headerNameMapping)
     {
-        if (!h.node)
+        if (h.isUnit)
         {
             writeStringView(buffer, s);
-            writeUint32(buffer, h.smFile->indexInBuildCache);
+            writeUint32(buffer, h.data.smFile->indexInBuildCache);
         }
     }
 }
@@ -568,7 +578,8 @@ void readHeaderFilesAtBuildTime(const char *ptr, uint32_t &bytesRead,
     {
         string_view name = readStringView(ptr, bytesRead);
         Node *node = readHalfNode(ptr, bytesRead);
-        headerNameMapping.emplace(name, HeaderFileOrUnit{.node = node});
+        bool isStandard = readBool(ptr, bytesRead);
+        headerNameMapping.emplace(name, HeaderFileOrUnit{node, isStandard});
     }
 }
 
@@ -581,7 +592,8 @@ void readHeaderUnitesAtBuildTime(const char *ptr, uint32_t &bytesRead,
     {
         string_view name = readStringView(ptr, bytesRead);
         const uint32_t index = readUint32(ptr, bytesRead);
-        headerNameMapping.emplace(name, HeaderFileOrUnit{.smFile = &headerUnits[index]});
+        bool isStandard = readBool(ptr, bytesRead);
+        headerNameMapping.emplace(name, HeaderFileOrUnit{&headerUnits[index], isStandard});
     }
 }
 

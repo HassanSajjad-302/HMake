@@ -545,22 +545,22 @@ void SMFile::duplicateHeaderFileOrUnitError(const string &headerName, HeaderFile
     string str = FORMAT("For CTBNonModule {} received from module-file {} of target {}, "
                         "there are duplicate entries.\n",
                         headerName, node->filePath, target->name);
-    if (first.node)
+    if (first.isUnit)
     {
-        str += FORMAT("Header-File {} of target {}", first.node->filePath, firstTarget->name);
+        str += FORMAT("Header-Unit {} of target {}", first.data.smFile->node->filePath, firstTarget->name);
     }
     else
     {
-        str += FORMAT("Header-Unit {} of target {}", first.smFile->node->filePath, firstTarget->name);
+        str += FORMAT("Header-File {} of target {}", first.data.node->filePath, firstTarget->name);
     }
 
-    if (second.node)
+    if (second.isUnit)
     {
-        str += FORMAT("Header-File {} of target {}", second.node->filePath, secondTarget->name);
+        str += FORMAT("Header-Unit {} of target {}", second.data.smFile->node->filePath, secondTarget->name);
     }
     else
     {
-        str += FORMAT("Header-Unit {} of target {}", second.smFile->node->filePath, secondTarget->name);
+        str += FORMAT("Header-File {} of target {}", second.data.node->filePath, secondTarget->name);
     }
 
     printErrorMessage(str);
@@ -659,43 +659,27 @@ bool SMFile::build(Builder &builder)
                     }
                 }
 
-                if (nonModule.isHeaderUnit && !found->smFile)
+                if (nonModule.isHeaderUnit && !found->data.smFile)
                 {
                     printErrorMessage(FORMAT("Could not find the header-unit {} requested by file {}\n in target {}.\n",
                                              nonModule.logicalName, node->filePath, target->name));
                 }
 
                 N2978::BTCNonModule response;
-                if (found->node)
+                if (found->isUnit)
                 {
-                    if (sendCount == 72)
-                    {
-                        bool breakpoint = true;
-                    }
-                    response.filePath = found->node->filePath;
-                    response.isHeaderUnit = false;
-                    response.user = true;
-
-                    if (const auto &r2 = ipcManager->sendMessage(response); !r2)
-                    {
-                        printErrorMessage(
-                            FORMAT("send-message fail of header-file {}\n for module-file {}\n of target {}\n.",
-                                   found->node->filePath, node->filePath, target->name));
-                    }
-                }
-                else
-                {
-                    if (allSMFileDependencies.contains(found->smFile))
+                    if (allSMFileDependencies.contains(found->data.smFile))
                     {
                         printErrorMessage(FORMAT("Error: Compiler made a re-request. Already sent the module {}\n with "
                                                  "logical-name{}\n requested in {}\n.",
-                                                 found->node->filePath, found->smFile->logicalName, node->filePath));
+                                                 found->data.node->filePath, found->data.smFile->logicalName,
+                                                 node->filePath));
                     }
 
-                    RealBTarget &foundRb = found->smFile->realBTargets[0];
+                    RealBTarget &foundRb = found->data.smFile->realBTargets[0];
                     if (foundRb.updateStatus != UpdateStatus::UPDATED)
                     {
-                        waitingFor = found->smFile;
+                        waitingFor = found->data.smFile;
                         builder.executeMutex.lock();
                         if (foundRb.updateStatus != UpdateStatus::UPDATED)
                         {
@@ -710,7 +694,24 @@ bool SMFile::build(Builder &builder)
                         builder.executeMutex.unlock();
                     }
 
-                    sendHeaderUnit(*found->smFile);
+                    sendHeaderUnit(*found->data.smFile);
+                }
+                else
+                {
+                    if (sendCount == 72)
+                    {
+                        bool breakpoint = true;
+                    }
+                    response.filePath = found->data.node->filePath;
+                    response.isHeaderUnit = false;
+                    response.user = !found->isSystem;
+
+                    if (const auto &r2 = ipcManager->sendMessage(response); !r2)
+                    {
+                        printErrorMessage(
+                            FORMAT("send-message fail of header-file {}\n for module-file {}\n of target {}\n.",
+                                   found->data.node->filePath, node->filePath, target->name));
+                    }
                 }
             }
             else if (type == N2978::CTB::LAST_MESSAGE)
