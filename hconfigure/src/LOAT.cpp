@@ -301,7 +301,6 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
         if constexpr (bsMode == BSMode::BUILD)
         {
             readCacheAtBuildTime();
-            outputFileNode->toBeChecked = true;
         }
         if (!evaluate(TargetType::LIBRARY_STATIC))
         {

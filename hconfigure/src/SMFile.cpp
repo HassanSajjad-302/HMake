@@ -92,7 +92,6 @@ void SourceNode::completeCompilation()
     const Compiler &compiler = target->configuration->compilerFeatures.compiler;
     string compileCommand = "\"" + compiler.bTPath.generic_string() + "\" " + target->compileCommand;
 
-
     if (compiler.btSubFamily == BTSubFamily::CLANG)
     {
         compileCommand += " -nostdinc ";
@@ -176,34 +175,40 @@ void SourceNode::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
         }
         return;
     }
-    string treatedOutput;
 
     uint64_t startPos = 0;
-    uint64_t lineEnd = output.find('\n');
-    if (lineEnd == string::npos)
+    uint64_t lineEnd;
+    string_view line;
+    string treatedOutput;
+
+    if (!isClang)
     {
-        return;
+        // MSVC also prints the name of the file which is being skipped.
+
+        lineEnd = output.find('\n');
+
+        if (lineEnd == string::npos)
+        {
+            return;
+        }
+
+        line = {output.begin() + startPos, output.begin() + lineEnd + 1};
+
+        if (!settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
+        {
+            treatedOutput.append(line);
+        }
+
+        startPos = lineEnd + 1;
     }
 
-    string_view line(output.begin() + startPos, output.begin() + lineEnd + 1);
-
-    if (!settings.ccpSettings.pruneHeaderDepsFromMSVCOutput)
-    {
-        treatedOutput.append(line);
-    }
-
-    startPos = lineEnd + 1;
     if (output.size() == startPos)
     {
         output = std::move(treatedOutput);
         return;
     }
-    if (lineEnd > output.size() - 5)
-    {
-        bool breakpoint = true;
-    }
-    lineEnd = output.find('\n', startPos);
 
+    lineEnd = output.find('\n', startPos);
     headerFiles.clear();
     while (true)
     {

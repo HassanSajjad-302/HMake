@@ -9,21 +9,30 @@ void configurationSpecification(Configuration &config)
     bool useLib4Cpp = CacheVariable<bool>("use-lib4.cpp", true).value;
     if (useLib4Cpp)
     {
-        lib4.getSourceTarget().sourceFiles("lib4/private/lib4.cpp");
+        lib4.getSourceTarget().sourceFiles("lib4/private/lib4.cpp").privateIncludes("lib4/private");
     }
     else
     {
-        lib4.getSourceTarget().sourceFiles("lib4/private/temp.cpp");
+        lib4.getSourceTarget().sourceFiles("lib4/private/temp.cpp").privateIncludes("lib4/private");
     }
 
     DSC<CppSourceTarget> &lib3 = config.getCppStaticDSC("lib3").publicDeps(lib4);
-    lib3.getSourceTarget().sourceDirsRE("lib3/private", ".*cpp").publicIncludes("lib3/public");
+    lib3.getSourceTarget()
+        .sourceDirsRE("lib3/private", ".*cpp")
+        .publicIncludes("lib3/public")
+        .privateIncludes("lib3/private");
 
     DSC<CppSourceTarget> &lib2 = config.getCppStaticDSC("lib2").privateDeps(lib3);
-    lib2.getSourceTarget().sourceDirsRE("lib2/private", ".*cpp").publicIncludes("lib2/public");
+    lib2.getSourceTarget()
+        .sourceDirsRE("lib2/private", ".*cpp")
+        .publicIncludes("lib2/public")
+        .privateIncludes("lib2/private");
 
     DSC<CppSourceTarget> &lib1 = config.getCppStaticDSC("lib1").publicDeps(lib2);
-    lib1.getSourceTarget().sourceDirsRE("lib1/private", ".*cpp").publicIncludes("lib1/public");
+    lib1.getSourceTarget()
+        .sourceDirsRE("lib1/private", ".*cpp")
+        .publicIncludes("lib1/public")
+        .privateIncludes("lib1/private");
 
     config.getCppExeDSC("app").privateDeps(lib1).getSourceTarget().sourceFiles("main.cpp");
 }
