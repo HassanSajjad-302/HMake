@@ -91,6 +91,13 @@ void SourceNode::completeCompilation()
 {
     const Compiler &compiler = target->configuration->compilerFeatures.compiler;
     string compileCommand = "\"" + compiler.bTPath.generic_string() + "\" " + target->compileCommand;
+
+
+    if (compiler.btSubFamily == BTSubFamily::CLANG)
+    {
+        compileCommand += " -nostdinc ";
+    }
+
     if (compiler.bTFamily == BTFamily::MSVC)
     {
         compileCommand += "-c /nologo /showIncludes \"" + node->filePath + "\" /Fo\"" + objectNode->filePath + "\"";
@@ -1022,6 +1029,8 @@ string SMFile::getCompileCommand() const
         {
             s = "-o \"" + objectNode->filePath + "\" -noScanIPC -c \"" + node->filePath + '\"';
         }
+
+        s += " -nostdinc";
     }
 
     return s;

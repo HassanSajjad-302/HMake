@@ -857,12 +857,31 @@ void CppSourceTarget::setCompileCommand()
         compileCommand += "/translateInclude ";
     }
 
-    auto getIncludeFlag = [&compiler] {
+    auto getIncludeFlag = [&compiler](bool isStandard) {
+        string str;
         if (compiler.bTFamily == BTFamily::MSVC)
         {
-            return "/I ";
+            if (isStandard)
+            {
+                str += "/external:I ";
+            }
+            else
+            {
+                str += "/I ";
+            }
         }
-        return "-I ";
+        else
+        {
+            if (isStandard)
+            {
+                str += "-isystem ";
+            }
+            else
+            {
+                str += "-I ";
+            }
+        }
+        return str;
     };
 
     compileCommand += reqCompilerFlags;
@@ -886,10 +905,15 @@ void CppSourceTarget::setCompileCommand()
     // I think ideally this should not be support this. A same header-file should not present in more than one
     // header-file.
 
+    if (compiler.bTFamily == BTFamily::MSVC)
+    {
+        compileCommand += "/external:W0 ";
+    }
+
     auto it = reqIncls.begin();
     for (unsigned short i = 0; i < reqIncSizeBeforePopulate; ++i)
     {
-        compileCommand.append(getIncludeFlag() + addQuotes(it->node->filePath) + " ");
+        compileCommand.append(getIncludeFlag(it->isStandard) + addQuotes(it->node->filePath) + " ");
         ++it;
     }
 
@@ -897,12 +921,12 @@ void CppSourceTarget::setCompileCommand()
 
     for (; it != reqIncls.end(); ++it)
     {
-        includes.emplace(it->node->filePath);
+        includes.emplace(getIncludeFlag(it->isStandard) + addQuotes(it->node->filePath) + ' ');
     }
 
     for (const string &include : includes)
     {
-        compileCommand.append(getIncludeFlag() + addQuotes(include) + " ");
+        compileCommand.append(include);
     }
 }
 
