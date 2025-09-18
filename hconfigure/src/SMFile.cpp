@@ -425,29 +425,6 @@ void SMFile::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
     }
 }
 
-void SMFile::setLogicalNameAndAddToRequirePath()
-{
-    if (!smRulesCache.exportName.empty())
-    {
-        logicalName = smRulesCache.exportName;
-
-        using Map = decltype(requirePaths2);
-
-        const RequireNameTargetId req(this->target->id, logicalName);
-        if (const SMFile *val = nullptr; requirePaths2.lazy_emplace_l(
-                req, [&](const Map::value_type &val_) { val = const_cast<SMFile *>(val_.second); },
-                [&](const Map::constructor &constructor) { constructor(req, this); }))
-        {
-        }
-        else
-        {
-            printErrorMessage(
-                FORMAT("In target:\n{}\nModule name:\n {}\n Is Being Provided By 2 different files:\n1){}\n2){}\n",
-                       target->getPrintName(), logicalName, node->filePath, val->node->filePath));
-        }
-    }
-}
-
 SMFile *SMFile::findModule(const string &moduleName) const
 {
     SMFile *found = nullptr;
@@ -529,7 +506,7 @@ void SMFile::sendHeaderUnit(SMFile &hu)
 
 void SMFile::saveBuildCache()
 {
-    for (SMFile *smFile : allSMFileDependencies)
+    for (const SMFile *smFile : allSMFileDependencies)
     {
         if (type == SM_FILE_TYPE::HEADER_UNIT)
         {
@@ -780,141 +757,6 @@ string SMFile::getOutputFileName() const
         return str;
     }
     return node->getFileName();
-}
-
-InclNodePointerTargetMap SMFile::findHeaderUnitTarget(Node *headerUnitNode) const
-{
-    // The target from which this header-unit comes from
-    CppSourceTarget *huDirTarget = nullptr;
-    const HeaderUnitNode *nodeDir = nullptr;
-
-    // Iterating over all header-unit-dirs of the target to find out which header-unit dir this header-unit
-    // comes from and which target that header-unit-dir belongs to if any
-    /*
-    for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
-    {
-        if (pathContainsFile(inclNode.node->filePath, headerUnitNode->filePath))
-        {
-            if (huDirTarget && huDirTarget != targetLocal)
-            {
-                printErrorMessage(FORMAT("Module Header Unit\n{}\n belongs to two different Targets\n{}\n{}\n",
-                                         headerUnitNode->filePath, nodeDir->node->filePath, inclNode.node->filePath,
-                                         settings.pcSettings.toolErrorOutput));
-            }
-            huDirTarget = targetLocal;
-            nodeDir = &inclNode;
-        }
-    }
-    */
-
-    if (huDirTarget)
-    {
-        return {nodeDir, huDirTarget};
-    }
-
-    if (const auto it = target->configuration->moduleFilesToTarget.find(headerUnitNode);
-        it != target->configuration->moduleFilesToTarget.end())
-    {
-        // The mapped target must be the same as the SMFile target from which this header-unit is discovered or one
-        // of its reqDeps
-        if (it->second == target || target->reqDeps.find(it->second) != target->reqDeps.end())
-        {
-            return {nullptr, it->second};
-            for (const InclNode &incl : target->reqIncls)
-            {
-                if (pathContainsFile(incl.node->filePath, headerUnitNode->filePath))
-                {
-                    return {nullptr, it->second};
-                }
-            }
-            // printErrorMessage("HMake Internal Error");
-        }
-    }
-
-    string errorMessage = FORMAT("Could not find the target for Header Unit\n{}\ndiscovered in file\n{}\nin "
-                                 "Target\n{}.\nSearched for header-unit target in the following reqHuDirs.\n",
-                                 headerUnitNode->filePath, node->filePath, target->name);
-    /*
-    for (const auto &[inclNode, targetLocal] : target->reqHuDirs)
-    {
-        errorMessage += FORMAT("HuDirTarget {} inclNode {}\n", targetLocal->name, inclNode.node->filePath);
-    }
-    */
-
-    printErrorMessage(errorMessage);
-}
-
-void SMFile::initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder)
-{
-    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu : smRulesCache.headerUnitArray)
-    {
-        CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
-        SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
-
-        addDepHalfNowHalfLater(headerUnit);
-    }
-
-    builder.executeMutex.lock();
-    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &hu : smRulesCache.headerUnitArray)
-    {
-        CppSourceTarget *localTarget = cppSourceTargets[hu.targetIndex];
-        SMFile &headerUnit = localTarget->oldHeaderUnits[hu.myIndex];
-
-        if (!headerUnit.addedForRoundOne)
-        {
-            headerUnit.addedForRoundOne = true;
-            builder.updateBTargets.emplace(&headerUnit.realBTargets[1]);
-            builder.updateBTargetsSizeGoal += 1;
-        }
-    }
-}
-
-void SMFile::initializeHeaderUnits(Builder &builder)
-{
-    for (uint32_t i = 0; i < smRulesCache.headerUnitArray.size(); ++i)
-    {
-        auto &singleHuDep = smRulesCache.headerUnitArray[i];
-        auto [nodeDir, huDirTarget] = huDirPlusTargets[i];
-
-        SMFile *headerUnit = nullptr;
-
-        /*
-        if (const auto it = huDirTarget->headerUnitsSet.find(singleHuDep.node); it == huDirTarget->headerUnitsSet.end())
-        {
-            headerUnit = new SMFile(huDirTarget, singleHuDep.node);
-            // not needed for new header-units since the doubt is only about older header-units that whether they
-            // have been added or not.
-            headerUnit->addedForRoundOne = true;
-            huDirTarget->headerUnitsSet.emplace(headerUnit);
-
-            /*if (nodeDir->ignoreHeaderDeps)
-            {
-                headerUnit->ignoreHeaderDeps = ignoreHeaderDepsForIgnoreHeaderUnits;
-            }#1#
-
-            headerUnit->indexInBuildCache = huDirTarget->newHeaderUnitsSize + huDirTarget->oldHeaderUnits.size();
-            ++huDirTarget->newHeaderUnitsSize;
-
-            headerUnit->type = SM_FILE_TYPE::HEADER_UNIT;
-            headerUnit->logicalName = string(includeNames[i]);
-            headerUnit->buildCache.node = const_cast<Node *>(headerUnit->node);
-        }
-        else
-        {
-            headerUnit = *it;
-
-            if (!headerUnit->addedForRoundOne)
-            {
-                headerUnit->addedForRoundOne = true;
-            }
-        }
-        */
-
-        addDepHalfNowHalfLater(*headerUnit);
-
-        singleHuDep.targetIndex = huDirTarget->cacheIndex;
-        singleHuDep.myIndex = headerUnit->indexInBuildCache;
-    }
 }
 
 void SMFile::setSMFileType()
@@ -1243,9 +1085,9 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
         assert(dependentSMFile.headerUnitsConsumptionData.contains(const_cast<SMFile *>(this)) &&
                "SMFile referencing a headerUnit for which there is no consumption method");
 
-        const string angleStr = dependentSMFile.headerUnitsConsumptionData.find(this)->second ? "angle" : "quote";
+      //  const string angleStr = dependentSMFile.headerUnitsConsumptionData.find(this)->second ? "angle" : "quote";
         str += "/headerUnit:";
-        str += angleStr + " ";
+       // str += angleStr + " ";
         str += logicalName + "=" + addQuotes(objectNode->filePath) + " ";
     }
     else
@@ -1298,9 +1140,9 @@ string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
         {
             if (ccpSettings.infrastructureFlags)
             {
-                const string angleStr =
-                    dependentSMFile.headerUnitsConsumptionData.find(this)->second ? "angle" : "quote";
-                str += "/headerUnit:" + angleStr + " ";
+                // const string angleStr =
+                //     dependentSMFile.headerUnitsConsumptionData.find(this)->second ? "angle" : "quote";
+                // str += "/headerUnit:" + angleStr + " ";
             }
             str += getRequireIFCPathOrLogicalName(logicalName) + " ";
         }

@@ -48,13 +48,6 @@ struct HuTargetPlusDir
     HuTargetPlusDir(HeaderUnitNode inclNode_, CppSourceTarget *cppSourceTarget_);
 };
 
-struct InclNodePointerTargetMap
-{
-    const HeaderUnitNode *inclNode;
-    CppSourceTarget *cppSourceTarget;
-    InclNodePointerTargetMap(const HeaderUnitNode *inclNode_, CppSourceTarget *cppSourceTarget_);
-};
-
 /*
 void actuallyAddInclude(vector<HuTargetPlusDir> &inclNodes, CppSourceTarget *target, const string &include,
                         bool isStandard = false, bool ignoreHeaderDeps = false);

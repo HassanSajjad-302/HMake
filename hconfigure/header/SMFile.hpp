@@ -96,14 +96,6 @@ struct SMFile : SourceNode // Scanned Module Rule
     BuildCache::Cpp::ModuleFile::SmRules smRulesCache;
     string logicalName;
 
-    // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
-    // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
-    // depends on is consuming it another way.
-    flat_hash_map<const SMFile *, bool> headerUnitsConsumptionData;
-
-    // TODO
-    // Maybe use vector and do in-place sorting especially if big hu are used since the number of elements become really
-    // small.
     flat_hash_set<SMFile *> allSMFileDependencies;
     Node *interfaceNode;
     SMFile *waitingFor = nullptr;
@@ -113,12 +105,6 @@ struct SMFile : SourceNode // Scanned Module Rule
 
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 
-    // In case of header-unit, it is a bmi-file.
-    bool isObjectFileOutdated = false;
-
-    // In case of header-unit, it is a bmi-file.
-    // atomic
-    bool isObjectFileOutdatedCallCompleted = false;
     // This is used to prevent header-unit addition in BTargets list more than once since the same header-unit could be
     // potentially discovered more than once.
     bool addedForRoundOne = false;
@@ -128,11 +114,9 @@ struct SMFile : SourceNode // Scanned Module Rule
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
 
     inline static thread_local vector<string_view> includeNames;
-    inline static thread_local vector<InclNodePointerTargetMap> huDirPlusTargets;
     SMFile(CppSourceTarget *target_, Node *node_);
     SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
     void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index);
-    void setLogicalNameAndAddToRequirePath();
     SMFile *findModule(const string &moduleName) const;
     void sendModule(SMFile &mod);
     void sendHeaderUnit(SMFile &hu);
@@ -144,11 +128,6 @@ struct SMFile : SourceNode // Scanned Module Rule
     bool build(Builder &builder);
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     string getOutputFileName() const;
-    bool calledOnce = false;
-    void saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang);
-    InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
-    void initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder);
-    void initializeHeaderUnits(Builder &builder);
     void setSMFileType();
     // In case of header-units, this check the ifc file.
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
