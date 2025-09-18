@@ -578,8 +578,33 @@ void SMFile::duplicateHeaderFileOrUnitError(const string &headerName, HeaderFile
     printErrorMessage(str);
 }
 
-uint32_t sendCount = 0;
-string rr;
+HeaderFileOrUnit *SMFile::findHeaderFileOrUnit(const string &headerName)
+{
+
+    HeaderFileOrUnit *found = nullptr;
+    CppSourceTarget *foundTarget = nullptr;
+    if (const auto &it = target->reqHeaderNameMapping.find(logicalName);
+        it != target->reqHeaderNameMapping.end())
+    {
+        found = &it->second;
+        foundTarget = target;
+    }
+
+    for (CppSourceTarget *t : target->reqDeps)
+    {
+        if (const auto &it = t->useReqHeaderNameMapping.find(logicalName);
+            it != t->useReqHeaderNameMapping.end())
+        {
+            if (found)
+            {
+                duplicateHeaderFileOrUnitError(logicalName, *found, it->second, foundTarget, t);
+            }
+            found = &it->second;
+            foundTarget = t;
+        }
+    }
+}
+
 bool SMFile::build(Builder &builder)
 {
     if (waitingFor)
@@ -601,17 +626,11 @@ bool SMFile::build(Builder &builder)
         N2978::CTB type;
         if (const auto &r = ipcManager->receiveMessage(buffer, type); r)
         {
-            ++sendCount;
-            if (sendCount == 72)
-            {
-                /*const auto &p = run.endProcess(false);
-                bool breakpoint = false;*/
-            }
             if (type == N2978::CTB::MODULE)
             {
                 SMFile *found = findModule(reinterpret_cast<N2978::CTBModule &>(buffer).moduleName);
 
-                if (allSMFileDependencies.contains(found))
+                if (!allSMFileDependencies.emplace(found).second)
                 {
                     // the following is to be commented temporarily.
                     printErrorMessage(
@@ -624,6 +643,7 @@ bool SMFile::build(Builder &builder)
                 {
                     waitingFor = found;
                     builder.executeMutex.lock();
+                    // can be updated during the mutex locking
                     if (foundRb.updateStatus != UpdateStatus::UPDATED)
                     {
                         fflush(stdout);
@@ -633,7 +653,6 @@ bool SMFile::build(Builder &builder)
                         ++builder.updateBTargetsSizeGoal;
                         return true;
                     }
-                    // was updated while we obtained the lock
                     builder.executeMutex.unlock();
                 }
 
@@ -641,43 +660,16 @@ bool SMFile::build(Builder &builder)
             }
             else if (type == N2978::CTB::NON_MODULE)
             {
-                N2978::CTBNonModule &nonModule = reinterpret_cast<N2978::CTBNonModule &>(buffer);
-                rr.append(nonModule.logicalName + "\n");
-                if (nonModule.isHeaderUnit == true)
-                {
-                    printErrorMessage("isHeaderUnit = true. Unexpected message received.\n");
-                }
-
-                HeaderFileOrUnit *found = nullptr;
-                CppSourceTarget *foundTarget = nullptr;
-                if (const auto &it = target->reqHeaderNameMapping.find(nonModule.logicalName);
-                    it != target->reqHeaderNameMapping.end())
-                {
-                    found = &it->second;
-                    foundTarget = target;
-                }
-
-                for (CppSourceTarget *t : target->reqDeps)
-                {
-                    if (const auto &it = t->useReqHeaderNameMapping.find(nonModule.logicalName);
-                        it != t->useReqHeaderNameMapping.end())
-                    {
-                        if (found)
-                        {
-                            duplicateHeaderFileOrUnitError(nonModule.logicalName, *found, it->second, foundTarget, t);
-                        }
-                        found = &it->second;
-                        foundTarget = t;
-                    }
-                }
-
-                if (nonModule.isHeaderUnit && !found->data.smFile)
-                {
-                    printErrorMessage(FORMAT("Could not find the header-unit {} requested by file {}\n in target {}.\n",
-                                             nonModule.logicalName, node->filePath, target->name));
-                }
+                auto &[isHeaderUnit, logicalName] = reinterpret_cast<N2978::CTBNonModule &>(buffer);
 
                 N2978::BTCNonModule response;
+                const HeaderFileOrUnit *found = findHeaderFileOrUnit(logicalName);
+                if (isHeaderUnit && !found->isUnit)
+                {
+                    printErrorMessage(FORMAT("Could not find the header-unit {} requested by file {}\n in target {}.\n",
+                                             logicalName, node->filePath, target->name));
+                }
+
                 if (found->isUnit)
                 {
                     if (allSMFileDependencies.contains(found->data.smFile))
@@ -710,10 +702,6 @@ bool SMFile::build(Builder &builder)
                 }
                 else
                 {
-                    if (sendCount == 72)
-                    {
-                        bool breakpoint = true;
-                    }
                     response.filePath = found->data.node->filePath;
                     response.isHeaderUnit = false;
                     response.user = !found->isSystem;

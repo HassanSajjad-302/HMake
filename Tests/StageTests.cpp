@@ -426,7 +426,6 @@ TEST(StageTests, Test2)
     executeSnapshotBalances(Updates{});
 }
 
-
 static void setupTest7Default()
 {
     const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test7");
@@ -459,7 +458,7 @@ TEST(StageTests, Test7)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test7");
     current_path(testSourcePath);
-    setupTest2Default();
+    setupTest7Default();
 
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
     current_path("Debug/app/");

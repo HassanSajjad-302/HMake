@@ -260,6 +260,7 @@ add_dual_executables(Example1 Examples/Example1/hmake.cpp
         Test1 Tests/Stage/Test1/hmake.cpp
         Test2 Tests/Stage/Test2/hmake.cpp
         Test3 Tests/Stage/Test3/hmake.cpp
+        Test7 Tests/Stage/Test7/hmake.cpp
         Boost Projects/Boost/hmake.cpp)
 
 # TODO
