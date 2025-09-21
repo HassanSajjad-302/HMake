@@ -93,7 +93,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     vector<SourceNode *> srcFileDeps;
     vector<SMFile *> modFileDeps;
     vector<SMFile *> imodFileDeps;
-    vector<SMFile> oldHeaderUnits;
+    vector<SMFile *> huDeps;
     BuildCache::Cpp::ModuleFile headerUnitsCache;
 
     vector<InclNode> reqIncls;
@@ -110,8 +110,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     unsigned short cacheUpdateCount = 0;
 
     atomic<uint64_t> newHeaderUnitsSize = 0;
-
-    bool hasManuallySpecifiedHeaderUnits = false;
 
     bool addedInCopyJson = false;
 
@@ -147,6 +145,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void actuallyAddModuleFileConfigTime(Node *node);
     void actuallyAddHeaderUnitConfigTime(Node *node);
     uint64_t actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit);
+    void actuallyAddMSVCInclude(const string &include, bool addInReq, bool isStandard, bool ignoreHeaderDeps);
     void actuallyAddInclude(const string &include, bool addInReq, bool isStandard = false,
                             bool ignoreHeaderDeps = false);
 

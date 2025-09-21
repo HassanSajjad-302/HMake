@@ -88,7 +88,6 @@ class Node;
 class Configuration : public BTarget
 {
   public:
-    flat_hash_map<Node *, CppSourceTarget *> moduleFilesToTarget;
     vector<class BoostCppTarget *> boostCppTargets;
     vector<CppSourceTarget *> cppSourceTargets;
     vector<LOAT *> loats;

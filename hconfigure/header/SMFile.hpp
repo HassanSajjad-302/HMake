@@ -97,6 +97,7 @@ struct SMFile : SourceNode // Scanned Module Rule
     string logicalName;
 
     flat_hash_set<SMFile *> allSMFileDependencies;
+    vector<string> logicalNames;
     Node *interfaceNode;
     SMFile *waitingFor = nullptr;
 
@@ -108,6 +109,10 @@ struct SMFile : SourceNode // Scanned Module Rule
     // This is used to prevent header-unit addition in BTargets list more than once since the same header-unit could be
     // potentially discovered more than once.
     bool addedForRoundOne = false;
+
+    bool isReqDep = false;
+    bool isUseReqDep = false;
+    bool isSystem = false;
 
     // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
     // ignoreHeaderDeps is true

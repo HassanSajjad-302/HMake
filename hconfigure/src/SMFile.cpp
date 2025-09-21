@@ -824,8 +824,9 @@ string SMFile::getCompileCommand() const
     {
         if (type == SM_FILE_TYPE::HEADER_UNIT)
         {
-            s = "-fmodule-header=user -o \"" + objectNode->filePath + "\" -noScanIPC -xc++-header \"" + node->filePath +
-                '\"';
+            s = isSystem ? "-fmodule-header=system -o \""
+                         : "-fmodule-header=user -o \"" + objectNode->filePath + "\" -noScanIPC -xc++-header \"" +
+                               node->filePath + '\"';
         }
         else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
@@ -904,7 +905,7 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
 
     for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache.headerUnitArray)
     {
-        allSMFileDependencies.emplace(&cppSourceTargets[h.targetIndex]->oldHeaderUnits[h.myIndex]);
+        allSMFileDependencies.emplace(cppSourceTargets[h.targetIndex]->huDeps[h.myIndex]);
     }
 }
 
@@ -1082,12 +1083,12 @@ string SMFile::getRequireFlag(const SMFile &dependentSMFile) const
     }
     else if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
-        assert(dependentSMFile.headerUnitsConsumptionData.contains(const_cast<SMFile *>(this)) &&
-               "SMFile referencing a headerUnit for which there is no consumption method");
+        // assert(dependentSMFile.headerUnitsConsumptionData.contains(const_cast<SMFile *>(this)) &&
+        //        "SMFile referencing a headerUnit for which there is no consumption method");
 
-      //  const string angleStr = dependentSMFile.headerUnitsConsumptionData.find(this)->second ? "angle" : "quote";
+        //  const string angleStr = dependentSMFile.headerUnitsConsumptionData.find(this)->second ? "angle" : "quote";
         str += "/headerUnit:";
-       // str += angleStr + " ";
+        // str += angleStr + " ";
         str += logicalName + "=" + addQuotes(objectNode->filePath) + " ";
     }
     else
@@ -1130,8 +1131,8 @@ string SMFile::getRequireFlagPrint(const SMFile &dependentSMFile) const
     }
     else if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
-        assert(dependentSMFile.headerUnitsConsumptionData.contains(const_cast<SMFile *>(this)) &&
-               "SMFile referencing a headerUnit for which there is no consumption method");
+        // assert(dependentSMFile.headerUnitsConsumptionData.contains(const_cast<SMFile *>(this)) &&
+        //        "SMFile referencing a headerUnit for which there is no consumption method");
         if (ccpSettings.requireIFCs.printLevel == PathPrintLevel::NO)
         {
             str = "";

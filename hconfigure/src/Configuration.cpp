@@ -45,9 +45,11 @@ void Configuration::initialize()
                 // Use getNodeFromNormalizedPath instead
                 if constexpr (os == OS::NT)
                 {
-                    for (const string &str : toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs)
+                    const vector<string> &includes = toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs;
+                    stdCppTarget->getSourceTarget().actuallyAddMSVCInclude(includes[0], true, true, true);
+                    for (uint32_t i = 1; i < includes.size(); ++i)
                     {
-                        stdCppTarget->getSourceTarget().actuallyAddInclude(str, true, true, true);
+                        stdCppTarget->getSourceTarget().actuallyAddInclude(includes[i], true, true, true);
                     }
                 }
                 else

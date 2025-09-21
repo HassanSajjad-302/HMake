@@ -1,4 +1,5 @@
 
+#include "rapidjson/document.h"
 #ifdef USE_HEADER_UNITS
 import "CppSourceTarget.hpp";
 import "BuildSystemFunctions.hpp";
@@ -13,11 +14,11 @@ import <fstream>;
 import <regex>;
 import <utility>;
 #else
-#include "CppSourceTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "CacheWriteManager.hpp"
 #include "Configuration.hpp"
+#include "CppSourceTarget.hpp"
 #include "LOAT.hpp"
 #include "Utilities.hpp"
 #include "rapidhash/rapidhash.h"
@@ -107,6 +108,7 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
     if constexpr (bsMode == BSMode::BUILD)
     {
         cppSourceTargets[cacheIndex] = this;
+        cppBuildCache.deserialize(cacheIndex);
         readConfigCacheAtBuildTime();
     }
 }
@@ -241,16 +243,16 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node)
 
 void CppSourceTarget::actuallyAddHeaderUnitConfigTime(Node *node)
 {
-    if (configuration->cppBuildMode == CppBuildMode::MODULE)
+    if (configuration->cppBuildMode == CppBuildMode::SOURCE)
     {
-        printErrorMessage(
-            FORMAT("CppSourceTarget {}\n already has source-files but now header-unit {} is being added.\n", name,
-                   node->filePath));
+        printErrorMessage(FORMAT("In CppSourceTarget {}\n header-unit {} is being added while CppBuildMode::SOURCE is "
+                                 "set for configuration.\n",
+                                 name, node->filePath));
     }
 
-    for (const SMFile &smFile : oldHeaderUnits)
+    for (const SMFile *smFile : huDeps)
     {
-        if (smFile.node == node)
+        if (smFile->node == node)
         {
             printErrorMessage(
                 FORMAT("Attempting to add {} twice in header-units in cpptarget {}. second insertiion ignored.\n",
@@ -258,7 +260,7 @@ void CppSourceTarget::actuallyAddHeaderUnitConfigTime(Node *node)
             return;
         }
     }
-    oldHeaderUnits.emplace_back(this, node);
+    huDeps.emplace_back(new SMFile(this, node));
 }
 
 uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit)
@@ -280,6 +282,104 @@ uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const str
         return size;
     }
     return index;*/
+}
+
+void CppSourceTarget::actuallyAddMSVCInclude(const string &include, bool addInReq, bool isStandard,
+                                             bool ignoreHeaderDeps)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        Node *includeDir = Node::getNodeFromNonNormalizedPath(include, false);
+        {
+            // Checking for uniqueness and adding in reqIncls or useReqIncls.
+            bool found = false;
+            vector<InclNode> &inclNodes = addInReq ? reqIncls : useReqIncls;
+            for (const InclNode &inclNode : inclNodes)
+            {
+                if (inclNode.node->myId == includeDir->myId)
+                {
+                    found = true;
+                    printErrorMessage(FORMAT("Include {} is already added.\n", includeDir->filePath));
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                inclNodes.emplace_back(includeDir, isStandard, ignoreHeaderDeps);
+            }
+        }
+
+        if (configuration->cppBuildMode == CppBuildMode::SOURCE)
+        {
+            return;
+        }
+
+        // From the header-units.json in the include-dir, the mentioned header-files are manually added as parsing of
+        // header-units.json file fails because of the comments in it.
+        flat_hash_set<Node *> mentioned; // those that are mentioned in header-units.json file.
+        {
+            string headerNames =
+                R"(\__msvc_bit_utils.hpp,\__msvc_chrono.hpp,\__msvc_cxx_stdatomic.hpp,\__msvc_filebuf.hpp,\__msvc_format_ucd_tables.hpp,\__msvc_formatter.hpp,\__msvc_heap_algorithms.hpp,\__msvc_int128.hpp,\__msvc_iter_core.hpp,\__msvc_minmax.hpp,\__msvc_ostream.hpp,\__msvc_print.hpp,\__msvc_ranges_to.hpp,\__msvc_ranges_tuple_formatter.hpp,\__msvc_sanitizer_annotate_container.hpp,\__msvc_string_view.hpp,\__msvc_system_error_abi.hpp,\__msvc_threads_core.hpp,\__msvc_tzdb.hpp,\__msvc_xlocinfo_types.hpp,\algorithm,\any,\array,\atomic,\barrier,\bit,\bitset,\cctype,\cerrno,\cfenv,\cfloat,\charconv,\chrono,\cinttypes,\climits,\clocale,\cmath,\codecvt,\compare,\complex,\concepts,\condition_variable,\coroutine,\csetjmp,\csignal,\cstdarg,\cstddef,\cstdint,\cstdio,\cstdlib,\cstring,\ctime,\cuchar,\cwchar,\cwctype,\deque,\exception,\execution,\expected,\filesystem,\format,\forward_list,\fstream,\functional,\future,\generator,\initializer_list,\iomanip,\ios,\iosfwd,\iostream,\iso646.h,\istream,\iterator,\latch,\limits,\list,\locale,\map,\mdspan,\memory,\memory_resource,\mutex,\new,\numbers,\numeric,\optional,\ostream,\print,\queue,\random,\ranges,\ratio,\regex,\scoped_allocator,\semaphore,\set,\shared_mutex,\source_location,\span,\spanstream,\sstream,\stack,\stacktrace,\stdexcept,\stdfloat,\stop_token,\streambuf,\string,\string_view,\strstream,\syncstream,\system_error,\thread,\tuple,\type_traits,\typeindex,\typeinfo,\unordered_map,\unordered_set,\utility,\valarray,\variant,\vector,\xatomic.h,\xatomic_wait.h,\xbit_ops.h,\xcall_once.h,\xcharconv.h,\xcharconv_ryu.h,\xcharconv_ryu_tables.h,\xcharconv_tables.h,\xerrc.h,\xfacet,\xfilesystem_abi.h,\xhash,\xiosbase,\xlocale,\xlocbuf,\xlocinfo,\xlocmes,\xlocmon,\xlocnum,\xloctime,\xmemory,\xnode_handle.h,\xpolymorphic_allocator.h,\xsmf_control.h,\xstring,\xthreads.h,\xtimec.h,\xtr1common,\xtree,\xutility,\ymath.h)";
+            uint32_t oldIndex = 0;
+            uint32_t index = headerNames.find(',');
+            while (index != -1)
+            {
+                mentioned.emplace(Node::getNodeFromNonNormalizedString(
+                    include + string(headerNames.begin() + oldIndex, headerNames.begin() + index), true, false));
+                oldIndex = index + 1;
+                index = headerNames.find(',', oldIndex);
+            }
+        }
+
+        for (const auto &p : recursive_directory_iterator(includeDir->filePath))
+        {
+            if (p.is_regular_file())
+            {
+                Node *headerNode;
+                string *logicalName;
+                {
+                    auto *str = new string(p.path().string());
+                    logicalName = new string{str->data() + includeDir->filePath.size() + 1,
+                                             str->size() - includeDir->filePath.size() - 1};
+                    lowerCaseOnWindows(str->data(), str->size());
+                    headerNode = Node::getHalfNode(*str);
+
+                    if constexpr (os == OS::NT)
+                    {
+                        for (char &c : *logicalName)
+                        {
+                            if (c == '\\')
+                            {
+                                c = '/';
+                            }
+                        }
+                    }
+                }
+
+                if (mentioned.contains(headerNode))
+                {
+                    actuallyAddHeaderUnitConfigTime(headerNode);
+                    SMFile *hu = huDeps.back();
+                    hu->logicalNames.emplace_back(*logicalName);
+                    addInReq ? hu->isReqDep : hu->isUseReqDep = true;
+                }
+                else
+                {
+                    if (const auto &[pos, ok] =
+                            reqHeaderNameMapping.emplace(*logicalName, HeaderFileOrUnit{headerNode, isStandard});
+                        !ok)
+                    {
+                        bool brekapoint = true;
+                        // printErrorMessage(
+                        //     FORMAT("There is already a Header-File or Header-Unit entry\n{}\n for name {}\n. Error "
+                        //            "happened while adding include {} for target {}.\n",
+                        //            pos->second.data.node->filePath, *logicalName, n->filePath, name));
+                    }
+                }
+            }
+        }
+    }
 }
 
 void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, bool isStandard, bool ignoreHeaderDeps)
@@ -332,10 +432,11 @@ void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, b
                 if (const auto &[pos, ok] = reqHeaderNameMapping.emplace(*logicalName, HeaderFileOrUnit{n, isStandard});
                     !ok)
                 {
+                    bool brekapoint = true;
                     // printErrorMessage(
                     //     FORMAT("There is already a Header-File or Header-Unit entry\n{}\n for name {}\n. Error "
                     //            "happened while adding include {} for target {}.\n",
-                    //            pos->second.node->filePath, *logicalName, n->filePath, name));
+                    //            pos->second.data.node->filePath, *logicalName, n->filePath, name));
                 }
             }
         }
@@ -374,7 +475,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         compileCommandWithTool.setCommand(configuration->compilerFeatures.compiler.bTPath.string() + " " +
                                           compileCommand);
 
-        cppBuildCache.deserialize(cacheIndex);
         for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
         {
             srcFileDeps[i]->initializeBuildCache(i);
@@ -395,28 +495,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             if (!cppSourceTarget->modFileDeps.empty())
             {
             }
-        }
-        if (!cppBuildCache.headerUnits.empty())
-        {
-            oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
-            for (uint64_t i = 0; i < cppBuildCache.headerUnits.size(); ++i)
-            {
-                oldHeaderUnits.emplace_back(this, cppBuildCache.headerUnits[i].srcFile.node,
-                                            string(cppBuildCache.headerUnits[i].smRules.exportName));
-                oldHeaderUnits[i].indexInBuildCache = i;
-                oldHeaderUnits[i].smRulesCache = cppBuildCache.headerUnits[i].smRules;
-                oldHeaderUnits[i].type = SM_FILE_TYPE::HEADER_UNIT;
-                // headerUnitsSet.emplace(&oldHeaderUnits[i]);
-            }
-
-            builder.executeMutex.lock();
-            // for (SMFile *headerUnit : headerUnitsSet)
-            // {
-            //     builder.updateBTargets.emplace(&headerUnit->realBTargets[1]);
-            // }
-            builder.updateBTargetsSizeGoal += oldHeaderUnits.size();
-            builder.addNewTopBeUpdatedTargets(&this->realBTargets[round]);
-            isComplete = true;
         }
     }
 }
@@ -538,37 +616,13 @@ void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &in
 void writeHeaderFilesOrUnitsAtConfigTime(vector<char> &buffer,
                                          flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping)
 {
-    uint32_t headerFileCount = 0;
+    writeUint32(buffer, headerNameMapping.size());
     for (const auto &[s, h] : headerNameMapping)
     {
-        if (!h.isUnit)
-        {
-            ++headerFileCount;
-        }
-    }
-
-    const uint32_t headerUnitCount = headerNameMapping.size() - headerFileCount;
-
-    writeUint32(buffer, headerFileCount);
-    for (const auto &[s, h] : headerNameMapping)
-    {
-        if (!h.isUnit)
-        {
-            writeStringView(buffer, s);
-            writeNode(buffer, h.data.node);
-            writeBool(buffer, h.isSystem);
-        }
-    }
-
-    writeUint32(buffer, headerUnitCount);
-    for (const auto &[s, h] : headerNameMapping)
-    {
-        if (h.isUnit)
-        {
-            writeStringView(buffer, s);
-            writeUint32(buffer, h.data.smFile->indexInBuildCache);
-            writeBool(buffer, h.isSystem);
-        }
+        assert(!h.isUnit && "HeaderFileOrUnit can not be HeaderUnit at config-time\n");
+        writeStringView(buffer, s);
+        writeNode(buffer, h.data.node);
+        writeBool(buffer, h.isSystem);
     }
 }
 
@@ -636,13 +690,31 @@ void CppSourceTarget::writeCacheAtConfigTime(const bool before)
             writeNode(*configBuffer, smFile->interfaceNode);
         }
 
-        writeUint32(*configBuffer, oldHeaderUnits.size());
-        for (SMFile &smFile : oldHeaderUnits)
+        writeUint32(*configBuffer, huDeps.size());
+        for (SMFile *hu : huDeps)
         {
-            smFile.interfaceNode = Node::getNodeFromNormalizedString(
-                myBuildDir->filePath + slashc + smFile.node->getFileName() + ".ifc", true, true);
-            writeNode(*configBuffer, smFile.node);
-            writeNode(*configBuffer, smFile.interfaceNode);
+            uint32_t index = findNodeInSourceCache(cppBuildCache.headerUnits, hu->node);
+            if (index == -1)
+            {
+                index = cppBuildCache.headerUnits.size();
+                cppBuildCache.headerUnits.emplace_back();
+                cppBuildCache.headerUnits[index].srcFile.node = const_cast<Node *>(hu->node);
+            }
+            hu->indexInBuildCache = index;
+            hu->interfaceNode = Node::getNodeFromNormalizedString(
+                myBuildDir->filePath + slashc + hu->node->getFileName() + ".ifc", true, true);
+
+            writeUint32(*configBuffer, hu->indexInBuildCache);
+            writeNode(*configBuffer, hu->node);
+            writeNode(*configBuffer, hu->interfaceNode);
+            const uint32_t logicalNamesSize = hu->logicalNames.size();
+            for (uint32_t i = 0; i < logicalNamesSize; ++i)
+            {
+                writeStringView(*configBuffer, hu->logicalNames[i]);
+            }
+            writeBool(*configBuffer, hu->isReqDep);
+            writeBool(*configBuffer, hu->isUseReqDep);
+            writeBool(*configBuffer, hu->isSystem);
         }
 
         writeNode(*configBuffer, myBuildDir);
@@ -711,14 +783,43 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
         addDepNow<0>(*smFile);
     }
 
+    huDeps.resize(cppBuildCache.headerUnits.size());
+
     const uint32_t huSize = readUint32(ptr, configRead);
-    if (huSize)
-    {
-        hasManuallySpecifiedHeaderUnits = true;
-    }
     for (uint32_t i = 0; i < huSize; ++i)
     {
-        configuration->moduleFilesToTarget.emplace(readHalfNode(ptr, configRead), this);
+        const uint32_t indexInBuildCache = readUint32(ptr, configRead);
+        SMFile *hu = huDeps[indexInBuildCache] = new SMFile(this, readHalfNode(ptr, configRead));
+        hu->indexInBuildCache = indexInBuildCache;
+
+        hu->interfaceNode = readHalfNode(ptr, configRead);
+        const uint32_t logicalNamesSize = readUint32(ptr, configRead);
+        hu->logicalNames.reserve(logicalNamesSize);
+        for (uint32_t j = 0; j < logicalNamesSize; ++j)
+        {
+            hu->logicalNames.emplace_back(readStringView(ptr, configRead));
+        }
+        hu->isReqDep = readBool(ptr, configRead);
+        hu->isUseReqDep = readBool(ptr, configRead);
+        hu->isSystem = readBool(ptr, configRead);
+
+        if (hu->isReqDep)
+        {
+            for (const string &str : hu->logicalNames)
+            {
+                reqHeaderNameMapping.emplace(str, HeaderFileOrUnit(hu, hu->isSystem));
+            }
+        }
+
+        if (hu->isUseReqDep)
+        {
+            for (const string &str : hu->logicalNames)
+            {
+                useReqHeaderNameMapping.emplace(str, HeaderFileOrUnit(hu, hu->isSystem));
+            }
+        }
+
+        addDepNow<0>(*hu);
     }
 
     myBuildDir = readHalfNode(ptr, configRead);
@@ -731,9 +832,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     else
     {
         readHeaderFilesAtBuildTime(ptr, configRead, reqHeaderNameMapping);
-        readHeaderUnitesAtBuildTime(ptr, configRead, reqHeaderNameMapping, oldHeaderUnits);
         readHeaderFilesAtBuildTime(ptr, configRead, useReqHeaderNameMapping);
-        readHeaderUnitesAtBuildTime(ptr, configRead, reqHeaderNameMapping, oldHeaderUnits);
     }
 
     if (configRead != configCache.size())
