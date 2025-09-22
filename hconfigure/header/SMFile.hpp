@@ -123,8 +123,8 @@ struct SMFile : SourceNode // Scanned Module Rule
     SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
     void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index);
     SMFile *findModule(const string &moduleName) const;
-    void sendModule(SMFile &mod);
-    void sendHeaderUnit(SMFile &hu);
+    void makeAndSendBTCModule(SMFile &mod);
+    void makeAndSendBTCNonModule(SMFile &hu);
     void saveBuildCache();
     void duplicateHeaderFileOrUnitError(const string &headerName, struct HeaderFileOrUnit &first,
                                         HeaderFileOrUnit &second, CppSourceTarget *firstTarget,

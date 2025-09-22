@@ -172,6 +172,10 @@ CppSourceTarget &CppSourceTarget::initializeUseReqInclsFromReqIncls()
         else
         {
             useReqHeaderNameMapping = reqHeaderNameMapping;
+            for (SMFile *hu : huDeps)
+            {
+                hu->isUseReqDep = true;
+            }
         }
     }
 
@@ -362,7 +366,15 @@ void CppSourceTarget::actuallyAddMSVCInclude(const string &include, bool addInRe
                     actuallyAddHeaderUnitConfigTime(headerNode);
                     SMFile *hu = huDeps.back();
                     hu->logicalNames.emplace_back(*logicalName);
-                    addInReq ? hu->isReqDep : hu->isUseReqDep = true;
+                    if (addInReq)
+                    {
+                        hu->isReqDep = true;
+                    }
+                    else
+                    {
+                        hu->isUseReqDep = true;
+                    }
+                    hu->isSystem = isStandard;
                 }
                 else
                 {
@@ -457,7 +469,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     {
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            writeCacheAtConfigTime(true);
+            writeCacheAtConfigTime();
         }
 
         populateReqAndUseReqDeps();
@@ -483,10 +495,16 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         {
             modFileDeps[i]->initializeBuildCache(cppBuildCache.modFiles[i], i);
         }
-
         for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
         {
             imodFileDeps[i]->initializeBuildCache(cppBuildCache.imodFiles[i], i);
+        }
+        for (uint32_t i = 0; i < huDeps.size(); ++i)
+        {
+            if (huDeps[i])
+            {
+                huDeps[i]->initializeBuildCache(cppBuildCache.headerUnits[i], i);
+            }
         }
 
         setSourceCompileCommandPrintFirstHalf();
@@ -653,91 +671,88 @@ void readHeaderUnitesAtBuildTime(const char *ptr, uint32_t &bytesRead,
     }
 }
 
-void CppSourceTarget::writeCacheAtConfigTime(const bool before)
+void CppSourceTarget::writeCacheAtConfigTime()
 {
-    if (before)
+    cppBuildCache.deserialize(cacheIndex);
+    auto *configBuffer = new vector<char>{};
+
+    writeUint32(*configBuffer, srcFileDeps.size());
+    for (SourceNode *source : srcFileDeps)
     {
-        auto *configBuffer = new vector<char>{};
+        source->objectNode = Node::getNodeFromNormalizedString(
+            myBuildDir->filePath + slashc + source->node->getFileName() + ".o", true, true);
 
-        writeUint32(*configBuffer, srcFileDeps.size());
-        for (SourceNode *source : srcFileDeps)
-        {
-            source->objectNode = Node::getNodeFromNormalizedString(
-                myBuildDir->filePath + slashc + source->node->getFileName() + ".o", true, true);
-
-            writeNode(*configBuffer, source->node);
-            writeNode(*configBuffer, source->objectNode);
-        }
-
-        writeUint32(*configBuffer, modFileDeps.size());
-        for (SMFile *smFile : modFileDeps)
-        {
-            smFile->objectNode = Node::getNodeFromNormalizedString(
-                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
-            writeNode(*configBuffer, smFile->node);
-            writeNode(*configBuffer, smFile->objectNode);
-        }
-
-        writeUint32(*configBuffer, imodFileDeps.size());
-        for (SMFile *smFile : imodFileDeps)
-        {
-            smFile->objectNode = Node::getNodeFromNormalizedString(
-                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
-            smFile->interfaceNode = Node::getNodeFromNormalizedString(
-                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".ifc", true, true);
-            writeNode(*configBuffer, smFile->node);
-            writeNode(*configBuffer, smFile->objectNode);
-            writeNode(*configBuffer, smFile->interfaceNode);
-        }
-
-        writeUint32(*configBuffer, huDeps.size());
-        for (SMFile *hu : huDeps)
-        {
-            uint32_t index = findNodeInSourceCache(cppBuildCache.headerUnits, hu->node);
-            if (index == -1)
-            {
-                index = cppBuildCache.headerUnits.size();
-                cppBuildCache.headerUnits.emplace_back();
-                cppBuildCache.headerUnits[index].srcFile.node = const_cast<Node *>(hu->node);
-            }
-            hu->indexInBuildCache = index;
-            hu->interfaceNode = Node::getNodeFromNormalizedString(
-                myBuildDir->filePath + slashc + hu->node->getFileName() + ".ifc", true, true);
-
-            writeUint32(*configBuffer, hu->indexInBuildCache);
-            writeNode(*configBuffer, hu->node);
-            writeNode(*configBuffer, hu->interfaceNode);
-            const uint32_t logicalNamesSize = hu->logicalNames.size();
-            for (uint32_t i = 0; i < logicalNamesSize; ++i)
-            {
-                writeStringView(*configBuffer, hu->logicalNames[i]);
-            }
-            writeBool(*configBuffer, hu->isReqDep);
-            writeBool(*configBuffer, hu->isUseReqDep);
-            writeBool(*configBuffer, hu->isSystem);
-        }
-
-        writeNode(*configBuffer, myBuildDir);
-
-        if (configuration->cppBuildMode == CppBuildMode::SOURCE)
-        {
-            writeIncDirsAtConfigTime(*configBuffer, reqIncls);
-            writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
-        }
-        else
-        {
-            writeHeaderFilesOrUnitsAtConfigTime(*configBuffer, reqHeaderNameMapping);
-            writeHeaderFilesOrUnitsAtConfigTime(*configBuffer, useReqHeaderNameMapping);
-        }
-
-        fileTargetCaches[cacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
-
-        cppBuildCache.deserialize(cacheIndex);
-
-        adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
-        adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
-        adjustBuildCache(cppBuildCache.imodFiles, imodFileDeps);
+        writeNode(*configBuffer, source->node);
+        writeNode(*configBuffer, source->objectNode);
     }
+
+    writeUint32(*configBuffer, modFileDeps.size());
+    for (SMFile *smFile : modFileDeps)
+    {
+        smFile->objectNode = Node::getNodeFromNormalizedString(
+            myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
+        writeNode(*configBuffer, smFile->node);
+        writeNode(*configBuffer, smFile->objectNode);
+    }
+
+    writeUint32(*configBuffer, imodFileDeps.size());
+    for (SMFile *smFile : imodFileDeps)
+    {
+        smFile->objectNode = Node::getNodeFromNormalizedString(
+            myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
+        smFile->interfaceNode = Node::getNodeFromNormalizedString(
+            myBuildDir->filePath + slashc + smFile->node->getFileName() + ".ifc", true, true);
+        writeNode(*configBuffer, smFile->node);
+        writeNode(*configBuffer, smFile->objectNode);
+        writeNode(*configBuffer, smFile->interfaceNode);
+    }
+
+    writeUint32(*configBuffer, huDeps.size());
+    for (SMFile *hu : huDeps)
+    {
+        uint32_t index = findNodeInSourceCache(cppBuildCache.headerUnits, hu->node);
+        if (index == -1)
+        {
+            index = cppBuildCache.headerUnits.size();
+            cppBuildCache.headerUnits.emplace_back();
+            cppBuildCache.headerUnits[index].srcFile.node = const_cast<Node *>(hu->node);
+        }
+        hu->indexInBuildCache = index;
+        hu->interfaceNode = Node::getNodeFromNormalizedString(
+            myBuildDir->filePath + slashc + hu->node->getFileName() + ".ifc", true, true);
+
+        writeUint32(*configBuffer, hu->indexInBuildCache);
+        writeNode(*configBuffer, hu->node);
+        writeNode(*configBuffer, hu->interfaceNode);
+        const uint32_t logicalNamesSize = hu->logicalNames.size();
+        writeUint32(*configBuffer, logicalNamesSize);
+        for (uint32_t i = 0; i < logicalNamesSize; ++i)
+        {
+            writeStringView(*configBuffer, hu->logicalNames[i]);
+        }
+        writeBool(*configBuffer, hu->isReqDep);
+        writeBool(*configBuffer, hu->isUseReqDep);
+        writeBool(*configBuffer, hu->isSystem);
+    }
+
+    writeNode(*configBuffer, myBuildDir);
+
+    if (configuration->cppBuildMode == CppBuildMode::SOURCE)
+    {
+        writeIncDirsAtConfigTime(*configBuffer, reqIncls);
+        writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
+    }
+    else
+    {
+        writeHeaderFilesOrUnitsAtConfigTime(*configBuffer, reqHeaderNameMapping);
+        writeHeaderFilesOrUnitsAtConfigTime(*configBuffer, useReqHeaderNameMapping);
+    }
+
+    fileTargetCaches[cacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
+
+    adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
+    adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
+    adjustBuildCache(cppBuildCache.imodFiles, imodFileDeps);
 }
 
 void CppSourceTarget::readConfigCacheAtBuildTime()
@@ -819,7 +834,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
             }
         }
 
-        addDepNow<0>(*hu);
+        hu->type = SM_FILE_TYPE::HEADER_UNIT;
     }
 
     myBuildDir = readHalfNode(ptr, configRead);
@@ -1246,10 +1261,6 @@ string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourc
     if (ccpSettings.infrastructureFlags)
     {
         command += compiler.bTFamily == BTFamily::MSVC ? "/Fo" : "-o ";
-    }
-    if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
-    {
-        command += getReducedPath(sourceNode.objectNode->filePath, ccpSettings.objectFile) + " ";
     }
     return command;
 }

@@ -124,7 +124,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     void writeBuildCache(vector<char> &buffer) override;
-    void writeCacheAtConfigTime(bool before);
+    void writeCacheAtConfigTime();
     void readConfigCacheAtBuildTime();
     string getPrintName() const override;
 

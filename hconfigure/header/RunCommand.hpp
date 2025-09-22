@@ -28,6 +28,7 @@ struct RunCommand
     explicit RunCommand();
     void startProcess(const string &command, bool isModuleProcess);
     OutputAndStatus endProcess(bool endModuleProcess) const;
+    void killModuleProcess(const string &processName) const;
 };
 
 #endif // HMAKE_RUNCOMMAND_HPP

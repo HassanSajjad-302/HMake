@@ -404,7 +404,6 @@ void SMFile::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
     }
 
     const_cast<bool &>(node->toBeChecked) = true;
-    objectNode->toBeChecked = true;
     for (const vector<Node *> headers = modCache.srcFile.headerFiles; Node * headerFile : headers)
     {
         headerFile->toBeChecked = true;
@@ -473,7 +472,7 @@ SMFile *SMFile::findModule(const string &moduleName) const
     return found;
 }
 
-void SMFile::sendModule(SMFile &mod)
+void SMFile::makeAndSendBTCModule(SMFile &mod)
 {
     N2978::BTCModule btcModule;
     btcModule.requested.filePath = mod.interfaceNode->filePath;
@@ -500,8 +499,45 @@ void SMFile::sendModule(SMFile &mod)
     }
 }
 
-void SMFile::sendHeaderUnit(SMFile &hu)
+void SMFile::makeAndSendBTCNonModule(SMFile &hu)
 {
+    if (node->filePath.ends_with("type_traits"))
+    {
+        bool brekapoint = true;
+    }
+    N2978::BTCNonModule btcNonModule;
+    btcNonModule.isHeaderUnit = true;
+    btcNonModule.user = !hu.isSystem;
+    btcNonModule.filePath = hu.interfaceNode->filePath;
+    for (const string &str : hu.logicalNames)
+    {
+        btcNonModule.logicalNames.emplace_back(str);
+    }
+
+    for (SMFile *smFile : hu.allSMFileDependencies)
+    {
+        if (allSMFileDependencies.emplace(smFile).second)
+        {
+            N2978::HuDep dep;
+
+            dep.file.filePath = smFile->interfaceNode->filePath;
+            dep.user = !smFile->isSystem;
+
+            for (const string &str : smFile->logicalNames)
+            {
+                dep.logicalNames.emplace_back(str);
+            }
+
+            btcNonModule.huDeps.emplace_back(std::move(dep));
+        }
+    }
+
+    if (const auto &r2 = ipcManager->sendMessage(btcNonModule); !r2)
+    {
+        printErrorMessage(FORMAT("send-message fail of header-unit {}\n for {} {}\n of target {}\n.", hu.node->filePath,
+                                 type == SM_FILE_TYPE::HEADER_UNIT ? "header-unit" : "module-filee", node->filePath,
+                                 target->name));
+    }
 }
 
 void SMFile::saveBuildCache()
@@ -576,19 +612,26 @@ HeaderFileOrUnit *SMFile::findHeaderFileOrUnit(const string &headerName)
 
 bool SMFile::build(Builder &builder)
 {
+    RealBTarget &rb = realBTargets[0];
     if (waitingFor)
     {
+        if (waitingFor->realBTargets[0].exitStatus != EXIT_SUCCESS)
+        {
+            run.killModuleProcess(type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode->filePath : objectNode->filePath);
+            rb.exitStatus = EXIT_FAILURE;
+            return false;
+        }
+
         if (waitingFor->type == SM_FILE_TYPE::HEADER_UNIT)
         {
-            sendHeaderUnit(*waitingFor);
+            makeAndSendBTCNonModule(*waitingFor);
         }
         else
         {
-            sendModule(*waitingFor);
+            makeAndSendBTCModule(*waitingFor);
         }
     }
 
-    RealBTarget &rb = realBTargets[0];
     while (true)
     {
         char buffer[320];
@@ -621,29 +664,23 @@ bool SMFile::build(Builder &builder)
             }
 
             SMFile *found;
-            bool isSystem;
 
             if (requestType == N2978::CTB::NON_MODULE)
             {
                 auto &[isHeaderUnit, headerName] = reinterpret_cast<N2978::CTBNonModule &>(buffer);
 
-                const HeaderFileOrUnit *f = findHeaderFileOrUnit(headerName);
-                if (isHeaderUnit)
+                if (const HeaderFileOrUnit *f = findHeaderFileOrUnit(headerName); f->isUnit)
                 {
-                    if (f->isUnit)
-                    {
-                        found = f->data.smFile;
-                        isSystem = f->isSystem;
-                    }
-                    else
+                    found = f->data.smFile;
+                }
+                else
+                {
+                    if (isHeaderUnit)
                     {
                         printErrorMessage(
                             FORMAT("Could not find the header-unit {} requested by file {}\n in target {}.\n",
                                    headerName, node->filePath, target->name));
                     }
-                }
-                else
-                {
                     N2978::BTCNonModule response;
 
                     response.filePath = f->data.node->filePath;
@@ -691,7 +728,26 @@ bool SMFile::build(Builder &builder)
                 builder.executeMutex.unlock();
             }
 
-            sendModule(*found);
+            if (foundRb.exitStatus != EXIT_SUCCESS)
+            {
+                run.killModuleProcess(type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode->filePath
+                                                                        : objectNode->filePath);
+                rb.exitStatus = EXIT_FAILURE;
+                return false;
+            }
+
+            if (node->filePath.ends_with("type_traits"))
+            {
+                bool brekapoint = true;
+            }
+            if (requestType == N2978::CTB::MODULE)
+            {
+                makeAndSendBTCModule(*found);
+            }
+            else
+            {
+                makeAndSendBTCNonModule(*found);
+            }
         }
         else
         {
@@ -701,6 +757,7 @@ bool SMFile::build(Builder &builder)
     }
 }
 
+bool c32 = true;
 void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     if (!round)
@@ -714,9 +771,9 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
         if (realBTargets[0].exitStatus == EXIT_SUCCESS)
         {
             setFileStatusAndPopulateAllDependencies();
-            RealBTarget &rb = realBTargets[0];
-            if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
+            if (RealBTarget &rb = realBTargets[0]; rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
             {
+                allSMFileDependencies.clear();
                 rb.assignFileStatusToDependents();
 
                 if (auto r = N2978::makeIPCManagerBS(type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode->filePath
@@ -733,7 +790,15 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
                 const string compileCommand = "\"" +
                                               target->configuration->compilerFeatures.compiler.bTPath.generic_string() +
                                               "\" " + target->compileCommand + getCompileCommand();
-                run.startProcess(compileCommand, true);
+                if (!node->filePath.ends_with("iterator"))
+                {
+                    run.startProcess(compileCommand, true);
+                }
+                else
+                {
+                    run.startProcess(compileCommand, true);
+                    bool breakpoint = false;
+                }
                 isComplete = build(builder);
             }
         }
@@ -824,9 +889,8 @@ string SMFile::getCompileCommand() const
     {
         if (type == SM_FILE_TYPE::HEADER_UNIT)
         {
-            s = isSystem ? "-fmodule-header=system -o \""
-                         : "-fmodule-header=user -o \"" + objectNode->filePath + "\" -noScanIPC -xc++-header \"" +
-                               node->filePath + '\"';
+            s = (isSystem ? "-fmodule-header=system /clang:-o\"" : "-fmodule-header=user /clang:-o\"") +
+                interfaceNode->filePath + "\" -noScanIPC -xc++-header \"" + node->filePath + '\"';
         }
         else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
@@ -866,10 +930,6 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
         return;
     }
 
-    // todo
-    // module-cache and header-unit cache will be mixed
-
-    bool needsUpdate = false;
     for (auto &[node, depModName] : smRulesCache.moduleArray)
     {
         SMFile *f = findModule(string(depModName));
@@ -877,35 +937,38 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
         // some other file is providing this module. so this needs to be rebuilt.
         if (f->objectNode != node)
         {
-            needsUpdate = true;
-            break;
+            realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
+            return;
         }
 
         if (f->node->lastWriteTime > objectNode->lastWriteTime)
         {
-            needsUpdate = true;
-            break;
-        }
-
-        if (f->objectNode->lastWriteTime > objectNode->lastWriteTime)
-        {
-            needsUpdate = true;
-            break;
+            realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
+            return;
         }
 
         allSMFileDependencies.emplace(f);
     }
 
-    if (needsUpdate)
-    {
-        allSMFileDependencies.clear();
-        realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
-        return;
-    }
-
     for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache.headerUnitArray)
     {
-        allSMFileDependencies.emplace(cppSourceTargets[h.targetIndex]->huDeps[h.myIndex]);
+        SMFile *hu = cppSourceTargets[h.targetIndex]->huDeps[h.myIndex];
+
+        if (hu)
+        {
+            if (hu->node->lastWriteTime > endNode->lastWriteTime)
+            {
+                realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
+                return;
+            }
+        }
+        else
+        {
+            realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
+            return;
+        }
+
+        allSMFileDependencies.emplace(hu);
     }
 }
 

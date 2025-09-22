@@ -1,4 +1,5 @@
 
+#include "BuildSystemFunctions.hpp"
 #ifdef USE_HEADER_UNITS
 import "RunCommand.hpp";
 #else
@@ -163,6 +164,23 @@ RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
 
     o.exitStatus = exit_code;
     return o;
+}
+
+void RunCommand::killModuleProcess(const string &processName) const
+{
+#ifdef _WIN32
+    // Exit code you want to assign to the terminated process
+    DWORD exitCode = 1;
+
+    if (!TerminateProcess(hProcess, exitCode))
+    {
+        printErrorMessage(FORMAT("Killing module process {} failed.\n", processName));
+    }
+
+    CloseHandle(hProcess); // Clean up when you’re done
+#else
+
+#endif
 }
 
 #else
