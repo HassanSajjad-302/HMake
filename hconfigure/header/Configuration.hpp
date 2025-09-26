@@ -1,5 +1,6 @@
 #ifndef HMAKE_CONFIGURATION_HPP
 #define HMAKE_CONFIGURATION_HPP
+#include "TargetCache.hpp"
 #ifdef USE_HEADER_UNITS
 import "BTarget.hpp";
 import "Features.hpp";

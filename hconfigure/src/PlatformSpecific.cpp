@@ -314,6 +314,11 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
             CloseHandle(hFile);
         }
 
+        if (!FlushFileBuffers(hFile))
+        {
+            printErrorMessage(FORMAT("Failed to flush file buffers. Error: {}\n", GetLastErrorString()));
+        }
+
         if (bytesWritten != bufferSize)
         {
             printErrorMessage("Failed to write the full file\n");

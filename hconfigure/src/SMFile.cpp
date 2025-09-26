@@ -92,14 +92,9 @@ void SourceNode::completeCompilation()
     const Compiler &compiler = target->configuration->compilerFeatures.compiler;
     string compileCommand = "\"" + compiler.bTPath.generic_string() + "\" " + target->compileCommand;
 
-    if (compiler.btSubFamily == BTSubFamily::CLANG)
-    {
-        compileCommand += " -nostdinc ";
-    }
-
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-        compileCommand += "-c /nologo /showIncludes \"" + node->filePath + "\" /Fo\"" + objectNode->filePath + "\"";
+        compileCommand += "-c /nologo /showIncludes /TP \"" + node->filePath + "\" /Fo\"" + objectNode->filePath + "\"";
     }
     else if (compiler.bTFamily == BTFamily::GCC)
     {
@@ -501,10 +496,6 @@ void SMFile::makeAndSendBTCModule(SMFile &mod)
 
 void SMFile::makeAndSendBTCNonModule(SMFile &hu)
 {
-    if (node->filePath.ends_with("type_traits"))
-    {
-        bool brekapoint = true;
-    }
     N2978::BTCNonModule btcNonModule;
     btcNonModule.isHeaderUnit = true;
     btcNonModule.user = !hu.isSystem;
@@ -532,6 +523,11 @@ void SMFile::makeAndSendBTCNonModule(SMFile &hu)
         }
     }
 
+    if (node->filePath.ends_with("main.cpp"))
+    {
+        bool brekapoint = true;
+    }
+
     if (const auto &r2 = ipcManager->sendMessage(btcNonModule); !r2)
     {
         printErrorMessage(FORMAT("send-message fail of header-unit {}\n for {} {}\n of target {}\n.", hu.node->filePath,
@@ -544,7 +540,7 @@ void SMFile::saveBuildCache()
 {
     for (const SMFile *smFile : allSMFileDependencies)
     {
-        if (type == SM_FILE_TYPE::HEADER_UNIT)
+        if (smFile->type == SM_FILE_TYPE::HEADER_UNIT)
         {
         }
         else
@@ -612,6 +608,10 @@ HeaderFileOrUnit *SMFile::findHeaderFileOrUnit(const string &headerName)
 
 bool SMFile::build(Builder &builder)
 {
+    if (node->filePath.ends_with("main.cpp"))
+    {
+        bool breakpoint = true;
+    }
     RealBTarget &rb = realBTargets[0];
     if (waitingFor)
     {
@@ -736,10 +736,6 @@ bool SMFile::build(Builder &builder)
                 return false;
             }
 
-            if (node->filePath.ends_with("type_traits"))
-            {
-                bool brekapoint = true;
-            }
             if (requestType == N2978::CTB::MODULE)
             {
                 makeAndSendBTCModule(*found);
@@ -790,7 +786,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
                 const string compileCommand = "\"" +
                                               target->configuration->compilerFeatures.compiler.bTPath.generic_string() +
                                               "\" " + target->compileCommand + getCompileCommand();
-                if (!node->filePath.ends_with("iterator"))
+                if (!node->filePath.ends_with("main.cpp"))
                 {
                     run.startProcess(compileCommand, true);
                 }
@@ -883,27 +879,25 @@ void SMFile::updateBuildCache()
 
 string SMFile::getCompileCommand() const
 {
-    string s;
+    string s = "-Wno-experimental-header-units ";
     if (const Compiler &c = target->configuration->compilerFeatures.compiler;
         c.bTFamily == BTFamily::MSVC && c.btSubFamily == BTSubFamily::CLANG)
     {
         if (type == SM_FILE_TYPE::HEADER_UNIT)
         {
-            s = (isSystem ? "-fmodule-header=system /clang:-o\"" : "-fmodule-header=user /clang:-o\"") +
-                interfaceNode->filePath + "\" -noScanIPC -xc++-header \"" + node->filePath + '\"';
+            s += (isSystem ? "-fmodule-header=system /clang:-o\"" : "-fmodule-header=user /clang:-o\"") +
+                 interfaceNode->filePath + "\" -noScanIPC -xc++-header \"" + node->filePath + '\"';
         }
         else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
-            s = "-fmodules-reduced-bmi -o \"" + objectNode->filePath + "\" -noScanIPC -c -xc++-module \"" +
-                node->filePath + "\" -fmodule-output=\"" + target->myBuildDir->filePath + slashc + getOutputFileName() +
-                ".ifc\"";
+            s += "-fmodules-reduced-bmi -o \"" + objectNode->filePath + "\" -noScanIPC -c -xc++-module \"" +
+                 node->filePath + "\" -fmodule-output=\"" + target->myBuildDir->filePath + slashc +
+                 getOutputFileName() + ".ifc\"";
         }
         else
         {
-            s = "-o \"" + objectNode->filePath + "\" -noScanIPC -c \"" + node->filePath + '\"';
+            s += "-o \"" + objectNode->filePath + "\" -noScanIPC -c /TP \"" + node->filePath + '\"';
         }
-
-        s += " -nostdinc";
     }
 
     return s;

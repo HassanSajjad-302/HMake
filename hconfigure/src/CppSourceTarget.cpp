@@ -952,23 +952,17 @@ void CppSourceTarget::setCompileCommand()
 
     if (compiler.bTFamily == BTFamily::GCC)
     {
-        // string str = cSourceTarget == CSourceTargetEnum::YES ? "-xc" : "-xc++";
         compileCommand +=
             flags.LANG + flags.OPTIONS + flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP + flags.DEFINES_COMPILE_CPP;
     }
     else if (compiler.bTFamily == BTFamily::MSVC)
     {
-        // TODO
-        // Remember this for CSourceTarget
-        // const string str = cSourceTarget == CSourceTargetEnum::YES ? "-TC" : "-TP";
-        const string str = "-TP";
-        compileCommand += str + " " + flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE + flags.OPTIONS_COMPILE +
-                          flags.OPTIONS_COMPILE_CPP;
-    }
-
-    if (compiler.bTFamily == BTFamily::MSVC && evaluate(TranslateInclude::YES))
-    {
-        compileCommand += "/translateInclude ";
+        if (compiler.btSubFamily == BTSubFamily::CLANG)
+        {
+            compileCommand += "-nostdinc ";
+        }
+        compileCommand +=
+            flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE + flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP;
     }
 
     auto getIncludeFlag = [&compiler](bool isStandard) {
@@ -1066,7 +1060,7 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
         }
         else if (compiler.bTFamily == BTFamily::MSVC)
         {
-            sourceCompileCommandPrintFirstHalf += "-TP " + flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE +
+            sourceCompileCommandPrintFirstHalf += flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE +
                                                   flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP;
         }
     }

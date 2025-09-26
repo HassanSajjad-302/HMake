@@ -1,5 +1,4 @@
 
-#include "Node.hpp"
 #ifdef USE_HEADER_UNITS
 import "Builder.hpp";
 import "Settings.hpp";
@@ -8,6 +7,7 @@ import <stack>;
 import <thread>;
 #else
 #include "Builder.hpp"
+#include "Node.hpp"
 #include "Settings.hpp"
 #include <mutex>
 #include <stack>
@@ -35,7 +35,7 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    numberOfLaunchedThreads = 1;
+    numberOfLaunchedThreads = settings.maximumBuildThreads;
     if (numberOfLaunchedThreads)
     {
         for (uint64_t i = 0; i < numberOfLaunchedThreads - 1; ++i)
