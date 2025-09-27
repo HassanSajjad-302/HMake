@@ -890,7 +890,7 @@ string SMFile::getCompileCommand() const
         }
         else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
-            s += "-fmodules-reduced-bmi -o \"" + objectNode->filePath + "\" -noScanIPC -c -xc++-module \"" +
+            s += " -o \"" + objectNode->filePath + "\" -noScanIPC -c -xc++-module \"" +
                  node->filePath + "\" -fmodule-output=\"" + target->myBuildDir->filePath + slashc +
                  getOutputFileName() + ".ifc\"";
         }
