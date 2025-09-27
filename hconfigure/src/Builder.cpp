@@ -35,15 +35,15 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    numberOfLaunchedThreads = settings.maximumBuildThreads;
-    if (numberOfLaunchedThreads)
+    launchedCount = 1;
+    if (launchedCount)
     {
-        for (uint64_t i = 0; i < numberOfLaunchedThreads - 1; ++i)
+        for (uint64_t i = 0; i < launchedCount - 1; ++i)
         {
             BTarget::laterDepsCentral.emplace_back(nullptr);
         }
 
-        while (threads.size() != numberOfLaunchedThreads - 1)
+        while (threads.size() != launchedCount - 1)
         {
             uint64_t index = threads.size() + 1;
             threads.emplace_back(new thread([this, index] {
@@ -146,7 +146,6 @@ void Builder::execute()
                 DEBUG_EXECUTE(FORMAT("{} UnLocking Update Mutex {} {}\n", round, __LINE__, getThreadId()));
                 executeMutex.unlock();
                 cond.notify_one();
-
                 if (round == 1)
                 {
                     rb->bTarget->setSelectiveBuild();
@@ -155,17 +154,17 @@ void Builder::execute()
                 rb->bTarget->updateBTarget(*this, round, isComplete);
                 if (isComplete)
                 {
+                    ++updateBTargetsCompleted;
                     continue;
                 }
                 atomic_ref(rb->updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
                 executeMutex.lock();
+                ++updateBTargetsCompleted;
                 addNewTopBeUpdatedTargets(rb);
-
                 continue;
             }
 
-            if (updateBTargets.size() == updateBTargetsSizeGoal &&
-                numberOfSleepingThreads == numberOfLaunchedThreads - 1)
+            if (updateBTargetsCompleted == updateBTargetsSizeGoal)
             {
                 if constexpr (bsMode == BSMode::BUILD)
                 {
@@ -179,11 +178,8 @@ void Builder::execute()
                                 uncheckedNodesCentral.emplace_back(Node::nodeIndices[i]);
                             }
                         }
-                        uncheckedNodes = divideInChunk(uncheckedNodesCentral, numberOfLaunchedThreads);
+                        uncheckedNodes = divideInChunk(uncheckedNodesCentral, launchedCount);
                         exeMode = ExecuteMode::NODE_CHECK;
-                        executeMutex.unlock();
-                        cond.notify_all();
-                        executeMutex.lock();
                         continue;
                     }
                 }
@@ -200,59 +196,75 @@ void Builder::execute()
         }
         else if (exeMode == ExecuteMode::NODE_CHECK)
         {
-            executeMutex.unlock();
-            for (Node *node : uncheckedNodes[myThreadId])
+            while (true)
             {
-                node->performSystemCheck();
-            }
-            executeMutex.lock();
-            if (numberOfSleepingThreads == numberOfLaunchedThreads - 1)
-            {
-                isOneThreadRunning = true;
-                DEBUG_EXECUTE(
-                    FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
-
-                BTarget::runEndOfRoundTargets();
-                --round;
-                RealBTarget::graphEdges =
-                    span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
-                RealBTarget::sortGraph();
-                // RealBTarget::printSortedGraph();
-
-                updateBTargets.clear();
-                updateBTargetsSizeGoal = 0;
-
-                if (const size_t topSize = RealBTarget::sorted.size())
+                if (checkingCount < launchedCount)
                 {
-                    for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
+                    const unsigned short nodeCheckIndex = checkingCount;
+                    ++checkingCount;
+                    executeMutex.unlock();
+                    cond.notify_one();
+                    for (Node *node : uncheckedNodes[nodeCheckIndex])
                     {
-                        RealBTarget &localRb = *RealBTarget::sorted[i];
-
-                        localRb.indexInTopologicalSort = topSize - (i + 1);
-
-                        if (localRb.bTarget->selectiveBuild)
-                        {
-                            for (auto &[dependency, bTargetDepType] : localRb.dependencies)
-                            {
-                                if (bTargetDepType == BTargetDepType::FULL)
-                                {
-                                    dependency->bTarget->selectiveBuild = true;
-                                }
-                            }
-                        }
-
-                        if (!localRb.dependenciesSize)
-                        {
-                            updateBTargets.emplace_front(&localRb);
-                        }
+                        node->performSystemCheck();
+                        node->systemCheckCalled = true;
+                        node->systemCheckCompleted = true;
                     }
+                    executeMutex.lock();
+                    ++checkedCount;
+                    continue;
                 }
 
-                updateBTargetsSizeGoal = RealBTarget::sorted.size();
-                exeMode = ExecuteMode::GENERAL;
-                isOneThreadRunning = false;
-                continue;
+                if (checkedCount == launchedCount)
+                {
+                    isOneThreadRunning = true;
+                    DEBUG_EXECUTE(FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads",
+                                         getThreadId()));
+
+                    BTarget::runEndOfRoundTargets();
+                    --round;
+                    RealBTarget::graphEdges =
+                        span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
+                    RealBTarget::sortGraph();
+                    // RealBTarget::printSortedGraph();
+
+                    updateBTargets.clear();
+                    updateBTargetsSizeGoal = 0;
+
+                    if (const size_t topSize = RealBTarget::sorted.size())
+                    {
+                        for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
+                        {
+                            RealBTarget &localRb = *RealBTarget::sorted[i];
+
+                            localRb.indexInTopologicalSort = topSize - (i + 1);
+
+                            if (localRb.bTarget->selectiveBuild)
+                            {
+                                for (auto &[dependency, bTargetDepType] : localRb.dependencies)
+                                {
+                                    if (bTargetDepType == BTargetDepType::FULL)
+                                    {
+                                        dependency->bTarget->selectiveBuild = true;
+                                    }
+                                }
+                            }
+
+                            if (!localRb.dependenciesSize)
+                            {
+                                updateBTargets.emplace_front(&localRb);
+                            }
+                        }
+                    }
+
+                    updateBTargetsSizeGoal = RealBTarget::sorted.size();
+                    updateBTargetsCompleted = 0;
+                    exeMode = ExecuteMode::GENERAL;
+                    isOneThreadRunning = false;
+                    break;
+                }
             }
+            continue;
         }
 
         DEBUG_EXECUTE(
@@ -320,15 +332,15 @@ void Builder::addNewTopBeUpdatedTargets(const RealBTarget *rb)
 
 void Builder::incrementNumberOfSleepingThreads()
 {
-    if (numberOfSleepingThreads == numberOfLaunchedThreads - 1)
+    if (sleepingCount == launchedCount - 1)
     {
         RealBTarget::sortGraph();
         printErrorMessage("HMake API misuse.\n");
     }
-    ++numberOfSleepingThreads;
+    ++sleepingCount;
 }
 
 void Builder::decrementNumberOfSleepingThreads()
 {
-    --numberOfSleepingThreads;
+    --sleepingCount;
 }

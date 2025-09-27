@@ -982,7 +982,8 @@ void CppSourceTarget::setCompileCommand()
         {
             if (isStandard)
             {
-                str += "-isystem ";
+                // str += "-isystem ";
+                str += "-I ";
             }
             else
             {

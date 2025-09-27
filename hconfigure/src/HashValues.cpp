@@ -49,7 +49,7 @@ bool operator==(const CppSourceTarget &lhs, const CppSourceTarget &rhs)
 
 bool operator==(const DSC<CppSourceTarget> &lhs, const DSC<CppSourceTarget> &rhs)
 {
-    return lhs.ploat->id == rhs.ploat->id && rhs.objectFileProducer->id == rhs.objectFileProducer->id;
+    return lhs.ploat->id == rhs.ploat->id && lhs.objectFileProducer->id == rhs.objectFileProducer->id;
 }
 
 bool operator==(const Configuration &lhs, const Configuration &rhs)

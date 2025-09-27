@@ -19,7 +19,6 @@ using std::vector, std::list;
 enum class ExecuteMode
 {
     GENERAL,
-    GATHER,
     NODE_CHECK,
 };
 
@@ -27,14 +26,17 @@ class Builder
 {
   public:
     PointerArrayList<RealBTarget> updateBTargets;
+    uint32_t updateBTargetsCompleted = 0;
     uint32_t updateBTargetsSizeGoal = 0;
     mutex executeMutex;
     std::condition_variable cond;
     ExecuteMode exeMode = ExecuteMode::GENERAL;
 
     unsigned short threadCount = 0;
-    unsigned short numberOfLaunchedThreads = 0;
-    unsigned short numberOfSleepingThreads = 0;
+    unsigned short launchedCount = 0;
+    unsigned short sleepingCount = 0;
+    unsigned short checkingCount = 0;
+    unsigned short checkedCount = 0;
     inline static unsigned short round = 0;
     const unsigned short roundGoal = bsMode == BSMode::BUILD ? 0 : 1;
 

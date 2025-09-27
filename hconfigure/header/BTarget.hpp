@@ -194,7 +194,7 @@ class BTarget // BTarget
 
     virtual string getPrintName() const;
     virtual BTargetType getBTargetType() const;
-    virtual void updateBTarget(Builder &builder, unsigned short round, bool &isComplete);
+    virtual void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete);
     virtual void endOfRound(Builder &builder, unsigned short round);
 
     template <unsigned short round> void addDepNow(BTarget &dep);

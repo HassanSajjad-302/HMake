@@ -1,12 +1,12 @@
 
-#include "BuildSystemFunctions.hpp"
-#ifdef USE_HEADER_UNITS
-import "RunCommand.hpp";
-#else
 #include "RunCommand.hpp"
+#include "BuildSystemFunctions.hpp"
+#ifdef _WIN32
+#else
+#include "sys/wait.h"
 #endif
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <Windows.h>
 
 // TODO
@@ -110,11 +110,6 @@ void RunCommand::startProcess(const string &command, bool isModuleProcess)
 
 RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
 {
-    // We need endModuleProcess because the Read blocks even though the process has ended.
-    // Needs to be investigated further.
-    // While this could be a bug, using process explorer, I confirmed that there is no extra handle
-    // once the build-system exits. and there is no child process running at that time either.
-
     OutputAndStatus o;
     DWORD exit_code = 0;
 
@@ -166,6 +161,8 @@ RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
     return o;
 }
 
+#else
+
 void RunCommand::killModuleProcess(const string &processName) const
 {
 #ifdef _WIN32
@@ -183,106 +180,86 @@ void RunCommand::killModuleProcess(const string &processName) const
 #endif
 }
 
-#else
-
-#include <sys/wait.h>
-#include <unistd.h>
-struct CLWrapper
+void RunCommand::startProcess(const string &command, bool isModuleProcess)
 {
-    CLWrapper() : env_block_(nullptr)
+    // Create pipes for stdout and stderr
+    if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1)
     {
+        printErrorMessage("Error Creating Pipes\n");
     }
 
-    /// Set the environment block (as suitable for CreateProcess) to be used
-    /// by Run().
-    void SetEnvBlock(void *env_block)
+    pid = fork();
+    if (pid == -1)
     {
-        env_block_ = env_block;
+        printErrorMessage("fork");
+    }
+    if (pid == 0)
+    {
+        // Child process
+
+        // Redirect stdout and stderr to the pipes
+        dup2(stdout_pipe[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
+        dup2(stderr_pipe[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
+
+        // Close unused pipe ends
+        close(stdout_pipe[0]);
+        close(stderr_pipe[0]);
+        close(stdout_pipe[1]);
+        close(stderr_pipe[1]);
+
+        // Execute a command (e.g., "ls" or any other)
+        exit(WEXITSTATUS(system(command.c_str())));
+    }
+}
+
+RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
+{
+
+    OutputAndStatus o;
+
+    // Parent process
+    // Close unused pipe ends
+    close(stdout_pipe[1]);
+    close(stderr_pipe[1]);
+
+    int status;
+    if (waitpid(pid, &status, 0) < 0)
+    {
+        printErrorMessage("waitpid");
     }
 
-    /// Start a process and gather its raw output.  Returns its exit code.
-    /// Crashes (calls Fatal()) on error.
-    static int Run(const std::string &command, std::string *output)
+    char buffer[4096];
+    while (true)
     {
-        int stdout_pipe[2], stderr_pipe[2];
-        int status;
-
-        // Create pipes for stdout and stderr
-        if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1)
+        if (const uint64_t readSize = read(stdout_pipe[0], buffer, sizeof(buffer) - 1))
         {
-            printErrorMessage("Error Creating Pipes\n");
-        }
-
-        if (const pid_t pid = fork(); pid == -1)
-        {
-            printErrorMessage("fork");
+            o.output.append(buffer, readSize);
         }
         else
         {
-            if (pid == 0)
-            {
-                // Child process
-
-                // Redirect stdout and stderr to the pipes
-                dup2(stdout_pipe[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
-                dup2(stderr_pipe[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
-
-                // Close unused pipe ends
-                close(stdout_pipe[0]);
-                close(stderr_pipe[0]);
-                close(stdout_pipe[1]);
-                close(stderr_pipe[1]);
-
-                // Execute a command (e.g., "ls" or any other)
-                exit(WEXITSTATUS(system(command.c_str())));
-            }
-
-            // Parent process
-            // Close unused pipe ends
-            close(stdout_pipe[1]);
-            close(stderr_pipe[1]);
-
-            if (waitpid(pid, &status, 0) < 0)
-            {
-                printErrorMessage("waitpid");
-            }
-
-            char buffer[4096];
-            while (true)
-            {
-                const uint64_t readSize = read(stdout_pipe[0], buffer, sizeof(buffer) - 1);
-                if (readSize)
-                {
-                    output->append(buffer, readSize);
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            while (true)
-            {
-                const uint64_t readSize = read(stderr_pipe[0], buffer, sizeof(buffer) - 1);
-                if (readSize)
-                {
-                    output->append(buffer, readSize);
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            // Close the read ends of the pipes
-            close(stdout_pipe[0]);
-            close(stderr_pipe[0]);
+            break;
         }
-        return WEXITSTATUS(status);
     }
 
-    void *env_block_;
-};
+    while (true)
+    {
+        if (const uint64_t readSize = read(stderr_pipe[0], buffer, sizeof(buffer) - 1))
+        {
+            o.output.append(buffer, readSize);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    // Close the read ends of the pipes
+    close(stdout_pipe[0]);
+    close(stderr_pipe[0]);
+
+    o.exitStatus = WEXITSTATUS(status);
+    return o;
+}
 
 #endif
 

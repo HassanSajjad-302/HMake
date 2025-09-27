@@ -5,6 +5,7 @@
 #ifdef USE_HEADER_UNITS
 #else
 #endif
+#include <cstdint>
 
 template <typename T> class PointerArrayList
 {
