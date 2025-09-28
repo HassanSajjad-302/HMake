@@ -162,7 +162,7 @@ void Node::performSystemCheck()
     const auto windows_epoch = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(116444736000000000LL);
     const auto unix_time = duration - windows_epoch;
 
-    lastWriteTime = std::filesystem::file_time_type(unix_time)
+    lastWriteTime = std::filesystem::file_time_type(unix_time);
 #else
     const auto entry = directory_entry(filePath);
     fileType = entry.status().type();
