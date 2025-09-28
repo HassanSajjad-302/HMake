@@ -35,7 +35,7 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    launchedCount = 32;
+    launchedCount = settings.maximumBuildThreads;
     if (launchedCount)
     {
         for (uint64_t i = 0; i < launchedCount - 1; ++i)

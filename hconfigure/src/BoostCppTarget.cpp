@@ -73,7 +73,7 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
     cpp.publicHUDirs(string("boost") + slashc + name);
     if (hasBigHeader)
     {
-        cpp.headerUnits(string("boost") + slashc + name + ".hpp");
+        // cpp.headerUnits(string("boost") + slashc + name + ".hpp");
     }
     return *t;
 }

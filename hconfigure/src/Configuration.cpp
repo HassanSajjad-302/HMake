@@ -46,7 +46,7 @@ void Configuration::initialize()
                 if constexpr (os == OS::NT)
                 {
                     const vector<string> &includes = toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs;
-                    stdCppTarget->getSourceTarget().actuallyAddMSVCInclude(includes[0], true, true, true);
+                    stdCppTarget->getSourceTarget().actuallyAddInclude(includes[0], true, true, true);
                     for (uint32_t i = 1; i < includes.size(); ++i)
                     {
                         stdCppTarget->getSourceTarget().actuallyAddInclude(includes[i], true, true, true);

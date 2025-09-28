@@ -577,7 +577,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::headerUnits(const str
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        actuallyAddHeaderUnitConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true));
+        // actuallyAddHeaderUnitConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true));
     }
 
     if constexpr (sizeof...(headerUnitsString))

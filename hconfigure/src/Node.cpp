@@ -1,17 +1,12 @@
-
-#ifdef USE_HEADER_UNITS
-import <atomic>;
-import "rapidhash/rapidhash.h";
-import "Node.hpp";
-import <mutex>;
-#else
-
 #include "Node.hpp"
+#include "TargetCache.hpp"
 #include "rapidhash/rapidhash.h"
 #include <mutex>
 #include <utility>
+
+#ifdef _WIN32
+#include "Windows.h"
 #endif
-#include "TargetCache.hpp"
 
 using std::filesystem::directory_entry, std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard,
     std::mutex, std::atomic_ref;
@@ -124,12 +119,58 @@ static string getNormalizedPath(path filePath)
 
 void Node::performSystemCheck()
 {
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA attrs;
+    if (!GetFileAttributesExA(filePath.c_str(), GetFileExInfoStandard, &attrs))
+    {
+        DWORD win_err = GetLastError();
+        if (win_err == ERROR_FILE_NOT_FOUND || win_err == ERROR_PATH_NOT_FOUND)
+        {
+            fileType = file_type::not_found;
+            lastWriteTime = {}; // Default initialize
+            return;
+        }
+        // Handle other errors - you might want to throw or set an error flag
+        fileType = file_type::unknown;
+        lastWriteTime = {};
+        return;
+    }
+
+    // Set file type based on Windows attributes
+    if (attrs.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+    {
+        fileType = file_type::directory;
+    }
+    else if (attrs.dwFileAttributes & FILE_ATTRIBUTE_DEVICE)
+    {
+        fileType = file_type::character; // or block, depending on your needs
+    }
+    else
+    {
+        fileType = file_type::regular;
+    }
+
+    // Always set lastWriteTime for all file types (not just regular files)
+    // Convert Windows FILETIME to std::filesystem::file_time_type
+    ULARGE_INTEGER ull;
+    ull.LowPart = attrs.ftLastWriteTime.dwLowDateTime;
+    ull.HighPart = attrs.ftLastWriteTime.dwHighDateTime;
+
+    // Convert to std::chrono time point
+    // Windows FILETIME is 100-nanosecond intervals since January 1, 1601
+    const auto duration = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(ull.QuadPart);
+    const auto windows_epoch = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(116444736000000000LL);
+    const auto unix_time = duration - windows_epoch;
+
+    lastWriteTime = std::filesystem::file_time_type(unix_time)
+#else
     const auto entry = directory_entry(filePath);
     fileType = entry.status().type();
     if (fileType == file_type::regular)
     {
         lastWriteTime = entry.last_write_time();
     }
+#endif
 }
 
 void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)

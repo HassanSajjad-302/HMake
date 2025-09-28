@@ -161,11 +161,8 @@ RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
     return o;
 }
 
-#else
-
 void RunCommand::killModuleProcess(const string &processName) const
 {
-#ifdef _WIN32
     // Exit code you want to assign to the terminated process
     DWORD exitCode = 1;
 
@@ -175,10 +172,9 @@ void RunCommand::killModuleProcess(const string &processName) const
     }
 
     CloseHandle(hProcess); // Clean up when you’re done
-#else
-
-#endif
 }
+
+#else
 
 void RunCommand::startProcess(const string &command, bool isModuleProcess)
 {
