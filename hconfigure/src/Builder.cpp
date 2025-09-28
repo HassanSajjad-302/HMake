@@ -35,7 +35,7 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    launchedCount = 1;
+    launchedCount = 32;
     if (launchedCount)
     {
         for (uint64_t i = 0; i < launchedCount - 1; ++i)
@@ -67,7 +67,6 @@ Builder::Builder()
 }
 
 // #define DEBUG_EXECUTE_YES
-
 #ifdef DEBUG_EXECUTE_YES
 #define DEBUG_EXECUTE(x) printMessage(x)
 #else
@@ -133,8 +132,7 @@ void Builder::execute()
 {
     RealBTarget *rb = nullptr;
 
-    DEBUG_EXECUTE(
-        FORMAT("{} Locking Update Mutex {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(), getThreadId()));
+    DEBUG_EXECUTE(FORMAT("{} Locking Update Mutex {} {} {}\n", round, __LINE__, sleepingCount, getThreadId()));
     std::unique_lock lk(executeMutex);
     while (true)
     {
@@ -154,17 +152,15 @@ void Builder::execute()
                 rb->bTarget->updateBTarget(*this, round, isComplete);
                 if (isComplete)
                 {
-                    ++updateBTargetsCompleted;
                     continue;
                 }
                 atomic_ref(rb->updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
                 executeMutex.lock();
-                ++updateBTargetsCompleted;
                 addNewTopBeUpdatedTargets(rb);
                 continue;
             }
 
-            if (updateBTargetsCompleted == updateBTargetsSizeGoal)
+            if (updateBTargets.size() == updateBTargetsSizeGoal && sleepingCount == launchedCount - 1)
             {
                 if constexpr (bsMode == BSMode::BUILD)
                 {
@@ -196,84 +192,81 @@ void Builder::execute()
         }
         else if (exeMode == ExecuteMode::NODE_CHECK)
         {
-            while (true)
+            if (checkingCount < launchedCount)
             {
-                if (checkingCount < launchedCount)
+                const unsigned short nodeCheckIndex = checkingCount;
+                ++checkingCount;
+                DEBUG_EXECUTE(FORMAT("{} checking-count incremented {} {}\n", checkingCount, __LINE__, getThreadId()));
+                executeMutex.unlock();
+                cond.notify_one();
+                for (Node *node : uncheckedNodes[nodeCheckIndex])
                 {
-                    const unsigned short nodeCheckIndex = checkingCount;
-                    ++checkingCount;
-                    executeMutex.unlock();
-                    cond.notify_one();
-                    for (Node *node : uncheckedNodes[nodeCheckIndex])
-                    {
-                        node->performSystemCheck();
-                        node->systemCheckCalled = true;
-                        node->systemCheckCompleted = true;
-                    }
-                    executeMutex.lock();
-                    ++checkedCount;
-                    continue;
+                    node->performSystemCheck();
+                    node->systemCheckCalled = true;
+                    node->systemCheckCompleted = true;
                 }
+                DEBUG_EXECUTE(FORMAT("{} locking-mutex {} {}\n", checkedCount, __LINE__, getThreadId()));
+                executeMutex.lock();
+                ++checkedCount;
+                DEBUG_EXECUTE(FORMAT("{} checked-count incremented {} {}\n", checkedCount, __LINE__, getThreadId()));
+                continue;
+            }
 
-                if (checkedCount == launchedCount)
+            if (checkedCount == launchedCount)
+            {
+                isOneThreadRunning = true;
+                DEBUG_EXECUTE(
+                    FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
+
+                BTarget::runEndOfRoundTargets();
+                --round;
+                RealBTarget::graphEdges =
+                    span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
+                RealBTarget::sortGraph();
+                // RealBTarget::printSortedGraph();
+
+                updateBTargets.clear();
+                updateBTargetsSizeGoal = 0;
+
+                if (const size_t topSize = RealBTarget::sorted.size())
                 {
-                    isOneThreadRunning = true;
-                    DEBUG_EXECUTE(FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads",
-                                         getThreadId()));
-
-                    BTarget::runEndOfRoundTargets();
-                    --round;
-                    RealBTarget::graphEdges =
-                        span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
-                    RealBTarget::sortGraph();
-                    // RealBTarget::printSortedGraph();
-
-                    updateBTargets.clear();
-                    updateBTargetsSizeGoal = 0;
-
-                    if (const size_t topSize = RealBTarget::sorted.size())
+                    for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
                     {
-                        for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
+                        RealBTarget &localRb = *RealBTarget::sorted[i];
+
+                        localRb.indexInTopologicalSort = topSize - (i + 1);
+
+                        if (localRb.bTarget->selectiveBuild)
                         {
-                            RealBTarget &localRb = *RealBTarget::sorted[i];
-
-                            localRb.indexInTopologicalSort = topSize - (i + 1);
-
-                            if (localRb.bTarget->selectiveBuild)
+                            for (auto &[dependency, bTargetDepType] : localRb.dependencies)
                             {
-                                for (auto &[dependency, bTargetDepType] : localRb.dependencies)
+                                if (bTargetDepType == BTargetDepType::FULL)
                                 {
-                                    if (bTargetDepType == BTargetDepType::FULL)
-                                    {
-                                        dependency->bTarget->selectiveBuild = true;
-                                    }
+                                    dependency->bTarget->selectiveBuild = true;
                                 }
                             }
+                        }
 
-                            if (!localRb.dependenciesSize)
-                            {
-                                updateBTargets.emplace_front(&localRb);
-                            }
+                        if (!localRb.dependenciesSize)
+                        {
+                            updateBTargets.emplace_front(&localRb);
                         }
                     }
-
-                    updateBTargetsSizeGoal = RealBTarget::sorted.size();
-                    updateBTargetsCompleted = 0;
-                    exeMode = ExecuteMode::GENERAL;
-                    isOneThreadRunning = false;
-                    break;
                 }
+
+                updateBTargetsSizeGoal = RealBTarget::sorted.size();
+                exeMode = ExecuteMode::GENERAL;
+                isOneThreadRunning = false;
+                continue;
             }
-            continue;
         }
 
-        DEBUG_EXECUTE(
-            FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(), getThreadId()));
+        DEBUG_EXECUTE(FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__, sleepingCount, getThreadId()));
         incrementNumberOfSleepingThreads();
         cond.wait(lk);
         decrementNumberOfSleepingThreads();
-        DEBUG_EXECUTE(FORMAT("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__,
-                             numberOfSleepingThreads.load(), getThreadId()));
+        DEBUG_EXECUTE(
+            FORMAT("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__, sleepingCount, getThreadId()));
         if (returnAfterWakeup)
         {
             cond.notify_one();
