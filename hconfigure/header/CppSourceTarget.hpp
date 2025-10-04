@@ -148,6 +148,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void actuallyAddMSVCInclude(const string &include, bool addInReq, bool isStandard, bool ignoreHeaderDeps);
     void actuallyAddInclude(const string &include, bool addInReq, bool isStandard = false,
                             bool ignoreHeaderDeps = false);
+    void actuallyAddHuDir(const string &include, bool addInReq, bool isStandard = false, bool ignoreHeaderDeps = false);
 
     template <typename... U> CppSourceTarget &publicDeps(CppSourceTarget *dep, const U... deps);
     template <typename... U> CppSourceTarget &privateDeps(CppSourceTarget *dep, const U... deps);
@@ -198,9 +199,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     //
     template <DepType dependency = DepType::PRIVATE, typename T, typename... Property>
     CppSourceTarget &assign(T property, Property... properties);
-    template <typename T> bool evaluate(T property) const;
-    template <typename T, typename... Argument>
-    string GET_FLAG_evaluate(T condition, const string &flags, Argument... arguments) const;
 }; // class Target
 
 bool operator<(const CppSourceTarget &lhs, const CppSourceTarget &rhs);
@@ -325,11 +323,15 @@ CppSourceTarget &CppSourceTarget::publicHUIncludes(const string &include, U... i
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(TreatModuleAsSource::NO))
         {
+            actuallyAddHuDir(include, true);
+            actuallyAddHuDir(include, false);
         }
         else
         {
+            publicIncludes(include, includeDirectoryPString...);
+            return *this;
         }
     }
 
@@ -348,17 +350,15 @@ CppSourceTarget &CppSourceTarget::privateHUIncludes(const string &include, U... 
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        /*
-        if (evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(reqHuDirs, this, include);
-            actuallyAddInclude(reqIncls, include);
+            actuallyAddHuDir(include, true);
         }
         else
         {
-            actuallyAddInclude(reqIncls, include);
+            privateIncludes(include, includeDirectoryPString...);
+            return *this;
         }
-    */
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -376,17 +376,15 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const string &include, U..
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        /*
-        if (evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddInclude(useReqHuDirs, this, include);
-            actuallyAddInclude(useReqIncls, include);
+            actuallyAddHuDir(include, false);
         }
         else
         {
-            actuallyAddInclude(useReqIncls, include);
+            interfaceIncludes(includeDirectoryPString...);
+            return *this;
         }
-    */
     }
 
     if constexpr (sizeof...(includeDirectoryPString))
@@ -404,7 +402,7 @@ CppSourceTarget &CppSourceTarget::publicHUDirs(const string &include, U... inclu
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(TreatModuleAsSource::NO))
         {
             /*
             actuallyAddInclude(reqHuDirs, this, include);
@@ -428,7 +426,7 @@ CppSourceTarget &CppSourceTarget::privateHUDirs(const string &include, U... incl
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(TreatModuleAsSource::NO))
         {
             // actuallyAddInclude(reqHuDirs, this, include);
         }
@@ -450,7 +448,7 @@ CppSourceTarget &CppSourceTarget::publicHUDirsBigHu(const string &include, const
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(TreatModuleAsSource::NO))
         {
             uint64_t headerUnitsIndex =
                 actuallyAddBigHuConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true), logicalName);
@@ -475,7 +473,7 @@ CppSourceTarget &CppSourceTarget::privateHUDirsBigHu(const string &include, cons
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(TreatModuleAsSource::NO))
         {
             uint64_t headerUnitsIndex =
                 actuallyAddBigHuConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true), logicalName);
@@ -498,7 +496,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUDirs(const string &include, U... in
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(TreatModuleAsSource::NO))
         {
             // actuallyAddInclude(useReqHuDirs, this, include);
         }
@@ -535,7 +533,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const str
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (evaluate(TreatModuleAsSource::YES))
+        if (configuration->evaluate(TreatModuleAsSource::YES))
         {
             return sourceFiles(modFile, moduleFilePString...);
         }
@@ -556,7 +554,7 @@ template <typename... U> CppSourceTarget &CppSourceTarget::interfaceFiles(const 
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (evaluate(TreatModuleAsSource::YES))
+        if (configuration->evaluate(TreatModuleAsSource::YES))
         {
             return sourceFiles(modFile, moduleFilePString...);
         }
@@ -724,28 +722,6 @@ CppSourceTarget &CppSourceTarget::assign(T property, Property... properties)
     else
     {
         return *this;
-    }
-}
-
-template <typename T> bool CppSourceTarget::evaluate(T property) const
-{
-    return configuration->compilerFeatures.evaluate(property);
-}
-
-template <typename T, typename... Argument>
-string CppSourceTarget::GET_FLAG_evaluate(T condition, const string &flags, Argument... arguments) const
-{
-    if (evaluate(condition))
-    {
-        return flags;
-    }
-    if constexpr (sizeof...(arguments))
-    {
-        return GET_FLAG_evaluate(arguments...);
-    }
-    else
-    {
-        return "";
     }
 }
 

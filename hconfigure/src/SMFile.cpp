@@ -890,9 +890,8 @@ string SMFile::getCompileCommand() const
         }
         else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
-            s += " -o \"" + objectNode->filePath + "\" -noScanIPC -c -xc++-module \"" +
-                 node->filePath + "\" -fmodule-output=\"" + target->myBuildDir->filePath + slashc +
-                 getOutputFileName() + ".ifc\"";
+            s += " -o \"" + objectNode->filePath + "\" -noScanIPC -c -xc++-module \"" + node->filePath +
+                 "\" -fmodule-output=\"" + target->myBuildDir->filePath + slashc + getOutputFileName() + ".ifc\"";
         }
         else
         {
@@ -969,7 +968,7 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
 string SMFile::getFlag() const
 {
     string str;
-    if (target->evaluate(BTFamily::MSVC))
+    if (target->configuration->compilerFeatures.evaluate(BTFamily::MSVC))
     {
         if (type == SM_FILE_TYPE::NOT_ASSIGNED)
         {
@@ -995,7 +994,7 @@ string SMFile::getFlag() const
             str += "/Fo" + addQuotes(objectNode->filePath);
         }
     }
-    else if (target->evaluate(BTFamily::GCC))
+    else if (target->configuration->compilerFeatures.evaluate(BTFamily::GCC))
     {
         // Flags are for clang. I don't know GCC flags at the moment but clang is masqueraded as gcc in HMake so
         // modifying this temporarily on Linux.
@@ -1040,7 +1039,7 @@ string SMFile::getFlagPrint() const
 
     string str;
 
-    if (target->evaluate(BTFamily::MSVC))
+    if (target->configuration->compilerFeatures.evaluate(BTFamily::MSVC))
     {
         if (type == SM_FILE_TYPE::NOT_ASSIGNED)
         {
@@ -1083,7 +1082,7 @@ string SMFile::getFlagPrint() const
             }
         }
     }
-    else if (target->evaluate(BTFamily::GCC))
+    else if (target->configuration->compilerFeatures.evaluate(BTFamily::GCC))
     {
 
         if (type == SM_FILE_TYPE::NOT_ASSIGNED)

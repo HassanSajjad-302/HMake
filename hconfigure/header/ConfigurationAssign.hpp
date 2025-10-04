@@ -94,9 +94,9 @@ template <typename T, typename... Property> Configuration &Configuration::assign
             buildExamples = BuildExamples::NO;
         }
     }
-    else if constexpr (std::is_same_v<decltype(property), CppBuildMode>)
+    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
     {
-        cppBuildMode = property;
+        treatModuleASSource = property;
     }
     // CommonFeatures
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
@@ -243,10 +243,6 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     else if constexpr (std::is_same_v<decltype(property), TranslateInclude>)
     {
         compilerFeatures.translateInclude = property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
-    {
-        compilerFeatures.treatModuleAsSource = property;
     }
     else if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
     {

@@ -75,10 +75,10 @@ enum class BuildTestsAndExamplesExplicitBuild : uint8_t
     YES,
 };
 
-enum class CppBuildMode : uint8_t
+enum class TreatModuleAsSource : bool
 {
-    SOURCE,
-    MODULE,
+    NO,
+    YES
 };
 
 class CSourceTarget;
@@ -105,7 +105,7 @@ class Configuration : public BTarget
     BuildExamples buildExamples = BuildExamples::NO;
     TestsExplicit testsExplicit = TestsExplicit::NO;
     ExamplesExplicit examplesExplicit = ExamplesExplicit::NO;
-    CppBuildMode cppBuildMode = CppBuildMode::SOURCE;
+    TreatModuleAsSource treatModuleASSource = TreatModuleAsSource::YES;
 
     bool archiving = false;
 
@@ -244,9 +244,9 @@ template <typename T> bool Configuration::evaluate(T property) const
     {
         return examplesExplicit == property;
     }
-    else if constexpr (std::is_same_v<decltype(property), CppBuildMode>)
+    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
     {
-        return cppBuildMode == property;
+        return treatModuleASSource == property;
     }
     // CppCompilerFeatures
     else if constexpr (std::is_same_v<decltype(property), CxxSTD>)

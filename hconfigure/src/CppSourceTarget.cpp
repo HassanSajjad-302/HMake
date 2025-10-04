@@ -1,24 +1,9 @@
 
-#include "rapidjson/document.h"
-#ifdef USE_HEADER_UNITS
-import "CppSourceTarget.hpp";
-import "BuildSystemFunctions.hpp";
-import "Builder.hpp";
-import "Configuration.hpp";
-import "LOAT.hpp";
-import "rapidhash.h";
-import "CacheWriteManager.hpp";
-import "Utilities.hpp";
-import <filesystem>;
-import <fstream>;
-import <regex>;
-import <utility>;
-#else
+#include "CppSourceTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "CacheWriteManager.hpp"
 #include "Configuration.hpp"
-#include "CppSourceTarget.hpp"
 #include "LOAT.hpp"
 #include "Utilities.hpp"
 #include "rapidhash/rapidhash.h"
@@ -26,7 +11,6 @@ import <utility>;
 #include <fstream>
 #include <regex>
 #include <utility>
-#endif
 
 using std::filesystem::create_directories, std::filesystem::directory_iterator,
     std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
@@ -140,7 +124,7 @@ void CppSourceTarget::populateTransitiveProperties()
 {
     for (CppSourceTarget *cppSourceTarget : reqDeps)
     {
-        if (configuration->cppBuildMode == CppBuildMode::SOURCE)
+        if (configuration->evaluate(TreatModuleAsSource::YES))
         {
             for (const InclNode &inclNode : cppSourceTarget->useReqIncls)
             {
@@ -162,7 +146,7 @@ CppSourceTarget &CppSourceTarget::initializeUseReqInclsFromReqIncls()
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->cppBuildMode == CppBuildMode::SOURCE)
+        if (configuration->evaluate(TreatModuleAsSource::YES))
         {
             for (const InclNode &include : reqIncls)
             {
@@ -184,7 +168,7 @@ CppSourceTarget &CppSourceTarget::initializeUseReqInclsFromReqIncls()
 
 void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
 {
-    if (configuration->cppBuildMode == CppBuildMode::MODULE)
+    if (configuration->evaluate(TreatModuleAsSource::NO))
     {
         printErrorMessage(
             FORMAT("CppSourceTarget {}\n already has module-files but now source-file {} is being added.\n", name,
@@ -206,7 +190,7 @@ void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
 
 void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node)
 {
-    if (configuration->cppBuildMode == CppBuildMode::SOURCE)
+    if (configuration->evaluate(TreatModuleAsSource::NO))
     {
         printErrorMessage(
             FORMAT("CppSourceTarget {}\n already has source-files but now module-file {} is being added.\n", name,
@@ -247,7 +231,7 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node)
 
 void CppSourceTarget::actuallyAddHeaderUnitConfigTime(Node *node)
 {
-    if (configuration->cppBuildMode == CppBuildMode::SOURCE)
+    if (configuration->evaluate(TreatModuleAsSource::NO))
     {
         printErrorMessage(FORMAT("In CppSourceTarget {}\n header-unit {} is being added while CppBuildMode::SOURCE is "
                                  "set for configuration.\n",
@@ -314,7 +298,7 @@ void CppSourceTarget::actuallyAddMSVCInclude(const string &include, bool addInRe
             }
         }
 
-        if (configuration->cppBuildMode == CppBuildMode::SOURCE)
+        if (configuration->evaluate(TreatModuleAsSource::YES))
         {
             return;
         }
@@ -417,7 +401,7 @@ void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, b
             inclNodes.emplace_back(node, isStandard, ignoreHeaderDeps);
         }
 
-        if (configuration->cppBuildMode == CppBuildMode::SOURCE)
+        if (configuration->evaluate(TreatModuleAsSource::YES))
         {
             return;
         }
@@ -450,6 +434,81 @@ void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, b
                     //            "happened while adding include {} for target {}.\n",
                     //            pos->second.data.node->filePath, *logicalName, n->filePath, name));
                 }
+            }
+        }
+    }
+}
+
+void CppSourceTarget::actuallyAddHuDir(const string &include, bool addInReq, bool isStandard, bool ignoreHeaderDeps)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(TreatModuleAsSource::YES))
+        {
+            printErrorMessage(FORMAT(
+                "actuallyAddHuDir is called for target {}\n for include-dir {}\n. while TreateModuoleAsSource is YES",
+                name, include));
+        }
+
+        Node *includeDir = Node::getNodeFromNonNormalizedPath(include, false);
+
+        {
+            // Checking for uniqueness and adding in reqIncls or useReqIncls.
+            bool found = false;
+            vector<InclNode> &inclNodes = addInReq ? reqIncls : useReqIncls;
+            for (const InclNode &inclNode : inclNodes)
+            {
+                if (inclNode.node->myId == includeDir->myId)
+                {
+                    found = true;
+                    printErrorMessage(FORMAT("Include {} is already added.\n", includeDir->filePath));
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                inclNodes.emplace_back(includeDir, isStandard, ignoreHeaderDeps);
+            }
+        }
+
+        for (const auto &p : recursive_directory_iterator(includeDir->filePath))
+        {
+            if (p.is_regular_file())
+            {
+                Node *headerNode;
+                string *logicalName;
+                {
+                    auto *str = new string(p.path().string());
+                    logicalName = new string{str->data() + includeDir->filePath.size() + 1,
+                                             str->size() - includeDir->filePath.size() - 1};
+                    lowerCaseOnWindows(str->data(), str->size());
+                    headerNode = Node::getHalfNode(*str);
+
+                    if constexpr (os == OS::NT)
+                    {
+                        for (char &c : *logicalName)
+                        {
+                            if (c == '\\')
+                            {
+                                c = '/';
+                            }
+                        }
+                    }
+                }
+
+                actuallyAddHeaderUnitConfigTime(headerNode);
+                SMFile *hu = huDeps.back();
+                hu->logicalNames.emplace_back(*logicalName);
+                if (addInReq)
+                {
+                    hu->isReqDep = true;
+                }
+                else
+                {
+                    hu->isUseReqDep = true;
+                }
+                hu->isSystem = isStandard;
             }
         }
     }
@@ -737,7 +796,7 @@ void CppSourceTarget::writeCacheAtConfigTime()
 
     writeNode(*configBuffer, myBuildDir);
 
-    if (configuration->cppBuildMode == CppBuildMode::SOURCE)
+    if (configuration->evaluate(TreatModuleAsSource::YES))
     {
         writeIncDirsAtConfigTime(*configBuffer, reqIncls);
         writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
@@ -839,7 +898,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
 
     myBuildDir = readHalfNode(ptr, configRead);
 
-    if (configuration->cppBuildMode == CppBuildMode::SOURCE)
+    if (configuration->evaluate(TreatModuleAsSource::YES))
     {
         readInclDirsAtBuildTime(ptr, configRead, reqIncls, this);
         readInclDirsAtBuildTime(ptr, configRead, useReqIncls, this);
@@ -902,7 +961,7 @@ CppSourceTarget &CppSourceTarget::interfaceCompileDefinition(const string &cddNa
 void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const string &sourceDirectory, string regex,
                                            const bool recursive)
 {
-    if (evaluate(TreatModuleAsSource::YES))
+    if (configuration->evaluate(TreatModuleAsSource::YES))
     {
         assignToSourceNodes = true;
     }
@@ -1275,8 +1334,7 @@ string CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &smF
     {
         if (compiler.bTFamily == BTFamily::MSVC)
         {
-            const string translateIncludeFlag = GET_FLAG_evaluate(TranslateInclude::YES, "/translateInclude ");
-            command += translateIncludeFlag + " /nologo /showIncludes /scanDependencies ";
+            command += " /nologo /showIncludes /scanDependencies ";
         }
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)

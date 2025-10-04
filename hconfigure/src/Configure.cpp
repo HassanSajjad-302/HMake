@@ -1,6 +1,6 @@
 #include "Configure.hpp"
-#include <cstdlib>
 #include <cstdint>
+#include <cstdlib>
 #include <new>
 using std::filesystem::current_path;
 
@@ -151,10 +151,10 @@ inline void *allocate(const uint64_t allocationSize, const std::size_t alignment
     auto &[p, memSize, memUsed] = getMemory();
 
     // Calculate padding needed to align current position
-    char* currentPos = p + memUsed;
+    char *currentPos = p + memUsed;
     auto addr = reinterpret_cast<std::uintptr_t>(currentPos);
     uint64_t misalignment = addr % alignment;
-    uint64_t padding = (misalignment == 0) ? 0 : (alignment - misalignment);
+    uint64_t padding = misalignment == 0 ? 0 : alignment - misalignment;
 
     const uint64_t totalNeeded = padding + allocationSize;
 
@@ -202,97 +202,97 @@ inline void *allocate(const uint64_t allocationSize, const std::size_t alignment
 // ============================================================================
 
 // Basic new operator
-void* operator new(std::size_t size)
+void *operator new(std::size_t size)
 {
     if (size == 0)
         size = 1;
 
-    void* ptr = allocate(size);
+    void *ptr = allocate(size);
     if (!ptr)
         throw std::bad_alloc();
     return ptr;
 }
 
 // Basic delete operator (no-op since we don't free)
-void operator delete(void* ptr) noexcept
+void operator delete(void *ptr) noexcept
 {
     (void)ptr;
 }
 
 // Array new operator
-void* operator new[](std::size_t size)
+void *operator new[](std::size_t size)
 {
     if (size == 0)
         size = 1;
 
-    void* ptr = allocate(size);
+    void *ptr = allocate(size);
     if (!ptr)
         throw std::bad_alloc();
     return ptr;
 }
 
 // Array delete operator (no-op)
-void operator delete[](void* ptr) noexcept
+void operator delete[](void *ptr) noexcept
 {
     (void)ptr;
 }
 
 // C++14: Sized delete
-void operator delete(void* ptr, std::size_t size) noexcept
+void operator delete(void *ptr, std::size_t size) noexcept
 {
     (void)ptr;
     (void)size;
 }
 
-void operator delete[](void* ptr, std::size_t size) noexcept
+void operator delete[](void *ptr, std::size_t size) noexcept
 {
     (void)ptr;
     (void)size;
 }
 
 // C++17: Aligned new/delete
-void* operator new(std::size_t size, std::align_val_t alignment)
+void *operator new(std::size_t size, std::align_val_t alignment)
 {
     if (size == 0)
         size = 1;
 
-    void* ptr = allocate(size, static_cast<std::size_t>(alignment));
+    void *ptr = allocate(size, static_cast<std::size_t>(alignment));
     if (!ptr)
         throw std::bad_alloc();
     return ptr;
 }
 
-void operator delete(void* ptr, std::align_val_t alignment) noexcept
+void operator delete(void *ptr, std::align_val_t alignment) noexcept
 {
     (void)ptr;
     (void)alignment;
 }
 
-void* operator new[](std::size_t size, std::align_val_t alignment)
+void *operator new[](std::size_t size, std::align_val_t alignment)
 {
     if (size == 0)
         size = 1;
 
-    void* ptr = allocate(size, static_cast<std::size_t>(alignment));
+    void *ptr = allocate(size, static_cast<std::size_t>(alignment));
     if (!ptr)
         throw std::bad_alloc();
     return ptr;
 }
 
-void operator delete[](void* ptr, std::align_val_t alignment) noexcept
+void operator delete[](void *ptr, std::align_val_t alignment) noexcept
 {
     (void)ptr;
     (void)alignment;
 }
 
-void operator delete(void* ptr, std::size_t size, std::align_val_t alignment) noexcept
+void operator delete(void *ptr, std::size_t size, std::align_val_t alignment) noexcept
 {
     (void)ptr;
     (void)size;
     (void)alignment;
 }
 
-void operator delete[](void* ptr, std::size_t size, std::align_val_t alignment) noexcept
+void operator delete[](void *ptr, std::size_t size, std::align_val_t alignment) noexcept
 {
     (void)ptr;
     (void)size;
@@ -300,51 +300,51 @@ void operator delete[](void* ptr, std::size_t size, std::align_val_t alignment) 
 }
 
 // Nothrow versions
-void* operator new(std::size_t size, const std::nothrow_t&) noexcept
+void *operator new(std::size_t size, const std::nothrow_t &) noexcept
 {
     if (size == 0)
         size = 1;
     return allocate(size);
 }
 
-void* operator new[](std::size_t size, const std::nothrow_t&) noexcept
+void *operator new[](std::size_t size, const std::nothrow_t &) noexcept
 {
     if (size == 0)
         size = 1;
     return allocate(size);
 }
 
-void operator delete(void* ptr, const std::nothrow_t&) noexcept
+void operator delete(void *ptr, const std::nothrow_t &) noexcept
 {
     (void)ptr;
 }
 
-void operator delete[](void* ptr, const std::nothrow_t&) noexcept
+void operator delete[](void *ptr, const std::nothrow_t &) noexcept
 {
     (void)ptr;
 }
 
-void* operator new(std::size_t size, std::align_val_t alignment, const std::nothrow_t&) noexcept
+void *operator new(std::size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept
 {
     if (size == 0)
         size = 1;
     return allocate(size, static_cast<std::size_t>(alignment));
 }
 
-void* operator new[](std::size_t size, std::align_val_t alignment, const std::nothrow_t&) noexcept
+void *operator new[](std::size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept
 {
     if (size == 0)
         size = 1;
     return allocate(size, static_cast<std::size_t>(alignment));
 }
 
-void operator delete(void* ptr, std::align_val_t alignment, const std::nothrow_t&) noexcept
+void operator delete(void *ptr, std::align_val_t alignment, const std::nothrow_t &) noexcept
 {
     (void)ptr;
     (void)alignment;
 }
 
-void operator delete[](void* ptr, std::align_val_t alignment, const std::nothrow_t&) noexcept
+void operator delete[](void *ptr, std::align_val_t alignment, const std::nothrow_t &) noexcept
 {
     (void)ptr;
     (void)alignment;

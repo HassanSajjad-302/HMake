@@ -27,12 +27,6 @@ enum class TranslateInclude : bool
     YES,
 };
 
-enum class TreatModuleAsSource : bool
-{
-    NO,
-    YES
-};
-
 enum class CSourceTargetEnum
 {
     NO,
@@ -950,7 +944,6 @@ struct CppCompilerFeatures : FeatureConvenienceFunctions<CppCompilerFeatures>
     ExternCNoThrow externCNoThrow = ExternCNoThrow::OFF;
     RTTI rtti = RTTI::ON;
     TranslateInclude translateInclude = TranslateInclude::NO;
-    TreatModuleAsSource treatModuleAsSource = TreatModuleAsSource::NO;
 
     // Used only for GCC
     TemplateDepth templateDepth{1024};
@@ -1115,10 +1108,6 @@ template <typename T> bool CppCompilerFeatures::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), TranslateInclude>)
     {
         return translateInclude == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
-    {
-        return treatModuleAsSource == property;
     }
     else if constexpr (std::is_same_v<decltype(property), bool>)
     {
