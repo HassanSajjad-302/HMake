@@ -190,10 +190,10 @@ void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
 
 void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node)
 {
-    if (configuration->evaluate(TreatModuleAsSource::NO))
+    if (configuration->evaluate(TreatModuleAsSource::YES))
     {
         printErrorMessage(
-            FORMAT("CppSourceTarget {}\n already has source-files but now module-file {} is being added.\n", name,
+            FORMAT("In CppSourceTarget {}\n module-file {} is being added.\n with TreatModuleAsSource::YES.", name,
                    node->filePath));
     }
 
@@ -414,7 +414,7 @@ void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, b
                 string *logicalName =
                     new string{str->data() + node->filePath.size() + 1, str->size() - node->filePath.size() - 1};
                 lowerCaseOnWindows(str->data(), str->size());
-                Node *n = Node::getHalfNode(*str);
+                Node *headerNode = Node::getHalfNode(*str);
                 if constexpr (os == OS::NT)
                 {
                     for (char &c : *logicalName)
@@ -425,14 +425,17 @@ void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, b
                         }
                     }
                 }
-                if (const auto &[pos, ok] = reqHeaderNameMapping.emplace(*logicalName, HeaderFileOrUnit{n, isStandard});
+
+                if (const auto &[pos, ok] = (addInReq ? reqHeaderNameMapping : useReqHeaderNameMapping)
+                                                .emplace(*logicalName, HeaderFileOrUnit{headerNode, isStandard});
                     !ok)
                 {
-                    bool brekapoint = true;
-                    // printErrorMessage(
-                    //     FORMAT("There is already a Header-File or Header-Unit entry\n{}\n for name {}\n. Error "
-                    //            "happened while adding include {} for target {}.\n",
-                    //            pos->second.data.node->filePath, *logicalName, n->filePath, name));
+                    /*
+                    printErrorMessage(
+                        FORMAT("There is already a Header-File or Header-Unit entry\n{}\n for name {}\n. Error "
+                               "happened while adding include {} for target {}.\n",
+                               pos->second.data.node->filePath, *logicalName, headerNode->filePath, name));
+                */
                 }
             }
         }
@@ -445,9 +448,9 @@ void CppSourceTarget::actuallyAddHuDir(const string &include, bool addInReq, boo
     {
         if (configuration->evaluate(TreatModuleAsSource::YES))
         {
-            printErrorMessage(FORMAT(
-                "actuallyAddHuDir is called for target {}\n for include-dir {}\n. while TreateModuoleAsSource is YES",
-                name, include));
+            printErrorMessage(FORMAT("actuallyAddHuDir called for target {}\n for include-dir {}\n. is not "
+                                     "allowed in TreatModuleAsSource::YES",
+                                     name, include));
         }
 
         Node *includeDir = Node::getNodeFromNonNormalizedPath(include, false);
@@ -509,6 +512,76 @@ void CppSourceTarget::actuallyAddHuDir(const string &include, bool addInReq, boo
                     hu->isUseReqDep = true;
                 }
                 hu->isSystem = isStandard;
+            }
+        }
+    }
+}
+
+void CppSourceTarget::actuallyAddExtInclude(const string &include, const string &regex, bool isHeaderFile,
+                                            bool addInReq, bool isStandard, bool ignoreHeaderDeps)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(TreatModuleAsSource::YES))
+        {
+            printErrorMessage(FORMAT("actuallyAddExtInclude called for target {}\n for include-dir {}\n. is not "
+                                     "allowed in TreatModuleAsSource::YES",
+                                     name, include));
+        }
+
+        for (const Node *includeDir = Node::getNodeFromNonNormalizedPath(include, false);
+             const auto &p : recursive_directory_iterator(includeDir->filePath))
+        {
+            if (p.is_regular_file() && regex_match(p.path().filename().string(), std::regex(regex)))
+            {
+                Node *headerNode;
+                string *logicalName;
+                {
+                    auto *str = new string(p.path().string());
+                    logicalName = new string{str->data() + includeDir->filePath.size() + 1,
+                                             str->size() - includeDir->filePath.size() - 1};
+                    lowerCaseOnWindows(str->data(), str->size());
+                    headerNode = Node::getHalfNode(*str);
+
+                    if constexpr (os == OS::NT)
+                    {
+                        for (char &c : *logicalName)
+                        {
+                            if (c == '\\')
+                            {
+                                c = '/';
+                            }
+                        }
+                    }
+                }
+
+                if (isHeaderFile)
+                {
+                    if (const auto &[pos, ok] = (addInReq ? reqHeaderNameMapping : useReqHeaderNameMapping)
+                                                    .emplace(*logicalName, HeaderFileOrUnit{headerNode, isStandard});
+                        !ok)
+                    {
+                        printErrorMessage(
+                            FORMAT("There is already a Header-File or Header-Unit entry\n{}\n for name {}\n. Error "
+                                   "happened while adding include {} for target {}.\n",
+                                   pos->second.data.node->filePath, *logicalName, headerNode->filePath, name));
+                    }
+                }
+                else
+                {
+                    actuallyAddHeaderUnitConfigTime(headerNode);
+                    SMFile *hu = huDeps.back();
+                    hu->logicalNames.emplace_back(*logicalName);
+                    if (addInReq)
+                    {
+                        hu->isReqDep = true;
+                    }
+                    else
+                    {
+                        hu->isUseReqDep = true;
+                    }
+                    hu->isSystem = isStandard;
+                }
             }
         }
     }

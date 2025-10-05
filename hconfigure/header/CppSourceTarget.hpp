@@ -149,6 +149,8 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void actuallyAddInclude(const string &include, bool addInReq, bool isStandard = false,
                             bool ignoreHeaderDeps = false);
     void actuallyAddHuDir(const string &include, bool addInReq, bool isStandard = false, bool ignoreHeaderDeps = false);
+    void actuallyAddExtInclude(const string &include, const string &regex, bool isHeaderFile, bool addInReq,
+                               bool isStandard = false, bool ignoreHeaderDeps = false);
 
     template <typename... U> CppSourceTarget &publicDeps(CppSourceTarget *dep, const U... deps);
     template <typename... U> CppSourceTarget &privateDeps(CppSourceTarget *dep, const U... deps);
@@ -164,6 +166,18 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     template <typename... U> CppSourceTarget &publicHUIncludes(const string &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &privateHUIncludes(const string &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &interfaceHUIncludes(const string &include, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &publicIncludesRE(const string &include, const string &regex, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &privateIncludesRE(const string &include, const string &regex, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &interfaceIncludesRE(const string &include, const string &regex, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &publicHUIncludesRE(const string &include, const string &regex, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &privateHUIncludesRE(const string &include, const string &regex, U... includeDirectoryPString);
+    template <typename... U>
+    CppSourceTarget &interfaceHUIncludesRE(const string &include, const string &regex, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &publicHUDirs(const string &include, U... includeDirectoryPString);
     template <typename... U> CppSourceTarget &privateHUDirs(const string &include, U... includeDirectoryPString);
     template <typename... U>
@@ -390,6 +404,122 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const string &include, U..
     if constexpr (sizeof...(includeDirectoryPString))
     {
         return interfaceHUIncludes(includeDirectoryPString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::publicIncludesRE(const string &include, const string &regex,
+                                                   U... includeDirectoryPString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        actuallyAddExtInclude(include, regex, true, true);
+        actuallyAddExtInclude(include, regex, true, false);
+    }
+
+    if constexpr (sizeof...(includeDirectoryPString))
+    {
+        return publicIncludesRE(include, includeDirectoryPString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::privateIncludesRE(const string &include, const string &regex,
+                                                    U... includeDirectoryPString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        actuallyAddExtInclude(include, regex, true, true);
+    }
+
+    if constexpr (sizeof...(includeDirectoryPString))
+    {
+        return privateIncludesRE(include, includeDirectoryPString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::interfaceIncludesRE(const string &include, const string &regex,
+                                                      U... includeDirectoryPString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        actuallyAddExtInclude(include, regex, true, false);
+    }
+
+    if constexpr (sizeof...(includeDirectoryPString))
+    {
+        return interfaceIncludesRE(include, includeDirectoryPString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::publicHUIncludesRE(const string &include, const string &regex,
+                                                     U... includeDirectoryPString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        actuallyAddExtInclude(include, regex, false, true);
+        actuallyAddExtInclude(include, regex, false, false);
+    }
+
+    if constexpr (sizeof...(includeDirectoryPString))
+    {
+        return publicHUIncludesRE(include, includeDirectoryPString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::privateHUIncludesRE(const string &include, const string &regex,
+                                                      U... includeDirectoryPString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        actuallyAddExtInclude(include, regex, false, true);
+    }
+
+    if constexpr (sizeof...(includeDirectoryPString))
+    {
+        return privateHUIncludesRE(include, includeDirectoryPString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::interfaceHUIncludesRE(const string &include, const string &regex,
+                                                        U... includeDirectoryPString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        actuallyAddExtInclude(include, regex, false, false);
+    }
+
+    if constexpr (sizeof...(includeDirectoryPString))
+    {
+        return interfaceHUIncludesRE(include, includeDirectoryPString...);
     }
     else
     {

@@ -419,54 +419,6 @@ void SMFile::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
     }
 }
 
-SMFile *SMFile::findModule(const string &moduleName) const
-{
-    SMFile *found = nullptr;
-
-    if (const auto it = target->imodNames.find(moduleName); it != target->imodNames.end())
-    {
-        found = it->second;
-    }
-
-    if (!moduleName.contains(':'))
-    {
-        for (CppSourceTarget *req : target->reqDeps)
-        {
-            if (auto it2 = req->imodNames.find(moduleName); it2 != req->imodNames.end())
-            {
-                if (found)
-                {
-                    printErrorMessage(FORMAT("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
-                                             "from target\n{}\n2){}\n from target\n{}\n",
-                                             moduleName, found->node->filePath, found->target->name,
-                                             it2->second->node->filePath, it2->second->target->name));
-                }
-                else
-                {
-                    found = it2->second;
-                }
-            }
-        }
-    }
-
-    if (!found)
-    {
-        if (moduleName.contains(':'))
-        {
-            printErrorMessage(
-                FORMAT("No File in the target\n{}\n provides this module\n{}.\n", target->name, moduleName));
-        }
-        else
-        {
-            printErrorMessage(
-                FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
-                       target->name, target->getDependenciesString(), moduleName));
-        }
-    }
-
-    return found;
-}
-
 void SMFile::makeAndSendBTCModule(SMFile &mod)
 {
     N2978::BTCModule btcModule;
@@ -580,6 +532,54 @@ void SMFile::duplicateHeaderFileOrUnitError(const string &headerName, HeaderFile
     printErrorMessage(str);
 }
 
+SMFile *SMFile::findModule(const string &moduleName) const
+{
+    SMFile *found = nullptr;
+
+    if (const auto it = target->imodNames.find(moduleName); it != target->imodNames.end())
+    {
+        found = it->second;
+    }
+
+    if (!moduleName.contains(':'))
+    {
+        for (CppSourceTarget *req : target->reqDeps)
+        {
+            if (auto it2 = req->imodNames.find(moduleName); it2 != req->imodNames.end())
+            {
+                if (found)
+                {
+                    printErrorMessage(FORMAT("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
+                                             "from target\n{}\n2){}\n from target\n{}\n",
+                                             moduleName, found->node->filePath, found->target->name,
+                                             it2->second->node->filePath, it2->second->target->name));
+                }
+                else
+                {
+                    found = it2->second;
+                }
+            }
+        }
+    }
+
+    if (!found)
+    {
+        if (moduleName.contains(':'))
+        {
+            printErrorMessage(
+                FORMAT("No File in the target\n{}\n provides this module\n{}.\n", target->name, moduleName));
+        }
+        else
+        {
+            printErrorMessage(
+                FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
+                       target->name, target->getDependenciesString(), moduleName));
+        }
+    }
+
+    return found;
+}
+
 HeaderFileOrUnit *SMFile::findHeaderFileOrUnit(const string &headerName)
 {
     HeaderFileOrUnit *found = nullptr;
@@ -601,6 +601,13 @@ HeaderFileOrUnit *SMFile::findHeaderFileOrUnit(const string &headerName)
             found = &it->second;
             foundTarget = t;
         }
+    }
+
+    if (!found)
+    {
+        printErrorMessage(
+            FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this header \n{}.\n",
+                   target->name, target->getDependenciesString(), headerName));
     }
 
     return found;
