@@ -30,7 +30,7 @@ struct Updates
     // module-files which don't have .ifc file generated are also considered sourceFiles
     unsigned short sourceFiles = 0;
     unsigned short moduleFiles = 0;
-    unsigned short interFiles = 0;
+    unsigned short imodFiles = 0;
     unsigned short linkTargetsNoDebug = 0;
     unsigned short linkTargetsDebug = 0;
     bool nodesFile = false;

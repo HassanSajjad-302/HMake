@@ -50,7 +50,7 @@ class SourceNode : public ObjectFile
     const Node *node;
     uint32_t indexInBuildCache = -1;
     bool ignoreHeaderDeps = false;
-    SourceNode(CppSourceTarget *target_, Node *node_);
+    SourceNode(CppSourceTarget *target_, const Node *node_);
 
   protected:
     SourceNode(CppSourceTarget *target_, const Node *node_, bool add0, bool add1);
@@ -106,9 +106,9 @@ struct SMFile : SourceNode // Scanned Module Rule
 
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 
-    // This is used to prevent header-unit addition in BTargets list more than once since the same header-unit could be
-    // potentially discovered more than once.
-    bool addedForRoundOne = false;
+    // This is used to prevent header-unit addition in updateBTargets list more than once since the same header-unit
+    // could be potentially discovered more than once.
+    bool addedForBuilding = false;
 
     bool isReqDep = false;
     bool isUseReqDep = false;
@@ -119,8 +119,8 @@ struct SMFile : SourceNode // Scanned Module Rule
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
 
     inline static thread_local vector<string_view> includeNames;
-    SMFile(CppSourceTarget *target_, Node *node_);
-    SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
+    SMFile(CppSourceTarget *target_, const Node *node_);
+    SMFile(CppSourceTarget *target_, const Node *node_, bool);
     void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index);
     void makeAndSendBTCModule(SMFile &mod);
     void makeAndSendBTCNonModule(SMFile &hu);

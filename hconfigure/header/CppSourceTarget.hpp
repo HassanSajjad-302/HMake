@@ -148,7 +148,8 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void actuallyAddMSVCInclude(const string &include, bool addInReq, bool isStandard, bool ignoreHeaderDeps);
     void actuallyAddInclude(const string &include, bool addInReq, bool isStandard = false,
                             bool ignoreHeaderDeps = false);
-    void actuallyAddHuDir(const string &include, bool addInReq, bool isStandard = false, bool ignoreHeaderDeps = false);
+    void actuallyAddHuDir(const string &include, bool addInReq, bool addInUseReq, bool isStandard = false,
+                          bool ignoreHeaderDeps = false);
     void actuallyAddExtInclude(const string &include, const string &regex, bool isHeaderFile, bool addInReq,
                                bool isStandard = false, bool ignoreHeaderDeps = false);
 
@@ -339,8 +340,7 @@ CppSourceTarget &CppSourceTarget::publicHUIncludes(const string &include, U... i
     {
         if (configuration->evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddHuDir(include, true);
-            actuallyAddHuDir(include, false);
+            actuallyAddHuDir(include, true, true);
         }
         else
         {
@@ -366,7 +366,7 @@ CppSourceTarget &CppSourceTarget::privateHUIncludes(const string &include, U... 
     {
         if (configuration->evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddHuDir(include, true);
+            actuallyAddHuDir(include, true, false);
         }
         else
         {
@@ -392,7 +392,7 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const string &include, U..
     {
         if (configuration->evaluate(TreatModuleAsSource::NO))
         {
-            actuallyAddHuDir(include, false);
+            actuallyAddHuDir(include, false, true);
         }
         else
         {

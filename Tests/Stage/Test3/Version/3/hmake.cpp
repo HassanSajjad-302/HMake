@@ -16,7 +16,7 @@ void configurationSpecification(Configuration &config)
     lib2.getSourceTarget().moduleDirsRE("lib2/private", ".*cpp").publicIncludes("lib2/public");
 
     DSC<CppSourceTarget> &lib1 = config.getCppStaticDSC("lib1").publicDeps(lib2);
-    lib1.getSourceTarget().sourceDirsRE("lib1/private", ".*cpp").publicIncludes("lib1/public");
+    lib1.getSourceTarget().moduleDirsRE("lib1/private", ".*cpp").publicIncludes("lib1/public");
 
     config.getCppExeDSC("app").privateDeps(lib1).getSourceTarget().sourceFiles("main.cpp");
 }

@@ -231,11 +231,11 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node)
 
 void CppSourceTarget::actuallyAddHeaderUnitConfigTime(Node *node)
 {
-    if (configuration->evaluate(TreatModuleAsSource::NO))
+    if (configuration->evaluate(TreatModuleAsSource::YES))
     {
-        printErrorMessage(FORMAT("In CppSourceTarget {}\n header-unit {} is being added while CppBuildMode::SOURCE is "
-                                 "set for configuration.\n",
-                                 name, node->filePath));
+        printErrorMessage(
+            FORMAT("In CppSourceTarget {}\n header-unit {} is being added while TreatModuleAsSource::YES is set.\n",
+                   name, node->filePath));
     }
 
     for (const SMFile *smFile : huDeps)
@@ -442,7 +442,8 @@ void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, b
     }
 }
 
-void CppSourceTarget::actuallyAddHuDir(const string &include, bool addInReq, bool isStandard, bool ignoreHeaderDeps)
+void CppSourceTarget::actuallyAddHuDir(const string &include, bool addInReq, bool addInUseReq, bool isStandard,
+                                       bool ignoreHeaderDeps)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -507,7 +508,8 @@ void CppSourceTarget::actuallyAddHuDir(const string &include, bool addInReq, boo
                 {
                     hu->isReqDep = true;
                 }
-                else
+
+                if (addInUseReq)
                 {
                     hu->isUseReqDep = true;
                 }
@@ -967,6 +969,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
         }
 
         hu->type = SM_FILE_TYPE::HEADER_UNIT;
+        addDepNow<0>(*hu);
     }
 
     myBuildDir = readHalfNode(ptr, configRead);

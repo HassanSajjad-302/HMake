@@ -49,7 +49,8 @@ bool CompareSourceNode::operator()(const SourceNode &lhs, const Node *rhs) const
     return lhs.node < rhs;
 }
 
-SourceNode::SourceNode(CppSourceTarget *target_, Node *node_) : ObjectFile(true, false), target(target_), node{node_}
+SourceNode::SourceNode(CppSourceTarget *target_, const Node *node_)
+    : ObjectFile(true, false), target(target_), node{node_}
 {
 }
 
@@ -379,12 +380,11 @@ bool operator<(const SourceNode &lhs, const SourceNode &rhs)
     return lhs.node < rhs.node;
 }
 
-SMFile::SMFile(CppSourceTarget *target_, Node *node_) : SourceNode(target_, node_)
+SMFile::SMFile(CppSourceTarget *target_, const Node *node_) : SourceNode(target_, node_)
 {
 }
 
-SMFile::SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_)
-    : SourceNode(target_, node_, false, false), logicalName(std::move(logicalName_)), type(SM_FILE_TYPE::HEADER_UNIT)
+SMFile::SMFile(CppSourceTarget *target_, const Node *node_, bool) : SourceNode(target_, node_, false, false)
 {
 }
 
@@ -760,10 +760,9 @@ bool SMFile::build(Builder &builder)
     }
 }
 
-bool c32 = true;
 void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
-    if (!round)
+    if (!round && selectiveBuild)
     {
         if (waitingFor)
         {

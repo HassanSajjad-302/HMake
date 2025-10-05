@@ -686,26 +686,26 @@ TEST(StageTests, Test3)
     copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
     copyFilePath(testSourcePath / "Version/1/lib3.cpp", testSourcePath / "lib3/private/lib3.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 2, .nodesFile = true}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 2}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib3.hpp
     const path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
     touchFile(publicLib3DotHpp);
-    executeSnapshotBalances(Updates{.headerUnits = 2}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib4.hpp
     const path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
     touchFile(publicLib4DotHpp);
     executeSnapshotBalances(Updates{.headerUnits = 2}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Making lib4.cpp and lib2.cpp both module-files.
     // 4 smrules files lib4.cpp lib3.cpp public-lib4.hpp privte-lib4.hpp will be updated
@@ -714,19 +714,19 @@ TEST(StageTests, Test3)
     copyFilePath(testSourcePath / "Version/3/lib2.cpp", testSourcePath / "lib2/private/lib2.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{.headerUnits = 4, .nodesFile = true}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 2}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Removing both header-units from lib4.cpp
     copyFilePath(testSourcePath / "Version/4/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
     executeSnapshotBalances(Updates{.headerUnits = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib4-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Adding both header-units back in lib4.cpp
     copyFilePath(testSourcePath / "Version/3/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
     executeSnapshotBalances(Updates{.headerUnits = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib4-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     //  Touching public-lib4.hpp.
@@ -737,22 +737,18 @@ TEST(StageTests, Test3)
 
     // 5 smruleFiles are generated. lib2.cpp, lib3.cpp, lib4.cpp, public-lib3.hpp, public-lib4.hpp.
     executeSnapshotBalances(Updates{.headerUnits = 5}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib4-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Changing hmake.cpp to have option to switch lib4.cpp from module to source
     copyFilePath(testSourcePath / "Version/4/hmake.cpp", testSourcePath / "hmake.cpp");
     copyFilePath(testSourcePath / "Version/4/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 4,
-                                    .sourceFiles = 2,
-                                    .moduleFiles = 2,
-
-                                    .linkTargetsNoDebug = 2,
-                                    .linkTargetsDebug = 1});
+    executeSnapshotBalances(
+        Updates{.headerUnits = 4, .moduleFiles = 2, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
     executeSnapshotBalances(Updates{});
     const path cacheFile = testSourcePath / "Build/cache.json";
     Json cacheJson;
@@ -763,12 +759,8 @@ TEST(StageTests, Test3)
     cacheJson["cache-variables"]["use-module"] = false;
     ofstream(cacheFile) << cacheJson.dump(4);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 2,
-                                    .sourceFiles = 2,
-                                    .moduleFiles = 1,
-
-                                    .linkTargetsNoDebug = 2,
-                                    .linkTargetsDebug = 1});
+    executeSnapshotBalances(
+        Updates{.headerUnits = 2, .moduleFiles = 2, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     cacheJson["cache-variables"]["use-module"] = true;
     ofstream(cacheFile) << cacheJson.dump(4);
@@ -780,8 +772,8 @@ TEST(StageTests, Test3)
     // compile-command. But the public-lib4.hpp is imported in lib2.cpp, so it was recompiled when USE_MODULE definition
     // was removed.
     executeSnapshotBalances(Updates{.headerUnits = 3}, "Debug/lib3");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Moving back to source from module. lib4.cpp.o should not be rebuilt because lib4.cpp with the same
     // compile-command is already in the cache but relinking should happen because previously it were source-file
@@ -789,12 +781,8 @@ TEST(StageTests, Test3)
     cacheJson["cache-variables"]["use-module"] = false;
     ofstream(cacheFile) << cacheJson.dump(4);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 2,
-                                    .sourceFiles = 1,
-                                    .moduleFiles = 1,
-
-                                    .linkTargetsNoDebug = 2,
-                                    .linkTargetsDebug = 1});
+    executeSnapshotBalances(
+        Updates{.headerUnits = 2, .moduleFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 }
 
 TEST(StageTests, Test4)
