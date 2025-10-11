@@ -618,7 +618,23 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
                     }
                 }
             }
+
             writeCacheAtConfigTime();
+
+            for (uint32_t i = 0; i < modFileDeps.size(); ++i)
+            {
+                setHeaderStatusChanged(cppBuildCache.modFiles[i]);
+            }
+
+            for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
+            {
+                setHeaderStatusChanged(cppBuildCache.imodFiles[i]);
+            }
+
+            for (SMFile *hu : huDeps)
+            {
+                setHeaderStatusChanged(cppBuildCache.headerUnits[hu->indexInBuildCache]);
+            }
         }
 
         populateReqAndUseReqDeps();
@@ -829,7 +845,13 @@ void CppSourceTarget::setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCac
             if (it->second != FileType::HEADER_FILE)
             {
                 modCache.smRules.headerStatusChanged = true;
+                return;
             }
+        }
+        else
+        {
+            modCache.smRules.headerStatusChanged = true;
+            return;
         }
     }
 
@@ -840,7 +862,13 @@ void CppSourceTarget::setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCac
             if (it->second != FileType::HEADER_UNIT)
             {
                 modCache.smRules.headerStatusChanged = true;
+                return;
             }
+        }
+        else
+        {
+            modCache.smRules.headerStatusChanged = true;
+            return;
         }
     }
 }

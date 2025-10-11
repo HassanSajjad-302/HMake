@@ -76,15 +76,14 @@ void SourceNode::initializeBuildCache(const uint32_t index)
     if (buildCache.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
+        return;
     }
-    else
+
+    const_cast<bool &>(node->toBeChecked) = true;
+    objectNode->toBeChecked = true;
+    for (Node *headerFile : buildCache.headerFiles)
     {
-        const_cast<bool &>(node->toBeChecked) = true;
-        objectNode->toBeChecked = true;
-        for (Node *headerFile : buildCache.headerFiles)
-        {
-            headerFile->toBeChecked = true;
-        }
+        headerFile->toBeChecked = true;
     }
 }
 
@@ -393,6 +392,13 @@ void SMFile::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
 
     if (modCache.srcFile.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
     {
+        realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
+        return;
+    }
+
+    if (modCache.smRules.headerStatusChanged)
+    {
+        modCache.smRules.headerStatusChanged = false;
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
         return;
     }
