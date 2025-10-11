@@ -249,6 +249,7 @@ void CppSourceTarget::actuallyAddHeaderUnitConfigTime(Node *node)
         }
     }
     huDeps.emplace_back(new SMFile(this, node));
+    reqNodesType.emplace(node, FileType::HEADER_UNIT);
 }
 
 uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit)
@@ -372,6 +373,7 @@ void CppSourceTarget::actuallyAddMSVCInclude(const string &include, bool addInRe
                         //            "happened while adding include {} for target {}.\n",
                         //            pos->second.data.node->filePath, *logicalName, n->filePath, name));
                     }
+                    reqNodesType.emplace(headerNode, FileType::HEADER_FILE);
                 }
             }
         }
@@ -437,6 +439,7 @@ void CppSourceTarget::actuallyAddInclude(const string &include, bool addInReq, b
                                pos->second.data.node->filePath, *logicalName, headerNode->filePath, name));
                 */
                 }
+                reqNodesType.emplace(headerNode, FileType::HEADER_FILE);
             }
         }
     }
@@ -568,6 +571,7 @@ void CppSourceTarget::actuallyAddExtInclude(const string &include, const string 
                                    "happened while adding include {} for target {}.\n",
                                    pos->second.data.node->filePath, *logicalName, headerNode->filePath, name));
                     }
+                    reqNodesType.emplace(headerNode, FileType::HEADER_FILE);
                 }
                 else
                 {

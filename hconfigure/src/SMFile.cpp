@@ -678,6 +678,7 @@ bool SMFile::build(Builder &builder)
                     response.isHeaderUnit = false;
                     response.user = !f->isSystem;
 
+                    headerFiles.emplace(f->data.node);
                     if (const auto &r2 = ipcManager->sendMessage(response); !r2)
                     {
                         printErrorMessage(
@@ -873,8 +874,8 @@ void SMFile::updateBuildCache()
         {
             BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep huDep;
             huDep.node = smFile->interfaceNode;
-            huDep.myIndex = indexInBuildCache;
-            huDep.targetIndex = target->cacheIndex;
+            huDep.myIndex = smFile->indexInBuildCache;
+            huDep.targetIndex = smFile->target->cacheIndex;
             smRulesCache.headerUnitArray.emplace_back(huDep);
         }
         else
@@ -1002,7 +1003,14 @@ void SMFile::setFileStatusAndPopulateAllDependencies()
 
     for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache.headerUnitArray)
     {
-        SMFile *hu = cppSourceTargets[h.targetIndex]->huDeps[h.myIndex];
+        SMFile *hu = nullptr;
+        if (const CppSourceTarget *t = cppSourceTargets[h.targetIndex])
+        {
+            if (h.myIndex < t->huDeps.size())
+            {
+                hu = t->huDeps[h.myIndex];
+            }
+        }
 
         if (hu)
         {
