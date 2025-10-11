@@ -603,6 +603,21 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     {
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
+            for (CppSourceTarget *t : reqDeps)
+            {
+                for (const auto &[n, t] : t->useReqNodesType)
+                {
+                    if (const auto &[it, ok] = reqNodesType.emplace(n, t); !ok)
+                    {
+                        if (it->second != t)
+                        {
+                            printErrorMessage(FORMAT(
+                                "In target {} and its dependencies, node {} is specified as {} and {} as well.\n", name,
+                                n->filePath, static_cast<uint8_t>(t), static_cast<uint8_t>(it->second)));
+                        }
+                    }
+                }
+            }
             writeCacheAtConfigTime();
         }
 
@@ -802,6 +817,31 @@ void readHeaderUnitesAtBuildTime(const char *ptr, uint32_t &bytesRead,
         const uint32_t index = readUint32(ptr, bytesRead);
         const bool isStandard = readBool(ptr, bytesRead);
         headerNameMapping.emplace(name, HeaderFileOrUnit{&headerUnits[index], isStandard});
+    }
+}
+
+void CppSourceTarget::setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache)
+{
+    for (Node *node : modCache.srcFile.headerFiles)
+    {
+        if (auto it = reqNodesType.find(node); it != reqNodesType.end())
+        {
+            if (it->second != FileType::HEADER_FILE)
+            {
+                modCache.smRules.headerStatusChanged = true;
+            }
+        }
+    }
+
+    for (BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &huDep : modCache.smRules.headerUnitArray)
+    {
+        if (auto it = reqNodesType.find(huDep.node); it != reqNodesType.end())
+        {
+            if (it->second != FileType::HEADER_UNIT)
+            {
+                modCache.smRules.headerStatusChanged = true;
+            }
+        }
     }
 }
 

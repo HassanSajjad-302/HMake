@@ -66,6 +66,13 @@ struct HeaderFileOrUnit
     explicit HeaderFileOrUnit(Node *node_, bool isSystem_);
 };
 
+enum class FileType : uint8_t
+{
+    MODULE,
+    HEADER_FILE,
+    HEADER_UNIT,
+};
+
 // TODO
 // HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
 // use -TC flag with MSVC
@@ -102,6 +109,9 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     flat_hash_map<string_view, HeaderFileOrUnit> reqHeaderNameMapping;
     flat_hash_map<string_view, HeaderFileOrUnit> useReqHeaderNameMapping;
 
+    flat_hash_map<Node *, FileType> reqNodesType;
+    flat_hash_map<Node *, FileType> useReqNodesType;
+
     Configuration *configuration = nullptr;
 
     Node *myBuildDir = nullptr;
@@ -124,6 +134,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     void writeBuildCache(vector<char> &buffer) override;
+    void setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache);
     void writeCacheAtConfigTime();
     void readConfigCacheAtBuildTime();
     string getPrintName() const override;

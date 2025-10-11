@@ -98,6 +98,7 @@ struct SMFile : SourceNode // Scanned Module Rule
 
     flat_hash_set<SMFile *> allSMFileDependencies;
     vector<string> logicalNames;
+    vector<Node *> *headerFilesCache;
     Node *interfaceNode;
     SMFile *waitingFor = nullptr;
 
@@ -124,7 +125,6 @@ struct SMFile : SourceNode // Scanned Module Rule
     void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index);
     void makeAndSendBTCModule(SMFile &mod);
     void makeAndSendBTCNonModule(SMFile &hu);
-    void saveBuildCache();
     void duplicateHeaderFileOrUnitError(const string &headerName, struct HeaderFileOrUnit &first,
                                         HeaderFileOrUnit &second, CppSourceTarget *firstTarget,
                                         CppSourceTarget *secondTarget);
