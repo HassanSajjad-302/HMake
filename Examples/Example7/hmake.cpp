@@ -4,7 +4,7 @@ void configurationSpecification(Configuration &config)
 {
     if (config.name == "modules")
     {
-        config.getCppExeDSC("app").getSourceTarget().moduleFiles("main.cpp", "std.cpp");
+        config.getCppExeDSC("app").getSourceTarget().interfaceFiles("std.cpp", "std").moduleFiles("main.cpp");
     }
     else
     {
@@ -14,8 +14,8 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration("modules");
-    getConfiguration("hu");
+    getConfiguration("modules").assign(TreatModuleAsSource::NO, StdAsHeaderUnit::NO);
+    getConfiguration("hu").assign(TreatModuleAsSource::NO);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

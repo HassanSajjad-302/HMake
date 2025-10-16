@@ -14,8 +14,7 @@ import "nlohmann/json.hpp";
 #include <mutex>
 #endif
 
-using std::mutex, std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set, rapidjson::kArrayType,
-    rapidjson::kStringType;
+using std::mutex, std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set;
 
 // Named as slashc to avoid collision with a declaration in nlohmann/json which causes warnings. Will be removed later
 // when nlohmann/json is removed.
@@ -45,7 +44,7 @@ inline Node *configureNode;
 
 inline Node *currentNode;
 
-enum class BSMode : char // Build System Mode
+enum class BSMode : uint8_t // Build System Mode
 {
     CONFIGURE = 0,
     BUILD = 1,
@@ -82,7 +81,7 @@ void initializeCache(BSMode bsMode_);
 inline const string dashCpp = "-cpp";
 inline const string dashLink = "-link";
 
-inline bool singleThreadRunning = false;
+inline bool isOneThreadRunning = true;
 
 typedef void (*PrintMessage)(const string &message);
 typedef void (*PrintMessageColor)(const string &message, uint32_t color);

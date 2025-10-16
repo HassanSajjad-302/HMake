@@ -73,13 +73,17 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     constexpr unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 3 : 1;
     constexpr unsigned short noDebugLinkTargetsMultiplier = 1;
 
-    // .smrules, on Windows / Deps Output File on Linux
-    expected += (os == OS::NT ? 1 : 2) * updates.smruleFiles;
+    // bmi file
+    expected += 1 * updates.headerUnits;
+
     // .o, on Windows / Deps Output File on Linux
     expected += (os == OS::NT ? 1 : 2) * updates.sourceFiles;
 
-    // expected += 3 * updates.errorFiles;
+    // .o
     expected += 1 * updates.moduleFiles;
+
+    // .o + BMI
+    expected += 2 * updates.imodFiles;
 
     expected += (os == OS::NT ? 0 : 1) * updates.errorFiles;
 
@@ -92,8 +96,8 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
         expected += 1;
     }
 
-    if (updates.sourceFiles || updates.moduleFiles || updates.smruleFiles || updates.linkTargetsNoDebug ||
-        updates.linkTargetsDebug)
+    if (updates.sourceFiles || updates.moduleFiles || updates.imodFiles || updates.headerUnits ||
+        updates.linkTargetsNoDebug || updates.linkTargetsDebug)
     {
         expected += 1; // build-cache.json
     }

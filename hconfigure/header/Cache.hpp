@@ -44,25 +44,24 @@ inline Cache cache;
 template <typename T> struct CacheVariable
 {
     T value;
-    string jsonPString;
+    string jsonString;
     CacheVariable(string cacheVariableString_, T defaultValue);
 };
 
 template <typename T>
 CacheVariable<T>::CacheVariable(string cacheVariableString_, T defaultValue)
-    : jsonPString(std::move(cacheVariableString_))
+    : jsonString(std::move(cacheVariableString_))
 {
     Json &cacheVariablesJson = cache.cacheVariables;
-    if (cacheVariablesJson.contains(jsonPString))
+    if (cacheVariablesJson.contains(jsonString))
     {
-        value = cacheVariablesJson.at(jsonPString).get<T>();
+        value = cacheVariablesJson.at(jsonString).get<T>();
     }
     else
     {
         value = defaultValue;
-        cacheVariablesJson[jsonPString] = value;
+        cacheVariablesJson[jsonString] = value;
     }
 }
 
 #endif // HMAKE_CACHE_HPP
-

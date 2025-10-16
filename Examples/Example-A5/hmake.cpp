@@ -1,14 +1,14 @@
 #include "Configure.hpp"
 
 constexpr unsigned short roundLocal = 0;
-struct OurTarget : public BTarget
+struct OurTarget : BTarget
 {
     string name;
     bool error = false;
-    explicit OurTarget(string name_, bool error_ = false) : name{std::move(name_)}, error(error_)
+    explicit OurTarget(string name_, const bool error_ = false) : name{std::move(name_)}, error(error_)
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete) override
+    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
     {
         if (round == roundLocal)
         {

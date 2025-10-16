@@ -81,6 +81,7 @@ void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &is
         if constexpr (bsMode == BSMode::BUILD)
         {
             readCacheAtBuildTime();
+            outputFileNode->toBeChecked = true;
         }
         else
         {

@@ -1,12 +1,13 @@
 #include "Configure.hpp"
 
-struct OurTarget : public BTarget
+struct OurTarget : BTarget
 {
     unsigned short low, high;
-    explicit OurTarget(unsigned short low_, unsigned short high_) : low(low_), high(high_), BTarget(true, false, false)
+    explicit OurTarget(const unsigned short low_, const unsigned short high_)
+        : BTarget(true, false), low(low_), high(high_)
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete) override
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {
@@ -22,9 +23,9 @@ struct OurTarget : public BTarget
 
 OurTarget *a, *b, *c;
 
-struct OurTarget2 : public BTarget
+struct OurTarget2 : BTarget
 {
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
+    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {

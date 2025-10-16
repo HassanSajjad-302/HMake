@@ -2,8 +2,8 @@
 #ifndef HMAKE_SNAPSHOT_HPP
 #define HMAKE_SNAPSHOT_HPP
 
-#include <filesystem>
 #include "phmap.h"
+#include <filesystem>
 
 using std::filesystem::path, std::filesystem::file_time_type, std::filesystem::current_path, phmap::flat_hash_set;
 
@@ -26,10 +26,11 @@ struct Test1Setup
 struct Updates
 {
     unsigned short errorFiles = 0;
-    unsigned short smruleFiles = 0;
+    unsigned short headerUnits = 0;
     // module-files which don't have .ifc file generated are also considered sourceFiles
     unsigned short sourceFiles = 0;
     unsigned short moduleFiles = 0;
+    unsigned short imodFiles = 0;
     unsigned short linkTargetsNoDebug = 0;
     unsigned short linkTargetsDebug = 0;
     bool nodesFile = false;

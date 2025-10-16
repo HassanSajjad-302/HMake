@@ -1,5 +1,4 @@
 
-#include "Node.hpp"
 #ifdef USE_HEADER_UNITS
 import "Builder.hpp";
 import "Settings.hpp";
@@ -8,6 +7,7 @@ import <stack>;
 import <thread>;
 #else
 #include "Builder.hpp"
+#include "Node.hpp"
 #include "Settings.hpp"
 #include <mutex>
 #include <stack>
@@ -19,9 +19,10 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 Builder::Builder()
 {
     round = 1;
-    RealBTarget::graphEdges = span(BTarget::tarjanNodesBTargets[round].data(), BTarget::tarjanNodesCount[round]);
+    RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
     RealBTarget::sortGraph();
 
+    isOneThreadRunning = false;
     for (RealBTarget *rb : RealBTarget::sorted)
     {
         if (!rb->dependenciesSize)
@@ -34,15 +35,15 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    numberOfLaunchedThreads = 1;
-    if (numberOfLaunchedThreads)
+    launchedCount = settings.maximumBuildThreads;
+    if (launchedCount)
     {
-        for (uint64_t i = 0; i < numberOfLaunchedThreads - 1; ++i)
+        for (uint64_t i = 0; i < launchedCount - 1; ++i)
         {
             BTarget::laterDepsCentral.emplace_back(nullptr);
         }
 
-        while (threads.size() != numberOfLaunchedThreads - 1)
+        while (threads.size() != launchedCount - 1)
         {
             uint64_t index = threads.size() + 1;
             threads.emplace_back(new thread([this, index] {
@@ -66,7 +67,6 @@ Builder::Builder()
 }
 
 // #define DEBUG_EXECUTE_YES
-
 #ifdef DEBUG_EXECUTE_YES
 #define DEBUG_EXECUTE(x) printMessage(x)
 #else
@@ -132,8 +132,7 @@ void Builder::execute()
 {
     RealBTarget *rb = nullptr;
 
-    DEBUG_EXECUTE(
-        FORMAT("{} Locking Update Mutex {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(), getThreadId()));
+    DEBUG_EXECUTE(FORMAT("{} Locking Update Mutex {} {} {}\n", round, __LINE__, sleepingCount, getThreadId()));
     std::unique_lock lk(executeMutex);
     while (true)
     {
@@ -145,7 +144,6 @@ void Builder::execute()
                 DEBUG_EXECUTE(FORMAT("{} UnLocking Update Mutex {} {}\n", round, __LINE__, getThreadId()));
                 executeMutex.unlock();
                 cond.notify_one();
-
                 if (round == 1)
                 {
                     rb->bTarget->setSelectiveBuild();
@@ -159,12 +157,10 @@ void Builder::execute()
                 atomic_ref(rb->updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
                 executeMutex.lock();
                 addNewTopBeUpdatedTargets(rb);
-
                 continue;
             }
 
-            if (updateBTargets.size() == updateBTargetsSizeGoal &&
-                numberOfSleepingThreads == numberOfLaunchedThreads - 1)
+            if (updateBTargets.size() == updateBTargetsSizeGoal && sleepingCount == launchedCount - 1)
             {
                 if constexpr (bsMode == BSMode::BUILD)
                 {
@@ -178,11 +174,8 @@ void Builder::execute()
                                 uncheckedNodesCentral.emplace_back(Node::nodeIndices[i]);
                             }
                         }
-                        uncheckedNodes = divideInChunk(uncheckedNodesCentral, numberOfLaunchedThreads);
+                        uncheckedNodes = divideInChunk(uncheckedNodesCentral, launchedCount);
                         exeMode = ExecuteMode::NODE_CHECK;
-                        executeMutex.unlock();
-                        cond.notify_all();
-                        executeMutex.lock();
                         continue;
                     }
                 }
@@ -199,22 +192,36 @@ void Builder::execute()
         }
         else if (exeMode == ExecuteMode::NODE_CHECK)
         {
-            executeMutex.unlock();
-            for (Node *node : uncheckedNodes[myThreadId])
+            if (checkingCount < launchedCount)
             {
-                node->performSystemCheck();
+                const unsigned short nodeCheckIndex = checkingCount;
+                ++checkingCount;
+                DEBUG_EXECUTE(FORMAT("{} checking-count incremented {} {}\n", checkingCount, __LINE__, getThreadId()));
+                executeMutex.unlock();
+                cond.notify_one();
+                for (Node *node : uncheckedNodes[nodeCheckIndex])
+                {
+                    node->performSystemCheck();
+                    node->systemCheckCalled = true;
+                    node->systemCheckCompleted = true;
+                }
+                DEBUG_EXECUTE(FORMAT("{} locking-mutex {} {}\n", checkedCount, __LINE__, getThreadId()));
+                executeMutex.lock();
+                ++checkedCount;
+                DEBUG_EXECUTE(FORMAT("{} checked-count incremented {} {}\n", checkedCount, __LINE__, getThreadId()));
+                continue;
             }
-            executeMutex.lock();
-            if (numberOfSleepingThreads == numberOfLaunchedThreads - 1)
+
+            if (checkedCount == launchedCount)
             {
-                singleThreadRunning = true;
+                isOneThreadRunning = true;
                 DEBUG_EXECUTE(
                     FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
 
                 BTarget::runEndOfRoundTargets();
                 --round;
                 RealBTarget::graphEdges =
-                    span(BTarget::tarjanNodesBTargets[round].data(), BTarget::tarjanNodesCount[round]);
+                    span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
                 RealBTarget::sortGraph();
                 // RealBTarget::printSortedGraph();
 
@@ -233,7 +240,8 @@ void Builder::execute()
                         {
                             for (auto &[dependency, bTargetDepType] : localRb.dependencies)
                             {
-                                if (bTargetDepType == BTargetDepType::FULL)
+                                if (bTargetDepType == BTargetDepType::FULL ||
+                                    bTargetDepType == BTargetDepType::SELECTIVE)
                                 {
                                     dependency->bTarget->selectiveBuild = true;
                                 }
@@ -249,18 +257,17 @@ void Builder::execute()
 
                 updateBTargetsSizeGoal = RealBTarget::sorted.size();
                 exeMode = ExecuteMode::GENERAL;
-                singleThreadRunning = false;
+                isOneThreadRunning = false;
                 continue;
             }
         }
 
-        DEBUG_EXECUTE(
-            FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__, numberOfSleepingThreads.load(), getThreadId()));
+        DEBUG_EXECUTE(FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__, sleepingCount, getThreadId()));
         incrementNumberOfSleepingThreads();
         cond.wait(lk);
         decrementNumberOfSleepingThreads();
-        DEBUG_EXECUTE(FORMAT("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__,
-                             numberOfSleepingThreads.load(), getThreadId()));
+        DEBUG_EXECUTE(
+            FORMAT("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__, sleepingCount, getThreadId()));
         if (returnAfterWakeup)
         {
             cond.notify_one();
@@ -319,15 +326,15 @@ void Builder::addNewTopBeUpdatedTargets(const RealBTarget *rb)
 
 void Builder::incrementNumberOfSleepingThreads()
 {
-    if (numberOfSleepingThreads == numberOfLaunchedThreads - 1)
+    if (sleepingCount == launchedCount - 1)
     {
         RealBTarget::sortGraph();
         printErrorMessage("HMake API misuse.\n");
     }
-    ++numberOfSleepingThreads;
+    ++sleepingCount;
 }
 
 void Builder::decrementNumberOfSleepingThreads()
 {
-    --numberOfSleepingThreads;
+    --sleepingCount;
 }

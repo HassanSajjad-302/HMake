@@ -64,7 +64,8 @@ void CacheWriteManager::addNewEntry(const bool exitStatus, TargetCache *target, 
 
 void CacheWriteManager::writeNodesCacheIfNewNodesAdded()
 {
-    if (const uint64_t newNodesSize = atomic_ref(Node::idCountCompleted).load(); newNodesSize != nodesSizeBefore)
+    if (const uint64_t newNodesSize = atomic_ref(Node::idCountCompleted).load(std::memory_order_acquire);
+        newNodesSize != nodesSizeBefore)
     {
         // printMessage(FORMAT("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
         //                          nodesSizeBefore, newNodesSize));

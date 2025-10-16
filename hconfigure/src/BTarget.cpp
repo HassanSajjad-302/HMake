@@ -25,7 +25,7 @@ BTarget::LaterDep::LaterDep(RealBTarget *b_, RealBTarget *dep_, BTargetDepType t
 BTarget::StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets()
 {
     // 1MB. Deallocated after round.
-    for (span<RealBTarget *> &realBTargets : tarjanNodesBTargets)
+    for (span<RealBTarget *> &realBTargets : realBTargetsGlobal)
     {
         const auto buffer = new char[1024 * 1024 * 2]; // 2 MB
         realBTargets = span(reinterpret_cast<RealBTarget **>(buffer), 1024 * 1024 * 2 / sizeof(RealBTarget *));
@@ -174,16 +174,16 @@ bool RealBTarget::findCycleDFS(RealBTarget *node, flat_hash_set<RealBTarget *> &
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarget(bTarget_)
 {
     uint32_t i;
-    if (singleThreadRunning)
+    if (isOneThreadRunning)
     {
-        i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+        i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
     }
     else
     {
-        i = BTarget::tarjanNodesCount[round_];
-        ++BTarget::tarjanNodesCount[round_];
+        i = BTarget::realBTargetsArrayCount[round_];
+        ++BTarget::realBTargetsArrayCount[round_];
     }
-    BTarget::tarjanNodesBTargets[round_][i] = this;
+    BTarget::realBTargetsGlobal[round_][i] = this;
 }
 
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const bool add) : bTarget(bTarget_)
@@ -191,16 +191,16 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
     if (add)
     {
         uint32_t i;
-        if (singleThreadRunning)
+        if (isOneThreadRunning)
         {
-            i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+            i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
         }
         else
         {
-            i = BTarget::tarjanNodesCount[round_];
-            ++BTarget::tarjanNodesCount[round_];
+            i = BTarget::realBTargetsArrayCount[round_];
+            ++BTarget::realBTargetsArrayCount[round_];
         }
-        BTarget::tarjanNodesBTargets[round_][i] = this;
+        BTarget::realBTargetsGlobal[round_][i] = this;
     }
 }
 
@@ -218,34 +218,34 @@ void RealBTarget::assignFileStatusToDependents()
 void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
 {
     uint32_t i;
-    if (singleThreadRunning)
+    if (isOneThreadRunning)
     {
-        i = BTarget::tarjanNodesCount[round_].fetch_add(1);
+        i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
     }
     else
     {
-        i = BTarget::tarjanNodesCount[round_];
-        ++BTarget::tarjanNodesCount[round_];
+        i = BTarget::realBTargetsArrayCount[round_];
+        ++BTarget::realBTargetsArrayCount[round_];
     }
-    BTarget::tarjanNodesBTargets[round_][i] = this;
+    BTarget::realBTargetsGlobal[round_][i] = this;
 }
 
 static string lowerCase(string str)
 {
-    lowerCasePStringOnWindows(str.data(), str.size());
+    lowerCaseOnWindows(str.data(), str.size());
     return str;
 }
 
 BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1)}
 {
-    if (singleThreadRunning)
-    {
-        id = atomic_ref(total).fetch_add(1);
-    }
-    else
+    if (isOneThreadRunning)
     {
         id = total;
         ++total;
+    }
+    else
+    {
+        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
     }
 }
 
@@ -253,14 +253,14 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
     : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1)}, name(lowerCase(std::move(name_))),
       buildExplicit(buildExplicit_)
 {
-    if (singleThreadRunning)
-    {
-        id = atomic_ref(total).fetch_add(1);
-    }
-    else
+    if (isOneThreadRunning)
     {
         id = total;
         ++total;
+    }
+    else
+    {
+        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
     }
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -278,14 +278,14 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
 BTarget::BTarget(const bool add0, const bool add1)
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1)}
 {
-    if (singleThreadRunning)
-    {
-        id = atomic_ref(total).fetch_add(1);
-    }
-    else
+    if (isOneThreadRunning)
     {
         id = total;
         ++total;
+    }
+    else
+    {
+        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
     }
 }
 
@@ -293,14 +293,14 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1)}, name(lowerCase(std::move(name_))),
       buildExplicit(buildExplicit_)
 {
-    if (singleThreadRunning)
-    {
-        id = atomic_ref(total).fetch_add(1);
-    }
-    else
+    if (isOneThreadRunning)
     {
         id = total;
         ++total;
+    }
+    else
+    {
+        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
     }
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -327,7 +327,7 @@ void BTarget::runEndOfRoundTargets()
         cacheWriteManager.endOfRound();
     }
 
-    delete[] tarjanNodesBTargets[1].data();
+    delete[] realBTargetsGlobal[1].data();
 
     for (vector<LaterDep> *laterDeps : laterDepsCentral)
     {

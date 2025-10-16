@@ -70,33 +70,6 @@ HuTargetPlusDir::HuTargetPlusDir(HeaderUnitNode inclNode_, CppSourceTarget *cppS
 {
 }
 
-InclNodePointerTargetMap::InclNodePointerTargetMap(const HeaderUnitNode *inclNode_, CppSourceTarget *cppSourceTarget_)
-    : inclNode(inclNode_), cppSourceTarget(cppSourceTarget_)
-{
-}
-
-void actuallyAddInclude(vector<InclNode> &inclNodes, const string &include, bool isStandard, bool ignoreHeaderDeps)
-{
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        Node *node = Node::getNodeFromNonNormalizedPath(include, false);
-        bool found = false;
-        for (const InclNode &inclNode : inclNodes)
-        {
-            if (inclNode.node->myId == node->myId)
-            {
-                found = true;
-                printErrorMessage(FORMAT("Include {} is already added.\n", node->filePath));
-                break;
-            }
-        }
-        if (!found)
-        {
-            inclNodes.emplace_back(node, isStandard, ignoreHeaderDeps);
-        }
-    }
-}
-
 void actuallyAddInclude(vector<HuTargetPlusDir> &inclNodes, CppSourceTarget *target, const string &include,
                         bool isStandard, bool ignoreHeaderDeps)
 {

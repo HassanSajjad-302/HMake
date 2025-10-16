@@ -3,10 +3,10 @@
 template <typename... T> void initializeTargets(DSC<CppSourceTarget> *target, T... targets)
 {
     CppSourceTarget &t = target->getSourceTarget();
-    string str = removeDashCppFromName(getLastNameAfterSlash(t.name));
+    const string str = removeDashCppFromName(getLastNameAfterSlash(t.name));
     t.moduleDirsRE("src/" + str + "/", ".*cpp")
-        .privateHUDirs("src/" + str)
-        .publicHUDirs("include/" + str);
+        .privateHUDirsRE("src/" + str, "", ".*hpp")
+        .publicHUDirsRE("include/" + str, str + '/', ".*hpp");
 
     if constexpr (sizeof...(targets))
     {
@@ -16,7 +16,7 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> *target, T.
 
 void configurationSpecification(Configuration &config)
 {
-    config.stdCppTarget->getSourceTarget().interfaceIncludes("include");
+    config.stdCppTarget->getSourceTarget().interfaceIncludesSource("include");
     DSC<CppSourceTarget> &lib4 = config.getCppTargetDSC("lib4");
     DSC<CppSourceTarget> &lib3 = config.getCppTargetDSC("lib3").publicDeps(lib4);
     DSC<CppSourceTarget> &lib2 = config.getCppTargetDSC("lib2").privateDeps(lib3);

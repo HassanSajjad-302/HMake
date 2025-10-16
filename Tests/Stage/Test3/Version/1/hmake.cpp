@@ -1,24 +1,34 @@
 #include "Configure.hpp"
 
-void configurationSpecification(Configuration &debug)
+void configurationSpecification(Configuration &config)
 {
-    debug.assign(debug.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b);
-    DSC<CppSourceTarget> &lib4 = debug.getCppStaticDSC("lib4");
+    config.assign(config.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b);
+
+    DSC<CppSourceTarget> &lib4 = config.getCppStaticDSC("lib4");
     lib4.getSourceTarget()
-        .sourceDirsRE("lib4/private", ".*cpp")
-        .publicIncludes("lib4/public")
-        .privateIncludes("lib4/private");
+        .moduleDirsRE("lib4/private", ".*cpp")
+        .privateIncludesRE("lib4/private", ".*hpp")
+        .publicIncludes("lib4/public");
 
-    DSC<CppSourceTarget> &lib3 = debug.getCppStaticDSC("lib3").publicDeps(lib4);
-    lib3.getSourceTarget().moduleDirsRE("lib3/private", ".*cpp").publicHUIncludes("lib3/public");
+    DSC<CppSourceTarget> &lib3 = config.getCppStaticDSC("lib3").publicDeps(lib4);
+    lib3.getSourceTarget()
+        .moduleDirsRE("lib3/private", ".*cpp")
+        .privateIncludesRE("lib3/private", ".*hpp")
+        .publicHUIncludes("lib3/public");
 
-    DSC<CppSourceTarget> &lib2 = debug.getCppStaticDSC("lib2").privateDeps(lib3);
-    lib2.getSourceTarget().sourceDirsRE("lib2/private", ".*cpp").publicIncludes("lib2/public");
+    DSC<CppSourceTarget> &lib2 = config.getCppStaticDSC("lib2").privateDeps(lib3);
+    lib2.getSourceTarget()
+        .moduleDirsRE("lib2/private", ".*cpp")
+        .privateIncludesRE("lib2/private", ".*hpp")
+        .publicIncludes("lib2/public");
 
-    DSC<CppSourceTarget> &lib1 = debug.getCppStaticDSC("lib1").publicDeps(lib2);
-    lib1.getSourceTarget().sourceDirsRE("lib1/private", ".*cpp").publicIncludes("lib1/public");
+    DSC<CppSourceTarget> &lib1 = config.getCppStaticDSC("lib1").publicDeps(lib2);
+    lib1.getSourceTarget()
+        .moduleDirsRE("lib1/private", ".*cpp")
+        .privateIncludesRE("lib1/private", ".*hpp")
+        .publicIncludes("lib1/public");
 
-    debug.getCppExeDSC("app").privateDeps(lib1).getSourceTarget().sourceFiles("main.cpp");
+    config.getCppExeDSC("app").privateDeps(lib1).getSourceTarget().moduleFiles("main.cpp");
 }
 
 void buildSpecification()

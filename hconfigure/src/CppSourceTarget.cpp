@@ -1,24 +1,8 @@
 
-#ifdef USE_HEADER_UNITS
-import "CppSourceTarget.hpp";
-import "BuildSystemFunctions.hpp";
-import "Builder.hpp";
-import "ConfigHelpers.hpp";
-import "Configuration.hpp";
-import "LOAT.hpp";
-import "rapidhash.h";
-import "CacheWriteManager.hpp";
-import "Utilities.hpp";
-import <filesystem>;
-import <fstream>;
-import <regex>;
-import <utility>;
-#else
 #include "CppSourceTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "CacheWriteManager.hpp"
-#include "ConfigHelpers.hpp"
 #include "Configuration.hpp"
 #include "LOAT.hpp"
 #include "Utilities.hpp"
@@ -27,7 +11,6 @@ import <utility>;
 #include <fstream>
 #include <regex>
 #include <utility>
-#endif
 
 using std::filesystem::create_directories, std::filesystem::directory_iterator,
     std::filesystem::recursive_directory_iterator, std::ifstream, std::ofstream, std::regex, std::regex_error;
@@ -59,29 +42,14 @@ uint64_t RequireNameTargetIdHash::operator()(const RequireNameTargetId &req) con
     return rapidhash(&hash, sizeof(hash));
 }
 
-bool CppSourceTarget::SMFileEqual::operator()(const SMFile *lhs, const SMFile *rhs) const
+HeaderFileOrUnit::HeaderFileOrUnit(SMFile *smFile_, const bool isSystem_)
+    : data{.smFile = smFile_}, isUnit(true), isSystem(isSystem_)
 {
-    return lhs->node == rhs->node;
 }
 
-bool CppSourceTarget::SMFileEqual::operator()(const SMFile *lhs, const Node *rhs) const
+HeaderFileOrUnit::HeaderFileOrUnit(Node *node_, const bool isSystem_)
+    : data{.node = node_}, isUnit(false), isSystem(isSystem_)
 {
-    return lhs->node == rhs;
-}
-
-bool CppSourceTarget::SMFileEqual::operator()(const Node *lhs, const SMFile *rhs) const
-{
-    return lhs == rhs->node;
-}
-
-std::size_t CppSourceTarget::SMFileHash::operator()(const SMFile *node) const
-{
-    return reinterpret_cast<uint64_t>(node->node);
-}
-
-std::size_t CppSourceTarget::SMFileHash::operator()(const Node *node) const
-{
-    return reinterpret_cast<uint64_t>(node);
 }
 
 CppSourceTarget::CppSourceTarget(const string &name_, Configuration *configuration_)
@@ -124,6 +92,11 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
     if constexpr (bsMode == BSMode::BUILD)
     {
         cppSourceTargets[cacheIndex] = this;
+        cppBuildCache.deserialize(cacheIndex);
+        if (configuration->evaluate(TreatModuleAsSource::NO))
+        {
+            huAndIModTarget = new BTarget();
+        }
         readConfigCacheAtBuildTime();
     }
 }
@@ -155,11 +128,14 @@ void CppSourceTarget::populateTransitiveProperties()
 {
     for (CppSourceTarget *cppSourceTarget : reqDeps)
     {
-        for (const InclNode &inclNode : cppSourceTarget->useReqIncls)
+        if (configuration->evaluate(TreatModuleAsSource::YES))
         {
-            // Configure-time check.
-            actuallyAddInclude(reqIncls, inclNode.node->filePath);
-            reqIncls.emplace_back(inclNode);
+            for (const InclNode &inclNode : cppSourceTarget->useReqIncls)
+            {
+                // Configure-time check.
+                actuallyAddInclude(true, inclNode.node, true, false);
+                reqIncls.emplace_back(inclNode);
+            }
         }
         reqCompilerFlags += cppSourceTarget->useReqCompilerFlags;
         for (const Define &define : cppSourceTarget->useReqCompileDefinitions)
@@ -167,50 +143,18 @@ void CppSourceTarget::populateTransitiveProperties()
             reqCompileDefinitions.emplace(define);
         }
         reqCompilerFlags += cppSourceTarget->useReqCompilerFlags;
-
-        for (HuTargetPlusDir &inclNodeTargetMap : cppSourceTarget->useReqHuDirs)
-        {
-            // Configure-time check
-            actuallyAddInclude(reqHuDirs, this, inclNodeTargetMap.inclNode.node->filePath);
-            reqHuDirs.emplace_back(inclNodeTargetMap);
-        }
     }
-}
-
-CppSourceTarget &CppSourceTarget::initializeUseReqInclsFromReqIncls()
-{
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        for (const InclNode &include : reqIncls)
-        {
-            actuallyAddInclude(useReqIncls, include.node->filePath, include.isStandard, include.ignoreHeaderDeps);
-        }
-    }
-
-    return *this;
-}
-
-CppSourceTarget &CppSourceTarget::initializePublicHuDirsFromReqIncls()
-{
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        for (const InclNode &include : reqIncls)
-        {
-            if (evaluate(TreatModuleAsSource::NO))
-            {
-                actuallyAddInclude(reqHuDirs, this, include.node->filePath, include.isStandard,
-                                   include.ignoreHeaderDeps);
-                actuallyAddInclude(useReqHuDirs, this, include.node->filePath, include.isStandard,
-                                   include.ignoreHeaderDeps);
-            }
-        }
-    }
-
-    return *this;
 }
 
 void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
 {
+    if (configuration->evaluate(TreatModuleAsSource::NO))
+    {
+        printErrorMessage(
+            FORMAT("CppSourceTarget {}\n already has module-files but now source-file {} is being added.\n", name,
+                   node->filePath));
+    }
+
     for (const SourceNode *source : srcFileDeps)
     {
         if (source->node == node)
@@ -224,25 +168,26 @@ void CppSourceTarget::actuallyAddSourceFileConfigTime(Node *node)
     srcFileDeps.emplace_back(new SourceNode(this, node));
 }
 
-void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, const bool isInterface)
+void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, string exportName)
 {
-    string fileName = node->getFileName();
-    const string ext = {fileName.begin() + fileName.find_last_of('.') + 1, fileName.end()};
-    if (ext == "cppm" || ext == "ixx")
+    if (configuration->evaluate(TreatModuleAsSource::YES))
     {
-        for (const SMFile *smFile : imodFileDeps)
-        {
-            if (smFile->node == node)
-            {
-                printErrorMessage(
-                    FORMAT("Attempting to add {} twice in module-files in cpptarget {}. second insertiion ignored.\n",
-                           node->filePath, name));
-                return;
-            }
-        }
-        imodFileDeps.emplace_back(new SMFile(this, node));
+        printErrorMessage(
+            FORMAT("In CppSourceTarget {}\n module-file {} is being added.\n with TreatModuleAsSource::YES.", name,
+                   node->filePath));
     }
-    else
+
+    if (exportName.empty())
+    {
+        string fileName = node->getFileName();
+        if (const string ext = {fileName.begin() + fileName.find_last_of('.') + 1, fileName.end()};
+            ext == "cppm" || ext == "ixx")
+        {
+            exportName = node->getFileStem();
+        }
+    }
+
+    if (exportName.empty())
     {
         for (const SMFile *smFile : modFileDeps)
         {
@@ -256,21 +201,218 @@ void CppSourceTarget::actuallyAddModuleFileConfigTime(Node *node, const bool isI
         }
         modFileDeps.emplace_back(new SMFile(this, node));
     }
+    else
+    {
+        for (const SMFile *smFile : imodFileDeps)
+        {
+            if (smFile->node == node)
+            {
+                printErrorMessage(
+                    FORMAT("Attempting to add {} twice in module-files in cpptarget {}. second insertiion ignored.\n",
+                           node->filePath, name));
+                return;
+            }
+        }
+        imodFileDeps.emplace_back(new SMFile(this, node));
+        imodFileDeps[imodFileDeps.size() - 1]->logicalName = exportName;
+    }
 }
 
-void CppSourceTarget::actuallyAddHeaderUnitConfigTime(Node *node)
+static void emplaceInHeaderNameMapping(flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping,
+                                       string_view headerName, HeaderFileOrUnit type, const bool suppressError)
 {
-    for (const SMFile &smFile : oldHeaderUnits)
+    if (const auto &[it, ok] = headerNameMapping.emplace(headerName, type); !ok && !suppressError)
     {
-        if (smFile.node == node)
+        printErrorMessage(FORMAT("headerNameMapping already has headerName {}.\n", headerName));
+    }
+}
+
+static void emplaceInNodesType(flat_hash_map<const Node *, FileType> &nodesType, const Node *node, FileType type)
+{
+    if (node->filePath.contains("yvals_core.h"))
+    {
+        bool breakpoint = true;
+    }
+    if (const auto &[it, ok] = nodesType.emplace(node, type); !ok && it->second != type)
+    {
+        printErrorMessage(FORMAT("nodesTypeMap already has Node {} but with different type\n", node->filePath));
+    }
+}
+
+void CppSourceTarget::addHeaderFile(Node *headerNode, const string &logicalName, const bool suppressError,
+                                    const bool addInReq, const bool addInUseReq, const bool isStandard,
+                                    const bool ignoreHeaderDeps)
+{
+    string *p = new string(logicalName);
+    lowerCaseOnWindows(p->data(), p->size());
+    if (addInReq)
+    {
+        emplaceInHeaderNameMapping(reqHeaderNameMapping, *p, HeaderFileOrUnit{headerNode, isStandard}, suppressError);
+        emplaceInNodesType(reqNodesType, headerNode, FileType::HEADER_FILE);
+    }
+
+    if (addInUseReq)
+    {
+        emplaceInHeaderNameMapping(useReqHeaderNameMapping, *p, HeaderFileOrUnit{headerNode, isStandard},
+                                   suppressError);
+        emplaceInNodesType(useReqNodesType, headerNode, FileType::HEADER_FILE);
+    }
+}
+
+void CppSourceTarget::addHeaderUnit(const Node *headerNode, const string &logicalName, bool suppressError,
+                                    const bool addInReq, const bool addInUseReq, const bool isStandard,
+                                    const bool ignoreHeaderDeps)
+{
+    string *p = new string(logicalName);
+    lowerCaseOnWindows(p->data(), p->size());
+    for (const SMFile *smFile : huDeps)
+    {
+        if (smFile->node == headerNode)
         {
             printErrorMessage(
-                FORMAT("Attempting to add {} twice in header-units in cpptarget {}. second insertiion ignored.\n",
-                       node->filePath, name));
-            return;
+                FORMAT("Attempting to add {} twice in header-units in cpptarget {}.\n", headerNode->filePath, name));
         }
     }
-    oldHeaderUnits.emplace_back(this, node);
+
+    SMFile *hu = huDeps.emplace_back(new SMFile(this, headerNode));
+    hu->logicalNames.emplace_back(*p);
+
+    if (addInReq)
+    {
+        emplaceInNodesType(reqNodesType, headerNode, FileType::HEADER_UNIT);
+        hu->isReqDep = true;
+    }
+
+    if (addInUseReq)
+    {
+        emplaceInNodesType(useReqNodesType, headerNode, FileType::HEADER_UNIT);
+        hu->isUseReqDep = true;
+    }
+
+    hu->isSystem = isStandard;
+}
+
+void CppSourceTarget::addHeaderUnitOrFileDir(const Node *includeDir, const string &prefix, bool isHeaderFile,
+                                             const string &regexStr, const bool addInReq, const bool addInUseReq,
+                                             const bool isStandard, const bool ignoreHeaderDeps)
+{
+    if (configuration->evaluate(TreatModuleAsSource::YES))
+    {
+        return;
+    }
+
+    for (const auto &p : recursive_directory_iterator(includeDir->filePath))
+    {
+        if (p.is_regular_file() &&
+            (regexStr.empty() || regex_match(p.path().filename().string(), std::regex(regexStr))))
+        {
+            Node *headerNode;
+            string *logicalName;
+            {
+                string str = p.path().string();
+                lowerCaseOnWindows(str.data(), str.size());
+                // logicalName is a string as it is stored as string_view in reqHeaderNameMapping. reqHeaderNameMapping
+                // has string_view so it is fast initialized at build-time.
+                logicalName = new string(prefix + string{str.data() + includeDir->filePath.size() + 1,
+                                                         str.size() - includeDir->filePath.size() - 1});
+                headerNode = Node::getHalfNode(str);
+
+                if constexpr (os == OS::NT)
+                {
+                    for (char &c : *logicalName)
+                    {
+                        if (c == '\\')
+
+                        {
+                            c = '/';
+                        }
+                    }
+                }
+            }
+
+            if (isHeaderFile)
+            {
+                addHeaderFile(headerNode, *logicalName, false, addInReq, addInUseReq, isStandard, ignoreHeaderDeps);
+            }
+            else
+            {
+                addHeaderUnit(headerNode, *logicalName, false, addInReq, addInUseReq, isStandard, ignoreHeaderDeps);
+            }
+        }
+    }
+}
+
+void CppSourceTarget::addHeaderUnitOrFileDirMSVC(const Node *includeDir, bool isHeaderFile, const bool useMentioned,
+                                                 const bool addInReq, const bool addInUseReq, const bool isStandard,
+                                                 bool ignoreHeaderDeps)
+{
+    if (configuration->evaluate(TreatModuleAsSource::YES))
+    {
+        return;
+    }
+
+    // From the header-units.json in the include-dir, the mentioned header-files are manually added as parsing of
+    // header-units.json file fails because of the comments in it.
+    flat_hash_set<Node *> mentioned; // those that are mentioned in header-units.json file.
+    if (useMentioned)
+    {
+        string headerNames =
+            R"(\__msvc_bit_utils.hpp,\__msvc_chrono.hpp,\__msvc_cxx_stdatomic.hpp,\__msvc_filebuf.hpp,\__msvc_format_ucd_tables.hpp,\__msvc_formatter.hpp,\__msvc_heap_algorithms.hpp,\__msvc_int128.hpp,\__msvc_iter_core.hpp,\__msvc_minmax.hpp,\__msvc_ostream.hpp,\__msvc_print.hpp,\__msvc_ranges_to.hpp,\__msvc_ranges_tuple_formatter.hpp,\__msvc_sanitizer_annotate_container.hpp,\__msvc_string_view.hpp,\__msvc_system_error_abi.hpp,\__msvc_threads_core.hpp,\__msvc_tzdb.hpp,\__msvc_xlocinfo_types.hpp,\algorithm,\any,\array,\atomic,\barrier,\bit,\bitset,\cctype,\cerrno,\cfenv,\cfloat,\charconv,\chrono,\cinttypes,\climits,\clocale,\cmath,\codecvt,\compare,\complex,\concepts,\condition_variable,\coroutine,\csetjmp,\csignal,\cstdarg,\cstddef,\cstdint,\cstdio,\cstdlib,\cstring,\ctime,\cuchar,\cwchar,\cwctype,\deque,\exception,\execution,\expected,\filesystem,\format,\forward_list,\fstream,\functional,\future,\generator,\initializer_list,\iomanip,\ios,\iosfwd,\iostream,\iso646.h,\istream,\iterator,\latch,\limits,\list,\locale,\map,\mdspan,\memory,\memory_resource,\mutex,\new,\numbers,\numeric,\optional,\ostream,\print,\queue,\random,\ranges,\ratio,\regex,\scoped_allocator,\semaphore,\set,\shared_mutex,\source_location,\span,\spanstream,\sstream,\stack,\stacktrace,\stdexcept,\stdfloat,\stop_token,\streambuf,\string,\string_view,\strstream,\syncstream,\system_error,\thread,\tuple,\type_traits,\typeindex,\typeinfo,\unordered_map,\unordered_set,\utility,\valarray,\variant,\vector,\xatomic.h,\xatomic_wait.h,\xbit_ops.h,\xcall_once.h,\xcharconv.h,\xcharconv_ryu.h,\xcharconv_ryu_tables.h,\xcharconv_tables.h,\xerrc.h,\xfacet,\xfilesystem_abi.h,\xhash,\xiosbase,\xlocale,\xlocbuf,\xlocinfo,\xlocmes,\xlocmon,\xlocnum,\xloctime,\xmemory,\xnode_handle.h,\xpolymorphic_allocator.h,\xsmf_control.h,\xstring,\xthreads.h,\xtimec.h,\xtr1common,\xtree,\xutility,\ymath.h)";
+        uint32_t oldIndex = 0;
+        uint32_t index = headerNames.find(',');
+        while (index != -1)
+        {
+            mentioned.emplace(Node::getNodeFromNonNormalizedString(
+                includeDir->filePath + string(headerNames.begin() + oldIndex, headerNames.begin() + index), true,
+                false));
+            oldIndex = index + 1;
+            index = headerNames.find(',', oldIndex);
+        }
+    }
+
+    for (const auto &p : recursive_directory_iterator(includeDir->filePath))
+    {
+        if (p.is_regular_file())
+        {
+            Node *headerNode;
+            string *logicalName;
+            {
+                string str = p.path().string();
+                lowerCaseOnWindows(str.data(), str.size());
+                // logicalName is a string as it is stored as string_view in reqHeaderNameMapping. reqHeaderNameMapping
+                // has string_view so it is fast initialized at build-time.
+                logicalName = new string(
+                    string{str.data() + includeDir->filePath.size() + 1, str.size() - includeDir->filePath.size() - 1});
+                headerNode = Node::getHalfNode(str);
+
+                if constexpr (os == OS::NT)
+                {
+                    for (char &c : *logicalName)
+                    {
+                        if (c == '\\')
+
+                        {
+                            c = '/';
+                        }
+                    }
+                }
+            }
+
+            if (useMentioned)
+            {
+                isHeaderFile = !mentioned.contains(headerNode);
+            }
+
+            if (isHeaderFile)
+            {
+                addHeaderFile(headerNode, *logicalName, true, addInReq, addInUseReq, isStandard, ignoreHeaderDeps);
+            }
+            else
+            {
+                addHeaderUnit(headerNode, *logicalName, true, addInReq, addInUseReq, isStandard, ignoreHeaderDeps);
+            }
+        }
+    }
 }
 
 uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit)
@@ -294,6 +436,54 @@ uint64_t CppSourceTarget::actuallyAddBigHuConfigTime(const Node *node, const str
     return index;*/
 }
 
+void CppSourceTarget::actuallyAddInclude(const bool errorOnEmplaceFail, const Node *include, const bool addInReq,
+                                         const bool addInUseReq, bool isStandard, bool ignoreHeaderDeps)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (addInReq)
+        {
+            bool found = false;
+            for (const InclNode &inclNode : reqIncls)
+            {
+                if (inclNode.node == include)
+                {
+                    if (errorOnEmplaceFail)
+                    {
+                        printErrorMessage(
+                            FORMAT("Include {} is already added in reqIncls in target {}.\n", include->filePath, name));
+                    }
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                reqIncls.emplace_back(const_cast<Node *>(include), isStandard, ignoreHeaderDeps);
+            }
+        }
+
+        if (addInUseReq)
+        {
+            for (const InclNode &inclNode : useReqIncls)
+            {
+                if (inclNode.node == include)
+                {
+                    if (errorOnEmplaceFail)
+                    {
+                        printErrorMessage(FORMAT("Include {} is already added in useReqIncls in target {}.\n",
+                                                 include->filePath, name));
+                    }
+                    return;
+                }
+            }
+
+            useReqIncls.emplace_back(const_cast<Node *>(include), isStandard, ignoreHeaderDeps);
+        }
+    }
+}
+
 void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     if (!round)
@@ -308,10 +498,37 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
     {
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            writeCacheAtConfigTime(true);
+            writeCacheAtConfigTime();
+            populateReqAndUseReqDeps();
+
+            for (CppSourceTarget *t : reqDeps)
+            {
+                for (const auto &[n, t] : t->useReqNodesType)
+                {
+                    emplaceInNodesType(reqNodesType, n, t);
+                }
+            }
+
+            for (uint32_t i = 0; i < modFileDeps.size(); ++i)
+            {
+                setHeaderStatusChanged(cppBuildCache.modFiles[i]);
+            }
+
+            for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
+            {
+                setHeaderStatusChanged(cppBuildCache.imodFiles[i]);
+            }
+
+            for (SMFile *hu : huDeps)
+            {
+                setHeaderStatusChanged(cppBuildCache.headerUnits[hu->indexInBuildCache]);
+            }
+        }
+        else
+        {
+            populateReqAndUseReqDeps();
         }
 
-        populateReqAndUseReqDeps();
         // Needed to maintain ordering between different includes specification.
         reqIncSizeBeforePopulate = reqIncls.size();
         populateTransitiveProperties();
@@ -326,22 +543,24 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         compileCommandWithTool.setCommand(configuration->compilerFeatures.compiler.bTPath.string() + " " +
                                           compileCommand);
 
-        cppBuildCache.deserialize(cacheIndex);
         for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
         {
-            srcFileDeps[i]->buildCache = cppBuildCache.srcFiles[i];
             srcFileDeps[i]->initializeBuildCache(i);
         }
         for (uint32_t i = 0; i < modFileDeps.size(); ++i)
         {
-            modFileDeps[i]->buildCache = cppBuildCache.modFiles[i].srcFile;
-            modFileDeps[i]->initializeBuildCache(i);
+            modFileDeps[i]->initializeBuildCache(cppBuildCache.modFiles[i], i);
         }
-
         for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
         {
-            imodFileDeps[i]->buildCache = cppBuildCache.imodFiles[i].srcFile;
-            imodFileDeps[i]->initializeBuildCache(i);
+            imodFileDeps[i]->initializeBuildCache(cppBuildCache.imodFiles[i], i);
+        }
+        for (uint32_t i = 0; i < huDeps.size(); ++i)
+        {
+            if (huDeps[i])
+            {
+                huDeps[i]->initializeBuildCache(cppBuildCache.headerUnits[i], i);
+            }
         }
 
         setSourceCompileCommandPrintFirstHalf();
@@ -350,29 +569,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
             if (!cppSourceTarget->modFileDeps.empty())
             {
             }
-        }
-        if (!cppBuildCache.headerUnits.empty())
-        {
-            oldHeaderUnits.reserve(cppBuildCache.headerUnits.size());
-            for (uint64_t i = 0; i < cppBuildCache.headerUnits.size(); ++i)
-            {
-                oldHeaderUnits.emplace_back(this, cppBuildCache.headerUnits[i].srcFile.node,
-                                            string(cppBuildCache.headerUnits[i].smRules.exportName));
-                oldHeaderUnits[i].indexInBuildCache = i;
-                oldHeaderUnits[i].buildCache = cppBuildCache.headerUnits[i].srcFile;
-                oldHeaderUnits[i].smRulesCache = cppBuildCache.headerUnits[i].smRules;
-                oldHeaderUnits[i].type = SM_FILE_TYPE::HEADER_UNIT;
-                headerUnitsSet.emplace(&oldHeaderUnits[i]);
-            }
-
-            builder.executeMutex.lock();
-            for (SMFile *headerUnit : headerUnitsSet)
-            {
-                builder.updateBTargets.emplace(&headerUnit->realBTargets[1]);
-            }
-            builder.updateBTargetsSizeGoal += oldHeaderUnits.size();
-            builder.addNewTopBeUpdatedTargets(&this->realBTargets[round]);
-            isComplete = true;
         }
     }
 }
@@ -491,66 +687,169 @@ void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<T> &in
     }
 }
 
-void CppSourceTarget::writeCacheAtConfigTime(const bool before)
+void writeHeaderFilesOrUnitsAtConfigTime(vector<char> &buffer,
+                                         flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping)
 {
-    if (before)
+    writeUint32(buffer, headerNameMapping.size());
+    for (const auto &[s, h] : headerNameMapping)
     {
-        auto *configBuffer = new vector<char>{};
+        assert(!h.isUnit && "HeaderFileOrUnit can not be HeaderUnit at config-time\n");
+        writeStringView(buffer, s);
+        writeNode(buffer, h.data.node);
+        writeBool(buffer, h.isSystem);
+    }
+}
+
+void readHeaderFilesAtBuildTime(const char *ptr, uint32_t &bytesRead,
+                                flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping)
+{
+    const uint32_t includeSize = readUint32(ptr, bytesRead);
+    for (uint32_t i = 0; i < includeSize; ++i)
+    {
+        string_view name = readStringView(ptr, bytesRead);
+        Node *node = readHalfNode(ptr, bytesRead);
+        const bool isStandard = readBool(ptr, bytesRead);
+        if (!headerNameMapping.emplace(name, HeaderFileOrUnit{node, isStandard}).second)
+        {
+            bool brekapoint = true;
+        }
+    }
+}
+
+void readHeaderUnitesAtBuildTime(const char *ptr, uint32_t &bytesRead,
+                                 flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping,
+                                 vector<SMFile> &headerUnits)
+{
+    const uint32_t includeSize = readUint32(ptr, bytesRead);
+    for (uint32_t i = 0; i < includeSize; ++i)
+    {
+        string_view name = readStringView(ptr, bytesRead);
+        const uint32_t index = readUint32(ptr, bytesRead);
+        const bool isStandard = readBool(ptr, bytesRead);
+        headerNameMapping.emplace(name, HeaderFileOrUnit{&headerUnits[index], isStandard});
+    }
+}
+
+void CppSourceTarget::setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache)
+{
+    for (Node *node : modCache.srcFile.headerFiles)
+    {
+        if (auto it = reqNodesType.find(node); it != reqNodesType.end())
+        {
+            if (it->second != FileType::HEADER_FILE)
+            {
+                modCache.smRules.headerStatusChanged = true;
+                return;
+            }
+        }
+        else
+        {
+            modCache.smRules.headerStatusChanged = true;
+            return;
+        }
+    }
+
+    for (BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &huDep : modCache.smRules.headerUnitArray)
+    {
+        if (auto it = reqNodesType.find(huDep.node); it != reqNodesType.end())
+        {
+            if (it->second != FileType::HEADER_UNIT)
+            {
+                modCache.smRules.headerStatusChanged = true;
+                return;
+            }
+        }
+        else
+        {
+            modCache.smRules.headerStatusChanged = true;
+            return;
+        }
+    }
+}
+
+void CppSourceTarget::writeCacheAtConfigTime()
+{
+    cppBuildCache.deserialize(cacheIndex);
+    auto *configBuffer = new vector<char>{};
+
+    writeUint32(*configBuffer, srcFileDeps.size());
+    for (SourceNode *source : srcFileDeps)
+    {
+        source->objectNode = Node::getNodeFromNormalizedString(
+            myBuildDir->filePath + slashc + source->node->getFileName() + ".o", true, true);
+
+        writeNode(*configBuffer, source->node);
+        writeNode(*configBuffer, source->objectNode);
+    }
+
+    writeUint32(*configBuffer, modFileDeps.size());
+    for (SMFile *smFile : modFileDeps)
+    {
+        smFile->objectNode = Node::getNodeFromNormalizedString(
+            myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
+        writeNode(*configBuffer, smFile->node);
+        writeNode(*configBuffer, smFile->objectNode);
+    }
+
+    writeUint32(*configBuffer, imodFileDeps.size());
+    for (SMFile *smFile : imodFileDeps)
+    {
+        smFile->objectNode = Node::getNodeFromNormalizedString(
+            myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
+        smFile->interfaceNode = Node::getNodeFromNormalizedString(
+            myBuildDir->filePath + slashc + smFile->node->getFileName() + ".ifc", true, true);
+        writeNode(*configBuffer, smFile->node);
+        writeStringView(*configBuffer, smFile->logicalName);
+        writeNode(*configBuffer, smFile->objectNode);
+        writeNode(*configBuffer, smFile->interfaceNode);
+    }
+
+    writeUint32(*configBuffer, huDeps.size());
+    for (SMFile *hu : huDeps)
+    {
+        uint32_t index = findNodeInSourceCache(cppBuildCache.headerUnits, hu->node);
+        if (index == -1)
+        {
+            index = cppBuildCache.headerUnits.size();
+            cppBuildCache.headerUnits.emplace_back();
+            cppBuildCache.headerUnits[index].srcFile.node = const_cast<Node *>(hu->node);
+        }
+        hu->indexInBuildCache = index;
+        hu->interfaceNode = Node::getNodeFromNormalizedString(
+            myBuildDir->filePath + slashc + hu->node->getFileName() + ".ifc", true, true);
+
+        writeUint32(*configBuffer, hu->indexInBuildCache);
+        writeNode(*configBuffer, hu->node);
+        writeNode(*configBuffer, hu->interfaceNode);
+        const uint32_t logicalNamesSize = hu->logicalNames.size();
+        writeUint32(*configBuffer, logicalNamesSize);
+        for (uint32_t i = 0; i < logicalNamesSize; ++i)
+        {
+            writeStringView(*configBuffer, hu->logicalNames[i]);
+        }
+        writeBool(*configBuffer, hu->isReqDep);
+        writeBool(*configBuffer, hu->isUseReqDep);
+        writeBool(*configBuffer, hu->isSystem);
+    }
+
+    writeNode(*configBuffer, myBuildDir);
+
+    if (configuration->evaluate(TreatModuleAsSource::YES))
+    {
         writeIncDirsAtConfigTime(*configBuffer, reqIncls);
         writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
-        writeIncDirsAtConfigTime(*configBuffer, reqHuDirs);
-        writeIncDirsAtConfigTime(*configBuffer, useReqHuDirs);
-
-        writeUint32(*configBuffer, srcFileDeps.size());
-        for (SourceNode *source : srcFileDeps)
-        {
-            source->objectNode = Node::getNodeFromNormalizedString(
-                myBuildDir->filePath + slashc + source->node->getFileName() + ".o", true, true);
-
-            writeNode(*configBuffer, source->node);
-            writeNode(*configBuffer, source->objectNode);
-        }
-
-        writeUint32(*configBuffer, modFileDeps.size());
-        for (SMFile *smFile : modFileDeps)
-        {
-            smFile->objectNode = Node::getNodeFromNormalizedString(
-                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
-            writeNode(*configBuffer, smFile->node);
-            writeNode(*configBuffer, smFile->objectNode);
-        }
-
-        writeUint32(*configBuffer, imodFileDeps.size());
-        for (SMFile *smFile : imodFileDeps)
-        {
-            smFile->objectNode = Node::getNodeFromNormalizedString(
-                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".o", true, true);
-            smFile->interfaceNode = Node::getNodeFromNormalizedString(
-                myBuildDir->filePath + slashc + smFile->node->getFileName() + ".ifc", true, true);
-            writeNode(*configBuffer, smFile->node);
-            writeNode(*configBuffer, smFile->objectNode);
-            writeNode(*configBuffer, smFile->interfaceNode);
-        }
-
-        writeUint32(*configBuffer, oldHeaderUnits.size());
-        for (SMFile &smFile : oldHeaderUnits)
-        {
-            smFile.interfaceNode = Node::getNodeFromNormalizedString(
-                myBuildDir->filePath + slashc + smFile.node->getFileName() + ".ifc", true, true);
-            writeNode(*configBuffer, smFile.node);
-            writeNode(*configBuffer, smFile.interfaceNode);
-        }
-
-        writeNode(*configBuffer, myBuildDir);
-
-        fileTargetCaches[cacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
-
-        cppBuildCache.deserialize(cacheIndex);
-
-        adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
-        adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
-        adjustBuildCache(cppBuildCache.imodFiles, imodFileDeps);
     }
+    else
+    {
+        writeHeaderFilesOrUnitsAtConfigTime(*configBuffer, reqHeaderNameMapping);
+        writeHeaderFilesOrUnitsAtConfigTime(*configBuffer, useReqHeaderNameMapping);
+    }
+
+    fileTargetCaches[cacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
+
+    adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
+    adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
+    adjustBuildCache(cppBuildCache.imodFiles, imodFileDeps);
 }
 
 void CppSourceTarget::readConfigCacheAtBuildTime()
@@ -559,11 +858,6 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
 
     uint32_t configRead = 0;
     const char *ptr = configCache.data();
-
-    readInclDirsAtBuildTime(ptr, configRead, reqIncls, this);
-    readInclDirsAtBuildTime(ptr, configRead, useReqIncls, this);
-    readInclDirsAtBuildTime(ptr, configRead, reqHuDirs, this);
-    readInclDirsAtBuildTime(ptr, configRead, useReqHuDirs, this);
 
     const uint32_t sourceSize = readUint32(ptr, configRead);
     srcFileDeps.reserve(sourceSize);
@@ -591,27 +885,70 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     for (uint32_t i = 0; i < imodSize; ++i)
     {
         SMFile *smFile = imodFileDeps.emplace_back(new SMFile(this, readHalfNode(ptr, configRead)));
+        smFile->logicalName = readStringView(ptr, configRead);
         smFile->objectNode = readHalfNode(ptr, configRead);
         smFile->interfaceNode = readHalfNode(ptr, configRead);
-        string str = smFile->node->getFileStem();
-        smFile->type = str.contains('-') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
-        smFile->logicalName = str;
-        imodNames.emplace(std::move(str), smFile);
+        smFile->type =
+            smFile->logicalName.contains(':') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
+        imodNames.emplace(smFile->logicalName, smFile);
 
         addDepNow<0>(*smFile);
+        huAndIModTarget->addDepNow<0>(*smFile);
     }
 
+    huDeps.resize(cppBuildCache.headerUnits.size());
+
     const uint32_t huSize = readUint32(ptr, configRead);
-    if (huSize)
-    {
-        hasManuallySpecifiedHeaderUnits = true;
-    }
     for (uint32_t i = 0; i < huSize; ++i)
     {
-        configuration->moduleFilesToTarget.emplace(readHalfNode(ptr, configRead), this);
+        const uint32_t indexInBuildCache = readUint32(ptr, configRead);
+        SMFile *hu = huDeps[indexInBuildCache] = new SMFile(this, readHalfNode(ptr, configRead));
+        hu->indexInBuildCache = indexInBuildCache;
+
+        hu->interfaceNode = readHalfNode(ptr, configRead);
+        const uint32_t logicalNamesSize = readUint32(ptr, configRead);
+        hu->logicalNames.reserve(logicalNamesSize);
+        for (uint32_t j = 0; j < logicalNamesSize; ++j)
+        {
+            hu->logicalNames.emplace_back(readStringView(ptr, configRead));
+        }
+        hu->isReqDep = readBool(ptr, configRead);
+        hu->isUseReqDep = readBool(ptr, configRead);
+        hu->isSystem = readBool(ptr, configRead);
+
+        if (hu->isReqDep)
+        {
+            for (const string &str : hu->logicalNames)
+            {
+                reqHeaderNameMapping.emplace(str, HeaderFileOrUnit(hu, hu->isSystem));
+            }
+        }
+
+        if (hu->isUseReqDep)
+        {
+            for (const string &str : hu->logicalNames)
+            {
+                useReqHeaderNameMapping.emplace(str, HeaderFileOrUnit(hu, hu->isSystem));
+            }
+        }
+
+        hu->type = SM_FILE_TYPE::HEADER_UNIT;
+        addDepNow<0>(*hu);
+        huAndIModTarget->addDepNow<0>(*hu);
     }
 
     myBuildDir = readHalfNode(ptr, configRead);
+
+    if (configuration->evaluate(TreatModuleAsSource::YES))
+    {
+        readInclDirsAtBuildTime(ptr, configRead, reqIncls, this);
+        readInclDirsAtBuildTime(ptr, configRead, useReqIncls, this);
+    }
+    else
+    {
+        readHeaderFilesAtBuildTime(ptr, configRead, reqHeaderNameMapping);
+        readHeaderFilesAtBuildTime(ptr, configRead, useReqHeaderNameMapping);
+    }
 
     if (configRead != configCache.size())
     {
@@ -665,7 +1002,7 @@ CppSourceTarget &CppSourceTarget::interfaceCompileDefinition(const string &cddNa
 void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const string &sourceDirectory, string regex,
                                            const bool recursive)
 {
-    if (evaluate(TreatModuleAsSource::YES))
+    if (configuration->evaluate(TreatModuleAsSource::YES))
     {
         assignToSourceNodes = true;
     }
@@ -687,7 +1024,7 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const strin
             }
             else
             {
-                actuallyAddModuleFileConfigTime(node, false);
+                actuallyAddModuleFileConfigTime(node, "");
             }
         }
     };
@@ -715,31 +1052,45 @@ void CppSourceTarget::setCompileCommand()
 
     if (compiler.bTFamily == BTFamily::GCC)
     {
-        // string str = cSourceTarget == CSourceTargetEnum::YES ? "-xc" : "-xc++";
         compileCommand +=
             flags.LANG + flags.OPTIONS + flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP + flags.DEFINES_COMPILE_CPP;
     }
     else if (compiler.bTFamily == BTFamily::MSVC)
     {
-        // TODO
-        // Remember this for CSourceTarget
-        // const string str = cSourceTarget == CSourceTargetEnum::YES ? "-TC" : "-TP";
-        const string str = "-TP";
-        compileCommand += str + " " + flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE + flags.OPTIONS_COMPILE +
-                          flags.OPTIONS_COMPILE_CPP;
+        if (compiler.btSubFamily == BTSubFamily::CLANG)
+        {
+            compileCommand += "-nostdinc ";
+        }
+        compileCommand +=
+            flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE + flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP;
     }
 
-    if (compiler.bTFamily == BTFamily::MSVC && evaluate(TranslateInclude::YES))
-    {
-        compileCommand += "/translateInclude ";
-    }
-
-    auto getIncludeFlag = [&compiler] {
+    auto getIncludeFlag = [&compiler](bool isStandard) {
+        string str;
         if (compiler.bTFamily == BTFamily::MSVC)
         {
-            return "/I ";
+            if (isStandard)
+            {
+                str += "/external:I ";
+            }
+            else
+            {
+                str += "/I ";
+            }
         }
-        return "-I ";
+        else
+        {
+            if (isStandard)
+            {
+                // str += "-isystem ";
+                str += "-I ";
+            }
+            else
+            {
+                str += "-I ";
+            }
+        }
+        return str;
     };
 
     compileCommand += reqCompilerFlags;
@@ -763,10 +1114,15 @@ void CppSourceTarget::setCompileCommand()
     // I think ideally this should not be support this. A same header-file should not present in more than one
     // header-file.
 
+    if (compiler.bTFamily == BTFamily::MSVC)
+    {
+        compileCommand += "/external:W0 ";
+    }
+
     auto it = reqIncls.begin();
     for (unsigned short i = 0; i < reqIncSizeBeforePopulate; ++i)
     {
-        compileCommand.append(getIncludeFlag() + addQuotes(it->node->filePath) + " ");
+        compileCommand.append(getIncludeFlag(it->isStandard) + addQuotes(it->node->filePath) + " ");
         ++it;
     }
 
@@ -774,12 +1130,12 @@ void CppSourceTarget::setCompileCommand()
 
     for (; it != reqIncls.end(); ++it)
     {
-        includes.emplace(it->node->filePath);
+        includes.emplace(getIncludeFlag(it->isStandard) + addQuotes(it->node->filePath) + ' ');
     }
 
     for (const string &include : includes)
     {
-        compileCommand.append(getIncludeFlag() + addQuotes(include) + " ");
+        compileCommand.append(include);
     }
 }
 
@@ -805,7 +1161,7 @@ void CppSourceTarget::setSourceCompileCommandPrintFirstHalf()
         }
         else if (compiler.bTFamily == BTFamily::MSVC)
         {
-            sourceCompileCommandPrintFirstHalf += "-TP " + flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE +
+            sourceCompileCommandPrintFirstHalf += flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE +
                                                   flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP;
         }
     }
@@ -1001,10 +1357,6 @@ string CppSourceTarget::getCompileCommandPrintSecondPart(const SourceNode &sourc
     {
         command += compiler.bTFamily == BTFamily::MSVC ? "/Fo" : "-o ";
     }
-    if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
-    {
-        command += getReducedPath(sourceNode.objectNode->filePath, ccpSettings.objectFile) + " ";
-    }
     return command;
 }
 
@@ -1023,8 +1375,7 @@ string CppSourceTarget::getCompileCommandPrintSecondPartSMRule(const SMFile &smF
     {
         if (compiler.bTFamily == BTFamily::MSVC)
         {
-            const string translateIncludeFlag = GET_FLAG_evaluate(TranslateInclude::YES, "/translateInclude ");
-            command += translateIncludeFlag + " /nologo /showIncludes /scanDependencies ";
+            command += " /nologo /showIncludes /scanDependencies ";
         }
     }
     if (ccpSettings.objectFile.printLevel != PathPrintLevel::NO)
@@ -1053,7 +1404,7 @@ template <> DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PLOAT *ploat_, const
         if (define_.empty())
         {
             define = ploat->getOutputName();
-            transform(define.begin(), define.end(), define.begin(), toupper);
+            std::ranges::transform(define, define.begin(), toupper);
             define += "_EXPORT";
         }
         else

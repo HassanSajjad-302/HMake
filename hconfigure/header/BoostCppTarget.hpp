@@ -12,7 +12,7 @@ using std::filesystem::directory_iterator;
 
 // Currently, the tests are not run after compilation, neither does the build-system compares the output.
 // Build-system does not support the fail-tests either.
-enum class BoostExampleOrTestType : char
+enum class BoostExampleOrTestType : uint8_t
 {
     RUN_TEST,
     COMPILE_TEST,
@@ -36,7 +36,7 @@ struct ExampleOrTest
     BoostExampleOrTestType targetType;
 };
 
-enum class IteratorTargetType : char
+enum class IteratorTargetType : uint8_t
 {
     DSC_CPP,
     CPP,
@@ -312,7 +312,7 @@ BoostCppTarget::GetEnds<EOT, iteratorTargetType, bsm> BoostCppTarget::GetEnds<EO
         }
         finalEndString += slashc;
         finalEndString += endsWith;
-        lowerCasePStringOnWindows(finalEndString.data(), finalEndString.size());
+        lowerCaseOnWindows(finalEndString.data(), finalEndString.size());
         for (const ExampleOrTest &exampleOrTest_ : examplesOrTests)
         {
             if constexpr (EOT == BoostExampleOrTestType::COMPILE_TEST ||
@@ -362,7 +362,7 @@ BoostCppTarget::GetEnds<EOT, iteratorTargetType, bsm> BoostCppTarget::GetEnds<EO
         }
         finalEndString += slashc;
         finalEndString += endsWith;
-        lowerCasePStringOnWindows(finalEndString.data(), finalEndString.size());
+        lowerCaseOnWindows(finalEndString.data(), finalEndString.size());
         for (; exampleOrTest != examplesOrTests.begin().operator->() + examplesOrTests.size(); ++exampleOrTest)
         {
             if (exampleOrTest->targetType == EOT &&

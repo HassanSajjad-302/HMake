@@ -3,6 +3,7 @@
 import "BuildSystemFunctions.hpp";
 import "Node.hpp";
 import "PlatformSpecific.hpp";
+import "TargetCache.hpp";
 import "lz4.h";
 import "rapidjson/prettywriter.h";
 import "rapidjson/writer.h";
@@ -14,18 +15,18 @@ import <Windows.h>;
 #else
 #include "PlatformSpecific.hpp"
 #include "BuildSystemFunctions.hpp"
-#include "Node.hpp"
+#include "TargetCache.hpp"
 #include "lz4.h"
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/writer.h"
 #include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <utility>
 #ifdef WIN32
 #include <Windows.h>
 #endif
 #endif
-#include "JConsts.hpp"
 
 // Copied from https://stackoverflow.com/a/208431
 class UTF16Facet : public std::codecvt<wchar_t, char, std::char_traits<wchar_t>::state_type>
@@ -270,17 +271,6 @@ void writeBuildBuffer(vector<char> &buffer)
     }
 }
 
-void prettyWriteValueToFile(const string_view fileName, const Value &value)
-{
-    RHPOStream stream(fileName);
-    rapidjson::PrettyWriter<RHPOStream> writer(stream, nullptr);
-    if (!value.Accept(writer))
-    {
-        // TODO Check what error
-        printErrorMessage(FORMAT("Error Happened in parsing file {}\n", fileName.data()));
-    }
-}
-
 #ifndef _WIN32
 #define fopen_s(pFile, filename, mode) ((*(pFile)) = fopen((filename), (mode))) == NULL
 #endif
@@ -324,6 +314,11 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
             CloseHandle(hFile);
         }
 
+        if (!FlushFileBuffers(hFile))
+        {
+            printErrorMessage(FORMAT("Failed to flush file buffers. Error: {}\n", GetLastErrorString()));
+        }
+
         if (bytesWritten != bufferSize)
         {
             printErrorMessage("Failed to write the full file\n");
@@ -362,12 +357,20 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
     if constexpr (bsMode == BSMode::BUILD)
     {
 #ifdef WIN32
-        if (const bool result =
-                MoveFileExA(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
-            !result)
+        // Use ReplaceFile API which is designed for atomic replacement
+        if (!ReplaceFileA(fileName.c_str(), // File to be replaced
+                          str.c_str(),      // Replacement file
+                          NULL,             // No backup
+                          0,                // No flags
+                          NULL,             // Reserved
+                          NULL))            // Reserved
         {
-            printErrorMessage(FORMAT("Error:{}\n while writing file {}\n", GetLastErrorString(), fileName));
-            fflush(stdout);
+            // If ReplaceFile fails (e.g., target doesn't exist), fall back to MoveFileEx
+            if (!MoveFileExA(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+            {
+                printErrorMessage(FORMAT("Error:{}\n while writing file {}\n", GetLastErrorString(), fileName));
+                fflush(stdout);
+            }
         }
 #else
 
@@ -422,7 +425,7 @@ bool compareStringsFromEnd(const string_view lhs, const string_view rhs)
     return true;
 }
 
-void lowerCasePStringOnWindows(char *ptr, const uint64_t size)
+void lowerCaseOnWindows(char *ptr, const uint64_t size)
 {
     if constexpr (os == OS::NT)
     {
@@ -445,7 +448,7 @@ bool childInParentPathNormalized(const string_view parent, const string_view chi
     return compareStringsFromEnd(parent, string_view(child.data(), parent.size()));
 }
 
-unique_ptr<vector<char>> readValueFromFile(const string_view fileName, Document &document)
+void readValueFromFile(const string_view fileName, rapidjson::Document &document, rapidjson::ParseFlag flag)
 {
     // Read whole file into a buffer
     FILE *fp;
@@ -460,11 +463,5 @@ unique_ptr<vector<char>> readValueFromFile(const string_view fileName, Document 
         printErrorMessage("Error closing the file \n");
     }
 
-    // TODO
-    //  What should this be for wchar_t
-    (*buffer)[readLength] = '\0';
-
-    // In situ parsing the buffer into d, buffer will also be modified
-    document.ParseInsitu(buffer->begin().operator->());
-    return buffer;
+    //    document.Parse()
 }

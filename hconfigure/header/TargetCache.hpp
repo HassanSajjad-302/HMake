@@ -122,8 +122,7 @@ struct BuildCache
                     void deserialize(const char *ptr, uint32_t &bytesRead);
                 };
 
-                string_view exportName;
-                bool isInterface{};
+                bool headerStatusChanged;
                 vector<SingleHeaderUnitDep> headerUnitArray;
                 vector<SingleModuleDep> moduleArray;
                 void serialize(vector<char> &buffer) const;

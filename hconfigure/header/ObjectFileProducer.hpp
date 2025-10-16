@@ -85,11 +85,13 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &dep, U &&...objec
         reqDeps.emplace(&dep);
         useReqDeps.emplace(&dep);
         addDepNow<1>(dep);
+        addSelectiveDepNow<0>(dep);
     }
     else if (depType == DepType::PRIVATE)
     {
         reqDeps.emplace(&dep);
         addDepNow<1>(dep);
+        addSelectiveDepNow<0>(dep);
     }
     else
     {

@@ -38,14 +38,25 @@ struct IndexInTopologicalSortComparatorRoundTwo
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
 };
 
-enum class BTargetDepType : bool
+enum class BTargetDepType : uint8_t
 {
-    FULL,
+    /// Build-system will wait for the dependency updateBTarget call to finish before calling
+    /// the dependent updateBTarget. Plus it will set the dependent selectiveBuild if the
+    /// dependency selectiveBuild is true
+    FULL = 0,
 
-    // Following specifies a dependency only for ordering. That dependency won't be considered for selectiveBuild, and,
-    // won't be updated when the dependencies are updated, and, will still be updated even if dependency exitStatus ==
-    // EXIT_FAILURE. Only usable in round 0.
-    LOOSE,
+    /// Build-system will wait but not set the selectiveBuild of dependency based on dependent.
+    /// Unused currently
+    WAIT = 1,
+
+    /// Build-system will not wait but the selectiveBuild will be set.
+    /// Used in specifying CppSourceTarget dep with the other CppSourceTarget as we want
+    /// the dependency CppSourceTarget's huDeps and imodDeps to be built.
+    SELECTIVE = 2,
+
+    /// Only for sorting.
+    /// Used to specify static-lib dependency with other static-lib.
+    LOOSE = 3,
 };
 
 enum class UpdateStatus
@@ -155,8 +166,8 @@ class BTarget // BTarget
 
   public:
     // vector because we clear this memory at the end of the round
-    inline static array<std::span<RealBTarget *>, 2> tarjanNodesBTargets;
-    inline static array<atomic<uint32_t>, 2> tarjanNodesCount{0, 0};
+    inline static array<std::span<RealBTarget *>, 2> realBTargetsGlobal;
+    inline static array<atomic<uint32_t>, 2> realBTargetsArrayCount{0, 0};
 
   private:
     inline static thread_local vector<LaterDep> laterDepsLocal;
@@ -166,7 +177,7 @@ class BTarget // BTarget
 
     inline static StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
   public:
-    inline static size_t total = 0;
+    inline static uint32_t total = 0;
 
     array<RealBTarget, 2> realBTargets;
 
@@ -194,10 +205,11 @@ class BTarget // BTarget
 
     virtual string getPrintName() const;
     virtual BTargetType getBTargetType() const;
-    virtual void updateBTarget(Builder &builder, unsigned short round, bool &isComplete);
+    virtual void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete);
     virtual void endOfRound(Builder &builder, unsigned short round);
 
     template <unsigned short round> void addDepNow(BTarget &dep);
+    template <unsigned short round> void addSelectiveDepNow(BTarget &dep);
     template <unsigned short round> void addDepLooseNow(BTarget &dep);
     void addDepHalfNowHalfLater(BTarget &dep);
     void addDepLooseHalfNowHalfLater(BTarget &dep);
@@ -213,6 +225,15 @@ template <unsigned short round> void BTarget::addDepNow(BTarget &dep)
         RealBTarget &depRealBTarget = dep.realBTargets[round];
         depRealBTarget.dependents.try_emplace(&this->realBTargets[round], BTargetDepType::FULL);
         ++realBTargets[round].dependenciesSize;
+    }
+}
+
+template <unsigned short round> void BTarget::addSelectiveDepNow(BTarget &dep)
+{
+    if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], BTargetDepType::SELECTIVE).second)
+    {
+        RealBTarget &depRealBTarget = dep.realBTargets[round];
+        depRealBTarget.dependents.try_emplace(&this->realBTargets[round], BTargetDepType::SELECTIVE);
     }
 }
 

@@ -5,6 +5,7 @@
 import "IPCManagerBS.hpp";
 import "RunCommand.hpp";
 import "SpecialNodes.hpp";
+import "TargetCache.hpp";
 import "ObjectFile.hpp";
 import <filesystem>;
 import <list>;
@@ -16,6 +17,7 @@ import <atomic>;
 #include "ObjectFile.hpp"
 #include "RunCommand.hpp"
 #include "SpecialNodes.hpp"
+#include "TargetCache.hpp"
 #include "btree.h"
 #include "nlohmann/json.hpp"
 #include <atomic>
@@ -42,12 +44,13 @@ struct CompareSourceNode
 class SourceNode : public ObjectFile
 {
   public:
-    BuildCache::Cpp::SourceFile buildCache;
+    CCOrHash compileCommandWithTool;
+    flat_hash_set<Node *> headerFiles;
     CppSourceTarget *target;
     const Node *node;
     uint32_t indexInBuildCache = -1;
     bool ignoreHeaderDeps = false;
-    SourceNode(CppSourceTarget *target_, Node *node_);
+    SourceNode(CppSourceTarget *target_, const Node *node_);
 
   protected:
     SourceNode(CppSourceTarget *target_, const Node *node_, bool add0, bool add1);
@@ -70,7 +73,7 @@ void to_json(Json &j, const SourceNode &sourceNode);
 void to_json(Json &j, const SourceNode *sourceNode);
 bool operator<(const SourceNode &lhs, const SourceNode &rhs);
 
-enum class SM_REQUIRE_TYPE : char
+enum class SM_REQUIRE_TYPE : uint8_t
 {
     NOT_assignED = 0,
     PRIMARY_EXPORT = 1,
@@ -78,7 +81,7 @@ enum class SM_REQUIRE_TYPE : char
     HEADER_UNIT = 3,
 };
 
-enum class SM_FILE_TYPE : char
+enum class SM_FILE_TYPE : uint8_t
 {
     NOT_ASSIGNED = 0,
     PRIMARY_EXPORT = 1,
@@ -93,15 +96,9 @@ struct SMFile : SourceNode // Scanned Module Rule
     BuildCache::Cpp::ModuleFile::SmRules smRulesCache;
     string logicalName;
 
-    // Key is the pointer to the header-unit while value is the consumption-method of that header-unit by this smfile.
-    // A header-unit might be consumed in multiple ways specially if this file is consuming it one way and the file it
-    // depends on is consuming it another way.
-    flat_hash_map<const SMFile *, bool> headerUnitsConsumptionData;
-
-    // TODO
-    // Maybe use vector and do in-place sorting especially if big hu are used since the number of elements become really
-    // small.
     flat_hash_set<SMFile *> allSMFileDependencies;
+    vector<string> logicalNames;
+    vector<Node *> *headerFilesCache;
     Node *interfaceNode;
     SMFile *waitingFor = nullptr;
 
@@ -110,39 +107,33 @@ struct SMFile : SourceNode // Scanned Module Rule
 
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 
-    // In case of header-unit, it is a bmi-file.
-    bool isObjectFileOutdated = false;
+    // This is used to prevent header-unit addition in updateBTargets list more than once since the same header-unit
+    // could be potentially discovered more than once.
+    bool addedForBuilding = false;
 
-    // In case of header-unit, it is a bmi-file.
-    // atomic
-    bool isObjectFileOutdatedCallCompleted = false;
-    // This is used to prevent header-unit addition in BTargets list more than once since the same header-unit could be
-    // potentially discovered more than once.
-    bool addedForRoundOne = false;
+    bool isReqDep = false;
+    bool isUseReqDep = false;
+    bool isSystem = false;
+    bool compileCommandChanged = false;
 
     // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
     // ignoreHeaderDeps is true
     inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
 
     inline static thread_local vector<string_view> includeNames;
-    inline static thread_local vector<InclNodePointerTargetMap> huDirPlusTargets;
-    SMFile(CppSourceTarget *target_, Node *node_);
-    SMFile(CppSourceTarget *target_, const Node *node_, string logicalName_);
-    void initializeBuildCache(uint32_t index);
-    void setLogicalNameAndAddToRequirePath();
+    SMFile(CppSourceTarget *target_, const Node *node_);
+    SMFile(CppSourceTarget *target_, const Node *node_, bool);
+    void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index);
+    void makeAndSendBTCModule(SMFile &mod);
+    void makeAndSendBTCNonModule(SMFile &hu);
+    void duplicateHeaderFileOrUnitError(const string &headerName, struct HeaderFileOrUnit &first,
+                                        HeaderFileOrUnit &second, CppSourceTarget *firstTarget,
+                                        CppSourceTarget *secondTarget);
     SMFile *findModule(const string &moduleName) const;
-    void sendModule(SMFile &mod);
-    void sendHeaderUnit(SMFile &hu);
-    void saveBuildCache();
+    HeaderFileOrUnit *findHeaderFileOrUnit(const string &headerName);
     bool build(Builder &builder);
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     string getOutputFileName() const;
-    bool calledOnce = false;
-    void saveSMRulesJsonToSMRulesCache(const string &smrulesFileOutputClang);
-    InclNodePointerTargetMap findHeaderUnitTarget(Node *headerUnitNode) const;
-    void initializeNewHeaderUnitsSMRulesNotOutdated(Builder &builder);
-    void initializeHeaderUnits(Builder &builder);
-    void setSMFileType();
     // In case of header-units, this check the ifc file.
     string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const override;
     BTargetType getBTargetType() const override;

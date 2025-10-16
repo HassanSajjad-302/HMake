@@ -1,12 +1,12 @@
 #include "Configure.hpp"
 
-struct OurTarget : public BTarget
+struct OurTarget : BTarget
 {
     string message;
     explicit OurTarget(string str) : message{std::move(str)}
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete) override
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
     {
     }
 };

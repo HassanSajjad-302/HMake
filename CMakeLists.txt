@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.28.0)
 
 project(HMake)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 set(HMAKE_USE_THREAD_SANITIZER OFF BOOL "Whether to use thread-sanitizer on Linux or not.")
@@ -56,7 +58,6 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/ObjectFile.cpp
         hconfigure/src/SpecialNodes.cpp
         3rdParty/lz4/lib/lz4.c
-        hconfigure/src/ConfigHelpers.cpp
         hconfigure/src/HashValues.cpp
         hconfigure/src/TargetCache.cpp
         hconfigure/src/CacheWriteManager.cpp
@@ -250,6 +251,7 @@ add_dual_executables(Example1 Examples/Example1/hmake.cpp
         Example8 Examples/Example8/hmake.cpp
         Example9 Examples/Example9/hmake.cpp
         Example10 Examples/Example10/hmake.cpp
+        Example11 Examples/Example11/hmake.cpp
         Example-A1 Examples/Example-A1/hmake.cpp
         Example-A2 Examples/Example-A2/hmake.cpp
         Example-A3 Examples/Example-A3/hmake.cpp

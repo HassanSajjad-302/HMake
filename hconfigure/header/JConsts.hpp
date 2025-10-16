@@ -132,7 +132,7 @@ struct JConsts
     inline static const string pruneHeaderDependenciesFromMsvcOutput = "prune-header-dependencies-from-msvc-output";
     inline static const string public_ = "public";
     inline static const string ratioForHmakeTime = "ratio-for-hmake-time";
-    inline static const string regexPString = "regex-string";
+    inline static const string regexString = "regex-string";
     inline static const string release = "release";
     inline static const string requireIfcs = "require-ifcs";
     inline static const string requires_ = "requires";

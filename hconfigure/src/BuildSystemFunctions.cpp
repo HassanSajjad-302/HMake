@@ -152,14 +152,19 @@ void printMessageColor(const string &message, uint32_t color)
     }
 }
 
+static mutex printErrorMessageMutex;
 void printErrorMessage(const string &message)
 {
+    // So the exit output is not jumbled if there are multiple errors.
+    printErrorMessageMutex.lock();
+
     if (printErrorMessagePointer)
     {
         printErrorMessagePointer(message);
     }
     else
     {
+        // print(stderr, "Error Happened.\n");
         print(stderr, "{}", message);
     }
 

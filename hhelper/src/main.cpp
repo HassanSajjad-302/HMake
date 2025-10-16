@@ -314,7 +314,7 @@ int main(int argc, char **argv)
                 string finalCommand = command + " > " + outputFile;
                 exitStatus = system(finalCommand.c_str());
 
-                commandOutputs.push_back(fileToPString(outputFile));
+                commandOutputs.push_back(fileToString(outputFile));
 
                 if (exitStatus != EXIT_SUCCESS)
                 {

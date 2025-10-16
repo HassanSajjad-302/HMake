@@ -7,7 +7,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration();
+    getConfiguration().assign(TreatModuleAsSource::NO);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

@@ -11,7 +11,6 @@ import <atomic>;
 #include "phmap.h"
 #include <atomic>
 #endif
-#include "TargetCache.hpp"
 
 using std::atomic, std::lock_guard, std::filesystem::file_time_type, std::filesystem::file_type;
 
@@ -44,7 +43,7 @@ class Node
     inline static uint32_t idCount = 0;
     inline static uint32_t idCountCompleted = 0;
     // Used in multi-threading context. So, can not emplace_back. size should be same as size of nodeAllFiles
-    inline static vector<Node *> nodeIndices{20000};
+    inline static vector<Node *> nodeIndices{60 * 1000};
     uint32_t myId = UINT32_MAX;
 
     // While following are not atomic to keep Node copyable and moveable, all operations on these bools are done
@@ -60,26 +59,19 @@ class Node
     string getFileName() const;
     string getFileStem() const;
 
-    static path getFinalNodePathFromPath(path filePath);
-
     void performSystemCheck();
     void ensureSystemCheckCalled(bool isFile, bool mayNotExist = false);
 
     static Node *getNodeFromNormalizedString(string p, bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNormalizedString(string_view p, bool isFile, bool mayNotExist = false);
-    static Node *getNodeFromNormalizedStringNoSystemCheckCalled(string_view p);
 
     static Node *getNodeFromNonNormalizedString(const string &p, bool isFile, bool mayNotExist = false);
 
-    static Node *getNodeFromNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
     static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
 
     static Node *addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath);
     static Node *getHalfNode(string_view p);
-    static Node *getNodeFromValue(const Value &value, bool isFile, bool mayNotExist = false);
     static Node *getHalfNode(uint32_t);
-
-    static rapidjson::Type getType();
 
     static void clearNodes();
 };

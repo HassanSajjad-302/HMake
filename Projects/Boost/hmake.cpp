@@ -154,9 +154,9 @@ void buildSpecification()
     removeTroublingHu(headerUnitsJsonDirs, std::size(headerUnitsJsonDirs), headerUnitsJsonEntry,
                       std::size(headerUnitsJsonEntry));
 
-    getConfiguration("conventional-r").assign(TreatModuleAsSource::YES, ConfigType::RELEASE);
+    getConfiguration("conventional-r").assign(CppBuildMode::SOURCE, TreatModuleAsSource::YES, ConfigType::RELEASE);
     // getConfiguration("hu-r").assign(TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
-    getConfiguration("conventional-d").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
+    getConfiguration("conventional-d").assign(CppBuildMode::SOURCE, TreatModuleAsSource::YES, ConfigType::DEBUG);
     // getConfiguration("hu-d").assign(TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG);
     CALL_CONFIGURATION_SPECIFICATION
 }

@@ -1,5 +1,6 @@
 #ifndef HMAKE_CONFIGURATION_HPP
 #define HMAKE_CONFIGURATION_HPP
+#include "TargetCache.hpp"
 #ifdef USE_HEADER_UNITS
 import "BTarget.hpp";
 import "Features.hpp";
@@ -14,21 +15,21 @@ using std::shared_ptr;
 
 class CppSourceTarget;
 
-enum class AssignStandardCppTarget : char
+enum class AssignStandardCppTarget : uint8_t
 {
     NO,
     YES,
 };
 
 // Whether tests should be built
-enum class BuildTests : char
+enum class BuildTests : uint8_t
 {
     NO,
     YES,
 };
 
 // Whether Examples should be built
-enum class BuildExamples : char
+enum class BuildExamples : uint8_t
 {
     NO,
     YES,
@@ -36,7 +37,7 @@ enum class BuildExamples : char
 
 // Setting this to YES will not build tests by-default and the test target will have to be named on the hbuild
 // command-line to be built.
-enum class TestsExplicit : char
+enum class TestsExplicit : uint8_t
 {
     NO,
     YES,
@@ -44,31 +45,43 @@ enum class TestsExplicit : char
 
 // Seeting this to YES will not build examples by-default and the example target will have to be named on the hbuild
 // command-line to be built.
-enum class ExamplesExplicit : char
+enum class ExamplesExplicit : uint8_t
 {
     NO,
     YES,
 };
 
-enum class BuildTestsExplicitBuild : char
+enum class BuildTestsExplicitBuild : uint8_t
 {
     NO,
     YES,
 };
 
-enum class BuildExamplesExplicitBuild : char
+enum class BuildExamplesExplicitBuild : uint8_t
 {
     NO,
     YES,
 };
 
-enum class BuildTestsAndExamples : char
+enum class BuildTestsAndExamples : uint8_t
 {
     NO,
     YES,
 };
 
-enum class BuildTestsAndExamplesExplicitBuild : char
+enum class BuildTestsAndExamplesExplicitBuild : uint8_t
+{
+    NO,
+    YES,
+};
+
+enum class TreatModuleAsSource : bool
+{
+    NO,
+    YES,
+};
+
+enum class StdAsHeaderUnit : bool
 {
     NO,
     YES,
@@ -82,7 +95,6 @@ class Node;
 class Configuration : public BTarget
 {
   public:
-    flat_hash_map<Node *, CppSourceTarget *> moduleFilesToTarget;
     vector<class BoostCppTarget *> boostCppTargets;
     vector<CppSourceTarget *> cppSourceTargets;
     vector<LOAT *> loats;
@@ -99,6 +111,8 @@ class Configuration : public BTarget
     BuildExamples buildExamples = BuildExamples::NO;
     TestsExplicit testsExplicit = TestsExplicit::NO;
     ExamplesExplicit examplesExplicit = ExamplesExplicit::NO;
+    TreatModuleAsSource treatModuleASSource = TreatModuleAsSource::YES;
+    StdAsHeaderUnit stdAsHeaderUnit = StdAsHeaderUnit::YES;
 
     bool archiving = false;
 
@@ -236,6 +250,14 @@ template <typename T> bool Configuration::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), ExamplesExplicit>)
     {
         return examplesExplicit == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
+    {
+        return treatModuleASSource == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), StdAsHeaderUnit>)
+    {
+        return stdAsHeaderUnit == property;
     }
     // CppCompilerFeatures
     else if constexpr (std::is_same_v<decltype(property), CxxSTD>)

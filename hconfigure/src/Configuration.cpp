@@ -42,24 +42,40 @@ void Configuration::initialize()
         {
             if (cache.isCompilerInToolsArray)
             {
+                CppSourceTarget *c = stdCppTarget->getSourceTargetPointer();
                 // Use getNodeFromNormalizedPath instead
                 if constexpr (os == OS::NT)
                 {
-                    for (const string &str : toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs)
+                    const vector<string> &includes = toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs;
+                    Node *zeroInclNode = Node::getNodeFromNonNormalizedPath(includes[0], false);
+                    c->actuallyAddInclude(false, zeroInclNode, true, true, true, true);
+
+                    // Only the first include is compiled as header-unit.
+                    if (evaluate(TreatModuleAsSource::NO) && evaluate(StdAsHeaderUnit::YES))
                     {
-                        actuallyAddInclude(stdCppTarget->getSourceTarget().reqIncls, str, true, true);
+                        c->addHeaderUnitOrFileDirMSVC(zeroInclNode, false, true, true, true, true, true);
+                        // c->addHeaderUnitOrFileDirMSVC(zeroInclNode, true, false, true, true, true, true);
+                    }
+                    else
+                    {
+                        c->addHeaderUnitOrFileDirMSVC(zeroInclNode, true, false, true, true, true, true);
+                    }
+
+                    for (uint32_t i = 1; i < includes.size(); ++i)
+                    {
+                        Node *inclNode = Node::getNodeFromNonNormalizedPath(includes[i], false);
+                        c->actuallyAddInclude(false, inclNode, true, true, true, true);
+                        c->addHeaderUnitOrFileDirMSVC(inclNode, true, false, true, true, true, true);
                     }
                 }
                 else
                 {
                     for (const string &str : toolsCache.linuxTools[cache.selectedCompilerArrayIndex].includeDirs)
                     {
-                        actuallyAddInclude(stdCppTarget->getSourceTarget().reqIncls, str, true, true);
+                        Node *inclNode = Node::getNodeFromNonNormalizedPath(str, false);
+                        c->addHeaderUnitOrFileDir(inclNode, "", true, "", true, true, true, true);
                     }
                 }
-                stdCppTarget->getSourceTarget()
-                    .initializeUseReqInclsFromReqIncls()
-                    .initializePublicHuDirsFromReqIncls();
             }
             if (cache.isLinkerInToolsArray)
             {

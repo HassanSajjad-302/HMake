@@ -5,7 +5,7 @@ struct OurTarget : BTarget
 {
     string message;
     explicit OurTarget(string str, string name = "", const bool makeDirectory = true, const bool buildExplicit = false)
-        : BTarget(std::move(name), buildExplicit, makeDirectory, true, true, false), message{std::move(str)}
+        : BTarget(std::move(name), buildExplicit, makeDirectory, true, true), message{std::move(str)}
     {
     }
     void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override

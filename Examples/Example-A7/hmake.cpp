@@ -2,9 +2,9 @@
 
 BTarget b, c;
 
-struct OurTarget : public BTarget
+struct OurTarget : BTarget
 {
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
+    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {

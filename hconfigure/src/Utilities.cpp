@@ -27,7 +27,7 @@ string addEscapedQuotes(const string &pstr)
     return q + pstr + q;
 }
 
-string fileToPString(const string &file_name)
+string fileToString(const string &file_name)
 {
     ifstream file_stream{file_name};
 

@@ -82,8 +82,9 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
     const string temporaryLibFilename = "temporaryLib.txt";
     const string temporaryBatchFilename = "temporaryBatch.bat";
     const string cmdExe = executingFromWSL ? "cmd.exe /c " : "";
-    const string batchCommand = "call " + finalCommand + "\n" + cmdExe + "echo %INCLUDE% > " + temporaryIncludeFilename +
-                           "\n" + cmdExe + "echo %LIB%;%LIBPATH% > " + temporaryLibFilename;
+    const string batchCommand = "call " + finalCommand + "\n" + cmdExe + "echo %INCLUDE% > " +
+                                temporaryIncludeFilename + "\n" + cmdExe + "echo %LIB%;%LIBPATH% > " +
+                                temporaryLibFilename;
     ofstream(temporaryBatchFilename) << batchCommand;
 
     if (const int code = system((cmdExe + temporaryBatchFilename).c_str()); code != EXIT_SUCCESS)
@@ -133,14 +134,14 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
         }
     };
 
-    string accumulatedPaths = fileToPString(temporaryIncludeFilename);
+    string accumulatedPaths = fileToString(temporaryIncludeFilename);
     remove(temporaryIncludeFilename);
     accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
     accumulatedPaths.pop_back();
     accumulatedPaths.append(";");
     includeDirs = splitPathsAndAssignToVector(accumulatedPaths);
     convertPathsToWSLPaths(includeDirs);
-    accumulatedPaths = fileToPString(temporaryLibFilename);
+    accumulatedPaths = fileToString(temporaryLibFilename);
     remove(temporaryLibFilename);
     accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
     accumulatedPaths.pop_back();
@@ -194,7 +195,7 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
         printErrorMessage("Error in Initializing Environment\n");
     }
 
-    string accumulatedPaths = fileToPString(temporaryIncludeFilename);
+    string accumulatedPaths = fileToString(temporaryIncludeFilename);
     remove(temporaryIncludeFilename);
     const vector<string> lines = split(std::move(accumulatedPaths), "\n");
 

@@ -181,8 +181,7 @@ void ModuleFile::SmRules::SingleModuleDep::deserialize(const char *ptr, uint32_t
 
 void ModuleFile::SmRules::serialize(vector<char> &buffer) const
 {
-    writeStringView(buffer, exportName);
-    writeBool(buffer, isInterface);
+    writeBool(buffer, headerStatusChanged);
 
     writeUint32(buffer, headerUnitArray.size());
     for (const SingleHeaderUnitDep &h : headerUnitArray)
@@ -199,8 +198,7 @@ void ModuleFile::SmRules::serialize(vector<char> &buffer) const
 
 void ModuleFile::SmRules::deserialize(const char *ptr, uint32_t &bytesRead)
 {
-    exportName = readStringView(ptr, bytesRead);
-    isInterface = readBool(ptr, bytesRead);
+    headerStatusChanged = readBool(ptr, bytesRead);
     headerUnitArray.resize(readUint32(ptr, bytesRead));
     for (SingleHeaderUnitDep &hud : headerUnitArray)
     {

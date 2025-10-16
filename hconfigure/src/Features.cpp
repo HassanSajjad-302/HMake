@@ -21,7 +21,7 @@ using Json = nlohmann::json;
 
 void to_json(Json &j, const Arch &arch)
 {
-    auto getPStringFromArchitectureEnum = [](const Arch arch) -> string {
+    auto getStringFromArchitectureEnum = [](const Arch arch) -> string {
         switch (arch)
         {
         case Arch::X86:
@@ -61,7 +61,7 @@ void to_json(Json &j, const Arch &arch)
         }
         return "";
     };
-    j = getPStringFromArchitectureEnum(arch);
+    j = getStringFromArchitectureEnum(arch);
 }
 
 void from_json(const Json &j, Arch &arch)
@@ -142,7 +142,7 @@ void from_json(const Json &j, Arch &arch)
 
 void to_json(Json &j, const AddressModel &am)
 {
-    auto getPStringFromArchitectureEnum = [](const AddressModel am) -> string {
+    auto getStringFromArchitectureEnum = [](const AddressModel am) -> string {
         switch (am)
         {
         case AddressModel::A_16:
@@ -156,7 +156,7 @@ void to_json(Json &j, const AddressModel &am)
         }
         return "";
     };
-    j = getPStringFromArchitectureEnum(am);
+    j = getStringFromArchitectureEnum(am);
 }
 
 void from_json(const Json &j, AddressModel &am)
@@ -886,6 +886,7 @@ void CppCompilerFeatures::initialize()
             compiler = toolsCache.compilers[cache.selectedCompilerArrayIndex];
         }
     }
+
     compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-release\bin\clang-cl)";
     compiler.btSubFamily = BTSubFamily::CLANG;
 }
@@ -984,7 +985,12 @@ CompilerFlags CppCompilerFeatures::getCompilerFlags() const
         flags.OPTIONS_COMPILE += GET_FLAG_evaluate(Warnings::OFF, "/wd4996 ");
         flags.OPTIONS_COMPILE += "/Zc:inline ";
         flags.OPTIONS_COMPILE += GET_FLAG_evaluate(OR(Optimization::SPEED, Optimization::SPACE), "/Gw ");
-        flags.CPP_FLAGS_COMPILE_CPP += "/Zc:throwingNew ";
+
+        if (compiler.btSubFamily != BTSubFamily::CLANG)
+        {
+            // Clang does not recoginze this
+            flags.CPP_FLAGS_COMPILE_CPP += "/Zc:throwingNew ";
+        }
 
         // Line 492
         flags.OPTIONS_COMPILE += GET_FLAG_evaluate(AddressSanitizer::ON, "/fsanitize=address /FS ");

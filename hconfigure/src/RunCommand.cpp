@@ -1,11 +1,12 @@
 
-#ifdef USE_HEADER_UNITS
-import "RunCommand.hpp";
-#else
 #include "RunCommand.hpp"
+#include "BuildSystemFunctions.hpp"
+#ifdef _WIN32
+#else
+#include "sys/wait.h"
 #endif
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <Windows.h>
 
 // TODO
@@ -61,8 +62,22 @@ void Win32Fatal(const char *function, const char *hint = nullptr)
     }
 }
 
-void RunCommand::startProcess(const string &command)
+void RunCommand::startProcess(const string &command, bool isModuleProcess)
 {
+    PROCESS_INFORMATION process_info = {};
+    STARTUPINFOA startup_info = {};
+
+    if (isModuleProcess)
+    {
+        if (!CreateProcessA(nullptr, (char *)command.c_str(), nullptr, nullptr,
+                            /* inherit handles */ TRUE, 0, nullptr, nullptr, &startup_info, &process_info))
+        {
+            Win32Fatal("CreateProcess");
+        }
+        hProcess = process_info.hProcess;
+        return;
+    }
+
     SECURITY_ATTRIBUTES security_attributes = {};
     security_attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
     security_attributes.bInheritHandle = TRUE;
@@ -74,8 +89,6 @@ void RunCommand::startProcess(const string &command)
     if (!SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0))
         Win32Fatal("SetHandleInformation");
 
-    PROCESS_INFORMATION process_info = {};
-    STARTUPINFOA startup_info = {};
     startup_info.cb = sizeof(STARTUPINFOA);
     startup_info.hStdError = stdout_write;
     startup_info.hStdOutput = stdout_write;
@@ -95,138 +108,154 @@ void RunCommand::startProcess(const string &command)
     }
 }
 
-RunCommand::OutputAndStatus RunCommand::endProcess() const
+RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
 {
     OutputAndStatus o;
-    // Read all output of the subprocess.
-    DWORD read_len = 1;
-    while (read_len)
-    {
-        char buf[64 << 10];
-        read_len = 0;
-        if (!::ReadFile(stdout_read, buf, sizeof(buf), &read_len, nullptr) && GetLastError() != ERROR_BROKEN_PIPE)
-        {
-            Win32Fatal("ReadFile");
-        }
-        o.output.append(buf, read_len);
-    }
-
-    // Wait for it to exit and grab its exit code.
-    if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
-        Win32Fatal("WaitForSingleObject");
     DWORD exit_code = 0;
-    if (!GetExitCodeProcess(hProcess, &exit_code))
-        Win32Fatal("GetExitCodeProcess");
 
-    if (!CloseHandle(stdout_read) || !CloseHandle(hProcess) || !CloseHandle(hThread))
+    if (endModuleProcess)
     {
-        Win32Fatal("CloseHandle");
+        // Wait for it to exit and grab its exit code.
+        if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
+            Win32Fatal("WaitForSingleObject");
+        if (!GetExitCodeProcess(hProcess, &exit_code))
+            Win32Fatal("GetExitCodeProcess");
+
+        if (!CloseHandle(hProcess))
+        {
+            Win32Fatal("CloseHandle");
+        }
+    }
+    else
+    {
+        // Read all output of the subprocess.
+        DWORD read_len = 1;
+        while (read_len)
+        {
+            char buf[64 << 10];
+            read_len = 0;
+            if (const bool out = ReadFile(stdout_read, buf, sizeof(buf), &read_len, nullptr); !out)
+            {
+                if (GetLastError() == ERROR_BROKEN_PIPE)
+                {
+                    break;
+                }
+                Win32Fatal("ReadFile");
+            }
+            o.output.append(buf, read_len);
+        }
+
+        // Wait for it to exit and grab its exit code.
+        if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
+            Win32Fatal("WaitForSingleObject");
+        if (!GetExitCodeProcess(hProcess, &exit_code))
+            Win32Fatal("GetExitCodeProcess");
+
+        if (!CloseHandle(stdout_read) || !CloseHandle(hProcess) || !CloseHandle(hThread))
+        {
+            Win32Fatal("CloseHandle");
+        }
     }
 
     o.exitStatus = exit_code;
     return o;
 }
 
+void RunCommand::killModuleProcess(const string &processName) const
+{
+    // Exit code you want to assign to the terminated process
+    DWORD exitCode = 1;
+
+    if (!TerminateProcess(hProcess, exitCode))
+    {
+        printErrorMessage(FORMAT("Killing module process {} failed.\n", processName));
+    }
+
+    CloseHandle(hProcess); // Clean up when you’re done
+}
+
 #else
 
-#include <sys/wait.h>
-#include <unistd.h>
-struct CLWrapper
+void RunCommand::startProcess(const string &command, bool isModuleProcess)
 {
-    CLWrapper() : env_block_(nullptr)
+    // Create pipes for stdout and stderr
+    if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1)
     {
+        printErrorMessage("Error Creating Pipes\n");
     }
 
-    /// Set the environment block (as suitable for CreateProcess) to be used
-    /// by Run().
-    void SetEnvBlock(void *env_block)
+    pid = fork();
+    if (pid == -1)
     {
-        env_block_ = env_block;
+        printErrorMessage("fork");
+    }
+    if (pid == 0)
+    {
+        // Child process
+
+        // Redirect stdout and stderr to the pipes
+        dup2(stdout_pipe[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
+        dup2(stderr_pipe[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
+
+        // Close unused pipe ends
+        close(stdout_pipe[0]);
+        close(stderr_pipe[0]);
+        close(stdout_pipe[1]);
+        close(stderr_pipe[1]);
+
+        // Execute a command (e.g., "ls" or any other)
+        exit(WEXITSTATUS(system(command.c_str())));
+    }
+}
+
+RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
+{
+
+    OutputAndStatus o;
+
+    // Parent process
+    // Close unused pipe ends
+    close(stdout_pipe[1]);
+    close(stderr_pipe[1]);
+
+    int status;
+    if (waitpid(pid, &status, 0) < 0)
+    {
+        printErrorMessage("waitpid");
     }
 
-    /// Start a process and gather its raw output.  Returns its exit code.
-    /// Crashes (calls Fatal()) on error.
-    static int Run(const std::string &command, std::string *output)
+    char buffer[4096];
+    while (true)
     {
-        int stdout_pipe[2], stderr_pipe[2];
-        int status;
-
-        // Create pipes for stdout and stderr
-        if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1)
+        if (const uint64_t readSize = read(stdout_pipe[0], buffer, sizeof(buffer) - 1))
         {
-            printErrorMessage("Error Creating Pipes\n");
-        }
-
-        if (const pid_t pid = fork(); pid == -1)
-        {
-            printErrorMessage("fork");
+            o.output.append(buffer, readSize);
         }
         else
         {
-            if (pid == 0)
-            {
-                // Child process
-
-                // Redirect stdout and stderr to the pipes
-                dup2(stdout_pipe[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
-                dup2(stderr_pipe[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
-
-                // Close unused pipe ends
-                close(stdout_pipe[0]);
-                close(stderr_pipe[0]);
-                close(stdout_pipe[1]);
-                close(stderr_pipe[1]);
-
-                // Execute a command (e.g., "ls" or any other)
-                exit(WEXITSTATUS(system(command.c_str())));
-            }
-
-            // Parent process
-            // Close unused pipe ends
-            close(stdout_pipe[1]);
-            close(stderr_pipe[1]);
-
-            if (waitpid(pid, &status, 0) < 0)
-            {
-                printErrorMessage("waitpid");
-            }
-
-            char buffer[4096];
-            while (true)
-            {
-                const uint64_t readSize = read(stdout_pipe[0], buffer, sizeof(buffer) - 1);
-                if (readSize)
-                {
-                    output->append(buffer, readSize);
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            while (true)
-            {
-                const uint64_t readSize = read(stderr_pipe[0], buffer, sizeof(buffer) - 1);
-                if (readSize)
-                {
-                    output->append(buffer, readSize);
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            // Close the read ends of the pipes
-            close(stdout_pipe[0]);
-            close(stderr_pipe[0]);
+            break;
         }
-        return WEXITSTATUS(status);
     }
 
-    void *env_block_;
-};
+    while (true)
+    {
+        if (const uint64_t readSize = read(stderr_pipe[0], buffer, sizeof(buffer) - 1))
+        {
+            o.output.append(buffer, readSize);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    // Close the read ends of the pipes
+    close(stdout_pipe[0]);
+    close(stderr_pipe[0]);
+
+    o.exitStatus = WEXITSTATUS(status);
+    return o;
+}
 
 #endif
 
