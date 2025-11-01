@@ -2,7 +2,7 @@
 #ifndef HMAKE_SNAPSHOT_HPP
 #define HMAKE_SNAPSHOT_HPP
 
-#include "phmap.h"
+#include "parallel-hashmap/parallel_hashmap/phmap.h"
 #include <filesystem>
 
 using std::filesystem::path, std::filesystem::file_time_type, std::filesystem::current_path, phmap::flat_hash_set;

@@ -1,18 +1,12 @@
 #ifndef HMAKE_BUILDER_HPP
 #define HMAKE_BUILDER_HPP
-#ifdef USE_HEADER_UNITS
-import "BTarget.hpp";
-import "BuildSystemFunctions.hpp";
-import <condition_variable>;
-import <vector>;
-import <list>;
-#else
+
 #include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
+#include "PointerArrayList.hpp"
 #include <condition_variable>
 #include <list>
 #include <vector>
-#endif
 
 using std::vector, std::list;
 

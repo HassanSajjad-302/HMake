@@ -1,24 +1,12 @@
 
-#include "CacheWriteManager.hpp"
-#ifdef USE_HEADER_UNITS
-import "LOAT.hpp";
-import "BuildSystemFunctions.hpp";
-import "Cache.hpp";
-import "CppSourceTarget.hpp";
-import "Utilities.hpp";
-import <filesystem>;
-import <fstream>;
-import <stack>;
-import <utility>;
-#else
-#include "BuildSystemFunctions.hpp"
-#include "CppSourceTarget.hpp"
 #include "LOAT.hpp"
+#include "BuildSystemFunctions.hpp"
+#include "CacheWriteManager.hpp"
+#include "CppSourceTarget.hpp"
 #include "Utilities.hpp"
 #include <filesystem>
 #include <stack>
 #include <utility>
-#endif
 
 using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard, std::mutex;
 
@@ -108,8 +96,6 @@ void LOAT::setFileStatus()
     }
 
     setLinkOrArchiveCommands();
-    commandWithoutTargetsWithTool.setCommand(config.linkerFeatures.linker.bTPath.string() + " " +
-                                             string(linkOrArchiveCommandWithoutTargets));
 
     if (rb.updateStatus != UpdateStatus::NEEDS_UPDATE)
     {
@@ -237,47 +223,22 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
         if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
             rb.assignFileStatusToDependents();
-        }
+            thrIndex = myThreadIndex;
 
-        if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
-        {
-            string toolPath = "\"";
-            if (linkTargetType == TargetType::LIBRARY_STATIC)
-            {
-                toolPath += config.linkerFeatures.archiver.bTPath.generic_string() + "\" ";
-            }
-            else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
-            {
-                toolPath += config.linkerFeatures.linker.bTPath.generic_string() + "\" ";
-            }
-
-            const string linkCommand = toolPath + linkOrArchiveCommandWithTargets;
             RunCommand r;
-            r.startProcess(linkCommand, false);
-            const auto [output, exitStatus] = r.endProcess(false);
+            r.startProcess(linkWithTargets, false);
+            auto [output, exitStatus] = r.endProcess(false);
             realBTarget.exitStatus = exitStatus;
-
-            if (realBTarget.exitStatus == EXIT_SUCCESS)
-            {
-                updatedBuildCache.commandWithoutArgumentsWithTools.hash = commandWithoutTargetsWithTool.getHash();
-                updatedBuildCache.objectFiles.reserve(objectFiles.size());
-                updatedBuildCache.objectFiles.clear();
-                for (const ObjectFile *objectFile : objectFiles)
-                {
-                    updatedBuildCache.objectFiles.emplace_back(objectFile->objectNode);
-                }
-            }
+            linkOutput = std::move(output);
 
             // We have to pass the linkBuildCache since we can not update it in multithreaded mode.
             if (linkTargetType == TargetType::LIBRARY_STATIC)
             {
-                CacheWriteManager::addNewEntry(exitStatus, this, nullptr, settings.pcSettings.archiveCommandColor,
-                                               getLinkOrArchiveCommandPrint(), output);
+                CacheWriteManager::addNewEntry(this, nullptr);
             }
             else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
             {
-                CacheWriteManager::addNewEntry(exitStatus, this, nullptr, settings.pcSettings.linkCommandColor,
-                                               getLinkOrArchiveCommandPrint(), output);
+                CacheWriteManager::addNewEntry(this, nullptr);
             }
 
             if constexpr (os == OS::NT)
@@ -317,9 +278,67 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
     }
 }
 
-void LOAT::updateBuildCache(void *ptr)
+void LOAT::updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified)
 {
-    linkBuildCache = std::move(updatedBuildCache);
+    if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+    {
+        buildCacheModified = true;
+        linkBuildCache.commandWithoutArgumentsWithTools.hash = commandWithoutTargetsWithTool.getHash();
+        linkBuildCache.objectFiles.reserve(objectFiles.size());
+        linkBuildCache.objectFiles.clear();
+        for (const ObjectFile *objectFile : objectFiles)
+        {
+            linkBuildCache.objectFiles.emplace_back(objectFile->objectNode);
+        }
+    }
+
+    if (linkTargetType == TargetType::LIBRARY_STATIC)
+    {
+        if (isConsole)
+        {
+            outputStr += getColorCode(ColorIndex::dark_khaki);
+        }
+    }
+    else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+    {
+
+        if (isConsole)
+        {
+            outputStr += getColorCode(ColorIndex::orange);
+        }
+    }
+
+    string printCommand;
+    if (linkOutput.empty())
+    {
+        string str;
+        if (linkTargetType == TargetType::LIBRARY_STATIC)
+        {
+            str = "Static-Lib";
+        }
+        else if (linkTargetType == TargetType::LIBRARY_SHARED)
+        {
+            str = "Shared-Lib";
+        }
+        else
+        {
+            str = "Executable";
+        }
+        printCommand = FORMAT("{} {} ", str, name);
+    }
+    else
+    {
+        printCommand += linkWithTargets;
+    }
+
+    outputStr += printCommand;
+    outputStr += threadIds[thrIndex];
+    if (isConsole)
+    {
+        outputStr += getColorCode(ColorIndex::reset);
+    }
+
+    outputStr += linkOutput;
 }
 
 void LOAT::writeBuildCache(vector<char> &buffer)
@@ -394,28 +413,43 @@ void LOAT::setLinkOrArchiveCommands()
     const Linker &linker = config.linkerFeatures.linker;
     const Archiver &archiver = config.linkerFeatures.archiver;
 
-    linkOrArchiveCommandWithTargets.reserve(1024);
+    linkWithTargets.reserve(1024);
+
+    linkWithTargets = "\"";
+    if (linkTargetType == TargetType::LIBRARY_STATIC)
+    {
+        linkWithTargets += config.linkerFeatures.archiver.bTPath.generic_string() + "\" ";
+    }
+    else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+    {
+        linkWithTargets += config.linkerFeatures.linker.bTPath.generic_string() + "\" ";
+    }
+
+    // following 2 are appended with an extra "
+    string archiveOutputFlag;
+    string libDirFlag;
+
+    if (archiver.bTFamily == BTFamily::MSVC)
+    {
+        archiveOutputFlag = "/OUT:\"";
+        libDirFlag = "/LIBPATH:\"";
+    }
+    else if (archiver.bTFamily == BTFamily::GCC)
+    {
+
+        archiveOutputFlag = " rcs \"";
+        libDirFlag = "-L\"";
+    }
 
     if (linkTargetType == TargetType::LIBRARY_STATIC)
     {
-        linkOrArchiveCommandWithTargets = archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
-        auto getArchiveOutputFlag = [&]() -> string {
-            if (archiver.bTFamily == BTFamily::MSVC)
-            {
-                return "/OUT:";
-            }
-            if (archiver.bTFamily == BTFamily::GCC)
-            {
-                return " rcs ";
-            }
-            return "";
-        };
-        linkOrArchiveCommandWithTargets += getArchiveOutputFlag();
-        linkOrArchiveCommandWithTargets += addQuotes(outputFileNode->filePath) + " ";
+        linkWithTargets += archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
+        linkWithTargets += archiveOutputFlag;
+        linkWithTargets += outputFileNode->filePath + "\" ";
     }
     else
     {
-        linkOrArchiveCommandWithTargets = linker.bTFamily == BTFamily::MSVC ? " /NOLOGO " : "";
+        linkWithTargets += linker.bTFamily == BTFamily::MSVC ? " /NOLOGO " : "";
 
         // TODO Not catering for MSVC
         // Temporary Just for ensuring link success with clang Address-Sanitizer
@@ -423,7 +457,7 @@ void LOAT::setLinkOrArchiveCommands()
         // TODO shared libraries not supported.
         if (linker.bTFamily == BTFamily::GCC)
         {
-            linkOrArchiveCommandWithTargets += flags.OPTIONS + " " + flags.OPTIONS_LINK + " ";
+            linkWithTargets += flags.OPTIONS + " " + flags.OPTIONS_LINK + " ";
         }
         else if (linker.bTFamily == BTFamily::MSVC)
         {
@@ -433,26 +467,18 @@ void LOAT::setLinkOrArchiveCommands()
                 {
                     continue;
                 }
-                linkOrArchiveCommandWithTargets += str + ".lib ";
+                linkWithTargets += str + ".lib ";
             }
-            linkOrArchiveCommandWithTargets += flags.LINKFLAGS_LINK + flags.LINKFLAGS_MSVC;
+            linkWithTargets += flags.LINKFLAGS_LINK + flags.LINKFLAGS_MSVC;
         }
-        linkOrArchiveCommandWithTargets += reqLinkerFlags + " ";
+        linkWithTargets += reqLinkerFlags + " ";
     }
 
-    auto getLinkFlag = [&](const string &libraryPath, const string &libraryName) {
-        if (linker.bTFamily == BTFamily::MSVC)
-        {
-            return addQuotes(libraryPath + slashc + libraryName + ".lib") + " ";
-        }
-        return "-L" + addQuotes(libraryPath) + " -l" + addQuotes(libraryName) + " ";
-    };
-
-    uint64_t commandWithoutTargetsSize = linkOrArchiveCommandWithTargets.size();
+    uint64_t commandWithoutTargetsSize = linkWithTargets.size();
 
     for (const ObjectFile *objectFile : objectFiles)
     {
-        linkOrArchiveCommandWithTargets += addQuotes(objectFile->objectNode->filePath) + " ";
+        linkWithTargets += '\"' + objectFile->objectNode->filePath + "\" ";
     }
 
     if (linkTargetType != TargetType::LIBRARY_STATIC)
@@ -465,23 +491,32 @@ void LOAT::setLinkOrArchiveCommands()
                 continue;
             }
 
-            linkOrArchiveCommandWithTargets += prebuiltDep->reqPreLF;
-            linkOrArchiveCommandWithTargets +=
-                getLinkFlag(string(ploat->getOutputDirectoryV()), ploat->getOutputName());
-            linkOrArchiveCommandWithTargets += prebuiltDep->reqPostLF;
-        }
+            linkWithTargets += prebuiltDep->reqPreLF;
 
-        auto getLibraryDirectoryFlag = [&] {
             if (linker.bTFamily == BTFamily::MSVC)
             {
-                return "/LIBPATH:";
+                linkWithTargets += '\"';
+                linkWithTargets += string(ploat->getOutputDirectoryV());
+                linkWithTargets += slashc;
+                linkWithTargets += ploat->getOutputName() + ".lib\" ";
             }
-            return "-L";
-        };
+            else
+            {
+                linkWithTargets += "-L\"";
+                linkWithTargets += string(ploat->getOutputDirectoryV());
+                linkWithTargets += "\" -l\"";
+                linkWithTargets += ploat->getOutputName();
+                linkWithTargets += "\" ";
+            }
+
+            linkWithTargets += prebuiltDep->reqPostLF;
+        }
 
         for (const LibDirNode &libDirNode : reqLibraryDirs)
         {
-            linkOrArchiveCommandWithTargets += getLibraryDirectoryFlag() + addQuotes(libDirNode.node->filePath) + " ";
+            linkWithTargets += libDirFlag;
+            linkWithTargets += libDirNode.node->filePath;
+            linkWithTargets += "\" ";
         }
 
         if (evaluate(BTFamily::GCC))
@@ -492,12 +527,12 @@ void LOAT::setLinkOrArchiveCommands()
                 {
                     if (prebuiltDep->defaultRpath)
                     {
-                        linkOrArchiveCommandWithTargets += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                                                           addQuotes(string(ploat->getOutputDirectoryV())) + " ";
+                        linkWithTargets += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl,\"" +
+                                           string(ploat->getOutputDirectoryV()) + "\" ";
                     }
                     else
                     {
-                        linkOrArchiveCommandWithTargets += prebuiltDep->reqRpath;
+                        linkWithTargets += prebuiltDep->reqRpath;
                     }
                 }
             }
@@ -511,12 +546,11 @@ void LOAT::setLinkOrArchiveCommands()
                 {
                     if (prebuiltDep->defaultRpathLink)
                     {
-                        linkOrArchiveCommandWithTargets +=
-                            "-Wl,-rpath-link -Wl," + addQuotes(string(ploat->getOutputDirectoryV())) + " ";
+                        linkWithTargets += "-Wl,-rpath-link -Wl,\"" + string(ploat->getOutputDirectoryV()) + "\" ";
                     }
                     else
                     {
-                        linkOrArchiveCommandWithTargets += prebuiltDep->reqRpathLink;
+                        linkWithTargets += prebuiltDep->reqRpathLink;
                     }
                 }
             }
@@ -526,234 +560,17 @@ void LOAT::setLinkOrArchiveCommands()
         if (!config.linkerFeatures.OR(TargetOS::WINDOWS, TargetOS::CYGWIN))
         {
 
-            linkOrArchiveCommandWithTargets += "-fPIC ";
+            linkWithTargets += "-fPIC ";
         }
 
-        linkOrArchiveCommandWithTargets += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
-        linkOrArchiveCommandWithTargets += addQuotes(outputFileNode->filePath) + " ";
+        linkWithTargets += linker.bTFamily == BTFamily::MSVC ? " /OUT:\"" : " -o \"";
+        linkWithTargets += outputFileNode->filePath + "\" ";
 
         if (linkTargetType == TargetType::LIBRARY_SHARED)
         {
-            linkOrArchiveCommandWithTargets += linker.bTFamily == BTFamily::MSVC ? "/DLL  " : " -shared ";
+            linkWithTargets += linker.bTFamily == BTFamily::MSVC ? "/DLL  " : " -shared ";
         }
     }
 
-    linkOrArchiveCommandWithoutTargets = string_view(linkOrArchiveCommandWithTargets.data(), commandWithoutTargetsSize);
-}
-
-string LOAT::getLinkOrArchiveCommandPrint()
-{
-    const LinkerFlags &flags = config.linkerFlags;
-    const Linker &linker = config.linkerFeatures.linker;
-    const Archiver &archiver = config.linkerFeatures.archiver;
-
-    string linkOrArchiveCommandPrint;
-
-    const ArchiveCommandPrintSettings &acpSettings = settings.acpSettings;
-    const LinkCommandPrintSettings &lcpSettings = settings.lcpSettings;
-
-    if (linkTargetType == TargetType::LIBRARY_STATIC)
-    {
-        if (acpSettings.tool.printLevel != PathPrintLevel::NO)
-        {
-            linkOrArchiveCommandPrint +=
-                getReducedPath(archiver.bTPath.lexically_normal().string(), acpSettings.tool) + " ";
-        }
-
-        if (acpSettings.infrastructureFlags)
-        {
-            linkOrArchiveCommandPrint += archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
-        }
-        auto getArchiveOutputFlag = [&]() -> string {
-            if (archiver.bTFamily == BTFamily::MSVC)
-            {
-                return "/OUT:";
-            }
-            if (archiver.bTFamily == BTFamily::GCC)
-            {
-                return " rcs ";
-            }
-            return "";
-        };
-        if (acpSettings.infrastructureFlags)
-        {
-            linkOrArchiveCommandPrint += getArchiveOutputFlag();
-        }
-
-        if (acpSettings.archive.printLevel != PathPrintLevel::NO)
-        {
-            linkOrArchiveCommandPrint += getReducedPath(outputFileNode->filePath, acpSettings.archive) + " ";
-        }
-    }
-    else
-    {
-        if (lcpSettings.tool.printLevel != PathPrintLevel::NO)
-        {
-            linkOrArchiveCommandPrint +=
-                getReducedPath(linker.bTPath.lexically_normal().string(), lcpSettings.tool) + " ";
-        }
-
-        if (lcpSettings.infrastructureFlags)
-        {
-            linkOrArchiveCommandPrint += linker.bTFamily == BTFamily::MSVC ? " /NOLOGO " : "";
-        }
-
-        if (lcpSettings.infrastructureFlags)
-        {
-            // TODO Not catering for MSVC
-            // Temporary Just for ensuring link success with clang Address-Sanitizer
-            // There should be no spaces after user-provided-flags.
-            // TODO shared libraries not supported.
-            if (linker.bTFamily == BTFamily::GCC)
-            {
-                linkOrArchiveCommandPrint += flags.OPTIONS + " " + flags.OPTIONS_LINK + " ";
-            }
-            else if (linker.bTFamily == BTFamily::MSVC)
-            {
-
-                for (const string &str : split(flags.FINDLIBS_SA_LINK, " "))
-                {
-                    if (str.empty())
-                    {
-                        continue;
-                    }
-                    linkOrArchiveCommandPrint += str + ".lib ";
-                }
-                linkOrArchiveCommandPrint += flags.LINKFLAGS_LINK + flags.LINKFLAGS_MSVC;
-            }
-        }
-
-        if (lcpSettings.linkerFlags)
-        {
-            linkOrArchiveCommandPrint += reqLinkerFlags + " ";
-        }
-    }
-
-    auto getLinkFlagPrint = [&](const string &libraryPath, const string &libraryName, const PathPrint &pathPrint) {
-        if (linker.bTFamily == BTFamily::MSVC)
-        {
-            return getReducedPath(libraryPath + slashc + libraryName + ".lib", pathPrint) + " ";
-        }
-        return "-L" + getReducedPath(libraryPath, pathPrint) + " -l" + getReducedPath(libraryName, pathPrint) + " ";
-    };
-
-    {
-        const PathPrint *pathPrint;
-        if (linkTargetType == TargetType::LIBRARY_STATIC)
-        {
-            pathPrint = &acpSettings.objectFiles;
-        }
-        else
-        {
-            pathPrint = &lcpSettings.objectFiles;
-        }
-        if (pathPrint->printLevel != PathPrintLevel::NO)
-        {
-            for (const ObjectFile *objectFile : objectFiles)
-            {
-                linkOrArchiveCommandPrint += objectFile->getObjectFileOutputFilePathPrint(*pathPrint) + " ";
-            }
-        }
-    }
-
-    if (linkTargetType != TargetType::LIBRARY_STATIC)
-    {
-        if (lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
-        {
-            for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
-            {
-                linkOrArchiveCommandPrint += prebuiltDep->reqPreLF;
-                linkOrArchiveCommandPrint += getLinkFlagPrint(string(ploat->getOutputDirectoryV()),
-                                                              ploat->getOutputName(), lcpSettings.libraryDependencies);
-                linkOrArchiveCommandPrint += prebuiltDep->reqPostLF;
-            }
-        }
-
-        auto getLibraryDirectoryFlag = [&] {
-            if (linker.bTFamily == BTFamily::MSVC)
-            {
-                return "/LIBPATH:";
-            }
-            return "-L";
-        };
-
-        for (const LibDirNode &libDirNode : reqLibraryDirs)
-        {
-            if (libDirNode.isStandard)
-            {
-                if (lcpSettings.standardLibraryDirs.printLevel != PathPrintLevel::NO)
-                {
-                    linkOrArchiveCommandPrint +=
-                        getLibraryDirectoryFlag() +
-                        getReducedPath(libDirNode.node->filePath, lcpSettings.standardLibraryDirs) + " ";
-                }
-            }
-            else
-            {
-                if (lcpSettings.libraryDirs.printLevel != PathPrintLevel::NO)
-                {
-                    linkOrArchiveCommandPrint += getLibraryDirectoryFlag() +
-                                                 getReducedPath(libDirNode.node->filePath, lcpSettings.libraryDirs) +
-                                                 " ";
-                }
-            }
-        }
-
-        if (evaluate(BTFamily::GCC) && lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
-        {
-            for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
-            {
-                if (ploat->evaluate(TargetType::LIBRARY_SHARED))
-                {
-                    if (prebuiltDep->defaultRpath)
-                    {
-                        linkOrArchiveCommandPrint +=
-                            "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl," +
-                            getReducedPath(ploat->getOutputDirectoryV(), lcpSettings.libraryDependencies) + " ";
-                    }
-                    else
-                    {
-                        linkOrArchiveCommandPrint += prebuiltDep->reqRpath;
-                    }
-                }
-            }
-        }
-
-        if (config.linkerFeatures.evaluate(BTFamily::GCC) && evaluate(TargetType::EXECUTABLE) && flags.isRpathOs &&
-            lcpSettings.libraryDependencies.printLevel != PathPrintLevel::NO)
-        {
-            for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
-            {
-                if (ploat->evaluate(TargetType::LIBRARY_SHARED))
-                {
-                    if (prebuiltDep->defaultRpathLink)
-                    {
-                        linkOrArchiveCommandPrint +=
-                            "-Wl,-rpath-link -Wl," +
-                            getReducedPath(ploat->getOutputDirectoryV(), lcpSettings.libraryDependencies) + " ";
-                    }
-                    else
-                    {
-                        linkOrArchiveCommandPrint += prebuiltDep->reqRpathLink;
-                    }
-                }
-            }
-        }
-
-        if (lcpSettings.infrastructureFlags)
-        {
-            linkOrArchiveCommandPrint += linker.bTFamily == BTFamily::MSVC ? " /OUT:" : " -o ";
-        }
-
-        if (lcpSettings.binary.printLevel != PathPrintLevel::NO)
-        {
-            linkOrArchiveCommandPrint += getReducedPath(outputFileNode->filePath, lcpSettings.binary) + " ";
-        }
-
-        if (lcpSettings.infrastructureFlags && linkTargetType == TargetType::LIBRARY_SHARED)
-        {
-            linkOrArchiveCommandPrint += linker.bTFamily == BTFamily::MSVC ? "/DLL" : " -shared ";
-        }
-    }
-    return linkOrArchiveCommandPrint;
+    commandWithoutTargetsWithTool.setCommand({linkWithTargets.data(), commandWithoutTargetsSize});
 }

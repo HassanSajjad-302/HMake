@@ -1,21 +1,11 @@
 #ifndef HMAKE_TOOLSCACHE_HPP
 #define HMAKE_TOOLSCACHE_HPP
 
-#ifdef USE_HEADER_UNITS
-import "BuildTools.hpp";
-import "Features.hpp";
-#include "nlohmann/json.hpp";
-import <vector>;
-#else
 #include "BuildTools.hpp"
 #include "Features.hpp"
-#include "nlohmann/json.hpp"
 #include <vector>
-#endif
 
 using std::vector;
-
-using Json = nlohmann::json;
 
 // On Windows standard libraries and includes are not provided by default. And tools used are different based on
 // Architecture and Address-Model.
@@ -71,4 +61,3 @@ void to_json(Json &j, const ToolsCache &toolsCacheLocal);
 void from_json(const Json &j, ToolsCache &toolsCacheLocal);
 inline ToolsCache toolsCache;
 #endif // HMAKE_TOOLSCACHE_HPP
-

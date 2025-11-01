@@ -1,29 +1,34 @@
 
-#ifdef USE_HEADER_UNITS
-import "BuildSystemFunctions.hpp";
-import "Builder.hpp";
-import "Cache.hpp";
-import <DSC.hpp>;
-import "CppSourceTarget.hpp";
-import "CacheWriteManager.hpp";
-import "fmt/format.h";
-import <filesystem>;
-import <fstream>;
-import <stacktrace>;
-#else
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "Cache.hpp"
 #include "CacheWriteManager.hpp"
 #include "CppSourceTarget.hpp"
+#include "PlatformSpecific.hpp"
+#include "Settings.hpp"
+#include "ToolsCache.hpp"
+#include "fmt/color.h"
 #include "fmt/format.h"
-#include <DSC.hpp>
 #include <filesystem>
 #include <fstream>
 #include <stacktrace>
+
+using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
+
+#ifdef _WIN32
+#include <io.h> // For _isatty on Windows
+#else
+#include <unistd.h> // For isatty on Unix-like systems
 #endif
 
-using fmt::print, std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
+void setIsConsol()
+{
+#ifdef _WIN32
+    isConsole = _isatty(_fileno(stdout));
+#else
+    isConsole = isatty(fileno(stdout));
+#endif
+}
 
 string getFileNameJsonOrOut(const string &name)
 {
@@ -131,7 +136,7 @@ void printMessage(const string &message)
     }
     else
     {
-        print("{}", message);
+        fmt::print("{}", message);
         fflush(stdout);
     }
 }
@@ -144,11 +149,11 @@ void printMessageColor(const string &message, uint32_t color)
     }
     else
     {
-        if (color == (uint32_t)fmt::color::white)
+        if (color == static_cast<uint32_t>(fmt::color::white))
         {
             bool breakpoint = true;
         }
-        print(fg(static_cast<fmt::color>(color)), "{}", message);
+        fmt::print(fg(static_cast<fmt::color>(color)), "{}", message);
     }
 }
 
@@ -164,12 +169,12 @@ void printErrorMessage(const string &message)
     }
     else
     {
-        // print(stderr, "Error Happened.\n");
-        print(stderr, "{}", message);
+        // fmt::print(stderr, "Error Happened.\n");
+        fmt::print(stderr, "{}", message);
     }
 
 #ifndef NDEBUG
-    //  print(stderr, "{}", to_string(std::stacktrace::current()));
+    //  fmt::print(stderr, "{}", to_string(std::stacktrace::current()));
 #endif
 
     errorExit();
@@ -183,7 +188,7 @@ void printErrorMessageNoReturn(const string &message)
     }
     else
     {
-        print(stderr, "{}", message);
+        fmt::print(stderr, "{}", message);
     }
 }
 
@@ -195,7 +200,7 @@ void printErrorMessageColor(const string &message, uint32_t color)
     }
     else
     {
-        print(stderr, fg(static_cast<fmt::color>(color)), "{}", message);
+        fmt::print(stderr, fg(static_cast<fmt::color>(color)), "{}", message);
     }
 }
 
@@ -221,6 +226,7 @@ void constructGlobals()
 {
     std::construct_at(&cacheWriteManager);
     BTarget::laterDepsCentral.emplace_back(&BTarget::laterDepsLocal);
+    threadIds.emplace_back(getThreadId());
 }
 
 void destructGlobals()

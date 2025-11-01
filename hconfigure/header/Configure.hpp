@@ -1,30 +1,6 @@
 #ifndef HMAKE_CONFIGURE_HPP
 #define HMAKE_CONFIGURE_HPP
 
-#ifdef USE_HEADER_UNITS
-import "BTarget.hpp";
-import "BuildSystemFunctions.hpp";
-import "BuildTools.hpp";
-import "Builder.hpp";
-import "Cache.hpp";
-import "Configuration.hpp";
-import "CppSourceTarget.hpp";
-import "DSC.hpp";
-import "Features.hpp";
-import "JConsts.hpp";
-import "SMFile.hpp";
-import "Settings.hpp";
-import "TarjanNode.hpp";
-import "ToolsCache.hpp";
-import "Utilities.hpp";
-#include "nlohmann/json.hpp";
-import <filesystem>;
-import <memory>;
-import <set>;
-import <stack>;
-import <thread>;
-import <utility>;
-#else
 #include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
@@ -45,7 +21,6 @@ import <utility>;
 #include <stack>
 #include <thread>
 #include <utility>
-#endif
 
 // Will return true if all configurations are built
 bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuration));

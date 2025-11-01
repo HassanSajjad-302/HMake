@@ -1,10 +1,8 @@
 #ifndef HMAKE_JCONSTS_H
 #define HMAKE_JCONSTS_H
-#ifdef USE_HEADER_UNITS
-import "PlatformSpecific.hpp";
-#else
-#include "PlatformSpecific.hpp"
-#endif
+
+#include <string>
+using std::string;
 
 struct JConsts
 {

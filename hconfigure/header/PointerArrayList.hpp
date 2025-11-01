@@ -2,11 +2,9 @@
 #ifndef HMAKE_POINTERARRAYLIST_HPP
 #define HMAKE_POINTERARRAYLIST_HPP
 
-#ifdef USE_HEADER_UNITS
-#else
-#endif
 #include <cstdint>
 
+// This is a list backed by an array. It does not support deletion.
 template <typename T> class PointerArrayList
 {
     struct ArrayListItem

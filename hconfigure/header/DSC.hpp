@@ -1,13 +1,9 @@
 
 #ifndef HMAKE_DSC_HPP
 #define HMAKE_DSC_HPP
-#ifdef USE_HEADER_UNITS
-import "Features.hpp";
-import "ObjectFileProducer.hpp";
-#else
+
 #include "Features.hpp"
 #include "ObjectFileProducer.hpp"
-#endif
 
 class LOAT;
 

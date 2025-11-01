@@ -1,11 +1,6 @@
 
-#ifdef USE_HEADER_UNITS
-import "Configure.hpp";
-import <fstream>;
-#else
 #include "Configure.hpp"
 #include <fstream>
-#endif
 
 using std::ofstream, std::filesystem::current_path;
 int main()

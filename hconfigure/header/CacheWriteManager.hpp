@@ -3,16 +3,10 @@
 #ifndef CACHEWRITEMANAGER_HPP
 #define CACHEWRITEMANAGER_HPP
 
-#ifdef USE_HEADER_UNITS
-import "BuildSystemFunctions.hpp";
-import <atomic>;
-import <condition_variable>;
-#else
 #include "BuildSystemFunctions.hpp"
+#include "TargetCache.hpp"
 #include <atomic>
 #include <condition_variable>
-#endif
-#include "TargetCache.hpp"
 
 using std::atomic;
 
@@ -37,11 +31,11 @@ class CacheWriteManager
     mutex vecMutex;
     std::condition_variable vecCond{};
     std::unique_lock<std::mutex> vecLock{vecMutex, std::defer_lock_t{}};
-    vector<ColoredStringForPrint> strCache;
     vector<UpdatedCache> updatedCaches;
 
   private:
-    vector<ColoredStringForPrint> strCacheLocal;
+    string outputStr;
+    string errorStr;
     vector<UpdatedCache> updatedCachesLocal;
     vector<char> buildBufferLocal;
 
@@ -52,8 +46,7 @@ class CacheWriteManager
     uint64_t nodesSizeStart = 0;
     bool exitAfterThis = false;
 
-    static void addNewEntry(bool exitStatus, TargetCache *target, void *cache, uint32_t color,
-                            const string &printCommand, const string &output);
+    static void addNewEntry(TargetCache *target, void *cache);
     void writeNodesCacheIfNewNodesAdded();
     ~CacheWriteManager();
     void initialize();

@@ -2,11 +2,7 @@
 #ifndef HMAKE_RUNCOMMAND_HPP
 #define HMAKE_RUNCOMMAND_HPP
 
-#ifdef USE_HEADER_UNITS
-import "string";
-#else
 #include "string"
-#endif
 
 using std::string;
 

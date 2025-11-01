@@ -1,10 +1,10 @@
 #ifndef HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
 #define HMAKE_FEATURESCONVENIENCEFUNCTIONS_HPP
-#ifdef USE_HEADER_UNITS
-import "DepType.hpp";
-#else
+
 #include "DepType.hpp"
-#endif
+#include <string>
+
+using std::string;
 
 // TODO
 // Write a concept that checks for the presence of evaluate() and assign() functions.
@@ -58,8 +58,7 @@ template <typename U> class FeatureConvenienceFunctions
 
 template <typename U>
 template <typename T, typename... Argument>
-string FeatureConvenienceFunctions<U>::GET_FLAG_evaluate(T condition, const string &flags,
-                                                          Argument... arguments) const
+string FeatureConvenienceFunctions<U>::GET_FLAG_evaluate(T condition, const string &flags, Argument... arguments) const
 {
     if (static_cast<const U &>(*this).evaluate(condition))
     {
@@ -78,7 +77,7 @@ string FeatureConvenienceFunctions<U>::GET_FLAG_evaluate(T condition, const stri
 template <typename U>
 template <typename T, typename... Argument>
 string FeatureConvenienceFunctions<U>::GET_CUMULATED_FLAG_evaluate(T condition, const string &flags,
-                                                                    Argument... arguments) const
+                                                                   Argument... arguments) const
 {
     string str{};
     if (static_cast<const U &>(*this).evaluate(condition))

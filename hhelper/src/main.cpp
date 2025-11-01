@@ -1,27 +1,13 @@
 
-#ifdef USE_HEADER_UNITS
-import "BuildSystemFunctions.hpp";
-import "BuildTools.hpp";
-import "Cache.hpp";
-import "fmt/format.h";
-import "JConsts.hpp";
-import "ToolsCache.hpp";
-import "Utilities.hpp";
-import <filesystem>;
-import <fstream>;
-import <thread>;
-#else
 #include "BuildSystemFunctions.hpp"
 #include "BuildTools.hpp"
 #include "Cache.hpp"
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
 #include "Utilities.hpp"
-#include "fmt/format.h"
 #include <filesystem>
 #include <fstream>
 #include <thread>
-#endif
 
 using std::string, std::vector, std::ifstream, std::ofstream, std::endl, std::filesystem::path,
     std::filesystem::current_path, std::filesystem::directory_iterator, std::to_string, std::runtime_error,

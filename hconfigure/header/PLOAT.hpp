@@ -2,21 +2,12 @@
 #ifndef HMAKE_PLOAT_HPP
 #define HMAKE_PLOAT_HPP
 
-#ifdef USE_HEADER_UNITS
-import "BTarget.hpp";
-import "Configuration.hpp";
-import "Features.hpp";
-import "FeaturesConvenienceFunctions.hpp";
-import "TargetCache.hpp";
-import "btree.h";
-#else
 #include "BTarget.hpp"
 #include "Configuration.hpp"
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "TargetCache.hpp"
-#include "btree.h"
-#endif
+#include "parallel-hashmap/parallel_hashmap/btree.h"
 
 using phmap::node_hash_map, phmap::btree_map;
 

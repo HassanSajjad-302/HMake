@@ -1,69 +1,27 @@
 #ifndef HMAKE_CPPSOURCETARGET_HPP
 #define HMAKE_CPPSOURCETARGET_HPP
-#ifdef USE_HEADER_UNITS
-import "BuildTools.hpp";
-import "Configuration.hpp";
-import "DSC.hpp";
-import "HashedCommand.hpp";
-import "JConsts.hpp";
-import "ObjectFileProducer.hpp";
-import "RunCommand.hpp";
-import "SMFile.hpp";
-import "ToolsCache.hpp";
-import <concepts>;
-import <set>;
-#else
+
 #include "BuildTools.hpp"
 #include "Configuration.hpp"
 #include "DSC.hpp"
 #include "HashedCommand.hpp"
-#include "JConsts.hpp"
 #include "ObjectFileProducer.hpp"
-#include "RunCommand.hpp"
 #include "SMFile.hpp"
-#include "ToolsCache.hpp"
 #include <concepts>
-#endif
 
 using std::same_as;
-
-struct SourceDirectory
-{
-    const Node *sourceDirectory;
-    string regex;
-    bool recursive;
-    SourceDirectory(const string &sourceDirectory_, string regex_, bool recursive_ = false);
-};
-
-struct InclNodePointerComparator
-{
-    bool operator()(const InclNode &lhs, const InclNode &rhs) const;
-};
-
-struct RequireNameTargetId
-{
-    uint64_t id;
-    string requireName;
-    RequireNameTargetId(uint64_t id_, string_view requirePath_);
-    bool operator==(const RequireNameTargetId &other) const;
-};
-
-struct RequireNameTargetIdHash
-{
-    uint64_t operator()(const RequireNameTargetId &req) const;
-};
-inline phmap::parallel_flat_hash_map_m<RequireNameTargetId, SMFile *, RequireNameTargetIdHash> requirePaths2;
 
 struct HeaderFileOrUnit
 {
     union {
-        SMFile *smFile;
+        SMFile *smFile = nullptr;
         Node *node;
     } data;
     bool isUnit;
     bool isSystem;
-    explicit HeaderFileOrUnit(SMFile *smFile_, bool isSystem_);
-    explicit HeaderFileOrUnit(Node *node_, bool isSystem_);
+    HeaderFileOrUnit(SMFile *smFile_, bool isSystem_);
+    HeaderFileOrUnit(Node *node_, bool isSystem_);
+    HeaderFileOrUnit() = default;
 };
 
 enum class FileType : uint8_t
@@ -89,7 +47,6 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
     string compileCommand;
-    string sourceCompileCommandPrintFirstHalf;
     string reqCompilerFlags;
     string useReqCompilerFlags;
 
@@ -115,30 +72,36 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     Configuration *configuration = nullptr;
 
     Node *myBuildDir = nullptr;
-    BTarget *huAndIModTarget = nullptr;
     // reqIncludes size before populateTransitiveProperties function is called
     unsigned short reqIncSizeBeforePopulate = 0;
     unsigned short cacheUpdateCount = 0;
 
     atomic<uint64_t> newHeaderUnitsSize = 0;
 
-    bool addedInCopyJson = false;
+    // Used only at configure time
+    vector<SMFile *> publicBigHu;
+    vector<SMFile *> privateBigHu;
+    vector<SMFile *> interfaceBigHu;
+
+    // Used only at configure time
+    uint32_t reqHeaderFilesSize = 0;
+    uint32_t useReqHeaderFilesSize = 0;
+
+    bool isSystem = false;
+    bool ignoreHeaderDeps = false;
 
     void setCompileCommand();
-    void setSourceCompileCommandPrintFirstHalf();
-    string &getSourceCompileCommandPrintFirstHalf();
 
     string getDependenciesString() const;
-    void resolveRequirePaths();
     static string getInfrastructureFlags(const Compiler &compiler);
-    string getCompileCommandPrintSecondPart(const SourceNode &sourceNode) const;
-    string getCompileCommandPrintSecondPartSMRule(const SMFile &smFile) const;
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     void writeBuildCache(vector<char> &buffer) override;
     void setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache);
+    void writeBigHeaderUnits();
     void writeCacheAtConfigTime();
     void readConfigCacheAtBuildTime();
     string getPrintName() const override;
+    BTargetType getBTargetType() const override;
 
     CppSourceTarget(const string &name_, Configuration *configuration_);
     CppSourceTarget(bool buildExplicit, const string &name_, Configuration *configuration_);
@@ -149,23 +112,26 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     void initializeCppSourceTarget(const string &name_, string buildCacheFilesDirPath);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const override;
-    void updateBuildCache(void *ptr) override;
+    void updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified) override;
     void populateTransitiveProperties();
 
     void actuallyAddSourceFileConfigTime(Node *node);
     void actuallyAddModuleFileConfigTime(Node *node, string exportName);
-    void addHeaderFile(Node *headerNode, const string &logicalName, bool suppressError, bool addInReq, bool addInUseReq,
-                       bool isStandard, bool ignoreHeaderDeps);
-    void addHeaderUnit(const Node *headerNode, const string &logicalName, bool suppressError, bool addInReq,
-                       bool addInUseReq, bool isStandard, bool ignoreHeaderDeps);
+    void emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, bool addInReq, bool suppressError);
+    void emplaceInNodesType(const Node *node, FileType type, bool addInReq);
+    void makeHeaderFileAsUnit(const string &logicalName, bool addInReq, bool addInUseReq);
+    void removeHeaderFile(const string &logicalName, bool addInReq, bool addInUseReq);
+    void removeHeaderUnit(const Node *headerNode, const string &logicalName, bool addInReq, bool addInUseReq);
+    void addHeaderFile(const string &logicalName, const Node *headerFile, bool suppressError, bool addInReq,
+                       bool addInUseReq);
+    void addHeaderUnit(const string &logicalName, const Node *headerUnit, bool suppressError, bool addInReq,
+                       bool addInUseReq);
     void addHeaderUnitOrFileDir(const Node *includeDir, const string &prefix, bool isHeaderFile, const string &regexStr,
-                                bool addInReq, bool addInUseReq, bool isStandard = false,
-                                bool ignoreHeaderDeps = false);
+                                bool addInReq, bool addInUseReq);
     void addHeaderUnitOrFileDirMSVC(const Node *includeDir, bool isHeaderFile, bool useMentioned, bool addInReq,
                                     bool addInUseReq, bool isStandard, bool ignoreHeaderDeps);
-    uint64_t actuallyAddBigHuConfigTime(const Node *node, const string &headerUnit);
-    void actuallyAddInclude(bool errorOnEmplaceFail, const Node *include, bool addInReq, bool addInUseReq,
-                            bool isStandard = false, bool ignoreHeaderDeps = false);
+    void actuallyAddInclude(bool errorOnEmplaceFail, const Node *include, bool addInReq, bool addInUseReq);
+    void readModuleMapFromDir(const string &dir);
 
     template <typename... U> CppSourceTarget &publicDeps(CppSourceTarget *dep, const U... deps);
     template <typename... U> CppSourceTarget &privateDeps(CppSourceTarget *dep, const U... deps);
@@ -173,8 +139,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     template <typename... U> CppSourceTarget &deps(CppSourceTarget *dep, DepType dependency, const U... deps);
 
-    // TODO
-    // Also provide function overload for functions like publicIncludes here and in CPT
+    template <typename... U> CppSourceTarget &moduleMaps(const string &include, U... includeDirectoryString);
     template <typename... U> CppSourceTarget &publicIncludes(const string &include, U... includeDirectoryString);
     template <typename... U> CppSourceTarget &privateIncludes(const string &include, U... includeDirectoryString);
     template <typename... U> CppSourceTarget &interfaceIncludes(const string &include, U... includeDirectoryString);
@@ -182,7 +147,7 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     template <typename... U> CppSourceTarget &privateHUIncludes(const string &include, U... includeDirectoryString);
     template <typename... U> CppSourceTarget &interfaceHUIncludes(const string &include, U... includeDirectoryString);
     template <typename... U>
-    CppSourceTarget &publicIncludeRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    CppSourceTarget &publicIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
     template <typename... U>
     CppSourceTarget &privateIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
     template <typename... U>
@@ -208,37 +173,51 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     template <typename... U>
     CppSourceTarget &interfaceHUDirsRE(const string &include, const string &prefix, const string &regexStr,
                                        U... includeDirectoryString);
+    template <typename... U>
+    CppSourceTarget &publicIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    template <typename... U>
+    CppSourceTarget &privateIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    template <typename... U>
+    CppSourceTarget &interfaceIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    template <typename... U>
+    CppSourceTarget &publicIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+                                     U... includeDirectoryString);
+    template <typename... U>
+    CppSourceTarget &privateIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+                                      U... includeDirectoryString);
+    template <typename... U>
+    CppSourceTarget &interfaceIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+                                        U... includeDirectoryString);
     template <typename... U> CppSourceTarget &publicIncludesSource(const string &include, U... includeDirectoryString);
     template <typename... U> CppSourceTarget &privateIncludesSource(const string &include, U... includeDirectoryString);
     template <typename... U>
     CppSourceTarget &interfaceIncludesSource(const string &include, U... includeDirectoryString);
-    template <typename... U>
-    CppSourceTarget &publicHUDirsBigHu(const string &include, const string &headerUnit, const string &logicalName,
-                                       U... includeDirectoryString);
-    template <typename... U>
-    CppSourceTarget &privateHUDirsBigHu(const string &include, const string &headerUnit, const string &logicalName,
-                                        U... includeDirectoryString);
     CppSourceTarget &publicCompilerFlags(const string &compilerFlags);
     CppSourceTarget &privateCompilerFlags(const string &compilerFlags);
     CppSourceTarget &interfaceCompilerFlags(const string &compilerFlags);
-    CppSourceTarget &publicCompileDefinition(const string &cddName, const string &cddValue = "");
-    CppSourceTarget &privateCompileDefinition(const string &cddName, const string &cddValue = "");
-    CppSourceTarget &interfaceCompileDefinition(const string &cddName, const string &cddValue = "");
+
+    template <typename... U>
+    CppSourceTarget &publicCompileDefines(const string &cddName, const string &cddValue, U... compileDefines);
+    template <typename... U>
+    CppSourceTarget &privateCompileDefines(const string &cddName, const string &cddValue, U... compileDefines);
+    template <typename... U>
+    CppSourceTarget &interfaceCompileDefines(const string &cddName, const string &cddValue, U... compileDefines);
+
     template <typename... U>
     CppSourceTarget &interfaceFiles(const string &modFile, const string &exportName, U... moduleFileString);
     template <typename... U>
-    CppSourceTarget &publicHeaderFiles(const string &headerUnit, const string &logicalName, U... headerUnitsString);
+    CppSourceTarget &publicHeaderFiles(const string &logicalName, const string &headerFile, U... headerUnitsString);
     template <typename... U>
-    CppSourceTarget &privateHeaderFiles(const string &headerUnit, const string &logicalName, U... headerUnitsString);
+    CppSourceTarget &privateHeaderFiles(const string &logicalName, const string &headerFile, U... headerUnitsString);
     template <typename... U>
-    CppSourceTarget &interfaceHeaderFiles(const string &headerUnit, const string &logicalName, U... headerUnitsString);
+    CppSourceTarget &interfaceHeaderFiles(const string &logicalName, const string &headerFile, U... headerUnitsString);
     template <typename... U>
-    CppSourceTarget &publicHeaderUnits(const string &headerUnit, const string &logicalName, U... headerUnitsString);
+    CppSourceTarget &publicHeaderUnits(const string &logicalName, const string &headerUnit, U... headerUnitsString);
     template <typename... U>
-    CppSourceTarget &privateHeaderUnits(const string &headerUnit, const string &logicalName, U... headerUnitsString);
+    CppSourceTarget &privateHeaderUnits(const string &logicalName, const string &headerUnit, U... headerUnitsString);
     template <typename... U>
-    CppSourceTarget &interfaceHeaderUnits(const string &headerUnit, const string &logicalName, U... headerUnitsString);
-    void parseRegexSourceDirs(bool assignToSourceNodes, const string &sourceDirectory, string regex, bool recursive);
+    CppSourceTarget &interfaceHeaderUnits(const string &logicalName, const string &headerUnit, U... headerUnitsString);
+    void parseRegexSourceDirs(bool assignToSourceNodes, const string &sourceDirectory, string regexStr, bool recursive);
     template <typename... U> CppSourceTarget &sourceFiles(const string &srcFile, U... sourceFileString);
     template <typename... U> CppSourceTarget &sourceDirs(const string &sourceDirectory, U... dirs);
     template <typename... U>
@@ -318,6 +297,24 @@ CppSourceTarget &CppSourceTarget::deps(CppSourceTarget *dep, const DepType depen
         return deps(cppSourceTargets...);
     }
     return static_cast<CppSourceTarget &>(*this);
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::moduleMaps(const string &include, U... includeDirectoryString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        readModuleMapFromDir(include);
+    }
+
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        return moduleMaps(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
 }
 
 template <typename... U>
@@ -441,8 +438,8 @@ CppSourceTarget &CppSourceTarget::interfaceHUIncludes(const string &include, U..
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::publicIncludeRE(const string &include, const string &regexStr,
-                                                  U... includeDirectoryString)
+CppSourceTarget &CppSourceTarget::publicIncludesRE(const string &include, const string &regexStr,
+                                                   U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -453,7 +450,7 @@ CppSourceTarget &CppSourceTarget::publicIncludeRE(const string &include, const s
 
     if constexpr (sizeof...(includeDirectoryString))
     {
-        return publicIncludesRE(include, includeDirectoryString...);
+        return publicIncludesRE(includeDirectoryString...);
     }
     else
     {
@@ -706,6 +703,146 @@ CppSourceTarget &CppSourceTarget::interfaceHUDirsRE(const string &include, const
 }
 
 template <typename... U>
+CppSourceTarget &CppSourceTarget::publicIncDirs(const string &include, const string &prefix,
+                                                U... includeDirectoryString)
+{
+
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(TreatModuleAsSource::NO))
+        {
+            Node *inclNode = Node::getNodeFromNonNormalizedPath(include, false);
+            addHeaderUnitOrFileDir(inclNode, prefix, true, "", true, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        return publicIncDirs(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::privateIncDirs(const string &include, const string &prefix,
+                                                 U... includeDirectoryString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(TreatModuleAsSource::NO))
+        {
+            Node *inclNode = Node::getNodeFromNonNormalizedPath(include, false);
+            addHeaderUnitOrFileDir(inclNode, prefix, true, "", true, false);
+        }
+    }
+
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        return privateIncDirs(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::interfaceIncDirs(const string &include, const string &prefix,
+                                                   U... includeDirectoryString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(TreatModuleAsSource::NO))
+        {
+            Node *inclNode = Node::getNodeFromNonNormalizedPath(include, false);
+            addHeaderUnitOrFileDir(inclNode, prefix, true, "", false, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        return interfaceIncDirs(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::publicIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+                                                  U... includeDirectoryString)
+{
+
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(TreatModuleAsSource::NO))
+        {
+            Node *inclNode = Node::getNodeFromNonNormalizedPath(include, false);
+            addHeaderUnitOrFileDir(inclNode, prefix, true, regexStr, true, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        return publicIncDirsRE(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::privateIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+                                                   U... includeDirectoryString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(TreatModuleAsSource::NO))
+        {
+            Node *inclNode = Node::getNodeFromNonNormalizedPath(include, false);
+            addHeaderUnitOrFileDir(inclNode, prefix, true, regexStr, true, false);
+        }
+    }
+
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        return privateIncDirsRE(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::interfaceIncDirsRE(const string &include, const string &prefix,
+                                                     const string &regexStr, U... includeDirectoryString)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(TreatModuleAsSource::NO))
+        {
+            Node *inclNode = Node::getNodeFromNonNormalizedPath(include, false);
+            addHeaderUnitOrFileDir(inclNode, prefix, true, regexStr, false, true);
+        }
+    }
+
+    if constexpr (sizeof...(includeDirectoryString))
+    {
+        return interfaceIncDirsRE(includeDirectoryString...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
 CppSourceTarget &CppSourceTarget::publicIncludesSource(const string &include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -762,55 +899,6 @@ CppSourceTarget &CppSourceTarget::interfaceIncludesSource(const string &include,
     }
 }
 
-template <typename... U>
-CppSourceTarget &CppSourceTarget::publicHUDirsBigHu(const string &include, const string &headerUnit,
-                                                    const string &logicalName, U... includeDirectoryString)
-{
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
-        {
-            uint64_t headerUnitsIndex =
-                actuallyAddBigHuConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true), logicalName);
-            // actuallyAddInclude(reqHuDirs, this, include, cacheIndex, headerUnitsIndex);
-            // actuallyAddInclude(useReqHuDirs, this, include, cacheIndex, headerUnitsIndex);
-        }
-    }
-
-    if constexpr (sizeof...(includeDirectoryString))
-    {
-        return publicHUDirsBigHu(includeDirectoryString...);
-    }
-    else
-    {
-        return *this;
-    }
-}
-
-template <typename... U>
-CppSourceTarget &CppSourceTarget::privateHUDirsBigHu(const string &include, const string &headerUnit,
-                                                     const string &logicalName, U... includeDirectoryString)
-{
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
-        {
-            uint64_t headerUnitsIndex =
-                actuallyAddBigHuConfigTime(Node::getNodeFromNonNormalizedString(headerUnit, true), logicalName);
-            // actuallyAddInclude(reqHuDirs, this, include, cacheIndex, headerUnitsIndex);
-        }
-    }
-
-    if constexpr (sizeof...(includeDirectoryString))
-    {
-        return privateHUDirsBigHu(includeDirectoryString...);
-    }
-    else
-    {
-        return *this;
-    }
-}
-
 template <typename... U> CppSourceTarget &CppSourceTarget::sourceFiles(const string &srcFile, U... sourceFileString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -850,6 +938,55 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleFiles(const str
 }
 
 template <typename... U>
+CppSourceTarget &CppSourceTarget::publicCompileDefines(const string &cddName, const string &cddValue,
+                                                       U... compileDefines)
+{
+    reqCompileDefinitions.emplace(cddName, cddValue);
+    useReqCompileDefinitions.emplace(cddName, cddValue);
+
+    if constexpr (sizeof...(compileDefines))
+    {
+        return publicCompileDefines(compileDefines...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::privateCompileDefines(const string &cddName, const string &cddValue,
+                                                        U... compileDefines)
+{
+    reqCompileDefinitions.emplace(cddName, cddValue);
+
+    if constexpr (sizeof...(compileDefines))
+    {
+        return privateCompileDefines(compileDefines...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
+CppSourceTarget &CppSourceTarget::interfaceCompileDefines(const string &cddName, const string &cddValue,
+                                                          U... compileDefines)
+{
+    useReqCompileDefinitions.emplace(cddName, cddValue);
+
+    if constexpr (sizeof...(compileDefines))
+    {
+        return interfaceCompileDefines(compileDefines...);
+    }
+    else
+    {
+        return *this;
+    }
+}
+
+template <typename... U>
 CppSourceTarget &CppSourceTarget::interfaceFiles(const string &modFile, const string &exportName, U... moduleFileString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -868,15 +1005,15 @@ CppSourceTarget &CppSourceTarget::interfaceFiles(const string &modFile, const st
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::publicHeaderFiles(const string &header, const string &logicalName, U... headersString)
+CppSourceTarget &CppSourceTarget::publicHeaderFiles(const string &logicalName, const string &headerFile,
+                                                    U... headersString)
 {
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(TreatModuleAsSource::NO))
         {
-            addHeaderFile(Node::getNodeFromNonNormalizedString(header, true), logicalName, false, true, true, false,
-                          false);
+            addHeaderFile(logicalName, Node::getNodeFromNonNormalizedString(headerFile, true), false, true, true);
         }
     }
 
@@ -891,15 +1028,14 @@ CppSourceTarget &CppSourceTarget::publicHeaderFiles(const string &header, const 
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::privateHeaderFiles(const string &header, const string &logicalName,
+CppSourceTarget &CppSourceTarget::privateHeaderFiles(const string &logicalName, const string &headerFile,
                                                      U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(TreatModuleAsSource::NO))
         {
-            addHeaderFile(Node::getNodeFromNonNormalizedString(header, true), logicalName, false, true, false, false,
-                          false);
+            addHeaderFile(logicalName, Node::getNodeFromNonNormalizedString(headerFile, true), false, true, false);
         }
     }
 
@@ -914,15 +1050,14 @@ CppSourceTarget &CppSourceTarget::privateHeaderFiles(const string &header, const
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::interfaceHeaderFiles(const string &header, const string &logicalName,
+CppSourceTarget &CppSourceTarget::interfaceHeaderFiles(const string &logicalName, const string &headerFile,
                                                        U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(TreatModuleAsSource::NO))
         {
-            addHeaderFile(Node::getNodeFromNonNormalizedString(header, true), logicalName, false, false, true, false,
-                          false);
+            addHeaderFile(logicalName, Node::getNodeFromNonNormalizedString(headerFile, true), false, false, true);
         }
     }
 
@@ -937,14 +1072,14 @@ CppSourceTarget &CppSourceTarget::interfaceHeaderFiles(const string &header, con
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::publicHeaderUnits(const string &header, const string &logicalName, U... headersString)
+CppSourceTarget &CppSourceTarget::publicHeaderUnits(const string &logicalName, const string &headerUnit,
+                                                    U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(TreatModuleAsSource::NO))
         {
-            addHeaderUnit(Node::getNodeFromNonNormalizedString(header, true), logicalName, false, true, true, false,
-                          false);
+            addHeaderUnit(logicalName, Node::getNodeFromNonNormalizedString(headerUnit, true), false, true, true);
         }
     }
 
@@ -959,15 +1094,14 @@ CppSourceTarget &CppSourceTarget::publicHeaderUnits(const string &header, const 
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::privateHeaderUnits(const string &header, const string &logicalName,
+CppSourceTarget &CppSourceTarget::privateHeaderUnits(const string &logicalName, const string &headerUnit,
                                                      U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(TreatModuleAsSource::NO))
         {
-            addHeaderUnit(Node::getNodeFromNonNormalizedString(header, true), logicalName, false, true, false, false,
-                          false);
+            addHeaderUnit(logicalName, Node::getNodeFromNonNormalizedString(headerUnit, true), false, true, false);
         }
     }
 
@@ -982,15 +1116,14 @@ CppSourceTarget &CppSourceTarget::privateHeaderUnits(const string &header, const
 }
 
 template <typename... U>
-CppSourceTarget &CppSourceTarget::interfaceHeaderUnits(const string &header, const string &logicalName,
+CppSourceTarget &CppSourceTarget::interfaceHeaderUnits(const string &logicalName, const string &headerUnit,
                                                        U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(TreatModuleAsSource::NO))
         {
-            addHeaderUnit(Node::getNodeFromNonNormalizedString(header, true), logicalName, false, false, true, false,
-                          false);
+            addHeaderUnit(logicalName, Node::getNodeFromNonNormalizedString(headerUnit, true), false, false, true);
         }
     }
 
@@ -1006,7 +1139,10 @@ CppSourceTarget &CppSourceTarget::interfaceHeaderUnits(const string &header, con
 
 template <typename... U> CppSourceTarget &CppSourceTarget::sourceDirs(const string &sourceDirectory, U... dirs)
 {
-    parseRegexSourceDirs(true, sourceDirectory, ".*", false);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        parseRegexSourceDirs(true, sourceDirectory, ".*", false);
+    }
     if constexpr (sizeof...(dirs))
     {
         return sourceDirs(dirs...);
@@ -1016,7 +1152,10 @@ template <typename... U> CppSourceTarget &CppSourceTarget::sourceDirs(const stri
 
 template <typename... U> CppSourceTarget &CppSourceTarget::moduleDirs(const string &moduleDirectory, U... dirs)
 {
-    parseRegexSourceDirs(false, moduleDirectory, ".*", false);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        parseRegexSourceDirs(false, moduleDirectory, ".*", false);
+    }
     if constexpr (sizeof...(dirs))
     {
         return moduleDirs(dirs...);
@@ -1027,7 +1166,10 @@ template <typename... U> CppSourceTarget &CppSourceTarget::moduleDirs(const stri
 template <typename... U>
 CppSourceTarget &CppSourceTarget::sourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs)
 {
-    parseRegexSourceDirs(true, sourceDirectory, regex, false);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        parseRegexSourceDirs(true, sourceDirectory, regex, false);
+    }
     if constexpr (sizeof...(dirs))
     {
         return sourceDirsRE(dirs...);
@@ -1038,7 +1180,10 @@ CppSourceTarget &CppSourceTarget::sourceDirsRE(const string &sourceDirectory, co
 template <typename... U>
 CppSourceTarget &CppSourceTarget::moduleDirsRE(const string &moduleDirectory, const string &regex, U... dirs)
 {
-    parseRegexSourceDirs(false, moduleDirectory, regex, false);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        parseRegexSourceDirs(false, moduleDirectory, regex, false);
+    }
     if constexpr (sizeof...(dirs))
     {
         return moduleDirsRE(dirs...);
@@ -1048,7 +1193,10 @@ CppSourceTarget &CppSourceTarget::moduleDirsRE(const string &moduleDirectory, co
 
 template <typename... U> CppSourceTarget &CppSourceTarget::rSourceDirs(const string &sourceDirectory, U... dirs)
 {
-    parseRegexSourceDirs(true, sourceDirectory, ".*", true);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        parseRegexSourceDirs(true, sourceDirectory, ".*", true);
+    }
     if constexpr (sizeof...(dirs))
     {
         return rSourceDirs(dirs...);
@@ -1058,7 +1206,10 @@ template <typename... U> CppSourceTarget &CppSourceTarget::rSourceDirs(const str
 
 template <typename... U> CppSourceTarget &CppSourceTarget::rModuleDirs(const string &moduleDirectory, U... dirs)
 {
-    parseRegexSourceDirs(false, moduleDirectory, ".*", true);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        parseRegexSourceDirs(false, moduleDirectory, ".*", true);
+    }
     if constexpr (sizeof...(dirs))
     {
         return rModuleDirs(dirs...);
@@ -1069,7 +1220,10 @@ template <typename... U> CppSourceTarget &CppSourceTarget::rModuleDirs(const str
 template <typename... U>
 CppSourceTarget &CppSourceTarget::rSourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs)
 {
-    parseRegexSourceDirs(true, sourceDirectory, regex, true);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        parseRegexSourceDirs(true, sourceDirectory, regex, true);
+    }
     if constexpr (sizeof...(dirs))
     {
         return R_sourceDirsRE(dirs...);
@@ -1080,7 +1234,10 @@ CppSourceTarget &CppSourceTarget::rSourceDirsRE(const string &sourceDirectory, c
 template <typename... U>
 CppSourceTarget &CppSourceTarget::rModuleDirsRE(const string &moduleDirectory, const string &regex, U... dirs)
 {
-    parseRegexSourceDirs(false, moduleDirectory, regex, true);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        parseRegexSourceDirs(false, moduleDirectory, regex, true);
+    }
     if constexpr (sizeof...(dirs))
     {
         return R_moduleDirsRE(dirs...);

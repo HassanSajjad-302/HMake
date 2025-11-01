@@ -208,8 +208,6 @@ void *operator new(std::size_t size)
         size = 1;
 
     void *ptr = allocate(size);
-    if (!ptr)
-        throw std::bad_alloc();
     return ptr;
 }
 
@@ -226,8 +224,6 @@ void *operator new[](std::size_t size)
         size = 1;
 
     void *ptr = allocate(size);
-    if (!ptr)
-        throw std::bad_alloc();
     return ptr;
 }
 
@@ -257,8 +253,6 @@ void *operator new(std::size_t size, std::align_val_t alignment)
         size = 1;
 
     void *ptr = allocate(size, static_cast<std::size_t>(alignment));
-    if (!ptr)
-        throw std::bad_alloc();
     return ptr;
 }
 
@@ -274,8 +268,6 @@ void *operator new[](std::size_t size, std::align_val_t alignment)
         size = 1;
 
     void *ptr = allocate(size, static_cast<std::size_t>(alignment));
-    if (!ptr)
-        throw std::bad_alloc();
     return ptr;
 }
 

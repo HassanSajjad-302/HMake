@@ -1,20 +1,10 @@
 #ifndef HMAKE_LOAT_HPP
 #define HMAKE_LOAT_HPP
-#ifdef USE_HEADER_UNITS
-import "Features.hpp";
-import "HashedCommand";
-import "ObjectFile.hpp";
-import "PLOAT.hpp";
-import "RunCommand.hpp";
-import <stack>;
-#else
 #include "Features.hpp"
 #include "HashedCommand.hpp"
 #include "ObjectFile.hpp"
 #include "PLOAT.hpp"
-#include "RunCommand.hpp"
 #include <stack>
-#endif
 
 using std::stack, std::filesystem::create_directories, std::shared_ptr;
 
@@ -25,10 +15,9 @@ class LOAT : public PLOAT
 
   public:
     BuildCache::Link linkBuildCache;
-    BuildCache::Link updatedBuildCache;
     string reqLinkerFlags;
-    string_view linkOrArchiveCommandWithoutTargets;
-    string linkOrArchiveCommandWithTargets;
+    string linkOutput;
+    string linkWithTargets;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     HashedCommand commandWithoutTargetsWithTool;
 
@@ -37,6 +26,7 @@ class LOAT : public PLOAT
     // Needed for pdb files.
     Node *buildCacheFilesDirPathNode = nullptr;
 
+    uint16_t thrIndex;
     bool archiving = false;
     bool archived = false;
 
@@ -52,14 +42,13 @@ class LOAT : public PLOAT
 
     void setFileStatus();
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
-    void updateBuildCache(void *ptr) override;
+    void updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified) override;
     void writeBuildCache(vector<char> &buffer) override;
     void writeCacheAtConfigureTime();
     void readCacheAtBuildTime();
 
     string getPrintName() const override;
     void setLinkOrArchiveCommands();
-    string getLinkOrArchiveCommandPrint();
     template <typename T> bool evaluate(T property) const;
 };
 

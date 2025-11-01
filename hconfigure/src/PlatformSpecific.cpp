@@ -1,31 +1,14 @@
 
-#ifdef USE_HEADER_UNITS
-import "BuildSystemFunctions.hpp";
-import "Node.hpp";
-import "PlatformSpecific.hpp";
-import "TargetCache.hpp";
-import "lz4.h";
-import "rapidjson/prettywriter.h";
-import "rapidjson/writer.h";
-import <cstdio>;
-import <iostream>;
-#ifdef WIN32
-import <Windows.h>;
-#endif
-#else
 #include "PlatformSpecific.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "TargetCache.hpp"
-#include "lz4.h"
-#include "rapidjson/prettywriter.h"
-#include "rapidjson/writer.h"
+#include "lz4/lib/lz4.h"
 #include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <utility>
 #ifdef WIN32
 #include <Windows.h>
-#endif
 #endif
 
 // Copied from https://stackoverflow.com/a/208431
@@ -203,6 +186,14 @@ vector<char> readBufferFromCompressedFile(const string &fileName)
 #endif
 }
 
+string getThreadId()
+{
+    const auto myId = std::this_thread::get_id();
+    std::stringstream ss;
+    ss << myId;
+    return ss.str() + '\n';
+}
+
 void readConfigCache()
 {
     const uint32_t bufferSize = configCacheGlobal.size();
@@ -274,8 +265,6 @@ void writeBuildBuffer(vector<char> &buffer)
 #ifndef _WIN32
 #define fopen_s(pFile, filename, mode) ((*(pFile)) = fopen((filename), (mode))) == NULL
 #endif
-
-using rapidjson::StringBuffer, rapidjson::Writer, rapidjson::PrettyWriter, rapidjson::UTF8;
 
 extern string GetLastErrorString();
 
@@ -436,6 +425,29 @@ void lowerCaseOnWindows(char *ptr, const uint64_t size)
     }
 }
 
+string getNormalizedPath(path filePath)
+{
+    if (filePath.is_relative())
+    {
+        filePath = path(srcNode->filePath) / filePath;
+    }
+    filePath = filePath.lexically_normal();
+
+    if constexpr (os == OS::NT)
+    {
+        // TODO
+        //  This is illegal
+        //  TODO
+        //  Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
+        //  actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
+        for (auto it = const_cast<path::value_type *>(filePath.c_str()); *it != '\0'; ++it)
+        {
+            *it = std::tolower(*it);
+        }
+    }
+    return filePath.string();
+}
+
 // TODO
 // Review this function and its usage.
 bool childInParentPathNormalized(const string_view parent, const string_view child)
@@ -446,22 +458,4 @@ bool childInParentPathNormalized(const string_view parent, const string_view chi
     }
 
     return compareStringsFromEnd(parent, string_view(child.data(), parent.size()));
-}
-
-void readValueFromFile(const string_view fileName, rapidjson::Document &document, rapidjson::ParseFlag flag)
-{
-    // Read whole file into a buffer
-    FILE *fp;
-    fopen_s(&fp, fileName.data(), "r");
-    fseek(fp, 0, SEEK_END);
-    const size_t filesize = (size_t)ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    unique_ptr<vector<char>> buffer = std::make_unique<vector<char>>(filesize + 1);
-    const size_t readLength = fread(buffer->begin().operator->(), 1, filesize, fp);
-    if (fclose(fp) != 0)
-    {
-        printErrorMessage("Error closing the file \n");
-    }
-
-    //    document.Parse()
 }

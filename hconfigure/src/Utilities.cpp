@@ -1,18 +1,9 @@
 
-#ifdef USE_HEADER_UNITS
-import "Utilities.hpp";
-import "BuildSystemFunctions.hpp";
-#include <fmt/format.h>
-import <fstream>;
-import <sstream>;
-;
-#else
-#include "BuildSystemFunctions.hpp"
 #include "Utilities.hpp"
+#include "BuildSystemFunctions.hpp"
 #include "fmt/format.h"
 #include <fstream>
 #include <sstream>
-#endif
 
 using std::ifstream, fmt::format, std::ostringstream;
 

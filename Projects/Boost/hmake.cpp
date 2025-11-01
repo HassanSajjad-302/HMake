@@ -39,12 +39,17 @@ using std::filesystem::directory_iterator;
 
 void configurationSpecification(Configuration &config)
 {
-    config.stdCppTarget->getSourceTarget().publicIncludes(srcNode->filePath);
+    config.stdCppTarget->getSourceTarget().publicIncludesSource(srcNode->filePath);
     config.assign(BuildTests::YES, BuildExamples::YES);
-    config.getCppObject("ScanOnly");
 
     BoostCppTarget &callableTraits = config.getBoostCppTarget("callable_Traits");
     BoostCppTarget &configTarget = config.getBoostCppTarget("config");
+    configTarget.mainTarget.getSourceTarget().publicHeaderFiles(
+        "boost/io_fwd.hpp", "boost/io_fwd.hpp", "boost/call_traits.hpp", "boost/call_traits.hpp", "boost/version.hpp",
+        "boost/version.hpp", "boost/noncopyable.hpp", "boost/noncopyable.hpp", "boost/mem_fn.hpp", "boost/mem_fn.hpp",
+        "boost/current_function.hpp", "boost/current_function.hpp", "boost/function_equal.hpp",
+        "boost/function_equal.hpp", "boost/compressed_pair.hpp", "boost/compressed_pair.hpp");
+
     BoostCppTarget &lambda2 = config.getBoostCppTarget("lambda2");
     BoostCppTarget &variant = config.getBoostCppTarget("variant");
     BoostCppTarget &leaf = config.getBoostCppTarget("leaf");
@@ -53,43 +58,73 @@ void configurationSpecification(Configuration &config)
     BoostCppTarget &predef = config.getBoostCppTarget("predef", true, false);
 
     DSC<CppSourceTarget> &cstdint = config.getCppObjectDSC("cstdint").publicDeps(configTarget.mainTarget);
-    cstdint.getSourceTarget().headerUnits("boost/cstdint.hpp");
+    cstdint.getSourceTarget().publicHeaderFiles("boost/cstdint.hpp", "boost/cstdint.hpp");
     BoostCppTarget &assertTarget = config.getBoostCppTarget("assert").publicDeps(cstdint);
     BoostCppTarget &exception = config.getBoostCppTarget("exception", true, false).publicDeps(assertTarget);
     DSC<CppSourceTarget> &throwExceptionHeader =
         config.getCppObjectDSC("current-target").publicDeps(exception.mainTarget, cstdint);
     BoostCppTarget &core = config.getBoostCppTarget("core", true, false).publicDeps(configTarget, throwExceptionHeader);
-    BoostCppTarget &winApi = config.getBoostCppTarget("winapi", true, false).publicDeps(configTarget);
+    BoostCppTarget &winApi = config.getBoostCppTarget("winapi", true, false).publicDeps(configTarget, predef);
     DSC<CppSourceTarget> &staticAssert = config.getCppObjectDSC("staticAssert").publicDeps(configTarget.mainTarget);
-    staticAssert.getSourceTarget().headerUnits("boost/static_assert.hpp");
+    staticAssert.getSourceTarget().publicHeaderFiles("boost/static_assert.hpp", "boost/static_assert.hpp");
     BoostCppTarget &typeTraits = config.getBoostCppTarget("type_traits").publicDeps(staticAssert);
     BoostCppTarget &mpl = config.getBoostCppTarget("mpl", true, false).publicDeps(preprocessor, typeTraits);
     BoostCppTarget &variant2 = config.getBoostCppTarget("variant2").publicDeps(mp11, assertTarget);
-    BoostCppTarget &system = config.getBoostCppTarget("system").publicDeps(configTarget, variant2, assertTarget,
-                                                                           winApi.mainTarget, throwExceptionHeader);
+    DSC<CppSourceTarget> &limits = config.getCppObjectDSC("limits").publicDeps(configTarget.mainTarget);
+    BoostCppTarget &system = config.getBoostCppTarget("system").publicDeps(
+        configTarget, variant2, assertTarget, winApi.mainTarget, throwExceptionHeader, limits);
     BoostCppTarget &function = config.getBoostCppTarget("function").publicDeps(assertTarget, core);
     BoostCppTarget &move = config.getBoostCppTarget("move", true, false).publicDeps(configTarget);
     BoostCppTarget &bind = config.getBoostCppTarget("bind");
     DSC<CppSourceTarget> &getPointerHeader =
         config.getCppObjectDSC("getPointerHeader").publicDeps(configTarget.mainTarget);
-    throwExceptionHeader.getSourceTarget().headerUnits("boost/throw_exception.hpp");
+    throwExceptionHeader.getSourceTarget().publicHeaderFiles("boost/throw_exception.hpp", "boost/throw_exception.hpp");
     bind.publicDeps(getPointerHeader);
-    getPointerHeader.getSourceTarget().headerUnits("boost/get_pointer.hpp");
+    getPointerHeader.getSourceTarget().publicHeaderFiles("boost/get_pointer.hpp", "boost/get_pointer.hpp");
     BoostCppTarget &describe = config.getBoostCppTarget("describe").publicDeps(mp11);
     BoostCppTarget &containerHash =
         config.getBoostCppTarget("container_hash", true, false).publicDeps(describe, typeTraits);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (config.evaluate(TreatModuleAsSource::NO))
+        {
+            containerHash.testReqHeaderFiles.erase("config.hpp");
+            containerHash.testReqHeaderFiles.emplace(
+                "./config.hpp", Node::getNodeFromNonNormalizedString("libs/container_hash/test/config.hpp", true));
+            containerHash.testReqHeaderFiles.erase("compile_time.hpp");
+            containerHash.testReqHeaderFiles.emplace(
+                "./compile_time.hpp",
+                Node::getNodeFromNonNormalizedString("libs/container_hash/test/compile_time.hpp", true));
+            containerHash.testReqHeaderFiles.erase("hash_set_test.hpp");
+            containerHash.testReqHeaderFiles.emplace(
+                "./hash_set_test.hpp",
+                Node::getNodeFromNonNormalizedString("libs/container_hash/test/hash_set_test.hpp", true));
+            containerHash.testReqHeaderFiles.erase("hash_map_test.hpp");
+            containerHash.testReqHeaderFiles.emplace(
+                "./hash_map_test.hpp",
+                Node::getNodeFromNonNormalizedString("libs/container_hash/test/hash_map_test.hpp", true));
+            containerHash.testReqHeaderFiles.erase("hash_sequence_test.hpp");
+            containerHash.testReqHeaderFiles.emplace(
+                "./hash_sequence_test.hpp",
+                Node::getNodeFromNonNormalizedString("libs/container_hash/test/hash_sequence_test.hpp", true));
+            containerHash.testReqHeaderFiles.erase("hash_fwd_test.hpp");
+            containerHash.testReqHeaderFiles.emplace(
+                "./hash_fwd_test.hpp",
+                Node::getNodeFromNonNormalizedString("libs/container_hash/test/hash_fwd_test.hpp", true));
+        }
+    }
     BoostCppTarget &io = config.getBoostCppTarget("io", true, false).publicDeps(configTarget);
-    BoostCppTarget &utility = config.getBoostCppTarget("utility").publicDeps(preprocessor, core, io, typeTraits);
     DSC<CppSourceTarget> &operatorsHeader = config.getCppObjectDSC("operators-header").publicDeps(core.mainTarget);
-    operatorsHeader.getSourceTarget().headerUnits("boost/operators.hpp");
+    operatorsHeader.getSourceTarget().publicHeaderFiles("boost/operators.hpp", "boost/operators.hpp");
     BoostCppTarget &detail = config.getBoostCppTarget("detail", true, false).publicDeps(configTarget, typeTraits);
-    DSC<CppSourceTarget> &limits = config.getCppObjectDSC("limits").publicDeps(configTarget.mainTarget);
-    limits.getSourceTarget().headerUnits("boost/limits.hpp");
+    BoostCppTarget &utility =
+        config.getBoostCppTarget("utility").publicDeps(preprocessor, core, io, typeTraits, detail);
+    limits.getSourceTarget().publicHeaderFiles("boost/limits.hpp", "boost/limits.hpp");
     // BoostCppTarget &container = config.getBoostCppTarget("container", fals, false);
     BoostCppTarget &hash2 = config.getBoostCppTarget("hash2", true, false).publicDeps(assertTarget, containerHash);
     DSC<CppSourceTarget> &arrayHeader =
         config.getCppStaticDSC("array_header").publicDeps(assertTarget.mainTarget, staticAssert, throwExceptionHeader);
-    arrayHeader.getSourceTarget().headerUnits("boost/array.hpp");
+    arrayHeader.getSourceTarget().publicHeaderFiles("boost/array.hpp", "boost/array.hpp");
 
     lambda2.privateTestDeps(core.mainTarget, throwExceptionHeader)
         .addDir<BoostExampleOrTestType::RUN_TEST>("/libs/lambda2/test")
@@ -100,52 +135,54 @@ void configurationSpecification(Configuration &config)
 
     system.privateTestDeps(core.mainTarget, exception.mainTarget)
         .add<BoostExampleOrTestType::RUN_TEST>("libs/system/test", systemRunTests, std::size(systemRunTests));
-    // skipping predef tests and examples. header-only library with lots of configurations for its tests and examples
+    // skipping predef  and preprocess tests and examples. header-only libraries with lots of configurations for its
+    // tests and examples
 
-    const char *preprocTestDir = "libs/preprocessor/test";
-    preprocessor
-        .add<BoostExampleOrTestType::COMPILE_TEST>(preprocTestDir, preprocessorTests, std::size(preprocessorTests))
-        .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("512", preprocTestDir, preprocessorTests512,
-                                                           std::size(preprocessorTests512))
-        .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("1024", preprocTestDir, preprocessorTests1024,
-                                                           std::size(preprocessorTests1024))
-        .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("V128", preprocTestDir, preprocessorV128,
-                                                           std::size(preprocessorV128))
-        .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("V256", preprocTestDir, preprocessorV256,
-                                                           std::size(preprocessorV256))
-        .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("empty", preprocTestDir, preprocessorIsEmpty,
-                                                           std::size(preprocessorIsEmpty));
-
-    auto preprocessorMacroDefines = [&](string_view innerBuildDirName, string_view cddName, string_view cddValue) {
-        for (CppSourceTarget &cppTestTarget :
-             preprocessor.getEndsWith<BoostExampleOrTestType::COMPILE_TEST, IteratorTargetType::CPP, BSMode::BUILD>())
-        {
-            cppTestTarget.privateCompileDefinition(string(cddName), string(cddValue));
-        }
-    };
-    preprocessorMacroDefines("512", "BOOST_PP_LIMIT_MAG", "512");
-    preprocessorMacroDefines("1024", "BOOST_PP_LIMIT_MAG", "1024");
-
+    // const char *preprocTestDir = "libs/preprocessor/test";
+    // preprocessor
+    //     .add<BoostExampleOrTestType::COMPILE_TEST>(preprocTestDir, preprocessorTests, std::size(preprocessorTests))
+    //     .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("512", preprocTestDir, preprocessorTests512,
+    //                                                        std::size(preprocessorTests512))
+    //     .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("1024", preprocTestDir, preprocessorTests1024,
+    //                                                        std::size(preprocessorTests1024))
+    //     .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("V128", preprocTestDir, preprocessorV128,
+    //                                                        std::size(preprocessorV128))
+    //     .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("V256", preprocTestDir, preprocessorV256,
+    //                                                        std::size(preprocessorV256))
+    //     .addEndsWith<BoostExampleOrTestType::COMPILE_TEST>("empty", preprocTestDir, preprocessorIsEmpty,
+    //                                                        std::size(preprocessorIsEmpty));
+    //
+    // auto preprocessorMacroDefines = [&](string_view innerBuildDirName, string_view cddName, string_view cddValue) {
+    //     for (CppSourceTarget &cppTestTarget :
+    //          preprocessor.getEndsWith<BoostExampleOrTestType::COMPILE_TEST, IteratorTargetType::CPP,
+    //          BSMode::BUILD>())
+    //     {
+    //         cppTestTarget.privateCompileDefinition(string(cddName), string(cddValue));
+    //     }
+    // };
+    // preprocessorMacroDefines("512", "BOOST_PP_LIMIT_MAG", "512");
+    // preprocessorMacroDefines("1024", "BOOST_PP_LIMIT_MAG", "1024");
+    //
     typeTraits
         .privateTestDeps(getPointerHeader, bind.mainTarget, core.mainTarget, function.mainTarget, mpl.mainTarget,
-                         move.mainTarget)
+                         move.mainTarget, detail.mainTarget)
         .add<BoostExampleOrTestType::RUN_TEST>("libs/type_traits/test", typeTraitsRunTests,
                                                std::size(typeTraitsRunTests));
 
-    describe.privateTestDeps(core.mainTarget)
+    describe.privateTestDeps(core.mainTarget, limits)
         .add<BoostExampleOrTestType::RUN_TEST>("libs/describe/test", describeRunTests, std::size(describeRunTests));
 
-    io.privateTestDeps(core.mainTarget, typeTraits.mainTarget)
+    io.privateTestDeps(core.mainTarget, detail.mainTarget)
         .add<BoostExampleOrTestType::RUN_TEST>("libs/io/test", ioRunTests, std::size(ioRunTests));
 
-    utility.privateTestDeps(containerHash.mainTarget, detail.mainTarget, operatorsHeader)
+    utility.privateTestDeps(containerHash.mainTarget, operatorsHeader, limits)
         .add<BoostExampleOrTestType::RUN_TEST>("libs/utility/test", utilityRunTests, std::size(utilityRunTests));
 
     containerHash.privateTestDeps(utility.mainTarget, limits)
         .add<BoostExampleOrTestType::RUN_TEST>("libs/container_hash/test", containerHashRunTests,
                                                std::size(containerHashRunTests));
 
-    hash2.privateTestDeps(core.mainTarget, arrayHeader, utility.mainTarget)
+    hash2.privateTestDeps(core.mainTarget, arrayHeader, utility.mainTarget, limits)
         .add<BoostExampleOrTestType::RUN_TEST>("libs/hash2/test", hash2RunTests, std::size(hash2RunTests));
 }
 
@@ -154,10 +191,11 @@ void buildSpecification()
     removeTroublingHu(headerUnitsJsonDirs, std::size(headerUnitsJsonDirs), headerUnitsJsonEntry,
                       std::size(headerUnitsJsonEntry));
 
-    getConfiguration("conventional-r").assign(CppBuildMode::SOURCE, TreatModuleAsSource::YES, ConfigType::RELEASE);
-    // getConfiguration("hu-r").assign(TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::RELEASE);
-    getConfiguration("conventional-d").assign(CppBuildMode::SOURCE, TreatModuleAsSource::YES, ConfigType::DEBUG);
-    // getConfiguration("hu-d").assign(TreatModuleAsSource::NO, TranslateInclude::YES, ConfigType::DEBUG);
+    // getConfiguration("conventional-r").assign(TreatModuleAsSource::YES, ConfigType::RELEASE);
+    // getConfiguration("hu-r").assign(TreatModuleAsSource::NO, ConfigType::RELEASE);
+    getConfiguration("conventional-d").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
+    // getConfiguration("hu-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::NO);
+    getConfiguration("huBig-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

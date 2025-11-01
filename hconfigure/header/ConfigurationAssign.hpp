@@ -1,11 +1,7 @@
 #ifndef HMAKE_CONFIGURATION_ASSIGN_HPP
 #define HMAKE_CONFIGURATION_ASSIGN_HPP
 
-#ifdef USE_HEADER_UNITS
-import "CppSourceTarget.hpp";
-#else
 #include "CppSourceTarget.hpp"
-#endif
 
 template <typename T, typename... Property> Configuration &Configuration::assign(T property, Property... properties)
 {
@@ -101,6 +97,18 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     else if constexpr (std::is_same_v<decltype(property), StdAsHeaderUnit>)
     {
         stdAsHeaderUnit = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), BigHeaderUnit>)
+    {
+        bigHeaderUnit = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), SystemTarget>)
+    {
+        systemTarget = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), IgnoreHeaderDeps>)
+    {
+        ignoreHeaderDeps = property;
     }
     // CommonFeatures
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)

@@ -2,23 +2,20 @@
 #ifndef OBJECTFILE_HPP
 #define OBJECTFILE_HPP
 
-#ifdef USE_HEADER_UNITS
-import "BTarget.hpp";
-import "Node.hpp";
-import "Settings.hpp";
-#else
 #include "BTarget.hpp"
 #include "Node.hpp"
-#include "Settings.hpp"
-#endif
 
 class ObjectFile : public BTarget
 {
-public:
-    ObjectFile();
-  ObjectFile(bool add0, bool add1);
-  Node *objectNode = nullptr;
-  virtual string getObjectFileOutputFilePathPrint(const PathPrint &pathPrint) const = 0;
+  public:
+    ObjectFile() : BTarget("", true, false)
+    {
+    }
+
+    ObjectFile(const bool add0, const bool add1) : BTarget("", true, false, add0, add1)
+    {
+    }
+    Node *objectNode = nullptr;
 };
 
-#endif //OBJECTFILE_HPP
+#endif // OBJECTFILE_HPP

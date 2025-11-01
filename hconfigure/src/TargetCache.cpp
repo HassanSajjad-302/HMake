@@ -1,9 +1,5 @@
 
-#ifdef USE_HEADER_UNITS
-import "TargetCache.hpp";
-#else
 #include "TargetCache.hpp"
-#endif
 #include <BuildSystemFunctions.hpp>
 
 namespace
@@ -55,9 +51,9 @@ TargetCache::TargetCache(const string &name)
     fileTargetCaches[cacheIndex].targetCache = this;
 }
 
-void TargetCache::updateBuildCache(void *ptr)
+void TargetCache::updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified)
 {
-    // Should not be called if a target has not this overridden
+    // Should not have been called if a target has not this overridden
     HMAKE_HMAKE_INTERNAL_ERROR
 }
 
@@ -313,6 +309,10 @@ void writeStringView(vector<char> &buffer, const string_view &data)
 void writeNode(vector<char> &buffer, const Node *node)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
+    if (!node)
+    {
+        bool breakpoint = true;
+    }
     writeUint32(buffer, node->myId);
 #else
     writeStringView(buffer, node->filePath);

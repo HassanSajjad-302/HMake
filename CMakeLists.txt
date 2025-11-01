@@ -50,12 +50,10 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/ToolsCache.cpp
         hconfigure/src/RunCommand.cpp
         hconfigure/src/Utilities.cpp
-        hconfigure/src/ObjectFileProducer.cpp
         hconfigure/src/Configure.cpp
         hconfigure/src/PLOAT.cpp
         hconfigure/src/PlatformSpecific.cpp
         hconfigure/src/Node.cpp
-        hconfigure/src/ObjectFile.cpp
         hconfigure/src/SpecialNodes.cpp
         3rdParty/lz4/lib/lz4.c
         hconfigure/src/HashValues.cpp
@@ -64,7 +62,6 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/IPCManagerBS.cpp
         hconfigure/src/IPCManagerCompiler.cpp
         hconfigure/src/Manager.cpp
-        3rdParty/mimalloc/src/static.c
         hconfigure/src/BoostCppTarget.cpp)
 
 set(INCLUDE_BUILD ON)
@@ -85,10 +82,6 @@ if (${INCLUDE_CONFIGURE})
     target_include_directories(hconfigure-c
             PUBLIC hconfigure/header
             PUBLIC 3rdParty
-            PUBLIC 3rdParty/rapidjson/include
-            PUBLIC 3rdParty/parallel-hashmap/parallel_hashmap
-            PUBLIC 3rdParty/lz4/lib
-            PUBLIC 3rdParty/mimalloc/include
     )
 
     add_executable(htools htools/main.cpp)
@@ -103,7 +96,7 @@ if (${INCLUDE_CONFIGURE})
         target_compile_definitions(hconfigure-c PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
 
         # Comment out the following to switch from json files stored as compressed vs stored as-it-is
-        target_compile_definitions(hconfigure-c PUBLIC USE_JSON_FILE_COMPRESSION)
+        # target_compile_definitions(hconfigure-c PUBLIC USE_JSON_FILE_COMPRESSION)
 
     endif ()
 
@@ -134,17 +127,13 @@ if (${INCLUDE_BUILD})
     target_include_directories(hconfigure-b
             PUBLIC hconfigure/header
             PUBLIC 3rdParty
-            PUBLIC 3rdParty/rapidjson/include
-            PUBLIC 3rdParty/parallel-hashmap/parallel_hashmap
-            PUBLIC 3rdParty/lz4/lib
-            PUBLIC 3rdParty/mimalloc/include
     )
 
     if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
         message("HMAKE_USE_SMALL_FILE set")
         target_compile_definitions(hconfigure-b PUBLIC USE_COMMAND_HASH)
         target_compile_definitions(hconfigure-b PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
-        target_compile_definitions(hconfigure-b PUBLIC USE_JSON_FILE_COMPRESSION)
+        #target_compile_definitions(hconfigure-b PUBLIC USE_JSON_FILE_COMPRESSION)
 
     endif ()
 
@@ -263,6 +252,7 @@ add_dual_executables(Example1 Examples/Example1/hmake.cpp
         Test1 Tests/Stage/Test1/hmake.cpp
         Test2 Tests/Stage/Test2/hmake.cpp
         Test3 Tests/Stage/Test3/hmake.cpp
+        HMake hmake.cpp
         Boost Projects/Boost/hmake.cpp)
 
 # TODO

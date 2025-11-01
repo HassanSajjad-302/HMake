@@ -1,9 +1,0 @@
-
-#ifndef HMAKE_ARCHIVETARGET_HPP
-#define HMAKE_ARCHIVETARGET_HPP
-
-class ArchiveTarget
-{
-};
-
-#endif // HMAKE_ARCHIVETARGET_HPP

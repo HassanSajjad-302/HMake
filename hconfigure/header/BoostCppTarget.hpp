@@ -116,6 +116,8 @@ class BoostCppTarget : TargetCache
     vector<CppSourceTarget *> cppTestDepsPrivate;
     vector<char> configBuffer;
     uint32_t testsOrExamplesCount = 0;
+    flat_hash_map<string, Node *> testReqHeaderFiles;
+    flat_hash_map<string, Node *> testReqHeaderUnits;
 
     BoostCppTarget(const string &name, Configuration *configuration_, bool headerOnly = true, bool hasBigHeader = true,
                    bool createTestsTarget = false, bool createExamplesTarget = false);
@@ -528,6 +530,7 @@ template <BoostExampleOrTestType EOT>
 void BoostCppTarget::getTargetFromConfiguration(const string_view name, const string_view buildCacheFilesDirPath,
                                                 const string &filePath) const
 {
+    CppSourceTarget *testOrExmple;
     if constexpr (EOT == BoostExampleOrTestType::COMPILE_TEST)
     {
         CppSourceTarget &t = configuration->getCppObjectNoNameAddStdTarget(
@@ -537,16 +540,34 @@ void BoostCppTarget::getTargetFromConfiguration(const string_view name, const st
         {
             t.privateDeps(dep);
         }
+        testOrExmple = &t;
     }
     else
     {
         DSC<CppSourceTarget> &t =
             configuration->getCppExeDSCNoName(getExplicitBuilding<EOT>(), string(buildCacheFilesDirPath), string(name));
         t.privateDeps(mainTarget).getSourceTarget().moduleFiles(filePath);
-
         for (DSC<CppSourceTarget> *dep : dscTestDepsPrivate)
         {
             t.privateDeps(*dep);
+        }
+        testOrExmple = t.getSourceTargetPointer();
+    }
+
+    if (bsMode == BSMode::CONFIGURE)
+    {
+        if (configuration->evaluate(TreatModuleAsSource::NO))
+        {
+
+            for (const auto &[logicalName, node] : testReqHeaderFiles)
+            {
+                testOrExmple->addHeaderFile(logicalName, node, false, true, false);
+            }
+
+            for (const auto &[logicalName, node] : testReqHeaderUnits)
+            {
+                testOrExmple->addHeaderUnit(logicalName, node, false, true, false);
+            }
         }
     }
 }

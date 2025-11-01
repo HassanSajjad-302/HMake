@@ -1,13 +1,4 @@
 
-#ifdef USE_HEADER_UNITS
-import "Features.hpp";
-import "BuildSystemFunctions.hpp";
-import "Cache.hpp";
-import "CppSourceTarget.hpp";
-import "JConsts.hpp";
-import "ToolsCache.hpp";
-import "nlohmann/json.hpp";
-#else
 #include "Features.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
@@ -15,7 +6,6 @@ import "nlohmann/json.hpp";
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
 #include "nlohmann/json.hpp"
-#endif
 
 using Json = nlohmann::json;
 

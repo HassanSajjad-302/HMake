@@ -8,7 +8,7 @@
 #ifdef _WIN32
 #include <Windows.h>
 #else
-#include "rapidhash/rapidhash.h"
+#include "rapidhash.h"
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -60,7 +60,7 @@ tl::expected<IPCManagerBS, std::string> makeIPCManagerBS(std::string BMIIfHeader
     // We use file hash to make a file path smaller, since there is a limit of NAME_MAX that is generally 108 bytes.
     // TODO
     // Have an option to receive this path in constructor to make it compatible with Android and IOS.
-    std::string prependDir = "/tmp/";
+    string prependDir = "/tmp/";
     const uint64_t hash = rapidhash(BMIIfHeaderUnitObjOtherwisePath.c_str(), BMIIfHeaderUnitObjOtherwisePath.size());
     prependDir.append(to16charHexString(hash));
     std::copy(prependDir.begin(), prependDir.end(), addr.sun_path);
@@ -257,7 +257,7 @@ tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCModule &modul
 {
     std::vector<char> buffer;
     writeProcessMappingOfBMIFile(buffer, moduleFile.requested);
-    buffer.emplace_back(moduleFile.user);
+    buffer.emplace_back(moduleFile.isSystem);
     writeVectorOfModuleDep(buffer, moduleFile.modDeps);
     if (const auto &r = writeInternal(buffer); !r)
     {
@@ -270,7 +270,7 @@ tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCNonModule &no
 {
     std::vector<char> buffer;
     buffer.emplace_back(nonModule.isHeaderUnit);
-    buffer.emplace_back(nonModule.user);
+    buffer.emplace_back(nonModule.isSystem);
     writeString(buffer, nonModule.filePath);
     writeUInt32(buffer, nonModule.fileSize);
     writeVectorOfStrings(buffer, nonModule.logicalNames);

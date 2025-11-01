@@ -103,7 +103,7 @@ tl::expected<uint32_t, std::string> Manager::readInternal(char (&buffer)[BUFFERS
 }
 
 #ifndef _WIN32
-tl::expected<void, std::string> writeAll(const int fd, const char *buffer, const uint32_t count)
+tl::expected<void, string> writeAll(const int fd, const char *buffer, const uint32_t count)
 {
     uint32_t bytesWritten = 0;
 
@@ -134,22 +134,15 @@ tl::expected<void, std::string> writeAll(const int fd, const char *buffer, const
 tl::expected<void, std::string> Manager::writeInternal(const std::vector<char> &buffer) const
 {
 #ifdef _WIN32
-    bool success = WriteFile(hPipe,         // pipe handle
-                             buffer.data(), // message
-                             buffer.size(), // message length
-                             nullptr,       // bytes written
-                             nullptr);      // not overlapped
+    const bool success = WriteFile(hPipe,         // pipe handle
+                                   buffer.data(), // message
+                                   buffer.size(), // message length
+                                   nullptr,       // bytes written
+                                   nullptr);      // not overlapped
     if (!success)
     {
         return tl::unexpected(getErrorString());
     }
-
-    success = FlushFileBuffers(hPipe);
-    if (!success)
-    {
-        return tl::unexpected(getErrorString());
-    }
-
 #else
     if (const auto &r = writeAll(fdSocket, buffer.data(), buffer.size()); !r)
     {
@@ -189,21 +182,21 @@ void Manager::writeModuleDep(std::vector<char> &buffer, const ModuleDep &dep)
     buffer.emplace_back(dep.isHeaderUnit);
     writeProcessMappingOfBMIFile(buffer, dep.file);
     writeVectorOfStrings(buffer, dep.logicalNames);
-    buffer.emplace_back(dep.user);
+    buffer.emplace_back(dep.isSystem);
 }
 
 void Manager::writeHuDep(std::vector<char> &buffer, const HuDep &dep)
 {
     writeProcessMappingOfBMIFile(buffer, dep.file);
     writeVectorOfStrings(buffer, dep.logicalNames);
-    buffer.emplace_back(dep.user);
+    buffer.emplace_back(dep.isSystem);
 }
 
 void Manager::writeHeaderFile(std::vector<char> &buffer, const HeaderFile &dep)
 {
     writeString(buffer, dep.logicalName);
     writeString(buffer, dep.filePath);
-    buffer.emplace_back(dep.user);
+    buffer.emplace_back(dep.isSystem);
 }
 
 void Manager::writeVectorOfStrings(std::vector<char> &buffer, const std::vector<std::string> &strs)
@@ -365,7 +358,7 @@ tl::expected<ModuleDep, std::string> Manager::readModuleDepFromPipe(char (&buffe
     modDep.isHeaderUnit = *r;
     modDep.file = *r2;
     modDep.logicalNames = *r3;
-    modDep.user = *r4;
+    modDep.isSystem = *r4;
 
     return modDep;
 }
@@ -419,7 +412,7 @@ tl::expected<HuDep, std::string> Manager::readHuDepFromPipe(char (&buffer)[4096]
     HuDep huDep;
     huDep.file = *r;
     huDep.logicalNames = *r2;
-    huDep.user = *r3;
+    huDep.isSystem = *r3;
     return huDep;
 }
 
@@ -472,7 +465,7 @@ tl::expected<HeaderFile, std::string> Manager::readHeaderFileFromPipe(char (&buf
     HeaderFile hf;
     hf.logicalName = *r;
     hf.filePath = *r2;
-    hf.user = *r3;
+    hf.isSystem = *r3;
     return hf;
 }
 

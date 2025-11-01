@@ -1,19 +1,9 @@
-#ifdef USE_HEADER_UNITS
-import "BuildSystemFunctions.hpp";
-import "Features.hpp";
-#include "fmt/format.h"
-import "TargetType.hpp";
-import "zDLLLoader.hpp";
-import <filesystem>;
-import <string>;
-#else
 #include "BuildSystemFunctions.hpp"
 #include "Features.hpp"
 #include "TargetType.hpp"
 #include "fmt/format.h"
 #include <filesystem>
 #include <string>
-#endif
 
 using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::filesystem::path,
     std::filesystem::exists, std::string, fmt::format;

@@ -4,18 +4,21 @@ void configurationSpecification(Configuration &config)
 {
     if (config.name == "modules")
     {
-        config.getCppExeDSC("app").getSourceTarget().interfaceFiles("std.cpp", "std").moduleFiles("main.cpp");
+        config.stdCppTarget->getSourceTarget().interfaceFiles("std.cpp", "std");
+        config.getCppExeDSC("app").getSourceTarget().moduleFiles("main.cpp");
     }
     else
     {
-        config.getCppExeDSC("app2").getSourceTarget().moduleFiles("main2.cpp");
+        CppSourceTarget &t = config.getCppExeDSC("app2").getSourceTarget().moduleFiles("main2.cpp");
+        config.stdCppTarget->getSourceTarget().publicBigHu.emplace_back(nullptr);
+        config.stdCppTarget->getSourceTarget().makeHeaderFileAsUnit("windows.h", true, true);
     }
 }
 
 void buildSpecification()
 {
     getConfiguration("modules").assign(TreatModuleAsSource::NO, StdAsHeaderUnit::NO);
-    getConfiguration("hu").assign(TreatModuleAsSource::NO);
+    getConfiguration("hu").assign(TreatModuleAsSource::NO, BigHeaderUnit::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

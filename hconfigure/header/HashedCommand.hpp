@@ -1,21 +1,18 @@
 
 #ifndef HMAKE_HashedCommand_HPP
 #define HMAKE_HashedCommand_HPP
-#ifdef USE_HEADER_UNITS
-import <PlatformSpecific.hpp>;
-#else
+
 #include "PlatformSpecific.hpp"
-#endif
 
 using std::string;
 
 class HashedCommand
 {
-    string command;
+    string_view command;
 
   public:
-    void setCommand(string command_);
-    string getCommand() const;
+    void setCommand(string_view command_);
+    string_view getCommand() const;
 #ifdef USE_COMMAND_HASH
     uint64_t getHash() const;
 #else

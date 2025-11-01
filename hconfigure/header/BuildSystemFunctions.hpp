@@ -1,18 +1,12 @@
 #ifndef HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 #define HMAKE_BUILDSYSTEMFUNCTIONS_HPP
-#ifdef USE_HEADER_UNITS
-import "HashValues.hpp";
-import "OS.hpp";
-import "phmap.h";
-import "nlohmann/json.hpp";
-#else
+
 #include "HashValues.hpp"
 #include "OS.hpp"
 #include "nlohmann/json.hpp"
-#include "phmap.h"
+#include "parallel-hashmap/parallel_hashmap/phmap.h"
 #include <deque>
 #include <mutex>
-#endif
 
 using std::mutex, std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set;
 
@@ -23,10 +17,9 @@ inline char slashc = '\\';
 #else
 inline char slashc = '/';
 #endif
+inline bool isConsole = true;
 
-using Json = nlohmann::json; // Unordered json
-
-inline thread_local uint16_t myThreadId = 0;
+inline thread_local uint16_t myThreadIndex = 0;
 
 inline flat_hash_set<string> cmdTargets;
 inline mutex configCacheMutex;
@@ -93,9 +86,7 @@ inline PrintMessage printErrorMessagePointer = nullptr;
 inline PrintMessageColor printErrorMessageColorPointer = nullptr;
 
 // Provide these with extern "C" linkage as well so ide/editor could pipe the logging.
-void printDebugMessage(const string &message);
 void printMessage(const string &message);
-void printMessageColor(const string &message, uint32_t color);
 void printErrorMessage(const string &message);
 void printErrorMessageNoReturn(const string &message);
 void printErrorMessageColor(const string &message, uint32_t color);

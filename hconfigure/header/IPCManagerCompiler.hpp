@@ -5,10 +5,11 @@
 #include "Manager.hpp"
 #include "expected.hpp"
 
+struct CompilerTest;
 namespace N2978
 {
 
-enum class ResponseType
+enum class FileType : uint8_t
 {
     MODULE,
     HEADER_UNIT,
@@ -19,28 +20,34 @@ struct Response
 {
     // if type == HEADER_FILE, then fileSize has no meaning
     BMIFile file;
-    ResponseType type;
-    bool user;
-    Response(BMIFile file_, ResponseType type_, bool user_);
+    FileType type;
+    bool isSystem;
+    Response(BMIFile file_, FileType type_, bool isSystem_);
 };
 
 // IPC Manager Compiler
 class IPCManagerCompiler : Manager
 {
+    friend struct ::CompilerTest;
     template <typename T> tl::expected<T, std::string> receiveMessage() const;
     // This is not exposed. sendCTBLastMessage calls this.
     [[nodiscard]] tl::expected<void, std::string> receiveBTCLastMessage() const;
+    [[nodiscard]] tl::expected<BTCModule, std::string> receiveBTCModule(const CTBModule &moduleName);
+    [[nodiscard]] tl::expected<BTCNonModule, std::string> receiveBTCNonModule(const CTBNonModule &nonModule);
+
+    std::unordered_map<std::string, Response> responses;
 
   public:
     CTBLastMessage lastMessage{};
-    std::unordered_map<std::string, Response> responses;
 #ifdef _WIN32
     explicit IPCManagerCompiler(void *hPipe_);
 #else
     explicit IPCManagerCompiler(int fdSocket_);
 #endif
-    [[nodiscard]] tl::expected<BTCModule, std::string> receiveBTCModule(const CTBModule &moduleName);
-    [[nodiscard]] tl::expected<BTCNonModule, std::string> receiveBTCNonModule(const CTBNonModule &nonModule);
+
+    // For FileType::HEADER_FILE, it can return FileType::HEADER_UNIT, otherwise it will return the request
+    // response. Either it will return from the cache or it will fetch it from the build-system
+    [[nodiscard]] tl::expected<Response, std::string> findResponse(std::string logicalName, FileType type);
     [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage(const CTBLastMessage &lastMessage) const;
     [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage(const CTBLastMessage &lastMessage,
                                                                      const std::string &bmiFile,
@@ -88,7 +95,7 @@ template <typename T> tl::expected<T, std::string> IPCManagerCompiler::receiveMe
 
         BTCModule moduleFile;
         moduleFile.requested = *r;
-        moduleFile.user = *r2;
+        moduleFile.isSystem = *r2;
         moduleFile.modDeps = *r3;
 
         if (bytesRead == bytesProcessed)
@@ -142,7 +149,7 @@ template <typename T> tl::expected<T, std::string> IPCManagerCompiler::receiveMe
 
         BTCNonModule nonModule;
         nonModule.isHeaderUnit = *r;
-        nonModule.user = *r2;
+        nonModule.isSystem = *r2;
         nonModule.filePath = *r3;
         nonModule.fileSize = *r4;
         nonModule.logicalNames = *r5;

@@ -1,22 +1,25 @@
 
 #ifndef HMAKE_OBJECTFILEPRODUCER_HPP
 #define HMAKE_OBJECTFILEPRODUCER_HPP
-#ifdef USE_HEADER_UNITS
-import "DepType.hpp";
-import "LOAT.hpp";
-import "ObjectFile.hpp";
-#else
+
 #include "DepType.hpp"
 #include "LOAT.hpp"
 #include "ObjectFile.hpp"
-#endif
 
 class ObjectFileProducer : public BTarget
 {
   public:
-    ObjectFileProducer();
-    ObjectFileProducer(string name_, bool buildExplicit, bool makeDirectory);
-    virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const;
+    ObjectFileProducer()
+    {
+    }
+
+    ObjectFileProducer(string name_, const bool buildExplicit, const bool makeDirectory)
+        : BTarget(std::move(name_), buildExplicit, makeDirectory)
+    {
+    }
+    virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const
+    {
+    }
 };
 
 // Dependency Specification CRTP
@@ -24,7 +27,20 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
 {
     ObjectFileProducerWithDS();
     ObjectFileProducerWithDS(string name_, bool buildExplicit, bool makeDirectory);
-    flat_hash_set<T *> reqDeps;
+
+    // Custom comparator for BTarget* based on id
+    struct TPointerLess
+    {
+        bool operator()(const T *lhs, const T *rhs) const
+        {
+            // Compare based on CppSourceTarget::cacheIndex for ordering
+            return lhs->cacheIndex < rhs->cacheIndex;
+        }
+    };
+
+    // we need this to be ordered in setCompileCommand. order is deterministic as insertions are supposed to be always
+    // in order
+    phmap::btree_set<T *, TPointerLess> reqDeps;
     flat_hash_set<T *> useReqDeps;
     template <typename... U> T &publicDeps(T &dep, U &&...deps);
     template <typename... U> T &privateDeps(T &dep, U &&...deps);
@@ -108,7 +124,7 @@ template <typename T> void ObjectFileProducerWithDS<T>::populateReqAndUseReqDeps
 {
     // Set is copied because new elements are to be inserted in it.
 
-    for (flat_hash_set<T *> localReqDeps = reqDeps; T * t : localReqDeps)
+    for (auto localReqDeps = reqDeps; T * t : localReqDeps)
     {
         for (T *t_ : t->useReqDeps)
         {
@@ -116,7 +132,7 @@ template <typename T> void ObjectFileProducerWithDS<T>::populateReqAndUseReqDeps
         }
     }
 
-    for (flat_hash_set<T *> localUseReqDeps = useReqDeps; T * t : localUseReqDeps)
+    for (auto localUseReqDeps = useReqDeps; T * t : localUseReqDeps)
     {
         for (T *t_ : t->useReqDeps)
         {

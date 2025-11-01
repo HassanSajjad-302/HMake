@@ -1,25 +1,13 @@
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
-#include "BTarget.hpp"
 
-#include <span>
-#ifdef USE_HEADER_UNITS
-import "parallel-hashmap/parallel_hashmap/phmap.h";
-import "PointerArrayList.hpp";
-import <vector>;
-import <array>;
-import <atomic>;
-import <string>;
-import <mutex>;
-#else
-#include "PointerArrayList.hpp"
 #include "parallel-hashmap/parallel_hashmap/phmap.h"
 #include <array>
 #include <atomic>
 #include <mutex>
+#include <span>
 #include <string>
 #include <vector>
-#endif
 
 using std::size_t, std::vector, phmap::flat_hash_map, std::mutex, std::lock_guard, std::atomic_flag, std::array,
     std::atomic, std::atomic_ref, std::string;
@@ -45,7 +33,7 @@ enum class BTargetDepType : uint8_t
     /// dependency selectiveBuild is true
     FULL = 0,
 
-    /// Build-system will wait but not set the selectiveBuild of dependency based on dependent.
+    /// Build-system will wait but not set the selectiveBuild of dependent based on dependency.
     /// Unused currently
     WAIT = 1,
 
@@ -136,6 +124,7 @@ enum class BTargetType : unsigned short
     DEFAULT = 0,
     SMFILE = 1,
     LINK_OR_ARCHIVE_TARGET = 2,
+    CPP_TARGET = 3,
 };
 
 inline vector<BTarget *> postBuildSpecificationArray;

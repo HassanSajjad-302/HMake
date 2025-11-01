@@ -1,17 +1,9 @@
 
-#ifdef USE_HEADER_UNITS
-import "Configuration.hpp";
-import "CppSourceTarget.hpp";
-import "HashValues.hpp";
-import "DSC.hpp";
-import "rapidhash.h";
-#else
 #include "HashValues.hpp"
 #include "Configuration.hpp"
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
 #include "rapidhash/rapidhash.h"
-#endif
 
 uint64_t hash_value(const CppSourceTarget &p)
 {

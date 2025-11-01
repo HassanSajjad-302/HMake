@@ -1,13 +1,8 @@
 
-#ifdef USE_HEADER_UNITS
-import "BuildTools.hpp";
-import "JConsts.hpp";
-import <utility>;
-#else
 #include "BuildTools.hpp"
 #include "JConsts.hpp"
+#include "PlatformSpecific.hpp"
 #include <utility>
-#endif
 
 using std::stringstream;
 

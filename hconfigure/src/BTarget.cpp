@@ -1,19 +1,11 @@
 
-#ifdef USE_HEADER_UNITS
-import "BTarget.hpp";
-import "BuildSystemFunctions.hpp";
-import "CppSourceTarget.hpp";
-import "CacheWriteManager.hpp";
-import <filesystem>;
-import <utility>;
-#else
 #include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CacheWriteManager.hpp"
 #include "CppSourceTarget.hpp"
 #include <filesystem>
 #include <utility>
-#endif
+
 using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::mutex, std::lock_guard,
     std::filesystem::create_directory;
 
@@ -290,7 +282,7 @@ BTarget::BTarget(const bool add0, const bool add1)
 }
 
 BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, const bool add0, const bool add1)
-    : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1)}, name(lowerCase(std::move(name_))),
+    : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1)}, name(lowerCase(std::move(name_))),
       buildExplicit(buildExplicit_)
 {
     if (isOneThreadRunning)

@@ -1,16 +1,9 @@
 #ifndef HMAKE_CACHE_HPP
 #define HMAKE_CACHE_HPP
-#ifdef USE_HEADER_UNITS
-import "ConfigType.hpp";
-import "PlatformSpecific.hpp";
-import "TargetType.hpp";
-#include "nlohmann/json.hpp";
-import <vector>;
-#else
+
 #include "PlatformSpecific.hpp"
 #include "nlohmann/json.hpp"
 #include <vector>
-#endif
 
 using Json = nlohmann::json;
 using std::vector;

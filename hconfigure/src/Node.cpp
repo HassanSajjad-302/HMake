@@ -92,39 +92,13 @@ string Node::getFileStem() const
     return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.begin() + filePath.find_last_of('.')};
 }
 
-// TODO
-// See if we can use new functions with absolute paths. So, only lexically_normal is called.
-static string getNormalizedPath(path filePath)
-{
-    if (filePath.is_relative())
-    {
-        filePath = path(srcNode->filePath) / filePath;
-    }
-    filePath = filePath.lexically_normal();
-
-    if constexpr (os == OS::NT)
-    {
-        // TODO
-        //  This is illegal
-        //  TODO
-        //  Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
-        //  actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
-        for (auto it = const_cast<path::value_type *>(filePath.c_str()); *it != '\0'; ++it)
-        {
-            *it = std::tolower(*it);
-        }
-    }
-    return filePath.string();
-}
-
 void Node::performSystemCheck()
 {
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA attrs;
     if (!GetFileAttributesExA(filePath.c_str(), GetFileExInfoStandard, &attrs))
     {
-        DWORD win_err = GetLastError();
-        if (win_err == ERROR_FILE_NOT_FOUND || win_err == ERROR_PATH_NOT_FOUND)
+        if (const DWORD win_err = GetLastError(); win_err == ERROR_FILE_NOT_FOUND || win_err == ERROR_PATH_NOT_FOUND)
         {
             fileType = file_type::not_found;
             lastWriteTime = {}; // Default initialize
@@ -159,10 +133,10 @@ void Node::performSystemCheck()
     // Convert to std::chrono time point
     // Windows FILETIME is 100-nanosecond intervals since January 1, 1601
     const auto duration = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(ull.QuadPart);
-    const auto windows_epoch = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(116444736000000000LL);
+    constexpr auto windows_epoch = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(116444736000000000LL);
     const auto unix_time = duration - windows_epoch;
 
-    lastWriteTime = std::filesystem::file_time_type(unix_time);
+    lastWriteTime = file_time_type(unix_time);
 #else
     const auto entry = directory_entry(filePath);
     fileType = entry.status().type();
@@ -277,6 +251,10 @@ Node *Node::getHalfNode(const string_view p)
 
 Node *Node::getHalfNode(const uint32_t index)
 {
+    if (!nodeIndices[index])
+    {
+        bool brekapoint = true;
+    }
     return nodeIndices[index];
 }
 

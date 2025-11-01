@@ -1,19 +1,10 @@
 
-#ifdef USE_HEADER_UNITS
-import "Cache.hpp";
-import "BuildSystemFunctions.hpp";
-import "JConsts.hpp";
-import "Node.hpp";
-import "Settings.hpp";
-import <fstream>;
-#else
 #include "Cache.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
 #include "Node.hpp"
 #include "Settings.hpp"
 #include <fstream>
-#endif
 
 using std::ifstream, std::ofstream;
 

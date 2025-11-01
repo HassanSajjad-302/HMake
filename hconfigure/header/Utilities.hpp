@@ -1,13 +1,8 @@
 #ifndef HMAKE_UTILITIES_HPP
 #define HMAKE_UTILITIES_HPP
 
-#ifdef USE_HEADER_UNITS
-import "PlatformSpecific.hpp";
-import <vector>;
-#else
 #include "PlatformSpecific.hpp"
 #include <vector>
-#endif
 
 using std::vector;
 string addQuotes(const string_view pstr);

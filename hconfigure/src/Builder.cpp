@@ -1,18 +1,11 @@
 
-#ifdef USE_HEADER_UNITS
-import "Builder.hpp";
-import "Settings.hpp";
-import <mutex>;
-import <stack>;
-import <thread>;
-#else
 #include "Builder.hpp"
 #include "Node.hpp"
 #include "Settings.hpp"
 #include <mutex>
 #include <stack>
 #include <thread>
-#endif
+
 using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream, std::ofstream, std::stack,
     std::filesystem::current_path;
 
@@ -36,19 +29,19 @@ Builder::Builder()
     vector<thread *> threads;
 
     launchedCount = settings.maximumBuildThreads;
+
     if (launchedCount)
     {
-        for (uint64_t i = 0; i < launchedCount - 1; ++i)
-        {
-            BTarget::laterDepsCentral.emplace_back(nullptr);
-        }
+        BTarget::laterDepsCentral.resize(launchedCount);
+        threadIds.resize(launchedCount);
 
         while (threads.size() != launchedCount - 1)
         {
             uint64_t index = threads.size() + 1;
             threads.emplace_back(new thread([this, index] {
                 BTarget::laterDepsCentral[index] = &BTarget::laterDepsLocal;
-                myThreadId = index;
+                threadIds[index] = getThreadId();
+                myThreadIndex = index;
                 execute();
             }));
         }

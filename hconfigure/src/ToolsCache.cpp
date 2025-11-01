@@ -1,13 +1,4 @@
 
-#ifdef USE_HEADER_UNITS
-import "ToolsCache.hpp";
-import "BuildSystemFunctions.hpp";
-import "JConsts.hpp";
-import "Utilities.hpp";
-import <filesystem>;
-import <fstream>;
-import <utility>;
-#else
 #include "ToolsCache.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
@@ -15,7 +6,6 @@ import <utility>;
 #include <filesystem>
 #include <fstream>
 #include <utility>
-#endif
 
 using std::ofstream, std::filesystem::remove;
 

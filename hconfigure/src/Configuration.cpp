@@ -1,19 +1,11 @@
 
-#ifdef USE_HEADER_UNITS
-import "Configuration.hpp";
-import "BoostCppTarget.hpp";
-import "BuildSystemFunctions.hpp";
-import "CppSourceTarget.hpp";
-import "DSC.hpp";
-import "LOAT.hpp";
-#else
-#include "Configuration.hpp"
 #include "BoostCppTarget.hpp"
 #include "BuildSystemFunctions.hpp"
+#include "ConfigurationAssign.hpp"
 #include "CppSourceTarget.hpp"
 #include "DSC.hpp"
 #include "LOAT.hpp"
-#endif
+#include "ToolsCache.hpp"
 
 Configuration::Configuration(const string &name_) : BTarget(name_, false, false)
 {
@@ -37,6 +29,11 @@ void Configuration::initialize()
     linkerFlags = linkerFeatures.getLinkerFlags();
     if (!stdCppTarget)
     {
+        SystemTarget s1 = systemTarget;
+        IgnoreHeaderDeps i1 = ignoreHeaderDeps;
+        systemTarget = SystemTarget::YES;
+        ignoreHeaderDeps = IgnoreHeaderDeps::YES;
+
         stdCppTarget = &getCppStaticDSC("std");
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
@@ -48,7 +45,7 @@ void Configuration::initialize()
                 {
                     const vector<string> &includes = toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs;
                     Node *zeroInclNode = Node::getNodeFromNonNormalizedPath(includes[0], false);
-                    c->actuallyAddInclude(false, zeroInclNode, true, true, true, true);
+                    c->actuallyAddInclude(false, zeroInclNode, true, true);
 
                     // Only the first include is compiled as header-unit.
                     if (evaluate(TreatModuleAsSource::NO) && evaluate(StdAsHeaderUnit::YES))
@@ -64,7 +61,7 @@ void Configuration::initialize()
                     for (uint32_t i = 1; i < includes.size(); ++i)
                     {
                         Node *inclNode = Node::getNodeFromNonNormalizedPath(includes[i], false);
-                        c->actuallyAddInclude(false, inclNode, true, true, true, true);
+                        c->actuallyAddInclude(false, inclNode, true, true);
                         c->addHeaderUnitOrFileDirMSVC(inclNode, true, false, true, true, true, true);
                     }
                 }
@@ -73,7 +70,7 @@ void Configuration::initialize()
                     for (const string &str : toolsCache.linuxTools[cache.selectedCompilerArrayIndex].includeDirs)
                     {
                         Node *inclNode = Node::getNodeFromNonNormalizedPath(str, false);
-                        c->addHeaderUnitOrFileDir(inclNode, "", true, "", true, true, true, true);
+                        c->addHeaderUnitOrFileDir(inclNode, "", true, "", true, true);
                     }
                 }
             }
@@ -94,13 +91,16 @@ void Configuration::initialize()
                     }
                     if (!found)
                     {
-                        stdCppTarget->getLOAT().reqLibraryDirs.emplace_back(node, true);
+                        stdCppTarget->getLOAT().reqLibraryDirs.emplace_back(node);
                     }
                 }
 
                 stdCppTarget->getLOAT().useReqLibraryDirs = stdCppTarget->getLOAT().reqLibraryDirs;
             }
         }
+
+        systemTarget = s1;
+        ignoreHeaderDeps = i1;
     }
 }
 

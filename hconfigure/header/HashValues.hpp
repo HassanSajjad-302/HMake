@@ -1,13 +1,8 @@
 #ifndef HASHVALUES_HPP
 #define HASHVALUES_HPP
 
-#ifdef USE_HEADER_UNITS
-import "cstdint";
-import "PlatformSpecific.hpp";
-#else
 #include "PlatformSpecific.hpp"
 #include "cstdint"
-#endif
 
 class CppSourceTarget;
 struct DSCFeatures;

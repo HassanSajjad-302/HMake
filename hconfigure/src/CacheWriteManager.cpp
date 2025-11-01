@@ -1,14 +1,8 @@
 
-#ifdef USE_HEADER_UNITS
-import "BTarget.hpp";
-import "CacheWriteManager.hpp";
-import "Node.hpp";
-#else
 #include "CacheWriteManager.hpp"
 #include "BTarget.hpp"
-#include "Node.hpp"
-#endif
 #include "CppSourceTarget.hpp"
+#include "Node.hpp"
 #include "TargetCache.hpp"
 
 ColoredStringForPrint::ColoredStringForPrint(string _msg, const uint32_t _color, const bool _isColored)
@@ -20,46 +14,13 @@ UpdatedCache::UpdatedCache(TargetCache *target_, void *cache_) : target(target_)
 {
 }
 
-string getThreadId()
+void CacheWriteManager::addNewEntry(TargetCache *target, void *cache)
 {
-    const auto myId = std::this_thread::get_id();
-    std::stringstream ss;
-    ss << myId;
-    string threadId = ss.str();
-    return threadId;
-}
-
-void CacheWriteManager::addNewEntry(const bool exitStatus, TargetCache *target, void *cache, uint32_t color,
-                                    const string &printCommand, const string &output)
-{
-    bool notify = false;
-
     {
-        string printFormat = FORMAT("{}", printCommand + " " + getThreadId() + "\n");
-        string outputFormat = FORMAT("{}", output + "\n");
-
         std::lock_guard _(cacheWriteManager.vecMutex);
-        if (exitStatus == EXIT_SUCCESS)
-        {
-            cacheWriteManager.updatedCaches.emplace_back(target, cache);
-            notify = true;
-        }
-
-        // TODO
-        // these print commands formatting should be outside the mutex.
-        cacheWriteManager.strCache.emplace_back(std::move(printFormat), color, true);
-
-        if (!output.empty())
-        {
-            cacheWriteManager.strCache.emplace_back(std::move(outputFormat), static_cast<int>(fmt::color::light_green),
-                                                    true);
-            notify = true;
-        }
+        cacheWriteManager.updatedCaches.emplace_back(target, cache);
     }
-    if (notify)
-    {
-        cacheWriteManager.vecCond.notify_one();
-    }
+    cacheWriteManager.vecCond.notify_one();
 }
 
 void CacheWriteManager::writeNodesCacheIfNewNodesAdded()
@@ -104,8 +65,6 @@ void CacheWriteManager::initialize()
     {
         // TODO
         // Allocate this and all the other globals in one function call.
-        strCache.reserve(1000);
-        strCacheLocal.reserve(1000);
         updatedCaches.reserve(1000);
         updatedCachesLocal.reserve(1000);
     }
@@ -116,12 +75,10 @@ void CacheWriteManager::initialize()
 
 void CacheWriteManager::performThreadOperations(const bool doUnlockAndRelock)
 {
-    if (!strCache.empty())
+    if (!updatedCaches.empty())
     {
         // Should be based on if a new node is entered.
-        strCacheLocal.swap(strCache);
         updatedCachesLocal.swap(updatedCaches);
-        strCache.clear();
         updatedCaches.clear();
 
         if (doUnlockAndRelock)
@@ -129,31 +86,26 @@ void CacheWriteManager::performThreadOperations(const bool doUnlockAndRelock)
             vecMutex.unlock();
         }
 
-        writeNodesCacheIfNewNodesAdded();
-
-        if (!updatedCachesLocal.empty())
+        bool buildCacheModified = false;
+        for (const UpdatedCache &p : updatedCachesLocal)
         {
-            for (const UpdatedCache &p : updatedCachesLocal)
-            {
-                p.target->updateBuildCache(p.cache);
-            }
+            p.target->updateBuildCache(p.cache, outputStr, errorStr, buildCacheModified);
+        }
 
+        if (buildCacheModified)
+        {
+            writeNodesCacheIfNewNodesAdded();
             writeBuildBuffer(buildBufferLocal);
             writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
                                         buildBufferLocal);
         }
-        // Copying value from array to central value
 
-        for (ColoredStringForPrint &c : strCacheLocal)
+        if (!updatedCachesLocal.empty())
         {
-            if (c.isColored)
-            {
-                printMessageColor(c.msg, c.color);
-            }
-            else
-            {
-                printMessage(c.msg);
-            }
+            fmt::print("{}", outputStr);
+            fmt::print(stderr, "{}", errorStr);
+            outputStr.clear();
+            errorStr.clear();
         }
 
         if (doUnlockAndRelock)

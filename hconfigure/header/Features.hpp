@@ -1,15 +1,6 @@
 #ifndef HMAKE_FEATURES_HPP
 #define HMAKE_FEATURES_HPP
-#ifdef USE_HEADER_UNITS
-import "BuildTools.hpp";
-import "Cache.hpp";
-import "InclNodeTargetMap.hpp";
-import "FeaturesConvenienceFunctions.hpp";
-import "OS.hpp";
-import "SpecialNodes.hpp";
-import "TargetType.hpp";
-import <vector>;
-#else
+
 #include "BuildTools.hpp"
 #include "Cache.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
@@ -17,7 +8,6 @@ import <vector>;
 #include "SpecialNodes.hpp"
 #include "TargetType.hpp"
 #include <vector>
-#endif
 
 using std::vector;
 
@@ -935,7 +925,7 @@ struct CppCompilerFeatures : FeatureConvenienceFunctions<CppCompilerFeatures>
     WarningsAsErrors warningsAsErrors = WarningsAsErrors::OFF;
     ExceptionHandling exceptionHandling = ExceptionHandling::ON;
     AsyncExceptions asyncExceptions = AsyncExceptions::OFF;
-    ExternCNoThrow externCNoThrow = ExternCNoThrow::OFF;
+    ExternCNoThrow externCNoThrow = ExternCNoThrow::ON;
     RTTI rtti = RTTI::ON;
 
     // Used only for GCC

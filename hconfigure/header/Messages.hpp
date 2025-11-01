@@ -84,14 +84,14 @@ struct ModuleDep
     // any of the following logicalNames is included or
     // imported, the following can be used instead.
     std::vector<std::string> logicalNames;
-    bool user = true;
+    bool isSystem = true;
 };
 
 // Reply for CTBModule
 struct BTCModule
 {
     BMIFile requested;
-    bool user = true;
+    bool isSystem = true;
     std::vector<ModuleDep> modDeps;
 };
 
@@ -100,21 +100,21 @@ struct HuDep
     BMIFile file;
     std::vector<std::string> logicalNames;
     // whether header-unit / header-file belongs to user or system directory.
-    bool user = true;
+    bool isSystem = true;
 };
 
 struct HeaderFile
 {
     std::string logicalName;
     std::string filePath;
-    bool user = true;
+    bool isSystem = true;
 };
 
 // Reply for CTBNonModule
 struct BTCNonModule
 {
     bool isHeaderUnit = false;
-    bool user = true;
+    bool isSystem = true;
     std::string filePath;
     // if isHeaderUnit == false, the following are meaning-less.
     // if isHeaderUnit == true, fileSize of the requested file.

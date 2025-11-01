@@ -376,11 +376,9 @@ inline constexpr string_view preprocessorV128[] = {
 
 inline constexpr string_view preprocessorV256[] = {
     "array.cpp",
-    "tuple.cpp",
-    "variadic.cpp",
 };
 
-inline constexpr string_view preprocessorIsEmpty[] = {"isempty.cpp", "checkempty.cpp", "vaopt.cpp"};
+inline constexpr string_view preprocessorIsEmpty[] = {"checkempty.cpp"};
 
 inline constexpr string_view preprocessorIsEmptyFail[] = {"isempty_variadic_standard_failure.cpp",
                                                           "isempty_variadic_standard_failure2.cpp"};
@@ -886,12 +884,11 @@ inline constexpr string_view headerUnitsJsonDirs[] = {
 
     "type_traits/detail",       "system/detail",
 };
-inline constexpr string_view headerUnitsJsonEntry[] = {
-    "mpl/aux_", "integral_wrapper.hpp", ".", "config.hpp",
 
-    "detail", "workaround.hpp",
+inline constexpr string_view headerUnitsJsonEntry[] = {
+    "boost/mpl/aux_/integral_wrapper.hpp", "boost/config.hpp", "boost/detail/workaround.hpp",
     // These are very small headers
-    ".", "io_fwd.hpp", ".", "call_traits.hpp", ".", "version.hpp", ".", "noncopyable.hpp", ".", "mem_fn.hpp", ".",
-    "current_function.hpp", ".", "function_equal.hpp", ".", "compressed_pair.hpp"};
+    "boost/io_fwd.hpp", "boost/call_traits.hpp", "boost/version.hpp", "boost/noncopyable.hpp", "boost/mem_fn.hpp",
+    "boost/current_function.hpp", "boost/function_equal.hpp", "boost/compressed_pair.hpp"};
 
 #endif // ARRAYDECLARATIONS_HPP

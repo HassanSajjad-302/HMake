@@ -30,7 +30,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration("Debug").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
+    getConfiguration("Debug").assign(TreatModuleAsSource::YES, ConfigType::DEBUG, CxxSTD::V_98);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

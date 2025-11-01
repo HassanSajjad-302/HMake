@@ -2,15 +2,9 @@
 #ifndef HMAKE_NODE_HPP
 #define HMAKE_NODE_HPP
 
-#ifdef USE_HEADER_UNITS
-import "BuildSystemFunctions.hpp";
-import "parallel_hashmap/phmap.h";
-import <atomic>;
-#else
 #include "BuildSystemFunctions.hpp"
-#include "phmap.h"
+#include "parallel-hashmap/parallel_hashmap/phmap.h"
 #include <atomic>
-#endif
 
 using std::atomic, std::lock_guard, std::filesystem::file_time_type, std::filesystem::file_type;
 

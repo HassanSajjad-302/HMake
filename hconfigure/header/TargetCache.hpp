@@ -1,14 +1,9 @@
 #ifndef TARGETCACHE_HPP
 #define TARGETCACHE_HPP
 
-#ifdef USE_HEADER_UNITS
-import "BuildSystemFunctions.hpp";
-import "SpecialNodes.hpp";
-#else
 #include "BuildSystemFunctions.hpp"
 #include "SpecialNodes.hpp"
 #include "parallel-hashmap/parallel_hashmap/phmap.h"
-#endif
 
 using phmap::flat_hash_map;
 
@@ -34,7 +29,7 @@ class TargetCache
     /// Needed to address in fileTargetCaches;
     uint32_t cacheIndex = -1;
     explicit TargetCache(const string &name);
-    virtual void updateBuildCache(void *ptr);
+    virtual void updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified);
     virtual void writeBuildCache(vector<char> &buffer);
 };
 
@@ -58,8 +53,6 @@ struct ConfigCache
         struct InclNode
         {
             Node *node;
-            bool isStandard = false;
-            bool ignoreHeaderDeps = false;
         };
         struct HuNode
         {
