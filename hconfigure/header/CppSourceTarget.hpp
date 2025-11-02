@@ -1304,8 +1304,6 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget &pt
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget &ptr);
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::restore();
 
-// TODO
-// Optimize this
-inline vector<CppSourceTarget *> cppSourceTargets{10000};
+GLOBAL_VARIABLE(vector<CppSourceTarget *>, cppSourceTargets)
 
 #endif // HMAKE_CPPSOURCETARGET_HPP

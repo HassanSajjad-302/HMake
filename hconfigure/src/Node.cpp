@@ -191,11 +191,9 @@ Node *Node::getNodeFromNormalizedString(string p, const bool isFile, const bool 
 {
     Node *node = nullptr;
 
-    using Map = decltype(nodeAllFiles);
-
     if (nodeAllFiles.lazy_emplace_l(
-            string_view(p), [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(node, p); }))
+            string_view(p), [&](const NodeHashSet::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const NodeHashSet::constructor &constructor) { constructor(node, p); }))
     {
     }
 
@@ -207,11 +205,9 @@ Node *Node::getNodeFromNormalizedString(const string_view p, const bool isFile, 
 {
     Node *node = nullptr;
 
-    using Map = decltype(nodeAllFiles);
-
     if (nodeAllFiles.lazy_emplace_l(
-            p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(node, string(p)); }))
+            p, [&](const NodeHashSet::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const NodeHashSet::constructor &constructor) { constructor(node, string(p)); }))
     {
     }
 
@@ -241,8 +237,8 @@ Node *Node::getHalfNode(const string_view p)
     using Map = decltype(nodeAllFiles);
 
     if (nodeAllFiles.lazy_emplace_l(
-            p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(node, string(p)); }))
+            p, [&](const NodeHashSet::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const NodeHashSet::constructor &constructor) { constructor(node, string(p)); }))
     {
     }
 

@@ -13,16 +13,6 @@ BTarget::LaterDep::LaterDep(RealBTarget *b_, RealBTarget *dep_, BTargetDepType t
 {
 }
 
-BTarget::StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets()
-{
-    // 1MB. Deallocated after round.
-    for (span<RealBTarget *> &realBTargets : realBTargetsGlobal)
-    {
-        const auto buffer = new char[1024 * 1024 * 2]; // 2 MB
-        realBTargets = span(reinterpret_cast<RealBTarget **>(buffer), 1024 * 1024 * 2 / sizeof(RealBTarget *));
-    }
-}
-
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
 {
     return const_cast<BTarget *>(lhs)->realBTargets[0].indexInTopologicalSort <

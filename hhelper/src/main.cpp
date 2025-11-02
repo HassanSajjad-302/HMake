@@ -73,6 +73,7 @@ void replaceAll(string &str, const string &from, const string &to)
 
 int main(int argc, char **argv)
 {
+    constructGlobals();
     /*    Document d(kObjectType);
 
         d.AddMember(Value("Foo").Move(), Value("Bar").Move(), ralloc)

@@ -32,7 +32,7 @@ void CacheWriteManager::writeNodesCacheIfNewNodesAdded()
         //                          nodesSizeBefore, newNodesSize));
         for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
         {
-            const string &str = Node::nodeIndices[i]->filePath;
+            const string &str = nodeIndices[i]->filePath;
             uint16_t strSize = str.size();
             const auto ptr = reinterpret_cast<const char *>(&strSize);
             nodesCacheGlobal.insert(nodesCacheGlobal.end(), ptr, ptr + 2);

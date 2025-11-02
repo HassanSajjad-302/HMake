@@ -128,6 +128,4 @@ struct SMFile : SourceNode // Scanned Module Rule
     void setFileStatusAndPopulateAllDependencies();
 };
 
-inline deque<SMFile> globalSMFiles;
-
 #endif // HMAKE_SMFILE_HPP

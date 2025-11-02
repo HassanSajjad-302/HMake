@@ -224,7 +224,17 @@ bool configureOrBuild()
 
 void constructGlobals()
 {
+    // 1MB. Deallocated after round.
+    for (span<RealBTarget *> &realBTargets : BTarget::realBTargetsGlobal)
+    {
+        const auto buffer = new char[1024 * 1024 * 2]; // 2 MB
+        realBTargets = span(reinterpret_cast<RealBTarget **>(buffer), 1024 * 1024 * 2 / sizeof(RealBTarget *));
+    }
+    std::construct_at(&nodeIndices, 1024 * 1024);
+    std::construct_at(&nodeAllFiles, 10000);
     std::construct_at(&cacheWriteManager);
+    std::construct_at(&cache);
+    std::construct_at(&cppSourceTargets, 128 * 1024);
     BTarget::laterDepsCentral.emplace_back(&BTarget::laterDepsLocal);
     threadIds.emplace_back(getThreadId());
 }

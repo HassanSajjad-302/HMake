@@ -33,6 +33,7 @@ int runCommand(const char *cmd)
 
 int main(const int argc, char **argv)
 {
+    constructGlobals();
     path buildExePath;
     bool configuredExecutableExists = false;
     string buildExeName = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "build");

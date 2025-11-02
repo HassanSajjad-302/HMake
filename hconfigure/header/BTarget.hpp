@@ -196,17 +196,6 @@ class BTarget // BTarget
         /// step, emplace in dep->dependents.
         LaterDep(RealBTarget *b_, RealBTarget *dep_, BTargetDepType type_, bool doBoth_);
     };
-    class StaticInitializationTarjanNodesBTargets
-    {
-      public:
-        StaticInitializationTarjanNodesBTargets();
-
-        // provide some way to get at letters_
-    };
-
-    // This is currently not needed
-    /*inline static array<array<BTarget *, 10>, 3> roundEndTargets;
-    inline static array<atomic<uint64_t>, 3> roundEndTargetsCount{0, 0, 0};*/
 
   public:
     // vector because we clear this memory at the end of the round
@@ -219,7 +208,6 @@ class BTarget // BTarget
     friend class Builder;
     friend void constructGlobals();
 
-    inline static StaticInitializationTarjanNodesBTargets staticStuff; // constructor runs once, single instance
   public:
     inline static uint32_t total = 0;
 

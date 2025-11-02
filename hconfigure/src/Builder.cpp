@@ -162,9 +162,9 @@ void Builder::execute()
                         uncheckedNodesCentral.reserve(Node::idCountCompleted);
                         for (uint32_t i = 0; i < Node::idCountCompleted; ++i)
                         {
-                            if (Node::nodeIndices[i]->toBeChecked)
+                            if (nodeIndices[i]->toBeChecked)
                             {
-                                uncheckedNodesCentral.emplace_back(Node::nodeIndices[i]);
+                                uncheckedNodesCentral.emplace_back(nodeIndices[i]);
                             }
                         }
                         uncheckedNodes = divideInChunk(uncheckedNodesCentral, launchedCount);

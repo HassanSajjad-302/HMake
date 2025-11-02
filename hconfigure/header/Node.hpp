@@ -36,8 +36,6 @@ class Node
 
     inline static uint32_t idCount = 0;
     inline static uint32_t idCountCompleted = 0;
-    // Used in multi-threading context. So, can not emplace_back. size should be same as size of nodeAllFiles
-    inline static vector<Node *> nodeIndices{60 * 1000};
     uint32_t myId = UINT32_MAX;
 
     // While following are not atomic to keep Node copyable and moveable, all operations on these bools are done
@@ -70,6 +68,9 @@ class Node
     static void clearNodes();
 };
 
-//  This keeps info if a file is touched. If it's touched, it's not touched again.
-inline phmap::parallel_node_hash_set_m<Node, NodeHash, NodeEqual> nodeAllFiles{10000};
+// need to define this as GLOBAL_VARIABLE macro can not be used with comma in arguments
+using NodeHashSet = phmap::parallel_node_hash_set_m<Node, NodeHash, NodeEqual>;
+GLOBAL_VARIABLE(vector<Node *>, nodeIndices)
+GLOBAL_VARIABLE(NodeHashSet, nodeAllFiles)
+
 #endif // HMAKE_NODE_HPP

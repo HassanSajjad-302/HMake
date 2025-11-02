@@ -109,8 +109,8 @@ void callConfigurationSpecification()
 
 int main2(const int argc, char **argv)
 {
-    parseCmdArgumentsAndSetConfigureNode(argc, argv);
     constructGlobals();
+    parseCmdArgumentsAndSetConfigureNode(argc, argv);
     initializeCache(bsMode);
     (*buildSpecificationFuncPtr)();
     isOneThreadRunning = true;

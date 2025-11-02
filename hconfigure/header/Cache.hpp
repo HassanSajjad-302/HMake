@@ -1,6 +1,7 @@
 #ifndef HMAKE_CACHE_HPP
 #define HMAKE_CACHE_HPP
 
+#include "BuildSystemFunctions.hpp"
 #include "PlatformSpecific.hpp"
 #include "nlohmann/json.hpp"
 #include <vector>
@@ -32,7 +33,7 @@ struct Cache
 void to_json(Json &j, const Cache &cacheLocal);
 void from_json(const Json &j, Cache &cacheLocal);
 
-inline Cache cache;
+GLOBAL_VARIABLE(Cache, cache)
 
 template <typename T> struct CacheVariable
 {
