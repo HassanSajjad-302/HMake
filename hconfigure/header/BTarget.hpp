@@ -1,3 +1,6 @@
+/// \file
+/// Define BTarget and RealBTarget, core classes of HMake
+
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
 
@@ -26,10 +29,11 @@ struct IndexInTopologicalSortComparatorRoundTwo
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
 };
 
+/// Used in RealBTarget to specify the type of dependency of other RealBTargets.
 enum class BTargetDepType : uint8_t
 {
-    /// Build-system will wait for the dependency updateBTarget call to finish before calling
-    /// the dependent updateBTarget. Plus it will set the dependent selectiveBuild if the
+    /// Build-system will wait for the dependency BTarget::updateBTarget call to finish before calling
+    /// the dependent BTarget::updateBTarget. Plus it will set the dependent selectiveBuild if the
     /// dependency selectiveBuild is true
     FULL = 0,
 
@@ -47,31 +51,44 @@ enum class BTargetDepType : uint8_t
     LOOSE = 3,
 };
 
+/// Used in RealBTarget to convey the status about BTarget::updateBTarget() function execution completion
 enum class UpdateStatus
 {
-    NEEDS_UPDATE,
+    /// RealBTarget::updateStatus is defaulted to this
     ALREADY_UPDATED,
+    /// RealBTarget::updateStatus is set to this once the BTarget::updateBTarget call is completed.
+    /// SMFile tests RealBTarget::updateStatus against this to confirm whether the dependency module or header-unit is
+    /// updated or not.
     UPDATED,
+    /// This is an additional value that is used by SourceNode and SMFile to store whether the file needs to be
+    /// recompiled
+    NEEDS_UPDATE,
 };
 
+/// Every BTarget has 2 of these so distinct dependency order can be specified for the 2 rounds.
 class RealBTarget
 {
+    /// Contains RealBTarget* that form the cycle if there is any.
     inline static vector<RealBTarget *> cycle;
+
+    /// it is set by sortGraph function if there is a cycle in the graph
     inline static bool cycleExists = false;
+
     // used in sorting
     uint32_t dependentsCount = 0;
 
+    /// if there is a cycle, find out the exact RealBTarget involved
     static bool findCycleDFS(RealBTarget *node, phmap::flat_hash_set<RealBTarget *> &visited,
                              phmap::flat_hash_set<RealBTarget *> &recursionStack, vector<RealBTarget *> &currentPath,
                              string &errorString);
 
   public:
+    /// sorted RealBTargets
     inline static vector<RealBTarget *> sorted;
 
-    // Input
+    /// Input to the sortGraph function.
     inline static std::span<RealBTarget *> graphEdges;
 
-    // Find Strongly Connected Components
     static void sortGraph();
 
     // for debugging
@@ -80,9 +97,16 @@ class RealBTarget
     flat_hash_map<RealBTarget *, BTargetDepType> dependents;
     flat_hash_map<RealBTarget *, BTargetDepType> dependencies;
 
+    /// reverse pointer to the BTarget
     BTarget *bTarget = nullptr;
 
+    /// Once sorted the index of this RealBTarget in the topological sorted array.
+    /// used in sorting and providing static libs in order as some linkers have this requirement.
     uint32_t indexInTopologicalSort = 0;
+
+    /// This is incremented whenever a full-dependency or wait-dependency is added
+    /// It is decremented of the full-dependents or wait-dependents when the BTarget::updateBTarget is completed
+    /// And if it is zero for any of those dependents, those are added in Builder::updateBTargets list.
     uint32_t dependenciesSize = 0;
 
     // TODO
@@ -111,8 +135,12 @@ class RealBTarget
 
     // short supportsThread = -1;
 
+    /// Initialized to ALREADY_UPDATED and then set to UpdateStatus::UPDATED once the BTarget::updateBTarget call is
+    /// completed. This is used by SMFile to learn whether a header-units is built or not.
     UpdateStatus updateStatus = UpdateStatus::ALREADY_UPDATED;
 
+    /// \param bTarget_ the back-pointer to BTarget that owns this
+    /// \param round_
     RealBTarget(BTarget *bTarget_, unsigned short round_);
     RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
     void assignFileStatusToDependents();
