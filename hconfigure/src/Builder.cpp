@@ -211,7 +211,7 @@ void Builder::execute()
                 DEBUG_EXECUTE(
                     FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
 
-                BTarget::runEndOfRoundTargets();
+                BTarget::postRoundOneCompletion();
                 --round;
                 RealBTarget::graphEdges =
                     span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);

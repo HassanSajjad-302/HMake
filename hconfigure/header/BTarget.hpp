@@ -140,11 +140,19 @@ class RealBTarget
     UpdateStatus updateStatus = UpdateStatus::ALREADY_UPDATED;
 
     /// \param bTarget_ the back-pointer to BTarget that owns this
-    /// \param round_
+    /// \param round_ Constructor will add to BTarget::realBTargetsGlobal with the round index.
     RealBTarget(BTarget *bTarget_, unsigned short round_);
+
+    /// \param bTarget_ the back-pointer to BTarget that owns this
+    /// \param round_ Constructor will add to BTarget::realBTargetsGlobal with the round index.
+    /// \param add whether to add for a round. Should be false if BTarget::updateBTarget is not going to do any work in
+    /// that round. SourceNode and SMFile initialize BTarget::realBTargets[1] with this parameter as false as they have
+    /// work only in round 0.
     RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
-    void assignFileStatusToDependents();
-    void addInTarjanNodeBTarget(unsigned short round_);
+
+    /// Assigns full-dependents RealBTarget::updateStatus with UpdateStatus::NEEDS_UPDATE.
+    /// This is used by SourceNode and SMFile so that the LOAT does not have to make an extra check.
+    void assignNeedsUpdateToDependents();
 };
 
 enum class BTargetType : unsigned short
@@ -155,18 +163,37 @@ enum class BTargetType : unsigned short
     CPP_TARGET = 3,
 };
 
-inline vector<BTarget *> postBuildSpecificationArray;
-
+/// The building-block of HMake build-system
+///
+/// Any class that wants to perform work in order needs to inherit from this and override BTarget::updateBTarget
+/// function. Then specify the dependencies between 2 BTargets using this class functions. Now the build-system will
+/// automatically call the BTarget::updateStatus of the both BTargets in-order.
 class BTarget // BTarget
 {
     friend RealBTarget;
+
+    /// This class helps in concurrent dependency specification between 2 BTargets. This removes the need for using
+    /// mutex based synchronization.
+    ///
+    /// Specifying dependencies is 2-step process of adding a value in RealBTarget::dependencies and
+    /// RealBTarget::dependents. Doing this in multiple threads in BTarget::updateBTarget is not thread-safe. While
+    /// doing it under mutex is too slow.
+    /// This class helps mitigate this with the following invariant.
+    /// A BTarget can only emplace in RealBTarget::dependencies of itself in BTarget::updateBTarget. This first step
+    /// is thread-safe. However, it can not do the second step of emplace in the dependent RealBTarget's
+    /// RealBTarget::dependents. Instead, it adds a new LaterDep in the thread_local BTarget::laterDepsLocal.
+    /// Builder::execute will then call BTarget::postRoundCompletion which will go over this array and complete the
+    /// dependency-specification for the round 0.
     struct LaterDep
     {
         RealBTarget *b;
         RealBTarget *dep;
         BTargetDepType type;
-        // dependency or dependent
         bool doBoth;
+
+        /// \param doBoth_ This will be true if the BTarget::updateBTarget wants to specify dependency between 2 other
+        /// BTargets. In that case both steps of dependency-specification will be performed instead of just the second
+        /// step, emplace in dep->dependents.
         LaterDep(RealBTarget *b_, RealBTarget *dep_, BTargetDepType type_, bool doBoth_);
     };
     class StaticInitializationTarjanNodesBTargets
@@ -217,8 +244,7 @@ class BTarget // BTarget
     void setSelectiveBuild();
     bool isHBuildInSameOrChildDirectory() const;
 
-    void receiveNotificationPostBuildSpecification();
-    static void runEndOfRoundTargets();
+    static void postRoundOneCompletion();
 
     virtual string getPrintName() const;
     virtual BTargetType getBTargetType() const;

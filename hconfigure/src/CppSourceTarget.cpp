@@ -839,7 +839,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         if (realBTargets[0].updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
             // This is necessary since objectFile->outputFileNode is not updated once after it is compiled.
-            realBTargets[0].assignFileStatusToDependents();
+            realBTargets[0].assignNeedsUpdateToDependents();
         }
     }
     else if (round == 1)

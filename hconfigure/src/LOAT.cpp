@@ -222,7 +222,7 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
         RealBTarget &rb = realBTargets[0];
         if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
-            rb.assignFileStatusToDependents();
+            rb.assignNeedsUpdateToDependents();
             thrIndex = myThreadIndex;
 
             RunCommand r;

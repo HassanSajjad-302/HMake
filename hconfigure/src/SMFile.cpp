@@ -94,7 +94,7 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round, boo
         if (RealBTarget &rb = realBTargets[0]; rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
             thrIndex = myThreadIndex;
-            rb.assignFileStatusToDependents();
+            rb.assignNeedsUpdateToDependents();
 
             RunCommand r;
             r.startProcess(getCompileCommand(), false);
@@ -885,10 +885,10 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
             setFileStatusAndPopulateAllDependencies();
             if (RealBTarget &rb = realBTargets[0]; rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
             {
-                rb.assignFileStatusToDependents();
+                rb.assignNeedsUpdateToDependents();
                 headerFiles.clear();
                 allSMFileDependencies.clear();
-                rb.assignFileStatusToDependents();
+                rb.assignNeedsUpdateToDependents();
 
                 const Node *endNode = type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode : objectNode;
                 if (auto r = N2978::makeIPCManagerBS(endNode->filePath); r)

@@ -196,7 +196,7 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
     }
 }
 
-void RealBTarget::assignFileStatusToDependents()
+void RealBTarget::assignNeedsUpdateToDependents()
 {
     for (auto &[dependent, bTargetDepType] : dependents)
     {
@@ -205,21 +205,6 @@ void RealBTarget::assignFileStatusToDependents()
             dependent->updateStatus = UpdateStatus::NEEDS_UPDATE;
         }
     }
-}
-
-void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
-{
-    uint32_t i;
-    if (isOneThreadRunning)
-    {
-        i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
-    }
-    else
-    {
-        i = BTarget::realBTargetsArrayCount[round_];
-        ++BTarget::realBTargetsArrayCount[round_];
-    }
-    BTarget::realBTargetsGlobal[round_][i] = this;
 }
 
 static string lowerCase(string str)
@@ -307,12 +292,7 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
     }
 }
 
-void BTarget::receiveNotificationPostBuildSpecification()
-{
-    postBuildSpecificationArray.emplace_back(this);
-}
-
-void BTarget::runEndOfRoundTargets()
+void BTarget::postRoundOneCompletion()
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
