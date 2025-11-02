@@ -2,7 +2,6 @@
 #include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CacheWriteManager.hpp"
-#include "CppSourceTarget.hpp"
 #include <filesystem>
 #include <utility>
 
