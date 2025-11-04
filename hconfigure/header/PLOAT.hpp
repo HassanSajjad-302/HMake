@@ -51,6 +51,7 @@ class PLOAT : public BTarget, public TargetCache
     Node *outputFileNode = nullptr;
     vector<char> configCacheBuffer;
     uint32_t configCacheBytesRead = 0;
+    bool hasObjectFiles = false;
 
     string getOutputName() const;
     string getActualOutputName() const;

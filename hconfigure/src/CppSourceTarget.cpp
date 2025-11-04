@@ -1103,6 +1103,7 @@ void CppSourceTarget::writeCacheAtConfigTime()
     cppBuildCache.deserialize(cacheIndex);
     auto *configBuffer = new vector<char>{};
 
+    writeBool(*configBuffer, !srcFileDeps.empty() || imodFileDeps.empty());
     writeUint32(*configBuffer, srcFileDeps.size());
     for (SourceNode *source : srcFileDeps)
     {
@@ -1202,6 +1203,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     uint32_t configRead = 0;
     const char *ptr = configCache.data();
 
+    hasObjectFiles = readBool(ptr, configRead);
     const uint32_t sourceSize = readUint32(ptr, configRead);
     srcFileDeps.reserve(sourceSize);
     for (uint32_t i = 0; i < sourceSize; ++i)
@@ -1494,6 +1496,10 @@ template <> DSC<CppSourceTarget>::DSC(CppSourceTarget *ptr, PLOAT *ploat_, const
     if (ploat_)
     {
         ploat->objectFileProducers.emplace(objectFileProducer);
+        if (objectFileProducer->hasObjectFiles)
+        {
+            ploat->hasObjectFiles = true;
+        }
 
         if (define_.empty())
         {

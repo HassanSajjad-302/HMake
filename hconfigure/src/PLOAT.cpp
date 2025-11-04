@@ -119,7 +119,10 @@ void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &is
 
         for (ObjectFileProducer *objectFileProducer : objectFileProducers)
         {
-            addDepHalfNowHalfLater(*objectFileProducer);
+            if (objectFileProducer->hasObjectFiles)
+            {
+                addDepHalfNowHalfLater(*objectFileProducer);
+            }
         }
     }
 }
@@ -209,14 +212,20 @@ void PLOAT::addReqDepsToBTargetDependencies()
     {
         for (auto &[PLOAT, prebuiltDep] : reqDeps)
         {
-            addDepLooseHalfNowHalfLater(*PLOAT);
+            if (PLOAT->hasObjectFiles)
+            {
+                addDepLooseHalfNowHalfLater(*PLOAT);
+            }
         }
     }
     else
     {
         for (auto &[PLOAT, prebuiltDep] : reqDeps)
         {
-            addDepHalfNowHalfLater(*PLOAT);
+            if (PLOAT->hasObjectFiles)
+            {
+                addDepHalfNowHalfLater(*PLOAT);
+            }
         }
     }
 }

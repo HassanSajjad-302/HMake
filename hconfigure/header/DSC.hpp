@@ -57,6 +57,10 @@ template <typename T> DSC<T>::DSC(T *ptr, PLOAT *ploat_, bool defines, string de
     if (ploat)
     {
         ploat->objectFileProducers.emplace(objectFileProducer);
+        if (objectFileProducer->hasObjectFiles)
+        {
+            ploat->hasObjectFiles = true;
+        }
     }
 
     if (define_.empty() && ploat)

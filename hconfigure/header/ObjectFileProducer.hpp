@@ -9,6 +9,7 @@
 class ObjectFileProducer : public BTarget
 {
   public:
+    bool hasObjectFiles = true;
     ObjectFileProducer()
     {
     }
