@@ -114,7 +114,8 @@ class RealBTarget
     //  for this task in multi-threaded scenario
     // unsigned long timeTaken = 0;
 
-    // Plays two roles. Depicts the exitStatus of itself and of its dependencies
+    /// This is set to EXIT_FAILURE by the BTarget::updateBTarget if the work fails. Builder::decrementFromDependents
+    /// then assigns this value to the dependents as well.
     int exitStatus = EXIT_SUCCESS;
 
     // TODO
@@ -266,6 +267,10 @@ class BTarget // BTarget
     virtual BTargetType getBTargetType() const;
 
     /// This is called by Builder in-order. Should be overridden to perform any work
+    /// \param isComplete This is passed by Builder::execute with value false. This function can then set it to true if
+    /// it does not want the Builder::execute to decrement from its dependents. In that case, this function should also
+    /// lock Builder::executeMutex. SMFile sets this to false when it has to wait for other SMFile to compile first and
+    /// sets it to true once its compilation completes.
     virtual void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete);
 
     /// Does both steps. Should be called only in single-thread

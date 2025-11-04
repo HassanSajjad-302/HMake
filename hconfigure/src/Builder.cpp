@@ -149,7 +149,14 @@ void Builder::execute()
                 }
                 atomic_ref(rb->updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
                 executeMutex.lock();
-                addNewTopBeUpdatedTargets(rb);
+
+
+                if (rb->exitStatus != EXIT_SUCCESS)
+                {
+                    errorHappenedInRoundMode = true;
+                }
+
+                decrementFromDependents(rb);
                 continue;
             }
 
@@ -271,7 +278,7 @@ void Builder::execute()
     }
 }
 
-void Builder::addNewTopBeUpdatedTargets(const RealBTarget *rb)
+void Builder::decrementFromDependents(const RealBTarget *rb)
 {
     DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
     if (rb->exitStatus != EXIT_SUCCESS)

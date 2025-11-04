@@ -73,7 +73,7 @@ class Builder
   public:
     explicit Builder();
     void execute();
-    void addNewTopBeUpdatedTargets(const RealBTarget *rb);
+    void decrementFromDependents(const RealBTarget *rb);
     void incrementNumberOfSleepingThreads();
     void decrementNumberOfSleepingThreads();
 };
