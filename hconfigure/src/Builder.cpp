@@ -15,7 +15,6 @@ Builder::Builder()
     RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
     RealBTarget::sortGraph();
 
-    isOneThreadRunning = false;
     for (RealBTarget *rb : RealBTarget::sorted)
     {
         if (!rb->dependenciesSize)
@@ -32,6 +31,7 @@ Builder::Builder()
 
     if (launchedCount)
     {
+        isOneThreadRunning = false;
         BTarget::laterDepsCentral.resize(launchedCount);
         threadIds.resize(launchedCount);
 
@@ -255,8 +255,8 @@ void Builder::execute()
                 }
 
                 updateBTargetsSizeGoal = RealBTarget::sorted.size();
-                exeMode = ExecuteMode::GENERAL;
                 isOneThreadRunning = false;
+                exeMode = ExecuteMode::GENERAL;
                 continue;
             }
         }

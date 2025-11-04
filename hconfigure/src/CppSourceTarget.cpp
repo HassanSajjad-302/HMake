@@ -1107,7 +1107,7 @@ void CppSourceTarget::writeCacheAtConfigTime()
     cppBuildCache.deserialize(cacheIndex);
     auto *configBuffer = new vector<char>{};
 
-    const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty();
+    const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty();
     writeBool(*configBuffer, hasObjFiles);
     writeUint32(*configBuffer, srcFileDeps.size());
     for (SourceNode *source : srcFileDeps)

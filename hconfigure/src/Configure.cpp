@@ -93,7 +93,6 @@ int main2(const int argc, char **argv)
     parseCmdArgumentsAndSetConfigureNode(argc, argv);
     initializeCache(bsMode);
     (*buildSpecificationFuncPtr)();
-    isOneThreadRunning = true;
     const bool errorHappened = configureOrBuild();
     destructGlobals();
     fflush(stdout);

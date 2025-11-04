@@ -45,10 +45,10 @@ struct OurTarget2 : BTarget
     }
 };
 
-OurTarget2 target2;
 
 void buildSpecification()
 {
+    OurTarget2 *target2 = new OurTarget2();
 }
 
 MAIN_FUNCTION
