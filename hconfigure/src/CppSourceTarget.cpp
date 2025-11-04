@@ -184,7 +184,6 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
     if constexpr (bsMode == BSMode::BUILD)
     {
         cppSourceTargets[cacheIndex] = this;
-        cppBuildCache.deserialize(cacheIndex);
     }
 }
 
@@ -874,6 +873,7 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         }
         else
         {
+            cppBuildCache.deserialize(cacheIndex);
             readConfigCacheAtBuildTime();
             populateReqAndUseReqDeps();
         }
