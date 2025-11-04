@@ -52,7 +52,6 @@ class CacheWriteManager
     void initialize();
     void performThreadOperations(bool doUnlockAndRelock);
     void start();
-    void endOfRound();
 };
 
 GLOBAL_VARIABLE(CacheWriteManager, cacheWriteManager)

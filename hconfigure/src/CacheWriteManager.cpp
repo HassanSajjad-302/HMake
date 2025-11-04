@@ -133,13 +133,3 @@ void CacheWriteManager::start()
         vecCond.wait(vecLock);
     }
 }
-
-void CacheWriteManager::endOfRound()
-{
-    // This function is executed in the first thread. After that, the destructor of this manager is executed in this
-    // thread which waits for the thread to finish.
-
-    // This will still copy even if an error has happened. This will copy only in
-    // round 1 hence only in BSMode::BUILD.
-    diskWriteManagerThread = std::thread(&CacheWriteManager::start, &cacheWriteManager);
-}

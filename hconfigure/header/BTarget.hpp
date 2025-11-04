@@ -255,7 +255,8 @@ class BTarget // BTarget
     /// returns true if hbuild is executed in same or child directory based on BTarget::name.
     bool isHBuildInSameOrChildDirectory() const;
 
-    /// Called by Builder::execute post round1.
+    /// Called by Builder::execute post round1. It completes the partially specified dependency relations and also
+    /// launches the cacheWriteManager thread in build-mode.
     static void postRoundOneCompletion();
 
     /// Used by findCycleDFS to report RealBTarget in cycle

@@ -285,7 +285,9 @@ void BTarget::postRoundOneCompletion()
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
-        cacheWriteManager.endOfRound();
+        // cacheWriteManager destructor is executed in destructGlobals which will join the following thread to ensure
+        // that any ongoing build-cache disk writing is completed.
+        cacheWriteManager.diskWriteManagerThread = std::thread(&CacheWriteManager::start, &cacheWriteManager);
     }
 
     delete[] realBTargetsGlobal[1].data();
