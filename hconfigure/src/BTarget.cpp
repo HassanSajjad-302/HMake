@@ -332,10 +332,6 @@ void BTarget::updateBTarget(Builder &, unsigned short, bool &isComplete)
 {
 }
 
-void BTarget::endOfRound(Builder &builder, unsigned short round)
-{
-}
-
 void BTarget::addDepHalfNowHalfLater(BTarget &dep)
 {
     if (realBTargets[0].dependencies.try_emplace(&dep.realBTargets[0], BTargetDepType::FULL).second)

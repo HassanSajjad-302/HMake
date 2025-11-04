@@ -22,8 +22,6 @@
 #include <thread>
 #include <utility>
 
-// Will return true if all configurations are built
-bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuration));
 
 // TODO
 // HMake in future will only be available as module. Hence configuration will-be a split-second process.

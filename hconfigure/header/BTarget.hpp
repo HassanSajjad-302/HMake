@@ -144,10 +144,11 @@ class RealBTarget
     RealBTarget(BTarget *bTarget_, unsigned short round_);
 
     /// \param bTarget_ the back-pointer to BTarget that owns this
-    /// \param round_ Constructor will add to BTarget::realBTargetsGlobal with the round index.
+    /// \param round_ Constructor will add to BTarget::realBTargetsGlobal[round]
     /// \param add whether to add for a round. Should be false if BTarget::updateBTarget is not going to do any work in
     /// that round. SourceNode and SMFile initialize BTarget::realBTargets[1] with this parameter as false as they have
-    /// work only in round 0.
+    /// work only in round 0. Specifying a RealBTarget with add as false as dependency or dependent of other RealBTarget
+    /// is undefined behavior.
     RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
 
     /// Assigns full-dependents RealBTarget::updateStatus with UpdateStatus::NEEDS_UPDATE.
@@ -198,12 +199,20 @@ class BTarget // BTarget
     };
 
   public:
-    // vector because we clear this memory at the end of the round
+    /// All the RealBTargets of a round except those whose add is false. BTarget::updateBTarget will be called for these
+    /// in-order after sorting. This is populated by the RealBTarget constructor.
     inline static array<std::span<RealBTarget *>, 2> realBTargetsGlobal;
+
+    /// count of BTarget::realBTargetsGlobal and the index where the pointer to the self will be added by the
+    /// RealBTarget constructor.
     inline static array<atomic<uint32_t>, 2> realBTargetsArrayCount{0, 0};
 
   private:
+    /// An array of dependency relationships that are specified in single-thread. Generally half are specified in
+    /// multi-thread while the other half is specified in single-thread after round 1. Populated by addDep* functions.
     inline static thread_local vector<LaterDep> laterDepsLocal;
+
+    /// Pointer to all the thread_local BTarget::laterDepsLocal entries. Populated in Builder::Builder.
     inline static vector<vector<LaterDep> *> laterDepsCentral{};
     friend class Builder;
     friend void constructGlobals();
@@ -211,6 +220,7 @@ class BTarget // BTarget
   public:
     inline static uint32_t total = 0;
 
+    /// One RealBTarget for every round.
     array<RealBTarget, 2> realBTargets;
 
     string name;
@@ -219,29 +229,50 @@ class BTarget // BTarget
     // TODO
     // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
     // float totalTimeTaken = 0.0f;
+
+    /// selectiveBuild is set for target if hbuild is executed in the target directory or the target name is provided to
+    /// the build.exe or hbuild. It is set in BTarget::setSelectiveBuild which is call before BTarget::updateBTarget of
+    /// round1.
     bool selectiveBuild = false;
+
+    /// if true selectiveBuild is only set if the target name is specified on cmd arguments.
     bool buildExplicit = false;
 
     BTarget();
+    /// \param makeDirectory if true HMake will make the directory of the \p name_ in configureDir.
     BTarget(string name_, bool buildExplicit_, bool makeDirectory);
+    /// \p add0 and \p add1 specify the value for RealBTarget constructors for the 2 rounds.
     BTarget(bool add0, bool add1);
+    /// \param makeDirectory if true HMake will make the directory of the \p name_ in configureDir.
     BTarget(string name_, bool buildExplicit_, bool makeDirectory, bool add0, bool add1);
 
     virtual ~BTarget();
 
+    /// Might set the BTarget::selectiveBuild variable based on BTarget::name, hbuild execution directory and passed
+    /// arguments.
     void setSelectiveBuild();
+
+    /// returns true if hbuild is executed in same or child directory based on BTarget::name.
     bool isHBuildInSameOrChildDirectory() const;
 
+    /// Called by Builder::execute post round1.
     static void postRoundOneCompletion();
 
+    /// Used by findCycleDFS to report RealBTarget in cycle
     virtual string getPrintName() const;
-    virtual BTargetType getBTargetType() const;
-    virtual void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete);
-    virtual void endOfRound(Builder &builder, unsigned short round);
 
+    /// Can be overridden to differentiate between different BTarget class objects
+    virtual BTargetType getBTargetType() const;
+
+    /// This is called by Builder in-order. Should be overridden to perform any work
+    virtual void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete);
+
+    /// Does both steps. Should be called only in single-thread
     template <unsigned short round> void addDepNow(BTarget &dep);
     template <unsigned short round> void addSelectiveDepNow(BTarget &dep);
     template <unsigned short round> void addDepLooseNow(BTarget &dep);
+
+    /// Does one step. Adds the second step in laterDeps to be called later in single-thread
     void addDepHalfNowHalfLater(BTarget &dep);
     void addDepLooseHalfNowHalfLater(BTarget &dep);
     void addDepLater(BTarget &dep);

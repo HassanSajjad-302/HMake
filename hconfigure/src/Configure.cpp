@@ -4,26 +4,6 @@
 #include <new>
 using std::filesystem::current_path;
 
-bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuration))
-{
-    if (equivalent(path(configureNode->filePath), current_path()))
-    {
-        for (const Configuration &configuration : targets<Configuration>)
-        {
-            (*ptr)(const_cast<Configuration &>(configuration));
-        }
-        return true;
-    }
-    for (const Configuration &configuration : targets<Configuration>)
-    {
-        if (configuration.isHBuildInSameOrChildDirectory())
-        {
-            (*ptr)(const_cast<Configuration &>(configuration));
-        }
-    }
-    return false;
-}
-
 static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
