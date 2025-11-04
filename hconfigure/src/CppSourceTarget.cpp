@@ -184,6 +184,10 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
     if constexpr (bsMode == BSMode::BUILD)
     {
         cppSourceTargets[cacheIndex] = this;
+
+        // only the first boolean ob hasObjectFiles is read.
+        uint32_t configRead = 0;
+        hasObjectFiles = readBool(fileTargetCaches[cacheIndex].configCache.data(), configRead);
     }
 }
 
@@ -1103,7 +1107,8 @@ void CppSourceTarget::writeCacheAtConfigTime()
     cppBuildCache.deserialize(cacheIndex);
     auto *configBuffer = new vector<char>{};
 
-    writeBool(*configBuffer, !srcFileDeps.empty() || modFileDeps.empty());
+    const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty();
+    writeBool(*configBuffer, hasObjFiles);
     writeUint32(*configBuffer, srcFileDeps.size());
     for (SourceNode *source : srcFileDeps)
     {
