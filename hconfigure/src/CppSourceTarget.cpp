@@ -1103,7 +1103,7 @@ void CppSourceTarget::writeCacheAtConfigTime()
     cppBuildCache.deserialize(cacheIndex);
     auto *configBuffer = new vector<char>{};
 
-    writeBool(*configBuffer, !srcFileDeps.empty() || imodFileDeps.empty());
+    writeBool(*configBuffer, !srcFileDeps.empty() || modFileDeps.empty());
     writeUint32(*configBuffer, srcFileDeps.size());
     for (SourceNode *source : srcFileDeps)
     {
