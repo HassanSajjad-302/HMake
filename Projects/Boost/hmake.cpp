@@ -32,8 +32,8 @@
 
 // I used ptime for time measurements. And tested on modern hardware with 32 threads x86-64 cpu on Windows11.
 
+#include "ArrayDeclarations.hpp"
 #include "BoostCppTarget.hpp"
-#include "arrayDeclarations.hpp"
 
 using std::filesystem::directory_iterator;
 
@@ -193,7 +193,7 @@ void buildSpecification()
 
     // getConfiguration("conventional-r").assign(TreatModuleAsSource::YES, ConfigType::RELEASE);
     // getConfiguration("hu-r").assign(TreatModuleAsSource::NO, ConfigType::RELEASE);
-    getConfiguration("conventional-d").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
+  //  getConfiguration("conventional-d").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
     // getConfiguration("hu-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::NO);
     getConfiguration("huBig-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::YES);
     CALL_CONFIGURATION_SPECIFICATION

@@ -64,13 +64,11 @@ class Node
     static Node *addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath);
     static Node *getHalfNode(string_view p);
     static Node *getHalfNode(uint32_t);
-
-    static void clearNodes();
 };
 
 // need to define this as GLOBAL_VARIABLE macro can not be used with comma in arguments
 using NodeHashSet = phmap::parallel_node_hash_set_m<Node, NodeHash, NodeEqual>;
-GLOBAL_VARIABLE(vector<Node *>, nodeIndices)
+GLOBAL_VARIABLE(Node **, nodeIndices)
 GLOBAL_VARIABLE(NodeHashSet, nodeAllFiles)
 
 #endif // HMAKE_NODE_HPP

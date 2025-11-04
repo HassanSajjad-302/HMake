@@ -51,16 +51,24 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
     {
         bool breakpoint = true;
     }
-    const string buildCacheFilesDirPath = configuration->name + slashc + name;
+
+    Node *myBuildDir = nullptr;
+
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        const string buildCacheFilesDirPath = configureNode->filePath + slashc + configuration->name + slashc + name;
+        myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(buildCacheFilesDirPath);
+        create_directories(myBuildDir->filePath);
+    }
 
     DSC<CppSourceTarget> *t = nullptr;
     if (headerOnly)
     {
-        t = &configuration->getCppObjectDSC(false, buildCacheFilesDirPath, name);
+        t = &configuration->getCppObjectDSC(false, myBuildDir, name);
     }
     else
     {
-        t = &configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
+        t = &configuration->getCppTargetDSC(false, myBuildDir, name);
         t->getSourceTarget().moduleDirs("libs" + name + "src");
     }
 
@@ -141,7 +149,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
             if (isCompile)
             {
-                CppSourceTarget &cppTarget = configuration->getCppObjectNoName(explicitBuild, "", unitTestName)
+                CppSourceTarget &cppTarget = configuration->getCppObjectNoName(explicitBuild, nullptr, unitTestName)
                                                  .privateDeps(&mainTarget.getSourceTarget());
                 examplesOrTests.emplace_back(BoostTestTargetType{.cppTarget = &cppTarget}, boostExampleOrTest);
 
@@ -153,7 +161,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
             else
             {
                 DSC<CppSourceTarget> &uintTest =
-                    configuration->getCppExeDSCNoName(explicitBuild, "", unitTestName).privateDeps(mainTarget);
+                    configuration->getCppExeDSCNoName(explicitBuild, nullptr, unitTestName).privateDeps(mainTarget);
                 examplesOrTests.emplace_back(BoostTestTargetType{.dscTarget = &uintTest}, boostExampleOrTest);
                 if (isExample)
                 {

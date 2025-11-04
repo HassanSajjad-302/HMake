@@ -475,7 +475,7 @@ void SMFile::makeAndSendBTCModule(SMFile &mod)
 
 void SMFile::makeAndSendBTCNonModule(SMFile &hu)
 {
-    if (node->filePath.ends_with("public-10.hpp"))
+    if (node->filePath.ends_with("public-13.hpp"))
     {
         bool breakpoint = true;
     }
@@ -529,7 +529,7 @@ void SMFile::makeAndSendBTCNonModule(SMFile &hu)
         }
     }
 
-    if (node->filePath.ends_with("public-10.hpp"))
+    if (node->filePath.ends_with("public-13.hpp"))
     {
         bool brekapoint = true;
     }
@@ -651,7 +651,7 @@ HeaderFileOrUnit SMFile::findHeaderFileOrUnit(const string &headerName)
 
 bool SMFile::build(Builder &builder)
 {
-    if (node->filePath.ends_with("public-10.hpp"))
+    if (node->filePath.ends_with("public-13.hpp"))
     {
         bool breakpoint = true;
     }
@@ -706,7 +706,7 @@ bool SMFile::build(Builder &builder)
                     bool breakpoint = true;
                 }
 
-                if (node->filePath.ends_with("public-10.hpp"))
+                if (node->filePath.ends_with("public-13.hpp"))
                 {
                     N2978::CTBNonModule non_module = static_cast<N2978::CTBNonModule>(buffer);
                     bool breakpoint = true;
@@ -823,7 +823,7 @@ bool SMFile::build(Builder &builder)
 
             RealBTarget &foundRb = found->realBTargets[0];
 
-            if (node->filePath.ends_with("public-10.hpp"))
+            if (node->filePath.ends_with("public-13.hpp"))
             {
                 N2978::CTBNonModule non_module = static_cast<N2978::CTBNonModule>(buffer);
                 bool breakpoint = true;
@@ -901,7 +901,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
                 }
 
                 const string compileCommand = target->compileCommand + getCompileCommand();
-                if (node->filePath.ends_with("public-10.hpp"))
+                if (node->filePath.ends_with("public-13.hpp"))
                 {
                     bool breakpoint = true;
                     run.startProcess(compileCommand, true);

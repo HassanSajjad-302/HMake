@@ -2,11 +2,13 @@
 
 void configurationSpecification(Configuration &config)
 {
-    auto makeApps = [&]() {
+    auto makeApps = [&] {
         const string str = config.targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
-        DSC<CppSourceTarget> &cat =
-            config.getCppTargetDSC_P("Cat" + str, "../Example4/Build/Release/Cat" + str + "/", true, "CAT_EXPORT");
+        Node *otuputDir = bsMode == BSMode::CONFIGURE
+                              ? Node::getNodeFromNonNormalizedPath("../Example4/Build/Release/Cat" + str, false, false)
+                              : nullptr;
+        DSC<CppSourceTarget> &cat = config.getCppTargetDSC_P("Cat" + str, otuputDir, true, "CAT_EXPORT");
         cat.getSourceTarget().interfaceIncludes("../Example4/Cat/header");
 
         DSC<CppSourceTarget> &dog = config.getCppTargetDSC("Dog" + str, true, "DOG_EXPORT");

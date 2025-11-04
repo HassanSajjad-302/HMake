@@ -105,11 +105,10 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
 
     CppSourceTarget(const string &name_, Configuration *configuration_);
     CppSourceTarget(bool buildExplicit, const string &name_, Configuration *configuration_);
-    CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, Configuration *configuration_);
-    CppSourceTarget(string buildCacheFilesDirPath_, bool buildExplicit, const string &name_,
-                    Configuration *configuration_);
+    CppSourceTarget(Node *myBuildDir_, const string &name_, Configuration *configuration_);
+    CppSourceTarget(Node *myBuildDir_, bool buildExplicit, const string &name_, Configuration *configuration_);
 
-    void initializeCppSourceTarget(const string &name_, string buildCacheFilesDirPath);
+    void initializeCppSourceTarget(const string &name_, Node *myBuildDir_);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const override;
     void updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified) override;
@@ -1304,6 +1303,6 @@ template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::save(CppSourceTarget &pt
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::saveAndReplace(CppSourceTarget &ptr);
 template <> DSC<CppSourceTarget> &DSC<CppSourceTarget>::restore();
 
-GLOBAL_VARIABLE(vector<CppSourceTarget *>, cppSourceTargets)
+GLOBAL_VARIABLE(CppSourceTarget **, cppSourceTargets)
 
 #endif // HMAKE_CPPSOURCETARGET_HPP

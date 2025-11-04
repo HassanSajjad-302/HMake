@@ -231,9 +231,10 @@ void constructGlobals()
         const auto buffer = new char[sizeof(RealBTarget) * count];
         realBTargets = span(reinterpret_cast<RealBTarget **>(buffer), count);
     }
-    std::construct_at(&nodeIndices, 1024 * 1024);
+    nodeIndices = new Node *[128 * 1024];
+    cppSourceTargets = new CppSourceTarget *[64 * 1024];
+
     std::construct_at(&nodeAllFiles, 10000);
-    std::construct_at(&cppSourceTargets, 64 * 1024);
 
     std::construct_at(&cacheWriteManager);
     std::construct_at(&cache);

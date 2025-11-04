@@ -138,29 +138,29 @@ HeaderFileOrUnit::HeaderFileOrUnit(Node *node_, const bool isSystem_)
 CppSourceTarget::CppSourceTarget(const string &name_, Configuration *configuration_)
     : ObjectFileProducerWithDS(name_, false, false), TargetCache(name), configuration(configuration_)
 {
-    initializeCppSourceTarget(name_, "");
+    initializeCppSourceTarget(name_, nullptr);
 }
 
 CppSourceTarget::CppSourceTarget(const bool buildExplicit, const string &name_, Configuration *configuration_)
     : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name), configuration(configuration_)
 {
-    initializeCppSourceTarget(name_, "");
+    initializeCppSourceTarget(name_, nullptr);
 }
 
-CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const string &name_, Configuration *configuration_)
+CppSourceTarget::CppSourceTarget(Node *myBuildDir_, const string &name_, Configuration *configuration_)
     : ObjectFileProducerWithDS(name_, false, false), TargetCache(name), configuration(configuration_)
 {
-    initializeCppSourceTarget(name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
+    initializeCppSourceTarget(name_, myBuildDir_);
 }
 
-CppSourceTarget::CppSourceTarget(string buildCacheFilesDirPath_, const bool buildExplicit, const string &name_,
+CppSourceTarget::CppSourceTarget(Node *myBuildDir_, const bool buildExplicit, const string &name_,
                                  Configuration *configuration_)
     : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name), configuration(configuration_)
 {
-    initializeCppSourceTarget(name_, configureNode->filePath + slashc + std::move(buildCacheFilesDirPath_));
+    initializeCppSourceTarget(name_, myBuildDir_);
 }
 
-void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buildCacheFilesDirPath)
+void CppSourceTarget::initializeCppSourceTarget(const string &name_, Node *myBuildDir_)
 {
     isSystem = configuration->evaluate(SystemTarget::YES);
     ignoreHeaderDeps = configuration->evaluate(IgnoreHeaderDeps::YES);
@@ -173,12 +173,15 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, string buil
             privateBigHu.emplace_back(nullptr);
             interfaceBigHu.emplace_back(nullptr);
         }
-        if (buildCacheFilesDirPath.empty())
+        if (!myBuildDir_)
         {
-            buildCacheFilesDirPath = configureNode->filePath + slashc + name;
+            myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(configureNode->filePath + slashc + name);
         }
-        create_directories(buildCacheFilesDirPath);
-        myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(buildCacheFilesDirPath);
+        else
+        {
+            myBuildDir = myBuildDir_;
+        }
+        create_directories(myBuildDir->filePath);
     }
 
     if constexpr (bsMode == BSMode::BUILD)
@@ -576,6 +579,10 @@ void CppSourceTarget::addHeaderUnit(const string &logicalName, const Node *heade
     {
         if (addInReq && addInUseReq)
         {
+            if (name.contains("mp11"))
+            {
+                bool breakpoint = true;
+            }
             const uint32_t index = publicBigHu.size() - 1;
             if (!publicBigHu[index])
             {
@@ -1073,6 +1080,10 @@ void CppSourceTarget::setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCac
 
 void CppSourceTarget::writeBigHeaderUnits()
 {
+    if (name.contains("mp11"))
+    {
+        bool breakpoint = true;
+    }
     auto writeBigHu = [&](const vector<SMFile *> &bigHeaderUnits) {
         for (SMFile *bigHu : bigHeaderUnits)
         {

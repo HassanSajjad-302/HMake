@@ -151,6 +151,11 @@ void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
 {
     if (isOneThreadRunning)
     {
+        if (systemCheckCompleted)
+        {
+            return;
+        }
+
         performSystemCheck();
         if (fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
         {
@@ -252,15 +257,4 @@ Node *Node::getHalfNode(const uint32_t index)
         bool brekapoint = true;
     }
     return nodeIndices[index];
-}
-
-void Node::clearNodes()
-{
-    nodeAllFiles.clear();
-    idCount = 0;
-    idCountCompleted = 0;
-    for (Node *&node : nodeIndices)
-    {
-        node = nullptr;
-    }
 }

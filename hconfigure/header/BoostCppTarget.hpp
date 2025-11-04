@@ -140,7 +140,7 @@ class BoostCppTarget : TargetCache
     template <typename T, typename... U> BoostCppTarget &deps(DepType depType, T &dep_, U &&...deps_);
 
     template <BoostExampleOrTestType EOT>
-    void getTargetFromConfiguration(string_view name, string_view buildCacheFilesDirPath, const string &filePath) const;
+    void getTargetFromConfiguration(string_view name, Node *myBuildDir, const string &filePath) const;
     template <BoostExampleOrTestType EOT> bool getExplicitBuilding() const;
     template <BoostExampleOrTestType EOT> static string getInnerBuildDirExcludingFileName();
     template <BoostExampleOrTestType EOT>
@@ -385,8 +385,13 @@ void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &targ
     const string configurationNamePlusTargetName =
         removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
-    const string buildCacheFilesDirPath =
-        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
+    Node *myBuildDir = nullptr;
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
+                                     target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(myBuildDirStr);
+    }
     const string *pushName =
         new string(target.getInnerBuildDirExcludingFileName<EOT>() + slashc + getNameBeforeLastPeriod(fileName));
     const string name = configurationNamePlusTargetName + *pushName;
@@ -394,7 +399,7 @@ void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &targ
     writeUint8(target.configBuffer, static_cast<uint8_t>(EOT));
     writeStringView(target.configBuffer, *pushName);
 
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
+    target.getTargetFromConfiguration<EOT>(name, myBuildDir, string(sourceDir) + slashc + string(fileName));
 }
 
 template <BoostExampleOrTestType EOT>
@@ -403,13 +408,19 @@ void BoostCppTarget::Add<EOT, false>::operator()(BoostCppTarget &target, string_
     const string configurationNamePlusTargetName =
         removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
-    const string buildCacheFilesDirPath =
-        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
+    Node *myBuildDir = nullptr;
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
+                                     target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(myBuildDirStr);
+    }
+
     const string pushName =
         target.getInnerBuildDirExcludingFileName<EOT>() + slashc + getNameBeforeLastPeriod(fileName);
     const string name = configurationNamePlusTargetName + pushName;
 
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
+    target.getTargetFromConfiguration<EOT>(name, myBuildDir, string(sourceDir) + slashc + string(fileName));
 }
 
 template <BoostExampleOrTestType EOT, bool addInConfigCache>
@@ -419,8 +430,13 @@ void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &
     const string configurationNamePlusTargetName =
         removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
-    const string buildCacheFilesDirPath =
-        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
+    Node *myBuildDir = nullptr;
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
+                                     target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(myBuildDirStr);
+    }
     const string *pushName = new string(target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc +
                                         getNameBeforeLastPeriod(fileName));
     const string name = configurationNamePlusTargetName + *pushName;
@@ -428,7 +444,7 @@ void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &
     writeUint8(target.configBuffer, static_cast<uint8_t>(EOT));
     writeStringView(target.configBuffer, *pushName);
 
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
+    target.getTargetFromConfiguration<EOT>(name, myBuildDir, string(sourceDir) + slashc + string(fileName));
 }
 
 template <BoostExampleOrTestType EOT>
@@ -438,13 +454,18 @@ void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, str
     const string configurationNamePlusTargetName =
         removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
-    const string buildCacheFilesDirPath =
-        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
+    Node *myBuildDir = nullptr;
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
+                                     target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(myBuildDirStr);
+    }
     const string pushName =
         target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc + getNameBeforeLastPeriod(fileName);
     const string name = configurationNamePlusTargetName + pushName;
 
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
+    target.getTargetFromConfiguration<EOT>(name, myBuildDir, string(sourceDir) + slashc + string(fileName));
 }
 
 template <typename T, typename... U> BoostCppTarget &BoostCppTarget::privateTestDeps(T &dep_, U &&...deps_)
@@ -527,14 +548,13 @@ template <typename T, typename... U> BoostCppTarget &BoostCppTarget::deps(DepTyp
 }
 
 template <BoostExampleOrTestType EOT>
-void BoostCppTarget::getTargetFromConfiguration(const string_view name, const string_view buildCacheFilesDirPath,
-                                                const string &filePath) const
+void BoostCppTarget::getTargetFromConfiguration(const string_view name, Node *myBuildDir, const string &filePath) const
 {
     CppSourceTarget *testOrExmple;
     if constexpr (EOT == BoostExampleOrTestType::COMPILE_TEST)
     {
-        CppSourceTarget &t = configuration->getCppObjectNoNameAddStdTarget(
-            getExplicitBuilding<EOT>(), string(buildCacheFilesDirPath), string(name));
+        CppSourceTarget &t =
+            configuration->getCppObjectNoNameAddStdTarget(getExplicitBuilding<EOT>(), myBuildDir, string(name));
         t.privateDeps(&mainTarget.getSourceTarget()).moduleFiles(filePath);
         for (CppSourceTarget *dep : cppTestDepsPrivate)
         {
@@ -545,7 +565,7 @@ void BoostCppTarget::getTargetFromConfiguration(const string_view name, const st
     else
     {
         DSC<CppSourceTarget> &t =
-            configuration->getCppExeDSCNoName(getExplicitBuilding<EOT>(), string(buildCacheFilesDirPath), string(name));
+            configuration->getCppExeDSCNoName(getExplicitBuilding<EOT>(), myBuildDir, string(name));
         t.privateDeps(mainTarget).getSourceTarget().moduleFiles(filePath);
         for (DSC<CppSourceTarget> *dep : dscTestDepsPrivate)
         {

@@ -15,47 +15,42 @@ bool operator<(const LOAT &lhs, const LOAT &rhs)
     return lhs.name < rhs.name;
 }
 
-void LOAT::makeBuildCacheFilesDirPathAtConfigTime(string buildCacheFilesDirPath)
+void LOAT::makeBuildCacheFilesDirPathAtConfigTime()
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (buildCacheFilesDirPath.empty())
+        if (!myBuildDir)
         {
-            buildCacheFilesDirPath = configureNode->filePath + slashc + name;
+            myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(configureNode->filePath + slashc + name);
         }
-        create_directories(buildCacheFilesDirPath);
-        buildCacheFilesDirPathNode = Node::addHalfNodeFromNormalizedStringSingleThreaded(buildCacheFilesDirPath);
+        create_directories(myBuildDir->filePath);
     }
 }
 
 LOAT::LOAT(Configuration &config_, const string &name_, const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType, name_, false,
-            false)
+    : PLOAT(config_, getLastNameAfterSlash(name_), nullptr, targetType, name_, false, false)
 {
-    makeBuildCacheFilesDirPathAtConfigTime("");
+    makeBuildCacheFilesDirPathAtConfigTime();
 }
 
 LOAT::LOAT(Configuration &config_, const bool buildExplicit, const string &name_, const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + name_, targetType, name_,
-            buildExplicit, false)
+    : PLOAT(config_, getLastNameAfterSlash(name_), nullptr, targetType, name_, buildExplicit, false)
 {
-    makeBuildCacheFilesDirPathAtConfigTime("");
+    makeBuildCacheFilesDirPathAtConfigTime();
 }
 
-LOAT::LOAT(Configuration &config_, const string &buildCacheFileDirPath_, const string &name_,
-           const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + buildCacheFileDirPath_,
-            targetType, name_, false, false)
+LOAT::LOAT(Configuration &config_, Node *myBuildDir_, const string &name_, const TargetType targetType)
+    : PLOAT(config_, getLastNameAfterSlash(name_), myBuildDir_, targetType, name_, false, false), myBuildDir(myBuildDir_)
 {
-    makeBuildCacheFilesDirPathAtConfigTime(configureNode->filePath + slashc + buildCacheFileDirPath_);
+    makeBuildCacheFilesDirPathAtConfigTime();
 }
 
-LOAT::LOAT(Configuration &config_, const string &buildCacheFileDirPath_, const bool buildExplicit, const string &name_,
+LOAT::LOAT(Configuration &config_, Node *myBuildDir_, const bool buildExplicit, const string &name_,
            const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_), configureNode->filePath + slashc + buildCacheFileDirPath_,
-            targetType, name_, buildExplicit, false)
+    : PLOAT(config_, getLastNameAfterSlash(name_), myBuildDir_, targetType, name_, buildExplicit, false),
+      myBuildDir(myBuildDir_)
 {
-    makeBuildCacheFilesDirPathAtConfigTime(configureNode->filePath + slashc + buildCacheFileDirPath_);
+    makeBuildCacheFilesDirPathAtConfigTime();
 }
 
 void LOAT::setOutputName(string str)
@@ -359,13 +354,13 @@ void LOAT::writeBuildCache(vector<char> &buffer)
 
 void LOAT::writeCacheAtConfigureTime()
 {
-    writeNode(configCacheBuffer, buildCacheFilesDirPathNode);
+    writeNode(configCacheBuffer, myBuildDir);
     fileTargetCaches[cacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
 void LOAT::readCacheAtBuildTime()
 {
-    buildCacheFilesDirPathNode = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
+    myBuildDir = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
     if (fileTargetCaches[cacheIndex].configCache.size() != configCacheBytesRead)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
