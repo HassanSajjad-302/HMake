@@ -329,7 +329,8 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, cons
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(cppSourceTarget, &getSharedPLOAT(prebuiltName, myBuildDir), defines));
+        return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(
+            cppSourceTarget, &getSharedPLOAT(prebuiltName, myBuildDir), defines));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
 }
