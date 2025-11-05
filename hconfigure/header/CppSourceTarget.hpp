@@ -54,6 +54,8 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     // be used.
     HashedCommand compileCommandWithTool;
 
+    vector<uint32_t> reqDepsVecIndices;
+
     vector<SourceNode *> srcFileDeps;
     vector<SMFile *> modFileDeps;
     vector<SMFile *> imodFileDeps;
@@ -86,6 +88,9 @@ class CppSourceTarget : public ObjectFileProducerWithDS<CppSourceTarget>, public
     // Used only at configure time
     uint32_t reqHeaderFilesSize = 0;
     uint32_t useReqHeaderFilesSize = 0;
+
+    // Used only at build-time
+    uint32_t configRead = 0;
 
     bool isSystem = false;
     bool ignoreHeaderDeps = false;

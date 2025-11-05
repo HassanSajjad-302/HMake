@@ -590,8 +590,9 @@ SMFile *SMFile::findModule(const string &moduleName) const
 
     if (!moduleName.contains(':'))
     {
-        for (CppSourceTarget *req : target->reqDeps)
+        for (const uint32_t index : target->reqDepsVecIndices)
         {
+            CppSourceTarget *req = cppSourceTargets[index];
             if (auto it2 = req->imodNames.find(moduleName); it2 != req->imodNames.end())
             {
                 if (found)
@@ -622,16 +623,18 @@ HeaderFileOrUnit SMFile::findHeaderFileOrUnit(const string &headerName)
         foundTarget = target;
     }
 
-    for (CppSourceTarget *t : target->reqDeps)
+    for (const uint32_t index : target->reqDepsVecIndices)
     {
-        if (const auto &it = t->useReqHeaderNameMapping.find(headerName); it != t->useReqHeaderNameMapping.end())
+        CppSourceTarget *req = cppSourceTargets[index];
+
+        if (const auto &it = req->useReqHeaderNameMapping.find(headerName); it != req->useReqHeaderNameMapping.end())
         {
             if (found.data.smFile)
             {
-                duplicateHeaderFileOrUnitError(headerName, found, it->second, foundTarget, t);
+                duplicateHeaderFileOrUnitError(headerName, found, it->second, foundTarget, req);
             }
             found = it->second;
-            foundTarget = t;
+            foundTarget = req;
         }
     }
 

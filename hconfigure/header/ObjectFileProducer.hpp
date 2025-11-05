@@ -39,6 +39,7 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
         }
     };
 
+    // Following 2 unused at BSMode::Build
     // we need this to be ordered in setCompileCommand. order is deterministic as insertions are supposed to be always
     // in order
     phmap::btree_set<T *, TPointerLess> reqDeps;
@@ -63,15 +64,21 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &dep, U &&...objec
 {
     if (depType == DepType::PUBLIC)
     {
-        reqDeps.emplace(&dep);
-        useReqDeps.emplace(&dep);
-        addDepNow<1>(dep);
+        if constexpr (bsMode == BSMode::CONFIGURE)
+        {
+            reqDeps.emplace(&dep);
+            useReqDeps.emplace(&dep);
+            addDepNow<1>(dep);
+        }
         addDepNow<0, BTargetDepType::SELECTIVE>(dep);
     }
     else if (depType == DepType::PRIVATE)
     {
-        reqDeps.emplace(&dep);
-        addDepNow<1>(dep);
+        if constexpr (bsMode == BSMode::CONFIGURE)
+        {
+            reqDeps.emplace(&dep);
+            addDepNow<1>(dep);
+        }
         addDepNow<0, BTargetDepType::SELECTIVE>(dep);
     }
     else

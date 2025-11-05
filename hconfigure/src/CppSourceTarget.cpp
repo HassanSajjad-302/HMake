@@ -160,6 +160,57 @@ CppSourceTarget::CppSourceTarget(Node *myBuildDir_, const bool buildExplicit, co
     initializeCppSourceTarget(name_, myBuildDir_);
 }
 
+void writeIncDirsAtConfigTime(vector<char> &buffer, const vector<InclNode> &include)
+{
+    writeUint32(buffer, include.size());
+    for (auto &inclNode : include)
+    {
+        writeNode(buffer, inclNode.node);
+    }
+}
+
+void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNode> &include, bool isStandard,
+                             bool ignoreHeaderDeps)
+{
+    const uint32_t reserveSize = readUint32(ptr, bytesRead);
+    include.reserve(reserveSize);
+    for (uint32_t i = 0; i < reserveSize; ++i)
+    {
+        include.emplace_back(readHalfNode(ptr, bytesRead), isStandard, ignoreHeaderDeps);
+    }
+}
+
+void writeHeaderFilesAtConfigTime(vector<char> &buffer, flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping,
+                                  uint32_t headersSize)
+{
+    writeUint32(buffer, headersSize);
+    for (const auto &[s, h] : headerNameMapping)
+    {
+        if (h.isUnit)
+        {
+            continue;
+        }
+
+        writeStringView(buffer, s);
+        writeNode(buffer, h.data.node);
+    }
+}
+
+void readHeaderFilesAtBuildTime(const char *ptr, uint32_t &bytesRead,
+                                flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping, bool isSystem)
+{
+    const uint32_t includeSize = readUint32(ptr, bytesRead);
+    for (uint32_t i = 0; i < includeSize; ++i)
+    {
+        string_view name = readStringView(ptr, bytesRead);
+        Node *node = readHalfNode(ptr, bytesRead);
+        if (!headerNameMapping.emplace(name, HeaderFileOrUnit{node, isSystem}).second)
+        {
+            HMAKE_HMAKE_INTERNAL_ERROR
+        }
+    }
+}
+
 void CppSourceTarget::initializeCppSourceTarget(const string &name_, Node *myBuildDir_)
 {
     isSystem = configuration->evaluate(SystemTarget::YES);
@@ -189,8 +240,13 @@ void CppSourceTarget::initializeCppSourceTarget(const string &name_, Node *myBui
         cppSourceTargets[cacheIndex] = this;
 
         // only the first boolean ob hasObjectFiles is read.
-        uint32_t configRead = 0;
-        hasObjectFiles = readBool(fileTargetCaches[cacheIndex].configCache.data(), configRead);
+        configRead = 0;
+        const char *ptr = fileTargetCaches[cacheIndex].configCache.data();
+        hasObjectFiles = readBool(ptr, configRead);
+        if (configuration->evaluate(TreatModuleAsSource::YES))
+        {
+            readInclDirsAtBuildTime(ptr, configRead, useReqIncls, isSystem, ignoreHeaderDeps);
+        }
     }
 }
 
@@ -219,8 +275,21 @@ void CppSourceTarget::updateBuildCache(void *ptr, string &outputStr, string &err
 
 void CppSourceTarget::populateTransitiveProperties()
 {
+#ifdef BUILD_MODE
+
+    for (const uint32_t index : reqDepsVecIndices)
+    {
+        CppSourceTarget *cppSourceTarget = cppSourceTargets[index];
+        if (!cppSourceTarget)
+        {
+            HMAKE_HMAKE_INTERNAL_ERROR
+        }
+#else
     for (CppSourceTarget *cppSourceTarget : reqDeps)
     {
+
+#endif
+
         if (configuration->evaluate(TreatModuleAsSource::YES))
         {
             for (const InclNode &inclNode : cppSourceTarget->useReqIncls)
@@ -856,8 +925,8 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
             writeBigHeaderUnits();
-            writeCacheAtConfigTime();
             populateReqAndUseReqDeps();
+            writeCacheAtConfigTime();
 
             for (CppSourceTarget *t : reqDeps)
             {
@@ -886,7 +955,6 @@ void CppSourceTarget::updateBTarget(Builder &builder, const unsigned short round
         {
             cppBuildCache.deserialize(cacheIndex);
             readConfigCacheAtBuildTime();
-            populateReqAndUseReqDeps();
         }
 
         // Needed to maintain ordering between different includes specification.
@@ -990,57 +1058,6 @@ template <typename T, typename U> void adjustBuildCache(vector<T> &oldCache, con
     oldCache = std::move(*newCache);
 }
 
-void writeIncDirsAtConfigTime(vector<char> &buffer, const vector<InclNode> &include)
-{
-    writeUint32(buffer, include.size());
-    for (auto &inclNode : include)
-    {
-        writeNode(buffer, inclNode.node);
-    }
-}
-
-void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNode> &include, bool isStandard,
-                             bool ignoreHeaderDeps)
-{
-    const uint32_t reserveSize = readUint32(ptr, bytesRead);
-    include.reserve(reserveSize);
-    for (uint32_t i = 0; i < reserveSize; ++i)
-    {
-        include.emplace_back(readHalfNode(ptr, bytesRead), isStandard, ignoreHeaderDeps);
-    }
-}
-
-void writeHeaderFilesAtConfigTime(vector<char> &buffer, flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping,
-                                  uint32_t headersSize)
-{
-    writeUint32(buffer, headersSize);
-    for (const auto &[s, h] : headerNameMapping)
-    {
-        if (h.isUnit)
-        {
-            continue;
-        }
-
-        writeStringView(buffer, s);
-        writeNode(buffer, h.data.node);
-    }
-}
-
-void readHeaderFilesAtBuildTime(const char *ptr, uint32_t &bytesRead,
-                                flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping, bool isSystem)
-{
-    const uint32_t includeSize = readUint32(ptr, bytesRead);
-    for (uint32_t i = 0; i < includeSize; ++i)
-    {
-        string_view name = readStringView(ptr, bytesRead);
-        Node *node = readHalfNode(ptr, bytesRead);
-        if (!headerNameMapping.emplace(name, HeaderFileOrUnit{node, isSystem}).second)
-        {
-            HMAKE_HMAKE_INTERNAL_ERROR
-        }
-    }
-}
-
 void CppSourceTarget::setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache)
 {
     for (Node *node : modCache.srcFile.headerFiles)
@@ -1120,6 +1137,18 @@ void CppSourceTarget::writeCacheAtConfigTime()
 
     const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty();
     writeBool(*configBuffer, hasObjFiles);
+
+    if (configuration->evaluate(TreatModuleAsSource::YES))
+    {
+        writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
+    }
+
+    writeUint32(*configBuffer, reqDeps.size());
+    for (CppSourceTarget *r : reqDeps)
+    {
+        writeUint32(*configBuffer, r->cacheIndex);
+    }
+
     writeUint32(*configBuffer, srcFileDeps.size());
     for (SourceNode *source : srcFileDeps)
     {
@@ -1197,7 +1226,6 @@ void CppSourceTarget::writeCacheAtConfigTime()
     if (configuration->evaluate(TreatModuleAsSource::YES))
     {
         writeIncDirsAtConfigTime(*configBuffer, reqIncls);
-        writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
     }
     else
     {
@@ -1216,10 +1244,13 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
 {
     const string_view configCache = fileTargetCaches[cacheIndex].configCache;
 
-    uint32_t configRead = 0;
     const char *ptr = configCache.data();
 
-    hasObjectFiles = readBool(ptr, configRead);
+    const uint32_t reqVecSize = readUint32(ptr, configRead);
+    for (uint32_t i = 0; i < reqVecSize; ++i)
+    {
+        reqDepsVecIndices.emplace_back(readUint32(ptr, configRead));
+    }
     const uint32_t sourceSize = readUint32(ptr, configRead);
     srcFileDeps.reserve(sourceSize);
     for (uint32_t i = 0; i < sourceSize; ++i)
@@ -1303,7 +1334,6 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
     if (configuration->evaluate(TreatModuleAsSource::YES))
     {
         readInclDirsAtBuildTime(ptr, configRead, reqIncls, isSystem, ignoreHeaderDeps);
-        readInclDirsAtBuildTime(ptr, configRead, useReqIncls, isSystem, ignoreHeaderDeps);
     }
     else
     {
