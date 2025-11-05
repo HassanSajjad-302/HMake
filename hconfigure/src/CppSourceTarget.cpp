@@ -1392,6 +1392,7 @@ void CppSourceTarget::parseRegexSourceDirs(bool assignToSourceNodes, const strin
 
 void CppSourceTarget::setCompileCommand()
 {
+    compileCommand.reserve(4 * 1024);
     const CompilerFlags &flags = configuration->compilerFlags;
     const Compiler &compiler = configuration->compilerFeatures.compiler;
     compileCommand += '\"';

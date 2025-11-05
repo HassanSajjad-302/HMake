@@ -40,7 +40,8 @@ LOAT::LOAT(Configuration &config_, const bool buildExplicit, const string &name_
 }
 
 LOAT::LOAT(Configuration &config_, Node *myBuildDir_, const string &name_, const TargetType targetType)
-    : PLOAT(config_, getLastNameAfterSlash(name_), myBuildDir_, targetType, name_, false, false), myBuildDir(myBuildDir_)
+    : PLOAT(config_, getLastNameAfterSlash(name_), myBuildDir_, targetType, name_, false, false),
+      myBuildDir(myBuildDir_)
 {
     makeBuildCacheFilesDirPathAtConfigTime();
 }
@@ -408,7 +409,7 @@ void LOAT::setLinkOrArchiveCommands()
     const Linker &linker = config.linkerFeatures.linker;
     const Archiver &archiver = config.linkerFeatures.archiver;
 
-    linkWithTargets.reserve(1024);
+    linkWithTargets.reserve(4 * 1024);
 
     linkWithTargets = "\"";
     if (linkTargetType == TargetType::LIBRARY_STATIC)

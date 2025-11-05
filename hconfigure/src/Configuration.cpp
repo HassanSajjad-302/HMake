@@ -147,8 +147,8 @@ LOAT &Configuration::GetExeLOAT(const string &name_)
 
 LOAT &Configuration::GetExeLOAT(bool explicitBuild, Node *myBuildDir, const string &name_)
 {
-    LOAT &loat = targets<LOAT>.emplace_back(*this, myBuildDir, explicitBuild, name + slashc + name_,
-                                            TargetType::EXECUTABLE);
+    LOAT &loat =
+        targets<LOAT>.emplace_back(*this, myBuildDir, explicitBuild, name + slashc + name_, TargetType::EXECUTABLE);
     loats.emplace_back(&loat);
     return loat;
 }
@@ -162,8 +162,8 @@ LOAT &Configuration::getStaticLOAT(const string &name_)
 
 LOAT &Configuration::getStaticLOAT(bool explicitBuild, Node *myBuildDir, const string &name_)
 {
-    LOAT &loat = targets<LOAT>.emplace_back(*this, myBuildDir, explicitBuild, name + slashc + name_,
-                                            TargetType::LIBRARY_STATIC);
+    LOAT &loat =
+        targets<LOAT>.emplace_back(*this, myBuildDir, explicitBuild, name + slashc + name_, TargetType::LIBRARY_STATIC);
     loats.emplace_back(&loat);
     return loat;
 }
@@ -177,8 +177,8 @@ LOAT &Configuration::getSharedLOAT(const string &name_)
 
 LOAT &Configuration::getSharedLOAT(bool explicitBuild, Node *myBuildDir, const string &name_)
 {
-    LOAT &loat = targets<LOAT>.emplace_back(*this, myBuildDir, explicitBuild, name + slashc + name_,
-                                            TargetType::LIBRARY_SHARED);
+    LOAT &loat =
+        targets<LOAT>.emplace_back(*this, myBuildDir, explicitBuild, name + slashc + name_, TargetType::LIBRARY_SHARED);
     loats.emplace_back(&loat);
     return loat;
 }
@@ -329,8 +329,7 @@ DSC<CppSourceTarget> &Configuration::getCppTargetDSC_P(const string &name_, cons
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(
-            targets<DSC<CppSourceTarget>>.emplace_back(cppSourceTarget, &getSharedPLOAT(prebuiltName, myBuildDir), defines));
+        return addStdDSCCppDep(targets<DSC<CppSourceTarget>>.emplace_back(cppSourceTarget, &getSharedPLOAT(prebuiltName, myBuildDir), defines));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
 }
@@ -394,8 +393,7 @@ LOAT &Configuration::getStaticLOATNoName(const string &name_)
 
 LOAT &Configuration::getStaticLOATNoName(bool explicitBuild, Node *myBuildDir, const string &name_)
 {
-    LOAT &loat =
-        targets<LOAT>.emplace_back(*this, myBuildDir, explicitBuild, name_, TargetType::LIBRARY_STATIC);
+    LOAT &loat = targets<LOAT>.emplace_back(*this, myBuildDir, explicitBuild, name_, TargetType::LIBRARY_STATIC);
     loats.emplace_back(&loat);
     return loat;
 }

@@ -58,8 +58,8 @@ class PLOAT : public BTarget, public TargetCache
     string_view getOutputDirectoryV() const;
 
     PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_);
-    PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_, string name_,
-          bool buildExplicit, bool makeDirectory);
+    PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_,
+          string name_, bool buildExplicit, bool makeDirectory);
 
     template <typename T> bool evaluate(T property) const;
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
