@@ -55,9 +55,9 @@ VSTools::VSTools(string batchFile, path toolBinDir, const Arch hostArch_, const 
     compiler.bTFamily = linker.bTFamily = archiver.bTFamily = BTFamily::MSVC;
     compiler.bTVersion = linker.bTVersion = archiver.bTVersion = toolVersion;
     toolBinDir = toolBinDir.lexically_normal();
-    compiler.bTPath = toolBinDir / "cl.exe";
-    linker.bTPath = toolBinDir / "link.exe";
-    archiver.bTPath = toolBinDir / "lib.exe";
+    compiler.bTPath = path(toolBinDir / "cl.exe").lexically_normal().string();
+    linker.bTPath = path(toolBinDir / "link.exe").lexically_normal().string();
+    archiver.bTPath = path(toolBinDir / "lib.exe").lexically_normal().string();
     initializeFromVSToolBatchCommand(executingFromWSL);
 }
 
@@ -177,7 +177,7 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
     const string str = std::filesystem::current_path().string();
     const string temporaryCppFile = "temporary-main.cpp";
     ofstream(temporaryCppFile) << "";
-    command = compiler.bTPath.string() + " " + temporaryCppFile + " -E -v> " + temporaryIncludeFilename + " 2>&1";
+    command = compiler.bTPath + " " + temporaryCppFile + " -E -v> " + temporaryIncludeFilename + " 2>&1";
     const int code = system(command.c_str());
     remove(temporaryCppFile);
     if (code != EXIT_SUCCESS)

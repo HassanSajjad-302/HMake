@@ -4,6 +4,7 @@
 #include "nlohmann/json.hpp"
 #include <filesystem>
 
+using std::string;
 using std::filesystem::path;
 using Json = nlohmann::json;
 
@@ -45,8 +46,8 @@ struct BuildTool
     BTFamily bTFamily{};
     BTSubFamily btSubFamily{};
     Version bTVersion;
-    path bTPath;
-    BuildTool(BTFamily btFamily_, Version btVersion_, path btPath_);
+    string bTPath;
+    BuildTool(BTFamily btFamily_, Version btVersion_, string btPath_);
     BuildTool() = default;
 };
 void to_json(Json &json, const BuildTool &buildTool);
@@ -55,19 +56,19 @@ void from_json(const Json &json, BuildTool &buildTool);
 // templates could had been used here but to avoid extra typing of < and >, this is preferred.
 struct Compiler : BuildTool
 {
-    Compiler(BTFamily btFamily_, Version btVersion_, path btPath_);
+    Compiler(BTFamily btFamily_, Version btVersion_, string btPath_);
     Compiler() = default;
 };
 
 struct Linker : BuildTool
 {
-    Linker(BTFamily btFamily_, Version btVersion_, path btPath_);
+    Linker(BTFamily btFamily_, Version btVersion_, string btPath_);
     Linker() = default;
 };
 
 struct Archiver : BuildTool
 {
-    Archiver(BTFamily btFamily_, Version btVersion_, path btPath_);
+    Archiver(BTFamily btFamily_, Version btVersion_, string btPath_);
     Archiver() = default;
 };
 

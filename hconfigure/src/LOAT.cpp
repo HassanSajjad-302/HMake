@@ -414,11 +414,11 @@ void LOAT::setLinkOrArchiveCommands()
     linkWithTargets = "\"";
     if (linkTargetType == TargetType::LIBRARY_STATIC)
     {
-        linkWithTargets += config.linkerFeatures.archiver.bTPath.generic_string() + "\" ";
+        linkWithTargets += config.linkerFeatures.archiver.bTPath + "\" ";
     }
     else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
     {
-        linkWithTargets += config.linkerFeatures.linker.bTPath.generic_string() + "\" ";
+        linkWithTargets += config.linkerFeatures.linker.bTPath + "\" ";
     }
 
     // following 2 are appended with an extra "

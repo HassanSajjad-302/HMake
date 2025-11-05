@@ -129,7 +129,7 @@ void Builder::execute()
     std::unique_lock lk(executeMutex);
     while (true)
     {
-        if (exeMode == ExecuteMode::GENERAL)
+        if (exeMode == ExecuteMode::WAIT)
         {
             if (rb = updateBTargets.getItem(); rb)
             {
@@ -187,6 +187,46 @@ void Builder::execute()
                                      getThreadId()));
                 DEBUG_EXECUTE(FORMAT("{} Returning after roundGoal Achieved{} {}\n", round, __LINE__, getThreadId()));
                 return;
+            }
+        }
+        else if (exeMode == ExecuteMode::PARALLEL)
+        {
+            if (checkingCount < launchedCount)
+            {
+                const unsigned short nodeCheckIndex = checkingCount;
+                ++checkingCount;
+                DEBUG_EXECUTE(FORMAT("{} checking-count incremented {} {}\n", checkingCount, __LINE__, getThreadId()));
+                executeMutex.unlock();
+                cond.notify_one();
+                for (Node *node : uncheckedNodes[nodeCheckIndex])
+                {
+                    node->performSystemCheck();
+                    node->systemCheckCalled = true;
+                    node->systemCheckCompleted = true;
+                }
+                DEBUG_EXECUTE(FORMAT("{} locking-mutex {} {}\n", checkedCount, __LINE__, getThreadId()));
+                executeMutex.lock();
+                ++checkedCount;
+                DEBUG_EXECUTE(FORMAT("{} checked-count incremented {} {}\n", checkedCount, __LINE__, getThreadId()));
+                continue;
+            }
+
+            if (checkedCount == launchedCount)
+            {
+                if (round && !errorHappenedInRoundMode)
+                {
+                    uncheckedNodesCentral.reserve(Node::idCountCompleted);
+                    for (uint32_t i = 0; i < Node::idCountCompleted; ++i)
+                    {
+                        if (nodeIndices[i]->toBeChecked)
+                        {
+                            // uncheckedNodesCentral.emplace_back(nodeIndices[i]);
+                        }
+                    }
+                    uncheckedNodes = divideInChunk(uncheckedNodesCentral, launchedCount);
+                    exeMode = ExecuteMode::NODE_CHECK;
+                    continue;
+                }
             }
         }
         else if (exeMode == ExecuteMode::NODE_CHECK)
@@ -256,7 +296,7 @@ void Builder::execute()
 
                 updateBTargetsSizeGoal = RealBTarget::sorted.size();
                 isOneThreadRunning = false;
-                exeMode = ExecuteMode::GENERAL;
+                exeMode = ExecuteMode::WAIT;
                 continue;
             }
         }

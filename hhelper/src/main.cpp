@@ -204,7 +204,7 @@ int main(int argc, char **argv)
 
             // hhelper currently only works with MSVC compiler expected in toolsCache vsTools[0]
             auto getCommand = [&](const bool configureExe) {
-                string command = addQuotes(toolsCache.vsTools[0].compiler.bTPath.lexically_normal().string()) + " ";
+                string command = addQuotes(toolsCache.vsTools[0].compiler.bTPath) + " ";
                 for (const string &str : toolsCache.vsTools[0].includeDirs)
                 {
                     command += "/I " + addQuotes(str) + " ";

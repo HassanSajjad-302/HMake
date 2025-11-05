@@ -1426,7 +1426,7 @@ void CppSourceTarget::setCompileCommand()
     const CompilerFlags &flags = configuration->compilerFlags;
     const Compiler &compiler = configuration->compilerFeatures.compiler;
     compileCommand += '\"';
-    compileCommand += configuration->compilerFeatures.compiler.bTPath.string() + "\" ";
+    compileCommand += configuration->compilerFeatures.compiler.bTPath + "\" ";
     if (compiler.bTFamily == BTFamily::GCC)
     {
         compileCommand +=

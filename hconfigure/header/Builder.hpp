@@ -16,7 +16,8 @@ using std::vector, std::list;
 /// Current mode of build algorithm
 enum class ExecuteMode
 {
-    GENERAL,
+    WAIT,
+    PARALLEL,
     NODE_CHECK,
 };
 
@@ -40,7 +41,7 @@ enum class ExecuteMode
 /// BTarget::postRoundOneCompletion. After this Builder::execute switches to ExecuteMode::NODE_CHECK. In this mode, all
 /// launched threads call Node::performSystemCheck for selected Nodes in parallel. Node::performSystemCheck is a slow
 /// operation and build-system spends 90% of time on this. Doing it in multi-thread improves the zero target build speed
-/// by 2x-3x. After this Builder::execute switch back to ExecuteMode::GENERAL and round0 is completed.
+/// by 2x-3x. After this Builder::execute switch back to ExecuteMode::WAIT and round0 is completed.
 ///
 ///
 class Builder
@@ -51,7 +52,7 @@ class Builder
     uint32_t updateBTargetsSizeGoal = 0;
     mutex executeMutex;
     std::condition_variable cond;
-    ExecuteMode exeMode = ExecuteMode::GENERAL;
+    ExecuteMode exeMode = ExecuteMode::WAIT;
 
     unsigned short threadCount = 0;
     unsigned short launchedCount = 0;
