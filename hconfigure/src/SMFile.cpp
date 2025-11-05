@@ -475,7 +475,7 @@ void SMFile::makeAndSendBTCModule(SMFile &mod)
 
 void SMFile::makeAndSendBTCNonModule(SMFile &hu)
 {
-    if (node->filePath.ends_with("public-13.hpp"))
+    if (node->filePath.ends_with("lib1-cpp"))
     {
         bool breakpoint = true;
     }
@@ -529,7 +529,7 @@ void SMFile::makeAndSendBTCNonModule(SMFile &hu)
         }
     }
 
-    if (node->filePath.ends_with("public-13.hpp"))
+    if (node->filePath.ends_with("lib1-cpp"))
     {
         bool brekapoint = true;
     }
@@ -654,7 +654,7 @@ HeaderFileOrUnit SMFile::findHeaderFileOrUnit(const string &headerName)
 
 bool SMFile::build(Builder &builder)
 {
-    if (node->filePath.ends_with("public-13.hpp"))
+    if (node->filePath.ends_with("main2.cpp"))
     {
         bool breakpoint = true;
     }
@@ -694,6 +694,7 @@ bool SMFile::build(Builder &builder)
                 assert(rb.exitStatus == lastMessage.errorOccurred && "error-status mismatch");
                 compilationOutput = std::move(lastMessage.errorOutput);
 
+                thrIndex = myThreadIndex;
                 CacheWriteManager::addNewEntry(target, this);
                 return false;
             }
@@ -709,7 +710,7 @@ bool SMFile::build(Builder &builder)
                     bool breakpoint = true;
                 }
 
-                if (node->filePath.ends_with("public-13.hpp"))
+                if (node->filePath.ends_with("lib1-cpp"))
                 {
                     N2978::CTBNonModule non_module = static_cast<N2978::CTBNonModule>(buffer);
                     bool breakpoint = true;
@@ -826,7 +827,7 @@ bool SMFile::build(Builder &builder)
 
             RealBTarget &foundRb = found->realBTargets[0];
 
-            if (node->filePath.ends_with("public-13.hpp"))
+            if (node->filePath.ends_with("lib1-cpp"))
             {
                 N2978::CTBNonModule non_module = static_cast<N2978::CTBNonModule>(buffer);
                 bool breakpoint = true;
@@ -904,7 +905,7 @@ void SMFile::updateBTarget(Builder &builder, const unsigned short round, bool &i
                 }
 
                 const string compileCommand = target->compileCommand + getCompileCommand();
-                if (node->filePath.ends_with("public-13.hpp"))
+                if (node->filePath.ends_with("lib1-cpp"))
                 {
                     bool breakpoint = true;
                     run.startProcess(compileCommand, true);
