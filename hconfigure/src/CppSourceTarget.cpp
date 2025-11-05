@@ -1227,7 +1227,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
         SourceNode *src = srcFileDeps.emplace_back(new SourceNode(this, readHalfNode(ptr, configRead)));
         src->objectNode = readHalfNode(ptr, configRead);
 
-        addDepNow<0>(*srcFileDeps[i]);
+        addDepMT<0>(*srcFileDeps[i]);
     }
 
     const uint32_t modSize = readUint32(ptr, configRead);
@@ -1238,7 +1238,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
         smFile->objectNode = readHalfNode(ptr, configRead);
         smFile->type = SM_FILE_TYPE::PRIMARY_IMPLEMENTATION;
 
-        addDepNow<0>(*smFile);
+        addDepMT<0>(*smFile);
     }
 
     const uint32_t imodSize = readUint32(ptr, configRead);
@@ -1253,7 +1253,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
             smFile->logicalNames[0].contains(':') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
         imodNames.emplace(smFile->logicalNames[0], smFile);
 
-        addDepNow<0>(*smFile);
+        addDepMT<0>(*smFile);
     }
 
     huDeps.resize(cppBuildCache.headerUnits.size());
@@ -1295,7 +1295,7 @@ void CppSourceTarget::readConfigCacheAtBuildTime()
         }
 
         hu->type = SM_FILE_TYPE::HEADER_UNIT;
-        addSelectiveDepNow<0>(*hu);
+        addDepMT<0, BTargetDepType::SELECTIVE>(*hu);
     }
 
     myBuildDir = readHalfNode(ptr, configRead);

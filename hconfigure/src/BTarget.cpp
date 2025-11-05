@@ -302,7 +302,7 @@ void BTarget::postRoundOneCompletion()
                 if (later.doBoth)
                 {
                     later.b->dependencies.emplace(later.dep, later.type);
-                    if (later.type == BTargetDepType::FULL)
+                    if (later.type == BTargetDepType::FULL || later.type == BTargetDepType::WAIT)
                     {
                         ++later.b->dependenciesSize;
                     }
@@ -332,38 +332,6 @@ BTargetType BTarget::getBTargetType() const
 
 void BTarget::updateBTarget(Builder &, unsigned short, bool &isComplete)
 {
-}
-
-void BTarget::addDepHalfNowHalfLater(BTarget &dep)
-{
-    if (realBTargets[0].dependencies.try_emplace(&dep.realBTargets[0], BTargetDepType::FULL).second)
-    {
-        ++realBTargets[0].dependenciesSize;
-        laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::FULL, false);
-    }
-}
-
-void BTarget::addDepLooseHalfNowHalfLater(BTarget &dep)
-{
-    if (realBTargets[0].dependencies.try_emplace(&dep.realBTargets[0], BTargetDepType::LOOSE).second)
-    {
-        laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::LOOSE, false);
-    }
-}
-
-void BTarget::addDepLater(BTarget &dep)
-{
-    laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::FULL, true);
-}
-
-void BTarget::addDepLooseLater(BTarget &dep)
-{
-    laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::LOOSE, true);
-}
-
-bool operator<(const BTarget &lhs, const BTarget &rhs)
-{
-    return lhs.id < rhs.id;
 }
 
 // selectiveBuild is set for the children if hbuild is executed in parent dir. selectiveBuild is set for all

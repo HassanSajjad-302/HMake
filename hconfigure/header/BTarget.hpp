@@ -274,44 +274,57 @@ class BTarget // BTarget
     virtual void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete);
 
     /// Does both steps. Should be called only in single-thread
-    template <unsigned short round> void addDepNow(BTarget &dep);
-    template <unsigned short round> void addSelectiveDepNow(BTarget &dep);
-    template <unsigned short round> void addDepLooseNow(BTarget &dep);
-
-    /// Does one step. Adds the second step in laterDeps to be called later in single-thread
-    void addDepHalfNowHalfLater(BTarget &dep);
-    void addDepLooseHalfNowHalfLater(BTarget &dep);
-    void addDepLater(BTarget &dep);
-    void addDepLooseLater(BTarget &dep);
+    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepNow(BTarget &dep);
+    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepST(BTarget &dep);
+    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepMT(BTarget &dep);
+    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void completeSTDep(BTarget &dep);
+    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepLater(BTarget &dep);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
-template <unsigned short round> void BTarget::addDepNow(BTarget &dep)
+template <unsigned short round, BTargetDepType depType> void BTarget::addDepNow(BTarget &dep)
 {
-    if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], BTargetDepType::FULL).second)
+    if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], depType).second)
     {
-        RealBTarget &depRealBTarget = dep.realBTargets[round];
-        depRealBTarget.dependents.try_emplace(&this->realBTargets[round], BTargetDepType::FULL);
-        ++realBTargets[round].dependenciesSize;
+        dep.realBTargets[round].dependents.try_emplace(&this->realBTargets[round], depType);
+        if constexpr (depType == BTargetDepType::FULL || depType == BTargetDepType::WAIT)
+        {
+            ++realBTargets[round].dependenciesSize;
+        }
     }
 }
 
-template <unsigned short round> void BTarget::addSelectiveDepNow(BTarget &dep)
+template <unsigned short round, BTargetDepType depType> void BTarget::addDepST(BTarget &dep)
 {
-    if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], BTargetDepType::SELECTIVE).second)
+    dep.realBTargets[round].dependents.try_emplace(&this->realBTargets[round], depType);
+}
+
+template <unsigned short round, BTargetDepType depType> void BTarget::addDepMT(BTarget &dep)
+{
+    if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], depType).second)
     {
-        RealBTarget &depRealBTarget = dep.realBTargets[round];
-        depRealBTarget.dependents.try_emplace(&this->realBTargets[round], BTargetDepType::SELECTIVE);
+        laterDepsLocal.emplace_back(&this->realBTargets[round], &dep.realBTargets[round], depType, false);
+        if constexpr (depType == BTargetDepType::FULL || depType == BTargetDepType::WAIT)
+        {
+            ++realBTargets[round].dependenciesSize;
+        }
     }
 }
 
-template <unsigned short round> void BTarget::addDepLooseNow(BTarget &dep)
+template <unsigned short round, BTargetDepType depType> void BTarget::completeSTDep(BTarget &dep)
 {
-    if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], BTargetDepType::LOOSE).second)
+    if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], depType).second)
     {
-        RealBTarget &depRealBTarget = dep.realBTargets[round];
-        depRealBTarget.dependents.try_emplace(&this->realBTargets[round], BTargetDepType::LOOSE);
+        if constexpr (depType == BTargetDepType::FULL || depType == BTargetDepType::WAIT)
+        {
+            ++realBTargets[round].dependenciesSize;
+        }
     }
+}
+
+template <unsigned short round, BTargetDepType depType> void BTarget::addDepLater(BTarget &dep)
+{
+    laterDepsLocal.emplace_back(&this->realBTargets[round], &dep.realBTargets[0], depType, true);
 }
 
 #endif // HMAKE_BASICTARGETS_HPP

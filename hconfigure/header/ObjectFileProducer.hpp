@@ -43,9 +43,6 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
     // in order
     phmap::btree_set<T *, TPointerLess> reqDeps;
     flat_hash_set<T *> useReqDeps;
-    template <typename... U> T &publicDeps(T &dep, U &&...deps);
-    template <typename... U> T &privateDeps(T &dep, U &&...deps);
-    template <typename... U> T &interfaceDeps(T &dep, U &&...deps);
 
     template <typename... U> T &deps(const DepType depType, T &dep, U &&...deps);
 
@@ -60,39 +57,6 @@ ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS(string name_, const bool b
 {
 }
 
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::publicDeps(T &dep, U &&...deps)
-{
-    reqDeps.emplace(&dep);
-    useReqDeps.emplace(&dep);
-    addDependency<2>(dep);
-    if constexpr (sizeof...(deps))
-    {
-        return publicDeps(deps...);
-    }
-    return static_cast<T &>(*this);
-}
-
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::privateDeps(T &dep, U &&...deps)
-{
-    reqDeps.emplace(&dep);
-    addDependency<2>(*dep);
-    if constexpr (sizeof...(deps))
-    {
-        return privateDeps(deps...);
-    }
-    return static_cast<T &>(*this);
-}
-
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::interfaceDeps(T &dep, U &&...deps)
-{
-    useReqDeps.emplace(&dep);
-    if constexpr (sizeof...(deps))
-    {
-        return interfaceDeps(deps...);
-    }
-    return static_cast<T &>(*this);
-}
-
 template <typename T>
 template <typename... U>
 T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &dep, U &&...objectFileDeps)
@@ -102,13 +66,13 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &dep, U &&...objec
         reqDeps.emplace(&dep);
         useReqDeps.emplace(&dep);
         addDepNow<1>(dep);
-        addSelectiveDepNow<0>(dep);
+        addDepNow<0, BTargetDepType::SELECTIVE>(dep);
     }
     else if (depType == DepType::PRIVATE)
     {
         reqDeps.emplace(&dep);
         addDepNow<1>(dep);
-        addSelectiveDepNow<0>(dep);
+        addDepNow<0, BTargetDepType::SELECTIVE>(dep);
     }
     else
     {
