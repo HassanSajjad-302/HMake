@@ -180,12 +180,19 @@ class BTarget // BTarget
     /// Specifying dependencies is 2-step process of adding a value in RealBTarget::dependencies and
     /// RealBTarget::dependents. Doing this in multiple threads in BTarget::updateBTarget is not thread-safe. While
     /// doing it under mutex is too slow.
-    /// This class helps mitigate this with the following invariant.
+    /// This class helps mitigate this with the following invariants.
     /// A BTarget can only emplace in RealBTarget::dependencies of itself in BTarget::updateBTarget. This first step
     /// is thread-safe. However, it can not do the second step of emplace in the dependent RealBTarget's
     /// RealBTarget::dependents. Instead, it adds a new LaterDep in the thread_local BTarget::laterDepsLocal.
     /// Builder::execute will then call BTarget::postRoundCompletion which will go over this array and complete the
-    /// dependency-specification for the round 0.
+    /// dependency-specification.
+    ///
+    /// Another invariant is that if a dependency is to be specified for the current round in BTarget::updateBTarget
+    /// like we do for header-units, then this must be under Builder::executeMutex
+    ///
+    /// Last invariant is that dependency between 2 unrelated BTargets can not be specified in BTarget::updateBTarget.
+    /// Unrelated means that the target specifying dependency in BTarget::updateBTarget is itself neither a dependency
+    /// nor d dependent. That can only be done in single-thread.
     struct LaterDep
     {
         RealBTarget *b;
@@ -273,11 +280,18 @@ class BTarget // BTarget
     /// sets it to true once its compilation completes.
     virtual void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete);
 
-    /// Does both steps. Should be called only in single-thread
+    /// Does both steps. Should be called only in single-thread or under Builder::executeMutex in BTarget::updateBTarget
     template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepNow(BTarget &dep);
+    /// Will complete the second part of adding itself in dependents. The first part need to be manually completed using
+    /// BTarget::completeSTDep. Useful only when we have the reference to dependency in another container so we can
+    /// complete the first part in multithreaded context.
     template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepST(BTarget &dep);
+    /// Will complete the first part and add the second part in LaterDep to be completed later on in single-thread.
     template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepMT(BTarget &dep);
+    /// Does the first part of dependency specification.
     template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void completeSTDep(BTarget &dep);
+    /// if BTarget defining the dependency relationship is neither a dependency nor dependent, then this function should
+    /// be used in BTarget::updateBTarget. It will define the relationship later in single-thread.
     template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepLater(BTarget &dep);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);

@@ -302,9 +302,14 @@ void Builder::execute()
         }
 
         DEBUG_EXECUTE(FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__, sleepingCount, getThreadId()));
-        incrementNumberOfSleepingThreads();
+        if (sleepingCount == launchedCount - 1)
+        {
+            RealBTarget::sortGraph();
+            printErrorMessage("HMake API misuse.\n");
+        }
+        ++sleepingCount;
         cond.wait(lk);
-        decrementNumberOfSleepingThreads();
+        --sleepingCount;
         DEBUG_EXECUTE(
             FORMAT("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__, sleepingCount, getThreadId()));
         if (returnAfterWakeup)
@@ -361,19 +366,4 @@ void Builder::decrementFromDependents(const RealBTarget *rb)
 
     DEBUG_EXECUTE(FORMAT("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round, __LINE__,
                          updateBTargets.size(), updateBTargetsSizeGoal, getThreadId()));
-}
-
-void Builder::incrementNumberOfSleepingThreads()
-{
-    if (sleepingCount == launchedCount - 1)
-    {
-        RealBTarget::sortGraph();
-        printErrorMessage("HMake API misuse.\n");
-    }
-    ++sleepingCount;
-}
-
-void Builder::decrementNumberOfSleepingThreads()
-{
-    --sleepingCount;
 }
