@@ -3,7 +3,7 @@
 #define BOOSTCPPTARGET_HPP
 
 #include "Configuration.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppTarget.hpp"
 #include "DSC.hpp"
 
 void removeTroublingHu(const string_view *headerUnitsJsonDirs, uint64_t headerUnitsJsonDirsSize,
@@ -24,14 +24,14 @@ enum class BoostExampleOrTestType : uint8_t
 };
 
 union BoostTestTargetType {
-    DSC<CppSourceTarget> *dscTarget;
-    CppSourceTarget *cppTarget;
+    DSC<CppTarget> *dscTarget;
+    CppTarget *cppTarget;
 };
 
 struct ExampleOrTest
 {
-    // I think union should be used here for the cases where there is only CppSourceTarget and no complete
-    // DSC<CppSourceTarget>.
+    // I think union should be used here for the cases where there is only CppTarget and no complete
+    // DSC<CppTarget>.
     BoostTestTargetType testTarget;
     BoostExampleOrTestType targetType;
 };
@@ -110,10 +110,10 @@ class BoostCppTarget : TargetCache
     Configuration *configuration = nullptr;
     BTarget *testTarget = nullptr;
     BTarget *examplesTarget = nullptr;
-    DSC<CppSourceTarget> &mainTarget;
+    DSC<CppTarget> &mainTarget;
     vector<ExampleOrTest> examplesOrTests;
-    vector<DSC<CppSourceTarget> *> dscTestDepsPrivate;
-    vector<CppSourceTarget *> cppTestDepsPrivate;
+    vector<DSC<CppTarget> *> dscTestDepsPrivate;
+    vector<CppTarget *> cppTestDepsPrivate;
     vector<char> configBuffer;
     uint32_t testsOrExamplesCount = 0;
     flat_hash_map<string, Node *> testReqHeaderFiles;
@@ -470,11 +470,11 @@ void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, str
 
 template <typename T, typename... U> BoostCppTarget &BoostCppTarget::privateTestDeps(T &dep_, U &&...deps_)
 {
-    if constexpr (std::is_same_v<decltype(dep_), DSC<CppSourceTarget> &>)
+    if constexpr (std::is_same_v<decltype(dep_), DSC<CppTarget> &>)
     {
         dscTestDepsPrivate.emplace_back(&dep_);
     }
-    else if constexpr (std::is_same_v<decltype(dep_), CppSourceTarget &>)
+    else if constexpr (std::is_same_v<decltype(dep_), CppTarget &>)
     {
         cppTestDepsPrivate.emplace_back(&dep_);
     }
@@ -531,9 +531,9 @@ template <typename T, typename... U> BoostCppTarget &BoostCppTarget::deps(DepTyp
     {
         mainTarget.deps(depType, dep_.mainTarget);
     }
-    else if constexpr (std::is_same_v<DSC<CppSourceTarget> &, decltype(dep_)>)
+    else if constexpr (std::is_same_v<DSC<CppTarget> &, decltype(dep_)>)
     {
-        mainTarget.deps<CppSourceTarget>(depType, dep_);
+        mainTarget.deps<CppTarget>(depType, dep_);
     }
     else
     {
@@ -550,13 +550,13 @@ template <typename T, typename... U> BoostCppTarget &BoostCppTarget::deps(DepTyp
 template <BoostExampleOrTestType EOT>
 void BoostCppTarget::getTargetFromConfiguration(const string_view name, Node *myBuildDir, const string &filePath) const
 {
-    CppSourceTarget *testOrExmple;
+    CppTarget *testOrExmple;
     if constexpr (EOT == BoostExampleOrTestType::COMPILE_TEST)
     {
-        CppSourceTarget &t =
+        CppTarget &t =
             configuration->getCppObjectNoNameAddStdTarget(getExplicitBuilding<EOT>(), myBuildDir, string(name));
         t.privateDeps(&mainTarget.getSourceTarget()).moduleFiles(filePath);
-        for (CppSourceTarget *dep : cppTestDepsPrivate)
+        for (CppTarget *dep : cppTestDepsPrivate)
         {
             t.privateDeps(dep);
         }
@@ -564,10 +564,9 @@ void BoostCppTarget::getTargetFromConfiguration(const string_view name, Node *my
     }
     else
     {
-        DSC<CppSourceTarget> &t =
-            configuration->getCppExeDSCNoName(getExplicitBuilding<EOT>(), myBuildDir, string(name));
+        DSC<CppTarget> &t = configuration->getCppExeDSCNoName(getExplicitBuilding<EOT>(), myBuildDir, string(name));
         t.privateDeps(mainTarget).getSourceTarget().moduleFiles(filePath);
-        for (DSC<CppSourceTarget> *dep : dscTestDepsPrivate)
+        for (DSC<CppTarget> *dep : dscTestDepsPrivate)
         {
             t.privateDeps(*dep);
         }

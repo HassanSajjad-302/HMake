@@ -7,11 +7,11 @@
 #include "Builder.hpp"
 #include "Cache.hpp"
 #include "ConfigurationAssign.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppMod.hpp"
+#include "CppTarget.hpp"
 #include "DSC.hpp"
 #include "Features.hpp"
 #include "JConsts.hpp"
-#include "SMFile.hpp"
 #include "Settings.hpp"
 #include "ToolsCache.hpp"
 #include "nlohmann/json.hpp"
@@ -20,7 +20,6 @@
 #include <stack>
 #include <thread>
 #include <utility>
-
 
 // TODO
 // HMake in future will only be available as module. Hence configuration will-be a split-second process.

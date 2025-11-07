@@ -45,12 +45,12 @@ TEST(CAPITEST, Test1)
         }
         else if (cTargetContainer->c_cTargets[i]->type == C_CPP_TARGET_TYPE)
         {
-            const auto c_cppSourceTarget = reinterpret_cast<C_CppSourceTarget *>(cTargetContainer->c_cTargets[i]->object);
-            ASSERT_EQ(c_cppSourceTarget->sourceFilesCount, 1);
-            ASSERT_EQ(equivalent(path(c_cppSourceTarget->sourceFiles[0]), testSrcDir / "main.cpp"), true);
-            ASSERT_EQ(equivalent(path(c_cppSourceTarget->parent->dir), testBuildDir / "Debug/app-cpp/"), true);
-            ASSERT_NE(string(c_cppSourceTarget->compileCommand).size(), 0);
-            ASSERT_NE(string(c_cppSourceTarget->compilerPath).size(), 0);
+            const auto c_cppTarget = reinterpret_cast<C_CppTarget *>(cTargetContainer->c_cTargets[i]->object);
+            ASSERT_EQ(c_cppTarget->sourceFilesCount, 1);
+            ASSERT_EQ(equivalent(path(c_cppTarget->sourceFiles[0]), testSrcDir / "main.cpp"), true);
+            ASSERT_EQ(equivalent(path(c_cppTarget->parent->dir), testBuildDir / "Debug/app-cpp/"), true);
+            ASSERT_NE(string(c_cppTarget->compileCommand).size(), 0);
+            ASSERT_NE(string(c_cppTarget->compilerPath).size(), 0);
         }
         else if (cTargetContainer->c_cTargets[i]->type == C_CONFIGURATION_TARGET_TYPE)
         {
@@ -59,8 +59,7 @@ TEST(CAPITEST, Test1)
         }
         else if (cTargetContainer->c_cTargets[i]->type == C_LOA_TARGET_TYPE)
         {
-            const auto c_loat =
-                reinterpret_cast<C_LOAT *>(cTargetContainer->c_cTargets[i]->object);
+            const auto c_loat = reinterpret_cast<C_LOAT *>(cTargetContainer->c_cTargets[i]->object);
             ASSERT_EQ(equivalent(path(c_loat->parent->dir), testBuildDir / "Debug/app/"), true);
         }
     }

@@ -3,7 +3,7 @@
 #include "BuildSystemFunctions.hpp"
 #include "CacheWriteManager.hpp"
 #include "Configuration.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppTarget.hpp"
 #include <filesystem>
 #include <stack>
 #include <utility>

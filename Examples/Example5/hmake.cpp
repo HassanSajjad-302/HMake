@@ -22,10 +22,10 @@ struct CopySharedLib final : public BTarget
 CopySharedLib *p;
 void configurationSpecification(Configuration &config)
 {
-    DSC<CppSourceTarget> &catShared = config.getCppSharedDSC("Cat", true);
+    DSC<CppTarget> &catShared = config.getCppSharedDSC("Cat", true);
     catShared.getSourceTarget().sourceFiles("../Example4/Cat/src/Cat.cpp").publicIncludes("../Example4/Cat/header");
 
-    DSC<CppSourceTarget> &animal = config.getCppExeDSC("Animal").privateDeps(
+    DSC<CppTarget> &animal = config.getCppExeDSC("Animal").privateDeps(
         catShared, PrebuiltDep{.reqRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false});
     animal.getSourceTarget().sourceFiles("../Example4/main.cpp");
 

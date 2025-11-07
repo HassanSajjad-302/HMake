@@ -42,8 +42,8 @@ enum class BTargetDepType : uint8_t
     WAIT = 1,
 
     /// Build-system will not wait but the selectiveBuild will be set.
-    /// Used in specifying CppSourceTarget dep with the other CppSourceTarget as we want
-    /// the dependency CppSourceTarget's huDeps and imodDeps to be built.
+    /// Used in specifying CppTarget dep with the other CppTarget as we want
+    /// the dependency CppTarget's huDeps and imodDeps to be built.
     SELECTIVE = 2,
 
     /// Only for sorting.
@@ -57,10 +57,10 @@ enum class UpdateStatus
     /// RealBTarget::updateStatus is defaulted to this
     ALREADY_UPDATED,
     /// RealBTarget::updateStatus is set to this once the BTarget::updateBTarget call is completed.
-    /// SMFile tests RealBTarget::updateStatus against this to confirm whether the dependency module or header-unit is
+    /// CppMod tests RealBTarget::updateStatus against this to confirm whether the dependency module or header-unit is
     /// updated or not.
     UPDATED,
-    /// This is an additional value that is used by SourceNode and SMFile to store whether the file needs to be
+    /// This is an additional value that is used by SourceNode and CppMod to store whether the file needs to be
     /// recompiled
     NEEDS_UPDATE,
 };
@@ -137,7 +137,7 @@ class RealBTarget
     // short supportsThread = -1;
 
     /// Initialized to ALREADY_UPDATED and then set to UpdateStatus::UPDATED once the BTarget::updateBTarget call is
-    /// completed. This is used by SMFile to learn whether a header-units is built or not.
+    /// completed. This is used by CppMod to learn whether a header-units is built or not.
     UpdateStatus updateStatus = UpdateStatus::ALREADY_UPDATED;
 
     /// \param bTarget_ the back-pointer to BTarget that owns this
@@ -147,13 +147,13 @@ class RealBTarget
     /// \param bTarget_ the back-pointer to BTarget that owns this
     /// \param round_ Constructor will add to BTarget::realBTargetsGlobal[round]
     /// \param add whether to add for a round. Should be false if BTarget::updateBTarget is not going to do any work in
-    /// that round. SourceNode and SMFile initialize BTarget::realBTargets[1] with this parameter as false as they have
+    /// that round. SourceNode and CppMod initialize BTarget::realBTargets[1] with this parameter as false as they have
     /// work only in round 0. Specifying a RealBTarget with add as false as dependency or dependent of other RealBTarget
     /// is undefined behavior.
     RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
 
     /// Assigns full-dependents RealBTarget::updateStatus with UpdateStatus::NEEDS_UPDATE.
-    /// This is used by SourceNode and SMFile so that the LOAT does not have to make an extra check.
+    /// This is used by SourceNode and CppMod so that the LOAT does not have to make an extra check.
     void assignNeedsUpdateToDependents();
 };
 
@@ -276,7 +276,7 @@ class BTarget // BTarget
     /// This is called by Builder in-order. Should be overridden to perform any work
     /// \param isComplete This is passed by Builder::execute with value false. This function can then set it to true if
     /// it does not want the Builder::execute to decrement from its dependents. In that case, this function should also
-    /// lock Builder::executeMutex. SMFile sets this to false when it has to wait for other SMFile to compile first and
+    /// lock Builder::executeMutex. CppMod sets this to false when it has to wait for other CppMod to compile first and
     /// sets it to true once its compilation completes.
     virtual void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete);
 

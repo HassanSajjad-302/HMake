@@ -5,17 +5,17 @@ void configurationSpecification(Configuration &config)
 {
     config.stdCppTarget->getSourceTarget().publicIncludesSource("3rdParty");
 
-    DSC<CppSourceTarget> &fmt = config.getCppObjectDSC("fmt");
+    DSC<CppTarget> &fmt = config.getCppObjectDSC("fmt");
     fmt.getSourceTarget().moduleDirs("3rdParty/fmt/src").publicHUDirs("3rdParty/fmt/include", "fmt/");
 
-    DSC<CppSourceTarget> &rapidJson = config.getCppObjectDSC("rapidjson");
+    DSC<CppTarget> &rapidJson = config.getCppObjectDSC("rapidjson");
     rapidJson.getSourceTarget().publicHUDirs("3rdParty/rapidjson/include", "rapidjson/");
 
-    DSC<CppSourceTarget> &phmap = config.getCppObjectDSC("phmap");
+    DSC<CppTarget> &phmap = config.getCppObjectDSC("phmap");
     phmap.getSourceTarget().publicHUDirs("3rdParty/parallel-hashmap/parallel_hashmap",
                                          "parallel-hashmap/parallel_hashmap");
 
-    DSC<CppSourceTarget> &hconfigure = config.getCppObjectDSC("hconfigure").publicDeps(rapidJson, phmap, fmt);
+    DSC<CppTarget> &hconfigure = config.getCppObjectDSC("hconfigure").publicDeps(rapidJson, phmap, fmt);
     hconfigure.getSourceTarget().moduleDirs("hconfigure/src").publicHUIncludes("hconfigure/header");
 
     if (smallFile)

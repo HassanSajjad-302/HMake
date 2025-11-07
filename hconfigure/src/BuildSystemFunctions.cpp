@@ -3,7 +3,7 @@
 #include "Builder.hpp"
 #include "Cache.hpp"
 #include "CacheWriteManager.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppTarget.hpp"
 #include "Settings.hpp"
 #include "TargetCache.hpp"
 #include "ToolsCache.hpp"
@@ -202,7 +202,7 @@ void constructGlobals()
         realBTargets = span(reinterpret_cast<RealBTarget **>(buffer), count);
     }
     nodeIndices = new Node *[128 * 1024];
-    cppSourceTargets = new CppSourceTarget *[64 * 1024];
+    cppTargets = new CppTarget *[64 * 1024];
 
     std::construct_at(&nodeAllFiles, 10000);
 

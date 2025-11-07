@@ -9,7 +9,7 @@ void configurationSpecification(Configuration &config)
     }
     else
     {
-        CppSourceTarget &t = config.getCppExeDSC("app2").getSourceTarget().moduleFiles("main2.cpp");
+        CppTarget &t = config.getCppExeDSC("app2").getSourceTarget().moduleFiles("main2.cpp");
         config.stdCppTarget->getSourceTarget().publicBigHu.emplace_back(nullptr);
         config.stdCppTarget->getSourceTarget().makeHeaderFileAsUnit("windows.h", true, true);
     }

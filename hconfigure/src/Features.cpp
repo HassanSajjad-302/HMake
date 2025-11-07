@@ -2,7 +2,7 @@
 #include "Features.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppTarget.hpp"
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
 #include "nlohmann/json.hpp"

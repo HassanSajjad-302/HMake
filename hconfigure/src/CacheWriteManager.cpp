@@ -1,7 +1,7 @@
 
 #include "CacheWriteManager.hpp"
 #include "BTarget.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppTarget.hpp"
 #include "Node.hpp"
 #include "TargetCache.hpp"
 

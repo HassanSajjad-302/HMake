@@ -35,7 +35,7 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
     {
         bool operator()(const T *lhs, const T *rhs) const
         {
-            // Compare based on CppSourceTarget::cacheIndex for ordering
+            // Compare based on CppTarget::cacheIndex for ordering
             return lhs->cacheIndex < rhs->cacheIndex;
         }
     };

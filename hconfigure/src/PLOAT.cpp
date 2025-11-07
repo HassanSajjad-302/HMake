@@ -1,10 +1,10 @@
 #include "PLOAT.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
+#include "CppMod.hpp"
 #include "JConsts.hpp"
 #include "LOAT.hpp"
 #include "ObjectFileProducer.hpp"
-#include "SMFile.hpp"
 #include <utility>
 
 string PLOAT::getOutputName() const

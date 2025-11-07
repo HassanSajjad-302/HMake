@@ -42,9 +42,9 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/BuildSystemFunctions.cpp
         hconfigure/src/Cache.cpp
         hconfigure/src/HashedCommand.cpp
-        hconfigure/src/SMFile.cpp
+        hconfigure/src/CppMod.cpp
         hconfigure/src/Configuration.cpp
-        hconfigure/src/CppSourceTarget.cpp
+        hconfigure/src/CppTarget.cpp
         hconfigure/src/LOAT.cpp
         hconfigure/src/BuildTools.cpp
         hconfigure/src/ToolsCache.cpp

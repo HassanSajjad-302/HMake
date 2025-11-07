@@ -57,27 +57,26 @@ void configurationSpecification(Configuration &config)
     BoostCppTarget &preprocessor = config.getBoostCppTarget("preprocessor");
     BoostCppTarget &predef = config.getBoostCppTarget("predef", true, false);
 
-    DSC<CppSourceTarget> &cstdint = config.getCppObjectDSC("cstdint").publicDeps(configTarget.mainTarget);
+    DSC<CppTarget> &cstdint = config.getCppObjectDSC("cstdint").publicDeps(configTarget.mainTarget);
     cstdint.getSourceTarget().publicHeaderFiles("boost/cstdint.hpp", "boost/cstdint.hpp");
     BoostCppTarget &assertTarget = config.getBoostCppTarget("assert").publicDeps(cstdint);
     BoostCppTarget &exception = config.getBoostCppTarget("exception", true, false).publicDeps(assertTarget);
-    DSC<CppSourceTarget> &throwExceptionHeader =
+    DSC<CppTarget> &throwExceptionHeader =
         config.getCppObjectDSC("current-target").publicDeps(exception.mainTarget, cstdint);
     BoostCppTarget &core = config.getBoostCppTarget("core", true, false).publicDeps(configTarget, throwExceptionHeader);
     BoostCppTarget &winApi = config.getBoostCppTarget("winapi", true, false).publicDeps(configTarget, predef);
-    DSC<CppSourceTarget> &staticAssert = config.getCppObjectDSC("staticAssert").publicDeps(configTarget.mainTarget);
+    DSC<CppTarget> &staticAssert = config.getCppObjectDSC("staticAssert").publicDeps(configTarget.mainTarget);
     staticAssert.getSourceTarget().publicHeaderFiles("boost/static_assert.hpp", "boost/static_assert.hpp");
     BoostCppTarget &typeTraits = config.getBoostCppTarget("type_traits").publicDeps(staticAssert);
     BoostCppTarget &mpl = config.getBoostCppTarget("mpl", true, false).publicDeps(preprocessor, typeTraits);
     BoostCppTarget &variant2 = config.getBoostCppTarget("variant2").publicDeps(mp11, assertTarget);
-    DSC<CppSourceTarget> &limits = config.getCppObjectDSC("limits").publicDeps(configTarget.mainTarget);
+    DSC<CppTarget> &limits = config.getCppObjectDSC("limits").publicDeps(configTarget.mainTarget);
     BoostCppTarget &system = config.getBoostCppTarget("system").publicDeps(
         configTarget, variant2, assertTarget, winApi.mainTarget, throwExceptionHeader, limits);
     BoostCppTarget &function = config.getBoostCppTarget("function").publicDeps(assertTarget, core);
     BoostCppTarget &move = config.getBoostCppTarget("move", true, false).publicDeps(configTarget);
     BoostCppTarget &bind = config.getBoostCppTarget("bind");
-    DSC<CppSourceTarget> &getPointerHeader =
-        config.getCppObjectDSC("getPointerHeader").publicDeps(configTarget.mainTarget);
+    DSC<CppTarget> &getPointerHeader = config.getCppObjectDSC("getPointerHeader").publicDeps(configTarget.mainTarget);
     throwExceptionHeader.getSourceTarget().publicHeaderFiles("boost/throw_exception.hpp", "boost/throw_exception.hpp");
     bind.publicDeps(getPointerHeader);
     getPointerHeader.getSourceTarget().publicHeaderFiles("boost/get_pointer.hpp", "boost/get_pointer.hpp");
@@ -114,7 +113,7 @@ void configurationSpecification(Configuration &config)
         }
     }
     BoostCppTarget &io = config.getBoostCppTarget("io", true, false).publicDeps(configTarget);
-    DSC<CppSourceTarget> &operatorsHeader = config.getCppObjectDSC("operators-header").publicDeps(core.mainTarget);
+    DSC<CppTarget> &operatorsHeader = config.getCppObjectDSC("operators-header").publicDeps(core.mainTarget);
     operatorsHeader.getSourceTarget().publicHeaderFiles("boost/operators.hpp", "boost/operators.hpp");
     BoostCppTarget &detail = config.getBoostCppTarget("detail", true, false).publicDeps(configTarget, typeTraits);
     BoostCppTarget &utility =
@@ -122,7 +121,7 @@ void configurationSpecification(Configuration &config)
     limits.getSourceTarget().publicHeaderFiles("boost/limits.hpp", "boost/limits.hpp");
     // BoostCppTarget &container = config.getBoostCppTarget("container", fals, false);
     BoostCppTarget &hash2 = config.getBoostCppTarget("hash2", true, false).publicDeps(assertTarget, containerHash);
-    DSC<CppSourceTarget> &arrayHeader =
+    DSC<CppTarget> &arrayHeader =
         config.getCppStaticDSC("array_header").publicDeps(assertTarget.mainTarget, staticAssert, throwExceptionHeader);
     arrayHeader.getSourceTarget().publicHeaderFiles("boost/array.hpp", "boost/array.hpp");
 
@@ -153,7 +152,7 @@ void configurationSpecification(Configuration &config)
     //                                                        std::size(preprocessorIsEmpty));
     //
     // auto preprocessorMacroDefines = [&](string_view innerBuildDirName, string_view cddName, string_view cddValue) {
-    //     for (CppSourceTarget &cppTestTarget :
+    //     for (CppTarget &cppTestTarget :
     //          preprocessor.getEndsWith<BoostExampleOrTestType::COMPILE_TEST, IteratorTargetType::CPP,
     //          BSMode::BUILD>())
     //     {

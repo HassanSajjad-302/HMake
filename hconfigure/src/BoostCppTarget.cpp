@@ -2,7 +2,7 @@
 #include "BoostCppTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Configuration.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppTarget.hpp"
 #include "DSC.hpp"
 #include "LOAT.hpp"
 #include <utility>
@@ -44,8 +44,8 @@ void removeTroublingHu(const string_view *headerUnitsJsonDirs, uint64_t headerUn
     }
 }
 
-static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *configuration, const bool headerOnly,
-                                           const bool hasBigHeader)
+static DSC<CppTarget> &getMainTarget(const string &name, Configuration *configuration, const bool headerOnly,
+                                     const bool hasBigHeader)
 {
     if (name == "boost/core/noncopyable.hpp")
     {
@@ -61,7 +61,7 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
         create_directories(myBuildDir->filePath);
     }
 
-    DSC<CppSourceTarget> *t = nullptr;
+    DSC<CppTarget> *t = nullptr;
     if (headerOnly)
     {
         t = &configuration->getCppObjectDSC(false, myBuildDir, name);
@@ -72,7 +72,7 @@ static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *co
         t->getSourceTarget().moduleDirs("libs" + name + "src");
     }
 
-    CppSourceTarget &cpp = t->getSourceTarget();
+    CppTarget &cpp = t->getSourceTarget();
     const string s = "boost/" + name;
     if (name == "hash2" || name == "container_hash" || name == "describe" || name == "mp11" || name == "io" ||
         name == "system")
@@ -149,8 +149,8 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
             if (isCompile)
             {
-                CppSourceTarget &cppTarget = configuration->getCppObjectNoName(explicitBuild, nullptr, unitTestName)
-                                                 .privateDeps(&mainTarget.getSourceTarget());
+                CppTarget &cppTarget = configuration->getCppObjectNoName(explicitBuild, nullptr, unitTestName)
+                                           .privateDeps(&mainTarget.getSourceTarget());
                 examplesOrTests.emplace_back(BoostTestTargetType{.cppTarget = &cppTarget}, boostExampleOrTest);
 
                 if (testTarget)
@@ -160,7 +160,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
             }
             else
             {
-                DSC<CppSourceTarget> &uintTest =
+                DSC<CppTarget> &uintTest =
                     configuration->getCppExeDSCNoName(explicitBuild, nullptr, unitTestName).privateDeps(mainTarget);
                 examplesOrTests.emplace_back(BoostTestTargetType{.dscTarget = &uintTest}, boostExampleOrTest);
                 if (isExample)
@@ -212,14 +212,14 @@ BoostCppTarget &BoostCppTarget::assignPrivateTestDeps()
 
         if (isCompile)
         {
-            for (CppSourceTarget *dep : cppTestDepsPrivate)
+            for (CppTarget *dep : cppTestDepsPrivate)
             {
                 testTarget.cppTarget->privateDeps(dep);
             }
         }
         else
         {
-            for (DSC<CppSourceTarget> *dep : dscTestDepsPrivate)
+            for (DSC<CppTarget> *dep : dscTestDepsPrivate)
             {
                 testTarget.dscTarget->privateDeps(*dep);
             }

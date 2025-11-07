@@ -216,8 +216,8 @@ BTarget 0 Depends On BTarget 2.
 By overriding ```BTarget::getTarjanNodeName```,
 we can customize this message to differentiate between different overrides of BTarget.
 By default, it prints ```BTarget``` and the id number.
-```CppSourceTarget```, ```LOAT``` prints ```name```,
-while ```SourceNode``` and ```SMFile``` prints ```node->filePath```.
+```CppTarget```, ```LOAT``` prints ```name```,
+while ```SourceNode``` and ```CppMod``` prints ```node->filePath```.
 
 ### Example 5
 
@@ -696,7 +696,7 @@ Its constructor takes a unique name (generally same as ```BTarget::name```)
 and at config-time creates an entry in both config-cache and build-cache
 (if it did not exist before).
 config-cache can only be written at config-time.
-For example, for ```CppSourceTarget```,
+For example, for ```CppTarget```,
 HMake stores the node numbers for source-files, module-files
 and include-dirs in the config-cache.
 User specify relative paths for these values in ```buildSpecification```
@@ -799,11 +799,11 @@ build-dir/{Configuration::name} of our interest.
 
 This line ```config.getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp");```
 in the file create a
-```DSC<CppSourceTarget>```.
-```DSC<CppSourceTarget>``` manages dependency specification as you will see
+```DSC<CppTarget>```.
+```DSC<CppTarget>``` manages dependency specification as you will see
 later on.
-It has pointers to ```CppSourceTarget``` and ```LOAT```.
-```getSourceTarget``` returns the ```CppSourceTarget``` pointer to which we add the source-files.
+It has pointers to ```CppTarget``` and ```LOAT```.
+```getSourceTarget``` returns the ```CppTarget``` pointer to which we add the source-files.
 There are other ```get*``` functions available in ```Configuration```
 class.
 These functions preserve by emplacing the element in ```targets``` template variable.
@@ -865,7 +865,7 @@ while ```rSourceDirs``` uses a recursive dir iterator.
 
 void configurationSpecification(Configuration &config)
 {
-    CppSourceTarget &app = config.getCppExeDSC("app").getSourceTarget();
+    CppTarget &app = config.getCppExeDSC("app").getSourceTarget();
     app.sourceFiles("main.cpp");
 
     // Change the value of "FILE1" in cache.hmake to false and then run configure again.
@@ -908,12 +908,12 @@ and file2 will be used this time.
 
 void configurationSpecification(Configuration &config)
 {
-    DSC<CppSourceTarget> &catStatic = config.getCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
+    DSC<CppTarget> &catStatic = config.getCppStaticDSC("Cat-Static", true, "CAT_EXPORT");
     catStatic.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
 
     config.getCppExeDSC("Animal-Static").privateDeps(catStatic).getSourceTarget().sourceFiles("main.cpp");
 
-    DSC<CppSourceTarget> &catShared = config.getCppSharedDSC("Cat-Shared", true, "CAT_EXPORT");
+    DSC<CppTarget> &catShared = config.getCppSharedDSC("Cat-Shared", true, "CAT_EXPORT");
     catShared.getSourceTarget().sourceFiles("Cat/src/Cat.cpp").publicIncludes("Cat/header");
 
     config.getCppExeDSC("Animal-Shared").privateDeps(catShared).getSourceTarget().sourceFiles("main.cpp");
@@ -950,21 +950,21 @@ void configurationSpecification(Configuration &config)
     auto makeApps = [&]() {
         const string str = config.targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
-        DSC<CppSourceTarget> &cat =
+        DSC<CppTarget> &cat =
             config.getCppTargetDSC_P("Cat" + str, "../Example4/Build/Release/Cat" + str + "/", true, "CAT_EXPORT");
         cat.getSourceTarget().interfaceIncludes("../Example4/Cat/header");
 
-        DSC<CppSourceTarget> &dog = config.getCppTargetDSC("Dog" + str, true, "DOG_EXPORT");
+        DSC<CppTarget> &dog = config.getCppTargetDSC("Dog" + str, true, "DOG_EXPORT");
         dog.publicDeps(cat).getSourceTarget().sourceFiles("Dog/src/Dog.cpp").publicIncludes("Dog/header");
 
-        DSC<CppSourceTarget> &dog2 = config.getCppTargetDSC("Dog2" + str, true, "DOG2_EXPORT");
+        DSC<CppTarget> &dog2 = config.getCppTargetDSC("Dog2" + str, true, "DOG2_EXPORT");
         dog2.privateDeps(cat).getSourceTarget().sourceFiles("Dog2/src/Dog.cpp").publicIncludes("Dog2/header");
 
-        DSC<CppSourceTarget> &app = config.getCppExeDSC("App" + str);
+        DSC<CppTarget> &app = config.getCppExeDSC("App" + str);
         app.getLOAT().setOutputName("app");
         app.privateDeps(dog).getSourceTarget().sourceFiles("main.cpp");
 
-        DSC<CppSourceTarget> &app2 = config.getCppExeDSC("App2" + str);
+        DSC<CppTarget> &app2 = config.getCppExeDSC("App2" + str);
         app2.getLOAT().setOutputName("app");
         app2.privateDeps(dog2).getSourceTarget().sourceFiles("main2.cpp");
     };
@@ -1036,12 +1036,12 @@ Any dir that has header-units should be marked by at least one and only one
 target as hu-include(header-unit-include) in a target or its dependencies.
 So, HMake can decide what target to associate with these header-units from that dir.
 ```std``` target marks all standard include-dirs as header-unit directories.
-Modules from a ```CppSourceTarget``` can depend on modules from that target or from
-it dependencies ```CppSourceTarget```.
+Modules from a ```CppTarget``` can depend on modules from that target or from
+it dependencies ```CppTarget```.
 But it can depend on an interface partition only from its own files
 and not from its dependency targets.
 
-```CppSourceTarget``` member functions ```privateHUDirs```,
+```CppTarget``` member functions ```privateHUDirs```,
 ```publicHUIncludes``` and ```privateHUIncludes```
 are used for registering an include-dir for header-units.
 The reason for ```privateHUDirs``` besides
@@ -1082,9 +1082,9 @@ MAIN_FUNCTION
 ```cpp
 #include "Configure.hpp"
 
-template <typename... T> void initializeTargets(DSC<CppSourceTarget> *target, T... targets)
+template <typename... T> void initializeTargets(DSC<CppTarget> *target, T... targets)
 {
-    CppSourceTarget &t = target->getSourceTarget();
+    CppTarget &t = target->getSourceTarget();
     string str = removeDashCppFromName(getLastNameAfterSlash(t.name));
     t.moduleDirsRE("src/" + str + "/", ".*cpp")
         .privateHUDirs("src/" + str)
@@ -1099,11 +1099,11 @@ template <typename... T> void initializeTargets(DSC<CppSourceTarget> *target, T.
 void configurationSpecification(Configuration &config)
 {
     config.stdCppTarget->getSuourceTarget().interfaceIncludes("include");
-    DSC<CppSourceTarget> &lib4 = config.getCppTargetDSC("lib4");
-    DSC<CppSourceTarget> &lib3 = config.getCppTargetDSC("lib3").publicDeps(lib4);
-    DSC<CppSourceTarget> &lib2 = config.getCppTargetDSC("lib2").privateDeps(lib3);
-    DSC<CppSourceTarget> &lib1 = config.getCppTargetDSC("lib1").publicDeps(lib2);
-    DSC<CppSourceTarget> &app = config.getCppExeDSC("app").privateDeps(lib1);
+    DSC<CppTarget> &lib4 = config.getCppTargetDSC("lib4");
+    DSC<CppTarget> &lib3 = config.getCppTargetDSC("lib3").publicDeps(lib4);
+    DSC<CppTarget> &lib2 = config.getCppTargetDSC("lib2").privateDeps(lib3);
+    DSC<CppTarget> &lib1 = config.getCppTargetDSC("lib1").publicDeps(lib2);
+    DSC<CppTarget> &app = config.getCppExeDSC("app").privateDeps(lib1);
 
     initializeTargets(&lib1, &lib2, &lib3, &lib4, &app);
 }
@@ -1139,7 +1139,7 @@ and ```src/lib1/``` are linked with lib1 and so on.
 
 void configurationSpecification(Configuration &config)
 {
-    DSC<CppSourceTarget> &libB = config.getCppStaticDSC("libB");
+    DSC<CppTarget> &libB = config.getCppStaticDSC("libB");
     libB.getSourceTarget().moduleFiles("B.cpp").headerUnits("B.hpp").publicIncludes(
         path(srcNode->filePath).string());
 
