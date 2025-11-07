@@ -115,7 +115,7 @@ struct CppMod : CppSrc
     void makeAndSendBTCModule(CppMod &mod);
     void makeAndSendBTCNonModule(CppMod &hu);
     void duplicateHeaderFileOrUnitError(const string &headerName, struct HeaderFileOrUnit &first,
-                                        HeaderFileOrUnit &second, CppTarget *firstTarget, CppTarget *secondTarget);
+                                        HeaderFileOrUnit &second, CppTarget *firstTarget, CppTarget *secondTarget) const;
     CppMod *findModule(const string &moduleName) const;
     HeaderFileOrUnit findHeaderFileOrUnit(const string &headerName);
     bool build(Builder &builder);

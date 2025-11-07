@@ -3,10 +3,10 @@
 
 #include "BuildTools.hpp"
 #include "Configuration.hpp"
+#include "CppMod.hpp"
 #include "DSC.hpp"
 #include "HashedCommand.hpp"
 #include "ObjectFileProducer.hpp"
-#include "CppMod.hpp"
 #include <concepts>
 
 using std::same_as;
@@ -170,13 +170,13 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     CppTarget &interfaceHUDirs(const string &include, const string &prefix, U... includeDirectoryString);
     template <typename... U>
     CppTarget &publicHUDirsRE(const string &include, const string &prefix, const string &regexStr,
-                                    U... includeDirectoryString);
+                              U... includeDirectoryString);
     template <typename... U>
     CppTarget &privateHUDirsRE(const string &include, const string &prefix, const string &regexStr,
-                                     U... includeDirectoryString);
+                               U... includeDirectoryString);
     template <typename... U>
     CppTarget &interfaceHUDirsRE(const string &include, const string &prefix, const string &regexStr,
-                                       U... includeDirectoryString);
+                                 U... includeDirectoryString);
     template <typename... U>
     CppTarget &publicIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
     template <typename... U>
@@ -185,17 +185,16 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     CppTarget &interfaceIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
     template <typename... U>
     CppTarget &publicIncDirsRE(const string &include, const string &prefix, const string &regexStr,
-                                     U... includeDirectoryString);
+                               U... includeDirectoryString);
     template <typename... U>
     CppTarget &privateIncDirsRE(const string &include, const string &prefix, const string &regexStr,
-                                      U... includeDirectoryString);
+                                U... includeDirectoryString);
     template <typename... U>
     CppTarget &interfaceIncDirsRE(const string &include, const string &prefix, const string &regexStr,
-                                        U... includeDirectoryString);
+                                  U... includeDirectoryString);
     template <typename... U> CppTarget &publicIncludesSource(const string &include, U... includeDirectoryString);
     template <typename... U> CppTarget &privateIncludesSource(const string &include, U... includeDirectoryString);
-    template <typename... U>
-    CppTarget &interfaceIncludesSource(const string &include, U... includeDirectoryString);
+    template <typename... U> CppTarget &interfaceIncludesSource(const string &include, U... includeDirectoryString);
     CppTarget &publicCompilerFlags(const string &compilerFlags);
     CppTarget &privateCompilerFlags(const string &compilerFlags);
     CppTarget &interfaceCompilerFlags(const string &compilerFlags);
@@ -224,18 +223,14 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     void parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceDirectory, string regexStr, bool recursive);
     template <typename... U> CppTarget &sourceFiles(const string &srcFile, U... sourceFileString);
     template <typename... U> CppTarget &sourceDirs(const string &sourceDirectory, U... dirs);
-    template <typename... U>
-    CppTarget &sourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs);
+    template <typename... U> CppTarget &sourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs);
     template <typename... U> CppTarget &rSourceDirs(const string &sourceDirectory, U... dirs);
-    template <typename... U>
-    CppTarget &rSourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs);
+    template <typename... U> CppTarget &rSourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs);
     template <typename... U> CppTarget &moduleFiles(const string &modFile, U... moduleFileString);
     template <typename... U> CppTarget &moduleDirs(const string &moduleDirectory, U... dirs);
-    template <typename... U>
-    CppTarget &moduleDirsRE(const string &moduleDirectory, const string &regex, U... dirs);
+    template <typename... U> CppTarget &moduleDirsRE(const string &moduleDirectory, const string &regex, U... dirs);
     template <typename... U> CppTarget &rModuleDirs(const string &moduleDirectory, U... dirs);
-    template <typename... U>
-    CppTarget &rModuleDirsRE(const string &moduleDirectory, const string &regex, U... dirs);
+    template <typename... U> CppTarget &rModuleDirsRE(const string &moduleDirectory, const string &regex, U... dirs);
     //
     template <DepType dependency = DepType::PRIVATE, typename T, typename... Property>
     CppTarget &assign(T property, Property... properties);
@@ -277,8 +272,7 @@ template <typename... U> CppTarget &CppTarget::interfaceDeps(CppTarget *dep, con
     return static_cast<CppTarget &>(*this);
 }
 
-template <typename... U>
-CppTarget &CppTarget::deps(CppTarget *dep, const DepType dependency, const U... cppTargets)
+template <typename... U> CppTarget &CppTarget::deps(CppTarget *dep, const DepType dependency, const U... cppTargets)
 {
     if (dependency == DepType::PUBLIC)
     {
@@ -303,8 +297,7 @@ CppTarget &CppTarget::deps(CppTarget *dep, const DepType dependency, const U... 
     return static_cast<CppTarget &>(*this);
 }
 
-template <typename... U>
-CppTarget &CppTarget::moduleMaps(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::moduleMaps(const string &include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -321,8 +314,7 @@ CppTarget &CppTarget::moduleMaps(const string &include, U... includeDirectoryStr
     }
 }
 
-template <typename... U>
-CppTarget &CppTarget::publicIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::publicIncludes(const string &include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -341,8 +333,7 @@ CppTarget &CppTarget::publicIncludes(const string &include, U... includeDirector
     }
 }
 
-template <typename... U>
-CppTarget &CppTarget::privateIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::privateIncludes(const string &include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -361,8 +352,7 @@ CppTarget &CppTarget::privateIncludes(const string &include, U... includeDirecto
     }
 }
 
-template <typename... U>
-CppTarget &CppTarget::interfaceIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::interfaceIncludes(const string &include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -381,8 +371,7 @@ CppTarget &CppTarget::interfaceIncludes(const string &include, U... includeDirec
     }
 }
 
-template <typename... U>
-CppTarget &CppTarget::publicHUIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::publicHUIncludes(const string &include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -401,8 +390,7 @@ CppTarget &CppTarget::publicHUIncludes(const string &include, U... includeDirect
     }
 }
 
-template <typename... U>
-CppTarget &CppTarget::privateHUIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::privateHUIncludes(const string &include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -421,8 +409,7 @@ CppTarget &CppTarget::privateHUIncludes(const string &include, U... includeDirec
     }
 }
 
-template <typename... U>
-CppTarget &CppTarget::interfaceHUIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::interfaceHUIncludes(const string &include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -442,8 +429,7 @@ CppTarget &CppTarget::interfaceHUIncludes(const string &include, U... includeDir
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicIncludesRE(const string &include, const string &regexStr,
-                                                   U... includeDirectoryString)
+CppTarget &CppTarget::publicIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -463,8 +449,7 @@ CppTarget &CppTarget::publicIncludesRE(const string &include, const string &rege
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateIncludesRE(const string &include, const string &regexStr,
-                                                    U... includeDirectoryString)
+CppTarget &CppTarget::privateIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -484,8 +469,7 @@ CppTarget &CppTarget::privateIncludesRE(const string &include, const string &reg
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceIncludesRE(const string &include, const string &regexStr,
-                                                      U... includeDirectoryString)
+CppTarget &CppTarget::interfaceIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -505,8 +489,7 @@ CppTarget &CppTarget::interfaceIncludesRE(const string &include, const string &r
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicHUIncludesRE(const string &include, const string &regexStr,
-                                                     U... includeDirectoryString)
+CppTarget &CppTarget::publicHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -526,8 +509,7 @@ CppTarget &CppTarget::publicHUIncludesRE(const string &include, const string &re
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateHUIncludesRE(const string &include, const string &regexStr,
-                                                      U... includeDirectoryString)
+CppTarget &CppTarget::privateHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -547,8 +529,7 @@ CppTarget &CppTarget::privateHUIncludesRE(const string &include, const string &r
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceHUIncludesRE(const string &include, const string &regexStr,
-                                                        U... includeDirectoryString)
+CppTarget &CppTarget::interfaceHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -591,8 +572,7 @@ CppTarget &CppTarget::publicHUDirs(const string &include, const string &prefix, 
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateHUDirs(const string &include, const string &prefix,
-                                                U... includeDirectoryString)
+CppTarget &CppTarget::privateHUDirs(const string &include, const string &prefix, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -614,8 +594,7 @@ CppTarget &CppTarget::privateHUDirs(const string &include, const string &prefix,
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceHUDirs(const string &include, const string &prefix,
-                                                  U... includeDirectoryString)
+CppTarget &CppTarget::interfaceHUDirs(const string &include, const string &prefix, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -638,7 +617,7 @@ CppTarget &CppTarget::interfaceHUDirs(const string &include, const string &prefi
 
 template <typename... U>
 CppTarget &CppTarget::publicHUDirsRE(const string &include, const string &prefix, const string &regexStr,
-                                                 U... includeDirectoryString)
+                                     U... includeDirectoryString)
 {
 
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -662,7 +641,7 @@ CppTarget &CppTarget::publicHUDirsRE(const string &include, const string &prefix
 
 template <typename... U>
 CppTarget &CppTarget::privateHUDirsRE(const string &include, const string &prefix, const string &regexStr,
-                                                  U... includeDirectoryString)
+                                      U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -685,7 +664,7 @@ CppTarget &CppTarget::privateHUDirsRE(const string &include, const string &prefi
 
 template <typename... U>
 CppTarget &CppTarget::interfaceHUDirsRE(const string &include, const string &prefix, const string &regexStr,
-                                                    U... includeDirectoryString)
+                                        U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -707,8 +686,7 @@ CppTarget &CppTarget::interfaceHUDirsRE(const string &include, const string &pre
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicIncDirs(const string &include, const string &prefix,
-                                                U... includeDirectoryString)
+CppTarget &CppTarget::publicIncDirs(const string &include, const string &prefix, U... includeDirectoryString)
 {
 
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -731,8 +709,7 @@ CppTarget &CppTarget::publicIncDirs(const string &include, const string &prefix,
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateIncDirs(const string &include, const string &prefix,
-                                                 U... includeDirectoryString)
+CppTarget &CppTarget::privateIncDirs(const string &include, const string &prefix, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -754,8 +731,7 @@ CppTarget &CppTarget::privateIncDirs(const string &include, const string &prefix
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceIncDirs(const string &include, const string &prefix,
-                                                   U... includeDirectoryString)
+CppTarget &CppTarget::interfaceIncDirs(const string &include, const string &prefix, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -778,7 +754,7 @@ CppTarget &CppTarget::interfaceIncDirs(const string &include, const string &pref
 
 template <typename... U>
 CppTarget &CppTarget::publicIncDirsRE(const string &include, const string &prefix, const string &regexStr,
-                                                  U... includeDirectoryString)
+                                      U... includeDirectoryString)
 {
 
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -802,7 +778,7 @@ CppTarget &CppTarget::publicIncDirsRE(const string &include, const string &prefi
 
 template <typename... U>
 CppTarget &CppTarget::privateIncDirsRE(const string &include, const string &prefix, const string &regexStr,
-                                                   U... includeDirectoryString)
+                                       U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -824,8 +800,8 @@ CppTarget &CppTarget::privateIncDirsRE(const string &include, const string &pref
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceIncDirsRE(const string &include, const string &prefix,
-                                                     const string &regexStr, U... includeDirectoryString)
+CppTarget &CppTarget::interfaceIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+                                         U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -846,8 +822,7 @@ CppTarget &CppTarget::interfaceIncDirsRE(const string &include, const string &pr
     }
 }
 
-template <typename... U>
-CppTarget &CppTarget::publicIncludesSource(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::publicIncludesSource(const string &include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -865,8 +840,7 @@ CppTarget &CppTarget::publicIncludesSource(const string &include, U... includeDi
     }
 }
 
-template <typename... U>
-CppTarget &CppTarget::privateIncludesSource(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::privateIncludesSource(const string &include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -942,8 +916,7 @@ template <typename... U> CppTarget &CppTarget::moduleFiles(const string &modFile
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicCompileDefines(const string &cddName, const string &cddValue,
-                                                       U... compileDefines)
+CppTarget &CppTarget::publicCompileDefines(const string &cddName, const string &cddValue, U... compileDefines)
 {
     reqCompileDefinitions.emplace(cddName, cddValue);
     useReqCompileDefinitions.emplace(cddName, cddValue);
@@ -959,8 +932,7 @@ CppTarget &CppTarget::publicCompileDefines(const string &cddName, const string &
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateCompileDefines(const string &cddName, const string &cddValue,
-                                                        U... compileDefines)
+CppTarget &CppTarget::privateCompileDefines(const string &cddName, const string &cddValue, U... compileDefines)
 {
     reqCompileDefinitions.emplace(cddName, cddValue);
 
@@ -975,8 +947,7 @@ CppTarget &CppTarget::privateCompileDefines(const string &cddName, const string 
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceCompileDefines(const string &cddName, const string &cddValue,
-                                                          U... compileDefines)
+CppTarget &CppTarget::interfaceCompileDefines(const string &cddName, const string &cddValue, U... compileDefines)
 {
     useReqCompileDefinitions.emplace(cddName, cddValue);
 
@@ -1009,8 +980,7 @@ CppTarget &CppTarget::interfaceFiles(const string &modFile, const string &export
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicHeaderFiles(const string &logicalName, const string &headerFile,
-                                                    U... headersString)
+CppTarget &CppTarget::publicHeaderFiles(const string &logicalName, const string &headerFile, U... headersString)
 {
 
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -1032,8 +1002,7 @@ CppTarget &CppTarget::publicHeaderFiles(const string &logicalName, const string 
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateHeaderFiles(const string &logicalName, const string &headerFile,
-                                                     U... headersString)
+CppTarget &CppTarget::privateHeaderFiles(const string &logicalName, const string &headerFile, U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -1054,8 +1023,7 @@ CppTarget &CppTarget::privateHeaderFiles(const string &logicalName, const string
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceHeaderFiles(const string &logicalName, const string &headerFile,
-                                                       U... headersString)
+CppTarget &CppTarget::interfaceHeaderFiles(const string &logicalName, const string &headerFile, U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -1076,8 +1044,7 @@ CppTarget &CppTarget::interfaceHeaderFiles(const string &logicalName, const stri
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicHeaderUnits(const string &logicalName, const string &headerUnit,
-                                                    U... headersString)
+CppTarget &CppTarget::publicHeaderUnits(const string &logicalName, const string &headerUnit, U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -1098,8 +1065,7 @@ CppTarget &CppTarget::publicHeaderUnits(const string &logicalName, const string 
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateHeaderUnits(const string &logicalName, const string &headerUnit,
-                                                     U... headersString)
+CppTarget &CppTarget::privateHeaderUnits(const string &logicalName, const string &headerUnit, U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -1120,8 +1086,7 @@ CppTarget &CppTarget::privateHeaderUnits(const string &logicalName, const string
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceHeaderUnits(const string &logicalName, const string &headerUnit,
-                                                       U... headersString)
+CppTarget &CppTarget::interfaceHeaderUnits(const string &logicalName, const string &headerUnit, U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {

@@ -551,7 +551,7 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
 }
 
 void CppMod::duplicateHeaderFileOrUnitError(const string &headerName, HeaderFileOrUnit &first, HeaderFileOrUnit &second,
-                                            CppTarget *firstTarget, CppTarget *secondTarget)
+                                            CppTarget *firstTarget, CppTarget *secondTarget) const
 {
     string str = FORMAT("For CTBNonModule {} received from module-file {} of target {}, "
                         "there are duplicate entries.\n",
