@@ -416,9 +416,6 @@ void writeConfigBuffer(vector<char> &buffer);
 void writeBuildBuffer(vector<char> &buffer);
 string getThreadId();
 
-void readConfigCache();
-void readBuildCache();
-
 void writeConfigBuffer(vector<char> &buffer);
 void writeBuildBuffer(vector<char> &buffer);
 
