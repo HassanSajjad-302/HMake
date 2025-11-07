@@ -1,7 +1,7 @@
 #include "Configure.hpp"
 #include <cstdint>
 #include <cstdlib>
-#include <new>
+
 using std::filesystem::current_path;
 
 static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
