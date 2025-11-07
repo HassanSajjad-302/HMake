@@ -59,7 +59,8 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/IPCManagerBS.cpp
         hconfigure/src/IPCManagerCompiler.cpp
         hconfigure/src/Manager.cpp
-        hconfigure/src/BoostCppTarget.cpp)
+        hconfigure/src/BoostCppTarget.cpp
+        hconfigure/src/CustomAllocator.cpp)
 
 set(INCLUDE_BUILD ON)
 set(INCLUDE_CONFIGURE ON)

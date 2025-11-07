@@ -6,6 +6,7 @@
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "TargetCache.hpp"
+#include "SpecialNodes.hpp"
 #include "parallel-hashmap/parallel_hashmap/btree.h"
 
 class Configuration;
