@@ -2,8 +2,8 @@
 #include "LOAT.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CacheWriteManager.hpp"
+#include "Configuration.hpp"
 #include "CppSourceTarget.hpp"
-#include "Utilities.hpp"
 #include <filesystem>
 #include <stack>
 #include <utility>
@@ -515,7 +515,7 @@ void LOAT::setLinkOrArchiveCommands()
             linkWithTargets += "\" ";
         }
 
-        if (evaluate(BTFamily::GCC))
+        if (config.linkerFeatures.evaluate(BTFamily::GCC))
         {
             for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
             {

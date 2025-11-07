@@ -5,7 +5,6 @@
 #include "CacheWriteManager.hpp"
 #include "ConfigurationAssign.hpp"
 #include "LOAT.hpp"
-#include "Utilities.hpp"
 #include "rapidhash/rapidhash.h"
 #include <filesystem>
 #include <fstream>

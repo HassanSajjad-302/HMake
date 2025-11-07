@@ -3,9 +3,8 @@
 #define HMAKE_DSC_HPP
 
 #include "Features.hpp"
+#include "LOAT.hpp"
 #include "ObjectFileProducer.hpp"
-
-class LOAT;
 
 // Dependency Specification Controller. The following declaration is for T = CSourceTarget
 template <typename T> struct DSC : DSCFeatures

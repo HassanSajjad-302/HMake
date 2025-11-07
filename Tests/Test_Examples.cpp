@@ -2,7 +2,6 @@
 #include "BuildSystemFunctions.hpp"
 #include "ExamplesTestHelper.hpp"
 #include "Features.hpp"
-#include "Utilities.hpp"
 #include "fmt/format.h"
 #include "nlohmann/json.hpp"
 #include "gtest/gtest.h"

@@ -4,8 +4,6 @@
 #include "BuildTools.hpp"
 #include "Cache.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
-#include "OS.hpp"
-#include "SpecialNodes.hpp"
 #include "TargetType.hpp"
 #include <vector>
 

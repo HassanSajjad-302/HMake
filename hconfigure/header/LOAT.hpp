@@ -61,7 +61,7 @@ template <typename T> bool LOAT::evaluate(T property) const
     }
     else
     {
-        return config.linkerFeatures.evaluate(property);
+        static_assert(false);
     }
 }
 

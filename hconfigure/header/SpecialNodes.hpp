@@ -2,16 +2,15 @@
 #ifndef SPECIALNODES_HPP
 #define SPECIALNODES_HPP
 
-#include "Node.hpp"
-#include <list>
+class Node;
 
-using std::list;
 class LibDirNode
 {
   public:
     Node *node = nullptr;
-    explicit LibDirNode(Node *node_);
-    static void emplaceInList(list<LibDirNode> &libDirNodes, LibDirNode &libDirNode);
+    LibDirNode(Node *node_) : node{node_}
+    {
+    }
 };
 
 class InclNode : public LibDirNode
@@ -21,9 +20,15 @@ class InclNode : public LibDirNode
     // in target-cache file
     bool isStandard = false;
     bool ignoreHeaderDeps = false;
-    explicit InclNode(Node *node_, bool isStandard_ = false, bool ignoreHeaderDeps_ = false);
-    static bool emplaceInList(list<InclNode> &includes, InclNode &libDirNode);
+    InclNode(Node *node_, const bool isStandard_, const bool ignoreHeaderDeps_)
+        : LibDirNode(node_), isStandard(isStandard_), ignoreHeaderDeps{ignoreHeaderDeps_}
+    {
+    }
 };
-bool operator<(const InclNode &lhs, const InclNode &rhs);
+
+inline bool operator<(const InclNode &lhs, const InclNode &rhs)
+{
+    return lhs.node < rhs.node;
+}
 
 #endif // SPECIALNODES_HPP

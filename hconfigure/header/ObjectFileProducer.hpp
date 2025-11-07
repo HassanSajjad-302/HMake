@@ -3,8 +3,9 @@
 #define HMAKE_OBJECTFILEPRODUCER_HPP
 
 #include "DepType.hpp"
-#include "LOAT.hpp"
 #include "ObjectFile.hpp"
+
+class LOAT;
 
 class ObjectFileProducer : public BTarget
 {

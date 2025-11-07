@@ -1,7 +1,7 @@
 
 #include "BuildTools.hpp"
 #include "JConsts.hpp"
-#include "PlatformSpecific.hpp"
+#include "BuildSystemFunctions.hpp"
 #include <utility>
 
 using std::stringstream;

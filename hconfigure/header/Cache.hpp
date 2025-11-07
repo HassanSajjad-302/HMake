@@ -2,7 +2,6 @@
 #define HMAKE_CACHE_HPP
 
 #include "BuildSystemFunctions.hpp"
-#include "PlatformSpecific.hpp"
 #include "nlohmann/json.hpp"
 #include <vector>
 

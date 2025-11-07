@@ -3,11 +3,12 @@
 #define HMAKE_PLOAT_HPP
 
 #include "BTarget.hpp"
-#include "Configuration.hpp"
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "TargetCache.hpp"
 #include "parallel-hashmap/parallel_hashmap/btree.h"
+
+class Configuration;
 
 using phmap::node_hash_map, phmap::btree_map;
 
@@ -102,10 +103,6 @@ template <typename T> bool PLOAT::evaluate(T property) const
     if constexpr (std::is_same_v<decltype(property), TargetType>)
     {
         return linkTargetType == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
-    {
-        return config.ploatFeatures.evaluate(property);
     }
     else
     {

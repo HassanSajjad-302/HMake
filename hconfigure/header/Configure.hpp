@@ -14,7 +14,6 @@
 #include "SMFile.hpp"
 #include "Settings.hpp"
 #include "ToolsCache.hpp"
-#include "Utilities.hpp"
 #include "nlohmann/json.hpp"
 #include <filesystem>
 #include <memory>

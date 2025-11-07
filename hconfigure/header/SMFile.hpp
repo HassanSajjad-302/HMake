@@ -4,7 +4,6 @@
 #include "IPCManagerBS.hpp"
 #include "ObjectFile.hpp"
 #include "RunCommand.hpp"
-#include "SpecialNodes.hpp"
 #include "TargetCache.hpp"
 #include "parallel-hashmap/parallel_hashmap/btree.h"
 #include <atomic>
@@ -16,6 +15,7 @@
 using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, std::atomic, std::atomic_flag,
     phmap::btree_set, phmap::flat_hash_map;
 
+class CppSourceTarget;
 class SourceNode;
 struct CompareSourceNode
 {

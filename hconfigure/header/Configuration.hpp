@@ -2,6 +2,7 @@
 #define HMAKE_CONFIGURATION_HPP
 
 #include "BTarget.hpp"
+#include "DSC.hpp"
 #include "Features.hpp"
 #include "TargetCache.hpp"
 #include <memory>

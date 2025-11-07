@@ -1,8 +1,10 @@
 #ifndef HASHVALUES_HPP
 #define HASHVALUES_HPP
 
-#include "PlatformSpecific.hpp"
 #include "cstdint"
+#include "string"
+
+using std::string_view;
 
 class CppSourceTarget;
 struct DSCFeatures;

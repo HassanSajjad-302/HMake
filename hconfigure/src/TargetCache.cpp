@@ -1,6 +1,7 @@
 
 #include "TargetCache.hpp"
-#include <BuildSystemFunctions.hpp>
+#include "BuildSystemFunctions.hpp"
+#include "Node.hpp"
 
 namespace
 {

@@ -1,3 +1,6 @@
+/// \file
+/// Classes defined here are used for build-cache and config-cache reading/writing.
+
 #ifndef TARGETCACHE_HPP
 #define TARGETCACHE_HPP
 
@@ -7,6 +10,7 @@
 
 using phmap::flat_hash_map;
 
+/// Every Target-Cache has representation on both config-cache and build-cache.
 struct FileTargetCache
 {
     class TargetCache *targetCache = nullptr;
@@ -44,41 +48,6 @@ struct CCOrHash
 
     void serialize(vector<char> &buffer) const;
     void deserialize(const char *ptr, uint32_t &bytesRead);
-};
-
-struct ConfigCache
-{
-    struct Cpp
-    {
-        struct InclNode
-        {
-            Node *node;
-        };
-        struct HuNode
-        {
-            Node *node;
-            bool isStandard = false;
-            bool ignoreHeader = false;
-            uint32_t targetCacheIndex = -1;
-            uint32_t headerUnitIndex = -1;
-        };
-        vector<InclNode> reqInclsArray;
-        vector<InclNode> useReqInclsArray;
-        vector<HuNode> reqHUDirsArray;
-        vector<HuNode> useReqHUDirsArray;
-        vector<Node *> sourceFiles;
-        vector<Node *> moduleFiles;
-        vector<Node *> headerUnits;
-        Node *buildCacheFilesDirPath;
-    };
-
-    struct Link
-    {
-        Node *outputFileNode;
-        vector<Node *> reqLibraryDirsArray;
-        vector<Node *> useReqLibraryDirsArray;
-        Node *buildCacheFilesDirPath;
-    };
 };
 
 struct BuildCache

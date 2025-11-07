@@ -2,6 +2,7 @@
 #include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "CacheWriteManager.hpp"
+#include "Node.hpp"
 #include <filesystem>
 #include <utility>
 

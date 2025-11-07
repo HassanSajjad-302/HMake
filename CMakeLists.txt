@@ -49,12 +49,9 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/BuildTools.cpp
         hconfigure/src/ToolsCache.cpp
         hconfigure/src/RunCommand.cpp
-        hconfigure/src/Utilities.cpp
         hconfigure/src/Configure.cpp
         hconfigure/src/PLOAT.cpp
-        hconfigure/src/PlatformSpecific.cpp
         hconfigure/src/Node.cpp
-        hconfigure/src/SpecialNodes.cpp
         3rdParty/lz4/lib/lz4.c
         hconfigure/src/HashValues.cpp
         hconfigure/src/TargetCache.cpp
@@ -189,8 +186,7 @@ if ((${INCLUDE_CONFIGURE} MATCHES ON) AND (${INCLUDE_BUILD} MATCHES ON))
             Tests/Test_Examples.cpp
             Tests/Test_hconfigure.cpp
             Tests/StageTests.cpp
-            Tests/Snapshot.cpp
-            Tests/IgnoreHeaderDeps.cpp)
+            Tests/Snapshot.cpp)
     target_link_libraries(Tests PRIVATE gtest gtest_main)
     target_include_directories(Tests PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
     target_compile_definitions(Tests PRIVATE SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}/")

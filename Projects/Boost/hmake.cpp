@@ -193,7 +193,7 @@ void buildSpecification()
 
     // getConfiguration("conventional-r").assign(TreatModuleAsSource::YES, ConfigType::RELEASE);
     // getConfiguration("hu-r").assign(TreatModuleAsSource::NO, ConfigType::RELEASE);
-  //  getConfiguration("conventional-d").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
+    getConfiguration("conventional-d").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
     // getConfiguration("hu-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::NO);
     getConfiguration("huBig-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::YES);
     CALL_CONFIGURATION_SPECIFICATION

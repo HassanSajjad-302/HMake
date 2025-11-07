@@ -2,7 +2,6 @@
 #include "ToolsCache.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
-#include "Utilities.hpp"
 #include <filesystem>
 #include <fstream>
 #include <utility>
