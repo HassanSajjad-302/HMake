@@ -260,7 +260,7 @@ void CppTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *lo
         objectFiles->emplace_back(objectFile);
     }
 
-    for (const SourceNode *objectFile : srcFileDeps)
+    for (const CppSrc *objectFile : srcFileDeps)
     {
         objectFiles->emplace_back(objectFile);
     }
@@ -268,7 +268,7 @@ void CppTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *lo
 
 void CppTarget::updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified)
 {
-    static_cast<SourceNode *>(ptr)->updateBuildCache(outputStr, errorStr, buildCacheModified);
+    static_cast<CppSrc *>(ptr)->updateBuildCache(outputStr, errorStr, buildCacheModified);
 }
 
 void CppTarget::populateTransitiveProperties()
@@ -313,7 +313,7 @@ void CppTarget::actuallyAddSourceFileConfigTime(Node *node)
                                  name, node->filePath));
     }
 
-    for (const SourceNode *source : srcFileDeps)
+    for (const CppSrc *source : srcFileDeps)
     {
         if (source->node == node)
         {
@@ -323,7 +323,7 @@ void CppTarget::actuallyAddSourceFileConfigTime(Node *node)
             return;
         }
     }
-    srcFileDeps.emplace_back(new SourceNode(this, node));
+    srcFileDeps.emplace_back(new CppSrc(this, node));
 }
 
 void CppTarget::actuallyAddModuleFileConfigTime(Node *node, string exportName)
@@ -1146,7 +1146,7 @@ void CppTarget::writeCacheAtConfigTime()
     }
 
     writeUint32(*configBuffer, srcFileDeps.size());
-    for (SourceNode *source : srcFileDeps)
+    for (CppSrc *source : srcFileDeps)
     {
         string fileNumber = std::to_string(source->node->myId);
         source->objectNode = Node::getNodeFromNormalizedString(
@@ -1251,7 +1251,7 @@ void CppTarget::readConfigCacheAtBuildTime()
     srcFileDeps.reserve(sourceSize);
     for (uint32_t i = 0; i < sourceSize; ++i)
     {
-        SourceNode *src = srcFileDeps.emplace_back(new SourceNode(this, readHalfNode(ptr, configRead)));
+        CppSrc *src = srcFileDeps.emplace_back(new CppSrc(this, readHalfNode(ptr, configRead)));
         src->objectNode = readHalfNode(ptr, configRead);
 
         addDepMT<0>(*srcFileDeps[i]);
@@ -1372,12 +1372,12 @@ CppTarget &CppTarget::interfaceCompilerFlags(const string &compilerFlags)
     return *this;
 }
 
-void CppTarget::parseRegexSourceDirs(bool assignToSourceNodes, const string &sourceDirectory, string regexStr,
+void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceDirectory, string regexStr,
                                      const bool recursive)
 {
     if (configuration->evaluate(TreatModuleAsSource::YES))
     {
-        assignToSourceNodes = true;
+        assignToCppSrcs = true;
     }
 
     if constexpr (bsMode == BSMode::BUILD)
@@ -1389,7 +1389,7 @@ void CppTarget::parseRegexSourceDirs(bool assignToSourceNodes, const string &sou
         if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(regexStr)))
         {
             Node *node = Node::getNodeFromNonNormalizedPath(k.path(), true);
-            if (assignToSourceNodes)
+            if (assignToCppSrcs)
             {
                 actuallyAddSourceFileConfigTime(node);
             }

@@ -14,36 +14,36 @@
 
 using std::tie, std::ifstream, std::exception, std::lock_guard, N2978::IPCManagerBS;
 
-bool CompareSourceNode::operator()(const SourceNode &lhs, const SourceNode &rhs) const
+bool CompareCppSrc::operator()(const CppSrc &lhs, const CppSrc &rhs) const
 {
     return lhs.node < rhs.node;
 }
 
-bool CompareSourceNode::operator()(const Node *lhs, const SourceNode &rhs) const
+bool CompareCppSrc::operator()(const Node *lhs, const CppSrc &rhs) const
 {
     return lhs < rhs.node;
 }
 
-bool CompareSourceNode::operator()(const SourceNode &lhs, const Node *rhs) const
+bool CompareCppSrc::operator()(const CppSrc &lhs, const Node *rhs) const
 {
     return lhs.node < rhs;
 }
 
-SourceNode::SourceNode(CppTarget *target_, const Node *node_) : ObjectFile(true, false), target(target_), node{node_}
+CppSrc::CppSrc(CppTarget *target_, const Node *node_) : ObjectFile(true, false), target(target_), node{node_}
 {
 }
 
-SourceNode::SourceNode(CppTarget *target_, const Node *node_, const bool add0, const bool add1)
+CppSrc::CppSrc(CppTarget *target_, const Node *node_, const bool add0, const bool add1)
     : ObjectFile(add0, add1), target(target_), node{node_}
 {
 }
 
-string SourceNode::getPrintName() const
+string CppSrc::getPrintName() const
 {
     return node->filePath;
 }
 
-void SourceNode::initializeBuildCache(const uint32_t index)
+void CppSrc::initializeBuildCache(const uint32_t index)
 {
     indexInBuildCache = index;
     const BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[index];
@@ -67,7 +67,7 @@ void SourceNode::initializeBuildCache(const uint32_t index)
     }
 }
 
-string SourceNode::getCompileCommand() const
+string CppSrc::getCompileCommand() const
 {
     const Compiler &compiler = target->configuration->compilerFeatures.compiler;
     string compileCommand = target->compileCommand;
@@ -84,11 +84,11 @@ string SourceNode::getCompileCommand() const
     return compileCommand;
 }
 
-void SourceNode::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
+void CppSrc::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     if (!round && selectiveBuild)
     {
-        setSourceNodeFileStatus();
+        setCppSrcFileStatus();
         if (RealBTarget &rb = realBTargets[0]; rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
             thrIndex = myThreadIndex;
@@ -105,7 +105,7 @@ void SourceNode::updateBTarget(Builder &builder, const unsigned short round, boo
     }
 }
 
-bool SourceNode::ignoreHeaderFile(const string_view child) const
+bool CppSrc::ignoreHeaderFile(const string_view child) const
 {
     // It is assumed that both paths are normalized strings
     for (const InclNode &inclNode : target->reqIncls)
@@ -121,7 +121,7 @@ bool SourceNode::ignoreHeaderFile(const string_view child) const
     return false;
 }
 
-void SourceNode::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
+void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
 {
     const string includeFileNote = "Note: including file:";
 
@@ -229,7 +229,7 @@ void SourceNode::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
     }
 }
 
-void SourceNode::parseDepsFromGCCDepsOutput()
+void CppSrc::parseDepsFromGCCDepsOutput()
 {
     if (target->ignoreHeaderDeps)
     {
@@ -257,7 +257,7 @@ void SourceNode::parseDepsFromGCCDepsOutput()
     }
 }
 
-void SourceNode::parseHeaderDeps(string &output)
+void CppSrc::parseHeaderDeps(string &output)
 {
     if (target->configuration->compilerFeatures.compiler.bTFamily == BTFamily::MSVC)
     {
@@ -285,7 +285,7 @@ bool pathContainsFile(string_view dir, const string_view file)
     return std::equal(dir.begin(), dir.end(), withoutFileName.begin());
 }
 
-void SourceNode::setSourceNodeFileStatus()
+void CppSrc::setCppSrcFileStatus()
 {
     RealBTarget &rb = realBTargets[0];
     if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
@@ -322,7 +322,7 @@ void SourceNode::setSourceNodeFileStatus()
     rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
 }
 
-void SourceNode::updateBuildCache(string &outputStr, string &errorStr, bool &buildCacheModified)
+void CppSrc::updateBuildCache(string &outputStr, string &errorStr, bool &buildCacheModified)
 {
     const Compiler &compiler = target->configuration->compilerFeatures.compiler;
     BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[indexInBuildCache];
@@ -370,12 +370,12 @@ void SourceNode::updateBuildCache(string &outputStr, string &errorStr, bool &bui
     outputStr += compilationOutput;
 }
 
-bool operator<(const SourceNode &lhs, const SourceNode &rhs)
+bool operator<(const CppSrc &lhs, const CppSrc &rhs)
 {
     return lhs.node < rhs.node;
 }
 
-CppMod::CppMod(CppTarget *target_, const Node *node_) : SourceNode(target_, node_, true, false)
+CppMod::CppMod(CppTarget *target_, const Node *node_) : CppSrc(target_, node_, true, false)
 {
 }
 

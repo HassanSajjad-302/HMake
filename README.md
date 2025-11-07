@@ -217,7 +217,7 @@ By overriding ```BTarget::getTarjanNodeName```,
 we can customize this message to differentiate between different overrides of BTarget.
 By default, it prints ```BTarget``` and the id number.
 ```CppTarget```, ```LOAT``` prints ```name```,
-while ```SourceNode``` and ```CppMod``` prints ```node->filePath```.
+while ```CppSrc``` and ```CppMod``` prints ```node->filePath```.
 
 ### Example 5
 

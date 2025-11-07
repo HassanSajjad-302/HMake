@@ -60,7 +60,7 @@ enum class UpdateStatus
     /// CppMod tests RealBTarget::updateStatus against this to confirm whether the dependency module or header-unit is
     /// updated or not.
     UPDATED,
-    /// This is an additional value that is used by SourceNode and CppMod to store whether the file needs to be
+    /// This is an additional value that is used by CppSrc and CppMod to store whether the file needs to be
     /// recompiled
     NEEDS_UPDATE,
 };
@@ -147,13 +147,13 @@ class RealBTarget
     /// \param bTarget_ the back-pointer to BTarget that owns this
     /// \param round_ Constructor will add to BTarget::realBTargetsGlobal[round]
     /// \param add whether to add for a round. Should be false if BTarget::updateBTarget is not going to do any work in
-    /// that round. SourceNode and CppMod initialize BTarget::realBTargets[1] with this parameter as false as they have
+    /// that round. CppSrc and CppMod initialize BTarget::realBTargets[1] with this parameter as false as they have
     /// work only in round 0. Specifying a RealBTarget with add as false as dependency or dependent of other RealBTarget
     /// is undefined behavior.
     RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
 
     /// Assigns full-dependents RealBTarget::updateStatus with UpdateStatus::NEEDS_UPDATE.
-    /// This is used by SourceNode and CppMod so that the LOAT does not have to make an extra check.
+    /// This is used by CppSrc and CppMod so that the LOAT does not have to make an extra check.
     void assignNeedsUpdateToDependents();
 };
 
