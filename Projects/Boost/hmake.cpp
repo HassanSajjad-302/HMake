@@ -39,7 +39,10 @@ using std::filesystem::directory_iterator;
 
 void configurationSpecification(Configuration &config)
 {
-    config.stdCppTarget->getSourceTarget().publicIncludesSource(srcNode->filePath);
+    DSC<CppTarget> &boostTarget = config.getCppStaticDSC("boost").publicDeps(*config.stdCppTarget);
+    boostTarget.getSourceTarget().publicIncludesSource(srcNode->filePath);
+    config.stdCppTarget = &boostTarget;
+
     config.assign(BuildTests::YES, BuildExamples::YES);
 
     BoostCppTarget &callableTraits = config.getBoostCppTarget("callable_Traits");
@@ -192,7 +195,7 @@ void buildSpecification()
 
     // getConfiguration("conventional-r").assign(TreatModuleAsSource::YES, ConfigType::RELEASE);
     // getConfiguration("hu-r").assign(TreatModuleAsSource::NO, ConfigType::RELEASE);
-    getConfiguration("conventional-d").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
+    // getConfiguration("conventional-d").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
     // getConfiguration("hu-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::NO);
     getConfiguration("huBig-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::YES);
     CALL_CONFIGURATION_SPECIFICATION

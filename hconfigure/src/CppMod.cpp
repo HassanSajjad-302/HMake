@@ -496,15 +496,15 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
     if (!firstMessageSent)
     {
         firstMessageSent = true;
-        for (auto &[str, node] : composingHeaders)
+        for (auto &[str, composingNode] : composingHeaders)
         {
             // emplace in header-files to send
-            N2978::HeaderFile h{.logicalName = str, .filePath = node->filePath, .isSystem = target->isSystem};
+            N2978::HeaderFile h{.logicalName = str, .filePath = composingNode->filePath, .isSystem = target->isSystem};
             btcNonModule.headerFiles.emplace_back(std::move(h));
 
             if (!target->ignoreHeaderDeps)
             {
-                headerFiles.emplace(node);
+                headerFiles.emplace(composingNode);
             }
         }
     }
@@ -788,14 +788,14 @@ bool CppMod::build(Builder &builder)
                     if (!firstMessageSent)
                     {
                         firstMessageSent = true;
-                        for (const auto &[str, node] : composingHeaders)
+                        for (const auto &[str, composingNode] : composingHeaders)
                         {
                             if (!target->ignoreHeaderDeps)
                             {
-                                headerFiles.emplace(f.data.node);
+                                headerFiles.emplace(composingNode);
                             }
 
-                            if (f.data.node == node && headerName == str)
+                            if (f.data.node == composingNode && headerName == str)
                             {
                                 addedInComposingHeader = true;
                                 continue;
@@ -803,7 +803,7 @@ bool CppMod::build(Builder &builder)
 
                             // emplace in header-files to send
                             N2978::HeaderFile h{
-                                .logicalName = str, .filePath = node->filePath, .isSystem = target->isSystem};
+                                .logicalName = str, .filePath = composingNode->filePath, .isSystem = target->isSystem};
                             response.headerFiles.emplace_back(std::move(h));
                         }
                     }
