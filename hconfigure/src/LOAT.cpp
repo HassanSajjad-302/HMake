@@ -211,30 +211,65 @@ void LOAT::setFileStatus()
 void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     PLOAT::updateBTarget(builder, round, isComplete);
-    RealBTarget &realBTarget = realBTargets[round];
-    if (!round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
+    if (RealBTarget &realBTarget = realBTargets[round];
+        !round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
     {
         setFileStatus();
-        RealBTarget &rb = realBTargets[0];
-        if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
+        if (RealBTarget &rb = realBTargets[0]; rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
             rb.assignNeedsUpdateToDependents();
-            thrIndex = myThreadIndex;
 
             RunCommand r;
             r.startProcess(linkWithTargets, false);
             auto [output, exitStatus] = r.endProcess(false);
             realBTarget.exitStatus = exitStatus;
-            linkOutput = std::move(output);
 
-            // We have to pass the linkBuildCache since we can not update it in multithreaded mode.
-            if (linkTargetType == TargetType::LIBRARY_STATIC)
+            atomic_ref(realBTargets[0].updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
+            string outputStr;
+            if (isConsole)
             {
-                CacheWriteManager::addNewEntry(this, nullptr);
+                if (linkTargetType == TargetType::LIBRARY_STATIC)
+                {
+                    outputStr += getColorCode(ColorIndex::dark_khaki);
+                }
+                else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+                {
+                    outputStr += getColorCode(ColorIndex::orange);
+                }
             }
-            else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+
+            if (output.empty())
             {
-                CacheWriteManager::addNewEntry(this, nullptr);
+                string str;
+                if (linkTargetType == TargetType::LIBRARY_STATIC)
+                {
+                    str = "Static-Lib";
+                }
+                else if (linkTargetType == TargetType::LIBRARY_SHARED)
+                {
+                    str = "Shared-Lib";
+                }
+                else
+                {
+                    str = "Executable";
+                }
+                outputStr += FORMAT("{} {} ", str, name);
+            }
+            else
+            {
+                outputStr += linkWithTargets;
+            }
+
+            outputStr += threadIds[myThreadIndex];
+            if (isConsole)
+            {
+                outputStr += getColorCode(ColorIndex::reset);
+            }
+
+            outputStr += output;
+            {
+                std::lock_guard _(printMutex);
+                fwrite(outputStr.data(), 1, outputStr.size(), stdout);
             }
 
             if constexpr (os == OS::NT)
@@ -274,83 +309,27 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
     }
 }
 
-void LOAT::updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified)
-{
-    if (realBTargets[0].exitStatus == EXIT_SUCCESS)
-    {
-        buildCacheModified = true;
-        linkBuildCache.commandWithoutArgumentsWithTools.hash = commandWithoutTargetsWithTool.getHash();
-        linkBuildCache.objectFiles.reserve(objectFiles.size());
-        linkBuildCache.objectFiles.clear();
-        for (const ObjectFile *objectFile : objectFiles)
-        {
-            linkBuildCache.objectFiles.emplace_back(objectFile->objectNode);
-        }
-    }
-
-    if (linkTargetType == TargetType::LIBRARY_STATIC)
-    {
-        if (isConsole)
-        {
-            outputStr += getColorCode(ColorIndex::dark_khaki);
-        }
-    }
-    else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
-    {
-
-        if (isConsole)
-        {
-            outputStr += getColorCode(ColorIndex::orange);
-        }
-    }
-
-    string printCommand;
-    if (linkOutput.empty())
-    {
-        string str;
-        if (linkTargetType == TargetType::LIBRARY_STATIC)
-        {
-            str = "Static-Lib";
-        }
-        else if (linkTargetType == TargetType::LIBRARY_SHARED)
-        {
-            str = "Shared-Lib";
-        }
-        else
-        {
-            str = "Executable";
-        }
-        printCommand = FORMAT("{} {} ", str, name);
-    }
-    else
-    {
-        printCommand += linkWithTargets;
-    }
-
-    outputStr += printCommand;
-    outputStr += threadIds[thrIndex];
-    if (isConsole)
-    {
-        outputStr += getColorCode(ColorIndex::reset);
-    }
-
-    outputStr += linkOutput;
-}
-
-void LOAT::writeBuildCache(vector<char> &buffer)
+bool LOAT::writeBuildCache(vector<char> &buffer)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        PLOAT::writeBuildCache(buffer);
-        return;
+        return PLOAT::writeBuildCache(buffer);
     }
 
-    linkBuildCache.commandWithoutArgumentsWithTools.serialize(buffer);
-    writeUint32(buffer, linkBuildCache.objectFiles.size());
-    for (const Node *node : linkBuildCache.objectFiles)
+    if (atomic_ref(realBTargets[0].updateStatus).load(std::memory_order_acquire) != UpdateStatus::UPDATED ||
+        realBTargets[0].exitStatus != EXIT_SUCCESS)
     {
-        writeNode(buffer, node);
+        return PLOAT::writeBuildCache(buffer);
     }
+
+    linkBuildCache.commandWithoutArgumentsWithTools.hash = commandWithoutTargetsWithTool.getHash();
+    linkBuildCache.commandWithoutArgumentsWithTools.serialize(buffer);
+    writeUint32(buffer, objectFiles.size());
+    for (const ObjectFile *obj : objectFiles)
+    {
+        writeNode(buffer, obj->objectNode);
+    }
+    return true;
 }
 
 void LOAT::writeCacheAtConfigureTime()

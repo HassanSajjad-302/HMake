@@ -91,16 +91,49 @@ void CppSrc::updateBTarget(Builder &builder, const unsigned short round, bool &i
         setCppSrcFileStatus();
         if (RealBTarget &rb = realBTargets[0]; rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
-            thrIndex = myThreadIndex;
             rb.assignNeedsUpdateToDependents();
 
             RunCommand r;
             r.startProcess(getCompileCommand(), false);
             auto [output, exitStatus] = r.endProcess(false);
             realBTargets[0].exitStatus = exitStatus;
-            compilationOutput = std::move(output);
 
-            CacheWriteManager::addNewEntry(target, this);
+            parseHeaderDeps(output);
+
+            if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+            {
+                atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
+                atomic_ref(target->buildCacheUpdated).store(true, std::memory_order_release);
+            }
+
+            string outputStr;
+            if (isConsole)
+            {
+                outputStr += getColorCode(ColorIndex::cyan);
+            }
+
+            if (output.empty())
+            {
+                outputStr += FORMAT("C++Source {} {} ", node->filePath, target->name);
+            }
+            else
+            {
+                outputStr += getCompileCommand() + '\n';
+            }
+
+            outputStr += threadIds[myThreadIndex];
+
+            if (isConsole)
+            {
+                outputStr += getColorCode(ColorIndex::reset);
+            }
+
+            outputStr += output;
+
+            {
+                std::lock_guard _(printMutex);
+                fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
+            }
         }
     }
 }
@@ -322,52 +355,25 @@ void CppSrc::setCppSrcFileStatus()
     rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
 }
 
-void CppSrc::updateBuildCache(string &outputStr, string &errorStr, bool &buildCacheModified)
+void CppSrc::updateBuildCache()
 {
-    const Compiler &compiler = target->configuration->compilerFeatures.compiler;
     BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[indexInBuildCache];
 
-    // Compile-Command is only updated on succeeding i.e. in case of failure it will be re-executed
-    // because cached compile-command would be different
+    if (atomic_ref(realBTargets[0].updateStatus).load(std::memory_order_acquire) != UpdateStatus::UPDATED ||
+        realBTargets[0].exitStatus != EXIT_SUCCESS)
+    {
+        return;
+    }
+
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
-        buildCacheModified = true;
         buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
-        parseHeaderDeps(compilationOutput);
         buildCache.headerFiles.clear();
         for (Node *header : headerFiles)
         {
             buildCache.headerFiles.emplace_back(header);
         }
     }
-    else if (compiler.bTFamily == BTFamily::MSVC)
-    {
-        // MSVC print header-files even when compilation fails.
-        parseHeaderDeps(compilationOutput);
-    }
-
-    if (isConsole)
-    {
-        outputStr += getColorCode(ColorIndex::cyan);
-    }
-
-    if (compilationOutput.empty())
-    {
-        outputStr += FORMAT("C++Source {} {} ", node->filePath, target->name);
-    }
-    else
-    {
-        outputStr += getCompileCommand() + '\n';
-    }
-
-    outputStr += threadIds[thrIndex];
-
-    if (isConsole)
-    {
-        outputStr += getColorCode(ColorIndex::reset);
-    }
-
-    outputStr += compilationOutput;
 }
 
 bool operator<(const CppSrc &lhs, const CppSrc &rhs)
@@ -690,10 +696,43 @@ bool CppMod::build(Builder &builder)
                 auto [_, exitStatus] = run.endProcess(true);
                 rb.exitStatus = exitStatus;
                 assert(rb.exitStatus == lastMessage.errorOccurred && "error-status mismatch");
-                compilationOutput = std::move(lastMessage.errorOutput);
 
-                thrIndex = myThreadIndex;
-                CacheWriteManager::addNewEntry(target, this);
+                atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
+                if (rb.exitStatus == EXIT_SUCCESS)
+                {
+                    atomic_ref(target->buildCacheUpdated).store(true, std::memory_order_release);
+                }
+
+                string outputStr;
+                if (isConsole)
+                {
+                    outputStr +=
+                        getColorCode(type == SM_FILE_TYPE::HEADER_UNIT ? ColorIndex::hot_pink : ColorIndex::magenta);
+                }
+
+                if (lastMessage.errorOutput.empty())
+                {
+                    outputStr += FORMAT("C++{} {} {}", type == SM_FILE_TYPE::HEADER_UNIT ? "Header-Unit" : "Module",
+                                        node->filePath, target->name);
+                }
+                else
+                {
+                    outputStr += target->compileCommand + getCompileCommand();
+                }
+
+                outputStr += ' ';
+                outputStr += threadIds[myThreadIndex];
+
+                if (isConsole)
+                {
+                    outputStr += getColorCode(ColorIndex::reset);
+                }
+
+                outputStr += lastMessage.errorOutput;
+                {
+                    std::lock_guard _(printMutex);
+                    fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
+                }
                 return false;
             }
 
@@ -915,6 +954,10 @@ void CppMod::updateBTarget(Builder &builder, const unsigned short round, bool &i
                 }
                 isComplete = build(builder);
             }
+            else
+            {
+                atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
+            }
         }
     }
 }
@@ -943,11 +986,16 @@ BTargetType CppMod::getBTargetType() const
     return BTargetType::SMFILE;
 }
 
-void CppMod::updateBuildCache(string &outputStr, string &errorStr, bool &buildCacheModified)
+void CppMod::updateBuildCache()
 {
+    if (atomic_ref(realBTargets[0].updateStatus).load(std::memory_order_acquire) != UpdateStatus::UPDATED ||
+        realBTargets[0].exitStatus != EXIT_SUCCESS)
+    {
+        return;
+    }
+
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
-        buildCacheModified = true;
         smRulesCache = BuildCache::Cpp::ModuleFile::SmRules{};
         smRulesCache.headerStatusChanged = false;
         for (const CppMod *cppMod : allCppModDependencies)
@@ -992,31 +1040,6 @@ void CppMod::updateBuildCache(string &outputStr, string &errorStr, bool &buildCa
         }
         smRules = std::move(smRulesCache);
     }
-
-    if (isConsole)
-    {
-        outputStr += getColorCode(type == SM_FILE_TYPE::HEADER_UNIT ? ColorIndex::hot_pink : ColorIndex::magenta);
-    }
-
-    if (compilationOutput.empty())
-    {
-        outputStr += FORMAT("C++{} {} {}", type == SM_FILE_TYPE::HEADER_UNIT ? "Header-Unit" : "Module", node->filePath,
-                            target->name);
-    }
-    else
-    {
-        outputStr += target->compileCommand + getCompileCommand();
-    }
-
-    outputStr += ' ';
-    outputStr += threadIds[thrIndex];
-
-    if (isConsole)
-    {
-        outputStr += getColorCode(ColorIndex::reset);
-    }
-
-    outputStr += compilationOutput;
 }
 
 string CppMod::getCompileCommand() const

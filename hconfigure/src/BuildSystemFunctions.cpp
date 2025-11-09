@@ -44,7 +44,7 @@ string getFileNameJsonOrOut(const string &name)
 #endif
 }
 
-void initializeCache(const BSMode bsMode_)
+void initializeCache()
 {
     cache.initializeCacheVariableFromCacheFile();
     toolsCache.initializeToolsCacheVariableFromToolsCacheFile();
@@ -68,7 +68,7 @@ void initializeCache(const BSMode bsMode_)
                 string(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
             bufferRead += nodeFilePathSize;
         }
-        cacheWriteManager.initialize();
+        nodesSizeBefore = Node::idCountCompleted;
     }
 
     currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
@@ -148,11 +148,16 @@ void printMessageColor(const string &message, uint32_t color)
     fmt::print(fg(static_cast<fmt::color>(color)), "{}", message);
 }
 
-static mutex printErrorMessageMutex;
 void printErrorMessage(const string &message)
 {
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        vector<char> buffer;
+        writeBuildBuffer(buffer);
+    }
+
     // So the exit output is not jumbled if there are multiple errors.
-    printErrorMessageMutex.lock();
+    std::lock_guard _(printMutex);
 
     // fmt::print(stderr, "Error Happened.\n");
     fmt::print(stderr, "{}", message);
@@ -177,18 +182,14 @@ void printErrorMessageColor(const string &message, uint32_t color)
 bool configureOrBuild()
 {
     const Builder b{};
+    vector<char> buffer;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         cache.registerCacheVariables();
-
-        vector<char> buffer;
         writeConfigBuffer(buffer);
-        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"), buffer);
-
         buffer.clear();
-        writeBuildBuffer(buffer);
-        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buffer);
     }
+    writeBuildBuffer(buffer);
     return b.errorHappenedInRoundMode;
 }
 
@@ -206,7 +207,6 @@ void constructGlobals()
 
     std::construct_at(&nodeAllFiles, 10000);
 
-    std::construct_at(&cacheWriteManager);
     std::construct_at(&cache);
     BTarget::laterDepsCentral.emplace_back(&BTarget::laterDepsLocal);
     threadIds.emplace_back(getThreadId());
@@ -214,7 +214,6 @@ void constructGlobals()
 
 void destructGlobals()
 {
-    std::destroy_at(&cacheWriteManager);
 }
 
 void errorExit()
@@ -412,6 +411,26 @@ void readBuildCache()
     }
 }
 
+void writeNodesCacheIfNewNodesAdded()
+{
+    if (const uint64_t newNodesSize = atomic_ref(Node::idCountCompleted).load(std::memory_order_acquire);
+        newNodesSize != nodesSizeBefore)
+    {
+        // printMessage(FORMAT("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
+        //                          nodesSizeBefore, newNodesSize));
+        for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
+        {
+            const string &str = nodeIndices[i]->filePath;
+            uint16_t strSize = str.size();
+            const auto ptr = reinterpret_cast<const char *>(&strSize);
+            nodesCacheGlobal.insert(nodesCacheGlobal.end(), ptr, ptr + 2);
+            nodesCacheGlobal.insert(nodesCacheGlobal.end(), str.begin(), str.end());
+        }
+        nodesSizeBefore = newNodesSize;
+        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheGlobal);
+    }
+}
+
 void writeConfigBuffer(vector<char> &buffer)
 {
     for (FileTargetCache &fileCacheTarget : fileTargetCaches)
@@ -419,11 +438,22 @@ void writeConfigBuffer(vector<char> &buffer)
         writeStringView(buffer, fileCacheTarget.name);
         writeStringView(buffer, fileCacheTarget.configCache);
     }
+    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"), buffer);
 }
 
+static atomic callOnce(false);
 void writeBuildBuffer(vector<char> &buffer)
 {
-    buffer = vector<char>();
+    // This condition is to ensure that function gets executed only once in build-mode either when the build is
+    // interrupted or when the build-system returns in main2 or in printErrorMessage.
+    if (callOnce.exchange(true, std::memory_order_seq_cst))
+    {
+        return;
+    }
+
+    writeNodesCacheIfNewNodesAdded();
+
+    bool cacheUpdated = false;
     for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
     {
         const uint32_t currentSize = buffer.size();
@@ -431,7 +461,10 @@ void writeBuildBuffer(vector<char> &buffer)
         writeUint32(buffer, 0);
         if (fileCacheTarget.targetCache)
         {
-            fileCacheTarget.targetCache->writeBuildCache(buffer);
+            if (fileCacheTarget.targetCache->writeBuildCache(buffer))
+            {
+                cacheUpdated = true;
+            }
         }
         else
         {
@@ -439,6 +472,16 @@ void writeBuildBuffer(vector<char> &buffer)
         }
         const uint32_t size = buffer.size() - (currentSize + 4);
         *static_cast<uint32_t *>(static_cast<void *>(&buffer[currentSize])) = size;
+    }
+
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        cacheUpdated = true;
+    }
+
+    if (cacheUpdated)
+    {
+        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buffer);
     }
 }
 

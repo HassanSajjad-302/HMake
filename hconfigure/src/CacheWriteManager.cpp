@@ -5,6 +5,7 @@
 #include "Node.hpp"
 #include "TargetCache.hpp"
 
+/*
 ColoredStringForPrint::ColoredStringForPrint(string _msg, const uint32_t _color, const bool _isColored)
     : msg(std::move(_msg)), color(_color), isColored(_isColored)
 {
@@ -21,26 +22,6 @@ void CacheWriteManager::addNewEntry(TargetCache *target, void *cache)
         cacheWriteManager.updatedCaches.emplace_back(target, cache);
     }
     cacheWriteManager.vecCond.notify_one();
-}
-
-void CacheWriteManager::writeNodesCacheIfNewNodesAdded()
-{
-    if (const uint64_t newNodesSize = atomic_ref(Node::idCountCompleted).load(std::memory_order_acquire);
-        newNodesSize != nodesSizeBefore)
-    {
-        // printMessage(FORMAT("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
-        //                          nodesSizeBefore, newNodesSize));
-        for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
-        {
-            const string &str = nodeIndices[i]->filePath;
-            uint16_t strSize = str.size();
-            const auto ptr = reinterpret_cast<const char *>(&strSize);
-            nodesCacheGlobal.insert(nodesCacheGlobal.end(), ptr, ptr + 2);
-            nodesCacheGlobal.insert(nodesCacheGlobal.end(), str.begin(), str.end());
-        }
-        nodesSizeBefore = newNodesSize;
-        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("nodes"), nodesCacheGlobal);
-    }
 }
 
 CacheWriteManager::~CacheWriteManager()
@@ -132,4 +113,4 @@ void CacheWriteManager::start()
         }
         vecCond.wait(vecLock);
     }
-}
+}*/

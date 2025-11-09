@@ -284,13 +284,6 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
 
 void BTarget::postRoundOneCompletion()
 {
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        // cacheWriteManager destructor is executed in destructGlobals which will join the following thread to ensure
-        // that any ongoing build-cache disk writing is completed.
-        cacheWriteManager.diskWriteManagerThread = std::thread(&CacheWriteManager::start, &cacheWriteManager);
-    }
-
     delete[] realBTargetsGlobal[1].data();
 
     for (vector<LaterDep> *laterDeps : laterDepsCentral)

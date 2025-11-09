@@ -16,7 +16,6 @@ class LOAT : public PLOAT
   public:
     BuildCache::Link linkBuildCache;
     string reqLinkerFlags;
-    string linkOutput;
     string linkWithTargets;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     HashedCommand commandWithoutTargetsWithTool;
@@ -26,7 +25,6 @@ class LOAT : public PLOAT
     // Needed for pdb files.
     Node *myBuildDir = nullptr;
 
-    uint16_t thrIndex;
     bool archiving = false;
     bool archived = false;
 
@@ -41,8 +39,7 @@ class LOAT : public PLOAT
 
     void setFileStatus();
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
-    void updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified) override;
-    void writeBuildCache(vector<char> &buffer) override;
+    bool writeBuildCache(vector<char> &buffer) override;
     void writeCacheAtConfigureTime();
     void readCacheAtBuildTime();
 

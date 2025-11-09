@@ -147,7 +147,6 @@ void Builder::execute()
                 {
                     continue;
                 }
-                atomic_ref(rb->updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
                 executeMutex.lock();
 
                 if (rb->exitStatus != EXIT_SUCCESS)

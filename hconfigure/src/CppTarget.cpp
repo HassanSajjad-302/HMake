@@ -266,11 +266,6 @@ void CppTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *lo
     }
 }
 
-void CppTarget::updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified)
-{
-    static_cast<CppSrc *>(ptr)->updateBuildCache(outputStr, errorStr, buildCacheModified);
-}
-
 void CppTarget::populateTransitiveProperties()
 {
 #ifdef BUILD_MODE
@@ -995,9 +990,38 @@ void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool
     }
 }
 
-void CppTarget::writeBuildCache(vector<char> &buffer)
+bool CppTarget::writeBuildCache(vector<char> &buffer)
 {
-    cppBuildCache.serialize(buffer);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        cppBuildCache.serialize(buffer);
+        return true;
+    }
+    if (atomic_ref(buildCacheUpdated).load(std::memory_order_acquire))
+    {
+        for (CppSrc *src : srcFileDeps)
+        {
+            src->updateBuildCache();
+        }
+        for (CppMod *mod : modFileDeps)
+        {
+            mod->updateBuildCache();
+        }
+        for (CppMod *imod : imodFileDeps)
+        {
+            imod->updateBuildCache();
+        }
+        for (CppMod *hu : huDeps)
+        {
+            if (hu)
+            {
+                hu->updateBuildCache();
+            }
+        }
+        cppBuildCache.serialize(buffer);
+        return true;
+    }
+    return TargetCache::writeBuildCache(buffer);
 }
 
 template <typename T> uint32_t findNodeInSourceCache(const vector<T> &sourceCache, const Node *node)
@@ -1546,7 +1570,7 @@ template <> DSC<CppTarget>::DSC(CppTarget *ptr, PLOAT *ploat_, const bool define
 
         if (define_.empty())
         {
-            define = ploat->getOutputName();
+            define = objectFileProducer->name;
             std::ranges::transform(define, define.begin(), toupper);
             define += "_EXPORT";
         }

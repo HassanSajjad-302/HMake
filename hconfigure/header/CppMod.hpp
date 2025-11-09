@@ -29,13 +29,11 @@ struct CompareCppSrc
 class CppSrc : public ObjectFile
 {
   public:
-    string compilationOutput;
     CCOrHash compileCommandWithTool;
     flat_hash_set<Node *> headerFiles;
     CppTarget *target;
     const Node *node;
     uint32_t indexInBuildCache = -1;
-    uint16_t thrIndex = 0;
     CppSrc(CppTarget *target_, const Node *node_);
 
   protected:
@@ -51,7 +49,7 @@ class CppSrc : public ObjectFile
     void parseDepsFromGCCDepsOutput();
     void parseHeaderDeps(string &output);
     void setCppSrcFileStatus();
-    virtual void updateBuildCache(string &outputStr, string &errorStr, bool &buildCacheModified);
+    virtual void updateBuildCache();
 };
 
 bool operator<(const CppSrc &lhs, const CppSrc &rhs);
@@ -123,7 +121,7 @@ struct CppMod : CppSrc
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     string getOutputFileName() const;
     BTargetType getBTargetType() const override;
-    void updateBuildCache(string &outputStr, string &errorStr, bool &buildCacheModified) override;
+    void updateBuildCache() override;
     string getCompileCommand() const;
     void setFileStatusAndPopulateAllDependencies();
 };

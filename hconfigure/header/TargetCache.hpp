@@ -32,8 +32,7 @@ class TargetCache
     /// Address of this element in fileTargetCaches vector
     uint32_t cacheIndex = -1;
     explicit TargetCache(const string &name);
-    virtual void updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified);
-    virtual void writeBuildCache(vector<char> &buffer);
+    virtual bool writeBuildCache(vector<char> &buffer);
 };
 
 /// Every Target-Cache has representation on both config-cache and build-cache. It could be empty. The order is

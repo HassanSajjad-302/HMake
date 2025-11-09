@@ -27,8 +27,6 @@ void jsonAssignSpecialist(const string &jstr, Json &j, auto &container)
     j[jstr] = container;
 }
 
-static std::mutex printMutex;
-
 // https://stackoverflow.com/a/17620909/8993136
 void replaceAll(string &str, const string &from, const string &to)
 {

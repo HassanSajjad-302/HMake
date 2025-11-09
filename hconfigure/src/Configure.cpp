@@ -2,6 +2,10 @@
 #include <cstdint>
 #include <cstdlib>
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 using std::filesystem::current_path;
 
 static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
@@ -87,11 +91,32 @@ void callConfigurationSpecification()
     }
 }
 
+BOOL WINAPI ConsoleHandler(DWORD signal)
+{
+    switch (signal)
+    {
+    case CTRL_C_EVENT:
+    case CTRL_CLOSE_EVENT:
+    case CTRL_BREAK_EVENT:
+    case CTRL_LOGOFF_EVENT:
+    case CTRL_SHUTDOWN_EVENT: {
+        vector<char> buffer;
+        writeBuildBuffer(buffer);
+    }
+    }
+    return FALSE;
+}
+
 int main2(const int argc, char **argv)
 {
+    if (!SetConsoleCtrlHandler(ConsoleHandler, TRUE))
+    {
+        printf("Error setting control handler\n");
+        return 1;
+    }
     constructGlobals();
     parseCmdArgumentsAndSetConfigureNode(argc, argv);
-    initializeCache(bsMode);
+    initializeCache();
     (*buildSpecificationFuncPtr)();
     const bool errorHappened = configureOrBuild();
     destructGlobals();

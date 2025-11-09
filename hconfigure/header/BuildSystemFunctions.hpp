@@ -60,6 +60,8 @@ inline Node *configureNode;
 
 inline Node *currentNode;
 
+inline uint32_t nodesSizeBefore = 0;
+
 enum class BSMode : uint8_t // Build System Mode
 {
     CONFIGURE = 0,
@@ -87,11 +89,12 @@ template <typename T> inline deque<T> targets;
 template <typename T> inline flat_hash_set<T *> targetPointers;
 
 inline string currentMinusConfigure;
-void initializeCache(BSMode bsMode_);
+void initializeCache();
 inline const string dashCpp = "-cpp";
 inline const string dashLink = "-link";
 
 inline bool isOneThreadRunning = true;
+inline std::mutex printMutex;
 
 #define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
 
@@ -412,12 +415,10 @@ vector<char> readBufferFromFile(const string &fileName);
 vector<char> readBufferFromCompressedFile(const string &fileName);
 void readConfigCache();
 void readBuildCache();
+void writeNodesCacheIfNewNodesAdded();
 void writeConfigBuffer(vector<char> &buffer);
 void writeBuildBuffer(vector<char> &buffer);
 string getThreadId();
-
-void writeConfigBuffer(vector<char> &buffer);
-void writeBuildBuffer(vector<char> &buffer);
 
 // While decompressing lz4 file, we allocate following + 1 the buffer size.
 // So, we have compressed filee * bufferMultiplier times the space.

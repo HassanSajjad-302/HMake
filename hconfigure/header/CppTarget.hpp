@@ -95,12 +95,14 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     bool isSystem = false;
     bool ignoreHeaderDeps = false;
 
+    bool buildCacheUpdated = false;
+
     void setCompileCommand();
 
     string getDependenciesString() const;
     static string getInfrastructureFlags(const Compiler &compiler);
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
-    void writeBuildCache(vector<char> &buffer) override;
+    bool writeBuildCache(vector<char> &buffer) override;
     void setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache);
     void writeBigHeaderUnits();
     void writeCacheAtConfigTime();
@@ -116,7 +118,6 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     void initializeCppTarget(const string &name_, Node *myBuildDir_);
 
     void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const override;
-    void updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified) override;
     void populateTransitiveProperties();
 
     void actuallyAddSourceFileConfigTime(Node *node);

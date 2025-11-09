@@ -52,16 +52,11 @@ TargetCache::TargetCache(const string &name)
     fileTargetCaches[cacheIndex].targetCache = this;
 }
 
-void TargetCache::updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified)
-{
-    // Should not have been called if a target has not this overridden
-    HMAKE_HMAKE_INTERNAL_ERROR
-}
-
-void TargetCache::writeBuildCache(vector<char> &buffer)
+bool TargetCache::writeBuildCache(vector<char> &buffer)
 {
     string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
     buffer.insert(buffer.end(), buildCache.begin(), buildCache.end());
+    return false;
 }
 
 void CCOrHash::serialize(vector<char> &buffer) const

@@ -51,17 +51,12 @@ enum class BTargetDepType : uint8_t
     LOOSE = 3,
 };
 
-/// Used in RealBTarget to convey the status about BTarget::updateBTarget() function execution completion
+/// Not related to the build-algorithm. This is used by different BTarget to synchronize printing with build-cache
+/// updating.
 enum class UpdateStatus
 {
-    /// RealBTarget::updateStatus is defaulted to this
     ALREADY_UPDATED,
-    /// RealBTarget::updateStatus is set to this once the BTarget::updateBTarget call is completed.
-    /// CppMod tests RealBTarget::updateStatus against this to confirm whether the dependency module or header-unit is
-    /// updated or not.
     UPDATED,
-    /// This is an additional value that is used by CppSrc and CppMod to store whether the file needs to be
-    /// recompiled
     NEEDS_UPDATE,
 };
 
@@ -136,8 +131,11 @@ class RealBTarget
 
     // short supportsThread = -1;
 
-    /// Initialized to ALREADY_UPDATED and then set to UpdateStatus::UPDATED once the BTarget::updateBTarget call is
-    /// completed. This is used by CppMod to learn whether a header-units is built or not.
+    /// This is not used by build-algorithm. This is used by CppMod to check whether a header-unit is built or not. This
+    /// is also used by TargetCache::writeBuildCache function to determine whether cache could be updated or not. LOAT,
+    /// CppSrc and CppMod in BTarget::updateBTarget, assign this after exitStatus to ensure happens-before relationship.
+    /// Also, this is assigned before printing to avoid a situation where a target has printed the update but its cache
+    /// is not yet updated in-case of build interruption.
     UpdateStatus updateStatus = UpdateStatus::ALREADY_UPDATED;
 
     /// \param bTarget_ the back-pointer to BTarget that owns this
@@ -263,8 +261,7 @@ class BTarget // BTarget
     /// returns true if hbuild is executed in same or child directory based on BTarget::name.
     bool isHBuildInSameOrChildDirectory() const;
 
-    /// Called by Builder::execute post round1. It completes the partially specified dependency relations and also
-    /// launches the cacheWriteManager thread in build-mode.
+    /// Called by Builder::execute post round1. It completes the partially specified dependency relations.
     static void postRoundOneCompletion();
 
     /// Used by findCycleDFS to report RealBTarget in cycle
