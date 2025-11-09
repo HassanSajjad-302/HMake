@@ -93,10 +93,6 @@ struct CppMod : CppSrc
 
     SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
 
-    // This is used to prevent header-unit addition in updateBTargets list more than once since the same header-unit
-    // could be potentially discovered more than once.
-    bool addedForBuilding = false;
-
     // following 2 only used at configure time.
     bool isReqDep = false;
     bool isUseReqDep = false;

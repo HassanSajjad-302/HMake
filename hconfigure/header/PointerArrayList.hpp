@@ -15,7 +15,6 @@ template <typename T> class PointerArrayList
 
     ArrayListItem *array = nullptr;
     uint32_t currentIndex = -1;
-    uint32_t start = 0;
     uint32_t last = 0;
     uint32_t arraySize = 0;
 

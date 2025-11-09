@@ -669,6 +669,7 @@ bool CppMod::build(Builder &builder)
         {
             run.killModuleProcess(type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode->filePath : objectNode->filePath);
             rb.exitStatus = EXIT_FAILURE;
+            atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
             return false;
         }
 
@@ -883,6 +884,7 @@ bool CppMod::build(Builder &builder)
                     ++builder.updateBTargetsSizeGoal;
                     return true;
                 }
+                waitingFor = nullptr;
                 builder.executeMutex.unlock();
             }
 
