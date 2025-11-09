@@ -44,7 +44,7 @@ void Configuration::initialize()
                 if constexpr (os == OS::NT)
                 {
                     const vector<string> &includes = toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs;
-                    Node *zeroInclNode = Node::getNodeFromNonNormalizedPath(includes[0], false);
+                    Node *zeroInclNode = Node::getNodeNonNormalized(includes[0], false);
                     c->actuallyAddInclude(false, zeroInclNode, true, true);
 
                     // Only the first include is compiled as header-unit.
@@ -60,7 +60,7 @@ void Configuration::initialize()
 
                     for (uint32_t i = 1; i < includes.size(); ++i)
                     {
-                        Node *inclNode = Node::getNodeFromNonNormalizedPath(includes[i], false);
+                        Node *inclNode = Node::getNodeNonNormalized(includes[i], false);
                         c->actuallyAddInclude(false, inclNode, true, true);
                         c->addHeaderUnitOrFileDirMSVC(inclNode, true, false, true, true, true, true);
                     }
@@ -69,7 +69,7 @@ void Configuration::initialize()
                 {
                     for (const string &str : toolsCache.linuxTools[cache.selectedCompilerArrayIndex].includeDirs)
                     {
-                        Node *inclNode = Node::getNodeFromNonNormalizedPath(str, false);
+                        Node *inclNode = Node::getNodeNonNormalized(str, false);
                         c->addHeaderUnitOrFileDir(inclNode, "", true, "", true, true);
                     }
                 }
@@ -79,7 +79,7 @@ void Configuration::initialize()
                 const VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
                 for (const string &str : vsTools.libraryDirs)
                 {
-                    Node *node = Node::getNodeFromNonNormalizedPath(str, false);
+                    Node *node = Node::getNodeNonNormalized(str, false);
                     bool found = false;
                     for (const LibDirNode &libDirNode : stdCppTarget->getLOAT().reqLibraryDirs)
                     {
@@ -276,7 +276,8 @@ DSC<CppTarget> &Configuration::getCppTargetDSC(const bool explicitBuild, Node *m
 
 DSC<CppTarget> &Configuration::getCppStaticDSC(const string &name_, const bool defines, string define)
 {
-    return addStdDSCCppDep(targets<DSC<CppTarget>>.emplace_back(&getCppObject(name_ + dashCpp), &getStaticLOAT(name_), defines, std::move(define)));
+    return addStdDSCCppDep(targets<DSC<CppTarget>>.emplace_back(&getCppObject(name_ + dashCpp), &getStaticLOAT(name_),
+                                                                defines, std::move(define)));
 }
 
 DSC<CppTarget> &Configuration::getCppStaticDSC(const bool explicitBuild, Node *myBuildDir, const string &name_,
@@ -315,7 +316,8 @@ DSC<CppTarget> &Configuration::getCppTargetDSC_P(const string &name_, Node *myBu
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
 }
 
-DSC<CppTarget> &Configuration::getCppTargetDSC_P(const string &name_, const string &prebuiltName, Node *myBuildDir, bool defines, string define)
+DSC<CppTarget> &Configuration::getCppTargetDSC_P(const string &name_, const string &prebuiltName, Node *myBuildDir,
+                                                 bool defines, string define)
 {
     CppTarget *cppTarget = &getCppObject(name_ + dashCpp);
     if (targetType == TargetType::LIBRARY_STATIC)
@@ -325,7 +327,8 @@ DSC<CppTarget> &Configuration::getCppTargetDSC_P(const string &name_, const stri
     }
     if (targetType == TargetType::LIBRARY_SHARED)
     {
-        return addStdDSCCppDep(targets<DSC<CppTarget>>.emplace_back(cppTarget, &getSharedPLOAT(prebuiltName, myBuildDir), defines));
+        return addStdDSCCppDep(
+            targets<DSC<CppTarget>>.emplace_back(cppTarget, &getSharedPLOAT(prebuiltName, myBuildDir), defines));
     }
     printErrorMessage("TargetType should be one of TargetType::LIBRARY_STATIC or TargetType::LIBRARY_SHARED\n");
 }
@@ -402,8 +405,7 @@ LOAT &Configuration::getSharedLOATNoName(const string &name_)
 
 LOAT &Configuration::getSharedLOATNoName(bool explicitBuild, Node *myBuildDir, const string &name_)
 {
-    LOAT &loat =
-        targets<LOAT>.emplace_back(*this, myBuildDir, explicitBuild, name_, TargetType::LIBRARY_SHARED);
+    LOAT &loat = targets<LOAT>.emplace_back(*this, myBuildDir, explicitBuild, name_, TargetType::LIBRARY_SHARED);
     loats.emplace_back(&loat);
     return loat;
 }
@@ -431,12 +433,12 @@ PLOAT &Configuration::getSharedPLOATNoName(const string &name_, Node *myBuildDir
 
 DSC<CppTarget> &Configuration::getCppObjectDSCNoName(const string &name_, bool defines, string define)
 {
-    DSC<CppTarget> &dscCppTarget = targets<DSC<CppTarget>>.emplace_back(&getCppObjectNoName(name_ + dashCpp), nullptr, defines, std::move(define));
+    DSC<CppTarget> &dscCppTarget =
+        targets<DSC<CppTarget>>.emplace_back(&getCppObjectNoName(name_ + dashCpp), nullptr, defines, std::move(define));
     return addStdDSCCppDep(dscCppTarget);
 }
 
-DSC<CppTarget> &Configuration::getCppObjectDSCNoName(const bool explicitBuild, Node *myBuildDir,
-                                                           const string &name_,
+DSC<CppTarget> &Configuration::getCppObjectDSCNoName(const bool explicitBuild, Node *myBuildDir, const string &name_,
                                                      bool defines, string define)
 {
     DSC<CppTarget> &dscCppTarget = targets<DSC<CppTarget>>.emplace_back(
@@ -446,7 +448,8 @@ DSC<CppTarget> &Configuration::getCppObjectDSCNoName(const bool explicitBuild, N
 
 DSC<CppTarget> &Configuration::getCppExeDSCNoName(const string &name_, const bool defines, string define)
 {
-    return addStdDSCCppDep(targets<DSC<CppTarget>>.emplace_back(&getCppObjectNoName(name_ + dashCpp), &GetExeLOATNoName(name_), defines, std::move(define)));
+    return addStdDSCCppDep(targets<DSC<CppTarget>>.emplace_back(&getCppObjectNoName(name_ + dashCpp),
+                                                                &GetExeLOATNoName(name_), defines, std::move(define)));
 }
 
 DSC<CppTarget> &Configuration::getCppExeDSCNoName(bool explicitBuild, Node *myBuildDir, const string &name_,

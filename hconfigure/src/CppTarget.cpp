@@ -82,7 +82,7 @@ void CppTarget::readModuleMapFromDir(const string &dir)
             continue;
         }
 
-        Node *node = Node::getNodeFromNonNormalizedString(string(line), true, true);
+        Node *node = Node::getNodeNonNormalized(string(line), true, true);
         if (node->fileType == file_type::not_found)
         {
             printErrorMessage(FORMAT("Error: file {}\n provided in mode {}\n does not exists while parsing {}\n",
@@ -224,7 +224,7 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
         }
         if (!myBuildDir_)
         {
-            myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(configureNode->filePath + slashc + name);
+            myBuildDir = Node::getHalfNodeST(configureNode->filePath + slashc + name);
         }
         else
         {
@@ -648,7 +648,7 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
             {
                 const string str(myBuildDir->filePath + slashc + std::to_string(index) + "public-" +
                                  std::to_string(cacheIndex) + ".hpp");
-                const Node *bigHuNode = Node::getNodeFromNonNormalizedString(str, true, true);
+                const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
                 publicBigHu[index] = new CppMod(this, bigHuNode);
                 emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
             }
@@ -661,7 +661,7 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
             {
                 const string str(myBuildDir->filePath + slashc + std::to_string(index) + "private-" +
                                  std::to_string(cacheIndex) + ".hpp");
-                const Node *bigHuNode = Node::getNodeFromNonNormalizedString(str, true, true);
+                const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
                 privateBigHu[index] = new CppMod(this, bigHuNode);
                 emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
             }
@@ -674,7 +674,7 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
             {
                 const string str(myBuildDir->filePath + slashc + std::to_string(index) + "interface-" +
                                  std::to_string(cacheIndex) + ".hpp");
-                const Node *bigHuNode = Node::getNodeFromNonNormalizedString(str, true, true);
+                const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
                 interfaceBigHu[index] = new CppMod(this, bigHuNode);
                 emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
             }
@@ -800,7 +800,7 @@ void CppTarget::addHeaderUnitOrFileDirMSVC(const Node *includeDir, bool isHeader
         uint32_t index = headerNames.find(',');
         while (index != -1)
         {
-            mentioned.emplace(Node::getNodeFromNonNormalizedString(
+            mentioned.emplace(Node::getNodeNonNormalized(
                 includeDir->filePath + string(headerNames.begin() + oldIndex, headerNames.begin() + index), true,
                 false));
             oldIndex = index + 1;
@@ -1173,7 +1173,7 @@ void CppTarget::writeCacheAtConfigTime()
     for (CppSrc *source : srcFileDeps)
     {
         string fileNumber = std::to_string(source->node->myId);
-        source->objectNode = Node::getNodeFromNormalizedString(
+        source->objectNode = Node::getNode(
             myBuildDir->filePath + slashc + source->node->getFileName() + fileNumber + ".o", true, true);
 
         writeNode(*configBuffer, source->node);
@@ -1184,7 +1184,7 @@ void CppTarget::writeCacheAtConfigTime()
     for (CppMod *cppMod : modFileDeps)
     {
         string fileNumber = std::to_string(cppMod->node->myId);
-        cppMod->objectNode = Node::getNodeFromNormalizedString(
+        cppMod->objectNode = Node::getNode(
             myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
         writeNode(*configBuffer, cppMod->node);
         writeNode(*configBuffer, cppMod->objectNode);
@@ -1194,9 +1194,9 @@ void CppTarget::writeCacheAtConfigTime()
     for (CppMod *cppMod : imodFileDeps)
     {
         string fileNumber = std::to_string(cppMod->node->myId);
-        cppMod->objectNode = Node::getNodeFromNormalizedString(
+        cppMod->objectNode = Node::getNode(
             myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
-        cppMod->interfaceNode = Node::getNodeFromNormalizedString(
+        cppMod->interfaceNode = Node::getNode(
             myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".ifc", true, true);
         writeNode(*configBuffer, cppMod->node);
         writeStringView(*configBuffer, cppMod->logicalNames[0]);
@@ -1216,7 +1216,7 @@ void CppTarget::writeCacheAtConfigTime()
             cppBuildCache.headerUnits[index].srcFile.node = const_cast<Node *>(hu->node);
         }
         hu->indexInBuildCache = index;
-        hu->interfaceNode = Node::getNodeFromNormalizedString(
+        hu->interfaceNode = Node::getNode(
             myBuildDir->filePath + slashc + hu->node->getFileName() + fileNumber + ".ifc", true, true);
 
         writeUint32(*configBuffer, hu->indexInBuildCache);
@@ -1412,7 +1412,7 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
     auto addNewFile = [&](const auto &k) {
         if (k.is_regular_file() && regex_match(k.path().filename().string(), std::regex(regexStr)))
         {
-            Node *node = Node::getNodeFromNonNormalizedPath(k.path(), true);
+            Node *node = Node::getNodeNonNormalized(k.path().string(), true);
             if (assignToCppSrcs)
             {
                 actuallyAddSourceFileConfigTime(node);

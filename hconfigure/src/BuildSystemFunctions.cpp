@@ -64,14 +64,13 @@ void initializeCache()
             uint16_t nodeFilePathSize;
             memcpy(&nodeFilePathSize, nodesCacheGlobal.data() + bufferRead, sizeof(uint16_t));
             bufferRead += sizeof(uint16_t);
-            Node::addHalfNodeFromNormalizedStringSingleThreaded(
-                string(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
+            Node::getHalfNodeST(string(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
             bufferRead += nodeFilePathSize;
         }
         nodesSizeBefore = Node::idCountCompleted;
     }
 
-    currentNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
+    currentNode = Node::getNodeNonNormalized(current_path().string(), false);
     if (currentNode->filePath.size() < configureNode->filePath.size())
     {
         printErrorMessage(FORMAT("HMake internal error. configureNode size {} less than currentNode size{}\n",

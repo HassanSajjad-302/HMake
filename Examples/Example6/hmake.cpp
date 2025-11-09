@@ -6,7 +6,7 @@ void configurationSpecification(Configuration &config)
         const string str = config.targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
         Node *otuputDir = bsMode == BSMode::CONFIGURE
-                              ? Node::getNodeFromNonNormalizedPath("../Example4/Build/Release/Cat" + str, false, false)
+                              ? Node::getNodeNonNormalized("../Example4/Build/Release/Cat" + str, false, false)
                               : nullptr;
         DSC<CppTarget> &cat = config.getCppTargetDSC_P("Cat" + str, otuputDir, true, "CAT_EXPORT");
         cat.getSourceTarget().interfaceIncludes("../Example4/Cat/header");

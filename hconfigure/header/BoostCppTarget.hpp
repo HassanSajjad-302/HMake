@@ -390,7 +390,7 @@ void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &targ
     {
         const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
                                      target.getInnerBuildDirExcludingFileName<EOT>();
-        myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(myBuildDirStr);
+        myBuildDir = Node::getHalfNodeST(myBuildDirStr);
     }
     const string *pushName =
         new string(target.getInnerBuildDirExcludingFileName<EOT>() + slashc + getNameBeforeLastPeriod(fileName));
@@ -413,7 +413,7 @@ void BoostCppTarget::Add<EOT, false>::operator()(BoostCppTarget &target, string_
     {
         const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
                                      target.getInnerBuildDirExcludingFileName<EOT>();
-        myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(myBuildDirStr);
+        myBuildDir = Node::getHalfNodeST(myBuildDirStr);
     }
 
     const string pushName =
@@ -435,7 +435,7 @@ void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &
     {
         const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
                                      target.getInnerBuildDirExcludingFileName<EOT>();
-        myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(myBuildDirStr);
+        myBuildDir = Node::getHalfNodeST(myBuildDirStr);
     }
     const string *pushName = new string(target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc +
                                         getNameBeforeLastPeriod(fileName));
@@ -459,7 +459,7 @@ void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, str
     {
         const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
                                      target.getInnerBuildDirExcludingFileName<EOT>();
-        myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(myBuildDirStr);
+        myBuildDir = Node::getHalfNodeST(myBuildDirStr);
     }
     const string pushName =
         target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc + getNameBeforeLastPeriod(fileName);

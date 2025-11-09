@@ -21,7 +21,7 @@ void LOAT::makeBuildCacheFilesDirPathAtConfigTime()
     {
         if (!myBuildDir)
         {
-            myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(configureNode->filePath + slashc + name);
+            myBuildDir = Node::getHalfNodeST(configureNode->filePath + slashc + name);
         }
         create_directories(myBuildDir->filePath);
     }
@@ -181,7 +181,7 @@ void LOAT::setFileStatus()
                     {
                         // latest dll exists, but it might not have been copied in the previous invocation.
 
-                        if (const Node *copiedDLLNode = Node::getNodeFromNormalizedString(
+                        if (const Node *copiedDLLNode = Node::getNode(
                                 string(getOutputDirectoryV()) + slashc + ploat->getActualOutputName(), true, true);
                             copiedDLLNode->fileType == file_type::not_found)
                         {

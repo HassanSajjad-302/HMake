@@ -255,7 +255,7 @@ int main(int argc, char **argv)
 
         Json cacheJson;
         ifstream("cache.json") >> cacheJson;
-        configureNode = Node::getNodeFromNonNormalizedPath(current_path(), false);
+        configureNode = Node::getNodeNonNormalized(current_path().string(), false);
         Cache cacheLocal = cacheJson;
         path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
         if (sourceDirPath.is_relative())

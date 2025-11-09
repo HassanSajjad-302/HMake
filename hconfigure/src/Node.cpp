@@ -192,21 +192,7 @@ void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
     }
 }
 
-Node *Node::getNodeFromNormalizedString(string p, const bool isFile, const bool mayNotExist)
-{
-    Node *node = nullptr;
-
-    if (nodeAllFiles.lazy_emplace_l(
-            string_view(p), [&](const NodeHashSet::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const NodeHashSet::constructor &constructor) { constructor(node, p); }))
-    {
-    }
-
-    node->ensureSystemCheckCalled(isFile, mayNotExist);
-    return node;
-}
-
-Node *Node::getNodeFromNormalizedString(const string_view p, const bool isFile, const bool mayNotExist)
+Node *Node::getNode(const string_view p, const bool isFile, const bool mayNotExist)
 {
     Node *node = nullptr;
 
@@ -220,17 +206,12 @@ Node *Node::getNodeFromNormalizedString(const string_view p, const bool isFile, 
     return node;
 }
 
-Node *Node::getNodeFromNonNormalizedString(const string &p, const bool isFile, const bool mayNotExist)
+Node *Node::getNodeNonNormalized(const string &p, const bool isFile, const bool mayNotExist)
 {
-    return getNodeFromNormalizedString(getNormalizedPath(p), isFile, mayNotExist);
+    return getNode(getNormalizedPath(p), isFile, mayNotExist);
 }
 
-Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const bool mayNotExist)
-{
-    return getNodeFromNormalizedString(getNormalizedPath(p), isFile, mayNotExist);
-}
-
-Node *Node::addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath)
+Node *Node::getHalfNodeST(string normalizedFilePath)
 {
     return const_cast<Node *>(nodeAllFiles.emplace(std::move(normalizedFilePath)).first.operator->());
 }
@@ -238,8 +219,6 @@ Node *Node::addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFileP
 Node *Node::getHalfNode(const string_view p)
 {
     Node *node = nullptr;
-
-    using Map = decltype(nodeAllFiles);
 
     if (nodeAllFiles.lazy_emplace_l(
             p, [&](const NodeHashSet::value_type &node_) { node = const_cast<Node *>(&node_); },

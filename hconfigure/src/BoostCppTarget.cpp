@@ -57,7 +57,7 @@ static DSC<CppTarget> &getMainTarget(const string &name, Configuration *configur
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         const string buildCacheFilesDirPath = configureNode->filePath + slashc + configuration->name + slashc + name;
-        myBuildDir = Node::addHalfNodeFromNormalizedStringSingleThreaded(buildCacheFilesDirPath);
+        myBuildDir = Node::getHalfNodeST(buildCacheFilesDirPath);
         create_directories(myBuildDir->filePath);
     }
 
@@ -187,7 +187,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         {
             if (p.path().extension() == ".ipp" || p.path().extension() == ".hpp")
             {
-                Node *node = Node::getNodeFromNonNormalizedString(p.path().generic_string(), true);
+                Node *node = Node::getNodeNonNormalized(p.path().generic_string(), true);
                 testReqHeaderFiles.emplace(string(node->getFileName()), node);
             }
         }

@@ -54,14 +54,10 @@ class Node
     void performSystemCheck();
     void ensureSystemCheckCalled(bool isFile, bool mayNotExist = false);
 
-    static Node *getNodeFromNormalizedString(string p, bool isFile, bool mayNotExist = false);
-    static Node *getNodeFromNormalizedString(string_view p, bool isFile, bool mayNotExist = false);
+    static Node *getNode(string_view p, bool isFile, bool mayNotExist = false);
+    static Node *getNodeNonNormalized(const string &p, bool isFile, bool mayNotExist = false);
 
-    static Node *getNodeFromNonNormalizedString(const string &p, bool isFile, bool mayNotExist = false);
-
-    static Node *getNodeFromNonNormalizedPath(const path &p, bool isFile, bool mayNotExist = false);
-
-    static Node *addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath);
+    static Node *getHalfNodeST(string normalizedFilePath);
     static Node *getHalfNode(string_view p);
     static Node *getHalfNode(uint32_t);
 };

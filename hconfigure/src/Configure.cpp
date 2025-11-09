@@ -52,7 +52,7 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     }
 
     lowerCaseOnWindows(configurePathString.data(), configurePathString.size());
-    configureNode = Node::getNodeFromNormalizedString(configurePathString, false);
+    configureNode = Node::getNode(configurePathString, false);
 
     if constexpr (bsMode == BSMode::BUILD)
     {
