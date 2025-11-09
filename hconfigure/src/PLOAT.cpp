@@ -111,8 +111,7 @@ void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &is
             {
                 outputDirectory->ensureSystemCheckCalled(false, false);
             }
-            outputFileNode =
-                Node::getNode(outputDirectory->filePath + slashc + actualOutputName, true, true);
+            outputFileNode = Node::getNode(outputDirectory->filePath + slashc + actualOutputName, true, true);
 
 #endif
 

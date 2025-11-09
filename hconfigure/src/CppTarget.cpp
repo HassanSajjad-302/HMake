@@ -1173,8 +1173,8 @@ void CppTarget::writeCacheAtConfigTime()
     for (CppSrc *source : srcFileDeps)
     {
         string fileNumber = std::to_string(source->node->myId);
-        source->objectNode = Node::getNode(
-            myBuildDir->filePath + slashc + source->node->getFileName() + fileNumber + ".o", true, true);
+        source->objectNode =
+            Node::getNode(myBuildDir->filePath + slashc + source->node->getFileName() + fileNumber + ".o", true, true);
 
         writeNode(*configBuffer, source->node);
         writeNode(*configBuffer, source->objectNode);
@@ -1184,8 +1184,8 @@ void CppTarget::writeCacheAtConfigTime()
     for (CppMod *cppMod : modFileDeps)
     {
         string fileNumber = std::to_string(cppMod->node->myId);
-        cppMod->objectNode = Node::getNode(
-            myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
+        cppMod->objectNode =
+            Node::getNode(myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
         writeNode(*configBuffer, cppMod->node);
         writeNode(*configBuffer, cppMod->objectNode);
     }
@@ -1194,8 +1194,8 @@ void CppTarget::writeCacheAtConfigTime()
     for (CppMod *cppMod : imodFileDeps)
     {
         string fileNumber = std::to_string(cppMod->node->myId);
-        cppMod->objectNode = Node::getNode(
-            myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
+        cppMod->objectNode =
+            Node::getNode(myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
         cppMod->interfaceNode = Node::getNode(
             myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".ifc", true, true);
         writeNode(*configBuffer, cppMod->node);
@@ -1216,8 +1216,8 @@ void CppTarget::writeCacheAtConfigTime()
             cppBuildCache.headerUnits[index].srcFile.node = const_cast<Node *>(hu->node);
         }
         hu->indexInBuildCache = index;
-        hu->interfaceNode = Node::getNode(
-            myBuildDir->filePath + slashc + hu->node->getFileName() + fileNumber + ".ifc", true, true);
+        hu->interfaceNode =
+            Node::getNode(myBuildDir->filePath + slashc + hu->node->getFileName() + fileNumber + ".ifc", true, true);
 
         writeUint32(*configBuffer, hu->indexInBuildCache);
         writeNode(*configBuffer, hu->node);

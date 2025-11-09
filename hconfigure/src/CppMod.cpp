@@ -343,7 +343,7 @@ void CppSrc::setCppSrcFileStatus()
         return;
     }
 
-    for (vector<Node *> &headers = target->cppBuildCache.srcFiles[indexInBuildCache].headerFiles;
+    for (const vector<Node *> &headers = target->cppBuildCache.srcFiles[indexInBuildCache].headerFiles;
          const Node *headerNode : headers)
     {
         if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > objectNode->lastWriteTime)
@@ -891,6 +891,7 @@ bool CppMod::build(Builder &builder)
                 run.killModuleProcess(type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode->filePath
                                                                         : objectNode->filePath);
                 rb.exitStatus = EXIT_FAILURE;
+                atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
                 return false;
             }
 
