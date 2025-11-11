@@ -1172,7 +1172,7 @@ void CppTarget::writeCacheAtConfigTime()
     writeUint32(*configBuffer, srcFileDeps.size());
     for (CppSrc *source : srcFileDeps)
     {
-        string fileNumber = std::to_string(source->node->myId);
+        string fileNumber = toString(source->node->myId);
         source->objectNode =
             Node::getNode(myBuildDir->filePath + slashc + source->node->getFileName() + fileNumber + ".o", true, true);
 
@@ -1183,7 +1183,7 @@ void CppTarget::writeCacheAtConfigTime()
     writeUint32(*configBuffer, modFileDeps.size());
     for (CppMod *cppMod : modFileDeps)
     {
-        string fileNumber = std::to_string(cppMod->node->myId);
+        string fileNumber = toString(cppMod->node->myId);
         cppMod->objectNode =
             Node::getNode(myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
         writeNode(*configBuffer, cppMod->node);
@@ -1193,7 +1193,7 @@ void CppTarget::writeCacheAtConfigTime()
     writeUint32(*configBuffer, imodFileDeps.size());
     for (CppMod *cppMod : imodFileDeps)
     {
-        string fileNumber = std::to_string(cppMod->node->myId);
+        string fileNumber = toString(cppMod->node->myId);
         cppMod->objectNode =
             Node::getNode(myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
         cppMod->interfaceNode = Node::getNode(
@@ -1207,7 +1207,7 @@ void CppTarget::writeCacheAtConfigTime()
     writeUint32(*configBuffer, huDeps.size());
     for (CppMod *hu : huDeps)
     {
-        string fileNumber = std::to_string(hu->node->myId);
+        string fileNumber = toString(hu->node->myId);
         uint32_t index = findNodeInSourceCache(cppBuildCache.headerUnits, hu->node);
         if (index == -1)
         {

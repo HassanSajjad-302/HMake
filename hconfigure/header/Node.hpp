@@ -61,7 +61,7 @@ class Node
 
     inline static uint32_t idCount = 0;
 
-    uint32_t myId = UINT32_MAX;
+    uint32_t myId;
 
     // While following are not atomic to keep Node copyable and moveable, all operations on these bools are done
     // atomically.

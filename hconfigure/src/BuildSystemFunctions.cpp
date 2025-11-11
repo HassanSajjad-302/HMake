@@ -737,3 +737,17 @@ vector<string> split(string str, const string &token)
     }
     return result;
 }
+
+std::string toString(uint32_t value)
+{
+    char buffer[8];
+
+    for (int i = 7; i >= 0; --i)
+    {
+        constexpr char hexChars[] = "0123456789ABCDEF";
+        buffer[i] = hexChars[value & 0xF];
+        value >>= 4;
+    }
+
+    return {buffer, 8};
+}

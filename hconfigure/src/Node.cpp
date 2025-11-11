@@ -165,7 +165,7 @@ void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
         return;
     }
 
-    if (systemCheckCompleted || atomic_ref(systemCheckCompleted).load())
+    if (atomic_ref(systemCheckCompleted).load(std::memory_order_acquire))
     {
         return;
     }
@@ -179,12 +179,12 @@ void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
             printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath, isFile ? "regular" : "dir",
                                      getStatusString(filePath)));
         }
-        atomic_ref(systemCheckCompleted).store(true);
+        atomic_ref(systemCheckCompleted).store(true, std::memory_order_release);
         return;
     }
 
     // systemCheck is being called for this node by another thread
-    while (!atomic_ref(systemCheckCompleted).load())
+    while (!atomic_ref(systemCheckCompleted).load(std::memory_order_acquire))
     {
         // std::this_thread::sleep_for(std::chrono::nanoseconds(100));
     }
