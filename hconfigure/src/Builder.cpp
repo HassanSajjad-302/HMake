@@ -160,12 +160,13 @@ void Builder::execute()
 
             if (updateBTargets.size() == updateBTargetsSizeGoal && sleepingCount == launchedCount - 1)
             {
+                isOneThreadRunning = true;
                 if constexpr (bsMode == BSMode::BUILD)
                 {
                     if (round && !errorHappenedInRoundMode)
                     {
-                        uncheckedNodesCentral.reserve(Node::idCountCompleted);
-                        for (uint32_t i = 0; i < Node::idCountCompleted; ++i)
+                        uncheckedNodesCentral.reserve(Node::idCount);
+                        for (uint32_t i = 0; i < Node::idCount; ++i)
                         {
                             if (nodeIndices[i]->toBeChecked)
                             {
@@ -190,43 +191,6 @@ void Builder::execute()
         }
         else if (exeMode == ExecuteMode::PARALLEL)
         {
-            if (checkingCount < launchedCount)
-            {
-                const unsigned short nodeCheckIndex = checkingCount;
-                ++checkingCount;
-                DEBUG_EXECUTE(FORMAT("{} checking-count incremented {} {}\n", checkingCount, __LINE__, getThreadId()));
-                executeMutex.unlock();
-                cond.notify_one();
-                for (Node *node : uncheckedNodes[nodeCheckIndex])
-                {
-                    node->performSystemCheck();
-                    node->systemCheckCalled = true;
-                    node->systemCheckCompleted = true;
-                }
-                DEBUG_EXECUTE(FORMAT("{} locking-mutex {} {}\n", checkedCount, __LINE__, getThreadId()));
-                executeMutex.lock();
-                ++checkedCount;
-                DEBUG_EXECUTE(FORMAT("{} checked-count incremented {} {}\n", checkedCount, __LINE__, getThreadId()));
-                continue;
-            }
-
-            if (checkedCount == launchedCount)
-            {
-                if (round && !errorHappenedInRoundMode)
-                {
-                    uncheckedNodesCentral.reserve(Node::idCountCompleted);
-                    for (uint32_t i = 0; i < Node::idCountCompleted; ++i)
-                    {
-                        if (nodeIndices[i]->toBeChecked)
-                        {
-                            // uncheckedNodesCentral.emplace_back(nodeIndices[i]);
-                        }
-                    }
-                    uncheckedNodes = divideInChunk(uncheckedNodesCentral, launchedCount);
-                    exeMode = ExecuteMode::NODE_CHECK;
-                    continue;
-                }
-            }
         }
         else if (exeMode == ExecuteMode::NODE_CHECK)
         {
@@ -252,7 +216,6 @@ void Builder::execute()
 
             if (checkedCount == launchedCount)
             {
-                isOneThreadRunning = true;
                 DEBUG_EXECUTE(
                     FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
 

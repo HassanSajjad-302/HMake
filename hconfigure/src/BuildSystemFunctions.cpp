@@ -67,7 +67,7 @@ void initializeCache()
             Node::getHalfNodeST(string(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
             bufferRead += nodeFilePathSize;
         }
-        nodesSizeBefore = Node::idCountCompleted;
+        nodesSizeBefore = Node::idCount;
     }
 
     currentNode = Node::getNodeNonNormalized(current_path().string(), false);
@@ -412,7 +412,7 @@ void readBuildCache()
 
 void writeNodesCacheIfNewNodesAdded()
 {
-    if (const uint64_t newNodesSize = atomic_ref(Node::idCountCompleted).load(std::memory_order_acquire);
+    if (const uint64_t newNodesSize = atomic_ref(Node::idCount).load(std::memory_order_acquire);
         newNodesSize != nodesSizeBefore)
     {
         // printMessage(FORMAT("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,

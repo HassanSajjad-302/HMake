@@ -93,6 +93,7 @@ void initializeCache();
 inline const string dashCpp = "-cpp";
 inline const string dashLink = "-link";
 
+/// This is true in ExecuteMode::NODE_CHECK even though multiple threads are running.
 inline bool isOneThreadRunning = true;
 inline std::mutex printMutex;
 

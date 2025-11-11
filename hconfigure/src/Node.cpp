@@ -70,7 +70,6 @@ Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
     node = this;
     myId = atomic_ref(idCount).fetch_add(1, std::memory_order_relaxed);
     nodeIndices[myId] = this;
-    atomic_ref(idCountCompleted).fetch_add(1, std::memory_order_release);
 }
 
 // This function is called single-threaded. While the above is called multithreaded in lambdas passed to nodeAllFiles
@@ -79,7 +78,6 @@ Node::Node(string filePath_) : filePath(std::move(filePath_))
 {
     myId = reinterpret_cast<uint32_t &>(idCount)++;
     nodeIndices[myId] = this;
-    ++reinterpret_cast<uint32_t &>(idCountCompleted);
 }
 
 string Node::getFileName() const
