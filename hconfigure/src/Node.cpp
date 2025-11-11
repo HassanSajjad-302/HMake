@@ -166,13 +166,13 @@ void Node::ensureSystemCheckCalled()
     }
 }
 
-Node *Node::getNode(const string_view p, const bool isFile, const bool mayNotExist)
+Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
 {
     Node *node = nullptr;
 
     if (nodeAllFiles.lazy_emplace_l(
-            p, [&](const NodeHashSet::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const NodeHashSet::constructor &constructor) { constructor(node, string(p)); }))
+            filePath_, [&](const NodeHashSet::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const NodeHashSet::constructor &constructor) { constructor(node, string(filePath_)); }))
     {
     }
 
@@ -185,9 +185,9 @@ Node *Node::getNode(const string_view p, const bool isFile, const bool mayNotExi
     return node;
 }
 
-Node *Node::getNodeNonNormalized(const string &p, const bool isFile, const bool mayNotExist)
+Node *Node::getNodeNonNormalized(const string &filePath_, const bool isFile, const bool mayNotExist)
 {
-    return getNode(getNormalizedPath(p), isFile, mayNotExist);
+    return getNode(getNormalizedPath(filePath_), isFile, mayNotExist);
 }
 
 Node *Node::getHalfNodeST(string normalizedFilePath)
@@ -210,9 +210,5 @@ Node *Node::getHalfNode(const string_view p)
 
 Node *Node::getHalfNode(const uint32_t index)
 {
-    if (!nodeIndices[index])
-    {
-        bool brekapoint = true;
-    }
     return nodeIndices[index];
 }
