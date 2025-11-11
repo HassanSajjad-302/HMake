@@ -120,7 +120,7 @@ string_view readStringView(const char *ptr, uint32_t &bytesRead)
 Node *readHalfNode(const char *ptr, uint32_t &bytesRead)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    return Node::getHalfNode(readUint32(ptr, bytesRead));
+    return nodeIndices[readUint32(ptr, bytesRead)];
 #else
     return Node::getHalfNode(readStringView(ptr, bytesRead));
 #endif

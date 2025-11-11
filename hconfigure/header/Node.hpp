@@ -103,7 +103,7 @@ class Node
     static Node *getHalfNode(string_view p);
 
     /// returns the Node* at nodeIndices[index]
-    inline static Node *getHalfNode(uint32_t index);
+    static Node *getHalfNode(uint32_t index);
 };
 
 using NodeHashSet = phmap::parallel_node_hash_set_m<Node, NodeHash, NodeEqual>;
