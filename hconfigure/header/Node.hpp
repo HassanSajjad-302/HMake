@@ -63,8 +63,7 @@ class Node
 
     uint32_t myId;
 
-    // While following are not atomic to keep Node copyable and moveable, all operations on these bools are done
-    // atomically.
+    /// atomic variable this set in
     bool systemCheckCompleted{false};
 
     // private:
@@ -77,7 +76,7 @@ class Node
     string getFileStem() const;
 
     void performSystemCheck();
-    void ensureSystemCheckCalled(bool isFile, bool mayNotExist = false);
+    void ensureSystemCheckCalled();
 
     static Node *getNode(string_view p, bool isFile, bool mayNotExist = false);
     static Node *getNodeNonNormalized(const string &p, bool isFile, bool mayNotExist = false);

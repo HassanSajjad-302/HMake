@@ -145,26 +145,8 @@ void Node::performSystemCheck()
 #endif
 }
 
-void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
+void Node::ensureSystemCheckCalled()
 {
-    if (isOneThreadRunning)
-    {
-        if (systemCheckCompleted)
-        {
-            return;
-        }
-
-        performSystemCheck();
-        if (fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
-        {
-            printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath, isFile ? "regular" : "dir",
-                                     getStatusString(filePath)));
-        }
-        systemCheckCalled = true;
-        systemCheckCompleted = true;
-        return;
-    }
-
     if (atomic_ref(systemCheckCompleted).load(std::memory_order_acquire))
     {
         return;
@@ -174,11 +156,6 @@ void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
     if (!atomic_ref(systemCheckCalled).exchange(true))
     {
         performSystemCheck();
-        if (fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
-        {
-            printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath, isFile ? "regular" : "dir",
-                                     getStatusString(filePath)));
-        }
         atomic_ref(systemCheckCompleted).store(true, std::memory_order_release);
         return;
     }
@@ -186,7 +163,6 @@ void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
     // systemCheck is being called for this node by another thread
     while (!atomic_ref(systemCheckCompleted).load(std::memory_order_acquire))
     {
-        // std::this_thread::sleep_for(std::chrono::nanoseconds(100));
     }
 }
 
@@ -200,7 +176,12 @@ Node *Node::getNode(const string_view p, const bool isFile, const bool mayNotExi
     {
     }
 
-    node->ensureSystemCheckCalled(isFile, mayNotExist);
+    node->ensureSystemCheckCalled();
+    if (node->fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
+    {
+        printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", node->filePath, isFile ? "regular" : "dir",
+                                 getStatusString(node->filePath)));
+    }
     return node;
 }
 

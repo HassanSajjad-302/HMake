@@ -2,7 +2,6 @@
 #include "CppMod.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
-#include "CacheWriteManager.hpp"
 #include "Configuration.hpp"
 #include "CppTarget.hpp"
 #include "JConsts.hpp"
