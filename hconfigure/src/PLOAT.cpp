@@ -59,7 +59,6 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
     {
         if (outputDirectory)
         {
-            outputDirectory->ensureSystemCheckCalled(false, false);
             return;
         }
         printErrorMessage(FORMAT("Empty build-dir provided for Prebuilt Library {}\n", name));
@@ -76,7 +75,6 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
     {
         if (outputDirectory)
         {
-            outputDirectory->ensureSystemCheckCalled(false, false);
             return;
         }
         printErrorMessage(FORMAT("Empty build-dir provided for Prebuilt Library {}\n", name));
@@ -106,10 +104,6 @@ void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &is
             if (!outputDirectory)
             {
                 outputDirectory = static_cast<LOAT *>(this)->myBuildDir;
-            }
-            else
-            {
-                outputDirectory->ensureSystemCheckCalled(false, false);
             }
             outputFileNode = Node::getNode(outputDirectory->filePath + slashc + actualOutputName, true, true);
 

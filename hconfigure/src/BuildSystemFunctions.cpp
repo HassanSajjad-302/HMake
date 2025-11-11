@@ -2,7 +2,6 @@
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "Cache.hpp"
-#include "CacheWriteManager.hpp"
 #include "CppTarget.hpp"
 #include "Settings.hpp"
 #include "TargetCache.hpp"

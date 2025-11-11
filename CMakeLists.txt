@@ -55,7 +55,6 @@ set(HCONFIGURE_SOURCES
         3rdParty/lz4/lib/lz4.c
         hconfigure/src/HashValues.cpp
         hconfigure/src/TargetCache.cpp
-        hconfigure/src/CacheWriteManager.cpp
         hconfigure/src/IPCManagerBS.cpp
         hconfigure/src/IPCManagerCompiler.cpp
         hconfigure/src/Manager.cpp
