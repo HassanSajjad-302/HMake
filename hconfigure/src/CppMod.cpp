@@ -267,7 +267,11 @@ void CppSrc::parseDepsFromGCCDepsOutput()
     {
         return;
     }
-    const string headerFileContents = fileToString(target->myBuildDir->filePath + slashc + node->getFileName() + +".d");
+    string headerDepsFile = objectNode->filePath;
+    // replacing .o ext with .d
+    headerDepsFile[headerDepsFile.size() - 1] = 'd';
+
+    const string headerFileContents = fileToString(headerDepsFile);
     const vector<string_view> headerDeps = split(headerFileContents, '\n');
 
     // The First 2 lines are skipped as these are .o and .cpp file.
