@@ -195,13 +195,13 @@ HMake
 XMake
 Target build2 runtime error.
 )";
-    vector<string> expected = split(str, "\n");
-    vector<string> actual = split(output, "\n");
+    const vector<string_view> expected = split(str, '\n');
+    const vector<string_view> actual = split(output, '\n');
     ASSERT_EQ(expected.size(), actual.size());
-    for (string &s : actual)
+    for (const string_view &s : actual)
     {
         bool found = false;
-        for (string &c : expected)
+        for (const string_view &c : expected)
         {
             if (s == c)
             {

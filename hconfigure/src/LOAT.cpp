@@ -435,13 +435,13 @@ void LOAT::setLinkOrArchiveCommands()
         }
         else if (linker.bTFamily == BTFamily::MSVC)
         {
-            for (const string &str : split(flags.FINDLIBS_SA_LINK, " "))
+            for (const vector<string_view> sp = split(flags.FINDLIBS_SA_LINK, ' '); const string_view &s : sp)
             {
-                if (str.empty())
+                if (s.empty())
                 {
                     continue;
                 }
-                linkWithTargets += str + ".lib ";
+                linkWithTargets += string(s) + ".lib ";
             }
             linkWithTargets += flags.LINKFLAGS_LINK + flags.LINKFLAGS_MSVC;
         }

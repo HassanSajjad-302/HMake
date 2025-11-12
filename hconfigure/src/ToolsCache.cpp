@@ -14,8 +14,9 @@ VSTools::VSTools(string batchFile, path toolBinDir, const Arch hostArch_, const 
 {
     bool hostSupported = false;
     bool targetSupported = false;
-    const vector<string> vec = split(toolBinDir.parent_path().filename().string(), ".");
-    const Version toolVersion(atol(vec[0].c_str()), atoi(vec[1].c_str()), atoi(vec[2].c_str()));
+    const string str = toolBinDir.parent_path().filename().string();
+    const vector<string_view> vec = split(str, '.');
+    const Version toolVersion(atol(vec[0].data()), atoi(vec[1].data()), atoi(vec[2].data()));
     if (hostArch_ == Arch::X86)
     {
         if (hostAM == AddressModel::A_32)
@@ -184,9 +185,9 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
         printErrorMessage("Error in Initializing Environment\n");
     }
 
-    string accumulatedPaths = fileToString(temporaryIncludeFilename);
+    const string accumulatedPaths = fileToString(temporaryIncludeFilename);
     remove(temporaryIncludeFilename);
-    const vector<string> lines = split(std::move(accumulatedPaths), "\n");
+    const vector<string_view> lines = split(accumulatedPaths, '\n');
 
     size_t foundIndex = 0;
     for (size_t i = 0; i < lines.size(); ++i)
@@ -215,7 +216,7 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
             for (size_t i = foundIndex + 1; i < endIndex; ++i)
             {
                 // first character is space, so substr is copied
-                emplaceInVector(includeDirs, lines[i].substr(1, lines[i].size() - 1));
+                emplaceInVector(includeDirs, string(lines[i].substr(1, lines[i].size() - 1)));
             }
         }
         else

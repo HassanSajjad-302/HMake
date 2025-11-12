@@ -451,7 +451,7 @@ void errorExit();
 string addQuotes(string_view pstr);
 string addEscapedQuotes(const string &pstr);
 string fileToString(const string &file_name);
-vector<string> split(string str, const string &token);
+vector<string_view> split(const string &str, char token);
 std::string toString(uint32_t value);
 
 template <typename T> void emplaceInVector(vector<T> &v, T &&t)

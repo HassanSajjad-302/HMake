@@ -267,8 +267,8 @@ void CppSrc::parseDepsFromGCCDepsOutput()
     {
         return;
     }
-    const string headerFileContents = fileToString(target->myBuildDir->filePath + slashc + node->getFileName() +  + ".d");
-    vector<string> headerDeps = split(headerFileContents, "\n");
+    const string headerFileContents = fileToString(target->myBuildDir->filePath + slashc + node->getFileName() + +".d");
+    const vector<string_view> headerDeps = split(headerFileContents, '\n');
 
     // The First 2 lines are skipped as these are .o and .cpp file.
     // If the file is preprocessed, it does not generate the extra line
@@ -279,7 +279,7 @@ void CppSrc::parseDepsFromGCCDepsOutput()
         for (auto iter = headerDeps.begin() + 2; iter != endIt; ++iter)
         {
             const size_t pos = iter->find_first_not_of(" ");
-            auto it = iter->begin() + pos;
+            const auto it = iter->begin() + pos;
             if (const string_view headerView{&*it, iter->size() - (iter->ends_with('\\') ? 2 : 0) - pos};
                 !ignoreHeaderFile(headerView))
             {

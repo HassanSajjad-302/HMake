@@ -698,29 +698,23 @@ string fileToString(const string &file_name)
     return str_stream.str();
 }
 
-vector<string> split(string str, const string &token)
+vector<string_view> split(const string &str, const char token)
 {
-    vector<string> result;
-    while (!str.empty())
+    vector<string_view> result;
+    size_t start = 0;
+    size_t end = str.find(token);
+
+    while (end != string::npos)
     {
-        if (const string::size_type index = str.find(token); index != string::npos)
-        {
-            result.emplace_back(str.substr(0, index));
-            str = str.substr(index + token.size());
-            if (str.empty())
-            {
-                result.emplace_back(str);
-            }
-        }
-        else
-        {
-            result.emplace_back(str);
-            str = "";
-        }
+        result.emplace_back(str.data() + start, end - start);
+        start = end + 1;
+        end = str.find(token, start);
     }
+    // Add the last segment (or the entire string if no token was found)
+    result.emplace_back(str.data() + start, str.length() - start);
+
     return result;
 }
-
 std::string toString(uint32_t value)
 {
     char buffer[8];
