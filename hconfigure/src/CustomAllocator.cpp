@@ -1,3 +1,6 @@
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <new>
 
 struct Memory
