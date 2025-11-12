@@ -1,7 +1,6 @@
 
 #include "ExamplesTestHelper.hpp"
 #include "filesystem"
-#include "fmt/format.h"
 #include "fstream"
 #include "iostream"
 #include "nlohmann/json.hpp"
@@ -9,7 +8,7 @@
 #include "gtest/gtest.h"
 
 using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::path,
-    std::filesystem::current_path, std::cout, fmt::format, std::filesystem::remove_all, std::ifstream, std::ofstream;
+    std::filesystem::current_path, std::cout, std::format, std::filesystem::remove_all, std::ifstream, std::ofstream;
 
 /*class HconfigureTests : public testing::Test
 {

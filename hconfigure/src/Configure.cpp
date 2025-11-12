@@ -91,6 +91,7 @@ void callConfigurationSpecification()
     }
 }
 
+#ifdef _WIN32
 BOOL WINAPI ConsoleHandler(DWORD signal)
 {
     switch (signal)
@@ -106,14 +107,17 @@ BOOL WINAPI ConsoleHandler(DWORD signal)
     }
     return FALSE;
 }
+#endif
 
 int main2(const int argc, char **argv)
 {
+#ifdef _WIN32
     if (!SetConsoleCtrlHandler(ConsoleHandler, TRUE))
     {
         printf("Error setting control handler\n");
         return 1;
     }
+#endif
     constructGlobals();
     parseCmdArgumentsAndSetConfigureNode(argc, argv);
     initializeCache();

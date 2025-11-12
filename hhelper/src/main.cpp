@@ -118,13 +118,10 @@ int main(int argc, char **argv)
         path thirdPartyHeaderPath = path(THIRD_PARTY_HEADER);
         path parallelHashMap = path(PARALLEL_HASHMAP);
         path lz4Header = path(LZ4_HEADER);
-        path fmtHeaderPath = path(FMT_HEADER);
         path hconfigureCStaticLibDirectoryPath = path(HCONFIGURE_C_STATIC_LIB_DIRECTORY);
         path hconfigureBStaticLibDirectoryPath = path(HCONFIGURE_B_STATIC_LIB_DIRECTORY);
-        path fmtStaticLibDirectoryPath = path(FMT_STATIC_LIB_DIRECTORY);
         path hconfigureCStaticLibPath = path(HCONFIGURE_C_STATIC_LIB_PATH);
         path hconfigureBStaticLibPath = path(HCONFIGURE_B_STATIC_LIB_PATH);
-        path fmtStaticLibPath = path(FMT_STATIC_LIB_PATH);
 
         if constexpr (os == OS::LINUX)
         {
@@ -160,10 +157,9 @@ int main(int argc, char **argv)
                     // a little slowness is acceptable at config time with better assertions.
                     string(configureExe ? "" : " -D BUILD_MODE -D NDEBUG ") +
                     " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
-                    "  -I " FMT_HEADER " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
+                    " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
                     " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_C_STATIC_LIB_DIRECTORY " -l " +
-                    string(configureExe ? "hconfigure-c" : "hconfigure-b") +
-                    " -Wl,--no-whole-archive -L " FMT_STATIC_LIB_DIRECTORY " -l fmt -o {CONFIGURE_DIRECTORY}/" +
+                    string(configureExe ? "hconfigure-c" : "hconfigure-b") + " -o {CONFIGURE_DIRECTORY}/" +
                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, configureExe ? "configure" : "build");
 
                 return compileCommand;
@@ -211,8 +207,8 @@ int main(int argc, char **argv)
                 command += configureExe ? "" : " /D BUILD_MODE /D NDEBUG ";
                 command +=
                     "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
-                    jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " + fmtHeaderPath.string() +
-                    " /I " + parallelHashMap.string() + " /I " + lz4Header.string() +
+                    jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " +
+                    parallelHashMap.string() + " /I " + lz4Header.string() +
                     " /std:c++latest /GR- /EHsc /MT /nologo {SOURCE_DIRECTORY}/hmake.cpp /Fo{CONFIGURE_DIRECTORY}/" +
                     (configureExe ? "configure.obj" : "build.obj") + " /link /SUBSYSTEM:CONSOLE /NOLOGO ";
                 for (const string &str : toolsCache.vsTools[0].libraryDirs)
@@ -221,7 +217,6 @@ int main(int argc, char **argv)
                 }
                 command += "/WHOLEARCHIVE:" +
                            addQuotes((configureExe ? hconfigureCStaticLibPath : hconfigureBStaticLibPath).string()) +
-                           " " + addQuotes(fmtStaticLibPath.string()) +
                            " kernel32.lib synchronization.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib "
                            "oleaut32.lib "
                            "uuid.lib comdlg32.lib advapi32.lib" +

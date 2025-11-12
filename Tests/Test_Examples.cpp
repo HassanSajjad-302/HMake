@@ -2,14 +2,13 @@
 #include "BuildSystemFunctions.hpp"
 #include "ExamplesTestHelper.hpp"
 #include "Features.hpp"
-#include "fmt/format.h"
 #include "nlohmann/json.hpp"
 #include "gtest/gtest.h"
 #include <fstream>
 #include <regex>
 
 using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::path,
-    std::filesystem::current_path, std::cout, fmt::format, std::filesystem::remove_all, std::ifstream, std::ofstream;
+    std::filesystem::current_path, std::cout, std::format, std::filesystem::remove_all, std::ifstream, std::ofstream;
 
 TEST(ExamplesTest, Example1)
 {

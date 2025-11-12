@@ -1,7 +1,8 @@
 
 #include "BuildTools.hpp"
-#include "JConsts.hpp"
 #include "BuildSystemFunctions.hpp"
+#include "CppTarget.hpp"
+#include "JConsts.hpp"
 #include <utility>
 
 using std::stringstream;

@@ -6,13 +6,11 @@
 #include "Settings.hpp"
 #include "TargetCache.hpp"
 #include "ToolsCache.hpp"
-#include "fmt/color.h"
-#include "fmt/format.h"
 #include "lz4/lib/lz4.h"
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
+#include <print>
 #include <stacktrace>
 #include <utility>
 
@@ -133,17 +131,8 @@ void printDebugMessage(const string &message)
 
 void printMessage(const string &message)
 {
-    fmt::print("{}", message);
+    std::print("{}", message);
     fflush(stdout);
-}
-
-void printMessageColor(const string &message, uint32_t color)
-{
-    if (color == static_cast<uint32_t>(fmt::color::white))
-    {
-        bool breakpoint = true;
-    }
-    fmt::print(fg(static_cast<fmt::color>(color)), "{}", message);
 }
 
 void printErrorMessage(const string &message)
@@ -158,7 +147,7 @@ void printErrorMessage(const string &message)
     std::lock_guard _(printMutex);
 
     // fmt::print(stderr, "Error Happened.\n");
-    fmt::print(stderr, "{}", message);
+    std::print(stderr, "{}", message);
 
 #ifndef NDEBUG
     //  fmt::print(stderr, "{}", to_string(std::stacktrace::current()));
@@ -169,12 +158,7 @@ void printErrorMessage(const string &message)
 
 void printErrorMessageNoReturn(const string &message)
 {
-    fmt::print(stderr, "{}", message);
-}
-
-void printErrorMessageColor(const string &message, uint32_t color)
-{
-    fmt::print(stderr, fg(static_cast<fmt::color>(color)), "{}", message);
+    std::print(stderr, "{}", message);
 }
 
 bool configureOrBuild()

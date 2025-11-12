@@ -71,7 +71,7 @@ void CppTarget::readModuleMapFromDir(const string &dir)
         // Parse data based on current mode
         if (currentModeIndex == -1)
         {
-            printErrorMessage(FORMAT("Error: data found before any mode declaration"));
+            printErrorMessage("Error: data found before any mode declaration");
             return;
         }
 

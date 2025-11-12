@@ -2,23 +2,23 @@
 #define HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 
 #include "HashValues.hpp"
-#include "fmt/format.h"
 #include "nlohmann/json.hpp"
 #include "parallel-hashmap/parallel_hashmap/phmap.h"
 #include <deque>
 #include <filesystem>
+#include <format>
 #include <mutex>
 #include <span>
 #include <string>
 #include <vector>
 
-using fmt::format, std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector,
-    std::mutex, std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set, std::span, std::string_view;
+using std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector, std::mutex,
+    std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set, std::span, std::string_view;
 
 // There is nothing platform-specific in this file. It is just another BuildSystemFunctions.hpp file. Some functions go
 // there, some go here.
 
-#define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
+#define FORMAT(formatStr, ...) std::format(formatStr, __VA_ARGS__)
 
 enum class OS : uint8_t
 {
@@ -49,8 +49,6 @@ inline mutex configCacheMutex;
 inline vector<char> configCacheGlobal;
 inline vector<char> buildCacheGlobal;
 inline vector<char> nodesCacheGlobal;
-
-// inline auto &ralloc = buildCacheBuffer.GetAllocator();
 
 // Node representing source dir
 inline class Node *srcNode;
@@ -96,8 +94,6 @@ inline const string dashLink = "-link";
 /// This is true in ExecuteMode::NODE_CHECK even though multiple threads are running.
 inline bool isOneThreadRunning = true;
 inline std::mutex printMutex;
-
-#define FORMAT(formatStr, ...) fmt::format(formatStr, __VA_ARGS__)
 
 // Enum with sequential indices for array lookup
 enum class ColorIndex : uint16_t

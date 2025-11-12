@@ -3,8 +3,6 @@
 #include "ExamplesTestHelper.hpp"
 #include "Features.hpp"
 #include "Snapshot.hpp"
-#include "fmt/core.h"
-#include "fmt/format.h"
 #include "gtest/gtest.h"
 #include <filesystem>
 #include <fstream>
@@ -12,9 +10,9 @@
 #include <string>
 
 using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::create_directories,
-    std::filesystem::path, std::cout, fmt::format, std::filesystem::remove_all, std::ifstream, std::ofstream,
+    std::filesystem::path, std::cout, std::format, std::filesystem::remove_all, std::ifstream, std::ofstream,
     std::filesystem::remove, std::filesystem::remove_all, std::filesystem::copy_file, std::error_code,
-    std::filesystem::copy_options, fmt::print;
+    std::filesystem::copy_options, std::print;
 
 static void touchFile(const path &filePath)
 {
@@ -29,8 +27,7 @@ static void touchFile(const path &filePath)
     }
     if (system(command.c_str()) == EXIT_FAILURE)
     {
-        print(stderr, "Could not touch file {}\n", filePath.string());
-        exit(EXIT_FAILURE);
+        printErrorMessage(FORMAT("Could not touch file {}\n", filePath.string()));
     }
 }
 
@@ -43,8 +40,8 @@ static void removeFilePath(const path &filePath, bool removeDirContents = false)
             error_code ec;
             if (const bool removed = remove(c, ec); !removed || ec)
             {
-                print(stderr, "Could Not Remove the filePath {}\nError {}", c.path().string(), ec ? ec.message() : "");
-                exit(EXIT_FAILURE);
+                printErrorMessage(
+                    FORMAT("Could Not Remove the filePath {}\nError {}", c.path().string(), ec ? ec.message() : ""));
             }
         }
         return;
@@ -53,8 +50,8 @@ static void removeFilePath(const path &filePath, bool removeDirContents = false)
     error_code ec;
     if (const bool removed = remove(filePath, ec); !removed || ec)
     {
-        print(stderr, "Could Not Remove the filePath {}\nError {}", filePath.string(), ec ? ec.message() : "");
-        exit(EXIT_FAILURE);
+        printErrorMessage(
+            FORMAT("Could Not Remove the filePath {}\nError {}", filePath.string(), ec ? ec.message() : ""));
     }
 }
 
@@ -63,8 +60,8 @@ static void removeDirectory(const path &filePath)
     error_code ec;
     if (const bool removed = remove_all(filePath, ec); !removed || ec)
     {
-        print(stderr, "Could Not Remove the filePath {}\nError {}", filePath.string(), ec ? ec.message() : "");
-        exit(EXIT_FAILURE);
+        printErrorMessage(
+            FORMAT("Could Not Remove the filePath {}\nError {}", filePath.string(), ec ? ec.message() : ""));
     }
 }
 
@@ -74,9 +71,8 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
     if (const bool copied = copy_file(sourceFilePath, destinationFilePath, copy_options::overwrite_existing, ec);
         !copied || ec)
     {
-        print(stderr, "Could Not Copy the filePath {} to {} \nError {}", sourceFilePath.string(),
-              destinationFilePath.string(), ec ? ec.message() : "");
-        exit(EXIT_FAILURE);
+        printErrorMessage(FORMAT("Could Not Copy the filePath {} to {} \nError {}", sourceFilePath.string(),
+                                 destinationFilePath.string(), ec ? ec.message() : ""));
     }
     if constexpr (os == OS::NT)
     {
