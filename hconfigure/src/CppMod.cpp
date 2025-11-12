@@ -267,7 +267,7 @@ void CppSrc::parseDepsFromGCCDepsOutput()
     {
         return;
     }
-    const string headerFileContents = fileToString(target->myBuildDir->filePath + slashc + node->getFileName() + ".d");
+    const string headerFileContents = fileToString(target->myBuildDir->filePath + slashc + node->getFileName() +  + ".d");
     vector<string> headerDeps = split(headerFileContents, "\n");
 
     // The First 2 lines are skipped as these are .o and .cpp file.
@@ -298,7 +298,11 @@ void CppSrc::parseHeaderDeps(string &output)
     }
     else
     {
-        parseDepsFromGCCDepsOutput();
+        // in-case of MSVC header-deps are parsed even in case of compilation failure to clean the std output.
+        if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+        {
+            parseDepsFromGCCDepsOutput();
+        }
     }
 }
 

@@ -27,7 +27,7 @@ struct RunCommand
     // while print is 2 parts. 1) tool path and command without output and error files. 2) output and error files.
     explicit RunCommand();
     void startProcess(const string &command, bool isModuleProcess);
-    OutputAndStatus endProcess(bool endModuleProcess) const;
+    OutputAndStatus endProcess(bool isModuleProcess) const;
     void killModuleProcess(const string &processName) const;
 };
 
