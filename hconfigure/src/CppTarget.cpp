@@ -1578,6 +1578,15 @@ template <> DSC<CppTarget>::DSC(CppTarget *ptr, PLOAT *ploat_, const bool define
             define = std::move(define_);
         }
 
+        // as define is initialized by name if not provided, it might include forward-slash which is not allowed in
+        // macro name. so we replace it with underscore instead.
+        for (char &c : define)
+        {
+            if (c == '/')
+            {
+                c = '_';
+            }
+        }
         if (defines)
         {
             defineDllPrivate = DefineDLLPrivate::YES;
