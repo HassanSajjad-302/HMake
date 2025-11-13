@@ -158,8 +158,9 @@ int main(int argc, char **argv)
                     string(configureExe ? "" : " -D BUILD_MODE -D NDEBUG ") +
                     " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
                     " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
-                    " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_C_STATIC_LIB_DIRECTORY " -l " +
-                    string(configureExe ? "hconfigure-c" : "hconfigure-b") + " -o {CONFIGURE_DIRECTORY}/" +
+                    " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_C_STATIC_LIB_DIRECTORY " -l" +
+                    string(configureExe ? "hconfigure-c" : "hconfigure-b") +
+                    " -Wl,--no-whole-archive -o {CONFIGURE_DIRECTORY}/" +
                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, configureExe ? "configure" : "build");
 
                 return compileCommand;
