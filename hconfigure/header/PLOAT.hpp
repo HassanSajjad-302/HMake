@@ -53,7 +53,7 @@ class PLOAT : public BTarget, public TargetCache
     Node *outputFileNode = nullptr;
     vector<char> configCacheBuffer;
     uint32_t configCacheBytesRead = 0;
-    bool hasObjectFiles = false;
+    bool hasObjectFiles = true;
 
     string getOutputName() const;
     string getActualOutputName() const;
@@ -97,6 +97,7 @@ class PLOAT : public BTarget, public TargetCache
 
     void populateReqAndUseReqDeps();
     void addReqDepsToBTargetDependencies();
+    string getPrintName() const override;
 };
 
 template <typename T> bool PLOAT::evaluate(T property) const

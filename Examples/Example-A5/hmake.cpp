@@ -14,7 +14,7 @@ struct OurTarget : BTarget
         {
             if (error)
             {
-                fmt::print("Target {} runtime error.\n", name);
+                printMessage(FORMAT("Target {} runtime error.\n", name));
                 realBTargets[roundLocal].exitStatus = EXIT_FAILURE;
             }
             if (realBTargets[roundLocal].exitStatus == EXIT_SUCCESS)

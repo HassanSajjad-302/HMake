@@ -24,6 +24,8 @@ void LOAT::makeBuildCacheFilesDirPathAtConfigTime()
         }
         create_directories(myBuildDir->filePath);
     }
+    // set to true in dsc constructor if any of the objectFileProducers hasObjectFiles == true
+    hasObjectFiles = false;
 }
 
 LOAT::LOAT(Configuration &config_, const string &name_, const TargetType targetType)
@@ -237,7 +239,7 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
                 }
             }
 
-            if (output.empty())
+            if (false)
             {
                 string str;
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -268,7 +270,7 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
             outputStr += output;
             {
                 std::lock_guard _(printMutex);
-                fwrite(outputStr.data(), 1, outputStr.size(), stdout);
+                write(STDOUT_FILENO, outputStr.data(), outputStr.size());
             }
 
             if constexpr (os == OS::NT)

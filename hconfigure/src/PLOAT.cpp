@@ -130,6 +130,11 @@ void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &is
             }
         }
 
+        if (!hasObjectFiles)
+        {
+            return;
+        }
+
         for (ObjectFileProducer *objectFileProducer : objectFileProducers)
         {
             if (objectFileProducer->hasObjectFiles)
@@ -241,6 +246,11 @@ void PLOAT::addReqDepsToBTargetDependencies()
             }
         }
     }
+}
+
+string PLOAT::getPrintName() const
+{
+    return FORMAT("PLOAT {}\n", name);
 }
 
 bool operator<(const PLOAT &lhs, const PLOAT &rhs)
