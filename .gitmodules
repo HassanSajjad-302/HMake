@@ -4,9 +4,6 @@
 [submodule "googletest"]
 	path = googletest
 	url = https://github.com/google/googletest
-[submodule "fmt"]
-	path = 3rdParty/fmt
-	url = https://github.com/fmtlib/fmt
 [submodule "json"]
 	path = 3rdParty/json
 	url = https://www.github.com/nlohmann/json
