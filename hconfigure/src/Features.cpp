@@ -877,7 +877,7 @@ void CppCompilerFeatures::initialize()
         }
     }
 
-    compiler.bTPath = R"(/home/hassan/Projects/llvm-project/llvm/cmake-build-release/bin/clang)";
+    compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-release\bin\clang-cl)";
     compiler.btSubFamily = BTSubFamily::CLANG;
 }
 

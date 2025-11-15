@@ -239,7 +239,7 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
                 }
             }
 
-            if (false)
+            if (output.empty())
             {
                 string str;
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -270,7 +270,7 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
             outputStr += output;
             {
                 std::lock_guard _(printMutex);
-                write(STDOUT_FILENO, outputStr.data(), outputStr.size());
+                fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
             }
 
             if constexpr (os == OS::NT)

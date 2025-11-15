@@ -143,15 +143,8 @@ void printErrorMessage(const string &message)
         writeBuildBuffer(buffer);
     }
 
-    // So the exit output is not jumbled if there are multiple errors.
     std::lock_guard _(printMutex);
-
-    // fmt::print(stderr, "Error Happened.\n");
     std::print(stderr, "{}", message);
-
-#ifndef NDEBUG
-    //  fmt::print(stderr, "{}", to_string(std::stacktrace::current()));
-#endif
 
     errorExit();
 }

@@ -131,7 +131,7 @@ void CppSrc::updateBTarget(Builder &builder, const unsigned short round, bool &i
 
             {
                 std::lock_guard _(printMutex);
-                write(STDOUT_FILENO, outputStr.data(), outputStr.size());
+                fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
             }
         }
     }
@@ -739,7 +739,7 @@ bool CppMod::build(Builder &builder)
                 outputStr += lastMessage.errorOutput;
                 {
                     std::lock_guard _(printMutex);
-                    write(STDOUT_FILENO, outputStr.data(), outputStr.size());
+                    fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
                 }
                 return false;
             }
