@@ -4,6 +4,7 @@
 #include "Cache.hpp"
 #include "JConsts.hpp"
 #include "Node.hpp"
+#include "RunCommand.hpp"
 #include "ToolsCache.hpp"
 #include <filesystem>
 #include <fstream>
@@ -204,7 +205,6 @@ int main(int argc, char **argv)
                            " /OUT:{CONFIGURE_DIRECTORY}/" +
                            (configureExe ? getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure")
                                          : getActualNameFromTargetName(TargetType::EXECUTABLE, os, "build"));
-                command = addQuotes(command);
                 return command;
             };
 
@@ -270,13 +270,12 @@ int main(int argc, char **argv)
 
             commands.push_back(command);
 
-            string outputFile = configureOrBuildStr + "-output-" + std::to_string(i) + ".txt";
-            string finalCommand = command + " > " + outputFile;
-            exitStatus = system(finalCommand.c_str());
+            RunCommand r;
+            r.startProcess(command, false);
+            const auto &[output, status] = r.endProcess(false);
+            commandOutputs.push_back(output);
 
-            commandOutputs.push_back(fileToString(outputFile));
-
-            if (exitStatus != EXIT_SUCCESS)
+            if (status != EXIT_SUCCESS)
             {
                 break;
             }
@@ -286,6 +285,9 @@ int main(int argc, char **argv)
 
         if (exitStatus != EXIT_SUCCESS)
         {
+            if (isConsole)
+            {
+            }
             printMessage("Errors in Building " + configureOrBuildStr + " Executable");
             for (uint64_t i = 0; i < commands.size(); ++i)
             {
@@ -307,7 +309,15 @@ int main(int argc, char **argv)
     configureExeThread.join();
     buildExeThread.join();
 
-    printMessage("Confiugring\n");
+    if (isConsole)
+    {
+        printMessage(getColorCode(ColorIndex::green));
+    }
+    printMessage("Running configure.exe\n");
+    if (isConsole)
+    {
+        printMessage(getColorCode(ColorIndex::reset));
+    }
 
     return std::system(configureExePath.c_str());
 }
