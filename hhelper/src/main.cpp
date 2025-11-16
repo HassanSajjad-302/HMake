@@ -73,7 +73,6 @@ int main(int argc, char **argv)
 {
     constructGlobals();
 
-
     if (THROW)
     {
         printErrorMessage("Macros Required for hhelper are not provided.\n");
@@ -91,23 +90,7 @@ int main(int argc, char **argv)
             printErrorMessage("Unknown Argument provided to hhelper.\n");
         }
     }
-    int count = 0;
-    path cacheFilePath;
-    path cp = current_path();
-    for (const auto &i : directory_iterator(cp))
-    {
-        if (i.is_regular_file() && i.path().filename() == "cache.json")
-        {
-            cacheFilePath = i.path();
-            ++count;
-        }
-    }
-    if (count > 1)
-    {
-        printErrorMessage("More than one file with cache.json name present\n");
-        exit(EXIT_FAILURE);
-    }
-    if (count == 0)
+    if (!std::filesystem::exists("cache.json"))
     {
         path hconfigureHeaderPath = path(HCONFIGURE_HEADER);
         path jsonHeaderPath = path(JSON_HEADER);
@@ -231,102 +214,100 @@ int main(int argc, char **argv)
 
         Json cacheJson = cache;
         ofstream("cache.json") << cacheJson.dump(4);
+        return 0;
     }
-    else
+    string configureExePath =
+        (current_path() / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure")).string();
+    if (onlyConfigure)
     {
-        string configureExePath =
-            (current_path() / getActualNameFromTargetName(TargetType::EXECUTABLE, os, "configure")).string();
-        if (onlyConfigure)
+        if (!exists(path(configureExePath)))
         {
-            if (!exists(path(configureExePath)))
-            {
-                printErrorMessage("configure.exe does not exists\n");
-                exit(EXIT_FAILURE);
-            }
-            return std::system(configureExePath.c_str());
-        }
-
-        Json cacheJson;
-        ifstream("cache.json") >> cacheJson;
-        configureNode = Node::getNodeNonNormalized(current_path().string(), false);
-        Cache cacheLocal = cacheJson;
-        path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
-        if (sourceDirPath.is_relative())
-        {
-            sourceDirPath = (current_path() / sourceDirPath).lexically_normal();
-        }
-        sourceDirPath = sourceDirPath.string();
-
-        string srcDirString = "{SOURCE_DIRECTORY}";
-        string confDirString = "{CONFIGURE_DIRECTORY}";
-
-        if (cacheLocal.configureExeBuildScript.empty())
-        {
-            printErrorMessage("No script provided for building configure executable\n");
+            printErrorMessage("configure.exe does not exists\n");
             exit(EXIT_FAILURE);
         }
+        return std::system(configureExePath.c_str());
+    }
 
-        if (cacheLocal.buildExeBuildScript.empty())
+    Json cacheJson;
+    ifstream("cache.json") >> cacheJson;
+    configureNode = Node::getNodeNonNormalized(current_path().string(), false);
+    Cache cacheLocal = cacheJson;
+    path sourceDirPath = cacheJson.at(JConsts::sourceDirectory).get<string>();
+    if (sourceDirPath.is_relative())
+    {
+        sourceDirPath = (current_path() / sourceDirPath).lexically_normal();
+    }
+    sourceDirPath = sourceDirPath.string();
+
+    string srcDirString = "{SOURCE_DIRECTORY}";
+    string confDirString = "{CONFIGURE_DIRECTORY}";
+
+    if (cacheLocal.configureExeBuildScript.empty())
+    {
+        printErrorMessage("No script provided for building configure executable\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (cacheLocal.buildExeBuildScript.empty())
+    {
+        printErrorMessage("No script provided for building build executable\n");
+        exit(EXIT_FAILURE);
+    }
+
+    auto scriptExecution = [&](const bool configureExe) {
+        vector<string> &cacheCommands =
+            configureExe ? cacheLocal.configureExeBuildScript : cacheLocal.buildExeBuildScript;
+        const string configureOrBuildStr = configureExe ? "configure" : "build";
+        vector<string> commands;
+        vector<string> commandOutputs;
+
+        int exitStatus = EXIT_SUCCESS;
+        for (uint64_t i = 0; i < cacheCommands.size(); ++i)
         {
-            printErrorMessage("No script provided for building build executable\n");
-            exit(EXIT_FAILURE);
-        }
+            string &command = cacheCommands[i];
+            replaceAll(command, srcDirString, sourceDirPath.string());
+            replaceAll(command, confDirString, current_path().string());
 
-        auto scriptExecution = [&](const bool configureExe) {
-            vector<string> &cacheCommands =
-                configureExe ? cacheLocal.configureExeBuildScript : cacheLocal.buildExeBuildScript;
-            const string configureOrBuildStr = configureExe ? "configure" : "build";
-            vector<string> commands;
-            vector<string> commandOutputs;
+            commands.push_back(command);
 
-            int exitStatus = EXIT_SUCCESS;
-            for (uint64_t i = 0; i < cacheCommands.size(); ++i)
-            {
-                string &command = cacheCommands[i];
-                replaceAll(command, srcDirString, sourceDirPath.string());
-                replaceAll(command, confDirString, current_path().string());
+            string outputFile = configureOrBuildStr + "-output-" + std::to_string(i) + ".txt";
+            string finalCommand = command + " > " + outputFile;
+            exitStatus = system(finalCommand.c_str());
 
-                commands.push_back(command);
-
-                string outputFile = configureOrBuildStr + "-output-" + std::to_string(i) + ".txt";
-                string finalCommand = command + " > " + outputFile;
-                exitStatus = system(finalCommand.c_str());
-
-                commandOutputs.push_back(fileToString(outputFile));
-
-                if (exitStatus != EXIT_SUCCESS)
-                {
-                    break;
-                }
-            }
-
-            std::lock_guard _(printMutex);
+            commandOutputs.push_back(fileToString(outputFile));
 
             if (exitStatus != EXIT_SUCCESS)
             {
-                printMessage("Errors in Building " + configureOrBuildStr + " Executable");
-                for (uint64_t i = 0; i < commands.size(); ++i)
-                {
-                    printMessage(commands[i] + "\n");
-                    printMessage(commandOutputs[i] + "\n");
-                }
-                exit(exitStatus);
+                break;
             }
-            printMessage(configureOrBuildStr + " executable build script output\n");
-            for (string &output : commandOutputs)
+        }
+
+        std::lock_guard _(printMutex);
+
+        if (exitStatus != EXIT_SUCCESS)
+        {
+            printMessage("Errors in Building " + configureOrBuildStr + " Executable");
+            for (uint64_t i = 0; i < commands.size(); ++i)
             {
-                printMessage(output + "\n");
+                printMessage(commands[i] + "\n");
+                printMessage(commandOutputs[i] + "\n");
             }
-        };
+            exit(exitStatus);
+        }
+        printMessage(configureOrBuildStr + " executable build script output\n");
+        for (string &output : commandOutputs)
+        {
+            printMessage(output + "\n");
+        }
+    };
 
-        std::thread configureExeThread(scriptExecution, true);
-        std::thread buildExeThread(scriptExecution, false);
+    std::thread configureExeThread(scriptExecution, true);
+    std::thread buildExeThread(scriptExecution, false);
 
-        configureExeThread.join();
-        buildExeThread.join();
+    configureExeThread.join();
+    buildExeThread.join();
 
-        printMessage("Confiugring\n");
+    printMessage("Confiugring\n");
 
-        return std::system(configureExePath.c_str());
-    }
+    return std::system(configureExePath.c_str());
 }
