@@ -1021,8 +1021,9 @@ void CppMod::updateBuildCache()
             {
                 BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep modDep;
                 modDep.node = cppMod->objectNode;
-                modDep.logicalName = cppMod->logicalNames[0];
-                smRulesCache.moduleArray.emplace_back(std::move(modDep));
+                modDep.myIndex = cppMod->indexInBuildCache;
+                modDep.targetIndex = cppMod->target->cacheIndex;
+                smRulesCache.moduleArray.emplace_back(modDep);
             }
         }
 
@@ -1095,31 +1096,28 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             return;
         }
 
-        for (auto &[node, depModName] : smRulesCache.moduleArray)
+        for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : smRulesCache.moduleArray)
         {
-            CppMod *f = findModule(string(depModName));
-
-            if (!f)
+            CppMod *cppMod = nullptr;
+            if (const CppTarget *t = cppTargets[m.targetIndex])
             {
-                if (depModName.contains(':'))
+                if (m.myIndex < t->imodFileDeps.size())
                 {
-                    printErrorMessage(FORMAT("No File in the target\n{}\n provides this module\n{}.\n", target->name,
-                                             string(depModName)));
-                }
-                else
-                {
-                    printErrorMessage(
-                        FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
-                               target->name, target->getDependenciesString(), string(depModName)));
+                    cppMod = t->imodFileDeps[m.myIndex];
                 }
             }
 
-            if (f->compileCommandChanged)
+            if (!cppMod)
             {
                 return;
             }
 
-            allCppModDependencies.emplace(f);
+            if (cppMod->compileCommandChanged)
+            {
+                return;
+            }
+
+            allCppModDependencies.emplace(cppMod);
         }
 
         for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache.headerUnitArray)
@@ -1168,48 +1166,39 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         }
     }
 
-    for (auto &[node, depModName] : smRulesCache.moduleArray)
+    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : smRulesCache.moduleArray)
     {
-        CppMod *f = findModule(string(depModName));
-
-        if (!f)
+        CppMod *cppMod = nullptr;
+        if (const CppTarget *t = cppTargets[m.targetIndex])
         {
-            if (depModName.contains(':'))
+            if (m.myIndex < t->imodFileDeps.size())
             {
-                printErrorMessage(FORMAT("No File in the target\n{}\n provides this module\n{}.\n", target->name,
-                                         string(depModName)));
-            }
-            else
-            {
-                printErrorMessage(
-                    FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this module\n{}.\n",
-                           target->name, target->getDependenciesString(), string(depModName)));
+                cppMod = t->imodFileDeps[m.myIndex];
             }
         }
 
-        // some other file is providing this module. so this needs to be rebuilt.
-        if (f->objectNode != node)
+        if (!cppMod)
         {
             return;
         }
 
-        if (f->node->fileType == file_type::not_found)
+        if (cppMod->node->fileType == file_type::not_found)
         {
             printErrorMessage(
-                FORMAT("Module-file {}\n of target {}\n not found.\n", f->node->filePath, f->target->name));
+                FORMAT("Module-file {}\n of target {}\n not found.\n", cppMod->node->filePath, cppMod->target->name));
         }
 
-        if (f->compileCommandChanged)
+        if (cppMod->compileCommandChanged)
         {
             return;
         }
 
-        if (f->node->lastWriteTime > objectNode->lastWriteTime)
+        if (cppMod->node->lastWriteTime > objectNode->lastWriteTime)
         {
             return;
         }
 
-        allCppModDependencies.emplace(f);
+        allCppModDependencies.emplace(cppMod);
     }
 
     for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache.headerUnitArray)

@@ -1193,10 +1193,19 @@ void CppTarget::writeCacheAtConfigTime()
     for (CppMod *cppMod : imodFileDeps)
     {
         string fileNumber = toString(cppMod->node->myId);
+        uint32_t index = findNodeInSourceCache(cppBuildCache.imodFiles, cppMod->node);
+        if (index == -1)
+        {
+            index = cppBuildCache.imodFiles.size();
+            cppBuildCache.imodFiles.emplace_back();
+            cppBuildCache.imodFiles[index].srcFile.node = const_cast<Node *>(cppMod->node);
+        }
+        cppMod->indexInBuildCache = index;
         cppMod->objectNode =
             Node::getNode(myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
         cppMod->interfaceNode = Node::getNode(
             myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".ifc", true, true);
+        writeUint32(*configBuffer, cppMod->indexInBuildCache);
         writeNode(*configBuffer, cppMod->node);
         writeStringView(*configBuffer, cppMod->logicalNames[0]);
         writeNode(*configBuffer, cppMod->objectNode);
@@ -1256,7 +1265,6 @@ void CppTarget::writeCacheAtConfigTime()
 
     adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
     adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
-    adjustBuildCache(cppBuildCache.imodFiles, imodFileDeps);
 }
 
 void CppTarget::readConfigCacheAtBuildTime()
@@ -1291,11 +1299,15 @@ void CppTarget::readConfigCacheAtBuildTime()
         addDepMT<0>(*cppMod);
     }
 
+    imodFileDeps.resize(cppBuildCache.imodFiles.size());
+
     const uint32_t imodSize = readUint32(ptr, configRead);
-    imodFileDeps.reserve(imodSize);
     for (uint32_t i = 0; i < imodSize; ++i)
     {
-        CppMod *cppMod = imodFileDeps.emplace_back(new CppMod(this, readHalfNode(ptr, configRead)));
+        const uint32_t indexInBuildCache = readUint32(ptr, configRead);
+        CppMod *cppMod = imodFileDeps[indexInBuildCache] = new CppMod(this, readHalfNode(ptr, configRead));
+        cppMod->indexInBuildCache = indexInBuildCache;
+
         cppMod->logicalNames.emplace_back(readStringView(ptr, configRead));
         cppMod->objectNode = readHalfNode(ptr, configRead);
         cppMod->interfaceNode = readHalfNode(ptr, configRead);

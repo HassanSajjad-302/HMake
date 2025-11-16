@@ -91,7 +91,8 @@ struct BuildCache
                 struct SingleModuleDep
                 {
                     Node *node;
-                    string_view logicalName;
+                    uint32_t targetIndex{};
+                    uint32_t myIndex{};
                     void serialize(vector<char> &buffer) const;
                     void deserialize(const char *ptr, uint32_t &bytesRead);
                 };

@@ -162,13 +162,16 @@ void ModuleFile::SmRules::SingleHeaderUnitDep::deserialize(const char *ptr, uint
 void ModuleFile::SmRules::SingleModuleDep::serialize(vector<char> &buffer) const
 {
     writeNode(buffer, node);
-    writeStringView(buffer, logicalName);
+    writeUint32(buffer, targetIndex);
+    writeUint32(buffer, myIndex);
 }
 
 void ModuleFile::SmRules::SingleModuleDep::deserialize(const char *ptr, uint32_t &bytesRead)
 {
+
     node = readHalfNode(ptr, bytesRead);
-    logicalName = readStringView(ptr, bytesRead);
+    targetIndex = readUint32(ptr, bytesRead);
+    myIndex = readUint32(ptr, bytesRead);
 }
 
 void ModuleFile::SmRules::serialize(vector<char> &buffer) const
