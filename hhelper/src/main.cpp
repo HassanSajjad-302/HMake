@@ -263,22 +263,30 @@ int main(int argc, char **argv)
 
         RunCommand r;
         r.startProcess(command, false);
-        const auto &[output, status] = r.endProcess(false);
+        const auto [output, status] = r.endProcess(false);
 
         std::lock_guard _(printMutex);
 
-        if (status != EXIT_SUCCESS)
+        if (status == EXIT_SUCCESS)
         {
-            if (isConsole)
+            // Display any warnings in compilation process. MSVC displays the file-name.
+            if (!output.empty() && output != "hmake.cpp\r\n")
             {
+                printMessage(command);
+                printMessage(output);
             }
+            else
+            {
+                printMessage(FORMAT("Built {} executable\n", configureExe ? "configure" : "build"));
+            }
+        }
+        else
+        {
             printMessage("Errors in Building " + configureOrBuildStr + " Executable");
             printMessage(command + "\n");
             printMessage(output + "\n");
             exit(status);
         }
-        printMessage(configureOrBuildStr + " executable build script output\n");
-        printMessage(output + "\n");
     };
 
     std::thread configureExeThread(scriptExecution, true);
@@ -287,15 +295,6 @@ int main(int argc, char **argv)
     configureExeThread.join();
     buildExeThread.join();
 
-    if (isConsole)
-    {
-        printMessage(getColorCode(ColorIndex::green));
-    }
-    printMessage("Running configure.exe\n");
-    if (isConsole)
-    {
-        printMessage(getColorCode(ColorIndex::reset));
-    }
-
+    printMessage("Running configure executable\n");
     return std::system(configureExePath.c_str());
 }

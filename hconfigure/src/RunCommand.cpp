@@ -108,12 +108,12 @@ void RunCommand::startProcess(const string &command, bool isModuleProcess)
     }
 }
 
-RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
+RunCommand::OutputAndStatus RunCommand::endProcess(const bool isModuleProcess) const
 {
     OutputAndStatus o;
     DWORD exit_code = 0;
 
-    if (endModuleProcess)
+    if (isModuleProcess)
     {
         // Wait for it to exit and grab its exit code.
         if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
