@@ -1,3 +1,6 @@
+/// \file
+/// This file defines CppSrc and CppMod
+
 #ifndef HMAKE_CPPMOD_HPP
 #define HMAKE_CPPMOD_HPP
 
@@ -26,13 +29,22 @@ struct CompareCppSrc
     bool operator()(const CppSrc &lhs, const Node *rhs) const;
 };
 
+/// Responsible for compiling C++ source-files. Inherits from ObjectFile which has Node pinter ObjectFile::objectNode
 class CppSrc : public ObjectFile
 {
   public:
-    CCOrHash compileCommandWithTool;
+    /// header-files discovered during the build. MSVC can output duplicate files. Also, while compiling modules /// we
+    /// can get same header-file from multiple header-unit or module-deps. So, a set is used to remove duplicates to
+    /// keep the build-cache small.
     flat_hash_set<Node *> headerFiles;
+
+    /// The back pointer to the CppTarget owning this in srcFileDeps.
     CppTarget *target;
+
+    /// Node pointer to the source-file
     const Node *node;
+
+    ///
     uint32_t indexInBuildCache = -1;
     CppSrc(CppTarget *target_, const Node *node_);
 
