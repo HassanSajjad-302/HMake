@@ -33,9 +33,9 @@ struct CompareCppSrc
 class CppSrc : public ObjectFile
 {
   public:
-    /// header-files discovered during the build. MSVC can output duplicate files. Also, while compiling modules /// we
-    /// can get same header-file from multiple header-unit or module-deps. So, a set is used to remove duplicates to
-    /// keep the build-cache small.
+    /// header-files discovered during the build. MSVC can output duplicate files. Also, while compiling modules we can
+    /// get same header-file from multiple header-unit or module-deps. So, a set is used to remove duplicates to keep
+    /// the build-cache small.
     flat_hash_set<Node *> headerFiles;
 
     /// The back pointer to the CppTarget owning this in srcFileDeps.
@@ -44,23 +44,27 @@ class CppSrc : public ObjectFile
     /// Node pointer to the source-file
     const Node *node;
 
-    ///
+    /// Index in BuildCache::Cpp::srcFiles or BuildCache::Cpp::modFiles or BuildCache::Cpp::imodFiles or
+    /// BuildCache::Cpp::headerUnits
     uint32_t indexInBuildCache = -1;
     CppSrc(CppTarget *target_, const Node *node_);
-
-  protected:
-    CppSrc(CppTarget *target_, const Node *node_, bool add0, bool add1);
-
-  public:
     string getPrintName() const override;
+    /// This function compares compile-command with build-cache and also set Node::toBeChecked of source-node,
+    /// object-node and header-files.
     void initializeBuildCache(uint32_t index);
     string getCompileCommand() const;
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     bool ignoreHeaderFile(string_view child) const;
+    /// MSVC prints header-files with the compilation output. This function parses them out from that output.
     void parseDepsFromMSVCTextOutput(string &output, bool isClang);
+    /// GCC outputs header-files in a .d file. This function parses that
     void parseDepsFromGCCDepsOutput();
+    /// Calls either of parseDepsFromGCCDepsOutput or parseDepsFromMSVCTextOutput
     void parseHeaderDeps(string &output);
+    /// This compares lastWrite of source-node with object-node and header-files
     void setCppSrcFileStatus();
+    /// Called at the end or in the signal-handler when the build-cache is being written. This function will update the
+    /// build-cache at indexInBuildCache, if this was updated.
     virtual void updateBuildCache();
 };
 
@@ -84,10 +88,8 @@ enum class SM_FILE_TYPE : uint8_t
     PRIMARY_IMPLEMENTATION = 5,
 };
 
-struct CppMod : CppSrc
+struct CppMod final : CppSrc
 {
-    BuildCache::Cpp::ModuleFile::SmRules smRulesCache;
-
     // Those header-files which are #included in this module or hu. These are initialized from config-cache as big-hu
     // have these. While Source::headerFiles have all the header-files of ours and our dependencies for accurate
     // rebuilds.

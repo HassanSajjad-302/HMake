@@ -31,11 +31,6 @@ CppSrc::CppSrc(CppTarget *target_, const Node *node_) : ObjectFile(true, false),
 {
 }
 
-CppSrc::CppSrc(CppTarget *target_, const Node *node_, const bool add0, const bool add1)
-    : ObjectFile(add0, add1), target(target_), node{node_}
-{
-}
-
 string CppSrc::getPrintName() const
 {
     return node->filePath;
@@ -371,14 +366,11 @@ void CppSrc::updateBuildCache()
         return;
     }
 
-    if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+    buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+    buildCache.headerFiles.clear();
+    for (Node *header : headerFiles)
     {
-        buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
-        buildCache.headerFiles.clear();
-        for (Node *header : headerFiles)
-        {
-            buildCache.headerFiles.emplace_back(header);
-        }
+        buildCache.headerFiles.emplace_back(header);
     }
 }
 
@@ -387,7 +379,7 @@ bool operator<(const CppSrc &lhs, const CppSrc &rhs)
     return lhs.node < rhs.node;
 }
 
-CppMod::CppMod(CppTarget *target_, const Node *node_) : CppSrc(target_, node_, true, false)
+CppMod::CppMod(CppTarget *target_, const Node *node_) : CppSrc(target_, node_)
 {
 }
 
@@ -408,7 +400,6 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
         return;
     }
 
-    smRulesCache = modCache.smRules;
     if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
         interfaceNode->toBeChecked = true;
@@ -1003,53 +994,50 @@ void CppMod::updateBuildCache()
         return;
     }
 
-    if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+    BuildCache::Cpp::ModuleFile::SmRules smRulesCache;
+    smRulesCache.headerStatusChanged = false;
+    for (const CppMod *cppMod : allCppModDependencies)
     {
-        smRulesCache = BuildCache::Cpp::ModuleFile::SmRules{};
-        smRulesCache.headerStatusChanged = false;
-        for (const CppMod *cppMod : allCppModDependencies)
+        if (cppMod->type == SM_FILE_TYPE::HEADER_UNIT)
         {
-            if (cppMod->type == SM_FILE_TYPE::HEADER_UNIT)
-            {
-                BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep huDep;
-                huDep.node = const_cast<Node *>(cppMod->node);
-                huDep.myIndex = cppMod->indexInBuildCache;
-                huDep.targetIndex = cppMod->target->cacheIndex;
-                smRulesCache.headerUnitArray.emplace_back(huDep);
-            }
-            else
-            {
-                BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep modDep;
-                modDep.node = cppMod->objectNode;
-                modDep.myIndex = cppMod->indexInBuildCache;
-                modDep.targetIndex = cppMod->target->cacheIndex;
-                smRulesCache.moduleArray.emplace_back(modDep);
-            }
-        }
-
-        BuildCache::Cpp::ModuleFile *modFile;
-        if (type == SM_FILE_TYPE::HEADER_UNIT)
-        {
-            modFile = &target->cppBuildCache.headerUnits[indexInBuildCache];
-        }
-        else if (type == SM_FILE_TYPE::PARTITION_EXPORT || type == SM_FILE_TYPE::PRIMARY_EXPORT)
-        {
-            modFile = &target->cppBuildCache.imodFiles[indexInBuildCache];
+            BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep huDep;
+            huDep.node = const_cast<Node *>(cppMod->node);
+            huDep.myIndex = cppMod->indexInBuildCache;
+            huDep.targetIndex = cppMod->target->cacheIndex;
+            smRulesCache.headerUnitArray.emplace_back(huDep);
         }
         else
         {
-            modFile = &target->cppBuildCache.modFiles[indexInBuildCache];
+            BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep modDep;
+            modDep.node = cppMod->objectNode;
+            modDep.myIndex = cppMod->indexInBuildCache;
+            modDep.targetIndex = cppMod->target->cacheIndex;
+            smRulesCache.moduleArray.emplace_back(modDep);
         }
-
-        auto &[srcFile, smRules] = *modFile;
-        srcFile.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
-        srcFile.headerFiles.clear();
-        for (Node *header : headerFiles)
-        {
-            srcFile.headerFiles.emplace_back(header);
-        }
-        smRules = std::move(smRulesCache);
     }
+
+    BuildCache::Cpp::ModuleFile *modFile;
+    if (type == SM_FILE_TYPE::HEADER_UNIT)
+    {
+        modFile = &target->cppBuildCache.headerUnits[indexInBuildCache];
+    }
+    else if (type == SM_FILE_TYPE::PARTITION_EXPORT || type == SM_FILE_TYPE::PRIMARY_EXPORT)
+    {
+        modFile = &target->cppBuildCache.imodFiles[indexInBuildCache];
+    }
+    else
+    {
+        modFile = &target->cppBuildCache.modFiles[indexInBuildCache];
+    }
+
+    auto &[srcFile, smRules] = *modFile;
+    srcFile.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+    srcFile.headerFiles.clear();
+    for (Node *header : headerFiles)
+    {
+        srcFile.headerFiles.emplace_back(header);
+    }
+    smRules = std::move(smRulesCache);
 }
 
 string CppMod::getCompileCommand() const
@@ -1088,6 +1076,21 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
     rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
 
     const Node *endNode = type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode : objectNode;
+    BuildCache::Cpp::ModuleFile::SmRules *smRulesCache;
+    if (type == SM_FILE_TYPE::HEADER_UNIT)
+    {
+        smRulesCache = &target->cppBuildCache.headerUnits[indexInBuildCache].smRules;
+    }
+    else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
+    {
+
+        smRulesCache = &target->cppBuildCache.imodFiles[indexInBuildCache].smRules;
+    }
+    else
+    {
+
+        smRulesCache = &target->cppBuildCache.modFiles[indexInBuildCache].smRules;
+    }
 
     if (target->ignoreHeaderDeps)
     {
@@ -1096,7 +1099,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             return;
         }
 
-        for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : smRulesCache.moduleArray)
+        for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : smRulesCache->moduleArray)
         {
             CppMod *cppMod = nullptr;
             if (const CppTarget *t = cppTargets[m.targetIndex])
@@ -1120,7 +1123,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             allCppModDependencies.emplace(cppMod);
         }
 
-        for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache.headerUnitArray)
+        for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache->headerUnitArray)
         {
             CppMod *hu = nullptr;
             if (const CppTarget *t = cppTargets[h.targetIndex])
@@ -1166,7 +1169,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         }
     }
 
-    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : smRulesCache.moduleArray)
+    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : smRulesCache->moduleArray)
     {
         CppMod *cppMod = nullptr;
         if (const CppTarget *t = cppTargets[m.targetIndex])
@@ -1201,7 +1204,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         allCppModDependencies.emplace(cppMod);
     }
 
-    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache.headerUnitArray)
+    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache->headerUnitArray)
     {
         CppMod *hu = nullptr;
         if (const CppTarget *t = cppTargets[h.targetIndex])

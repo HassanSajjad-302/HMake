@@ -970,7 +970,10 @@ void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool
         }
         for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
         {
-            imodFileDeps[i]->initializeBuildCache(cppBuildCache.imodFiles[i], i);
+            if (imodFileDeps[i])
+            {
+                imodFileDeps[i]->initializeBuildCache(cppBuildCache.imodFiles[i], i);
+            }
         }
         for (uint32_t i = 0; i < huDeps.size(); ++i)
         {
