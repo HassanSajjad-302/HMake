@@ -287,6 +287,11 @@ int main(int argc, char **argv)
             printMessage(output + "\n");
             exit(status);
         }
+
+        if (std::filesystem::exists(configureExe ? "configure.obj" : "build.obj"))
+        {
+            std::filesystem::remove(configureExe ? "configure.obj" : "build.obj");
+        }
     };
 
     std::thread configureExeThread(scriptExecution, true);
