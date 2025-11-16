@@ -24,8 +24,8 @@ struct Cache
     uint8_t selectedScannerArrayIndex;
     uint16_t numberOfBuildThreads = std::thread::hardware_concurrency();
     Json cacheVariables;
-    vector<string> configureExeBuildScript;
-    vector<string> buildExeBuildScript;
+    string configureExeBuildScript;
+    string buildExeBuildScript;
     Cache();
     void initializeCacheVariableFromCacheFile();
     void registerCacheVariables();

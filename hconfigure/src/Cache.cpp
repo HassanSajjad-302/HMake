@@ -83,6 +83,6 @@ void from_json(const Json &j, Cache &cacheLocal)
     cacheLocal.selectedScannerArrayIndex = j.at(JConsts::scannerSelectedArrayIndex).get<uint8_t>();
     cacheLocal.numberOfBuildThreads = j.at(JConsts::numberOfBuildThreads).get<uint16_t>();
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();
-    cacheLocal.configureExeBuildScript = j.at(JConsts::configureExeBuildScript).get<vector<string>>();
-    cacheLocal.buildExeBuildScript = j.at(JConsts::buildExeBuildScript).get<vector<string>>();
+    cacheLocal.configureExeBuildScript = j.at(JConsts::configureExeBuildScript).get<string>();
+    cacheLocal.buildExeBuildScript = j.at(JConsts::buildExeBuildScript).get<string>();
 }

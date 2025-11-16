@@ -146,8 +146,8 @@ int main(int argc, char **argv)
 
                 return compileCommand;
             };
-            cache.configureExeBuildScript.push_back(getCommand(true));
-            cache.buildExeBuildScript.push_back(getCommand(false));
+            cache.configureExeBuildScript = getCommand(true);
+            cache.buildExeBuildScript = getCommand(false);
         }
         else
         {
@@ -208,8 +208,8 @@ int main(int argc, char **argv)
                 return command;
             };
 
-            cache.configureExeBuildScript.push_back(getCommand(true));
-            cache.buildExeBuildScript.push_back(getCommand(false));
+            cache.configureExeBuildScript = getCommand(true);
+            cache.buildExeBuildScript = getCommand(false);
         }
 
         Json cacheJson = cache;
@@ -255,52 +255,30 @@ int main(int argc, char **argv)
     }
 
     auto scriptExecution = [&](const bool configureExe) {
-        vector<string> &cacheCommands =
-            configureExe ? cacheLocal.configureExeBuildScript : cacheLocal.buildExeBuildScript;
+        string &command = configureExe ? cacheLocal.configureExeBuildScript : cacheLocal.buildExeBuildScript;
         const string configureOrBuildStr = configureExe ? "configure" : "build";
-        vector<string> commands;
-        vector<string> commandOutputs;
 
-        int exitStatus = EXIT_SUCCESS;
-        for (uint64_t i = 0; i < cacheCommands.size(); ++i)
-        {
-            string &command = cacheCommands[i];
-            replaceAll(command, srcDirString, sourceDirPath.string());
-            replaceAll(command, confDirString, current_path().string());
+        replaceAll(command, srcDirString, sourceDirPath.string());
+        replaceAll(command, confDirString, current_path().string());
 
-            commands.push_back(command);
-
-            RunCommand r;
-            r.startProcess(command, false);
-            const auto &[output, status] = r.endProcess(false);
-            commandOutputs.push_back(output);
-
-            if (status != EXIT_SUCCESS)
-            {
-                break;
-            }
-        }
+        RunCommand r;
+        r.startProcess(command, false);
+        const auto &[output, status] = r.endProcess(false);
 
         std::lock_guard _(printMutex);
 
-        if (exitStatus != EXIT_SUCCESS)
+        if (status != EXIT_SUCCESS)
         {
             if (isConsole)
             {
             }
             printMessage("Errors in Building " + configureOrBuildStr + " Executable");
-            for (uint64_t i = 0; i < commands.size(); ++i)
-            {
-                printMessage(commands[i] + "\n");
-                printMessage(commandOutputs[i] + "\n");
-            }
-            exit(exitStatus);
+            printMessage(command + "\n");
+            printMessage(output + "\n");
+            exit(status);
         }
         printMessage(configureOrBuildStr + " executable build script output\n");
-        for (string &output : commandOutputs)
-        {
-            printMessage(output + "\n");
-        }
+        printMessage(output + "\n");
     };
 
     std::thread configureExeThread(scriptExecution, true);
