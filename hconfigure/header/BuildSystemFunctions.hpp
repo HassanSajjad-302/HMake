@@ -2,7 +2,6 @@
 #define HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 
 #include "HashValues.hpp"
-#include "nlohmann/json.hpp"
 #include "parallel-hashmap/parallel_hashmap/phmap.h"
 #include <deque>
 #include <filesystem>

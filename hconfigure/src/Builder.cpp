@@ -1,7 +1,7 @@
 
 #include "Builder.hpp"
+#include "Cache.hpp"
 #include "Node.hpp"
-#include "Settings.hpp"
 #include <mutex>
 #include <stack>
 #include <thread>
@@ -27,7 +27,7 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    launchedCount = settings.maximumBuildThreads;
+    launchedCount = cache.numberOfBuildThreads;
 
     if (launchedCount)
     {

@@ -15,13 +15,14 @@ struct Cache
     // plain array. In VSTools array, compiler and linker also have include-dirs and library-dirs with
     // them which are loaded from toolsCache global variable.
     bool isCompilerInToolsArray;
-    unsigned selectedCompilerArrayIndex;
+    uint8_t selectedCompilerArrayIndex;
     bool isLinkerInToolsArray;
-    unsigned selectedLinkerArrayIndex;
+    uint8_t selectedLinkerArrayIndex;
     bool isArchiverInToolsArray;
-    unsigned selectedArchiverArrayIndex;
+    uint8_t selectedArchiverArrayIndex;
     bool isScannerInToolsArray;
-    unsigned selectedScannerArrayIndex;
+    uint8_t selectedScannerArrayIndex;
+    uint16_t numberOfBuildThreads = std::thread::hardware_concurrency();
     Json cacheVariables;
     vector<string> configureExeBuildScript;
     vector<string> buildExeBuildScript;

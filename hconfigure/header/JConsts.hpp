@@ -90,12 +90,11 @@ struct JConsts
     inline static const string linuxUnix = "linux-unix";
     inline static const string logicalName = "logical-name";
     inline static const string lookupMethod = "lookup-method";
-    inline static const string maximumBuildThreads = "maximum-build-threads";
-    inline static const string maximumLinkThreads = "maximum-link-threads";
     inline static const string moduleDependencies = "module-dependencies";
     inline static const string moduleScope = "module-scope";
     inline static const string msvc = "msvc";
     inline static const string name = "name";
+    inline static const string numberOfBuildThreads = "number-of-build-threads";
     inline static const string object = "object";
     inline static const string objectFile = "object-file";
     inline static const string objectFiles = "object-files";

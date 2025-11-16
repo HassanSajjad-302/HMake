@@ -72,14 +72,7 @@ void replaceAll(string &str, const string &from, const string &to)
 int main(int argc, char **argv)
 {
     constructGlobals();
-    /*    Document d(kObjectType);
 
-        d.AddMember(Value("Foo").Move(), Value("Bar").Move(), ralloc)
-            .AddMember(Value("Bar").Move(), Value("Foo").Move(), ralloc);
-
-        writeValueToCompressedFile("check.json", d);
-
-        return 0;*/
 
     if (THROW)
     {
@@ -92,6 +85,10 @@ int main(int argc, char **argv)
         if (string argument(argv[1]); argument == "--configure")
         {
             onlyConfigure = true;
+        }
+        else
+        {
+            printErrorMessage("Unknown Argument provided to hhelper.\n");
         }
     }
     int count = 0;

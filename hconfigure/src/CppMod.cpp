@@ -5,7 +5,6 @@
 #include "Configuration.hpp"
 #include "CppTarget.hpp"
 #include "JConsts.hpp"
-#include "Settings.hpp"
 #include "TargetCache.hpp"
 #include <filesystem>
 #include <mutex>

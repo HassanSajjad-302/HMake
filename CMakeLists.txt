@@ -34,7 +34,6 @@ set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 0)
 add_subdirectory(3rdParty/json)
 
 set(HCONFIGURE_SOURCES
-        hconfigure/src/Settings.cpp
         hconfigure/src/Features.cpp
         hconfigure/src/BTarget.cpp
         hconfigure/src/Builder.cpp

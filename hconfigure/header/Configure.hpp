@@ -12,7 +12,6 @@
 #include "DSC.hpp"
 #include "Features.hpp"
 #include "JConsts.hpp"
-#include "Settings.hpp"
 #include "ToolsCache.hpp"
 #include "nlohmann/json.hpp"
 #include <filesystem>

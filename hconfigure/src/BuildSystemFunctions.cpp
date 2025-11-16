@@ -3,7 +3,6 @@
 #include "Builder.hpp"
 #include "Cache.hpp"
 #include "CppTarget.hpp"
-#include "Settings.hpp"
 #include "TargetCache.hpp"
 #include "ToolsCache.hpp"
 #include "lz4/lib/lz4.h"
@@ -108,17 +107,6 @@ void initializeCache()
             printErrorMessage(FORMAT("{} does not exist. Exiting\n", p.string().c_str()));
             errorExit();
         }
-    }
-
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        auto initializeSettings = [](const path &settingsFilePath) {
-            Json outputSettingsJson;
-            ifstream(settingsFilePath) >> outputSettingsJson;
-            settings = outputSettingsJson;
-        };
-
-        initializeSettings(path(configureNode->filePath + slashc + "settings.json"));
     }
 }
 
