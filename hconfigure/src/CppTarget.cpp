@@ -1345,6 +1345,7 @@ void CppTarget::readConfigCacheAtBuildTime()
             string_view headerFileName = readStringView(ptr, configRead);
             Node *headerNode = readHalfNode(ptr, configRead);
             hu->composingHeaders.emplace(headerFileName, headerNode);
+            hu->logicalNames.emplace_back(headerFileName);
 
             if (hu->isReqDep)
             {

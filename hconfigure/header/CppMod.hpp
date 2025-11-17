@@ -108,8 +108,10 @@ struct CppMod final : CppSrc
     /// module, logicalNames[0] is the exportName of the module.
     vector<string> logicalNames;
 
-    ///
+    /// BMI node for header-units and module interface files. Initialized in CppTarget::readConfigCache.
     Node *interfaceNode;
+
+    /// If this module or hu is waiting for another module or hu to compile
     CppMod *waitingFor = nullptr;
 
     N2978::IPCManagerBS *ipcManager;
@@ -122,11 +124,6 @@ struct CppMod final : CppSrc
     bool compileCommandChanged = false;
     bool firstMessageSent = false;
 
-    // Whether to set ignoreHeaderDeps to true for HeaderUnits which come from such Node includes for which
-    // ignoreHeaderDeps is true
-    inline static bool ignoreHeaderDepsForIgnoreHeaderUnits = true;
-
-    inline static thread_local vector<string_view> includeNames;
     CppMod(CppTarget *target_, const Node *node_);
     void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index);
     void makeAndSendBTCModule(CppMod &mod);
