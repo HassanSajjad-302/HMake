@@ -102,10 +102,13 @@ struct CppMod final : CppSrc
     /// when CTB::LAST_MESSAGE is received.
     RunCommand run;
 
-    /// A header-unit can be found by more than 1 logicalNames. Like "std/header1.hpp" and "./header1.hpp". This stores all those
+    /// A header-unit can be found by more than 1 logicalNames. Like "std/header1.hpp" and "./header1.hpp". Also, in big
+    /// header-units case a big header-unit can be found by any of its composing headers. All composing includes are
+    /// added in following array and is sent with requested hu to keep the number of messages minimal. In case of
+    /// module, logicalNames[0] is the exportName of the module.
     vector<string> logicalNames;
 
-    vector<Node *> *headerFilesCache;
+    ///
     Node *interfaceNode;
     CppMod *waitingFor = nullptr;
 

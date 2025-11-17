@@ -423,8 +423,6 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
     {
         headerFile->toBeChecked = true;
     }
-
-    headerFilesCache = &modCache.srcFile.headerFiles;
 }
 
 void CppMod::makeAndSendBTCModule(CppMod &mod)
@@ -1173,6 +1171,20 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
     if (endNode->fileType == file_type::not_found || node->lastWriteTime > endNode->lastWriteTime)
     {
         return;
+    }
+
+    const vector<Node *> *headerFilesCache = nullptr;
+    if (type == SM_FILE_TYPE::HEADER_UNIT)
+    {
+        headerFilesCache = &target->cppBuildCache.headerUnits[indexInBuildCache].srcFile.headerFiles;
+    }
+    else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
+    {
+        headerFilesCache = &target->cppBuildCache.imodFiles[indexInBuildCache].srcFile.headerFiles;
+    }
+    else
+    {
+        headerFilesCache = &target->cppBuildCache.modFiles[indexInBuildCache].srcFile.headerFiles;
     }
 
     for (const Node *headerNode : *headerFilesCache)
