@@ -553,6 +553,10 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
     }
 }
 
+void CppMod::returnAfterCompleting()
+{
+}
+
 void CppMod::duplicateHeaderFileOrUnitError(const string &headerName, HeaderFileOrUnit &first, HeaderFileOrUnit &second,
                                             CppTarget *firstTarget, CppTarget *secondTarget) const
 {
@@ -731,6 +735,12 @@ bool CppMod::build(Builder &builder)
                     std::lock_guard _(printMutex);
                     fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
                 }
+
+                for (const auto &[s, _] : composingHeaders)
+                {
+                    logicalNames.emplace_back(s);
+                }
+
                 return false;
             }
 
@@ -957,6 +967,10 @@ void CppMod::updateBTarget(Builder &builder, const unsigned short round, bool &i
             else
             {
                 atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
+                for (const auto &[s, _] : composingHeaders)
+                {
+                    logicalNames.emplace_back(s);
+                }
             }
         }
     }

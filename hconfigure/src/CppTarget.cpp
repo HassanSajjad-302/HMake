@@ -680,10 +680,6 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
             hu = interfaceBigHu[index];
         }
 
-        // if suppressError is to be added, then emplace here needs to be conditioned.
-        hu->logicalNames.emplace_back(*p);
-        hu->composingHeaders.emplace(logicalName, const_cast<Node *>(headerUnit));
-
         if (addInReq)
         {
             emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true, suppressError);
@@ -697,6 +693,8 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
             emplaceInNodesType(headerUnit, FileType::HEADER_FILE, false);
             hu->isUseReqDep = true;
         }
+
+        hu->composingHeaders.emplace(*p, const_cast<Node *>(headerUnit));
     }
     else
     {
@@ -711,9 +709,6 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
 
         hu = huDeps.emplace_back(new CppMod(this, headerUnit));
 
-        // if suppressError is to be added, then emplace here needs to be conditioned.
-        hu->logicalNames.emplace_back(*p);
-
         if (addInReq)
         {
             emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true, suppressError);
@@ -727,6 +722,8 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
             emplaceInNodesType(headerUnit, FileType::HEADER_UNIT, false);
             hu->isUseReqDep = true;
         }
+
+        hu->logicalNames.emplace_back(*p);
     }
 }
 
@@ -923,6 +920,11 @@ void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool
                 for (const auto &[n, t] : t->useReqNodesType)
                 {
                     emplaceInNodesType(n, t, true);
+                }
+
+                for (const auto &p : t->useReqHeaderNameMapping)
+                {
+                  //  emplaceInHeaderNameMapping(string(p.first), p.second, true, false);
                 }
             }
 
@@ -1129,7 +1131,7 @@ void CppTarget::writeBigHeaderUnits()
             if (bigHu)
             {
                 string str;
-                for (const string &s : bigHu->logicalNames)
+                for (const auto &[s, _] : bigHu->composingHeaders)
                 {
                     str += "#include \"" + s + "\"\n";
                 }
@@ -1215,10 +1217,6 @@ void CppTarget::writeCacheAtConfigTime()
         writeNode(*configBuffer, cppMod->interfaceNode);
     }
 
-    // todo
-    //  composing headers should be written first and then logical-headers. Those logical-names that exist in both
-    //  composing headers and logical-names should be removed from logical-names. And in readCache reqHeaderNameMapping
-    //  should also initialize from
     writeUint32(*configBuffer, huDeps.size());
     for (CppMod *hu : huDeps)
     {
@@ -1242,14 +1240,14 @@ void CppTarget::writeCacheAtConfigTime()
         writeBool(*configBuffer, hu->isUseReqDep);
 
         writeUint32(*configBuffer, hu->composingHeaders.size());
+        writeUint32(*configBuffer, hu->logicalNames.size());
+
         for (const auto &[headerName, headerNode] : hu->composingHeaders)
         {
             writeStringView(*configBuffer, headerName);
             writeNode(*configBuffer, headerNode);
-            std::erase(hu->logicalNames, headerName);
         }
 
-        writeUint32(*configBuffer, hu->logicalNames.size());
         for (const string &str : hu->logicalNames)
         {
             writeStringView(*configBuffer, str);
@@ -1339,6 +1337,9 @@ void CppTarget::readConfigCacheAtBuildTime()
         hu->isUseReqDep = readBool(ptr, configRead);
 
         const uint32_t headerFileModuleSize = readUint32(ptr, configRead);
+        const uint32_t logicalNamesSize = readUint32(ptr, configRead);
+        hu->logicalNames.reserve(logicalNamesSize + headerFileModuleSize);
+
         for (uint32_t j = 0; j < headerFileModuleSize; ++j)
         {
             string_view headerFileName = readStringView(ptr, configRead);
@@ -1356,8 +1357,6 @@ void CppTarget::readConfigCacheAtBuildTime()
             }
         }
 
-        const uint32_t logicalNamesSize = readUint32(ptr, configRead);
-        hu->logicalNames.reserve(logicalNamesSize);
         for (uint32_t j = 0; j < logicalNamesSize; ++j)
         {
             string_view str = readStringView(ptr, configRead);

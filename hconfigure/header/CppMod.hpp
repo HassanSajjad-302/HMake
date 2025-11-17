@@ -102,6 +102,7 @@ struct CppMod final : CppSrc
     /// when CTB::LAST_MESSAGE is received.
     RunCommand run;
 
+    /// A header-unit can be found by more than 1 logicalNames. Like "std/header1.hpp" and "./header1.hpp". This stores all those
     vector<string> logicalNames;
 
     vector<Node *> *headerFilesCache;
@@ -127,6 +128,7 @@ struct CppMod final : CppSrc
     void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index);
     void makeAndSendBTCModule(CppMod &mod);
     void makeAndSendBTCNonModule(CppMod &hu);
+    void returnAfterCompleting();
     void duplicateHeaderFileOrUnitError(const string &headerName, struct HeaderFileOrUnit &first,
                                         HeaderFileOrUnit &second, CppTarget *firstTarget,
                                         CppTarget *secondTarget) const;
