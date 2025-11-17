@@ -70,22 +70,12 @@ class CppSrc : public ObjectFile
 
 bool operator<(const CppSrc &lhs, const CppSrc &rhs);
 
-enum class SM_REQUIRE_TYPE : uint8_t
-{
-    NOT_assignED = 0,
-    PRIMARY_EXPORT = 1,
-    PARTITION_EXPORT = 2,
-    HEADER_UNIT = 3,
-};
-
 enum class SM_FILE_TYPE : uint8_t
 {
-    NOT_ASSIGNED = 0,
-    PRIMARY_EXPORT = 1,
-    PARTITION_EXPORT = 2,
-    PARTITION_IMPLEMENTATION = 3,
-    HEADER_UNIT = 4,
-    PRIMARY_IMPLEMENTATION = 5,
+    PRIMARY_EXPORT = 0,
+    PARTITION_EXPORT = 1,
+    HEADER_UNIT = 2,
+    PRIMARY_IMPLEMENTATION = 3,
 };
 
 struct CppMod final : CppSrc
@@ -111,16 +101,20 @@ struct CppMod final : CppSrc
     /// BMI node for header-units and module interface files. Initialized in CppTarget::readConfigCache.
     Node *interfaceNode;
 
-    /// If this module or hu is waiting for another module or hu to compile
-    CppMod *waitingFor = nullptr;
-
+    /// CppMod::updateBTarget will initialize this and then will call receiveMessage to learn about any dependencies the
+    /// compiler require.
     N2978::IPCManagerBS *ipcManager;
 
-    SM_FILE_TYPE type = SM_FILE_TYPE::NOT_ASSIGNED;
+    /// The dependency module or hu we are waiting on to compile. It is set before CppMod::updateBTarget returns.
+    CppMod *waitingFor = nullptr;
 
-    // following 2 only used at configure time.
-    bool isReqDep = false;
-    bool isUseReqDep = false;
+    SM_FILE_TYPE type;
+
+    /// Following is used only at config-time. Describes whether hu is private hu of the CppTarget.
+    bool isReqHu = false;
+    /// Following is used only at config-time. Describes whether hu is interface hu of the CppTarget.
+    bool isUseReqHu = false;
+    ///
     bool compileCommandChanged = false;
     bool firstMessageSent = false;
 
@@ -140,6 +134,7 @@ struct CppMod final : CppSrc
     BTargetType getBTargetType() const override;
     void updateBuildCache() override;
     string getCompileCommand() const;
+    BuildCache::Cpp::ModuleFile &getModuleCache() const;
     void setFileStatusAndPopulateAllDependencies();
 };
 
