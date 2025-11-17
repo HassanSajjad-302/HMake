@@ -387,7 +387,7 @@ void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrU
     }
 }
 
-void CppTarget::emplaceInNodesType(const Node *node, FileType type, bool addInReq)
+void CppTarget::emplaceInNodesType(const Node *node, FileType type, const bool addInReq)
 {
     if (node->filePath.contains("yvals_core.h"))
     {
@@ -1451,6 +1451,11 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
             }
         }
     };
+
+    if (string s = getNormalizedPath(sourceDirectory); !exists(path(s)))
+    {
+        printErrorMessage(FORMAT("Path {} does not exist in target {}", s, name));
+    }
 
     if (recursive)
     {
