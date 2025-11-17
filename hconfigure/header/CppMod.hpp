@@ -90,13 +90,18 @@ enum class SM_FILE_TYPE : uint8_t
 
 struct CppMod final : CppSrc
 {
-    // Those header-files which are #included in this module or hu. These are initialized from config-cache as big-hu
-    // have these. While Source::headerFiles have all the header-files of ours and our dependencies for accurate
-    // rebuilds.
+    /// Those header-files which are #included in this module or hu. These are initialized from config-cache as big-hu
+    /// have these. While Source::headerFiles have all the header-files of ours and our dependencies for accurate
+    /// rebuilds.
     flat_hash_map<string, Node *> composingHeaders;
+
+    /// All dependencies of this module or hu. includes both header-units and modules.
     flat_hash_set<CppMod *> allCppModDependencies;
 
+    /// RunCommand::startProcess is called in updateBTarget and then RunCommand::endProcess is called in CppMod::build
+    /// when CTB::LAST_MESSAGE is received.
     RunCommand run;
+
     vector<string> logicalNames;
 
     vector<Node *> *headerFilesCache;
