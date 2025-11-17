@@ -1215,6 +1215,10 @@ void CppTarget::writeCacheAtConfigTime()
         writeNode(*configBuffer, cppMod->interfaceNode);
     }
 
+    // todo
+    //  composing headers should be written first and then logical-headers. Those logical-names that exist in both
+    //  composing headers and logical-names should be removed from logical-names. And in readCache reqHeaderNameMapping
+    //  should also initialize from
     writeUint32(*configBuffer, huDeps.size());
     for (CppMod *hu : huDeps)
     {
@@ -1237,18 +1241,18 @@ void CppTarget::writeCacheAtConfigTime()
         writeBool(*configBuffer, hu->isReqDep);
         writeBool(*configBuffer, hu->isUseReqDep);
 
-        const uint32_t logicalNamesSize = hu->logicalNames.size();
-        writeUint32(*configBuffer, logicalNamesSize);
-        for (const string &str : hu->logicalNames)
-        {
-            writeStringView(*configBuffer, str);
-        }
-
         writeUint32(*configBuffer, hu->composingHeaders.size());
         for (const auto &[headerName, headerNode] : hu->composingHeaders)
         {
             writeStringView(*configBuffer, headerName);
             writeNode(*configBuffer, headerNode);
+            std::erase(hu->logicalNames, headerName);
+        }
+
+        writeUint32(*configBuffer, hu->logicalNames.size());
+        for (const string &str : hu->logicalNames)
+        {
+            writeStringView(*configBuffer, str);
         }
     }
 
@@ -1334,6 +1338,24 @@ void CppTarget::readConfigCacheAtBuildTime()
         hu->isReqDep = readBool(ptr, configRead);
         hu->isUseReqDep = readBool(ptr, configRead);
 
+        const uint32_t headerFileModuleSize = readUint32(ptr, configRead);
+        for (uint32_t j = 0; j < headerFileModuleSize; ++j)
+        {
+            string_view headerFileName = readStringView(ptr, configRead);
+            Node *headerNode = readHalfNode(ptr, configRead);
+            hu->composingHeaders.emplace(headerFileName, headerNode);
+
+            if (hu->isReqDep)
+            {
+                reqHeaderNameMapping.emplace(headerFileName, HeaderFileOrUnit(hu, isSystem));
+            }
+
+            if (hu->isUseReqDep)
+            {
+                useReqHeaderNameMapping.emplace(headerFileName, HeaderFileOrUnit(hu, isSystem));
+            }
+        }
+
         const uint32_t logicalNamesSize = readUint32(ptr, configRead);
         hu->logicalNames.reserve(logicalNamesSize);
         for (uint32_t j = 0; j < logicalNamesSize; ++j)
@@ -1349,14 +1371,6 @@ void CppTarget::readConfigCacheAtBuildTime()
             {
                 useReqHeaderNameMapping.emplace(str, HeaderFileOrUnit(hu, isSystem));
             }
-        }
-
-        const uint32_t headerFileModuleSize = readUint32(ptr, configRead);
-        for (uint32_t j = 0; j < headerFileModuleSize; ++j)
-        {
-            string_view headerFileName = readStringView(ptr, configRead);
-            Node *headerNode = readHalfNode(ptr, configRead);
-            hu->composingHeaders.emplace(headerFileName, headerNode);
         }
 
         hu->type = SM_FILE_TYPE::HEADER_UNIT;
