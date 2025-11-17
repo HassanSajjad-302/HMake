@@ -394,7 +394,7 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
         return;
     }
 
-    if (modCache.smRules.headerStatusChanged)
+    if (modCache.headerStatusChanged)
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
         return;
@@ -998,35 +998,35 @@ void CppMod::updateBuildCache()
     }
 
     BuildCache::Cpp::ModuleFile &myBuildCache = getModuleCache();
-    myBuildCache.smRules.headerUnitArray.clear();
-    myBuildCache.smRules.moduleArray.clear();
-
-    myBuildCache.smRules.headerStatusChanged = false;
-    for (const CppMod *cppMod : allCppModDependencies)
-    {
-        if (cppMod->type == SM_FILE_TYPE::HEADER_UNIT)
-        {
-            BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep huDep;
-            huDep.node = const_cast<Node *>(cppMod->node);
-            huDep.myIndex = cppMod->indexInBuildCache;
-            huDep.targetIndex = cppMod->target->cacheIndex;
-            myBuildCache.smRules.headerUnitArray.emplace_back(huDep);
-        }
-        else
-        {
-            BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep modDep;
-            modDep.node = cppMod->objectNode;
-            modDep.myIndex = cppMod->indexInBuildCache;
-            modDep.targetIndex = cppMod->target->cacheIndex;
-            myBuildCache.smRules.moduleArray.emplace_back(modDep);
-        }
-    }
+    myBuildCache.headerUnitArray.clear();
+    myBuildCache.moduleArray.clear();
 
     myBuildCache.srcFile.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
     myBuildCache.srcFile.headerFiles.clear();
     for (Node *header : headerFiles)
     {
         myBuildCache.srcFile.headerFiles.emplace_back(header);
+    }
+
+    myBuildCache.headerStatusChanged = false;
+    for (const CppMod *cppMod : allCppModDependencies)
+    {
+        if (cppMod->type == SM_FILE_TYPE::HEADER_UNIT)
+        {
+            BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep huDep;
+            huDep.node = const_cast<Node *>(cppMod->node);
+            huDep.myIndex = cppMod->indexInBuildCache;
+            huDep.targetIndex = cppMod->target->cacheIndex;
+            myBuildCache.headerUnitArray.emplace_back(huDep);
+        }
+        else
+        {
+            BuildCache::Cpp::ModuleFile::SingleModuleDep modDep;
+            modDep.node = cppMod->objectNode;
+            modDep.myIndex = cppMod->indexInBuildCache;
+            modDep.targetIndex = cppMod->target->cacheIndex;
+            myBuildCache.moduleArray.emplace_back(modDep);
+        }
     }
 }
 
@@ -1088,31 +1088,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             return;
         }
 
-        for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : myBuildCache.smRules.moduleArray)
-        {
-            CppMod *cppMod = nullptr;
-            if (const CppTarget *t = cppTargets[m.targetIndex])
-            {
-                if (m.myIndex < t->imodFileDeps.size())
-                {
-                    cppMod = t->imodFileDeps[m.myIndex];
-                }
-            }
-
-            if (!cppMod)
-            {
-                return;
-            }
-
-            if (cppMod->compileCommandChanged)
-            {
-                return;
-            }
-
-            allCppModDependencies.emplace(cppMod);
-        }
-
-        for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : myBuildCache.smRules.headerUnitArray)
+        for (const BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &h : myBuildCache.headerUnitArray)
         {
             CppMod *hu = nullptr;
             if (const CppTarget *t = cppTargets[h.targetIndex])
@@ -1134,6 +1110,30 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             }
 
             allCppModDependencies.emplace(hu);
+        }
+
+        for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache.moduleArray)
+        {
+            CppMod *cppMod = nullptr;
+            if (const CppTarget *t = cppTargets[m.targetIndex])
+            {
+                if (m.myIndex < t->imodFileDeps.size())
+                {
+                    cppMod = t->imodFileDeps[m.myIndex];
+                }
+            }
+
+            if (!cppMod)
+            {
+                return;
+            }
+
+            if (cppMod->compileCommandChanged)
+            {
+                return;
+            }
+
+            allCppModDependencies.emplace(cppMod);
         }
 
         rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
@@ -1172,42 +1172,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         }
     }
 
-    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : myBuildCache.smRules.moduleArray)
-    {
-        CppMod *cppMod = nullptr;
-        if (const CppTarget *t = cppTargets[m.targetIndex])
-        {
-            if (m.myIndex < t->imodFileDeps.size())
-            {
-                cppMod = t->imodFileDeps[m.myIndex];
-            }
-        }
-
-        if (!cppMod)
-        {
-            return;
-        }
-
-        if (cppMod->node->fileType == file_type::not_found)
-        {
-            printErrorMessage(
-                FORMAT("Module-file {}\n of target {}\n not found.\n", cppMod->node->filePath, cppMod->target->name));
-        }
-
-        if (cppMod->compileCommandChanged)
-        {
-            return;
-        }
-
-        if (cppMod->node->lastWriteTime > objectNode->lastWriteTime)
-        {
-            return;
-        }
-
-        allCppModDependencies.emplace(cppMod);
-    }
-
-    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : myBuildCache.smRules.headerUnitArray)
+    for (const BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &h : myBuildCache.headerUnitArray)
     {
         CppMod *hu = nullptr;
         if (const CppTarget *t = cppTargets[h.targetIndex])
@@ -1240,6 +1205,41 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         }
 
         allCppModDependencies.emplace(hu);
+    }
+
+    for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache.moduleArray)
+    {
+        CppMod *cppMod = nullptr;
+        if (const CppTarget *t = cppTargets[m.targetIndex])
+        {
+            if (m.myIndex < t->imodFileDeps.size())
+            {
+                cppMod = t->imodFileDeps[m.myIndex];
+            }
+        }
+
+        if (!cppMod)
+        {
+            return;
+        }
+
+        if (cppMod->node->fileType == file_type::not_found)
+        {
+            printErrorMessage(
+                FORMAT("Module-file {}\n of target {}\n not found.\n", cppMod->node->filePath, cppMod->target->name));
+        }
+
+        if (cppMod->compileCommandChanged)
+        {
+            return;
+        }
+
+        if (cppMod->node->lastWriteTime > objectNode->lastWriteTime)
+        {
+            return;
+        }
+
+        allCppModDependencies.emplace(cppMod);
     }
 
     rb.updateStatus = UpdateStatus::ALREADY_UPDATED;

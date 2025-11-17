@@ -77,35 +77,28 @@ struct BuildCache
 
         struct ModuleFile
         {
-            struct SmRules
+            struct SingleHeaderUnitDep
             {
-                struct SingleHeaderUnitDep
-                {
-                    Node *node;
-                    uint32_t targetIndex{};
-                    uint32_t myIndex{};
-                    void serialize(vector<char> &buffer) const;
-                    void deserialize(const char *ptr, uint32_t &bytesRead);
-                };
+                Node *node;
+                uint32_t targetIndex{};
+                uint32_t myIndex{};
+                void serialize(vector<char> &buffer) const;
+                void deserialize(const char *ptr, uint32_t &bytesRead);
+            };
 
-                struct SingleModuleDep
-                {
-                    Node *node;
-                    uint32_t targetIndex{};
-                    uint32_t myIndex{};
-                    void serialize(vector<char> &buffer) const;
-                    void deserialize(const char *ptr, uint32_t &bytesRead);
-                };
-
-                bool headerStatusChanged;
-                vector<SingleHeaderUnitDep> headerUnitArray;
-                vector<SingleModuleDep> moduleArray;
+            struct SingleModuleDep
+            {
+                Node *node;
+                uint32_t targetIndex{};
+                uint32_t myIndex{};
                 void serialize(vector<char> &buffer) const;
                 void deserialize(const char *ptr, uint32_t &bytesRead);
             };
 
             SourceFile srcFile;
-            SmRules smRules;
+            vector<SingleHeaderUnitDep> headerUnitArray;
+            vector<SingleModuleDep> moduleArray;
+            bool headerStatusChanged;
             void serialize(vector<char> &buffer) const;
             void deserialize(const char *ptr, uint32_t &bytesRead);
         };

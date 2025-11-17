@@ -1090,30 +1090,30 @@ void CppTarget::setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache)
         {
             if (it->second != FileType::HEADER_FILE)
             {
-                modCache.smRules.headerStatusChanged = true;
+                modCache.headerStatusChanged = true;
                 return;
             }
         }
         else
         {
-            modCache.smRules.headerStatusChanged = true;
+            modCache.headerStatusChanged = true;
             return;
         }
     }
 
-    for (BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &huDep : modCache.smRules.headerUnitArray)
+    for (BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &huDep : modCache.headerUnitArray)
     {
         if (auto it = reqNodesType.find(huDep.node); it != reqNodesType.end())
         {
             if (it->second != FileType::HEADER_UNIT)
             {
-                modCache.smRules.headerStatusChanged = true;
+                modCache.headerStatusChanged = true;
                 return;
             }
         }
         else
         {
-            modCache.smRules.headerStatusChanged = true;
+            modCache.headerStatusChanged = true;
             return;
         }
     }
