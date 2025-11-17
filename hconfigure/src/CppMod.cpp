@@ -997,8 +997,11 @@ void CppMod::updateBuildCache()
         return;
     }
 
-    BuildCache::Cpp::ModuleFile::SmRules smRulesCache;
-    smRulesCache.headerStatusChanged = false;
+    BuildCache::Cpp::ModuleFile &myBuildCache = getModuleCache();
+    myBuildCache.smRules.headerUnitArray.clear();
+    myBuildCache.smRules.moduleArray.clear();
+
+    myBuildCache.smRules.headerStatusChanged = false;
     for (const CppMod *cppMod : allCppModDependencies)
     {
         if (cppMod->type == SM_FILE_TYPE::HEADER_UNIT)
@@ -1007,7 +1010,7 @@ void CppMod::updateBuildCache()
             huDep.node = const_cast<Node *>(cppMod->node);
             huDep.myIndex = cppMod->indexInBuildCache;
             huDep.targetIndex = cppMod->target->cacheIndex;
-            smRulesCache.headerUnitArray.emplace_back(huDep);
+            myBuildCache.smRules.headerUnitArray.emplace_back(huDep);
         }
         else
         {
@@ -1015,20 +1018,16 @@ void CppMod::updateBuildCache()
             modDep.node = cppMod->objectNode;
             modDep.myIndex = cppMod->indexInBuildCache;
             modDep.targetIndex = cppMod->target->cacheIndex;
-            smRulesCache.moduleArray.emplace_back(modDep);
+            myBuildCache.smRules.moduleArray.emplace_back(modDep);
         }
     }
 
-    BuildCache::Cpp::ModuleFile &myBuildCache = getModuleCache();
-
-    auto &[srcFile, smRules] = myBuildCache;
-    srcFile.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
-    srcFile.headerFiles.clear();
+    myBuildCache.srcFile.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+    myBuildCache.srcFile.headerFiles.clear();
     for (Node *header : headerFiles)
     {
-        srcFile.headerFiles.emplace_back(header);
+        myBuildCache.srcFile.headerFiles.emplace_back(header);
     }
-    smRules = std::move(smRulesCache);
 }
 
 string CppMod::getCompileCommand() const
