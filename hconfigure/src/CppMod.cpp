@@ -1019,21 +1019,9 @@ void CppMod::updateBuildCache()
         }
     }
 
-    BuildCache::Cpp::ModuleFile *modFile;
-    if (type == SM_FILE_TYPE::HEADER_UNIT)
-    {
-        modFile = &target->cppBuildCache.headerUnits[indexInBuildCache];
-    }
-    else if (type == SM_FILE_TYPE::PARTITION_EXPORT || type == SM_FILE_TYPE::PRIMARY_EXPORT)
-    {
-        modFile = &target->cppBuildCache.imodFiles[indexInBuildCache];
-    }
-    else
-    {
-        modFile = &target->cppBuildCache.modFiles[indexInBuildCache];
-    }
+    BuildCache::Cpp::ModuleFile &myBuildCache = getModuleCache();
 
-    auto &[srcFile, smRules] = *modFile;
+    auto &[srcFile, smRules] = myBuildCache;
     srcFile.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
     srcFile.headerFiles.clear();
     for (Node *header : headerFiles)
@@ -1068,6 +1056,19 @@ string CppMod::getCompileCommand() const
     return s;
 }
 
+BuildCache::Cpp::ModuleFile &CppMod::getModuleCache() const
+{
+    if (type == SM_FILE_TYPE::HEADER_UNIT)
+    {
+        return target->cppBuildCache.headerUnits[indexInBuildCache];
+    }
+    if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
+    {
+        return target->cppBuildCache.imodFiles[indexInBuildCache];
+    }
+    return target->cppBuildCache.modFiles[indexInBuildCache];
+}
+
 void CppMod::setFileStatusAndPopulateAllDependencies()
 {
     RealBTarget &rb = realBTargets[0];
@@ -1079,21 +1080,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
     rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
 
     const Node *endNode = type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode : objectNode;
-    BuildCache::Cpp::ModuleFile::SmRules *smRulesCache;
-    if (type == SM_FILE_TYPE::HEADER_UNIT)
-    {
-        smRulesCache = &target->cppBuildCache.headerUnits[indexInBuildCache].smRules;
-    }
-    else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
-    {
-
-        smRulesCache = &target->cppBuildCache.imodFiles[indexInBuildCache].smRules;
-    }
-    else
-    {
-
-        smRulesCache = &target->cppBuildCache.modFiles[indexInBuildCache].smRules;
-    }
+    const BuildCache::Cpp::ModuleFile &myBuildCache = getModuleCache();
 
     if (target->ignoreHeaderDeps)
     {
@@ -1102,7 +1089,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             return;
         }
 
-        for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : smRulesCache->moduleArray)
+        for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : myBuildCache.smRules.moduleArray)
         {
             CppMod *cppMod = nullptr;
             if (const CppTarget *t = cppTargets[m.targetIndex])
@@ -1126,7 +1113,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             allCppModDependencies.emplace(cppMod);
         }
 
-        for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache->headerUnitArray)
+        for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : myBuildCache.smRules.headerUnitArray)
         {
             CppMod *hu = nullptr;
             if (const CppTarget *t = cppTargets[h.targetIndex])
@@ -1186,7 +1173,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         }
     }
 
-    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : smRulesCache->moduleArray)
+    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleModuleDep &m : myBuildCache.smRules.moduleArray)
     {
         CppMod *cppMod = nullptr;
         if (const CppTarget *t = cppTargets[m.targetIndex])
@@ -1221,7 +1208,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         allCppModDependencies.emplace(cppMod);
     }
 
-    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : smRulesCache->headerUnitArray)
+    for (const BuildCache::Cpp::ModuleFile::SmRules::SingleHeaderUnitDep &h : myBuildCache.smRules.headerUnitArray)
     {
         CppMod *hu = nullptr;
         if (const CppTarget *t = cppTargets[h.targetIndex])

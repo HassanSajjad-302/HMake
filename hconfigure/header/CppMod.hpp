@@ -111,9 +111,9 @@ struct CppMod final : CppSrc
     SM_FILE_TYPE type;
 
     /// Following is used only at config-time. Describes whether hu is private hu of the CppTarget.
-    bool isReqHu = false;
+    bool isReqDep = false;
     /// Following is used only at config-time. Describes whether hu is interface hu of the CppTarget.
-    bool isUseReqHu = false;
+    bool isUseReqDep = false;
     ///
     bool compileCommandChanged = false;
     bool firstMessageSent = false;
