@@ -111,24 +111,46 @@ struct CppMod final : CppSrc
     SM_FILE_TYPE type;
 
     /// Following is used only at config-time. Describes whether hu is private hu of the CppTarget.
-    bool isReqDep = false;
+    bool isReqHu = false;
+
     /// Following is used only at config-time. Describes whether hu is interface hu of the CppTarget.
-    bool isUseReqDep = false;
-    ///
-    bool compileCommandChanged = false;
+    bool isUseReqHu = false;
+
+    /// Composing headers are only sent with the first message. This keeps tracks of that
     bool firstMessageSent = false;
 
+    bool compileCommandChanged = false;
+
     CppMod(CppTarget *target_, const Node *node_);
+
+    /// Call by CppTarget. In this we set Node::toBeChecked of different Nodes like header-files, interface-node and
+    /// objectNode.
     void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index);
+
+    /// Called to send the N2978::BTCModule corresponding to a module CppMod whose compilation just completed
     void makeAndSendBTCModule(CppMod &mod);
+
+    /// Called to send the N2978::BTCNonModule corresponding to a hu CppMod whose compilation just completed
     void makeAndSendBTCNonModule(CppMod &hu);
-    void returnAfterCompleting();
+
     void duplicateHeaderFileOrUnitError(const string &headerName, struct HeaderFileOrUnit &first,
                                         HeaderFileOrUnit &second, CppTarget *firstTarget,
                                         CppTarget *secondTarget) const;
+
+    /// Looks for the received module-name in just CppTarget::imodNames if module-name is of partition export. Looks in
+    /// CppTarget::imodNames of dependencies CppTarget as well if it is a primary export.
     CppMod *findModule(const string &moduleName) const;
+
+    /// Looks for the received header-name in CppTarget::reqHeaderNameMapping and CppTarget::useReqHeaderNameMapping of
+    /// the dependency CppTargets. While compiling the big-hu, a request for any composing-header will map to the big-hu
+    /// in these lookup tables. This case is specially handled in the following function.
     HeaderFileOrUnit findHeaderFileOrUnit(const string &headerName);
+
+    /// CppMod::updateBTarget function is responsible for launching the IPC server and the compilation process. This
+    /// function interacts with this server and manages the build.
     bool build(Builder &builder);
+
+    ///
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     string getOutputFileName() const;
     BTargetType getBTargetType() const override;

@@ -551,10 +551,6 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
     }
 }
 
-void CppMod::returnAfterCompleting()
-{
-}
-
 void CppMod::duplicateHeaderFileOrUnitError(const string &headerName, HeaderFileOrUnit &first, HeaderFileOrUnit &second,
                                             CppTarget *firstTarget, CppTarget *secondTarget) const
 {
@@ -643,12 +639,12 @@ HeaderFileOrUnit CppMod::findHeaderFileOrUnit(const string &headerName)
 
     // Checking if this is a big header-unit with composing header-files. Composing headers should be included in the
     // big header with same logical-name as they are meant to be used in other files. So we can use the same headerName
-    // to search whether we have a composing header specified. Otherwise, it would be a cyclic dependency.
+    // to search whether we have a composing header specified. Otherwise, it would be diagnosed as cyclic dependency.
     if (found.data.cppMod == this && !firstMessageSent)
     {
         if (const auto it = composingHeaders.find(headerName); it != composingHeaders.end())
         {
-            return {const_cast<Node *>(it->second), false};
+            return {(it->second), false};
         }
     }
 

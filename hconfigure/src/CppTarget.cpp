@@ -684,14 +684,14 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
         {
             emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true, suppressError);
             emplaceInNodesType(headerUnit, FileType::HEADER_FILE, true);
-            hu->isReqDep = true;
+            hu->isReqHu = true;
         }
 
         if (addInUseReq)
         {
             emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false, suppressError);
             emplaceInNodesType(headerUnit, FileType::HEADER_FILE, false);
-            hu->isUseReqDep = true;
+            hu->isUseReqHu = true;
         }
 
         hu->composingHeaders.emplace(*p, const_cast<Node *>(headerUnit));
@@ -713,14 +713,14 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
         {
             emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true, suppressError);
             emplaceInNodesType(headerUnit, FileType::HEADER_UNIT, true);
-            hu->isReqDep = true;
+            hu->isReqHu = true;
         }
 
         if (addInUseReq)
         {
             emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false, suppressError);
             emplaceInNodesType(headerUnit, FileType::HEADER_UNIT, false);
-            hu->isUseReqDep = true;
+            hu->isUseReqHu = true;
         }
 
         hu->logicalNames.emplace_back(*p);
@@ -1236,8 +1236,8 @@ void CppTarget::writeCacheAtConfigTime()
         writeNode(*configBuffer, hu->node);
         writeNode(*configBuffer, hu->interfaceNode);
 
-        writeBool(*configBuffer, hu->isReqDep);
-        writeBool(*configBuffer, hu->isUseReqDep);
+        writeBool(*configBuffer, hu->isReqHu);
+        writeBool(*configBuffer, hu->isUseReqHu);
 
         writeUint32(*configBuffer, hu->composingHeaders.size());
         writeUint32(*configBuffer, hu->logicalNames.size());
@@ -1333,8 +1333,8 @@ void CppTarget::readConfigCacheAtBuildTime()
         hu->indexInBuildCache = indexInBuildCache;
         hu->interfaceNode = readHalfNode(ptr, configRead);
 
-        hu->isReqDep = readBool(ptr, configRead);
-        hu->isUseReqDep = readBool(ptr, configRead);
+        hu->isReqHu = readBool(ptr, configRead);
+        hu->isUseReqHu = readBool(ptr, configRead);
 
         const uint32_t headerFileModuleSize = readUint32(ptr, configRead);
         const uint32_t logicalNamesSize = readUint32(ptr, configRead);
@@ -1347,12 +1347,12 @@ void CppTarget::readConfigCacheAtBuildTime()
             hu->composingHeaders.emplace(headerFileName, headerNode);
             hu->logicalNames.emplace_back(headerFileName);
 
-            if (hu->isReqDep)
+            if (hu->isReqHu)
             {
                 reqHeaderNameMapping.emplace(headerFileName, HeaderFileOrUnit(hu, isSystem));
             }
 
-            if (hu->isUseReqDep)
+            if (hu->isUseReqHu)
             {
                 useReqHeaderNameMapping.emplace(headerFileName, HeaderFileOrUnit(hu, isSystem));
             }
@@ -1362,12 +1362,12 @@ void CppTarget::readConfigCacheAtBuildTime()
         {
             string_view str = readStringView(ptr, configRead);
             hu->logicalNames.emplace_back(str);
-            if (hu->isReqDep)
+            if (hu->isReqHu)
             {
                 reqHeaderNameMapping.emplace(str, HeaderFileOrUnit(hu, isSystem));
             }
 
-            if (hu->isUseReqDep)
+            if (hu->isUseReqHu)
             {
                 useReqHeaderNameMapping.emplace(str, HeaderFileOrUnit(hu, isSystem));
             }
