@@ -386,6 +386,7 @@ CppMod::CppMod(CppTarget *target_, const Node *node_) : CppSrc(target_, node_)
 void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const uint32_t index)
 {
     indexInBuildCache = index;
+    myBuildCache = &modCache;
 
     if (modCache.srcFile.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
     {
@@ -928,7 +929,8 @@ void CppMod::updateBTarget(Builder &builder, const unsigned short round, bool &i
                 rb.assignNeedsUpdateToDependents();
                 headerFiles.clear();
                 allCppModDependencies.clear();
-                rb.assignNeedsUpdateToDependents();
+                myBuildCache->headerUnitArray.clear();
+                myBuildCache->moduleArray.clear();
 
                 const Node *endNode = type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode : objectNode;
                 if (auto r = N2978::makeIPCManagerBS(endNode->filePath); r)
@@ -974,18 +976,15 @@ void CppMod::updateBuildCache()
         return;
     }
 
-    BuildCache::Cpp::ModuleFile &myBuildCache = getModuleCache();
-    myBuildCache.headerUnitArray.clear();
-    myBuildCache.moduleArray.clear();
 
-    myBuildCache.srcFile.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
-    myBuildCache.srcFile.headerFiles.clear();
+    myBuildCache->srcFile.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+    myBuildCache->srcFile.headerFiles.clear();
     for (Node *header : headerFiles)
     {
-        myBuildCache.srcFile.headerFiles.emplace_back(header);
+        myBuildCache->srcFile.headerFiles.emplace_back(header);
     }
 
-    myBuildCache.headerStatusChanged = false;
+    myBuildCache->headerStatusChanged = false;
     for (const CppMod *cppMod : allCppModDependencies)
     {
         if (cppMod->type == SM_FILE_TYPE::HEADER_UNIT)
@@ -994,7 +993,7 @@ void CppMod::updateBuildCache()
             huDep.node = const_cast<Node *>(cppMod->node);
             huDep.myIndex = cppMod->indexInBuildCache;
             huDep.targetIndex = cppMod->target->cacheIndex;
-            myBuildCache.headerUnitArray.emplace_back(huDep);
+            myBuildCache->headerUnitArray.emplace_back(huDep);
         }
         else
         {
@@ -1002,7 +1001,7 @@ void CppMod::updateBuildCache()
             modDep.node = cppMod->objectNode;
             modDep.myIndex = cppMod->indexInBuildCache;
             modDep.targetIndex = cppMod->target->cacheIndex;
-            myBuildCache.moduleArray.emplace_back(modDep);
+            myBuildCache->moduleArray.emplace_back(modDep);
         }
     }
 }
@@ -1032,19 +1031,6 @@ string CppMod::getCompileCommand() const
     return s;
 }
 
-BuildCache::Cpp::ModuleFile &CppMod::getModuleCache() const
-{
-    if (type == SM_FILE_TYPE::HEADER_UNIT)
-    {
-        return target->cppBuildCache.headerUnits[indexInBuildCache];
-    }
-    if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
-    {
-        return target->cppBuildCache.imodFiles[indexInBuildCache];
-    }
-    return target->cppBuildCache.modFiles[indexInBuildCache];
-}
-
 void CppMod::setFileStatusAndPopulateAllDependencies()
 {
     RealBTarget &rb = realBTargets[0];
@@ -1056,7 +1042,6 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
     rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
 
     const Node *endNode = type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode : objectNode;
-    const BuildCache::Cpp::ModuleFile &myBuildCache = getModuleCache();
 
     if (target->ignoreHeaderDeps)
     {
@@ -1065,7 +1050,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             return;
         }
 
-        for (const BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &h : myBuildCache.headerUnitArray)
+        for (const BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &h : myBuildCache->headerUnitArray)
         {
             CppMod *hu = nullptr;
             if (const CppTarget *t = cppTargets[h.targetIndex])
@@ -1089,7 +1074,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             allCppModDependencies.emplace(hu);
         }
 
-        for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache.moduleArray)
+        for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache->moduleArray)
         {
             CppMod *cppMod = nullptr;
             if (const CppTarget *t = cppTargets[m.targetIndex])
@@ -1149,7 +1134,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         }
     }
 
-    for (const BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &h : myBuildCache.headerUnitArray)
+    for (const BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &h : myBuildCache->headerUnitArray)
     {
         CppMod *hu = nullptr;
         if (const CppTarget *t = cppTargets[h.targetIndex])
@@ -1184,7 +1169,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         allCppModDependencies.emplace(hu);
     }
 
-    for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache.moduleArray)
+    for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache->moduleArray)
     {
         CppMod *cppMod = nullptr;
         if (const CppTarget *t = cppTargets[m.targetIndex])

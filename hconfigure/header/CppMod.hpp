@@ -105,8 +105,11 @@ struct CppMod final : CppSrc
     /// compiler require.
     N2978::IPCManagerBS *ipcManager;
 
-    /// The dependency module or hu we are waiting on to compile. It is set before CppMod::updateBTarget returns.
+    /// The dependency module or hu we are waiting on to compile.
     CppMod *waitingFor = nullptr;
+
+    /// Points to one of the arrays of CppTarget::cppBuildCache of the owning CppTarget.
+    BuildCache::Cpp::ModuleFile *myBuildCache;
 
     SM_FILE_TYPE type;
 
@@ -148,6 +151,7 @@ struct CppMod final : CppSrc
 
     /// CppMod::updateBTarget function is responsible for launching the IPC server and the compilation process. This
     /// function interacts with this server and manages the build.
+    /// \returns true if we are waiting on a dependency, false if we have completed the compilation.
     bool build(Builder &builder);
 
     /// Launches IPC server and the compilation process if the module or hu needs to be updated. Sets \p isComplete to
@@ -157,10 +161,15 @@ struct CppMod final : CppSrc
     /// \returns BTargetType::CPPMOD
     BTargetType getBTargetType() const override;
 
-    ///
+    /// Called at the end or in the signal-handler when the build-cache is being written. This function will update the
+    /// build-cache at indexInBuildCache, if this was updated.
     void updateBuildCache() override;
+
     string getCompileCommand() const;
-    BuildCache::Cpp::ModuleFile &getModuleCache() const;
+
+    /// Checks whether this needs to be updated and sets round0 RealBTarget::updateStatus to UpdateStatus::NEEDS_UPDATE.
+    /// Otherwise, populates CppTarget::allCppModDependencies based on myBuildCache. So, if any of our dependents need
+    /// to be updated, makeAndSend* functions could send our dependencies with us in a single message.
     void setFileStatusAndPopulateAllDependencies();
 };
 
