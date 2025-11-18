@@ -1,3 +1,7 @@
+
+/// \file
+/// Defines CppTarget class
+
 #ifndef HMAKE_CPPTARGET_HPP
 #define HMAKE_CPPTARGET_HPP
 
@@ -31,9 +35,9 @@ enum class FileType : uint8_t
     HEADER_UNIT,
 };
 
-// TODO
-// HMake currently does not has proper C Support. There is workaround by ASSING(CSourceTargetEnum::YES) call which that
-// use -TC flag with MSVC
+/// This class is responsible for managing c++ compilation. This class compiles multiple source-files, module-files,
+/// interface-module-files or header-units. The compile-command is same for all the files in one CppTarget.
+///
 class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
 {
   public:

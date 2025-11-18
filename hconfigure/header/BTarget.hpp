@@ -69,6 +69,15 @@ class RealBTarget
     /// it is set by sortGraph function if there is a cycle in the graph
     inline static bool cycleExists = false;
 
+  public:
+    /// This is not used by build-algorithm. This is used by CppMod to check whether a header-unit is built or not. This
+    /// is also used by TargetCache::writeBuildCache function to determine whether cache could be updated or not. LOAT,
+    /// CppSrc and CppMod in BTarget::updateBTarget, assign this after exitStatus to ensure happens-before relationship.
+    /// Also, this is assigned before printing to avoid a situation where a target has printed the update but its cache
+    /// is not yet updated in-case of build interruption.
+    alignas(64) UpdateStatus updateStatus = UpdateStatus::ALREADY_UPDATED;
+
+  private:
     // used in sorting
     uint32_t dependentsCount = 0;
 
@@ -131,13 +140,6 @@ class RealBTarget
 
     // short supportsThread = -1;
 
-    /// This is not used by build-algorithm. This is used by CppMod to check whether a header-unit is built or not. This
-    /// is also used by TargetCache::writeBuildCache function to determine whether cache could be updated or not. LOAT,
-    /// CppSrc and CppMod in BTarget::updateBTarget, assign this after exitStatus to ensure happens-before relationship.
-    /// Also, this is assigned before printing to avoid a situation where a target has printed the update but its cache
-    /// is not yet updated in-case of build interruption.
-    UpdateStatus updateStatus = UpdateStatus::ALREADY_UPDATED;
-
     /// \param bTarget_ the back-pointer to BTarget that owns this
     /// \param round_ Constructor will add to BTarget::realBTargetsGlobal with the round index.
     RealBTarget(BTarget *bTarget_, unsigned short round_);
@@ -161,6 +163,11 @@ enum class BTargetType : unsigned short
     CPPMOD = 1,
     LINK_OR_ARCHIVE_TARGET = 2,
     CPP_TARGET = 3,
+};
+
+struct alignas(64) AlignedAtomic
+{
+    atomic<uint32_t> value{0};
 };
 
 /// The building-block of HMake build-system
@@ -211,7 +218,7 @@ class BTarget // BTarget
 
     /// count of BTarget::realBTargetsGlobal and the index where the pointer to the self will be added by the
     /// RealBTarget constructor.
-    inline static array<atomic<uint32_t>, 2> realBTargetsArrayCount{0, 0};
+    inline static array<AlignedAtomic, 2> realBTargetsArrayCount{};
 
   private:
     /// An array of dependency relationships that are specified in single-thread. Generally half are specified in
@@ -224,7 +231,7 @@ class BTarget // BTarget
     friend void constructGlobals();
 
   public:
-    inline static uint32_t total = 0;
+    alignas(64) inline static uint32_t total = 0;
 
     /// One RealBTarget for every round.
     array<RealBTarget, 2> realBTargets;

@@ -12,7 +12,7 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 Builder::Builder()
 {
     round = 1;
-    RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
+    RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round].value);
     RealBTarget::sortGraph();
 
     for (RealBTarget *rb : RealBTarget::sorted)
@@ -222,7 +222,7 @@ void Builder::execute()
                 BTarget::postRoundOneCompletion();
                 --round;
                 RealBTarget::graphEdges =
-                    span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
+                    span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round].value);
                 RealBTarget::sortGraph();
                 // RealBTarget::printSortedGraph();
 

@@ -976,7 +976,6 @@ void CppMod::updateBuildCache()
         return;
     }
 
-
     myBuildCache->srcFile.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
     myBuildCache->srcFile.headerFiles.clear();
     for (Node *header : headerFiles)

@@ -157,12 +157,12 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarg
     uint32_t i;
     if (isOneThreadRunning)
     {
-        i = BTarget::realBTargetsArrayCount[round_];
-        ++BTarget::realBTargetsArrayCount[round_];
+        i = BTarget::realBTargetsArrayCount[round_].value;
+        ++BTarget::realBTargetsArrayCount[round_].value;
     }
     else
     {
-        i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
+        i = BTarget::realBTargetsArrayCount[round_].value.fetch_add(1, std::memory_order_relaxed);
     }
     BTarget::realBTargetsGlobal[round_][i] = this;
 }
@@ -174,12 +174,12 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
         uint32_t i;
         if (isOneThreadRunning)
         {
-            i = BTarget::realBTargetsArrayCount[round_];
-            ++BTarget::realBTargetsArrayCount[round_];
+            i = BTarget::realBTargetsArrayCount[round_].value;
+            ++BTarget::realBTargetsArrayCount[round_].value;
         }
         else
         {
-            i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
+            i = BTarget::realBTargetsArrayCount[round_].value.fetch_add(1, std::memory_order_relaxed);
         }
         BTarget::realBTargetsGlobal[round_][i] = this;
     }
