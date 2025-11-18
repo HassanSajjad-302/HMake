@@ -158,7 +158,7 @@ class RealBTarget
 enum class BTargetType : unsigned short
 {
     DEFAULT = 0,
-    SMFILE = 1,
+    CPPMOD = 1,
     LINK_OR_ARCHIVE_TARGET = 2,
     CPP_TARGET = 3,
 };

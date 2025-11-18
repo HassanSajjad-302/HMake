@@ -961,28 +961,9 @@ void CppMod::updateBTarget(Builder &builder, const unsigned short round, bool &i
     }
 }
 
-string CppMod::getOutputFileName() const
-{
-    if (type == SM_FILE_TYPE::HEADER_UNIT)
-    {
-        // node->getFileName() is not used to prevent error in case header-file with same fileName exists in 2
-        // different include directories. But is being included by different logicalName.
-        string str = logicalNames[0];
-        for (char &c : str)
-        {
-            if (c == '/')
-            {
-                c = '-';
-            }
-        }
-        return str;
-    }
-    return node->getFileName();
-}
-
 BTargetType CppMod::getBTargetType() const
 {
-    return BTargetType::SMFILE;
+    return BTargetType::CPPMOD;
 }
 
 void CppMod::updateBuildCache()

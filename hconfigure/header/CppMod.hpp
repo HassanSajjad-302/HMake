@@ -150,10 +150,14 @@ struct CppMod final : CppSrc
     /// function interacts with this server and manages the build.
     bool build(Builder &builder);
 
-    ///
+    /// Launches IPC server and the compilation process if the module or hu needs to be updated. Sets \p isComplete to
+    /// true if we are waiting for a module or hu to get compiled first.
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
-    string getOutputFileName() const;
+
+    /// \returns BTargetType::CPPMOD
     BTargetType getBTargetType() const override;
+
+    ///
     void updateBuildCache() override;
     string getCompileCommand() const;
     BuildCache::Cpp::ModuleFile &getModuleCache() const;
