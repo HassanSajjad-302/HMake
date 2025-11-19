@@ -552,40 +552,11 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
     }
 }
 
-void CppMod::duplicateHeaderFileOrUnitError(const string &headerName, HeaderFileOrUnit &first, HeaderFileOrUnit &second,
-                                            CppTarget *firstTarget, CppTarget *secondTarget) const
-{
-    string str = FORMAT("For CTBNonModule {} received from module-file {} of target {}, "
-                        "there are duplicate entries.\n",
-                        headerName, node->filePath, target->name);
-    if (first.isUnit)
-    {
-        str += FORMAT("Header-Unit {} of target {}\n", first.data.cppMod->node->filePath, firstTarget->name);
-    }
-    else
-    {
-        str += FORMAT("Header-File {} of target {}\n", first.data.node->filePath, firstTarget->name);
-    }
-
-    if (second.isUnit)
-    {
-        str += FORMAT("Header-Unit {} of target {}\n", second.data.cppMod->node->filePath, secondTarget->name);
-    }
-    else
-    {
-        str += FORMAT("Header-File {} of target {}\n", second.data.node->filePath, secondTarget->name);
-    }
-
-    printErrorMessage(str);
-}
-
 CppMod *CppMod::findModule(const string &moduleName) const
 {
-    CppMod *found = nullptr;
-
     if (const auto it = target->imodNames.find(moduleName); it != target->imodNames.end())
     {
-        found = it->second;
+        return it->second;
     }
 
     if (!moduleName.contains(':'))
@@ -595,61 +566,31 @@ CppMod *CppMod::findModule(const string &moduleName) const
             CppTarget *req = cppTargets[index];
             if (auto it2 = req->imodNames.find(moduleName); it2 != req->imodNames.end())
             {
-                if (found)
-                {
-                    printErrorMessage(FORMAT("Module name:\n {}\n Is Being Provided By 2 different files:\n1){}\n"
-                                             "from target\n{}\n2){}\n from target\n{}\n",
-                                             moduleName, found->node->filePath, found->target->name,
-                                             it2->second->node->filePath, it2->second->target->name));
-                }
-                else
-                {
-                    found = it2->second;
-                }
+                return it2->second;
             }
         }
     }
 
-    return found;
+    return nullptr;
 }
 
-HeaderFileOrUnit CppMod::findHeaderFileOrUnit(const string &headerName)
+HeaderFileOrUnit CppMod::findHeaderFileOrUnit(const string &headerName) const
 {
-    HeaderFileOrUnit found;
-    CppTarget *foundTarget = nullptr;
     if (const auto &it = target->reqHeaderNameMapping.find(headerName); it != target->reqHeaderNameMapping.end())
     {
-        found = it->second;
-        foundTarget = target;
+        return it->second;
     }
 
     for (const uint32_t index : target->reqDepsVecIndices)
     {
         CppTarget *req = cppTargets[index];
-
         if (const auto &it = req->useReqHeaderNameMapping.find(headerName); it != req->useReqHeaderNameMapping.end())
         {
-            if (found.data.cppMod)
-            {
-                duplicateHeaderFileOrUnitError(headerName, found, it->second, foundTarget, req);
-            }
-            found = it->second;
-            foundTarget = req;
+            return it->second;
         }
     }
 
-    // Checking if this is a big header-unit with composing header-files. Composing headers should be included in the
-    // big header with same logical-name as they are meant to be used in other files. So we can use the same headerName
-    // to search whether we have a composing header specified. Otherwise, it would be diagnosed as cyclic dependency.
-    if (found.data.cppMod == this && !firstMessageSent)
-    {
-        if (const auto it = composingHeaders.find(headerName); it != composingHeaders.end())
-        {
-            return {(it->second), false};
-        }
-    }
-
-    return found;
+    return {static_cast<Node *>(nullptr), false};
 }
 
 bool CppMod::build(Builder &builder)
@@ -751,17 +692,25 @@ bool CppMod::build(Builder &builder)
                     bool breakpoint = true;
                 }
 
-                const HeaderFileOrUnit f = findHeaderFileOrUnit(headerName);
-                if (f.data.cppMod == this)
-                {
-                    bool breakpoint = true;
-                }
+                HeaderFileOrUnit f = findHeaderFileOrUnit(headerName);
                 if (!f.data.cppMod)
                 {
                     printErrorMessage(FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this "
                                              "header \n{}.\n requested in {}\n",
                                              target->name, target->getDependenciesString(), headerName,
                                              node->filePath));
+                }
+
+                // Checking if this is a big header-unit with composing header-files. Composing headers should be
+                // included in the big header with same logical-name as they are meant to be used in other files. So we
+                // can use the same headerName to search whether we have a composing header specified. Otherwise, it
+                // would be diagnosed as cyclic dependency.
+                if (f.data.cppMod == this && !firstMessageSent)
+                {
+                    if (const auto it = composingHeaders.find(headerName); it != composingHeaders.end())
+                    {
+                        f = HeaderFileOrUnit{(it->second), false};
+                    }
                 }
 
                 if (f.isUnit)

@@ -18,7 +18,7 @@ using std::same_as;
 struct HeaderFileOrUnit
 {
     union {
-        CppMod *cppMod = nullptr;
+        CppMod *cppMod;
         Node *node;
     } data;
     bool isUnit;

@@ -20,6 +20,8 @@ using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr,
 
 class CppTarget;
 class CppSrc;
+struct HeaderFileOrUnit;
+
 struct CompareCppSrc
 {
     using is_transparent = void; // for example with void,
@@ -136,10 +138,6 @@ struct CppMod final : CppSrc
     /// Called to send the N2978::BTCNonModule corresponding to a hu CppMod whose compilation just completed
     void makeAndSendBTCNonModule(CppMod &hu);
 
-    void duplicateHeaderFileOrUnitError(const string &headerName, struct HeaderFileOrUnit &first,
-                                        HeaderFileOrUnit &second, CppTarget *firstTarget,
-                                        CppTarget *secondTarget) const;
-
     /// Looks for the received module-name in just CppTarget::imodNames if module-name is of partition export. Looks in
     /// CppTarget::imodNames of dependencies CppTarget as well if it is a primary export.
     CppMod *findModule(const string &moduleName) const;
@@ -147,7 +145,7 @@ struct CppMod final : CppSrc
     /// Looks for the received header-name in CppTarget::reqHeaderNameMapping and CppTarget::useReqHeaderNameMapping of
     /// the dependency CppTargets. While compiling the big-hu, a request for any composing-header will map to the big-hu
     /// in these lookup tables. This case is specially handled in the following function.
-    HeaderFileOrUnit findHeaderFileOrUnit(const string &headerName);
+    HeaderFileOrUnit findHeaderFileOrUnit(const string &headerName) const;
 
     /// CppMod::updateBTarget function is responsible for launching the IPC server and the compilation process. This
     /// function interacts with this server and manages the build.

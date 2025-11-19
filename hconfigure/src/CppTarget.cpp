@@ -922,18 +922,35 @@ void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool
 
             for (CppTarget *t : reqDeps)
             {
-                for (const auto &[n, t] : t->useReqNodesType)
+                // todo
+                // failure error message improvement. should provide complete info and also specify the req cpp-target
+                // as well.
+                for (const auto &[node, fileType] : t->useReqNodesType)
                 {
-                    emplaceInNodesType(n, t, true);
+                    emplaceInNodesType(node, fileType, true);
                 }
 
-                if (name == "hu\\app2-cpp")
+                for (const auto &p : t->imodNames)
                 {
-                    bool breakpoint = true;
+                    if (!imodNames.emplace(p).second)
+                    {
+                        printErrorMessage(
+                            FORMAT("CppTarget {} already has module {}\n", name, p.second->node->filePath));
+                    }
                 }
                 for (const auto &p : t->useReqHeaderNameMapping)
                 {
-                    emplaceInHeaderNameMapping(string(p.first), p.second, true, false);
+                    emplaceInHeaderNameMapping(p.first, p.second, true, false);
+                }
+
+                for (const auto &p : imodNames)
+                {
+                    if (reqHeaderNameMapping.contains(p.first))
+                    {
+                        printErrorMessage(
+                            FORMAT("CppTarget {} has header-name {} defined as both module and HeaderFileOrUnit\n",
+                                   name, p.first));
+                    }
                 }
             }
 
