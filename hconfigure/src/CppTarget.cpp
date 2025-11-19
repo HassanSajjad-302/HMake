@@ -966,7 +966,7 @@ void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool
 
             for (CppMod *hu : huDeps)
             {
-                setHeaderStatusChanged(cppBuildCache.headerUnits[hu->indexInBuildCache]);
+                setHeaderStatusChanged(cppBuildCache.headerUnits[hu->myBuildCacheIndex]);
             }
         }
         else
@@ -986,7 +986,7 @@ void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool
 
         // getCompileCommand will be later on called concurrently therefore need to set this before.
         setCompileCommand();
-        compileCommandWithTool.setCommand(compileCommand);
+        hashedCompileCommand.setCommand(compileCommand);
 
         for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
         {
@@ -1231,12 +1231,12 @@ void CppTarget::writeCacheAtConfigTime()
             cppBuildCache.imodFiles.emplace_back();
             cppBuildCache.imodFiles[index].srcFile.node = const_cast<Node *>(cppMod->node);
         }
-        cppMod->indexInBuildCache = index;
+        cppMod->myBuildCacheIndex = index;
         cppMod->objectNode =
             Node::getNode(myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
         cppMod->interfaceNode = Node::getNode(
             myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".ifc", true, true);
-        writeUint32(*configBuffer, cppMod->indexInBuildCache);
+        writeUint32(*configBuffer, cppMod->myBuildCacheIndex);
         writeNode(*configBuffer, cppMod->node);
         writeStringView(*configBuffer, cppMod->logicalNames[0]);
         writeNode(*configBuffer, cppMod->objectNode);
@@ -1254,11 +1254,11 @@ void CppTarget::writeCacheAtConfigTime()
             cppBuildCache.headerUnits.emplace_back();
             cppBuildCache.headerUnits[index].srcFile.node = const_cast<Node *>(hu->node);
         }
-        hu->indexInBuildCache = index;
+        hu->myBuildCacheIndex = index;
         hu->interfaceNode =
             Node::getNode(myBuildDir->filePath + slashc + hu->node->getFileName() + fileNumber + ".ifc", true, true);
 
-        writeUint32(*configBuffer, hu->indexInBuildCache);
+        writeUint32(*configBuffer, hu->myBuildCacheIndex);
         writeNode(*configBuffer, hu->node);
         writeNode(*configBuffer, hu->interfaceNode);
 
@@ -1337,7 +1337,7 @@ void CppTarget::readConfigCacheAtBuildTime()
     {
         const uint32_t indexInBuildCache = readUint32(ptr, configRead);
         CppMod *cppMod = imodFileDeps[indexInBuildCache] = new CppMod(this, readHalfNode(ptr, configRead));
-        cppMod->indexInBuildCache = indexInBuildCache;
+        cppMod->myBuildCacheIndex = indexInBuildCache;
 
         cppMod->logicalNames.emplace_back(readStringView(ptr, configRead));
         cppMod->objectNode = readHalfNode(ptr, configRead);
@@ -1356,7 +1356,7 @@ void CppTarget::readConfigCacheAtBuildTime()
     {
         const uint32_t indexInBuildCache = readUint32(ptr, configRead);
         CppMod *hu = huDeps[indexInBuildCache] = new CppMod(this, readHalfNode(ptr, configRead));
-        hu->indexInBuildCache = indexInBuildCache;
+        hu->myBuildCacheIndex = indexInBuildCache;
         hu->interfaceNode = readHalfNode(ptr, configRead);
 
         hu->isReqHu = readBool(ptr, configRead);

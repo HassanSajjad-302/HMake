@@ -37,27 +37,36 @@ enum class FileType : uint8_t
 
 /// This class is responsible for managing c++ compilation. This class compiles multiple source-files, module-files,
 /// interface-module-files or header-units. The compile-command is same for all the files in one CppTarget.
-///
 class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
 {
   public:
+    /// BuildCache of this CppTarget. At config-time, entry is created for source-files, module-files and header-units.
+    /// Once an entry is created, it is persisted even if it is unused or un-configured so that if it is reconfigured
+    /// later, it won't be rebuilt. At build-time, CppSrc updates this using CppSrc::myBuildCacheIndex. This index is
+    /// the index in array for srcFileDeps and modFileDeps. CppTarget::adjustBuildCache ensures that order is same in
+    /// build-cache and config-cache for srcFileDeps and modFileDeps. It does not do this for imodFileDeps and huDeps as
+    /// these might be references in their dependents build. For these, BuildCache::Cpp::imodFiles and
+    /// BuildCache::Cpp::headerUnits is searched and the index is stored in config-cache and then later used at
+    /// build-time.
     BuildCache::Cpp cppBuildCache;
 
     flat_hash_set<Define> reqCompileDefinitions;
     flat_hash_set<Define> useReqCompileDefinitions;
+
+    /// Maps module names to their corresponding exporting interface modules in CppTarget::imodFileDeps
     flat_hash_map<string, CppMod *> imodNames;
 
-    using BaseType = CSourceTarget;
-
-    // Compile Command excluding source-file or source-files(in case of module) that is also stored in the cache.
+    /// Compile Command excluding source-file and flags that are always provided (like -o). Hash of this is stored with
+    /// the corresponding source-file, module-file or header-unit.
     string compileCommand;
+
     string reqCompilerFlags;
     string useReqCompilerFlags;
 
-    // Compile Command including tool. Tool is separated from compile command because on Windows, resource-file needs to
-    // be used.
-    HashedCommand compileCommandWithTool;
+    /// hash of the compile-command
+    HashedCommand hashedCompileCommand;
 
+    ///
     vector<uint32_t> reqDepsVecIndices;
 
     vector<CppSrc *> srcFileDeps;

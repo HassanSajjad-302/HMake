@@ -48,7 +48,7 @@ class CppSrc : public ObjectFile
 
     /// Index in BuildCache::Cpp::srcFiles or BuildCache::Cpp::modFiles or BuildCache::Cpp::imodFiles or
     /// BuildCache::Cpp::headerUnits
-    uint32_t indexInBuildCache = -1;
+    uint32_t myBuildCacheIndex = -1;
     CppSrc(CppTarget *target_, const Node *node_);
     string getPrintName() const override;
     /// This function compares compile-command with build-cache and also set Node::toBeChecked of source-node,
@@ -66,7 +66,7 @@ class CppSrc : public ObjectFile
     /// This compares lastWrite of source-node with object-node and header-files
     void setCppSrcFileStatus();
     /// Called at the end or in the signal-handler when the build-cache is being written. This function will update the
-    /// build-cache at indexInBuildCache, if this was updated.
+    /// build-cache at myBuildCacheIndex, if this was updated.
     virtual void updateBuildCache();
 };
 
@@ -160,7 +160,7 @@ struct CppMod final : CppSrc
     BTargetType getBTargetType() const override;
 
     /// Called at the end or in the signal-handler when the build-cache is being written. This function will update the
-    /// build-cache at indexInBuildCache, if this was updated.
+    /// build-cache at myBuildCacheIndex, if this was updated.
     void updateBuildCache() override;
 
     string getCompileCommand() const;

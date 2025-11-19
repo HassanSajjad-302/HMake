@@ -38,9 +38,9 @@ string CppSrc::getPrintName() const
 
 void CppSrc::initializeBuildCache(const uint32_t index)
 {
-    indexInBuildCache = index;
+    myBuildCacheIndex = index;
     const BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[index];
-    if (buildCache.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
+    if (buildCache.compileCommandWithTool.hash != target->hashedCompileCommand.getHash())
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
         return;
@@ -344,7 +344,7 @@ void CppSrc::setCppSrcFileStatus()
         return;
     }
 
-    for (const vector<Node *> &headers = target->cppBuildCache.srcFiles[indexInBuildCache].headerFiles;
+    for (const vector<Node *> &headers = target->cppBuildCache.srcFiles[myBuildCacheIndex].headerFiles;
          const Node *headerNode : headers)
     {
         if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > objectNode->lastWriteTime)
@@ -358,7 +358,7 @@ void CppSrc::setCppSrcFileStatus()
 
 void CppSrc::updateBuildCache()
 {
-    BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[indexInBuildCache];
+    BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[myBuildCacheIndex];
 
     if (atomic_ref(realBTargets[0].updateStatus).load(std::memory_order_acquire) != UpdateStatus::UPDATED ||
         realBTargets[0].exitStatus != EXIT_SUCCESS)
@@ -366,7 +366,7 @@ void CppSrc::updateBuildCache()
         return;
     }
 
-    buildCache.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+    buildCache.compileCommandWithTool.hash = target->hashedCompileCommand.getHash();
     buildCache.headerFiles.clear();
     for (Node *header : headerFiles)
     {
@@ -385,10 +385,10 @@ CppMod::CppMod(CppTarget *target_, const Node *node_) : CppSrc(target_, node_)
 
 void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const uint32_t index)
 {
-    indexInBuildCache = index;
+    myBuildCacheIndex = index;
     myBuildCache = &modCache;
 
-    if (modCache.srcFile.compileCommandWithTool.hash != target->compileCommandWithTool.getHash())
+    if (modCache.srcFile.compileCommandWithTool.hash != target->hashedCompileCommand.getHash())
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
         compileCommandChanged = true;
@@ -925,7 +925,7 @@ void CppMod::updateBuildCache()
         return;
     }
 
-    myBuildCache->srcFile.compileCommandWithTool.hash = target->compileCommandWithTool.getHash();
+    myBuildCache->srcFile.compileCommandWithTool.hash = target->hashedCompileCommand.getHash();
     myBuildCache->srcFile.headerFiles.clear();
     for (Node *header : headerFiles)
     {
@@ -939,7 +939,7 @@ void CppMod::updateBuildCache()
         {
             BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep huDep;
             huDep.node = const_cast<Node *>(cppMod->node);
-            huDep.myIndex = cppMod->indexInBuildCache;
+            huDep.myIndex = cppMod->myBuildCacheIndex;
             huDep.targetIndex = cppMod->target->cacheIndex;
             myBuildCache->headerUnitArray.emplace_back(huDep);
         }
@@ -947,7 +947,7 @@ void CppMod::updateBuildCache()
         {
             BuildCache::Cpp::ModuleFile::SingleModuleDep modDep;
             modDep.node = cppMod->objectNode;
-            modDep.myIndex = cppMod->indexInBuildCache;
+            modDep.myIndex = cppMod->myBuildCacheIndex;
             modDep.targetIndex = cppMod->target->cacheIndex;
             myBuildCache->moduleArray.emplace_back(modDep);
         }
@@ -1063,15 +1063,15 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
     const vector<Node *> *headerFilesCache = nullptr;
     if (type == SM_FILE_TYPE::HEADER_UNIT)
     {
-        headerFilesCache = &target->cppBuildCache.headerUnits[indexInBuildCache].srcFile.headerFiles;
+        headerFilesCache = &target->cppBuildCache.headerUnits[myBuildCacheIndex].srcFile.headerFiles;
     }
     else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
     {
-        headerFilesCache = &target->cppBuildCache.imodFiles[indexInBuildCache].srcFile.headerFiles;
+        headerFilesCache = &target->cppBuildCache.imodFiles[myBuildCacheIndex].srcFile.headerFiles;
     }
     else
     {
-        headerFilesCache = &target->cppBuildCache.modFiles[indexInBuildCache].srcFile.headerFiles;
+        headerFilesCache = &target->cppBuildCache.modFiles[myBuildCacheIndex].srcFile.headerFiles;
     }
 
     for (const Node *headerNode : *headerFilesCache)
