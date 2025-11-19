@@ -217,9 +217,9 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
     {
         if (configuration->evaluate(BigHeaderUnit::YES))
         {
-            publicBigHu.emplace_back(nullptr);
-            privateBigHu.emplace_back(nullptr);
-            interfaceBigHu.emplace_back(nullptr);
+            publicBigHus.emplace_back(nullptr);
+            privateBigHus.emplace_back(nullptr);
+            interfaceBigHus.emplace_back(nullptr);
         }
         if (!myBuildDir_)
         {
@@ -547,15 +547,15 @@ void CppTarget::removeHeaderUnit(const Node *headerNode, const string &logicalNa
         CppMod *bigHu = nullptr;
         if (addInReq && addInUseReq)
         {
-            bigHu = publicBigHu[publicBigHu.size() - 1];
+            bigHu = publicBigHus[publicBigHus.size() - 1];
         }
         else if (addInReq)
         {
-            bigHu = privateBigHu[privateBigHu.size() - 1];
+            bigHu = privateBigHus[privateBigHus.size() - 1];
         }
         else if (addInUseReq)
         {
-            bigHu = interfaceBigHu[interfaceBigHu.size() - 1];
+            bigHu = interfaceBigHus[interfaceBigHus.size() - 1];
         }
 
         if (!std::erase(bigHu->logicalNames, *p))
@@ -648,42 +648,42 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
             {
                 bool breakpoint = true;
             }
-            const uint32_t index = publicBigHu.size() - 1;
-            if (!publicBigHu[index])
+            const uint32_t index = publicBigHus.size() - 1;
+            if (!publicBigHus[index])
             {
                 const string str(myBuildDir->filePath + slashc + std::to_string(index) + "public-" +
                                  std::to_string(cacheIndex) + ".hpp");
                 const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
-                publicBigHu[index] = new CppMod(this, bigHuNode);
+                publicBigHus[index] = new CppMod(this, bigHuNode);
                 emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
             }
-            hu = publicBigHu[index];
+            hu = publicBigHus[index];
         }
         else if (addInReq)
         {
-            const uint32_t index = privateBigHu.size() - 1;
-            if (!privateBigHu[index])
+            const uint32_t index = privateBigHus.size() - 1;
+            if (!privateBigHus[index])
             {
                 const string str(myBuildDir->filePath + slashc + std::to_string(index) + "private-" +
                                  std::to_string(cacheIndex) + ".hpp");
                 const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
-                privateBigHu[index] = new CppMod(this, bigHuNode);
+                privateBigHus[index] = new CppMod(this, bigHuNode);
                 emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
             }
-            hu = privateBigHu[index];
+            hu = privateBigHus[index];
         }
         else if (addInUseReq)
         {
-            const uint32_t index = interfaceBigHu.size() - 1;
-            if (!interfaceBigHu[index])
+            const uint32_t index = interfaceBigHus.size() - 1;
+            if (!interfaceBigHus[index])
             {
                 const string str(myBuildDir->filePath + slashc + std::to_string(index) + "interface-" +
                                  std::to_string(cacheIndex) + ".hpp");
                 const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
-                interfaceBigHu[index] = new CppMod(this, bigHuNode);
+                interfaceBigHus[index] = new CppMod(this, bigHuNode);
                 emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
             }
-            hu = interfaceBigHu[index];
+            hu = interfaceBigHus[index];
         }
 
         if (addInReq)
@@ -1174,9 +1174,9 @@ void CppTarget::writeBigHeaderUnits()
         }
     };
 
-    writeBigHu(publicBigHu);
-    writeBigHu(privateBigHu);
-    writeBigHu(interfaceBigHu);
+    writeBigHu(publicBigHus);
+    writeBigHu(privateBigHus);
+    writeBigHu(interfaceBigHus);
 }
 
 void CppTarget::writeCacheAtConfigTime()

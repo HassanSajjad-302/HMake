@@ -103,14 +103,24 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// Where our obj and BMI files will go
     Node *myBuildDir = nullptr;
 
-    unsigned short cacheUpdateCount = 0;
-
-    atomic<uint64_t> newHeaderUnitsSize = 0;
-
-    // Used only at configure time
-    vector<CppMod *> publicBigHu;
-    vector<CppMod *> privateBigHu;
-    vector<CppMod *> interfaceBigHu;
+    /// Used only at configure-time. if (CppTarget::configuration::bigHeader == BigHeaderUnit::YES), then any newly
+    /// added public header-units will become a composing header of last element of the following. If the last element
+    /// of the following is nullptr, then a new hu is created in myBuildDir of name
+    /// [publicBigHus.size()]public[cacheIndex].hpp. CppTarget constructor at config-time initializes this with one
+    /// nullptr element.
+    vector<CppMod *> publicBigHus;
+    /// Used only at configure-time. if (CppTarget::configuration::bigHeader == BigHeaderUnit::YES), then any newly
+    /// added private header-units will become a composing header of last element of the following. If the last element
+    /// of the following is nullptr, then a new hu is created in myBuildDir of name
+    /// [privateBigHus.size()]public[cacheIndex].hpp. CppTarget constructor at config-time initializes this with one
+    /// nullptr element.
+    vector<CppMod *> privateBigHus;
+    /// Used only at configure-time. if (CppTarget::configuration::bigHeader == BigHeaderUnit::YES), then any newly
+    /// added interface header-units will become a composing header of last element of the following. If the last
+    /// element of the following is nullptr, then a new hu is created in myBuildDir of name
+    /// [publicBigHus.size()]public[cacheIndex].hpp. CppTarget constructor at config-time initializes this with one
+    /// nullptr element.
+    vector<CppMod *> interfaceBigHus;
 
     // Used only at configure time
     uint32_t reqHeaderFilesSize = 0;
