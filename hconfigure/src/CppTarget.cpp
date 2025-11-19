@@ -382,8 +382,13 @@ void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrU
     }
     else if (!suppressError)
     {
+        string tried =
+            type.isUnit ? "Header-Unit " + type.data.cppMod->node->filePath : "Header-File " + type.data.node->filePath;
+        string alreadyAdded = it->second.isUnit ? "Header-Unit " + it->second.data.cppMod->node->filePath
+                                                : "Header-File " + it->second.data.node->filePath;
         printErrorMessage(
-            FORMAT("In CppTarget {}\nheaderNameMapping already has headerName {}.\n", name, string(headerName)));
+            FORMAT("In CppTarget{}\nFailed adding headerNmae {} in {}headerNameMapping\nTried\n{}\nAlready Added\n{}\n",
+                   name, headerName, addInReq ? "req" : "useReq", tried, alreadyAdded));
     }
 }
 
@@ -922,9 +927,13 @@ void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool
                     emplaceInNodesType(n, t, true);
                 }
 
+                if (name == "hu\\app2-cpp")
+                {
+                    bool breakpoint = true;
+                }
                 for (const auto &p : t->useReqHeaderNameMapping)
                 {
-                    //  emplaceInHeaderNameMapping(string(p.first), p.second, true, false);
+                    emplaceInHeaderNameMapping(string(p.first), p.second, true, false);
                 }
             }
 
