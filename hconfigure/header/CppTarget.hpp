@@ -28,6 +28,7 @@ struct HeaderFileOrUnit
     HeaderFileOrUnit() = default;
 };
 
+/// Whether a file is Module, Header-File or Header-Unit
 enum class FileType : uint8_t
 {
     MODULE,
@@ -66,29 +67,42 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// hash of the compile-command
     HashedCommand hashedCompileCommand;
 
-    ///
+    /// TargetCache::cacheIndex of our direct and transitive dependency CppTargets. It is cached in config-cache.
     vector<uint32_t> reqDepsVecIndices;
 
+    /// source-files. initialized from config-cache at build-time
     vector<CppSrc *> srcFileDeps;
+
+    /// module-files. initialized from config-cache at build-time
     vector<CppMod *> modFileDeps;
+    /// interface-module-files. initialized from config-cache at build-time
     vector<CppMod *> imodFileDeps;
+    /// header-units. initialized from config-cache at build-time
     vector<CppMod *> huDeps;
-    BuildCache::Cpp::ModuleFile headerUnitsCache;
 
     vector<InclNode> reqIncls;
     vector<InclNode> useReqIncls;
 
+    /// Stores the req header-names mapping with header-file or header-unit. Cached at config-time. It is the lookup
+    /// table that is used to retrieve the header-file or header-unit when the compiler sends the header-name
     flat_hash_map<string_view, HeaderFileOrUnit> reqHeaderNameMapping;
+    /// Stores the useReq header-names mapping with header-file or header-unit. Cached at config-time. It is the lookup
+    /// table that is used to retrieve the header-file or header-unit when the compiler sends the header-name
     flat_hash_map<string_view, HeaderFileOrUnit> useReqHeaderNameMapping;
 
+    /// Used only at configure-time. Used to check if any of header-files has changed to header-unit or vice versa. Also
+    /// checks if same node is specified as 2 different FileTypes.
     flat_hash_map<const Node *, FileType> reqNodesType;
+    /// Used only at configure-time. Checks if same node is specified as 2 different FileTypes in this CppTarget or its
+    /// dependencies.
     flat_hash_map<const Node *, FileType> useReqNodesType;
 
+    /// Back pointer to the Configuration
     Configuration *configuration = nullptr;
 
+    /// Where our obj and BMI files will go
     Node *myBuildDir = nullptr;
-    // reqIncludes size before populateTransitiveProperties function is called
-    unsigned short reqIncSizeBeforePopulate = 0;
+
     unsigned short cacheUpdateCount = 0;
 
     atomic<uint64_t> newHeaderUnitsSize = 0;

@@ -303,7 +303,8 @@ void CppTarget::actuallyAddSourceFileConfigTime(Node *node)
 {
     if (configuration->evaluate(TreatModuleAsSource::NO))
     {
-        printErrorMessage(FORMAT("CppTarget {}\n already has module-files but now source-file {} is being added.\n",
+        printErrorMessage(FORMAT("In CppTarget {} source-file {}\n is being added with TreatModuleAsSource::NO.\n "
+                                 "Please use moduleFiles* API.\n",
                                  name, node->filePath));
     }
 
@@ -324,7 +325,7 @@ void CppTarget::actuallyAddModuleFileConfigTime(Node *node, string exportName)
 {
     if (configuration->evaluate(TreatModuleAsSource::YES))
     {
-        printErrorMessage(FORMAT("In CppTarget {}\n module-file {} is being added.\n with TreatModuleAsSource::YES.",
+        printErrorMessage(FORMAT("In CppTarget {}\n module-file {}\n is being added with TreatModuleAsSource::YES.\n",
                                  name, node->filePath));
     }
 
@@ -975,8 +976,6 @@ void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool
             readConfigCacheAtBuildTime();
         }
 
-        // Needed to maintain ordering between different includes specification.
-        reqIncSizeBeforePopulate = reqIncls.size();
         populateTransitiveProperties();
 
         if constexpr (bsMode == BSMode::CONFIGURE)
