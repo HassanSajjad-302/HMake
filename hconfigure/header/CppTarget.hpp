@@ -105,42 +105,63 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
 
     /// Used only at configure-time. if (CppTarget::configuration::bigHeader == BigHeaderUnit::YES), then any newly
     /// added public header-units will become a composing header of last element of the following. If the last element
-    /// of the following is nullptr, then a new hu is created in myBuildDir of name
+    /// of the following is nullptr, then a new hu is created in CppTarget::myBuildDir of name
     /// [publicBigHus.size()]public[cacheIndex].hpp. CppTarget constructor at config-time initializes this with one
     /// nullptr element.
     vector<CppMod *> publicBigHus;
     /// Used only at configure-time. if (CppTarget::configuration::bigHeader == BigHeaderUnit::YES), then any newly
     /// added private header-units will become a composing header of last element of the following. If the last element
-    /// of the following is nullptr, then a new hu is created in myBuildDir of name
+    /// of the following is nullptr, then a new hu is created in CppTarget::myBuildDir of name
     /// [privateBigHus.size()]public[cacheIndex].hpp. CppTarget constructor at config-time initializes this with one
     /// nullptr element.
     vector<CppMod *> privateBigHus;
     /// Used only at configure-time. if (CppTarget::configuration::bigHeader == BigHeaderUnit::YES), then any newly
     /// added interface header-units will become a composing header of last element of the following. If the last
-    /// element of the following is nullptr, then a new hu is created in myBuildDir of name
+    /// element of the following is nullptr, then a new hu is created in CppTarget::myBuildDir of name
     /// [publicBigHus.size()]public[cacheIndex].hpp. CppTarget constructor at config-time initializes this with one
     /// nullptr element.
     vector<CppMod *> interfaceBigHus;
 
-    // Used only at configure time
+    /// Used only at configure time. Specifies the number of header-files in reqHeaderNameMapping. Only for
+    /// header-files, the mapping is stored in config-cache.
     uint32_t reqHeaderFilesSize = 0;
+    /// Used only at configure time. Specifies the number of header-files in useReqHeaderNameMapping. Only for
+    /// header-files, the mapping is stored in config-cache.
     uint32_t useReqHeaderFilesSize = 0;
 
-    // Used only at build-time
+    /// Used only at build-time. include-dirs are stored first in config-cache and are read in constructor while other
+    /// config-cache is read later in CppTarget::updateBTarget. include-dirs are read early as our CppTarget dependents
+    /// will rely on them.
     uint32_t configRead = 0;
 
+    /// Whether this is a system target. if true, header-files, header-units and include-dirs are all system. Compilers
+    /// generally ignore warnings from such code.
     bool isSystem = false;
+    /// Whether to not save header-files target in build-cache. Could be set to true if source-files and header-files of
+    /// a target are not meant to be edited. This can improve zero-target build-speed.
     bool ignoreHeaderDeps = false;
 
+    /// Whenever a source-file or module-file or header-unit compiles, it sets this variable. If set,
+    /// CppTarget::writeBuildCache will call CppSrc::updateBuildCache for all source-files, module-files and
+    /// header-units. These will update the corresponding entry in CppTarget::cppBuildCache if they were updated. This
+    /// is accessed atomically as it might have been called in Ctrl+C signal handler.
     bool buildCacheUpdated = false;
 
+    /// Sets the compile-command using the Configuration::compilerFlags and Configuration::compilerFeatures.
     void setCompileCommand();
 
+    /// Used in error diagnostics.
+    /// \returns an amalgamated string of names of all CppTarget deps of this (direct + transitive).
     string getDependenciesString() const;
-    static string getInfrastructureFlags(const Compiler &compiler);
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
+    /// Called in signal-handler or at the end when build-system is writing build-cache.
     bool writeBuildCache(vector<char> &buffer) override;
+    /// Goes over the provided \p modCache header-files and header-units and checks if one of them has become
+    /// header-unit or header-file respectively. if yes, sets BuildCache::Cpp::ModuleFile::headerStatusChanged to true.
+    /// This will cause the rebuild of the respective module-file or header-unit and headerStatusChanged will be set to
+    /// false to avoid further rebuilds.
     void setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache);
+    ///
     void writeBigHeaderUnits();
     void writeCacheAtConfigTime();
     void readConfigCacheAtBuildTime();

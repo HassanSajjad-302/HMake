@@ -16,8 +16,10 @@ class LibDirNode
 class InclNode : public LibDirNode
 {
   public:
-    // Used with includeDirs to specify whether to ignore include-files from these dirs from being stored
-    // in target-cache file
+    // TODO
+    // remove following. These are not needed as isStandard and ignoreHeaderDeps are now properties of CppTarget and
+    // further granularity is unnecessary. Used with includeDirs to specify whether to ignore include-files from these
+    // dirs from being stored in target-cache file
     bool isStandard = false;
     bool ignoreHeaderDeps = false;
     InclNode(Node *node_, const bool isStandard_, const bool ignoreHeaderDeps_)

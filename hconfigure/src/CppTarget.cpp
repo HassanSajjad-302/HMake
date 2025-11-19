@@ -1590,25 +1590,6 @@ string CppTarget::getDependenciesString() const
     return deps;
 }
 
-string CppTarget::getInfrastructureFlags(const Compiler &compiler)
-{
-    if (compiler.bTFamily == BTFamily::MSVC)
-    {
-        string str = "-c /nologo /showIncludes ";
-        return str;
-    }
-
-    if (compiler.bTFamily == BTFamily::GCC)
-    {
-        // Will like to use -MD but not using it currently because sometimes it
-        // prints 2 header deps in one line and no space in them so no way of
-        // knowing whether this is a space in path or 2 different headers. Which
-        // then breaks when last_write_time is checked for that path.
-        return "-c -MMD";
-    }
-    return "";
-}
-
 bool operator<(const CppTarget &lhs, const CppTarget &rhs)
 {
     return lhs.name < rhs.name;
