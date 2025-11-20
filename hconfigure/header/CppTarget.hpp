@@ -161,10 +161,14 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// This will cause the rebuild of the respective module-file or header-unit and headerStatusChanged will be set to
     /// false to avoid further rebuilds.
     void setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache);
-    ///
+    /// Goes over the arrays of CppTarget::publicBigHus, CppTarget::privateBigHus and CppTarget::interfaceBigHus and
+    /// writes them in myBuildDir. The content of these header-units is the header-includes for all the composing
+    /// headers of these header-units
     void writeBigHeaderUnits();
+    /// Writes build-cache and config-cache at config-time.
     void writeCacheAtConfigTime();
-    void readConfigCacheAtBuildTime();
+    /// Reads build-cache and config-cache at build-time
+    void readCacheAtBuildTime();
     string getPrintName() const override;
     BTargetType getBTargetType() const override;
 
@@ -172,10 +176,12 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     CppTarget(bool buildExplicit, const string &name_, Configuration *configuration_);
     CppTarget(Node *myBuildDir_, const string &name_, Configuration *configuration_);
     CppTarget(Node *myBuildDir_, bool buildExplicit, const string &name_, Configuration *configuration_);
-
+    /// internal function. called in constructor.
     void initializeCppTarget(const string &name_, Node *myBuildDir_);
 
-    void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const override;
+    /// Called by LOAT.
+    void getObjectFiles(vector<const ObjectFile *> *objectFiles) const override;
+
     void populateTransitiveProperties();
 
     void actuallyAddSourceFileConfigTime(Node *node);
@@ -203,12 +209,19 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     template <typename... U> CppTarget &deps(CppTarget *dep, DepType dependency, const U... deps);
 
     template <typename... U> CppTarget &moduleMaps(const string &include, U... includeDirectoryString);
+    /// adds public include-dirs.
     template <typename... U> CppTarget &publicIncludes(const string &include, U... includeDirectoryString);
+    /// adds private include-dirs.
     template <typename... U> CppTarget &privateIncludes(const string &include, U... includeDirectoryString);
+    /// add interface include-dirs.
     template <typename... U> CppTarget &interfaceIncludes(const string &include, U... includeDirectoryString);
+    /// adds public header-unit-includes. will add public include-dirs in TreatModuleAsSource::YES mode.
     template <typename... U> CppTarget &publicHUIncludes(const string &include, U... includeDirectoryString);
+    /// adds private header-unit-includes. will add private include-dirs in TreatModuleAsSource::YES mode.
     template <typename... U> CppTarget &privateHUIncludes(const string &include, U... includeDirectoryString);
+    /// adds interface header-unit-includes. will add interface include-dirs in TreatModuleAsSource::YES mode.
     template <typename... U> CppTarget &interfaceHUIncludes(const string &include, U... includeDirectoryString);
+    /// adds public header-files with filenames
     template <typename... U>
     CppTarget &publicIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
     template <typename... U>

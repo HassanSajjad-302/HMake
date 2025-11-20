@@ -19,7 +19,7 @@ class ObjectFileProducer : public BTarget
         : BTarget(std::move(name_), buildExplicit, makeDirectory)
     {
     }
-    virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const
+    virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles) const
     {
     }
 };

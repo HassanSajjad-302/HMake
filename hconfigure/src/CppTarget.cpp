@@ -247,7 +247,7 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
     }
 }
 
-void CppTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const
+void CppTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles) const
 {
     for (const CppMod *objectFile : modFileDeps)
     {
@@ -972,8 +972,7 @@ void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool
         }
         else
         {
-            cppBuildCache.deserialize(cacheIndex);
-            readConfigCacheAtBuildTime();
+            readCacheAtBuildTime();
         }
 
         populateTransitiveProperties();
@@ -1297,8 +1296,9 @@ void CppTarget::writeCacheAtConfigTime()
     adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
 }
 
-void CppTarget::readConfigCacheAtBuildTime()
+void CppTarget::readCacheAtBuildTime()
 {
+    cppBuildCache.deserialize(cacheIndex);
     const string_view configCache = fileTargetCaches[cacheIndex].configCache;
 
     const char *ptr = configCache.data();
