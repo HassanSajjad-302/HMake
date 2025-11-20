@@ -91,8 +91,7 @@ void to_json(Json &json, const PLOAT &PLOAT);
 
 template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
 {
-    useReqDeps.emplace(&ploat);
-    addDepNow<1>(ploat);
+    deps(DepType::INTERFACE, ploat);
     if constexpr (sizeof...(ploats))
     {
         return interfaceDeps(ploats...);
@@ -102,8 +101,7 @@ template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
 
 template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, U... ploats)
 {
-    reqDeps.emplace(&ploat);
-    addDepNow<1>(ploat);
+    deps(DepType::PRIVATE, ploat);
     if constexpr (sizeof...(ploats))
     {
         return privateDeps(ploats...);
@@ -113,9 +111,7 @@ template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, U... ploats)
 
 template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, U... ploats)
 {
-    reqDeps.emplace(&ploat);
-    useReqDeps.emplace(&ploat);
-    addDepNow<1>(ploat);
+    deps(DepType::PUBLIC, ploat);
     if constexpr (sizeof...(ploats))
     {
         return publicDeps(ploats...);

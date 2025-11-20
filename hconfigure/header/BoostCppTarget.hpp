@@ -555,10 +555,10 @@ void BoostCppTarget::getTargetFromConfiguration(const string_view name, Node *my
     {
         CppTarget &t =
             configuration->getCppObjectNoNameAddStdTarget(getExplicitBuilding<EOT>(), myBuildDir, string(name));
-        t.privateDeps(&mainTarget.getSourceTarget()).moduleFiles(filePath);
+        t.privateDeps(mainTarget.getSourceTarget()).moduleFiles(filePath);
         for (CppTarget *dep : cppTestDepsPrivate)
         {
-            t.privateDeps(dep);
+            t.privateDeps(*dep);
         }
         testOrExmple = &t;
     }

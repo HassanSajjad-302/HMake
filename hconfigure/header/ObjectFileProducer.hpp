@@ -2,9 +2,9 @@
 #ifndef HMAKE_OBJECTFILEPRODUCER_HPP
 #define HMAKE_OBJECTFILEPRODUCER_HPP
 
+#include "BuildSystemFunctions.hpp"
 #include "DepType.hpp"
 #include "ObjectFile.hpp"
-#include "BuildSystemFunctions.hpp"
 
 class LOAT;
 
@@ -37,7 +37,11 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
     btree_set<T *, TPointerLess<T>> reqDeps;
     flat_hash_set<T *> useReqDeps;
 
-    template <typename... U> T &deps(const DepType depType, T &dep, U &&...deps);
+    template <typename... U> T &publicDeps(T &dep, U &&...objectFileDeps);
+    template <typename... U> T &privateDeps(T &dep, U &&...objectFileDeps);
+    template <typename... U> T &interfaceDeps(T &dep, U &&...objectFileDeps);
+
+    template <typename... U> T &deps(DepType depType, T &dep, U &&...objectFileDeps);
 
     void populateReqAndUseReqDeps();
 };
@@ -48,6 +52,40 @@ template <typename T>
 ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS(string name_, const bool buildExplicit, const bool makeDirectory)
     : ObjectFileProducer(std::move(name_), buildExplicit, makeDirectory)
 {
+}
+
+template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::publicDeps(T &dep, U &&...objectFileDeps)
+{
+    deps(DepType::PUBLIC, dep);
+    if constexpr (sizeof...(objectFileDeps))
+    {
+        return publicDeps(objectFileDeps...);
+    }
+    return static_cast<T &>(*this);
+}
+
+template <typename T>
+template <typename... U>
+T &ObjectFileProducerWithDS<T>::privateDeps(T &dep, U &&...objectFileDeps)
+{
+    deps(DepType::PRIVATE, dep);
+    if constexpr (sizeof...(objectFileDeps))
+    {
+        return privateDeps(objectFileDeps...);
+    }
+    return static_cast<T &>(*this);
+}
+
+template <typename T>
+template <typename... U>
+T &ObjectFileProducerWithDS<T>::interfaceDeps(T &dep, U &&...objectFileDeps)
+{
+    deps(DepType::INTERFACE, dep);
+    if constexpr (sizeof...(objectFileDeps))
+    {
+        return interfaceDeps(objectFileDeps...);
+    }
+    return static_cast<T &>(*this);
 }
 
 template <typename T>

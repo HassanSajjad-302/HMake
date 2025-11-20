@@ -206,7 +206,7 @@ CppTarget &Configuration::addStdCppDep(CppTarget &target)
 {
     if (evaluate(AssignStandardCppTarget::YES) && stdCppTarget)
     {
-        target.privateDeps(&stdCppTarget->getSourceTarget());
+        target.privateDeps(stdCppTarget->getSourceTarget());
     }
     return target;
 }

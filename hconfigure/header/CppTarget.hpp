@@ -229,10 +229,6 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     void actuallyAddInclude(bool errorOnEmplaceFail, const Node *include, bool addInReq, bool addInUseReq);
     void readModuleMapFromDir(const string &dir);
 
-    template <typename... U> CppTarget &publicDeps(CppTarget *dep, const U... deps);
-    template <typename... U> CppTarget &privateDeps(CppTarget *dep, const U... deps);
-    template <typename... U> CppTarget &interfaceDeps(CppTarget *dep, const U... deps);
-
     template <typename... U> CppTarget &deps(CppTarget *dep, DepType dependency, const U... deps);
 
     template <typename... U> CppTarget &moduleMaps(const string &include, U... includeDirectoryString);
@@ -381,65 +377,6 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
 }; // class Target
 
 bool operator<(const CppTarget &lhs, const CppTarget &rhs);
-
-template <typename... U> CppTarget &CppTarget::publicDeps(CppTarget *dep, const U... deps)
-{
-    reqDeps.emplace(dep);
-    useReqDeps.emplace(dep);
-    addDepNow<1>(*dep);
-    if constexpr (sizeof...(deps))
-    {
-        return publicDeps(deps...);
-    }
-    return static_cast<CppTarget &>(*this);
-}
-
-template <typename... U> CppTarget &CppTarget::privateDeps(CppTarget *dep, const U... deps)
-{
-    reqDeps.emplace(dep);
-    addDepNow<1>(*dep);
-    if constexpr (sizeof...(deps))
-    {
-        return privateDeps(deps...);
-    }
-    return static_cast<CppTarget &>(*this);
-}
-
-template <typename... U> CppTarget &CppTarget::interfaceDeps(CppTarget *dep, const U... deps)
-{
-    useReqDeps.emplace(dep);
-    addDepNow<1>(*dep);
-    if constexpr (sizeof...(deps))
-    {
-        return interfaceDeps(deps...);
-    }
-    return static_cast<CppTarget &>(*this);
-}
-
-template <typename... U> CppTarget &CppTarget::deps(CppTarget *dep, const DepType dependency, const U... cppTargets)
-{
-    if (dependency == DepType::PUBLIC)
-    {
-        reqDeps.emplace(dep);
-        useReqDeps.emplace(dep);
-        addDepNow<1>(*dep);
-    }
-    else if (dependency == DepType::PRIVATE)
-    {
-        reqDeps.emplace(dep);
-        addDepNow<1>(*dep);
-    }
-    else
-    {
-        useReqDeps.emplace(dep);
-        addDepNow<1>(*dep);
-    }
-    if constexpr (sizeof...(cppTargets))
-    {
-        return deps(cppTargets...);
-    }
-    return static_cast<CppTarget &>(*this);
-}
 
 template <typename... U> CppTarget &CppTarget::moduleMaps(const string &include, U... includeDirectoryString)
 {
