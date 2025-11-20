@@ -15,7 +15,6 @@ template <typename T> struct DSC : DSCFeatures
 
     template <typename U> void assignObjectFileProducerDeps(DepType depType, DSC<U> &dsc);
 
-    template <typename U, typename... V> void assignLOATDep(DepType depType, DSC<U> &depDSC, V... args);
     DSC &save(T &ptr);
     DSC &saveAndReplace(T &ptr);
     DSC &restore();
@@ -73,13 +72,13 @@ template <typename T> DSC<T>::DSC(T *ptr, PLOAT *ploat_, bool defines, string de
 
 template <typename T> template <typename U, typename... V> DSC<T> &DSC<T>::publicDeps(DSC<U> &depDSC, const V... dscs)
 {
-    assignLOATDep(DepType::PUBLIC, depDSC, dscs...);
+    deps(DepType::PUBLIC, depDSC, dscs...);
     return *this;
 }
 
 template <typename T> template <typename U, typename... V> DSC<T> &DSC<T>::privateDeps(DSC<U> &depDSC, const V... dscs)
 {
-    assignLOATDep(DepType::PRIVATE, depDSC, dscs...);
+    deps(DepType::PRIVATE, depDSC, dscs...);
     return *this;
 }
 
@@ -87,7 +86,7 @@ template <typename T>
 template <typename U, typename... V>
 DSC<T> &DSC<T>::interfaceDeps(DSC<U> &depDSC, const V... dscs)
 {
-    assignLOATDep(DepType::INTERFACE, depDSC, dscs...);
+    deps(DepType::INTERFACE, depDSC, dscs...);
     return *this;
 }
 
@@ -95,12 +94,21 @@ template <typename T>
 template <typename U, typename... V>
 DSC<T> &DSC<T>::deps(DepType depType, DSC<U> &depDSC, const V... dscs)
 {
-    assignLOATDep(depType, depDSC, dscs...);
-    return *this;
-}
+    if (ploat && depDSC.ploat)
+    {
+        if (ploat->linkTargetType != TargetType::LIBRARY_SHARED && depType == DepType::PRIVATE)
+        {
+            // A static library or object library can't have Dependency::PRIVATE deps, it can only have
+            // Dependency::INTERFACE. But, the following publicDeps is done for correct-ordering when static-libs are
+            // finally supplied to dynamic-lib or exe. Static library ignores the deps.
+            ploat->publicDeps(depDSC.getPLOAT());
+        }
+        else
+        {
+            ploat->deps(depType, depDSC.getPLOAT());
+        }
+    }
 
-template <typename T> template <typename U> void DSC<T>::assignObjectFileProducerDeps(DepType depType, DSC<U> &depDSC)
-{
     objectFileProducer->deps(depType, depDSC.getSourceTarget());
 
     if (depDSC.defineDllInterface == DefineDLLInterface::YES)
@@ -132,38 +140,17 @@ template <typename T> template <typename U> void DSC<T>::assignObjectFileProduce
             ptr->useReqCompileDefinitions.emplace(define);
         }
     }
-}
 
-template <typename T>
-template <typename U, typename... V>
-void DSC<T>::assignLOATDep(DepType depType, DSC<U> &depDSC, V... args)
-{
-    if (ploat && depDSC.ploat)
+    if constexpr (sizeof...(dscs))
     {
-        if (ploat->linkTargetType != TargetType::LIBRARY_SHARED && depType == DepType::PRIVATE)
-        {
-            // A static library or object library can't have Dependency::PRIVATE deps, it can only have
-            // Dependency::INTERFACE. But, the following publicDeps is done for correct-ordering when static-libs are
-            // finally supplied to dynamic-lib or exe. Static library ignores the deps.
-            ploat->publicDeps(depDSC.getPLOAT());
-        }
-        else
-        {
-            ploat->deps(depType, depDSC.getPLOAT());
-        }
+        return deps(depType, dscs...);
     }
 
-    assignObjectFileProducerDeps(depType, depDSC);
-
-    if constexpr (sizeof...(args))
+    if constexpr (sizeof...(dscs))
     {
-        return assignLOATDep(depType, args...);
+        return deps(depType, dscs...);
     }
-
-    if constexpr (sizeof...(args))
-    {
-        return assignLOATDep(depType, args...);
-    }
+    return *this;
 }
 
 template <typename T> T &DSC<T>::getSourceTarget()
