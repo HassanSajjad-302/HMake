@@ -233,16 +233,28 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// In IsCppMod::YES, adds all files of the directory as interface header-units. In IsCppMod::NO, adds the
     /// interface-include.
     template <typename... U> CppTarget &interfaceHUIncludes(const string &include, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as public header-files. In
+    /// IsCppMod::NO, adds the public-include.
     template <typename... U>
     CppTarget &publicIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as private header-files. In
+    /// IsCppMod::NO, adds the private-include.
     template <typename... U>
     CppTarget &privateIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as interface header-files. In
+    /// IsCppMod::NO, adds the interface-include.
     template <typename... U>
     CppTarget &interfaceIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as public header-units. In
+    /// IsCppMod::NO, adds the public-include.
     template <typename... U>
     CppTarget &publicHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as private header-units. In
+    /// IsCppMod::NO, adds the private-include.
     template <typename... U>
     CppTarget &privateHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as interface header-units. In
+    /// IsCppMod::NO, adds the interface-include.
     template <typename... U>
     CppTarget &interfaceHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
     template <typename... U>
