@@ -9,9 +9,12 @@ void configurationSpecification(Configuration &config)
     }
     else
     {
-        CppTarget &t = config.getCppExeDSC("app2").getSourceTarget().moduleFiles("main2.cpp");
-        config.stdCppTarget->getSourceTarget().publicBigHus.emplace_back(nullptr);
-        config.stdCppTarget->getSourceTarget().makeHeaderFileAsUnit("windows.h", true, true);
+        if constexpr (os == OS::NT)
+        {
+            config.stdCppTarget->getSourceTarget().publicBigHus.emplace_back(nullptr);
+            config.stdCppTarget->getSourceTarget().makeHeaderFileAsUnit("windows.h", true, true);
+        }
+        config.getCppExeDSC("app2").getSourceTarget().moduleFiles("main2.cpp");
     }
 }
 
