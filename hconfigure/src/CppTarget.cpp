@@ -1192,7 +1192,7 @@ void CppTarget::writeCacheAtConfigTime()
     }
 
     writeUint32(*configBuffer, reqDeps.size());
-    for (CppTarget *r : reqDeps)
+    for (const CppTarget *r : reqDeps)
     {
         writeUint32(*configBuffer, r->cacheIndex);
     }

@@ -69,11 +69,6 @@ BTargetType LOAT::getBTargetType() const
 
 void LOAT::setFileStatus()
 {
-    for (PLOAT *reqDep : reqDeps)
-    {
-        sortedPrebuiltDependencies.emplace(reqDep);
-    }
-
     RealBTarget &rb = realBTargets[0];
     for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
     {
@@ -107,8 +102,11 @@ void LOAT::setFileStatus()
                 bool needsUpdate = false;
                 if (!evaluate(TargetType::LIBRARY_STATIC))
                 {
-                    for (PLOAT *reqDep : reqDeps)
+
+                    for (const uint32_t index : reqDepsVecIndices)
                     {
+                        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
+
                         // No need to check whether ploat is a static-library since it is
                         // already-checked in that target's setFileStatus.
 
@@ -162,8 +160,10 @@ void LOAT::setFileStatus()
             // TODO:
             // Use vector instead and call reserve before
             stack<PLOAT *, vector<PLOAT *>> allDeps;
-            for (PLOAT *reqDep : reqDeps)
+
+            for (const uint32_t index : reqDepsVecIndices)
             {
+                PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
                 checked.emplace(reqDep);
                 allDeps.emplace(reqDep);
             }
@@ -197,8 +197,9 @@ void LOAT::setFileStatus()
                         }
                     }
                 }
-                for (PLOAT *reqDep : ploat->reqDeps)
+                for (const uint32_t index : reqDepsVecIndices)
                 {
+                    PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
                     if (checked.emplace(reqDep).second)
                     {
                         allDeps.emplace(reqDep);
@@ -297,8 +298,9 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
         }
         if (!evaluate(TargetType::LIBRARY_STATIC))
         {
-            for (const PLOAT *reqDep : reqDeps)
+            for (const uint32_t index : reqDepsVecIndices)
             {
+                const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
                 reqLinkerFlags += reqDep->useReqLinkerFlags;
             }
         }
@@ -459,8 +461,9 @@ void LOAT::setLinkOrArchiveCommands()
 
     if (linkTargetType != TargetType::LIBRARY_STATIC)
     {
-        for (PLOAT *reqDep : sortedPrebuiltDependencies)
+        for (const uint32_t index : reqDepsVecIndices)
         {
+            PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
             if (reqDep->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
                 static_cast<LOAT *>(reqDep)->objectFiles.empty())
             {
@@ -493,9 +496,10 @@ void LOAT::setLinkOrArchiveCommands()
 
         if (config.linkerFeatures.evaluate(BTFamily::GCC))
         {
-            for (const PLOAT *reqDep : sortedPrebuiltDependencies)
+            for (const uint32_t index : reqDepsVecIndices)
             {
-                if (reqDep->evaluate(TargetType::LIBRARY_SHARED))
+                if (const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
+                    reqDep->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     linkWithTargets += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl,\"" +
                                        string(reqDep->getOutputDirectoryV()) + "\" ";
@@ -505,9 +509,10 @@ void LOAT::setLinkOrArchiveCommands()
 
         if (config.linkerFeatures.evaluate(BTFamily::GCC) && evaluate(TargetType::EXECUTABLE) && flags.isRpathOs)
         {
-            for (const PLOAT *reqDep : sortedPrebuiltDependencies)
+            for (const uint32_t index : reqDepsVecIndices)
             {
-                if (reqDep->evaluate(TargetType::LIBRARY_SHARED))
+                if (const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
+                    reqDep->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     linkWithTargets += "-Wl,-rpath-link -Wl,\"" + string(reqDep->getOutputDirectoryV()) + "\" ";
                 }

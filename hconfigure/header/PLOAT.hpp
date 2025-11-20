@@ -40,6 +40,7 @@ class PLOAT : public BTarget, public TargetCache
     PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_,
           string name_, bool buildExplicit, bool makeDirectory);
 
+    void initializePLOAT();
     template <typename T> bool evaluate(T property) const;
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
 
@@ -54,7 +55,8 @@ class PLOAT : public BTarget, public TargetCache
     btree_set<PLOAT *, TPointerLess<PLOAT>> reqDeps;
     flat_hash_set<PLOAT *> useReqDeps;
 
-    btree_set<PLOAT *, IndexInTopologicalSortComparatorRoundZero> sortedPrebuiltDependencies;
+    /// TargetCache::cacheIndex of our direct and transitive dependency PLOAT. It is cached in config-cache.
+    vector<uint32_t> reqDepsVecIndices;
 
     flat_hash_set<class ObjectFileProducer *> objectFileProducers;
 
@@ -123,19 +125,28 @@ template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat,
 {
     if (depType == DepType::PUBLIC)
     {
-        reqDeps.emplace(&ploat);
-        useReqDeps.emplace(&ploat);
-        addDepNow<1>(ploat);
+        if constexpr (bsMode == BSMode::CONFIGURE)
+        {
+            reqDeps.emplace(&ploat);
+            useReqDeps.emplace(&ploat);
+            addDepNow<1>(ploat);
+        }
     }
     else if (depType == DepType::PRIVATE)
     {
-        reqDeps.emplace(&ploat);
-        addDepNow<1>(ploat);
+        if constexpr (bsMode == BSMode::CONFIGURE)
+        {
+            reqDeps.emplace(&ploat);
+            addDepNow<1>(ploat);
+        }
     }
     else
     {
-        useReqDeps.emplace(&ploat);
-        addDepNow<1>(ploat);
+        if constexpr (bsMode == BSMode::CONFIGURE)
+        {
+            useReqDeps.emplace(&ploat);
+            addDepNow<1>(ploat);
+        }
     }
     if constexpr (sizeof...(ploats))
     {

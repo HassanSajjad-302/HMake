@@ -38,7 +38,7 @@ string_view PLOAT::getOutputDirectoryV() const
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_)
     : BTarget(outputName_, false, false), TargetCache(name), config(config_), linkTargetType{linkTargetType_}
 {
-    outputFileNode = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
+    initializePLOAT();
 }
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_,
@@ -46,7 +46,20 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
     : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name), config(config_), linkTargetType(linkTargetType_)
 
 {
-    outputFileNode = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
+    initializePLOAT();
+}
+
+void PLOAT::initializePLOAT()
+{
+    const char *ptr = fileTargetCaches[cacheIndex].configCache.data();
+    outputFileNode = readHalfNode(ptr, configCacheBytesRead);
+    const uint32_t size = readUint32(ptr, configCacheBytesRead);
+    useReqLibraryDirs.reserve(size);
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        Node *node = readHalfNode(ptr, configCacheBytesRead);
+        useReqLibraryDirs.emplace_back(node);
+    }
 }
 
 #else
@@ -109,10 +122,10 @@ void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &is
 
 #endif
 
+            populateReqAndUseReqDeps();
             writeTargetConfigCacheAtConfigureTime();
         }
 
-        populateReqAndUseReqDeps();
         addReqDepsToBTargetDependencies();
 
         for (const PLOAT *dep : reqDeps)
@@ -142,14 +155,20 @@ void PLOAT::writeTargetConfigCacheAtConfigureTime()
 {
     writeNode(configCacheBuffer, outputFileNode);
 
-    writeUint32(configCacheBuffer, reqLibraryDirs.size());
-    for (const LibDirNode &libDirNode : reqLibraryDirs)
+    writeUint32(configCacheBuffer, useReqLibraryDirs.size());
+    for (const LibDirNode &libDirNode : useReqLibraryDirs)
     {
         writeNode(configCacheBuffer, libDirNode.node);
     }
 
-    writeUint32(configCacheBuffer, useReqLibraryDirs.size());
-    for (const LibDirNode &libDirNode : useReqLibraryDirs)
+    writeUint32(configCacheBuffer, reqDeps.size());
+    for (const PLOAT *ploat : reqDeps)
+    {
+        writeUint32(configCacheBuffer, ploat->cacheIndex);
+    }
+
+    writeUint32(configCacheBuffer, reqLibraryDirs.size());
+    for (const LibDirNode &libDirNode : reqLibraryDirs)
     {
         writeNode(configCacheBuffer, libDirNode.node);
     }
@@ -160,20 +179,19 @@ void PLOAT::writeTargetConfigCacheAtConfigureTime()
 void PLOAT::readCacheAtBuildTime()
 {
     const string_view configCache = fileTargetCaches[cacheIndex].configCache;
-    uint32_t size = readUint32(configCache.data(), configCacheBytesRead);
+    const char *ptr = configCache.data();
+
+    const uint32_t reqVecSize = readUint32(ptr, configCacheBytesRead);
+    for (uint32_t i = 0; i < reqVecSize; ++i)
+    {
+        reqDepsVecIndices.emplace_back(readUint32(ptr, configCacheBytesRead));
+    }
+    uint32_t size = readUint32(ptr, configCacheBytesRead);
     reqLibraryDirs.reserve(size);
     for (uint32_t i = 0; i < size; ++i)
     {
-        Node *node = readHalfNode(configCache.data(), configCacheBytesRead);
+        Node *node = readHalfNode(ptr, configCacheBytesRead);
         reqLibraryDirs.emplace_back(node);
-    }
-
-    size = readUint32(configCache.data(), configCacheBytesRead);
-    useReqLibraryDirs.reserve(size);
-    for (uint32_t i = 0; i < size; ++i)
-    {
-        Node *node = readHalfNode(configCache.data(), configCacheBytesRead);
-        useReqLibraryDirs.emplace_back(node);
     }
 }
 
