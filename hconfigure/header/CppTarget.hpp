@@ -38,6 +38,12 @@ enum class FileType : uint8_t
 
 /// This class is responsible for managing c++ compilation. This class compiles multiple source-files, module-files,
 /// interface-module-files or header-units. The compile-command is same for all the files in one CppTarget.
+/// The API is designed so that user can compile their c++ code with or without header-units. These are classified as
+/// two separate modes specified by Configuration::isCppMod. All CppTargets in a Configuration should have same mode.
+/// The default mode is IsCppMod::NO. To compile modules or header-units, IsCppMod::YES should be explicitly specified.
+/// Some functions have same code for both modes. Some have different code for both modes. Some do stuff in one mode and
+/// do nothing in the other. While some will error-out in one mode and do stuff in the other. This last category is
+/// generally not meant to be directly used.
 class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
 {
   public:
@@ -209,19 +215,24 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     template <typename... U> CppTarget &deps(CppTarget *dep, DepType dependency, const U... deps);
 
     template <typename... U> CppTarget &moduleMaps(const string &include, U... includeDirectoryString);
-    /// adds public include-dirs.
+    /// In IsCppMod::YES, adds all files of the directory as public header-files. In IsCppMod::NO, adds the
+    /// public-include.
     template <typename... U> CppTarget &publicIncludes(const string &include, U... includeDirectoryString);
-    /// adds private include-dirs.
+    /// In IsCppMod::YES, adds all files of the directory as private header-files. In IsCppMod::NO, adds the
+    /// private-include.
     template <typename... U> CppTarget &privateIncludes(const string &include, U... includeDirectoryString);
-    /// add interface include-dirs.
+    /// In IsCppMod::YES, adds all files of the directory as interface header-files. In IsCppMod::NO, adds the
+    /// interface-include.
     template <typename... U> CppTarget &interfaceIncludes(const string &include, U... includeDirectoryString);
-    /// adds public header-unit-includes. will add public include-dirs in IsCppMod::NO mode.
+    /// In IsCppMod::YES, adds all files of the directory as public header-units. In IsCppMod::NO, adds the
+    /// public-include.
     template <typename... U> CppTarget &publicHUIncludes(const string &include, U... includeDirectoryString);
-    /// adds private header-unit-includes. will add private include-dirs in IsCppMod::NO mode.
+    /// In IsCppMod::YES, adds all files of the directory as private header-units. In IsCppMod::NO, adds the
+    /// private-include.
     template <typename... U> CppTarget &privateHUIncludes(const string &include, U... includeDirectoryString);
-    /// adds interface header-unit-includes. will add interface include-dirs in IsCppMod::NO mode.
+    /// In IsCppMod::YES, adds all files of the directory as interface header-units. In IsCppMod::NO, adds the
+    /// interface-include.
     template <typename... U> CppTarget &interfaceHUIncludes(const string &include, U... includeDirectoryString);
-    /// adds public header-files with filenames
     template <typename... U>
     CppTarget &publicIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
     template <typename... U>
