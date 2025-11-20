@@ -37,11 +37,11 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
     btree_set<T *, TPointerLess<T>> reqDeps;
     flat_hash_set<T *> useReqDeps;
 
-    template <typename... U> T &publicDeps(T &dep, U &&...objectFileDeps);
-    template <typename... U> T &privateDeps(T &dep, U &&...objectFileDeps);
-    template <typename... U> T &interfaceDeps(T &dep, U &&...objectFileDeps);
+    template <typename... U> T &publicDeps(T &objectFileProducer, U &&...objectFileProducers);
+    template <typename... U> T &privateDeps(T &objectFileProducer, U &&...objectFileProducers);
+    template <typename... U> T &interfaceDeps(T &objectFileProducer, U &&...objectFileProducers);
 
-    template <typename... U> T &deps(DepType depType, T &dep, U &&...objectFileDeps);
+    template <typename... U> T &deps(DepType depType, T &objectFileProducer, U &&...objectFileProducers);
 
     void populateReqAndUseReqDeps();
 };
@@ -54,70 +54,72 @@ ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS(string name_, const bool b
 {
 }
 
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::publicDeps(T &dep, U &&...objectFileDeps)
+template <typename T>
+template <typename... U>
+T &ObjectFileProducerWithDS<T>::publicDeps(T &objectFileProducer, U &&...objectFileProducers)
 {
-    deps(DepType::PUBLIC, dep);
-    if constexpr (sizeof...(objectFileDeps))
+    deps(DepType::PUBLIC, objectFileProducer);
+    if constexpr (sizeof...(objectFileProducers))
     {
-        return publicDeps(objectFileDeps...);
+        return publicDeps(objectFileProducers...);
     }
     return static_cast<T &>(*this);
 }
 
 template <typename T>
 template <typename... U>
-T &ObjectFileProducerWithDS<T>::privateDeps(T &dep, U &&...objectFileDeps)
+T &ObjectFileProducerWithDS<T>::privateDeps(T &objectFileProducer, U &&...objectFileProducers)
 {
-    deps(DepType::PRIVATE, dep);
-    if constexpr (sizeof...(objectFileDeps))
+    deps(DepType::PRIVATE, objectFileProducer);
+    if constexpr (sizeof...(objectFileProducers))
     {
-        return privateDeps(objectFileDeps...);
+        return privateDeps(objectFileProducers...);
     }
     return static_cast<T &>(*this);
 }
 
 template <typename T>
 template <typename... U>
-T &ObjectFileProducerWithDS<T>::interfaceDeps(T &dep, U &&...objectFileDeps)
+T &ObjectFileProducerWithDS<T>::interfaceDeps(T &objectFileProducer, U &&...objectFileProducers)
 {
-    deps(DepType::INTERFACE, dep);
-    if constexpr (sizeof...(objectFileDeps))
+    deps(DepType::INTERFACE, objectFileProducer);
+    if constexpr (sizeof...(objectFileProducers))
     {
-        return interfaceDeps(objectFileDeps...);
+        return interfaceDeps(objectFileProducers...);
     }
     return static_cast<T &>(*this);
 }
 
 template <typename T>
 template <typename... U>
-T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &dep, U &&...objectFileDeps)
+T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &objectFileProducer, U &&...objectFileProducers)
 {
     if (depType == DepType::PUBLIC)
     {
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            reqDeps.emplace(&dep);
-            useReqDeps.emplace(&dep);
-            addDepNow<1>(dep);
+            reqDeps.emplace(&objectFileProducer);
+            useReqDeps.emplace(&objectFileProducer);
+            addDepNow<1>(objectFileProducer);
         }
-        addDepNow<0, BTargetDepType::SELECTIVE>(dep);
+        addDepNow<0, BTargetDepType::SELECTIVE>(objectFileProducer);
     }
     else if (depType == DepType::PRIVATE)
     {
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
-            reqDeps.emplace(&dep);
-            addDepNow<1>(dep);
+            reqDeps.emplace(&objectFileProducer);
+            addDepNow<1>(objectFileProducer);
         }
-        addDepNow<0, BTargetDepType::SELECTIVE>(dep);
+        addDepNow<0, BTargetDepType::SELECTIVE>(objectFileProducer);
     }
     else
     {
-        useReqDeps.emplace(&dep);
+        useReqDeps.emplace(&objectFileProducer);
     }
-    if constexpr (sizeof...(objectFileDeps))
+    if constexpr (sizeof...(objectFileProducers))
     {
-        return deps(objectFileDeps...);
+        return deps(objectFileProducers...);
     }
     return static_cast<T &>(*this);
 }
