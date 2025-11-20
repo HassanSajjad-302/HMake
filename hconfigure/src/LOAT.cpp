@@ -239,7 +239,8 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
                 }
             }
 
-            if (output.empty())
+            //   if (output.empty())
+            if (false)
             {
                 string str;
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -501,15 +502,8 @@ void LOAT::setLinkOrArchiveCommands()
             {
                 if (ploat->evaluate(TargetType::LIBRARY_SHARED))
                 {
-                    if (prebuiltDep->defaultRpath)
-                    {
-                        linkWithTargets += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl,\"" +
-                                           string(ploat->getOutputDirectoryV()) + "\" ";
-                    }
-                    else
-                    {
-                        linkWithTargets += prebuiltDep->reqRpath;
-                    }
+                    linkWithTargets += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl,\"" +
+                                       string(ploat->getOutputDirectoryV()) + "\" ";
                 }
             }
         }
@@ -520,14 +514,7 @@ void LOAT::setLinkOrArchiveCommands()
             {
                 if (ploat->evaluate(TargetType::LIBRARY_SHARED))
                 {
-                    if (prebuiltDep->defaultRpathLink)
-                    {
-                        linkWithTargets += "-Wl,-rpath-link -Wl,\"" + string(ploat->getOutputDirectoryV()) + "\" ";
-                    }
-                    else
-                    {
-                        linkWithTargets += prebuiltDep->reqRpathLink;
-                    }
+                    linkWithTargets += "-Wl,-rpath-link -Wl,\"" + string(ploat->getOutputDirectoryV()) + "\" ";
                 }
             }
         }

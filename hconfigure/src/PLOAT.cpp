@@ -197,10 +197,6 @@ void PLOAT::populateReqAndUseReqDeps()
 
             prebuiltDep_.reqPreLF = prebuilt.useReqPreLF;
             prebuiltDep_.reqPostLF = prebuilt.useReqPostLF;
-            prebuiltDep_.reqRpathLink = prebuilt.useReqRpathLink;
-            prebuiltDep_.reqRpath = prebuilt.useReqRpath;
-            prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
-            prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
 
             reqDeps.emplace(PLOAT_, std::move(prebuiltDep_));
         }
@@ -214,10 +210,6 @@ void PLOAT::populateReqAndUseReqDeps()
 
             prebuiltDep_.useReqPreLF = prebuilt.useReqPreLF;
             prebuiltDep_.useReqPostLF = prebuilt.useReqPostLF;
-            prebuiltDep_.useReqRpathLink = prebuilt.useReqRpathLink;
-            prebuiltDep_.useReqRpath = prebuilt.useReqRpath;
-            prebuiltDep_.defaultRpath = prebuilt.defaultRpath;
-            prebuiltDep_.defaultRpathLink = prebuilt.defaultRpathLink;
 
             useReqDeps.emplace(PLOAT_, std::move(prebuiltDep_));
         }

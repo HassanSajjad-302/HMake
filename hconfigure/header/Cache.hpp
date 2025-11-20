@@ -4,6 +4,7 @@
 #include "BuildSystemFunctions.hpp"
 #include "nlohmann/json.hpp"
 #include <vector>
+#include <thread>
 
 using Json = nlohmann::json;
 using std::vector;

@@ -25,15 +25,7 @@ struct PrebuiltDep
     string reqPostLF;
     string useReqPostLF;
 
-    string reqRpathLink;
-    string useReqRpathLink;
-
-    string reqRpath;
-    string useReqRpath;
-
     vector<LibDirNode> useReqLibraryDirs;
-    bool defaultRpath = true;
-    bool defaultRpathLink = true;
 };
 
 // PrebuiltLinkOrArchiveTarget
