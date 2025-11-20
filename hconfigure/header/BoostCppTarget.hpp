@@ -575,7 +575,7 @@ void BoostCppTarget::getTargetFromConfiguration(const string_view name, Node *my
 
     if (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
 
             for (const auto &[logicalName, node] : testReqHeaderFiles)

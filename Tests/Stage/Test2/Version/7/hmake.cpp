@@ -21,7 +21,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration("Release").assign(TreatModuleAsSource::YES, ConfigType::RELEASE, CxxSTD::V_98);
+    getConfiguration("Release").assign(IsCppMod::NO, ConfigType::RELEASE, CxxSTD::V_98);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

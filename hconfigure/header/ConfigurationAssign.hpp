@@ -90,9 +90,9 @@ template <typename T, typename... Property> Configuration &Configuration::assign
             buildExamples = BuildExamples::NO;
         }
     }
-    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
+    else if constexpr (std::is_same_v<decltype(property), IsCppMod>)
     {
-        treatModuleASSource = property;
+        isCppMod = property;
     }
     else if constexpr (std::is_same_v<decltype(property), StdAsHeaderUnit>)
     {

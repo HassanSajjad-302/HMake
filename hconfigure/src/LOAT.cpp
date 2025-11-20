@@ -77,7 +77,7 @@ void LOAT::setFileStatus()
     RealBTarget &rb = realBTargets[0];
     for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
     {
-        objectFileProducer->getObjectFiles(&objectFiles, this);
+        objectFileProducer->getObjectFiles(&objectFiles);
     }
 
     if (objectFiles.empty())

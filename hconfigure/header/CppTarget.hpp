@@ -215,11 +215,11 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     template <typename... U> CppTarget &privateIncludes(const string &include, U... includeDirectoryString);
     /// add interface include-dirs.
     template <typename... U> CppTarget &interfaceIncludes(const string &include, U... includeDirectoryString);
-    /// adds public header-unit-includes. will add public include-dirs in TreatModuleAsSource::YES mode.
+    /// adds public header-unit-includes. will add public include-dirs in IsCppMod::NO mode.
     template <typename... U> CppTarget &publicHUIncludes(const string &include, U... includeDirectoryString);
-    /// adds private header-unit-includes. will add private include-dirs in TreatModuleAsSource::YES mode.
+    /// adds private header-unit-includes. will add private include-dirs in IsCppMod::NO mode.
     template <typename... U> CppTarget &privateHUIncludes(const string &include, U... includeDirectoryString);
-    /// adds interface header-unit-includes. will add interface include-dirs in TreatModuleAsSource::YES mode.
+    /// adds interface header-unit-includes. will add interface include-dirs in IsCppMod::NO mode.
     template <typename... U> CppTarget &interfaceHUIncludes(const string &include, U... includeDirectoryString);
     /// adds public header-files with filenames
     template <typename... U>
@@ -626,7 +626,7 @@ CppTarget &CppTarget::publicHUDirs(const string &include, const string &prefix, 
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, "", true, true);
@@ -648,7 +648,7 @@ CppTarget &CppTarget::privateHUDirs(const string &include, const string &prefix,
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, "", true, false);
@@ -670,7 +670,7 @@ CppTarget &CppTarget::interfaceHUDirs(const string &include, const string &prefi
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, "", false, true);
@@ -694,7 +694,7 @@ CppTarget &CppTarget::publicHUDirsRE(const string &include, const string &prefix
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, regexStr, true, true);
@@ -717,7 +717,7 @@ CppTarget &CppTarget::privateHUDirsRE(const string &include, const string &prefi
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, regexStr, true, false);
@@ -740,7 +740,7 @@ CppTarget &CppTarget::interfaceHUDirsRE(const string &include, const string &pre
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, regexStr, false, true);
@@ -763,7 +763,7 @@ CppTarget &CppTarget::publicIncDirs(const string &include, const string &prefix,
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, "", true, true);
@@ -785,7 +785,7 @@ CppTarget &CppTarget::privateIncDirs(const string &include, const string &prefix
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, "", true, false);
@@ -807,7 +807,7 @@ CppTarget &CppTarget::interfaceIncDirs(const string &include, const string &pref
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, "", false, true);
@@ -831,7 +831,7 @@ CppTarget &CppTarget::publicIncDirsRE(const string &include, const string &prefi
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, regexStr, true, true);
@@ -854,7 +854,7 @@ CppTarget &CppTarget::privateIncDirsRE(const string &include, const string &pref
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, regexStr, true, false);
@@ -877,7 +877,7 @@ CppTarget &CppTarget::interfaceIncDirsRE(const string &include, const string &pr
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             Node *inclNode = Node::getNodeNonNormalized(include, false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, regexStr, false, true);
@@ -970,7 +970,7 @@ template <typename... U> CppTarget &CppTarget::moduleFiles(const string &modFile
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::YES))
+        if (configuration->evaluate(IsCppMod::NO))
         {
             return sourceFiles(modFile, moduleFileString...);
         }
@@ -1057,7 +1057,7 @@ CppTarget &CppTarget::publicHeaderFiles(const string &logicalName, const string 
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             addHeaderFile(logicalName, Node::getNodeNonNormalized(headerFile, true), false, true, true);
         }
@@ -1078,7 +1078,7 @@ CppTarget &CppTarget::privateHeaderFiles(const string &logicalName, const string
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             addHeaderFile(logicalName, Node::getNodeNonNormalized(headerFile, true), false, true, false);
         }
@@ -1099,7 +1099,7 @@ CppTarget &CppTarget::interfaceHeaderFiles(const string &logicalName, const stri
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             addHeaderFile(logicalName, Node::getNodeNonNormalized(headerFile, true), false, false, true);
         }
@@ -1120,7 +1120,7 @@ CppTarget &CppTarget::publicHeaderUnits(const string &logicalName, const string 
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             addHeaderUnit(logicalName, Node::getNodeNonNormalized(headerUnit, true), false, true, true);
         }
@@ -1141,7 +1141,7 @@ CppTarget &CppTarget::privateHeaderUnits(const string &logicalName, const string
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             addHeaderUnit(logicalName, Node::getNodeNonNormalized(headerUnit, true), false, true, false);
         }
@@ -1162,7 +1162,7 @@ CppTarget &CppTarget::interfaceHeaderUnits(const string &logicalName, const stri
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
             addHeaderUnit(logicalName, Node::getNodeNonNormalized(headerUnit, true), false, false, true);
         }

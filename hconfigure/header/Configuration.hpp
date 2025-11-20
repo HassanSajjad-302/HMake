@@ -71,7 +71,7 @@ enum class BuildTestsAndExamplesExplicitBuild : uint8_t
     YES,
 };
 
-enum class TreatModuleAsSource : bool
+enum class IsCppMod : bool
 {
     NO,
     YES,
@@ -125,7 +125,7 @@ class Configuration : public BTarget
     BuildExamples buildExamples = BuildExamples::NO;
     TestsExplicit testsExplicit = TestsExplicit::NO;
     ExamplesExplicit examplesExplicit = ExamplesExplicit::NO;
-    TreatModuleAsSource treatModuleASSource = TreatModuleAsSource::YES;
+    IsCppMod isCppMod = IsCppMod::NO;
     StdAsHeaderUnit stdAsHeaderUnit = StdAsHeaderUnit::YES;
     BigHeaderUnit bigHeaderUnit = BigHeaderUnit::NO;
     SystemTarget systemTarget = SystemTarget::NO;
@@ -263,9 +263,9 @@ template <typename T> bool Configuration::evaluate(T property) const
     {
         return examplesExplicit == property;
     }
-    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
+    else if constexpr (std::is_same_v<decltype(property), IsCppMod>)
     {
-        return treatModuleASSource == property;
+        return isCppMod == property;
     }
     else if constexpr (std::is_same_v<decltype(property), StdAsHeaderUnit>)
     {

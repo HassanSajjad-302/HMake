@@ -88,31 +88,27 @@ void configurationSpecification(Configuration &config)
         config.getBoostCppTarget("container_hash", true, false).publicDeps(describe, typeTraits);
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (config.evaluate(TreatModuleAsSource::NO))
+        if (config.evaluate(IsCppMod::YES))
         {
             containerHash.testReqHeaderFiles.erase("config.hpp");
             containerHash.testReqHeaderFiles.emplace(
                 "./config.hpp", Node::getNodeNonNormalized("libs/container_hash/test/config.hpp", true));
             containerHash.testReqHeaderFiles.erase("compile_time.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./compile_time.hpp",
-                Node::getNodeNonNormalized("libs/container_hash/test/compile_time.hpp", true));
+                "./compile_time.hpp", Node::getNodeNonNormalized("libs/container_hash/test/compile_time.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_set_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_set_test.hpp",
-                Node::getNodeNonNormalized("libs/container_hash/test/hash_set_test.hpp", true));
+                "./hash_set_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_set_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_map_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_map_test.hpp",
-                Node::getNodeNonNormalized("libs/container_hash/test/hash_map_test.hpp", true));
+                "./hash_map_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_map_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_sequence_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
                 "./hash_sequence_test.hpp",
                 Node::getNodeNonNormalized("libs/container_hash/test/hash_sequence_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_fwd_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_fwd_test.hpp",
-                Node::getNodeNonNormalized("libs/container_hash/test/hash_fwd_test.hpp", true));
+                "./hash_fwd_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_fwd_test.hpp", true));
         }
     }
     BoostCppTarget &io = config.getBoostCppTarget("io", true, false).publicDeps(configTarget);
@@ -193,11 +189,11 @@ void buildSpecification()
     removeTroublingHu(headerUnitsJsonDirs, std::size(headerUnitsJsonDirs), headerUnitsJsonEntry,
                       std::size(headerUnitsJsonEntry));
 
-    // getConfiguration("conventional-r").assign(TreatModuleAsSource::YES, ConfigType::RELEASE);
-    // getConfiguration("hu-r").assign(TreatModuleAsSource::NO, ConfigType::RELEASE);
-    getConfiguration("conventional-d").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
-    // getConfiguration("hu-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::NO);
-    getConfiguration("huBig-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::YES);
+    // getConfiguration("conventional-r").assign(IsCppMod::NO, ConfigType::RELEASE);
+    // getConfiguration("hu-r").assign(IsCppMod::YES, ConfigType::RELEASE);
+    getConfiguration("conventional-d").assign(IsCppMod::NO, ConfigType::DEBUG);
+    // getConfiguration("hu-d").assign(IsCppMod::YES, ConfigType::DEBUG, BigHeaderUnit::NO);
+    getConfiguration("huBig-d").assign(IsCppMod::YES, ConfigType::DEBUG, BigHeaderUnit::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

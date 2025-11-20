@@ -17,8 +17,8 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration("modules").assign(TreatModuleAsSource::NO, StdAsHeaderUnit::NO);
-    getConfiguration("hu").assign(TreatModuleAsSource::NO, BigHeaderUnit::YES);
+    getConfiguration("modules").assign(IsCppMod::YES, StdAsHeaderUnit::NO);
+    getConfiguration("hu").assign(IsCppMod::YES, BigHeaderUnit::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

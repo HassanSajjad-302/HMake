@@ -33,7 +33,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration("Debug").assign(TreatModuleAsSource::NO, ConfigType::DEBUG);
+    getConfiguration("Debug").assign(IsCppMod::YES, ConfigType::DEBUG);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

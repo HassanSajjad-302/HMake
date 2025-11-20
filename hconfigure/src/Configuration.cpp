@@ -48,7 +48,7 @@ void Configuration::initialize()
                     c->actuallyAddInclude(false, zeroInclNode, true, true);
 
                     // Only the first include is compiled as header-unit.
-                    if (evaluate(TreatModuleAsSource::NO) && evaluate(StdAsHeaderUnit::YES))
+                    if (evaluate(IsCppMod::YES) && evaluate(StdAsHeaderUnit::YES))
                     {
                         c->addHeaderUnitOrFileDirMSVC(zeroInclNode, false, true, true, true, true, true);
                         // c->addHeaderUnitOrFileDirMSVC(zeroInclNode, true, false, true, true, true, true);

@@ -240,7 +240,7 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
         configRead = 0;
         const char *ptr = fileTargetCaches[cacheIndex].configCache.data();
         hasObjectFiles = readBool(ptr, configRead);
-        if (configuration->evaluate(TreatModuleAsSource::YES))
+        if (configuration->evaluate(IsCppMod::NO))
         {
             readInclDirsAtBuildTime(ptr, configRead, useReqIncls, isSystem, ignoreHeaderDeps);
         }
@@ -282,7 +282,7 @@ void CppTarget::populateTransitiveProperties()
 
 #endif
 
-        if (configuration->evaluate(TreatModuleAsSource::YES))
+        if (configuration->evaluate(IsCppMod::NO))
         {
             for (const InclNode &inclNode : cppTarget->useReqIncls)
             {
@@ -301,9 +301,9 @@ void CppTarget::populateTransitiveProperties()
 
 void CppTarget::actuallyAddSourceFileConfigTime(Node *node)
 {
-    if (configuration->evaluate(TreatModuleAsSource::NO))
+    if (configuration->evaluate(IsCppMod::YES))
     {
-        printErrorMessage(FORMAT("In CppTarget {} source-file {}\n is being added with TreatModuleAsSource::NO.\n "
+        printErrorMessage(FORMAT("In CppTarget {} source-file {}\n is being added with IsCppMod::YES.\n "
                                  "Please use moduleFiles* API.\n",
                                  name, node->filePath));
     }
@@ -323,10 +323,10 @@ void CppTarget::actuallyAddSourceFileConfigTime(Node *node)
 
 void CppTarget::actuallyAddModuleFileConfigTime(Node *node, string exportName)
 {
-    if (configuration->evaluate(TreatModuleAsSource::YES))
+    if (configuration->evaluate(IsCppMod::NO))
     {
-        printErrorMessage(FORMAT("In CppTarget {}\n module-file {}\n is being added with TreatModuleAsSource::YES.\n",
-                                 name, node->filePath));
+        printErrorMessage(
+            FORMAT("In CppTarget {}\n module-file {}\n is being added with IsCppMod::NO.\n", name, node->filePath));
     }
 
     if (exportName.empty())
@@ -414,7 +414,7 @@ void CppTarget::makeHeaderFileAsUnit(const string &logicalName, bool addInReq, b
         return;
     }
 
-    if (configuration->evaluate(TreatModuleAsSource::YES))
+    if (configuration->evaluate(IsCppMod::NO))
     {
         return;
     }
@@ -736,7 +736,7 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
 void CppTarget::addHeaderUnitOrFileDir(const Node *includeDir, const string &prefix, const bool isHeaderFile,
                                        const string &regexStr, const bool addInReq, const bool addInUseReq)
 {
-    if (configuration->evaluate(TreatModuleAsSource::YES))
+    if (configuration->evaluate(IsCppMod::NO))
     {
         return;
     }
@@ -786,7 +786,7 @@ void CppTarget::addHeaderUnitOrFileDirMSVC(const Node *includeDir, bool isHeader
                                            const bool addInReq, const bool addInUseReq, const bool isStandard,
                                            bool ignoreHeaderDeps)
 {
-    if (configuration->evaluate(TreatModuleAsSource::YES))
+    if (configuration->evaluate(IsCppMod::NO))
     {
         return;
     }
@@ -1186,7 +1186,7 @@ void CppTarget::writeCacheAtConfigTime()
     const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty();
     writeBool(*configBuffer, hasObjFiles);
 
-    if (configuration->evaluate(TreatModuleAsSource::YES))
+    if (configuration->evaluate(IsCppMod::NO))
     {
         writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
     }
@@ -1280,7 +1280,7 @@ void CppTarget::writeCacheAtConfigTime()
 
     writeNode(*configBuffer, myBuildDir);
 
-    if (configuration->evaluate(TreatModuleAsSource::YES))
+    if (configuration->evaluate(IsCppMod::NO))
     {
         writeIncDirsAtConfigTime(*configBuffer, reqIncls);
     }
@@ -1404,7 +1404,7 @@ void CppTarget::readCacheAtBuildTime()
 
     myBuildDir = readHalfNode(ptr, configRead);
 
-    if (configuration->evaluate(TreatModuleAsSource::YES))
+    if (configuration->evaluate(IsCppMod::NO))
     {
         readInclDirsAtBuildTime(ptr, configRead, reqIncls, isSystem, ignoreHeaderDeps);
     }
@@ -1452,7 +1452,7 @@ CppTarget &CppTarget::interfaceCompilerFlags(const string &compilerFlags)
 void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceDirectory, string regexStr,
                                      const bool recursive)
 {
-    if (configuration->evaluate(TreatModuleAsSource::YES))
+    if (configuration->evaluate(IsCppMod::NO))
     {
         assignToCppSrcs = true;
     }

@@ -9,7 +9,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration("Debug").assign(TreatModuleAsSource::YES, ConfigType::DEBUG, CxxSTD::V_98);
+    getConfiguration("Debug").assign(IsCppMod::NO, ConfigType::DEBUG, CxxSTD::V_98);
     CALL_CONFIGURATION_SPECIFICATION
 }
 
