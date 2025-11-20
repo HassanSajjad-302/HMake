@@ -44,6 +44,8 @@ enum class FileType : uint8_t
 /// Some functions have same code for both modes. Some have different code for both modes. Some do stuff in one mode and
 /// do nothing in the other. While some will error-out in one mode and do stuff in the other. This last category is
 /// generally not meant to be directly used.
+/// In IsCppMod::YES, no include-directory is passed to the compiler. Every file that could be consumed as header-file
+/// or header-unit should be specified at config-time to the build-system.
 class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
 {
   public:
@@ -257,12 +259,19 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// IsCppMod::NO, adds the interface-include.
     template <typename... U>
     CppTarget &interfaceHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory as public header-units. prefix + fileName is used as
+    /// header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &publicHUDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory as private header-units. prefix + fileName is used as
+    /// header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &privateHUDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory as private header-units. prefix + fileName is used as
+    /// header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &interfaceHUDirs(const string &include, const string &prefix, U... includeDirectoryString);
+
     template <typename... U>
     CppTarget &publicHUDirsRE(const string &include, const string &prefix, const string &regexStr,
                               U... includeDirectoryString);
@@ -272,10 +281,16 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     template <typename... U>
     CppTarget &interfaceHUDirsRE(const string &include, const string &prefix, const string &regexStr,
                                  U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory as public header-files. prefix + fileName is used as
+    /// header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &publicIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory as private header-files. prefix + fileName is used as
+    /// header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &privateIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory as interface header-files. prefix + fileName is used as
+    /// header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &interfaceIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
     template <typename... U>
