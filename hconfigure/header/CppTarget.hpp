@@ -166,7 +166,7 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     bool writeBuildCache(vector<char> &buffer) override;
     /// Goes over the provided \p modCache header-files and header-units and checks if one of them has become
     /// header-unit or header-file respectively. if yes, sets BuildCache::Cpp::ModuleFile::headerStatusChanged to true.
-    /// This will cause the rebuild of the respective module-file or header-unit and headerStatusChanged will be set to
+    /// This will cause the rebuild of the respective module-file or header-unit and headerStatusChanged will be set
     /// false to avoid further rebuilds.
     void setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache);
     /// Goes over the arrays of CppTarget::publicBigHus, CppTarget::privateBigHus and CppTarget::interfaceBigHus and
@@ -271,13 +271,18 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &interfaceHUDirs(const string &include, const string &prefix, U... includeDirectoryString);
-
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as public header-units.
+    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &publicHUDirsRE(const string &include, const string &prefix, const string &regexStr,
                               U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as private header-units.
+    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &privateHUDirsRE(const string &include, const string &prefix, const string &regexStr,
                                U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as interface header-units.
+    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &interfaceHUDirsRE(const string &include, const string &prefix, const string &regexStr,
                                  U... includeDirectoryString);
@@ -293,12 +298,18 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &interfaceIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as public header-files.
+    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &publicIncDirsRE(const string &include, const string &prefix, const string &regexStr,
                                U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as private header-files.
+    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &privateIncDirsRE(const string &include, const string &prefix, const string &regexStr,
                                 U... includeDirectoryString);
+    /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as interface header-files.
+    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &interfaceIncDirsRE(const string &include, const string &prefix, const string &regexStr,
                                   U... includeDirectoryString);
