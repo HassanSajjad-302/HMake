@@ -260,62 +260,66 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     template <typename... U>
     CppTarget &interfaceHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as public header-units. prefix + fileName is used as
-    /// header-name. Does nothing in IsCppMod::NO.
+    /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &publicHUDirs(const string &include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as private header-units. prefix + fileName is used as
-    /// header-name. Does nothing in IsCppMod::NO.
+    /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &privateHUDirs(const string &include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as private header-units. prefix + fileName is used as
-    /// header-name. Does nothing in IsCppMod::NO.
+    /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &interfaceHUDirs(const string &include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as public header-units.
-    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
+    /// prefix + fileName is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &publicHUDirsRE(const string &include, const string &prefix, const string &regexStr,
                               U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as private header-units.
-    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
+    /// prefix + fileName is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &privateHUDirsRE(const string &include, const string &prefix, const string &regexStr,
                                U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as interface header-units.
-    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
+    /// prefix + fileName is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &interfaceHUDirsRE(const string &include, const string &prefix, const string &regexStr,
                                  U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as public header-files. prefix + fileName is used as
-    /// header-name. Does nothing in IsCppMod::NO.
+    /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &publicIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as private header-files. prefix + fileName is used as
-    /// header-name. Does nothing in IsCppMod::NO.
+    /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &privateIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as interface header-files. prefix + fileName is used as
-    /// header-name. Does nothing in IsCppMod::NO.
+    /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &interfaceIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as public header-files.
-    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
+    /// prefix + fileName is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &publicIncDirsRE(const string &include, const string &prefix, const string &regexStr,
                                U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as private header-files.
-    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
+    /// prefix + fileName is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &privateIncDirsRE(const string &include, const string &prefix, const string &regexStr,
                                 U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose fileName matches the regex as interface header-files.
-    /// prefix + fileName is used as header-name. Does nothing in IsCppMod::NO.
+    /// prefix + fileName is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
     CppTarget &interfaceIncDirsRE(const string &include, const string &prefix, const string &regexStr,
                                   U... includeDirectoryString);
+    /// In IsCppMod::NO, adds public include-dir. Does nothing in IsCppMod::YES.
     template <typename... U> CppTarget &publicIncludesSource(const string &include, U... includeDirectoryString);
+    /// In IsCppMod::NO, adds private include-dir. Does nothing in IsCppMod::YES.
     template <typename... U> CppTarget &privateIncludesSource(const string &include, U... includeDirectoryString);
+    /// In IsCppMod::NO, adds interface include-dir. Does nothing in IsCppMod::YES.
     template <typename... U> CppTarget &interfaceIncludesSource(const string &include, U... includeDirectoryString);
+
     CppTarget &publicCompilerFlags(const string &compilerFlags);
     CppTarget &privateCompilerFlags(const string &compilerFlags);
     CppTarget &interfaceCompilerFlags(const string &compilerFlags);
