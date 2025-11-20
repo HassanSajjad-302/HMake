@@ -11,22 +11,7 @@
 
 class Configuration;
 
-using phmap::node_hash_map, phmap::btree_map;
-
-// TODO
-//  This is a memory hog.
-struct PrebuiltDep
-{
-    // LF linkerFlags
-
-    string reqPreLF;
-    string useReqPreLF;
-
-    string reqPostLF;
-    string useReqPostLF;
-
-    vector<LibDirNode> useReqLibraryDirs;
-};
+using phmap::node_hash_map, phmap::btree_set;
 
 // PrebuiltLinkOrArchiveTarget
 class PLOAT : public BTarget, public TargetCache
@@ -63,10 +48,13 @@ class PLOAT : public BTarget, public TargetCache
     void readCacheAtBuildTime();
 
   public:
-    node_hash_map<PLOAT *, PrebuiltDep> reqDeps;
-    node_hash_map<PLOAT *, PrebuiltDep> useReqDeps;
+    // Following 2 unused at BSMode::Build
+    // we need this to be ordered in setLinkCommand. order is deterministic as insertions are supposed to be always
+    // in order
+    btree_set<PLOAT *, TPointerLess<PLOAT>> reqDeps;
+    flat_hash_set<PLOAT *> useReqDeps;
 
-    btree_map<PLOAT *, const PrebuiltDep *, IndexInTopologicalSortComparatorRoundZero> sortedPrebuiltDependencies;
+    btree_set<PLOAT *, IndexInTopologicalSortComparatorRoundZero> sortedPrebuiltDependencies;
 
     flat_hash_set<class ObjectFileProducer *> objectFileProducers;
 
@@ -80,12 +68,6 @@ class PLOAT : public BTarget, public TargetCache
     template <typename... U> PLOAT &interfaceDeps(PLOAT &ploat, U... ploats);
 
     template <typename... U> PLOAT &deps(DepType depType, PLOAT &ploat, U... ploats);
-
-    template <typename... U> PLOAT &publicDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
-    template <typename... U> PLOAT &privateDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
-    template <typename... U> PLOAT &interfaceDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
-
-    template <typename... U> PLOAT &deps(DepType depType, PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
 
     void populateReqAndUseReqDeps();
     void addReqDepsToBTargetDependencies();
@@ -109,7 +91,7 @@ void to_json(Json &json, const PLOAT &PLOAT);
 
 template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
 {
-    useReqDeps.emplace(&ploat, PrebuiltDep{});
+    useReqDeps.emplace(&ploat);
     addDepNow<1>(ploat);
     if constexpr (sizeof...(ploats))
     {
@@ -120,7 +102,7 @@ template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
 
 template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, U... ploats)
 {
-    reqDeps.emplace(&ploat, PrebuiltDep{});
+    reqDeps.emplace(&ploat);
     addDepNow<1>(ploat);
     if constexpr (sizeof...(ploats))
     {
@@ -131,8 +113,8 @@ template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, U... ploats)
 
 template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, U... ploats)
 {
-    reqDeps.emplace(&ploat, PrebuiltDep{});
-    useReqDeps.emplace(&ploat, PrebuiltDep{});
+    reqDeps.emplace(&ploat);
+    useReqDeps.emplace(&ploat);
     addDepNow<1>(ploat);
     if constexpr (sizeof...(ploats))
     {
@@ -145,76 +127,19 @@ template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat,
 {
     if (depType == DepType::PUBLIC)
     {
-        reqDeps.emplace(&ploat, PrebuiltDep{});
-        useReqDeps.emplace(&ploat, PrebuiltDep{});
+        reqDeps.emplace(&ploat);
+        useReqDeps.emplace(&ploat);
         addDepNow<1>(ploat);
     }
     else if (depType == DepType::PRIVATE)
     {
-        reqDeps.emplace(&ploat, PrebuiltDep{});
+        reqDeps.emplace(&ploat);
         addDepNow<1>(ploat);
     }
     else
     {
-        useReqDeps.emplace(&ploat, PrebuiltDep{});
+        useReqDeps.emplace(&ploat);
         addDepNow<1>(ploat);
-    }
-    if constexpr (sizeof...(ploats))
-    {
-        return deps(depType, ploats...);
-    }
-    return *this;
-}
-
-template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
-{
-    useReqDeps.emplace(&ploat, prebuiltDep);
-    if constexpr (sizeof...(ploats))
-    {
-        return interfaceDeps(ploats...);
-    }
-    return *this;
-}
-
-template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
-{
-    reqDeps.emplace(&ploat, prebuiltDep);
-    addDepNow<1>(ploat);
-    if constexpr (sizeof...(ploats))
-    {
-        return privateDeps(ploats...);
-    }
-    return *this;
-}
-
-template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
-{
-    reqDeps.emplace(&ploat, prebuiltDep);
-    useReqDeps.emplace(&ploat, prebuiltDep);
-    addDepNow<1>(ploat);
-    if constexpr (sizeof...(ploats))
-    {
-        return publicDeps(ploats...);
-    }
-    return *this;
-}
-
-template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
-{
-    if (depType == DepType::PUBLIC)
-    {
-        reqDeps.emplace(&ploat, prebuiltDep);
-        useReqDeps.emplace(&ploat, prebuiltDep);
-        addDepNow<1>(ploat);
-    }
-    else if (depType == DepType::PRIVATE)
-    {
-        reqDeps.emplace(&ploat, prebuiltDep);
-        addDepNow<1>(ploat);
-    }
-    else
-    {
-        useReqDeps.emplace(&ploat, prebuiltDep);
     }
     if constexpr (sizeof...(ploats))
     {

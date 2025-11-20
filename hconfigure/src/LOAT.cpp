@@ -69,9 +69,9 @@ BTargetType LOAT::getBTargetType() const
 
 void LOAT::setFileStatus()
 {
-    for (auto &[pre, dep] : reqDeps)
+    for (PLOAT *reqDep : reqDeps)
     {
-        sortedPrebuiltDependencies.emplace(pre, &dep);
+        sortedPrebuiltDependencies.emplace(reqDep);
     }
 
     RealBTarget &rb = realBTargets[0];
@@ -107,17 +107,17 @@ void LOAT::setFileStatus()
                 bool needsUpdate = false;
                 if (!evaluate(TargetType::LIBRARY_STATIC))
                 {
-                    for (auto &[ploat, prebuiltDep] : reqDeps)
+                    for (PLOAT *reqDep : reqDeps)
                     {
                         // No need to check whether ploat is a static-library since it is
                         // already-checked in that target's setFileStatus.
 
-                        if (ploat->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
-                            static_cast<LOAT *>(ploat)->objectFiles.empty())
+                        if (reqDep->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
+                            static_cast<LOAT *>(reqDep)->objectFiles.empty())
                         {
                             continue;
                         }
-                        if (ploat->outputFileNode->lastWriteTime > outputFileNode->lastWriteTime)
+                        if (reqDep->outputFileNode->lastWriteTime > outputFileNode->lastWriteTime)
                         {
                             needsUpdate = true;
                             break;
@@ -162,10 +162,10 @@ void LOAT::setFileStatus()
             // TODO:
             // Use vector instead and call reserve before
             stack<PLOAT *, vector<PLOAT *>> allDeps;
-            for (auto &[ploat, prebuiltDep] : reqDeps)
+            for (PLOAT *reqDep : reqDeps)
             {
-                checked.emplace(ploat);
-                allDeps.emplace(ploat);
+                checked.emplace(reqDep);
+                allDeps.emplace(reqDep);
             }
             while (!allDeps.empty())
             {
@@ -197,11 +197,11 @@ void LOAT::setFileStatus()
                         }
                     }
                 }
-                for (auto &[ploat_, prebuiltDep] : ploat->reqDeps)
+                for (PLOAT *reqDep : ploat->reqDeps)
                 {
-                    if (checked.emplace(ploat_).second)
+                    if (checked.emplace(reqDep).second)
                     {
-                        allDeps.emplace(ploat_);
+                        allDeps.emplace(reqDep);
                     }
                 }
             }
@@ -239,8 +239,7 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
                 }
             }
 
-            //   if (output.empty())
-            if (false)
+            if (output.empty())
             {
                 string str;
                 if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -298,9 +297,9 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
         }
         if (!evaluate(TargetType::LIBRARY_STATIC))
         {
-            for (auto &[ploat, prebuiltDep] : reqDeps)
+            for (const PLOAT *reqDep : reqDeps)
             {
-                reqLinkerFlags += ploat->useReqLinkerFlags;
+                reqLinkerFlags += reqDep->useReqLinkerFlags;
             }
         }
 
@@ -460,33 +459,29 @@ void LOAT::setLinkOrArchiveCommands()
 
     if (linkTargetType != TargetType::LIBRARY_STATIC)
     {
-        for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
+        for (PLOAT *reqDep : sortedPrebuiltDependencies)
         {
-            if (ploat->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
-                static_cast<LOAT *>(ploat)->objectFiles.empty())
+            if (reqDep->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
+                static_cast<LOAT *>(reqDep)->objectFiles.empty())
             {
                 continue;
             }
 
-            linkWithTargets += prebuiltDep->reqPreLF;
-
             if (linker.bTFamily == BTFamily::MSVC)
             {
                 linkWithTargets += '\"';
-                linkWithTargets += string(ploat->getOutputDirectoryV());
+                linkWithTargets += string(reqDep->getOutputDirectoryV());
                 linkWithTargets += slashc;
-                linkWithTargets += ploat->getOutputName() + ".lib\" ";
+                linkWithTargets += reqDep->getOutputName() + ".lib\" ";
             }
             else
             {
                 linkWithTargets += "-L\"";
-                linkWithTargets += string(ploat->getOutputDirectoryV());
+                linkWithTargets += string(reqDep->getOutputDirectoryV());
                 linkWithTargets += "\" -l\"";
-                linkWithTargets += ploat->getOutputName();
+                linkWithTargets += reqDep->getOutputName();
                 linkWithTargets += "\" ";
             }
-
-            linkWithTargets += prebuiltDep->reqPostLF;
         }
 
         for (const LibDirNode &libDirNode : reqLibraryDirs)
@@ -498,23 +493,23 @@ void LOAT::setLinkOrArchiveCommands()
 
         if (config.linkerFeatures.evaluate(BTFamily::GCC))
         {
-            for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
+            for (const PLOAT *reqDep : sortedPrebuiltDependencies)
             {
-                if (ploat->evaluate(TargetType::LIBRARY_SHARED))
+                if (reqDep->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     linkWithTargets += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl,\"" +
-                                       string(ploat->getOutputDirectoryV()) + "\" ";
+                                       string(reqDep->getOutputDirectoryV()) + "\" ";
                 }
             }
         }
 
         if (config.linkerFeatures.evaluate(BTFamily::GCC) && evaluate(TargetType::EXECUTABLE) && flags.isRpathOs)
         {
-            for (auto &[ploat, prebuiltDep] : sortedPrebuiltDependencies)
+            for (const PLOAT *reqDep : sortedPrebuiltDependencies)
             {
-                if (ploat->evaluate(TargetType::LIBRARY_SHARED))
+                if (reqDep->evaluate(TargetType::LIBRARY_SHARED))
                 {
-                    linkWithTargets += "-Wl,-rpath-link -Wl,\"" + string(ploat->getOutputDirectoryV()) + "\" ";
+                    linkWithTargets += "-Wl,-rpath-link -Wl,\"" + string(reqDep->getOutputDirectoryV()) + "\" ";
                 }
             }
         }

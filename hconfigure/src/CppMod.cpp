@@ -111,7 +111,7 @@ void CppSrc::updateBTarget(Builder &builder, const unsigned short round, bool &i
             }
             else
             {
-                outputStr += getCompileCommand() + '\n';
+                outputStr += getCompileCommand();
             }
 
             outputStr += threadIds[myThreadIndex];

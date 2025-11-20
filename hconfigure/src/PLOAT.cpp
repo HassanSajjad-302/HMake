@@ -114,17 +114,10 @@ void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &is
 
         populateReqAndUseReqDeps();
         addReqDepsToBTargetDependencies();
-        for (auto &[PLOAT, prebuiltDep] : reqDeps)
-        {
-            for (const LibDirNode &libDirNode : PLOAT->useReqLibraryDirs)
-            {
-                reqLibraryDirs.emplace_back(libDirNode.node);
-            }
-        }
 
-        for (auto &[ploat, prebuiltDep] : reqDeps)
+        for (const PLOAT *dep : reqDeps)
         {
-            for (const LibDirNode &libDirNode : ploat->useReqLibraryDirs)
+            for (const LibDirNode &libDirNode : dep->useReqLibraryDirs)
             {
                 reqLibraryDirs.emplace_back(libDirNode.node);
             }
@@ -186,32 +179,22 @@ void PLOAT::readCacheAtBuildTime()
 
 void PLOAT::populateReqAndUseReqDeps()
 {
+
     // Set is copied because new elements are to be inserted in it.
-    node_hash_map<PLOAT *, PrebuiltDep> localReqDeps = reqDeps;
 
-    for (auto &[PLOAT, prebuiltDep] : localReqDeps)
+    for (auto localReqDeps = reqDeps; PLOAT * t : localReqDeps)
     {
-        for (auto &[PLOAT_, prebuilt] : PLOAT->useReqDeps)
+        for (PLOAT *t_ : t->useReqDeps)
         {
-            PrebuiltDep prebuiltDep_;
-
-            prebuiltDep_.reqPreLF = prebuilt.useReqPreLF;
-            prebuiltDep_.reqPostLF = prebuilt.useReqPostLF;
-
-            reqDeps.emplace(PLOAT_, std::move(prebuiltDep_));
+            reqDeps.emplace(t_);
         }
     }
 
-    for (auto localUseReqs = useReqDeps; auto &[PLOAT, prebuiltDep] : localUseReqs)
+    for (auto localUseReqDeps = useReqDeps; PLOAT * t : localUseReqDeps)
     {
-        for (auto &[PLOAT_, prebuilt] : PLOAT->useReqDeps)
+        for (PLOAT *t_ : t->useReqDeps)
         {
-            PrebuiltDep prebuiltDep_;
-
-            prebuiltDep_.useReqPreLF = prebuilt.useReqPreLF;
-            prebuiltDep_.useReqPostLF = prebuilt.useReqPostLF;
-
-            useReqDeps.emplace(PLOAT_, std::move(prebuiltDep_));
+            useReqDeps.emplace(t_);
         }
     }
 }
@@ -220,21 +203,21 @@ void PLOAT::addReqDepsToBTargetDependencies()
 {
     if (evaluate(TargetType::LIBRARY_STATIC))
     {
-        for (auto &[PLOAT, prebuiltDep] : reqDeps)
+        for (PLOAT *reqDep : reqDeps)
         {
-            if (PLOAT->hasObjectFiles)
+            if (reqDep->hasObjectFiles)
             {
-                addDepMT<0, BTargetDepType::LOOSE>(*PLOAT);
+                addDepMT<0, BTargetDepType::LOOSE>(*reqDep);
             }
         }
     }
     else
     {
-        for (auto &[PLOAT, prebuiltDep] : reqDeps)
+        for (PLOAT *reqDep : reqDeps)
         {
-            if (PLOAT->hasObjectFiles)
+            if (reqDep->hasObjectFiles)
             {
-                addDepMT<0>(*PLOAT);
+                addDepMT<0>(*reqDep);
             }
         }
     }

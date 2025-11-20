@@ -12,14 +12,10 @@ template <typename T> struct DSC : DSCFeatures
     T *stored = nullptr;
     ObjectFileProducerWithDS<T> *objectFileProducer = nullptr;
     PLOAT *ploat = nullptr;
-    PrebuiltDep prebuiltDepLocal;
-
-    template <typename U, typename... V>
-    void assignLOATDep(DepType depType, DSC<U> &depDSC, PrebuiltDep prebuiltDep, V... args);
 
     template <typename U> void assignObjectFileProducerDeps(DepType depType, DSC<U> &dsc);
 
-    template <typename U, typename... V> void assignLOATDep(DepType depType, DSC<U> &dsc, V... args);
+    template <typename U, typename... V> void assignLOATDep(DepType depType, DSC<U> &depDSC, V... args);
     DSC &save(T &ptr);
     DSC &saveAndReplace(T &ptr);
     DSC &restore();
@@ -32,11 +28,6 @@ template <typename T> struct DSC : DSCFeatures
     template <typename U, typename... V> DSC &privateDeps(DSC<U> &depDSC, const V... dscs);
     template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &depDSC, const V... dscs);
     template <typename U, typename... V> DSC &deps(DepType depType, DSC<U> &depDSC, const V... dscs);
-    template <typename U, typename... V> DSC &publicDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs);
-    template <typename U, typename... V> DSC &privateDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs);
-    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs);
-    template <typename U, typename... V>
-    DSC &deps(DepType depType, DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs);
 
     T &getSourceTarget();
     T *getSourceTargetPointer();
@@ -108,38 +99,6 @@ DSC<T> &DSC<T>::deps(DepType depType, DSC<U> &depDSC, const V... dscs)
     return *this;
 }
 
-template <typename T>
-template <typename U, typename... V>
-DSC<T> &DSC<T>::publicDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
-{
-    assignLOATDep(DepType::PUBLIC, depDSC, std::move(prebuiltDep), dscs...);
-    return *this;
-}
-
-template <typename T>
-template <typename U, typename... V>
-DSC<T> &DSC<T>::privateDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
-{
-    assignLOATDep(DepType::PRIVATE, depDSC, std::move(prebuiltDep), dscs...);
-    return *this;
-}
-
-template <typename T>
-template <typename U, typename... V>
-DSC<T> &DSC<T>::interfaceDeps(DSC<U> &depDSC, PrebuiltDep prebuiltDep, const V... dscs)
-{
-    assignLOATDep(DepType::INTERFACE, depDSC, std::move(prebuiltDep), dscs...);
-    return *this;
-}
-
-template <typename T>
-template <typename U, typename... V>
-DSC<T> &DSC<T>::deps(DepType depType, DSC<U> &dsc, PrebuiltDep prebuiltDep, const V... dscs)
-{
-    assignLOATDep(depType, dsc, std::move(prebuiltDep), dscs...);
-    return *this;
-}
-
 template <typename T> template <typename U> void DSC<T>::assignObjectFileProducerDeps(DepType depType, DSC<U> &depDSC)
 {
     objectFileProducer->deps(depType, depDSC.getSourceTarget());
@@ -177,7 +136,7 @@ template <typename T> template <typename U> void DSC<T>::assignObjectFileProduce
 
 template <typename T>
 template <typename U, typename... V>
-void DSC<T>::assignLOATDep(DepType depType, DSC<U> &depDSC, PrebuiltDep prebuiltDep, V... args)
+void DSC<T>::assignLOATDep(DepType depType, DSC<U> &depDSC, V... args)
 {
     if (ploat && depDSC.ploat)
     {
@@ -186,11 +145,11 @@ void DSC<T>::assignLOATDep(DepType depType, DSC<U> &depDSC, PrebuiltDep prebuilt
             // A static library or object library can't have Dependency::PRIVATE deps, it can only have
             // Dependency::INTERFACE. But, the following publicDeps is done for correct-ordering when static-libs are
             // finally supplied to dynamic-lib or exe. Static library ignores the deps.
-            ploat->publicDeps(depDSC.getPLOAT(), std::move(prebuiltDep));
+            ploat->publicDeps(depDSC.getPLOAT());
         }
         else
         {
-            ploat->deps(depType, depDSC.getPLOAT(), std::move(prebuiltDep));
+            ploat->deps(depType, depDSC.getPLOAT());
         }
     }
 
@@ -200,13 +159,6 @@ void DSC<T>::assignLOATDep(DepType depType, DSC<U> &depDSC, PrebuiltDep prebuilt
     {
         return assignLOATDep(depType, args...);
     }
-}
-
-template <typename T>
-template <typename U, typename... V>
-void DSC<T>::assignLOATDep(DepType depType, DSC<U> &dsc, V... args)
-{
-    assignLOATDep(depType, dsc, prebuiltDepLocal);
 
     if constexpr (sizeof...(args))
     {

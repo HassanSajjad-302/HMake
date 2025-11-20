@@ -465,6 +465,17 @@ template <typename T> void emplaceInVector(vector<T> &v, T &&t)
     auto a = v.emplace_back(std::forward<T>(t));
 }
 
+/// Custom comparator for TargetCache like CppTarget and PLOAT based on cacheIndex
+/// Means that any dependency must be declared before the dependent.
+template <typename T> struct TPointerLess
+{
+    bool operator()(const T *lhs, const T *rhs) const
+    {
+        // Compare based on CppTarget::cacheIndex for ordering
+        return lhs->cacheIndex < rhs->cacheIndex;
+    }
+};
+
 #define GLOBAL_VARIABLE(type, var)                                                                                     \
     inline char _##var[sizeof(type)];                                                                                  \
     inline type &var = reinterpret_cast<type &>(_##var);

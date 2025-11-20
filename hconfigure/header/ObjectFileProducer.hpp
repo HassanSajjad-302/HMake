@@ -4,6 +4,7 @@
 
 #include "DepType.hpp"
 #include "ObjectFile.hpp"
+#include "BuildSystemFunctions.hpp"
 
 class LOAT;
 
@@ -30,20 +31,10 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
     ObjectFileProducerWithDS();
     ObjectFileProducerWithDS(string name_, bool buildExplicit, bool makeDirectory);
 
-    // Custom comparator for BTarget* based on id
-    struct TPointerLess
-    {
-        bool operator()(const T *lhs, const T *rhs) const
-        {
-            // Compare based on CppTarget::cacheIndex for ordering
-            return lhs->cacheIndex < rhs->cacheIndex;
-        }
-    };
-
     // Following 2 unused at BSMode::Build
     // we need this to be ordered in setCompileCommand. order is deterministic as insertions are supposed to be always
     // in order
-    phmap::btree_set<T *, TPointerLess> reqDeps;
+    btree_set<T *, TPointerLess<T>> reqDeps;
     flat_hash_set<T *> useReqDeps;
 
     template <typename... U> T &deps(const DepType depType, T &dep, U &&...deps);
