@@ -94,29 +94,38 @@ template <typename T>
 template <typename... U>
 T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &objectFileProducer, U &&...objectFileProducers)
 {
-    if (depType == DepType::PUBLIC)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if constexpr (bsMode == BSMode::CONFIGURE)
+        TargetCache *us = static_cast<TargetCache *>(static_cast<T *>(this));
+        TargetCache *ourDep = static_cast<TargetCache *>(&objectFileProducer);
+        if (ourDep->cacheIndex > us->cacheIndex)
+        {
+            printErrorMessage(FORMAT("Please declare dependency \n{}\n before its dependent \n{}\nDependency "
+                                     "declaration before the dependent is an invariant in HMake.",
+                                     fileTargetCaches[ourDep->cacheIndex].name, fileTargetCaches[us->cacheIndex].name));
+        }
+
+        if (depType == DepType::PUBLIC)
         {
             reqDeps.emplace(&objectFileProducer);
             useReqDeps.emplace(&objectFileProducer);
             addDepNow<1>(objectFileProducer);
         }
-        addDepNow<0, BTargetDepType::SELECTIVE>(objectFileProducer);
-    }
-    else if (depType == DepType::PRIVATE)
-    {
-        if constexpr (bsMode == BSMode::CONFIGURE)
+        else if (depType == DepType::PRIVATE)
         {
             reqDeps.emplace(&objectFileProducer);
             addDepNow<1>(objectFileProducer);
         }
-        addDepNow<0, BTargetDepType::SELECTIVE>(objectFileProducer);
+        else
+        {
+            useReqDeps.emplace(&objectFileProducer);
+        }
     }
     else
     {
-        useReqDeps.emplace(&objectFileProducer);
+        addDepNow<0, BTargetDepType::SELECTIVE>(objectFileProducer);
     }
+
     if constexpr (sizeof...(objectFileProducers))
     {
         return deps(objectFileProducers...);

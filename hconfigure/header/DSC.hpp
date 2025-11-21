@@ -23,10 +23,10 @@ template <typename T> struct DSC : DSCFeatures
 
     DSC(T *ptr, PLOAT *ploat_, bool defines = false, string define_ = "");
 
-    template <typename U, typename... V> DSC &publicDeps(DSC<U> &depDSC, const V... dscs);
-    template <typename U, typename... V> DSC &privateDeps(DSC<U> &depDSC, const V... dscs);
-    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &depDSC, const V... dscs);
-    template <typename U, typename... V> DSC &deps(DepType depType, DSC<U> &depDSC, const V... dscs);
+    template <typename U, typename... V> DSC &publicDeps(DSC<U> &depDSC, V... dscs);
+    template <typename U, typename... V> DSC &privateDeps(DSC<U> &depDSC, V... dscs);
+    template <typename U, typename... V> DSC &interfaceDeps(DSC<U> &depDSC, V... dscs);
+    template <typename U, typename... V> DSC &deps(DepType depType, DSC<U> &depDSC, V... dscs);
 
     T &getSourceTarget();
     T *getSourceTargetPointer();
@@ -70,13 +70,13 @@ template <typename T> DSC<T>::DSC(T *ptr, PLOAT *ploat_, bool defines, string de
     }
 }
 
-template <typename T> template <typename U, typename... V> DSC<T> &DSC<T>::publicDeps(DSC<U> &depDSC, const V... dscs)
+template <typename T> template <typename U, typename... V> DSC<T> &DSC<T>::publicDeps(DSC<U> &depDSC, V... dscs)
 {
     deps(DepType::PUBLIC, depDSC, dscs...);
     return *this;
 }
 
-template <typename T> template <typename U, typename... V> DSC<T> &DSC<T>::privateDeps(DSC<U> &depDSC, const V... dscs)
+template <typename T> template <typename U, typename... V> DSC<T> &DSC<T>::privateDeps(DSC<U> &depDSC, V... dscs)
 {
     deps(DepType::PRIVATE, depDSC, dscs...);
     return *this;
@@ -84,7 +84,7 @@ template <typename T> template <typename U, typename... V> DSC<T> &DSC<T>::priva
 
 template <typename T>
 template <typename U, typename... V>
-DSC<T> &DSC<T>::interfaceDeps(DSC<U> &depDSC, const V... dscs)
+DSC<T> &DSC<T>::interfaceDeps(DSC<U> &depDSC, V... dscs)
 {
     deps(DepType::INTERFACE, depDSC, dscs...);
     return *this;
@@ -92,7 +92,7 @@ DSC<T> &DSC<T>::interfaceDeps(DSC<U> &depDSC, const V... dscs)
 
 template <typename T>
 template <typename U, typename... V>
-DSC<T> &DSC<T>::deps(DepType depType, DSC<U> &depDSC, const V... dscs)
+DSC<T> &DSC<T>::deps(DepType depType, DSC<U> &depDSC, V... dscs)
 {
     if (ploat && depDSC.ploat)
     {

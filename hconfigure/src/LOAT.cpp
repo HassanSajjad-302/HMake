@@ -197,7 +197,7 @@ void LOAT::setFileStatus()
                         }
                     }
                 }
-                for (const uint32_t index : reqDepsVecIndices)
+                for (const uint32_t index : ploat->reqDepsVecIndices)
                 {
                     PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
                     if (checked.emplace(reqDep).second)

@@ -78,8 +78,8 @@ void configurationSpecification(Configuration &config)
         configTarget, variant2, assertTarget, winApi.mainTarget, throwExceptionHeader, limits);
     BoostCppTarget &function = config.getBoostCppTarget("function").publicDeps(assertTarget, core);
     BoostCppTarget &move = config.getBoostCppTarget("move", true, false).publicDeps(configTarget);
-    BoostCppTarget &bind = config.getBoostCppTarget("bind");
     DSC<CppTarget> &getPointerHeader = config.getCppObjectDSC("getPointerHeader").publicDeps(configTarget.mainTarget);
+    BoostCppTarget &bind = config.getBoostCppTarget("bind");
     throwExceptionHeader.getSourceTarget().publicHeaderFiles("boost/throw_exception.hpp", "boost/throw_exception.hpp");
     bind.publicDeps(getPointerHeader);
     getPointerHeader.getSourceTarget().publicHeaderFiles("boost/get_pointer.hpp", "boost/get_pointer.hpp");

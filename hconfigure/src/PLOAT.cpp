@@ -126,11 +126,28 @@ void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &is
             writeTargetConfigCacheAtConfigureTime();
         }
 
-        addReqDepsToBTargetDependencies();
-
-        for (const PLOAT *dep : reqDeps)
+        for (const uint32_t index : reqDepsVecIndices)
         {
-            for (const LibDirNode &libDirNode : dep->useReqLibraryDirs)
+            PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
+            if constexpr (bsMode == BSMode::BUILD)
+            {
+                if (evaluate(TargetType::LIBRARY_STATIC))
+                {
+                    if (reqDep->hasObjectFiles)
+                    {
+                        addDepMT<0, BTargetDepType::LOOSE>(*reqDep);
+                    }
+                }
+                else
+                {
+                    if (reqDep->hasObjectFiles)
+                    {
+                        addDepMT<0>(*reqDep);
+                    }
+                }
+            }
+
+            for (const LibDirNode &libDirNode : reqDep->useReqLibraryDirs)
             {
                 reqLibraryDirs.emplace_back(libDirNode.node);
             }
@@ -213,30 +230,6 @@ void PLOAT::populateReqAndUseReqDeps()
         for (PLOAT *t_ : t->useReqDeps)
         {
             useReqDeps.emplace(t_);
-        }
-    }
-}
-
-void PLOAT::addReqDepsToBTargetDependencies()
-{
-    if (evaluate(TargetType::LIBRARY_STATIC))
-    {
-        for (PLOAT *reqDep : reqDeps)
-        {
-            if (reqDep->hasObjectFiles)
-            {
-                addDepMT<0, BTargetDepType::LOOSE>(*reqDep);
-            }
-        }
-    }
-    else
-    {
-        for (PLOAT *reqDep : reqDeps)
-        {
-            if (reqDep->hasObjectFiles)
-            {
-                addDepMT<0>(*reqDep);
-            }
         }
     }
 }

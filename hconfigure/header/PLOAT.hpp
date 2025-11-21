@@ -72,7 +72,6 @@ class PLOAT : public BTarget, public TargetCache
     template <typename... U> PLOAT &deps(DepType depType, PLOAT &ploat, U... ploats);
 
     void populateReqAndUseReqDeps();
-    void addReqDepsToBTargetDependencies();
     string getPrintName() const override;
 };
 
@@ -123,31 +122,38 @@ template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, U... ploats)
 
 template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat, U... ploats)
 {
-    if (depType == DepType::PUBLIC)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if constexpr (bsMode == BSMode::CONFIGURE)
+        TargetCache *us = static_cast<TargetCache *>(this);
+        TargetCache *ourDep = static_cast<TargetCache *>(&ploat);
+        if (ourDep->cacheIndex > us->cacheIndex)
+        {
+            printErrorMessage(FORMAT("Please declare dependency \n{}\n before its dependent \n{}\nDependency "
+                                     "declaration before the dependent is an invariant in HMake.",
+                                     fileTargetCaches[ourDep->cacheIndex].name, fileTargetCaches[us->cacheIndex].name));
+        }
+
+        if (depType == DepType::PUBLIC)
         {
             reqDeps.emplace(&ploat);
             useReqDeps.emplace(&ploat);
             addDepNow<1>(ploat);
         }
-    }
-    else if (depType == DepType::PRIVATE)
-    {
-        if constexpr (bsMode == BSMode::CONFIGURE)
+        else if (depType == DepType::PRIVATE)
         {
             reqDeps.emplace(&ploat);
+            addDepNow<1>(ploat);
+        }
+        else
+        {
+            useReqDeps.emplace(&ploat);
             addDepNow<1>(ploat);
         }
     }
     else
     {
-        if constexpr (bsMode == BSMode::CONFIGURE)
-        {
-            useReqDeps.emplace(&ploat);
-            addDepNow<1>(ploat);
-        }
     }
+
     if constexpr (sizeof...(ploats))
     {
         return deps(depType, ploats...);

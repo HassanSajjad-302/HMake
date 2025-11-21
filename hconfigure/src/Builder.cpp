@@ -27,7 +27,7 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    launchedCount = 1;
+    launchedCount = cache.numberOfBuildThreads;
 
     if (launchedCount)
     {
