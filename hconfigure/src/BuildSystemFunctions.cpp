@@ -166,8 +166,6 @@ void constructGlobals()
         realBTargets = span(reinterpret_cast<RealBTarget **>(buffer), count);
     }
     nodeIndices = new Node *[128 * 1024];
-    cppTargets = new CppTarget *[64 * 1024];
-
     std::construct_at(&nodeAllFiles, 10000);
 
     std::construct_at(&cache);

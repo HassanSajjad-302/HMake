@@ -563,7 +563,7 @@ CppMod *CppMod::findModule(const string &moduleName) const
     {
         for (const uint32_t index : target->reqDepsVecIndices)
         {
-            CppTarget *req = cppTargets[index];
+            CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[index].targetCache);
             if (auto it2 = req->imodNames.find(moduleName); it2 != req->imodNames.end())
             {
                 return it2->second;
@@ -583,7 +583,7 @@ HeaderFileOrUnit CppMod::findHeaderFileOrUnit(const string &headerName) const
 
     for (const uint32_t index : target->reqDepsVecIndices)
     {
-        CppTarget *req = cppTargets[index];
+        CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[index].targetCache);
         if (const auto &it = req->useReqHeaderNameMapping.find(headerName); it != req->useReqHeaderNameMapping.end())
         {
             return it->second;
@@ -1001,7 +1001,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         for (const BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &h : myBuildCache->headerUnitArray)
         {
             CppMod *hu = nullptr;
-            if (const CppTarget *t = cppTargets[h.targetIndex])
+            if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[h.targetIndex].targetCache))
             {
                 if (h.myIndex < t->huDeps.size())
                 {
@@ -1025,7 +1025,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache->moduleArray)
         {
             CppMod *cppMod = nullptr;
-            if (const CppTarget *t = cppTargets[m.targetIndex])
+            if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[m.targetIndex].targetCache))
             {
                 if (m.myIndex < t->imodFileDeps.size())
                 {
@@ -1085,7 +1085,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
     for (const BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &h : myBuildCache->headerUnitArray)
     {
         CppMod *hu = nullptr;
-        if (const CppTarget *t = cppTargets[h.targetIndex])
+        if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[h.targetIndex].targetCache))
         {
             if (h.myIndex < t->huDeps.size())
             {
@@ -1120,7 +1120,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
     for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache->moduleArray)
     {
         CppMod *cppMod = nullptr;
-        if (const CppTarget *t = cppTargets[m.targetIndex])
+        if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[m.targetIndex].targetCache))
         {
             if (m.myIndex < t->imodFileDeps.size())
             {

@@ -1354,6 +1354,4 @@ template <> DSC<CppTarget> &DSC<CppTarget>::save(CppTarget &ptr);
 template <> DSC<CppTarget> &DSC<CppTarget>::saveAndReplace(CppTarget &ptr);
 template <> DSC<CppTarget> &DSC<CppTarget>::restore();
 
-GLOBAL_VARIABLE(CppTarget **, cppTargets)
-
 #endif // HMAKE_CPPTARGET_HPP

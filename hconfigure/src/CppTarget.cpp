@@ -234,8 +234,6 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
 
     if constexpr (bsMode == BSMode::BUILD)
     {
-        cppTargets[cacheIndex] = this;
-
         // only the first boolean ob hasObjectFiles is read.
         configRead = 0;
         const char *ptr = fileTargetCaches[cacheIndex].configCache.data();
@@ -271,7 +269,7 @@ void CppTarget::populateTransitiveProperties()
 
     for (const uint32_t index : reqDepsVecIndices)
     {
-        CppTarget *cppTarget = cppTargets[index];
+        CppTarget *cppTarget = static_cast<CppTarget *>(fileTargetCaches[index].targetCache);
         if (!cppTarget)
         {
             HMAKE_HMAKE_INTERNAL_ERROR
