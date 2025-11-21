@@ -39,26 +39,26 @@ Let's do some examples
 ```cpp
 #include "Configure.hpp"
 
-struct OurTarget : public BTarget
+struct OurTarget : BTarget
 {
     string message;
     explicit OurTarget(string str) : message{std::move(str)}
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round) override
+    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
     {
-        if(round == 0)
+        if (round == 0)
         {
             printMessage(FORMAT("{}\n", message));
         }
     }
 };
 
-OurTarget a("Hello");
-OurTarget b("World");
 void buildSpecification()
 {
-    b.addDependency<0>(a);
+    OurTarget *a = new OurTarget("Hello");
+    OurTarget *b = new OurTarget("World");
+    b->addDepNow<0>(*a);
 }
 
 MAIN_FUNCTION
@@ -91,27 +91,28 @@ Let's clarify this with more examples.
 ```cpp
 #include "Configure.hpp"
 
-struct OurTarget : public BTarget
+struct OurTarget : BTarget
 {
     string message;
     explicit OurTarget(string str) : message{std::move(str)}
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round) override
+    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
     {
-        if(round == 0 || round == 1)
+        if (round == 0 || round == 1)
         {
             printMessage(FORMAT("{}\n", message));
         }
     }
 };
 
-OurTarget a("Hello");
-OurTarget b("World");
 void buildSpecification()
 {
-    b.addDependency<0>(a);
-    a.addDependency<1>(b);
+    OurTarget *a = new OurTarget("Hello");
+    OurTarget *b = new OurTarget("World");
+
+    b->addDepNow<0>(*a);
+    a->addDepNow<1>(*b);
 }
 
 MAIN_FUNCTION
@@ -132,13 +133,13 @@ So, by declaring 1 ```BTarget```, you declare 3 ```RealBTargets```.
 ```cpp
 #include "Configure.hpp"
 
-struct OurTarget : public BTarget
+struct OurTarget : BTarget
 {
     unsigned short low, high;
-    explicit OurTarget(unsigned short low_, unsigned short high_) : low(low_), high(high_)
+    explicit OurTarget(const unsigned short low_, const unsigned short high_) : low(low_), high(high_)
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round) override
+    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {
@@ -152,13 +153,14 @@ struct OurTarget : public BTarget
     }
 };
 
-OurTarget a(10, 20), b(50, 70), c(800, 1000);
 void buildSpecification()
 {
+    OurTarget *a = new OurTarget(10, 20);
+    OurTarget *b = new OurTarget(50, 70);
+    OurTarget *c = new OurTarget(800, 1000);
 }
 
 MAIN_FUNCTION
-
 ```
 
 </details>
@@ -178,25 +180,25 @@ and all 3 ```OurTarget::updateBTarget``` is executed in parallel.
 ```cpp
 #include "Configure.hpp"
 
-struct OurTarget : public BTarget
+struct OurTarget : BTarget
 {
     string message;
     explicit OurTarget(string str) : message{std::move(str)}
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round) override
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
     {
     }
 };
 
-OurTarget a("Hello");
-OurTarget b("World");
-OurTarget c("HMake");
 void buildSpecification()
 {
-    a.addDependency<0>(b);
-    b.addDependency<0>(c);
-    c.addDependency<0>(a);
+    OurTarget *a = new OurTarget("Hello");
+    OurTarget *b = new OurTarget("World");
+    OurTarget *c = new OurTarget("HMake");
+    a->addDepNow<0>(*b);
+    b->addDepNow<0>(*c);
+    c->addDepNow<0>(*a);
 }
 
 MAIN_FUNCTION
@@ -227,21 +229,21 @@ while ```CppSrc``` and ```CppMod``` prints ```node->filePath```.
 ```cpp
 #include "Configure.hpp"
 
-constexpr unsigned short roundLocal = 1;
-struct OurTarget : public BTarget
+constexpr unsigned short roundLocal = 0;
+struct OurTarget : BTarget
 {
     string name;
     bool error = false;
-    explicit OurTarget(string name_, bool error_ = false) : name{std::move(name_)}, error(error_)
+    explicit OurTarget(string name_, const bool error_ = false) : name{std::move(name_)}, error(error_)
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round) override
+    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
     {
         if (round == roundLocal)
         {
             if (error)
             {
-                fmt::print("Target {} runtime error.\n", name);
+                printMessage(FORMAT("Target {} runtime error.\n", name));
                 realBTargets[roundLocal].exitStatus = EXIT_FAILURE;
             }
             if (realBTargets[roundLocal].exitStatus == EXIT_SUCCESS)
@@ -252,11 +254,18 @@ struct OurTarget : public BTarget
     }
 };
 
-OurTarget a("Hello"), b("World"), c("HMake"), d("CMake"), e("Ninja", true), f("XMake"), g("build2", true), h("Boost");
 void buildSpecification()
 {
-    d.addDependency<roundLocal>(e);
-    h.addDependency<roundLocal>(g);
+    OurTarget *a = new OurTarget("Hello");
+    OurTarget *b = new OurTarget("World");
+    OurTarget *c = new OurTarget("HMake");
+    OurTarget *d = new OurTarget("CMake");
+    OurTarget *e = new OurTarget("Ninja", true);
+    OurTarget *f = new OurTarget("XMake");
+    OurTarget *g = new OurTarget("build2", true);
+    OurTarget *h = new OurTarget("Boost");
+    d->addDepNow<roundLocal>(*e);
+    h->addDepNow<roundLocal>(*g);
 }
 
 MAIN_FUNCTION
@@ -282,13 +291,14 @@ then HMake will exit early and not execute the remaining rounds.
 ```cpp
 #include "Configure.hpp"
 
-struct OurTarget : public BTarget
+struct OurTarget : BTarget
 {
     unsigned short low, high;
-    explicit OurTarget(unsigned short low_, unsigned short high_) : low(low_), high(high_)
+    explicit OurTarget(const unsigned short low_, const unsigned short high_)
+        : BTarget(true, false), low(low_), high(high_)
     {
     }
-    void updateBTarget(class Builder &builder, unsigned short round) override
+    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {
@@ -304,21 +314,21 @@ struct OurTarget : public BTarget
 
 OurTarget *a, *b, *c;
 
-struct OurTarget2 : public BTarget
+struct OurTarget2 : BTarget
 {
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
+    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {
             a = new OurTarget(10, 40);
             b = new OurTarget(50, 80);
             c = new OurTarget(800, 1000);
-            a->addDependency<0>(*c);
-            b->addDependency<0>(*c);
+            a->addDepNow<0>(*c);
+            b->addDepNow<0>(*c);
 
             {
-                std::lock_guard<std::mutex> lk(builder.executeMutex);
-                builder.updateBTargetsIterator = builder.updateBTargets.emplace(builder.updateBTargetsIterator, c);
+                std::lock_guard lk(builder.executeMutex);
+                builder.updateBTargets.emplace(&c->realBTargets[0]);
                 builder.updateBTargetsSizeGoal += 3;
             }
             builder.cond.notify_one();
@@ -326,10 +336,10 @@ struct OurTarget2 : public BTarget
     }
 };
 
-OurTarget2 target2;
 
 void buildSpecification()
 {
+    OurTarget2 *target2 = new OurTarget2();
 }
 
 MAIN_FUNCTION
@@ -370,26 +380,26 @@ However, you have to take care of the following aspects:
 ```cpp
 #include "Configure.hpp"
 
-BTarget b, c;
-
-struct OurTarget : public BTarget
+BTarget *b, *c;
+struct OurTarget : BTarget
 {
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
+    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {
-            b.addDependency<0>(c);
-            c.addDependency<0>(b);
+            b->addDepNow<0>(*c);
+            c->addDepNow<0>(*b);
         }
     }
 };
 
-OurTarget target;
-
 void buildSpecification()
 {
-    b.addDependency<0>(target);
-    c.addDependency<0>(target);
+    b = new BTarget();
+    c = new BTarget();
+    OurTarget *target = new OurTarget();
+    b->addDepNow<0>(*target);
+    c->addDepNow<0>(*target);
 }
 
 MAIN_FUNCTION
@@ -520,10 +530,10 @@ struct OurTarget : BTarget
 {
     string message;
     explicit OurTarget(string str, string name = "", const bool makeDirectory = true, const bool buildExplicit = false)
-        : BTarget(std::move(name), buildExplicit, makeDirectory, true, false, true), message{std::move(str)}
+        : BTarget(std::move(name), buildExplicit, makeDirectory, true, true), message{std::move(str)}
     {
     }
-    void updateBTarget(Builder &builder, const unsigned short round) override
+    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
     {
         if (round == 0 && selectiveBuild)
         {
@@ -542,7 +552,7 @@ void buildSpecification()
     OurTarget *d = new OurTarget("D", "D");
     OurTarget *e = new OurTarget("E", "E");
     OurTarget *f = new OurTarget("F");
-    c->addDependency<0>(*e);
+    c->addDepNow<0>(*e);
 }
 
 MAIN_FUNCTION
@@ -825,10 +835,9 @@ This ```std``` target has standard include-dirs initialized from
 ```cpp
 #include "Configure.hpp"
 
-void configurationSpecification(Configuration &configuration)
+void configurationSpecification(Configuration &config)
 {
-    configuration.getCppExeDSC("app")
-        .getSourceTarget().sourceDirsRE(".", "file[1-4]\\.cpp|main\\.cpp");
+    config.getCppExeDSC("app").getSourceTarget().sourceDirsRE(".", "file[1-4]\\.cpp|main\\.cpp");
 }
 
 void buildSpecification()
