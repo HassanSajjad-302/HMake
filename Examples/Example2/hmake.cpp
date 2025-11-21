@@ -1,4 +1,3 @@
-
 #include "Configure.hpp"
 
 void configurationSpecification(Configuration &configuration)

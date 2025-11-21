@@ -823,7 +823,6 @@ This ```std``` target has standard include-dirs initialized from
 <summary>hmake.cpp</summary>
 
 ```cpp
-
 #include "Configure.hpp"
 
 void configurationSpecification(Configuration &configuration)
@@ -834,8 +833,8 @@ void configurationSpecification(Configuration &configuration)
 
 void buildSpecification()
 {
-    getConfiguration("debug").assign(ConfigType::DEBUG);
-    getConfiguration("release").assign(LTO::ON); // LTO is OFF in ConfigType::RELEASE which is the default
+    getConfiguration("Debug").assign(ConfigType::DEBUG);
+    getConfiguration("Release").assign(LTO::ON); // LTO is OFF in ConfigType::RELEASE which is the default
     CALL_CONFIGURATION_SPECIFICATION
 }
 
@@ -919,6 +918,12 @@ void configurationSpecification(Configuration &config)
     config.getCppExeDSC("Animal-Shared").privateDeps(catShared).getSourceTarget().sourceFiles("main.cpp");
 }
 
+void buildSpecification()
+{
+    getConfiguration();
+    CALL_CONFIGURATION_SPECIFICATION
+}
+
 MAIN_FUNCTION
 ```
 
@@ -947,11 +952,13 @@ You can change that by ```assign(CopyDLLToExeDirOnNTOs::NO)``` call of the
 
 void configurationSpecification(Configuration &config)
 {
-    auto makeApps = [&]() {
+    auto makeApps = [&] {
         const string str = config.targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
-        DSC<CppTarget> &cat =
-            config.getCppTargetDSC_P("Cat" + str, "../Example4/Build/Release/Cat" + str + "/", true, "CAT_EXPORT");
+        Node *outputDir = bsMode == BSMode::CONFIGURE
+                              ? Node::getNodeNonNormalized("../Example4/Build/Release/Cat" + str, false, false)
+                              : nullptr;
+        DSC<CppTarget> &cat = config.getCppTargetDSC_P("Cat" + str, outputDir, true, "CAT_EXPORT");
         cat.getSourceTarget().interfaceIncludes("../Example4/Cat/header");
 
         DSC<CppTarget> &dog = config.getCppTargetDSC("Dog" + str, true, "DOG_EXPORT");
@@ -1004,18 +1011,24 @@ void configurationSpecification(Configuration &config)
 {
     if (config.name == "modules")
     {
-        config.getCppExeDSC("app").getSourceTarget().moduleFiles("main.cpp", "std.cpp");
+        config.stdCppTarget->getSourceTarget().interfaceFiles("std.cpp", "std");
+        config.getCppExeDSC("app").getSourceTarget().moduleFiles("main.cpp");
     }
     else
     {
+        if constexpr (os == OS::NT)
+        {
+            config.stdCppTarget->getSourceTarget().publicBigHus.emplace_back(nullptr);
+            config.stdCppTarget->getSourceTarget().makeHeaderFileAsUnit("windows.h", true, true);
+        }
         config.getCppExeDSC("app2").getSourceTarget().moduleFiles("main2.cpp");
     }
 }
 
 void buildSpecification()
 {
-    getConfiguration("modules");
-    getConfiguration("hu");
+    getConfiguration("modules").assign(IsCppMod::YES, StdAsHeaderUnit::NO);
+    getConfiguration("hu").assign(IsCppMod::YES, BigHeaderUnit::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
 
@@ -1186,4 +1199,10 @@ I have been working on this project, for close to three years.
 Please consider donating.
 Contact me here if you want to donate hassan.sajjad069@gmail.com,
 or you can donate to me through Patreon. Thanks.
+
+
+
+
+
+
 

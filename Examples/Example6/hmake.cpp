@@ -5,10 +5,10 @@ void configurationSpecification(Configuration &config)
     auto makeApps = [&] {
         const string str = config.targetType == TargetType::LIBRARY_STATIC ? "-Static" : "-Shared";
 
-        Node *otuputDir = bsMode == BSMode::CONFIGURE
+        Node *outputDir = bsMode == BSMode::CONFIGURE
                               ? Node::getNodeNonNormalized("../Example4/Build/Release/Cat" + str, false, false)
                               : nullptr;
-        DSC<CppTarget> &cat = config.getCppTargetDSC_P("Cat" + str, otuputDir, true, "CAT_EXPORT");
+        DSC<CppTarget> &cat = config.getCppTargetDSC_P("Cat" + str, outputDir, true, "CAT_EXPORT");
         cat.getSourceTarget().interfaceIncludes("../Example4/Cat/header");
 
         DSC<CppTarget> &dog = config.getCppTargetDSC("Dog" + str, true, "DOG_EXPORT");
