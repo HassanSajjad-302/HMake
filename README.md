@@ -1078,7 +1078,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration();
+    getConfiguration().assign(IsCppMod::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
 
@@ -1094,14 +1094,15 @@ MAIN_FUNCTION
 
 ```cpp
 #include "Configure.hpp"
+#include "Configure.hpp"
 
 template <typename... T> void initializeTargets(DSC<CppTarget> *target, T... targets)
 {
     CppTarget &t = target->getSourceTarget();
-    string str = removeDashCppFromName(getLastNameAfterSlash(t.name));
+    const string str = removeDashCppFromName(getLastNameAfterSlash(t.name));
     t.moduleDirsRE("src/" + str + "/", ".*cpp")
-        .privateHUDirs("src/" + str)
-        .publicHUDirs("include/" + str);
+        .privateHUDirsRE("src/" + str, "", ".*hpp")
+        .publicHUDirsRE("include/" + str, str + '/', ".*hpp");
 
     if constexpr (sizeof...(targets))
     {
@@ -1111,7 +1112,7 @@ template <typename... T> void initializeTargets(DSC<CppTarget> *target, T... tar
 
 void configurationSpecification(Configuration &config)
 {
-    config.stdCppTarget->getSuourceTarget().interfaceIncludes("include");
+    config.stdCppTarget->getSourceTarget().interfaceIncludesSource("include");
     DSC<CppTarget> &lib4 = config.getCppTargetDSC("lib4");
     DSC<CppTarget> &lib3 = config.getCppTargetDSC("lib3").publicDeps(lib4);
     DSC<CppTarget> &lib2 = config.getCppTargetDSC("lib2").privateDeps(lib3);
@@ -1153,19 +1154,15 @@ and ```src/lib1/``` are linked with lib1 and so on.
 void configurationSpecification(Configuration &config)
 {
     DSC<CppTarget> &libB = config.getCppStaticDSC("libB");
-    libB.getSourceTarget().moduleFiles("B.cpp").headerUnits("B.hpp").publicIncludes(
-        path(srcNode->filePath).string());
+    libB.getSourceTarget().moduleFiles("B.cpp").publicHeaderUnits("B.hpp", "B.hpp");
 
-    config.getCppExeDSC("appA")
-        .privateDeps(libB)
-        .getSourceTarget()
-        .moduleFiles("A.cpp")
-        .headerUnits("A.hpp");
+    config.getCppExeDSC("appA").privateDeps(libB).getSourceTarget().moduleFiles("A.cpp").privateHeaderUnits("A.hpp",
+                                                                                                            "A.hpp");
 }
 
 void buildSpecification()
 {
-    getConfiguration();
+    getConfiguration().assign(IsCppMod::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
 
@@ -1199,6 +1196,9 @@ I have been working on this project, for close to three years.
 Please consider donating.
 Contact me here if you want to donate hassan.sajjad069@gmail.com,
 or you can donate to me through Patreon. Thanks.
+
+
+
 
 
 

@@ -41,5 +41,5 @@ void replaceLinesWithContent(const uint64_t lineBegin, const uint64_t lineEnd, c
 int main()
 {
     // lineBegin should be ```cpp line while lineEnd should be the line before ```.
-    replaceLinesWithContent(1007, 1029, "Example7");
+    replaceLinesWithContent(1151, 1173, "Example10");
 }
