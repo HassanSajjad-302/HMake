@@ -472,7 +472,7 @@ template <typename T> struct TPointerLess
     bool operator()(const T *lhs, const T *rhs) const
     {
         // Compare based on CppTarget::cacheIndex for ordering
-        return lhs->cacheIndex < rhs->cacheIndex;
+        return lhs->cacheIndex > rhs->cacheIndex;
     }
 };
 

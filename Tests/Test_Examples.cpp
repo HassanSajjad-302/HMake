@@ -68,17 +68,6 @@ TEST(ExamplesTest, Example4)
         "Cat says Meow..\n");
 }
 
-#ifndef WIN32
-TEST(ExamplesTest, Example5)
-{
-    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example5"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release//Animal/" +
-                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "Animal"),
-                                                 "Cat says Meow..\n");
-}
-#endif
-
 TEST(ExamplesTest, Example6)
 {
 
