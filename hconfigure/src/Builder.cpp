@@ -1,7 +1,7 @@
 
 #include "Builder.hpp"
+#include "Cache.hpp"
 #include "Node.hpp"
-#include "Settings.hpp"
 #include <mutex>
 #include <stack>
 #include <thread>
@@ -12,10 +12,10 @@ using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream,
 Builder::Builder()
 {
     round = 1;
-    RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
+    RealBTarget::graphEdges =
+        span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round].value);
     RealBTarget::sortGraph();
 
-    isOneThreadRunning = false;
     for (RealBTarget *rb : RealBTarget::sorted)
     {
         if (!rb->dependenciesSize)
@@ -28,10 +28,11 @@ Builder::Builder()
 
     vector<thread *> threads;
 
-    launchedCount = settings.maximumBuildThreads;
+    launchedCount = cache.numberOfBuildThreads;
 
     if (launchedCount)
     {
+        isOneThreadRunning = false;
         BTarget::laterDepsCentral.resize(launchedCount);
         threadIds.resize(launchedCount);
 
@@ -129,14 +130,18 @@ void Builder::execute()
     std::unique_lock lk(executeMutex);
     while (true)
     {
-        if (exeMode == ExecuteMode::GENERAL)
+        if (exeMode == ExecuteMode::WAIT)
         {
             if (rb = updateBTargets.getItem(); rb)
             {
                 DEBUG_EXECUTE(FORMAT("{} update-executing {} {}\n", round, __LINE__, getThreadId()));
                 DEBUG_EXECUTE(FORMAT("{} UnLocking Update Mutex {} {}\n", round, __LINE__, getThreadId()));
+                const bool hasElement = updateBTargets.hasElement();
                 executeMutex.unlock();
-                cond.notify_one();
+                if (hasElement)
+                {
+                    cond.notify_one();
+                }
                 if (round == 1)
                 {
                     rb->bTarget->setSelectiveBuild();
@@ -147,24 +152,30 @@ void Builder::execute()
                 {
                     continue;
                 }
-                atomic_ref(rb->updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
                 executeMutex.lock();
-                addNewTopBeUpdatedTargets(rb);
+
+                if (rb->exitStatus != EXIT_SUCCESS)
+                {
+                    errorHappenedInRoundMode = true;
+                }
+
+                decrementFromDependents(rb);
                 continue;
             }
 
             if (updateBTargets.size() == updateBTargetsSizeGoal && sleepingCount == launchedCount - 1)
             {
+                isOneThreadRunning = true;
                 if constexpr (bsMode == BSMode::BUILD)
                 {
                     if (round && !errorHappenedInRoundMode)
                     {
-                        uncheckedNodesCentral.reserve(Node::idCountCompleted);
-                        for (uint32_t i = 0; i < Node::idCountCompleted; ++i)
+                        uncheckedNodesCentral.reserve(Node::idCount);
+                        for (uint32_t i = 0; i < Node::idCount; ++i)
                         {
-                            if (Node::nodeIndices[i]->toBeChecked)
+                            if (nodeIndices[i]->toBeChecked)
                             {
-                                uncheckedNodesCentral.emplace_back(Node::nodeIndices[i]);
+                                uncheckedNodesCentral.emplace_back(nodeIndices[i]);
                             }
                         }
                         uncheckedNodes = divideInChunk(uncheckedNodesCentral, launchedCount);
@@ -182,6 +193,16 @@ void Builder::execute()
                 DEBUG_EXECUTE(FORMAT("{} Returning after roundGoal Achieved{} {}\n", round, __LINE__, getThreadId()));
                 return;
             }
+        }
+        else if (exeMode == ExecuteMode::PARALLEL)
+        {
+            // Maybe in build mode we do parallel round instead of wait round. As no CppTarget or LOAT depend on each
+            // other in Build-Mode in round1. All load direct and transitive deps from cache. This would reduce the
+            // number of executeMutex as just like node-check all thread will call updateBTarget in parallel instead of
+            // waiting on each other.
+            //
+            // Should the node-check
+            // round be floored to a thread-limit. Currently, it will use all threads
         }
         else if (exeMode == ExecuteMode::NODE_CHECK)
         {
@@ -207,14 +228,13 @@ void Builder::execute()
 
             if (checkedCount == launchedCount)
             {
-                isOneThreadRunning = true;
                 DEBUG_EXECUTE(
                     FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
 
-                BTarget::runEndOfRoundTargets();
+                BTarget::postRoundOneCompletion();
                 --round;
                 RealBTarget::graphEdges =
-                    span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
+                    span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round].value);
                 RealBTarget::sortGraph();
                 // RealBTarget::printSortedGraph();
 
@@ -249,16 +269,21 @@ void Builder::execute()
                 }
 
                 updateBTargetsSizeGoal = RealBTarget::sorted.size();
-                exeMode = ExecuteMode::GENERAL;
                 isOneThreadRunning = false;
+                exeMode = ExecuteMode::WAIT;
                 continue;
             }
         }
 
         DEBUG_EXECUTE(FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__, sleepingCount, getThreadId()));
-        incrementNumberOfSleepingThreads();
+        if (sleepingCount == launchedCount - 1)
+        {
+            RealBTarget::sortGraph();
+            printErrorMessage("HMake API misuse.\n");
+        }
+        ++sleepingCount;
         cond.wait(lk);
-        decrementNumberOfSleepingThreads();
+        --sleepingCount;
         DEBUG_EXECUTE(
             FORMAT("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__, sleepingCount, getThreadId()));
         if (returnAfterWakeup)
@@ -271,7 +296,7 @@ void Builder::execute()
     }
 }
 
-void Builder::addNewTopBeUpdatedTargets(const RealBTarget *rb)
+void Builder::decrementFromDependents(const RealBTarget *rb)
 {
     DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
     if (rb->exitStatus != EXIT_SUCCESS)
@@ -315,19 +340,4 @@ void Builder::addNewTopBeUpdatedTargets(const RealBTarget *rb)
 
     DEBUG_EXECUTE(FORMAT("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round, __LINE__,
                          updateBTargets.size(), updateBTargetsSizeGoal, getThreadId()));
-}
-
-void Builder::incrementNumberOfSleepingThreads()
-{
-    if (sleepingCount == launchedCount - 1)
-    {
-        RealBTarget::sortGraph();
-        printErrorMessage("HMake API misuse.\n");
-    }
-    ++sleepingCount;
-}
-
-void Builder::decrementNumberOfSleepingThreads()
-{
-    --sleepingCount;
 }

@@ -1,8 +1,9 @@
 #ifndef HMAKE_CACHE_HPP
 #define HMAKE_CACHE_HPP
 
-#include "PlatformSpecific.hpp"
+#include "BuildSystemFunctions.hpp"
 #include "nlohmann/json.hpp"
+#include <thread>
 #include <vector>
 
 using Json = nlohmann::json;
@@ -15,16 +16,17 @@ struct Cache
     // plain array. In VSTools array, compiler and linker also have include-dirs and library-dirs with
     // them which are loaded from toolsCache global variable.
     bool isCompilerInToolsArray;
-    unsigned selectedCompilerArrayIndex;
+    uint8_t selectedCompilerArrayIndex;
     bool isLinkerInToolsArray;
-    unsigned selectedLinkerArrayIndex;
+    uint8_t selectedLinkerArrayIndex;
     bool isArchiverInToolsArray;
-    unsigned selectedArchiverArrayIndex;
+    uint8_t selectedArchiverArrayIndex;
     bool isScannerInToolsArray;
-    unsigned selectedScannerArrayIndex;
+    uint8_t selectedScannerArrayIndex;
+    uint16_t numberOfBuildThreads = std::thread::hardware_concurrency();
     Json cacheVariables;
-    vector<string> configureExeBuildScript;
-    vector<string> buildExeBuildScript;
+    string configureExeBuildScript;
+    string buildExeBuildScript;
     Cache();
     void initializeCacheVariableFromCacheFile();
     void registerCacheVariables();
@@ -32,7 +34,7 @@ struct Cache
 void to_json(Json &j, const Cache &cacheLocal);
 void from_json(const Json &j, Cache &cacheLocal);
 
-inline Cache cache;
+GLOBAL_VARIABLE(Cache, cache)
 
 template <typename T> struct CacheVariable
 {

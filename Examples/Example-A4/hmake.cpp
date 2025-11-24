@@ -11,14 +11,14 @@ struct OurTarget : BTarget
     }
 };
 
-OurTarget a("Hello");
-OurTarget b("World");
-OurTarget c("HMake");
 void buildSpecification()
 {
-    a.addDepNow<0>(b);
-    b.addDepNow<0>(c);
-    c.addDepNow<0>(a);
+    OurTarget *a = new OurTarget("Hello");
+    OurTarget *b = new OurTarget("World");
+    OurTarget *c = new OurTarget("HMake");
+    a->addDepNow<0>(*b);
+    b->addDepNow<0>(*c);
+    c->addDepNow<0>(*a);
 }
 
 MAIN_FUNCTION

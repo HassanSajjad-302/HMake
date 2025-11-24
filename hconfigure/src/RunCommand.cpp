@@ -108,12 +108,12 @@ void RunCommand::startProcess(const string &command, bool isModuleProcess)
     }
 }
 
-RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
+RunCommand::OutputAndStatus RunCommand::endProcess(const bool isModuleProcess) const
 {
     OutputAndStatus o;
     DWORD exit_code = 0;
 
-    if (endModuleProcess)
+    if (isModuleProcess)
     {
         // Wait for it to exit and grab its exit code.
         if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
@@ -176,8 +176,24 @@ void RunCommand::killModuleProcess(const string &processName) const
 
 #else
 
-void RunCommand::startProcess(const string &command, bool isModuleProcess)
+void RunCommand::startProcess(const string &command, const bool isModuleProcess)
 {
+    if (isModuleProcess)
+    {
+        pid = fork();
+        if (pid == -1)
+        {
+            printErrorMessage("fork");
+        }
+        if (pid == 0)
+        {
+            // Child process
+            // Execute a command (e.g., "ls" or any other)
+            exit(WEXITSTATUS(system(command.c_str())));
+        }
+        return;
+    }
+
     // Create pipes for stdout and stderr
     if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1)
     {
@@ -206,22 +222,27 @@ void RunCommand::startProcess(const string &command, bool isModuleProcess)
         // Execute a command (e.g., "ls" or any other)
         exit(WEXITSTATUS(system(command.c_str())));
     }
-}
-
-RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
-{
-
-    OutputAndStatus o;
 
     // Parent process
     // Close unused pipe ends
     close(stdout_pipe[1]);
     close(stderr_pipe[1]);
+}
+
+RunCommand::OutputAndStatus RunCommand::endProcess(const bool isModuleProcess) const
+{
+    OutputAndStatus o;
 
     int status;
     if (waitpid(pid, &status, 0) < 0)
     {
         printErrorMessage("waitpid");
+    }
+    o.exitStatus = WEXITSTATUS(status);
+
+    if (isModuleProcess)
+    {
+        return o;
     }
 
     char buffer[4096];
@@ -253,8 +274,15 @@ RunCommand::OutputAndStatus RunCommand::endProcess(bool endModuleProcess) const
     close(stdout_pipe[0]);
     close(stderr_pipe[0]);
 
-    o.exitStatus = WEXITSTATUS(status);
     return o;
+}
+
+void RunCommand::killModuleProcess(const string &processName) const
+{
+    if (kill(pid, SIGKILL) != 0)
+    {
+        printErrorMessage(FORMAT("Killing module process {} failed.\n", processName));
+    }
 }
 
 #endif

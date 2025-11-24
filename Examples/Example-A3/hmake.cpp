@@ -20,9 +20,11 @@ struct OurTarget : BTarget
     }
 };
 
-OurTarget a(10, 20), b(50, 70), c(800, 1000);
 void buildSpecification()
 {
+    OurTarget *a = new OurTarget(10, 20);
+    OurTarget *b = new OurTarget(50, 70);
+    OurTarget *c = new OurTarget(800, 1000);
 }
 
 MAIN_FUNCTION

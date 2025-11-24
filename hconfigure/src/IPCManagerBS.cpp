@@ -8,7 +8,7 @@
 #ifdef _WIN32
 #include <Windows.h>
 #else
-#include "rapidhash.h"
+#include "rapidhash/rapidhash.h"
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -60,7 +60,7 @@ tl::expected<IPCManagerBS, std::string> makeIPCManagerBS(std::string BMIIfHeader
     // We use file hash to make a file path smaller, since there is a limit of NAME_MAX that is generally 108 bytes.
     // TODO
     // Have an option to receive this path in constructor to make it compatible with Android and IOS.
-    string prependDir = "/tmp/";
+    std::string prependDir = "/tmp/";
     const uint64_t hash = rapidhash(BMIIfHeaderUnitObjOtherwisePath.c_str(), BMIIfHeaderUnitObjOtherwisePath.size());
     prependDir.append(to16charHexString(hash));
     std::copy(prependDir.begin(), prependDir.end(), addr.sun_path);
@@ -101,7 +101,6 @@ IPCManagerBS::IPCManagerBS(const int fdSocket_)
 }
 #endif
 
-bool checked = false;
 tl::expected<void, std::string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[320], CTB &messageType) const
 {
     if (!connectedToCompiler)
@@ -134,11 +133,6 @@ tl::expected<void, std::string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[3
         {
             return tl::unexpected(getErrorString());
         }
-        if (checked)
-        {
-            bool breakpoint = true;
-        }
-        checked = true;
         const_cast<int &>(fdSocket) = fd;
 #endif
         const_cast<bool &>(connectedToCompiler) = true;

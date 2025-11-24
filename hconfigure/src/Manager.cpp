@@ -72,7 +72,7 @@ std::string getErrorString(const ErrorCategory errorCategory_)
 
 tl::expected<uint32_t, std::string> Manager::readInternal(char (&buffer)[BUFFERSIZE]) const
 {
-    uint32_t bytesRead;
+    int32_t bytesRead;
 
 #ifdef _WIN32
     const bool success = ReadFile(hPipe,               // pipe handle
@@ -103,13 +103,13 @@ tl::expected<uint32_t, std::string> Manager::readInternal(char (&buffer)[BUFFERS
 }
 
 #ifndef _WIN32
-tl::expected<void, string> writeAll(const int fd, const char *buffer, const uint32_t count)
+tl::expected<void, std::string> writeAll(const int fd, const char *buffer, const uint32_t count)
 {
     uint32_t bytesWritten = 0;
 
     while (bytesWritten != count)
     {
-        const uint32_t result = write(fd, buffer + bytesWritten, count - bytesWritten);
+        const int32_t result = write(fd, buffer + bytesWritten, count - bytesWritten);
         if (result == -1)
         {
             if (errno == EINTR)

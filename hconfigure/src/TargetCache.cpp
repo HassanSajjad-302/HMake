@@ -1,6 +1,7 @@
 
 #include "TargetCache.hpp"
-#include <BuildSystemFunctions.hpp>
+#include "BuildSystemFunctions.hpp"
+#include "Node.hpp"
 
 namespace
 {
@@ -51,16 +52,11 @@ TargetCache::TargetCache(const string &name)
     fileTargetCaches[cacheIndex].targetCache = this;
 }
 
-void TargetCache::updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified)
-{
-    // Should not have been called if a target has not this overridden
-    HMAKE_HMAKE_INTERNAL_ERROR
-}
-
-void TargetCache::writeBuildCache(vector<char> &buffer)
+bool TargetCache::writeBuildCache(vector<char> &buffer)
 {
     string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
     buffer.insert(buffer.end(), buildCache.begin(), buildCache.end());
+    return false;
 }
 
 void CCOrHash::serialize(vector<char> &buffer) const
@@ -124,7 +120,7 @@ string_view readStringView(const char *ptr, uint32_t &bytesRead)
 Node *readHalfNode(const char *ptr, uint32_t &bytesRead)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    return Node::getHalfNode(readUint32(ptr, bytesRead));
+    return nodeIndices[readUint32(ptr, bytesRead)];
 #else
     return Node::getHalfNode(readStringView(ptr, bytesRead));
 #endif
@@ -149,52 +145,54 @@ void BuildCache::Cpp::SourceFile::deserialize(const char *ptr, uint32_t &bytesRe
     }
 }
 
-void ModuleFile::SmRules::SingleHeaderUnitDep::serialize(vector<char> &buffer) const
+void ModuleFile::SingleHeaderUnitDep::serialize(vector<char> &buffer) const
 {
     writeNode(buffer, node);
     writeUint32(buffer, targetIndex);
     writeUint32(buffer, myIndex);
 }
 
-void ModuleFile::SmRules::SingleHeaderUnitDep::deserialize(const char *ptr, uint32_t &bytesRead)
+void ModuleFile::SingleHeaderUnitDep::deserialize(const char *ptr, uint32_t &bytesRead)
 {
     node = readHalfNode(ptr, bytesRead);
     targetIndex = readUint32(ptr, bytesRead);
     myIndex = readUint32(ptr, bytesRead);
 }
 
-void ModuleFile::SmRules::SingleModuleDep::serialize(vector<char> &buffer) const
+void ModuleFile::SingleModuleDep::serialize(vector<char> &buffer) const
 {
     writeNode(buffer, node);
-    writeStringView(buffer, logicalName);
+    writeUint32(buffer, targetIndex);
+    writeUint32(buffer, myIndex);
 }
 
-void ModuleFile::SmRules::SingleModuleDep::deserialize(const char *ptr, uint32_t &bytesRead)
+void ModuleFile::SingleModuleDep::deserialize(const char *ptr, uint32_t &bytesRead)
 {
+
     node = readHalfNode(ptr, bytesRead);
-    logicalName = readStringView(ptr, bytesRead);
+    targetIndex = readUint32(ptr, bytesRead);
+    myIndex = readUint32(ptr, bytesRead);
 }
 
-void ModuleFile::SmRules::serialize(vector<char> &buffer) const
+void ModuleFile::serialize(vector<char> &buffer) const
 {
-    writeBool(buffer, headerStatusChanged);
-
+    srcFile.serialize(buffer);
     writeUint32(buffer, headerUnitArray.size());
     for (const SingleHeaderUnitDep &h : headerUnitArray)
     {
         h.serialize(buffer);
     }
-
     writeUint32(buffer, moduleArray.size());
     for (const SingleModuleDep &m : moduleArray)
     {
         m.serialize(buffer);
     }
+    writeBool(buffer, headerStatusChanged);
 }
 
-void ModuleFile::SmRules::deserialize(const char *ptr, uint32_t &bytesRead)
+void ModuleFile::deserialize(const char *ptr, uint32_t &bytesRead)
 {
-    headerStatusChanged = readBool(ptr, bytesRead);
+    srcFile.deserialize(ptr, bytesRead);
     headerUnitArray.resize(readUint32(ptr, bytesRead));
     for (SingleHeaderUnitDep &hud : headerUnitArray)
     {
@@ -205,18 +203,7 @@ void ModuleFile::SmRules::deserialize(const char *ptr, uint32_t &bytesRead)
     {
         modDep.deserialize(ptr, bytesRead);
     }
-}
-
-void ModuleFile::serialize(vector<char> &buffer) const
-{
-    srcFile.serialize(buffer);
-    smRules.serialize(buffer);
-}
-
-void ModuleFile::deserialize(const char *ptr, uint32_t &bytesRead)
-{
-    srcFile.deserialize(ptr, bytesRead);
-    smRules.deserialize(ptr, bytesRead);
+    headerStatusChanged = readBool(ptr, bytesRead);
 }
 
 void BuildCache::Cpp::serialize(vector<char> &buffer) const

@@ -2,7 +2,7 @@
 
 void configurationSpecification(Configuration &config)
 {
-    CppSourceTarget &app = config.getCppExeDSC("app").getSourceTarget();
+    CppTarget &app = config.getCppExeDSC("app").getSourceTarget();
     app.sourceFiles("main.cpp");
 
     // Change the value of "FILE1" in cache.hmake to false and then run configure again.

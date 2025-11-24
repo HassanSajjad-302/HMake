@@ -3,7 +3,7 @@
 #define BOOSTCPPTARGET_HPP
 
 #include "Configuration.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppTarget.hpp"
 #include "DSC.hpp"
 
 void removeTroublingHu(const string_view *headerUnitsJsonDirs, uint64_t headerUnitsJsonDirsSize,
@@ -24,14 +24,14 @@ enum class BoostExampleOrTestType : uint8_t
 };
 
 union BoostTestTargetType {
-    DSC<CppSourceTarget> *dscTarget;
-    CppSourceTarget *cppTarget;
+    DSC<CppTarget> *dscTarget;
+    CppTarget *cppTarget;
 };
 
 struct ExampleOrTest
 {
-    // I think union should be used here for the cases where there is only CppSourceTarget and no complete
-    // DSC<CppSourceTarget>.
+    // I think union should be used here for the cases where there is only CppTarget and no complete
+    // DSC<CppTarget>.
     BoostTestTargetType testTarget;
     BoostExampleOrTestType targetType;
 };
@@ -110,10 +110,10 @@ class BoostCppTarget : TargetCache
     Configuration *configuration = nullptr;
     BTarget *testTarget = nullptr;
     BTarget *examplesTarget = nullptr;
-    DSC<CppSourceTarget> &mainTarget;
+    DSC<CppTarget> &mainTarget;
     vector<ExampleOrTest> examplesOrTests;
-    vector<DSC<CppSourceTarget> *> dscTestDepsPrivate;
-    vector<CppSourceTarget *> cppTestDepsPrivate;
+    vector<DSC<CppTarget> *> dscTestDepsPrivate;
+    vector<CppTarget *> cppTestDepsPrivate;
     vector<char> configBuffer;
     uint32_t testsOrExamplesCount = 0;
     flat_hash_map<string, Node *> testReqHeaderFiles;
@@ -140,7 +140,7 @@ class BoostCppTarget : TargetCache
     template <typename T, typename... U> BoostCppTarget &deps(DepType depType, T &dep_, U &&...deps_);
 
     template <BoostExampleOrTestType EOT>
-    void getTargetFromConfiguration(string_view name, string_view buildCacheFilesDirPath, const string &filePath) const;
+    void getTargetFromConfiguration(string_view name, Node *myBuildDir, const string &filePath) const;
     template <BoostExampleOrTestType EOT> bool getExplicitBuilding() const;
     template <BoostExampleOrTestType EOT> static string getInnerBuildDirExcludingFileName();
     template <BoostExampleOrTestType EOT>
@@ -385,8 +385,13 @@ void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &targ
     const string configurationNamePlusTargetName =
         removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
-    const string buildCacheFilesDirPath =
-        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
+    Node *myBuildDir = nullptr;
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
+                                     target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::getHalfNodeST(myBuildDirStr);
+    }
     const string *pushName =
         new string(target.getInnerBuildDirExcludingFileName<EOT>() + slashc + getNameBeforeLastPeriod(fileName));
     const string name = configurationNamePlusTargetName + *pushName;
@@ -394,7 +399,7 @@ void BoostCppTarget::Add<EOT, addInConfigCache>::operator()(BoostCppTarget &targ
     writeUint8(target.configBuffer, static_cast<uint8_t>(EOT));
     writeStringView(target.configBuffer, *pushName);
 
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
+    target.getTargetFromConfiguration<EOT>(name, myBuildDir, string(sourceDir) + slashc + string(fileName));
 }
 
 template <BoostExampleOrTestType EOT>
@@ -403,13 +408,19 @@ void BoostCppTarget::Add<EOT, false>::operator()(BoostCppTarget &target, string_
     const string configurationNamePlusTargetName =
         removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
-    const string buildCacheFilesDirPath =
-        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>();
+    Node *myBuildDir = nullptr;
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
+                                     target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::getHalfNodeST(myBuildDirStr);
+    }
+
     const string pushName =
         target.getInnerBuildDirExcludingFileName<EOT>() + slashc + getNameBeforeLastPeriod(fileName);
     const string name = configurationNamePlusTargetName + pushName;
 
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
+    target.getTargetFromConfiguration<EOT>(name, myBuildDir, string(sourceDir) + slashc + string(fileName));
 }
 
 template <BoostExampleOrTestType EOT, bool addInConfigCache>
@@ -419,8 +430,13 @@ void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &
     const string configurationNamePlusTargetName =
         removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
-    const string buildCacheFilesDirPath =
-        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
+    Node *myBuildDir = nullptr;
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
+                                     target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::getHalfNodeST(myBuildDirStr);
+    }
     const string *pushName = new string(target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc +
                                         getNameBeforeLastPeriod(fileName));
     const string name = configurationNamePlusTargetName + *pushName;
@@ -428,7 +444,7 @@ void BoostCppTarget::AddEnds<EOT, addInConfigCache>::operator()(BoostCppTarget &
     writeUint8(target.configBuffer, static_cast<uint8_t>(EOT));
     writeStringView(target.configBuffer, *pushName);
 
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
+    target.getTargetFromConfiguration<EOT>(name, myBuildDir, string(sourceDir) + slashc + string(fileName));
 }
 
 template <BoostExampleOrTestType EOT>
@@ -438,22 +454,27 @@ void BoostCppTarget::AddEnds<EOT, false>::operator()(BoostCppTarget &target, str
     const string configurationNamePlusTargetName =
         removeDashCppFromName(target.mainTarget.getSourceTarget().name) + slashc;
 
-    const string buildCacheFilesDirPath =
-        configurationNamePlusTargetName + target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName);
+    Node *myBuildDir = nullptr;
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        const string myBuildDirStr = configureNode->filePath + slashc + configurationNamePlusTargetName +
+                                     target.getInnerBuildDirExcludingFileName<EOT>();
+        myBuildDir = Node::getHalfNodeST(myBuildDirStr);
+    }
     const string pushName =
         target.getInnerBuildDirExcludingFileName<EOT>(innerBuildDirName) + slashc + getNameBeforeLastPeriod(fileName);
     const string name = configurationNamePlusTargetName + pushName;
 
-    target.getTargetFromConfiguration<EOT>(name, buildCacheFilesDirPath, string(sourceDir) + slashc + string(fileName));
+    target.getTargetFromConfiguration<EOT>(name, myBuildDir, string(sourceDir) + slashc + string(fileName));
 }
 
 template <typename T, typename... U> BoostCppTarget &BoostCppTarget::privateTestDeps(T &dep_, U &&...deps_)
 {
-    if constexpr (std::is_same_v<decltype(dep_), DSC<CppSourceTarget> &>)
+    if constexpr (std::is_same_v<decltype(dep_), DSC<CppTarget> &>)
     {
         dscTestDepsPrivate.emplace_back(&dep_);
     }
-    else if constexpr (std::is_same_v<decltype(dep_), CppSourceTarget &>)
+    else if constexpr (std::is_same_v<decltype(dep_), CppTarget &>)
     {
         cppTestDepsPrivate.emplace_back(&dep_);
     }
@@ -510,9 +531,9 @@ template <typename T, typename... U> BoostCppTarget &BoostCppTarget::deps(DepTyp
     {
         mainTarget.deps(depType, dep_.mainTarget);
     }
-    else if constexpr (std::is_same_v<DSC<CppSourceTarget> &, decltype(dep_)>)
+    else if constexpr (std::is_same_v<DSC<CppTarget> &, decltype(dep_)>)
     {
-        mainTarget.deps<CppSourceTarget>(depType, dep_);
+        mainTarget.deps<CppTarget>(depType, dep_);
     }
     else
     {
@@ -527,27 +548,25 @@ template <typename T, typename... U> BoostCppTarget &BoostCppTarget::deps(DepTyp
 }
 
 template <BoostExampleOrTestType EOT>
-void BoostCppTarget::getTargetFromConfiguration(const string_view name, const string_view buildCacheFilesDirPath,
-                                                const string &filePath) const
+void BoostCppTarget::getTargetFromConfiguration(const string_view name, Node *myBuildDir, const string &filePath) const
 {
-    CppSourceTarget *testOrExmple;
+    CppTarget *testOrExmple;
     if constexpr (EOT == BoostExampleOrTestType::COMPILE_TEST)
     {
-        CppSourceTarget &t = configuration->getCppObjectNoNameAddStdTarget(
-            getExplicitBuilding<EOT>(), string(buildCacheFilesDirPath), string(name));
-        t.privateDeps(&mainTarget.getSourceTarget()).moduleFiles(filePath);
-        for (CppSourceTarget *dep : cppTestDepsPrivate)
+        CppTarget &t =
+            configuration->getCppObjectNoNameAddStdTarget(getExplicitBuilding<EOT>(), myBuildDir, string(name));
+        t.privateDeps(mainTarget.getSourceTarget()).moduleFiles(filePath);
+        for (CppTarget *dep : cppTestDepsPrivate)
         {
-            t.privateDeps(dep);
+            t.privateDeps(*dep);
         }
         testOrExmple = &t;
     }
     else
     {
-        DSC<CppSourceTarget> &t =
-            configuration->getCppExeDSCNoName(getExplicitBuilding<EOT>(), string(buildCacheFilesDirPath), string(name));
+        DSC<CppTarget> &t = configuration->getCppExeDSCNoName(getExplicitBuilding<EOT>(), myBuildDir, string(name));
         t.privateDeps(mainTarget).getSourceTarget().moduleFiles(filePath);
-        for (DSC<CppSourceTarget> *dep : dscTestDepsPrivate)
+        for (DSC<CppTarget> *dep : dscTestDepsPrivate)
         {
             t.privateDeps(*dep);
         }
@@ -556,7 +575,7 @@ void BoostCppTarget::getTargetFromConfiguration(const string_view name, const st
 
     if (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(TreatModuleAsSource::NO))
+        if (configuration->evaluate(IsCppMod::YES))
         {
 
             for (const auto &[logicalName, node] : testReqHeaderFiles)

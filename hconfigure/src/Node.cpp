@@ -70,7 +70,6 @@ Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
     node = this;
     myId = atomic_ref(idCount).fetch_add(1, std::memory_order_relaxed);
     nodeIndices[myId] = this;
-    atomic_ref(idCountCompleted).fetch_add(1, std::memory_order_release);
 }
 
 // This function is called single-threaded. While the above is called multithreaded in lambdas passed to nodeAllFiles
@@ -79,7 +78,6 @@ Node::Node(string filePath_) : filePath(std::move(filePath_))
 {
     myId = reinterpret_cast<uint32_t &>(idCount)++;
     nodeIndices[myId] = this;
-    ++reinterpret_cast<uint32_t &>(idCountCompleted);
 }
 
 string Node::getFileName() const
@@ -147,22 +145,9 @@ void Node::performSystemCheck()
 #endif
 }
 
-void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
+void Node::ensureSystemCheckCalled()
 {
-    if (isOneThreadRunning)
-    {
-        performSystemCheck();
-        if (fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
-        {
-            printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath, isFile ? "regular" : "dir",
-                                     getStatusString(filePath)));
-        }
-        systemCheckCalled = true;
-        systemCheckCompleted = true;
-        return;
-    }
-
-    if (systemCheckCompleted || atomic_ref(systemCheckCompleted).load())
+    if (atomic_ref(systemCheckCompleted).load(std::memory_order_acquire))
     {
         return;
     }
@@ -171,65 +156,41 @@ void Node::ensureSystemCheckCalled(const bool isFile, const bool mayNotExist)
     if (!atomic_ref(systemCheckCalled).exchange(true))
     {
         performSystemCheck();
-        if (fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
-        {
-            printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", filePath, isFile ? "regular" : "dir",
-                                     getStatusString(filePath)));
-        }
-        atomic_ref(systemCheckCompleted).store(true);
+        atomic_ref(systemCheckCompleted).store(true, std::memory_order_release);
         return;
     }
 
     // systemCheck is being called for this node by another thread
-    while (!atomic_ref(systemCheckCompleted).load())
+    while (!atomic_ref(systemCheckCompleted).load(std::memory_order_acquire))
     {
-        // std::this_thread::sleep_for(std::chrono::nanoseconds(100));
     }
 }
 
-Node *Node::getNodeFromNormalizedString(string p, const bool isFile, const bool mayNotExist)
+Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
 {
     Node *node = nullptr;
 
-    using Map = decltype(nodeAllFiles);
-
     if (nodeAllFiles.lazy_emplace_l(
-            string_view(p), [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(node, p); }))
+            filePath_, [&](const NodeHashSet::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const NodeHashSet::constructor &constructor) { constructor(node, string(filePath_)); }))
     {
     }
 
-    node->ensureSystemCheckCalled(isFile, mayNotExist);
-    return node;
-}
-
-Node *Node::getNodeFromNormalizedString(const string_view p, const bool isFile, const bool mayNotExist)
-{
-    Node *node = nullptr;
-
-    using Map = decltype(nodeAllFiles);
-
-    if (nodeAllFiles.lazy_emplace_l(
-            p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(node, string(p)); }))
+    node->ensureSystemCheckCalled();
+    if (node->fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
     {
+        printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", node->filePath, isFile ? "regular" : "dir",
+                                 getStatusString(node->filePath)));
     }
-
-    node->ensureSystemCheckCalled(isFile, mayNotExist);
     return node;
 }
 
-Node *Node::getNodeFromNonNormalizedString(const string &p, const bool isFile, const bool mayNotExist)
+Node *Node::getNodeNonNormalized(const string &filePath_, const bool isFile, const bool mayNotExist)
 {
-    return getNodeFromNormalizedString(getNormalizedPath(p), isFile, mayNotExist);
+    return getNode(getNormalizedPath(filePath_), isFile, mayNotExist);
 }
 
-Node *Node::getNodeFromNonNormalizedPath(const path &p, const bool isFile, const bool mayNotExist)
-{
-    return getNodeFromNormalizedString(getNormalizedPath(p), isFile, mayNotExist);
-}
-
-Node *Node::addHalfNodeFromNormalizedStringSingleThreaded(string normalizedFilePath)
+Node *Node::getHalfNodeST(string normalizedFilePath)
 {
     return const_cast<Node *>(nodeAllFiles.emplace(std::move(normalizedFilePath)).first.operator->());
 }
@@ -238,11 +199,9 @@ Node *Node::getHalfNode(const string_view p)
 {
     Node *node = nullptr;
 
-    using Map = decltype(nodeAllFiles);
-
     if (nodeAllFiles.lazy_emplace_l(
-            p, [&](const Map::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const Map::constructor &constructor) { constructor(node, string(p)); }))
+            p, [&](const NodeHashSet::value_type &node_) { node = const_cast<Node *>(&node_); },
+            [&](const NodeHashSet::constructor &constructor) { constructor(node, string(p)); }))
     {
     }
 
@@ -251,20 +210,5 @@ Node *Node::getHalfNode(const string_view p)
 
 Node *Node::getHalfNode(const uint32_t index)
 {
-    if (!nodeIndices[index])
-    {
-        bool brekapoint = true;
-    }
     return nodeIndices[index];
-}
-
-void Node::clearNodes()
-{
-    nodeAllFiles.clear();
-    idCount = 0;
-    idCountCompleted = 0;
-    for (Node *&node : nodeIndices)
-    {
-        node = nullptr;
-    }
 }

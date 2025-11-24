@@ -7,23 +7,18 @@
 #include "Builder.hpp"
 #include "Cache.hpp"
 #include "ConfigurationAssign.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppMod.hpp"
+#include "CppTarget.hpp"
 #include "DSC.hpp"
 #include "Features.hpp"
 #include "JConsts.hpp"
-#include "SMFile.hpp"
-#include "Settings.hpp"
 #include "ToolsCache.hpp"
-#include "Utilities.hpp"
 #include "nlohmann/json.hpp"
 #include <filesystem>
 #include <memory>
 #include <stack>
 #include <thread>
 #include <utility>
-
-// Will return true if all configurations are built
-bool selectiveConfigurationSpecification(void (*ptr)(Configuration &configuration));
 
 // TODO
 // HMake in future will only be available as module. Hence configuration will-be a split-second process.

@@ -2,69 +2,42 @@
 #include "BoostCppTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Configuration.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppTarget.hpp"
 #include "DSC.hpp"
 #include "LOAT.hpp"
 #include <utility>
 
 using std::filesystem::directory_iterator, std::filesystem::remove;
 
-void removeTroublingHu(const string_view *headerUnitsJsonDirs, uint64_t headerUnitsJsonDirsSize,
-                       const string_view *headerUnitsJsonEntry, uint64_t headerUnitsJsonEntrySize)
-{
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        string str = "header-units.json";
-        string boostDir = srcNode->filePath + slashc + string("boost") + slashc;
-        for (uint64_t i = 0; i < headerUnitsJsonDirsSize; ++i)
-        {
-            path p{boostDir + string(headerUnitsJsonDirs[i]) + slashc + str};
-            if (exists(p))
-            {
-                remove(p);
-            }
-        }
-
-        for (uint64_t i = 0; i < headerUnitsJsonEntrySize; i += 2)
-        {
-            /*Document d;
-            string fileName = boostDir + string(headerUnitsJsonEntry[i]) + slashc + str;
-            auto a = readValueFromFile(fileName, d);
-            Value &m = d.FindMember("BuildAsHeaderUnits")->value.GetArray();
-            uint64_t index = UINT64_MAX;
-            for (uint64_t j = 0; j < m.Size(); ++j)
-            {
-                if (compareStringsFromEnd(vtosv(m[j]), headerUnitsJsonEntry[i + 1]))
-                {
-                    m.Erase(&m[j]);
-                    prettyWriteValueToFile(fileName, d);
-                }
-            }*/
-        }
-    }
-}
-
-static DSC<CppSourceTarget> &getMainTarget(const string &name, Configuration *configuration, const bool headerOnly,
-                                           const bool hasBigHeader)
+static DSC<CppTarget> &getMainTarget(const string &name, Configuration *configuration, const bool headerOnly,
+                                     const bool hasBigHeader)
 {
     if (name == "boost/core/noncopyable.hpp")
     {
         bool breakpoint = true;
     }
-    const string buildCacheFilesDirPath = configuration->name + slashc + name;
 
-    DSC<CppSourceTarget> *t = nullptr;
+    Node *myBuildDir = nullptr;
+
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        const string buildCacheFilesDirPath = configureNode->filePath + slashc + configuration->name + slashc + name;
+        myBuildDir = Node::getHalfNodeST(buildCacheFilesDirPath);
+        create_directories(myBuildDir->filePath);
+    }
+
+    DSC<CppTarget> *t = nullptr;
     if (headerOnly)
     {
-        t = &configuration->getCppObjectDSC(false, buildCacheFilesDirPath, name);
+        t = &configuration->getCppObjectDSC(false, myBuildDir, name);
     }
     else
     {
-        t = &configuration->getCppTargetDSC(false, buildCacheFilesDirPath, name);
+        t = &configuration->getCppTargetDSC(false, myBuildDir, name);
         t->getSourceTarget().moduleDirs("libs" + name + "src");
     }
 
-    CppSourceTarget &cpp = t->getSourceTarget();
+    CppTarget &cpp = t->getSourceTarget();
     const string s = "boost/" + name;
     if (name == "hash2" || name == "container_hash" || name == "describe" || name == "mp11" || name == "io" ||
         name == "system")
@@ -141,8 +114,8 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
             if (isCompile)
             {
-                CppSourceTarget &cppTarget = configuration->getCppObjectNoName(explicitBuild, "", unitTestName)
-                                                 .privateDeps(&mainTarget.getSourceTarget());
+                CppTarget &cppTarget = configuration->getCppObjectNoName(explicitBuild, nullptr, unitTestName)
+                                           .privateDeps(mainTarget.getSourceTarget());
                 examplesOrTests.emplace_back(BoostTestTargetType{.cppTarget = &cppTarget}, boostExampleOrTest);
 
                 if (testTarget)
@@ -152,8 +125,8 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
             }
             else
             {
-                DSC<CppSourceTarget> &uintTest =
-                    configuration->getCppExeDSCNoName(explicitBuild, "", unitTestName).privateDeps(mainTarget);
+                DSC<CppTarget> &uintTest =
+                    configuration->getCppExeDSCNoName(explicitBuild, nullptr, unitTestName).privateDeps(mainTarget);
                 examplesOrTests.emplace_back(BoostTestTargetType{.dscTarget = &uintTest}, boostExampleOrTest);
                 if (isExample)
                 {
@@ -179,7 +152,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         {
             if (p.path().extension() == ".ipp" || p.path().extension() == ".hpp")
             {
-                Node *node = Node::getNodeFromNonNormalizedString(p.path().generic_string(), true);
+                Node *node = Node::getNodeNonNormalized(p.path().generic_string(), true);
                 testReqHeaderFiles.emplace(string(node->getFileName()), node);
             }
         }
@@ -204,14 +177,14 @@ BoostCppTarget &BoostCppTarget::assignPrivateTestDeps()
 
         if (isCompile)
         {
-            for (CppSourceTarget *dep : cppTestDepsPrivate)
+            for (CppTarget *dep : cppTestDepsPrivate)
             {
-                testTarget.cppTarget->privateDeps(dep);
+                testTarget.cppTarget->privateDeps(*dep);
             }
         }
         else
         {
-            for (DSC<CppSourceTarget> *dep : dscTestDepsPrivate)
+            for (DSC<CppTarget> *dep : dscTestDepsPrivate)
             {
                 testTarget.dscTarget->privateDeps(*dep);
             }

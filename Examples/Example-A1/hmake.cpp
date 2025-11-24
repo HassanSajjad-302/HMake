@@ -15,11 +15,11 @@ struct OurTarget : BTarget
     }
 };
 
-OurTarget a("Hello");
-OurTarget b("World");
 void buildSpecification()
 {
-    b.addDepNow<0>(a);
+    OurTarget *a = new OurTarget("Hello");
+    OurTarget *b = new OurTarget("World");
+    b->addDepNow<0>(*a);
 }
 
 MAIN_FUNCTION

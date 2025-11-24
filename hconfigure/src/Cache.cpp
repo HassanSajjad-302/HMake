@@ -3,7 +3,6 @@
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
 #include "Node.hpp"
-#include "Settings.hpp"
 #include <fstream>
 
 using std::ifstream, std::ofstream;
@@ -31,15 +30,6 @@ void Cache::initializeCacheVariableFromCacheFile()
     ifstream(filePath) >> cacheFileJsonLocal;
     *this = cacheFileJsonLocal;
     cacheFileJson = std::move(cacheFileJsonLocal);
-    // Settings are saved only if mode is configure.
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        if (const path p = path(configureNode->filePath + slashc + "settings.json"); !exists(p))
-        {
-            const Json settingsJson = Settings{};
-            ofstream(p) << settingsJson.dump(4);
-        }
-    }
 }
 
 void Cache::registerCacheVariables()
@@ -64,6 +54,7 @@ void to_json(Json &j, const Cache &cacheLocal)
     j[JConsts::archiverSelectedArrayIndex] = cacheLocal.selectedArchiverArrayIndex;
     j[JConsts::isScannerInToolsArray] = cacheLocal.isScannerInToolsArray;
     j[JConsts::scannerSelectedArrayIndex] = cacheLocal.selectedScannerArrayIndex;
+    j[JConsts::numberOfBuildThreads] = cacheLocal.numberOfBuildThreads;
     j[JConsts::cacheVariables] = cacheLocal.cacheVariables;
     j[JConsts::configureExeBuildScript] = cacheLocal.configureExeBuildScript;
     j[JConsts::buildExeBuildScript] = cacheLocal.buildExeBuildScript;
@@ -80,17 +71,18 @@ void from_json(const Json &j, Cache &cacheLocal)
         srcPath = srcPath.parent_path();
     }
 
-    srcNode = Node::getNodeFromNonNormalizedPath(srcPath, false);
+    srcNode = Node::getNodeNonNormalized(srcPath.string(), false);
 
     cacheLocal.isCompilerInToolsArray = j.at(JConsts::isCompilerInToolsArray).get<bool>();
-    cacheLocal.selectedCompilerArrayIndex = j.at(JConsts::compilerSelectedArrayIndex).get<int>();
+    cacheLocal.selectedCompilerArrayIndex = j.at(JConsts::compilerSelectedArrayIndex).get<uint8_t>();
     cacheLocal.isLinkerInToolsArray = j.at(JConsts::isLinkerInToolsArray).get<bool>();
-    cacheLocal.selectedLinkerArrayIndex = j.at(JConsts::linkerSelectedArrayIndex).get<int>();
+    cacheLocal.selectedLinkerArrayIndex = j.at(JConsts::linkerSelectedArrayIndex).get<uint8_t>();
     cacheLocal.isArchiverInToolsArray = j.at(JConsts::isArchiverInToolsArray).get<bool>();
-    cacheLocal.selectedArchiverArrayIndex = j.at(JConsts::archiverSelectedArrayIndex).get<int>();
+    cacheLocal.selectedArchiverArrayIndex = j.at(JConsts::archiverSelectedArrayIndex).get<uint8_t>();
     cacheLocal.isScannerInToolsArray = j.at(JConsts::isScannerInToolsArray).get<bool>();
-    cacheLocal.selectedScannerArrayIndex = j.at(JConsts::scannerSelectedArrayIndex).get<int>();
+    cacheLocal.selectedScannerArrayIndex = j.at(JConsts::scannerSelectedArrayIndex).get<uint8_t>();
+    cacheLocal.numberOfBuildThreads = j.at(JConsts::numberOfBuildThreads).get<uint16_t>();
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();
-    cacheLocal.configureExeBuildScript = j.at(JConsts::configureExeBuildScript).get<vector<string>>();
-    cacheLocal.buildExeBuildScript = j.at(JConsts::buildExeBuildScript).get<vector<string>>();
+    cacheLocal.configureExeBuildScript = j.at(JConsts::configureExeBuildScript).get<string>();
+    cacheLocal.buildExeBuildScript = j.at(JConsts::buildExeBuildScript).get<string>();
 }

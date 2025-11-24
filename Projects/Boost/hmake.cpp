@@ -32,14 +32,17 @@
 
 // I used ptime for time measurements. And tested on modern hardware with 32 threads x86-64 cpu on Windows11.
 
+#include "ArrayDeclarations.hpp"
 #include "BoostCppTarget.hpp"
-#include "arrayDeclarations.hpp"
 
 using std::filesystem::directory_iterator;
 
 void configurationSpecification(Configuration &config)
 {
-    config.stdCppTarget->getSourceTarget().publicIncludesSource(srcNode->filePath);
+    DSC<CppTarget> &boostTarget = config.getCppStaticDSC("boost").publicDeps(*config.stdCppTarget);
+    boostTarget.getSourceTarget().publicIncludesSource(srcNode->filePath);
+    config.stdCppTarget = &boostTarget;
+
     config.assign(BuildTests::YES, BuildExamples::YES);
 
     BoostCppTarget &callableTraits = config.getBoostCppTarget("callable_Traits");
@@ -57,27 +60,26 @@ void configurationSpecification(Configuration &config)
     BoostCppTarget &preprocessor = config.getBoostCppTarget("preprocessor");
     BoostCppTarget &predef = config.getBoostCppTarget("predef", true, false);
 
-    DSC<CppSourceTarget> &cstdint = config.getCppObjectDSC("cstdint").publicDeps(configTarget.mainTarget);
+    DSC<CppTarget> &cstdint = config.getCppObjectDSC("cstdint").publicDeps(configTarget.mainTarget);
     cstdint.getSourceTarget().publicHeaderFiles("boost/cstdint.hpp", "boost/cstdint.hpp");
     BoostCppTarget &assertTarget = config.getBoostCppTarget("assert").publicDeps(cstdint);
     BoostCppTarget &exception = config.getBoostCppTarget("exception", true, false).publicDeps(assertTarget);
-    DSC<CppSourceTarget> &throwExceptionHeader =
+    DSC<CppTarget> &throwExceptionHeader =
         config.getCppObjectDSC("current-target").publicDeps(exception.mainTarget, cstdint);
     BoostCppTarget &core = config.getBoostCppTarget("core", true, false).publicDeps(configTarget, throwExceptionHeader);
     BoostCppTarget &winApi = config.getBoostCppTarget("winapi", true, false).publicDeps(configTarget, predef);
-    DSC<CppSourceTarget> &staticAssert = config.getCppObjectDSC("staticAssert").publicDeps(configTarget.mainTarget);
+    DSC<CppTarget> &staticAssert = config.getCppObjectDSC("staticAssert").publicDeps(configTarget.mainTarget);
     staticAssert.getSourceTarget().publicHeaderFiles("boost/static_assert.hpp", "boost/static_assert.hpp");
     BoostCppTarget &typeTraits = config.getBoostCppTarget("type_traits").publicDeps(staticAssert);
     BoostCppTarget &mpl = config.getBoostCppTarget("mpl", true, false).publicDeps(preprocessor, typeTraits);
     BoostCppTarget &variant2 = config.getBoostCppTarget("variant2").publicDeps(mp11, assertTarget);
-    DSC<CppSourceTarget> &limits = config.getCppObjectDSC("limits").publicDeps(configTarget.mainTarget);
+    DSC<CppTarget> &limits = config.getCppObjectDSC("limits").publicDeps(configTarget.mainTarget);
     BoostCppTarget &system = config.getBoostCppTarget("system").publicDeps(
         configTarget, variant2, assertTarget, winApi.mainTarget, throwExceptionHeader, limits);
     BoostCppTarget &function = config.getBoostCppTarget("function").publicDeps(assertTarget, core);
     BoostCppTarget &move = config.getBoostCppTarget("move", true, false).publicDeps(configTarget);
+    DSC<CppTarget> &getPointerHeader = config.getCppObjectDSC("getPointerHeader").publicDeps(configTarget.mainTarget);
     BoostCppTarget &bind = config.getBoostCppTarget("bind");
-    DSC<CppSourceTarget> &getPointerHeader =
-        config.getCppObjectDSC("getPointerHeader").publicDeps(configTarget.mainTarget);
     throwExceptionHeader.getSourceTarget().publicHeaderFiles("boost/throw_exception.hpp", "boost/throw_exception.hpp");
     bind.publicDeps(getPointerHeader);
     getPointerHeader.getSourceTarget().publicHeaderFiles("boost/get_pointer.hpp", "boost/get_pointer.hpp");
@@ -86,35 +88,31 @@ void configurationSpecification(Configuration &config)
         config.getBoostCppTarget("container_hash", true, false).publicDeps(describe, typeTraits);
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (config.evaluate(TreatModuleAsSource::NO))
+        if (config.evaluate(IsCppMod::YES))
         {
             containerHash.testReqHeaderFiles.erase("config.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./config.hpp", Node::getNodeFromNonNormalizedString("libs/container_hash/test/config.hpp", true));
+                "./config.hpp", Node::getNodeNonNormalized("libs/container_hash/test/config.hpp", true));
             containerHash.testReqHeaderFiles.erase("compile_time.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./compile_time.hpp",
-                Node::getNodeFromNonNormalizedString("libs/container_hash/test/compile_time.hpp", true));
+                "./compile_time.hpp", Node::getNodeNonNormalized("libs/container_hash/test/compile_time.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_set_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_set_test.hpp",
-                Node::getNodeFromNonNormalizedString("libs/container_hash/test/hash_set_test.hpp", true));
+                "./hash_set_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_set_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_map_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_map_test.hpp",
-                Node::getNodeFromNonNormalizedString("libs/container_hash/test/hash_map_test.hpp", true));
+                "./hash_map_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_map_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_sequence_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
                 "./hash_sequence_test.hpp",
-                Node::getNodeFromNonNormalizedString("libs/container_hash/test/hash_sequence_test.hpp", true));
+                Node::getNodeNonNormalized("libs/container_hash/test/hash_sequence_test.hpp", true));
             containerHash.testReqHeaderFiles.erase("hash_fwd_test.hpp");
             containerHash.testReqHeaderFiles.emplace(
-                "./hash_fwd_test.hpp",
-                Node::getNodeFromNonNormalizedString("libs/container_hash/test/hash_fwd_test.hpp", true));
+                "./hash_fwd_test.hpp", Node::getNodeNonNormalized("libs/container_hash/test/hash_fwd_test.hpp", true));
         }
     }
     BoostCppTarget &io = config.getBoostCppTarget("io", true, false).publicDeps(configTarget);
-    DSC<CppSourceTarget> &operatorsHeader = config.getCppObjectDSC("operators-header").publicDeps(core.mainTarget);
+    DSC<CppTarget> &operatorsHeader = config.getCppObjectDSC("operators-header").publicDeps(core.mainTarget);
     operatorsHeader.getSourceTarget().publicHeaderFiles("boost/operators.hpp", "boost/operators.hpp");
     BoostCppTarget &detail = config.getBoostCppTarget("detail", true, false).publicDeps(configTarget, typeTraits);
     BoostCppTarget &utility =
@@ -122,7 +120,7 @@ void configurationSpecification(Configuration &config)
     limits.getSourceTarget().publicHeaderFiles("boost/limits.hpp", "boost/limits.hpp");
     // BoostCppTarget &container = config.getBoostCppTarget("container", fals, false);
     BoostCppTarget &hash2 = config.getBoostCppTarget("hash2", true, false).publicDeps(assertTarget, containerHash);
-    DSC<CppSourceTarget> &arrayHeader =
+    DSC<CppTarget> &arrayHeader =
         config.getCppStaticDSC("array_header").publicDeps(assertTarget.mainTarget, staticAssert, throwExceptionHeader);
     arrayHeader.getSourceTarget().publicHeaderFiles("boost/array.hpp", "boost/array.hpp");
 
@@ -153,7 +151,7 @@ void configurationSpecification(Configuration &config)
     //                                                        std::size(preprocessorIsEmpty));
     //
     // auto preprocessorMacroDefines = [&](string_view innerBuildDirName, string_view cddName, string_view cddValue) {
-    //     for (CppSourceTarget &cppTestTarget :
+    //     for (CppTarget &cppTestTarget :
     //          preprocessor.getEndsWith<BoostExampleOrTestType::COMPILE_TEST, IteratorTargetType::CPP,
     //          BSMode::BUILD>())
     //     {
@@ -188,14 +186,11 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    removeTroublingHu(headerUnitsJsonDirs, std::size(headerUnitsJsonDirs), headerUnitsJsonEntry,
-                      std::size(headerUnitsJsonEntry));
-
-    // getConfiguration("conventional-r").assign(TreatModuleAsSource::YES, ConfigType::RELEASE);
-    // getConfiguration("hu-r").assign(TreatModuleAsSource::NO, ConfigType::RELEASE);
-    getConfiguration("conventional-d").assign(TreatModuleAsSource::YES, ConfigType::DEBUG);
-    // getConfiguration("hu-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::NO);
-    getConfiguration("huBig-d").assign(TreatModuleAsSource::NO, ConfigType::DEBUG, BigHeaderUnit::YES);
+    // getConfiguration("conventional-r").assign(IsCppMod::NO, ConfigType::RELEASE);
+    // getConfiguration("hu-r").assign(IsCppMod::YES, ConfigType::RELEASE);
+    getConfiguration("conventional-d").assign(IsCppMod::NO, ConfigType::DEBUG);
+    // getConfiguration("hu-d").assign(IsCppMod::YES, ConfigType::DEBUG, BigHeaderUnit::NO);
+    getConfiguration("huBig-d").assign(IsCppMod::YES, ConfigType::DEBUG, BigHeaderUnit::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

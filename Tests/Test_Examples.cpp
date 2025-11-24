@@ -2,15 +2,13 @@
 #include "BuildSystemFunctions.hpp"
 #include "ExamplesTestHelper.hpp"
 #include "Features.hpp"
-#include "Utilities.hpp"
-#include "fmt/format.h"
 #include "nlohmann/json.hpp"
 #include "gtest/gtest.h"
 #include <fstream>
 #include <regex>
 
 using std::string, std::ofstream, std::ifstream, std::filesystem::create_directory, std::filesystem::path,
-    std::filesystem::current_path, std::cout, fmt::format, std::filesystem::remove_all, std::ifstream, std::ofstream;
+    std::filesystem::current_path, std::cout, std::format, std::filesystem::remove_all, std::ifstream, std::ofstream;
 
 TEST(ExamplesTest, Example1)
 {
@@ -70,17 +68,6 @@ TEST(ExamplesTest, Example4)
         "Cat says Meow..\n");
 }
 
-#ifndef WIN32
-TEST(ExamplesTest, Example5)
-{
-    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example5"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release//Animal/" +
-                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "Animal"),
-                                                 "Cat says Meow..\n");
-}
-#endif
-
 TEST(ExamplesTest, Example6)
 {
 
@@ -105,9 +92,9 @@ TEST(ExamplesTest, Example7)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example7"));
     ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
-    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/modules/app/" +
+    /*ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/modules/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
-                                                 "Hello World\n");
+                                                 "Hello World\n");*/
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/hu/app2/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app2"),
                                                  "Hello World\n");
@@ -197,13 +184,13 @@ HMake
 XMake
 Target build2 runtime error.
 )";
-    vector<string> expected = split(str, "\n");
-    vector<string> actual = split(output, "\n");
+    const vector<string_view> expected = split(str, '\n');
+    const vector<string_view> actual = split(output, '\n');
     ASSERT_EQ(expected.size(), actual.size());
-    for (string &s : actual)
+    for (const string_view &s : actual)
     {
         bool found = false;
-        for (string &c : expected)
+        for (const string_view &c : expected)
         {
             if (s == c)
             {

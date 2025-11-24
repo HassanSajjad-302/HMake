@@ -2,7 +2,7 @@
 #include "Features.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppTarget.hpp"
 #include "JConsts.hpp"
 #include "ToolsCache.hpp"
 #include "nlohmann/json.hpp"
@@ -877,8 +877,9 @@ void CppCompilerFeatures::initialize()
         }
     }
 
-    compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-release\bin\clang-cl)";
     compiler.btSubFamily = BTSubFamily::CLANG;
+    // compiler.bTPath = R"(/home/hassan/Projects/llvm-project/llvm/cmake-build-release/bin/clang)";
+    compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-release\bin\clang-cl.exe)";
 }
 
 void CppCompilerFeatures::setConfigType(const ConfigType configType_)

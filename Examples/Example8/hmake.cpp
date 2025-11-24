@@ -7,7 +7,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration().assign(TreatModuleAsSource::NO);
+    getConfiguration().assign(IsCppMod::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
 

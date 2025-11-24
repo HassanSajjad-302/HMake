@@ -59,7 +59,7 @@ tl::expected<IPCManagerCompiler, std::string> makeIPCManagerCompiler(std::string
     // We use file hash to make a file path smaller, since there is a limit of NAME_MAX that is generally 108 bytes.
     // TODO
     // Have an option to receive this path in constructor to make it compatible with Android and IOS.
-    string prependDir = "/tmp/";
+    std::string prependDir = "/tmp/";
     const uint64_t hash = rapidhash(BMIIfHeaderUnitObjOtherwisePath.c_str(), BMIIfHeaderUnitObjOtherwisePath.size());
     prependDir.append(to16charHexString(hash));
     std::copy(prependDir.begin(), prependDir.end(), addr.sun_path);

@@ -2,13 +2,16 @@
 #ifndef HMAKE_OBJECTFILEPRODUCER_HPP
 #define HMAKE_OBJECTFILEPRODUCER_HPP
 
+#include "BuildSystemFunctions.hpp"
 #include "DepType.hpp"
-#include "LOAT.hpp"
 #include "ObjectFile.hpp"
+
+class LOAT;
 
 class ObjectFileProducer : public BTarget
 {
   public:
+    bool hasObjectFiles = true;
     ObjectFileProducer()
     {
     }
@@ -17,7 +20,7 @@ class ObjectFileProducer : public BTarget
         : BTarget(std::move(name_), buildExplicit, makeDirectory)
     {
     }
-    virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles, LOAT *loat) const
+    virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles) const
     {
     }
 };
@@ -28,25 +31,17 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
     ObjectFileProducerWithDS();
     ObjectFileProducerWithDS(string name_, bool buildExplicit, bool makeDirectory);
 
-    // Custom comparator for BTarget* based on id
-    struct TPointerLess
-    {
-        bool operator()(const T *lhs, const T *rhs) const
-        {
-            // Compare based on CppSourceTarget::cacheIndex for ordering
-            return lhs->cacheIndex < rhs->cacheIndex;
-        }
-    };
-
+    // Following 2 unused at BSMode::Build
     // we need this to be ordered in setCompileCommand. order is deterministic as insertions are supposed to be always
     // in order
-    phmap::btree_set<T *, TPointerLess> reqDeps;
+    btree_set<T *, TPointerLess<T>> reqDeps;
     flat_hash_set<T *> useReqDeps;
-    template <typename... U> T &publicDeps(T &dep, U &&...deps);
-    template <typename... U> T &privateDeps(T &dep, U &&...deps);
-    template <typename... U> T &interfaceDeps(T &dep, U &&...deps);
 
-    template <typename... U> T &deps(const DepType depType, T &dep, U &&...deps);
+    template <typename... U> T &publicDeps(T &objectFileProducer, U &&...objectFileProducers);
+    template <typename... U> T &privateDeps(T &objectFileProducer, U &&...objectFileProducers);
+    template <typename... U> T &interfaceDeps(T &objectFileProducer, U &&...objectFileProducers);
+
+    template <typename... U> T &deps(DepType depType, T &objectFileProducer, U &&...objectFileProducers);
 
     void populateReqAndUseReqDeps();
 };
@@ -59,63 +54,81 @@ ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS(string name_, const bool b
 {
 }
 
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::publicDeps(T &dep, U &&...deps)
+template <typename T>
+template <typename... U>
+T &ObjectFileProducerWithDS<T>::publicDeps(T &objectFileProducer, U &&...objectFileProducers)
 {
-    reqDeps.emplace(&dep);
-    useReqDeps.emplace(&dep);
-    addDependency<2>(dep);
-    if constexpr (sizeof...(deps))
+    deps(DepType::PUBLIC, objectFileProducer);
+    if constexpr (sizeof...(objectFileProducers))
     {
-        return publicDeps(deps...);
-    }
-    return static_cast<T &>(*this);
-}
-
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::privateDeps(T &dep, U &&...deps)
-{
-    reqDeps.emplace(&dep);
-    addDependency<2>(*dep);
-    if constexpr (sizeof...(deps))
-    {
-        return privateDeps(deps...);
-    }
-    return static_cast<T &>(*this);
-}
-
-template <typename T> template <typename... U> T &ObjectFileProducerWithDS<T>::interfaceDeps(T &dep, U &&...deps)
-{
-    useReqDeps.emplace(&dep);
-    if constexpr (sizeof...(deps))
-    {
-        return interfaceDeps(deps...);
+        return publicDeps(objectFileProducers...);
     }
     return static_cast<T &>(*this);
 }
 
 template <typename T>
 template <typename... U>
-T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &dep, U &&...objectFileDeps)
+T &ObjectFileProducerWithDS<T>::privateDeps(T &objectFileProducer, U &&...objectFileProducers)
 {
-    if (depType == DepType::PUBLIC)
+    deps(DepType::PRIVATE, objectFileProducer);
+    if constexpr (sizeof...(objectFileProducers))
     {
-        reqDeps.emplace(&dep);
-        useReqDeps.emplace(&dep);
-        addDepNow<1>(dep);
-        addSelectiveDepNow<0>(dep);
+        return privateDeps(objectFileProducers...);
     }
-    else if (depType == DepType::PRIVATE)
+    return static_cast<T &>(*this);
+}
+
+template <typename T>
+template <typename... U>
+T &ObjectFileProducerWithDS<T>::interfaceDeps(T &objectFileProducer, U &&...objectFileProducers)
+{
+    deps(DepType::INTERFACE, objectFileProducer);
+    if constexpr (sizeof...(objectFileProducers))
     {
-        reqDeps.emplace(&dep);
-        addDepNow<1>(dep);
-        addSelectiveDepNow<0>(dep);
+        return interfaceDeps(objectFileProducers...);
+    }
+    return static_cast<T &>(*this);
+}
+
+template <typename T>
+template <typename... U>
+T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &objectFileProducer, U &&...objectFileProducers)
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        TargetCache *us = static_cast<TargetCache *>(static_cast<T *>(this));
+        TargetCache *ourDep = static_cast<TargetCache *>(&objectFileProducer);
+        if (ourDep->cacheIndex > us->cacheIndex)
+        {
+            printErrorMessage(FORMAT("Please declare dependency \n{}\n before its dependent \n{}\nDependency "
+                                     "declaration before the dependent is an invariant in HMake.",
+                                     fileTargetCaches[ourDep->cacheIndex].name, fileTargetCaches[us->cacheIndex].name));
+        }
+
+        if (depType == DepType::PUBLIC)
+        {
+            reqDeps.emplace(&objectFileProducer);
+            useReqDeps.emplace(&objectFileProducer);
+            addDepNow<1>(objectFileProducer);
+        }
+        else if (depType == DepType::PRIVATE)
+        {
+            reqDeps.emplace(&objectFileProducer);
+            addDepNow<1>(objectFileProducer);
+        }
+        else
+        {
+            useReqDeps.emplace(&objectFileProducer);
+        }
     }
     else
     {
-        useReqDeps.emplace(&dep);
+        addDepNow<0, BTargetDepType::SELECTIVE>(objectFileProducer);
     }
-    if constexpr (sizeof...(objectFileDeps))
+
+    if constexpr (sizeof...(objectFileProducers))
     {
-        return deps(objectFileDeps...);
+        return deps(objectFileProducers...);
     }
     return static_cast<T &>(*this);
 }

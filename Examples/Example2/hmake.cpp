@@ -1,10 +1,8 @@
-
 #include "Configure.hpp"
 
-void configurationSpecification(Configuration &configuration)
+void configurationSpecification(Configuration &config)
 {
-    configuration.getCppExeDSC("app")
-        .getSourceTarget().sourceDirsRE(".", "file[1-4]\\.cpp|main\\.cpp");
+    config.getCppExeDSC("app").getSourceTarget().sourceDirsRE(".", "file[1-4]\\.cpp|main\\.cpp");
 }
 
 void buildSpecification()

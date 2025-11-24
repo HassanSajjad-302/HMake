@@ -35,20 +35,16 @@ struct OurTarget2 : BTarget
             a->addDepNow<0>(*c);
             b->addDepNow<0>(*c);
 
-            {
-                std::lock_guard lk(builder.executeMutex);
-                builder.updateBTargets.emplace(&c->realBTargets[0]);
-                builder.updateBTargetsSizeGoal += 3;
-            }
-            builder.cond.notify_one();
+            std::lock_guard lk(builder.executeMutex);
+            builder.updateBTargets.emplace(&c->realBTargets[0]);
+            builder.updateBTargetsSizeGoal += 3;
         }
     }
 };
 
-OurTarget2 target2;
-
 void buildSpecification()
 {
+    OurTarget2 *target2 = new OurTarget2();
 }
 
 MAIN_FUNCTION

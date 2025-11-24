@@ -16,7 +16,6 @@ class LOAT : public PLOAT
   public:
     BuildCache::Link linkBuildCache;
     string reqLinkerFlags;
-    string linkOutput;
     string linkWithTargets;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     HashedCommand commandWithoutTargetsWithTool;
@@ -24,26 +23,23 @@ class LOAT : public PLOAT
     vector<const ObjectFile *> objectFiles;
     vector<PLOAT *> dllsToBeCopied;
     // Needed for pdb files.
-    Node *buildCacheFilesDirPathNode = nullptr;
+    Node *myBuildDir = nullptr;
 
-    uint16_t thrIndex;
     bool archiving = false;
     bool archived = false;
 
-    void makeBuildCacheFilesDirPathAtConfigTime(string buildCacheFilesDirPath);
+    void makeBuildCacheFilesDirPathAtConfigTime();
     LOAT(Configuration &config_, const string &name_, TargetType targetType);
     LOAT(Configuration &config_, bool buildExplicit, const string &name_, TargetType targetType);
-    LOAT(Configuration &config_, const string &buildCacheFileDirPath_, const string &name_, TargetType targetType);
-    LOAT(Configuration &config_, const string &buildCacheFileDirPath_, bool buildExplicit, const string &name_,
-         TargetType targetType);
+    LOAT(Configuration &config_, Node *myBuildDir_, const string &name_, TargetType targetType);
+    LOAT(Configuration &config_, Node *myBuildDir_, bool buildExplicit, const string &name_, TargetType targetType);
     void setOutputName(string str);
 
     BTargetType getBTargetType() const override;
 
     void setFileStatus();
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
-    void updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified) override;
-    void writeBuildCache(vector<char> &buffer) override;
+    bool writeBuildCache(vector<char> &buffer) override;
     void writeCacheAtConfigureTime();
     void readCacheAtBuildTime();
 
@@ -62,7 +58,7 @@ template <typename T> bool LOAT::evaluate(T property) const
     }
     else
     {
-        return config.linkerFeatures.evaluate(property);
+        static_assert(false);
     }
 }
 

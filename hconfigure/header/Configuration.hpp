@@ -2,13 +2,14 @@
 #define HMAKE_CONFIGURATION_HPP
 
 #include "BTarget.hpp"
+#include "DSC.hpp"
 #include "Features.hpp"
 #include "TargetCache.hpp"
 #include <memory>
 
 using std::shared_ptr;
 
-class CppSourceTarget;
+class CppTarget;
 
 enum class AssignStandardCppTarget : uint8_t
 {
@@ -70,7 +71,7 @@ enum class BuildTestsAndExamplesExplicitBuild : uint8_t
     YES,
 };
 
-enum class TreatModuleAsSource : bool
+enum class IsCppMod : bool
 {
     NO,
     YES,
@@ -109,7 +110,7 @@ class Configuration : public BTarget
 {
   public:
     vector<class BoostCppTarget *> boostCppTargets;
-    vector<CppSourceTarget *> cppSourceTargets;
+    vector<CppTarget *> cppTargets;
     vector<LOAT *> loats;
     vector<PLOAT *> ploats;
     CppCompilerFeatures compilerFeatures;
@@ -117,14 +118,14 @@ class Configuration : public BTarget
     PrebuiltLinkerFeatures ploatFeatures;
     LinkerFeatures linkerFeatures;
     LinkerFlags linkerFlags;
-    DSC<CppSourceTarget> *stdCppTarget = nullptr;
+    DSC<CppTarget> *stdCppTarget = nullptr;
     TargetType targetType = TargetType::LIBRARY_STATIC;
     AssignStandardCppTarget assignStandardCppTarget = AssignStandardCppTarget::YES;
     BuildTests buildTests = BuildTests::NO;
     BuildExamples buildExamples = BuildExamples::NO;
     TestsExplicit testsExplicit = TestsExplicit::NO;
     ExamplesExplicit examplesExplicit = ExamplesExplicit::NO;
-    TreatModuleAsSource treatModuleASSource = TreatModuleAsSource::YES;
+    IsCppMod isCppMod = IsCppMod::NO;
     StdAsHeaderUnit stdAsHeaderUnit = StdAsHeaderUnit::YES;
     BigHeaderUnit bigHeaderUnit = BigHeaderUnit::NO;
     SystemTarget systemTarget = SystemTarget::NO;
@@ -132,101 +133,96 @@ class Configuration : public BTarget
 
     bool archiving = false;
 
-    CppSourceTarget &getCppObject(const string &name_);
-    CppSourceTarget &getCppObject(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
-    CppSourceTarget &getCppObjectAddStdTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                              const string &name_);
+    CppTarget &getCppObject(const string &name_);
+    CppTarget &getCppObject(bool explicitBuild, Node *myBuildDir, const string &name_);
+    CppTarget &getCppObjectAddStdTarget(bool explicitBuild, Node *myBuildDir, const string &name_);
 
     LOAT &GetExeLOAT(const string &name_);
-    LOAT &GetExeLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    LOAT &GetExeLOAT(bool explicitBuild, Node *myBuildDir, const string &name_);
     LOAT &getStaticLOAT(const string &name_);
-    LOAT &getStaticLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    LOAT &getStaticLOAT(bool explicitBuild, Node *myBuildDir, const string &name_);
     LOAT &getSharedLOAT(const string &name_);
-    LOAT &getSharedLOAT(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    LOAT &getSharedLOAT(bool explicitBuild, Node *myBuildDir, const string &name_);
 
-    PLOAT &getPLOAT(const string &name_, const string &dir, TargetType linkTargetType_);
-    PLOAT &getStaticPLOAT(const string &name_, const string &dir);
-    PLOAT &getSharedPLOAT(const string &name_, const string &dir);
-    CppSourceTarget &addStdCppDep(CppSourceTarget &target);
-    DSC<CppSourceTarget> &addStdDSCCppDep(DSC<CppSourceTarget> &target) const;
+    PLOAT &getPLOAT(const string &name_, Node *myBuildDir, TargetType linkTargetType_);
+    PLOAT &getStaticPLOAT(const string &name_, Node *myBuildDir);
+    PLOAT &getSharedPLOAT(const string &name_, Node *myBuildDir);
+    CppTarget &addStdCppDep(CppTarget &target);
+    DSC<CppTarget> &addStdDSCCppDep(DSC<CppTarget> &target) const;
 
     // CSourceTarget &GetCPT();
 
-    DSC<CppSourceTarget> &getCppObjectDSC(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppObjectDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                          const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppExeDSC(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppExeDSC(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_,
-                                       bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSC(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                          const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppStaticDSC(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppStaticDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                          const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppSharedDSC(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppSharedDSC(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                          const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppObjectDSC(const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppObjectDSC(bool explicitBuild, Node *myBuildDir, const string &name_, bool defines = false,
+                                    string define = "");
+    DSC<CppTarget> &getCppExeDSC(const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppExeDSC(bool explicitBuild, Node *myBuildDir, const string &name_, bool defines = false,
+                                 string define = "");
+    DSC<CppTarget> &getCppTargetDSC(const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppTargetDSC(bool explicitBuild, Node *myBuildDir, const string &name_, bool defines = false,
+                                    string define = "");
+    DSC<CppTarget> &getCppStaticDSC(const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppStaticDSC(bool explicitBuild, Node *myBuildDir, const string &name_, bool defines = false,
+                                    string define = "");
+    DSC<CppTarget> &getCppSharedDSC(const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppSharedDSC(bool explicitBuild, Node *myBuildDir, const string &name_, bool defines = false,
+                                    string define = "");
 
     // _P means it will use PLOAT instead of LOAT
 
-    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &dir, bool defines = false,
-                                            string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSC_P(const string &name_, const string &prebuiltName, const string &dir,
-                                            bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppStaticDSC_P(const string &name_, const string &dir, bool defines = false,
-                                            string define = "");
+    DSC<CppTarget> &getCppTargetDSC_P(const string &name_, Node *myBuildDir, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppTargetDSC_P(const string &name_, const string &prebuiltName, Node *myBuildDir,
+                                      bool defines = false, string define = "");
+    DSC<CppTarget> &getCppStaticDSC_P(const string &name_, Node *myBuildDir, bool defines = false, string define = "");
 
-    DSC<CppSourceTarget> &getCppSharedDSC_P(const string &name_, const string &dir, bool defines = false,
-                                            string define = "");
+    DSC<CppTarget> &getCppSharedDSC_P(const string &name_, Node *myBuildDir, bool defines = false, string define = "");
 
     // These NoName functions do not prepend configuration name to the target name.
 
-    CppSourceTarget &getCppObjectNoName(const string &name_);
+    CppTarget &getCppObjectNoName(const string &name_);
     // non-DSC functions do not add the Std target as dependency, so we define a new function with
-    CppSourceTarget &getCppObjectNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
-    CppSourceTarget &getCppObjectNoNameAddStdTarget(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                    const string &name_);
+    CppTarget &getCppObjectNoName(bool explicitBuild, Node *myBuildDir, const string &name_);
+    CppTarget &getCppObjectNoNameAddStdTarget(bool explicitBuild, Node *myBuildDir, const string &name_);
 
     LOAT &GetExeLOATNoName(const string &name_);
-    LOAT &GetExeLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    LOAT &GetExeLOATNoName(bool explicitBuild, Node *myBuildDir, const string &name_);
     LOAT &getStaticLOATNoName(const string &name_);
-    LOAT &getStaticLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    LOAT &getStaticLOATNoName(bool explicitBuild, Node *myBuildDir, const string &name_);
     LOAT &getSharedLOATNoName(const string &name_);
-    LOAT &getSharedLOATNoName(bool explicitBuild, const string &buildCacheFilesDirPath_, const string &name_);
+    LOAT &getSharedLOATNoName(bool explicitBuild, Node *myBuildDir, const string &name_);
 
-    PLOAT &getPLOATNoName(const string &name_, const string &dir, TargetType linkTargetType_);
-    PLOAT &getStaticPLOATNoName(const string &name_, const string &dir);
-    PLOAT &getSharedPLOATNoName(const string &name_, const string &dir);
+    PLOAT &getPLOATNoName(const string &name_, Node *myBuildDir, TargetType linkTargetType_);
+    PLOAT &getStaticPLOATNoName(const string &name_, Node *myBuildDir);
+    PLOAT &getSharedPLOATNoName(const string &name_, Node *myBuildDir);
     // CSourceTarget &GetCPTNoName();
 
-    DSC<CppSourceTarget> &getCppObjectDSCNoName(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppObjectDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppExeDSCNoName(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppExeDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                             const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSCNoName(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppStaticDSCNoName(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppStaticDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppSharedDSCNoName(const string &name_, bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppSharedDSCNoName(bool explicitBuild, const string &buildCacheFilesDirPath_,
-                                                const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppObjectDSCNoName(const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppObjectDSCNoName(bool explicitBuild, Node *myBuildDir, const string &name_,
+                                          bool defines = false, string define = "");
+    DSC<CppTarget> &getCppExeDSCNoName(const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppExeDSCNoName(bool explicitBuild, Node *myBuildDir, const string &name_, bool defines = false,
+                                       string define = "");
+    DSC<CppTarget> &getCppTargetDSCNoName(const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppTargetDSCNoName(bool explicitBuild, Node *myBuildDir, const string &name_,
+                                          bool defines = false, string define = "");
+    DSC<CppTarget> &getCppStaticDSCNoName(const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppStaticDSCNoName(bool explicitBuild, Node *myBuildDir, const string &name_,
+                                          bool defines = false, string define = "");
+    DSC<CppTarget> &getCppSharedDSCNoName(const string &name_, bool defines = false, string define = "");
+    DSC<CppTarget> &getCppSharedDSCNoName(bool explicitBuild, Node *myBuildDir, const string &name_,
+                                          bool defines = false, string define = "");
 
     // _P means it will use PLOAT instead of LOAT
 
-    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &dir, bool defines = false,
-                                                  string define = "");
-    DSC<CppSourceTarget> &getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName, const string &dir,
-                                                  bool defines = false, string define = "");
-    DSC<CppSourceTarget> &getCppStaticDSC_PNoName(const string &name_, const string &dir, bool defines = false,
-                                                  string define = "");
+    DSC<CppTarget> &getCppTargetDSC_PNoName(const string &name_, Node *myBuildDir, bool defines = false,
+                                            string define = "");
+    DSC<CppTarget> &getCppTargetDSC_PNoName(const string &name_, const string &prebuiltName, Node *myBuildDir,
+                                            bool defines = false, string define = "");
+    DSC<CppTarget> &getCppStaticDSC_PNoName(const string &name_, Node *myBuildDir, bool defines = false,
+                                            string define = "");
 
-    DSC<CppSourceTarget> &getCppSharedDSC_PNoName(const string &name_, const string &dir, bool defines = false,
-                                                  string define = "");
+    DSC<CppTarget> &getCppSharedDSC_PNoName(const string &name_, Node *myBuildDir, bool defines = false,
+                                            string define = "");
 
     BoostCppTarget &getBoostCppTarget(const string &name, bool headerOnly = true, bool hasBigHeader = true,
                                       bool createTestsTarget = false, bool createExamplesTarget = false);
@@ -243,7 +239,7 @@ Configuration &getConfiguration(const string &name = "Release");
 
 template <typename T> bool Configuration::evaluate(T property) const
 {
-    if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
+    if constexpr (std::is_same_v<decltype(property), DSC<CppTarget> *>)
     {
         return stdCppTarget == property;
     }
@@ -267,9 +263,9 @@ template <typename T> bool Configuration::evaluate(T property) const
     {
         return examplesExplicit == property;
     }
-    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
+    else if constexpr (std::is_same_v<decltype(property), IsCppMod>)
     {
-        return treatModuleASSource == property;
+        return isCppMod == property;
     }
     else if constexpr (std::is_same_v<decltype(property), StdAsHeaderUnit>)
     {

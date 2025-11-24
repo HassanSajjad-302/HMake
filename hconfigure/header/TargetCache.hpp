@@ -1,21 +1,47 @@
+/// \file
+/// Classes defined here are used for build-cache and config-cache reading/writing.
+
 #ifndef TARGETCACHE_HPP
 #define TARGETCACHE_HPP
 
 #include "BuildSystemFunctions.hpp"
-#include "SpecialNodes.hpp"
 #include "parallel-hashmap/parallel_hashmap/phmap.h"
 
 using phmap::flat_hash_map;
 
+/// HMake has 2 different cache that are config-cache and build-cache. config-cache is only read but not written at
+/// build-time. By separating config-cache and build-cache, we keep the build-cache smaller and keep the builds faster.
+///
+/// TargetCache works with FileTargetCache to manage the config-cache and build-cache reading and writing. Any class
+/// that wants to store cache in config-cache or build-cache should inherit from this class. Its constructor take a name
+/// that must be unique for 2 inherited objects. Otherwise, configure step will fail.
+///
+/// In config-cache, we store name, then the size of the data and then the data itself.
+/// However, in build-cache, we store only the size and the data but not the name. The order is same in both
+/// config-cache and build-cache.
+///
+/// initializeBuildCache() calls first readConfigCache() and then readBuildCache().
+///
+/// readConfigCache() populates fileTargetCaches and nameToIndexMap containers. Then in buildSpecification() and
+/// later, whenever an object of TargetCache is instantiated, in the TargetCache constructor, we use nameToIndexMap
+/// container to retrieve the index of FileTargetCache element in fileTargetCaches container. FileTargetCache contains
+/// the both configCache and buildCache data that were populated in readConfigCache() and readBuildCache() respectively.
+class TargetCache
+{
+  public:
+    /// Address of this element in fileTargetCaches vector
+    uint32_t cacheIndex = -1;
+    explicit TargetCache(const string &name);
+    virtual bool writeBuildCache(vector<char> &buffer);
+};
+
+/// Every Target-Cache has representation on both config-cache and build-cache. It could be empty. The order is
+/// persistent across builds.
 struct FileTargetCache
 {
-    class TargetCache *targetCache = nullptr;
-    // string will have 4 byte size instead of 8 byte size.
+    /// Back-pointer to the targetCache
+    TargetCache *targetCache = nullptr;
     string_view name;
-    // At config-time the conif-cache and build-cache are written once using the following variables.
-    // While at build-time, the build-cache is written multiple times to save progress as more files are built so it is
-    // written using the TargetCache::updateBuildCache function using the above targetCache pointer. This is done by
-    // CacheWriteManager.
     string_view configCache;
     string_view buildCache;
 };
@@ -23,17 +49,7 @@ struct FileTargetCache
 inline vector<FileTargetCache> fileTargetCaches;
 inline flat_hash_map<string, uint32_t> nameToIndexMap;
 
-class TargetCache
-{
-  public:
-    /// Needed to address in fileTargetCaches;
-    uint32_t cacheIndex = -1;
-    explicit TargetCache(const string &name);
-    virtual void updateBuildCache(void *ptr, string &outputStr, string &errorStr, bool &buildCacheModified);
-    virtual void writeBuildCache(vector<char> &buffer);
-};
-
-/// Stores either compile-commands or its based on the USE_COMMAND_HASH CMake configuration macro.
+/// Stores either compile-commands or its hash based on the USE_COMMAND_HASH CMake configuration macro.
 struct CCOrHash
 {
 #ifdef USE_COMMAND_HASH
@@ -44,41 +60,6 @@ struct CCOrHash
 
     void serialize(vector<char> &buffer) const;
     void deserialize(const char *ptr, uint32_t &bytesRead);
-};
-
-struct ConfigCache
-{
-    struct Cpp
-    {
-        struct InclNode
-        {
-            Node *node;
-        };
-        struct HuNode
-        {
-            Node *node;
-            bool isStandard = false;
-            bool ignoreHeader = false;
-            uint32_t targetCacheIndex = -1;
-            uint32_t headerUnitIndex = -1;
-        };
-        vector<InclNode> reqInclsArray;
-        vector<InclNode> useReqInclsArray;
-        vector<HuNode> reqHUDirsArray;
-        vector<HuNode> useReqHUDirsArray;
-        vector<Node *> sourceFiles;
-        vector<Node *> moduleFiles;
-        vector<Node *> headerUnits;
-        Node *buildCacheFilesDirPath;
-    };
-
-    struct Link
-    {
-        Node *outputFileNode;
-        vector<Node *> reqLibraryDirsArray;
-        vector<Node *> useReqLibraryDirsArray;
-        Node *buildCacheFilesDirPath;
-    };
 };
 
 struct BuildCache
@@ -96,34 +77,28 @@ struct BuildCache
 
         struct ModuleFile
         {
-            struct SmRules
+            struct SingleHeaderUnitDep
             {
-                struct SingleHeaderUnitDep
-                {
-                    Node *node;
-                    uint32_t targetIndex{};
-                    uint32_t myIndex{};
-                    void serialize(vector<char> &buffer) const;
-                    void deserialize(const char *ptr, uint32_t &bytesRead);
-                };
+                Node *node;
+                uint32_t targetIndex{};
+                uint32_t myIndex{};
+                void serialize(vector<char> &buffer) const;
+                void deserialize(const char *ptr, uint32_t &bytesRead);
+            };
 
-                struct SingleModuleDep
-                {
-                    Node *node;
-                    string_view logicalName;
-                    void serialize(vector<char> &buffer) const;
-                    void deserialize(const char *ptr, uint32_t &bytesRead);
-                };
-
-                bool headerStatusChanged;
-                vector<SingleHeaderUnitDep> headerUnitArray;
-                vector<SingleModuleDep> moduleArray;
+            struct SingleModuleDep
+            {
+                Node *node;
+                uint32_t targetIndex{};
+                uint32_t myIndex{};
                 void serialize(vector<char> &buffer) const;
                 void deserialize(const char *ptr, uint32_t &bytesRead);
             };
 
             SourceFile srcFile;
-            SmRules smRules;
+            vector<SingleHeaderUnitDep> headerUnitArray;
+            vector<SingleModuleDep> moduleArray;
+            bool headerStatusChanged;
             void serialize(vector<char> &buffer) const;
             void deserialize(const char *ptr, uint32_t &bytesRead);
         };

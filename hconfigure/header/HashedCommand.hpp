@@ -2,7 +2,7 @@
 #ifndef HMAKE_HashedCommand_HPP
 #define HMAKE_HashedCommand_HPP
 
-#include "PlatformSpecific.hpp"
+#include "BuildSystemFunctions.hpp"
 
 using std::string;
 

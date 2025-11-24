@@ -1,7 +1,8 @@
 
 #include "BuildTools.hpp"
+#include "BuildSystemFunctions.hpp"
+#include "CppTarget.hpp"
 #include "JConsts.hpp"
-#include "PlatformSpecific.hpp"
 #include <utility>
 
 using std::stringstream;
@@ -85,7 +86,7 @@ void from_json(const Json &json, BTSubFamily &btSubFamily)
     }
 }
 
-BuildTool::BuildTool(const BTFamily btFamily_, const Version btVersion_, path btPath_)
+BuildTool::BuildTool(const BTFamily btFamily_, const Version btVersion_, string btPath_)
     : bTFamily(btFamily_), bTVersion(btVersion_), bTPath(std::move(btPath_))
 {
 }
@@ -95,7 +96,7 @@ void to_json(Json &json, const BuildTool &buildTool)
     json[JConsts::family] = buildTool.bTFamily;
     json[JConsts::subFamily] = buildTool.btSubFamily;
     json[JConsts::version] = buildTool.bTVersion;
-    json[JConsts::path] = buildTool.bTPath.string();
+    json[JConsts::path] = buildTool.bTPath;
 }
 
 void from_json(const Json &json, BuildTool &buildTool)
@@ -106,17 +107,17 @@ void from_json(const Json &json, BuildTool &buildTool)
     buildTool.bTPath = json.at(JConsts::path).get<string>();
 }
 
-Compiler::Compiler(const BTFamily btFamily_, const Version btVersion_, path btPath_)
+Compiler::Compiler(const BTFamily btFamily_, const Version btVersion_, string btPath_)
     : BuildTool(btFamily_, btVersion_, std::move(btPath_))
 {
 }
 
-Linker::Linker(const BTFamily btFamily_, const Version btVersion_, path btPath_)
+Linker::Linker(const BTFamily btFamily_, const Version btVersion_, string btPath_)
     : BuildTool(btFamily_, btVersion_, std::move(btPath_))
 {
 }
 
-Archiver::Archiver(const BTFamily btFamily_, const Version btVersion_, path btPath_)
+Archiver::Archiver(const BTFamily btFamily_, const Version btVersion_, string btPath_)
     : BuildTool(btFamily_, btVersion_, std::move(btPath_))
 {
 }

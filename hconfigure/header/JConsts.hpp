@@ -39,7 +39,7 @@ struct JConsts
     inline static const string consumerDependencies = "consumer-dependencies";
     inline static const string copy = "copy";
     inline static const string copyingTarget = "copying-target";
-    inline static const string cppSourceTargets = "cpp-source-targets";
+    inline static const string cppTargets = "cpp-source-targets";
     inline static const string debug = "debug";
     inline static const string dependencies = "dependencies";
     inline static const string depth = "depth";
@@ -90,12 +90,11 @@ struct JConsts
     inline static const string linuxUnix = "linux-unix";
     inline static const string logicalName = "logical-name";
     inline static const string lookupMethod = "lookup-method";
-    inline static const string maximumBuildThreads = "maximum-build-threads";
-    inline static const string maximumLinkThreads = "maximum-link-threads";
     inline static const string moduleDependencies = "module-dependencies";
     inline static const string moduleScope = "module-scope";
     inline static const string msvc = "msvc";
     inline static const string name = "name";
+    inline static const string numberOfBuildThreads = "number-of-build-threads";
     inline static const string object = "object";
     inline static const string objectFile = "object-file";
     inline static const string objectFiles = "object-files";
@@ -139,7 +138,7 @@ struct JConsts
     inline static const string scannerSelectedArrayIndex = "scanner-selected-array-index";
     inline static const string shared = "shared";
     inline static const string showPercentage = "show-percentage";
-    inline static const string smFileType = "smfile-type";
+    inline static const string cppModType = "smfile-type";
     inline static const string smrules = "smrules";
     inline static const string sourceDependencies = "source-dependencies";
     inline static const string sourceDirectory = "source-dir";

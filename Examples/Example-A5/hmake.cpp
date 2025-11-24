@@ -14,7 +14,7 @@ struct OurTarget : BTarget
         {
             if (error)
             {
-                fmt::print("Target {} runtime error.\n", name);
+                printMessage(FORMAT("Target {} runtime error.\n", name));
                 realBTargets[roundLocal].exitStatus = EXIT_FAILURE;
             }
             if (realBTargets[roundLocal].exitStatus == EXIT_SUCCESS)
@@ -25,11 +25,18 @@ struct OurTarget : BTarget
     }
 };
 
-OurTarget a("Hello"), b("World"), c("HMake"), d("CMake"), e("Ninja", true), f("XMake"), g("build2", true), h("Boost");
 void buildSpecification()
 {
-    d.addDepNow<roundLocal>(e);
-    h.addDepNow<roundLocal>(g);
+    OurTarget *a = new OurTarget("Hello");
+    OurTarget *b = new OurTarget("World");
+    OurTarget *c = new OurTarget("HMake");
+    OurTarget *d = new OurTarget("CMake");
+    OurTarget *e = new OurTarget("Ninja", true);
+    OurTarget *f = new OurTarget("XMake");
+    OurTarget *g = new OurTarget("build2", true);
+    OurTarget *h = new OurTarget("Boost");
+    d->addDepNow<roundLocal>(*e);
+    h->addDepNow<roundLocal>(*g);
 }
 
 MAIN_FUNCTION

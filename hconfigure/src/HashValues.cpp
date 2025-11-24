@@ -1,16 +1,16 @@
 
 #include "HashValues.hpp"
 #include "Configuration.hpp"
-#include "CppSourceTarget.hpp"
+#include "CppTarget.hpp"
 #include "DSC.hpp"
 #include "rapidhash/rapidhash.h"
 
-uint64_t hash_value(const CppSourceTarget &p)
+uint64_t hash_value(const CppTarget &p)
 {
     return p.id;
 }
 
-uint64_t hash_value(const DSC<CppSourceTarget> &p)
+uint64_t hash_value(const DSC<CppTarget> &p)
 {
     uint64_t arr[2];
     arr[0] = p.ploat->id;
@@ -34,12 +34,12 @@ uint64_t hash_value(const string_view &p)
     return rapidhash(p.data(), p.size());
 }
 
-bool operator==(const CppSourceTarget &lhs, const CppSourceTarget &rhs)
+bool operator==(const CppTarget &lhs, const CppTarget &rhs)
 {
     return lhs.id == rhs.id;
 }
 
-bool operator==(const DSC<CppSourceTarget> &lhs, const DSC<CppSourceTarget> &rhs)
+bool operator==(const DSC<CppTarget> &lhs, const DSC<CppTarget> &rhs)
 {
     return lhs.ploat->id == rhs.ploat->id && lhs.objectFileProducer->id == rhs.objectFileProducer->id;
 }

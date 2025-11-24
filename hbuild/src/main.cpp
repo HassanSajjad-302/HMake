@@ -1,12 +1,11 @@
 #include "BuildSystemFunctions.hpp"
 #include "Features.hpp"
 #include "TargetType.hpp"
-#include "fmt/format.h"
 #include <filesystem>
 #include <string>
 
 using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::filesystem::path,
-    std::filesystem::exists, std::string, fmt::format;
+    std::filesystem::exists, std::string, std::format;
 
 int runCommand(const char *cmd)
 {
@@ -33,6 +32,7 @@ int runCommand(const char *cmd)
 
 int main(const int argc, char **argv)
 {
+    constructGlobals();
     path buildExePath;
     bool configuredExecutableExists = false;
     string buildExeName = getActualNameFromTargetName(TargetType::EXECUTABLE, os, "build");

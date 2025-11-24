@@ -3,43 +3,22 @@
 #define HMAKE_PLOAT_HPP
 
 #include "BTarget.hpp"
-#include "Configuration.hpp"
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
+#include "SpecialNodes.hpp"
 #include "TargetCache.hpp"
 #include "parallel-hashmap/parallel_hashmap/btree.h"
 
-using phmap::node_hash_map, phmap::btree_map;
+class Configuration;
 
-// TODO
-//  This is a memory hog.
-struct PrebuiltDep
-{
-    // LF linkerFlags
-
-    string reqPreLF;
-    string useReqPreLF;
-
-    string reqPostLF;
-    string useReqPostLF;
-
-    string reqRpathLink;
-    string useReqRpathLink;
-
-    string reqRpath;
-    string useReqRpath;
-
-    vector<LibDirNode> useReqLibraryDirs;
-    bool defaultRpath = true;
-    bool defaultRpathLink = true;
-};
+using phmap::node_hash_map, phmap::btree_set;
 
 // PrebuiltLinkOrArchiveTarget
 class PLOAT : public BTarget, public TargetCache
 {
 #ifndef BUILD_MODE
     string actualOutputName;
-    string outputDirectory;
+    Node *outputDirectory;
 
   public:
     string outputName;
@@ -51,15 +30,17 @@ class PLOAT : public BTarget, public TargetCache
     Node *outputFileNode = nullptr;
     vector<char> configCacheBuffer;
     uint32_t configCacheBytesRead = 0;
+    bool hasObjectFiles = true;
 
     string getOutputName() const;
     string getActualOutputName() const;
     string_view getOutputDirectoryV() const;
 
-    PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_);
-    PLOAT(Configuration &config_, const string &outputName_, string dir, TargetType linkTargetType_, string name_,
-          bool buildExplicit, bool makeDirectory);
+    PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_);
+    PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_,
+          string name_, bool buildExplicit, bool makeDirectory);
 
+    void initializePLOAT();
     template <typename T> bool evaluate(T property) const;
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
 
@@ -68,10 +49,14 @@ class PLOAT : public BTarget, public TargetCache
     void readCacheAtBuildTime();
 
   public:
-    node_hash_map<PLOAT *, PrebuiltDep> reqDeps;
-    node_hash_map<PLOAT *, PrebuiltDep> useReqDeps;
+    // Following 2 unused at BSMode::Build
+    // we need this to be ordered in setLinkCommand. order is deterministic as insertions are supposed to be always
+    // in order
+    btree_set<PLOAT *, TPointerLess<PLOAT>> reqDeps;
+    flat_hash_set<PLOAT *> useReqDeps;
 
-    btree_map<PLOAT *, const PrebuiltDep *, IndexInTopologicalSortComparatorRoundZero> sortedPrebuiltDependencies;
+    /// TargetCache::cacheIndex of our direct and transitive dependency PLOAT. It is cached in config-cache.
+    vector<uint32_t> reqDepsVecIndices;
 
     flat_hash_set<class ObjectFileProducer *> objectFileProducers;
 
@@ -86,14 +71,8 @@ class PLOAT : public BTarget, public TargetCache
 
     template <typename... U> PLOAT &deps(DepType depType, PLOAT &ploat, U... ploats);
 
-    template <typename... U> PLOAT &publicDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
-    template <typename... U> PLOAT &privateDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
-    template <typename... U> PLOAT &interfaceDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
-
-    template <typename... U> PLOAT &deps(DepType depType, PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats);
-
     void populateReqAndUseReqDeps();
-    void addReqDepsToBTargetDependencies();
+    string getPrintName() const override;
 };
 
 template <typename T> bool PLOAT::evaluate(T property) const
@@ -101,10 +80,6 @@ template <typename T> bool PLOAT::evaluate(T property) const
     if constexpr (std::is_same_v<decltype(property), TargetType>)
     {
         return linkTargetType == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), CopyDLLToExeDirOnNTOs>)
-    {
-        return config.ploatFeatures.evaluate(property);
     }
     else
     {
@@ -117,8 +92,7 @@ void to_json(Json &json, const PLOAT &PLOAT);
 
 template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
 {
-    useReqDeps.emplace(&ploat, PrebuiltDep{});
-    addDepNow<1>(ploat);
+    deps(DepType::INTERFACE, ploat);
     if constexpr (sizeof...(ploats))
     {
         return interfaceDeps(ploats...);
@@ -128,8 +102,7 @@ template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, U... ploats)
 
 template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, U... ploats)
 {
-    reqDeps.emplace(&ploat, PrebuiltDep{});
-    addDepNow<1>(ploat);
+    deps(DepType::PRIVATE, ploat);
     if constexpr (sizeof...(ploats))
     {
         return privateDeps(ploats...);
@@ -139,9 +112,7 @@ template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, U... ploats)
 
 template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, U... ploats)
 {
-    reqDeps.emplace(&ploat, PrebuiltDep{});
-    useReqDeps.emplace(&ploat, PrebuiltDep{});
-    addDepNow<1>(ploat);
+    deps(DepType::PUBLIC, ploat);
     if constexpr (sizeof...(ploats))
     {
         return publicDeps(ploats...);
@@ -151,79 +122,38 @@ template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, U... ploats)
 
 template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat, U... ploats)
 {
-    if (depType == DepType::PUBLIC)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        reqDeps.emplace(&ploat, PrebuiltDep{});
-        useReqDeps.emplace(&ploat, PrebuiltDep{});
-        addDepNow<1>(ploat);
-    }
-    else if (depType == DepType::PRIVATE)
-    {
-        reqDeps.emplace(&ploat, PrebuiltDep{});
-        addDepNow<1>(ploat);
+        TargetCache *us = static_cast<TargetCache *>(this);
+        TargetCache *ourDep = static_cast<TargetCache *>(&ploat);
+        if (ourDep->cacheIndex > us->cacheIndex)
+        {
+            printErrorMessage(FORMAT("Please declare dependency \n{}\n before its dependent \n{}\nDependency "
+                                     "declaration before the dependent is an invariant in HMake.",
+                                     fileTargetCaches[ourDep->cacheIndex].name, fileTargetCaches[us->cacheIndex].name));
+        }
+
+        if (depType == DepType::PUBLIC)
+        {
+            reqDeps.emplace(&ploat);
+            useReqDeps.emplace(&ploat);
+            addDepNow<1>(ploat);
+        }
+        else if (depType == DepType::PRIVATE)
+        {
+            reqDeps.emplace(&ploat);
+            addDepNow<1>(ploat);
+        }
+        else
+        {
+            useReqDeps.emplace(&ploat);
+            addDepNow<1>(ploat);
+        }
     }
     else
     {
-        useReqDeps.emplace(&ploat, PrebuiltDep{});
-        addDepNow<1>(ploat);
     }
-    if constexpr (sizeof...(ploats))
-    {
-        return deps(depType, ploats...);
-    }
-    return *this;
-}
 
-template <typename... U> PLOAT &PLOAT::interfaceDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
-{
-    useReqDeps.emplace(&ploat, prebuiltDep);
-    if constexpr (sizeof...(ploats))
-    {
-        return interfaceDeps(ploats...);
-    }
-    return *this;
-}
-
-template <typename... U> PLOAT &PLOAT::privateDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
-{
-    reqDeps.emplace(&ploat, prebuiltDep);
-    addDepNow<1>(ploat);
-    if constexpr (sizeof...(ploats))
-    {
-        return privateDeps(ploats...);
-    }
-    return *this;
-}
-
-template <typename... U> PLOAT &PLOAT::publicDeps(PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
-{
-    reqDeps.emplace(&ploat, prebuiltDep);
-    useReqDeps.emplace(&ploat, prebuiltDep);
-    addDepNow<1>(ploat);
-    if constexpr (sizeof...(ploats))
-    {
-        return publicDeps(ploats...);
-    }
-    return *this;
-}
-
-template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat, PrebuiltDep prebuiltDep, U... ploats)
-{
-    if (depType == DepType::PUBLIC)
-    {
-        reqDeps.emplace(&ploat, prebuiltDep);
-        useReqDeps.emplace(&ploat, prebuiltDep);
-        addDepNow<1>(ploat);
-    }
-    else if (depType == DepType::PRIVATE)
-    {
-        reqDeps.emplace(&ploat, prebuiltDep);
-        addDepNow<1>(ploat);
-    }
-    else
-    {
-        useReqDeps.emplace(&ploat, prebuiltDep);
-    }
     if constexpr (sizeof...(ploats))
     {
         return deps(depType, ploats...);

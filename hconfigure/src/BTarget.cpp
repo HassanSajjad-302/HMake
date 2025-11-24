@@ -1,8 +1,7 @@
 
 #include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
-#include "CacheWriteManager.hpp"
-#include "CppSourceTarget.hpp"
+#include "Node.hpp"
 #include <filesystem>
 #include <utility>
 
@@ -12,16 +11,6 @@ using std::filesystem::create_directories, std::ofstream, std::filesystem::curre
 BTarget::LaterDep::LaterDep(RealBTarget *b_, RealBTarget *dep_, BTargetDepType type_, bool doBoth_)
     : b(b_), dep(dep_), type(type_), doBoth(doBoth_)
 {
-}
-
-BTarget::StaticInitializationTarjanNodesBTargets::StaticInitializationTarjanNodesBTargets()
-{
-    // 1MB. Deallocated after round.
-    for (span<RealBTarget *> &realBTargets : realBTargetsGlobal)
-    {
-        const auto buffer = new char[1024 * 1024 * 2]; // 2 MB
-        realBTargets = span(reinterpret_cast<RealBTarget **>(buffer), 1024 * 1024 * 2 / sizeof(RealBTarget *));
-    }
 }
 
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
@@ -168,12 +157,12 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarg
     uint32_t i;
     if (isOneThreadRunning)
     {
-        i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
+        i = BTarget::realBTargetsArrayCount[round_].value;
+        ++BTarget::realBTargetsArrayCount[round_].value;
     }
     else
     {
-        i = BTarget::realBTargetsArrayCount[round_];
-        ++BTarget::realBTargetsArrayCount[round_];
+        i = BTarget::realBTargetsArrayCount[round_].value.fetch_add(1, std::memory_order_relaxed);
     }
     BTarget::realBTargetsGlobal[round_][i] = this;
 }
@@ -185,18 +174,18 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
         uint32_t i;
         if (isOneThreadRunning)
         {
-            i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
+            i = BTarget::realBTargetsArrayCount[round_].value;
+            ++BTarget::realBTargetsArrayCount[round_].value;
         }
         else
         {
-            i = BTarget::realBTargetsArrayCount[round_];
-            ++BTarget::realBTargetsArrayCount[round_];
+            i = BTarget::realBTargetsArrayCount[round_].value.fetch_add(1, std::memory_order_relaxed);
         }
         BTarget::realBTargetsGlobal[round_][i] = this;
     }
 }
 
-void RealBTarget::assignFileStatusToDependents()
+void RealBTarget::assignNeedsUpdateToDependents()
 {
     for (auto &[dependent, bTargetDepType] : dependents)
     {
@@ -205,21 +194,6 @@ void RealBTarget::assignFileStatusToDependents()
             dependent->updateStatus = UpdateStatus::NEEDS_UPDATE;
         }
     }
-}
-
-void RealBTarget::addInTarjanNodeBTarget(const unsigned short round_)
-{
-    uint32_t i;
-    if (isOneThreadRunning)
-    {
-        i = BTarget::realBTargetsArrayCount[round_].fetch_add(1, std::memory_order_relaxed);
-    }
-    else
-    {
-        i = BTarget::realBTargetsArrayCount[round_];
-        ++BTarget::realBTargetsArrayCount[round_];
-    }
-    BTarget::realBTargetsGlobal[round_][i] = this;
 }
 
 static string lowerCase(string str)
@@ -307,18 +281,8 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
     }
 }
 
-void BTarget::receiveNotificationPostBuildSpecification()
+void BTarget::postRoundOneCompletion()
 {
-    postBuildSpecificationArray.emplace_back(this);
-}
-
-void BTarget::runEndOfRoundTargets()
-{
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        cacheWriteManager.endOfRound();
-    }
-
     delete[] realBTargetsGlobal[1].data();
 
     for (vector<LaterDep> *laterDeps : laterDepsCentral)
@@ -331,7 +295,7 @@ void BTarget::runEndOfRoundTargets()
                 if (later.doBoth)
                 {
                     later.b->dependencies.emplace(later.dep, later.type);
-                    if (later.type == BTargetDepType::FULL)
+                    if (later.type == BTargetDepType::FULL || later.type == BTargetDepType::WAIT)
                     {
                         ++later.b->dependenciesSize;
                     }
@@ -361,42 +325,6 @@ BTargetType BTarget::getBTargetType() const
 
 void BTarget::updateBTarget(Builder &, unsigned short, bool &isComplete)
 {
-}
-
-void BTarget::endOfRound(Builder &builder, unsigned short round)
-{
-}
-
-void BTarget::addDepHalfNowHalfLater(BTarget &dep)
-{
-    if (realBTargets[0].dependencies.try_emplace(&dep.realBTargets[0], BTargetDepType::FULL).second)
-    {
-        ++realBTargets[0].dependenciesSize;
-        laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::FULL, false);
-    }
-}
-
-void BTarget::addDepLooseHalfNowHalfLater(BTarget &dep)
-{
-    if (realBTargets[0].dependencies.try_emplace(&dep.realBTargets[0], BTargetDepType::LOOSE).second)
-    {
-        laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::LOOSE, false);
-    }
-}
-
-void BTarget::addDepLater(BTarget &dep)
-{
-    laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::FULL, true);
-}
-
-void BTarget::addDepLooseLater(BTarget &dep)
-{
-    laterDepsLocal.emplace_back(&this->realBTargets[0], &dep.realBTargets[0], BTargetDepType::LOOSE, true);
-}
-
-bool operator<(const BTarget &lhs, const BTarget &rhs)
-{
-    return lhs.id < rhs.id;
 }
 
 // selectiveBuild is set for the children if hbuild is executed in parent dir. selectiveBuild is set for all

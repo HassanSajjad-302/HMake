@@ -1,7 +1,7 @@
 #ifndef HMAKE_CONFIGURATION_ASSIGN_HPP
 #define HMAKE_CONFIGURATION_ASSIGN_HPP
 
-#include "CppSourceTarget.hpp"
+#include "CppTarget.hpp"
 
 template <typename T, typename... Property> Configuration &Configuration::assign(T property, Property... properties)
 {
@@ -14,7 +14,7 @@ template <typename T, typename... Property> Configuration &Configuration::assign
         compilerFeatures.setConfigType(property);
         linkerFeatures.setConfigType(property);
     }
-    else if constexpr (std::is_same_v<decltype(property), DSC<CppSourceTarget> *>)
+    else if constexpr (std::is_same_v<decltype(property), DSC<CppTarget> *>)
     {
         stdCppTarget = property;
     }
@@ -90,9 +90,9 @@ template <typename T, typename... Property> Configuration &Configuration::assign
             buildExamples = BuildExamples::NO;
         }
     }
-    else if constexpr (std::is_same_v<decltype(property), TreatModuleAsSource>)
+    else if constexpr (std::is_same_v<decltype(property), IsCppMod>)
     {
-        treatModuleASSource = property;
+        isCppMod = property;
     }
     else if constexpr (std::is_same_v<decltype(property), StdAsHeaderUnit>)
     {

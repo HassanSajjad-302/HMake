@@ -4,29 +4,31 @@ void configurationSpecification(Configuration &config)
 {
     config.assign(config.compilerFeatures.compiler.bTFamily == BTFamily::MSVC ? CxxSTD::V_LATEST : CxxSTD::V_2b);
 
-    DSC<CppSourceTarget> &lib4 = config.getCppStaticDSC("lib4");
-    lib4.getSourceTarget().publicHUIncludes("lib4/public").privateHUIncludes("lib4/private");
+    DSC<CppTarget> &lib4 = config.getCppStaticDSC("lib4");
+    lib4.getSourceTarget()
+        .moduleDirsRE("lib4/private", ".*cpp")
+        .privateHUIncludesRE("lib4/private", ".*hpp")
+        .publicHUIncludes("lib4/public");
 
-    bool useModule = CacheVariable<bool>("use-module", true).value;
-    if (useModule)
-    {
-        lib4.getSourceTarget().moduleDirectoriesRE("lib4/private", ".*cpp").privateCompileDefinition("USE_MODULE", "");
-    }
-    else
-    {
-        lib4.getSourceTarget().sourceDirectoriesRE("lib4/private", ".*cpp");
-    }
+    DSC<CppTarget> &lib3 = config.getCppStaticDSC("lib3").publicDeps(lib4);
+    lib3.getSourceTarget()
+        .moduleDirsRE("lib3/private", ".*cpp")
+        .privateIncludesRE("lib3/private", ".*hpp")
+        .publicHUIncludes("lib3/public");
 
-    DSC<CppSourceTarget> &lib3 = config.getCppStaticDSC("lib3").publicLibraries(&lib4);
-    lib3.getSourceTarget().moduleDirectoriesRE("lib3/private", ".*cpp").publicHUIncludes("lib3/public");
+    DSC<CppTarget> &lib2 = config.getCppStaticDSC("lib2").privateDeps(lib3);
+    lib2.getSourceTarget()
+        .moduleDirsRE("lib2/private", ".*cpp")
+        .privateIncludesRE("lib2/private", ".*hpp")
+        .publicIncludes("lib2/public");
 
-    DSC<CppSourceTarget> &lib2 = config.getCppStaticDSC("lib2").privateLibraries(&lib3);
-    lib2.getSourceTarget().moduleDirectoriesRE("lib2/private", ".*cpp").publicIncludes("lib2/public");
+    DSC<CppTarget> &lib1 = config.getCppStaticDSC("lib1").publicDeps(lib2);
+    lib1.getSourceTarget()
+        .moduleDirsRE("lib1/private", ".*cpp")
+        .privateIncludesRE("lib1/private", ".*hpp")
+        .publicIncludes("lib1/public");
 
-    DSC<CppSourceTarget> &lib1 = config.getCppStaticDSC("lib1").publicLibraries(&lib2);
-    lib1.getSourceTarget().sourceDirectoriesRE("lib1/private", ".*cpp").publicIncludes("lib1/public");
-
-    config.getCppExeDSC("app").privateLibraries(&lib1).getSourceTarget().sourceFiles("main.cpp");
+    config.getCppExeDSC("app").privateDeps(lib1).getSourceTarget().moduleFiles("main.cpp");
 }
 
 void buildSpecification()

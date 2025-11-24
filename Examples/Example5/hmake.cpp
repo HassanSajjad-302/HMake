@@ -10,7 +10,7 @@ struct CopySharedLib final : public BTarget
     }
     void updateBTarget(Builder &, unsigned short, bool &isComplete) override
     {
-        if (realBTargets[0].exitStatus == EXIT_SUCCESS && atomic_ref(fileStatus).load())
+        if (realBTargets[0].exitStatus == EXIT_SUCCESS && realBTargets[0].updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
             std::filesystem::copy(copyFrom, path(copyTo).parent_path(),
                                   std::filesystem::copy_options::overwrite_existing);
@@ -22,10 +22,10 @@ struct CopySharedLib final : public BTarget
 CopySharedLib *p;
 void configurationSpecification(Configuration &config)
 {
-    DSC<CppSourceTarget> &catShared = config.getCppSharedDSC("Cat", true);
+    DSC<CppTarget> &catShared = config.getCppSharedDSC("Cat", true, "CAT_EXPORT");
     catShared.getSourceTarget().sourceFiles("../Example4/Cat/src/Cat.cpp").publicIncludes("../Example4/Cat/header");
 
-    DSC<CppSourceTarget> &animal = config.getCppExeDSC("Animal").privateDeps(
+    DSC<CppTarget> &animal = config.getCppExeDSC("Animal").privateDeps(
         catShared, PrebuiltDep{.reqRpath = "-Wl,-R -Wl,'$ORIGIN' ", .defaultRpath = false});
     animal.getSourceTarget().sourceFiles("../Example4/main.cpp");
 

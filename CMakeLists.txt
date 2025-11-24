@@ -31,38 +31,33 @@ endif ()
 
 set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 0)
 
-add_subdirectory(3rdParty/fmt)
 add_subdirectory(3rdParty/json)
 
 set(HCONFIGURE_SOURCES
-        hconfigure/src/Settings.cpp
         hconfigure/src/Features.cpp
         hconfigure/src/BTarget.cpp
         hconfigure/src/Builder.cpp
         hconfigure/src/BuildSystemFunctions.cpp
         hconfigure/src/Cache.cpp
         hconfigure/src/HashedCommand.cpp
-        hconfigure/src/SMFile.cpp
+        hconfigure/src/CppMod.cpp
         hconfigure/src/Configuration.cpp
-        hconfigure/src/CppSourceTarget.cpp
+        hconfigure/src/CppTarget.cpp
         hconfigure/src/LOAT.cpp
         hconfigure/src/BuildTools.cpp
         hconfigure/src/ToolsCache.cpp
         hconfigure/src/RunCommand.cpp
-        hconfigure/src/Utilities.cpp
         hconfigure/src/Configure.cpp
         hconfigure/src/PLOAT.cpp
-        hconfigure/src/PlatformSpecific.cpp
         hconfigure/src/Node.cpp
-        hconfigure/src/SpecialNodes.cpp
         3rdParty/lz4/lib/lz4.c
         hconfigure/src/HashValues.cpp
         hconfigure/src/TargetCache.cpp
-        hconfigure/src/CacheWriteManager.cpp
         hconfigure/src/IPCManagerBS.cpp
         hconfigure/src/IPCManagerCompiler.cpp
         hconfigure/src/Manager.cpp
-        hconfigure/src/BoostCppTarget.cpp)
+        hconfigure/src/BoostCppTarget.cpp
+        hconfigure/src/CustomAllocator.cpp)
 
 set(INCLUDE_BUILD ON)
 set(INCLUDE_CONFIGURE ON)
@@ -78,7 +73,7 @@ if (${INCLUDE_CONFIGURE})
         target_compile_options(hconfigure-c PRIVATE -fPIC)
     endif ()
 
-    target_link_libraries(hconfigure-c PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
+    target_link_libraries(hconfigure-c PUBLIC nlohmann_json::nlohmann_json)
     target_include_directories(hconfigure-c
             PUBLIC hconfigure/header
             PUBLIC 3rdParty
@@ -123,7 +118,7 @@ if (${INCLUDE_BUILD})
         target_compile_options(hconfigure-b PRIVATE -fPIC)
     endif ()
 
-    target_link_libraries(hconfigure-b PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
+    target_link_libraries(hconfigure-b PUBLIC nlohmann_json::nlohmann_json)
     target_include_directories(hconfigure-b
             PUBLIC hconfigure/header
             PUBLIC 3rdParty
@@ -146,13 +141,6 @@ if (${INCLUDE_BUILD})
 
 endif ()
 
-
-# TODO
-# Following is not needed on Linux, I guess.
-if (UNIX)
-    target_compile_options(fmt PRIVATE -fPIC)
-endif ()
-
 if ((${INCLUDE_CONFIGURE} MATCHES ON) AND (${INCLUDE_BUILD} MATCHES ON))
 
 
@@ -169,9 +157,6 @@ if ((${INCLUDE_CONFIGURE} MATCHES ON) AND (${INCLUDE_BUILD} MATCHES ON))
     target_compile_definitions(hhelper PRIVATE HCONFIGURE_C_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure-c>")
     target_compile_definitions(hhelper PRIVATE HCONFIGURE_B_STATIC_LIB_PATH="$<TARGET_FILE:hconfigure-b>")
     target_compile_definitions(hhelper PRIVATE HCONFIGURE_B_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure-b>")
-    target_compile_definitions(hhelper PRIVATE FMT_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/fmt/include/")
-    target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:fmt::fmt>")
-    target_compile_definitions(hhelper PRIVATE FMT_STATIC_LIB_PATH="$<TARGET_FILE:fmt>")
 
     if ("${HMAKE_USE_THREAD_SANITIZER}" MATCHES ON)
         target_compile_definitions(hhelper PRIVATE USE_THREAD_SANITIZER)
@@ -189,8 +174,7 @@ if ((${INCLUDE_CONFIGURE} MATCHES ON) AND (${INCLUDE_BUILD} MATCHES ON))
             Tests/Test_Examples.cpp
             Tests/Test_hconfigure.cpp
             Tests/StageTests.cpp
-            Tests/Snapshot.cpp
-            Tests/IgnoreHeaderDeps.cpp)
+            Tests/Snapshot.cpp)
     target_link_libraries(Tests PRIVATE gtest gtest_main)
     target_include_directories(Tests PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
     target_compile_definitions(Tests PRIVATE SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}/")
