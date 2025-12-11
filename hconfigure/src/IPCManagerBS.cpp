@@ -327,7 +327,6 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerBS::createSharedMem
             return tl::unexpected(getErrorString());
         }
 
-
         bmiFile.fileSize = fileSize.QuadPart;
         return sharedFile;
     }

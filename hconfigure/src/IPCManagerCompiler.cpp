@@ -450,9 +450,9 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerCompiler::readShare
     }
     // 1) Open the existing file‐mapping object (must have been created by another process)
     const HANDLE mapping = OpenFileMappingA(FILE_MAP_READ, // read‐only access
-                                            FALSE,         // do not inherit a handle
-                                            str.c_str()    // name of mapping
-    );
+                                            FALSE, // do not inherit a handle
+                                            str.c_str() // name of mapping
+        );
 
     if (mapping == nullptr)
     {

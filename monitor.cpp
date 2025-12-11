@@ -8,15 +8,20 @@
 
 #pragma comment(lib, "psapi.lib")
 
-void GetAllChildProcesses(DWORD parentPid, std::set<DWORD>& pids) {
+void GetAllChildProcesses(DWORD parentPid, std::set<DWORD> &pids)
+{
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE) return;
+    if (snapshot == INVALID_HANDLE_VALUE)
+        return;
 
-    PROCESSENTRY32W pe = { sizeof(PROCESSENTRY32W) };
+    PROCESSENTRY32W pe = {sizeof(PROCESSENTRY32W)};
 
-    if (Process32FirstW(snapshot, &pe)) {
-        do {
-            if (pe.th32ParentProcessID == parentPid) {
+    if (Process32FirstW(snapshot, &pe))
+    {
+        do
+        {
+            if (pe.th32ParentProcessID == parentPid)
+            {
                 pids.insert(pe.th32ProcessID);
                 GetAllChildProcesses(pe.th32ProcessID, pids); // Recursive
             }
@@ -26,16 +31,21 @@ void GetAllChildProcesses(DWORD parentPid, std::set<DWORD>& pids) {
     CloseHandle(snapshot);
 }
 
-DWORD FindProcessByName(const wchar_t* processName) {
+DWORD FindProcessByName(const wchar_t *processName)
+{
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE) return 0;
+    if (snapshot == INVALID_HANDLE_VALUE)
+        return 0;
 
-    PROCESSENTRY32W pe = { sizeof(PROCESSENTRY32W) };
+    PROCESSENTRY32W pe = {sizeof(PROCESSENTRY32W)};
     DWORD pid = 0;
 
-    if (Process32FirstW(snapshot, &pe)) {
-        do {
-            if (_wcsicmp(pe.szExeFile, processName) == 0) {
+    if (Process32FirstW(snapshot, &pe))
+    {
+        do
+        {
+            if (_wcsicmp(pe.szExeFile, processName) == 0)
+            {
                 pid = pe.th32ProcessID;
                 break;
             }
@@ -46,14 +56,17 @@ DWORD FindProcessByName(const wchar_t* processName) {
     return pid;
 }
 
-SIZE_T GetProcessMemory(DWORD pid) {
+SIZE_T GetProcessMemory(DWORD pid)
+{
     HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
-    if (!hProcess) return 0;
+    if (!hProcess)
+        return 0;
 
     PROCESS_MEMORY_COUNTERS pmc;
     SIZE_T memSize = 0;
 
-    if (GetProcessMemoryInfo(hProcess, &pmc, sizeof(pmc))) {
+    if (GetProcessMemoryInfo(hProcess, &pmc, sizeof(pmc)))
+    {
         memSize = pmc.WorkingSetSize;
     }
 
@@ -61,13 +74,16 @@ SIZE_T GetProcessMemory(DWORD pid) {
     return memSize;
 }
 
-int main() {
+int main()
+{
     std::cout << std::fixed << std::setprecision(2);
 
-    while (true) {
+    while (true)
+    {
         DWORD rootPid = FindProcessByName(L"hbuild.exe");
 
-        if (rootPid == 0) {
+        if (rootPid == 0)
+        {
             std::cout << "hbuild.exe not found\n";
             Sleep(10);
             continue;
@@ -80,7 +96,8 @@ int main() {
 
         // Sum up memory
         SIZE_T totalMemory = 0;
-        for (DWORD pid : allPids) {
+        for (DWORD pid : allPids)
+        {
             totalMemory += GetProcessMemory(pid);
         }
 
@@ -91,11 +108,11 @@ int main() {
         double memoryMB = totalMemory / (1024.0 * 1024.0);
 
         std::cout << std::setfill('0')
-                  << std::setw(2) << st.wHour << ":"
-                  << std::setw(2) << st.wMinute << ":"
-                  << std::setw(2) << st.wSecond << "."
-                  << std::setw(3) << st.wMilliseconds
-                  << ": " << memoryMB << " MB\n";
+            << std::setw(2) << st.wHour << ":"
+            << std::setw(2) << st.wMinute << ":"
+            << std::setw(2) << st.wSecond << "."
+            << std::setw(3) << st.wMilliseconds
+            << ": " << memoryMB << " MB\n";
 
         Sleep(10); // 10ms
     }
