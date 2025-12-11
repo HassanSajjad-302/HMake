@@ -8,7 +8,7 @@
 #ifdef _WIN32
 #include <Windows.h>
 #else
-#include "rapidhash/rapidhash.h"
+#include "rapidhash.h"
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -288,10 +288,50 @@ tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCLastMessage &
     return {};
 }
 
-tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerBS::createSharedMemoryBMIFile(const BMIFile &bmiFile)
+tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerBS::createSharedMemoryBMIFile(BMIFile &bmiFile)
 {
     ProcessMappingOfBMIFile sharedFile{};
 #ifdef _WIN32
+
+    if (bmiFile.fileSize == UINT32_MAX)
+    {
+        const HANDLE hFile = CreateFileA(bmiFile.filePath.c_str(), GENERIC_READ,
+                                         0, // no sharing during setup
+                                         nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (hFile == INVALID_HANDLE_VALUE)
+        {
+            return tl::unexpected(getErrorString());
+        }
+
+        LARGE_INTEGER fileSize;
+        if (!GetFileSizeEx(hFile, &fileSize))
+        {
+            return tl::unexpected(getErrorString());
+        }
+
+        std::string str = bmiFile.filePath;
+        for (char &c : str)
+        {
+            if (c == '\\')
+            {
+                c = '/';
+            }
+        }
+        sharedFile.mapping =
+            CreateFileMappingA(hFile, nullptr, PAGE_READONLY, fileSize.HighPart, fileSize.LowPart, str.c_str());
+
+        CloseHandle(hFile);
+
+        if (!sharedFile.mapping)
+        {
+            return tl::unexpected(getErrorString());
+        }
+
+
+        bmiFile.fileSize = fileSize.QuadPart;
+        return sharedFile;
+    }
+
     // 1) Open the existing file‐mapping object (must have been created by another process)
     sharedFile.mapping = OpenFileMappingA(FILE_MAP_READ,           // read‐only access
                                           FALSE,                   // do not inherit handle

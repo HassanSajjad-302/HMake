@@ -1,4 +1,3 @@
-
 #include "Features.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
@@ -9,9 +8,10 @@
 
 using Json = nlohmann::json;
 
-void to_json(Json &j, const Arch &arch)
+void to_json(Json& j, const Arch& arch)
 {
-    auto getStringFromArchitectureEnum = [](const Arch arch) -> string {
+    auto getStringFromArchitectureEnum = [](const Arch arch) -> string
+    {
         switch (arch)
         {
         case Arch::X86:
@@ -54,7 +54,7 @@ void to_json(Json &j, const Arch &arch)
     j = getStringFromArchitectureEnum(arch);
 }
 
-void from_json(const Json &j, Arch &arch)
+void from_json(const Json& j, Arch& arch)
 {
     if (j == "X86")
     {
@@ -130,9 +130,10 @@ void from_json(const Json &j, Arch &arch)
     }
 }
 
-void to_json(Json &j, const AddressModel &am)
+void to_json(Json& j, const AddressModel& am)
 {
-    auto getStringFromArchitectureEnum = [](const AddressModel am) -> string {
+    auto getStringFromArchitectureEnum = [](const AddressModel am) -> string
+    {
         switch (am)
         {
         case AddressModel::A_16:
@@ -149,7 +150,7 @@ void to_json(Json &j, const AddressModel &am)
     j = getStringFromArchitectureEnum(am);
 }
 
-void from_json(const Json &j, AddressModel &am)
+void from_json(const Json& j, AddressModel& am)
 {
     if (j == "A_16")
     {
@@ -181,19 +182,19 @@ Define::Define(string name_, string value_) : name{std::move(name_)}, value{std:
 {
 }
 
-void to_json(Json &j, const Define &cd)
+void to_json(Json& j, const Define& cd)
 {
     j[JConsts::name] = cd.name;
     j[JConsts::value] = cd.value;
 }
 
-void from_json(const Json &j, Define &cd)
+void from_json(const Json& j, Define& cd)
 {
     cd.name = j.at(JConsts::name).get<string>();
     cd.value = j.at(JConsts::value).get<string>();
 }
 
-void to_json(Json &json, const OS &osLocal)
+void to_json(Json& json, const OS& osLocal)
 {
     if (osLocal == OS::NT)
     {
@@ -205,7 +206,7 @@ void to_json(Json &json, const OS &osLocal)
     }
 }
 
-void from_json(const Json &json, OS &osLocal)
+void from_json(const Json& json, OS& osLocal)
 {
     if (json == JConsts::windows)
     {
@@ -217,7 +218,7 @@ void from_json(const Json &json, OS &osLocal)
     }
 }
 
-string getActualNameFromTargetName(const TargetType bTargetType, const OS osLocal, const string &targetName)
+string getActualNameFromTargetName(const TargetType bTargetType, const OS osLocal, const string& targetName)
 {
     if (bTargetType == TargetType::EXECUTABLE)
     {
@@ -240,7 +241,7 @@ string getActualNameFromTargetName(const TargetType bTargetType, const OS osLoca
     printErrorMessage("Other Targets Are Not Supported Yet.\n");
 }
 
-string getTargetNameFromActualName(const TargetType bTargetType, const OS osLocal, const string &actualName)
+string getTargetNameFromActualName(const TargetType bTargetType, const OS osLocal, const string& actualName)
 {
     if (bTargetType == TargetType::EXECUTABLE)
     {
@@ -269,7 +270,7 @@ string getTargetNameFromActualName(const TargetType bTargetType, const OS osLoca
     printErrorMessage("Other Targets Are Not Supported Yet.\n");
 }
 
-string getSlashedExecutableName(const string &name)
+string getSlashedExecutableName(const string& name)
 {
     return os == OS::NT ? name + ".exe" : "./" + name;
 }
@@ -313,7 +314,6 @@ LinkerFlags LinkerFeatures::getLinkerFlags()
     LinkerFlags flags;
     if (linker.bTFamily == BTFamily::MSVC)
     {
-
         // msvc.jam supports multiple tools such as assembler, compiler, mc-compiler(message-catalogue-compiler),
         // idl-compiler(interface-definition-compiler) and manifest-tool. HMake does not support these and  only
         // supports link.exe, lib.exe and cl.exe. While the msvc.jam also supports older VS and store and phone
@@ -455,8 +455,8 @@ LinkerFlags LinkerFeatures::getLinkerFlags()
         //    is not yet catered here.
         //
 
-        auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const string &str) { flags.OPTIONS_LINK += str; };
-        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const string &str) { flags.OPTIONS_LINK += str; };
+        auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const string& str) { flags.OPTIONS_LINK += str; };
+        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const string& str) { flags.OPTIONS_LINK += str; };
 
         // FINDLIBS-SA variable is being updated gcc.link rule.
         string findLibsSA;
@@ -507,17 +507,19 @@ LinkerFlags LinkerFeatures::getLinkerFlags()
             }
         }
         {
-            auto setCppStdAndDialectCompilerAndLinkerFlags = [&](const CxxSTD cxxStdLocal) {
-                addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(cxxStdDialect == CxxSTDDialect::GNU ? "-std=gnu++"
-                                                                                                  : "-std=c++");
+            auto setCppStdAndDialectCompilerAndLinkerFlags = [&](const CxxSTD cxxStdLocal)
+            {
+                addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(cxxStdDialect == CxxSTDDialect::GNU
+                                                                  ? "-std=gnu++"
+                                                                  : "-std=c++");
                 const CxxSTD temp = cxxStd;
-                const_cast<CxxSTD &>(cxxStd) = cxxStdLocal;
+                const_cast<CxxSTD&>(cxxStd) = cxxStdLocal;
                 addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(
                     GET_FLAG_evaluate(CxxSTD::V_98, "98 ", CxxSTD::V_03, "03 ", CxxSTD::V_0x, "0x ", CxxSTD::V_11,
                                       "11 ", CxxSTD::V_1y, "1y ", CxxSTD::V_14, "14 ", CxxSTD::V_1z, "1z ",
                                       CxxSTD::V_17, "17 ", CxxSTD::V_2a, "2a ", CxxSTD::V_20, "20 ", CxxSTD::V_2b,
                                       "2b ", CxxSTD::V_23, "23 ", CxxSTD::V_2c, "2c ", CxxSTD::V_26, "26 "));
-                const_cast<CxxSTD &>(cxxStd) = temp;
+                const_cast<CxxSTD&>(cxxStd) = temp;
             };
 
             if (evaluate(CxxSTD::V_LATEST))
@@ -661,7 +663,8 @@ LinkerFlags LinkerFeatures::getLinkerFlags()
         // For TargetOS::VSWORKS, Environment Variables are also considered, but here they aren't
         flags.OPTIONS_LINK += GET_FLAG_evaluate(AND(TargetOS::VXWORKS, Strip::ON), "-Wl,--strip-all ");
 
-        auto isGenericOS = [&]() {
+        auto isGenericOS = [&]()
+        {
             return !OR(TargetOS::AIX, TargetOS::DARWIN, TargetOS::VXWORKS, TargetOS::SOLARIS, TargetOS::OSF,
                        TargetOS::HPUX, TargetOS::IPHONE, TargetOS::APPLETV);
         };
@@ -879,7 +882,7 @@ void CppCompilerFeatures::initialize()
 
     compiler.btSubFamily = BTSubFamily::CLANG;
     // compiler.bTPath = R"(/home/hassan/Projects/llvm-project/llvm/cmake-build-release/bin/clang)";
-    compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-release\bin\clang-cl.exe)";
+    compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-relwithdebinfo\bin\clang-cl.exe)";
 }
 
 void CppCompilerFeatures::setConfigType(const ConfigType configType_)
@@ -924,7 +927,6 @@ CompilerFlags CppCompilerFeatures::getCompilerFlags() const
     CompilerFlags flags;
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-
         // msvc.jam supports multiple tools such as assembler, compiler, mc-compiler(message-catalogue-compiler),
         // idl-compiler(interface-definition-compiler) and manifest-tool. HMake does not support these and  only
         // supports link.exe, lib.exe and cl.exe. While the msvc.jam also supports older VS and store and phone Windows
@@ -1100,8 +1102,9 @@ CompilerFlags CppCompilerFeatures::getCompilerFlags() const
         //   TODO: flavor is being assigned based on the -dumpmachine argument to the gcc command. But this
         //    is not yet catered here.
 
-        auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const string &str) { flags.OPTIONS_COMPILE += str; };
-        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const string &str) {
+        auto addToBothCOMPILE_FLAGS_and_LINK_FLAGS = [&flags](const string& str) { flags.OPTIONS_COMPILE += str; };
+        auto addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK = [&flags](const string& str)
+        {
             flags.OPTIONS_COMPILE_CPP += str;
         };
 
@@ -1162,17 +1165,19 @@ CompilerFlags CppCompilerFeatures::getCompilerFlags() const
             }
         }
         {
-            auto setCppStdAndDialectCompilerAndLinkerFlags = [&](const CxxSTD cxxStdLocal) {
-                addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(cxxStdDialect == CxxSTDDialect::GNU ? "-std=gnu++"
-                                                                                                  : "-std=c++");
+            auto setCppStdAndDialectCompilerAndLinkerFlags = [&](const CxxSTD cxxStdLocal)
+            {
+                addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(cxxStdDialect == CxxSTDDialect::GNU
+                                                                  ? "-std=gnu++"
+                                                                  : "-std=c++");
                 const CxxSTD temp = cxxStd;
-                const_cast<CxxSTD &>(cxxStd) = cxxStdLocal;
+                const_cast<CxxSTD&>(cxxStd) = cxxStdLocal;
                 addToBothOPTIONS_COMPILE_CPP_and_OPTIONS_LINK(
                     GET_FLAG_evaluate(CxxSTD::V_98, "98 ", CxxSTD::V_03, "03 ", CxxSTD::V_0x, "0x ", CxxSTD::V_11,
                                       "11 ", CxxSTD::V_1y, "1y ", CxxSTD::V_14, "14 ", CxxSTD::V_1z, "1z ",
                                       CxxSTD::V_17, "17 ", CxxSTD::V_2a, "2a ", CxxSTD::V_20, "20 ", CxxSTD::V_2b,
                                       "2b ", CxxSTD::V_23, "23 ", CxxSTD::V_2c, "2c ", CxxSTD::V_26, "26 "));
-                const_cast<CxxSTD &>(cxxStd) = temp;
+                const_cast<CxxSTD&>(cxxStd) = temp;
             };
 
             if (evaluate(CxxSTD::V_LATEST))

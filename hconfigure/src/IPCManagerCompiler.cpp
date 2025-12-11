@@ -85,8 +85,9 @@ IPCManagerCompiler::IPCManagerCompiler(const int fdSocket_)
 }
 #endif
 
-Response::Response(BMIFile file_, const FileType type_, const bool isSystem_)
-    : file(std::move(file_)), type(type_), isSystem(isSystem_)
+Response::Response(std::string filePath_, const ProcessMappingOfBMIFile &mapping_, const FileType type_,
+                   const bool isSystem_)
+    : filePath(std::move(filePath_)), mapping(mapping_), type(type_), isSystem(isSystem_)
 {
 }
 
@@ -103,6 +104,8 @@ tl::expected<void, std::string> IPCManagerCompiler::receiveBTCLastMessage() cons
         bytesRead = *r;
     }
 
+    // The BTCLastMessage must be 1 byte of true signaling that build-system has successfully created a shared memory
+    // mapping of the BMI file.
     if (buffer[0] != static_cast<char>(true))
     {
         return tl::unexpected(getErrorString(ErrorCategory::INCORRECT_BTC_LAST_MESSAGE));
@@ -118,9 +121,9 @@ tl::expected<void, std::string> IPCManagerCompiler::receiveBTCLastMessage() cons
 
 tl::expected<BTCModule, std::string> IPCManagerCompiler::receiveBTCModule(const CTBModule &moduleName)
 {
-
     std::vector<char> buffer = getBufferWithType(CTB::MODULE);
     writeString(buffer, moduleName.moduleName);
+    // This call sends the CTBModule to the build-system.
     if (const auto &r = writeInternal(buffer); !r)
     {
         return tl::unexpected(r.error());
@@ -128,22 +131,59 @@ tl::expected<BTCModule, std::string> IPCManagerCompiler::receiveBTCModule(const 
 
     auto received = receiveMessage<BTCModule>();
 
-    if (received)
+    if (!received)
     {
-        auto &[f, isSystem, deps] = received.value();
-        responses.emplace(moduleName.moduleName, Response(std::move(f), FileType::MODULE, isSystem));
-        for (auto &[isHeaderUnit, file, logicalNames, isSystem] : deps)
+        return tl::unexpected(received.error());
+    }
+
+    auto &[f, isSystem, deps] = received.value();
+    if (const auto &r = readSharedMemoryBMIFile(f); r)
+    {
+        filePathProcessMapping.emplace(f.filePath, r.value());
+        responses.emplace(moduleName.moduleName,
+                          Response(std::move(f.filePath), r.value(), FileType::MODULE, isSystem));
+    }
+    else
+    {
+        return tl::unexpected(r.error());
+    }
+
+    // Build-system will also send all the dependencies of this module.
+    for (auto &[isHeaderUnit, file, logicalNames, isSystem2] : deps)
+    {
+        if (isHeaderUnit)
         {
-            if (isHeaderUnit)
+            // logicalNames include all the include-names of the composing-headers of the big header-unit dependency.
+            // These are mapped to the dependency big-hu in IPCManagerCompiler::responses cache. e.g. if the module
+            // "Cat" depends on the "string" which is compiled as big-hu "stl", then build-system will send all the
+            // composing include-names like "vector" etc. So if we any of these is requested later, response cache will
+            // have them mapped to the big-hu BMI "stl".
+            if (const auto &r = readSharedMemoryBMIFile(file); r)
             {
-                for (const std::string &s : logicalNames)
+                filePathProcessMapping.emplace(file.filePath, r.value());
+                for (std::string s : logicalNames)
                 {
-                    responses.emplace(s, Response(file, FileType::HEADER_UNIT, isSystem));
+                    responses.emplace(std::move(s),
+                                      Response(file.filePath, r.value(), FileType::HEADER_UNIT, isSystem2));
                 }
             }
             else
             {
-                responses.emplace(logicalNames[0], Response(std::move(file), FileType::MODULE, isSystem));
+                return tl::unexpected(r.error());
+            }
+        }
+        else
+        {
+            if (const auto &r = readSharedMemoryBMIFile(file); r)
+            {
+                filePathProcessMapping.emplace(file.filePath, r.value());
+                // logicalNames[0] is the module logicalName of the dependency module.
+                responses.emplace(logicalNames[0],
+                                  Response(std::move(file.filePath), r.value(), FileType::MODULE, isSystem2));
+            }
+            else
+            {
+                return tl::unexpected(r.error());
             }
         }
     }
@@ -155,6 +195,7 @@ tl::expected<BTCNonModule, std::string> IPCManagerCompiler::receiveBTCNonModule(
     std::vector<char> buffer = getBufferWithType(CTB::NON_MODULE);
     buffer.emplace_back(nonModule.isHeaderUnit);
     writeString(buffer, nonModule.logicalName);
+    // This call sends the CTBNonModule to the build-system.
     if (const auto &r = writeInternal(buffer); !r)
     {
         return tl::unexpected(r.error());
@@ -162,41 +203,70 @@ tl::expected<BTCNonModule, std::string> IPCManagerCompiler::receiveBTCNonModule(
 
     auto received = receiveMessage<BTCNonModule>();
 
-    if (received)
+    if (!received)
     {
-        auto &[isHeaderUnit, isSystem, filePath, fileSize, logicalNames, headerFiles, huDeps] = received.value();
+        return tl::unexpected(received.error());
+    }
 
-        BMIFile f;
-        f.filePath = std::move(filePath);
-        f.fileSize = fileSize;
+    auto &[isHeaderUnit, isSystem, filePath, fileSize, logicalNames, headerFiles, huDeps] = received.value();
 
-        if (isHeaderUnit)
+    // the requested header-file or header-unit
+    BMIFile f;
+    f.filePath = std::move(filePath);
+    f.fileSize = fileSize;
+
+    if (isHeaderUnit)
+    {
+        if (const auto &r = readSharedMemoryBMIFile(f); r)
         {
+            filePathProcessMapping.emplace(f.filePath, r.value());
             for (std::string &h : logicalNames)
             {
-                responses.emplace(std::move(h), Response(f, FileType::HEADER_UNIT, isSystem));
+                // if our request was compiled as big-hu, then the logicalNames include all the composing include-names
+                // of the big-hu. e.g. if we requested "string" which was compiled as big-hu "stl", this array will
+                // include "vector", "algorithm" etc. These will be mapped to the same BMIFile. This reduces no. of
+                // messages.
+                responses.emplace(std::move(h), Response(f.filePath, r.value(), FileType::HEADER_UNIT, isSystem));
             }
-            for (auto &[file, logicalHUDep, isSystem2] : huDeps)
-            {
-                for (std::string &l : logicalHUDep)
-                {
-                    responses.emplace(std::move(l), Response(file, FileType::HEADER_UNIT, isSystem2));
-                }
-            }
-            responses.emplace(nonModule.logicalName, Response(std::move(f), FileType::HEADER_UNIT, isSystem));
         }
         else
         {
-            for (auto &[logicalName, headerFilePath, isSystem2] : headerFiles)
-            {
-                BMIFile headerBMI;
-                headerBMI.filePath = std::move(headerFilePath);
-                responses.emplace(std::move(logicalName),
-                                  Response(std::move(headerBMI), FileType::HEADER_FILE, isSystem2));
-            }
-            responses.emplace(nonModule.logicalName, Response(std::move(f), FileType::HEADER_FILE, isSystem));
+            return tl::unexpected(r.error());
         }
     }
+
+    // All the hu-deps of this header-unit.
+    for (auto &[file, logicalHUDep, isSystem2] : huDeps)
+    {
+        if (const auto &r = readSharedMemoryBMIFile(file); r)
+        {
+            filePathProcessMapping.emplace(file.filePath, r.value());
+            // All the composing include-names of the dependency if any. These will be mapped to the dependency big hu.
+            for (std::string &l : logicalHUDep)
+            {
+                responses.emplace(std::move(l), Response(file.filePath, r.value(), FileType::HEADER_UNIT, isSystem2));
+            }
+        }
+        else
+        {
+            return tl::unexpected(r.error());
+        }
+    }
+
+    // if we are compiling a big hu, only then the following is received. It is only received in first request. It is
+    // the list of all the composing header-files.
+    for (auto &[logicalName, headerFilePath, isSystem2] : headerFiles)
+    {
+        BMIFile headerBMI;
+        headerBMI.filePath = std::move(headerFilePath);
+        responses.emplace(std::move(logicalName),
+                          Response(std::move(headerBMI.filePath), {}, FileType::HEADER_FILE, isSystem2));
+    }
+
+    responses.emplace(
+        nonModule.logicalName,
+        Response(std::move(f.filePath), {}, isHeaderUnit ? FileType::HEADER_UNIT : FileType::HEADER_FILE, isSystem));
+
     return received;
 }
 
@@ -213,6 +283,11 @@ tl::expected<Response, std::string> IPCManagerCompiler::findResponse(std::string
 #endif
 
     if (const auto &it = responses.find(logicalName);
+        // This requests from the build-system if we don't have an entry for the logicalName or if there is a type
+        // mismatch between the request and the response. Only allowed mismatch is if the request is of header-file and
+        // the response is a header-unit instead. For other mismatches compiler will request the build-system which will
+        // give not found error. HMake at config-time checks for the logicalName collision and also that a file is not
+        // registered as 2 of header-file, header-unit and module.
         it == responses.end() ||
         (it->second.type != type && (it->second.type != FileType::HEADER_UNIT || type != FileType::HEADER_FILE)))
     {
@@ -244,7 +319,7 @@ tl::expected<Response, std::string> IPCManagerCompiler::findResponse(std::string
     }
 }
 
-tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const CTBLastMessage &lastMessage) const
+tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage() const
 {
     std::vector<char> buffer = getBufferWithType(CTB::LAST_MESSAGE);
     buffer.emplace_back(lastMessage.errorOccurred);
@@ -259,8 +334,7 @@ tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const CTB
     return {};
 }
 
-tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const CTBLastMessage &lastMessage,
-                                                                       const std::string &bmiFile,
+tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const std::string &bmiFile,
                                                                        const std::string &filePath) const
 {
 #ifdef _WIN32
@@ -279,15 +353,12 @@ tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const CTB
         CreateFileMappingA(hFile, nullptr, PAGE_READWRITE, fileSize.HighPart, fileSize.LowPart, filePath.c_str());
     if (!hMap)
     {
-        CloseHandle(hFile);
         return tl::unexpected(getErrorString());
     }
 
     void *pView = MapViewOfFile(hMap, FILE_MAP_WRITE, 0, 0, bmiFile.size());
     if (!pView)
     {
-        CloseHandle(hFile);
-        CloseHandle(hMap);
         return tl::unexpected(getErrorString());
     }
 
@@ -295,26 +366,22 @@ tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const CTB
 
     if (!FlushViewOfFile(pView, bmiFile.size()))
     {
-        UnmapViewOfFile(pView);
-        CloseHandle(hFile);
-        CloseHandle(hMap);
         return tl::unexpected(getErrorString());
     }
 
     UnmapViewOfFile(pView);
     CloseHandle(hFile);
 
-    if (const auto &r = sendCTBLastMessage(lastMessage); !r)
+    if (const auto &r = sendCTBLastMessage(); !r)
     {
         return tl::unexpected(r.error());
     }
 
-    if (lastMessage.errorOccurred == EXIT_SUCCESS)
+    // Build-system will send the BTCLastMessage after it has created the BMI file-mapping. Compiler process can not
+    // exit before that.
+    if (const auto &r = receiveBTCLastMessage(); !r)
     {
-        if (const auto &r = receiveBTCLastMessage(); !r)
-        {
-            return tl::unexpected(r.error());
-        }
+        return tl::unexpected(r.error());
     }
 
     CloseHandle(hMap);
@@ -373,10 +440,18 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerCompiler::readShare
 {
     ProcessMappingOfBMIFile f{};
 #ifdef _WIN32
+    std::string str = file.filePath;
+    for (char &c : str)
+    {
+        if (c == '\\')
+        {
+            c = '/';
+        }
+    }
     // 1) Open the existing file‐mapping object (must have been created by another process)
-    const HANDLE mapping = OpenFileMappingA(FILE_MAP_READ,       // read‐only access
-                                            FALSE,               // do not inherit a handle
-                                            file.filePath.data() // name of mapping
+    const HANDLE mapping = OpenFileMappingA(FILE_MAP_READ, // read‐only access
+                                            FALSE,         // do not inherit a handle
+                                            str.c_str()    // name of mapping
     );
 
     if (mapping == nullptr)
@@ -394,7 +469,6 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerCompiler::readShare
 
     if (view == nullptr)
     {
-        CloseHandle(mapping);
         return tl::unexpected(getErrorString());
     }
 
