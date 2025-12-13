@@ -1043,6 +1043,15 @@ string CppMod::getCompileCommand() const
         {
             s += "-o \"" + objectNode->filePath + "\" -noScanIPC -c /TP \"" + node->filePath + '\"';
         }
+        
+        if (isConsole)
+        {
+            s += " -fdiagnostics-color=always";
+        }
+        else
+        {
+            s += " -fdiagnostics-color=never";
+        }
     }
 
     return s;
