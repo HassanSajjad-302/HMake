@@ -69,7 +69,7 @@ struct BuildCache
         struct SourceFile
         {
             Node *node;
-            CCOrHash compileCommandWithTool;
+            CCOrHash compileCommand;
             vector<Node *> headerFiles;
             void serialize(vector<char> &buffer) const;
             void deserialize(const char *ptr, uint32_t &bytesRead);

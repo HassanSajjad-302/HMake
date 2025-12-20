@@ -129,14 +129,14 @@ Node *readHalfNode(const char *ptr, uint32_t &bytesRead)
 void BuildCache::Cpp::SourceFile::serialize(vector<char> &buffer) const
 {
     writeNode(buffer, node);
-    compileCommandWithTool.serialize(buffer);
+    compileCommand.serialize(buffer);
     writeNodeVector(buffer, headerFiles);
 }
 
 void BuildCache::Cpp::SourceFile::deserialize(const char *ptr, uint32_t &bytesRead)
 {
     node = readHalfNode(ptr, bytesRead);
-    compileCommandWithTool.deserialize(ptr, bytesRead);
+    compileCommand.deserialize(ptr, bytesRead);
     const uint32_t headerSize = readUint32(ptr, bytesRead);
     headerFiles.reserve(headerSize);
     for (uint32_t i = 0; i < headerSize; ++i)

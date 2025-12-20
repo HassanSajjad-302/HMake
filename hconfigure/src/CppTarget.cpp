@@ -4,6 +4,7 @@
 #include "Builder.hpp"
 #include "ConfigurationAssign.hpp"
 #include "LOAT.hpp"
+#include "ToolsCache.hpp"
 #include "rapidhash/rapidhash.h"
 #include <filesystem>
 #include <fstream>
@@ -215,12 +216,6 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        if (configuration->evaluate(BigHeaderUnit::YES))
-        {
-            publicBigHus.emplace_back(nullptr);
-            privateBigHus.emplace_back(nullptr);
-            interfaceBigHus.emplace_back(nullptr);
-        }
         if (!myBuildDir_)
         {
             myBuildDir = Node::getHalfNodeST(configureNode->filePath + slashc + name);
@@ -280,7 +275,7 @@ void CppTarget::populateTransitiveProperties()
 
 #endif
 
-        if (configuration->evaluate(IsCppMod::NO))
+        if (configuration->evaluate(IsCppMod::NO) || !useIPC)
         {
             for (const InclNode &inclNode : cppTarget->useReqIncls)
             {
@@ -368,7 +363,35 @@ void CppTarget::actuallyAddModuleFileConfigTime(Node *node, string exportName)
     }
 }
 
-void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, bool addInReq,
+void CppTarget::checkSameHeaderNameMapping(const string_view headerName)
+{
+    const auto &it = reqHeaderNameMapping.find(headerName);
+    const auto &it2 = useReqHeaderNameMapping.find(headerName);
+    if (it != reqHeaderNameMapping.end() && it2 != useReqHeaderNameMapping.end())
+    {
+        if (it->second.data.node != it2->second.data.node)
+        {
+            string str;
+            if (it->second.isUnit)
+            {
+                str = FORMAT(
+                    "In CppTarget {}\nheader-name{}\n is mapped to different Header-Units in reqHeaderMapping and "
+                    "useReqHeaderMapping respectively\n{}\n{}\n",
+                    name, it->first, it->second.data.cppMod->node->filePath, it2->second.data.cppMod->node->filePath);
+            }
+            else
+            {
+                str = FORMAT(
+                    "In CppTarget {}\nheader-name{}\n is mapped to different Header-Files in reqHeaderMapping and "
+                    "useReqHeaderMapping respectively\n{}\n{}\n",
+                    name, it->first, it->second.data.node->filePath, it->second.data.node->filePath);
+            }
+            printErrorMessage(str);
+        }
+    }
+}
+
+bool CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, bool addInReq,
                                            const bool suppressError)
 {
     if (const auto &[it, ok] = (addInReq ? reqHeaderNameMapping : useReqHeaderNameMapping).emplace(headerName, type);
@@ -378,6 +401,7 @@ void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrU
         {
             ++(addInReq ? reqHeaderFilesSize : useReqHeaderFilesSize);
         }
+        return true;
     }
     else if (!suppressError)
     {
@@ -389,6 +413,7 @@ void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrU
             FORMAT("In CppTarget{}\nFailed adding headerNmae {} in {}headerNameMapping\nTried\n{}\nAlready Added\n{}\n",
                    name, headerName, addInReq ? "req" : "useReq", tried, alreadyAdded));
     }
+    return false;
 }
 
 void CppTarget::emplaceInNodesType(const Node *node, FileType type, const bool addInReq)
@@ -539,7 +564,6 @@ void CppTarget::removeHeaderUnit(const Node *headerNode, const string &includeNa
 
     string *p = new string(includeName);
     lowerCaseOnWindows(p->data(), p->size());
-    bool found = false;
     if (configuration->evaluate(BigHeaderUnit::YES))
     {
         CppMod *bigHu = nullptr;
@@ -570,17 +594,17 @@ void CppTarget::removeHeaderUnit(const Node *headerNode, const string &includeNa
         {
             delete bigHu;
         }
+        return;
     }
-    else
+
+    bool found = false;
+    for (auto it = huDeps.begin(); it != huDeps.end(); ++it)
     {
-        for (auto it = huDeps.begin(); it != huDeps.end(); ++it)
+        if ((*it)->node == headerNode)
         {
-            if ((*it)->node == headerNode)
-            {
-                huDeps.erase(it);
-                found = true;
-                break;
-            }
+            huDeps.erase(it);
+            found = true;
+            break;
         }
     }
 
@@ -623,6 +647,8 @@ void CppTarget::addHeaderFile(const string &includeName, const Node *headerFile,
                                    suppressError);
         emplaceInNodesType(headerFile, FileType::HEADER_FILE, false);
     }
+
+    checkSameHeaderNameMapping(*p);
 }
 
 void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit, bool suppressError,
@@ -642,63 +668,36 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
     {
         if (addInReq && addInUseReq)
         {
-            if (name.contains("mp11"))
-            {
-                bool breakpoint = true;
-            }
-            const uint32_t index = publicBigHus.size() - 1;
-            if (!publicBigHus[index])
-            {
-                const string str(myBuildDir->filePath + slashc + std::to_string(index) + "public-" +
-                                 std::to_string(cacheIndex) + ".hpp");
-                const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
-                publicBigHus[index] = new CppMod(this, bigHuNode);
-                emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
-            }
-            hu = publicBigHus[index];
+            hu = getPublicBigHu(false);
         }
         else if (addInReq)
         {
-            const uint32_t index = privateBigHus.size() - 1;
-            if (!privateBigHus[index])
-            {
-                const string str(myBuildDir->filePath + slashc + std::to_string(index) + "private-" +
-                                 std::to_string(cacheIndex) + ".hpp");
-                const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
-                privateBigHus[index] = new CppMod(this, bigHuNode);
-                emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
-            }
-            hu = privateBigHus[index];
+            hu = getPrivateBigHu(false);
         }
         else if (addInUseReq)
         {
-            const uint32_t index = interfaceBigHus.size() - 1;
-            if (!interfaceBigHus[index])
-            {
-                const string str(myBuildDir->filePath + slashc + std::to_string(index) + "interface-" +
-                                 std::to_string(cacheIndex) + ".hpp");
-                const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
-                interfaceBigHus[index] = new CppMod(this, bigHuNode);
-                emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
-            }
-            hu = interfaceBigHus[index];
+            hu = getInterfaceBigHu(false);
         }
 
+        bool addedInReq = false;
+        bool addedInUseReq = false;
         if (addInReq)
         {
-            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true, suppressError);
+            addedInReq = emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true, suppressError);
             emplaceInNodesType(headerUnit, FileType::HEADER_FILE, true);
-            hu->isReqHu = true;
         }
 
         if (addInUseReq)
         {
-            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false, suppressError);
+            addedInUseReq = emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false, suppressError);
             emplaceInNodesType(headerUnit, FileType::HEADER_FILE, false);
-            hu->isUseReqHu = true;
         }
 
-        hu->composingHeaders.emplace(*p, const_cast<Node *>(headerUnit));
+        checkSameHeaderNameMapping(*p);
+        if (addedInReq || addedInUseReq)
+        {
+            hu->composingHeaders.emplace(*p, const_cast<Node *>(headerUnit));
+        }
     }
     else
     {
@@ -713,27 +712,35 @@ void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit,
 
         hu = huDeps.emplace_back(new CppMod(this, headerUnit));
 
+        bool addedInReq = false;
+        bool addedInUseReq = false;
         if (addInReq)
         {
-            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true, suppressError);
+            addedInReq = emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true, suppressError);
             emplaceInNodesType(headerUnit, FileType::HEADER_UNIT, true);
             hu->isReqHu = true;
         }
 
         if (addInUseReq)
         {
-            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false, suppressError);
+            addedInUseReq = emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false, suppressError);
             emplaceInNodesType(headerUnit, FileType::HEADER_UNIT, false);
             hu->isUseReqHu = true;
         }
 
-        hu->logicalNames.emplace_back(*p);
+        checkSameHeaderNameMapping(*p);
+        if (addedInReq || addedInUseReq)
+        {
+            hu->logicalNames.emplace_back(*p);
+        }
     }
 }
 
 void CppTarget::addHeaderUnitOrFileDir(const Node *includeDir, const string &prefix, const bool isHeaderFile,
                                        const string &regexStr, const bool addInReq, const bool addInUseReq)
 {
+    // if we are going to build hu or module conventionally, then we will not store the logical-name to file mapping in
+    // the cache.
     if (configuration->evaluate(IsCppMod::NO))
     {
         return;
@@ -780,48 +787,151 @@ void CppTarget::addHeaderUnitOrFileDir(const Node *includeDir, const string &pre
     }
 }
 
-void CppTarget::addHeaderUnitOrFileDirMSVC(const Node *includeDir, bool isHeaderFile, const bool useMentioned,
-                                           const bool addInReq, const bool addInUseReq, const bool isStandard,
-                                           bool ignoreHeaderDeps)
+CppMod *CppTarget::getPublicBigHu(const bool addNew)
+{
+    if (addNew || publicBigHus.empty())
+    {
+        const uint32_t index = publicBigHus.size();
+        publicBigHus.emplace_back(nullptr);
+        const string str(myBuildDir->filePath + slashc + std::to_string(index) + "public-" +
+                         std::to_string(cacheIndex) + ".hpp");
+        const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
+        publicBigHus[index] = new CppMod(this, bigHuNode);
+        publicBigHus[index]->isReqHu = true;
+        publicBigHus[index]->isUseReqHu = true;
+        emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
+        return publicBigHus[index];
+    }
+    return publicBigHus[publicBigHus.size() - 1];
+}
+
+CppMod *CppTarget::getPrivateBigHu(const bool addNew)
+{
+    if (addNew || privateBigHus.empty())
+    {
+        const uint32_t index = privateBigHus.size();
+        privateBigHus.emplace_back(nullptr);
+        const string str(myBuildDir->filePath + slashc + std::to_string(index) + "private-" +
+                         std::to_string(cacheIndex) + ".hpp");
+        const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
+        privateBigHus[index] = new CppMod(this, bigHuNode);
+        privateBigHus[index]->isReqHu = true;
+        emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
+    }
+    return privateBigHus[privateBigHus.size() - 1];
+}
+
+CppMod *CppTarget::getInterfaceBigHu(const bool addNew)
+{
+    if (addNew || interfaceBigHus.empty())
+    {
+        const uint32_t index = interfaceBigHus.size();
+        interfaceBigHus.emplace_back(nullptr);
+        const string str(myBuildDir->filePath + slashc + std::to_string(index) + "interface-" +
+                         std::to_string(cacheIndex) + ".hpp");
+        const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
+        interfaceBigHus[index] = new CppMod(this, bigHuNode);
+        interfaceBigHus[index]->isUseReqHu = true;
+        emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
+        return interfaceBigHus[index];
+    }
+    return interfaceBigHus[interfaceBigHus.size() - 1];
+}
+
+void CppTarget::addComposingHeadersMSVC()
 {
     if (configuration->evaluate(IsCppMod::NO))
     {
         return;
     }
 
+    CppMod *publicBigHu = getPublicBigHu(false);
+
     // From the header-units.json in the include-dir, the mentioned header-files are manually added as parsing of
     // header-units.json file fails because of the comments in it.
-    flat_hash_set<Node *> mentioned; // those that are mentioned in header-units.json file.
-    if (useMentioned)
+    string headerNames =
+        R"(__msvc_bit_utils.hpp,__msvc_chrono.hpp,__msvc_cxx_stdatomic.hpp,__msvc_filebuf.hpp,__msvc_format_ucd_tables.hpp,__msvc_formatter.hpp,__msvc_heap_algorithms.hpp,__msvc_int128.hpp,__msvc_iter_core.hpp,__msvc_minmax.hpp,__msvc_ostream.hpp,__msvc_print.hpp,__msvc_ranges_to.hpp,__msvc_ranges_tuple_formatter.hpp,__msvc_sanitizer_annotate_container.hpp,__msvc_string_view.hpp,__msvc_system_error_abi.hpp,__msvc_threads_core.hpp,__msvc_tzdb.hpp,__msvc_xlocinfo_types.hpp,algorithm,any,array,atomic,barrier,bit,bitset,cctype,cerrno,cfenv,cfloat,charconv,chrono,cinttypes,climits,clocale,cmath,codecvt,compare,complex,concepts,condition_variable,coroutine,csetjmp,csignal,cstdarg,cstddef,cstdint,cstdio,cstdlib,cstring,ctime,cuchar,cwchar,cwctype,deque,exception,execution,expected,filesystem,format,forward_list,fstream,functional,future,generator,initializer_list,iomanip,ios,iosfwd,iostream,iso646.h,istream,iterator,latch,limits,list,locale,map,mdspan,memory,memory_resource,mutex,new,numbers,numeric,optional,ostream,print,queue,random,ranges,ratio,regex,scoped_allocator,semaphore,set,shared_mutex,source_location,span,spanstream,sstream,stack,stacktrace,stdexcept,stdfloat,stop_token,streambuf,string,string_view,strstream,syncstream,system_error,thread,tuple,type_traits,typeindex,typeinfo,unordered_map,unordered_set,utility,valarray,variant,vector,xatomic.h,xatomic_wait.h,xbit_ops.h,xcall_once.h,xcharconv.h,xcharconv_ryu.h,xcharconv_ryu_tables.h,xcharconv_tables.h,xerrc.h,xfacet,xfilesystem_abi.h,xhash,xiosbase,xlocale,xlocbuf,xlocinfo,xlocmes,xlocmon,xlocnum,xloctime,xmemory,xnode_handle.h,xpolymorphic_allocator.h,xsmf_control.h,xstring,xthreads.h,xtimec.h,xtr1common,xtree,xutility,ymath.h,)";
+
+    // C compatibility headers
+    headerNames +=
+        R"(assert.h,ctype.h,errno.h,fenv.h,float.h,inttypes.h,limits.h,locale.h,math.h,setjmp.h,signal.h,stdarg.h,stddef.h,stdint.h,stdio.h,stdlib.h,string.h,time.h,uchar.h,wchar.h,wctype.h,)";
+
+    // C++ version
+    headerNames +=
+        R"(cassert,cctype,cerrno,cfenv,cfloat,cinttypes,climits,clocale,cmath,csetjmp,csignal,cstdarg,cstddef,cstdint,cstdio,cstdlib,cstring,ctime,cuchar,cwchar,cwctype,)";
+
+    // intrinsicsl
+    headerNames += "intrin.h,";
+
+    // needed by boost
+    headerNames += "crtdbg.h,ntverp.h";
+
+    uint32_t oldIndex = 0;
+    uint32_t index = headerNames.find(',');
+    while (index != -1)
     {
-        string headerNames =
-            R"(\__msvc_bit_utils.hpp,\__msvc_chrono.hpp,\__msvc_cxx_stdatomic.hpp,\__msvc_filebuf.hpp,\__msvc_format_ucd_tables.hpp,\__msvc_formatter.hpp,\__msvc_heap_algorithms.hpp,\__msvc_int128.hpp,\__msvc_iter_core.hpp,\__msvc_minmax.hpp,\__msvc_ostream.hpp,\__msvc_print.hpp,\__msvc_ranges_to.hpp,\__msvc_ranges_tuple_formatter.hpp,\__msvc_sanitizer_annotate_container.hpp,\__msvc_string_view.hpp,\__msvc_system_error_abi.hpp,\__msvc_threads_core.hpp,\__msvc_tzdb.hpp,\__msvc_xlocinfo_types.hpp,\algorithm,\any,\array,\atomic,\barrier,\bit,\bitset,\cctype,\cerrno,\cfenv,\cfloat,\charconv,\chrono,\cinttypes,\climits,\clocale,\cmath,\codecvt,\compare,\complex,\concepts,\condition_variable,\coroutine,\csetjmp,\csignal,\cstdarg,\cstddef,\cstdint,\cstdio,\cstdlib,\cstring,\ctime,\cuchar,\cwchar,\cwctype,\deque,\exception,\execution,\expected,\filesystem,\format,\forward_list,\fstream,\functional,\future,\generator,\initializer_list,\iomanip,\ios,\iosfwd,\iostream,\iso646.h,\istream,\iterator,\latch,\limits,\list,\locale,\map,\mdspan,\memory,\memory_resource,\mutex,\new,\numbers,\numeric,\optional,\ostream,\print,\queue,\random,\ranges,\ratio,\regex,\scoped_allocator,\semaphore,\set,\shared_mutex,\source_location,\span,\spanstream,\sstream,\stack,\stacktrace,\stdexcept,\stdfloat,\stop_token,\streambuf,\string,\string_view,\strstream,\syncstream,\system_error,\thread,\tuple,\type_traits,\typeindex,\typeinfo,\unordered_map,\unordered_set,\utility,\valarray,\variant,\vector,\xatomic.h,\xatomic_wait.h,\xbit_ops.h,\xcall_once.h,\xcharconv.h,\xcharconv_ryu.h,\xcharconv_ryu_tables.h,\xcharconv_tables.h,\xerrc.h,\xfacet,\xfilesystem_abi.h,\xhash,\xiosbase,\xlocale,\xlocbuf,\xlocinfo,\xlocmes,\xlocmon,\xlocnum,\xloctime,\xmemory,\xnode_handle.h,\xpolymorphic_allocator.h,\xsmf_control.h,\xstring,\xthreads.h,\xtimec.h,\xtr1common,\xtree,\xutility,\ymath.h)";
-        uint32_t oldIndex = 0;
-        uint32_t index = headerNames.find(',');
-        while (index != -1)
+        // logicalName is a string as it is stored as string_view in reqHeaderNameMapping. reqHeaderNameMapping
+        // has string_view so it is fast initialized at build-time.
+        string *logicalName = new string(headerNames.begin() + oldIndex, headerNames.begin() + index);
+
+        if constexpr (os == OS::NT)
         {
-            mentioned.emplace(Node::getNodeNonNormalized(
-                includeDir->filePath + string(headerNames.begin() + oldIndex, headerNames.begin() + index), true,
-                false));
-            oldIndex = index + 1;
-            index = headerNames.find(',', oldIndex);
+            for (char &c : *logicalName)
+            {
+                if (c == '\\')
+
+                {
+                    c = '/';
+                }
+            }
         }
+        publicBigHu->composingHeaders.emplace(*logicalName, nullptr);
+
+        oldIndex = index + 1;
+        index = headerNames.find(',', oldIndex);
     }
 
-    for (const auto &p : recursive_directory_iterator(includeDir->filePath))
+    // Handle the last header (after the final comma)
+    string *logicalName = new string(headerNames.begin() + oldIndex, headerNames.end());
+    if constexpr (os == OS::NT)
     {
-        if (p.is_regular_file())
+        for (char &c : *logicalName)
         {
-            Node *headerNode;
+            if (c == '\\')
+            {
+                c = '/';
+            }
+        }
+    }
+    publicBigHu->composingHeaders.emplace(*logicalName, nullptr);
+
+    if (!publicBigHu->composingHeaders.contains("type_traits"))
+    {
+        bool breakpoint = true;
+    }
+    bool breakpoint = true;
+}
+
+void CppTarget::addComposingHeadersDir(const Node *includeDir)
+{
+    if (configuration->evaluate(IsCppMod::NO))
+    {
+        return;
+    }
+
+    CppMod *publicBigHu = getPublicBigHu(false);
+    for (const auto &f : directory_iterator(includeDir->filePath))
+    {
+        if (f.is_regular_file())
+        {
             string *logicalName;
             {
-                string str = p.path().string();
+                string str = f.path().string();
                 lowerCaseOnWindows(str.data(), str.size());
                 // logicalName is a string as it is stored as string_view in reqHeaderNameMapping. reqHeaderNameMapping
                 // has string_view so it is fast initialized at build-time.
-                logicalName = new string(
-                    string{str.data() + includeDir->filePath.size() + 1, str.size() - includeDir->filePath.size() - 1});
-                headerNode = Node::getHalfNode(str);
+                logicalName = new string(str.data() + includeDir->filePath.size() + 1,
+                                         str.size() - includeDir->filePath.size() - 1);
 
                 if constexpr (os == OS::NT)
                 {
@@ -835,20 +945,7 @@ void CppTarget::addHeaderUnitOrFileDirMSVC(const Node *includeDir, bool isHeader
                     }
                 }
             }
-
-            if (useMentioned)
-            {
-                isHeaderFile = !mentioned.contains(headerNode);
-            }
-
-            if (isHeaderFile)
-            {
-                addHeaderFile(*logicalName, headerNode, true, addInReq, addInUseReq);
-            }
-            else
-            {
-                addHeaderUnit(*logicalName, headerNode, true, addInReq, addInUseReq);
-            }
+            publicBigHu->composingHeaders.emplace(*logicalName, nullptr);
         }
     }
 }
@@ -1264,10 +1361,20 @@ void CppTarget::writeCacheAtConfigTime()
         writeUint32(*configBuffer, hu->composingHeaders.size());
         writeUint32(*configBuffer, hu->logicalNames.size());
 
-        for (const auto &[headerName, headerNode] : hu->composingHeaders)
+        if (useIPC)
         {
-            writeStringView(*configBuffer, headerName);
-            writeNode(*configBuffer, headerNode);
+            for (const auto &[headerName, headerNode] : hu->composingHeaders)
+            {
+                writeStringView(*configBuffer, headerName);
+                writeNode(*configBuffer, headerNode);
+            }
+        }
+        else
+        {
+            for (const auto &[headerName, headerNode] : hu->composingHeaders)
+            {
+                writeStringView(*configBuffer, headerName);
+            }
         }
 
         for (const string &str : hu->logicalNames)
@@ -1278,11 +1385,12 @@ void CppTarget::writeCacheAtConfigTime()
 
     writeNode(*configBuffer, myBuildDir);
 
-    if (configuration->evaluate(IsCppMod::NO))
+    if (configuration->evaluate(IsCppMod::NO) || !useIPC)
     {
         writeIncDirsAtConfigTime(*configBuffer, reqIncls);
     }
-    else
+
+    if (configuration->evaluate(IsCppMod::YES))
     {
         writeHeaderFilesAtConfigTime(*configBuffer, reqHeaderNameMapping, reqHeaderFilesSize);
         writeHeaderFilesAtConfigTime(*configBuffer, useReqHeaderNameMapping, useReqHeaderFilesSize);
@@ -1366,8 +1474,15 @@ void CppTarget::readCacheAtBuildTime()
         for (uint32_t j = 0; j < headerFileModuleSize; ++j)
         {
             string_view headerFileName = readStringView(ptr, configRead);
-            Node *headerNode = readHalfNode(ptr, configRead);
-            hu->composingHeaders.emplace(headerFileName, headerNode);
+            if (useIPC)
+            {
+                Node *headerNode = readHalfNode(ptr, configRead);
+                hu->composingHeaders.emplace(headerFileName, headerNode);
+            }
+            else
+            {
+                hu->composingHeaders.emplace(headerFileName, nullptr);
+            }
             hu->logicalNames.emplace_back(headerFileName);
 
             if (hu->isReqHu)
@@ -1402,11 +1517,12 @@ void CppTarget::readCacheAtBuildTime()
 
     myBuildDir = readHalfNode(ptr, configRead);
 
-    if (configuration->evaluate(IsCppMod::NO))
+    if (configuration->evaluate(IsCppMod::NO) || !useIPC)
     {
         readInclDirsAtBuildTime(ptr, configRead, reqIncls, isSystem, ignoreHeaderDeps);
     }
-    else
+
+    if (configuration->evaluate(IsCppMod::YES))
     {
         readHeaderFilesAtBuildTime(ptr, configRead, reqHeaderNameMapping, isSystem);
         readHeaderFilesAtBuildTime(ptr, configRead, useReqHeaderNameMapping, isSystem);
@@ -1498,6 +1614,11 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
 
 void CppTarget::setCompileCommand()
 {
+    if (!compileCommand.empty())
+    {
+        return;
+    }
+
     compileCommand.reserve(4 * 1024);
     const CompilerFlags &flags = configuration->compilerFlags;
     const Compiler &compiler = configuration->compilerFeatures.compiler;

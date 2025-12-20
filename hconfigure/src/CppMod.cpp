@@ -27,9 +27,15 @@ bool CompareCppSrc::operator()(const CppSrc &lhs, const Node *rhs) const
     return lhs.node < rhs;
 }
 
+#ifdef BUILD_MODE
 CppSrc::CppSrc(CppTarget *target_, const Node *node_) : ObjectFile(true, false), target(target_), node{node_}
 {
 }
+#else
+CppSrc::CppSrc(CppTarget *target_, const Node *node_) : ObjectFile(false, false), target(target_), node{node_}
+{
+}
+#endif
 
 string CppSrc::getPrintName() const
 {
@@ -40,7 +46,7 @@ void CppSrc::initializeBuildCache(const uint32_t index)
 {
     myBuildCacheIndex = index;
     const BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[index];
-    if (buildCache.compileCommandWithTool.hash != target->hashedCompileCommand.getHash())
+    if (buildCache.compileCommand.hash != target->hashedCompileCommand.getHash())
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
         return;
@@ -126,6 +132,7 @@ void CppSrc::updateBTarget(Builder &builder, const unsigned short round, bool &i
             {
                 std::lock_guard _(printMutex);
                 fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
+                fflush(stdout);
             }
         }
     }
@@ -366,7 +373,7 @@ void CppSrc::updateBuildCache()
         return;
     }
 
-    buildCache.compileCommandWithTool.hash = target->hashedCompileCommand.getHash();
+    buildCache.compileCommand.hash = target->hashedCompileCommand.getHash();
     buildCache.headerFiles.clear();
     for (Node *header : headerFiles)
     {
@@ -388,7 +395,7 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
     myBuildCacheIndex = index;
     myBuildCache = &modCache;
 
-    if (modCache.srcFile.compileCommandWithTool.hash != target->hashedCompileCommand.getHash())
+    if (modCache.srcFile.compileCommand.hash != target->hashedCompileCommand.getHash())
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
         compileCommandChanged = true;
@@ -426,19 +433,56 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
     }
 }
 
+void CppMod::makeMemoryFileMapping()
+{
+    if (type == SM_FILE_TYPE::PRIMARY_IMPLEMENTATION)
+    {
+        return;
+    }
+
+    if (atomic_ref(makeMemoryMappingCompleted).load(std::memory_order_acquire))
+    {
+        return;
+    }
+
+    // If systemCheck was not called previously or isn't being called, call it.
+    if (!atomic_ref(makeMemoryMappingCalled).exchange(true))
+    {
+        N2978::BMIFile file;
+        file.filePath = interfaceNode->filePath;
+        if (const auto &r = IPCManagerBS::createSharedMemoryBMIFile(file); !r)
+        {
+            printErrorMessage(FORMAT("Could not make mapping for the file {}\n of target {}\n. Error {}\n",
+                                     node->filePath, target->name, r.error()));
+        }
+        interfaceFileSize = file.fileSize;
+        atomic_ref(makeMemoryMappingCompleted).store(true, std::memory_order_release);
+        return;
+    }
+
+    // systemCheck is being called for this node by another thread
+    while (!atomic_ref(makeMemoryMappingCompleted).load(std::memory_order_acquire))
+    {
+    }
+}
+
 void CppMod::makeAndSendBTCModule(CppMod &mod)
 {
+    mod.makeMemoryFileMapping();
     N2978::BTCModule btcModule;
     btcModule.requested.filePath = mod.interfaceNode->filePath;
+    btcModule.requested.fileSize = mod.interfaceFileSize;
     btcModule.isSystem = mod.target->isSystem;
 
-    N2978::ModuleDep dep;
     for (CppMod *modDep : mod.allCppModDependencies)
     {
         if (allCppModDependencies.emplace(modDep).second)
         {
+            modDep->makeMemoryFileMapping();
+            N2978::ModuleDep dep;
             dep.isHeaderUnit = modDep->type == SM_FILE_TYPE::HEADER_UNIT;
             dep.file.filePath = modDep->interfaceNode->filePath;
+            dep.file.fileSize = modDep->interfaceFileSize;
             for (const string &l : modDep->logicalNames)
             {
                 dep.logicalNames.emplace_back(l);
@@ -480,10 +524,12 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
         bool breakpoint = true;
     }
 
+    hu.makeMemoryFileMapping();
     N2978::BTCNonModule btcNonModule;
     btcNonModule.isHeaderUnit = true;
     btcNonModule.isSystem = hu.target->isSystem;
     btcNonModule.filePath = hu.interfaceNode->filePath;
+    btcNonModule.fileSize = hu.interfaceFileSize;
     for (const string &str : hu.logicalNames)
     {
         btcNonModule.logicalNames.emplace_back(str);
@@ -509,9 +555,11 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
     {
         if (allCppModDependencies.emplace(huDep).second)
         {
+            huDep->makeMemoryFileMapping();
             N2978::HuDep dep;
 
             dep.file.filePath = huDep->interfaceNode->filePath;
+            dep.file.fileSize = huDep->interfaceFileSize;
             for (const string &str : huDep->logicalNames)
             {
                 dep.logicalNames.emplace_back(str);
@@ -593,6 +641,39 @@ HeaderFileOrUnit CppMod::findHeaderFileOrUnit(const string &headerName) const
     return {static_cast<Node *>(nullptr), false};
 }
 
+void CppMod::print(const string &output) const
+{
+    string outputStr;
+    if (isConsole)
+    {
+        outputStr += getColorCode(type == SM_FILE_TYPE::HEADER_UNIT ? ColorIndex::hot_pink : ColorIndex::magenta);
+    }
+
+    if (output.empty())
+    {
+        outputStr += FORMAT("C++{} {} {}", type == SM_FILE_TYPE::HEADER_UNIT ? "Header-Unit" : "Module", node->filePath,
+                            target->name);
+    }
+    else
+    {
+        outputStr += target->compileCommand + getCompileCommand();
+    }
+
+    outputStr += ' ';
+    outputStr += threadIds[myThreadIndex];
+
+    if (isConsole)
+    {
+        outputStr += getColorCode(ColorIndex::reset);
+    }
+
+    outputStr += output;
+
+    std::lock_guard _(printMutex);
+    fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
+    fflush(stdout);
+}
+
 bool CppMod::build(Builder &builder)
 {
     if (node->filePath.ends_with("main2.cpp"))
@@ -632,8 +713,29 @@ bool CppMod::build(Builder &builder)
 
                 ipcManager->closeConnection();
                 auto [_, exitStatus] = run.endProcess(true);
+                assert(exitStatus == lastMessage.errorOccurred && "error-status mismatch");
                 rb.exitStatus = exitStatus;
-                assert(rb.exitStatus == lastMessage.errorOccurred && "error-status mismatch");
+
+                if (rb.exitStatus == EXIT_SUCCESS)
+                {
+                    if (type == SM_FILE_TYPE::HEADER_UNIT || type == SM_FILE_TYPE::PRIMARY_EXPORT ||
+                        type == SM_FILE_TYPE::PARTITION_EXPORT)
+                    {
+                        N2978::BMIFile file{.filePath = interfaceNode->filePath};
+                        if (const auto &r2 = IPCManagerBS::createSharedMemoryBMIFile(file); !r2)
+                        {
+                            printErrorMessage(FORMAT("Failed to create shared-memory BMI-file {}\nof target {}\n",
+                                                     interfaceNode->filePath, target->name));
+                        }
+                        interfaceFileSize = file.fileSize;
+                        makeMemoryMappingCalled = true;
+                        makeMemoryMappingCompleted = true;
+                    }
+                }
+                if (node->filePath.ends_with("iostream0000004C.ifc"))
+                {
+                    bool breakpoint = true;
+                }
 
                 atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
                 if (rb.exitStatus == EXIT_SUCCESS)
@@ -641,37 +743,7 @@ bool CppMod::build(Builder &builder)
                     atomic_ref(target->buildCacheUpdated).store(true, std::memory_order_release);
                 }
 
-                string outputStr;
-                if (isConsole)
-                {
-                    outputStr +=
-                        getColorCode(type == SM_FILE_TYPE::HEADER_UNIT ? ColorIndex::hot_pink : ColorIndex::magenta);
-                }
-
-                if (lastMessage.errorOutput.empty())
-                {
-                    outputStr += FORMAT("C++{} {} {}", type == SM_FILE_TYPE::HEADER_UNIT ? "Header-Unit" : "Module",
-                                        node->filePath, target->name);
-                }
-                else
-                {
-                    outputStr += target->compileCommand + getCompileCommand();
-                }
-
-                outputStr += ' ';
-                outputStr += threadIds[myThreadIndex];
-
-                if (isConsole)
-                {
-                    outputStr += getColorCode(ColorIndex::reset);
-                }
-
-                outputStr += lastMessage.errorOutput;
-                {
-                    std::lock_guard _(printMutex);
-                    fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
-                }
-
+                print(lastMessage.errorOutput);
                 return false;
             }
 
@@ -680,11 +752,6 @@ bool CppMod::build(Builder &builder)
             if (requestType == N2978::CTB::NON_MODULE)
             {
                 auto &[isHURequested, headerName] = reinterpret_cast<N2978::CTBNonModule &>(buffer);
-
-                if (headerName == "windows.h")
-                {
-                    bool breakpoint = true;
-                }
 
                 if (node->filePath.ends_with("lib1-cpp"))
                 {
@@ -696,7 +763,7 @@ bool CppMod::build(Builder &builder)
                 if (!f.data.cppMod)
                 {
                     printErrorMessage(FORMAT("No File in the target\n{}\n or in its dependencies\n{}\n provides this "
-                                             "header \n{}.\n requested in {}\n",
+                                             "header \n{}\n requested in {}\n",
                                              target->name, target->getDependenciesString(), headerName,
                                              node->filePath));
                 }
@@ -870,45 +937,82 @@ void CppMod::updateBTarget(Builder &builder, const unsigned short round, bool &i
             return;
         }
 
-        if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+        if (realBTargets[0].exitStatus != EXIT_SUCCESS)
         {
-            setFileStatusAndPopulateAllDependencies();
-            if (RealBTarget &rb = realBTargets[0]; rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
-            {
-                rb.assignNeedsUpdateToDependents();
-                headerFiles.clear();
-                allCppModDependencies.clear();
-                myBuildCache->headerUnitArray.clear();
-                myBuildCache->moduleArray.clear();
-
-                const Node *endNode = type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode : objectNode;
-                if (auto r = N2978::makeIPCManagerBS(endNode->filePath); r)
-                {
-                    ipcManager = new IPCManagerBS(*r);
-                }
-                else
-                {
-                    printErrorMessage(FORMAT("Could not make the build-system manager {}\n", endNode->filePath));
-                }
-
-                const string compileCommand = target->compileCommand + getCompileCommand();
-                if (node->filePath.ends_with("lib1-cpp"))
-                {
-                    bool breakpoint = true;
-                    run.startProcess(compileCommand, true);
-                }
-                else
-                {
-                    run.startProcess(compileCommand, true);
-                    bool breakpoint = false;
-                }
-                isComplete = build(builder);
-            }
-            else
-            {
-                atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
-            }
+            return;
         }
+
+        setFileStatusAndPopulateAllDependencies();
+
+        RealBTarget &rb = realBTargets[0];
+        if (rb.updateStatus == UpdateStatus::ALREADY_UPDATED)
+        {
+            atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
+            return;
+        }
+
+        const string compileCommand = target->compileCommand + getCompileCommand();
+        if (!target->useIPC)
+        {
+            run.startProcess(compileCommand, os == OS::NT ? true : false);
+            auto [output, exitStatus] = run.endProcess(os == OS::NT ? true : false);
+            realBTargets[0].exitStatus = exitStatus;
+
+            parseHeaderDeps(output);
+            if (rb.exitStatus == EXIT_SUCCESS)
+            {
+                if (type == SM_FILE_TYPE::HEADER_UNIT || type == SM_FILE_TYPE::PRIMARY_EXPORT ||
+                    type == SM_FILE_TYPE::PARTITION_EXPORT)
+                {
+                    N2978::BMIFile file{.filePath = interfaceNode->filePath};
+                    if (const auto &r2 = IPCManagerBS::createSharedMemoryBMIFile(file); !r2)
+                    {
+                        printErrorMessage(FORMAT("Failed to create shared-memory BMI-file {}\nof target {}\n",
+                                                 interfaceNode->filePath, target->name));
+                    }
+                    interfaceFileSize = file.fileSize;
+                    makeMemoryMappingCalled = true;
+                    makeMemoryMappingCompleted = true;
+                }
+            }
+
+            atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
+            if (rb.exitStatus == EXIT_SUCCESS)
+            {
+                atomic_ref(target->buildCacheUpdated).store(true, std::memory_order_release);
+            }
+
+            print(output);
+            return;
+        }
+
+        rb.assignNeedsUpdateToDependents();
+        headerFiles.clear();
+        allCppModDependencies.clear();
+        myBuildCache->headerUnitArray.clear();
+        myBuildCache->moduleArray.clear();
+
+        const Node *endNode = type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode : objectNode;
+        if (auto r = N2978::makeIPCManagerBS(endNode->filePath); r)
+        {
+            ipcManager = new IPCManagerBS(*r);
+        }
+        else
+        {
+            printErrorMessage(FORMAT("Could not make the build-system manager {}\n", endNode->filePath));
+        }
+
+        if (node->filePath.ends_with("lib1-cpp"))
+        {
+            bool breakpoint = true;
+            run.startProcess(compileCommand, true);
+        }
+        else
+        {
+            run.startProcess(compileCommand, true);
+            bool breakpoint = false;
+        }
+        isComplete = build(builder);
     }
 }
 
@@ -925,7 +1029,7 @@ void CppMod::updateBuildCache()
         return;
     }
 
-    myBuildCache->srcFile.compileCommandWithTool.hash = target->hashedCompileCommand.getHash();
+    myBuildCache->srcFile.compileCommand.hash = target->hashedCompileCommand.getHash();
     myBuildCache->srcFile.headerFiles.clear();
     for (Node *header : headerFiles)
     {
@@ -957,22 +1061,59 @@ void CppMod::updateBuildCache()
 string CppMod::getCompileCommand() const
 {
     string s = "-Wno-experimental-header-units ";
+
+    const string useIPC = target->useIPC ? "-noScanIPC " : "";
     if (const Compiler &c = target->configuration->compilerFeatures.compiler;
         c.bTFamily == BTFamily::MSVC && c.btSubFamily == BTSubFamily::CLANG)
     {
         if (type == SM_FILE_TYPE::HEADER_UNIT)
         {
             s += (target->isSystem ? "-fmodule-header=system /clang:-o\"" : "-fmodule-header=user /clang:-o\"") +
-                 interfaceNode->filePath + "\" -noScanIPC -xc++-header \"" + node->filePath + '\"';
+                 interfaceNode->filePath + "\" " + useIPC + "-xc++-header \"" + node->filePath + '\"';
         }
         else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
-            s += " -o \"" + objectNode->filePath + "\" -noScanIPC -c -xc++-module \"" + node->filePath +
+            s += " -o \"" + objectNode->filePath + "\" " + useIPC + "-c -xc++-module \"" + node->filePath +
                  "\" -fmodule-output=\"" + interfaceNode->filePath + '\"';
         }
         else
         {
-            s += "-o \"" + objectNode->filePath + "\" -noScanIPC -c /TP \"" + node->filePath + '\"';
+            s += "-o \"" + objectNode->filePath + "\" " + useIPC + "-c /TP \"" + node->filePath + '\"';
+        }
+
+        if (isConsole)
+        {
+            s += " -fdiagnostics-color=always";
+        }
+        else
+        {
+            s += " -fdiagnostics-color=never";
+        }
+    }
+    else if (c.bTFamily == BTFamily::GCC && c.btSubFamily == BTSubFamily::CLANG)
+    {
+        if (type == SM_FILE_TYPE::HEADER_UNIT)
+        {
+            s += (target->isSystem ? "-fmodule-header=system -o\"" : "-fmodule-header=user -o\"") +
+                 interfaceNode->filePath + "\" " + useIPC + "-xc++-header \"" + node->filePath + '\"';
+        }
+        else if (type == SM_FILE_TYPE::PRIMARY_EXPORT || type == SM_FILE_TYPE::PARTITION_EXPORT)
+        {
+            s += " -o \"" + objectNode->filePath + "\" " + useIPC + "-c -xc++-module \"" + node->filePath +
+                 "\" -fmodule-output=\"" + interfaceNode->filePath + '\"';
+        }
+        else
+        {
+            s += "-o \"" + objectNode->filePath + "\" " + useIPC + "-c -x c++ \"" + node->filePath + '\"';
+        }
+
+        if (isConsole)
+        {
+            s += " -fdiagnostics-color=always";
+        }
+        else
+        {
+            s += " -fdiagnostics-color=never";
         }
     }
 
@@ -1109,9 +1250,12 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             return;
         }
 
-        if (hu->node->lastWriteTime > endNode->lastWriteTime)
+        if (!hu->target->ignoreHeaderDeps)
         {
-            return;
+            if (hu->node->lastWriteTime > endNode->lastWriteTime)
+            {
+                return;
+            }
         }
 
         allCppModDependencies.emplace(hu);
@@ -1144,9 +1288,12 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             return;
         }
 
-        if (cppMod->node->lastWriteTime > objectNode->lastWriteTime)
+        if (!cppMod->target->ignoreHeaderDeps)
         {
-            return;
+            if (cppMod->node->lastWriteTime > objectNode->lastWriteTime)
+            {
+                return;
+            }
         }
 
         allCppModDependencies.emplace(cppMod);

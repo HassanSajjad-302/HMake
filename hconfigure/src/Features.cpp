@@ -1,4 +1,3 @@
-
 #include "Features.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "Cache.hpp"
@@ -313,7 +312,6 @@ LinkerFlags LinkerFeatures::getLinkerFlags()
     LinkerFlags flags;
     if (linker.bTFamily == BTFamily::MSVC)
     {
-
         // msvc.jam supports multiple tools such as assembler, compiler, mc-compiler(message-catalogue-compiler),
         // idl-compiler(interface-definition-compiler) and manifest-tool. HMake does not support these and  only
         // supports link.exe, lib.exe and cl.exe. While the msvc.jam also supports older VS and store and phone
@@ -878,8 +876,7 @@ void CppCompilerFeatures::initialize()
     }
 
     compiler.btSubFamily = BTSubFamily::CLANG;
-    // compiler.bTPath = R"(/home/hassan/Projects/llvm-project/llvm/cmake-build-release/bin/clang)";
-    compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-release\bin\clang-cl.exe)";
+    compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-relwithdebinfo\bin\clang-cl.exe)";
 }
 
 void CppCompilerFeatures::setConfigType(const ConfigType configType_)
@@ -924,7 +921,6 @@ CompilerFlags CppCompilerFeatures::getCompilerFlags() const
     CompilerFlags flags;
     if (compiler.bTFamily == BTFamily::MSVC)
     {
-
         // msvc.jam supports multiple tools such as assembler, compiler, mc-compiler(message-catalogue-compiler),
         // idl-compiler(interface-definition-compiler) and manifest-tool. HMake does not support these and  only
         // supports link.exe, lib.exe and cl.exe. While the msvc.jam also supports older VS and store and phone Windows

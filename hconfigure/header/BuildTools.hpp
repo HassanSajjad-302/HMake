@@ -47,7 +47,7 @@ struct BuildTool
     BTSubFamily btSubFamily{};
     Version bTVersion;
     string bTPath;
-    BuildTool(BTFamily btFamily_, Version btVersion_, string btPath_);
+    BuildTool(BTFamily btFamily_, BTSubFamily btSubFamily_, Version btVersion_, string btPath_);
     BuildTool() = default;
 };
 void to_json(Json &json, const BuildTool &buildTool);
@@ -56,19 +56,19 @@ void from_json(const Json &json, BuildTool &buildTool);
 // templates could had been used here but to avoid extra typing of < and >, this is preferred.
 struct Compiler : BuildTool
 {
-    Compiler(BTFamily btFamily_, Version btVersion_, string btPath_);
+    Compiler(BTFamily btFamily_, BTSubFamily btSubFamily_, Version btVersion_, string btPath_);
     Compiler() = default;
 };
 
 struct Linker : BuildTool
 {
-    Linker(BTFamily btFamily_, Version btVersion_, string btPath_);
+    Linker(BTFamily btFamily_, BTSubFamily btSubFamily_, Version btVersion_, string btPath_);
     Linker() = default;
 };
 
 struct Archiver : BuildTool
 {
-    Archiver(BTFamily btFamily_, Version btVersion_, string btPath_);
+    Archiver(BTFamily btFamily_, BTSubFamily btSubFamily_, Version btVersion_, string btPath_);
     Archiver() = default;
 };
 

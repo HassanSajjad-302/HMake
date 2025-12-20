@@ -25,7 +25,7 @@ struct HeaderFileOrUnit;
 struct CompareCppSrc
 {
     using is_transparent = void; // for example with void,
-                                 // but could be int or struct CanSearchOnId;
+    // but could be int or struct CanSearchOnId;
     bool operator()(const CppSrc &lhs, const CppSrc &rhs) const;
     bool operator()(const Node *lhs, const CppSrc &rhs) const;
     bool operator()(const CppSrc &lhs, const Node *rhs) const;
@@ -113,6 +113,8 @@ struct CppMod final : CppSrc
     /// Points to one of the arrays of CppTarget::cppBuildCache of the owning CppTarget.
     BuildCache::Cpp::ModuleFile *myBuildCache;
 
+    uint32_t interfaceFileSize;
+
     SM_FILE_TYPE type;
 
     /// Following is used only at config-time. Describes whether hu is private hu of the CppTarget.
@@ -124,6 +126,11 @@ struct CppMod final : CppSrc
     /// Composing headers are only sent with the first message. This keeps tracks of that
     bool firstMessageSent = false;
 
+    /// atomically set to true
+    bool makeMemoryMappingCalled = false;
+
+    bool makeMemoryMappingCompleted = false;
+
     bool compileCommandChanged = false;
 
     CppMod(CppTarget *target_, const Node *node_);
@@ -131,6 +138,10 @@ struct CppMod final : CppSrc
     /// Call by CppTarget. In this we set Node::toBeChecked of different Nodes like header-files, interface-node and
     /// objectNode.
     void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index);
+
+    /// thread-safe function that ensures that build-system creates shared-memory bmi file before sending it to the
+    /// compiler. if the file is updated, then the compiler creates the mapping. if not then the build-system.
+    void makeMemoryFileMapping();
 
     /// Called to send the N2978::BTCModule corresponding to a module CppMod whose compilation just completed
     void makeAndSendBTCModule(CppMod &mod);
@@ -146,6 +157,9 @@ struct CppMod final : CppSrc
     /// the dependency CppTargets. While compiling the big-hu, a request for any composing-header will map to the big-hu
     /// in these lookup tables. This case is specially handled in the following function.
     HeaderFileOrUnit findHeaderFileOrUnit(const string &headerName) const;
+
+    /// prints short status string if there is no output. prints full command + output, if there is output
+    void print(const string &output) const;
 
     /// CppMod::updateBTarget function is responsible for launching the IPC server and the compilation process. This
     /// function interacts with this server and manages the build.

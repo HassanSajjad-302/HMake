@@ -45,7 +45,7 @@ void configurationSpecification(Configuration &config)
 
     config.assign(BuildTests::YES, BuildExamples::YES);
 
-    BoostCppTarget &callableTraits = config.getBoostCppTarget("callable_Traits");
+    BoostCppTarget &callableTraits = config.getBoostCppTarget("callable_traits");
     BoostCppTarget &configTarget = config.getBoostCppTarget("config");
     configTarget.mainTarget.getSourceTarget().publicHeaderFiles(
         "boost/io_fwd.hpp", "boost/io_fwd.hpp", "boost/call_traits.hpp", "boost/call_traits.hpp", "boost/version.hpp",

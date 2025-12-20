@@ -5,6 +5,8 @@
 
 #include "BuildSystemFunctions.hpp"
 #include "Features.hpp"
+#include "RunCommand.hpp"
+
 #include <string>
 using std::string;
 
@@ -13,11 +15,11 @@ static string hhelperStr = getActualNameFromTargetName(TargetType::EXECUTABLE, o
 
 struct ExamplesTestHelper
 {
-    static void recreateBuildDirAndBuildHMakeProject();
+    static void cleanBuild();
     static void runAppWithExpectedOutput(const string &appName, const string &expectedOutput);
-    static void recreateBuildDirAndGethbuildOutput(string &output, int32_t exitStatus);
+    static void getCleanBuildOutputAndStatus(string &output, int32_t &exitStatus);
     static void runCommandAndGetOutput(const string &command, string &output);
-    static void runCommandAndGetOutputInDirectory(const string &dir, const string &command, string &output);
+    static void getCommandOutputInDir(const string &dir, const string &command, string &output);
     static void recreateBuildDir();
 };
 

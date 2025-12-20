@@ -86,8 +86,8 @@ void from_json(const Json &json, BTSubFamily &btSubFamily)
     }
 }
 
-BuildTool::BuildTool(const BTFamily btFamily_, const Version btVersion_, string btPath_)
-    : bTFamily(btFamily_), bTVersion(btVersion_), bTPath(std::move(btPath_))
+BuildTool::BuildTool(const BTFamily btFamily_, const BTSubFamily btSubFamily_, const Version btVersion_, string btPath_)
+    : bTFamily(btFamily_), btSubFamily(btSubFamily_), bTVersion(btVersion_), bTPath(std::move(btPath_))
 {
 }
 
@@ -107,17 +107,17 @@ void from_json(const Json &json, BuildTool &buildTool)
     buildTool.bTPath = json.at(JConsts::path).get<string>();
 }
 
-Compiler::Compiler(const BTFamily btFamily_, const Version btVersion_, string btPath_)
-    : BuildTool(btFamily_, btVersion_, std::move(btPath_))
+Compiler::Compiler(const BTFamily btFamily_, const BTSubFamily btSubFamily_, const Version btVersion_, string btPath_)
+    : BuildTool(btFamily_, btSubFamily_, btVersion_, std::move(btPath_))
 {
 }
 
-Linker::Linker(const BTFamily btFamily_, const Version btVersion_, string btPath_)
-    : BuildTool(btFamily_, btVersion_, std::move(btPath_))
+Linker::Linker(const BTFamily btFamily_, const BTSubFamily btSubFamily_, const Version btVersion_, string btPath_)
+    : BuildTool(btFamily_, btSubFamily_, btVersion_, std::move(btPath_))
 {
 }
 
-Archiver::Archiver(const BTFamily btFamily_, const Version btVersion_, string btPath_)
-    : BuildTool(btFamily_, btVersion_, std::move(btPath_))
+Archiver::Archiver(const BTFamily btFamily_, const BTSubFamily btSubFamily_, const Version btVersion_, string btPath_)
+    : BuildTool(btFamily_, btSubFamily_, btVersion_, std::move(btPath_))
 {
 }

@@ -239,6 +239,8 @@ add_dual_executables(Example1 Examples/Example1/hmake.cpp
         HMake hmake.cpp
         Boost Projects/Boost/hmake.cpp)
 
+add_executable(monitor monitor.cpp)
+
 # TODO
 # https://rapidjson.org/group___r_a_p_i_d_j_s_o_n___c_o_n_f_i_g.html
 # macros to be looked for simd from above and whether that they are defined

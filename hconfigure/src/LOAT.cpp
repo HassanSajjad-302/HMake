@@ -272,6 +272,7 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
             {
                 std::lock_guard _(printMutex);
                 fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
+                fflush(stdout);
             }
 
             if constexpr (os == OS::NT)

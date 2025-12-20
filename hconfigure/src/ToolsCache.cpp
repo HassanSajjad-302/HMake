@@ -2,6 +2,8 @@
 #include "ToolsCache.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "JConsts.hpp"
+#include "RunCommand.hpp"
+
 #include <filesystem>
 #include <fstream>
 #include <utility>
@@ -172,23 +174,20 @@ void from_json(const Json &j, VSTools &vsTool)
 
 LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
 {
-    const string temporaryIncludeFilename = "temporaryInclude.txt";
-
     const string str = std::filesystem::current_path().string();
     const string temporaryCppFile = "temporary-main.cpp";
     ofstream(temporaryCppFile) << "";
-    command = compiler.bTPath + " " + temporaryCppFile + " -E -v> " + temporaryIncludeFilename + " 2>&1";
-    const int code = system(command.c_str());
+    command = compiler.bTPath + " " + temporaryCppFile + " -E -v";
+    RunCommand r;
+    r.startProcess(command, false);
+    const auto &[output, exitStatus] = r.endProcess(false);
     remove(temporaryCppFile);
-    if (code != EXIT_SUCCESS)
+    if (exitStatus != EXIT_SUCCESS)
     {
-        printErrorMessage("Error in Initializing Environment\n");
+        printErrorMessage(FORMAT("Error in Initializing Environment\n{}\n", output));
     }
 
-    const string accumulatedPaths = fileToString(temporaryIncludeFilename);
-    remove(temporaryIncludeFilename);
-    const vector<string_view> lines = split(accumulatedPaths, '\n');
-
+    const vector<string_view> lines = split(output, '\n');
     size_t foundIndex = 0;
     for (size_t i = 0; i < lines.size(); ++i)
     {
@@ -217,6 +216,7 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
             {
                 // first character is space, so substr is copied
                 emplaceInVector(includeDirs, string(lines[i].substr(1, lines[i].size() - 1)));
+                printMessage(FORMAT("Found standard include-dir {}\n", includeDirs[includeDirs.size() - 1]));
             }
         }
         else
@@ -282,9 +282,11 @@ void ToolsCache::detectToolsAndInitialize()
     }
     else if constexpr (os == OS::LINUX)
     {
-        linuxTools.emplace_back(Compiler(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/c++"));
-        linkers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/c++");
-        archivers.emplace_back(BTFamily::GCC, Version(12, 2, 0), "/usr/bin/ar");
+        linuxTools.emplace_back(Compiler(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0),
+                                         R"(/home/hassan/Projects/llvm-project/llvm/cmake-build-release/bin/clang++)"));
+        linkers.emplace_back(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0),
+                             R"(/home/hassan/Projects/llvm-project/llvm/cmake-build-release/bin/clang++)");
+        archivers.emplace_back(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0), "/usr/bin/ar");
     }
 }
 

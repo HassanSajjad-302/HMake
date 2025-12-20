@@ -36,58 +36,78 @@ void Configuration::initialize()
     {
         SystemTarget s1 = systemTarget;
         IgnoreHeaderDeps i1 = ignoreHeaderDeps;
+        BigHeaderUnit b1 = bigHeaderUnit;
         systemTarget = SystemTarget::YES;
         ignoreHeaderDeps = IgnoreHeaderDeps::YES;
+        bigHeaderUnit = BigHeaderUnit::YES;
 
         stdCppTarget = &getCppStaticDSC("std");
+        // standard headers are not compiled with IPC. As they have no other dependencies, we can compile them directly.
+        // This way, we don't need to support #include_next semantics which are only used in standard headers.
+        stdCppTarget->getSourceTarget().useIPC = false;
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
             if (cache.isCompilerInToolsArray)
             {
                 CppTarget *c = stdCppTarget->getSourceTargetPointer();
-                // Use getNodeFromNormalizedPath instead
+                vector<string> *includeDirs;
                 if constexpr (os == OS::NT)
                 {
-                    const vector<string> &includes = toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs;
-                    Node *zeroInclNode = Node::getNodeNonNormalized(includes[0], false);
-                    c->actuallyAddInclude(false, zeroInclNode, true, true);
-
-                    // Only the first include is compiled as header-unit.
-                    if (evaluate(IsCppMod::YES) && evaluate(StdAsHeaderUnit::YES))
-                    {
-                        c->addHeaderUnitOrFileDirMSVC(zeroInclNode, false, true, true, true, true, true);
-                        // c->addHeaderUnitOrFileDirMSVC(zeroInclNode, true, false, true, true, true, true);
-                    }
-                    else
-                    {
-                        c->addHeaderUnitOrFileDirMSVC(zeroInclNode, true, false, true, true, true, true);
-                    }
-
-                    for (uint32_t i = 1; i < includes.size(); ++i)
-                    {
-                        Node *inclNode = Node::getNodeNonNormalized(includes[i], false);
-                        c->actuallyAddInclude(false, inclNode, true, true);
-                        c->addHeaderUnitOrFileDirMSVC(inclNode, true, false, true, true, true, true);
-                    }
-
-                    if constexpr (os == OS::NT)
-                    {
-                        if (evaluate(BigHeaderUnit::YES))
-                        {
-                            c->publicBigHus.emplace_back(nullptr);
-                            c->makeHeaderFileAsUnit("windows.h", true, true);
-                        }
-                    }
+                    includeDirs = &toolsCache.vsTools[cache.selectedCompilerArrayIndex].includeDirs;
                 }
                 else
                 {
-                    for (const string &str : toolsCache.linuxTools[cache.selectedCompilerArrayIndex].includeDirs)
+
+                    includeDirs = &toolsCache.linuxTools[cache.selectedCompilerArrayIndex].includeDirs;
+                }
+
+                for (const string &str : *includeDirs)
+                {
+                    const Node *inclNode = Node::getNodeNonNormalized(str, false);
+                    // In Module compilation mode, we only add include dirs for our own target but not as interface
+                    // includes.
+                    c->actuallyAddInclude(true, inclNode, true, evaluate(IsCppMod::NO));
+                }
+
+                if (evaluate(IsCppMod::YES))
+                {
+                    if constexpr (os == OS::NT)
                     {
-                        Node *inclNode = Node::getNodeNonNormalized(str, false);
-                        c->addHeaderUnitOrFileDir(inclNode, "", true, "", true, true);
+                        // 2 big-hu are being added. One with c++ standard headers and one with windows.h
+                        c->getPublicBigHu(true);
+                        c->addComposingHeadersMSVC();
+                        CppMod *publicBigHu = c->getPublicBigHu(true);
+                        string *s = new string("windows.h");
+                        publicBigHu->composingHeaders.emplace(*s, nullptr);
+                        s = new string("winapifamily.h");
+                        publicBigHu->composingHeaders.emplace(*s, nullptr);
+                    }
+                    else
+                    {
+                        // One big-hu is being added of c++ standard headers. However, a few more composing headers are
+                        // being added. These composing headers are being used by the boost.
+                        Node *cppStandardHeaders = Node::getNodeNonNormalized(
+                            toolsCache.linuxTools[cache.selectedLinkerArrayIndex].includeDirs[0], false);
+                        c->getPublicBigHu(true);
+                        c->addComposingHeadersDir(cppStandardHeaders);
+
+                        CppMod *publicBigHu = c->getPublicBigHu(false);
+                        string *s = new string("unistd.h");
+                        publicBigHu->composingHeaders.emplace(*s, nullptr);
+                        s = new string("stdint.h");
+                        publicBigHu->composingHeaders.emplace(*s, nullptr);
+                        s = new string("assert.h");
+                        publicBigHu->composingHeaders.emplace(*s, nullptr);
+                        s = new string("stdarg.h");
+                        publicBigHu->composingHeaders.emplace(*s, nullptr);
+                        s = new string("stdio.h");
+                        publicBigHu->composingHeaders.emplace(*s, nullptr);
+                        s = new string("wchar.h");
+                        publicBigHu->composingHeaders.emplace(*s, nullptr);
                     }
                 }
             }
+
             if (cache.isLinkerInToolsArray)
             {
                 const VSTools &vsTools = toolsCache.vsTools[cache.selectedLinkerArrayIndex];
@@ -115,6 +135,7 @@ void Configuration::initialize()
 
         systemTarget = s1;
         ignoreHeaderDeps = i1;
+        bigHeaderUnit = b1;
     }
 }
 

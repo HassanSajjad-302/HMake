@@ -4,7 +4,6 @@
 #include "BuildTools.hpp"
 #include "Features.hpp"
 #include <vector>
-
 using std::vector;
 
 // On Windows standard libraries and includes are not provided by default. And tools used are different based on

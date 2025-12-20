@@ -147,7 +147,7 @@ TEST(StageTests, Test1)
     const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test1");
     current_path(testSourcePath);
     copyFilePath(testSourcePath / "Version/hmake0.cpp", testSourcePath / "hmake.cpp");
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     current_path("Release/app/");
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "Hello World\n");
     current_path("../../");
@@ -255,7 +255,7 @@ TEST(StageTests, Test2)
     current_path(testSourcePath);
     setupTest2Default();
 
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     current_path("Debug/app/");
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "36\n");
     current_path("../../");
@@ -467,9 +467,9 @@ TEST(StageTests, Test3)
     current_path(testSourcePath);
     setupTest3Default();
 
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     current_path("Debug/app/");
-    ExamplesTestHelper::runAppWithExpectedOutput("app", "36\n");
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "36\n");
     current_path("../../");
 
     executeSnapshotBalances(Updates{});

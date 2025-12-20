@@ -82,7 +82,7 @@ struct ModuleDep
     // contain more than one values, as header-unit can be
     // composed of multiple header-files. And if later,
     // any of the following logicalNames is included or
-    // imported, the following can be used instead.
+    // imported, this header-unit can be used instead.
     std::vector<std::string> logicalNames;
     bool isSystem = true;
 };
@@ -98,6 +98,10 @@ struct BTCModule
 struct HuDep
 {
     BMIFile file;
+    // A header-unit can be composed of
+    // multiple header-files. And if later,
+    // any of the following logicalNames is included or
+    // imported, this header-unit can be used instead.
     std::vector<std::string> logicalNames;
     // whether header-unit / header-file belongs to user or system directory.
     bool isSystem = true;
@@ -119,6 +123,10 @@ struct BTCNonModule
     // if isHeaderUnit == false, the following are meaning-less.
     // if isHeaderUnit == true, fileSize of the requested file.
     uint32_t fileSize;
+    // A header-unit can be composed of
+    // multiple header-files. And if later,
+    // any of the following logicalNames is included or
+    // imported, this header-unit can be used instead.
     std::vector<std::string> logicalNames;
     // build-system might send the following on first request, if it knows that a
     // header-unit is being compiled that compose multiple header-files to reduce

@@ -1,4 +1,3 @@
-
 /// \file
 /// Defines CppTarget class
 
@@ -21,6 +20,7 @@ struct HeaderFileOrUnit
         CppMod *cppMod;
         Node *node;
     } data;
+
     bool isUnit;
     bool isSystem;
     HeaderFileOrUnit(CppMod *cppMod_, bool isSystem_);
@@ -137,22 +137,16 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     Node *myBuildDir = nullptr;
 
     /// Used only at configure-time. if (CppTarget::configuration::bigHeader == BigHeaderUnit::YES), then any newly
-    /// added public header-units will become a composing header of last element of the following. If the last element
-    /// of the following is nullptr, then a new hu is created in CppTarget::myBuildDir of name
-    /// [publicBigHus.size()]public[cacheIndex].hpp. CppTarget constructor at config-time initializes this with one
-    /// nullptr element.
+    /// added public header-units will become a composing header of last element of the following. Helper function
+    /// CppTarget::getPublicBigHu will return the last entry of this.
     vector<CppMod *> publicBigHus;
     /// Used only at configure-time. if (CppTarget::configuration::bigHeader == BigHeaderUnit::YES), then any newly
-    /// added private header-units will become a composing header of last element of the following. If the last element
-    /// of the following is nullptr, then a new hu is created in CppTarget::myBuildDir of name
-    /// [privateBigHus.size()]public[cacheIndex].hpp. CppTarget constructor at config-time initializes this with one
-    /// nullptr element.
+    /// added private header-units will become a composing header of last element of the following. Helper function
+    /// CppTarget::getPublicBigHu will return the last entry of this.
     vector<CppMod *> privateBigHus;
     /// Used only at configure-time. if (CppTarget::configuration::bigHeader == BigHeaderUnit::YES), then any newly
-    /// added interface header-units will become a composing header of last element of the following. If the last
-    /// element of the following is nullptr, then a new hu is created in CppTarget::myBuildDir of name
-    /// [publicBigHus.size()]public[cacheIndex].hpp. CppTarget constructor at config-time initializes this with one
-    /// nullptr element.
+    /// added interface header-units will become a composing header of last element of the following. Helper function
+    /// CppTarget::getPublicBigHu will return the last entry of this.
     vector<CppMod *> interfaceBigHus;
 
     /// Used only at configure time. Specifies the number of header-files in reqHeaderNameMapping. Only for
@@ -179,6 +173,11 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// header-units. These will update the corresponding entry in CppTarget::cppBuildCache if they were updated. This
     /// is accessed atomically as it might have been called in Ctrl+C signal handler.
     bool buildCacheUpdated = false;
+
+    /// Determines whether the modules and hu of this target should be built using the IPC compilation. If false, then
+    /// the user is itself responsible for specifying all the hu and module dependencies. This is useful for standard hu
+    /// and modules. As IPC based compilation does not support #include_next used by some standard headers.
+    bool useIPC = true;
 
     /// Sets the compile-command using the Configuration::compilerFlags and Configuration::compilerFeatures.
     void setCompileCommand();
@@ -219,7 +218,8 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
 
     void actuallyAddSourceFileConfigTime(Node *node);
     void actuallyAddModuleFileConfigTime(Node *node, string exportName);
-    void emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, bool addInReq, bool suppressError);
+    void checkSameHeaderNameMapping(string_view headerName);
+    bool emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, bool addInReq, bool suppressError);
     void emplaceInNodesType(const Node *node, FileType type, bool addInReq);
     void makeHeaderFileAsUnit(const string &includeName, bool addInReq, bool addInUseReq);
     void removeHeaderFile(const string &includeName, bool addInReq, bool addInUseReq);
@@ -230,8 +230,11 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
                        bool addInUseReq);
     void addHeaderUnitOrFileDir(const Node *includeDir, const string &prefix, bool isHeaderFile, const string &regexStr,
                                 bool addInReq, bool addInUseReq);
-    void addHeaderUnitOrFileDirMSVC(const Node *includeDir, bool isHeaderFile, bool useMentioned, bool addInReq,
-                                    bool addInUseReq, bool isStandard, bool ignoreHeaderDeps);
+    void addComposingHeadersMSVC();
+    CppMod *getPublicBigHu(bool addNew);
+    CppMod *getPrivateBigHu(bool addNew);
+    CppMod *getInterfaceBigHu(bool addNew);
+    void addComposingHeadersDir(const Node *includeDir);
     void actuallyAddInclude(bool errorOnEmplaceFail, const Node *include, bool addInReq, bool addInUseReq);
     void readModuleMapFromDir(const string &dir);
 
@@ -644,7 +647,6 @@ CppTarget &CppTarget::interfaceHUIncludesRE(const string &include, const string 
 template <typename... U>
 CppTarget &CppTarget::publicHUDirs(const string &include, const string &prefix, U... includeDirectoryString)
 {
-
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
@@ -712,7 +714,6 @@ template <typename... U>
 CppTarget &CppTarget::publicHUDirsRE(const string &include, const string &prefix, const string &regexStr,
                                      U... includeDirectoryString)
 {
-
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
@@ -781,7 +782,6 @@ CppTarget &CppTarget::interfaceHUDirsRE(const string &include, const string &pre
 template <typename... U>
 CppTarget &CppTarget::publicIncDirs(const string &include, const string &prefix, U... includeDirectoryString)
 {
-
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
@@ -849,7 +849,6 @@ template <typename... U>
 CppTarget &CppTarget::publicIncDirsRE(const string &include, const string &prefix, const string &regexStr,
                                       U... includeDirectoryString)
 {
-
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
@@ -1075,7 +1074,6 @@ CppTarget &CppTarget::interfaceFiles(const string &modFile, const string &export
 template <typename... U>
 CppTarget &CppTarget::publicHeaderFiles(const string &includeName, const string &headerFile, U... headersString)
 {
-
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))

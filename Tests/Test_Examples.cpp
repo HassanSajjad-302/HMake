@@ -13,7 +13,7 @@ using std::string, std::ofstream, std::ifstream, std::filesystem::create_directo
 TEST(ExamplesTest, Example1)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example1"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Hello World\n");
@@ -22,7 +22,7 @@ TEST(ExamplesTest, Example1)
 TEST(ExamplesTest, Example2)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example2"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Debug/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "func1 called\nfunc2 called\nfunc3 called\nfunc4 called\n");
@@ -34,7 +34,7 @@ TEST(ExamplesTest, Example2)
 TEST(ExamplesTest, Example3)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example3"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "func() from file1.cpp called.\n");
@@ -57,7 +57,7 @@ TEST(ExamplesTest, Example3)
 TEST(ExamplesTest, Example4)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example4"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     ExamplesTestHelper::runAppWithExpectedOutput(
         current_path().string() + "/Release/Animal-Shared/" +
             getActualNameFromTargetName(TargetType::EXECUTABLE, os, "Animal-Shared"),
@@ -72,7 +72,7 @@ TEST(ExamplesTest, Example6)
 {
 
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example6"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/App-Static/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Cat says Meow..\nDog says Woof..\n");
@@ -87,11 +87,10 @@ TEST(ExamplesTest, Example6)
                                                  "Cat says Meow..\nDog says Woof..\n");
 }
 
-#ifdef _WIN32
 TEST(ExamplesTest, Example7)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example7"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     /*ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/modules/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Hello World\n");*/
@@ -103,16 +102,18 @@ TEST(ExamplesTest, Example7)
 TEST(ExamplesTest, Example8)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example8"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "Hello World\n");
 }
 
+#ifdef _WIN32
+
 TEST(ExamplesTest, Example9)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example9"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/static/app/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "36\n");
@@ -121,7 +122,7 @@ TEST(ExamplesTest, Example9)
 TEST(ExamplesTest, Example10)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example10"));
-    ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject();
+    ExamplesTestHelper::cleanBuild();
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/appA/" +
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "appA"),
                                                  "My Name is Library A\nMy Name is Library B\n");
@@ -133,15 +134,19 @@ TEST(AExamplesTest, Example_A1)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A1"));
     string output;
-    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_SUCCESS);
+    int exitStatus;
+    ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
     ASSERT_EQ(output, "Hello\nWorld\n");
+    ASSERT_EQ(exitStatus, EXIT_SUCCESS);
 }
 
 TEST(AExamplesTest, Example_A2)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A2"));
     string output;
-    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_SUCCESS);
+    int exitStatus;
+    ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
+    ASSERT_EQ(exitStatus, EXIT_SUCCESS);
     ASSERT_EQ(output, "World\nHello\nHello\nWorld\n");
 }
 
@@ -149,7 +154,9 @@ TEST(AExamplesTest, Example_A3)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A3"));
     string output;
-    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_SUCCESS);
+    int exitStatus;
+    ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
+    ASSERT_EQ(exitStatus, EXIT_SUCCESS);
     constexpr uint64_t count = 30 * 2 + 200 * 3 + 230;
     ASSERT_EQ(output.size(), count);
 }
@@ -166,7 +173,9 @@ TEST(AExamplesTest, Example_A4)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A4"));
     string output;
-    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_FAILURE);
+    int exitStatus;
+    ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
+    ASSERT_EQ(exitStatus, EXIT_FAILURE);
     string str = "Cycle found: BTarget 0 -> BTarget 1 -> BTarget 2 -> BTarget 0\n";
     string result = removeColorCodes(output);
     ASSERT_EQ(result, str);
@@ -176,7 +185,9 @@ TEST(AExamplesTest, Example_A5)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A5"));
     string output;
-    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_FAILURE);
+    int exitStatus;
+    ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
+    ASSERT_EQ(exitStatus, EXIT_FAILURE);
     const string str = R"(Hello
 World
 Target Ninja runtime error.
@@ -205,7 +216,9 @@ TEST(AExamplesTest, Example_A6)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A6"));
     string output;
-    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_SUCCESS);
+    int exitStatus;
+    ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
+    ASSERT_EQ(exitStatus, EXIT_SUCCESS);
     constexpr uint64_t count = 60 * 2 + 200 * 3 + 260;
     ASSERT_EQ(output.size(), count);
     string sub(output.begin() + 400, output.begin() + 407);
@@ -216,7 +229,9 @@ TEST(AExamplesTest, Example_A7)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A7"));
     string output;
-    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_FAILURE);
+    int exitStatus;
+    ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
+    ASSERT_EQ(exitStatus, EXIT_FAILURE);
     string str = "Cycle found: BTarget 0 -> BTarget 1 -> BTarget 0\n";
     string result = removeColorCodes(output);
     ASSERT_EQ(result, str);
@@ -226,18 +241,20 @@ TEST(AExamplesTest, Example_A9)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A9"));
     string output;
-    ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(output, EXIT_SUCCESS);
+    int exitStatus;
+    ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
+    ASSERT_EQ(exitStatus, EXIT_SUCCESS);
     ASSERT_EQ(output.size(), 5);
     ASSERT_EQ(output.contains('D'), true);
     ASSERT_EQ(output.contains('E'), true);
     ASSERT_EQ(output.contains('A'), true);
     ASSERT_EQ(output.contains('B'), true);
     ASSERT_EQ(output.contains('F'), true);
-    ExamplesTestHelper::runCommandAndGetOutputInDirectory("D", "hbuild D", output);
+    ExamplesTestHelper::getCommandOutputInDir("D", "hbuild D", output);
     ASSERT_EQ(output == "D", true);
-    ExamplesTestHelper::runCommandAndGetOutputInDirectory("E", "hbuild e", output);
+    ExamplesTestHelper::getCommandOutputInDir("E", "hbuild e", output);
     ASSERT_EQ(output == "E", true);
-    ExamplesTestHelper::runCommandAndGetOutputInDirectory("A", "hbuild", output);
+    ExamplesTestHelper::getCommandOutputInDir("A", "hbuild", output);
     ASSERT_EQ(output.size(), 2);
     ASSERT_EQ(output.contains('A'), true);
     ASSERT_EQ(output.contains('B'), true);
@@ -251,20 +268,20 @@ TEST(AExamplesTest, Example_A9)
     ASSERT_EQ(output.contains('D'), true);
     ASSERT_EQ(output.contains('F'), true);
 
-    ExamplesTestHelper::runCommandAndGetOutputInDirectory("A/C", "hbuild .", output);
+    ExamplesTestHelper::getCommandOutputInDir("A/C", "hbuild .", output);
     ASSERT_EQ(output.size(), 3);
     ASSERT_EQ(output.contains('A'), true);
     ASSERT_EQ(output.contains('E'), true);
     ASSERT_EQ(output.contains('C'), true);
 
-    ExamplesTestHelper::runCommandAndGetOutputInDirectory("A", "hbuild C", output);
+    ExamplesTestHelper::getCommandOutputInDir("A", "hbuild C", output);
     ASSERT_EQ(output.size(), 4);
     ASSERT_EQ(output.contains('A'), true);
     ASSERT_EQ(output.contains('E'), true);
     ASSERT_EQ(output.contains('C'), true);
     ASSERT_EQ(output.contains('B'), true);
 
-    ExamplesTestHelper::runCommandAndGetOutputInDirectory("A", "hbuild C ../D", output);
+    ExamplesTestHelper::getCommandOutputInDir("A", "hbuild C ../D", output);
     ASSERT_EQ(output.size(), 5);
     ASSERT_EQ(output.contains('A'), true);
     ASSERT_EQ(output.contains('E'), true);

@@ -301,5 +301,16 @@ int main(int argc, char **argv)
     buildExeThread.join();
 
     printMessage("Running configure executable\n");
-    return std::system(configureExePath.c_str());
+    RunCommand r;
+    r.startProcess(configureExePath.c_str(), false);
+    const auto [output, exitStatus] = r.endProcess(false);
+    if (exitStatus == EXIT_SUCCESS)
+    {
+        printMessage(output);
+    }
+    else
+    {
+        printErrorMessage(output);
+    }
+    return 0;
 }

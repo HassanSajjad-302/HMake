@@ -1,4 +1,3 @@
-
 #ifndef IPC_MANAGER_COMPILER_HPP
 #define IPC_MANAGER_COMPILER_HPP
 
@@ -6,9 +5,10 @@
 #include "expected.hpp"
 
 struct CompilerTest;
+struct BuildSystemTest;
+
 namespace N2978
 {
-
 enum class FileType : uint8_t
 {
     MODULE,
@@ -18,26 +18,52 @@ enum class FileType : uint8_t
 
 struct Response
 {
+    std::string filePath;
     // if type == HEADER_FILE, then fileSize has no meaning
-    BMIFile file;
+    ProcessMappingOfBMIFile mapping;
     FileType type;
     bool isSystem;
-    Response(BMIFile file_, FileType type_, bool isSystem_);
+    Response(std::string filePath_, const ProcessMappingOfBMIFile &mapping_, FileType type_, bool isSystem_);
 };
 
 // IPC Manager Compiler
 class IPCManagerCompiler : Manager
 {
     friend struct ::CompilerTest;
+    friend struct ::BuildSystemTest;
+
+    // This function is used to receive a particular message. Compiler knows what message it expects which will be the
+    // template argument.
     template <typename T> tl::expected<T, std::string> receiveMessage() const;
-    // This is not exposed. sendCTBLastMessage calls this.
+    // Called by sendCTBLastMessage. Build-system will send this after it has created the BMI file-mapping.
     [[nodiscard]] tl::expected<void, std::string> receiveBTCLastMessage() const;
+    // This function is called by findResponse if it did not find the module in the IPCManagerCompiler::responses cache.
     [[nodiscard]] tl::expected<BTCModule, std::string> receiveBTCModule(const CTBModule &moduleName);
+    // This function is called by findResponse if it did not find the header-unit or header-file in the
+    // IPCManagerCompiler::responses cache.
     [[nodiscard]] tl::expected<BTCNonModule, std::string> receiveBTCNonModule(const CTBNonModule &nonModule);
 
+    // Internal cache for the possible future requests.
+    // In case of modules it includes all the module dependencies. If any dependency is a big-hu, then
+    // ModuleDep::logicalNames
     std::unordered_map<std::string, Response> responses;
 
+    //  Compiler can use this function to read the BMI file. BMI should be read using this function to conserve memory.
+    static tl::expected<ProcessMappingOfBMIFile, std::string> readSharedMemoryBMIFile(const BMIFile &file);
+
   public:
+    // Compiler process can use this function to close the BMI file-mapping to reduce references to shared memory file.
+    // Not needed as it will be cleared at process exit.
+    static tl::expected<void, std::string> closeBMIFileMapping(const ProcessMappingOfBMIFile &processMappingOfBMIFile);
+
+    // To close the client end pipe/socket connection with the build-system. Not needed as it will be cleared at process
+    // exit.
+    void closeConnection() const;
+
+    // Cache mapping between the file-path and bmi-file-mapping. Only to be queried by the compiler.
+    // passed path must be lexically normal and lower-case on Windows.
+    std::unordered_map<std::string, ProcessMappingOfBMIFile> filePathProcessMapping;
+
     CTBLastMessage lastMessage{};
 #ifdef _WIN32
     explicit IPCManagerCompiler(void *hPipe_);
@@ -48,14 +74,17 @@ class IPCManagerCompiler : Manager
     // For FileType::HEADER_FILE, it can return FileType::HEADER_UNIT, otherwise it will return the request
     // response. Either it will return from the cache or it will fetch it from the build-system
     [[nodiscard]] tl::expected<Response, std::string> findResponse(std::string logicalName, FileType type);
-    [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage(const CTBLastMessage &lastMessage) const;
-    [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage(const CTBLastMessage &lastMessage,
-                                                                     const std::string &bmiFile,
+    [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage() const;
+    // This function should not be called if the compilation failed as the build-system does not expect to receive BMI
+    // if the compilation failed. Hence, it will not create the file-mapping and nor will it send BTCLastMessage, so the
+    // compiler process will indefinitely hang.
+    [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage(const std::string &bmiFile,
                                                                      const std::string &filePath) const;
-    static tl::expected<ProcessMappingOfBMIFile, std::string> readSharedMemoryBMIFile(const BMIFile &file);
-    static tl::expected<void, std::string> closeBMIFileMapping(const ProcessMappingOfBMIFile &processMappingOfBMIFile);
-    void closeConnection() const;
 };
+
+[[nodiscard]] tl::expected<IPCManagerCompiler, std::string> makeIPCManagerCompiler(
+    std::string BMIIfHeaderUnitObjOtherwisePath);
+inline IPCManagerCompiler *managerCompiler;
 
 template <typename T> tl::expected<T, std::string> IPCManagerCompiler::receiveMessage() const
 {
@@ -175,8 +204,5 @@ template <typename T> tl::expected<T, std::string> IPCManagerCompiler::receiveMe
     str += std::to_string(__LINE__);
     return tl::unexpected(getErrorString("N2978 IPC API internal error" + str));
 }
-[[nodiscard]] tl::expected<IPCManagerCompiler, std::string> makeIPCManagerCompiler(
-    std::string BMIIfHeaderUnitObjOtherwisePath);
-inline IPCManagerCompiler *managerCompiler;
 } // namespace N2978
 #endif // IPC_MANAGER_COMPILER_HPP

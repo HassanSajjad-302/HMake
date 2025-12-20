@@ -1,6 +1,9 @@
 
 
 #include "ExamplesTestHelper.hpp"
+
+#include "RunCommand.hpp"
+
 #include "gtest/gtest.h"
 #include <filesystem>
 #include <fstream>
@@ -9,7 +12,7 @@
 using std::cout, std::endl, std::filesystem::create_directory, std::filesystem::current_path, std::ofstream,
     std::ifstream, std::stringstream, std::filesystem::path;
 
-void ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject()
+void ExamplesTestHelper::cleanBuild()
 {
     if (exists(path("Build")))
     {
@@ -18,46 +21,40 @@ void ExamplesTestHelper::recreateBuildDirAndBuildHMakeProject()
     }
     create_directory("Build");
     current_path("Build");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << "First " + hhelperStr + " command failed.";
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << "Second " + hhelperStr + " command failed.";
-    const int exitCode = system(hbuildBuildStr.c_str());
-    ASSERT_EQ(exitCode, 0) << hbuildBuildStr + " command failed.";
+
+    {
+        RunCommand r;
+        r.startProcess("hhelper", false);
+        const auto &[output, exitStatus] = r.endProcess(false);
+        ASSERT_EQ(exitStatus, EXIT_SUCCESS) << FORMAT("First hhelper failed with output\n{}\n.", output);
+    }
+
+    {
+        RunCommand r;
+        r.startProcess("hhelper", false);
+        const auto &[output, exitStatus] = r.endProcess(false);
+        ASSERT_EQ(exitStatus, EXIT_SUCCESS) << FORMAT("Second hhelper failed with output\n{}\n.", output);
+    }
+
+    {
+        RunCommand r;
+        r.startProcess("hbuild", false);
+        const auto &[output, exitStatus] = r.endProcess(false);
+        ASSERT_EQ(exitStatus, EXIT_SUCCESS) << FORMAT("hbuild failed with output\n{}\n.", output);
+    }
 }
 
 void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const string &expectedOutput)
 {
-    const string command = appName + " > file";
-    ASSERT_EQ(system(command.c_str()), 0) << "Could Not Run " << appName;
-    stringstream output;
-    output << ifstream("file").rdbuf();
-    ASSERT_EQ(output.str(), expectedOutput)
-        << "hmake build succeeded, however running the application did not produce expected output";
+    RunCommand run;
+    run.startProcess(appName, false);
+    auto [output, exitStatus] = run.endProcess(false);
+    erase_if(output, [](const char c) { return c == '\r'; });
+    ASSERT_EQ(exitStatus, EXIT_SUCCESS) << FORMAT("Running {} failed\n. Error {}\n", appName, exitStatus);
+    ASSERT_EQ(output, expectedOutput) << FORMAT("Running {} produced unexpected output\n", appName);
 }
 
-int runCommand(const char *cmd)
-{
-#ifdef _WIN32
-    return system(cmd);
-#else
-    const int status = system(cmd);
-    if (status == -1)
-    {
-        printErrorMessage("system call failed");
-        return -1; // system() itself failed
-    }
-
-    if (const int exitCode = WEXITSTATUS(status); exitCode == EXIT_SUCCESS)
-    {
-        return 0; // command succeeded
-    }
-    else
-    {
-        return exitCode; // propagate non-zero exit code
-    }
-#endif
-}
-
-void ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(string &output, int32_t exitStatus)
+void ExamplesTestHelper::getCleanBuildOutputAndStatus(string &output, int32_t &exitStatus)
 {
     if (exists(path("Build")))
     {
@@ -66,26 +63,42 @@ void ExamplesTestHelper::recreateBuildDirAndGethbuildOutput(string &output, int3
     create_directory("Build");
     current_path("Build");
 
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << "First " + hhelperStr + " command failed.";
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << "Second " + hhelperStr + " command failed.";
+    {
+        RunCommand r;
+        r.startProcess("hhelper", false);
+        const auto &[_, exitStatus2] = r.endProcess(false);
+        ASSERT_EQ(exitStatus2, EXIT_SUCCESS) << FORMAT("First hhelper failed with output\n{}\n.", _);
+    }
 
-    const string command = "hbuild > file 2>&1 ";
-    ASSERT_EQ(runCommand(command.c_str()), exitStatus) << "Could Not Run " << command;
-    stringstream outputStream;
-    outputStream << ifstream("file").rdbuf();
-    output = outputStream.str();
+    {
+        RunCommand r;
+        r.startProcess("hhelper", false);
+        const auto &[_, exitStatus2] = r.endProcess(false);
+        ASSERT_EQ(exitStatus2, EXIT_SUCCESS) << FORMAT("Second hhelper failed with output\n{}\n.", _);
+    }
+
+    {
+        RunCommand r;
+        r.startProcess("hbuild", false);
+        auto [output2, exitStatus2] = r.endProcess(false);
+        output = std::move(output2);
+        erase_if(output, [](const char c) { return c == '\r'; });
+        exitStatus = exitStatus2;
+    }
 }
 
 void ExamplesTestHelper::runCommandAndGetOutput(const string &command, string &output)
 {
-    const string fullCommand = command + " > file 2>&1 ";
-    ASSERT_EQ(system(fullCommand.c_str()), EXIT_SUCCESS) << "Could Not Run " << command;
-    stringstream outputStream;
-    outputStream << ifstream("file").rdbuf();
-    output = outputStream.str();
+
+    RunCommand r;
+    r.startProcess(command, false);
+    auto [output2, exitStatus] = r.endProcess(false);
+    ASSERT_EQ(exitStatus, EXIT_SUCCESS) << "Could Not Run " << command;
+    output = std::move(output2);
+    erase_if(output, [](const char c) { return c == '\r'; });
 }
 
-void ExamplesTestHelper::runCommandAndGetOutputInDirectory(const string &dir, const string &command, string &output)
+void ExamplesTestHelper::getCommandOutputInDir(const string &dir, const string &command, string &output)
 {
     const path p = current_path();
     current_path(dir);
