@@ -188,7 +188,7 @@ void buildSpecification()
 {
     // getConfiguration("conventional-r").assign(IsCppMod::NO, ConfigType::RELEASE);
     // getConfiguration("hu-r").assign(IsCppMod::YES, ConfigType::RELEASE);
-    getConfiguration("conventional-d").assign(IsCppMod::NO, ConfigType::DEBUG);
+    // getConfiguration("conventional-d").assign(IsCppMod::NO, ConfigType::DEBUG);
     // getConfiguration("hu-d").assign(IsCppMod::YES, ConfigType::DEBUG, BigHeaderUnit::NO);
     getConfiguration("huBig-d").assign(IsCppMod::YES, ConfigType::DEBUG, BigHeaderUnit::YES);
     CALL_CONFIGURATION_SPECIFICATION

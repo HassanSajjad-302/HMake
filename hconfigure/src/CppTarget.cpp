@@ -8,6 +8,7 @@
 #include "rapidhash/rapidhash.h"
 #include <filesystem>
 #include <fstream>
+#include <memory_resource>
 #include <regex>
 #include <utility>
 
@@ -158,7 +159,7 @@ CppTarget::CppTarget(Node *myBuildDir_, const bool buildExplicit, const string &
     initializeCppTarget(name_, myBuildDir_);
 }
 
-void writeIncDirsAtConfigTime(vector<char> &buffer, const vector<InclNode> &include)
+void writeIncDirsAtConfigTime(string &buffer, const vector<InclNode> &include)
 {
     writeUint32(buffer, include.size());
     for (auto &inclNode : include)
@@ -178,7 +179,7 @@ void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNo
     }
 }
 
-void writeHeaderFilesAtConfigTime(vector<char> &buffer, flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping,
+void writeHeaderFilesAtConfigTime(string &buffer, flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping,
                                   uint32_t headersSize)
 {
     writeUint32(buffer, headersSize);
@@ -651,15 +652,16 @@ void CppTarget::addHeaderFile(const string &includeName, const Node *headerFile,
     checkSameHeaderNameMapping(*p);
 }
 
-void CppTarget::addHeaderUnit(const string &logicalName, const Node *headerUnit, bool suppressError,
+void CppTarget::addHeaderUnit(const string &includeName, const Node *headerUnit, bool suppressError,
                               const bool addInReq, const bool addInUseReq)
 {
-    if (logicalName.empty())
+    if (configuration->evaluate(TreatHUAsHeaderFile::YES))
     {
-        bool breakpoint = true;
+        addHeaderFile(includeName, headerUnit, suppressError, addInReq, addInUseReq);
+        return;
     }
 
-    string *p = new string(logicalName);
+    string *p = new string(includeName);
     lowerCaseOnWindows(p->data(), p->size());
 
     CppMod *hu = nullptr;
@@ -838,33 +840,8 @@ CppMod *CppTarget::getInterfaceBigHu(const bool addNew)
     return interfaceBigHus[interfaceBigHus.size() - 1];
 }
 
-void CppTarget::addComposingHeadersMSVC()
+void CppTarget::parseAndAddInComposingHeaders(CppMod &hu, const string &headerNames)
 {
-    if (configuration->evaluate(IsCppMod::NO))
-    {
-        return;
-    }
-
-    CppMod *publicBigHu = getPublicBigHu(false);
-
-    // From the header-units.json in the include-dir, the mentioned header-files are manually added as parsing of
-    // header-units.json file fails because of the comments in it.
-    string headerNames =
-        R"(__msvc_bit_utils.hpp,__msvc_chrono.hpp,__msvc_cxx_stdatomic.hpp,__msvc_filebuf.hpp,__msvc_format_ucd_tables.hpp,__msvc_formatter.hpp,__msvc_heap_algorithms.hpp,__msvc_int128.hpp,__msvc_iter_core.hpp,__msvc_minmax.hpp,__msvc_ostream.hpp,__msvc_print.hpp,__msvc_ranges_to.hpp,__msvc_ranges_tuple_formatter.hpp,__msvc_sanitizer_annotate_container.hpp,__msvc_string_view.hpp,__msvc_system_error_abi.hpp,__msvc_threads_core.hpp,__msvc_tzdb.hpp,__msvc_xlocinfo_types.hpp,algorithm,any,array,atomic,barrier,bit,bitset,cctype,cerrno,cfenv,cfloat,charconv,chrono,cinttypes,climits,clocale,cmath,codecvt,compare,complex,concepts,condition_variable,coroutine,csetjmp,csignal,cstdarg,cstddef,cstdint,cstdio,cstdlib,cstring,ctime,cuchar,cwchar,cwctype,deque,exception,execution,expected,filesystem,format,forward_list,fstream,functional,future,generator,initializer_list,iomanip,ios,iosfwd,iostream,iso646.h,istream,iterator,latch,limits,list,locale,map,mdspan,memory,memory_resource,mutex,new,numbers,numeric,optional,ostream,print,queue,random,ranges,ratio,regex,scoped_allocator,semaphore,set,shared_mutex,source_location,span,spanstream,sstream,stack,stacktrace,stdexcept,stdfloat,stop_token,streambuf,string,string_view,strstream,syncstream,system_error,thread,tuple,type_traits,typeindex,typeinfo,unordered_map,unordered_set,utility,valarray,variant,vector,xatomic.h,xatomic_wait.h,xbit_ops.h,xcall_once.h,xcharconv.h,xcharconv_ryu.h,xcharconv_ryu_tables.h,xcharconv_tables.h,xerrc.h,xfacet,xfilesystem_abi.h,xhash,xiosbase,xlocale,xlocbuf,xlocinfo,xlocmes,xlocmon,xlocnum,xloctime,xmemory,xnode_handle.h,xpolymorphic_allocator.h,xsmf_control.h,xstring,xthreads.h,xtimec.h,xtr1common,xtree,xutility,ymath.h,)";
-
-    // C compatibility headers
-    headerNames +=
-        R"(assert.h,ctype.h,errno.h,fenv.h,float.h,inttypes.h,limits.h,locale.h,math.h,setjmp.h,signal.h,stdarg.h,stddef.h,stdint.h,stdio.h,stdlib.h,string.h,time.h,uchar.h,wchar.h,wctype.h,)";
-
-    // C++ version
-    headerNames +=
-        R"(cassert,cctype,cerrno,cfenv,cfloat,cinttypes,climits,clocale,cmath,csetjmp,csignal,cstdarg,cstddef,cstdint,cstdio,cstdlib,cstring,ctime,cuchar,cwchar,cwctype,)";
-
-    // intrinsicsl
-    headerNames += "intrin.h,";
-
-    // needed by boost
-    headerNames += "crtdbg.h,ntverp.h";
 
     uint32_t oldIndex = 0;
     uint32_t index = headerNames.find(',');
@@ -885,31 +862,99 @@ void CppTarget::addComposingHeadersMSVC()
                 }
             }
         }
-        publicBigHu->composingHeaders.emplace(*logicalName, nullptr);
+
+        if (!hu.composingHeaders.emplace(*logicalName, nullptr).second)
+        {
+            printErrorMessage(
+                FORMAT("Emplace of logicalName {}\n failed for hu {}\n", *logicalName, hu.node->filePath));
+        }
 
         oldIndex = index + 1;
         index = headerNames.find(',', oldIndex);
     }
+}
 
-    // Handle the last header (after the final comma)
-    string *logicalName = new string(headerNames.begin() + oldIndex, headerNames.end());
-    if constexpr (os == OS::NT)
+void CppTarget::addComposingHeadersMSVC()
+{
+    if (configuration->evaluate(IsCppMod::NO))
     {
-        for (char &c : *logicalName)
-        {
-            if (c == '\\')
-            {
-                c = '/';
-            }
-        }
+        return;
     }
-    publicBigHu->composingHeaders.emplace(*logicalName, nullptr);
 
-    if (!publicBigHu->composingHeaders.contains("type_traits"))
+    // From the header-units.json in the include-dir, the mentioned header-files are manually added as parsing of
+    // header-units.json file fails because of the comments in it.
+    string headerNames =
+        R"(__msvc_bit_utils.hpp,__msvc_chrono.hpp,__msvc_cxx_stdatomic.hpp,__msvc_filebuf.hpp,__msvc_format_ucd_tables.hpp,__msvc_formatter.hpp,__msvc_heap_algorithms.hpp,__msvc_int128.hpp,__msvc_iter_core.hpp,__msvc_minmax.hpp,__msvc_ostream.hpp,__msvc_print.hpp,__msvc_ranges_to.hpp,__msvc_ranges_tuple_formatter.hpp,__msvc_sanitizer_annotate_container.hpp,__msvc_string_view.hpp,__msvc_system_error_abi.hpp,__msvc_threads_core.hpp,__msvc_tzdb.hpp,__msvc_xlocinfo_types.hpp,algorithm,any,array,atomic,barrier,bit,bitset,cassert,cctype,cerrno,cfenv,cfloat,charconv,chrono,cinttypes,climits,clocale,cmath,codecvt,compare,complex,concepts,condition_variable,coroutine,csetjmp,csignal,cstdarg,cstddef,cstdint,cstdio,cstdlib,cstring,ctime,cuchar,cwchar,cwctype,deque,exception,execution,expected,filesystem,format,forward_list,fstream,functional,future,generator,initializer_list,iomanip,ios,iosfwd,iostream,iso646.h,istream,iterator,latch,limits,list,locale,map,mdspan,memory,memory_resource,mutex,new,numbers,numeric,optional,ostream,print,queue,random,ranges,ratio,regex,scoped_allocator,semaphore,set,shared_mutex,source_location,span,spanstream,sstream,stack,stacktrace,stdexcept,stdfloat,stop_token,streambuf,string,string_view,strstream,syncstream,system_error,thread,tuple,type_traits,typeindex,typeinfo,unordered_map,unordered_set,utility,valarray,variant,vector,xatomic.h,xatomic_wait.h,xbit_ops.h,xcall_once.h,xcharconv.h,xcharconv_ryu.h,xcharconv_ryu_tables.h,xcharconv_tables.h,xerrc.h,xfacet,xfilesystem_abi.h,xhash,xiosbase,xlocale,xlocbuf,xlocinfo,xlocmes,xlocmon,xlocnum,xloctime,xmemory,xnode_handle.h,xpolymorphic_allocator.h,xsmf_control.h,xstring,xthreads.h,xtimec.h,xtr1common,xtree,xutility,ymath.h,)";
+
+    // C compatibility headers
+    headerNames +=
+        R"(assert.h,ctype.h,errno.h,fenv.h,float.h,inttypes.h,limits.h,locale.h,math.h,setjmp.h,signal.h,stdarg.h,stddef.h,stdint.h,stdio.h,stdlib.h,string.h,time.h,uchar.h,wchar.h,wctype.h,)";
+
+    // C++ version
+    /*headerNames +=
+        R"(cassert,cctype,cerrno,cfenv,cfloat,cinttypes,climits,clocale,cmath,csetjmp,csignal,cstdarg,cstddef,cstdint,cstdio,cstdlib,cstring,ctime,cuchar,cwchar,cwctype,)";*/
+
+    // intrinsicsl
+    headerNames += "intrin.h,";
+
+    // needed by boost
+    headerNames += "crtdbg.h,ntverp.h,";
+
+    parseAndAddInComposingHeaders(*getPublicBigHu(true), headerNames);
+    headerNames = "windows.h,winapifamily.h,";
+    parseAndAddInComposingHeaders(*getPublicBigHu(true), headerNames);
+}
+
+void CppTarget::addComposingHeadersLinux()
+{
+    if (configuration->evaluate(IsCppMod::NO))
     {
-        bool breakpoint = true;
+        return;
     }
-    bool breakpoint = true;
+
+    string headerNames;
+
+    // C compatibility headers
+    headerNames +=
+        R"(assert.h,ctype.h,errno.h,fenv.h,float.h,inttypes.h,limits.h,locale.h,math.h,setjmp.h,signal.h,stdarg.h,stddef.h,stdint.h,stdio.h,stdlib.h,string.h,time.h,uchar.h,wchar.h,wctype.h,stdbool.h,)";
+
+    // First header-unit of C compatibility headers
+    // parseAndAddInComposingHeaders(*getPublicBigHu(true), headerNames);
+
+    // C++ headers
+    headerNames +=
+        R"(algorithm,any,array,atomic,barrier,bit,bitset,charconv,chrono,compare,complex,concepts,condition_variable,coroutine,deque,exception,execution,expected,filesystem,format,forward_list,fstream,functional,future,generator,initializer_list,iomanip,ios,iosfwd,iostream,istream,iterator,latch,limits,list,locale,map,memory,memory_resource,mutex,new,numbers,numeric,optional,ostream,print,queue,random,ranges,ratio,regex,scoped_allocator,semaphore,set,shared_mutex,source_location,span,spanstream,sstream,stack,stacktrace,stdexcept,stop_token,streambuf,string,string_view,syncstream,system_error,text_encoding,thread,tuple,type_traits,typeindex,typeinfo,unordered_map,unordered_set,utility,valarray,variant,vector,version,)";
+
+    // Compiler Specific Header ( GCC and Clang).
+    headerNames += R"(cxxabi.h,execinfo.h,unwind.h,immintrin.h,)";
+
+    // C++ version of C compatibility headers
+    headerNames +=
+        R"(cassert,cctype,cerrno,cfenv,cfloat,cinttypes,climits,clocale,cmath,csetjmp,csignal,cstdarg,cstddef,cstdint,cstdio,cstdlib,cstring,ctime,cuchar,cwchar,cwctype,)";
+
+    // Second header-unit of C++ headers
+    // parseAndAddInComposingHeaders(*getPublicBigHu(true), headerNames);
+
+    // System Posix
+    headerNames +=
+        R"(dirent.h,dlfcn.h,endian.h,fcntl.h,malloc.h,poll.h,pthread.h,pwd.h,sched.h,spawn.h,sysexits.h,unistd.h,sys/ioctl.h,sys/mman.h,sys/resource.h,sys/socket.h,sys/stat.h,sys/syscall.h,sys/time.h,sys/types.h,sys/un.h,sys/vfs.h,sys/wait.h,sys/utsname.h,cpuid.h,)";
+
+    // Third header-unit of Posix headers
+    parseAndAddInComposingHeaders(*getPublicBigHu(true), headerNames);
+
+    // The following 3 are separate as macros from elf.h included directly or trasnitively in the first 2 collide with
+    // ELF.cpp. Similarly, macros from the last collide with COFFImportFile.cpp
+    headerNames = "link.h,sys/auxv.h,zlib.h,";
+
+    // A fourth one to compile ELF.cpp as macros collide with elf.h.
+    // Similarly
+    parseAndAddInComposingHeaders(*getPublicBigHu(true), headerNames);
+
+    /*
+    headerNames = "zlib.h,";
+    // A fifth one to compile COFFImportFile.cpp as macros collide with zconf.h
+    parseAndAddInComposingHeaders(*getPublicBigHu(true), headerNames);
+*/
 }
 
 void CppTarget::addComposingHeadersDir(const Node *includeDir)
@@ -998,6 +1043,74 @@ void CppTarget::actuallyAddInclude(const bool errorOnEmplaceFail, const Node *in
     }
 }
 
+void CppTarget::initSourceCache()
+{
+    constexpr uint32_t stackSize = 64 * 1024;
+
+    char cppBuffer[stackSize];
+    char cBuffer[stackSize];
+    char assemblyBuffer[stackSize];
+
+    std::pmr::monotonic_buffer_resource cppAlloc(cppBuffer, stackSize);
+    std::pmr::monotonic_buffer_resource cAlloc(cppBuffer, stackSize);
+    std::pmr::monotonic_buffer_resource assemblyAlloc(cppBuffer, stackSize);
+
+    std::pmr::string cppFullCompileCommand(&cppAlloc);
+    std::pmr::string cFullCompileCommand(&cAlloc);
+    std::pmr::string assemblyFullCompileCommand(&assemblyAlloc);
+
+    HashedCommand cppHashCommand;
+    HashedCommand cHashCommand;
+    HashedCommand assemblyHashCommand;
+
+    auto setCompileCommandSourceType = [&](const SourceType sourceType) {
+        if (sourceType == SourceType::CPP && cppFullCompileCommand.empty())
+        {
+            cppFullCompileCommand = configuration->cppCompileCommand;
+            setCompileCommand(cppFullCompileCommand);
+            cppHashCommand.setCommand(cppFullCompileCommand);
+            return cppHashCommand.getHash();
+        }
+        if (sourceType == SourceType::C)
+        {
+            cFullCompileCommand = configuration->cCompileCommand;
+            setCompileCommand(cFullCompileCommand);
+            cHashCommand.setCommand(cFullCompileCommand);
+            return cppHashCommand.getHash();
+        }
+        assemblyFullCompileCommand = configuration->assemblyCompileCommand;
+        setCompileCommand(assemblyFullCompileCommand);
+        assemblyHashCommand.setCommand(assemblyFullCompileCommand);
+        return cppHashCommand.getHash();
+    };
+
+    for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
+    {
+        const uint64_t commandHash = setCompileCommandSourceType(srcFileDeps[i]->setSourceType());
+        srcFileDeps[i]->initializeBuildCache(i, commandHash);
+    }
+    for (uint32_t i = 0; i < modFileDeps.size(); ++i)
+    {
+        const uint64_t commandHash = setCompileCommandSourceType(modFileDeps[i]->setSourceType());
+        modFileDeps[i]->initializeBuildCache(cppBuildCache.modFiles[i], i, commandHash);
+    }
+    for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
+    {
+        if (imodFileDeps[i])
+        {
+            const uint64_t commandHash = setCompileCommandSourceType(SourceType::CPP);
+            imodFileDeps[i]->initializeBuildCache(cppBuildCache.imodFiles[i], i, commandHash);
+        }
+    }
+    for (uint32_t i = 0; i < huDeps.size(); ++i)
+    {
+        if (huDeps[i])
+        {
+            const uint64_t commandHash = setCompileCommandSourceType(SourceType::CPP);
+            huDeps[i]->initializeBuildCache(cppBuildCache.headerUnits[i], i, commandHash);
+        }
+    }
+}
 void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     if (!round)
@@ -1077,32 +1190,7 @@ void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool
             return;
         }
 
-        // getCompileCommand will be later on called concurrently therefore need to set this before.
-        setCompileCommand();
-        hashedCompileCommand.setCommand(compileCommand);
-
-        for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
-        {
-            srcFileDeps[i]->initializeBuildCache(i);
-        }
-        for (uint32_t i = 0; i < modFileDeps.size(); ++i)
-        {
-            modFileDeps[i]->initializeBuildCache(cppBuildCache.modFiles[i], i);
-        }
-        for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
-        {
-            if (imodFileDeps[i])
-            {
-                imodFileDeps[i]->initializeBuildCache(cppBuildCache.imodFiles[i], i);
-            }
-        }
-        for (uint32_t i = 0; i < huDeps.size(); ++i)
-        {
-            if (huDeps[i])
-            {
-                huDeps[i]->initializeBuildCache(cppBuildCache.headerUnits[i], i);
-            }
-        }
+        initSourceCache();
 
         for (const CppTarget *cppTarget : reqDeps)
         {
@@ -1113,7 +1201,7 @@ void CppTarget::updateBTarget(Builder &builder, const unsigned short round, bool
     }
 }
 
-bool CppTarget::writeBuildCache(vector<char> &buffer)
+bool CppTarget::writeBuildCache(string &buffer)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -1276,7 +1364,7 @@ void CppTarget::writeBigHeaderUnits()
 void CppTarget::writeCacheAtConfigTime()
 {
     cppBuildCache.deserialize(cacheIndex);
-    auto *configBuffer = new vector<char>{};
+    auto *configBuffer = new string{};
 
     const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty();
     writeBool(*configBuffer, hasObjFiles);
@@ -1612,34 +1700,21 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
     }
 }
 
-void CppTarget::setCompileCommand()
+bool CppTarget::launchBTarget(Builder &builder)
 {
-    if (!compileCommand.empty())
+    // This is necessary since objectFile->outputFileNode is not updated once after it is compiled.
+    if (realBTargets[0].updateStatus == UpdateStatus::NEEDS_UPDATE)
     {
-        return;
+        realBTargets[0].assignNeedsUpdateToDependents();
     }
+    return false;
+}
 
-    compileCommand.reserve(4 * 1024);
-    const CompilerFlags &flags = configuration->compilerFlags;
-    const Compiler &compiler = configuration->compilerFeatures.compiler;
-    compileCommand += '\"';
-    compileCommand += configuration->compilerFeatures.compiler.bTPath + "\" ";
-    if (compiler.bTFamily == BTFamily::GCC)
-    {
-        compileCommand +=
-            flags.LANG + flags.OPTIONS + flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP + flags.DEFINES_COMPILE_CPP;
-    }
-    else if (compiler.bTFamily == BTFamily::MSVC)
-    {
-        if (compiler.btSubFamily == BTSubFamily::CLANG)
-        {
-            compileCommand += "-nostdinc ";
-        }
-        compileCommand +=
-            flags.CPP_FLAGS_COMPILE_CPP + flags.CPP_FLAGS_COMPILE + flags.OPTIONS_COMPILE + flags.OPTIONS_COMPILE_CPP;
-    }
+void CppTarget::setCompileCommand(std::pmr::string &compileCommand)
+{
+    Compiler &compiler = configuration->compilerFeatures.compiler;
 
-    auto getIncludeFlag = [&compiler](bool isStandard) {
+    auto getIncludeFlag = [&compiler](const bool isStandard) {
         string str;
         if (compiler.bTFamily == BTFamily::MSVC)
         {
@@ -1673,11 +1748,19 @@ void CppTarget::setCompileCommand()
     {
         if (compiler.bTFamily == BTFamily::MSVC)
         {
-            compileCommand += "/D" + i.name + "=" + i.value + " ";
+            compileCommand += "/D";
+            compileCommand += i.name;
+            compileCommand += '=';
+            compileCommand += i.value;
+            compileCommand += ' ';
         }
         else
         {
-            compileCommand += "-D" + i.name + "=" + i.value + " ";
+            compileCommand += "-D";
+            compileCommand += i.name;
+            compileCommand += '=';
+            compileCommand += i.value;
+            compileCommand += ' ';
         }
     }
 
@@ -1695,7 +1778,9 @@ void CppTarget::setCompileCommand()
 
     for (const InclNode &inclNode : reqIncls)
     {
-        compileCommand += getIncludeFlag(inclNode.isStandard) + inclNode.node->filePath + "\" ";
+        compileCommand += getIncludeFlag(inclNode.isStandard);
+        compileCommand += inclNode.node->filePath;
+        compileCommand += "\" ";
     }
 }
 

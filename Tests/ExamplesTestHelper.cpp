@@ -24,34 +24,30 @@ void ExamplesTestHelper::cleanBuild()
 
     {
         RunCommand r;
-        r.startProcess("hhelper", false);
-        const auto &[output, exitStatus] = r.endProcess(false);
-        ASSERT_EQ(exitStatus, EXIT_SUCCESS) << FORMAT("First hhelper failed with output\n{}\n.", output);
+        r.runProcess("hhelper");
+        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("First hhelper failed with output\n{}\n.", r.output);
     }
 
     {
         RunCommand r;
-        r.startProcess("hhelper", false);
-        const auto &[output, exitStatus] = r.endProcess(false);
-        ASSERT_EQ(exitStatus, EXIT_SUCCESS) << FORMAT("Second hhelper failed with output\n{}\n.", output);
+        r.runProcess("hhelper");
+        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("Second hhelper failed with output\n{}\n.", r.output);
     }
 
     {
         RunCommand r;
-        r.startProcess("hbuild", false);
-        const auto &[output, exitStatus] = r.endProcess(false);
-        ASSERT_EQ(exitStatus, EXIT_SUCCESS) << FORMAT("hbuild failed with output\n{}\n.", output);
+        r.runProcess("hbuild");
+        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("hbuild failed with output\n{}\n.", r.output);
     }
 }
 
 void ExamplesTestHelper::runAppWithExpectedOutput(const string &appName, const string &expectedOutput)
 {
     RunCommand run;
-    run.startProcess(appName, false);
-    auto [output, exitStatus] = run.endProcess(false);
-    erase_if(output, [](const char c) { return c == '\r'; });
-    ASSERT_EQ(exitStatus, EXIT_SUCCESS) << FORMAT("Running {} failed\n. Error {}\n", appName, exitStatus);
-    ASSERT_EQ(output, expectedOutput) << FORMAT("Running {} produced unexpected output\n", appName);
+    run.runProcess(appName.c_str());
+    erase_if(run.output, [](const char c) { return c == '\r'; });
+    ASSERT_EQ(run.exitStatus, EXIT_SUCCESS) << FORMAT("Running {} failed\n. Error {}\n", appName, run.exitStatus);
+    ASSERT_EQ(run.output, expectedOutput) << FORMAT("Running {} produced unexpected output\n", appName);
 }
 
 void ExamplesTestHelper::getCleanBuildOutputAndStatus(string &output, int32_t &exitStatus)
@@ -65,25 +61,21 @@ void ExamplesTestHelper::getCleanBuildOutputAndStatus(string &output, int32_t &e
 
     {
         RunCommand r;
-        r.startProcess("hhelper", false);
-        const auto &[_, exitStatus2] = r.endProcess(false);
-        ASSERT_EQ(exitStatus2, EXIT_SUCCESS) << FORMAT("First hhelper failed with output\n{}\n.", _);
+        r.runProcess("hhelper");
+        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("First hhelper failed with output\n{}\n.", r.output);
     }
 
     {
         RunCommand r;
-        r.startProcess("hhelper", false);
-        const auto &[_, exitStatus2] = r.endProcess(false);
-        ASSERT_EQ(exitStatus2, EXIT_SUCCESS) << FORMAT("Second hhelper failed with output\n{}\n.", _);
+        r.runProcess("hhelper");
+        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("Second hhelper failed with output\n{}\n.", r.output);
     }
 
     {
         RunCommand r;
-        r.startProcess("hbuild", false);
-        auto [output2, exitStatus2] = r.endProcess(false);
-        output = std::move(output2);
-        erase_if(output, [](const char c) { return c == '\r'; });
-        exitStatus = exitStatus2;
+        r.runProcess("hbuild");
+        erase_if(r.output, [](const char c) { return c == '\r'; });
+        exitStatus = r.exitStatus;
     }
 }
 
@@ -91,10 +83,9 @@ void ExamplesTestHelper::runCommandAndGetOutput(const string &command, string &o
 {
 
     RunCommand r;
-    r.startProcess(command, false);
-    auto [output2, exitStatus] = r.endProcess(false);
-    ASSERT_EQ(exitStatus, EXIT_SUCCESS) << "Could Not Run " << command;
-    output = std::move(output2);
+    r.runProcess(command.c_str());
+    ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << "Could Not Run " << command;
+    output = r.output;
     erase_if(output, [](const char c) { return c == '\r'; });
 }
 

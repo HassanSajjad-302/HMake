@@ -39,7 +39,8 @@ static DSC<CppTarget> &getMainTarget(const string &name, Configuration *configur
 
     CppTarget &cpp = t->getSourceTarget();
     const string s = "boost/" + name;
-    if (name == "hash2" || name == "container_hash" || name == "describe" || name == "mp11" || name == "io")
+    if (name == "hash2" || name == "container_hash" || name == "describe" || name == "mp11" || name == "io" ||
+        name == "system")
     {
         cpp.publicHUDirsRE(s, s + '/', ".*hpp");
         cpp.publicHUDirsRE(s, s + '/', ".*h");

@@ -6,15 +6,11 @@
 
 void HashedCommand::setCommand(string_view command_)
 {
-    command = std::move(command_);
 #ifdef USE_COMMAND_HASH
-    hash = rapidhash(command.data(), command.size());
+    hash = rapidhash(command_.data(), command_.size());
+#else
+    command = std::move(command_);
 #endif
-}
-
-string_view HashedCommand::getCommand() const
-{
-    return command;
 }
 
 #ifdef USE_COMMAND_HASH

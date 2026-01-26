@@ -254,6 +254,7 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    std::mutex m;
     auto scriptExecution = [&](const bool configureExe) {
         string &command = configureExe ? cacheLocal.configureExeBuildScript : cacheLocal.buildExeBuildScript;
         const string configureOrBuildStr = configureExe ? "configure" : "build";
@@ -262,18 +263,17 @@ int main(int argc, char **argv)
         replaceAll(command, confDirString, current_path().string());
 
         RunCommand r;
-        r.startProcess(command, false);
-        const auto [output, status] = r.endProcess(false);
+        r.runProcess(command.c_str());
 
-        std::lock_guard _(printMutex);
+        std::lock_guard _(m);
 
-        if (status == EXIT_SUCCESS)
+        if (r.exitStatus == EXIT_SUCCESS)
         {
             // Display any warnings in compilation process. MSVC displays the file-name.
-            if (!output.empty() && output != "hmake.cpp\r\n")
+            if (!r.output.empty() && r.output != "hmake.cpp\r\n")
             {
                 printMessage(command);
-                printMessage(output);
+                printMessage(r.output);
             }
             else
             {
@@ -284,8 +284,8 @@ int main(int argc, char **argv)
         {
             printMessage("Errors in Building " + configureOrBuildStr + " Executable");
             printMessage(command + "\n");
-            printMessage(output + "\n");
-            exit(status);
+            printMessage(r.output + "\n");
+            exit(r.exitStatus);
         }
 
         if (std::filesystem::exists(configureExe ? "configure.obj" : "build.obj"))
@@ -302,15 +302,16 @@ int main(int argc, char **argv)
 
     printMessage("Running configure executable\n");
     RunCommand r;
-    r.startProcess(configureExePath.c_str(), false);
-    const auto [output, exitStatus] = r.endProcess(false);
-    if (exitStatus == EXIT_SUCCESS)
+    r.runProcess(configureExePath.c_str());
+    if (r.exitStatus == EXIT_SUCCESS)
     {
-        printMessage(output);
+        printMessage(r.output);
     }
     else
     {
-        printErrorMessage(output);
+        printErrorMessage(r.output);
     }
+    // current_path("Release/std-cpp");
+    // system("hbuild");
     return 0;
 }

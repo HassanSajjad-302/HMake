@@ -102,6 +102,10 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         bigHeaderUnit = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), TreatHUAsHeaderFile>)
+    {
+        treatHuAsHeaderFile = property;
+    }
     else if constexpr (std::is_same_v<decltype(property), SystemTarget>)
     {
         systemTarget = property;
@@ -280,13 +284,6 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     }
 
     // Linker Features
-    else if constexpr (std::is_same_v<decltype(property), LinkFlags>)
-    {
-        if (stdCppTarget && stdCppTarget->ploat)
-        {
-            stdCppTarget->getLOAT().reqLinkerFlags += property;
-        }
-    }
     else if constexpr (std::is_same_v<decltype(property), UserInterface>)
     {
         linkerFeatures.userInterface = property;

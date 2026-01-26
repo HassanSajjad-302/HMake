@@ -31,6 +31,13 @@ struct CompareCppSrc
     bool operator()(const CppSrc &lhs, const Node *rhs) const;
 };
 
+enum class SourceType
+{
+    C,
+    CPP,
+    ASSEMBLY,
+};
+
 /// Responsible for compiling C++ source-files. Inherits from ObjectFile which has Node pinter ObjectFile::objectNode
 class CppSrc : public ObjectFile
 {
@@ -46,28 +53,43 @@ class CppSrc : public ObjectFile
     /// Node pointer to the source-file
     const Node *node;
 
+    /// Current hash of the compile-command. Set in initializeBuildCache
+    uint64_t commandHash;
+
     /// Index in BuildCache::Cpp::srcFiles or BuildCache::Cpp::modFiles or BuildCache::Cpp::imodFiles or
     /// BuildCache::Cpp::headerUnits
     uint32_t myBuildCacheIndex = -1;
+
+    /// If the file has .c extension, it is a C source-file. If .S or .s, it is an ASSEMBLY file. Otherwise, C++ file
+    SourceType sourceType = SourceType::CPP;
+
+    ProcessState processState = ProcessState::LAUNCHED;
+
     CppSrc(CppTarget *target_, const Node *node_);
     string getPrintName() const override;
     /// This function compares compile-command with build-cache and also set Node::toBeChecked of source-node,
     /// object-node and header-files.
-    void initializeBuildCache(uint32_t index);
-    string getCompileCommand() const;
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
+    void initializeBuildCache(uint32_t index, uint64_t commandHash_);
+    void getCompileCommand(std::pmr::string &compileCommand) const;
     bool ignoreHeaderFile(string_view child) const;
     /// MSVC prints header-files with the compilation output. This function parses them out from that output.
     void parseDepsFromMSVCTextOutput(string &output, bool isClang);
     /// GCC outputs header-files in a .d file. This function parses that
-    void parseDepsFromGCCDepsOutput();
+    void parseDepsFromGCCDepsOutput(Builder &builder);
     /// Calls either of parseDepsFromGCCDepsOutput or parseDepsFromMSVCTextOutput
-    void parseHeaderDeps(string &output);
+    void parseHeaderDeps(string &output, Builder &builder);
     /// This compares lastWrite of source-node with object-node and header-files
     void setCppSrcFileStatus();
     /// Called at the end or in the signal-handler when the build-cache is being written. This function will update the
     /// build-cache at myBuildCacheIndex, if this was updated.
     virtual void updateBuildCache();
+    /// Sets CppSrc::sourceType. Called by CppTarget in CppTarget::updateBTarget in round1.
+    SourceType setSourceType();
+
+    RunCommand run;
+    string output;
+    virtual bool launchBTarget(Builder &builder) override;
+    virtual bool completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount) override;
 };
 
 bool operator<(const CppSrc &lhs, const CppSrc &rhs);
@@ -82,6 +104,10 @@ enum class SM_FILE_TYPE : uint8_t
 
 struct CppMod final : CppSrc
 {
+    string message;
+    int exitStatus;
+    void completeProcessReaping(int exitStatusSecond);
+
     /// Those header-files which are #included in this module or hu. These are initialized from config-cache as big-hu
     /// have these. While Source::headerFiles have all the header-files of ours and our dependencies for accurate
     /// rebuilds.
@@ -90,10 +116,12 @@ struct CppMod final : CppSrc
     /// All dependencies of this module or hu. includes both header-units and modules.
     flat_hash_set<CppMod *> allCppModDependencies;
 
-    /// RunCommand::startProcess is called in updateBTarget and then RunCommand::endProcess is called in CppMod::build
-    /// when CTB::LAST_MESSAGE is received.
-    RunCommand run;
+    uint64_t ipcManagerIndex = -1;
+    ProcessState processStateCommon = ProcessState::LAUNCHED;
 
+    bool launchBTarget(Builder &builder) override;
+    bool wasIPCLaunchIncomplete(uint64_t index);
+    bool completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount) override;
     /// A header-unit can be found by more than 1 logicalNames. Like "std/header1.hpp" and "./header1.hpp". Also, in big
     /// header-units case a big header-unit can be found by any of its composing headers. All composing includes are
     /// added in following array and is sent with requested hu to keep the number of messages minimal. In case of
@@ -137,7 +165,7 @@ struct CppMod final : CppSrc
 
     /// Call by CppTarget. In this we set Node::toBeChecked of different Nodes like header-files, interface-node and
     /// objectNode.
-    void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index);
+    void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index, uint64_t commandHash_);
 
     /// thread-safe function that ensures that build-system creates shared-memory bmi file before sending it to the
     /// compiler. if the file is updated, then the compiler creates the mapping. if not then the build-system.
@@ -168,7 +196,6 @@ struct CppMod final : CppSrc
 
     /// Launches IPC server and the compilation process if the module or hu needs to be updated. Sets \p isComplete to
     /// true if we are waiting for a module or hu to get compiled first.
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
 
     /// \returns BTargetType::CPPMOD
     BTargetType getBTargetType() const override;
@@ -177,7 +204,7 @@ struct CppMod final : CppSrc
     /// build-cache at myBuildCacheIndex, if this was updated.
     void updateBuildCache() override;
 
-    string getCompileCommand() const;
+    void getCompileCommand(std::pmr::string &compileCommand) const;
 
     /// Checks whether this needs to be updated and sets round0 RealBTarget::updateStatus to UpdateStatus::NEEDS_UPDATE.
     /// Otherwise, populates CppTarget::allCppModDependencies based on myBuildCache. So, if any of our dependents need

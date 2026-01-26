@@ -89,6 +89,12 @@ enum class BigHeaderUnit : bool
     YES,
 };
 
+enum class TreatHUAsHeaderFile : bool
+{
+    NO,
+    YES,
+};
+
 enum class SystemTarget : bool
 {
     NO,
@@ -114,10 +120,13 @@ class Configuration : public BTarget
     vector<LOAT *> loats;
     vector<PLOAT *> ploats;
     CppCompilerFeatures compilerFeatures;
-    CompilerFlags compilerFlags;
+    string cppCompileCommand;
+    string cCompileCommand;
+    string assemblyCompileCommand;
     PrebuiltLinkerFeatures ploatFeatures;
     LinkerFeatures linkerFeatures;
-    LinkerFlags linkerFlags;
+    string linkCommand;
+    string archiveCommand;
     DSC<CppTarget> *stdCppTarget = nullptr;
     TargetType targetType = TargetType::LIBRARY_STATIC;
     AssignStandardCppTarget assignStandardCppTarget = AssignStandardCppTarget::YES;
@@ -128,6 +137,7 @@ class Configuration : public BTarget
     IsCppMod isCppMod = IsCppMod::NO;
     StdAsHeaderUnit stdAsHeaderUnit = StdAsHeaderUnit::YES;
     BigHeaderUnit bigHeaderUnit = BigHeaderUnit::NO;
+    TreatHUAsHeaderFile treatHuAsHeaderFile = TreatHUAsHeaderFile::NO;
     SystemTarget systemTarget = SystemTarget::NO;
     IgnoreHeaderDeps ignoreHeaderDeps = IgnoreHeaderDeps::NO;
 
@@ -274,6 +284,10 @@ template <typename T> bool Configuration::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), BigHeaderUnit>)
     {
         return bigHeaderUnit == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), TreatHUAsHeaderFile>)
+    {
+        return treatHuAsHeaderFile == property;
     }
     else if constexpr (std::is_same_v<decltype(property), SystemTarget>)
     {

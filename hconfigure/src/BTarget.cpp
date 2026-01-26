@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <utility>
 
-using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::mutex, std::lock_guard,
+using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::lock_guard,
     std::filesystem::create_directory;
 
 BTarget::LaterDep::LaterDep(RealBTarget *b_, RealBTarget *dep_, BTargetDepType type_, bool doBoth_)
@@ -325,6 +325,16 @@ BTargetType BTarget::getBTargetType() const
 
 void BTarget::updateBTarget(Builder &, unsigned short, bool &isComplete)
 {
+}
+
+bool BTarget::launchBTarget(Builder &builder)
+{
+    return false;
+}
+
+bool BTarget::completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount)
+{
+    return false;
 }
 
 // selectiveBuild is set for the children if hbuild is executed in parent dir. selectiveBuild is set for all

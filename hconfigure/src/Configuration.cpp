@@ -24,14 +24,14 @@ void Configuration::postConfigurationSpecification() const
 
 void Configuration::initialize()
 {
-    compilerFeatures.initialize();
+    cppCompileCommand = compilerFeatures.getCompileCommand();
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         // Making sure that Custom Clang fork exists.
         Node::getNodeNonNormalized(compilerFeatures.compiler.bTPath, true);
     }
-    compilerFlags = compilerFeatures.getCompilerFlags();
-    linkerFlags = linkerFeatures.getLinkerFlags();
+    linkCommand = linkerFeatures.getLinkCommand();
+    archiveCommand = linkerFeatures.getArchiveCommand();
     if (!stdCppTarget)
     {
         SystemTarget s1 = systemTarget;
@@ -74,37 +74,13 @@ void Configuration::initialize()
                     if constexpr (os == OS::NT)
                     {
                         // 2 big-hu are being added. One with c++ standard headers and one with windows.h
-                        c->getPublicBigHu(true);
                         c->addComposingHeadersMSVC();
-                        CppMod *publicBigHu = c->getPublicBigHu(true);
-                        string *s = new string("windows.h");
-                        publicBigHu->composingHeaders.emplace(*s, nullptr);
-                        s = new string("winapifamily.h");
-                        publicBigHu->composingHeaders.emplace(*s, nullptr);
                     }
                     else
                     {
-                        // One big-hu is being added of c++ standard headers. However, a few more composing headers are
-                        // being added. These composing headers are being used by the boost.
-                        Node *cppStandardHeaders = Node::getNodeNonNormalized(
-                            toolsCache.linuxTools[cache.selectedLinkerArrayIndex].includeDirs[0], false);
-                        c->getPublicBigHu(true);
-                        c->addComposingHeadersDir(cppStandardHeaders);
-
-                        CppMod *publicBigHu = c->getPublicBigHu(false);
-                        string *s = new string("unistd.h");
-                        publicBigHu->composingHeaders.emplace(*s, nullptr);
-                        s = new string("stdint.h");
-                        publicBigHu->composingHeaders.emplace(*s, nullptr);
-                        s = new string("assert.h");
-                        publicBigHu->composingHeaders.emplace(*s, nullptr);
-                        s = new string("stdarg.h");
-                        publicBigHu->composingHeaders.emplace(*s, nullptr);
-                        s = new string("stdio.h");
-                        publicBigHu->composingHeaders.emplace(*s, nullptr);
-                        s = new string("wchar.h");
-                        publicBigHu->composingHeaders.emplace(*s, nullptr);
+                        c->addComposingHeadersLinux();
                     }
+
                 }
             }
 

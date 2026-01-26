@@ -26,28 +26,26 @@ tl::expected<IPCManagerCompiler, std::string> makeIPCManagerCompiler(std::string
 {
 #ifdef _WIN32
     BMIIfHeaderUnitObjOtherwisePath = R"(\\.\pipe\)" + BMIIfHeaderUnitObjOtherwisePath;
-    HANDLE hPipe = CreateFileA(BMIIfHeaderUnitObjOtherwisePath.data(), // pipe name
-                               GENERIC_READ |                          // read and write access
-                                   GENERIC_WRITE,
-                               0,             // no sharing
-                               nullptr,       // default security attributes
-                               OPEN_EXISTING, // opens existing pipe
-                               0,             // default attributes
-                               nullptr);      // no template file
+    HANDLE fd = CreateFileA(BMIIfHeaderUnitObjOtherwisePath.data(), // pipe name
+                            GENERIC_READ |                          // read and write access
+                                GENERIC_WRITE,
+                            0,             // no sharing
+                            nullptr,       // default security attributes
+                            OPEN_EXISTING, // opens existing pipe
+                            0,             // default attributes
+                            nullptr);      // no template file
 
     // Break if the pipe handle is valid.
 
-    if (hPipe == INVALID_HANDLE_VALUE)
+    if (fd == INVALID_HANDLE_VALUE)
     {
         return tl::unexpected(getErrorString());
     }
-
-    return IPCManagerCompiler(hPipe);
+    return IPCManagerCompiler(reinterpret_cast<uint64_t>(fd));
 #else
+    const int fd = socket(AF_UNIX, SOCK_STREAM, 0);
 
-    const int fdSocket = socket(AF_UNIX, SOCK_STREAM, 0);
-
-    if (fdSocket == -1)
+    if (fd == -1)
     {
         return tl::unexpected(getErrorString());
     }
@@ -64,24 +62,24 @@ tl::expected<IPCManagerCompiler, std::string> makeIPCManagerCompiler(std::string
     prependDir.append(to16charHexString(hash));
     std::copy(prependDir.begin(), prependDir.end(), addr.sun_path);
 
-    if (connect(fdSocket, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == -1)
+    if (connect(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == -1)
     {
         return tl::unexpected(getErrorString());
     }
-    return IPCManagerCompiler(fdSocket);
-
 #endif
+
+    return IPCManagerCompiler(fd);
 }
 
 #ifdef _WIN32
-IPCManagerCompiler::IPCManagerCompiler(void *hPipe_)
+IPCManagerCompiler::IPCManagerCompiler(const uint64_t fd_)
 {
-    hPipe = hPipe_;
+    fd = fd_;
 }
 #else
-IPCManagerCompiler::IPCManagerCompiler(const int fdSocket_)
+IPCManagerCompiler::IPCManagerCompiler(const int fd_)
 {
-    fdSocket = fdSocket_;
+    fd = fd_;
 }
 #endif
 
@@ -121,8 +119,9 @@ tl::expected<void, std::string> IPCManagerCompiler::receiveBTCLastMessage() cons
 
 tl::expected<BTCModule, std::string> IPCManagerCompiler::receiveBTCModule(const CTBModule &moduleName)
 {
-    std::vector<char> buffer = getBufferWithType(CTB::MODULE);
+    std::string buffer = getBufferWithType(CTB::MODULE);
     writeString(buffer, moduleName.moduleName);
+    buffer.push_back(';');
     // This call sends the CTBModule to the build-system.
     if (const auto &r = writeInternal(buffer); !r)
     {
@@ -192,9 +191,10 @@ tl::expected<BTCModule, std::string> IPCManagerCompiler::receiveBTCModule(const 
 
 tl::expected<BTCNonModule, std::string> IPCManagerCompiler::receiveBTCNonModule(const CTBNonModule &nonModule)
 {
-    std::vector<char> buffer = getBufferWithType(CTB::NON_MODULE);
-    buffer.emplace_back(nonModule.isHeaderUnit);
+    std::string buffer = getBufferWithType(CTB::NON_MODULE);
+    buffer.push_back(nonModule.isHeaderUnit);
     writeString(buffer, nonModule.logicalName);
+    buffer.push_back(';');
     // This call sends the CTBNonModule to the build-system.
     if (const auto &r = writeInternal(buffer); !r)
     {
@@ -321,12 +321,13 @@ tl::expected<Response, std::string> IPCManagerCompiler::findResponse(std::string
 
 tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage() const
 {
-    std::vector<char> buffer = getBufferWithType(CTB::LAST_MESSAGE);
-    buffer.emplace_back(lastMessage.errorOccurred);
+    std::string buffer = getBufferWithType(CTB::LAST_MESSAGE);
+    buffer.push_back(lastMessage.errorOccurred);
     writeString(buffer, lastMessage.output);
     writeString(buffer, lastMessage.errorOutput);
     writeString(buffer, lastMessage.logicalName);
     writeUInt32(buffer, lastMessage.fileSize);
+    buffer.push_back(';');
     if (const auto &r = writeInternal(buffer); !r)
     {
         return tl::unexpected(r.error());
@@ -440,8 +441,8 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerCompiler::readShare
 {
     ProcessMappingOfBMIFile f{};
 #ifdef _WIN32
-    std::string str = file.filePath;
-    for (char &c : str)
+    std::string mappingName = file.filePath;
+    for (char &c : mappingName)
     {
         if (c == '\\')
         {
@@ -449,9 +450,9 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerCompiler::readShare
         }
     }
     // 1) Open the existing file‐mapping object (must have been created by another process)
-    const HANDLE mapping = OpenFileMappingA(FILE_MAP_READ, // read‐only access
-                                            FALSE,         // do not inherit a handle
-                                            str.c_str()    // name of mapping
+    const HANDLE mapping = OpenFileMappingA(FILE_MAP_READ,      // read‐only access
+                                            FALSE,              // do not inherit a handle
+                                            mappingName.c_str() // name of mapping
     );
 
     if (mapping == nullptr)
@@ -493,8 +494,6 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerCompiler::readShare
         return tl::unexpected(getErrorString());
     }
 
-    f.mapping = mapping;
-    f.mappingSize = file.fileSize;
     f.file = {static_cast<char *>(mapping), file.fileSize};
 #endif
     return f;
@@ -507,7 +506,7 @@ tl::expected<void, std::string> IPCManagerCompiler::closeBMIFileMapping(
     UnmapViewOfFile(processMappingOfBMIFile.view);
     CloseHandle(processMappingOfBMIFile.mapping);
 #else
-    if (munmap(processMappingOfBMIFile.mapping, processMappingOfBMIFile.mappingSize) == -1)
+    if (munmap((void *)processMappingOfBMIFile.file.data(), processMappingOfBMIFile.file.size()) == -1)
     {
         return tl::unexpected(getErrorString());
     }
@@ -518,9 +517,9 @@ tl::expected<void, std::string> IPCManagerCompiler::closeBMIFileMapping(
 void IPCManagerCompiler::closeConnection() const
 {
 #ifdef _WIN32
-    CloseHandle(hPipe);
+    CloseHandle(reinterpret_cast<HANDLE>(fd));
 #else
-    close(fdSocket);
+    close(fd);
 #endif
 }
 

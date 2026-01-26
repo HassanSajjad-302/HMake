@@ -23,33 +23,36 @@ tl::expected<IPCManagerBS, std::string> makeIPCManagerBS(std::string BMIIfHeader
 {
 #ifdef _WIN32
     BMIIfHeaderUnitObjOtherwisePath = R"(\\.\pipe\)" + BMIIfHeaderUnitObjOtherwisePath;
-    void *hPipe = CreateNamedPipeA(BMIIfHeaderUnitObjOtherwisePath.c_str(), // pipe name
-                                   PIPE_ACCESS_DUPLEX |                     // read/write access
-                                       FILE_FLAG_FIRST_PIPE_INSTANCE,       // overlapped mode
-                                   PIPE_TYPE_MESSAGE |                      // message-type pipe
-                                       PIPE_READMODE_MESSAGE |              // message read mode
-                                       PIPE_WAIT,                           // blocking mode
-                                   1,                                       // unlimited instances
-                                   BUFFERSIZE * sizeof(TCHAR),              // output buffer size
-                                   BUFFERSIZE * sizeof(TCHAR),              // input buffer size
-                                   PIPE_TIMEOUT,                            // client time-out
-                                   nullptr);                                // default security attributes
+
+    HANDLE hPipe = CreateNamedPipeA(BMIIfHeaderUnitObjOtherwisePath.c_str(), // pipe name
+                                    PIPE_ACCESS_DUPLEX |                     // read/write access
+                                        FILE_FLAG_OVERLAPPED |               // overlapped mode for IOCP
+                                        FILE_FLAG_FIRST_PIPE_INSTANCE,       // first instance only
+                                    PIPE_TYPE_BYTE |                         // message-type pipe
+                                        PIPE_READMODE_BYTE |                 // message read mode
+                                        PIPE_WAIT,                           // blocking mode (for sync operations)
+                                    1,                                       // max instances
+                                    BUFFERSIZE * sizeof(TCHAR),              // output buffer size
+                                    BUFFERSIZE * sizeof(TCHAR),              // input buffer size
+                                    PIPE_TIMEOUT,                            // client time-out
+                                    nullptr);                                // default security attributes
+
     if (hPipe == INVALID_HANDLE_VALUE)
     {
         return tl::unexpected(getErrorString());
     }
-    return IPCManagerBS(hPipe);
+
+    return IPCManagerBS(reinterpret_cast<uint64_t>(server));
 
 #else
-
     // Named Pipes are used but Unix Domain sockets could have been used as well. The tradeoff is that a file is created
     // and there needs to be bind, listen, accept calls which means that an extra fd is created is temporarily on the
     // server side. it can be closed immediately after.
 
-    const int fdSocket = socket(AF_UNIX, SOCK_STREAM, 0);
+    const int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
 
     // Create server socket
-    if (fdSocket == -1)
+    if (fd == -1)
     {
         return tl::unexpected(getErrorString());
     }
@@ -69,7 +72,7 @@ tl::expected<IPCManagerBS, std::string> makeIPCManagerBS(std::string BMIIfHeader
     unlink(prependDir.c_str());
 
     // Bind socket to the file system path
-    if (bind(fdSocket, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == -1)
+    if (bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == -1)
     {
         return tl::unexpected(getErrorString());
     }
@@ -79,64 +82,96 @@ tl::expected<IPCManagerBS, std::string> makeIPCManagerBS(std::string BMIIfHeader
     }
 
     // Listen for incoming connections
-    if (listen(fdSocket, 1) == -1)
+    if (listen(fd, 1) == -1)
     {
-        close(fdSocket);
+        close(fd);
         return tl::unexpected(getErrorString());
     }
-
-    return IPCManagerBS(fdSocket);
 #endif
+
+    return IPCManagerBS(fd);
 }
 
+tl::expected<void, std::string> IPCManagerBS::registerManager(const uint64_t serverFd,
+                                                              const uint64_t completionKey) const
+{
 #ifdef _WIN32
-IPCManagerBS::IPCManagerBS(void *hPipe_)
-{
-    hPipe = hPipe_;
-}
-#else
-IPCManagerBS::IPCManagerBS(const int fdSocket_)
-{
-    fdSocket = fdSocket_;
-}
+    // Associate the pipe with the existing IOCP handle. completionKey is either 0 or a legit value. if 0 then we pass
+    // the fd as completion-key. Test checks after the GetQueuedCompletionStatus() call to ensure that the completionKey
+    // is same as the fd.
+    HANDLE h = CreateIoCompletionPort((HANDLE)fd,                         // handle to associate
+                                      reinterpret_cast<HANDLE>(serverFd), // existing IOCP handle
+                                      completionKey,                      // completion key
+                                      0                                   // number of concurrent threads (0 = default)
+    );
+    if (h == nullptr)
+    {
+        CloseHandle((HANDLE)fd);
+        return tl::unexpected(getErrorString());
+    }
+    return {};
 #endif
+    return {};
+}
+
+IPCManagerBS::IPCManagerBS(const uint64_t fd_)
+{
+    fd = fd_;
+    isServer = true;
+}
+
+tl::expected<bool, std::string> IPCManagerBS::completeConnection() const
+{
+#ifdef _WIN32
+    // For IOCP, we need to use overlapped I/O
+    OVERLAPPED overlapped = {};
+
+    if (ConnectNamedPipe((HANDLE)fd, &overlapped))
+    {
+        return tl::unexpected("ConnectNamedPipe should not complete synchronously\n");
+    }
+
+    DWORD error = GetLastError();
+
+    if (error == ERROR_IO_PENDING)
+    {
+        // Connection is pending - need to wait for IOCP notification
+        // This is the normal case for async operation
+        return false;
+    }
+    if (error == ERROR_PIPE_CONNECTED)
+    {
+        // Client connected before we called ConnectNamedPipe
+        // This can happen if client connects very quickly
+        return true;
+    }
+    if (error == ERROR_NO_DATA)
+    {
+        // Client connected and exited before we called ConnectnamedPipe
+        return true;
+    }
+
+    // Actual error occurred
+    return tl::unexpected(getErrorString());
+#else
+    const int fd = accept4(fd, nullptr, nullptr, O_NONBLOCK);
+    if (fd == -1)
+    {
+        if (errno == EAGAIN)
+        {
+            return false;
+        }
+        return tl::unexpected(getErrorString());
+    }
+    close(fd);
+    const_cast<int &>(fd) = fd;
+    return true;
+
+#endif
+}
 
 tl::expected<void, std::string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[320], CTB &messageType) const
 {
-    if (!connectedToCompiler)
-    {
-#ifdef _WIN32
-        if (!ConnectNamedPipe(hPipe, nullptr))
-        {
-            // Is the client already connected?
-            if (GetLastError() != ERROR_PIPE_CONNECTED)
-            {
-
-                DWORD bytesAvail = 0;
-                DWORD bytesLeftThisMessage = 0;
-
-                // PeekNamedPipe returns FALSE if pipe is disconnected
-                if (PeekNamedPipe(hPipe, nullptr, 0, nullptr, &bytesAvail, &bytesLeftThisMessage))
-                {
-                    // compiler process ended and has left a message for us.
-                }
-                else
-                {
-                    return tl::unexpected(getErrorString());
-                }
-            }
-        }
-#else
-        const int fd = accept(fdSocket, nullptr, nullptr);
-        close(fdSocket);
-        if (fd == -1)
-        {
-            return tl::unexpected(getErrorString());
-        }
-        const_cast<int &>(fdSocket) = fd;
-#endif
-        const_cast<bool &>(connectedToCompiler) = true;
-    }
     //    raise(SIGTRAP); // At the location of the BP.
 
     // Read from the pipe.
@@ -249,9 +284,9 @@ tl::expected<void, std::string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[3
 
 tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCModule &moduleFile) const
 {
-    std::vector<char> buffer;
+    std::string buffer;
     writeProcessMappingOfBMIFile(buffer, moduleFile.requested);
-    buffer.emplace_back(moduleFile.isSystem);
+    buffer.push_back(moduleFile.isSystem);
     writeVectorOfModuleDep(buffer, moduleFile.modDeps);
     if (const auto &r = writeInternal(buffer); !r)
     {
@@ -262,9 +297,9 @@ tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCModule &modul
 
 tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCNonModule &nonModule) const
 {
-    std::vector<char> buffer;
-    buffer.emplace_back(nonModule.isHeaderUnit);
-    buffer.emplace_back(nonModule.isSystem);
+    std::string buffer;
+    buffer.push_back(nonModule.isHeaderUnit);
+    buffer.push_back(nonModule.isSystem);
     writeString(buffer, nonModule.filePath);
     writeUInt32(buffer, nonModule.fileSize);
     writeVectorOfStrings(buffer, nonModule.logicalNames);
@@ -279,8 +314,8 @@ tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCNonModule &no
 
 tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCLastMessage &) const
 {
-    std::vector<char> buffer;
-    buffer.emplace_back(true);
+    std::string buffer;
+    buffer.push_back(true);
     if (const auto &r = writeInternal(buffer); !r)
     {
         return tl::unexpected(r.error());
@@ -292,6 +327,15 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerBS::createSharedMem
 {
     ProcessMappingOfBMIFile sharedFile{};
 #ifdef _WIN32
+
+    std::string mappingName = bmiFile.filePath;
+    for (char &c : mappingName)
+    {
+        if (c == '\\')
+        {
+            c = '/';
+        }
+    }
 
     if (bmiFile.fileSize == UINT32_MAX)
     {
@@ -309,16 +353,8 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerBS::createSharedMem
             return tl::unexpected(getErrorString());
         }
 
-        std::string str = bmiFile.filePath;
-        for (char &c : str)
-        {
-            if (c == '\\')
-            {
-                c = '/';
-            }
-        }
         sharedFile.mapping =
-            CreateFileMappingA(hFile, nullptr, PAGE_READONLY, fileSize.HighPart, fileSize.LowPart, str.c_str());
+            CreateFileMappingA(hFile, nullptr, PAGE_READONLY, fileSize.HighPart, fileSize.LowPart, mappingName.c_str());
 
         CloseHandle(hFile);
 
@@ -332,9 +368,9 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerBS::createSharedMem
     }
 
     // 1) Open the existing file‐mapping object (must have been created by another process)
-    sharedFile.mapping = OpenFileMappingA(FILE_MAP_READ,           // read‐only access
-                                          FALSE,                   // do not inherit handle
-                                          bmiFile.filePath.c_str() // name of mapping
+    sharedFile.mapping = OpenFileMappingA(FILE_MAP_READ,      // read‐only access
+                                          FALSE,              // do not inherit handle
+                                          mappingName.c_str() // name of mapping
     );
 
     if (sharedFile.mapping == nullptr)
@@ -349,16 +385,26 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerBS::createSharedMem
     {
         return tl::unexpected(getErrorString());
     }
-    sharedFile.mapping = mmap(nullptr, bmiFile.fileSize, PROT_READ, MAP_SHARED | MAP_POPULATE, fd, 0);
+    if (bmiFile.fileSize == UINT32_MAX)
+    {
+        struct stat st;
+        if (fstat(fd, &st) == -1)
+        {
+            return tl::unexpected(getErrorString());
+        }
+
+        bmiFile.fileSize = st.st_size;
+    }
+    void *mapping = mmap(nullptr, bmiFile.fileSize, PROT_READ, MAP_SHARED | MAP_POPULATE, fd, 0);
     if (close(fd) == -1)
     {
         return tl::unexpected(getErrorString());
     }
-    if (sharedFile.mapping == MAP_FAILED)
+    if (mapping == MAP_FAILED)
     {
         return tl::unexpected(getErrorString());
     }
-    sharedFile.mappingSize = bmiFile.fileSize;
+    sharedFile.file = std::string_view(static_cast<char *>(mapping), bmiFile.fileSize);
     return sharedFile;
 #endif
 }
@@ -369,7 +415,7 @@ tl::expected<void, std::string> IPCManagerBS::closeBMIFileMapping(
 #ifdef _WIN32
     CloseHandle(processMappingOfBMIFile.mapping);
 #else
-    if (munmap(processMappingOfBMIFile.mapping, processMappingOfBMIFile.mappingSize) == -1)
+    if (munmap((void *)processMappingOfBMIFile.file.data(), processMappingOfBMIFile.file.size()) == -1)
     {
         return tl::unexpected(getErrorString());
     }
@@ -380,9 +426,9 @@ tl::expected<void, std::string> IPCManagerBS::closeBMIFileMapping(
 void IPCManagerBS::closeConnection() const
 {
 #ifdef _WIN32
-    CloseHandle(hPipe);
+    CloseHandle(reinterpret_cast<HANDLE>(fd));
 #else
-    close(fdSocket);
+    close(fd);
 #endif
 }
 

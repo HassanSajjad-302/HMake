@@ -1,164 +1,182 @@
 
 #include "RunCommand.hpp"
 #include "BuildSystemFunctions.hpp"
+#include "Builder.hpp"
+#include "IPCManagerBS.hpp"
 #ifdef _WIN32
 #else
 #include "sys/wait.h"
+#include "wordexp.h"
 #endif
 
 #ifdef _WIN32
 #include <Windows.h>
+#include <chrono>
 
-// TODO
-//  Error should throw and not exit
-void Fatal(const char *msg, ...)
+void RunCommand::runProcess(const char *command)
 {
-    va_list ap;
-    fprintf(stderr, "ninja: fatal: ");
-    va_start(ap, msg);
-    vfprintf(stderr, msg, ap);
-    va_end(ap);
-    fprintf(stderr, "\n");
+    // Generate unique temp filenames using timestamp
+    auto timestamp = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+
+    string stdoutFile = FORMAT("temp_stdout_{}.txt", timestamp);
+    string stderrFile = FORMAT("temp_stderr_{}.txt", timestamp);
+
 #ifdef _WIN32
-    // On Windows, some tools may inject extra threads.
-    // exit() may block on locks held by those threads, so forcibly exit.
-    fflush(stderr);
-    fflush(stdout);
-    ExitProcess(1);
+    // Windows: Use cmd.exe /c with proper quoting
+    const string finalCommand = FORMAT("cmd.exe /c \"({}) > {} 2> {}\"", command, stdoutFile, stderrFile);
 #else
-    exit(1);
+    // Unix/Linux/macOS: Standard shell redirection works fine
+    const string finalCommand = FORMAT("{} > {} 2> {}", command, stdoutFile, stderrFile);
+#endif
+
+    exitStatus = system(finalCommand.c_str());
+
+    output = fileToString(stdoutFile);
+    const string errorFileContent = fileToString(stderrFile);
+    if (!output.empty() && !errorFileContent.empty())
+    {
+        output += "\n--- STDERR ---\n";
+    }
+    output += errorFileContent;
+
+    std::filesystem::remove(stdoutFile);
+    std::filesystem::remove(stderrFile);
+}
+
+// Copied partially from Ninja
+uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget)
+{
+    // One BTarget can launch multiple processes so we also append the clock::now().
+    const string pipe_name =
+        FORMAT("\\\\.\\pipe\\{}{}", bTarget->id, std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    HANDLE pipe_ = CreateNamedPipeA(pipe_name.c_str(), PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED, PIPE_TYPE_BYTE,
+                                    PIPE_UNLIMITED_INSTANCES, 0, 0, INFINITE, NULL);
+    if (pipe_ == INVALID_HANDLE_VALUE)
+    {
+        printErrorMessage(N2978::getErrorString());
+    }
+
+    const uint64_t eventDataIndex = builder.registerEventData(bTarget, (uint64_t)pipe_);
+    if (!CreateIoCompletionPort(pipe_, (HANDLE)builder.serverFd, eventDataIndex, 0))
+    {
+        printErrorMessage(N2978::getErrorString());
+    }
+
+    if (CompletionKey &k = eventData[eventDataIndex];
+        !ConnectNamedPipe(pipe_, &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer)) &&
+        GetLastError() != ERROR_IO_PENDING)
+    {
+        printErrorMessage(N2978::getErrorString());
+    }
+
+    // Get the write end of the pipe as a handle inheritable across processes.
+    HANDLE output_write_handle = CreateFileA(pipe_name.c_str(), GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    HANDLE child_pipe;
+    if (!DuplicateHandle(GetCurrentProcess(), output_write_handle, GetCurrentProcess(), &child_pipe, 0, TRUE,
+                         DUPLICATE_SAME_ACCESS))
+    {
+        printErrorMessage(N2978::getErrorString());
+    }
+    CloseHandle(output_write_handle);
+
+    SECURITY_ATTRIBUTES security_attributes;
+    memset(&security_attributes, 0, sizeof(SECURITY_ATTRIBUTES));
+    security_attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+    security_attributes.bInheritHandle = TRUE;
+    // Must be inheritable so subprocesses can dup to children.
+    HANDLE nul = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                             &security_attributes, OPEN_EXISTING, 0, NULL);
+    if (nul == INVALID_HANDLE_VALUE)
+    {
+        printErrorMessage(N2978::getErrorString());
+    }
+
+    STARTUPINFOA startup_info;
+    memset(&startup_info, 0, sizeof(startup_info));
+    startup_info.cb = sizeof(STARTUPINFO);
+
+    bool use_console_ = false;
+    if (!use_console_)
+    {
+        startup_info.dwFlags = STARTF_USESTDHANDLES;
+        startup_info.hStdInput = nul;
+        startup_info.hStdOutput = child_pipe;
+        startup_info.hStdError = child_pipe;
+    }
+    // In the console case, child_pipe is still inherited by the child and closed
+    // when the subprocess finishes, which then notifies ninja.
+
+    PROCESS_INFORMATION process_info;
+    memset(&process_info, 0, sizeof(process_info));
+
+    // Ninja handles ctrl-c, except for subprocesses in console pools.
+    DWORD process_flags = use_console_ ? 0 : CREATE_NEW_PROCESS_GROUP;
+
+    // Do not prepend 'cmd /c' on Windows, this breaks command
+    // lines greater than 8,191 chars.
+    if (!CreateProcessA(NULL, (char *)command, NULL, NULL,
+                        /* inherit handles */ TRUE, process_flags, NULL, NULL, &startup_info, &process_info))
+    {
+        printErrorMessage(FORMAT("CreateProcessA failed for Command\n{}\nError\n", command, N2978::getErrorString()));
+    }
+
+    // Close pipe channel only used by the child.
+    if (child_pipe)
+    {
+        CloseHandle(child_pipe);
+    }
+    CloseHandle(nul);
+
+    CloseHandle(process_info.hThread);
+
+    stdPipe = (uint64_t)pipe_;
+    pid = (uint64_t)process_info.hProcess;
+
+    return eventDataIndex;
+}
+
+bool RunCommand::wasProcessLaunchIncomplete(const uint64_t index)
+{
+#ifdef _WIN32
+    if (processState == ProcessState::LAUNCHED)
+    {
+        CompletionKey &k = eventData[index];
+        uint64_t bytesRead = 0;
+        const bool result =
+            GetOverlappedResult((HANDLE)k.handle, &(OVERLAPPED &)k.overlappedBuffer, (LPDWORD)&bytesRead, false);
+        if (result)
+        {
+            processState = ProcessState::OUTPUT_CONNECTED;
+            return true;
+        }
+        if (GetLastError() == ERROR_BROKEN_PIPE)
+        {
+            processState = ProcessState::COMPLETED;
+            return true;
+        }
+        printErrorMessage(N2978::getErrorString());
+    }
+    return false;
+#else
+    return false;
 #endif
 }
 
-string GetLastErrorString()
+void RunCommand::reapProcess() const
 {
-    DWORD err = GetLastError();
-
-    char *msg_buf;
-    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr,
-                   err, MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT), (char *)&msg_buf, 0, nullptr);
-
-    if (msg_buf == nullptr)
+    if (WaitForSingleObject((HANDLE)pid, INFINITE) == WAIT_FAILED)
     {
-        char fallback_msg[128] = {0};
-        snprintf(fallback_msg, sizeof(fallback_msg), "GetLastError() = %d", err);
-        return fallback_msg;
+        printErrorMessage(N2978::getErrorString());
+    }
+    if (!GetExitCodeProcess((HANDLE)pid, (LPDWORD)&exitStatus))
+    {
+        printErrorMessage(N2978::getErrorString());
     }
 
-    string msg = msg_buf;
-    LocalFree(msg_buf);
-    return msg;
-}
-
-void Win32Fatal(const char *function, const char *hint = nullptr)
-{
-    if (hint)
+    if (!CloseHandle((HANDLE)pid) || !CloseHandle((HANDLE)stdPipe))
     {
-        Fatal("%s: %s (%s)", function, GetLastErrorString().c_str(), hint);
+        printErrorMessage(N2978::getErrorString());
     }
-    else
-    {
-        Fatal("%s: %s", function, GetLastErrorString().c_str());
-    }
-}
-
-void RunCommand::startProcess(const string &command, bool isModuleProcess)
-{
-    PROCESS_INFORMATION process_info = {};
-    STARTUPINFOA startup_info = {};
-
-    if (isModuleProcess)
-    {
-        if (!CreateProcessA(nullptr, (char *)command.c_str(), nullptr, nullptr,
-                            /* inherit handles */ TRUE, 0, nullptr, nullptr, &startup_info, &process_info))
-        {
-            Win32Fatal("CreateProcess");
-        }
-        hProcess = process_info.hProcess;
-        return;
-    }
-
-    SECURITY_ATTRIBUTES security_attributes = {};
-    security_attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
-    security_attributes.bInheritHandle = TRUE;
-
-    HANDLE stdout_write;
-    if (!CreatePipe(&stdout_read, &stdout_write, &security_attributes, 0))
-        Win32Fatal("CreatePipe");
-
-    if (!SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0))
-        Win32Fatal("SetHandleInformation");
-
-    startup_info.cb = sizeof(STARTUPINFOA);
-    startup_info.hStdError = stdout_write;
-    startup_info.hStdOutput = stdout_write;
-    startup_info.dwFlags |= STARTF_USESTDHANDLES;
-
-    if (!CreateProcessA(nullptr, (char *)command.c_str(), nullptr, nullptr,
-                        /* inherit handles */ TRUE, 0, nullptr, nullptr, &startup_info, &process_info))
-    {
-        Win32Fatal("CreateProcess");
-    }
-    hProcess = process_info.hProcess;
-    hThread = process_info.hThread;
-
-    if (!CloseHandle(stdout_write))
-    {
-        Win32Fatal("CloseHandle");
-    }
-}
-
-RunCommand::OutputAndStatus RunCommand::endProcess(const bool isModuleProcess) const
-{
-    OutputAndStatus o;
-    DWORD exit_code = 0;
-
-    if (isModuleProcess)
-    {
-        // Wait for it to exit and grab its exit code.
-        if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
-            Win32Fatal("WaitForSingleObject");
-        if (!GetExitCodeProcess(hProcess, &exit_code))
-            Win32Fatal("GetExitCodeProcess");
-
-        if (!CloseHandle(hProcess))
-        {
-            Win32Fatal("CloseHandle");
-        }
-    }
-    else
-    {
-        // Read all output of the subprocess.
-        DWORD read_len = 1;
-        while (read_len)
-        {
-            char buf[64 << 10];
-            read_len = 0;
-            if (const bool out = ReadFile(stdout_read, buf, sizeof(buf), &read_len, nullptr); !out)
-            {
-                if (GetLastError() == ERROR_BROKEN_PIPE)
-                {
-                    break;
-                }
-                Win32Fatal("ReadFile");
-            }
-            o.output.append(buf, read_len);
-        }
-
-        // Wait for it to exit and grab its exit code.
-        if (WaitForSingleObject(hProcess, INFINITE) == WAIT_FAILED)
-            Win32Fatal("WaitForSingleObject");
-        if (!GetExitCodeProcess(hProcess, &exit_code))
-            Win32Fatal("GetExitCodeProcess");
-
-        if (!CloseHandle(stdout_read) || !CloseHandle(hProcess) || !CloseHandle(hThread))
-        {
-            Win32Fatal("CloseHandle");
-        }
-    }
-
-    o.exitStatus = exit_code;
-    return o;
 }
 
 void RunCommand::killModuleProcess(const string &processName) const
@@ -166,39 +184,26 @@ void RunCommand::killModuleProcess(const string &processName) const
     // Exit code you want to assign to the terminated process
     DWORD exitCode = 1;
 
-    if (!TerminateProcess(hProcess, exitCode))
+    if (!TerminateProcess((HANDLE)pid, exitCode))
     {
         printErrorMessage(FORMAT("Killing module process {} failed.\n", processName));
     }
 
-    CloseHandle(hProcess); // Clean up when you’re done
+    CloseHandle((HANDLE)pid); // Clean up when you’re done
 }
 
 #else
 
-void RunCommand::startProcess(const string &command, const bool isModuleProcess)
+uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget)
 {
-    if (isModuleProcess)
-    {
-        pid = fork();
-        if (pid == -1)
-        {
-            printErrorMessage("fork");
-        }
-        if (pid == 0)
-        {
-            // Child process
-            // Execute a command (e.g., "ls" or any other)
-            exit(WEXITSTATUS(system(command.c_str())));
-        }
-        return;
-    }
-
     // Create pipes for stdout and stderr
-    if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1)
+    int stdPipesLocal[2];
+    if (pipe(stdPipesLocal) == -1)
     {
         printErrorMessage("Error Creating Pipes\n");
     }
+
+    stdPipe = stdPipesLocal[0];
 
     pid = fork();
     if (pid == -1)
@@ -210,59 +215,102 @@ void RunCommand::startProcess(const string &command, const bool isModuleProcess)
         // Child process
 
         // Redirect stdout and stderr to the pipes
-        dup2(stdout_pipe[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
-        dup2(stderr_pipe[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
+        dup2(stdPipesLocal[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
+        dup2(stdPipesLocal[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
 
         // Close unused pipe ends
-        close(stdout_pipe[0]);
-        close(stderr_pipe[0]);
-        close(stdout_pipe[1]);
-        close(stderr_pipe[1]);
+        close(stdPipesLocal[0]);
+        close(stdPipesLocal[1]);
 
-        // Execute a command (e.g., "ls" or any other)
-        exit(WEXITSTATUS(system(command.c_str())));
+        wordexp_t p;
+        if (wordexp(command, &p, 0) != 0)
+        {
+            perror("wordexp");
+            _exit(127);
+        }
+
+        // p.we_wordv is a NULL-terminated argv suitable for exec*
+        char **argv = p.we_wordv;
+
+        // Use execvp so PATH is searched and environment is inherited
+        execvp(argv[0], argv);
+
+        // If execvp returns, it failed:
+        perror("execvp");
+        wordfree(&p);
+        _exit(127);
     }
 
     // Parent process
     // Close unused pipe ends
-    close(stdout_pipe[1]);
-    close(stderr_pipe[1]);
+    close(stdPipesLocal[1]);
+
+    builder.registerEventData(bTarget, stdPipe);
+    return stdPipe;
 }
 
-RunCommand::OutputAndStatus RunCommand::endProcess(const bool isModuleProcess) const
+bool RunCommand::wasProcessLaunchIncomplete(uint64_t index)
 {
-    OutputAndStatus o;
+    return false;
+}
 
-    int status;
-    if (waitpid(pid, &status, 0) < 0)
+void RunCommand::runProcess(const char *command)
+{
+    // Create pipes for stdout and stderr
+    int stdPipesLocal[2];
+    if (pipe(stdPipesLocal) == -1)
     {
-        printErrorMessage("waitpid");
-    }
-    o.exitStatus = WEXITSTATUS(status);
-
-    if (isModuleProcess)
-    {
-        return o;
+        printErrorMessage("Error Creating Pipes\n");
     }
 
-    char buffer[4096];
+    stdPipe = stdPipesLocal[0];
+
+    pid = fork();
+    if (pid == -1)
+    {
+        printErrorMessage("fork");
+    }
+    if (pid == 0)
+    {
+        // Child process
+
+        // Redirect stdout and stderr to the pipes
+        dup2(stdPipesLocal[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
+        dup2(stdPipesLocal[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
+
+        // Close unused pipe ends
+        close(stdPipesLocal[0]);
+        close(stdPipesLocal[1]);
+
+        wordexp_t p;
+        if (wordexp(command, &p, 0) != 0)
+        {
+            perror("wordexp");
+            _exit(127);
+        }
+
+        // p.we_wordv is a NULL-terminated argv suitable for exec*
+        char **argv = p.we_wordv;
+
+        // Use execvp so PATH is searched and environment is inherited
+        execvp(argv[0], argv);
+
+        // If execvp returns, it failed:
+        perror("execvp");
+        wordfree(&p);
+        _exit(127);
+    }
+
+    // Parent process
+    // Close unused pipe ends
+    close(stdPipesLocal[1]);
+
+    char buffer[4096 * 16];
     while (true)
     {
-        if (const uint64_t readSize = read(stdout_pipe[0], buffer, sizeof(buffer) - 1))
+        if (const uint64_t readSize = read(stdPipe, buffer, sizeof(buffer) - 1))
         {
-            o.output.append(buffer, readSize);
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    while (true)
-    {
-        if (const uint64_t readSize = read(stderr_pipe[0], buffer, sizeof(buffer) - 1))
-        {
-            o.output.append(buffer, readSize);
+            output.append(buffer, readSize);
         }
         else
         {
@@ -271,10 +319,26 @@ RunCommand::OutputAndStatus RunCommand::endProcess(const bool isModuleProcess) c
     }
 
     // Close the read ends of the pipes
-    close(stdout_pipe[0]);
-    close(stderr_pipe[0]);
+    close(stdPipe);
 
-    return o;
+    int status;
+    if (waitpid(pid, &status, 0) < 0)
+    {
+        printErrorMessage("waitpid");
+    }
+    exitStatus = WEXITSTATUS(status);
+}
+
+void RunCommand::reapProcess()
+{
+    if (waitpid(pid, &exitStatus, 0) < 0)
+    {
+        printErrorMessage("waitpid");
+    }
+    if (close(stdPipe) == -1)
+    {
+        printErrorMessage("close failed\n");
+    }
 }
 
 void RunCommand::killModuleProcess(const string &processName) const
@@ -286,14 +350,3 @@ void RunCommand::killModuleProcess(const string &processName) const
 }
 
 #endif
-
-RunCommand::RunCommand()
-{
-    /*
-                                #ifdef _WIN32
-                                    startProcess(runCommand);
-                                #else
-                                    exitStatus = CLWrapper::Run(j, &commandOutput);
-                                #endif
-                                */
-}

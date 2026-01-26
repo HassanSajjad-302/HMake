@@ -1,3 +1,4 @@
+
 #ifndef IPC_MANAGER_COMPILER_HPP
 #define IPC_MANAGER_COMPILER_HPP
 
@@ -6,9 +7,9 @@
 
 struct CompilerTest;
 struct BuildSystemTest;
-
 namespace N2978
 {
+
 enum class FileType : uint8_t
 {
     MODULE,
@@ -66,9 +67,9 @@ class IPCManagerCompiler : Manager
 
     CTBLastMessage lastMessage{};
 #ifdef _WIN32
-    explicit IPCManagerCompiler(void *hPipe_);
+    explicit IPCManagerCompiler(uint64_t fd_);
 #else
-    explicit IPCManagerCompiler(int fdSocket_);
+    explicit IPCManagerCompiler(int fd_);
 #endif
 
     // For FileType::HEADER_FILE, it can return FileType::HEADER_UNIT, otherwise it will return the request

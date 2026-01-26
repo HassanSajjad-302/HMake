@@ -76,8 +76,8 @@ class Node
     /// in ExecuteMode::NODE_CHECK before round 0 ExecuteMode::GENERAL.
     bool toBeChecked = false;
 
-    Node(Node *&node, string filePath_);
-    explicit Node(string filePath_);
+    Node(Node *&node, string_view filePath_);
+    explicit Node(string_view filePath_);
     string getFileName() const;
     string getFileStem() const;
 
@@ -97,7 +97,7 @@ class Node
 
     /// This function is not thread-safe. And it will not call performSystemCheck. This is used to initialize
     /// nodeAllFiles and nodeIndices from nodes-cache.
-    static Node *getHalfNodeST(string normalizedFilePath);
+    static Node *getHalfNodeST(string_view normalizedFilePath);
 
     /// Thread-safe. Does not performSystemCheck.
     static Node *getHalfNode(string_view p);

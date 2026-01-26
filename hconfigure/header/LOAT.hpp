@@ -4,6 +4,8 @@
 #include "HashedCommand.hpp"
 #include "ObjectFile.hpp"
 #include "PLOAT.hpp"
+#include "RunCommand.hpp"
+
 #include <stack>
 
 using std::stack, std::filesystem::create_directories, std::shared_ptr;
@@ -13,10 +15,10 @@ class LOAT : public PLOAT
 {
     using BaseType = PLOAT;
 
+    bool recurrentCall = false;
+
   public:
     BuildCache::Link linkBuildCache;
-    string reqLinkerFlags;
-    string linkWithTargets;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
     HashedCommand commandWithoutTargetsWithTool;
 
@@ -27,6 +29,7 @@ class LOAT : public PLOAT
 
     bool archiving = false;
     bool archived = false;
+    bool recurent = false;
 
     void makeBuildCacheFilesDirPathAtConfigTime();
     LOAT(Configuration &config_, const string &name_, TargetType targetType);
@@ -39,13 +42,17 @@ class LOAT : public PLOAT
 
     void setFileStatus();
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
-    bool writeBuildCache(vector<char> &buffer) override;
+    bool writeBuildCache(string &buffer) override;
     void writeCacheAtConfigureTime();
     void readCacheAtBuildTime();
 
     string getPrintName() const override;
-    void setLinkOrArchiveCommands();
+    void setLinkOrArchiveCommands(std::pmr::string &linkWithTargets);
     template <typename T> bool evaluate(T property) const;
+    bool launchBTarget(Builder &builder) override;
+    bool completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount) override;
+    RunCommand r;
+    string output;
 };
 
 bool operator<(const LOAT &lhs, const LOAT &rhs);

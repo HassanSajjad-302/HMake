@@ -70,7 +70,7 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
         }
     }
     unsigned short expected = 0;
-    constexpr unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 3 : 1;
+    constexpr unsigned short debugLinkTargetsMultiplier = os == OS::NT ? 1 : 1;
     constexpr unsigned short noDebugLinkTargetsMultiplier = 1;
 
     // bmi file

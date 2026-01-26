@@ -48,36 +48,32 @@ struct ProcessMappingOfBMIFile
 #ifdef _WIN32
     void *mapping;
     void *view;
-#else
-    void *mapping;
-    uint32_t mappingSize;
 #endif
 };
 
 class Manager
 {
   public:
-#ifdef _WIN32
-    void *hPipe = nullptr;
-#else
-    int fdSocket = 0;
-#endif
+    uint64_t fd = 0;
+
+    bool isServer = false;
+    std::string_view serverReadString;
 
     tl::expected<uint32_t, std::string> readInternal(char (&buffer)[BUFFERSIZE]) const;
-    tl::expected<void, std::string> writeInternal(const std::vector<char> &buffer) const;
+    tl::expected<void, std::string> writeInternal(const std::string &buffer) const;
 
-    static std::vector<char> getBufferWithType(CTB type);
-    static void writeUInt32(std::vector<char> &buffer, uint32_t value);
-    static void writeString(std::vector<char> &buffer, const std::string &str);
-    static void writeProcessMappingOfBMIFile(std::vector<char> &buffer, const BMIFile &file);
-    static void writeModuleDep(std::vector<char> &buffer, const ModuleDep &dep);
-    static void writeHuDep(std::vector<char> &buffer, const HuDep &dep);
-    static void writeHeaderFile(std::vector<char> &buffer, const HeaderFile &dep);
-    static void writeVectorOfStrings(std::vector<char> &buffer, const std::vector<std::string> &strs);
-    static void writeVectorOfProcessMappingOfBMIFiles(std::vector<char> &buffer, const std::vector<BMIFile> &files);
-    static void writeVectorOfModuleDep(std::vector<char> &buffer, const std::vector<ModuleDep> &deps);
-    static void writeVectorOfHuDeps(std::vector<char> &buffer, const std::vector<HuDep> &deps);
-    static void writeVectorOfHeaderFiles(std::vector<char> &buffer, const std::vector<HeaderFile> &headerFiles);
+    static std::string getBufferWithType(CTB type);
+    static void writeUInt32(std::string &buffer, uint32_t value);
+    static void writeString(std::string &buffer, const std::string &str);
+    static void writeProcessMappingOfBMIFile(std::string &buffer, const BMIFile &file);
+    static void writeModuleDep(std::string &buffer, const ModuleDep &dep);
+    static void writeHuDep(std::string &buffer, const HuDep &dep);
+    static void writeHeaderFile(std::string &buffer, const HeaderFile &dep);
+    static void writeVectorOfStrings(std::string &buffer, const std::vector<std::string> &strs);
+    static void writeVectorOfProcessMappingOfBMIFiles(std::string &buffer, const std::vector<BMIFile> &files);
+    static void writeVectorOfModuleDep(std::string &buffer, const std::vector<ModuleDep> &deps);
+    static void writeVectorOfHuDeps(std::string &buffer, const std::vector<HuDep> &deps);
+    static void writeVectorOfHeaderFiles(std::string &buffer, const std::vector<HeaderFile> &headerFiles);
 
     tl::expected<bool, std::string> readBoolFromPipe(char (&buffer)[BUFFERSIZE], uint32_t &bytesRead,
                                                      uint32_t &bytesProcessed) const;

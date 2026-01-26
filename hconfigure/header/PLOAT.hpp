@@ -25,10 +25,9 @@ class PLOAT : public BTarget, public TargetCache
 #endif
 
   public:
-    string useReqLinkerFlags;
     Configuration &config;
     Node *outputFileNode = nullptr;
-    vector<char> configCacheBuffer;
+    string configCacheBuffer;
     uint32_t configCacheBytesRead = 0;
     bool hasObjectFiles = true;
 

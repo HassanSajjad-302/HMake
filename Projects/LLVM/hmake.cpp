@@ -1,0 +1,768 @@
+#include "Configure.hpp"
+#include <set>
+
+using std::set;
+using std::filesystem::recursive_directory_iterator;
+
+void editOutFilesRecursive(CppTarget *t, string directory, string extension, set<string> doNotInclude)
+{
+    set<Node *> noInclude;
+    for (const string &str : doNotInclude)
+    {
+        noInclude.emplace(Node::getNodeNonNormalized(directory + slashc + str, true));
+    }
+
+    for (const auto &f : recursive_directory_iterator(srcNode->filePath / path(directory)))
+    {
+        if (f.is_regular_file() && f.path().extension() == extension)
+        {
+            string str = f.path().string();
+            if (Node *n = Node::getNode(str, true); !noInclude.contains(n))
+            {
+                t->moduleFiles(n->filePath);
+            }
+        }
+    }
+}
+
+struct LlvmCppTarget : public CppTarget
+{
+
+    LlvmCppTarget(const string &name_, Configuration *configuration_) : CppTarget(name_, configuration_)
+    {
+    }
+
+    void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete) override
+    {
+    }
+};
+
+struct LlvmConfiguration : Configuration
+{
+    explicit LlvmConfiguration(const string &name_) : Configuration(name_)
+    {
+    }
+
+    CppTarget &getCppObject(const string &name_)
+    {
+        CppTarget &cppTarget = targets<LlvmCppTarget>.emplace_back(name + slashc + name_, this);
+        cppTargets.emplace_back(&cppTarget);
+        return cppTarget;
+    }
+
+    DSC<CppTarget> &getCppExeDSC(const string &name_, bool defines = false, string define = "")
+    {
+        return addStdDSCCppDep(targets<DSC<CppTarget>>.emplace_back(&getCppObject(name_ + dashCpp), &GetExeLOAT(name_),
+                                                                    defines, std::move(define)));
+    }
+    DSC<CppTarget> &getCppStaticDSC(const string &name_, bool defines = false, string define = "")
+    {
+        return addStdDSCCppDep(targets<DSC<CppTarget>>.emplace_back(&getCppObject(name_ + dashCpp),
+                                                                    &getStaticLOAT(name_), defines, std::move(define)));
+    }
+};
+
+void addLlvmDirectory(DSC<CppTarget> &target, const string &directory, const string &privatePrefix = "",
+                      bool addPublic = true, bool addPrivate = true)
+{
+    CppTarget &llvmCpp = target.getSourceTarget();
+
+    if (addPrivate)
+    {
+        if (const string privateDir = "llvm/lib/" + directory; exists(path(srcNode->filePath) / privateDir))
+        {
+            llvmCpp.moduleDirsRE(privateDir, ".*cpp")
+                .privateHUDirsRE(privateDir, privatePrefix, ".*\\.h")
+                .privateIncDirsRE(privateDir, privatePrefix, ".*\\.inc")
+                .privateIncDirsRE(privateDir, privatePrefix, ".*\\.def");
+        }
+
+        if (const string cmakePrivateDir = "llvm/my-fork/lib/" + directory;
+            exists(path(srcNode->filePath) / cmakePrivateDir))
+        {
+            llvmCpp.publicHUDirsRE(cmakePrivateDir, "llvm/" + directory + "/", ".*\\.h")
+                .publicIncDirsRE(cmakePrivateDir, "llvm/" + directory + "/", ".*\\.inc")
+                .publicIncDirsRE(cmakePrivateDir, "llvm/" + directory + "/", ".*\\.def");
+        }
+    }
+
+    if (addPublic)
+    {
+
+        if (const string publicDir = "llvm/include/llvm/" + directory; exists(path(srcNode->filePath) / publicDir))
+        {
+            llvmCpp.publicHUDirsRE(publicDir, "llvm/" + directory + "/", ".*\\.h")
+                .publicIncDirsRE(publicDir, "llvm/" + directory + "/", ".*\\.inc")
+                .publicIncDirsRE(publicDir, "llvm/" + directory + "/", ".*\\.def");
+        }
+
+        if (const string cmakePublicDir = "llvm/my-fork/include/llvm/" + directory;
+            exists(path(srcNode->filePath) / cmakePublicDir))
+        {
+            llvmCpp.publicHUDirsRE(cmakePublicDir, "llvm/" + directory + "/", ".*\\.h")
+                .publicIncDirsRE(cmakePublicDir, "llvm/" + directory + "/", ".*\\.inc")
+                .publicIncDirsRE(cmakePublicDir, "llvm/" + directory + "/", ".*\\.def");
+        }
+    }
+}
+
+void addClangDirectory(DSC<CppTarget> &target, const string &directory)
+{
+    CppTarget &clangCpp = target.getSourceTarget();
+
+    if (const string privateDir = "clang/lib/" + directory; exists(path(srcNode->filePath) / privateDir))
+    {
+        clangCpp.moduleDirsRE(privateDir, ".*cpp")
+            .privateHUDirsRE(privateDir, "", ".*\\.h")
+            .privateIncDirsRE(privateDir, "", ".*\\.inc")
+            .privateIncDirsRE(privateDir, "", ".*\\.def");
+    }
+
+    if (const string publicDir = "clang/include/clang/" + directory; exists(path(srcNode->filePath) / publicDir))
+    {
+        clangCpp.publicHUDirsRE(publicDir, "clang/" + directory + "/", ".*\\.h")
+            .publicIncDirsRE(publicDir, "clang/" + directory + "/", ".*\\.inc")
+            .publicIncDirsRE(publicDir, "clang/" + directory + "/", ".*\\.def");
+    }
+
+    if (const string cmakePublicDir = "llvm/my-fork/tools/clang/include/clang/" + directory;
+        exists(path(srcNode->filePath) / cmakePublicDir))
+    {
+        clangCpp.publicHUDirsRE(cmakePublicDir, "clang/" + directory + "/", ".*\\.h")
+            .publicIncDirsRE(cmakePublicDir, "clang/" + directory + "/", ".*\\.inc")
+            .publicIncDirsRE(cmakePublicDir, "clang/" + directory + "/", ".*\\.def");
+    }
+
+    if (const string cmakePrivateDir = "llvm/my-fork/tools/clang/lib/" + directory;
+        exists(path(srcNode->filePath) / cmakePrivateDir))
+    {
+        clangCpp.publicHUDirsRE(cmakePrivateDir, "clang/" + directory + "/", ".*\\.h")
+            .publicIncDirsRE(cmakePrivateDir, "clang/" + directory + "/", ".*\\.inc")
+            .publicIncDirsRE(cmakePrivateDir, "clang/" + directory + "/", ".*\\.def");
+    }
+}
+
+void configurationSpecification(Configuration &config)
+{
+    config.stdCppTarget->getSourceTarget().publicIncludesSource("llvm/my-fork/include", "llvm/include", "clang/include",
+                                                                "llvm/my-fork/tools/clang/include");
+
+    config.cppCompileCommand =
+        '\"' + config.compilerFeatures.compiler.bTPath +
+        "\" -DGTEST_HAS_RTTI=0 -DNDEBUG -D_GLIBCXX_USE_CXX11_ABI=1 -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS "
+        "-D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -O3 -Wall -Wc++98-compat-extra-semi -Wcast-qual "
+        "-Wcovered-switch-default -Wctad-maybe-unsupported -Wdelete-non-virtual-dtor -Werror=date-time "
+        "-Werror=unguarded-availability-new -Wextra -Wimplicit-fallthrough -Wmisleading-indentation "
+        "-Wmissing-field-initializers -Wno-long-long -Wno-noexcept-type -Wno-pass-failed -Wno-unused-parameter "
+        "-Wnon-virtual-dtor -Wstring-conversion -Wsuggest-override -Wwrite-strings  -fPIC -fdata-sections "
+        "-fdiagnostics-color -ffunction-sections -fno-exceptions -fno-rtti -fno-semantic-interposition -funwind-tables "
+        "-fvisibility-inlines-hidden  -pedantic -std=c++20 ";
+
+    config.cCompileCommand =
+        '\"' + config.compilerFeatures.compiler.bTPath +
+        "\" -Wall -Wc++98-compat-extra-semi -Wcast-qual -Wcovered-switch-default -Wctad-maybe-unsupported "
+        "-Werror=date-time -Werror=unguarded-availability-new -Wextra -Wimplicit-fallthrough -Wmisleading-indentation "
+        "-Wmissing-field-initializers -Wno-long-long -Wno-unused-parameter -Wstring-conversion -Wwrite-strings "
+        "-fdata-sections -fdiagnostics-color -ffunction-sections -fno-semantic-interposition -pedantic "
+        "-DGTEST_HAS_RTTI=0 -DNDEBUG -D_GLIBCXX_USE_CXX11_ABI=1 -D_GNU_SOURCE "
+        "-D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -O3 -fPIC ";
+
+    config.assemblyCompileCommand = '\"' + config.compilerFeatures.compiler.bTPath +
+                                    "\" -DGTEST_HAS_RTTI=0 -DNDEBUG -D_GLIBCXX_USE_CXX11_ABI=1 -D_GNU_SOURCE "
+                                    "-D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -O3 -fPIC ";
+
+    config.linkCommand =
+        '\"' + config.linkerFeatures.linker.bTPath +
+        "\" -DNDEBUG -O3 -Wl,--gc-sections -Wall -Wc++98-compat-extra-semi -Wcast-qual -Wcovered-switch-default "
+        "-Wctad-maybe-unsupported "
+        "-Wdelete-non-virtual-dtor -Werror=date-time -Werror=unguarded-availability-new -Wextra -Wimplicit-fallthrough "
+        " -Wmisleading-indentation "
+        "-Wmissing-field-initializers -Wno-long-long -Wno-noexcept-type -Wno-pass-failed -Wno-unused-parameter "
+        "-Wnon-virtual-dtor -Wstring-conversion -Wsuggest-override -Wwrite-strings -fPIC -fdata-sections "
+        "-fdiagnostics-color -ffunction-sections -fno-semantic-interposition -fvisibility-inlines-hidden -ldl -lm -lrt "
+        "-pedantic /usr/lib/x86_64-linux-gnu/libz.so -o \"";
+
+    DSC<CppTarget> llvmConfig = config.getCppStaticDSC("LLVMConfig");
+    addLlvmDirectory(llvmConfig, "Config");
+
+    DSC<CppTarget> &llvmDemangle = config.getCppStaticDSC("LLVMDemangle").publicDeps(llvmConfig);
+    addLlvmDirectory(llvmDemangle, "Demangle");
+
+    // llvm/lib/Support/LSP files not included
+    DSC<CppTarget> &llvmSupport = config.getCppStaticDSC("LLVMSupport").publicDeps(llvmDemangle);
+    addLlvmDirectory(llvmSupport, "Support");
+    addLlvmDirectory(llvmSupport, "ADT");
+    addLlvmDirectory(llvmSupport, "Support/Unix", "Unix/");
+    llvmSupport.getSourceTarget().privateIncludesSource("llvm/lib/Support");
+
+    if (bsMode == BSMode::CONFIGURE)
+    {
+        set<string> blakeCNoInclude;
+        blakeCNoInclude.emplace("rpmalloc/rpmalloc.c");
+        blakeCNoInclude.emplace("rpmalloc/malloc.c");
+        blakeCNoInclude.emplace("BLAKE3/blake3_sse41.c");
+        blakeCNoInclude.emplace("BLAKE3/blake3_avx512.c");
+        blakeCNoInclude.emplace("BLAKE3/blake3_sse2.c");
+        blakeCNoInclude.emplace("BLAKE3/blake3_avx2.c");
+
+        editOutFilesRecursive(llvmSupport.getSourceTargetPointer(), "llvm/lib/Support", ".c", blakeCNoInclude);
+
+        set<string> blakeAssemblyNoInclude;
+        blakeAssemblyNoInclude.emplace("BLAKE3/blake3_sse2_x86-64_windows_gnu.S");
+        blakeAssemblyNoInclude.emplace("BLAKE3/blake3_avx512_x86-64_windows_gnu.S");
+        blakeAssemblyNoInclude.emplace("BLAKE3/blake3_avx2_x86-64_windows_gnu.S");
+        blakeAssemblyNoInclude.emplace("BLAKE3/blake3_sse41_x86-64_windows_gnu.S");
+        editOutFilesRecursive(llvmSupport.getSourceTargetPointer(), "llvm/lib/Support", ".S", blakeAssemblyNoInclude);
+    }
+
+    llvmSupport.getSourceTarget()
+        .privateIncDirsRE("llvm/lib/Support/BLAKE3", "", ".*\\.h")
+        .privateIncDirsRE("llvm/lib/Support/rpmalloc", "", ".*\\.h")
+        .privateHeaderUnits("valgrind/valgrind.h", "/usr/include/valgrind/valgrind.h", "siphash/SipHash.h",
+                            "third-party/siphash/include/siphash/SipHash.h")
+        .publicHeaderUnits("llvm/Support/FileSystem/UniqueID.h", "llvm/include/llvm/Support/FileSystem/UniqueID.h")
+        .publicHUDirsRE("llvm/include/llvm-c", "llvm-c/", ".*\\.h")
+        .publicHUDirsRE("llvm/include/llvm-c/Transforms", "llvm-c/Transforms/", ".*\\.h")
+        .privateHUIncludes("third-party/siphash/include");
+
+    DSC<CppTarget> &llvmBitstreamReader = config.getCppStaticDSC("LLVMBitstreamReader").publicDeps(llvmSupport);
+    addLlvmDirectory(llvmBitstreamReader, "Bitstream/Reader");
+    addLlvmDirectory(llvmBitstreamReader, "Bitstream");
+
+    DSC<CppTarget> &llvmTargetParser = config.getCppStaticDSC("LLVMTargetParser").publicDeps(llvmSupport);
+    addLlvmDirectory(llvmTargetParser, "TargetParser");
+    addLlvmDirectory(llvmTargetParser, "TargetParser/Unix", "Unix/");
+
+    DSC<CppTarget> &llvmBinaryFormat =
+        config.getCppStaticDSC("LLVMBinaryFormat").publicDeps(llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmBinaryFormat, "BinaryFormat");
+    addLlvmDirectory(llvmBinaryFormat, "BinaryFormat/ELFRelocs");
+
+    DSC<CppTarget> &llvmFrontendDirective = config.getCppStaticDSC("LLVMFrontendDirective").publicDeps(llvmSupport);
+    addLlvmDirectory(llvmFrontendDirective, "Frontend/Directive");
+
+    DSC<CppTarget> &llvmTableGen =
+        config.getCppStaticDSC("LLVMTableGen").publicDeps(llvmSupport, llvmFrontendDirective);
+    addLlvmDirectory(llvmTableGen, "TableGen");
+
+    DSC<CppTarget> &llvmMinTableGen =
+        config.getCppExeDSC("LLVMMinTableGen").privateDeps(llvmDemangle, llvmSupport, llvmTableGen);
+    llvmMinTableGen.getLOAT().setOutputName("llvm-min-tblgen");
+    llvmMinTableGen.getSourceTarget()
+        .moduleFiles("llvm/utils/TableGen/llvm-min-tblgen.cpp")
+        .moduleDirsRE("llvm/utils/TableGen/Basic", ".*cpp")
+        .privateIncludes("llvm/utils/TableGen", "llvm/utils/TableGen/Basic");
+
+    DSC<CppTarget> &llvmOption = config.getCppStaticDSC("LLVMOption").publicDeps(llvmSupport);
+    addLlvmDirectory(llvmOption, "Option");
+
+    DSC<CppTarget> &llvmDebugInfoMSF = config.getCppStaticDSC("LLVMDebugInfoMSF").publicDeps(llvmSupport);
+    addLlvmDirectory(llvmDebugInfoMSF, "DebugInfo/MSF");
+
+    DSC<CppTarget> &llvmDebugInfoCodeView =
+        config.getCppStaticDSC("LLVMDebugInfoCodeView").publicDeps(llvmSupport, llvmBinaryFormat);
+    addLlvmDirectory(llvmDebugInfoCodeView, "DebugInfo/CodeView");
+
+    DSC<CppTarget> &llvmDebugInfoDWARFLowLevel = config.getCppStaticDSC("LLVMDebugInfoDWARFLowLevel")
+                                                     .publicDeps(llvmBinaryFormat, llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmDebugInfoDWARFLowLevel, "DebugInfo/DWARF/LowLevel");
+
+    DSC<CppTarget> &llvmTextAPI =
+        config.getCppStaticDSC("LLVMTextAPI").publicDeps(llvmSupport, llvmBinaryFormat, llvmTargetParser);
+    addLlvmDirectory(llvmTextAPI, "TextAPI");
+
+    config.assign(BigHeaderUnit::NO);
+    config.assign(TreatHUAsHeaderFile::YES);
+
+    DSC<CppTarget> &llvmWindowsDriver =
+        config.getCppStaticDSC("LLVMWindowsDriver").publicDeps(llvmOption, llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmWindowsDriver, "WindowsDriver");
+
+    DSC<CppTarget> &dlObjectPublic = config.getCppObjectDSC("DLObjectPublic");
+    addLlvmDirectory(dlObjectPublic, "Object", "", true, false);
+
+    DSC<CppTarget> &llvmRemarks = config.getCppStaticDSC("LLVMRemarks")
+                                      .publicDeps(llvmBitstreamReader, llvmSupport, llvmBinaryFormat, dlObjectPublic);
+    addLlvmDirectory(llvmRemarks, "Remarks");
+
+    DSC<CppTarget> &dlDebugInfoDIContext = config.getCppObjectDSC("DLDebugInfoDIContext");
+    dlDebugInfoDIContext.getSourceTarget().publicHeaderUnits("llvm/DebugInfo/DIContext.h",
+                                                             "llvm/include/llvm/DebugInfo/DIContext.h");
+
+    DSC<CppTarget> &llvmDebugInfoBTF =
+        config.getCppStaticDSC("LLVMDebugInfoBTF")
+            .publicDeps(llvmSupport, llvmBinaryFormat, dlObjectPublic, dlDebugInfoDIContext);
+    addLlvmDirectory(llvmDebugInfoBTF, "DebugInfo/BTF");
+
+    DSC<CppTarget> &dlProfileDataPublic = config.getCppObjectDSC("DLProfileDataPublic");
+    addLlvmDirectory(dlProfileDataPublic, "ProfileData", "", true, false);
+
+    DSC<CppTarget> &llvmCore = config.getCppStaticDSC("LLVMCore")
+                                   .publicDeps(llvmBinaryFormat, llvmDemangle, llvmRemarks, llvmSupport,
+                                               llvmTargetParser, dlProfileDataPublic);
+    addLlvmDirectory(llvmCore, "IR");
+    llvmCore.getSourceTarget().publicHUDirsRE("llvm/include/llvm", "llvm/", ".*\\.h");
+
+    DSC<CppTarget> &dlBitCode = config.getCppObjectDSC("DLBitCode");
+    addLlvmDirectory(dlBitCode, "Bitcode", "", true, false);
+
+    DSC<CppTarget> &llvmBitReader =
+        config.getCppStaticDSC("LLVMBitReader")
+            .publicDeps(dlBitCode, llvmBitstreamReader, llvmCore, llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmBitReader, "Bitcode/Reader");
+
+    DSC<CppTarget> &llvmMC = config.getCppStaticDSC("LLVMMC").publicDeps(
+        llvmBinaryFormat, llvmDebugInfoDWARFLowLevel, llvmSupport, llvmTargetParser, llvmCore, llvmDebugInfoCodeView);
+    addLlvmDirectory(llvmMC, "MC");
+
+    DSC<CppTarget> &llvmFrontendHLSL =
+        config.getCppStaticDSC("LLVMFrontendHLSL").publicDeps(llvmBinaryFormat, llvmCore, llvmSupport, llvmMC);
+    addLlvmDirectory(llvmFrontendHLSL, "Frontend/HLSL");
+
+    DSC<CppTarget> &dlTransforms = config.getCppObjectDSC("DLTransforms");
+    addLlvmDirectory(dlTransforms, "Transforms", "", true, false);
+
+    DSC<CppTarget> &llvmCFGuard =
+        config.getCppStaticDSC("LLVMCFGuard").publicDeps(dlTransforms, llvmCore, llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmCFGuard, "Transforms/CFGuard");
+
+    DSC<CppTarget> &llvmAsmParser =
+        config.getCppStaticDSC("LLVMAsmParser").publicDeps(llvmBinaryFormat, llvmCore, llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmAsmParser, "AsmParser");
+
+    DSC<CppTarget> &llvmIRReader =
+        config.getCppStaticDSC("LLVMIRReader").publicDeps(llvmAsmParser, llvmBitReader, llvmCore, llvmSupport);
+    addLlvmDirectory(llvmIRReader, "IRReader");
+
+    DSC<CppTarget> &llvmMCParser =
+        config.getCppStaticDSC("LLVMMCParser").publicDeps(llvmMC, llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmMCParser, "MC/MCParser");
+
+    DSC<CppTarget> &llvmObject =
+        config.getCppStaticDSC("LLVMObject")
+            .publicDeps(dlObjectPublic, llvmBitReader, llvmCore, llvmMC, llvmIRReader, llvmBinaryFormat, llvmMCParser,
+                        llvmSupport, llvmTargetParser, llvmTextAPI);
+    addLlvmDirectory(llvmObject, "Object", "", false, true);
+
+    DSC<CppTarget> &llvmMCDisassembler =
+        config.getCppStaticDSC("LLVMMCDisassembler").publicDeps(llvmMC, llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmMCDisassembler, "MC/MCDisassembler");
+
+    DSC<CppTarget> &llvmObjectYAML =
+        config.getCppStaticDSC("LLVMObjectYAML")
+            .publicDeps(llvmBinaryFormat, llvmObject, llvmSupport, llvmTargetParser, llvmDebugInfoCodeView, llvmMC);
+    addLlvmDirectory(llvmObjectYAML, "ObjectYAML");
+
+    DSC<CppTarget> &llvmDebugInfoDWARF =
+        config.getCppStaticDSC("LLVMDebugInfoDWARF")
+            .publicDeps(dlDebugInfoDIContext, llvmBinaryFormat, llvmDebugInfoDWARFLowLevel, llvmObject, llvmSupport,
+                        llvmTargetParser);
+    addLlvmDirectory(llvmDebugInfoDWARF, "DebugInfo/DWARF");
+
+    DSC<CppTarget> &llvmDebugInfoPDB = config.getCppStaticDSC("LLVMDebugInfoPDB")
+                                           .publicDeps(dlDebugInfoDIContext, llvmBinaryFormat, llvmObject, llvmSupport,
+                                                       llvmDebugInfoCodeView, llvmDebugInfoMSF);
+    addLlvmDirectory(llvmDebugInfoPDB, "DebugInfo/PDB");
+    addLlvmDirectory(llvmDebugInfoPDB, "DebugInfo/PDB/Native");
+
+    DSC<CppTarget> &llvmDebugInfoGSYM =
+        config.getCppStaticDSC("LLVMDebugInfoGSYM")
+            .publicDeps(llvmMC, llvmObject, llvmSupport, llvmTargetParser, llvmDebugInfoDWARF);
+    addLlvmDirectory(llvmDebugInfoGSYM, "DebugInfo/GSYM");
+
+    DSC<CppTarget> &llvmTextAPIBinaryReader =
+        config.getCppStaticDSC("LLVMTextAPIBinaryReader")
+            .publicDeps(llvmDebugInfoDWARF, llvmSupport, llvmObject, llvmTextAPI, llvmTargetParser);
+    addLlvmDirectory(llvmTextAPIBinaryReader, "TextAPI/BinaryReader");
+
+    DSC<CppTarget> &llvmSymbolize =
+        config.getCppStaticDSC("LLVMSymbolize")
+            .publicDeps(llvmDebugInfoDWARF, llvmDebugInfoGSYM, llvmDebugInfoPDB, llvmDebugInfoBTF, llvmObject,
+                        llvmSupport, llvmDemangle, llvmTargetParser);
+    addLlvmDirectory(llvmSymbolize, "DebugInfo/Symbolize");
+
+    // An incomplete target. We are not compiling its source as it is not being used in Clang compilation.
+    DSC<CppTarget> &llvmDebuginfod = config.getCppObjectDSC("LLVMDebuginfod");
+    addLlvmDirectory(llvmDebuginfod, "Debuginfod", "", true, false);
+
+    DSC<CppTarget> &llvmProfileData = config.getCppStaticDSC("LLVMProfileData")
+                                          .publicDeps(dlProfileDataPublic, llvmBitstreamReader, llvmCore, llvmObject,
+                                                      llvmSupport, llvmDemangle, llvmSymbolize, llvmDebugInfoDWARF,
+                                                      llvmDebugInfoDWARFLowLevel, llvmTargetParser, llvmDebuginfod);
+    addLlvmDirectory(llvmProfileData, "ProfileData", "", false, true);
+
+    DSC<CppTarget> &llvmCoverage =
+        config.getCppStaticDSC("LLVMCoverage")
+            .publicDeps(llvmCore, llvmObject, llvmProfileData, llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmCoverage, "ProfileData/Coverage");
+
+    DSC<CppTarget> &llvmAnalysis = config.getCppStaticDSC("LLVMAnalysis")
+                                       .publicDeps(llvmBinaryFormat, llvmCore, llvmFrontendHLSL, llvmObject,
+                                                   llvmProfileData, llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmAnalysis, "Analysis");
+    addLlvmDirectory(llvmAnalysis, "Analysis/Utils");
+
+    DSC<CppTarget> &llvmIRPrinter =
+        config.getCppStaticDSC("LLVMIRPrinter").publicDeps(llvmAnalysis, llvmCore, llvmSupport);
+    addLlvmDirectory(llvmIRPrinter, "IRPrinter");
+
+    DSC<CppTarget> &llvmBitWriter =
+        config.getCppStaticDSC("LLVMBitWriter")
+            .publicDeps(llvmAnalysis, llvmCore, llvmMC, llvmObject, llvmProfileData, llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmBitWriter, "Bitcode/Writer");
+
+    DSC<CppTarget> &llvmFrontendAtomic =
+        config.getCppStaticDSC("LLVMFrontendAtomic").publicDeps(llvmCore, llvmSupport, llvmAnalysis);
+    addLlvmDirectory(llvmFrontendAtomic, "Frontend/Atomic");
+
+    DSC<CppTarget> &llvmTransformUtils =
+        config.getCppStaticDSC("LLVMTransformUtils")
+            .publicDeps(llvmAnalysis, llvmCore, llvmSupport, llvmTargetParser, dlTransforms);
+    addLlvmDirectory(llvmTransformUtils, "Transforms/Utils");
+
+    DSC<CppTarget> &llvmTarget =
+        config.getCppStaticDSC("LLVMTarget").publicDeps(llvmAnalysis, llvmCore, llvmMC, llvmSupport, llvmTargetParser);
+    addLlvmDirectory(llvmTarget, "Target");
+    DSC<CppTarget> &llvmSandboxIR =
+        config.getCppStaticDSC("LLVMSandboxIR").publicDeps(llvmCore, llvmSupport, llvmAnalysis);
+    addLlvmDirectory(llvmSandboxIR, "SandboxIR");
+
+    DSC<CppTarget> &llvmCGData =
+        config.getCppStaticDSC("LLVMCGData")
+            .publicDeps(llvmBitReader, llvmBitWriter, llvmCore, llvmSupport, llvmObject, llvmObjectYAML);
+    addLlvmDirectory(llvmCGData, "CGData");
+
+    DSC<CppTarget> &llvmFrontendOffloading = config.getCppStaticDSC("LLVMFrontendOffloading")
+                                                 .publicDeps(llvmCore, llvmBinaryFormat, llvmObject, llvmObjectYAML,
+                                                             llvmSupport, llvmTransformUtils, llvmTargetParser);
+    addLlvmDirectory(llvmFrontendOffloading, "Frontend/Offloading");
+
+    DSC<CppTarget> &llvmAggressiveInstCombine =
+        config.getCppStaticDSC("LLVMAggressiveInstCombine")
+            .publicDeps(llvmAnalysis, llvmCore, llvmSupport, llvmTransformUtils);
+    addLlvmDirectory(llvmAggressiveInstCombine, "Transforms/AggressiveInstCombine");
+
+    DSC<CppTarget> &llvmInstCombine =
+        config.getCppStaticDSC("LLVMInstCombine").publicDeps(llvmAnalysis, llvmCore, llvmSupport, llvmTransformUtils);
+    addLlvmDirectory(llvmInstCombine, "Transforms/InstCombine");
+
+    DSC<CppTarget> &llvmScalarOpts = config.getCppStaticDSC("LLVMScalarOpts")
+                                         .publicDeps(llvmAggressiveInstCombine, llvmAnalysis, llvmCore, llvmInstCombine,
+                                                     llvmProfileData, llvmSupport, llvmTransformUtils);
+    addLlvmDirectory(llvmScalarOpts, "Transforms/Scalar");
+
+    DSC<CppTarget> &llvmVectorize =
+        config.getCppStaticDSC("LLVMVectorize")
+            .publicDeps(llvmAnalysis, llvmCore, llvmSupport, llvmTransformUtils, llvmSandboxIR, llvmScalarOpts);
+    addLlvmDirectory(llvmVectorize, "Transforms/Vectorize");
+    addLlvmDirectory(llvmVectorize, "Transforms/Vectorize/SandboxVectorizer");
+    addLlvmDirectory(llvmVectorize, "Transforms/Vectorize/SandboxVectorizer/Passes", "Passes/");
+
+    DSC<CppTarget> &llvmInstrumentation =
+        config.getCppStaticDSC("LLVMInstrumentation")
+            .publicDeps(llvmAnalysis, llvmCore, llvmDemangle, llvmMC, llvmSupport, llvmTargetParser, llvmTransformUtils,
+                        llvmProfileData, llvmTarget, llvmScalarOpts);
+    addLlvmDirectory(llvmInstrumentation, "Transforms/Instrumentation");
+
+    DSC<CppTarget> &llvmObjCARCOpts =
+        config.getCppStaticDSC("LLVMObjCARCOpts")
+            .publicDeps(llvmAnalysis, llvmCore, llvmSupport, llvmTargetParser, llvmTransformUtils);
+    addLlvmDirectory(llvmObjCARCOpts, "Transforms/ObjCARC");
+
+    DSC<CppTarget> &llvmHipStdPar =
+        config.getCppStaticDSC("LLVMHipStdPar").publicDeps(llvmAnalysis, llvmCore, llvmSupport, llvmTransformUtils);
+    addLlvmDirectory(llvmHipStdPar, "Transforms/HipStdPar");
+
+    DSC<CppTarget> &llvmLinker =
+        config.getCppStaticDSC("LLVMLinker")
+            .publicDeps(llvmCore, llvmObject, llvmSupport, llvmTransformUtils, llvmTargetParser);
+    addLlvmDirectory(llvmLinker, "Linker");
+
+    DSC<CppTarget> &llvmFrontendDriver = config.getCppStaticDSC("LLVMFrontendDriver")
+                                             .publicDeps(llvmCore, llvmSupport, llvmAnalysis, llvmInstrumentation);
+    addLlvmDirectory(llvmFrontendDriver, "Frontend/Driver");
+
+    DSC<CppTarget> &dlCodeGenTypes = config.getCppObjectDSC("DLCodeGenTypes");
+    addLlvmDirectory(dlCodeGenTypes, "CodeGenTypes", "", true, false);
+
+    DSC<CppTarget> &dlCodeGenGlobalISel = config.getCppObjectDSC("DLCodeGenGlobalISel");
+    addLlvmDirectory(dlCodeGenGlobalISel, "CodeGen/GlobalISel", "", true, false);
+
+    DSC<CppTarget> &llvmCodeGen =
+        config.getCppStaticDSC("LLVMCodeGen")
+            .publicDeps(llvmAnalysis, llvmBitReader, llvmBitWriter, llvmCGData, llvmCore, llvmMC, llvmObjCARCOpts,
+                        llvmProfileData, llvmScalarOpts, llvmSupport, llvmTarget, llvmTargetParser, llvmTransformUtils,
+                        dlCodeGenTypes, dlCodeGenGlobalISel, llvmInstrumentation);
+    addLlvmDirectory(llvmCodeGen, "CodeGen");
+    addLlvmDirectory(llvmCodeGen, "CodeGen/PBQP");
+    addLlvmDirectory(llvmCodeGen, "CodeGen/LiveDebugValues", "LiveDebugValues/");
+    llvmCodeGen.getSourceTarget().privateIncludesSource("llvm/lib/CodeGen");
+
+    DSC<CppTarget> &llvmCodeGenTypes =
+        config.getCppStaticDSC("LLVMCodeGenTypes").publicDeps(llvmSupport, llvmCodeGen, dlCodeGenTypes);
+    addLlvmDirectory(llvmCodeGenTypes, "CodeGenTypes", "", false, true);
+
+    DSC<CppTarget> &llvmSelectionDAG = config.getCppStaticDSC("LLVMSelectionDAG")
+                                           .publicDeps(llvmAnalysis, llvmCodeGen, llvmCodeGenTypes, llvmCore, llvmMC,
+                                                       llvmSupport, llvmTarget, llvmTargetParser, llvmTransformUtils);
+    addLlvmDirectory(llvmSelectionDAG, "CodeGen/SelectionDAG");
+
+    DSC<CppTarget> &llvmGlobalISel =
+        config.getCppStaticDSC("LLVMGlobalISel")
+            .publicDeps(llvmAnalysis, llvmCodeGen, llvmCodeGenTypes, llvmCore, llvmMC, llvmSelectionDAG, llvmSupport,
+                        llvmTarget, llvmTransformUtils, dlCodeGenGlobalISel);
+    addLlvmDirectory(llvmGlobalISel, "CodeGen/GlobalISel", "", false, true);
+
+    // An incomplete target. We are not compiling its source as it is not being used in Clang compilation.
+    DSC<CppTarget> &llvmMirParser = config.getCppObjectDSC("LLVMIRParser");
+    addLlvmDirectory(llvmMirParser, "CodeGen/MIRParser", "", true, false);
+
+    DSC<CppTarget> &llvmFrontendOpenMP =
+        config.getCppStaticDSC("LLVMFrontendOpenMP")
+            .publicDeps(llvmCore, llvmSupport, llvmTargetParser, llvmTransformUtils, llvmAnalysis, llvmDemangle, llvmMC,
+                        llvmScalarOpts, llvmBitReader, llvmFrontendOffloading, llvmFrontendAtomic,
+                        llvmFrontendDirective, llvmTarget);
+    addLlvmDirectory(llvmFrontendOpenMP, "Frontend/OpenMP");
+
+    DSC<CppTarget> &llvmAsmPrinter =
+        config.getCppStaticDSC("LLVMAsmPrinter")
+            .publicDeps(llvmAnalysis, llvmBinaryFormat, llvmCodeGen, llvmCodeGenTypes, llvmCore, llvmDebugInfoCodeView,
+                        llvmDebugInfoDWARF, llvmDebugInfoDWARFLowLevel, llvmMC, llvmMCParser, llvmRemarks, llvmSupport,
+                        llvmTarget, llvmTargetParser);
+    addLlvmDirectory(llvmAsmPrinter, "CodeGen/AsmPrinter");
+
+    DSC<CppTarget> &llvmipo = config.getCppStaticDSC("LLVMipo").publicDeps(
+        llvmAggressiveInstCombine, llvmAnalysis, llvmBitReader, llvmBitWriter, llvmCore, llvmFrontendOpenMP,
+        llvmInstCombine, llvmIRReader, llvmDemangle, llvmLinker, llvmObject, llvmProfileData, llvmScalarOpts,
+        llvmSupport, llvmTargetParser, llvmTransformUtils, llvmVectorize, llvmInstrumentation);
+    addLlvmDirectory(llvmipo, "Transforms/IPO");
+
+    DSC<CppTarget> &llvmCoroutines = config.getCppStaticDSC("LLVMCoroutines")
+                                         .publicDeps(llvmAnalysis, llvmCore, llvmipo, llvmScalarOpts, llvmSupport,
+                                                     llvmTransformUtils, llvmTargetParser);
+    addLlvmDirectory(llvmCoroutines, "Transforms/Coroutines");
+
+    DSC<CppTarget> &llvmPasses =
+        config.getCppStaticDSC("LLVMPasses")
+            .publicDeps(llvmAggressiveInstCombine, llvmAnalysis, llvmCFGuard, llvmCodeGen, llvmGlobalISel, llvmCore,
+                        llvmCoroutines, llvmHipStdPar, llvmipo, llvmInstCombine, llvmIRPrinter, llvmObjCARCOpts,
+                        llvmScalarOpts, llvmSupport, llvmTarget, llvmTransformUtils, llvmVectorize,
+                        llvmInstrumentation);
+    addLlvmDirectory(llvmPasses, "Passes");
+
+    DSC<CppTarget> &llvmExtensions = config.getCppStaticDSC("LLVMExtensions").publicDeps(llvmSupport, llvmPasses);
+    addLlvmDirectory(llvmExtensions, "Extensions");
+
+    // This target has one include directory of the llvmX86CodeGen target. As the headers from this same include-dir are
+    // being used by other targets. We had to make dummy target for unique ownership. Other 6 lines are for header-units
+    // specification.
+    DSC<CppTarget> &dlX86CodeGen = config.getCppObjectDSC("DLX86CodeGen");
+    dlX86CodeGen.getSourceTarget()
+        .publicIncludesSource("llvm/my-fork/lib/Target/X86", "llvm/lib/Target/X86")
+        .publicHUDirsRE("llvm/my-fork/lib/Target/X86", "", ".*\\.h")
+        .publicIncDirsRE("llvm/my-fork/lib/Target/X86", "", ".*\\.inc")
+        .publicHUDirsRE("llvm/lib/Target/X86", "", ".*\\.h")
+        .publicIncDirsRE("llvm/lib/Target/X86", "", ".*\\.def")
+        .publicHUDirsRE("llvm/lib/Target/X86/MCTargetDesc", "MCTargetDesc/", ".*\\.h")
+        .publicIncDirsRE("llvm/lib/Target/X86/MCTargetDesc", "MCTargetDesc/", ".*\\.def")
+        .publicHUDirsRE("llvm/lib/Target/X86/TargetInfo", "TargetInfo/", ".*\\.h")
+        .publicIncDirsRE("llvm/lib/Target/X86/TargetInfo", "TargetInfo/", ".*\\.def")
+        .publicHUDirsRE("llvm/lib/Target/X86/GISel", "GISel/", ".*\\.h")
+        .publicIncDirsRE("llvm/lib/Target/X86/GISel", "GISel/", ".*\\.def");
+
+    DSC<CppTarget> &llvmX86Info =
+        config.getCppStaticDSC("LLVMX86Info").publicDeps(llvmMC, llvmSupport).privateDeps(dlX86CodeGen);
+    llvmX86Info.getSourceTarget().moduleDirsRE("llvm/lib/Target/X86/TargetInfo", ".*cpp");
+
+    DSC<CppTarget> &llvmX86Desc = config.getCppStaticDSC("LLVMX86Desc")
+                                      .publicDeps(llvmBinaryFormat, llvmCodeGenTypes, llvmMC, llvmMCDisassembler,
+                                                  llvmSupport, llvmTargetParser, llvmX86Info)
+                                      .privateDeps(dlX86CodeGen);
+    llvmX86Desc.getSourceTarget().moduleDirsRE("llvm/lib/Target/X86/MCTargetDesc", ".*cpp");
+
+    DSC<CppTarget> &llvmX86CodeGen =
+        config.getCppStaticDSC("LLVMX86CodeGen")
+            .publicDeps(llvmAnalysis, llvmAsmPrinter, llvmCFGuard, llvmCodeGen, llvmCodeGenTypes, llvmCore,
+                        llvmGlobalISel, llvmIRPrinter, llvmInstrumentation, llvmMC, llvmObjCARCOpts, llvmProfileData,
+                        llvmScalarOpts, llvmSelectionDAG, llvmSupport, llvmTarget, llvmTargetParser, llvmTransformUtils,
+                        llvmX86Desc, llvmX86Info, llvmMirParser, llvmPasses)
+            .privateDeps(dlX86CodeGen);
+    addLlvmDirectory(llvmX86CodeGen, "Target/X86/GISel");
+    llvmX86CodeGen.getSourceTarget().moduleDirsRE("llvm/lib/Target/X86", ".*cpp");
+
+    DSC<CppTarget> &llvmX86Disassembler = config.getCppStaticDSC("LLVMX86Disassembler")
+                                              .publicDeps(llvmMCDisassembler, llvmSupport, llvmX86Info)
+                                              .privateDeps(dlX86CodeGen);
+    addLlvmDirectory(llvmX86Disassembler, "Target/X86/Disassembler");
+
+    DSC<CppTarget> &llvmX86AsmParser = config.getCppStaticDSC("LLVMX86AsmParser")
+                                           .publicDeps(llvmMC, llvmMCParser, llvmSupport, llvmX86Desc, llvmX86Info)
+                                           .privateDeps(dlX86CodeGen);
+    addLlvmDirectory(llvmX86AsmParser, "Target/X86/AsmParser");
+
+    DSC<CppTarget> &llvmLTO = config.getCppStaticDSC("LLVMLTO").publicDeps(
+        llvmAggressiveInstCombine, llvmAnalysis, llvmBinaryFormat, llvmBitReader, llvmBitWriter, llvmCGData,
+        llvmCodeGen, llvmCodeGenTypes, llvmCore, llvmExtensions, llvmipo, llvmInstCombine, llvmInstrumentation,
+        llvmLinker, llvmMC, llvmObjCARCOpts, llvmObject, llvmPasses, llvmRemarks, llvmScalarOpts, llvmSupport,
+        llvmTarget, llvmTargetParser, llvmTransformUtils);
+    addLlvmDirectory(llvmLTO, "LTO");
+    addLlvmDirectory(llvmLTO, "LTO/legacy");
+
+    return;
+    DSC<CppTarget> &clangSupport = config.getCppStaticDSC("clangSupport");
+    addClangDirectory(clangSupport, "Support");
+
+    DSC<CppTarget> &clangIPC2978 = config.getCppStaticDSC("clangIPC2978");
+    addClangDirectory(clangIPC2978, "IPC2978");
+
+    DSC<CppTarget> &clangBasic = config.getCppStaticDSC("clangBasic");
+    addClangDirectory(clangBasic, "Basic");
+    addClangDirectory(clangBasic, "Basic/Targets");
+    clangBasic.getSourceTarget().privateIncludesSource("clang/lib/Basic", "llvm/my-fork/tools/clang/lib/Basic");
+
+    DSC<CppTarget> &clangAPINotes = config.getCppStaticDSC("clangAPINotes");
+    addClangDirectory(clangAPINotes, "APINotes");
+
+    DSC<CppTarget> &clangLex = config.getCppStaticDSC("clangLex");
+    addClangDirectory(clangLex, "Lex");
+
+    DSC<CppTarget> &clangOptions = config.getCppStaticDSC("clangOptions");
+    addClangDirectory(clangOptions, "Options");
+
+    DSC<CppTarget> &clangAST = config.getCppStaticDSC("clangAST");
+    addClangDirectory(clangAST, "AST");
+    addClangDirectory(clangAST, "AST/ByteCode");
+    clangAST.getSourceTarget().privateIncludesSource("llvm/my-fork/tools/clang/lib/AST");
+
+    DSC<CppTarget> &clangRewrite = config.getCppStaticDSC("clangRewrite");
+    addClangDirectory(clangRewrite, "Rewrite");
+
+    DSC<CppTarget> &clangASTMatchers = config.getCppStaticDSC("clangASTMatchers");
+    addClangDirectory(clangASTMatchers, "ASTMatchers");
+
+    DSC<CppTarget> &clangEdit = config.getCppStaticDSC("clangEdit");
+    addClangDirectory(clangEdit, "Edit");
+
+    DSC<CppTarget> &clangInstallAPI = config.getCppStaticDSC("clangInstallAPI");
+    addClangDirectory(clangInstallAPI, "InstallAPI");
+
+    DSC<CppTarget> &clangToolingCore = config.getCppStaticDSC("clangToolingCore");
+    addClangDirectory(clangToolingCore, "Tooling/Core");
+
+    DSC<CppTarget> &clangAnalysis = config.getCppStaticDSC("clangAnalysis");
+    addClangDirectory(clangAnalysis, "Analysis");
+
+    DSC<CppTarget> &clangToolingInclusions = config.getCppStaticDSC("clangToolingInclusions");
+    addClangDirectory(clangToolingInclusions, "Tooling/Inclusions");
+
+    DSC<CppTarget> &clangAnalysisLifetimeSafety = config.getCppStaticDSC("clangAnalysisLifetimeSafety");
+    addClangDirectory(clangAnalysisLifetimeSafety, "Analysis/LifetimeSafety");
+
+    DSC<CppTarget> &clangFormat = config.getCppStaticDSC("clangFormat");
+    addClangDirectory(clangFormat, "Format");
+
+    DSC<CppTarget> &clangSema = config.getCppStaticDSC("clangSema");
+    addClangDirectory(clangSema, "Sema");
+    clangSema.getSourceTarget().privateHUIncludes("llvm/my-fork/tools/clang/lib/Sema/");
+
+    DSC<CppTarget> &clangParse = config.getCppStaticDSC("clangParse");
+    addClangDirectory(clangParse, "Parse");
+
+    DSC<CppTarget> &clangSerialization = config.getCppStaticDSC("clangSerialization");
+    addClangDirectory(clangSerialization, "Serialization");
+
+    DSC<CppTarget> &clangFrontend = config.getCppStaticDSC("clangFrontend");
+    addClangDirectory(clangFrontend, "Frontend");
+
+    DSC<CppTarget> &clangDriver = config.getCppStaticDSC("clangDriver");
+    addClangDirectory(clangDriver, "Driver");
+    addClangDirectory(clangDriver, "Driver/ToolChains");
+    addClangDirectory(clangDriver, "Driver/ToolChains/Arch");
+
+    DSC<CppTarget> &clangRewriteFrontend = config.getCppStaticDSC("clangRewriteFrontend");
+    addClangDirectory(clangRewriteFrontend, "Frontend/Rewrite");
+
+    DSC<CppTarget> &clangIndex = config.getCppStaticDSC("clangIndex");
+    addClangDirectory(clangIndex, "Index");
+
+    DSC<CppTarget> &clangCrossTU = config.getCppStaticDSC("clangCrossTU");
+    addClangDirectory(clangCrossTU, "CrossTU");
+
+    DSC<CppTarget> &clangExtractAPI = config.getCppStaticDSC("clangExtractAPI");
+    addClangDirectory(clangExtractAPI, "ExtractAPI");
+    addClangDirectory(clangExtractAPI, "ExtractAPI/Serialization");
+
+    DSC<CppTarget> &clangStaticAnalyzerCore = config.getCppStaticDSC("clangStaticAnalyzerCore");
+    addClangDirectory(clangStaticAnalyzerCore, "StaticAnalyzer/Core");
+
+    DSC<CppTarget> &clangStaticAnalyzerCheckers = config.getCppStaticDSC("clangStaticAnalyzerCheckers");
+    addClangDirectory(clangStaticAnalyzerCheckers, "StaticAnalyzer/Checkers");
+    addClangDirectory(clangStaticAnalyzerCheckers, "StaticAnalyzer/Checkers/cert");
+    addClangDirectory(clangStaticAnalyzerCheckers, "StaticAnalyzer/Checkers/MPI-Checker");
+    addClangDirectory(clangStaticAnalyzerCheckers, "StaticAnalyzer/Checkers/RetainCountChecker");
+    addClangDirectory(clangStaticAnalyzerCheckers, "StaticAnalyzer/Checkers/UninitializedObject");
+    addClangDirectory(clangStaticAnalyzerCheckers, "StaticAnalyzer/Checkers/WebKit");
+
+    DSC<CppTarget> &clangStaticAnalyzerFrontend = config.getCppStaticDSC("clangStaticAnalyzerFrontend");
+    addClangDirectory(clangStaticAnalyzerFrontend, "StaticAnalyzer/Frontend");
+
+    DSC<CppTarget> &clangFrontendTool = config.getCppStaticDSC("clangFrontendTool");
+    addClangDirectory(clangFrontendTool, "FrontendTool");
+
+    DSC<CppTarget> &clangCodeGen = config.getCppStaticDSC("clangCodeGen");
+    addClangDirectory(clangCodeGen, "CodeGen");
+    addClangDirectory(clangCodeGen, "CodeGen/TargetBuiltins");
+    addClangDirectory(clangCodeGen, "CodeGen/Targets");
+    clangCodeGen.getSourceTarget().publicIncludesSource("clang/lib/CodeGen");
+
+    DSC<CppTarget> &clangTableGen =
+        config.getCppExeDSC("ClangTableGen").privateDeps(llvmDemangle, llvmSupport, llvmTableGen);
+    clangTableGen.getLOAT().setOutputName("clang-tblgen");
+    clangTableGen.getSourceTarget()
+        .moduleDirsRE("clang/utils/TableGen", ".*cpp")
+        .moduleDirsRE("clang/lib/Support", ".*cpp")
+        .privateIncludes("clang/utils/TableGen", "clang/lib/Support");
+
+    DSC<CppTarget> &llvmTableGenExe =
+        config.getCppExeDSC("LLVMTableGenExe").privateDeps(llvmCodeGenTypes, llvmDemangle, llvmSupport, llvmTableGen);
+    llvmTableGenExe.getLOAT().setOutputName("llvm-tblgen");
+    if (bsMode == BSMode::CONFIGURE)
+    {
+        set<string> llvmTableGenNoInclude;
+        llvmTableGenNoInclude.emplace("llvm-min-tblgen.cpp");
+        editOutFilesRecursive(llvmTableGenExe.getSourceTargetPointer(), "llvm/utils/TableGen", ".cpp",
+                              llvmTableGenNoInclude);
+    }
+    llvmTableGenExe.getSourceTarget().privateIncludes("llvm/utils/TableGen");
+
+    DSC<CppTarget> &clang = config.getCppExeDSC("clang").privateDeps(
+        llvmDemangle, llvmSupport, llvmBitstreamReader, llvmExtensions, llvmFrontendDirective, llvmOption,
+        llvmDebugInfoMSF, llvmDebugInfoCodeView, clangSupport, llvmCodeGenTypes, llvmRemarks, llvmDebugInfoBTF,
+        llvmTargetParser, llvmBinaryFormat, llvmWindowsDriver, llvmCore, llvmDebugInfoDWARFLowLevel, llvmTextAPI,
+        llvmBitReader, llvmFrontendHLSL, llvmCFGuard, llvmAsmParser, llvmMC, clangIPC2978, llvmIRReader, llvmMCParser,
+        llvmMCDisassembler, llvmX86Info, llvmObject, llvmX86Disassembler, llvmX86Desc, llvmObjectYAML,
+        llvmDebugInfoDWARF, llvmDebugInfoPDB, llvmX86AsmParser, llvmDebugInfoGSYM, llvmTextAPIBinaryReader,
+        llvmSymbolize, llvmProfileData, llvmAnalysis, llvmCoverage, llvmIRPrinter, llvmBitWriter, llvmFrontendAtomic,
+        llvmTransformUtils, llvmTarget, llvmSandboxIR, llvmCGData, llvmFrontendOffloading, llvmInstrumentation,
+        llvmAggressiveInstCombine, llvmInstCombine, llvmObjCARCOpts, llvmHipStdPar, llvmLinker, llvmVectorize,
+        llvmFrontendDriver, llvmScalarOpts, llvmCodeGen, llvmFrontendOpenMP, llvmSelectionDAG, llvmAsmPrinter, llvmipo,
+        clangBasic, llvmGlobalISel, llvmCoroutines, clangAPINotes, clangLex, clangOptions, llvmX86CodeGen, llvmPasses,
+        clangAST, clangRewrite, llvmLTO, clangASTMatchers, clangEdit, clangInstallAPI, clangToolingCore, clangAnalysis,
+        clangToolingInclusions, clangAnalysisLifetimeSafety, clangFormat, clangSema, clangParse, clangSerialization,
+        clangFrontend, clangDriver, clangRewriteFrontend, clangIndex, clangCrossTU, clangExtractAPI,
+        clangStaticAnalyzerCore, clangStaticAnalyzerCheckers, clangStaticAnalyzerFrontend, clangFrontendTool,
+        clangCodeGen);
+    clang.getLOAT().setOutputName("clang-22");
+    clang.getSourceTarget()
+        .moduleDirsRE("clang/tools/driver", ".*cpp")
+        .moduleFiles("llvm/my-fork/tools/clang/tools/driver/clang-driver.cpp")
+        .privateIncludes("clang/tools/driver");
+}
+void buildSpecification()
+{
+    // getConfiguration().assign(IsCppMod::YES, BigHeaderUnit::YES);
+    getConfiguration();
+    CALL_CONFIGURATION_SPECIFICATION
+}
+
+MAIN_FUNCTION

@@ -6,13 +6,12 @@
 #include <deque>
 #include <filesystem>
 #include <format>
-#include <mutex>
 #include <span>
 #include <string>
 #include <vector>
 
-using std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector, std::mutex,
-    std::vector, std::deque, phmap::node_hash_set, phmap::flat_hash_set, std::span, std::string_view;
+using std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector, std::vector,
+    std::deque, phmap::node_hash_set, phmap::flat_hash_set, std::span, std::string_view;
 
 // There is nothing platform-specific in this file. It is just another BuildSystemFunctions.hpp file. Some functions go
 // there, some go here.
@@ -29,6 +28,12 @@ enum class OS : uint8_t
     VMS,
 };
 
+enum class NDEB
+{
+    NO,
+    YES,
+};
+
 // Named as slashc to avoid collision with a declaration in nlohmann/json which causes warnings. Will be removed later
 // when nlohmann/json is removed.
 #ifdef _WIN32
@@ -39,15 +44,20 @@ inline char slashc = '/';
 inline constexpr OS os = OS::LINUX;
 #endif
 
+#ifdef NDEBUG
+inline constexpr NDEB ndeb = NDEB::YES;
+#else
+inline constexpr NDEB ndeb = NDEB::NO;
+#endif
+
 inline bool isConsole = true;
 
 inline thread_local uint16_t myThreadIndex = 0;
 
 inline flat_hash_set<string> cmdTargets;
-inline mutex configCacheMutex;
-inline vector<char> configCacheGlobal;
-inline vector<char> buildCacheGlobal;
-inline vector<char> nodesCacheGlobal;
+inline string configCacheGlobal{};
+inline string buildCacheGlobal{};
+inline string nodesCacheGlobal{};
 
 // Node representing source dir
 inline class Node *srcNode;
@@ -78,6 +88,13 @@ inline constexpr BSMode bsMode = BSMode::BUILD;
 inline constexpr BSMode bsMode = BSMode::CONFIGURE;
 #endif
 
+// In BsMode::BUILD, the build-system will just output the commands but not run them.
+inline bool dryRun = false;
+
+// In BsMode::BUILD, the build-system will only build hu in CppMod. Other types of CppMod will set exitStatus to
+// EXIT_FAILURE and return.
+inline bool huOnly = false;
+
 // Global variable for holding memory
 template <typename T> inline deque<T> targets;
 
@@ -92,7 +109,6 @@ inline const string dashLink = "-link";
 
 /// This is true in ExecuteMode::NODE_CHECK even though multiple threads are running.
 inline bool isOneThreadRunning = true;
-inline std::mutex printMutex;
 
 // Enum with sequential indices for array lookup
 enum class ColorIndex : uint16_t
@@ -399,36 +415,26 @@ inline vector<string> threadIds;
 // So, we have compressed filee * bufferMultiplier times the space.
 // Also, while storing we check that the original file size / compresseed file size
 // is not equal to or greater than bufferMultiplier. Hence validating our assumption.
-void writeBufferToCompressedFile(const string &fileName, const vector<char> &fileBuffer);
+void writeBufferToCompressedFile(const string &fileName, const string &fileBuffer);
 bool compareStringsFromEnd(string_view lhs, string_view rhs);
 void lowerCaseOnWindows(char *ptr, uint64_t size);
 string getNormalizedPath(path filePath);
 bool childInParentPathNormalized(string_view parent, string_view child);
-vector<char> readBufferFromFile(const string &fileName);
-vector<char> readBufferFromCompressedFile(const string &fileName);
-
-vector<char> readBufferFromFile(const string &fileName);
-vector<char> readBufferFromCompressedFile(const string &fileName);
+string fileToString(const string &fileName);
+void fileToString(const string &fileName, std::pmr::string &buffer);
+string readBufferFromCompressedFile(const string &fileName);
 void readConfigCache();
 void readBuildCache();
 void writeNodesCacheIfNewNodesAdded();
-void writeConfigBuffer(vector<char> &buffer);
-void writeBuildBuffer(vector<char> &buffer);
+void writeConfigBuffer(string &buffer);
+void writeBuildBuffer(string &buffer);
 string getThreadId();
-
-// While decompressing lz4 file, we allocate following + 1 the buffer size.
-// So, we have compressed filee * bufferMultiplier times the space.
-// Also, while storing we check that the original file size / compresseed file size
-// is not equal to or greater than bufferMultiplier. Hence validating our assumption.
-void writeBufferToCompressedFile(const string &fileName, const vector<char> &fileBuffer);
-bool compareStringsFromEnd(string_view lhs, string_view rhs);
-void lowerCaseOnWindows(char *ptr, uint64_t size);
-string getNormalizedPath(path filePath);
-bool childInParentPathNormalized(string_view parent, string_view child);
 string getFileNameJsonOrOut(const string &name);
 
 // Provide these with extern "C" linkage as well so ide/editor could pipe the logging.
 void printMessage(const string &message);
+void printMessage(const char *message);
+void printMessage(const std::pmr::string &message);
 void printErrorMessage(const string &message);
 void printErrorMessageNoReturn(const string &message);
 void printErrorMessageColor(const string &message, uint32_t color);
@@ -449,8 +455,7 @@ void errorExit();
 
 string addQuotes(string_view pstr);
 string addEscapedQuotes(const string &pstr);
-string fileToString(const string &file_name);
-vector<string_view> split(const string &str, char token);
+vector<string_view> split(string_view str, char token);
 std::string toString(uint32_t value);
 
 template <typename T> void emplaceInVector(vector<T> &v, T &&t)
@@ -477,11 +482,11 @@ template <typename T> struct TPointerLess
 };
 
 #define GLOBAL_VARIABLE(type, var)                                                                                     \
-    inline char _##var[sizeof(type)];                                                                                  \
+    alignas(16) inline char _##var[sizeof(type)];                                                                      \
     inline type &var = reinterpret_cast<type &>(_##var);
 
 #define STATIC_VARIABLE(type, var)                                                                                     \
-    static inline char _##var[sizeof(type)];                                                                           \
+    static alignas(16) inline char _##var[sizeof(type)];                                                               \
     static inline type &var = reinterpret_cast<type &>(_##var);
 
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

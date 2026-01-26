@@ -179,15 +179,14 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
     ofstream(temporaryCppFile) << "";
     command = compiler.bTPath + " " + temporaryCppFile + " -E -v";
     RunCommand r;
-    r.startProcess(command, false);
-    const auto &[output, exitStatus] = r.endProcess(false);
+    r.runProcess(command.c_str());
     remove(temporaryCppFile);
-    if (exitStatus != EXIT_SUCCESS)
+    if (r.exitStatus != EXIT_SUCCESS)
     {
-        printErrorMessage(FORMAT("Error in Initializing Environment\n{}\n", output));
+        printErrorMessage(FORMAT("Error in Initializing Environment\n{}\n", r.output));
     }
 
-    const vector<string_view> lines = split(output, '\n');
+    const vector<string_view> lines = split(r.output, '\n');
     size_t foundIndex = 0;
     for (size_t i = 0; i < lines.size(); ++i)
     {
@@ -283,9 +282,9 @@ void ToolsCache::detectToolsAndInitialize()
     else if constexpr (os == OS::LINUX)
     {
         linuxTools.emplace_back(Compiler(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0),
-                                         R"(/home/hassan/Projects/llvm-project/llvm/cmake-build-release/bin/clang++)"));
+                                         R"(/home/hassan/Projects/llvm-project/llvm/my-fork/bin/clang)"));
         linkers.emplace_back(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0),
-                             R"(/home/hassan/Projects/llvm-project/llvm/cmake-build-release/bin/clang++)");
+                             R"(/home/hassan/Projects/llvm-project/llvm/my-fork/bin/clang++)");
         archivers.emplace_back(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0), "/usr/bin/ar");
     }
 }

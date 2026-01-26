@@ -90,15 +90,8 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// Maps module names to their corresponding exporting interface modules in CppTarget::imodFileDeps
     flat_hash_map<string, CppMod *> imodNames;
 
-    /// Compile Command excluding source-file and flags that are always provided (like -o). Hash of this is stored with
-    /// the corresponding source-file, module-file or header-unit.
-    string compileCommand;
-
     string reqCompilerFlags;
     string useReqCompilerFlags;
-
-    /// hash of the compile-command
-    HashedCommand hashedCompileCommand;
 
     /// TargetCache::cacheIndex of our direct and transitive dependency CppTargets. It is cached in config-cache.
     vector<uint32_t> reqDepsVecIndices;
@@ -180,14 +173,14 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     bool useIPC = true;
 
     /// Sets the compile-command using the Configuration::compilerFlags and Configuration::compilerFeatures.
-    void setCompileCommand();
+    void setCompileCommand(std::pmr::string &compileCommand);
 
     /// Used in error diagnostics.
     /// \returns an amalgamated string of names of all CppTarget deps of this (direct + transitive).
     string getDependenciesString() const;
     void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
     /// Called in signal-handler or at the end when build-system is writing build-cache.
-    bool writeBuildCache(vector<char> &buffer) override;
+    bool writeBuildCache(string &buffer) override;
     /// Goes over the provided \p modCache header-files and header-units and checks if one of them has become
     /// header-unit or header-file respectively. if yes, sets BuildCache::Cpp::ModuleFile::headerStatusChanged to true.
     /// This will cause the rebuild of the respective module-file or header-unit and headerStatusChanged will be set
@@ -230,13 +223,17 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
                        bool addInUseReq);
     void addHeaderUnitOrFileDir(const Node *includeDir, const string &prefix, bool isHeaderFile, const string &regexStr,
                                 bool addInReq, bool addInUseReq);
+    static void parseAndAddInComposingHeaders(CppMod &hu, const string &headerNames);
     void addComposingHeadersMSVC();
+    void addComposingHeadersLinux();
     CppMod *getPublicBigHu(bool addNew);
     CppMod *getPrivateBigHu(bool addNew);
     CppMod *getInterfaceBigHu(bool addNew);
     void addComposingHeadersDir(const Node *includeDir);
     void actuallyAddInclude(bool errorOnEmplaceFail, const Node *include, bool addInReq, bool addInUseReq);
+    void initSourceCache();
     void readModuleMapFromDir(const string &dir);
+    bool launchBTarget(Builder &builder) override;
 
     template <typename... U> CppTarget &deps(CppTarget *dep, DepType dependency, const U... deps);
 

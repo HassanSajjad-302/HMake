@@ -58,11 +58,24 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
     {
         for (int i = 1; i < argc; ++i)
         {
-            string targetArgFullPath = (current_path() / argv[i]).lexically_normal().string();
+            const string argument{argv[i]};
+            if (argument == "-n")
+            {
+                dryRun = true;
+                continue;
+            }
+
+            if (argument == "-hu")
+            {
+                huOnly = true;
+                continue;
+            }
+
+            string targetArgFullPath = (current_path() / argument).lexically_normal().string();
             lowerCaseOnWindows(targetArgFullPath.data(), targetArgFullPath.size());
             if (targetArgFullPath.size() <= configureNode->filePath.size())
             {
-                printErrorMessage(FORMAT("Invalid Command-Line Argument {}\n", argv[i]));
+                printErrorMessage(FORMAT("Invalid Command-Line Argument {}\n", argument));
             }
             if (targetArgFullPath.ends_with(slashc))
             {
@@ -101,11 +114,60 @@ BOOL WINAPI ConsoleHandler(DWORD signal)
     case CTRL_BREAK_EVENT:
     case CTRL_LOGOFF_EVENT:
     case CTRL_SHUTDOWN_EVENT: {
-        vector<char> buffer;
+        string buffer;
         writeBuildBuffer(buffer);
     }
     }
     return FALSE;
+}
+#else
+std::atomic<bool> signal_received;
+
+void signal_handler(int signum)
+{
+    // Prevent re-entry if another signal arrives
+    if (signal_received)
+    {
+        return;
+    }
+    signal_received = true;
+
+    // Save progress
+    string buffer;
+    writeBuildBuffer(buffer);
+    exit(EXIT_SUCCESS);
+}
+
+void registerSignalHandler()
+{
+    struct sigaction sa;
+    sigset_t block_mask;
+
+    // Initialize the sigaction structure
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = signal_handler;
+
+    // Create a mask of signals to block during handler execution
+    // This blocks ALL signals while the handler is running
+    sigfillset(&block_mask);
+    sa.sa_mask = block_mask;
+
+    // SA_RESTART: Restart interrupted system calls
+    sa.sa_flags = SA_RESTART;
+
+    // Register handler for SIGINT (Ctrl+C)
+    if (sigaction(SIGINT, &sa, NULL) == -1)
+    {
+        perror("sigaction SIGINT");
+        exit(1);
+    }
+
+    // Register handler for SIGTERM (kill command)
+    if (sigaction(SIGTERM, &sa, NULL) == -1)
+    {
+        perror("sigaction SIGTERM");
+        exit(1);
+    }
 }
 #endif
 
@@ -117,6 +179,8 @@ int main2(const int argc, char **argv)
         printf("Error setting control handler\n");
         return 1;
     }
+#else
+    registerSignalHandler();
 #endif
     constructGlobals();
     parseCmdArgumentsAndSetConfigureNode(argc, argv);

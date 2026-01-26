@@ -189,8 +189,18 @@ if ((${INCLUDE_CONFIGURE} MATCHES ON) AND (${INCLUDE_BUILD} MATCHES ON))
 
 endif ()
 
-add_executable(copy copy.cpp)
+add_executable(copy utils/copy.cpp)
+add_executable(monitor utils/monitor.cpp)
+add_executable(CmdAnalysis utils/cmd-analysis.cpp)
+add_executable(Analysis2 utils/analysis2.cpp)
+add_executable(Dir-Mapping utils/dir-mapping.cpp)
+add_executable(PerfTest utils/perf-test.cpp)
+
 target_link_libraries(copy PRIVATE hconfigure-c)
+target_link_libraries(CmdAnalysis PRIVATE hconfigure-c)
+target_link_libraries(PerfTest PRIVATE hconfigure-c)
+target_link_libraries(Analysis2 PRIVATE hconfigure-c)
+target_link_libraries(Dir-Mapping PRIVATE hconfigure-c)
 
 add_executable(benchmark Examples/benchmark/benchmark.cpp)
 
@@ -237,9 +247,8 @@ add_dual_executables(Example1 Examples/Example1/hmake.cpp
         Test2 Tests/Stage/Test2/hmake.cpp
         Test3 Tests/Stage/Test3/hmake.cpp
         HMake hmake.cpp
+        llvm Projects/LLVM/hmake.cpp
         Boost Projects/Boost/hmake.cpp)
-
-add_executable(monitor monitor.cpp)
 
 # TODO
 # https://rapidjson.org/group___r_a_p_i_d_j_s_o_n___c_o_n_f_i_g.html

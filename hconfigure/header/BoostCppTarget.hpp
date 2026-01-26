@@ -114,7 +114,7 @@ class BoostCppTarget : TargetCache
     vector<ExampleOrTest> examplesOrTests;
     vector<DSC<CppTarget> *> dscTestDepsPrivate;
     vector<CppTarget *> cppTestDepsPrivate;
-    vector<char> configBuffer;
+    string configBuffer;
     uint32_t testsOrExamplesCount = 0;
     flat_hash_map<string, Node *> testReqHeaderFiles;
     flat_hash_map<string, Node *> testReqHeaderUnits;

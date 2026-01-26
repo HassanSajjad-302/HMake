@@ -52,14 +52,14 @@ TargetCache::TargetCache(const string &name)
     fileTargetCaches[cacheIndex].targetCache = this;
 }
 
-bool TargetCache::writeBuildCache(vector<char> &buffer)
+bool TargetCache::writeBuildCache(string &buffer)
 {
     string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
-    buffer.insert(buffer.end(), buildCache.begin(), buildCache.end());
+    buffer.append(buildCache.begin(), buildCache.end());
     return false;
 }
 
-void CCOrHash::serialize(vector<char> &buffer) const
+void CCOrHash::serialize(string &buffer) const
 {
 #ifdef USE_COMMAND_HASH
     writeUint64(buffer, hash);
@@ -126,7 +126,7 @@ Node *readHalfNode(const char *ptr, uint32_t &bytesRead)
 #endif
 }
 
-void BuildCache::Cpp::SourceFile::serialize(vector<char> &buffer) const
+void BuildCache::Cpp::SourceFile::serialize(string &buffer) const
 {
     writeNode(buffer, node);
     compileCommand.serialize(buffer);
@@ -145,7 +145,7 @@ void BuildCache::Cpp::SourceFile::deserialize(const char *ptr, uint32_t &bytesRe
     }
 }
 
-void ModuleFile::SingleHeaderUnitDep::serialize(vector<char> &buffer) const
+void ModuleFile::SingleHeaderUnitDep::serialize(string &buffer) const
 {
     writeNode(buffer, node);
     writeUint32(buffer, targetIndex);
@@ -159,7 +159,7 @@ void ModuleFile::SingleHeaderUnitDep::deserialize(const char *ptr, uint32_t &byt
     myIndex = readUint32(ptr, bytesRead);
 }
 
-void ModuleFile::SingleModuleDep::serialize(vector<char> &buffer) const
+void ModuleFile::SingleModuleDep::serialize(string &buffer) const
 {
     writeNode(buffer, node);
     writeUint32(buffer, targetIndex);
@@ -174,7 +174,7 @@ void ModuleFile::SingleModuleDep::deserialize(const char *ptr, uint32_t &bytesRe
     myIndex = readUint32(ptr, bytesRead);
 }
 
-void ModuleFile::serialize(vector<char> &buffer) const
+void ModuleFile::serialize(string &buffer) const
 {
     srcFile.serialize(buffer);
     writeUint32(buffer, headerUnitArray.size());
@@ -206,7 +206,7 @@ void ModuleFile::deserialize(const char *ptr, uint32_t &bytesRead)
     headerStatusChanged = readBool(ptr, bytesRead);
 }
 
-void BuildCache::Cpp::serialize(vector<char> &buffer) const
+void BuildCache::Cpp::serialize(string &buffer) const
 {
     writeUint32(buffer, srcFiles.size());
     for (const SourceFile &sf : srcFiles)
@@ -264,36 +264,36 @@ void BuildCache::Cpp::deserialize(const uint32_t targetCacheIndex)
     }
 }
 
-void writeBool(vector<char> &buffer, const bool &value)
+void writeBool(string &buffer, const bool &value)
 {
-    buffer.emplace_back(static_cast<char>(value));
+    buffer.push_back(value);
 }
 
-void writeUint8(vector<char> &buffer, const uint8_t &data)
-{
-    const auto ptr = reinterpret_cast<const char *>(&data);
-    buffer.insert(buffer.end(), ptr, ptr + sizeof(data));
-}
-
-void writeUint32(vector<char> &buffer, const uint32_t data)
+void writeUint8(string &buffer, const uint8_t &data)
 {
     const auto ptr = reinterpret_cast<const char *>(&data);
-    buffer.insert(buffer.end(), ptr, ptr + sizeof(data));
+    buffer.append(ptr, ptr + sizeof(data));
 }
 
-void writeUint64(vector<char> &buffer, const uint64_t data)
+void writeUint32(string &buffer, const uint32_t data)
 {
     const auto ptr = reinterpret_cast<const char *>(&data);
-    buffer.insert(buffer.end(), ptr, ptr + sizeof(data));
+    buffer.append(ptr, ptr + sizeof(data));
 }
 
-void writeStringView(vector<char> &buffer, const string_view &data)
+void writeUint64(string &buffer, const uint64_t data)
+{
+    const auto ptr = reinterpret_cast<const char *>(&data);
+    buffer.append(ptr, ptr + sizeof(data));
+}
+
+void writeStringView(string &buffer, const string_view &data)
 {
     writeUint32(buffer, data.size());
-    buffer.insert(buffer.end(), data.begin(), data.end());
+    buffer.append(data.begin(), data.end());
 }
 
-void writeNode(vector<char> &buffer, const Node *node)
+void writeNode(string &buffer, const Node *node)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     if (!node)
@@ -306,7 +306,7 @@ void writeNode(vector<char> &buffer, const Node *node)
 #endif
 }
 
-void writeNodeVector(vector<char> &buffer, const vector<Node *> &array)
+void writeNodeVector(string &buffer, const vector<Node *> &array)
 {
     writeUint32(buffer, array.size());
     for (auto &e : array)

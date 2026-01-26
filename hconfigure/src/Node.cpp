@@ -1,7 +1,6 @@
 #include "Node.hpp"
 #include "TargetCache.hpp"
 #include "rapidhash/rapidhash.h"
-#include <mutex>
 #include <utility>
 
 #ifdef _WIN32
@@ -9,7 +8,7 @@
 #endif
 
 using std::filesystem::directory_entry, std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard,
-    std::mutex, std::atomic_ref;
+    std::atomic_ref;
 
 string getStatusString(const path &p)
 {
@@ -65,7 +64,7 @@ std::size_t NodeHash::operator()(const string_view &str) const
     return rapidhash(str.data(), str.size());
 }
 
-Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
+Node::Node(Node *&node, string_view filePath_) : filePath(filePath_)
 {
     node = this;
     myId = atomic_ref(idCount).fetch_add(1, std::memory_order_relaxed);
@@ -74,7 +73,7 @@ Node::Node(Node *&node, string filePath_) : filePath(std::move(filePath_))
 
 // This function is called single-threaded. While the above is called multithreaded in lambdas passed to nodeAllFiles
 // emplace functions.
-Node::Node(string filePath_) : filePath(std::move(filePath_))
+Node::Node(string_view filePath_) : filePath(filePath_)
 {
     myId = reinterpret_cast<uint32_t &>(idCount)++;
     nodeIndices[myId] = this;
@@ -190,9 +189,9 @@ Node *Node::getNodeNonNormalized(const string &filePath_, const bool isFile, con
     return getNode(getNormalizedPath(filePath_), isFile, mayNotExist);
 }
 
-Node *Node::getHalfNodeST(string normalizedFilePath)
+Node *Node::getHalfNodeST(string_view normalizedFilePath)
 {
-    return const_cast<Node *>(nodeAllFiles.emplace(std::move(normalizedFilePath)).first.operator->());
+    return const_cast<Node *>(nodeAllFiles.emplace(normalizedFilePath).first.operator->());
 }
 
 Node *Node::getHalfNode(const string_view p)

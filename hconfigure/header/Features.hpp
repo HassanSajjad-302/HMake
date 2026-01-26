@@ -79,10 +79,6 @@ struct CxxFlags : string
 {
 };
 
-struct LinkFlags : string
-{
-};
-
 struct TemplateDepth
 {
     unsigned long long templateDepth;
@@ -676,30 +672,20 @@ template <typename T> bool PrebuiltLinkerFeatures::evaluate(T property) const
 struct LinkerFlags
 {
     // GCC
-    string OPTIONS;
-    string OPTIONS_LINK;
-    string LANG;
-    string RPATH_OPTION_LINK;
-    string FINDLIBS_ST_PFX_LINK;
-    string FINDLIBS_SA_PFX_LINK;
-    string HAVE_SONAME_LINK;
-    string SONAME_OPTION_LINK;
-    string DOT_IMPLIB_COMMAND_LINK_DLL;
+    string options;
+    string optionsLink;
+    string lang;
+    string rpathOptionLink;
 
-    // Following two are directly used instead of being set
-    string RPATH_LINK;
-    string RPATH_LINK_LINK;
-
-    bool isRpathOs = false;
     // MSVC
-    string FINDLIBS_SA_LINK;
-    string DOT_LD_LINK;
-    string DOT_LD_ARCHIVE;
-    string LINKFLAGS_LINK;
-    string PDB_CFLAG;
-    string ASMFLAGS_ASM;
-    string PDB_LINKFLAG;
-    string LINKFLAGS_MSVC;
+    string findLibsSaLink;
+    string dotLdLink;
+    string dotLdArchive;
+    string linkFlagsLink;
+    string pdbCFlag;
+    string asmFlags_asm;
+    string pdbLinkFlag;
+    string linkFlagsMsvc;
 };
 
 struct LinkerFeatures : FeatureConvenienceFunctions<LinkerFeatures>
@@ -746,6 +732,8 @@ struct LinkerFeatures : FeatureConvenienceFunctions<LinkerFeatures>
     TargetType libraryType;
     LinkerFeatures();
     LinkerFlags getLinkerFlags();
+    string getLinkCommand() const;
+    string getArchiveCommand() const;
     void setConfigType(ConfigType configType);
     template <typename T> bool evaluate(T property) const;
 };
@@ -866,25 +854,25 @@ template <typename T> bool LinkerFeatures::evaluate(T property) const
 struct CompilerFlags
 {
     // GCC
-    string OPTIONS;
-    string OPTIONS_COMPILE_CPP;
-    string OPTIONS_COMPILE;
-    string DEFINES_COMPILE_CPP;
-    string LANG;
+    string options;
+    string optionsCompileCpp;
+    string optionsCompile;
+    string definesCompileCpp;
+    string lang;
 
-    string TRANSLATE_INCLUDE;
+    string translateInclude;
     // MSVC
-    string DOT_CC_COMPILE;
-    string DOT_ASM_COMPILE;
-    string DOT_ASM_OUTPUT_COMPILE;
-    string DOT_LD_ARCHIVE;
-    string PCH_FILE_COMPILE;
-    string PCH_SOURCE_COMPILE;
-    string PCH_HEADER_COMPILE;
-    string PDB_CFLAG;
-    string ASMFLAGS_ASM;
-    string CPP_FLAGS_COMPILE_CPP;
-    string CPP_FLAGS_COMPILE;
+    string dotCcCompile;
+    string dotAsmCompile;
+    string dotAsmOutputCompile;
+    string dotLdArchive;
+    string pchFileCompile;
+    string pchSourceCompile;
+    string pchHeaderCompile;
+    string pdbCflags;
+    string asmFlagsAsm;
+    string cppFlagsCompileCpp;
+    string cppFlagsCompile;
 };
 
 struct CppCompilerFeatures : FeatureConvenienceFunctions<CppCompilerFeatures>
@@ -949,6 +937,7 @@ struct CppCompilerFeatures : FeatureConvenienceFunctions<CppCompilerFeatures>
     bool isCpuTypeG7();
     void setConfigType(ConfigType configType_);
     CompilerFlags getCompilerFlags() const;
+    string getCompileCommand();
     template <typename T> bool evaluate(T property) const;
 };
 

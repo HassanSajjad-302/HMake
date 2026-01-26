@@ -8,11 +8,8 @@ using std::string;
 
 class HashedCommand
 {
-    string_view command;
-
   public:
     void setCommand(string_view command_);
-    string_view getCommand() const;
 #ifdef USE_COMMAND_HASH
     uint64_t getHash() const;
 #else
@@ -22,6 +19,9 @@ class HashedCommand
 #ifdef USE_COMMAND_HASH
   private:
     uint64_t hash = 0;
+#else
+  private:
+    string_view command;
 #endif
 };
 

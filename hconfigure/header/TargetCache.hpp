@@ -32,7 +32,7 @@ class TargetCache
     /// Address of this element in fileTargetCaches vector
     uint32_t cacheIndex = -1;
     explicit TargetCache(const string &name);
-    virtual bool writeBuildCache(vector<char> &buffer);
+    virtual bool writeBuildCache(string &buffer);
 };
 
 /// Every Target-Cache has representation on both config-cache and build-cache. It could be empty. The order is
@@ -58,7 +58,7 @@ struct CCOrHash
     string_view hash;
 #endif
 
-    void serialize(vector<char> &buffer) const;
+    void serialize(string &buffer) const;
     void deserialize(const char *ptr, uint32_t &bytesRead);
 };
 
@@ -71,7 +71,7 @@ struct BuildCache
             Node *node;
             CCOrHash compileCommand;
             vector<Node *> headerFiles;
-            void serialize(vector<char> &buffer) const;
+            void serialize(string &buffer) const;
             void deserialize(const char *ptr, uint32_t &bytesRead);
         };
 
@@ -82,7 +82,7 @@ struct BuildCache
                 Node *node;
                 uint32_t targetIndex{};
                 uint32_t myIndex{};
-                void serialize(vector<char> &buffer) const;
+                void serialize(string &buffer) const;
                 void deserialize(const char *ptr, uint32_t &bytesRead);
             };
 
@@ -91,7 +91,7 @@ struct BuildCache
                 Node *node;
                 uint32_t targetIndex{};
                 uint32_t myIndex{};
-                void serialize(vector<char> &buffer) const;
+                void serialize(string &buffer) const;
                 void deserialize(const char *ptr, uint32_t &bytesRead);
             };
 
@@ -99,7 +99,7 @@ struct BuildCache
             vector<SingleHeaderUnitDep> headerUnitArray;
             vector<SingleModuleDep> moduleArray;
             bool headerStatusChanged;
-            void serialize(vector<char> &buffer) const;
+            void serialize(string &buffer) const;
             void deserialize(const char *ptr, uint32_t &bytesRead);
         };
 
@@ -107,7 +107,7 @@ struct BuildCache
         vector<ModuleFile> modFiles;
         vector<ModuleFile> imodFiles;
         vector<ModuleFile> headerUnits;
-        void serialize(vector<char> &buffer) const;
+        void serialize(string &buffer) const;
         void deserialize(uint32_t targetCacheIndex);
     };
 
@@ -127,11 +127,11 @@ uint64_t readUint64(const char *ptr, uint32_t &bytesRead);
 string_view readStringView(const char *ptr, uint32_t &bytesRead);
 Node *readHalfNode(const char *ptr, uint32_t &bytesRead);
 
-void writeBool(vector<char> &buffer, const bool &value);
-void writeUint8(vector<char> &buffer, const uint8_t &data);
-void writeUint32(vector<char> &buffer, uint32_t data);
-void writeUint64(vector<char> &buffer, uint64_t data);
-void writeStringView(vector<char> &buffer, const string_view &data);
-void writeNode(vector<char> &buffer, const Node *node);
-void writeNodeVector(vector<char> &buffer, const vector<Node *> &array);
+void writeBool(string &buffer, const bool &value);
+void writeUint8(string &buffer, const uint8_t &data);
+void writeUint32(string &buffer, uint32_t data);
+void writeUint64(string &buffer, uint64_t data);
+void writeStringView(string &buffer, const string_view &data);
+void writeNode(string &buffer, const Node *node);
+void writeNodeVector(string &buffer, const vector<Node *> &array);
 #endif // TARGETCACHE_HPP

@@ -7,13 +7,12 @@
 #include "parallel-hashmap/parallel_hashmap/phmap.h"
 #include <array>
 #include <atomic>
-#include <mutex>
 #include <span>
 #include <string>
 #include <vector>
 
-using std::size_t, std::vector, phmap::flat_hash_map, std::mutex, std::lock_guard, std::atomic_flag, std::array,
-    std::atomic, std::atomic_ref, std::string;
+using std::size_t, std::vector, phmap::flat_hash_map, std::lock_guard, std::atomic_flag, std::array, std::atomic,
+    std::atomic_ref, std::string;
 
 class BTarget;
 
@@ -32,22 +31,19 @@ struct IndexInTopologicalSortComparatorRoundTwo
 /// Used in RealBTarget to specify the type of dependency of other RealBTargets.
 enum class BTargetDepType : uint8_t
 {
-    /// Build-system will wait for the dependency BTarget::updateBTarget call to finish before calling
-    /// the dependent BTarget::updateBTarget. Plus it will set the dependent selectiveBuild if the
-    /// dependency selectiveBuild is true
+    /// Build-system will wait for the dependency to finish before calling the dependent. Plus it will set the dependent
+    /// selectiveBuild if the dependency selectiveBuild is true
     FULL = 0,
 
     /// Build-system will wait but not set the selectiveBuild of dependent based on dependency.
     /// Unused currently
     WAIT = 1,
 
-    /// Build-system will not wait but the selectiveBuild will be set.
-    /// Used in specifying CppTarget dep with the other CppTarget as we want
-    /// the dependency CppTarget's huDeps and imodDeps to be built.
+    /// Build-system will not wait but the selectiveBuild will be set. Used in specifying CppTarget dep with the other
+    /// CppTarget as we want the dependency CppTarget's huDeps and imodDeps to be built.
     SELECTIVE = 2,
 
-    /// Only for sorting.
-    /// Used to specify static-lib dependency with other static-lib.
+    /// Only for sorting. Used to specify static-lib dependency with other static-lib.
     LOOSE = 3,
 };
 
@@ -104,11 +100,11 @@ class RealBTarget
     /// reverse pointer to the BTarget
     BTarget *bTarget = nullptr;
 
-    /// Once sorted the index of this RealBTarget in the topological sorted array.
-    /// used in sorting and providing static libs in order as some linkers have this requirement.
+    /// Once sorted the index of this RealBTarget in the topological sorted array. Used in sorting and providing static
+    /// libs in order as some linkers have this requirement.
     uint32_t indexInTopologicalSort = 0;
 
-    /// This is incremented whenever a full-dependency or wait-dependency is added
+    /// This is incremented whenever a full-dependency or wait-dependency is added.
     /// It is decremented of the full-dependents or wait-dependents when the BTarget::updateBTarget is completed
     /// And if it is zero for any of those dependents, those are added in Builder::updateBTargets list.
     uint32_t dependenciesSize = 0;
@@ -146,10 +142,8 @@ class RealBTarget
 
     /// \param bTarget_ the back-pointer to BTarget that owns this
     /// \param round_ Constructor will add to BTarget::realBTargetsGlobal[round]
-    /// \param add whether to add for a round. Should be false if BTarget::updateBTarget is not going to do any work in
-    /// that round. CppSrc and CppMod initialize BTarget::realBTargets[1] with this parameter as false as they have
-    /// work only in round 0. Specifying a RealBTarget with add as false as dependency or dependent of other RealBTarget
-    /// is undefined behavior.
+    /// \param add whether to add for a round. Should be false if BTarget::updateBTarget or BTarget::launchBTarget is
+    /// not going to do any work in that round.
     RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
 
     /// Assigns full-dependents RealBTarget::updateStatus with UpdateStatus::NEEDS_UPDATE.
@@ -172,9 +166,10 @@ struct alignas(64) AlignedAtomic
 
 /// The building-block of HMake build-system
 ///
-/// Any class that wants to perform work in order needs to inherit from this and override BTarget::updateBTarget
-/// function. Then specify the dependencies between 2 BTargets using this class functions. Now the build-system will
-/// automatically call the BTarget::updateStatus of the both BTargets in-order.
+/// Any class that wants to perform work in order needs to inherit from this and override one of BTarget::updateBTarget,
+/// BTarget::launchBTarget, BTarget::completeBTarget functions. Dependencies between 2 BTargets can be specified using
+/// this class functions. Now the build-system will automatically call the BTarget::updateStatus of the both BTargets
+/// in-order.
 class BTarget // BTarget
 {
     friend RealBTarget;
@@ -193,7 +188,7 @@ class BTarget // BTarget
     /// dependency-specification.
     ///
     /// Another invariant is that if a dependency is to be specified for the current round in BTarget::updateBTarget
-    /// like we do for header-units, then this must be under Builder::executeMutex
+    /// then this must be under Builder::executeMutex
     ///
     /// Last invariant is that dependency between 2 unrelated BTargets can not be specified in BTarget::updateBTarget.
     /// Unrelated means that the target specifying dependency in BTarget::updateBTarget is itself neither a dependency
@@ -207,7 +202,7 @@ class BTarget // BTarget
 
         /// \param doBoth_ This will be true if the BTarget::updateBTarget wants to specify dependency between 2 other
         /// BTargets. In that case both steps of dependency-specification will be performed instead of just the second
-        /// step, emplace in dep->dependents.
+        /// step, emplace in the dep->dependents.
         LaterDep(RealBTarget *b_, RealBTarget *dep_, BTargetDepType type_, bool doBoth_);
     };
 
@@ -244,8 +239,8 @@ class BTarget // BTarget
     // float totalTimeTaken = 0.0f;
 
     /// selectiveBuild is set for target if hbuild is executed in the target directory or the target name is provided to
-    /// the build.exe or hbuild. It is set in BTarget::setSelectiveBuild which is call before BTarget::updateBTarget of
-    /// round1.
+    /// the build.exe or hbuild. It is set in BTarget::setSelectiveBuild which is called before BTarget::updateBTarget
+    /// of round1.
     bool selectiveBuild = false;
 
     /// if true selectiveBuild is only set if the target name is specified on cmd arguments.
@@ -283,6 +278,22 @@ class BTarget // BTarget
     /// lock Builder::executeMutex. CppMod sets this to false when it has to wait for other CppMod to compile first and
     /// sets it to true once its compilation completes.
     virtual void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete);
+
+    /// This is called by Builder in BSMode::BUILD in round 0. This should be overridden to perform work by launching a
+    /// new process.
+    /// \return true if the BTarget has registered an event in the event loop of Builder. This can be done using Builder
+    /// functions like Builder::registerEventData. If this function returns false, Builder::decrementFromDependents is
+    /// called. Otherwise, it is assumed that the BTarget is waiting on an event.
+    virtual bool launchBTarget(Builder &builder);
+
+    /// Builder will call this function on an event from the event loop.
+    /// \param index is an index in the eventData array. This info is extracted from the event. It is passed to
+    /// differentiate between multiple events as BTarget might have registered more than one event ( e.g. listening on 2
+    /// pipes).
+    /// \return true if the BTarget has registered an event in the event loop of Builder. This can be done using Builder
+    /// functions like Builder::registerEventData. If this function returns false, Builder::decrementFromDependents is
+    /// called. Otherwise, it is assumed that the BTarget is waiting on an event.
+    virtual bool completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount);
 
     /// Does both steps. Should be called only in single-thread or under Builder::executeMutex in BTarget::updateBTarget
     template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepNow(BTarget &dep);

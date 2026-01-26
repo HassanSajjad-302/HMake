@@ -1,13 +1,19 @@
 
 #include "LOAT.hpp"
 #include "BuildSystemFunctions.hpp"
+#include "Builder.hpp"
 #include "Configuration.hpp"
 #include "CppTarget.hpp"
 #include <filesystem>
+#include <memory_resource>
 #include <stack>
 #include <utility>
 
-using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard, std::mutex;
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
+
+using std::ofstream, std::filesystem::create_directories, std::ifstream, std::stack, std::lock_guard;
 
 bool operator<(const LOAT &lhs, const LOAT &rhs)
 {
@@ -70,25 +76,6 @@ BTargetType LOAT::getBTargetType() const
 void LOAT::setFileStatus()
 {
     RealBTarget &rb = realBTargets[0];
-    for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
-    {
-        objectFileProducer->getObjectFiles(&objectFiles);
-    }
-
-    if (objectFiles.empty())
-    {
-        if (evaluate(TargetType::LIBRARY_STATIC))
-        {
-            rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
-            return;
-        }
-        printErrorMessage(FORMAT("Target {} has no object-files.\n", name));
-        // TODO
-        // Throw Exception. Shared Library or Executable cannot have zero object-files.
-    }
-
-    setLinkOrArchiveCommands();
-
     if (rb.updateStatus != UpdateStatus::NEEDS_UPDATE)
     {
         if (outputFileNode->fileType == file_type::not_found)
@@ -213,85 +200,7 @@ void LOAT::setFileStatus()
 void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
 {
     PLOAT::updateBTarget(builder, round, isComplete);
-    if (RealBTarget &realBTarget = realBTargets[round];
-        !round && realBTarget.exitStatus == EXIT_SUCCESS && selectiveBuild)
-    {
-        setFileStatus();
-        if (RealBTarget &rb = realBTargets[0]; rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
-        {
-            rb.assignNeedsUpdateToDependents();
-
-            RunCommand r;
-            r.startProcess(linkWithTargets, false);
-            auto [output, exitStatus] = r.endProcess(false);
-            realBTarget.exitStatus = exitStatus;
-
-            atomic_ref(realBTargets[0].updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
-            string outputStr;
-            if (isConsole)
-            {
-                if (linkTargetType == TargetType::LIBRARY_STATIC)
-                {
-                    outputStr += getColorCode(ColorIndex::dark_khaki);
-                }
-                else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
-                {
-                    outputStr += getColorCode(ColorIndex::orange);
-                }
-            }
-
-            if (output.empty())
-            {
-                string str;
-                if (linkTargetType == TargetType::LIBRARY_STATIC)
-                {
-                    str = "Static-Lib";
-                }
-                else if (linkTargetType == TargetType::LIBRARY_SHARED)
-                {
-                    str = "Shared-Lib";
-                }
-                else
-                {
-                    str = "Executable";
-                }
-                outputStr += FORMAT("{} {} ", str, name);
-            }
-            else
-            {
-                outputStr += linkWithTargets;
-            }
-
-            outputStr += threadIds[myThreadIndex];
-            if (isConsole)
-            {
-                outputStr += getColorCode(ColorIndex::reset);
-            }
-
-            outputStr += output;
-            {
-                std::lock_guard _(printMutex);
-                fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
-                fflush(stdout);
-            }
-
-            if constexpr (os == OS::NT)
-            {
-                if (linkTargetType == TargetType::EXECUTABLE &&
-                    config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
-                    realBTarget.exitStatus == EXIT_SUCCESS)
-                {
-                    for (const PLOAT *ploat : dllsToBeCopied)
-                    {
-                        copy_file(ploat->outputFileNode->filePath,
-                                  string(getOutputDirectoryV()) + slashc + ploat->getActualOutputName(),
-                                  std::filesystem::copy_options::overwrite_existing);
-                    }
-                }
-            }
-        }
-    }
-    else if (round == 1)
+    if (round == 1)
     {
         if constexpr (bsMode == BSMode::BUILD)
         {
@@ -302,7 +211,6 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
             for (const uint32_t index : reqDepsVecIndices)
             {
                 const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
-                reqLinkerFlags += reqDep->useReqLinkerFlags;
             }
         }
 
@@ -313,7 +221,7 @@ void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isC
     }
 }
 
-bool LOAT::writeBuildCache(vector<char> &buffer)
+bool LOAT::writeBuildCache(string &buffer)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -386,129 +294,96 @@ string LOAT::getPrintName() const
     return str + " " + configureNode->filePath + slashc + name;
 }
 
-void LOAT::setLinkOrArchiveCommands()
+void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets)
 {
-    const LinkerFlags &flags = config.linkerFlags;
-    const Linker &linker = config.linkerFeatures.linker;
-    const Archiver &archiver = config.linkerFeatures.archiver;
-
-    linkWithTargets.reserve(4 * 1024);
-
-    linkWithTargets = "\"";
     if (linkTargetType == TargetType::LIBRARY_STATIC)
     {
-        linkWithTargets += config.linkerFeatures.archiver.bTPath + "\" ";
-    }
-    else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
-    {
-        linkWithTargets += config.linkerFeatures.linker.bTPath + "\" ";
-    }
-
-    // following 2 are appended with an extra "
-    string archiveOutputFlag;
-    string libDirFlag;
-
-    if (archiver.bTFamily == BTFamily::MSVC)
-    {
-        archiveOutputFlag = "/OUT:\"";
-        libDirFlag = "/LIBPATH:\"";
-    }
-    else if (archiver.bTFamily == BTFamily::GCC)
-    {
-
-        archiveOutputFlag = " rcs \"";
-        libDirFlag = "-L\"";
-    }
-
-    if (linkTargetType == TargetType::LIBRARY_STATIC)
-    {
-        linkWithTargets += archiver.bTFamily == BTFamily::MSVC ? "/nologo " : "";
-        linkWithTargets += archiveOutputFlag;
-        linkWithTargets += outputFileNode->filePath + "\" ";
+        linkWithTargets = config.archiveCommand;
     }
     else
     {
-        linkWithTargets += linker.bTFamily == BTFamily::MSVC ? " /NOLOGO " : "";
-
-        // TODO Not catering for MSVC
-        // Temporary Just for ensuring link success with clang Address-Sanitizer
-        // There should be no spaces after user-provided-flags.
-        // TODO shared libraries not supported.
-        if (linker.bTFamily == BTFamily::GCC)
-        {
-            linkWithTargets += flags.OPTIONS + " " + flags.OPTIONS_LINK + " ";
-        }
-        else if (linker.bTFamily == BTFamily::MSVC)
-        {
-            for (const vector<string_view> sp = split(flags.FINDLIBS_SA_LINK, ' '); const string_view &s : sp)
-            {
-                if (s.empty())
-                {
-                    continue;
-                }
-                linkWithTargets += string(s) + ".lib ";
-            }
-            linkWithTargets += flags.LINKFLAGS_LINK + flags.LINKFLAGS_MSVC;
-        }
-        linkWithTargets += reqLinkerFlags + " ";
+        linkWithTargets = config.linkCommand;
     }
 
-    uint64_t commandWithoutTargetsSize = linkWithTargets.size();
-
+    linkWithTargets += outputFileNode->filePath + "\" ";
+    commandWithoutTargetsWithTool.setCommand({linkWithTargets.data(), linkWithTargets.size()});
     for (const ObjectFile *objectFile : objectFiles)
     {
         linkWithTargets += '\"' + objectFile->objectNode->filePath + "\" ";
     }
 
-    if (linkTargetType != TargetType::LIBRARY_STATIC)
+    if (linkTargetType == TargetType::LIBRARY_STATIC)
+    {
+        return;
+    }
+
+    BTFamily linkerFamily = config.linkerFeatures.linker.bTFamily;
+
+    if (linkTargetType == TargetType::LIBRARY_SHARED)
+    {
+        linkWithTargets += linkerFamily == BTFamily::MSVC ? "/DLL  " : " -shared ";
+    }
+
+    for (const uint32_t index : reqDepsVecIndices)
+    {
+        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
+        if (reqDep->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
+            static_cast<LOAT *>(reqDep)->objectFiles.empty())
+        {
+            continue;
+        }
+
+        if (linkerFamily == BTFamily::MSVC)
+        {
+            linkWithTargets += '\"';
+            linkWithTargets += string(reqDep->getOutputDirectoryV());
+            linkWithTargets += slashc;
+            linkWithTargets += reqDep->getOutputName() + ".lib\" ";
+        }
+        else
+        {
+            linkWithTargets += "-L\"";
+            linkWithTargets += string(reqDep->getOutputDirectoryV());
+            linkWithTargets += "\" -l\"";
+            linkWithTargets += reqDep->getOutputName();
+            linkWithTargets += "\" ";
+        }
+    }
+
+    for (const LibDirNode &libDirNode : reqLibraryDirs)
+    {
+        if (linkerFamily == BTFamily::MSVC)
+        {
+            linkWithTargets += "/LIBPATH:\"";
+        }
+        else if (linkerFamily == BTFamily::GCC)
+        {
+
+            linkWithTargets += "-L\"";
+        }
+        linkWithTargets += libDirNode.node->filePath;
+        linkWithTargets += "\" ";
+    }
+
+    if (linkerFamily == BTFamily::GCC)
     {
         for (const uint32_t index : reqDepsVecIndices)
         {
-            PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
-            if (reqDep->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
-                static_cast<LOAT *>(reqDep)->objectFiles.empty())
+            if (const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
+                reqDep->evaluate(TargetType::LIBRARY_SHARED))
             {
-                continue;
-            }
-
-            if (linker.bTFamily == BTFamily::MSVC)
-            {
-                linkWithTargets += '\"';
-                linkWithTargets += string(reqDep->getOutputDirectoryV());
-                linkWithTargets += slashc;
-                linkWithTargets += reqDep->getOutputName() + ".lib\" ";
-            }
-            else
-            {
-                linkWithTargets += "-L\"";
-                linkWithTargets += string(reqDep->getOutputDirectoryV());
-                linkWithTargets += "\" -l\"";
-                linkWithTargets += reqDep->getOutputName();
-                linkWithTargets += "\" ";
-            }
-        }
-
-        for (const LibDirNode &libDirNode : reqLibraryDirs)
-        {
-            linkWithTargets += libDirFlag;
-            linkWithTargets += libDirNode.node->filePath;
-            linkWithTargets += "\" ";
-        }
-
-        if (config.linkerFeatures.evaluate(BTFamily::GCC))
-        {
-            for (const uint32_t index : reqDepsVecIndices)
-            {
-                if (const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
-                    reqDep->evaluate(TargetType::LIBRARY_SHARED))
+                if (os != OS::NT)
                 {
-                    linkWithTargets += "-Wl," + flags.RPATH_OPTION_LINK + " " + "-Wl,\"" +
-                                       string(reqDep->getOutputDirectoryV()) + "\" ";
+                    linkWithTargets += "-Wl,-rpath -Wl,\"" + string(reqDep->getOutputDirectoryV()) + "\" ";
+                }
+                else
+                {
+                    linkWithTargets += "-Wl, -Wl,\"" + string(reqDep->getOutputDirectoryV()) + "\" ";
                 }
             }
         }
 
-        if (config.linkerFeatures.evaluate(BTFamily::GCC) && evaluate(TargetType::EXECUTABLE) && flags.isRpathOs)
+        if (os != OS::NT && evaluate(TargetType::EXECUTABLE))
         {
             for (const uint32_t index : reqDepsVecIndices)
             {
@@ -519,22 +394,156 @@ void LOAT::setLinkOrArchiveCommands()
                 }
             }
         }
+    }
+}
 
-        // -fPIC
-        if (!config.linkerFeatures.OR(TargetOS::WINDOWS, TargetOS::CYGWIN))
+bool LOAT::launchBTarget(Builder &builder)
+{
+    if (const RealBTarget &realBTarget = realBTargets[0]; realBTarget.exitStatus == EXIT_FAILURE || !selectiveBuild)
+    {
+        return false;
+    }
+    RealBTarget &rb = realBTargets[0];
+    for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
+    {
+        objectFileProducer->getObjectFiles(&objectFiles);
+    }
+
+    if (objectFiles.empty())
+    {
+        if (evaluate(TargetType::LIBRARY_STATIC))
         {
-
-            linkWithTargets += "-fPIC ";
+            rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
+            return false;
         }
+        printErrorMessage(FORMAT("Target {} has no object-files.\n", name));
+    }
 
-        linkWithTargets += linker.bTFamily == BTFamily::MSVC ? " /OUT:\"" : " -o \"";
-        linkWithTargets += outputFileNode->filePath + "\" ";
+    constexpr uint32_t stackSize = 64 * 1024;
+    string output2;
+    char buffer[stackSize];
+    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
+    std::pmr::string linkWithTargets(&alloc);
+    setLinkOrArchiveCommands(linkWithTargets);
+    setFileStatus();
 
-        if (linkTargetType == TargetType::LIBRARY_SHARED)
+    if (rb.updateStatus != UpdateStatus::NEEDS_UPDATE)
+    {
+        return false;
+    }
+
+    rb.assignNeedsUpdateToDependents();
+
+    if (dryRun)
+    {
+        printMessage(linkWithTargets + '\n');
+        return false;
+    }
+
+    r.startAsyncProcess(linkWithTargets.c_str(), builder, this);
+    return true;
+}
+
+bool LOAT::completeBTarget(Builder &builder, const uint64_t index, uint32_t &activeCount)
+{
+    if (r.wasProcessLaunchIncomplete(index))
+    {
+        if (r.processState == ProcessState::OUTPUT_CONNECTED)
         {
-            linkWithTargets += linker.bTFamily == BTFamily::MSVC ? "/DLL  " : " -shared ";
+            if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
+            {
+                recurrentCall = true;
+                return true;
+            }
+            recurrentCall = true;
+        }
+        else
+        {
+            // Process is completed
+            bool breakpoint = true;
+        }
+    }
+    else
+    {
+        if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
+        {
+            recurrentCall = true;
+            return true;
+        }
+        recurrentCall = true;
+    }
+
+    builder.unregisterEventDataAtIndex(index);
+    r.reapProcess();
+    realBTargets[0].exitStatus = r.exitStatus;
+
+    constexpr uint32_t stackSize = 64 * 1024;
+    string output2;
+    char buffer[stackSize];
+    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
+    std::pmr::string linkWithTargets(&alloc);
+    setLinkOrArchiveCommands(linkWithTargets);
+
+    atomic_ref(realBTargets[0].updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
+    string outputStr;
+    if (isConsole)
+    {
+        if (linkTargetType == TargetType::LIBRARY_STATIC)
+        {
+            outputStr += getColorCode(ColorIndex::dark_khaki);
+        }
+        else if (linkTargetType == TargetType::EXECUTABLE || linkTargetType == TargetType::LIBRARY_SHARED)
+        {
+            outputStr += getColorCode(ColorIndex::orange);
         }
     }
 
-    commandWithoutTargetsWithTool.setCommand({linkWithTargets.data(), commandWithoutTargetsSize});
+    if (output.empty())
+    {
+        string str;
+        if (linkTargetType == TargetType::LIBRARY_STATIC)
+        {
+            str = "Static-Lib";
+        }
+        else if (linkTargetType == TargetType::LIBRARY_SHARED)
+        {
+            str = "Shared-Lib";
+        }
+        else
+        {
+            str = "Executable";
+        }
+        outputStr += FORMAT("{} {} ", str, name);
+    }
+    else
+    {
+        outputStr += linkWithTargets;
+    }
+
+    outputStr += threadIds[myThreadIndex];
+    if (isConsole)
+    {
+        outputStr += getColorCode(ColorIndex::reset);
+    }
+
+    outputStr += output;
+    {
+        fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
+    }
+
+    if constexpr (os == OS::NT)
+    {
+        if (linkTargetType == TargetType::EXECUTABLE &&
+            config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
+            realBTargets[0].exitStatus == EXIT_SUCCESS)
+        {
+            for (const PLOAT *ploat : dllsToBeCopied)
+            {
+                copy_file(ploat->outputFileNode->filePath,
+                          string(getOutputDirectoryV()) + slashc + ploat->getActualOutputName(),
+                          std::filesystem::copy_options::overwrite_existing);
+            }
+        }
+    }
+    return false;
 }

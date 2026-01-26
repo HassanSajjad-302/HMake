@@ -4,30 +4,40 @@
 
 #include "string"
 
+#include <cstdint>
+
 using std::string;
+
+enum class ProcessState
+{
+    LAUNCHED,
+    OUTPUT_CONNECTED,
+    COMPLETED,
+    CONNECTED,
+    IPCFD_CLOSED,
+    OUTPUTFD_CLOSED,
+};
 
 struct RunCommand
 {
-    struct OutputAndStatus
-    {
-        string output;
-        int exitStatus;
-    };
+    string output;
+    uint64_t stdPipe;
+    uint64_t pid;
+    int exitStatus;
 #ifdef _WIN32
-    void *stdout_read;
-    void *hProcess;
-    void *hThread;
+    ProcessState processState = ProcessState::LAUNCHED;
 #else
-    int stdout_pipe[2];
-    int stderr_pipe[2];
-    int pid;
+    ProcessState processState = ProcessState::OUTPUT_CONNECTED;
 #endif
 
     // command is 3 parts. 1) tool path 2) command without output and error files 3) output and error files.
     // while print is 2 parts. 1) tool path and command without output and error files. 2) output and error files.
-    explicit RunCommand();
-    void startProcess(const string &command, bool isModuleProcess);
-    OutputAndStatus endProcess(bool isModuleProcess) const;
+    RunCommand() = default;
+    void runProcess(const char *command);
+
+    uint64_t startAsyncProcess(const char *command, class Builder &builder, class BTarget *bTarget);
+    bool wasProcessLaunchIncomplete(uint64_t index);
+    void reapProcess();
     void killModuleProcess(const string &processName) const;
 };
 

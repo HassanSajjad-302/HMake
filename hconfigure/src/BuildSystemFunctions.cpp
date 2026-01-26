@@ -119,7 +119,19 @@ void printDebugMessage(const string &message)
 
 void printMessage(const string &message)
 {
-    std::print("{}", message);
+    fwrite(message.c_str(), 1, message.size(), stdout);
+    fflush(stdout);
+}
+
+void printMessage(const char *message)
+{
+    const string str(message);
+    printMessage(str);
+}
+
+void printMessage(const std::pmr::string &message)
+{
+    fwrite(message.c_str(), 1, message.size(), stdout);
     fflush(stdout);
 }
 
@@ -127,11 +139,10 @@ void printErrorMessage(const string &message)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
-        vector<char> buffer;
+        string buffer;
         writeBuildBuffer(buffer);
     }
 
-    std::lock_guard _(printMutex);
     std::print(stderr, "{}", message);
 
     errorExit();
@@ -145,7 +156,7 @@ void printErrorMessageNoReturn(const string &message)
 bool configureOrBuild()
 {
     const Builder b{};
-    vector<char> buffer;
+    string buffer;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         cache.registerCacheVariables();
@@ -158,6 +169,8 @@ bool configureOrBuild()
 
 void constructGlobals()
 {
+    // We don't zero initialize these big arrays. This makes difference of around 4-5% in zero-target build speed-up.
+
     // 1MB. Deallocated after round.
     for (span<RealBTarget *> &realBTargets : BTarget::realBTargetsGlobal)
     {
@@ -171,6 +184,15 @@ void constructGlobals()
     std::construct_at(&cache);
     BTarget::laterDepsCentral.emplace_back(&BTarget::laterDepsLocal);
     threadIds.emplace_back(getThreadId());
+
+#ifdef _WIN32
+    std::construct_at(&unusedKeysIndices);
+    unusedKeysIndices.reserve(32 * 1024);
+    eventData = new CompletionKey[32 * 1024];
+#else
+    eventData = new BTarget *[32 * 1024];
+#endif
+
 }
 
 void destructGlobals()
@@ -277,9 +299,9 @@ void RHPOStream::Flush()
     }
 }
 
-vector<char> readBufferFromFile(const string &fileName)
+string fileToString(const string &fileName)
 {
-    vector<char> fileBuffer;
+    string fileBuffer;
     FILE *fp;
 
 #ifdef WIN32
@@ -297,13 +319,31 @@ vector<char> readBufferFromFile(const string &fileName)
     return fileBuffer;
 }
 
-vector<char> readBufferFromCompressedFile(const string &fileName)
+void fileToString(const string &fileName, std::pmr::string &buffer)
+{
+    FILE *fp;
+
+#ifdef WIN32
+    fopen_s(&fp, fileName.data(), "rb");
+#else
+    fp = fopen(fileName.c_str(), "r");
+#endif
+
+    fseek(fp, 0, SEEK_END);
+    const size_t filesize = (size_t)ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    buffer.resize(filesize);
+    const uint64_t readLength = fread(buffer.data(), 1, filesize, fp);
+    fclose(fp);
+}
+
+string readBufferFromCompressedFile(const string &fileName)
 {
 #ifndef USE_JSON_FILE_COMPRESSION
-    return readBufferFromFile(fileName);
+    return fileToString(fileName);
 #else
-    vector<char> compressedBuffer = readBufferFromFile(fileName);
-    vector<char> fileBuffer;
+    string compressedBuffer = fileToString(fileName);
+    string fileBuffer;
     fileBuffer.resize(*reinterpret_cast<uint64_t *>(compressedBuffer.data()));
 
     const int decompressSize =
@@ -377,8 +417,13 @@ void writeNodesCacheIfNewNodesAdded()
     if (const uint64_t newNodesSize = atomic_ref(Node::idCount).load(std::memory_order_acquire);
         newNodesSize != nodesSizeBefore)
     {
-        // printMessage(FORMAT("nodesSizeStart {} nodesSizeBefore {} nodesSizeAfter {}\n", nodesSizeStart,
-        //                          nodesSizeBefore, newNodesSize));
+        /*uint32_t newNodesStrSize = 0;
+        newNodesStrSize += (newNodesSize - nodesSizeBefore) * 2;
+        for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
+        {
+            newNodesStrSize += nodeIndices[i]->filePath.size();
+        }
+        nodesCacheGlobal.resize(nodesCacheGlobal.size() + newNodesStrSize);*/
         for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
         {
             const string &str = nodeIndices[i]->filePath;
@@ -392,7 +437,7 @@ void writeNodesCacheIfNewNodesAdded()
     }
 }
 
-void writeConfigBuffer(vector<char> &buffer)
+void writeConfigBuffer(string &buffer)
 {
     for (FileTargetCache &fileCacheTarget : fileTargetCaches)
     {
@@ -403,7 +448,7 @@ void writeConfigBuffer(vector<char> &buffer)
 }
 
 static atomic callOnce(false);
-void writeBuildBuffer(vector<char> &buffer)
+void writeBuildBuffer(string &buffer)
 {
     // This condition is to ensure that function gets executed only once in build-mode either when the build is
     // interrupted or when the build-system returns in main2 or in printErrorMessage.
@@ -429,7 +474,7 @@ void writeBuildBuffer(vector<char> &buffer)
         }
         else
         {
-            buffer.insert(buffer.end(), fileCacheTarget.buildCache.begin(), fileCacheTarget.buildCache.end());
+            buffer.append(fileCacheTarget.buildCache.begin(), fileCacheTarget.buildCache.end());
         }
         const uint32_t size = buffer.size() - (currentSize + 4);
         *static_cast<uint32_t *>(static_cast<void *>(&buffer[currentSize])) = size;
@@ -449,8 +494,6 @@ void writeBuildBuffer(vector<char> &buffer)
 #ifndef _WIN32
 #define fopen_s(pFile, filename, mode) ((*(pFile)) = fopen((filename), (mode))) == NULL
 #endif
-
-extern string GetLastErrorString();
 
 // In configure mode only 2 files target-cache.json and nodes.json are written which are written at the end.
 // While in build-mode TargetCacheDisWriteManager asynchronously writes these files multiple times as the data is
@@ -474,7 +517,7 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
         // Check if the file handle is valid
         if (hFile == INVALID_HANDLE_VALUE)
         {
-            printErrorMessage(FORMAT("Failed to open file for writing. Error: {}\n", GetLastErrorString()));
+            printErrorMessage(FORMAT("Failed to open file for writing. Error: {}\n", N2978::getErrorString()));
         }
 
         // Content to write to the file
@@ -483,13 +526,13 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
         // Write to the file
         if (!WriteFile(hFile, buffer, bufferSize, &bytesWritten, nullptr))
         {
-            printErrorMessage(FORMAT("Failed to write to file. Error: {}\n", GetLastErrorString()));
+            printErrorMessage(FORMAT("Failed to write to file. Error: {}\n", N2978::getErrorString()));
             CloseHandle(hFile);
         }
 
         if (!FlushFileBuffers(hFile))
         {
-            printErrorMessage(FORMAT("Failed to flush file buffers. Error: {}\n", GetLastErrorString()));
+            printErrorMessage(FORMAT("Failed to flush file buffers. Error: {}\n", N2978::getErrorString()));
         }
 
         if (bytesWritten != bufferSize)
@@ -541,8 +584,7 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
             // If ReplaceFile fails (e.g., target doesn't exist), fall back to MoveFileEx
             if (!MoveFileExA(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
             {
-                printErrorMessage(FORMAT("Error:{}\n while writing file {}\n", GetLastErrorString(), fileName));
-                fflush(stdout);
+                printErrorMessage(FORMAT("Error:{}\n while writing file {}\n", N2978::getErrorString(), fileName));
             }
         }
 #else
@@ -557,7 +599,7 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
     }
 }
 
-void writeBufferToCompressedFile(const string &fileName, const vector<char> &fileBuffer)
+void writeBufferToCompressedFile(const string &fileName, const string &fileBuffer)
 {
 #ifndef USE_JSON_FILE_COMPRESSION
     writeFileAtomically(fileName, fileBuffer.data(), fileBuffer.size(), true);
@@ -655,29 +697,7 @@ string addEscapedQuotes(const string &pstr)
     return q + pstr + q;
 }
 
-string fileToString(const string &file_name)
-{
-    ifstream file_stream{file_name};
-
-    if (file_stream.fail())
-    {
-        // Error opening file.
-        printErrorMessage(FORMAT("Error opening file {}\n", file_name));
-    }
-
-    const std::ostringstream str_stream;
-    file_stream >> str_stream.rdbuf(); // NOT str_stream << file_stream.rdbuf()
-
-    if (file_stream.fail() && !file_stream.eof())
-    {
-        // Error reading file.
-        printErrorMessage(FORMAT("Error reading file {}\n", file_name));
-    }
-
-    return str_stream.str();
-}
-
-vector<string_view> split(const string &str, const char token)
+vector<string_view> split(string_view str, const char token)
 {
     vector<string_view> result;
     size_t start = 0;

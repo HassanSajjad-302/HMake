@@ -13,6 +13,8 @@ template <typename T> class PointerArrayList
         uint32_t next;
     };
 
+public:
+    ArrayListItem *storage = nullptr;
     ArrayListItem *array = nullptr;
     uint32_t currentIndex = -1;
     uint32_t last = 0;
@@ -21,9 +23,10 @@ template <typename T> class PointerArrayList
   public:
     void clear()
     {
+        array = storage;
+        currentIndex = -1;
         last = 0;
         arraySize = 0;
-        currentIndex = 0;
         // TODO
         // arraySize should be recorded to report max array size to not get into memory issues.
     }
@@ -35,7 +38,8 @@ template <typename T> class PointerArrayList
 
     PointerArrayList()
     {
-        array = new ArrayListItem[1024 * 1024];
+        storage = new ArrayListItem[1024 * 1024];
+        array = storage;
     }
 
     void emplace_back(T *bTarget)
