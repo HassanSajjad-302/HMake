@@ -171,7 +171,8 @@ void matchDirectoryWithOutput(const vector<string> &lines, const string &directo
     checkDirectory(dirAbsolute, pruned, endsWith);
 }
 
-void compareObjectFiles(string targetName, const set<string> &ninjaObjectFiles, set<string> hbuildObjectFiles)
+void compareObjectFiles(string targetName, const set<string> &ninjaObjectFiles, set<string> hbuildObjectFiles,
+                        const bool warningForMissingInNinja)
 {
     for (const string &l : ninjaObjectFiles)
     {
@@ -185,7 +186,15 @@ void compareObjectFiles(string targetName, const set<string> &ninjaObjectFiles, 
 
     for (string s : hbuildObjectFiles)
     {
-        printErrorMessage(FORMAT("hbuild object-file {} not found in target {}\n", s, targetName));
+        if (warningForMissingInNinja)
+        {
+            // Used for Executables as due to hu dependencies an exe can have more deps in hbuild than in Ninja.
+            printMessage(FORMAT("hbuild object-file {} not found in target {}\n", s, targetName));
+        }
+        else
+        {
+            printErrorMessage(FORMAT("hbuild object-file {} not found in target {}\n", s, targetName));
+        }
     }
 }
 
@@ -229,7 +238,7 @@ void analyzeObjectFiles(string targetName, string ninjaLine, string hbuildLine)
         }
     }
 
-    compareObjectFiles(targetName, ninjaObjectFiles, hbuildObjectFiles);
+    compareObjectFiles(targetName, ninjaObjectFiles, hbuildObjectFiles, false);
 }
 
 void analyzeNinjaAndHbuildArchiveLines(const vector<string> &ninjaArchiveLines,
@@ -303,7 +312,7 @@ void analyzeStaticLibs(string targetName, string ninjaLine, string hbuildLine)
         }
     }
 
-    compareObjectFiles(targetName, ninjaStaticLibs, hbuildStaticLibs);
+    compareObjectFiles(targetName, ninjaStaticLibs, hbuildStaticLibs, true);
 }
 
 void analyzeNinjaAndHbuildExecutableLines(const vector<string> &ninjaExeLines, const vector<string> &hbuildExeLines)
@@ -404,10 +413,6 @@ int main()
     }
     analyzeNinjaAndHbuildExecutableLines(ninjaExecutableLines, hbuildExecutableLines);
 }
-
-// command linking llvm-tblgen-min has all source-files from utils/llvm/TableGen/Basic/* +
-// utils/llvm/TableGen/llvm-tblgen-min.cpp command linking llvm-tblgen has all source-files from utils/llvm/TableGen
-// except utils/llvm/TableGen/llvm-tblgen-min.cpp
 
 // -DLLVM_BUILD_STATIC is used for source-files of llvm/utils/TableGen/*, clang/utils/TableGen/* and
 // clang/tools/driver/* source-files.

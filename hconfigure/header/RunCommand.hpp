@@ -3,7 +3,6 @@
 #define HMAKE_RUNCOMMAND_HPP
 
 #include "string"
-
 #include <cstdint>
 
 using std::string;
@@ -18,10 +17,18 @@ enum class ProcessState
     OUTPUTFD_CLOSED,
 };
 
+struct ReadDataInfo
+{
+    string message;
+    bool completed;
+    ReadDataInfo(string message_, bool completed_);
+};
+
 struct RunCommand
 {
     string output;
-    uint64_t stdPipe;
+    uint64_t readPipe;
+    uint64_t writePipe;
     uint64_t pid;
     int exitStatus;
 #ifdef _WIN32
@@ -35,10 +42,11 @@ struct RunCommand
     RunCommand() = default;
     void runProcess(const char *command);
 
-    uint64_t startAsyncProcess(const char *command, class Builder &builder, class BTarget *bTarget);
-    bool wasProcessLaunchIncomplete(uint64_t index);
-    void reapProcess();
+    uint64_t startAsyncProcess(const char *command, class Builder &builder, class BTarget *bTarget, bool haveWritePipe);
+    ReadDataInfo isReadCompleted(uint64_t index);
+    void reapProcess(bool haveWritePipe);
     void killModuleProcess(const string &processName) const;
+    string pruneOutput();
 };
 
 #endif // HMAKE_RUNCOMMAND_HPP

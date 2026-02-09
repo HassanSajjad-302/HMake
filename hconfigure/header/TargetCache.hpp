@@ -134,4 +134,36 @@ void writeUint64(string &buffer, uint64_t data);
 void writeStringView(string &buffer, const string_view &data);
 void writeNode(string &buffer, const Node *node);
 void writeNodeVector(string &buffer, const vector<Node *> &array);
+
+
+// Used in CppMod
+inline void writeBool(std::pmr::string &buffer, const bool &value)
+{
+    buffer.push_back(value);
+}
+
+inline void writeUint8(std::pmr::string &buffer, const uint8_t &data)
+{
+    const auto ptr = reinterpret_cast<const char *>(&data);
+    buffer.append(ptr, ptr + sizeof(data));
+}
+
+inline void writeUint32(std::pmr::string &buffer, const uint32_t data)
+{
+    const auto ptr = reinterpret_cast<const char *>(&data);
+    buffer.append(ptr, ptr + sizeof(data));
+}
+
+inline void writeUint64(std::pmr::string &buffer, const uint64_t data)
+{
+    const auto ptr = reinterpret_cast<const char *>(&data);
+    buffer.append(ptr, ptr + sizeof(data));
+}
+
+inline void writeStringView(std::pmr::string &buffer, const string_view &data)
+{
+    writeUint32(buffer, data.size());
+    buffer.append(data.begin(), data.end());
+}
+
 #endif // TARGETCACHE_HPP

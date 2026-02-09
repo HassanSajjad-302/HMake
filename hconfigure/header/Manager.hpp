@@ -23,6 +23,11 @@ template <typename T, typename U> class expected;
 namespace N2978
 {
 
+// 32-byte delimiter
+inline const char *delimiter = "DELIMITER"
+                               "\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5"
+                               "DELIMITER";
+
 enum class ErrorCategory : uint8_t
 {
     NONE,
@@ -54,13 +59,12 @@ struct ProcessMappingOfBMIFile
 class Manager
 {
   public:
-    uint64_t fd = 0;
-
-    bool isServer = false;
-    std::string_view serverReadString;
-
-    tl::expected<uint32_t, std::string> readInternal(char (&buffer)[BUFFERSIZE]) const;
-    tl::expected<void, std::string> writeInternal(const std::string &buffer) const;
+    virtual tl::expected<uint32_t, std::string> readInternal(char (&buffer)[BUFFERSIZE]) const = 0;
+    virtual tl::expected<void, std::string> writeInternal(std::string_view buffer) const = 0;
+    virtual ~Manager() = default;
+#ifndef _WIN32
+    static tl::expected<void, std::string> writeAll(const int fd, const char *buffer, const uint32_t count);
+#endif
 
     static std::string getBufferWithType(CTB type);
     static void writeUInt32(std::string &buffer, uint32_t value);

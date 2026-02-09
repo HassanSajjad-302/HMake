@@ -38,19 +38,10 @@ struct CTBNonModule
     std::string logicalName;
 };
 
-// This is the last message sent by the compiler.
+// This is the last message sent by the compiler if the compiler
+// has any exported BMI.
 struct CTBLastMessage
 {
-    // Whether the compilation succeeded or failed.
-    bool errorOccurred = false;
-    // Following fields are meaningless if the compilation failed.
-    // compiler output
-    std::string output;
-    // compiler error output.
-    // Any IPC related error output should be reported on stderr.
-    std::string errorOutput;
-    // exported module name if any.
-    std::string logicalName;
     // This is communicated because the receiving process has no
     // way to learn the shared memory file size on both Windows
     // and Linux without a filesystem call.
@@ -121,6 +112,7 @@ struct BTCNonModule
     bool isSystem = true;
     std::string filePath;
     // if isHeaderUnit == false, the following are meaning-less.
+    // Except headerFiles can be sent on the first request.
     // if isHeaderUnit == true, fileSize of the requested file.
     uint32_t fileSize;
     // A header-unit can be composed of

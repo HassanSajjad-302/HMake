@@ -21,8 +21,13 @@ struct HeaderFileOrUnit
         Node *node;
     } data;
 
+    // Only used at build-time
+    uint32_t targetIndex;
     bool isUnit;
     bool isSystem;
+    // Following two are only used at build-time
+    HeaderFileOrUnit(uint32_t targetIndex_, CppMod *cppMod_, bool isSystem_);
+    HeaderFileOrUnit(uint32_t targetIndex_, Node *node_, bool isSystem_);
     HeaderFileOrUnit(CppMod *cppMod_, bool isSystem_);
     HeaderFileOrUnit(Node *node_, bool isSystem_);
     HeaderFileOrUnit() = default;

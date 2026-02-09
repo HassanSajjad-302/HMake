@@ -70,60 +70,8 @@ std::string getErrorString(const ErrorCategory errorCategory_)
     return errorString;
 }
 
-static uint32_t minimum(uint32_t a, uint32_t b)
-{
-    if (a < b)
-    {
-        return a;
-    }
-    return b;
-}
-
-tl::expected<uint32_t, std::string> Manager::readInternal(char (&buffer)[BUFFERSIZE]) const
-{
-    if (isServer)
-    {
-        const uint32_t bytesRead = minimum(serverReadString.size(), static_cast<uint64_t>(BUFFERSIZE));
-        for (uint32_t i = 0; i < bytesRead; ++i)
-        {
-            buffer[i] = serverReadString[i];
-        }
-        const_cast<std::string_view &>(serverReadString) =
-            std::string_view{serverReadString.data() + bytesRead, serverReadString.size() - bytesRead};
-        return bytesRead;
-    }
-    int32_t bytesRead;
-
-#ifdef _WIN32
-    const bool success = ReadFile(reinterpret_cast<HANDLE>(fd), // pipe handle
-                                  buffer,              // buffer to receive reply
-                                  BUFFERSIZE,          // size of buffer
-                                  LPDWORD(&bytesRead), // number of bytes read
-                                  nullptr);            // not overlapped
-
-    if (const uint32_t lastError = GetLastError(); !success && lastError != ERROR_MORE_DATA)
-    {
-        return tl::unexpected(getErrorString());
-    }
-
-#else
-    bytesRead = read(fd, buffer, BUFFERSIZE);
-    if (bytesRead == -1)
-    {
-        return tl::unexpected(getErrorString());
-    }
-#endif
-
-    if (!bytesRead)
-    {
-        return tl::unexpected(getErrorString(ErrorCategory::READ_FILE_ZERO_BYTES_READ));
-    }
-
-    return bytesRead;
-}
-
 #ifndef _WIN32
-tl::expected<void, std::string> writeAll(const int fd, const char *buffer, const uint32_t count)
+tl::expected<void, std::string> Manager::writeAll(const int fd, const char *buffer, const uint32_t count)
 {
     uint32_t bytesWritten = 0;
 
@@ -150,27 +98,6 @@ tl::expected<void, std::string> writeAll(const int fd, const char *buffer, const
     return {};
 }
 #endif
-
-tl::expected<void, std::string> Manager::writeInternal(const std::string &buffer) const
-{
-#ifdef _WIN32
-    const bool success = WriteFile(reinterpret_cast<HANDLE>(fd), // pipe handle
-                                   buffer.data(),                // message
-                                   buffer.size(), // message length
-                                   nullptr,       // bytes written
-                                   nullptr);      // not overlapped
-    if (!success)
-    {
-        return tl::unexpected(getErrorString());
-    }
-#else
-    if (const auto &r = writeAll(fd, buffer.data(), buffer.size()); !r)
-    {
-        return tl::unexpected(r.error());
-    }
-#endif
-    return {};
-}
 
 std::string Manager::getBufferWithType(CTB type)
 {

@@ -392,40 +392,22 @@ bool CppSrc::launchBTarget(Builder &builder)
         return false;
     }
 
-    run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this);
+    run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, false);
     return true;
 }
 
 bool CppSrc::completeBTarget(Builder &builder, const uint64_t index, uint32_t &activeCount)
 {
-    if (run.wasProcessLaunchIncomplete(index))
+    if (!run.isReadCompleted(index).completed)
     {
-        if (run.processState == ProcessState::OUTPUT_CONNECTED)
-        {
-            if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
-            {
-                return true;
-            }
-        }
-        else
-        {
-            // Process is completed
-            bool breakpoint = true;
-        }
-    }
-    else
-    {
-        if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
-        {
-            return true;
-        }
+        return true;
     }
 
     builder.unregisterEventDataAtIndex(index);
-    run.reapProcess();
+    run.reapProcess(false);
     realBTargets[0].exitStatus = run.exitStatus;
 
-    parseHeaderDeps(output, builder);
+    parseHeaderDeps(run.output, builder);
 
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
@@ -445,7 +427,7 @@ bool CppSrc::completeBTarget(Builder &builder, const uint64_t index, uint32_t &a
         outputStr += getColorCode(ColorIndex::cyan);
     }
 
-    if (output.empty())
+    if (run.output.empty())
     {
         outputStr += FORMAT("C++Source {} {} ", node->filePath, target->name);
     }
@@ -461,7 +443,7 @@ bool CppSrc::completeBTarget(Builder &builder, const uint64_t index, uint32_t &a
         outputStr += getColorCode(ColorIndex::reset);
     }
 
-    outputStr += output;
+    outputStr += run.output;
     fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
     return false;
 }
@@ -469,39 +451,6 @@ bool CppSrc::completeBTarget(Builder &builder, const uint64_t index, uint32_t &a
 bool operator<(const CppSrc &lhs, const CppSrc &rhs)
 {
     return lhs.node < rhs.node;
-}
-
-void CppMod::completeProcessReaping(const int exitStatusSecond)
-{
-    assert(exitStatus == exitStatusSecond && "Received different exitStatus From ipcManager and process pipe\n");
-
-    RealBTarget &rb = realBTargets[0];
-    rb.exitStatus = exitStatusSecond;
-
-    if (rb.exitStatus == EXIT_SUCCESS)
-    {
-        if (type == SM_FILE_TYPE::HEADER_UNIT || type == SM_FILE_TYPE::PRIMARY_EXPORT ||
-            type == SM_FILE_TYPE::PARTITION_EXPORT)
-        {
-            N2978::BMIFile file{.filePath = interfaceNode->filePath};
-            if (const auto &r2 = IPCManagerBS::createSharedMemoryBMIFile(file); !r2)
-            {
-                printErrorMessage(FORMAT("Failed to create shared-memory BMI-file {}\nof target {}\n",
-                                         interfaceNode->filePath, target->name));
-            }
-            interfaceFileSize = file.fileSize;
-            makeMemoryMappingCalled = true;
-            makeMemoryMappingCompleted = true;
-        }
-    }
-
-    atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
-    if (rb.exitStatus == EXIT_SUCCESS)
-    {
-        atomic_ref(target->buildCacheUpdated).store(true, std::memory_order_release);
-    }
-
-    print(output);
 }
 
 bool CppMod::launchBTarget(Builder &builder)
@@ -519,7 +468,8 @@ bool CppMod::launchBTarget(Builder &builder)
 
     if (waitingFor)
     {
-        return build(builder);
+        //
+        return build(builder, -1, string_view{});
     }
 
     if (realBTargets[0].exitStatus != EXIT_SUCCESS)
@@ -542,69 +492,33 @@ bool CppMod::launchBTarget(Builder &builder)
         return false;
     }
 
+    constexpr uint32_t stackSize = 64 * 1024;
+    char buffer[stackSize];
+    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
+    std::pmr::string cppFullCompileCommand(&alloc);
+    getCompileCommand(cppFullCompileCommand);
+    if (dryRun)
     {
-        // New scope for stack for compile command
-        constexpr uint32_t stackSize = 64 * 1024;
-        char buffer[stackSize];
-        std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-        std::pmr::string cppFullCompileCommand(&alloc);
-        getCompileCommand(cppFullCompileCommand);
-        if (dryRun)
-        {
-            cppFullCompileCommand += '\n';
-            printMessage(cppFullCompileCommand);
-            return false;
-        }
-
-        if (!target->useIPC)
-        {
-            run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this);
-            return true;
-        }
-
-        rb.assignNeedsUpdateToDependents();
-        headerFiles.clear();
-        allCppModDependencies.clear();
-        myBuildCache->headerUnitArray.clear();
-        myBuildCache->moduleArray.clear();
-
-        const Node *endNode = type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode : objectNode;
-        {
-            auto r = N2978::makeIPCManagerBS(endNode->filePath);
-            if (!r)
-            {
-                printErrorMessage(FORMAT("Could not make the build-system manager {}\n", endNode->filePath));
-            }
-            ipcManager = new IPCManagerBS(*r);
-        }
-
-        ipcManagerIndex = builder.registerEventData(this, ipcManager->fd);
-        // This call does nothing on Linux. On Windows, it passes the eventDataIndex as completion-key.
-        if (const auto &r = ipcManager->registerManager(builder.serverFd, ipcManagerIndex); !r)
-        {
-            printErrorMessage(FORMAT("Could not register the build-system manager {}\n", endNode->filePath));
-        }
-
-        run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this);
+        cppFullCompileCommand += '\n';
+        printMessage(cppFullCompileCommand);
+        return false;
     }
 
-    const auto &r2 = ipcManager->completeConnection();
-    if (!r2)
+    if (!target->useIPC)
     {
-        printErrorMessage(r2.error());
+        run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, false);
+        return true;
     }
 
-    if (*r2)
-    {
-        processState = ProcessState::CONNECTED;
+    rb.assignNeedsUpdateToDependents();
+    headerFiles.clear();
+    allCppModDependencies.clear();
+    myBuildCache->headerUnitArray.clear();
+    myBuildCache->moduleArray.clear();
 
-        // completeBTarget will need to be called again with ipcManagerIndex after the event-wait. as completeConnection
-        // never completes synchronously
-        builder.isRecurrentReadFromEventDataCompleted(ipcManagerIndex, message);
-    }
+    run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, true);
+    ipcManager = new IPCManagerBS(run.writePipe);
 
-    // while the above index might be complete with the above call as process might exit early, this function still
-    // return true as we have to wait on the ipcManagerIndex as completeConnection never completes synchronously.
     return true;
 }
 
@@ -637,66 +551,20 @@ bool CppMod::wasIPCLaunchIncomplete(const uint64_t index)
 
 bool CppMod::completeBTarget(Builder &builder, const uint64_t index, uint32_t &activeCount)
 {
-
-    if (ipcManagerIndex == run.stdPipe)
+    const ReadDataInfo &readDataInfo = run.isReadCompleted(index);
+    if (!readDataInfo.completed)
     {
-        if (run.wasProcessLaunchIncomplete(index))
-        {
-            if (run.processState == ProcessState::OUTPUT_CONNECTED)
-            {
-                if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
-                {
-                    return true;
-                }
-            }
-            else
-            {
-                // Process is completed
-                bool breakpoint = true;
-            }
-        }
-        else
-        {
-            if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
-            {
-                return true;
-            }
-        }
-    }
-    else
-    {
-        if (wasIPCLaunchIncomplete(index))
-        {
-            if (processState == ProcessState::CONNECTED)
-            {
-                if (!Builder::isRecurrentReadFromEventDataCompleted(index, message))
-                {
-                    return true;
-                }
-            }
-            else
-            {
-                // Process is completed
-                bool breakpoint = true;
-            }
-        }
-        else
-        {
-            if (!Builder::isRecurrentReadFromEventDataCompleted(index, message))
-            {
-                return true;
-            }
-        }
+        return true;
     }
 
     RealBTarget &rb = realBTargets[0];
     if (!target->useIPC)
     {
         builder.unregisterEventDataAtIndex(index);
-        run.reapProcess();
+        run.reapProcess(false);
         rb.exitStatus = run.exitStatus;
 
-        parseHeaderDeps(output, builder);
+        parseHeaderDeps(run.output, builder);
         if (rb.exitStatus == EXIT_SUCCESS)
         {
             if (type == SM_FILE_TYPE::HEADER_UNIT || type == SM_FILE_TYPE::PRIMARY_EXPORT ||
@@ -720,56 +588,11 @@ bool CppMod::completeBTarget(Builder &builder, const uint64_t index, uint32_t &a
             atomic_ref(target->buildCacheUpdated).store(true, std::memory_order_release);
         }
 
-        print(output);
+        print(run.output);
         return false;
     }
 
-    if (index == ipcManagerIndex)
-    {
-        if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
-        {
-            return true;
-        }
-
-        builder.unregisterEventDataAtIndex(index);
-        run.reapProcess();
-        const int exitStatusLocal = run.exitStatus;
-
-        if (processStateCommon == ProcessState::IPCFD_CLOSED)
-        {
-            completeProcessReaping(exitStatusLocal);
-            return false;
-        }
-
-        exitStatus = exitStatusLocal;
-        processStateCommon = ProcessState::OUTPUTFD_CLOSED;
-
-        // We return true so Builder::decrementFromDependents is not executed twice for this BTarget as true will be
-        // returned when we close the ipcManager.fd.
-        return true;
-    }
-
-#ifndef _WIN32
-    if (processState == ProcessState::LAUNCHED)
-    {
-        // first remove the listen fd from loop
-        builder.unregisterEventDataAtIndex(index);
-        // let's connect. connect will also close the old fd after accepting the connection.
-        if (const auto &r3 = ipcManager->completeConnection(); !r3)
-        {
-            printErrorMessage(FORMAT("Connect Failed for {}\n of Target{} with the following error\n{}\n",
-                                     node->filePath, target->name, r3.error()));
-        }
-        processState = ProcessState::CONNECTED;
-
-        // register new fd for receiving message.
-        Builder::isRecurrentReadFromEventDataCompleted(builder.registerEventData(this, ipcManager->fd), message);
-        return true;
-    }
-
-#endif
-
-    return build(builder);
+    return build(builder, index, readDataInfo.message);
 }
 
 CppMod::CppMod(CppTarget *target_, const Node *node_) : CppSrc(target_, node_)
@@ -856,6 +679,9 @@ void CppMod::makeMemoryFileMapping()
 
 void CppMod::makeAndSendBTCModule(CppMod &mod)
 {
+    // todo
+    // write this buffer directly.
+
     mod.makeMemoryFileMapping();
     N2978::BTCModule btcModule;
     btcModule.requested.filePath = mod.interfaceNode->filePath;
@@ -905,27 +731,134 @@ void CppMod::makeAndSendBTCModule(CppMod &mod)
     }
 }
 
+// For debugging purposes
+N2978::BTCNonModule deserializeBTCNonModule(std::string_view buffer)
+{
+    N2978::BTCNonModule result;
+    const char *ptr = buffer.data();
+    uint32_t bytesRead = 0;
+
+    // BTCNonModule::isHeaderUnit
+    result.isHeaderUnit = readBool(ptr, bytesRead);
+
+    // BTCNonModule::isSystem
+    result.isSystem = readBool(ptr, bytesRead);
+
+    // BTCNonModule::filePath
+    std::string_view filePathView = readStringView(ptr, bytesRead);
+    result.filePath = std::string(filePathView);
+
+    // BTCNonModule::fileSize
+    result.fileSize = readUint32(ptr, bytesRead);
+
+    // BTCNonModule::logicalNames
+    uint32_t logicalNamesCount = readUint32(ptr, bytesRead);
+    result.logicalNames.reserve(logicalNamesCount);
+    for (uint32_t i = 0; i < logicalNamesCount; ++i)
+    {
+        std::string_view sv = readStringView(ptr, bytesRead);
+        result.logicalNames.emplace_back(sv);
+    }
+
+    // BTCNonModule::headerFiles
+    uint32_t headerFilesCount = readUint32(ptr, bytesRead);
+    result.headerFiles.reserve(headerFilesCount);
+    for (uint32_t i = 0; i < headerFilesCount; ++i)
+    {
+        N2978::HeaderFile hf;
+
+        // HeaderFile::logicalName
+        std::string_view logicalNameView = readStringView(ptr, bytesRead);
+        hf.logicalName = std::string(logicalNameView);
+
+        // HeaderFile::filePath
+        std::string_view filePathView = readStringView(ptr, bytesRead);
+        hf.filePath = std::string(filePathView);
+
+        // HeaderFile::isSystem
+        hf.isSystem = readBool(ptr, bytesRead);
+
+        result.headerFiles.emplace_back(std::move(hf));
+    }
+
+    // BTCNonModule::huDeps
+    uint32_t huDepsCount = readUint32(ptr, bytesRead);
+    result.huDeps.reserve(huDepsCount);
+    for (uint32_t i = 0; i < huDepsCount; ++i)
+    {
+        N2978::HuDep dep;
+
+        // HuDep::file::filePath
+        std::string_view filePathView = readStringView(ptr, bytesRead);
+        dep.file.filePath = std::string(filePathView);
+
+        // HuDep::file::fileSize
+        dep.file.fileSize = readUint32(ptr, bytesRead);
+
+        // HuDep::logicalNames
+        uint32_t depLogicalNamesCount = readUint32(ptr, bytesRead);
+        dep.logicalNames.reserve(depLogicalNamesCount);
+        for (uint32_t j = 0; j < depLogicalNamesCount; ++j)
+        {
+            std::string_view sv = readStringView(ptr, bytesRead);
+            dep.logicalNames.emplace_back(sv);
+        }
+
+        // HuDep::isSystem
+        dep.isSystem = readBool(ptr, bytesRead);
+
+        result.huDeps.emplace_back(std::move(dep));
+    }
+
+    // Sanity check
+    if (bytesRead != buffer.size())
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+        /*std::cerr << "WARNING: Deserialized " << bytesRead << " bytes but buffer size is " << buffer.size()
+                  << " (difference: " << (int)buffer.size() - (int)bytesRead << ")\n";*/
+    }
+
+    return result;
+}
+
 void CppMod::makeAndSendBTCNonModule(CppMod &hu)
 {
     hu.makeMemoryFileMapping();
-    N2978::BTCNonModule btcNonModule;
-    btcNonModule.isHeaderUnit = true;
-    btcNonModule.isSystem = hu.target->isSystem;
-    btcNonModule.filePath = hu.interfaceNode->filePath;
-    btcNonModule.fileSize = hu.interfaceFileSize;
+
+    constexpr uint32_t stackSize = 64 * 1024;
+    char buffer[stackSize];
+    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
+    std::pmr::string toBeSend(&alloc);
+
+    // BTCNonModule::isHeaderUnit
+    writeBool(toBeSend, true);
+    // BTCNonModule::isSystem
+    writeBool(toBeSend, hu.target->isSystem);
+    // BTCNonModule::filePath
+    writeStringView(toBeSend, hu.interfaceNode->filePath);
+    // BTCNonModule::fileSize
+    writeUint32(toBeSend, hu.interfaceFileSize);
+    // BTCNonModule::logicalNames
+    writeUint32(toBeSend, hu.logicalNames.size());
     for (const string &str : hu.logicalNames)
     {
-        btcNonModule.logicalNames.emplace_back(str);
+        writeStringView(toBeSend, str);
     }
 
     if (!firstMessageSent)
     {
         firstMessageSent = true;
+        // BTCNonModule::headerFiles
+        writeUint32(toBeSend, composingHeaders.size());
         for (auto &[str, composingNode] : composingHeaders)
         {
             // emplace in header-files to send
-            N2978::HeaderFile h{.logicalName = str, .filePath = composingNode->filePath, .isSystem = target->isSystem};
-            btcNonModule.headerFiles.emplace_back(std::move(h));
+            // HeaderFile::logicalName
+            writeStringView(toBeSend, str);
+            // HeaderFile::filePath
+            writeStringView(toBeSend, composingNode->filePath);
+            // HeaderFile::isSystem
+            writeBool(toBeSend, target->isSystem);
 
             if (!target->ignoreHeaderDeps)
             {
@@ -933,22 +866,42 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
             }
         }
     }
+    else
+    {
+        // BTCNonModule::headerFiles
+        writeUint32(toBeSend, 0);
+    }
 
+    // index of the place-holder size of huDeps
+    uint32_t placeHolderIndex = toBeSend.size();
+
+    // BTCNonModule::huDeps
+    writeUint32(toBeSend, 0);
+
+    uint32_t count = 0;
     for (CppMod *huDep : hu.allCppModDependencies)
     {
         if (allCppModDependencies.emplace(huDep).second)
         {
+            ++count;
             huDep->makeMemoryFileMapping();
             N2978::HuDep dep;
 
-            dep.file.filePath = huDep->interfaceNode->filePath;
-            dep.file.fileSize = huDep->interfaceFileSize;
+            // HuDep::file::filePath
+            writeStringView(toBeSend, huDep->interfaceNode->filePath);
+            // HuDep::file::fileSize
+            writeUint32(toBeSend, huDep->interfaceFileSize);
+
+            // HuDep::logicalNames
+            writeUint32(toBeSend, huDep->logicalNames.size());
             for (const string &str : huDep->logicalNames)
             {
                 dep.logicalNames.emplace_back(str);
+                writeStringView(toBeSend, str);
             }
-            btcNonModule.huDeps.emplace_back(std::move(dep));
-            btcNonModule.isSystem = huDep->target->isSystem;
+
+            // BTCNonModule::isSystem
+            writeBool(toBeSend, huDep->target->isSystem);
 
             if (!target->ignoreHeaderDeps)
             {
@@ -959,13 +912,9 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
             }
         }
     }
+    *reinterpret_cast<uint32_t *>(&toBeSend[placeHolderIndex]) = count;
 
-    if (node->filePath.ends_with("lib1-cpp"))
-    {
-        bool brekapoint = true;
-    }
-
-    if (const auto &r2 = ipcManager->sendMessage(btcNonModule); !r2)
+    if (const auto &r2 = ipcManager->writeInternal(toBeSend); !r2)
     {
         printErrorMessage(FORMAT("send-message fail of header-unit {}\n for {} {}\n of target {}\n.", hu.node->filePath,
                                  type == SM_FILE_TYPE::HEADER_UNIT ? "header-unit" : "module-filee", node->filePath,
@@ -1058,7 +1007,7 @@ void CppMod::print(const string &output) const
     fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
 }
 
-bool CppMod::build(Builder &builder)
+bool CppMod::build(Builder &builder, uint64_t index, string_view message)
 {
     RealBTarget &rb = realBTargets[0];
     if (waitingFor)
@@ -1082,41 +1031,44 @@ bool CppMod::build(Builder &builder)
 
         waitingFor = nullptr;
 
-        /*
-        if (eventData[ipcManagerIndex].firstCall)
-        {
-            bool brekapoint = true;
-        }
-        */
-
-        if constexpr (os == OS::NT)
-        {
-
-            // Only on Windows
-            if (builder.isRecurrentReadFromEventDataCompleted(ipcManagerIndex, message))
-            {
-                printErrorMessage("IpcManager exited before the CTBLastMessage receival.\n");
-            }
-        }
         // Wait for more input
         return true;
     }
 
-    if (builder.isRecurrentReadFromEventDataCompleted(ipcManagerIndex, message))
+    if (message.empty())
     {
-        // process crashed or unexpected halt. As otherwise it must have sent CTB::LAST_MESSAGE
-        // print the output
-        builder.unregisterEventDataAtIndex(ipcManager->fd);
-        ipcManager->closeConnection();
+        builder.unregisterEventDataAtIndex(index);
+        run.reapProcess(true);
+        rb.exitStatus = run.exitStatus;
+
+        if (rb.exitStatus == EXIT_SUCCESS)
+        {
+            if (type == SM_FILE_TYPE::HEADER_UNIT || type == SM_FILE_TYPE::PRIMARY_EXPORT ||
+                type == SM_FILE_TYPE::PARTITION_EXPORT)
+            {
+                N2978::BMIFile file{.filePath = interfaceNode->filePath};
+                if (const auto &r2 = IPCManagerBS::createSharedMemoryBMIFile(file); !r2)
+                {
+                    printErrorMessage(FORMAT("Failed to create shared-memory BMI-file {}\nof target {}\n",
+                                             interfaceNode->filePath, target->name));
+                }
+                interfaceFileSize = file.fileSize;
+                makeMemoryMappingCalled = true;
+                makeMemoryMappingCompleted = true;
+            }
+        }
+
+        atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
+        if (rb.exitStatus == EXIT_SUCCESS)
+        {
+            atomic_ref(target->buildCacheUpdated).store(true, std::memory_order_release);
+        }
+
+        print(run.output);
+
         return false;
     }
 
-    if (!message.ends_with(';'))
-    {
-        // read more as full is not received. Compiler message is delimited by ';'
-        return true;
-    }
-    message.pop_back();
     ipcManager->serverReadString = message;
     char buffer[320];
     N2978::CTB requestType;
@@ -1124,29 +1076,6 @@ bool CppMod::build(Builder &builder)
     {
         printErrorMessage(
             FORMAT("receive-message fail for module-file {}\n of target {}\n.", node->filePath, target->name));
-    }
-    // message is cleared so the next message does not get added in the current message
-    message = "";
-    if (requestType == N2978::CTB::LAST_MESSAGE)
-    {
-        const auto &lastMessage = reinterpret_cast<N2978::CTBLastMessage &>(buffer);
-        output.append(lastMessage.output);
-
-        builder.unregisterEventDataAtIndex(ipcManagerIndex);
-        ipcManager->closeConnection();
-
-        if (processStateCommon == ProcessState::OUTPUTFD_CLOSED)
-        {
-            completeProcessReaping(lastMessage.errorOccurred);
-            return false;
-        }
-
-        exitStatus = lastMessage.errorOccurred;
-        processStateCommon = ProcessState::IPCFD_CLOSED;
-
-        // We return true so Builder::decrementFromDependents is not executed twice for this BTarget as true will be
-        // returned when we close the run.stdPipe.
-        return true;
     }
 
     CppMod *found;
@@ -1186,15 +1115,30 @@ bool CppMod::build(Builder &builder)
                 printErrorMessage(FORMAT("Could not find the header-unit {} requested by file {}\n in target {}.\n",
                                          headerName, node->filePath, target->name));
             }
-            N2978::BTCNonModule response;
 
-            response.filePath = f.data.node->filePath;
-            response.isHeaderUnit = false;
-            response.isSystem = f.isSystem;
+            constexpr uint32_t stackSize = 64 * 1024;
+            char buffer[stackSize];
+            std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
+            std::pmr::string toBeSend(&alloc);
+
+            // BTCNonModule::isHeaderUnit
+            writeBool(toBeSend, false);
+            // BTCNonModule::isSystem
+            writeBool(toBeSend, f.isSystem);
+            // BTCNonModule::filePath
+            writeStringView(toBeSend, f.data.node->filePath);
+            // BTCNonModule::fileSize
+            writeUint32(toBeSend, 0);
+            // BTCNonModule::logicalNames
+            writeUint32(toBeSend, 0);
+
+            uint32_t placeHolderIndex = toBeSend.size();
+            uint32_t count = 0;
 
             bool addedInComposingHeader = false;
             if (!firstMessageSent)
             {
+                writeUint32(toBeSend, -1); // placeholder
                 firstMessageSent = true;
                 for (const auto &[str, composingNode] : composingHeaders)
                 {
@@ -1209,11 +1153,27 @@ bool CppMod::build(Builder &builder)
                         continue;
                     }
 
-                    // emplace in header-files to send
-                    N2978::HeaderFile h{
-                        .logicalName = str, .filePath = composingNode->filePath, .isSystem = target->isSystem};
-                    response.headerFiles.emplace_back(std::move(h));
+                    ++count;
+
+                    writeStringView(toBeSend, str);
+                    // HeaderFile::filePath
+                    writeStringView(toBeSend, composingNode->filePath);
+                    // HeaderFile::isSystem
+                    writeBool(toBeSend, target->isSystem);
                 }
+                *reinterpret_cast<uint32_t *>(&toBeSend[placeHolderIndex]) = count;
+            }
+            else
+            {
+                writeUint32(toBeSend, 0);
+            }
+            // BTCNonModule::huDeps
+            writeUint32(toBeSend, 0);
+
+            if (const auto &r2 = ipcManager->writeInternal(toBeSend); !r2)
+            {
+                printErrorMessage(FORMAT("send-message fail of header-file {}\n for module-file {}\n of target {}\n.",
+                                         f.data.node->filePath, node->filePath, target->name));
             }
 
             if (!addedInComposingHeader)
@@ -1230,20 +1190,14 @@ bool CppMod::build(Builder &builder)
                 }
             }
 
-            if (const auto &r2 = ipcManager->sendMessage(response); !r2)
-            {
-                printErrorMessage(FORMAT("send-message fail of header-file {}\n for module-file {}\n of target {}\n.",
-                                         f.data.node->filePath, node->filePath, target->name));
-            }
-
             // Requested header-file has been sent. Let's receive the next message
             if constexpr (os == OS::NT)
             {
                 // Only on Windows
-                if (Builder::isRecurrentReadFromEventDataCompleted(ipcManagerIndex, message))
+                /*if (Builder::isRecurrentReadFromEventDataCompleted(ipcManagerIndex, message))
                 {
                     printErrorMessage("IpcManager exited before the CTBLastMessage receival.\n");
-                }
+                }*/
             }
             return true;
         }
@@ -1299,8 +1253,7 @@ bool CppMod::build(Builder &builder)
         run.killModuleProcess(type == SM_FILE_TYPE::HEADER_UNIT ? interfaceNode->filePath : objectNode->filePath);
         rb.exitStatus = EXIT_FAILURE;
         atomic_ref(rb.updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
-        builder.unregisterEventDataAtIndex(ipcManagerIndex);
-        ipcManager->closeConnection();
+        builder.unregisterEventDataAtIndex(index);
         return false;
     }
 
@@ -1321,10 +1274,10 @@ bool CppMod::build(Builder &builder)
     if constexpr (os == OS::NT)
     {
         // Only on Windows.
-        if (Builder::isRecurrentReadFromEventDataCompleted(ipcManagerIndex, message))
+        /*if (Builder::isRecurrentReadFromEventDataCompleted(ipcManagerIndex, message))
         {
             printErrorMessage("IpcManager exited before the CTBLastMessage receival.\n");
-        }
+        }*/
     }
     // Requested module or header-unit has been sent. Let's get the next message.
     return true;

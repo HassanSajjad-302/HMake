@@ -7,6 +7,8 @@
 #include "BTarget.hpp"
 #include "BuildSystemFunctions.hpp"
 #include "PointerArrayList.hpp"
+#include "RunCommand.hpp"
+
 #include <condition_variable>
 #include <list>
 #include <stack>
@@ -114,7 +116,7 @@ class Builder
     /// This returns the index in the eventData. This returns the CompletionKey index on Windows and fd itself on Linux.
     uint64_t registerEventData(BTarget *target_, uint64_t fd);
     void unregisterEventDataAtIndex(uint64_t index);
-    static bool isRecurrentReadFromEventDataCompleted(uint64_t eventIndex, string &output);
+    static ReadDataInfo isRecurrentReadFromEventDataCompleted(uint64_t eventIndex, RunCommand &run);
     uint64_t serverFd;
     uint16_t idleCount = 0;
 
@@ -134,6 +136,7 @@ class Builder
     explicit Builder();
     void execute();
     void decrementFromDependents(const RealBTarget &rb);
+    string pruneRunOutput();
 };
 
 #endif // HMAKE_BUILDER_HPP

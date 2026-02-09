@@ -125,11 +125,18 @@ void CppTarget::readModuleMapFromDir(const string &dir)
     }
 }
 
+HeaderFileOrUnit::HeaderFileOrUnit(const uint32_t targetIndex_, CppMod *cppMod_, bool isSystem_)
+    : targetIndex{targetIndex_}, data{.cppMod = cppMod_}, isUnit(true), isSystem(isSystem_)
+{
+}
+HeaderFileOrUnit::HeaderFileOrUnit(const uint32_t targetIndex_, Node *node_, bool isSystem_)
+    : targetIndex{targetIndex_}, data{.node = node_}, isUnit(false), isSystem(isSystem_)
+{
+}
 HeaderFileOrUnit::HeaderFileOrUnit(CppMod *cppMod_, const bool isSystem_)
     : data{.cppMod = cppMod_}, isUnit(true), isSystem(isSystem_)
 {
 }
-
 HeaderFileOrUnit::HeaderFileOrUnit(Node *node_, const bool isSystem_)
     : data{.node = node_}, isUnit(false), isSystem(isSystem_)
 {
@@ -406,12 +413,31 @@ bool CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrU
     }
     else if (!suppressError)
     {
-        string tried =
-            type.isUnit ? "Header-Unit " + type.data.cppMod->node->filePath : "Header-File " + type.data.node->filePath;
-        string alreadyAdded = it->second.isUnit ? "Header-Unit " + it->second.data.cppMod->node->filePath
-                                                : "Header-File " + it->second.data.node->filePath;
+        string alreadyAdded;
+        string tried;
+        if (type.isUnit)
+        {
+            if (type.data.cppMod->node == it->second.data.cppMod->node)
+            {
+                return true;
+            }
+
+            tried = "Header-Unit " + type.data.cppMod->node->filePath;
+alreadyAdded = "Header-Unit " + it->second.data.cppMod->node->filePath;
+        }
+        else
+        {
+            if (type.data.node == it->second.data.node)
+            {
+                return true;
+            }
+
+            tried = "Header-File " + type.data.node->filePath;
+            alreadyAdded = "Header-File " + it->second.data.node->filePath;
+        }
+
         printErrorMessage(
-            FORMAT("In CppTarget{}\nFailed adding headerNmae {} in {}headerNameMapping\nTried\n{}\nAlready Added\n{}\n",
+            FORMAT("In CppTarget{}\nFailed adding headerName {} in {}headerNameMapping\nTried\n{}\nAlready Added\n{}\n",
                    name, headerName, addInReq ? "req" : "useReq", tried, alreadyAdded));
     }
     return false;
@@ -748,7 +774,7 @@ void CppTarget::addHeaderUnitOrFileDir(const Node *includeDir, const string &pre
         return;
     }
 
-    for (const auto &p : recursive_directory_iterator(includeDir->filePath))
+    for (const auto &p : directory_iterator(includeDir->filePath))
     {
         if (p.is_regular_file() &&
             (regexStr.empty() || regex_match(p.path().filename().string(), std::regex(regexStr))))
@@ -926,7 +952,7 @@ void CppTarget::addComposingHeadersLinux()
         R"(algorithm,any,array,atomic,barrier,bit,bitset,charconv,chrono,compare,complex,concepts,condition_variable,coroutine,deque,exception,execution,expected,filesystem,format,forward_list,fstream,functional,future,generator,initializer_list,iomanip,ios,iosfwd,iostream,istream,iterator,latch,limits,list,locale,map,memory,memory_resource,mutex,new,numbers,numeric,optional,ostream,print,queue,random,ranges,ratio,regex,scoped_allocator,semaphore,set,shared_mutex,source_location,span,spanstream,sstream,stack,stacktrace,stdexcept,stop_token,streambuf,string,string_view,syncstream,system_error,text_encoding,thread,tuple,type_traits,typeindex,typeinfo,unordered_map,unordered_set,utility,valarray,variant,vector,version,)";
 
     // Compiler Specific Header ( GCC and Clang).
-    headerNames += R"(cxxabi.h,execinfo.h,unwind.h,immintrin.h,)";
+    headerNames += R"(cxxabi.h,execinfo.h,unwind.h,immintrin.h,emmintrin.h,)";
 
     // C++ version of C compatibility headers
     headerNames +=
@@ -1787,8 +1813,21 @@ void CppTarget::setCompileCommand(std::pmr::string &compileCommand)
 string CppTarget::getDependenciesString() const
 {
     string deps;
-    for (const CppTarget *cppTarget : reqDeps)
+#ifdef BUILD_MODE
+
+    for (const uint32_t index : reqDepsVecIndices)
     {
+        CppTarget *cppTarget = static_cast<CppTarget *>(fileTargetCaches[index].targetCache);
+        if (!cppTarget)
+        {
+            HMAKE_HMAKE_INTERNAL_ERROR
+        }
+#else
+    for (CppTarget *cppTarget : reqDeps)
+    {
+
+#endif
+
         deps += cppTarget->name + '\n';
     }
     return deps;

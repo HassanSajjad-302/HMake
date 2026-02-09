@@ -33,6 +33,9 @@ class IPCManagerCompiler : Manager
     friend struct ::CompilerTest;
     friend struct ::BuildSystemTest;
 
+    tl::expected<uint32_t, std::string> readInternal(char (&buffer)[BUFFERSIZE]) const override;
+    tl::expected<void, std::string> writeInternal(std::string_view buffer) const override;
+
     // This function is used to receive a particular message. Compiler knows what message it expects which will be the
     // template argument.
     template <typename T> tl::expected<T, std::string> receiveMessage() const;
@@ -45,37 +48,25 @@ class IPCManagerCompiler : Manager
     [[nodiscard]] tl::expected<BTCNonModule, std::string> receiveBTCNonModule(const CTBNonModule &nonModule);
 
     // Internal cache for the possible future requests.
-    // In case of modules it includes all the module dependencies. If any dependency is a big-hu, then
-    // ModuleDep::logicalNames
     std::unordered_map<std::string, Response> responses;
 
     //  Compiler can use this function to read the BMI file. BMI should be read using this function to conserve memory.
     static tl::expected<ProcessMappingOfBMIFile, std::string> readSharedMemoryBMIFile(const BMIFile &file);
+
+    [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage(uint32_t fileSize) const;
 
   public:
     // Compiler process can use this function to close the BMI file-mapping to reduce references to shared memory file.
     // Not needed as it will be cleared at process exit.
     static tl::expected<void, std::string> closeBMIFileMapping(const ProcessMappingOfBMIFile &processMappingOfBMIFile);
 
-    // To close the client end pipe/socket connection with the build-system. Not needed as it will be cleared at process
-    // exit.
-    void closeConnection() const;
-
-    // Cache mapping between the file-path and bmi-file-mapping. Only to be queried by the compiler.
-    // passed path must be lexically normal and lower-case on Windows.
+    // Cache mapping between the file-path and bmi-file-mapping. Only to be queried by the compiler. Passed path must be
+    // lexically normal and lower-case on Windows.
     std::unordered_map<std::string, ProcessMappingOfBMIFile> filePathProcessMapping;
-
-    CTBLastMessage lastMessage{};
-#ifdef _WIN32
-    explicit IPCManagerCompiler(uint64_t fd_);
-#else
-    explicit IPCManagerCompiler(int fd_);
-#endif
 
     // For FileType::HEADER_FILE, it can return FileType::HEADER_UNIT, otherwise it will return the request
     // response. Either it will return from the cache or it will fetch it from the build-system
     [[nodiscard]] tl::expected<Response, std::string> findResponse(std::string logicalName, FileType type);
-    [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage() const;
     // This function should not be called if the compilation failed as the build-system does not expect to receive BMI
     // if the compilation failed. Hence, it will not create the file-mapping and nor will it send BTCLastMessage, so the
     // compiler process will indefinitely hang.
@@ -83,8 +74,6 @@ class IPCManagerCompiler : Manager
                                                                      const std::string &filePath) const;
 };
 
-[[nodiscard]] tl::expected<IPCManagerCompiler, std::string> makeIPCManagerCompiler(
-    std::string BMIIfHeaderUnitObjOtherwisePath);
 inline IPCManagerCompiler *managerCompiler;
 
 template <typename T> tl::expected<T, std::string> IPCManagerCompiler::receiveMessage() const

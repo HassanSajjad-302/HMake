@@ -4,6 +4,8 @@
 #include "Manager.hpp"
 #include "Node.hpp"
 #include "PointerPacking.h"
+#include "RunCommand.hpp"
+
 #include <mutex>
 #include <stack>
 #include <thread>
@@ -143,10 +145,7 @@ Builder::Builder()
                 {
                     printErrorMessage(FORMAT("n > activeCount, n {} activeCount {}\n", n, activeEventCount));
                 }
-            }
 
-            if constexpr (ndeb == NDEB::NO)
-            {
                 ++count;
                 if (count == 5)
                 {
@@ -174,9 +173,20 @@ Builder::Builder()
             epoll_event events[128];
             const int n = epoll_wait(serverFd, events, 128, -1);
 
-            if (n > activeEventCount)
+            if constexpr (ndeb == NDEB::NO)
             {
-                bool breakpoint = true;
+                if (n > activeEventCount)
+                {
+                    for (uint32_t i = 0; i < 4096; i++)
+                    {
+                        if (eventData[i])
+                        {
+                            printMessage(eventData[i]->getPrintName() + '\n');
+                        }
+                    }
+                    HMAKE_HMAKE_INTERNAL_ERROR
+                    bool breakpoint = true;
+                }
             }
             for (int i = 0; i < n; i++)
             {
@@ -297,7 +307,7 @@ static bool readFromfd(CompletionKey &k)
 }
 #endif
 
-bool Builder::isRecurrentReadFromEventDataCompleted(const uint64_t eventIndex, string &output)
+ReadDataInfo Builder::isRecurrentReadFromEventDataCompleted(const uint64_t eventIndex, RunCommand &run)
 {
 #ifdef _WIN32
     CompletionKey &k = eventData[eventIndex];
@@ -328,19 +338,18 @@ bool Builder::isRecurrentReadFromEventDataCompleted(const uint64_t eventIndex, s
     const uint64_t readSize = read(eventIndex, buffer, sizeof(buffer) - 1);
     if (readSize == -1)
     {
-        printErrorMessage("read\n");
+        printErrorMessage(N2978::getErrorString());
     }
     if (!readSize)
     {
-        return true;
+        return {"", true};
     }
-    // Ignore output. Consider it a stray ANSI formatting output.
-    if (output.empty() && readSize < 7)
+    run.output.append(buffer, readSize);
+    if (run.output.ends_with(N2978::delimiter))
     {
-        return false;
+        return {run.pruneOutput(), true};
     }
-    output.append(buffer, readSize);
-    return false;
+    return {"", false};
 #endif
 }
 
@@ -478,19 +487,10 @@ void Builder::execute()
                 return;
             }
         }
-        else if (exeMode == ExecuteMode::PARALLEL)
-        {
-            // Maybe in build mode we do parallel round instead of wait round. As no CppTarget or LOAT depend on each
-            // other in Build-Mode in round1. All load direct and transitive deps from cache. This would reduce the
-            // number of executeMutex as just like node-check all thread will call updateBTarget in parallel instead of
-            // waiting on each other.
-            //
-            // Should the node-check
-            // round be floored to a thread-limit. Currently, it will use all threads
-
-            // Another thought is make the performSystemCheck as multi-threaded and the whole build-system as
-            // single-threaded.
-        }
+        // Should the node-check
+        // round be floored to a thread-limit. Currently, it will use all threads
+        // Another thought is make the performSystemCheck as multi-threaded and the whole build-system as
+        // single-threaded.
         else if (exeMode == ExecuteMode::NODE_CHECK)
         {
             if (checkingCount < launchedCount)

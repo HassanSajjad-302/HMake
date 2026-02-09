@@ -2,7 +2,7 @@
 #include "IPCManagerCompiler.hpp"
 #include "Manager.hpp"
 #include "Messages.hpp"
-#include "rapidhash/rapidhash.h"
+#include "rapidhash.h"
 
 #include <string>
 #include <utility>
@@ -22,71 +22,62 @@
 namespace N2978
 {
 
-tl::expected<IPCManagerCompiler, std::string> makeIPCManagerCompiler(std::string BMIIfHeaderUnitObjOtherwisePath)
-{
-#ifdef _WIN32
-    BMIIfHeaderUnitObjOtherwisePath = R"(\\.\pipe\)" + BMIIfHeaderUnitObjOtherwisePath;
-    HANDLE fd = CreateFileA(BMIIfHeaderUnitObjOtherwisePath.data(), // pipe name
-                            GENERIC_READ |                          // read and write access
-                                GENERIC_WRITE,
-                            0,             // no sharing
-                            nullptr,       // default security attributes
-                            OPEN_EXISTING, // opens existing pipe
-                            0,             // default attributes
-                            nullptr);      // no template file
-
-    // Break if the pipe handle is valid.
-
-    if (fd == INVALID_HANDLE_VALUE)
-    {
-        return tl::unexpected(getErrorString());
-    }
-    return IPCManagerCompiler(reinterpret_cast<uint64_t>(fd));
-#else
-    const int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-
-    if (fd == -1)
-    {
-        return tl::unexpected(getErrorString());
-    }
-
-    // Prepare address structure
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-
-    // We use file hash to make a file path smaller, since there is a limit of NAME_MAX that is generally 108 bytes.
-    // TODO
-    // Have an option to receive this path in constructor to make it compatible with Android and IOS.
-    std::string prependDir = "/tmp/";
-    const uint64_t hash = rapidhash(BMIIfHeaderUnitObjOtherwisePath.c_str(), BMIIfHeaderUnitObjOtherwisePath.size());
-    prependDir.append(to16charHexString(hash));
-    std::copy(prependDir.begin(), prependDir.end(), addr.sun_path);
-
-    if (connect(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == -1)
-    {
-        return tl::unexpected(getErrorString());
-    }
-#endif
-
-    return IPCManagerCompiler(fd);
-}
-
-#ifdef _WIN32
-IPCManagerCompiler::IPCManagerCompiler(const uint64_t fd_)
-{
-    fd = fd_;
-}
-#else
-IPCManagerCompiler::IPCManagerCompiler(const int fd_)
-{
-    fd = fd_;
-}
-#endif
-
 Response::Response(std::string filePath_, const ProcessMappingOfBMIFile &mapping_, const FileType type_,
                    const bool isSystem_)
     : filePath(std::move(filePath_)), mapping(mapping_), type(type_), isSystem(isSystem_)
 {
+}
+
+tl::expected<uint32_t, std::string> IPCManagerCompiler::readInternal(char (&buffer)[4096]) const
+{
+    int32_t bytesRead;
+#ifdef _WIN32
+    const bool success = ReadFile((HANDLE)STD_INPUT_HANDLE, // pipe handle
+                                  buffer,                   // buffer to receive reply
+                                  BUFFERSIZE,               // size of buffer
+                                  LPDWORD(&bytesRead),      // number of bytes read
+                                  nullptr);                 // not overlapped
+
+    if (const uint32_t lastError = GetLastError(); !success && lastError != ERROR_MORE_DATA)
+    {
+        return tl::unexpected(getErrorString());
+    }
+
+#else
+    bytesRead = read(STDIN_FILENO, buffer, BUFFERSIZE);
+    if (bytesRead == -1)
+    {
+        return tl::unexpected(getErrorString());
+    }
+#endif
+
+    if (!bytesRead)
+    {
+        return tl::unexpected(getErrorString(ErrorCategory::READ_FILE_ZERO_BYTES_READ));
+    }
+
+    return bytesRead;
+}
+
+tl::expected<void, std::string> IPCManagerCompiler::writeInternal(const std::string_view buffer) const
+{
+#ifdef _WIN32
+    const bool success = WriteFile(reinterpret_cast<HANDLE>(STD_OUTPUT_HANDLE), // pipe handle
+                                   buffer.data(),                               // message
+                                   buffer.size(),                               // message length
+                                   nullptr,                                     // bytes written
+                                   nullptr);                                    // not overlapped
+    if (!success)
+    {
+        return tl::unexpected(getErrorString());
+    }
+#else
+    if (const auto &r = writeAll(STDOUT_FILENO, buffer.data(), buffer.size()); !r)
+    {
+        return tl::unexpected(r.error());
+    }
+#endif
+    return {};
 }
 
 tl::expected<void, std::string> IPCManagerCompiler::receiveBTCLastMessage() const
@@ -121,7 +112,8 @@ tl::expected<BTCModule, std::string> IPCManagerCompiler::receiveBTCModule(const 
 {
     std::string buffer = getBufferWithType(CTB::MODULE);
     writeString(buffer, moduleName.moduleName);
-    buffer.push_back(';');
+    writeUInt32(buffer, buffer.size());
+    buffer.append(delimiter, strlen(delimiter));
     // This call sends the CTBModule to the build-system.
     if (const auto &r = writeInternal(buffer); !r)
     {
@@ -194,7 +186,8 @@ tl::expected<BTCNonModule, std::string> IPCManagerCompiler::receiveBTCNonModule(
     std::string buffer = getBufferWithType(CTB::NON_MODULE);
     buffer.push_back(nonModule.isHeaderUnit);
     writeString(buffer, nonModule.logicalName);
-    buffer.push_back(';');
+    writeUInt32(buffer, buffer.size());
+    buffer.append(delimiter, strlen(delimiter));
     // This call sends the CTBNonModule to the build-system.
     if (const auto &r = writeInternal(buffer); !r)
     {
@@ -319,15 +312,12 @@ tl::expected<Response, std::string> IPCManagerCompiler::findResponse(std::string
     }
 }
 
-tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage() const
+tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const uint32_t fileSize) const
 {
     std::string buffer = getBufferWithType(CTB::LAST_MESSAGE);
-    buffer.push_back(lastMessage.errorOccurred);
-    writeString(buffer, lastMessage.output);
-    writeString(buffer, lastMessage.errorOutput);
-    writeString(buffer, lastMessage.logicalName);
-    writeUInt32(buffer, lastMessage.fileSize);
-    buffer.push_back(';');
+    writeUInt32(buffer, fileSize);
+    writeUInt32(buffer, buffer.size());
+    buffer.append(delimiter, strlen(delimiter));
     if (const auto &r = writeInternal(buffer); !r)
     {
         return tl::unexpected(r.error());
@@ -373,7 +363,7 @@ tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const std
     UnmapViewOfFile(pView);
     CloseHandle(hFile);
 
-    if (const auto &r = sendCTBLastMessage(); !r)
+    if (const auto &r = sendCTBLastMessage(logicalName, fileSize); !r)
     {
         return tl::unexpected(r.error());
     }
@@ -418,20 +408,19 @@ tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const std
         return tl::unexpected(getErrorString());
     }
 
-    if (const auto &r = sendCTBLastMessage(); !r)
+    if (const auto &r = sendCTBLastMessage(fileSize); !r)
     {
         return tl::unexpected(r.error());
     }
 
-    if (lastMessage.errorOccurred == EXIT_SUCCESS)
+    // Build-system will send the BTCLastMessage after it has created the BMI file-mapping. Compiler process can not
+    // exit before that.
+    if (const auto &r = receiveBTCLastMessage(); !r)
     {
-        if (const auto &r = receiveBTCLastMessage(); !r)
-        {
-            return tl::unexpected(r.error());
-        }
+        return tl::unexpected(r.error());
     }
-
     munmap(mapping, fileSize);
+
 #endif
 
     return {};
@@ -512,15 +501,6 @@ tl::expected<void, std::string> IPCManagerCompiler::closeBMIFileMapping(
     }
 #endif
     return {};
-}
-
-void IPCManagerCompiler::closeConnection() const
-{
-#ifdef _WIN32
-    CloseHandle(reinterpret_cast<HANDLE>(fd));
-#else
-    close(fd);
-#endif
 }
 
 bool operator==(const CTBNonModule &lhs, const CTBNonModule &rhs)

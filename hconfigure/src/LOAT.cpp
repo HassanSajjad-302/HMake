@@ -409,6 +409,10 @@ bool LOAT::launchBTarget(Builder &builder)
         objectFileProducer->getObjectFiles(&objectFiles);
     }
 
+    if (name == "hu/LLVMMinTableGen")
+    {
+        bool breakpoint = true;
+    }
     if (objectFiles.empty())
     {
         if (evaluate(TargetType::LIBRARY_STATIC))
@@ -440,41 +444,19 @@ bool LOAT::launchBTarget(Builder &builder)
         return false;
     }
 
-    r.startAsyncProcess(linkWithTargets.c_str(), builder, this);
+    r.startAsyncProcess(linkWithTargets.c_str(), builder, this, false);
     return true;
 }
 
 bool LOAT::completeBTarget(Builder &builder, const uint64_t index, uint32_t &activeCount)
 {
-    if (r.wasProcessLaunchIncomplete(index))
+    if (!r.isReadCompleted(index).completed)
     {
-        if (r.processState == ProcessState::OUTPUT_CONNECTED)
-        {
-            if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
-            {
-                recurrentCall = true;
-                return true;
-            }
-            recurrentCall = true;
-        }
-        else
-        {
-            // Process is completed
-            bool breakpoint = true;
-        }
-    }
-    else
-    {
-        if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
-        {
-            recurrentCall = true;
-            return true;
-        }
-        recurrentCall = true;
+        return true;
     }
 
     builder.unregisterEventDataAtIndex(index);
-    r.reapProcess();
+    r.reapProcess(false);
     realBTargets[0].exitStatus = r.exitStatus;
 
     constexpr uint32_t stackSize = 64 * 1024;
@@ -485,6 +467,11 @@ bool LOAT::completeBTarget(Builder &builder, const uint64_t index, uint32_t &act
     setLinkOrArchiveCommands(linkWithTargets);
 
     atomic_ref(realBTargets[0].updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
+    if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+    {
+        realBTargets[0].assignNeedsUpdateToDependents();
+    }
+
     string outputStr;
     if (isConsole)
     {
@@ -498,7 +485,7 @@ bool LOAT::completeBTarget(Builder &builder, const uint64_t index, uint32_t &act
         }
     }
 
-    if (output.empty())
+    if (r.output.empty())
     {
         string str;
         if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -526,7 +513,7 @@ bool LOAT::completeBTarget(Builder &builder, const uint64_t index, uint32_t &act
         outputStr += getColorCode(ColorIndex::reset);
     }
 
-    outputStr += output;
+    outputStr += r.output;
     {
         fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
     }

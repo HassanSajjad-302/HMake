@@ -63,8 +63,6 @@ class CppSrc : public ObjectFile
     /// If the file has .c extension, it is a C source-file. If .S or .s, it is an ASSEMBLY file. Otherwise, C++ file
     SourceType sourceType = SourceType::CPP;
 
-    ProcessState processState = ProcessState::LAUNCHED;
-
     CppSrc(CppTarget *target_, const Node *node_);
     string getPrintName() const override;
     /// This function compares compile-command with build-cache and also set Node::toBeChecked of source-node,
@@ -87,7 +85,6 @@ class CppSrc : public ObjectFile
     SourceType setSourceType();
 
     RunCommand run;
-    string output;
     virtual bool launchBTarget(Builder &builder) override;
     virtual bool completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount) override;
 };
@@ -104,10 +101,6 @@ enum class SM_FILE_TYPE : uint8_t
 
 struct CppMod final : CppSrc
 {
-    string message;
-    int exitStatus;
-    void completeProcessReaping(int exitStatusSecond);
-
     /// Those header-files which are #included in this module or hu. These are initialized from config-cache as big-hu
     /// have these. While Source::headerFiles have all the header-files of ours and our dependencies for accurate
     /// rebuilds.
@@ -115,9 +108,6 @@ struct CppMod final : CppSrc
 
     /// All dependencies of this module or hu. includes both header-units and modules.
     flat_hash_set<CppMod *> allCppModDependencies;
-
-    uint64_t ipcManagerIndex = -1;
-    ProcessState processStateCommon = ProcessState::LAUNCHED;
 
     bool launchBTarget(Builder &builder) override;
     bool wasIPCLaunchIncomplete(uint64_t index);
@@ -192,7 +182,7 @@ struct CppMod final : CppSrc
     /// CppMod::updateBTarget function is responsible for launching the IPC server and the compilation process. This
     /// function interacts with this server and manages the build.
     /// \returns true if we are waiting on a dependency, false if we have completed the compilation.
-    bool build(Builder &builder);
+    bool build(Builder &builder, uint64_t index, string_view message);
 
     /// Launches IPC server and the compilation process if the module or hu needs to be updated. Sets \p isComplete to
     /// true if we are waiting for a module or hu to get compiled first.

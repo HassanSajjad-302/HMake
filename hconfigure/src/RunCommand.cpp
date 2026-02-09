@@ -1,8 +1,10 @@
 
 #include "RunCommand.hpp"
+
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "IPCManagerBS.hpp"
+#include <utility>
 #ifdef _WIN32
 #else
 #include "sys/wait.h"
@@ -137,7 +139,28 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
 
 bool RunCommand::wasProcessLaunchIncomplete(const uint64_t index)
 {
-#ifdef _WIN32
+    {
+        if (run.processState == ProcessState::OUTPUT_CONNECTED)
+        {
+            if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
+            {
+                return true;
+            }
+        }
+        else
+        {
+            // Process is completed
+            bool breakpoint = true;
+        }
+    }
+    else
+    {
+        if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
+        {
+            return true;
+        }
+    }
+
     if (processState == ProcessState::LAUNCHED)
     {
         CompletionKey &k = eventData[index];
@@ -157,9 +180,6 @@ bool RunCommand::wasProcessLaunchIncomplete(const uint64_t index)
         printErrorMessage(N2978::getErrorString());
     }
     return false;
-#else
-    return false;
-#endif
 }
 
 void RunCommand::reapProcess() const
@@ -194,33 +214,54 @@ void RunCommand::killModuleProcess(const string &processName) const
 
 #else
 
-uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget)
+// todo
+//  unaccounted for close() calls.
+
+uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget, bool haveWritePipe)
 {
     // Create pipes for stdout and stderr
-    int stdPipesLocal[2];
-    if (pipe(stdPipesLocal) == -1)
+    int stdoutPipesLocal[2];
+    if (pipe(stdoutPipesLocal) == -1)
     {
-        printErrorMessage("Error Creating Pipes\n");
+        printErrorMessage(N2978::getErrorString());
     }
+    readPipe = stdoutPipesLocal[0];
 
-    stdPipe = stdPipesLocal[0];
+    // Create pipe for stdin
+    int stdinPipesLocal[2];
+    if (haveWritePipe)
+    {
+        if (pipe(stdinPipesLocal) == -1)
+        {
+            printErrorMessage(N2978::getErrorString());
+        }
+        writePipe = stdinPipesLocal[1];
+    }
 
     pid = fork();
     if (pid == -1)
     {
-        printErrorMessage("fork");
+        printErrorMessage(N2978::getErrorString());
     }
     if (pid == 0)
     {
         // Child process
 
         // Redirect stdout and stderr to the pipes
-        dup2(stdPipesLocal[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
-        dup2(stdPipesLocal[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
+        dup2(stdoutPipesLocal[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
+        dup2(stdoutPipesLocal[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
 
         // Close unused pipe ends
-        close(stdPipesLocal[0]);
-        close(stdPipesLocal[1]);
+        close(stdoutPipesLocal[0]);
+        close(stdoutPipesLocal[1]);
+
+        if (haveWritePipe)
+        {
+            // Redirect stdin from the pipe
+            dup2(stdinPipesLocal[0], STDIN_FILENO);
+            close(stdinPipesLocal[0]);
+            close(stdinPipesLocal[1]);
+        }
 
         wordexp_t p;
         if (wordexp(command, &p, 0) != 0)
@@ -243,15 +284,22 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
 
     // Parent process
     // Close unused pipe ends
-    close(stdPipesLocal[1]);
-
-    builder.registerEventData(bTarget, stdPipe);
-    return stdPipe;
+    close(stdoutPipesLocal[1]);
+    builder.registerEventData(bTarget, readPipe);
+    if (haveWritePipe)
+    {
+        close(stdinPipesLocal[0]);
+    }
+    return readPipe;
 }
 
-bool RunCommand::wasProcessLaunchIncomplete(uint64_t index)
+ReadDataInfo RunCommand::isReadCompleted(const uint64_t index)
 {
-    return false;
+    return Builder::isRecurrentReadFromEventDataCompleted(index, *this);
+}
+
+ReadDataInfo::ReadDataInfo(string message_, bool completed_) : message(std::move(message_)), completed(completed_)
+{
 }
 
 void RunCommand::runProcess(const char *command)
@@ -263,7 +311,7 @@ void RunCommand::runProcess(const char *command)
         printErrorMessage("Error Creating Pipes\n");
     }
 
-    stdPipe = stdPipesLocal[0];
+    readPipe = stdPipesLocal[0];
 
     pid = fork();
     if (pid == -1)
@@ -308,7 +356,7 @@ void RunCommand::runProcess(const char *command)
     char buffer[4096 * 16];
     while (true)
     {
-        if (const uint64_t readSize = read(stdPipe, buffer, sizeof(buffer) - 1))
+        if (const uint64_t readSize = read(readPipe, buffer, sizeof(buffer) - 1))
         {
             output.append(buffer, readSize);
         }
@@ -319,7 +367,7 @@ void RunCommand::runProcess(const char *command)
     }
 
     // Close the read ends of the pipes
-    close(stdPipe);
+    close(readPipe);
 
     int status;
     if (waitpid(pid, &status, 0) < 0)
@@ -329,15 +377,23 @@ void RunCommand::runProcess(const char *command)
     exitStatus = WEXITSTATUS(status);
 }
 
-void RunCommand::reapProcess()
+void RunCommand::reapProcess(bool haveWritePipe)
 {
     if (waitpid(pid, &exitStatus, 0) < 0)
     {
-        printErrorMessage("waitpid");
+        printErrorMessage(N2978::getErrorString());
     }
-    if (close(stdPipe) == -1)
+    if (close(readPipe) == -1)
     {
-        printErrorMessage("close failed\n");
+        printErrorMessage(N2978::getErrorString());
+    }
+
+    if (haveWritePipe)
+    {
+        if (close(writePipe) == -1)
+        {
+            printErrorMessage(N2978::getErrorString());
+        }
     }
 }
 
@@ -347,6 +403,30 @@ void RunCommand::killModuleProcess(const string &processName) const
     {
         printErrorMessage(FORMAT("Killing module process {} failed.\n", processName));
     }
+}
+
+string RunCommand::pruneOutput()
+{
+    if (!output.ends_with(N2978::delimiter))
+    {
+        return "";
+    }
+
+    // Prune the compiler output. and make a new string of the compiler-message output.
+    const uint32_t outputSize = output.size();
+    if (outputSize < 4 + strlen(N2978::delimiter))
+    {
+        printErrorMessage("Received string only has delimiter but not the size of payload\n");
+    }
+
+    const uint32_t payloadSize =
+        *reinterpret_cast<uint32_t *>(output.data() + (outputSize - (4 + strlen(N2978::delimiter))));
+    const char *payloadStart = output.data() + (outputSize - (4 + strlen(N2978::delimiter) + payloadSize));
+
+    string str{payloadStart, payloadSize};
+    output.resize(outputSize - (4 + strlen(N2978::delimiter) + payloadSize));
+
+    return str;
 }
 
 #endif

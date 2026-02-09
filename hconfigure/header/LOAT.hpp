@@ -52,7 +52,6 @@ class LOAT : public PLOAT
     bool launchBTarget(Builder &builder) override;
     bool completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount) override;
     RunCommand r;
-    string output;
 };
 
 bool operator<(const LOAT &lhs, const LOAT &rhs);
