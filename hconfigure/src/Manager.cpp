@@ -50,6 +50,9 @@ std::string getErrorString(const ErrorCategory errorCategory_)
 
     switch (errorCategory_)
     {
+    case ErrorCategory::PARSING_ERROR:
+        errorString = "N2978 Message Parsing Error.";
+        break;
     case ErrorCategory::READ_FILE_ZERO_BYTES_READ:
         errorString = "Error: ReadFile Zero Bytes Read.";
         break;
@@ -112,44 +115,51 @@ void Manager::writeUInt32(std::string &buffer, const uint32_t value)
     buffer.append(ptr, ptr + 4);
 }
 
-void Manager::writeString(std::string &buffer, const std::string &str)
+void Manager::writeString(std::string &buffer, const std::string_view &str)
 {
     writeUInt32(buffer, str.size());
     buffer.append(str.begin(), str.end()); // Insert all characters
 }
 
-void Manager::writeProcessMappingOfBMIFile(std::string &buffer, const BMIFile &file)
+void Manager::writePath(std::string &buffer, const std::string_view &str)
 {
-    writeString(buffer, file.filePath);
+    writeUInt32(buffer, str.size());
+    buffer.append(str.begin(), str.end()); // Insert all characters
+    buffer.push_back('\0');
+}
+
+void Manager::writeBMIFile(std::string &buffer, const BMIFile &file)
+{
+    writePath(buffer, file.filePath);
     writeUInt32(buffer, file.fileSize);
 }
 
 void Manager::writeModuleDep(std::string &buffer, const ModuleDep &dep)
 {
     buffer.push_back(dep.isHeaderUnit);
-    writeProcessMappingOfBMIFile(buffer, dep.file);
-    writeVectorOfStrings(buffer, dep.logicalNames);
+    writeBMIFile(buffer, dep.file);
     buffer.push_back(dep.isSystem);
+    writeVectorOfStrings(buffer, dep.logicalNames);
 }
 
 void Manager::writeHuDep(std::string &buffer, const HuDep &dep)
 {
-    writeProcessMappingOfBMIFile(buffer, dep.file);
-    writeVectorOfStrings(buffer, dep.logicalNames);
+    writeBMIFile(buffer, dep.file);
     buffer.push_back(dep.isSystem);
+    writeVectorOfStrings(buffer, dep.logicalNames);
 }
 
 void Manager::writeHeaderFile(std::string &buffer, const HeaderFile &dep)
 {
     writeString(buffer, dep.logicalName);
-    writeString(buffer, dep.filePath);
+    writePath(buffer, dep.filePath);
     buffer.push_back(dep.isSystem);
 }
 
-void Manager::writeVectorOfStrings(std::string &buffer, const std::vector<std::string> &strs)
+void Manager::writeVectorOfStrings(std::string &buffer, const std::vector<std::string_view> &strs)
 {
     writeUInt32(buffer, strs.size());
-    for (const std::string &str : strs)
+    for (const std::string_view &str : strs)
     {
         writeString(buffer, str);
     }
@@ -160,7 +170,7 @@ void Manager::writeVectorOfProcessMappingOfBMIFiles(std::string &buffer, const s
     writeUInt32(buffer, files.size());
     for (const BMIFile &file : files)
     {
-        writeProcessMappingOfBMIFile(buffer, file);
+        writeBMIFile(buffer, file);
     }
 }
 
@@ -191,287 +201,62 @@ void Manager::writeVectorOfHeaderFiles(std::string &buffer, const std::vector<He
     }
 }
 
-tl::expected<bool, std::string> Manager::readBoolFromPipe(char (&buffer)[BUFFERSIZE], uint32_t &bytesRead,
-                                                          uint32_t &bytesProcessed) const
+tl::expected<bool, std::string> Manager::readBool(const std::string_view message, uint32_t &bytesRead)
 {
-    bool result;
-    const auto &r =
-        readNumberOfBytes(reinterpret_cast<char *>(&result), sizeof(result), buffer, bytesRead, bytesProcessed);
-    if (!r)
+    if (bytesRead + 1 > message.size())
     {
-        return tl::unexpected(r.error());
+        return tl::unexpected(getErrorString(ErrorCategory::PARSING_ERROR));
     }
+    bool result = *reinterpret_cast<const bool *>(message.data() + bytesRead);
+    bytesRead += 1;
     return result;
 }
 
-tl::expected<uint32_t, std::string> Manager::readUInt32FromPipe(char (&buffer)[4096], uint32_t &bytesRead,
-                                                                uint32_t &bytesProcessed) const
+tl::expected<uint32_t, std::string> Manager::readUInt32(const std::string_view message, uint32_t &bytesRead)
 {
-    uint32_t size;
-    if (const auto &r = readNumberOfBytes(reinterpret_cast<char *>(&size), 4, buffer, bytesRead, bytesProcessed); !r)
+    if (bytesRead + 4 > message.size())
     {
-        return tl::unexpected(r.error());
+        return tl::unexpected(getErrorString(ErrorCategory::PARSING_ERROR));
     }
-    return size;
+    uint32_t result = *reinterpret_cast<const uint32_t *>(message.data() + bytesRead);
+    bytesRead += 4;
+    return result;
 }
 
-tl::expected<std::string, std::string> Manager::readStringFromPipe(char (&buffer)[BUFFERSIZE], uint32_t &bytesRead,
-                                                                   uint32_t &bytesProcessed) const
+tl::expected<std::string_view, std::string> Manager::readString(const std::string_view message, uint32_t &bytesRead)
 {
-    auto r = readUInt32FromPipe(buffer, bytesRead, bytesProcessed);
+    auto r = readUInt32(message, bytesRead);
     if (!r)
     {
         return tl::unexpected(r.error());
     }
     const uint32_t stringSize = *r;
-    std::string str(stringSize, 'a');
-    if (const auto &r2 = readNumberOfBytes(str.data(), stringSize, buffer, bytesRead, bytesProcessed); !r2)
+    if (bytesRead + stringSize > message.size())
     {
-        return tl::unexpected(r2.error());
+        return tl::unexpected(getErrorString(ErrorCategory::PARSING_ERROR));
     }
-    return str;
+    std::string_view result = {message.data() + bytesRead, stringSize};
+    bytesRead += stringSize;
+    return result;
 }
 
-tl::expected<BMIFile, std::string> Manager::readProcessMappingOfBMIFileFromPipe(char (&buffer)[4096],
-                                                                                uint32_t &bytesRead,
-                                                                                uint32_t &bytesProcessed) const
+tl::expected<std::string_view, std::string> Manager::readPath(const std::string_view message, uint32_t &bytesRead)
 {
-    const auto &r = readStringFromPipe(buffer, bytesRead, bytesProcessed);
+    auto r = readUInt32(message, bytesRead);
     if (!r)
     {
         return tl::unexpected(r.error());
     }
-    const auto &r2 = readUInt32FromPipe(buffer, bytesRead, bytesProcessed);
-
-    BMIFile file;
-    file.filePath = *r;
-    file.fileSize = *r2;
-    return file;
+    const uint32_t stringSize = *r;
+    if (bytesRead + stringSize > message.size())
+    {
+        return tl::unexpected(getErrorString(ErrorCategory::PARSING_ERROR));
+    }
+    std::string_view result = {message.data() + bytesRead, stringSize};
+    bytesRead += stringSize;
+    // This string is followed by \0
+    bytesRead += 1;
+    return result;
 }
 
-tl::expected<std::vector<std::string>, std::string> Manager::readVectorOfStringFromPipe(char (&buffer)[BUFFERSIZE],
-                                                                                        uint32_t &bytesRead,
-                                                                                        uint32_t &bytesProcessed) const
-{
-    const auto &r = readUInt32FromPipe(buffer, bytesRead, bytesProcessed);
-    if (!r)
-    {
-        return tl::unexpected(r.error());
-    }
-    const uint32_t vectorSize = *r;
-    std::vector<std::string> vec;
-    vec.reserve(vectorSize);
-    for (uint32_t i = 0; i < vectorSize; ++i)
-    {
-        const auto &r2 = readStringFromPipe(buffer, bytesRead, bytesProcessed);
-        if (!r2)
-        {
-            return tl::unexpected(r2.error());
-        }
-        vec.emplace_back(*r2);
-    }
-    return vec;
-}
-
-tl::expected<ModuleDep, std::string> Manager::readModuleDepFromPipe(char (&buffer)[4096], uint32_t &bytesRead,
-                                                                    uint32_t &bytesProcessed) const
-{
-    const auto &r = readBoolFromPipe(buffer, bytesRead, bytesProcessed);
-    if (!r)
-    {
-        return tl::unexpected(r.error());
-    }
-
-    const auto &r2 = readProcessMappingOfBMIFileFromPipe(buffer, bytesRead, bytesProcessed);
-    if (!r2)
-    {
-        return tl::unexpected(r2.error());
-    }
-
-    const auto &r3 = readVectorOfStringFromPipe(buffer, bytesRead, bytesProcessed);
-    if (!r3)
-    {
-        return tl::unexpected(r3.error());
-    }
-
-    const auto &r4 = readBoolFromPipe(buffer, bytesRead, bytesProcessed);
-    if (!r4)
-    {
-        return tl::unexpected(r4.error());
-    }
-
-    ModuleDep modDep;
-
-    modDep.isHeaderUnit = *r;
-    modDep.file = *r2;
-    modDep.logicalNames = *r3;
-    modDep.isSystem = *r4;
-
-    return modDep;
-}
-
-tl::expected<std::vector<ModuleDep>, std::string> Manager::readVectorOfModuleDepFromPipe(char (&buffer)[4096],
-                                                                                         uint32_t &bytesRead,
-                                                                                         uint32_t &bytesProcessed) const
-{
-    const auto &vectorSize = readUInt32FromPipe(buffer, bytesRead, bytesProcessed);
-    if (!vectorSize)
-    {
-        return tl::unexpected(vectorSize.error());
-    }
-
-    std::vector<ModuleDep> vec;
-    vec.reserve(*vectorSize);
-    for (uint32_t i = 0; i < *vectorSize; ++i)
-    {
-        const auto &r = readModuleDepFromPipe(buffer, bytesRead, bytesProcessed);
-        if (!r)
-        {
-            return tl::unexpected(r.error());
-        }
-
-        vec.emplace_back(*r);
-    }
-    return vec;
-}
-
-tl::expected<HuDep, std::string> Manager::readHuDepFromPipe(char (&buffer)[4096], uint32_t &bytesRead,
-                                                            uint32_t &bytesProcessed) const
-{
-    const auto &r = readProcessMappingOfBMIFileFromPipe(buffer, bytesRead, bytesProcessed);
-    if (!r)
-    {
-        return tl::unexpected(r.error());
-    }
-
-    const auto &r2 = readVectorOfStringFromPipe(buffer, bytesRead, bytesProcessed);
-    if (!r2)
-    {
-        return tl::unexpected(r2.error());
-    }
-
-    const auto &r3 = readBoolFromPipe(buffer, bytesRead, bytesProcessed);
-    if (!r3)
-    {
-        return tl::unexpected(r3.error());
-    }
-
-    HuDep huDep;
-    huDep.file = *r;
-    huDep.logicalNames = *r2;
-    huDep.isSystem = *r3;
-    return huDep;
-}
-
-tl::expected<std::vector<HuDep>, std::string> Manager::readVectorOfHuDepFromPipe(char (&buffer)[4096],
-                                                                                 uint32_t &bytesRead,
-                                                                                 uint32_t &bytesProcessed) const
-{
-    const auto &vectorSize = readUInt32FromPipe(buffer, bytesRead, bytesProcessed);
-    if (!vectorSize)
-    {
-        return tl::unexpected(vectorSize.error());
-    }
-
-    std::vector<HuDep> vec;
-    vec.reserve(*vectorSize);
-    for (uint32_t i = 0; i < *vectorSize; ++i)
-    {
-        const auto &r = readHuDepFromPipe(buffer, bytesRead, bytesProcessed);
-        if (!r)
-        {
-            return tl::unexpected(r.error());
-        }
-        vec.emplace_back(*r);
-    }
-    return vec;
-}
-
-tl::expected<HeaderFile, std::string> Manager::readHeaderFileFromPipe(char (&buffer)[4096], uint32_t &bytesRead,
-                                                                      uint32_t &bytesProcessed) const
-{
-
-    const auto &r = readStringFromPipe(buffer, bytesRead, bytesProcessed);
-    if (!r)
-    {
-        return tl::unexpected(r.error());
-    }
-
-    const auto &r2 = readStringFromPipe(buffer, bytesRead, bytesProcessed);
-    if (!r2)
-    {
-        return tl::unexpected(r2.error());
-    }
-
-    const auto &r3 = readBoolFromPipe(buffer, bytesRead, bytesProcessed);
-    if (!r3)
-    {
-        return tl::unexpected(r3.error());
-    }
-
-    HeaderFile hf;
-    hf.logicalName = *r;
-    hf.filePath = *r2;
-    hf.isSystem = *r3;
-    return hf;
-}
-
-tl::expected<std::vector<HeaderFile>, std::string> Manager::readVectorOfHeaderFileFromPipe(
-    char (&buffer)[4096], uint32_t &bytesRead, uint32_t &bytesProcessed) const
-{
-    const auto &vectorSize = readUInt32FromPipe(buffer, bytesRead, bytesProcessed);
-    if (!vectorSize)
-    {
-        return tl::unexpected(vectorSize.error());
-    }
-
-    std::vector<HeaderFile> vec;
-    vec.reserve(*vectorSize);
-    for (uint32_t i = 0; i < *vectorSize; ++i)
-    {
-        const auto &r = readHeaderFileFromPipe(buffer, bytesRead, bytesProcessed);
-        if (!r)
-        {
-            return tl::unexpected(r.error());
-        }
-        vec.emplace_back(*r);
-    }
-    return vec;
-}
-
-tl::expected<void, std::string> Manager::readNumberOfBytes(char *output, const uint32_t size,
-                                                           char (&buffer)[BUFFERSIZE], uint32_t &bytesRead,
-                                                           uint32_t &bytesProcessed) const
-{
-    uint32_t pendingSize = size;
-    uint32_t offset = 0;
-    while (true)
-    {
-        const uint32_t bytesAvailable = bytesRead - bytesProcessed;
-        if (bytesAvailable >= pendingSize)
-        {
-            memcpy(output + offset, buffer + bytesProcessed, pendingSize);
-            bytesProcessed += pendingSize;
-            break;
-        }
-
-        if (bytesAvailable)
-        {
-            memcpy(output + offset, buffer + bytesProcessed, bytesAvailable);
-            offset += bytesAvailable;
-            pendingSize -= bytesAvailable;
-        }
-
-        bytesProcessed = 0;
-        if (const auto &r = readInternal(buffer); r)
-        {
-            bytesRead = *r;
-        }
-        else
-        {
-            return tl::unexpected(r.error());
-        }
-    }
-    return {};
-}
 } // namespace N2978

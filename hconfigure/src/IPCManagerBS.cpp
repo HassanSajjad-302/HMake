@@ -8,7 +8,6 @@
 #ifdef _WIN32
 #include <Windows.h>
 #else
-#include "rapidhash.h"
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -16,21 +15,23 @@
 #include <unistd.h>
 #endif
 
+#define TRY_READ(var, func, ...)                                                                                       \
+    const auto &var = func(__VA_ARGS__);                                                                               \
+    if (!var)                                                                                                          \
+    {                                                                                                                  \
+        return tl::unexpected(var.error());                                                                            \
+    }
+
+#define TRY_READ_VAL(var, func, ...)                                                                                   \
+    const auto &var##_result = func(__VA_ARGS__);                                                                      \
+    if (!var##_result)                                                                                                 \
+    {                                                                                                                  \
+        return tl::unexpected(var##_result.error());                                                                   \
+    }                                                                                                                  \
+    auto &var = *var##_result;
+
 namespace N2978
 {
-
-tl::expected<uint32_t, std::string> IPCManagerBS::readInternal(char (&buffer)[4096]) const
-{
-    const uint32_t serverReadStringSize = serverReadString.size();
-    const uint32_t bytesRead = serverReadStringSize < BUFFERSIZE ? serverReadStringSize : BUFFERSIZE;
-    for (uint32_t i = 0; i < bytesRead; ++i)
-    {
-        buffer[i] = serverReadString[i];
-    }
-    const_cast<std::string_view &>(serverReadString) =
-        std::string_view{serverReadString.data() + bytesRead, serverReadString.size() - bytesRead};
-    return bytesRead;
-}
 
 tl::expected<void, std::string> IPCManagerBS::writeInternal(const std::string_view buffer) const
 {
@@ -57,84 +58,51 @@ IPCManagerBS::IPCManagerBS(const uint64_t writeFd_) : writeFd(writeFd_)
 {
 }
 
-tl::expected<void, std::string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[320], CTB &messageType) const
+tl::expected<void, std::string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[320], CTB &messageType,
+                                                             const std::string_view serverReadString)
 {
-    //    raise(SIGTRAP); // At the location of the BP.
-
-    // Read from the pipe.
-    char buffer[BUFFERSIZE];
-    uint32_t bytesRead;
-    if (const auto &r = readInternal(buffer); !r)
+    if (serverReadString.empty())
     {
-        return tl::unexpected(r.error());
-    }
-    else
-    {
-        bytesRead = *r;
+        return tl::unexpected(getErrorString(ErrorCategory::PARSING_ERROR));
     }
 
-    uint32_t bytesProcessed = 1;
+    uint32_t bytesRead = 1;
 
     // read call fails if zero byte is read, so safe to process 1 byte
-    switch (static_cast<CTB>(buffer[0]))
+    switch (static_cast<CTB>(serverReadString[0]))
     {
 
     case CTB::MODULE: {
-
-        const auto &r = readStringFromPipe(buffer, bytesRead, bytesProcessed);
-        if (!r)
-        {
-            return tl::unexpected(r.error());
-        }
+        TRY_READ_VAL(r, readString, serverReadString, bytesRead);
 
         messageType = CTB::MODULE;
-        getInitializedObjectFromBuffer<CTBModule>(ctbBuffer).moduleName = *r;
+        getInitializedObjectFromBuffer<CTBModule>(ctbBuffer).moduleName = r;
     }
-
     break;
 
     case CTB::NON_MODULE: {
-
-        const auto &r = readBoolFromPipe(buffer, bytesRead, bytesProcessed);
-        if (!r)
-        {
-            return tl::unexpected(r.error());
-        }
-
-        const auto &r2 = readStringFromPipe(buffer, bytesRead, bytesProcessed);
-        if (!r2)
-        {
-            return tl::unexpected(r.error());
-        }
-
+        TRY_READ_VAL(r, readBool, serverReadString, bytesRead);
+        TRY_READ_VAL(r2, readString, serverReadString, bytesRead);
         messageType = CTB::NON_MODULE;
         auto &[isHeaderUnit, str] = getInitializedObjectFromBuffer<CTBNonModule>(ctbBuffer);
-        isHeaderUnit = *r;
-        str = *r2;
+        isHeaderUnit = r;
+        str = r2;
     }
-
     break;
 
     case CTB::LAST_MESSAGE: {
-
-        const auto &fileSizeExpected = readUInt32FromPipe(buffer, bytesRead, bytesProcessed);
-        if (!fileSizeExpected)
-        {
-            return tl::unexpected(fileSizeExpected.error());
-        }
+        TRY_READ_VAL(fileSizeExpected, readUInt32, serverReadString, bytesRead);
 
         messageType = CTB::LAST_MESSAGE;
-
         auto &[fileSize] = getInitializedObjectFromBuffer<CTBLastMessage>(ctbBuffer);
-
-        fileSize = *fileSizeExpected;
+        fileSize = fileSizeExpected;
     }
     break;
     }
 
-    if (bytesRead != bytesProcessed)
+    if (serverReadString.size() != bytesRead)
     {
-        return tl::unexpected(getErrorString(bytesRead, bytesProcessed));
+        return tl::unexpected(getErrorString(serverReadString.size(), bytesRead));
     }
 
     return {};
@@ -143,9 +111,10 @@ tl::expected<void, std::string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[3
 tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCModule &moduleFile) const
 {
     std::string buffer;
-    writeProcessMappingOfBMIFile(buffer, moduleFile.requested);
+    writeBMIFile(buffer, moduleFile.requested);
     buffer.push_back(moduleFile.isSystem);
     writeVectorOfModuleDep(buffer, moduleFile.modDeps);
+    buffer.append(delimiter, strlen(delimiter));
     if (const auto &r = writeInternal(buffer); !r)
     {
         return tl::unexpected(r.error());
@@ -158,11 +127,15 @@ tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCNonModule &no
     std::string buffer;
     buffer.push_back(nonModule.isHeaderUnit);
     buffer.push_back(nonModule.isSystem);
-    writeString(buffer, nonModule.filePath);
-    writeUInt32(buffer, nonModule.fileSize);
-    writeVectorOfStrings(buffer, nonModule.logicalNames);
     writeVectorOfHeaderFiles(buffer, nonModule.headerFiles);
-    writeVectorOfHuDeps(buffer, nonModule.huDeps);
+    writePath(buffer, nonModule.filePath);
+    if (nonModule.isHeaderUnit)
+    {
+        writeUInt32(buffer, nonModule.fileSize);
+        writeVectorOfStrings(buffer, nonModule.logicalNames);
+        writeVectorOfHuDeps(buffer, nonModule.huDeps);
+    }
+    buffer.append(delimiter, strlen(delimiter));
     if (const auto &r = writeInternal(buffer); !r)
     {
         return tl::unexpected(r.error());
@@ -174,6 +147,7 @@ tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCLastMessage &
 {
     std::string buffer;
     buffer.push_back(true);
+    buffer.append(delimiter, strlen(delimiter));
     if (const auto &r = writeInternal(buffer); !r)
     {
         return tl::unexpected(r.error());
@@ -181,9 +155,9 @@ tl::expected<void, std::string> IPCManagerBS::sendMessage(const BTCLastMessage &
     return {};
 }
 
-tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerBS::createSharedMemoryBMIFile(BMIFile &bmiFile)
+tl::expected<Mapping, std::string> IPCManagerBS::createSharedMemoryBMIFile(BMIFile &bmiFile)
 {
-    ProcessMappingOfBMIFile sharedFile{};
+    Mapping sharedFile{};
 #ifdef _WIN32
 
     std::string mappingName = bmiFile.filePath;
@@ -267,8 +241,7 @@ tl::expected<ProcessMappingOfBMIFile, std::string> IPCManagerBS::createSharedMem
 #endif
 }
 
-tl::expected<void, std::string> IPCManagerBS::closeBMIFileMapping(
-    const ProcessMappingOfBMIFile &processMappingOfBMIFile)
+tl::expected<void, std::string> IPCManagerBS::closeBMIFileMapping(const Mapping &processMappingOfBMIFile)
 {
 #ifdef _WIN32
     CloseHandle(processMappingOfBMIFile.mapping);

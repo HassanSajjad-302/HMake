@@ -6,17 +6,14 @@
 
 #include "IPCManagerBS.hpp"
 #include "ObjectFile.hpp"
-#include "RunCommand.hpp"
 #include "TargetCache.hpp"
 #include "parallel-hashmap/parallel_hashmap/btree.h"
-#include <atomic>
 #include <filesystem>
 #include <list>
 #include <utility>
 #include <vector>
 
-using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, std::atomic, std::atomic_flag,
-    phmap::btree_set, phmap::flat_hash_map;
+using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, phmap::btree_set, phmap::flat_hash_map;
 
 class CppTarget;
 class CppSrc;
@@ -84,9 +81,8 @@ class CppSrc : public ObjectFile
     /// Sets CppSrc::sourceType. Called by CppTarget in CppTarget::updateBTarget in round1.
     SourceType setSourceType();
 
-    RunCommand run;
-    virtual bool launchBTarget(Builder &builder) override;
-    virtual bool completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount) override;
+    virtual bool isEventRegistered(Builder &builder) override;
+    virtual bool isEventCompleted(Builder &builder, string_view) override;
 };
 
 bool operator<(const CppSrc &lhs, const CppSrc &rhs);
@@ -109,9 +105,6 @@ struct CppMod final : CppSrc
     /// All dependencies of this module or hu. includes both header-units and modules.
     flat_hash_set<CppMod *> allCppModDependencies;
 
-    bool launchBTarget(Builder &builder) override;
-    bool wasIPCLaunchIncomplete(uint64_t index);
-    bool completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount) override;
     /// A header-unit can be found by more than 1 logicalNames. Like "std/header1.hpp" and "./header1.hpp". Also, in big
     /// header-units case a big header-unit can be found by any of its composing headers. All composing includes are
     /// added in following array and is sent with requested hu to keep the number of messages minimal. In case of
@@ -144,10 +137,7 @@ struct CppMod final : CppSrc
     /// Composing headers are only sent with the first message. This keeps tracks of that
     bool firstMessageSent = false;
 
-    /// atomically set to true
-    bool makeMemoryMappingCalled = false;
-
-    bool makeMemoryMappingCompleted = false;
+    bool memoryMappingCompleted = false;
 
     bool compileCommandChanged = false;
 
@@ -157,8 +147,8 @@ struct CppMod final : CppSrc
     /// objectNode.
     void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index, uint64_t commandHash_);
 
-    /// thread-safe function that ensures that build-system creates shared-memory bmi file before sending it to the
-    /// compiler. if the file is updated, then the compiler creates the mapping. if not then the build-system.
+    /// Following ensures that build-system creates shared-memory bmi file before sending it to the compiler. if the
+    /// file is updated, then the compiler creates the mapping. if not then the build-system.
     void makeMemoryFileMapping();
 
     /// Called to send the N2978::BTCModule corresponding to a module CppMod whose compilation just completed
@@ -169,23 +159,24 @@ struct CppMod final : CppSrc
 
     /// Looks for the received module-name in just CppTarget::imodNames if module-name is of partition export. Looks in
     /// CppTarget::imodNames of dependencies CppTarget as well if it is a primary export.
-    CppMod *findModule(const string &moduleName) const;
+    CppMod *findModule(string_view moduleName) const;
 
-    /// Looks for the received header-name in CppTarget::reqHeaderNameMapping and CppTarget::useReqHeaderNameMapping of
-    /// the dependency CppTargets. While compiling the big-hu, a request for any composing-header will map to the big-hu
-    /// in these lookup tables. This case is specially handled in the following function.
-    HeaderFileOrUnit findHeaderFileOrUnit(const string &headerName) const;
+    /// Looks for the received header-name in CppTarget::reqHeaderNameMapping and Configuration::headerNameMapping
+    /// (which has useReqHeaderNameMapping of all CppTarget of the Configuration) While compiling the big-hu, a request
+    /// for any composing-header will map to the big-hu in these lookup tables.
+    HeaderFileOrUnit findHeaderFileOrUnit(string_view headerName) const;
+
+    /// launches the module process if it needs to be compiled
+    bool isEventRegistered(Builder &builder) override;
+
+    bool completeModuleCompilation();
+
+    /// \param message message of the c++ module or hu process if it is waiting on another dependency.
+    /// \returns true if we are waiting on a dependency, false if we have completed the compilation.
+    bool isEventCompleted(Builder &builder, string_view message) override;
 
     /// prints short status string if there is no output. prints full command + output, if there is output
     void print(const string &output) const;
-
-    /// CppMod::updateBTarget function is responsible for launching the IPC server and the compilation process. This
-    /// function interacts with this server and manages the build.
-    /// \returns true if we are waiting on a dependency, false if we have completed the compilation.
-    bool build(Builder &builder, uint64_t index, string_view message);
-
-    /// Launches IPC server and the compilation process if the module or hu needs to be updated. Sets \p isComplete to
-    /// true if we are waiting for a module or hu to get compiled first.
 
     /// \returns BTargetType::CPPMOD
     BTargetType getBTargetType() const override;

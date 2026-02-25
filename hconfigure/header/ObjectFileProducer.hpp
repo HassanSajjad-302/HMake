@@ -109,12 +109,12 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &objectFileProduce
         {
             reqDeps.emplace(&objectFileProducer);
             useReqDeps.emplace(&objectFileProducer);
-            addDepNow<1>(objectFileProducer);
+            addDep<1>(objectFileProducer);
         }
         else if (depType == DepType::PRIVATE)
         {
             reqDeps.emplace(&objectFileProducer);
-            addDepNow<1>(objectFileProducer);
+            addDep<1>(objectFileProducer);
         }
         else
         {
@@ -123,7 +123,7 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &objectFileProduce
     }
     else
     {
-        addDepNow<0, BTargetDepType::SELECTIVE>(objectFileProducer);
+        addDep<0, BTargetDepType::SELECTIVE>(objectFileProducer);
     }
 
     if constexpr (sizeof...(objectFileProducers))

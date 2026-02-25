@@ -350,8 +350,12 @@ void analyzeNinjaAndHbuildExecutableLines(const vector<string> &ninjaExeLines, c
         else
         {
             printMessage(FORMAT("found {}\n", libName));
-            analyzeObjectFiles(libName, ninjaLine, found);
-            analyzeStaticLibs(libName, ninjaLine, found);
+            // Not analyzed because cmake links LLVMTableGen as object files while we link it as a library.
+            if (libName != "llvm-min-tblgen")
+            {
+                analyzeObjectFiles(libName, ninjaLine, found);
+                analyzeStaticLibs(libName, ninjaLine, found);
+            }
         }
     }
 }
@@ -366,7 +370,7 @@ int main()
         lines.emplace_back(l);
     }
     writeFlagsCount(lines);
-    matchDirectoryWithOutput(lines, "clang/lib/CodeGen/", ".cpp");
+    matchDirectoryWithOutput(lines, std::filesystem::current_path() / "clang/lib/CodeGen/", ".cpp");
 
     vector<string> ninjaArchiveLines;
     for (string l : lines)

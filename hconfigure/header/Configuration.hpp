@@ -112,6 +112,27 @@ class PLOAT;
 class LOAT;
 class Node;
 
+
+struct HeaderFileOrUnit
+{
+    union {
+        class CppMod *cppMod;
+        Node *node;
+    } data;
+
+    // Only used at build-time
+    uint32_t targetIndex;
+    bool isUnit;
+    bool isSystem;
+    // Following two are only used at build-time
+    HeaderFileOrUnit(uint32_t targetIndex_, CppMod *cppMod_, bool isSystem_);
+    HeaderFileOrUnit(uint32_t targetIndex_, Node *node_, bool isSystem_);
+    HeaderFileOrUnit(CppMod *cppMod_, bool isSystem_);
+    HeaderFileOrUnit(Node *node_, bool isSystem_);
+    HeaderFileOrUnit() = default;
+};
+
+
 class Configuration : public BTarget
 {
   public:
@@ -140,6 +161,7 @@ class Configuration : public BTarget
     TreatHUAsHeaderFile treatHuAsHeaderFile = TreatHUAsHeaderFile::NO;
     SystemTarget systemTarget = SystemTarget::NO;
     IgnoreHeaderDeps ignoreHeaderDeps = IgnoreHeaderDeps::NO;
+    flat_hash_map<string_view, vector<HeaderFileOrUnit>> headerNameMapping;
 
     bool archiving = false;
 

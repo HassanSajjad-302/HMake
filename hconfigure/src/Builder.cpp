@@ -1,6 +1,7 @@
 
 #include "Builder.hpp"
 #include "Cache.hpp"
+#include "JConsts.hpp"
 #include "Manager.hpp"
 #include "Node.hpp"
 #include "PointerPacking.h"
@@ -19,6 +20,70 @@
 
 using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream, std::ofstream, std::stack,
     std::filesystem::current_path;
+
+static Builder *consoleHandlerBuilder;
+#ifdef _WIN32
+BOOL WINAPI ConsoleHandler(DWORD signal)
+{
+    if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT)
+    {
+        if (!PostQueuedCompletionStatus((HANDLE)consoleHandlerBuilder->serverFd, 0, -1, NULL))
+        {
+            N2978::getErrorString("PostQueuedCompletionStatus");
+        }
+        return TRUE;
+    }
+}
+#else
+std::atomic<bool> signal_received;
+
+void signal_handler(int signum)
+{
+    // Prevent re-entry if another signal arrives
+    if (signal_received)
+    {
+        return;
+    }
+    signal_received = true;
+
+    // Save progress
+    string buffer;
+    writeBuildBuffer(buffer);
+    exit(EXIT_SUCCESS);
+}
+
+void registerSignalHandler()
+{
+    struct sigaction sa;
+    sigset_t block_mask;
+
+    // Initialize the sigaction structure
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = signal_handler;
+
+    // Create a mask of signals to block during handler execution
+    // This blocks ALL signals while the handler is running
+    sigfillset(&block_mask);
+    sa.sa_mask = block_mask;
+
+    // SA_RESTART: Restart interrupted system calls
+    sa.sa_flags = SA_RESTART;
+
+    // Register handler for SIGINT (Ctrl+C)
+    if (sigaction(SIGINT, &sa, NULL) == -1)
+    {
+        perror("sigaction SIGINT");
+        exit(1);
+    }
+
+    // Register handler for SIGTERM (kill command)
+    if (sigaction(SIGTERM, &sa, NULL) == -1)
+    {
+        perror("sigaction SIGTERM");
+        exit(1);
+    }
+}
+#endif
 
 static uint64_t createMultiplex()
 {
@@ -41,8 +106,25 @@ static uint64_t createMultiplex()
 Builder::Builder()
 {
     round = 1;
-    RealBTarget::graphEdges =
-        span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round].value);
+    executeRoundOne();
+    if (errorHappenedInRoundMode)
+    {
+        return;
+    }
+
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        return;
+    }
+    checkNodes();
+    delete[] BTarget::realBTargetsGlobal[1].data();
+    --round;
+    executeRoundZero();
+}
+
+void Builder::executeRoundOne()
+{
+    RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
     RealBTarget::sortGraph();
 
     for (RealBTarget *rb : RealBTarget::sorted)
@@ -53,46 +135,37 @@ Builder::Builder()
         }
     }
 
-    updateBTargetsSizeGoal = RealBTarget::sorted.size();
+    execute();
+}
 
-    vector<thread *> threads;
+void Builder::executeRoundZero()
+{
+    RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
+    RealBTarget::sortGraph();
+    // RealBTarget::printSortedGraph();
 
-    launchedCount = cache.numberOfBuildThreads;
-
-    if (launchedCount)
+    if (const size_t topSize = RealBTarget::sorted.size())
     {
-        isOneThreadRunning = false;
-        BTarget::laterDepsCentral.resize(launchedCount);
-        threadIds.resize(launchedCount);
-
-        while (threads.size() != launchedCount - 1)
+        for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
         {
-            uint64_t index = threads.size() + 1;
-            threads.emplace_back(new thread([this, index] {
-                BTarget::laterDepsCentral[index] = &BTarget::laterDepsLocal;
-                threadIds[index] = getThreadId();
-                myThreadIndex = index;
-                execute();
-            }));
+            RealBTarget &localRb = *RealBTarget::sorted[i];
+
+            localRb.indexInTopologicalSort = topSize - (i + 1);
+
+            if (localRb.bTarget->selectiveBuild)
+            {
+                for (auto &[dependency, bTargetDepType] : localRb.dependencies)
+                {
+                    if (bTargetDepType == BTargetDepType::FULL || bTargetDepType == BTargetDepType::SELECTIVE)
+                    {
+                        dependency->bTarget->selectiveBuild = true;
+                    }
+                }
+            }
         }
-        execute();
-    }
-    else
-    {
-        printErrorMessage("maximumBuildThreads is zero\n");
-        errorExit();
-    }
-    for (thread *t : threads)
-    {
-        t->join();
-        delete t;
     }
 
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        return;
-    }
-
+    updateBTargets.clear();
     for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
     {
         RealBTarget &localRb = *RealBTarget::sorted[i];
@@ -106,7 +179,23 @@ Builder::Builder()
     updateBTargetsSizeGoal = RealBTarget::sorted.size();
 
     uint64_t count = 0;
-    idleCount = launchedCount;
+    idleCount = cache.numberOfBuildThreads;
+
+    if (!idleCount)
+    {
+        printErrorMessage("number of maximum parallel process is 0\n");
+    }
+
+#ifdef _WIN32
+    consoleHandlerBuilder = this;
+    if (!SetConsoleCtrlHandler(ConsoleHandler, TRUE))
+    {
+        N2978::getErrorString("SetConsoleCtrlHandler");
+    }
+#else
+    registerSignalHandler();
+#endif
+
     while (true)
     {
         while (idleCount)
@@ -118,7 +207,7 @@ Builder::Builder()
             }
             ++updatedCount;
 
-            if (b->bTarget->launchBTarget(*this))
+            if (b->bTarget->isEventRegistered(*this))
             {
                 --idleCount;
             }
@@ -134,7 +223,7 @@ Builder::Builder()
 #ifdef _WIN32
             OVERLAPPED_ENTRY events[128];
             ULONG n = 0;
-            if (!GetQueuedCompletionStatusEx((HANDLE *)serverFd, events, 128, &n, INFINITE, FALSE))
+            if (!GetQueuedCompletionStatusEx((HANDLE)serverFd, events, 128, &n, INFINITE, FALSE))
             {
                 printErrorMessage(N2978::getErrorString());
             }
@@ -155,6 +244,12 @@ Builder::Builder()
             for (ULONG i = 0; i < n; i++)
             {
                 const uint64_t index = events[i].lpCompletionKey;
+                if (index == -1)
+                {
+                    string buffer;
+                    writeBuildBuffer(buffer);
+                    exit(EXIT_SUCCESS);
+                }
                 CompletionKey &k = eventData[index];
                 if constexpr (ndeb == NDEB::NO)
                 {
@@ -163,7 +258,8 @@ Builder::Builder()
                         // printErrorMessage("events[i].lpOverlapped != events[i].lpOverlapped\n");
                     }
                 }
-                if (BTarget *bTarget = k.target; bTarget && !bTarget->completeBTarget(*this, index, activeEventCount))
+
+                if (BTarget *bTarget = k.target; bTarget && !callIsEventCompleted(bTarget, index))
                 {
                     decrementFromDependents(bTarget->realBTargets[0]);
                     ++idleCount;
@@ -191,7 +287,7 @@ Builder::Builder()
             for (int i = 0; i < n; i++)
             {
                 const uint64_t fd = events[i].data.fd;
-                if (BTarget *bt = eventData[fd]; !bt->completeBTarget(*this, fd, activeEventCount))
+                if (BTarget *bt = eventData[fd]; !callIsEventCompleted(bt, fd))
                 {
                     decrementFromDependents(bt->realBTargets[0]);
                     ++idleCount;
@@ -208,6 +304,12 @@ Builder::Builder()
                 printMessage(updateBTargets.array[i].value->bTarget->getPrintName() + '\n');
             }*/
             break;
+        }
+
+        if (idleCount == cache.numberOfBuildThreads)
+        {
+            RealBTarget::sortGraph();
+            printErrorMessage("HMake API misuse.\n");
         }
     }
     bool breakpoint = true;
@@ -231,7 +333,6 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
         k.buffer = new char[4096]{};
         k.handle = fd;
         k.target = target_;
-        k.firstCall = true;
         return index;
     }
 
@@ -239,11 +340,10 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
     unusedKeysIndices.pop_back();
 
     // buffer can be reused as it was already initialized.
-    auto &[overlappedBuffer, buffer, handle, target, firstCall] = eventData[index];
+    auto &[overlappedBuffer, buffer, handle, target] = eventData[index];
     memset(overlappedBuffer, 0, sizeof(overlappedBuffer));
     handle = fd;
     target = target_;
-    firstCall = true;
     return index;
 #else
     eventData[fd] = target_;
@@ -261,6 +361,45 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
 #endif
 }
 
+bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
+{
+    CompleteReadType completeReadType = bTarget->run.completeRead();
+    if (completeReadType == CompleteReadType::INCOMPLETE)
+    {
+        if (!bTarget->run.startRead())
+        {
+            return true;
+        }
+    }
+
+    while (true)
+    {
+        string message;
+        if (completeReadType == CompleteReadType::COMPLETE_MESSAGE)
+        {
+            message = bTarget->run.pruneOutput();
+        }
+        else
+        {
+            unregisterEventDataAtIndex(index);
+            bTarget->run.reapProcess();
+            bTarget->realBTargets[0].exitStatus = bTarget->run.exitStatus;
+        }
+
+        if (bTarget->isEventCompleted(*this, message))
+        {
+            if (!bTarget->run.startRead())
+            {
+                return true;
+            }
+        }
+        else
+        {
+            return false;
+        }
+    }
+}
+
 void Builder::unregisterEventDataAtIndex(const uint64_t index)
 {
     --activeEventCount;
@@ -275,81 +414,6 @@ void Builder::unregisterEventDataAtIndex(const uint64_t index)
         HMAKE_HMAKE_INTERNAL_ERROR
     }
     eventData[index] = nullptr;
-#endif
-}
-
-#ifdef _WIN32
-static bool readFromfd(CompletionKey &k)
-{
-    memset(k.overlappedBuffer, 0, sizeof(k.overlappedBuffer));
-    DWORD bytesRead = 0;
-    const BOOL result =
-        ReadFile((HANDLE)k.handle, k.buffer, 4096, &bytesRead, &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer));
-    if (result)
-    {
-        // output += string_view{k.buffer, bytesRead};
-        // Event if synchronous succeeded, we need to process the stale completion event sent to the event loop.
-        return false;
-    }
-    const DWORD error = GetLastError();
-    if (error == ERROR_IO_PENDING)
-    {
-        return false;
-    }
-    if (error == ERROR_BROKEN_PIPE)
-    {
-        // ReadFile completed successfully
-        return true;
-    }
-
-    printErrorMessage(N2978::getErrorString());
-    return {};
-}
-#endif
-
-ReadDataInfo Builder::isRecurrentReadFromEventDataCompleted(const uint64_t eventIndex, RunCommand &run)
-{
-#ifdef _WIN32
-    CompletionKey &k = eventData[eventIndex];
-    if (!k.firstCall)
-    {
-        uint64_t bytesRead = 0;
-        if (!GetOverlappedResult((HANDLE)k.handle, &(OVERLAPPED &)k.overlappedBuffer, (LPDWORD)&bytesRead, false))
-        {
-            if (GetLastError() == ERROR_BROKEN_PIPE)
-            {
-                // ReadFile completed successfully
-                return true;
-            }
-            printErrorMessage(N2978::getErrorString());
-        }
-        output += string_view{k.buffer, bytesRead};
-        memset(k.buffer, 0, sizeof(k.buffer));
-        if (output.ends_with(';'))
-        {
-            k.firstCall = true;
-            return true;
-        }
-    }
-    k.firstCall = false;
-    return readFromfd(k);
-#else
-    char buffer[64 * 1024];
-    const uint64_t readSize = read(eventIndex, buffer, sizeof(buffer) - 1);
-    if (readSize == -1)
-    {
-        printErrorMessage(N2978::getErrorString());
-    }
-    if (!readSize)
-    {
-        return {"", true};
-    }
-    run.output.append(buffer, readSize);
-    if (run.output.ends_with(N2978::delimiter))
-    {
-        return {run.pruneOutput(), true};
-    }
-    return {"", false};
 #endif
 }
 
@@ -415,166 +479,65 @@ template <typename T> std::vector<std::span<T>> divideInChunk(std::vector<T> &v,
     return result;
 }
 
+void Builder::checkNodes()
+{
+    uncheckedNodesCentral.reserve(Node::idCount);
+    for (uint32_t i = 0; i < Node::idCount; ++i)
+    {
+        if (nodeIndices[i]->toBeChecked)
+        {
+            uncheckedNodesCentral.emplace_back(nodeIndices[i]);
+        }
+    }
+
+    // todo
+    // use threads on windows and io_uring on Linux. io_uring can probably be used for the dependency file reading on
+    // Linux as well.
+    for (Node *node : uncheckedNodesCentral)
+    {
+        node->performSystemCheck();
+        node->systemCheckCompleted = true;
+    }
+    return;
+    uncheckedNodes = divideInChunk(uncheckedNodesCentral, launchedCount);
+    if (checkingCount < launchedCount)
+    {
+        const unsigned short nodeCheckIndex = checkingCount;
+        ++checkingCount;
+        for (Node *node : uncheckedNodes[nodeCheckIndex])
+        {
+            node->performSystemCheck();
+            node->systemCheckCompleted = true;
+        }
+        ++checkedCount;
+    }
+
+    if (checkedCount == launchedCount)
+    {
+        DEBUG_EXECUTE(
+            FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
+    }
+}
+
 void Builder::execute()
 {
-    RealBTarget *rb = nullptr;
+    RealBTarget *rb = updateBTargets.getItem();
 
-    DEBUG_EXECUTE(FORMAT("{} Locking Update Mutex {} {} {}\n", round, __LINE__, sleepingCount, getThreadId()));
-    std::unique_lock lk(executeMutex);
-    while (true)
+    while (rb)
     {
-        if (exeMode == ExecuteMode::WAIT)
+        if (round == 1)
         {
-            if (rb = updateBTargets.getItem(); rb)
-            {
-                DEBUG_EXECUTE(FORMAT("{} update-executing {} {}\n", round, __LINE__, getThreadId()));
-                DEBUG_EXECUTE(FORMAT("{} UnLocking Update Mutex {} {}\n", round, __LINE__, getThreadId()));
-                const bool hasElement = updateBTargets.hasElement();
-                executeMutex.unlock();
-                if (hasElement)
-                {
-                    cond.notify_one();
-                }
-                if (round == 1)
-                {
-                    rb->bTarget->setSelectiveBuild();
-                }
-                bool isComplete = false;
-                rb->bTarget->updateBTarget(*this, round, isComplete);
-                if (isComplete)
-                {
-                    continue;
-                }
-                executeMutex.lock();
-
-                if (rb->exitStatus != EXIT_SUCCESS)
-                {
-                    errorHappenedInRoundMode = true;
-                }
-
-                decrementFromDependents(*rb);
-                continue;
-            }
-
-            if (updateBTargets.size() == updateBTargetsSizeGoal && idleCount == launchedCount - 1)
-            {
-                isOneThreadRunning = true;
-                if constexpr (bsMode == BSMode::BUILD)
-                {
-                    if (round && !errorHappenedInRoundMode)
-                    {
-                        uncheckedNodesCentral.reserve(Node::idCount);
-                        for (uint32_t i = 0; i < Node::idCount; ++i)
-                        {
-                            if (nodeIndices[i]->toBeChecked)
-                            {
-                                uncheckedNodesCentral.emplace_back(nodeIndices[i]);
-                            }
-                        }
-                        uncheckedNodes = divideInChunk(uncheckedNodesCentral, launchedCount);
-                        exeMode = ExecuteMode::NODE_CHECK;
-                        continue;
-                    }
-                }
-
-                returnAfterWakeup = true;
-                lk.release();
-                executeMutex.unlock();
-                cond.notify_one();
-                DEBUG_EXECUTE(FORMAT("{} Locking after notifying one after round decrement {} {}\n", round, __LINE__,
-                                     getThreadId()));
-                DEBUG_EXECUTE(FORMAT("{} Returning after roundGoal Achieved{} {}\n", round, __LINE__, getThreadId()));
-                return;
-            }
+            rb->bTarget->setSelectiveBuild();
         }
-        // Should the node-check
-        // round be floored to a thread-limit. Currently, it will use all threads
-        // Another thought is make the performSystemCheck as multi-threaded and the whole build-system as
-        // single-threaded.
-        else if (exeMode == ExecuteMode::NODE_CHECK)
+        rb->bTarget->completeRoundOne();
+
+        if (rb->exitStatus != EXIT_SUCCESS)
         {
-            if (checkingCount < launchedCount)
-            {
-                const unsigned short nodeCheckIndex = checkingCount;
-                ++checkingCount;
-                DEBUG_EXECUTE(FORMAT("{} checking-count incremented {} {}\n", checkingCount, __LINE__, getThreadId()));
-                executeMutex.unlock();
-                cond.notify_one();
-                for (Node *node : uncheckedNodes[nodeCheckIndex])
-                {
-                    node->performSystemCheck();
-                    node->systemCheckCalled = true;
-                    node->systemCheckCompleted = true;
-                }
-                DEBUG_EXECUTE(FORMAT("{} locking-mutex {} {}\n", checkedCount, __LINE__, getThreadId()));
-                executeMutex.lock();
-                ++checkedCount;
-                DEBUG_EXECUTE(FORMAT("{} checked-count incremented {} {}\n", checkedCount, __LINE__, getThreadId()));
-                continue;
-            }
-
-            if (checkedCount == launchedCount)
-            {
-                DEBUG_EXECUTE(
-                    FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
-
-                BTarget::postRoundOneCompletion();
-                --round;
-                RealBTarget::graphEdges =
-                    span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round].value);
-                RealBTarget::sortGraph();
-                // RealBTarget::printSortedGraph();
-
-                updateBTargets.clear();
-                updateBTargetsSizeGoal = 0;
-
-                if (const size_t topSize = RealBTarget::sorted.size())
-                {
-                    for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
-                    {
-                        RealBTarget &localRb = *RealBTarget::sorted[i];
-
-                        localRb.indexInTopologicalSort = topSize - (i + 1);
-
-                        if (localRb.bTarget->selectiveBuild)
-                        {
-                            for (auto &[dependency, bTargetDepType] : localRb.dependencies)
-                            {
-                                if (bTargetDepType == BTargetDepType::FULL ||
-                                    bTargetDepType == BTargetDepType::SELECTIVE)
-                                {
-                                    dependency->bTarget->selectiveBuild = true;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                updateBTargetsSizeGoal = 0;
-                isOneThreadRunning = false;
-                exeMode = ExecuteMode::WAIT;
-                continue;
-            }
+            errorHappenedInRoundMode = true;
         }
 
-        DEBUG_EXECUTE(FORMAT("{} Condition waiting {} {} {}\n", round, __LINE__, sleepingCount, getThreadId()));
-        if (idleCount == launchedCount - 1)
-        {
-            RealBTarget::sortGraph();
-            printErrorMessage("HMake API misuse.\n");
-        }
-        ++idleCount;
-        cond.wait(lk);
-        --idleCount;
-        DEBUG_EXECUTE(
-            FORMAT("{} Wakeup after condition waiting {} {} {} \n", round, __LINE__, sleepingCount, getThreadId()));
-        if (returnAfterWakeup)
-        {
-            cond.notify_one();
-            DEBUG_EXECUTE(
-                FORMAT("{} returning after wakeup from condition variable {} {}\n", round, __LINE__, getThreadId()));
-            return;
-        }
+        decrementFromDependents(*rb);
+        rb = updateBTargets.getItem();
     }
 }
 

@@ -8,7 +8,7 @@ struct CopySharedLib final : public BTarget
     CopySharedLib(const string &copyFrom_, const string &copyTo_) : copyFrom(copyFrom_), copyTo(copyTo_)
     {
     }
-    void updateBTarget(Builder &, unsigned short, bool &isComplete) override
+    void completeRoundOne(Builder &, unsigned short, bool &isComplete) override
     {
         if (realBTargets[0].exitStatus == EXIT_SUCCESS && realBTargets[0].updateStatus == UpdateStatus::NEEDS_UPDATE)
         {
@@ -30,8 +30,8 @@ void configurationSpecification(Configuration &config)
     animal.getSourceTarget().sourceFiles("../Example4/main.cpp");
 
     p = new CopySharedLib(catShared.getPLOAT().outputFileNode->filePath, animal.getPLOAT().outputFileNode->filePath);
-    p->addDepNow<0>(animal.getPLOAT());
-    p->addDepNow<0>(catShared.getPLOAT());
+    p->addDep<0>(animal.getPLOAT());
+    p->addDep<0>(catShared.getPLOAT());
 }
 
 void buildSpecification()

@@ -6,19 +6,25 @@ struct OurTarget : BTarget
     explicit OurTarget(string str) : message{std::move(str)}
     {
     }
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
+
+    void completeRoundOne() override
     {
+    }
+
+    string getPrintName() const override
+    {
+        return message;
     }
 };
 
 void buildSpecification()
 {
-    OurTarget *a = new OurTarget("Hello");
-    OurTarget *b = new OurTarget("World");
-    OurTarget *c = new OurTarget("HMake");
-    a->addDepNow<0>(*b);
-    b->addDepNow<0>(*c);
-    c->addDepNow<0>(*a);
+    OurTarget *a = new OurTarget("Cat1");
+    OurTarget *b = new OurTarget("Cat2");
+    OurTarget *c = new OurTarget("Cat3");
+    a->addDep<0>(*b);
+    b->addDep<0>(*c);
+    c->addDep<0>(*a);
 }
 
 MAIN_FUNCTION

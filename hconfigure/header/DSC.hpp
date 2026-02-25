@@ -106,6 +106,17 @@ DSC<T> &DSC<T>::deps(DepType depType, DSC<U> &depDSC, V... dscs)
             ploat->deps(depType, depDSC.getPLOAT());
         }
     }
+    else if (ploat && !depDSC.ploat)
+    {
+        if (depDSC.objectFileProducer)
+        {
+            ploat->objectFileProducers.emplace(depDSC.objectFileProducer);
+            if (objectFileProducer->hasObjectFiles)
+            {
+                ploat->hasObjectFiles = true;
+            }
+        }
+    }
 
     objectFileProducer->deps(depType, depDSC.getSourceTarget());
 

@@ -22,7 +22,7 @@ static DSC<CppTarget> &getMainTarget(const string &name, Configuration *configur
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         const string buildCacheFilesDirPath = configureNode->filePath + slashc + configuration->name + slashc + name;
-        myBuildDir = Node::getHalfNodeST(buildCacheFilesDirPath);
+        myBuildDir = Node::getHalfNode(buildCacheFilesDirPath);
         create_directories(myBuildDir->filePath);
     }
 
@@ -39,7 +39,8 @@ static DSC<CppTarget> &getMainTarget(const string &name, Configuration *configur
 
     CppTarget &cpp = t->getSourceTarget();
     const string s = "boost/" + name;
-    if (name == "hash2" || name == "container_hash" || name == "describe" || name == "mp11" || name == "io")
+    if (name == "hash2" || name == "container_hash" || name == "describe" || name == "mp11" || name == "io" ||
+        name == "system")
     {
         cpp.publicHUDirsRE(s, s + '/', ".*hpp");
         cpp.publicHUDirsRE(s, s + '/', ".*h");
@@ -119,7 +120,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
                 if (testTarget)
                 {
-                    testTarget->addDepNow<0>(cppTarget);
+                    testTarget->addDep<0>(cppTarget);
                 }
             }
             else
@@ -131,14 +132,14 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
                 {
                     if (examplesTarget)
                     {
-                        examplesTarget->addDepNow<0>(uintTest.getLOAT());
+                        examplesTarget->addDep<0>(uintTest.getLOAT());
                     }
                 }
                 else
                 {
                     if (testTarget)
                     {
-                        testTarget->addDepNow<0>(uintTest.getLOAT());
+                        testTarget->addDep<0>(uintTest.getLOAT());
                     }
                 }
             }

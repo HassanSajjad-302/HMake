@@ -8,12 +8,13 @@ struct OurTarget : BTarget
         : BTarget(std::move(name), buildExplicit, makeDirectory, true, true), message{std::move(str)}
     {
     }
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+    bool isEventRegistered(Builder &builder) override
     {
-        if (round == 0 && selectiveBuild)
+        if (selectiveBuild)
         {
             printMessage(FORMAT("{}", message));
         }
+        return false;
     }
 };
 
@@ -27,7 +28,7 @@ void buildSpecification()
     OurTarget *d = new OurTarget("D", "D");
     OurTarget *e = new OurTarget("E", "E");
     OurTarget *f = new OurTarget("F");
-    c->addDepNow<0>(*e);
+    c->addDep<0>(*e);
 }
 
 MAIN_FUNCTION

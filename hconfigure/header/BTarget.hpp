@@ -4,15 +4,14 @@
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
 
+#include "RunCommand.hpp"
 #include "parallel-hashmap/parallel_hashmap/phmap.h"
 #include <array>
-#include <atomic>
 #include <span>
 #include <string>
 #include <vector>
 
-using std::size_t, std::vector, phmap::flat_hash_map, std::lock_guard, std::atomic_flag, std::array, std::atomic,
-    std::atomic_ref, std::string;
+using std::size_t, std::vector, phmap::flat_hash_map, std::lock_guard, std::array, std::string, std::string_view;
 
 class BTarget;
 
@@ -31,8 +30,8 @@ struct IndexInTopologicalSortComparatorRoundTwo
 /// Used in RealBTarget to specify the type of dependency of other RealBTargets.
 enum class BTargetDepType : uint8_t
 {
-    /// Build-system will wait for the dependency to finish before calling the dependent. Plus it will set the dependent
-    /// selectiveBuild if the dependency selectiveBuild is true
+    /// Build-system will wait for the dependency to finish before completing the dependent. Plus it will set the
+    /// dependent selectiveBuild if the dependency selectiveBuild is true
     FULL = 0,
 
     /// Build-system will wait but not set the selectiveBuild of dependent based on dependency.
@@ -68,13 +67,13 @@ class RealBTarget
   public:
     /// This is not used by build-algorithm. This is used by CppMod to check whether a header-unit is built or not. This
     /// is also used by TargetCache::writeBuildCache function to determine whether cache could be updated or not. LOAT,
-    /// CppSrc and CppMod in BTarget::updateBTarget, assign this after exitStatus to ensure happens-before relationship.
-    /// Also, this is assigned before printing to avoid a situation where a target has printed the update but its cache
-    /// is not yet updated in-case of build interruption.
+    /// CppSrc and CppMod in BTarget::completeRoundOne, assign this after exitStatus to ensure happens-before
+    /// relationship in the signal-handler / console-handler function. Also, this is assigned before printing to avoid a
+    /// situation where a target has printed the update but its cache is not yet updated in-case of build interruption.
     alignas(64) UpdateStatus updateStatus = UpdateStatus::ALREADY_UPDATED;
 
   private:
-    // used in sorting
+    // Used in BTarget::sortGraph
     uint32_t dependentsCount = 0;
 
     /// if there is a cycle, find out the exact RealBTarget involved
@@ -105,16 +104,15 @@ class RealBTarget
     uint32_t indexInTopologicalSort = 0;
 
     /// This is incremented whenever a full-dependency or wait-dependency is added.
-    /// It is decremented of the full-dependents or wait-dependents when the BTarget::updateBTarget is completed
+    /// It is decremented of the full-dependents or wait-dependents when the BTarget::completeRoundOne is completed
     /// And if it is zero for any of those dependents, those are added in Builder::updateBTargets list.
     uint32_t dependenciesSize = 0;
 
     // TODO
-    //  Following describes the time taken for the completion of this task. Currently unused. how to determine cpu time
-    //  for this task in multi-threaded scenario
+    //  Following describes the time taken for the completion of this task. Currently unused.
     // unsigned long timeTaken = 0;
 
-    /// This is set to EXIT_FAILURE by the BTarget::updateBTarget if the work fails. Builder::decrementFromDependents
+    /// This is set to EXIT_FAILURE by the BTarget::completeRoundOne if the work fails. Builder::decrementFromDependents
     /// then assigns this value to the dependents as well.
     int exitStatus = EXIT_SUCCESS;
 
@@ -132,7 +130,7 @@ class RealBTarget
     // float potential = 0.5f;
 
     // How many threads the tool supports. -1 means any. some tools may not support more than a fixed number, so
-    // updateBTarget will not passed more than supportsThread
+    // updateBTarget will not be passed more than supportsThread
 
     // short supportsThread = -1;
 
@@ -142,8 +140,8 @@ class RealBTarget
 
     /// \param bTarget_ the back-pointer to BTarget that owns this
     /// \param round_ Constructor will add to BTarget::realBTargetsGlobal[round]
-    /// \param add whether to add for a round. Should be false if BTarget::updateBTarget or BTarget::launchBTarget is
-    /// not going to do any work in that round.
+    /// \param add whether to add for a round. Should be false if BTarget::completeRoundOne or
+    /// BTarget::isEventRegistered is not going to do any work in that round.
     RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
 
     /// Assigns full-dependents RealBTarget::updateStatus with UpdateStatus::NEEDS_UPDATE.
@@ -159,69 +157,31 @@ enum class BTargetType : unsigned short
     CPP_TARGET = 3,
 };
 
-struct alignas(64) AlignedAtomic
-{
-    atomic<uint32_t> value{0};
-};
-
 /// The building-block of HMake build-system
 ///
-/// Any class that wants to perform work in order needs to inherit from this and override one of BTarget::updateBTarget,
-/// BTarget::launchBTarget, BTarget::completeBTarget functions. Dependencies between 2 BTargets can be specified using
-/// this class functions. Now the build-system will automatically call the BTarget::updateStatus of the both BTargets
-/// in-order.
+/// Any class that wants to perform work in order needs to inherit from this and override one of
+/// BTarget::completeRoundOne, BTarget::isEventRegistered, BTarget::isEventCompleted functions. Dependencies between 2
+/// BTargets can be specified using BTarget::addDep. Now the build-system will complete(call BTarget::completeRoundOne
+/// in round 1 and isEventStarted in round 0) both BTarget in-order.
 class BTarget // BTarget
 {
     friend RealBTarget;
 
-    /// This class helps in concurrent dependency specification between 2 BTargets. This removes the need for using
-    /// mutex based synchronization.
-    ///
-    /// Specifying dependencies is 2-step process of adding a value in RealBTarget::dependencies and
-    /// RealBTarget::dependents. Doing this in multiple threads in BTarget::updateBTarget is not thread-safe. While
-    /// doing it under mutex is too slow.
-    /// This class helps mitigate this with the following invariants.
-    /// A BTarget can only emplace in RealBTarget::dependencies of itself in BTarget::updateBTarget. This first step
-    /// is thread-safe. However, it can not do the second step of emplace in the dependent RealBTarget's
-    /// RealBTarget::dependents. Instead, it adds a new LaterDep in the thread_local BTarget::laterDepsLocal.
-    /// Builder::execute will then call BTarget::postRoundCompletion which will go over this array and complete the
-    /// dependency-specification.
-    ///
-    /// Another invariant is that if a dependency is to be specified for the current round in BTarget::updateBTarget
-    /// then this must be under Builder::executeMutex
-    ///
-    /// Last invariant is that dependency between 2 unrelated BTargets can not be specified in BTarget::updateBTarget.
-    /// Unrelated means that the target specifying dependency in BTarget::updateBTarget is itself neither a dependency
-    /// nor d dependent. That can only be done in single-thread.
-    struct LaterDep
-    {
-        RealBTarget *b;
-        RealBTarget *dep;
-        BTargetDepType type;
-        bool doBoth;
-
-        /// \param doBoth_ This will be true if the BTarget::updateBTarget wants to specify dependency between 2 other
-        /// BTargets. In that case both steps of dependency-specification will be performed instead of just the second
-        /// step, emplace in the dep->dependents.
-        LaterDep(RealBTarget *b_, RealBTarget *dep_, BTargetDepType type_, bool doBoth_);
-    };
-
   public:
-    /// All the RealBTargets of a round except those whose add is false. BTarget::updateBTarget will be called for these
-    /// in-order after sorting. This is populated by the RealBTarget constructor.
+    /// All the RealBTargets of a round except those whose add is false. BTarget::completeRoundOne will be called for
+    /// these in-order after sorting. This is populated by the RealBTarget constructor.
     inline static array<std::span<RealBTarget *>, 2> realBTargetsGlobal;
 
+    // Maybe 3 of the following could be pointers
     /// count of BTarget::realBTargetsGlobal and the index where the pointer to the self will be added by the
     /// RealBTarget constructor.
-    inline static array<AlignedAtomic, 2> realBTargetsArrayCount{};
+    inline static array<uint32_t, 2> realBTargetsArrayCount{};
+
+    /// run.startAsyncProcess should be called if the BTarget is to manage a child process in isEventRegistered
+    /// function. run.output is the output of the child-process.
+    RunCommand run;
 
   private:
-    /// An array of dependency relationships that are specified in single-thread. Generally half are specified in
-    /// multi-thread while the other half is specified in single-thread after round 1. Populated by addDep* functions.
-    inline static thread_local vector<LaterDep> laterDepsLocal;
-
-    /// Pointer to all the thread_local BTarget::laterDepsLocal entries. Populated in Builder::Builder.
-    inline static vector<vector<LaterDep> *> laterDepsCentral{};
     friend class Builder;
     friend void constructGlobals();
 
@@ -239,8 +199,8 @@ class BTarget // BTarget
     // float totalTimeTaken = 0.0f;
 
     /// selectiveBuild is set for target if hbuild is executed in the target directory or the target name is provided to
-    /// the build.exe or hbuild. It is set in BTarget::setSelectiveBuild which is called before BTarget::updateBTarget
-    /// of round1.
+    /// the build.exe or hbuild. It is set in BTarget::setSelectiveBuild which is called before
+    /// BTarget::completeRoundOne of round1.
     bool selectiveBuild = false;
 
     /// if true selectiveBuild is only set if the target name is specified on cmd arguments.
@@ -263,55 +223,39 @@ class BTarget // BTarget
     /// returns true if hbuild is executed in same or child directory based on BTarget::name.
     bool isHBuildInSameOrChildDirectory() const;
 
-    /// Called by Builder::execute post round1. It completes the partially specified dependency relations.
-    static void postRoundOneCompletion();
-
     /// Used by findCycleDFS to report RealBTarget in cycle
     virtual string getPrintName() const;
 
     /// Can be overridden to differentiate between different BTarget class objects
     virtual BTargetType getBTargetType() const;
 
-    /// This is called by Builder in-order. Should be overridden to perform any work
-    /// \param isComplete This is passed by Builder::execute with value false. This function can then set it to true if
-    /// it does not want the Builder::execute to decrement from its dependents. In that case, this function should also
-    /// lock Builder::executeMutex. CppMod sets this to false when it has to wait for other CppMod to compile first and
-    /// sets it to true once its compilation completes.
-    virtual void updateBTarget(class Builder &builder, unsigned short round, bool &isComplete);
+    /// This is called by Builder in-order. Should be overridden to perform any work.
+    virtual void completeRoundOne();
 
-    /// This is called by Builder in BSMode::BUILD in round 0. This should be overridden to perform work by launching a
-    /// new process.
+    /// This is called by Builder in order in BSMode::BUILD in round 0. This should be overridden to perform work in
+    /// round 0 by launching a new process.
+    /// \return true if the BTarget has launched a new process using run.startyAsyncProcess. If this function returns
+    /// false, Builder::decrementFromDependents is called. Otherwise, it is assumed that the BTarget is waiting on the
+    /// process event.
+    virtual bool isEventRegistered(Builder &builder);
+
+    /// This function will be called only if the child process exited, or it is waiting on input after printing on
+    /// stdout, followed by the delimiter. In case, the process exited, the following is called after reaping the
+    /// process and realBTargets[0].exitStatus is also set to the exitStatus of the process.
+    /// \message Child-process message to the build-system. if this is empty, it means that the child-process has
+    /// exited, and it has been reaped. In that case, run.output is the output of the child process.
     /// \return true if the BTarget has registered an event in the event loop of Builder. This can be done using Builder
-    /// functions like Builder::registerEventData. If this function returns false, Builder::decrementFromDependents is
+    /// function Builder::registerEventData. If this function returns false, Builder::decrementFromDependents is
     /// called. Otherwise, it is assumed that the BTarget is waiting on an event.
-    virtual bool launchBTarget(Builder &builder);
+    virtual bool isEventCompleted(Builder &builder, string_view message);
 
-    /// Builder will call this function on an event from the event loop.
-    /// \param index is an index in the eventData array. This info is extracted from the event. It is passed to
-    /// differentiate between multiple events as BTarget might have registered more than one event ( e.g. listening on 2
-    /// pipes).
-    /// \return true if the BTarget has registered an event in the event loop of Builder. This can be done using Builder
-    /// functions like Builder::registerEventData. If this function returns false, Builder::decrementFromDependents is
-    /// called. Otherwise, it is assumed that the BTarget is waiting on an event.
-    virtual bool completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount);
-
-    /// Does both steps. Should be called only in single-thread or under Builder::executeMutex in BTarget::updateBTarget
-    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepNow(BTarget &dep);
-    /// Will complete the second part of adding itself in dependents. The first part need to be manually completed using
-    /// BTarget::completeSTDep. Useful only when we have the reference to dependency in another container so we can
-    /// complete the first part in multithreaded context.
-    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepST(BTarget &dep);
-    /// Will complete the first part and add the second part in LaterDep to be completed later on in single-thread.
-    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepMT(BTarget &dep);
-    /// Does the first part of dependency specification.
-    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void completeSTDep(BTarget &dep);
-    /// if BTarget defining the dependency relationship is neither a dependency nor dependent, then this function should
-    /// be used in BTarget::updateBTarget. It will define the relationship later in single-thread.
-    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDepLater(BTarget &dep);
+    /// Does both steps. Should be called only in single-thread or under Builder::executeMutex in
+    /// BTarget::completeRoundOne
+    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDep(BTarget &dep);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
-template <unsigned short round, BTargetDepType depType> void BTarget::addDepNow(BTarget &dep)
+template <unsigned short round, BTargetDepType depType> void BTarget::addDep(BTarget &dep)
 {
     if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], depType).second)
     {
@@ -321,39 +265,6 @@ template <unsigned short round, BTargetDepType depType> void BTarget::addDepNow(
             ++realBTargets[round].dependenciesSize;
         }
     }
-}
-
-template <unsigned short round, BTargetDepType depType> void BTarget::addDepST(BTarget &dep)
-{
-    dep.realBTargets[round].dependents.try_emplace(&this->realBTargets[round], depType);
-}
-
-template <unsigned short round, BTargetDepType depType> void BTarget::addDepMT(BTarget &dep)
-{
-    if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], depType).second)
-    {
-        laterDepsLocal.emplace_back(&this->realBTargets[round], &dep.realBTargets[round], depType, false);
-        if constexpr (depType == BTargetDepType::FULL || depType == BTargetDepType::WAIT)
-        {
-            ++realBTargets[round].dependenciesSize;
-        }
-    }
-}
-
-template <unsigned short round, BTargetDepType depType> void BTarget::completeSTDep(BTarget &dep)
-{
-    if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], depType).second)
-    {
-        if constexpr (depType == BTargetDepType::FULL || depType == BTargetDepType::WAIT)
-        {
-            ++realBTargets[round].dependenciesSize;
-        }
-    }
-}
-
-template <unsigned short round, BTargetDepType depType> void BTarget::addDepLater(BTarget &dep)
-{
-    laterDepsLocal.emplace_back(&this->realBTargets[round], &dep.realBTargets[0], depType, true);
 }
 
 #endif // HMAKE_BASICTARGETS_HPP

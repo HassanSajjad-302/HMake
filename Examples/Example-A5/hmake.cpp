@@ -1,6 +1,5 @@
 #include "Configure.hpp"
 
-constexpr unsigned short roundLocal = 0;
 struct OurTarget : BTarget
 {
     string name;
@@ -8,20 +7,20 @@ struct OurTarget : BTarget
     explicit OurTarget(string name_, const bool error_ = false) : name{std::move(name_)}, error(error_)
     {
     }
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+
+    bool isEventRegistered(Builder &builder) override
     {
-        if (round == roundLocal)
+        if (error)
         {
-            if (error)
-            {
-                printMessage(FORMAT("Target {} runtime error.\n", name));
-                realBTargets[roundLocal].exitStatus = EXIT_FAILURE;
-            }
-            if (realBTargets[roundLocal].exitStatus == EXIT_SUCCESS)
-            {
-                printMessage(FORMAT("{}\n", name));
-            }
+            printMessage(FORMAT("Target {} runtime error.\n", name));
+            realBTargets[0].exitStatus = EXIT_FAILURE;
         }
+
+        if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+        {
+            printMessage(FORMAT("{}\n", name));
+        }
+        return false;
     }
 };
 
@@ -35,8 +34,8 @@ void buildSpecification()
     OurTarget *f = new OurTarget("XMake");
     OurTarget *g = new OurTarget("build2", true);
     OurTarget *h = new OurTarget("Boost");
-    d->addDepNow<roundLocal>(*e);
-    h->addDepNow<roundLocal>(*g);
+    d->addDep<0>(*e);
+    h->addDep<0>(*g);
 }
 
 MAIN_FUNCTION

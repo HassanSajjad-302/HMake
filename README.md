@@ -6,7 +6,7 @@ Currently, it only provides C++ build and C++ API.
 Later on, build support for other programming languages will be added.
 API in multiple other programming languages will be provided as well.
 
-HMake has the most advanced build algorithm that supports dynamic nodes
+HMake has advanced build algorithm that supports dynamic nodes
 and dynamic edges.
 It also has advanced dependency specification.
 See ```hconfigure/header/BTarget.hpp``` and ```hconfigure/header/Builder.hpp```.
@@ -38,7 +38,8 @@ or as one big hu composing all the header-files for improved build-speed.
 Core of the build-system has no reference to the
 ```CppTarget```, ```CppSrc```, ```CppMod```, ```LOAT``` classes
 which form the C++ build-system on the top of the core.
-This should tell you about the extensibility of the core API .
+This should tell you about the separation of concert
+and the extensibility of the core API .
 These classes are also extensively documented.
 
 I am fully confident of reliability of my software.
@@ -46,66 +47,9 @@ It is extensively tested.
 If you run the ```Tests``` CMake target,
 you can see a variety of Tests.
 
-Currently, the build-system is set up only for my custom fork.
+Currently, the build-system is set up only for my custom fork and only for Linux.
 This means that you will have to build my fork first.
-You also need to have the latest Visual Studio 2022 with C++ support installed.
-As it was used to build the HMake itself
-and the MSVC STL was used with my Clang fork.
-Module support is only set up for Windows.
-All non-module tests passed with my custom fork and gcc on Linux,
-however, minor customizations are needed for modules support.
-These will be done soon.
-Better tool detection and easier setup is a priority.
-
-## Boost Example
-
-I compiled approx 20 Boost libraries
-including Tests and Examples with C++20 header-units.
-hu build was **2.3x(45.727 / 19.704)** faster than conventional build in debug mode.
-A total of **704** executables were compiled in both hu and debug build.
-Of the 20 libraries, only 5 could be successfully compiled as header-units.
-This might be due to either compiler rejecting valid source-code
-or due to mis-configuration.
-As not all header-files can be compiled as header-units.
-Due to lack of time, I did not investigate.
-Also, my Clang fork does not support shared memory files.
-
-I think if all the Boost is compiled with HMake
-and all libraries are compiled as header-units,
-with a compiler having full support of my paper,
-this would result in **>7x** build speed-up.
-
-For mega projects like UE5,
-the difference could be bigger like **>12x**.
-
-Mega-projects often need custom tasks, like custom tests setup,
-code-generation or documentation generation
-or release package preparation and deployment.
-HMake is the best in this.
-As it is vertically integrated,
-you have full context and can directly modify the central DAG.
-This makes it easy to visualize dependency relationships
-and to diagnose redundant dependencies,
-which improves the core saturation.
-This could be a major improvement for some projects.
-
-I profiled ```ninja``` with clang argument for zero target build.
-It spent **65%** time on Parsing.
-Only **15% - 25%** time was spent on files stat calls;
-While HMake spends **70%-80%** in files stat calls.
-With some pending optimizations,
-it would be **>80%**.
-Also, HMake stat files concurrently.
-Compared to single-thread stat,
-this makes a difference of 30%-40% in zero-target build.
-While ninja did not launch new threads in zero-target build.
-Due to this, I estimate that in zero-target build,
-my software is 2x faster than Ninja.
-I think because of these optimizations,
-HMake memory-consumption is lowerer than Ninja as-well.
-
-Instructions for running this example are given
-in C++Examples Example1 below.
+Better tool detection and easier setup will be a priority moving forward.
 
 ## HMake Architecture
 
@@ -121,7 +65,8 @@ If the dependent ```RealBTarget::dependenciesSize == 0```,
 i.e. no dependency of the target is left to be built,
 we add it to the list
 ```Builder::updateBTargets```.
-```Builder::execute``` will continue until all targets in
+```Builder::executeRoundOne``` or ```Builder::executeRoundZero```
+will continue until all targets in
 ```Builder::updateBTargets``` are built.
 
 Let's do some examples
@@ -140,12 +85,10 @@ struct OurTarget : BTarget
     explicit OurTarget(string str) : message{std::move(str)}
     {
     }
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+
+    void completeRoundOne() override
     {
-        if (round == 0)
-        {
-            printMessage(FORMAT("{}\n", message));
-        }
+        printMessage(FORMAT("{}\n", message));
     }
 };
 
@@ -153,7 +96,7 @@ void buildSpecification()
 {
     OurTarget *a = new OurTarget("Hello");
     OurTarget *b = new OurTarget("World");
-    b->addDepNow<0>(*a);
+    b->addDep<1>(*a);
 }
 
 MAIN_FUNCTION
@@ -167,12 +110,15 @@ and override ```updateBTarget``` function.
 If you build this example, it will print "Hello\nWorld\n" during the build.
 First ```a.updateBTarget``` runs and then ```b.updateBTarget``` runs.
 Because we specified a dependency relationship between ```a``` and ```b```.
-But, what is the ```round == 0``` and ```addDepNow<0>```?
+
 HMake does topological sorting and target updating 2 times in one execution.
 In ```round == 1```, we develop the compile command
 and link command of different targets based on their dependencies.
 This is what the CMake does.
 and in ```round == 0```, we build these which is what Ninja does.
+In round1, ```completeRoundOne``` function is called by the build-system
+while in round0, ```isEventRegistered``` and ```isEventCompleted```
+functions are used.
 
 Let's clarify this with more examples.
 
@@ -190,12 +136,16 @@ struct OurTarget : BTarget
     explicit OurTarget(string str) : message{std::move(str)}
     {
     }
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+
+    void completeRoundOne() override
     {
-        if (round == 0 || round == 1)
-        {
-            printMessage(FORMAT("{}\n", message));
-        }
+        printMessage(FORMAT("{}\n", message));
+    }
+
+    bool isEventRegistered(Builder &buildeer) override
+    {
+        printMessage(FORMAT("{}\n", message));
+        return false;
     }
 };
 
@@ -204,8 +154,8 @@ void buildSpecification()
     OurTarget *a = new OurTarget("Hello");
     OurTarget *b = new OurTarget("World");
 
-    b->addDepNow<0>(*a);
-    a->addDepNow<1>(*b);
+    b->addDep<0>(*a);
+    a->addDep<1>(*b);
 }
 
 MAIN_FUNCTION
@@ -218,56 +168,24 @@ As we inverted the dependency relationship for round 1 compared to round 0.
 ```BTarget``` constructor initializes ```realBTargets```
 which is ```array<RealBTarget, 2>```.
 So, by declaring 1 ```BTarget```, you declare 2 ```RealBTargets```.
-```addDepNow<0>``` will add dependency for round0 while
-```addDepNow<1>``` will add dependency for round1.
+```addDep<0>``` will add dependency for round0 while
+```addDep<1>``` will add dependency for round1.
 
-### Example 3
-
-<details>
-<summary>hmake.cpp</summary>
-
-```cpp
-#include "Configure.hpp"
-
-struct OurTarget : BTarget
-{
-    unsigned short low, high;
-    explicit OurTarget(const unsigned short low_, const unsigned short high_) : low(low_), high(high_)
-    {
-    }
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
-    {
-        if (round == 0)
-        {
-            for (unsigned short i = low; i < high; ++i)
-            {
-                printMessage(FORMAT("{} ", i));
-                // To simulate a long-running task that continuously outputs.
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-        }
-    }
-};
-
-void buildSpecification()
-{
-    OurTarget *a = new OurTarget(10, 20);
-    OurTarget *b = new OurTarget(50, 70);
-    OurTarget *c = new OurTarget(800, 1000);
-}
-
-MAIN_FUNCTION
-```
-
-</details>
-
-This example simulates a long-running task.
-HMake is a fully multithreaded build-system.
-The ```buildSpecification``` function is executed single-threaded
-but almost right after that the threads are launched
-and HMake calls ```BTarget::updateBTarget``` on all cores.
-So, the output in the above example will be garbled as we did not specify any dependencies,
-and all 3 ```OurTarget::updateBTarget``` is executed in parallel.
+```isEventRegistered``` should return true if it launched a new process
+using ```run.startAsyncProcess``` function
+and false otherwise.
+In that case, ```isEventCompleted``` is called
+when the child process completes or when the child process outputs
+a message for the build-system on stdout.
+This message is passed as ```message``` parameter to the ```BTarget::isEventCompleted```
+function.
+If this parameter is empty, it means that the child process completed.
+In that case, ```run.output``` is the output of the child process.
+Build-system differentiates the output from the IPC message,
+as any IPC message must be followed by the message-size and the delimiter
+```N2978::delimiter```.
+This is how HMake supports generic IPC which is then extended by ```CppSrc```
+and ```CppMod``` classes to support C++20 modules and header-units.
 
 ### Example 4
 
@@ -283,19 +201,25 @@ struct OurTarget : BTarget
     explicit OurTarget(string str) : message{std::move(str)}
     {
     }
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
+
+    void completeRoundOne() override
     {
+    }
+
+    string getPrintName() const override
+    {
+        return message;
     }
 };
 
 void buildSpecification()
 {
-    OurTarget *a = new OurTarget("Hello");
-    OurTarget *b = new OurTarget("World");
-    OurTarget *c = new OurTarget("HMake");
-    a->addDepNow<0>(*b);
-    b->addDepNow<0>(*c);
-    c->addDepNow<0>(*a);
+    OurTarget *a = new OurTarget("Cat1");
+    OurTarget *b = new OurTarget("Cat2");
+    OurTarget *c = new OurTarget("Cat3");
+    a->addDep<0>(*b);
+    b->addDep<0>(*c);
+    c->addDep<0>(*a);
 }
 
 MAIN_FUNCTION
@@ -306,11 +230,15 @@ MAIN_FUNCTION
 This will print the following.
 
 ```
-Cycle found: BTarget 0 -> BTarget 1 -> BTarget 2 -> BTarget 0
+Cycle found: Cat1 -> Cat2 -> Cat3 -> Cat1
 ```
 
-By overriding ```BTarget::getTarjanNodeName```,
-we can customize this message to differentiate between different overrides of BTarget.
+As we defined a cycle between the dependencies, 
+HMake will detect it and inform the user.
+By default, it would have printed
+```Cycle found: BTarget 0 -> BTarget 1 -> BTarget 2 -> BTarget 0```,
+but by overriding ```BTarget::getPrintName```,
+we customized this message to differentiate between different overrides of BTarget.
 By default, it prints ```BTarget``` and the id number.
 ```CppTarget```, ```LOAT``` prints ```name```,
 while ```CppSrc``` and ```CppMod``` prints ```node->filePath```.
@@ -323,7 +251,6 @@ while ```CppSrc``` and ```CppMod``` prints ```node->filePath```.
 ```cpp
 #include "Configure.hpp"
 
-constexpr unsigned short roundLocal = 0;
 struct OurTarget : BTarget
 {
     string name;
@@ -331,20 +258,20 @@ struct OurTarget : BTarget
     explicit OurTarget(string name_, const bool error_ = false) : name{std::move(name_)}, error(error_)
     {
     }
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+
+    bool isEventRegistered(Builder &builder) override
     {
-        if (round == roundLocal)
+        if (error)
         {
-            if (error)
-            {
-                printMessage(FORMAT("Target {} runtime error.\n", name));
-                realBTargets[roundLocal].exitStatus = EXIT_FAILURE;
-            }
-            if (realBTargets[roundLocal].exitStatus == EXIT_SUCCESS)
-            {
-                printMessage(FORMAT("{}\n", name));
-            }
+            printMessage(FORMAT("Target {} runtime error.\n", name));
+            realBTargets[0].exitStatus = EXIT_FAILURE;
         }
+
+        if (realBTargets[0].exitStatus == EXIT_SUCCESS)
+        {
+            printMessage(FORMAT("{}\n", name));
+        }
+        return false;
     }
 };
 
@@ -358,8 +285,8 @@ void buildSpecification()
     OurTarget *f = new OurTarget("XMake");
     OurTarget *g = new OurTarget("build2", true);
     OurTarget *h = new OurTarget("Boost");
-    d->addDepNow<roundLocal>(*e);
-    h->addDepNow<roundLocal>(*g);
+    d->addDep<0>(*e);
+    h->addDep<0>(*g);
 }
 
 MAIN_FUNCTION
@@ -368,7 +295,7 @@ MAIN_FUNCTION
 </details>
 
 This example demonstrates HMake error handling.
-If ```updateBTarget``` throws an exception or set ```RealBTarget::exitStatus```
+If ```updateBTarget``` set ```RealBTarget::exitStatus```
 to anything but ```EXIT_SUCCESS```, then HMake will set the ```RealBTarget::exitStatus```
 of all the dependent targets to```EXIT_FAILURE```.
 This way target can learn the execution status of its dependents
@@ -392,17 +319,14 @@ struct OurTarget : BTarget
         : BTarget(true, false), low(low_), high(high_)
     {
     }
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override
+
+    bool isEventRegistered(Builder &builder) override
     {
-        if (round == 0)
+        for (unsigned short i = low; i < high; ++i)
         {
-            for (unsigned short i = low; i < high; ++i)
-            {
-                printMessage(FORMAT("{} ", i));
-                // To simulate a long-running task that continuously outputs.
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
+            printMessage(FORMAT("{} ", i));
         }
+        return false;
     }
 };
 
@@ -410,20 +334,17 @@ OurTarget *a, *b, *c;
 
 struct OurTarget2 : BTarget
 {
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+    bool isEventRegistered(Builder &builder) override
     {
-        if (round == 0)
-        {
-            a = new OurTarget(10, 40);
-            b = new OurTarget(50, 80);
-            c = new OurTarget(800, 1000);
-            a->addDepNow<0>(*c);
-            b->addDepNow<0>(*c);
+        a = new OurTarget(10, 40);
+        b = new OurTarget(50, 80);
+        c = new OurTarget(800, 1000);
+        a->addDep<0>(*c);
+        b->addDep<0>(*c);
 
-            std::lock_guard lk(builder.executeMutex);
-            builder.updateBTargets.emplace(&c->realBTargets[0]);
-            builder.updateBTargetsSizeGoal += 3;
-        }
+        builder.updateBTargets.emplace(&c->realBTargets[0]);
+        builder.updateBTargetsSizeGoal += 3;
+        return false;
     }
 };
 
@@ -438,13 +359,13 @@ MAIN_FUNCTION
 </details>
 
 This example will print ```800``` to ```1000``` and
-then it will print ```10``` to ```40``` and ```50``` to ```80``` garbled.
+then it will print ```10``` to ```40``` and ```50``` to ```80``` in no-order.
 This is because of targets ```OurTarget *a, *b, *c;``` and the dependency relationship
 between these targets.
 These targets were not part of the DAG but instead dynamically added.
 Initially, only ```target2``` was the part of the DAG.
 
-HMake supports dynamic targets as demonstrated.
+HMake supports dynamic targets in last round as demonstrated.
 These are an HMake speciality.
 Not only you can add new edges in the DAG dynamically,
 but also new nodes as well.
@@ -459,14 +380,6 @@ However, you have to take care of the following aspects:
    Because if the target ```dependenciesSize``` becomes zero,
    it is added to the ```updateBTargets``` list.
    HMake does not allow removing elements from this list.
-4. These data structures must not be modified without ```Builder::executeMutex``` locked.
-
-If you have added new targets to ```Builder::updateBTargets``` list,
-and there is still work left in ```BTarget::updateBTarget```,
-you should notify ```Builder::cond``` to keep full core saturation.
-If instead you will return right after the function,
-then you don't need to as the freed core will be used to execute the next in
-```Builder::updateBTargets```.
 
 ### Example 7
 
@@ -479,13 +392,11 @@ then you don't need to as the freed core will be used to execute the next in
 BTarget *b, *c;
 struct OurTarget : BTarget
 {
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+    bool isEventRegistered(Builder &builder) override
     {
-        if (round == 0)
-        {
-            b->addDepNow<0>(*c);
-            c->addDepNow<0>(*b);
-        }
+        b->addDep<0>(*c);
+        c->addDep<0>(*b);
+        return false;
     }
 };
 
@@ -494,8 +405,8 @@ void buildSpecification()
     b = new BTarget();
     c = new BTarget();
     OurTarget *target = new OurTarget();
-    b->addDepNow<0>(*target);
-    c->addDepNow<0>(*target);
+    b->addDep<0>(*target);
+    c->addDep<0>(*target);
 }
 
 MAIN_FUNCTION
@@ -524,15 +435,13 @@ BTarget *a;
 
 struct OurTarget : BTarget
 {
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+    bool isEventRegistered(Builder &builder) override
     {
-        if (round == 0)
-        {
-            a = new BTarget();
-            std::lock_guard lk(builder.executeMutex);
-            ++builder.updateBTargetsSizeGoal;
-            // builder.updateBTargets.emplace(&a->realBTargets[0]);
-        }
+        a = new BTarget();
+        ++builder.updateBTargetsSizeGoal;
+        // builder.updateBTargets.emplace(&a->realBTargets[0]);
+        
+        return false;
     }
 };
 
@@ -570,8 +479,17 @@ the total cache would be less than 10MB.
 This means that even for very big projects,
 build starts instantaneously and consumes very less memory.
 
-For debugging purposes, HMake has macros to toggle between path or number
-in cache files.
+During the build, in the first round,
+```Node::toBeChecked``` is set to true for nodes whose status we are
+interested in (last update time of the Node and whether the Node exits
+or not).
+Then after the round1 and before the round0,
+for these Nodes, in ```Builder::nodeCheck``` function,
+```Node::performSystemCheck``` is called in-parallel.
+While io-uring is used when supported.
+Node abstraction and HMake architecture allows a single file to be checked
+just once and that too in bulk.
+This allows HMake to have rebuild speeds at-least 2x faster than Ninja.
 
 </details>
 
@@ -592,11 +510,8 @@ User specify relative paths for these values in ```buildSpecification```
 function.
 HMake normalizes these and checks for uniqueness before storing in the
 config-cache.
-Now, at build-time ```buildSpecification``` does not make any filesystem calls
-and instead retrieves these values from the config-cache.
-Filesystem calls to fetch ```lastWriteTime``` are made later-on on
-multiple thread.
-While ```buildSpecification``` is run single-threaded.
+Now, at build-time ```buildSpecification```,
+retrieves these values from the config-cache.
 
 </details>
 
@@ -635,7 +550,7 @@ modify the last line in ```CppCompilerFeatures::initialize```
 to point to the path of release binary of my custom Clang fork.
 Then build the HMake project
 and add the build-dir in path environment variable.
-Run ```htools``` with admin permission.
+Run ```htools``` (with admin permission on Windows).
 This detects all the installed tools.
 Unlike few other build-systems, HMake does not
 detect the tools installed every time you configure a project but
@@ -664,18 +579,6 @@ hhelper will run the ```configure``` exe in the build-dir
 completing the configure stage.
 Now running hbuild will run the ```build``` exe.
 This will create the app executable in ```{buildDir}/release/app```.
-
-To run the boost example,
-download from link https://www.boost.org/releases/1.88.0/.
-After unzipping,
-copy the ```Projects/Boost/*``` to source-dir.
-Then make ```Build``` dir in the source-dir and cd to that.
-Run ```hhelper``` twice.
-Now, you can cd to ```conventional-d``` and run ```hbuild```.
-This will build only ```conventional-d``` configuration.
-I measure the command execution time using [ptime]().
-Similarly, you can build ```huBig-d```,
-and measure the build-time of the both configurations.
 
 CMakeLists.txt builds with address sanitizer,
 so you need to copy the respective dll
@@ -951,6 +854,7 @@ Compilation was failing otherwise.
 This will compile 2 header-units.
 One will contain all the ```stl``` includes.
 While one will contain only ```Windows.h```.
+On Linux, this also compile 2 with different contents.
 This is set up in ```Configuration::initialize```.
 
 ### Example 8
@@ -983,7 +887,6 @@ MAIN_FUNCTION
 <summary>hmake.cpp</summary>
 
 ```cpp
-#include "Configure.hpp"
 #include "Configure.hpp"
 
 template <typename... T> void initializeTargets(DSC<CppTarget> *target, T... targets)
@@ -1071,10 +974,10 @@ then the only option is to specify them manually in the ```hmake.cpp``` file.
 ### 1. Selective Build Flag
 
 The `BTarget::selectiveBuild` flag determines if a target should be updated during a build.
-`BTarget::updateBTarget` is called for all the BTargets
+`BTarget::completeRoundOne` is called for all the BTargets
 but `BTarget::selectiveBuild` is set for a selective few.
 `BTarget::setSelectiveBuild` is called before round1
-`BTarget::updateBTarget` call,
+`BTarget::completeRoundOne` call,
 which sets the `BTarget::selectiveBuild`.
 
 - **Set When:**
@@ -1137,7 +1040,7 @@ struct OurTarget : BTarget
         : BTarget(std::move(name), buildExplicit, makeDirectory, true, true), message{std::move(str)}
     {
     }
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+    void completeRoundOne(Builder &builder, const unsigned short round, bool &isComplete) override
     {
         if (round == 0 && selectiveBuild)
         {
@@ -1156,7 +1059,7 @@ void buildSpecification()
     OurTarget *d = new OurTarget("D", "D");
     OurTarget *e = new OurTarget("E", "E");
     OurTarget *f = new OurTarget("F");
-    c->addDepNow<0>(*e);
+    c->addDep<0>(*e);
 }
 
 MAIN_FUNCTION
@@ -1269,7 +1172,7 @@ Please feel free to approach me.
 
 ## Support
 
-I have been working on this project, for close to 4 years.
+I have been working on this project, for over 4 years.
 Please consider donating.
 Contact me here if you want to donate hassan.sajjad069@gmail.com,
 or you can donate to me through Patreon. Thanks.

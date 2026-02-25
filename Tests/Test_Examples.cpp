@@ -19,6 +19,7 @@ TEST(ExamplesTest, Example1)
                                                  "Hello World\n");
 }
 
+#ifdef _WIN32
 TEST(ExamplesTest, Example2)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example2"));
@@ -30,6 +31,7 @@ TEST(ExamplesTest, Example2)
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
                                                  "func1 called\nfunc2 called\nfunc3 called\nfunc4 called\n");
 }
+#endif
 
 TEST(ExamplesTest, Example3)
 {
@@ -176,7 +178,7 @@ TEST(AExamplesTest, Example_A4)
     int exitStatus;
     ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
     ASSERT_EQ(exitStatus, EXIT_FAILURE);
-    string str = "Cycle found: BTarget 0 -> BTarget 1 -> BTarget 2 -> BTarget 0\n";
+    string str = "Cycle found: Cat1 -> Cat2 -> Cat3 -> Cat1\n";
     string result = removeColorCodes(output);
     ASSERT_EQ(result, str);
 }

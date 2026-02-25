@@ -7,8 +7,7 @@
 #include "Windows.h"
 #endif
 
-using std::filesystem::directory_entry, std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard,
-    std::atomic_ref;
+using std::filesystem::directory_entry, std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard;
 
 string getStatusString(const path &p)
 {
@@ -64,16 +63,7 @@ std::size_t NodeHash::operator()(const string_view &str) const
     return rapidhash(str.data(), str.size());
 }
 
-Node::Node(Node *&node, string_view filePath_) : filePath(filePath_)
-{
-    node = this;
-    myId = atomic_ref(idCount).fetch_add(1, std::memory_order_relaxed);
-    nodeIndices[myId] = this;
-}
-
-// This function is called single-threaded. While the above is called multithreaded in lambdas passed to nodeAllFiles
-// emplace functions.
-Node::Node(string_view filePath_) : filePath(filePath_)
+Node::Node(const string_view filePath_) : filePath(filePath_)
 {
     myId = reinterpret_cast<uint32_t &>(idCount)++;
     nodeIndices[myId] = this;
@@ -91,6 +81,10 @@ string Node::getFileStem() const
 
 void Node::performSystemCheck()
 {
+    if (systemCheckCompleted)
+    {
+        return;
+    }
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA attrs;
     if (!GetFileAttributesExA(filePath.c_str(), GetFileExInfoStandard, &attrs))
@@ -142,40 +136,16 @@ void Node::performSystemCheck()
         lastWriteTime = entry.last_write_time();
     }
 #endif
-}
-
-void Node::ensureSystemCheckCalled()
-{
-    if (atomic_ref(systemCheckCompleted).load(std::memory_order_acquire))
-    {
-        return;
-    }
-
-    // If systemCheck was not called previously or isn't being called, call it.
-    if (!atomic_ref(systemCheckCalled).exchange(true))
-    {
-        performSystemCheck();
-        atomic_ref(systemCheckCompleted).store(true, std::memory_order_release);
-        return;
-    }
-
-    // systemCheck is being called for this node by another thread
-    while (!atomic_ref(systemCheckCompleted).load(std::memory_order_acquire))
-    {
-    }
+    systemCheckCompleted = true;
 }
 
 Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
 {
-    Node *node = nullptr;
+    const auto &[it, ok] = nodeAllFiles.emplace(filePath_);
+    Node *node = &const_cast<Node &>(*it);
+    nodeAllFiles.emplace(filePath_);
 
-    if (nodeAllFiles.lazy_emplace_l(
-            filePath_, [&](const NodeHashSet::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const NodeHashSet::constructor &constructor) { constructor(node, string(filePath_)); }))
-    {
-    }
-
-    node->ensureSystemCheckCalled();
+    node->performSystemCheck();
     if (node->fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
     {
         printErrorMessage(FORMAT("{} is not a {} file. File Type is {}\n", node->filePath, isFile ? "regular" : "dir",
@@ -189,22 +159,10 @@ Node *Node::getNodeNonNormalized(const string &filePath_, const bool isFile, con
     return getNode(getNormalizedPath(filePath_), isFile, mayNotExist);
 }
 
-Node *Node::getHalfNodeST(string_view normalizedFilePath)
+Node *Node::getHalfNode(const string_view filePath_)
 {
-    return const_cast<Node *>(nodeAllFiles.emplace(normalizedFilePath).first.operator->());
-}
-
-Node *Node::getHalfNode(const string_view p)
-{
-    Node *node = nullptr;
-
-    if (nodeAllFiles.lazy_emplace_l(
-            p, [&](const NodeHashSet::value_type &node_) { node = const_cast<Node *>(&node_); },
-            [&](const NodeHashSet::constructor &constructor) { constructor(node, string(p)); }))
-    {
-    }
-
-    return node;
+    const auto &[it, ok] = nodeAllFiles.emplace(filePath_);
+    return &const_cast<Node &>(*it);
 }
 
 Node *Node::getHalfNode(const uint32_t index)

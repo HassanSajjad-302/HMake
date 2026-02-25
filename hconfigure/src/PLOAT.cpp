@@ -96,74 +96,71 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
 
 #endif
 
-void PLOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
+void PLOAT::completeRoundOne()
 {
-    if (round == 1)
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        if constexpr (bsMode == BSMode::BUILD)
-        {
-            readCacheAtBuildTime();
-            outputFileNode->toBeChecked = true;
-        }
-        else
-        {
+        readCacheAtBuildTime();
+        outputFileNode->toBeChecked = true;
+    }
+    else
+    {
 
 #ifndef BUILD_MODE
-            actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
+        actualOutputName = getActualNameFromTargetName(linkTargetType, os, outputName);
 
-            // In case of prebuilt library not having a valid outputDirectory at constructor time is an error. While in
-            // case of LOAT, if no other outputDirectory is assigned, then we use the LOAT::myBuildDir as
-            // outputDirectory.
-            if (!outputDirectory)
-            {
-                outputDirectory = static_cast<LOAT *>(this)->myBuildDir;
-            }
-            outputFileNode = Node::getNode(outputDirectory->filePath + slashc + actualOutputName, true, true);
+        // In case of prebuilt library not having a valid outputDirectory at constructor time is an error. While in
+        // case of LOAT, if no other outputDirectory is assigned, then we use the LOAT::myBuildDir as
+        // outputDirectory.
+        if (!outputDirectory)
+        {
+            outputDirectory = static_cast<LOAT *>(this)->myBuildDir;
+        }
+        outputFileNode = Node::getNode(outputDirectory->filePath + slashc + actualOutputName, true, true);
 
 #endif
 
-            populateReqAndUseReqDeps();
-            writeTargetConfigCacheAtConfigureTime();
-        }
+        populateReqAndUseReqDeps();
+        writeTargetConfigCacheAtConfigureTime();
+    }
 
-        for (const uint32_t index : reqDepsVecIndices)
+    for (const uint32_t index : reqDepsVecIndices)
+    {
+        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
+        if constexpr (bsMode == BSMode::BUILD)
         {
-            PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
-            if constexpr (bsMode == BSMode::BUILD)
+            if (evaluate(TargetType::LIBRARY_STATIC))
             {
-                if (evaluate(TargetType::LIBRARY_STATIC))
+                if (reqDep->hasObjectFiles)
                 {
-                    if (reqDep->hasObjectFiles)
-                    {
-                        addDepMT<0, BTargetDepType::LOOSE>(*reqDep);
-                    }
-                }
-                else
-                {
-                    if (reqDep->hasObjectFiles)
-                    {
-                        addDepMT<0>(*reqDep);
-                    }
+                    addDep<0, BTargetDepType::LOOSE>(*reqDep);
                 }
             }
-
-            for (const LibDirNode &libDirNode : reqDep->useReqLibraryDirs)
+            else
             {
-                reqLibraryDirs.emplace_back(libDirNode.node);
+                if (reqDep->hasObjectFiles)
+                {
+                    addDep<0>(*reqDep);
+                }
             }
         }
 
-        if (!hasObjectFiles)
+        for (const LibDirNode &libDirNode : reqDep->useReqLibraryDirs)
         {
-            return;
+            reqLibraryDirs.emplace_back(libDirNode.node);
         }
+    }
 
-        for (ObjectFileProducer *objectFileProducer : objectFileProducers)
+    if (!hasObjectFiles)
+    {
+        return;
+    }
+
+    for (ObjectFileProducer *objectFileProducer : objectFileProducers)
+    {
+        if (objectFileProducer->hasObjectFiles)
         {
-            if (objectFileProducer->hasObjectFiles)
-            {
-                addDepMT<0>(*objectFileProducer);
-            }
+            addDep<0>(*objectFileProducer);
         }
     }
 }
@@ -217,7 +214,7 @@ void PLOAT::populateReqAndUseReqDeps()
 
     // Set is copied because new elements are to be inserted in it.
 
-    for (auto localReqDeps = reqDeps; PLOAT * t : localReqDeps)
+    for (auto localReqDeps = reqDeps; PLOAT *t : localReqDeps)
     {
         for (PLOAT *t_ : t->useReqDeps)
         {
@@ -225,7 +222,7 @@ void PLOAT::populateReqAndUseReqDeps()
         }
     }
 
-    for (auto localUseReqDeps = useReqDeps; PLOAT * t : localUseReqDeps)
+    for (auto localUseReqDeps = useReqDeps; PLOAT *t : localUseReqDeps)
     {
         for (PLOAT *t_ : t->useReqDeps)
         {

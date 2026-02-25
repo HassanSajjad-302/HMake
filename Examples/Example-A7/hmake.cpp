@@ -3,13 +3,11 @@
 BTarget *b, *c;
 struct OurTarget : BTarget
 {
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+    bool isEventRegistered(Builder &builder) override
     {
-        if (round == 0)
-        {
-            b->addDepNow<0>(*c);
-            c->addDepNow<0>(*b);
-        }
+        b->addDep<0>(*c);
+        c->addDep<0>(*b);
+        return false;
     }
 };
 
@@ -18,8 +16,8 @@ void buildSpecification()
     b = new BTarget();
     c = new BTarget();
     OurTarget *target = new OurTarget();
-    b->addDepNow<0>(*target);
-    c->addDepNow<0>(*target);
+    b->addDep<0>(*target);
+    c->addDep<0>(*target);
 }
 
 MAIN_FUNCTION

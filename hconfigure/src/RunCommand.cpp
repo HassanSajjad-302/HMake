@@ -4,11 +4,13 @@
 #include "BuildSystemFunctions.hpp"
 #include "Builder.hpp"
 #include "IPCManagerBS.hpp"
+
 #include <utility>
-#ifdef _WIN32
-#else
+
+#ifndef _WIN32
 #include "sys/wait.h"
 #include "wordexp.h"
+#include <fcntl.h>
 #endif
 
 #ifdef _WIN32
@@ -46,52 +48,41 @@ void RunCommand::runProcess(const char *command)
 }
 
 // Copied partially from Ninja
-uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget)
+uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget, bool haveWritePipe)
 {
-    // One BTarget can launch multiple processes so we also append the clock::now().
-    const string pipe_name =
-        FORMAT("\\\\.\\pipe\\{}{}", bTarget->id, std::chrono::high_resolution_clock::now().time_since_epoch().count());
-    HANDLE pipe_ = CreateNamedPipeA(pipe_name.c_str(), PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED, PIPE_TYPE_BYTE,
-                                    PIPE_UNLIMITED_INSTANCES, 0, 0, INFINITE, NULL);
-    if (pipe_ == INVALID_HANDLE_VALUE)
+    const string readPipeName =
+        FORMAT("\\\\.\\pipe\\{}", std::chrono::high_resolution_clock::now().time_since_epoch().count());
+
+    HANDLE readPipeHandle = CreateNamedPipeA(readPipeName.c_str(), PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+                                             PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, 0, 0, INFINITE, NULL);
+    if (readPipeHandle == INVALID_HANDLE_VALUE)
     {
         printErrorMessage(N2978::getErrorString());
     }
 
-    const uint64_t eventDataIndex = builder.registerEventData(bTarget, (uint64_t)pipe_);
-    if (!CreateIoCompletionPort(pipe_, (HANDLE)builder.serverFd, eventDataIndex, 0))
+    index = builder.registerEventData(bTarget, (uint64_t)readPipeHandle);
+    if (!CreateIoCompletionPort(readPipeHandle, (HANDLE)builder.serverFd, eventDataIndex, 0))
     {
         printErrorMessage(N2978::getErrorString());
     }
 
     if (CompletionKey &k = eventData[eventDataIndex];
-        !ConnectNamedPipe(pipe_, &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer)) &&
+        !ConnectNamedPipe(readPipeHandle, &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer)) &&
         GetLastError() != ERROR_IO_PENDING)
     {
         printErrorMessage(N2978::getErrorString());
     }
 
     // Get the write end of the pipe as a handle inheritable across processes.
-    HANDLE output_write_handle = CreateFileA(pipe_name.c_str(), GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    HANDLE outputWriteHandle =
+        CreateFileA(readPipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
     HANDLE child_pipe;
-    if (!DuplicateHandle(GetCurrentProcess(), output_write_handle, GetCurrentProcess(), &child_pipe, 0, TRUE,
+    if (!DuplicateHandle(GetCurrentProcess(), outputWriteHandle, GetCurrentProcess(), &child_pipe, 0, TRUE,
                          DUPLICATE_SAME_ACCESS))
     {
         printErrorMessage(N2978::getErrorString());
     }
-    CloseHandle(output_write_handle);
-
-    SECURITY_ATTRIBUTES security_attributes;
-    memset(&security_attributes, 0, sizeof(SECURITY_ATTRIBUTES));
-    security_attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
-    security_attributes.bInheritHandle = TRUE;
-    // Must be inheritable so subprocesses can dup to children.
-    HANDLE nul = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                             &security_attributes, OPEN_EXISTING, 0, NULL);
-    if (nul == INVALID_HANDLE_VALUE)
-    {
-        printErrorMessage(N2978::getErrorString());
-    }
+    CloseHandle(outputWriteHandle);
 
     STARTUPINFOA startup_info;
     memset(&startup_info, 0, sizeof(startup_info));
@@ -101,7 +92,7 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     if (!use_console_)
     {
         startup_info.dwFlags = STARTF_USESTDHANDLES;
-        startup_info.hStdInput = nul;
+        startup_info.hStdInput = child_pipe;
         startup_info.hStdOutput = child_pipe;
         startup_info.hStdError = child_pipe;
     }
@@ -127,62 +118,75 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     {
         CloseHandle(child_pipe);
     }
-    CloseHandle(nul);
 
     CloseHandle(process_info.hThread);
 
-    stdPipe = (uint64_t)pipe_;
+    // todo
+    // don't inherit the parent fds.
+    ...
+    HANDLE hd = (HANDLE) _get_osfhandle(fd);
+    if (! SetHandleInformation(hd, HANDLE_FLAG_INHERIT, 0)) {
+        fprintf(stderr, "SetHandleInformation(): %s", GetLastErrorString().c_str());
+    }
+    readPipe = (uint64_t)readPipeHandle;
+    writePipe = (uint64_t)readPipeHandle;
     pid = (uint64_t)process_info.hProcess;
 
     return eventDataIndex;
 }
 
-bool RunCommand::wasProcessLaunchIncomplete(const uint64_t index)
+bool Builder::startRead(const uint64_t eventIndex, RunCommand &run)
 {
+    CompletionKey &k = eventData[eventIndex];
+    memset(k.buffer, 0, sizeof(k.buffer));
+    memset(k.overlappedBuffer, 0, sizeof(k.overlappedBuffer));
+    DWORD bytesRead = 0;
+    const BOOL result =
+        ReadFile((HANDLE)k.handle, k.buffer, 4096, &bytesRead, &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer));
+    if (result)
     {
-        if (run.processState == ProcessState::OUTPUT_CONNECTED)
-        {
-            if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
-            {
-                return true;
-            }
-        }
-        else
-        {
-            // Process is completed
-            bool breakpoint = true;
-        }
+        // Event if synchronous succeeded, we need to process the stale completion event sent to the event loop.
+        return false;
     }
-    else
+    const DWORD error = GetLastError();
+    if (error == ERROR_IO_PENDING)
     {
-        if (!Builder::isRecurrentReadFromEventDataCompleted(index, output))
-        {
-            return true;
-        }
+        return false;
+    }
+    if (error == ERROR_BROKEN_PIPE)
+    {
+        // ReadFile completed successfully
+        return true;
     }
 
-    if (processState == ProcessState::LAUNCHED)
+    printErrorMessage(N2978::getErrorString());
+    return true;
+}
+
+CompleteReadType Builder::completeRead(const uint64_t eventIndex, RunCommand &run)
+{
+    CompletionKey &k = eventData[eventIndex];
+    uint64_t bytesRead = 0;
+    if (!GetOverlappedResult((HANDLE)k.handle, &(OVERLAPPED &)k.overlappedBuffer, (LPDWORD)&bytesRead, false))
     {
-        CompletionKey &k = eventData[index];
-        uint64_t bytesRead = 0;
-        const bool result =
-            GetOverlappedResult((HANDLE)k.handle, &(OVERLAPPED &)k.overlappedBuffer, (LPDWORD)&bytesRead, false);
-        if (result)
-        {
-            processState = ProcessState::OUTPUT_CONNECTED;
-            return true;
-        }
         if (GetLastError() == ERROR_BROKEN_PIPE)
         {
-            processState = ProcessState::COMPLETED;
-            return true;
+            // ReadFile completed successfully
+            return CompleteReadType::COMPLETE_PROCESS;
         }
         printErrorMessage(N2978::getErrorString());
     }
-    return false;
+
+    run.output.append(string_view{k.buffer, bytesRead});
+    if (run.output.ends_with(N2978::delimiter))
+    {
+        return CompleteReadType::COMPLETE_MESSAGE;
+    }
+
+    return CompleteReadType::INCOMPLETE;
 }
 
-void RunCommand::reapProcess() const
+void RunCommand::reapProcess()
 {
     if (WaitForSingleObject((HANDLE)pid, INFINITE) == WAIT_FAILED)
     {
@@ -193,7 +197,7 @@ void RunCommand::reapProcess() const
         printErrorMessage(N2978::getErrorString());
     }
 
-    if (!CloseHandle((HANDLE)pid) || !CloseHandle((HANDLE)stdPipe))
+    if (!CloseHandle((HANDLE)pid) || !CloseHandle((HANDLE)readPipe))
     {
         printErrorMessage(N2978::getErrorString());
     }
@@ -210,6 +214,7 @@ void RunCommand::killModuleProcess(const string &processName) const
     }
 
     CloseHandle((HANDLE)pid); // Clean up when you’re done
+    builder.unregisterEventDataAtIndex(index);
 }
 
 #else
@@ -219,87 +224,94 @@ void RunCommand::killModuleProcess(const string &processName) const
 
 uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget, bool haveWritePipe)
 {
-    // Create pipes for stdout and stderr
+    wordexp_t p;
+    if (wordexp(command, &p, 0) != 0)
+    {
+        printErrorMessage("wordexp failed\n");
+        return -1;
+    }
+
     int stdoutPipesLocal[2];
-    if (pipe(stdoutPipesLocal) == -1)
+    if (pipe2(stdoutPipesLocal, O_CLOEXEC) == -1)
     {
         printErrorMessage(N2978::getErrorString());
     }
     readPipe = stdoutPipesLocal[0];
 
-    // Create pipe for stdin
     int stdinPipesLocal[2];
     if (haveWritePipe)
     {
-        if (pipe(stdinPipesLocal) == -1)
-        {
+        if (pipe2(stdinPipesLocal, O_CLOEXEC) == -1)
             printErrorMessage(N2978::getErrorString());
-        }
         writePipe = stdinPipesLocal[1];
     }
+    else
+    {
+        // todo
+        // in child redirect /dev/null for both Windows and Linux.
+    }
 
-    pid = fork();
+    pid = vfork(); // <-- vfork
     if (pid == -1)
     {
         printErrorMessage(N2978::getErrorString());
     }
+
     if (pid == 0)
     {
-        // Child process
-
-        // Redirect stdout and stderr to the pipes
-        dup2(stdoutPipesLocal[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
-        dup2(stdoutPipesLocal[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
-
-        // Close unused pipe ends
+        // Child — only dup2, close, execvp and _exit allowed
+        dup2(stdoutPipesLocal[1], STDOUT_FILENO);
+        dup2(stdoutPipesLocal[1], STDERR_FILENO);
         close(stdoutPipesLocal[0]);
         close(stdoutPipesLocal[1]);
 
         if (haveWritePipe)
         {
-            // Redirect stdin from the pipe
             dup2(stdinPipesLocal[0], STDIN_FILENO);
             close(stdinPipesLocal[0]);
             close(stdinPipesLocal[1]);
         }
 
-        wordexp_t p;
-        if (wordexp(command, &p, 0) != 0)
-        {
-            perror("wordexp");
-            _exit(127);
-        }
-
-        // p.we_wordv is a NULL-terminated argv suitable for exec*
-        char **argv = p.we_wordv;
-
-        // Use execvp so PATH is searched and environment is inherited
-        execvp(argv[0], argv);
-
-        // If execvp returns, it failed:
-        perror("execvp");
-        wordfree(&p);
-        _exit(127);
+        execvp(p.we_wordv[0], p.we_wordv);
+        _exit(127); // must use _exit, never exit()
     }
 
-    // Parent process
-    // Close unused pipe ends
+    // Parent
     close(stdoutPipesLocal[1]);
+    wordfree(&p); // safe to free here, child has already exec'd
     builder.registerEventData(bTarget, readPipe);
+
     if (haveWritePipe)
     {
         close(stdinPipesLocal[0]);
     }
+
     return readPipe;
 }
 
-ReadDataInfo RunCommand::isReadCompleted(const uint64_t index)
+bool RunCommand::startRead()
 {
-    return Builder::isRecurrentReadFromEventDataCompleted(index, *this);
+    return false;
 }
 
-ReadDataInfo::ReadDataInfo(string message_, bool completed_) : message(std::move(message_)), completed(completed_)
+CompleteReadType RunCommand::completeRead()
 {
+    char buffer[64 * 1024];
+    const uint64_t readSize = read(readPipe, buffer, sizeof(buffer) - 1);
+    if (readSize == -1)
+    {
+        printErrorMessage(N2978::getErrorString());
+    }
+    if (!readSize)
+    {
+        return CompleteReadType::COMPLETE_PROCESS;
+    }
+    output.append(buffer, readSize);
+    if (output.ends_with(N2978::delimiter))
+    {
+        return CompleteReadType::COMPLETE_MESSAGE;
+    }
+    return CompleteReadType::INCOMPLETE;
 }
 
 void RunCommand::runProcess(const char *command)
@@ -377,9 +389,10 @@ void RunCommand::runProcess(const char *command)
     exitStatus = WEXITSTATUS(status);
 }
 
-void RunCommand::reapProcess(bool haveWritePipe)
+void RunCommand::reapProcess()
 {
-    if (waitpid(pid, &exitStatus, 0) < 0)
+    int status;
+    if (waitpid(pid, &status, 0) < 0)
     {
         printErrorMessage(N2978::getErrorString());
     }
@@ -388,30 +401,33 @@ void RunCommand::reapProcess(bool haveWritePipe)
         printErrorMessage(N2978::getErrorString());
     }
 
-    if (haveWritePipe)
+    if (writePipe != -1)
     {
         if (close(writePipe) == -1)
         {
             printErrorMessage(N2978::getErrorString());
         }
     }
+    exitStatus = WEXITSTATUS(status);  // extract actual exit code
 }
 
-void RunCommand::killModuleProcess(const string &processName) const
+void RunCommand::killModuleProcess(Builder &builder) const
 {
     if (kill(pid, SIGKILL) != 0)
     {
-        printErrorMessage(FORMAT("Killing module process {} failed.\n", processName));
+        printErrorMessage("Killing process");
     }
+    builder.unregisterEventDataAtIndex(readPipe);
 }
+
+#endif
+
+#ifdef _WIN32
+
+#endif
 
 string RunCommand::pruneOutput()
 {
-    if (!output.ends_with(N2978::delimiter))
-    {
-        return "";
-    }
-
     // Prune the compiler output. and make a new string of the compiler-message output.
     const uint32_t outputSize = output.size();
     if (outputSize < 4 + strlen(N2978::delimiter))
@@ -428,5 +444,3 @@ string RunCommand::pruneOutput()
 
     return str;
 }
-
-#endif

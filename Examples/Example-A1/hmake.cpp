@@ -6,12 +6,10 @@ struct OurTarget : BTarget
     explicit OurTarget(string str) : message{std::move(str)}
     {
     }
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+
+    void completeRoundOne() override
     {
-        if (round == 0)
-        {
-            printMessage(FORMAT("{}\n", message));
-        }
+        printMessage(FORMAT("{}\n", message));
     }
 };
 
@@ -19,7 +17,7 @@ void buildSpecification()
 {
     OurTarget *a = new OurTarget("Hello");
     OurTarget *b = new OurTarget("World");
-    b->addDepNow<0>(*a);
+    b->addDep<1>(*a);
 }
 
 MAIN_FUNCTION

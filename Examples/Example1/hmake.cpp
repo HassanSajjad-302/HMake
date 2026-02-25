@@ -7,7 +7,7 @@ void configurationSpecification(Configuration &config)
 
 void buildSpecification()
 {
-    getConfiguration().assign(ConfigType::DEBUG);
+    getConfiguration();
     CALL_CONFIGURATION_SPECIFICATION
 }
 

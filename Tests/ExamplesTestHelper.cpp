@@ -76,7 +76,9 @@ void ExamplesTestHelper::getCleanBuildOutputAndStatus(string &output, int32_t &e
         r.runProcess("hbuild");
         erase_if(r.output, [](const char c) { return c == '\r'; });
         exitStatus = r.exitStatus;
+        output = std::move(r.output);
     }
+
 }
 
 void ExamplesTestHelper::runCommandAndGetOutput(const string &command, string &output)

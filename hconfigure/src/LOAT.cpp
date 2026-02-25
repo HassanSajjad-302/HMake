@@ -26,7 +26,7 @@ void LOAT::makeBuildCacheFilesDirPathAtConfigTime()
     {
         if (!myBuildDir)
         {
-            myBuildDir = Node::getHalfNodeST(configureNode->filePath + slashc + name);
+            myBuildDir = Node::getHalfNode(configureNode->filePath + slashc + name);
         }
         create_directories(myBuildDir->filePath);
     }
@@ -197,27 +197,24 @@ void LOAT::setFileStatus()
     }
 }
 
-void LOAT::updateBTarget(Builder &builder, const unsigned short round, bool &isComplete)
+void LOAT::completeRoundOne()
 {
-    PLOAT::updateBTarget(builder, round, isComplete);
-    if (round == 1)
+    PLOAT::completeRoundOne();
+    if constexpr (bsMode == BSMode::BUILD)
     {
-        if constexpr (bsMode == BSMode::BUILD)
+        readCacheAtBuildTime();
+    }
+    if (!evaluate(TargetType::LIBRARY_STATIC))
+    {
+        for (const uint32_t index : reqDepsVecIndices)
         {
-            readCacheAtBuildTime();
+            const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
         }
-        if (!evaluate(TargetType::LIBRARY_STATIC))
-        {
-            for (const uint32_t index : reqDepsVecIndices)
-            {
-                const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
-            }
-        }
+    }
 
-        if constexpr (bsMode == BSMode::CONFIGURE)
-        {
-            writeCacheAtConfigureTime();
-        }
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        writeCacheAtConfigureTime();
     }
 }
 
@@ -228,8 +225,7 @@ bool LOAT::writeBuildCache(string &buffer)
         return PLOAT::writeBuildCache(buffer);
     }
 
-    if (atomic_ref(realBTargets[0].updateStatus).load(std::memory_order_acquire) != UpdateStatus::UPDATED ||
-        realBTargets[0].exitStatus != EXIT_SUCCESS)
+    if (realBTargets[0].updateStatus != UpdateStatus::UPDATED || realBTargets[0].exitStatus != EXIT_SUCCESS)
     {
         return PLOAT::writeBuildCache(buffer);
     }
@@ -397,7 +393,7 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets)
     }
 }
 
-bool LOAT::launchBTarget(Builder &builder)
+bool LOAT::isEventRegistered(Builder &builder)
 {
     if (const RealBTarget &realBTarget = realBTargets[0]; realBTarget.exitStatus == EXIT_FAILURE || !selectiveBuild)
     {
@@ -444,21 +440,12 @@ bool LOAT::launchBTarget(Builder &builder)
         return false;
     }
 
-    r.startAsyncProcess(linkWithTargets.c_str(), builder, this, false);
+    run.startAsyncProcess(linkWithTargets.c_str(), builder, this, false);
     return true;
 }
 
-bool LOAT::completeBTarget(Builder &builder, const uint64_t index, uint32_t &activeCount)
+bool LOAT::isEventCompleted(Builder &builder, string_view)
 {
-    if (!r.isReadCompleted(index).completed)
-    {
-        return true;
-    }
-
-    builder.unregisterEventDataAtIndex(index);
-    r.reapProcess(false);
-    realBTargets[0].exitStatus = r.exitStatus;
-
     constexpr uint32_t stackSize = 64 * 1024;
     string output2;
     char buffer[stackSize];
@@ -466,7 +453,7 @@ bool LOAT::completeBTarget(Builder &builder, const uint64_t index, uint32_t &act
     std::pmr::string linkWithTargets(&alloc);
     setLinkOrArchiveCommands(linkWithTargets);
 
-    atomic_ref(realBTargets[0].updateStatus).store(UpdateStatus::UPDATED, std::memory_order_release);
+    realBTargets[0].updateStatus = UpdateStatus::UPDATED;
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
         realBTargets[0].assignNeedsUpdateToDependents();
@@ -485,7 +472,7 @@ bool LOAT::completeBTarget(Builder &builder, const uint64_t index, uint32_t &act
         }
     }
 
-    if (r.output.empty())
+    if (run.output.empty())
     {
         string str;
         if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -507,16 +494,14 @@ bool LOAT::completeBTarget(Builder &builder, const uint64_t index, uint32_t &act
         outputStr += linkWithTargets;
     }
 
-    outputStr += threadIds[myThreadIndex];
     if (isConsole)
     {
         outputStr += getColorCode(ColorIndex::reset);
     }
 
-    outputStr += r.output;
-    {
-        fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
-    }
+    outputStr += run.output;
+    outputStr.push_back('\n');
+    fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
 
     if constexpr (os == OS::NT)
     {

@@ -17,24 +17,23 @@ enum class ProcessState
     OUTPUTFD_CLOSED,
 };
 
-struct ReadDataInfo
+enum class CompleteReadType
 {
-    string message;
-    bool completed;
-    ReadDataInfo(string message_, bool completed_);
+    INCOMPLETE,
+    COMPLETE_PROCESS,
+    COMPLETE_MESSAGE,
 };
 
 struct RunCommand
 {
     string output;
     uint64_t readPipe;
-    uint64_t writePipe;
+    uint64_t writePipe = -1;
     uint64_t pid;
     int exitStatus;
 #ifdef _WIN32
-    ProcessState processState = ProcessState::LAUNCHED;
-#else
-    ProcessState processState = ProcessState::OUTPUT_CONNECTED;
+    CompleteReadType completeReadType = CompleteReadType::INCOMPLETE;
+    uint64_t index;
 #endif
 
     // command is 3 parts. 1) tool path 2) command without output and error files 3) output and error files.
@@ -43,9 +42,10 @@ struct RunCommand
     void runProcess(const char *command);
 
     uint64_t startAsyncProcess(const char *command, class Builder &builder, class BTarget *bTarget, bool haveWritePipe);
-    ReadDataInfo isReadCompleted(uint64_t index);
-    void reapProcess(bool haveWritePipe);
-    void killModuleProcess(const string &processName) const;
+    bool startRead();
+    CompleteReadType completeRead();
+    void reapProcess();
+    void killModuleProcess(Builder &builder) const;
     string pruneOutput();
 };
 

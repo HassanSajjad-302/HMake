@@ -41,7 +41,7 @@ class PLOAT : public BTarget, public TargetCache
 
     void initializePLOAT();
     template <typename T> bool evaluate(T property) const;
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
+    void completeRoundOne() override;
 
   private:
     void writeTargetConfigCacheAtConfigureTime();
@@ -136,17 +136,17 @@ template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat,
         {
             reqDeps.emplace(&ploat);
             useReqDeps.emplace(&ploat);
-            addDepNow<1>(ploat);
+            addDep<1>(ploat);
         }
         else if (depType == DepType::PRIVATE)
         {
             reqDeps.emplace(&ploat);
-            addDepNow<1>(ploat);
+            addDep<1>(ploat);
         }
         else
         {
             useReqDeps.emplace(&ploat);
-            addDepNow<1>(ploat);
+            addDep<1>(ploat);
         }
     }
     else

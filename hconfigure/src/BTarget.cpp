@@ -8,11 +8,6 @@
 using std::filesystem::create_directories, std::ofstream, std::filesystem::current_path, std::lock_guard,
     std::filesystem::create_directory;
 
-BTarget::LaterDep::LaterDep(RealBTarget *b_, RealBTarget *dep_, BTargetDepType type_, bool doBoth_)
-    : b(b_), dep(dep_), type(type_), doBoth(doBoth_)
-{
-}
-
 bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, const BTarget *rhs) const
 {
     return const_cast<BTarget *>(lhs)->realBTargets[0].indexInTopologicalSort <
@@ -155,15 +150,8 @@ bool RealBTarget::findCycleDFS(RealBTarget *node, flat_hash_set<RealBTarget *> &
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarget(bTarget_)
 {
     uint32_t i;
-    if (isOneThreadRunning)
-    {
-        i = BTarget::realBTargetsArrayCount[round_].value;
-        ++BTarget::realBTargetsArrayCount[round_].value;
-    }
-    else
-    {
-        i = BTarget::realBTargetsArrayCount[round_].value.fetch_add(1, std::memory_order_relaxed);
-    }
+    i = BTarget::realBTargetsArrayCount[round_];
+    ++BTarget::realBTargetsArrayCount[round_];
     BTarget::realBTargetsGlobal[round_][i] = this;
 }
 
@@ -172,15 +160,8 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
     if (add)
     {
         uint32_t i;
-        if (isOneThreadRunning)
-        {
-            i = BTarget::realBTargetsArrayCount[round_].value;
-            ++BTarget::realBTargetsArrayCount[round_].value;
-        }
-        else
-        {
-            i = BTarget::realBTargetsArrayCount[round_].value.fetch_add(1, std::memory_order_relaxed);
-        }
+        i = BTarget::realBTargetsArrayCount[round_];
+        ++BTarget::realBTargetsArrayCount[round_];
         BTarget::realBTargetsGlobal[round_][i] = this;
     }
 }
@@ -204,30 +185,16 @@ static string lowerCase(string str)
 
 BTarget::BTarget() : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1)}
 {
-    if (isOneThreadRunning)
-    {
-        id = total;
-        ++total;
-    }
-    else
-    {
-        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
-    }
+    id = total;
+    ++total;
 }
 
 BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
     : realBTargets{RealBTarget(this, 0), RealBTarget(this, 1)}, name(lowerCase(std::move(name_))),
       buildExplicit(buildExplicit_)
 {
-    if (isOneThreadRunning)
-    {
-        id = total;
-        ++total;
-    }
-    else
-    {
-        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
-    }
+    id = total;
+    ++total;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (makeDirectory)
@@ -244,30 +211,16 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
 BTarget::BTarget(const bool add0, const bool add1)
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1)}
 {
-    if (isOneThreadRunning)
-    {
-        id = total;
-        ++total;
-    }
-    else
-    {
-        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
-    }
+    id = total;
+    ++total;
 }
 
 BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, const bool add0, const bool add1)
     : realBTargets{RealBTarget(this, 0, add0), RealBTarget(this, 1, add1)}, name(lowerCase(std::move(name_))),
       buildExplicit(buildExplicit_)
 {
-    if (isOneThreadRunning)
-    {
-        id = total;
-        ++total;
-    }
-    else
-    {
-        id = atomic_ref(total).fetch_add(1, std::memory_order_relaxed);
-    }
+    id = total;
+    ++total;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (makeDirectory)
@@ -278,30 +231,6 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
     if (name.starts_with("conventional\\conventional\\"))
     {
         bool breakpoint = true;
-    }
-}
-
-void BTarget::postRoundOneCompletion()
-{
-    delete[] realBTargetsGlobal[1].data();
-
-    for (vector<LaterDep> *laterDeps : laterDepsCentral)
-    {
-        for (LaterDep &later : *laterDeps)
-        {
-            // first emplace in dependents, if ok, then emplace in dependencies based on doBoth variable.
-            if (later.dep->dependents.try_emplace(later.b, later.type).second)
-            {
-                if (later.doBoth)
-                {
-                    later.b->dependencies.emplace(later.dep, later.type);
-                    if (later.type == BTargetDepType::FULL || later.type == BTargetDepType::WAIT)
-                    {
-                        ++later.b->dependenciesSize;
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -323,16 +252,16 @@ BTargetType BTarget::getBTargetType() const
     return BTargetType::DEFAULT;
 }
 
-void BTarget::updateBTarget(Builder &, unsigned short, bool &isComplete)
+void BTarget::completeRoundOne()
 {
 }
 
-bool BTarget::launchBTarget(Builder &builder)
+bool BTarget::isEventRegistered(Builder &builder)
 {
     return false;
 }
 
-bool BTarget::completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount)
+bool BTarget::isEventCompleted(Builder &builder, string_view message)
 {
     return false;
 }

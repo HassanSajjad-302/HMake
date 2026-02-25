@@ -4,7 +4,6 @@
 #include "HashedCommand.hpp"
 #include "ObjectFile.hpp"
 #include "PLOAT.hpp"
-#include "RunCommand.hpp"
 
 #include <stack>
 
@@ -41,7 +40,7 @@ class LOAT : public PLOAT
     BTargetType getBTargetType() const override;
 
     void setFileStatus();
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
+    void completeRoundOne() override;
     bool writeBuildCache(string &buffer) override;
     void writeCacheAtConfigureTime();
     void readCacheAtBuildTime();
@@ -49,9 +48,8 @@ class LOAT : public PLOAT
     string getPrintName() const override;
     void setLinkOrArchiveCommands(std::pmr::string &linkWithTargets);
     template <typename T> bool evaluate(T property) const;
-    bool launchBTarget(Builder &builder) override;
-    bool completeBTarget(Builder &builder, uint64_t index, uint32_t &activeCount) override;
-    RunCommand r;
+    bool isEventRegistered(Builder &builder) override;
+    bool isEventCompleted(Builder &builder, string_view) override;
 };
 
 bool operator<(const LOAT &lhs, const LOAT &rhs);

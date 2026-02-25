@@ -52,8 +52,6 @@ inline constexpr NDEB ndeb = NDEB::NO;
 
 inline bool isConsole = true;
 
-inline thread_local uint16_t myThreadIndex = 0;
-
 inline flat_hash_set<string> cmdTargets;
 inline string configCacheGlobal{};
 inline string buildCacheGlobal{};
@@ -106,9 +104,6 @@ inline string currentMinusConfigure;
 void initializeCache();
 inline const string dashCpp = "-cpp";
 inline const string dashLink = "-link";
-
-/// This is true in ExecuteMode::NODE_CHECK even though multiple threads are running.
-inline bool isOneThreadRunning = true;
 
 // Enum with sequential indices for array lookup
 enum class ColorIndex : uint16_t
@@ -408,9 +403,6 @@ inline const char *getColorCode(ColorIndex c)
     return ColorCodes[static_cast<uint32_t>(c)];
 }
 
-string getThreadId();
-inline vector<string> threadIds;
-
 // While decompressing lz4 file, we allocate following + 1 the buffer size.
 // So, we have compressed filee * bufferMultiplier times the space.
 // Also, while storing we check that the original file size / compresseed file size
@@ -431,7 +423,6 @@ void writeBuildBuffer(string &buffer);
 string getThreadId();
 string getFileNameJsonOrOut(const string &name);
 
-// Provide these with extern "C" linkage as well so ide/editor could pipe the logging.
 void printMessage(const string &message);
 void printMessage(const char *message);
 void printMessage(const std::pmr::string &message);

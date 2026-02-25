@@ -14,25 +14,6 @@
 
 using std::same_as;
 
-struct HeaderFileOrUnit
-{
-    union {
-        CppMod *cppMod;
-        Node *node;
-    } data;
-
-    // Only used at build-time
-    uint32_t targetIndex;
-    bool isUnit;
-    bool isSystem;
-    // Following two are only used at build-time
-    HeaderFileOrUnit(uint32_t targetIndex_, CppMod *cppMod_, bool isSystem_);
-    HeaderFileOrUnit(uint32_t targetIndex_, Node *node_, bool isSystem_);
-    HeaderFileOrUnit(CppMod *cppMod_, bool isSystem_);
-    HeaderFileOrUnit(Node *node_, bool isSystem_);
-    HeaderFileOrUnit() = default;
-};
-
 /// Whether a file is Module, Header-File or Header-Unit
 enum class FileType : uint8_t
 {
@@ -117,15 +98,16 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// Stores the req header-names mapping with header-file or header-unit. Cached at config-time. It is the lookup
     /// table that is used to retrieve the header-file or header-unit when the compiler sends the header-name
     flat_hash_map<string_view, HeaderFileOrUnit> reqHeaderNameMapping;
-    /// Stores the useReq header-names mapping with header-file or header-unit. Cached at config-time. It is the lookup
-    /// table that is used to retrieve the header-file or header-unit when the compiler sends the header-name
+
+    /// Used only at config-time. It is the lookup table that is used to retrieve the header-file or header-unit when
+    /// the compiler sends the include-name. At build-time, however, Configuration::headerNameMapping is used instead.
     flat_hash_map<string_view, HeaderFileOrUnit> useReqHeaderNameMapping;
 
     /// Used only at configure-time. Used to check if any of header-files has changed to header-unit or vice versa. Also
-    /// checks if same node is specified as 2 different FileTypes.
+    /// checks if same node is specified twice.
     flat_hash_map<const Node *, FileType> reqNodesType;
-    /// Used only at configure-time. Checks if same node is specified as 2 different FileTypes in this CppTarget or its
-    /// dependencies.
+
+    /// Used only at configure-time. Checks if same node is specified twice in this CppTarget or its dependencies.
     flat_hash_map<const Node *, FileType> useReqNodesType;
 
     /// Back pointer to the Configuration
@@ -168,8 +150,7 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
 
     /// Whenever a source-file or module-file or header-unit compiles, it sets this variable. If set,
     /// CppTarget::writeBuildCache will call CppSrc::updateBuildCache for all source-files, module-files and
-    /// header-units. These will update the corresponding entry in CppTarget::cppBuildCache if they were updated. This
-    /// is accessed atomically as it might have been called in Ctrl+C signal handler.
+    /// header-units. These will update the corresponding entry in CppTarget::cppBuildCache if they were updated.
     bool buildCacheUpdated = false;
 
     /// Determines whether the modules and hu of this target should be built using the IPC compilation. If false, then
@@ -183,7 +164,7 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// Used in error diagnostics.
     /// \returns an amalgamated string of names of all CppTarget deps of this (direct + transitive).
     string getDependenciesString() const;
-    void updateBTarget(Builder &builder, unsigned short round, bool &isComplete) override;
+    void completeRoundOne() override;
     /// Called in signal-handler or at the end when build-system is writing build-cache.
     bool writeBuildCache(string &buffer) override;
     /// Goes over the provided \p modCache header-files and header-units and checks if one of them has become
@@ -238,7 +219,7 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     void actuallyAddInclude(bool errorOnEmplaceFail, const Node *include, bool addInReq, bool addInUseReq);
     void initSourceCache();
     void readModuleMapFromDir(const string &dir);
-    bool launchBTarget(Builder &builder) override;
+    bool isEventRegistered(Builder &builder) override;
 
     template <typename... U> CppTarget &deps(CppTarget *dep, DepType dependency, const U... deps);
 

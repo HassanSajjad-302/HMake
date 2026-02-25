@@ -6,7 +6,8 @@ struct OurTarget : BTarget
     explicit OurTarget(const unsigned short low_, const unsigned short high_) : low(low_), high(high_)
     {
     }
-    void updateBTarget(Builder &builder, const unsigned short round, bool &isComplete) override
+
+    void completeRoundOne(Builder &builder, const unsigned short round, bool &isComplete) override
     {
         if (round == 0)
         {

@@ -60,7 +60,7 @@ void initializeCache()
             uint16_t nodeFilePathSize;
             memcpy(&nodeFilePathSize, nodesCacheGlobal.data() + bufferRead, sizeof(uint16_t));
             bufferRead += sizeof(uint16_t);
-            Node::getHalfNodeST(string(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
+            Node::getHalfNode(string(nodesCacheGlobal.data() + bufferRead, nodeFilePathSize));
             bufferRead += nodeFilePathSize;
         }
         nodesSizeBefore = Node::idCount;
@@ -182,8 +182,6 @@ void constructGlobals()
     std::construct_at(&nodeAllFiles, 10000);
 
     std::construct_at(&cache);
-    BTarget::laterDepsCentral.emplace_back(&BTarget::laterDepsLocal);
-    threadIds.emplace_back(getThreadId());
 
 #ifdef _WIN32
     std::construct_at(&unusedKeysIndices);
@@ -192,7 +190,6 @@ void constructGlobals()
 #else
     eventData = new BTarget *[32 * 1024];
 #endif
-
 }
 
 void destructGlobals()
@@ -414,8 +411,7 @@ void readBuildCache()
 
 void writeNodesCacheIfNewNodesAdded()
 {
-    if (const uint64_t newNodesSize = atomic_ref(Node::idCount).load(std::memory_order_acquire);
-        newNodesSize != nodesSizeBefore)
+    if (const uint64_t newNodesSize = Node::idCount; newNodesSize != nodesSizeBefore)
     {
         /*uint32_t newNodesStrSize = 0;
         newNodesStrSize += (newNodesSize - nodesSizeBefore) * 2;
@@ -447,7 +443,7 @@ void writeConfigBuffer(string &buffer)
     writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("config-cache"), buffer);
 }
 
-static atomic callOnce(false);
+static std::atomic callOnce(false);
 void writeBuildBuffer(string &buffer)
 {
     // This condition is to ensure that function gets executed only once in build-mode either when the build is
