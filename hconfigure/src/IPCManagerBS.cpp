@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 
 #ifdef _WIN32
+#include "rapidhash.h"
 #include <Windows.h>
 #else
 #include <fcntl.h>
@@ -30,7 +31,7 @@
     }                                                                                                                  \
     auto &var = *var##_result;
 
-namespace N2978
+namespace P2978
 {
 
 tl::expected<void, std::string> IPCManagerBS::writeInternal(const std::string_view buffer) const
@@ -160,18 +161,21 @@ tl::expected<Mapping, std::string> IPCManagerBS::createSharedMemoryBMIFile(BMIFi
     Mapping sharedFile{};
 #ifdef _WIN32
 
-    std::string mappingName = bmiFile.filePath;
-    for (char &c : mappingName)
+    // mappingName is needed as the Windows kernel object names can't have \\ in them.
+    const uint64_t hash = rapidhash(bmiFile.filePath.data(), bmiFile.filePath.size());
+    char mappingName[17];
+    static constexpr char hex[] = "0123456789abcdef";
+    for (int i = 0; i < 8; i++)
     {
-        if (c == '\\')
-        {
-            c = '/';
-        }
+        const uint8_t byte = hash >> (56 - i * 8) & 0xFF;
+        mappingName[i * 2] = hex[byte >> 4];
+        mappingName[i * 2 + 1] = hex[byte & 0xF];
     }
+    mappingName[16] = '\0';
 
     if (bmiFile.fileSize == UINT32_MAX)
     {
-        const HANDLE hFile = CreateFileA(bmiFile.filePath.c_str(), GENERIC_READ,
+        const HANDLE hFile = CreateFileA(bmiFile.filePath.data(), GENERIC_READ,
                                          0, // no sharing during setup
                                          nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (hFile == INVALID_HANDLE_VALUE)
@@ -186,7 +190,7 @@ tl::expected<Mapping, std::string> IPCManagerBS::createSharedMemoryBMIFile(BMIFi
         }
 
         sharedFile.mapping =
-            CreateFileMappingA(hFile, nullptr, PAGE_READONLY, fileSize.HighPart, fileSize.LowPart, mappingName.c_str());
+            CreateFileMappingA(hFile, nullptr, PAGE_READONLY, fileSize.HighPart, fileSize.LowPart, mappingName);
 
         CloseHandle(hFile);
 
@@ -200,9 +204,9 @@ tl::expected<Mapping, std::string> IPCManagerBS::createSharedMemoryBMIFile(BMIFi
     }
 
     // 1) Open the existing file‐mapping object (must have been created by another process)
-    sharedFile.mapping = OpenFileMappingA(FILE_MAP_READ,      // read‐only access
-                                          FALSE,              // do not inherit handle
-                                          mappingName.c_str() // name of mapping
+    sharedFile.mapping = OpenFileMappingA(FILE_MAP_READ, // read‐only access
+                                          FALSE,         // do not inherit handle
+                                          mappingName    // name of mapping
     );
 
     if (sharedFile.mapping == nullptr)
@@ -244,7 +248,10 @@ tl::expected<Mapping, std::string> IPCManagerBS::createSharedMemoryBMIFile(BMIFi
 tl::expected<void, std::string> IPCManagerBS::closeBMIFileMapping(const Mapping &processMappingOfBMIFile)
 {
 #ifdef _WIN32
-    CloseHandle(processMappingOfBMIFile.mapping);
+    if (!CloseHandle(processMappingOfBMIFile.mapping))
+    {
+        return tl::unexpected(getErrorString());
+    }
 #else
     if (munmap((void *)processMappingOfBMIFile.file.data(), processMappingOfBMIFile.file.size()) == -1)
     {
@@ -254,4 +261,4 @@ tl::expected<void, std::string> IPCManagerBS::closeBMIFileMapping(const Mapping 
     return {};
 }
 
-} // namespace N2978
+} // namespace P2978

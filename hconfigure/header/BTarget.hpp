@@ -48,11 +48,13 @@ enum class BTargetDepType : uint8_t
 
 /// Not related to the build-algorithm. This is used by different BTarget to synchronize printing with build-cache
 /// updating.
-enum class UpdateStatus
+enum class UpdateStatus : char
 {
-    ALREADY_UPDATED,
-    UPDATED,
-    NEEDS_UPDATE,
+    ALREADY_UPDATED = 0,
+    NEEDS_UPDATE = 1,
+    UPDATED_WITHOUT_BUILDING = 2,
+    UPDATED = 3,
+
 };
 
 /// Every BTarget has 2 of these so distinct dependency order can be specified for the 2 rounds.

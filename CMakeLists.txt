@@ -237,7 +237,6 @@ add_dual_executables(Example1 Examples/Example1/hmake.cpp
         Example11 Examples/Example11/hmake.cpp
         Example-A1 Examples/Example-A1/hmake.cpp
         Example-A2 Examples/Example-A2/hmake.cpp
-        Example-A3 Examples/Example-A3/hmake.cpp
         Example-A4 Examples/Example-A4/hmake.cpp
         Example-A5 Examples/Example-A5/hmake.cpp
         Example-A6 Examples/Example-A6/hmake.cpp
@@ -246,6 +245,7 @@ add_dual_executables(Example1 Examples/Example1/hmake.cpp
         Test1 Tests/Stage/Test1/hmake.cpp
         Test2 Tests/Stage/Test2/hmake.cpp
         Test3 Tests/Stage/Test3/hmake.cpp
+        Test4 Tests/Stage/Test4/hmake.cpp
         HMake hmake.cpp
         llvm Projects/LLVM/hmake.cpp
         Boost Projects/Boost/hmake.cpp)

@@ -4,6 +4,7 @@
 #include "JConsts.hpp"
 #include "Node.hpp"
 #include <fstream>
+#include <thread>
 
 using std::ifstream, std::ofstream;
 
@@ -19,6 +20,7 @@ Cache::Cache()
     selectedArchiverArrayIndex = 0;
     isScannerInToolsArray = isPresentInTools;
     selectedScannerArrayIndex = 0;
+    numberOfBuildThreads = std::thread::hardware_concurrency();
 }
 
 void Cache::initializeCacheVariableFromCacheFile()

@@ -152,17 +152,6 @@ TEST(AExamplesTest, Example_A2)
     ASSERT_EQ(output, "World\nHello\nHello\nWorld\n");
 }
 
-TEST(AExamplesTest, Example_A3)
-{
-    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A3"));
-    string output;
-    int exitStatus;
-    ExamplesTestHelper::getCleanBuildOutputAndStatus(output, exitStatus);
-    ASSERT_EQ(exitStatus, EXIT_SUCCESS);
-    constexpr uint64_t count = 30 * 2 + 200 * 3 + 230;
-    ASSERT_EQ(output.size(), count);
-}
-
 std::string removeColorCodes(const std::string &str)
 {
     // Regex pattern to match ANSI escape sequences

@@ -13,14 +13,13 @@ template <typename T> class PointerArrayList
         uint32_t next;
     };
 
-public:
+  public:
     ArrayListItem *storage = nullptr;
     ArrayListItem *array = nullptr;
     uint32_t currentIndex = -1;
     uint32_t last = 0;
     uint32_t arraySize = 0;
 
-  public:
     void clear()
     {
         array = storage;
@@ -97,9 +96,18 @@ public:
         return bTarget;
     }
 
-    bool hasElement() const
+    T *hasElement() const
     {
-        return currentIndex != -1;
+        if (currentIndex == -1)
+        {
+            return nullptr;
+        }
+        return array[currentIndex].value;
+    }
+
+    void moveForward()
+    {
+        currentIndex = array[currentIndex].next;
     }
 };
 

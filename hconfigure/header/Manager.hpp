@@ -13,7 +13,7 @@ namespace tl
 template <typename T, typename U> class expected;
 }
 
-namespace N2978
+namespace P2978
 {
 
 // 32-byte delimiter
@@ -111,5 +111,5 @@ inline std::string to16charHexString(const uint64_t v)
     return out;
 }
 
-} // namespace N2978
+} // namespace P2978
 #endif // MANAGER_HPP

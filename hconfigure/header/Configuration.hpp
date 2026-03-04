@@ -107,11 +107,22 @@ enum class IgnoreHeaderDeps : bool
     YES,
 };
 
+enum class UseIPC : bool
+{
+    NO,
+    YES,
+};
+
+enum class UseConfigurationScope : bool
+{
+    NO,
+    YES,
+};
+
 class CSourceTarget;
 class PLOAT;
 class LOAT;
 class Node;
-
 
 struct HeaderFileOrUnit
 {
@@ -132,6 +143,13 @@ struct HeaderFileOrUnit
     HeaderFileOrUnit() = default;
 };
 
+/// Whether a file is Module, Header-File or Header-Unit
+enum class FileType : uint8_t
+{
+    MODULE,
+    HEADER_FILE,
+    HEADER_UNIT,
+};
 
 class Configuration : public BTarget
 {
@@ -161,7 +179,22 @@ class Configuration : public BTarget
     TreatHUAsHeaderFile treatHuAsHeaderFile = TreatHUAsHeaderFile::NO;
     SystemTarget systemTarget = SystemTarget::NO;
     IgnoreHeaderDeps ignoreHeaderDeps = IgnoreHeaderDeps::NO;
+    UseIPC useIPC = UseIPC::YES;
+    UseConfigurationScope useConfigurationScope = UseConfigurationScope::NO;
+
+    // todo
+    // add CppTarget::imodNames map here as-well.
+
+    // Following is used to have one hash-map search instead of going over every dependency. If useConfigurationScope ==
+    // UseConfigurationScope::YES, then there must not be more than one value in the vector and the following is used at
+    // config-time to check for duplication errors instead of CppTarget::reqHeaderNameMapping and
+    // CppTarget::useReqHeaderNameMapping.
     flat_hash_map<string_view, vector<HeaderFileOrUnit>> headerNameMapping;
+
+    // only used at config-time
+    // If useConfigurationScope == UseConfigurationScope::YES, then the following is used at config-time to check for
+    // duplication errors instead of CppTarget::reqHeaderNameMapping and CppTarget::useReqHeaderNameMapping
+    flat_hash_map<const Node *, FileType> nodesType;
 
     bool archiving = false;
 
@@ -258,7 +291,7 @@ class Configuration : public BTarget
 
     BoostCppTarget &getBoostCppTarget(const string &name, bool headerOnly = true, bool hasBigHeader = true,
                                       bool createTestsTarget = false, bool createExamplesTarget = false);
-
+    void completeRoundOne() override;
     explicit Configuration(const string &name_);
     void postConfigurationSpecification() const;
     void initialize();
@@ -318,6 +351,14 @@ template <typename T> bool Configuration::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), IgnoreHeaderDeps>)
     {
         return ignoreHeaderDeps == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UseIPC>)
+    {
+        return useIPC == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UseConfigurationScope>)
+    {
+        return useConfigurationScope == property;
     }
     // CppCompilerFeatures
     else if constexpr (std::is_same_v<decltype(property), CxxSTD>)

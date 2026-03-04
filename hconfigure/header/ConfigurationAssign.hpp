@@ -114,6 +114,14 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         ignoreHeaderDeps = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), UseIPC>)
+    {
+        useIPC = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), UseConfigurationScope>)
+    {
+        useConfigurationScope = property;
+    }
     // CommonFeatures
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {

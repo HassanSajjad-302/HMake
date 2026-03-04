@@ -7,6 +7,7 @@
 #include <utility>
 
 #ifdef _WIN32
+#include "rapidhash.h"
 #include <Windows.h>
 #else
 #include <cstring>
@@ -33,7 +34,7 @@
     }                                                                                                                  \
     auto &var = *var##_result;
 
-namespace N2978
+namespace P2978
 {
 
 Response::Response(std::string_view filePath_, const Mapping &mapping_, const FileType type_, const bool isSystem_)
@@ -52,27 +53,30 @@ static bool endsWith(const std::string_view str, const std::string &suffix)
 
 tl::expected<std::string_view, std::string> IPCManagerCompiler::readInternal(char (&buffer)[4096]) const
 {
-#ifdef _WIN32
-    const bool success = ReadFile((HANDLE)STD_INPUT_HANDLE, // pipe handle
-                                  buffer,                   // buffer to receive reply
-                                  4096,                     // size of buffer
-                                  LPDWORD(&bytesRead),      // number of bytes read
-                                  nullptr);                 // not overlapped
-
-    if (const uint32_t lastError = GetLastError(); !success && lastError != ERROR_MORE_DATA)
-    {
-        return tl::unexpected(getErrorString());
-    }
-
-#else
     std::string *output = nullptr;
     while (true)
     {
-        const uint32_t bytesRead = read(STDIN_FILENO, buffer, 4096);
+        uint32_t bytesRead;
+#ifdef _WIN32
+        const bool success = ReadFile((HANDLE)STD_INPUT_HANDLE, // pipe handle
+                                      buffer,                   // buffer to receive reply
+                                      4096,                     // size of buffer
+                                      LPDWORD(&bytesRead),      // number of bytes read
+                                      nullptr);                 // not overlapped
+
+        if (const uint32_t lastError = GetLastError(); !success && lastError != ERROR_MORE_DATA)
+        {
+            return tl::unexpected(getErrorString());
+        }
+
+#else
+        bytesRead = read(STDIN_FILENO, buffer, 4096);
         if (bytesRead == -1)
         {
             return tl::unexpected(getErrorString());
         }
+
+#endif
         if (!bytesRead)
         {
             return tl::unexpected(getErrorString(ErrorCategory::READ_FILE_ZERO_BYTES_READ));
@@ -82,7 +86,7 @@ tl::expected<std::string_view, std::string> IPCManagerCompiler::readInternal(cha
         {
             if (bytesRead < strlen(delimiter))
             {
-                return tl::unexpected("N2978 Error: Received string only has delimiter but not the size of payload\n");
+                return tl::unexpected("P2978 Error: Received string only has delimiter but not the size of payload\n");
             }
             output = new std::string{};
             allocations.emplace_back(output);
@@ -96,7 +100,6 @@ tl::expected<std::string_view, std::string> IPCManagerCompiler::readInternal(cha
             return std::string_view{output->data(), output->size() - strlen(delimiter)};
         }
     }
-#endif
 }
 
 tl::expected<void, std::string> IPCManagerCompiler::writeInternal(const std::string_view buffer) const
@@ -325,9 +328,10 @@ tl::expected<void, std::string> IPCManagerCompiler::receiveBTCNonModule(const CT
 tl::expected<Response, std::string> IPCManagerCompiler::findResponse(std::string_view logicalName, const FileType type)
 {
 #ifdef _WIN32
+    std::string logicalName2{logicalName};
     if (type != FileType::MODULE)
     {
-        for (char &c : logicalName)
+        for (char &c : logicalName2)
         {
             c = std::tolower(c);
         }
@@ -396,11 +400,23 @@ tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const std
         return tl::unexpected(getErrorString());
     }
 
+    // mappingName is needed as the Windows kernel object names can't have \\ in them.
+    const uint64_t hash = rapidhash(filePath.data(), filePath.size());
+    char mappingName[17];
+    static constexpr char hex[] = "0123456789abcdef";
+    for (int i = 0; i < 8; i++)
+    {
+        const uint8_t byte = hash >> (56 - i * 8) & 0xFF;
+        mappingName[i * 2] = hex[byte >> 4];
+        mappingName[i * 2 + 1] = hex[byte & 0xF];
+    }
+    mappingName[16] = '\0';
+
     LARGE_INTEGER fileSize;
     fileSize.QuadPart = bmiFile.size();
     // 3) Create a RW mapping of that file:
     const HANDLE hMap =
-        CreateFileMappingA(hFile, nullptr, PAGE_READWRITE, fileSize.HighPart, fileSize.LowPart, filePath.c_str());
+        CreateFileMappingA(hFile, nullptr, PAGE_READWRITE, fileSize.HighPart, fileSize.LowPart, mappingName);
     if (!hMap)
     {
         return tl::unexpected(getErrorString());
@@ -422,7 +438,7 @@ tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const std
     UnmapViewOfFile(pView);
     CloseHandle(hFile);
 
-    if (const auto &r = sendCTBLastMessage(logicalName, fileSize); !r)
+    if (const auto &r = sendCTBLastMessage(fileSize.QuadPart); !r)
     {
         return tl::unexpected(r.error());
     }
@@ -489,18 +505,23 @@ tl::expected<Mapping, std::string> IPCManagerCompiler::readSharedMemoryBMIFile(c
 {
     Mapping f{};
 #ifdef _WIN32
-    std::string mappingName = file.filePath;
-    for (char &c : mappingName)
+
+    // mappingName is needed as the Windows kernel object names can't have \\ in them.
+    const uint64_t hash = rapidhash(file.filePath.data(), file.filePath.size());
+    char mappingName[17];
+    static constexpr char hex[] = "0123456789abcdef";
+    for (int i = 0; i < 8; i++)
     {
-        if (c == '\\')
-        {
-            c = '/';
-        }
+        const uint8_t byte = hash >> (56 - i * 8) & 0xFF;
+        mappingName[i * 2] = hex[byte >> 4];
+        mappingName[i * 2 + 1] = hex[byte & 0xF];
     }
+    mappingName[16] = '\0';
+
     // 1) Open the existing file‐mapping object (must have been created by another process)
-    const HANDLE mapping = OpenFileMappingA(FILE_MAP_READ,      // read‐only access
-                                            FALSE,              // do not inherit a handle
-                                            mappingName.c_str() // name of mapping
+    const HANDLE mapping = OpenFileMappingA(FILE_MAP_READ, // read‐only access
+                                            FALSE,         // do not inherit a handle
+                                            mappingName    // name of mapping
     );
 
     if (mapping == nullptr)
@@ -565,4 +586,4 @@ bool operator==(const CTBNonModule &lhs, const CTBNonModule &rhs)
 {
     return lhs.isHeaderUnit == rhs.isHeaderUnit && lhs.logicalName == rhs.logicalName;
 }
-} // namespace N2978
+} // namespace P2978

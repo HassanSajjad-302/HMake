@@ -3,7 +3,6 @@
 
 #include "BuildSystemFunctions.hpp"
 #include "nlohmann/json.hpp"
-#include <thread>
 #include <vector>
 
 using Json = nlohmann::json;
@@ -23,7 +22,7 @@ struct Cache
     uint8_t selectedArchiverArrayIndex;
     bool isScannerInToolsArray;
     uint8_t selectedScannerArrayIndex;
-    uint16_t numberOfBuildThreads = std::thread::hardware_concurrency();
+    uint16_t numberOfBuildThreads;
     Json cacheVariables;
     string configureExeBuildScript;
     string buildExeBuildScript;

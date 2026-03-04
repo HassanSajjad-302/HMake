@@ -37,14 +37,13 @@ void Configuration::initialize()
         SystemTarget s1 = systemTarget;
         IgnoreHeaderDeps i1 = ignoreHeaderDeps;
         BigHeaderUnit b1 = bigHeaderUnit;
+        UseIPC u1 = useIPC;
         systemTarget = SystemTarget::YES;
         ignoreHeaderDeps = IgnoreHeaderDeps::YES;
         bigHeaderUnit = BigHeaderUnit::YES;
+        useIPC = UseIPC::NO;
 
         stdCppTarget = &getCppStaticDSC("std");
-        // standard headers are not compiled with IPC. As they have no other dependencies, we can compile them directly.
-        // This way, we don't need to support #include_next semantics which are only used in standard headers.
-        stdCppTarget->getSourceTarget().useIPC = false;
         if constexpr (bsMode == BSMode::CONFIGURE)
         {
             if (cache.isCompilerInToolsArray)
@@ -80,7 +79,6 @@ void Configuration::initialize()
                     {
                         c->addComposingHeadersLinux();
                     }
-
                 }
             }
 
@@ -112,6 +110,7 @@ void Configuration::initialize()
         systemTarget = s1;
         ignoreHeaderDeps = i1;
         bigHeaderUnit = b1;
+        useIPC = u1;
     }
 }
 
@@ -130,6 +129,13 @@ CppTarget &Configuration::getCppObject(const string &name_)
 {
     CppTarget &cppTarget = targets<CppTarget>.emplace_back(name + slashc + name_, this);
     cppTargets.emplace_back(&cppTarget);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (evaluate(UseConfigurationScope::YES))
+        {
+            addDep<1>(cppTarget);
+        }
+    }
     return cppTarget;
 }
 
@@ -137,6 +143,13 @@ CppTarget &Configuration::getCppObject(bool explicitBuild, Node *myBuildDir, con
 {
     CppTarget &cppTarget = targets<CppTarget>.emplace_back(myBuildDir, explicitBuild, name + slashc + name_, this);
     cppTargets.emplace_back(&cppTarget);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (evaluate(UseConfigurationScope::YES))
+        {
+            addDep<1>(cppTarget);
+        }
+    }
     return cppTarget;
 }
 
@@ -144,6 +157,13 @@ CppTarget &Configuration::getCppObjectAddStdTarget(bool explicitBuild, Node *myB
 {
     CppTarget &cppTarget = targets<CppTarget>.emplace_back(myBuildDir, explicitBuild, name + slashc + name_, this);
     cppTargets.emplace_back(&cppTarget);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (evaluate(UseConfigurationScope::YES))
+        {
+            addDep<1>(cppTarget);
+        }
+    }
     return addStdCppDep(cppTarget);
 }
 
@@ -362,6 +382,13 @@ CppTarget &Configuration::getCppObjectNoName(const string &name_)
 {
     CppTarget &cppTarget = targets<CppTarget>.emplace_back(name_, this);
     cppTargets.emplace_back(&cppTarget);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (evaluate(UseConfigurationScope::YES))
+        {
+            addDep<1>(cppTarget);
+        }
+    }
     return cppTarget;
 }
 
@@ -369,6 +396,13 @@ CppTarget &Configuration::getCppObjectNoName(bool explicitBuild, Node *myBuildDi
 {
     CppTarget &cppTarget = targets<CppTarget>.emplace_back(myBuildDir, explicitBuild, name_, this);
     cppTargets.emplace_back(&cppTarget);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (evaluate(UseConfigurationScope::YES))
+        {
+            addDep<1>(cppTarget);
+        }
+    }
     return cppTarget;
 }
 
@@ -376,6 +410,13 @@ CppTarget &Configuration::getCppObjectNoNameAddStdTarget(bool explicitBuild, Nod
 {
     CppTarget &cppTarget = targets<CppTarget>.emplace_back(myBuildDir, explicitBuild, name_, this);
     cppTargets.emplace_back(&cppTarget);
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (evaluate(UseConfigurationScope::YES))
+        {
+            addDep<1>(cppTarget);
+        }
+    }
     return addStdCppDep(cppTarget);
 }
 
@@ -574,6 +615,20 @@ BoostCppTarget &Configuration::getBoostCppTarget(const string &name, bool header
 {
     return *boostCppTargets.emplace_back(&targets<BoostCppTarget>.emplace_back(
         name, this, headerOnly, hasBigHeader, createTestsTarget, createExamplesTarget));
+}
+
+void Configuration::completeRoundOne()
+{
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        if (evaluate(UseConfigurationScope::YES))
+        {
+            for (CppTarget *t : cppTargets)
+            {
+                t->setHeaderFileStatusChanged(true);
+            }
+        }
+    }
 }
 
 bool operator<(const Configuration &lhs, const Configuration &rhs)

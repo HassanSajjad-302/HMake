@@ -90,7 +90,7 @@ void CppTarget::readModuleMapFromDir(const string &dir)
                                      node->filePath, modeStrs[currentModeIndex], dir + "module-map.txt"));
         }
 
-        if (currentModeIndex == 0)
+        /*if (currentModeIndex == 0)
         {
             addHeaderUnit(string(pendingLogicalName), node, false, true, true);
         }
@@ -121,7 +121,7 @@ void CppTarget::readModuleMapFromDir(const string &dir)
         else if (currentModeIndex == 7)
         {
             actuallyAddModuleFileConfigTime(node, "");
-        }
+        }*/
     }
 }
 
@@ -221,6 +221,7 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
 {
     isSystem = configuration->evaluate(SystemTarget::YES);
     ignoreHeaderDeps = configuration->evaluate(IgnoreHeaderDeps::YES);
+    useIPC = configuration->evaluate(UseIPC::YES);
 
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -237,14 +238,9 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
 
     if constexpr (bsMode == BSMode::BUILD)
     {
-        // only the first boolean ob hasObjectFiles is read.
-        configRead = 0;
-        const char *ptr = fileTargetCaches[cacheIndex].configCache.data();
-        hasObjectFiles = readBool(ptr, configRead);
-        if (configuration->evaluate(IsCppMod::NO))
-        {
-            readInclDirsAtBuildTime(ptr, configRead, useReqIncls, isSystem, ignoreHeaderDeps);
-        }
+        readCacheAtBuildTime();
+        populateTransitiveProperties();
+        initSourceCache();
     }
 }
 
@@ -268,21 +264,8 @@ void CppTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles) const
 
 void CppTarget::populateTransitiveProperties()
 {
-#ifdef BUILD_MODE
-
-    for (const uint32_t index : reqDepsVecIndices)
-    {
-        CppTarget *cppTarget = static_cast<CppTarget *>(fileTargetCaches[index].targetCache);
-        if (!cppTarget)
-        {
-            HMAKE_HMAKE_INTERNAL_ERROR
-        }
-#else
     for (CppTarget *cppTarget : reqDeps)
     {
-
-#endif
-
         if (configuration->evaluate(IsCppMod::NO) || !useIPC)
         {
             for (const InclNode &inclNode : cppTarget->useReqIncls)
@@ -399,40 +382,124 @@ void CppTarget::checkSameHeaderNameMapping(const string_view headerName)
     }
 }
 
-// todo
-// remove suppressError
-bool CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, bool addInReq,
-                                           const bool suppressError)
+void CppTarget::populateNameMappingsAndNodesType()
 {
-    if (const auto &[it, ok] = (addInReq ? reqHeaderNameMapping : useReqHeaderNameMapping).emplace(headerName, type);
-        ok)
+    if (configuration->evaluate(UseConfigurationScope::YES))
+    {
+        flat_hash_map<string_view, HeaderFileOrUnit> tempNameMapping;
+        tempNameMapping.merge(reqHeaderNameMapping);
+        tempNameMapping.merge(useReqHeaderNameMapping);
+
+        for (const auto &[headerName, type] : tempNameMapping)
+        {
+            if (headerName == "TableGenBackends.h")
+            {
+                bool breakpoint = true;
+            }
+            const auto &[it, ok] = configuration->headerNameMapping.emplace(headerName, vector(1, type));
+            const HeaderFileOrUnit headerFileOrUnit = it->second[0];
+            if (!ok)
+            {
+                string alreadyAdded;
+                string tried;
+                if (type.isUnit)
+                {
+                    tried = "Header-Unit " + type.data.cppMod->node->filePath;
+                    alreadyAdded = "Header-Unit " + headerFileOrUnit.data.cppMod->node->filePath;
+                }
+                else
+                {
+                    tried = "Header-File " + type.data.node->filePath;
+                    alreadyAdded = "Header-File " + headerFileOrUnit.data.node->filePath;
+                }
+
+                printErrorMessage(FORMAT("In Configuration {}\nFailed adding headerName {} in "
+                                         "headerNameMapping\nTried\n{}\nAlready Added\n{}\n",
+                                         configuration->name, headerName, tried, alreadyAdded));
+            }
+        }
+
+        flat_hash_map<const Node *, FileType> tempNodesType;
+        tempNodesType.merge(reqNodesType);
+        tempNodesType.merge(useReqNodesType);
+
+        for (const auto &[node, type] : tempNodesType)
+        {
+            if (const auto &[it, ok] = configuration->nodesType.emplace(node, type); !ok)
+            {
+                printErrorMessage(FORMAT("Configuration {}\nnodesTypeMap already has Node {} with type\n",
+                                         configuration->name, node->filePath));
+            }
+        }
+    }
+
+    for (CppTarget *t : reqDeps)
+    {
+        // todo
+        // failure error message improvement. should provide complete info and also specify the req cpp-target
+        // as well.
+        for (const auto &[node, fileType] : t->useReqNodesType)
+        {
+            emplaceInNodesType(node, fileType, true);
+        }
+
+        for (const auto &p : t->imodNames)
+        {
+            if (!imodNames.emplace(p).second)
+            {
+                printErrorMessage(FORMAT("CppTarget {} already has module {}\n", name, p.second->node->filePath));
+            }
+        }
+        for (const auto &p : t->useReqHeaderNameMapping)
+        {
+            emplaceInHeaderNameMapping(p.first, p.second, true);
+        }
+
+        for (const auto &p : imodNames)
+        {
+            if (reqHeaderNameMapping.contains(p.first))
+            {
+                printErrorMessage(FORMAT(
+                    "CppTarget {} has header-name {} defined as both module and HeaderFileOrUnit\n", name, p.first));
+            }
+        }
+    }
+}
+
+void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, const bool addInReq)
+{
+    if (headerName == "clang/InstallAPI/HeaderFile.h")
+    {
+        bool breakpoint = true;
+    }
+    const auto &[it, ok] = (addInReq ? reqHeaderNameMapping : useReqHeaderNameMapping).emplace(headerName, type);
+    const HeaderFileOrUnit headerFileOrUnit = it->second;
+
+    if (ok)
     {
         if (!type.isUnit)
         {
             ++(addInReq ? reqHeaderFilesSize : useReqHeaderFilesSize);
         }
-        return true;
+        return;
+    }
+
+    string alreadyAdded;
+    string tried;
+    if (type.isUnit)
+    {
+        tried = "Header-Unit " + type.data.cppMod->node->filePath;
+        alreadyAdded = "Header-Unit " + headerFileOrUnit.data.cppMod->node->filePath;
     }
     else
     {
-        string alreadyAdded;
-        string tried;
-        if (type.isUnit)
-        {
-            tried = "Header-Unit " + type.data.cppMod->node->filePath;
-            alreadyAdded = "Header-Unit " + it->second.data.cppMod->node->filePath;
-        }
-        else
-        {
-            tried = "Header-File " + type.data.node->filePath;
-            alreadyAdded = "Header-File " + it->second.data.node->filePath;
-        }
-
-        printErrorMessage(
-            FORMAT("In CppTarget{}\nFailed adding headerName {} in {}headerNameMapping\nTried\n{}\nAlready Added\n{}\n",
-                   name, headerName, addInReq ? "req" : "useReq", tried, alreadyAdded));
+        tried = "Header-File " + type.data.node->filePath;
+        alreadyAdded = "Header-File " + headerFileOrUnit.data.node->filePath;
     }
-    return false;
+
+    printErrorMessage(
+        FORMAT("In CppTarget {}\nFailed adding headerName {} in {}headerNameMapping\nTried\n{}\nAlready Added\n{}\n",
+               name, headerName, addInReq ? "req" : "useReq", tried, alreadyAdded));
 }
 
 void CppTarget::emplaceInNodesType(const Node *node, FileType type, const bool addInReq)
@@ -441,6 +508,7 @@ void CppTarget::emplaceInNodesType(const Node *node, FileType type, const bool a
     {
         bool breakpoint = true;
     }
+
     if (const auto &[it, ok] = (addInReq ? reqNodesType : useReqNodesType).emplace(node, type); !ok)
     {
         printErrorMessage(
@@ -510,7 +578,7 @@ void CppTarget::makeHeaderFileAsUnit(const string &includeName, bool addInReq, b
         }
     }
 
-    addHeaderUnit(*p, headerNode, true, addInReq, addInUseReq);
+    addHeaderUnit(*p, headerNode, addInReq, addInUseReq);
 }
 
 void CppTarget::removeHeaderFile(const string &includeName, const bool addInReq, const bool addInUseReq)
@@ -644,8 +712,8 @@ void CppTarget::removeHeaderUnit(const Node *headerNode, const string &includeNa
     }
 }
 
-void CppTarget::addHeaderFile(const string &includeName, const Node *headerFile, const bool suppressError,
-                              const bool addInReq, const bool addInUseReq)
+void CppTarget::addHeaderFile(const string &includeName, const Node *headerFile, const bool addInReq,
+                              const bool addInUseReq)
 {
     string *p = new string(includeName);
     if (headerFile->filePath.contains("workaround.hpp"))
@@ -655,26 +723,25 @@ void CppTarget::addHeaderFile(const string &includeName, const Node *headerFile,
     lowerCaseOnWindows(p->data(), p->size());
     if (addInReq)
     {
-        emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{const_cast<Node *>(headerFile), isSystem}, true, suppressError);
+        emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{const_cast<Node *>(headerFile), isSystem}, true);
         emplaceInNodesType(headerFile, FileType::HEADER_FILE, true);
     }
 
     if (addInUseReq)
     {
-        emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{const_cast<Node *>(headerFile), isSystem}, false,
-                                   suppressError);
+        emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{const_cast<Node *>(headerFile), isSystem}, false);
         emplaceInNodesType(headerFile, FileType::HEADER_FILE, false);
     }
 
     checkSameHeaderNameMapping(*p);
 }
 
-void CppTarget::addHeaderUnit(const string &includeName, const Node *headerUnit, bool suppressError,
-                              const bool addInReq, const bool addInUseReq)
+void CppTarget::addHeaderUnit(const string &includeName, const Node *headerUnit, const bool addInReq,
+                              const bool addInUseReq)
 {
     if (configuration->evaluate(TreatHUAsHeaderFile::YES))
     {
-        addHeaderFile(includeName, headerUnit, suppressError, addInReq, addInUseReq);
+        addHeaderFile(includeName, headerUnit, addInReq, addInUseReq);
         return;
     }
 
@@ -698,25 +765,20 @@ void CppTarget::addHeaderUnit(const string &includeName, const Node *headerUnit,
             hu = getInterfaceBigHu(false);
         }
 
-        bool addedInReq = false;
-        bool addedInUseReq = false;
         if (addInReq)
         {
-            addedInReq = emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true, suppressError);
+            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true);
             emplaceInNodesType(headerUnit, FileType::HEADER_FILE, true);
         }
 
         if (addInUseReq)
         {
-            addedInUseReq = emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false, suppressError);
+            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false);
             emplaceInNodesType(headerUnit, FileType::HEADER_FILE, false);
         }
 
         checkSameHeaderNameMapping(*p);
-        if (addedInReq || addedInUseReq)
-        {
-            hu->composingHeaders.emplace(*p, const_cast<Node *>(headerUnit));
-        }
+        hu->composingHeaders.emplace(*p, const_cast<Node *>(headerUnit));
     }
     else
     {
@@ -731,27 +793,22 @@ void CppTarget::addHeaderUnit(const string &includeName, const Node *headerUnit,
 
         hu = huDeps.emplace_back(new CppMod(this, headerUnit));
 
-        bool addedInReq = false;
-        bool addedInUseReq = false;
         if (addInReq)
         {
-            addedInReq = emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true, suppressError);
+            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, true);
             emplaceInNodesType(headerUnit, FileType::HEADER_UNIT, true);
             hu->isReqHu = true;
         }
 
         if (addInUseReq)
         {
-            addedInUseReq = emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false, suppressError);
+            emplaceInHeaderNameMapping(*p, HeaderFileOrUnit{hu, false}, false);
             emplaceInNodesType(headerUnit, FileType::HEADER_UNIT, false);
             hu->isUseReqHu = true;
         }
 
         checkSameHeaderNameMapping(*p);
-        if (addedInReq || addedInUseReq)
-        {
-            hu->logicalNames.emplace_back(*p);
-        }
+        hu->logicalNames.emplace_back(*p);
     }
 }
 
@@ -796,11 +853,11 @@ void CppTarget::addHeaderUnitOrFileDir(const Node *includeDir, const string &pre
 
             if (isHeaderFile)
             {
-                addHeaderFile(*logicalName, headerNode, false, addInReq, addInUseReq);
+                addHeaderFile(*logicalName, headerNode, addInReq, addInUseReq);
             }
             else
             {
-                addHeaderUnit(*logicalName, headerNode, false, addInReq, addInUseReq);
+                addHeaderUnit(*logicalName, headerNode, addInReq, addInUseReq);
             }
         }
     }
@@ -1062,6 +1119,10 @@ void CppTarget::actuallyAddInclude(const bool errorOnEmplaceFail, const Node *in
 
 void CppTarget::initSourceCache()
 {
+    if (name == "DLDebugInfoDIContext-cpp")
+    {
+        bool brekapoint = true;
+    }
     constexpr uint32_t stackSize = 64 * 1024;
 
     char cppBuffer[stackSize];
@@ -1128,6 +1189,7 @@ void CppTarget::initSourceCache()
         }
     }
 }
+
 void CppTarget::completeRoundOne()
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -1135,74 +1197,13 @@ void CppTarget::completeRoundOne()
         writeBigHeaderUnits();
         populateReqAndUseReqDeps();
         writeCacheAtConfigTime();
-
-        for (CppTarget *t : reqDeps)
+        populateNameMappingsAndNodesType();
+        if (configuration->evaluate(UseConfigurationScope::NO))
         {
-            // todo
-            // failure error message improvement. should provide complete info and also specify the req cpp-target
-            // as well.
-            for (const auto &[node, fileType] : t->useReqNodesType)
-            {
-                emplaceInNodesType(node, fileType, true);
-            }
-
-            for (const auto &p : t->imodNames)
-            {
-                if (!imodNames.emplace(p).second)
-                {
-                    printErrorMessage(FORMAT("CppTarget {} already has module {}\n", name, p.second->node->filePath));
-                }
-            }
-            for (const auto &p : t->useReqHeaderNameMapping)
-            {
-                emplaceInHeaderNameMapping(p.first, p.second, true, false);
-            }
-
-            for (const auto &p : imodNames)
-            {
-                if (reqHeaderNameMapping.contains(p.first))
-                {
-                    printErrorMessage(
-                        FORMAT("CppTarget {} has header-name {} defined as both module and HeaderFileOrUnit\n", name,
-                               p.first));
-                }
-            }
+            setHeaderFileStatusChanged(false);
         }
-
-        for (uint32_t i = 0; i < modFileDeps.size(); ++i)
-        {
-            setHeaderStatusChanged(cppBuildCache.modFiles[i]);
-        }
-
-        for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
-        {
-            setHeaderStatusChanged(cppBuildCache.imodFiles[i]);
-        }
-
-        for (CppMod *hu : huDeps)
-        {
-            setHeaderStatusChanged(cppBuildCache.headerUnits[hu->myBuildCacheIndex]);
-        }
-    }
-    else
-    {
-        readCacheAtBuildTime();
-    }
-
-    populateTransitiveProperties();
-
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
+        populateTransitiveProperties();
         return;
-    }
-
-    initSourceCache();
-
-    for (const CppTarget *cppTarget : reqDeps)
-    {
-        if (!cppTarget->modFileDeps.empty())
-        {
-        }
     }
 }
 
@@ -1295,8 +1296,29 @@ template <typename T, typename U> void adjustBuildCache(vector<T> &oldCache, con
     oldCache = std::move(*newCache);
 }
 
-void CppTarget::setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache)
+void CppTarget::setHeaderFileStatusChangedCppMod(BuildCache::Cpp::ModuleFile &modCache, bool calledFromConfiguration)
 {
+    if (calledFromConfiguration)
+    {
+        for (Node *node : modCache.srcFile.headerFiles)
+        {
+            if (auto it = configuration->nodesType.find(node); it != configuration->nodesType.end())
+            {
+                if (it->second != FileType::HEADER_FILE)
+                {
+                    modCache.headerStatusChanged = true;
+                    return;
+                }
+            }
+            else
+            {
+                modCache.headerStatusChanged = true;
+                return;
+            }
+        }
+        return;
+    }
+
     for (Node *node : modCache.srcFile.headerFiles)
     {
         if (auto it = reqNodesType.find(node); it != reqNodesType.end())
@@ -1313,22 +1335,23 @@ void CppTarget::setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache)
             return;
         }
     }
+}
 
-    for (BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &huDep : modCache.headerUnitArray)
+void CppTarget::setHeaderFileStatusChanged(const bool calledFromConfiguration)
+{
+    for (uint32_t i = 0; i < modFileDeps.size(); ++i)
     {
-        if (auto it = reqNodesType.find(huDep.node); it != reqNodesType.end())
-        {
-            if (it->second != FileType::HEADER_UNIT)
-            {
-                modCache.headerStatusChanged = true;
-                return;
-            }
-        }
-        else
-        {
-            modCache.headerStatusChanged = true;
-            return;
-        }
+        setHeaderFileStatusChangedCppMod(cppBuildCache.modFiles[i], calledFromConfiguration);
+    }
+
+    for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
+    {
+        setHeaderFileStatusChangedCppMod(cppBuildCache.imodFiles[i], calledFromConfiguration);
+    }
+
+    for (CppMod *hu : huDeps)
+    {
+        setHeaderFileStatusChangedCppMod(cppBuildCache.headerUnits[hu->myBuildCacheIndex], calledFromConfiguration);
     }
 }
 
@@ -1374,11 +1397,6 @@ void CppTarget::writeCacheAtConfigTime()
 
     const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty();
     writeBool(*configBuffer, hasObjFiles);
-
-    if (configuration->evaluate(IsCppMod::NO))
-    {
-        writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
-    }
 
     writeUint32(*configBuffer, reqDeps.size());
     for (const CppTarget *r : reqDeps)
@@ -1482,6 +1500,7 @@ void CppTarget::writeCacheAtConfigTime()
     if (configuration->evaluate(IsCppMod::NO) || !useIPC)
     {
         writeIncDirsAtConfigTime(*configBuffer, reqIncls);
+        writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
     }
 
     if (configuration->evaluate(IsCppMod::YES))
@@ -1502,28 +1521,32 @@ void CppTarget::readCacheAtBuildTime()
     const string_view configCache = fileTargetCaches[cacheIndex].configCache;
 
     const char *ptr = configCache.data();
+    uint32_t bytesRead = 0;
 
-    const uint32_t reqVecSize = readUint32(ptr, configRead);
+    hasObjectFiles = readBool(ptr, bytesRead);
+
+    const uint32_t reqVecSize = readUint32(ptr, bytesRead);
     for (uint32_t i = 0; i < reqVecSize; ++i)
     {
-        reqDepsVecIndices.emplace_back(readUint32(ptr, configRead));
+        CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[readUint32(ptr, bytesRead)].targetCache);
+        reqDeps.emplace(req);
     }
-    const uint32_t sourceSize = readUint32(ptr, configRead);
+    const uint32_t sourceSize = readUint32(ptr, bytesRead);
     srcFileDeps.reserve(sourceSize);
     for (uint32_t i = 0; i < sourceSize; ++i)
     {
-        CppSrc *src = srcFileDeps.emplace_back(new CppSrc(this, readHalfNode(ptr, configRead)));
-        src->objectNode = readHalfNode(ptr, configRead);
+        CppSrc *src = srcFileDeps.emplace_back(new CppSrc(this, readHalfNode(ptr, bytesRead)));
+        src->objectNode = readHalfNode(ptr, bytesRead);
 
         addDep<0>(*srcFileDeps[i]);
     }
 
-    const uint32_t modSize = readUint32(ptr, configRead);
+    const uint32_t modSize = readUint32(ptr, bytesRead);
     modFileDeps.reserve(modSize);
     for (uint32_t i = 0; i < modSize; ++i)
     {
-        CppMod *cppMod = modFileDeps.emplace_back(new CppMod(this, readHalfNode(ptr, configRead)));
-        cppMod->objectNode = readHalfNode(ptr, configRead);
+        CppMod *cppMod = modFileDeps.emplace_back(new CppMod(this, readHalfNode(ptr, bytesRead)));
+        cppMod->objectNode = readHalfNode(ptr, bytesRead);
         cppMod->type = SM_FILE_TYPE::PRIMARY_IMPLEMENTATION;
 
         addDep<0>(*cppMod);
@@ -1531,16 +1554,16 @@ void CppTarget::readCacheAtBuildTime()
 
     imodFileDeps.resize(cppBuildCache.imodFiles.size());
 
-    const uint32_t imodSize = readUint32(ptr, configRead);
+    const uint32_t imodSize = readUint32(ptr, bytesRead);
     for (uint32_t i = 0; i < imodSize; ++i)
     {
-        const uint32_t indexInBuildCache = readUint32(ptr, configRead);
-        CppMod *cppMod = imodFileDeps[indexInBuildCache] = new CppMod(this, readHalfNode(ptr, configRead));
+        const uint32_t indexInBuildCache = readUint32(ptr, bytesRead);
+        CppMod *cppMod = imodFileDeps[indexInBuildCache] = new CppMod(this, readHalfNode(ptr, bytesRead));
         cppMod->myBuildCacheIndex = indexInBuildCache;
 
-        cppMod->logicalNames.emplace_back(readStringView(ptr, configRead));
-        cppMod->objectNode = readHalfNode(ptr, configRead);
-        cppMod->interfaceNode = readHalfNode(ptr, configRead);
+        cppMod->logicalNames.emplace_back(readStringView(ptr, bytesRead));
+        cppMod->objectNode = readHalfNode(ptr, bytesRead);
+        cppMod->interfaceNode = readHalfNode(ptr, bytesRead);
         cppMod->type =
             cppMod->logicalNames[0].contains(':') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
         imodNames.emplace(cppMod->logicalNames[0], cppMod);
@@ -1550,27 +1573,34 @@ void CppTarget::readCacheAtBuildTime()
 
     huDeps.resize(cppBuildCache.headerUnits.size());
 
-    const uint32_t huSize = readUint32(ptr, configRead);
+    bool selectiveBuildLocal = configuration->evaluate(UseConfigurationScope::YES);
+    const uint32_t huSize = readUint32(ptr, bytesRead);
     for (uint32_t i = 0; i < huSize; ++i)
     {
-        const uint32_t indexInBuildCache = readUint32(ptr, configRead);
-        CppMod *hu = huDeps[indexInBuildCache] = new CppMod(this, readHalfNode(ptr, configRead));
+        const uint32_t indexInBuildCache = readUint32(ptr, bytesRead);
+        CppMod *hu = huDeps[indexInBuildCache] = new CppMod(this, readHalfNode(ptr, bytesRead));
+        if (selectiveBuildLocal)
+        {
+            // if UseConfigurationScope is true, then we might depend on a hu from a dependent target whose
+            // selectiveBuild might not true while ours is true.
+            hu->selectiveBuild = selectiveBuildLocal;
+        }
         hu->myBuildCacheIndex = indexInBuildCache;
-        hu->interfaceNode = readHalfNode(ptr, configRead);
+        hu->interfaceNode = readHalfNode(ptr, bytesRead);
 
-        hu->isReqHu = readBool(ptr, configRead);
-        hu->isUseReqHu = readBool(ptr, configRead);
+        hu->isReqHu = readBool(ptr, bytesRead);
+        hu->isUseReqHu = readBool(ptr, bytesRead);
 
-        const uint32_t headerFileModuleSize = readUint32(ptr, configRead);
-        const uint32_t logicalNamesSize = readUint32(ptr, configRead);
+        const uint32_t headerFileModuleSize = readUint32(ptr, bytesRead);
+        const uint32_t logicalNamesSize = readUint32(ptr, bytesRead);
         hu->logicalNames.reserve(logicalNamesSize + headerFileModuleSize);
 
         for (uint32_t j = 0; j < headerFileModuleSize; ++j)
         {
-            string_view headerFileName = readStringView(ptr, configRead);
+            string_view headerFileName = readStringView(ptr, bytesRead);
             if (useIPC)
             {
-                Node *headerNode = readHalfNode(ptr, configRead);
+                Node *headerNode = readHalfNode(ptr, bytesRead);
                 hu->composingHeaders.emplace(headerFileName, headerNode);
             }
             else
@@ -1594,7 +1624,7 @@ void CppTarget::readCacheAtBuildTime()
 
         for (uint32_t j = 0; j < logicalNamesSize; ++j)
         {
-            string_view str = readStringView(ptr, configRead);
+            string_view str = readStringView(ptr, bytesRead);
             hu->logicalNames.emplace_back(str);
             if (hu->isReqHu)
             {
@@ -1612,27 +1642,28 @@ void CppTarget::readCacheAtBuildTime()
         addDep<0, BTargetDepType::SELECTIVE>(*hu);
     }
 
-    myBuildDir = readHalfNode(ptr, configRead);
+    myBuildDir = readHalfNode(ptr, bytesRead);
 
     if (configuration->evaluate(IsCppMod::NO) || !useIPC)
     {
-        readInclDirsAtBuildTime(ptr, configRead, reqIncls, isSystem, ignoreHeaderDeps);
+        readInclDirsAtBuildTime(ptr, bytesRead, reqIncls, isSystem, ignoreHeaderDeps);
+        readInclDirsAtBuildTime(ptr, bytesRead, useReqIncls, isSystem, ignoreHeaderDeps);
     }
 
     if (configuration->evaluate(IsCppMod::YES))
     {
-        readHeaderFilesAtBuildTime(ptr, configRead, reqHeaderNameMapping, isSystem);
-        const uint32_t includeSize = readUint32(ptr, configRead);
+        readHeaderFilesAtBuildTime(ptr, bytesRead, reqHeaderNameMapping, isSystem);
+        const uint32_t includeSize = readUint32(ptr, bytesRead);
         for (uint32_t i = 0; i < includeSize; ++i)
         {
-            string_view name = readStringView(ptr, configRead);
-            Node *node = readHalfNode(ptr, configRead);
+            string_view name = readStringView(ptr, bytesRead);
+            Node *node = readHalfNode(ptr, bytesRead);
             const auto &[it, ok] = configuration->headerNameMapping.emplace(name, vector<HeaderFileOrUnit>{});
             it->second.emplace_back(cacheIndex, node, isSystem);
         }
     }
 
-    if (configRead != configCache.size())
+    if (bytesRead != configCache.size())
     {
         HMAKE_HMAKE_INTERNAL_ERROR
     }
@@ -1802,21 +1833,8 @@ void CppTarget::setCompileCommand(std::pmr::string &compileCommand)
 string CppTarget::getDependenciesString() const
 {
     string deps;
-#ifdef BUILD_MODE
-
-    for (const uint32_t index : reqDepsVecIndices)
-    {
-        CppTarget *cppTarget = static_cast<CppTarget *>(fileTargetCaches[index].targetCache);
-        if (!cppTarget)
-        {
-            HMAKE_HMAKE_INTERNAL_ERROR
-        }
-#else
     for (CppTarget *cppTarget : reqDeps)
     {
-
-#endif
-
         deps += cppTarget->name + '\n';
     }
     return deps;

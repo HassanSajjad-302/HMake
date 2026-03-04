@@ -338,6 +338,9 @@ int main()
     replaceFileTextsRecursive(current_path() / "llvm/lib/Target/X86",
                               getFileNames(current_path() / "llvm/lib/Target/X86/MCTargetDesc"), "MCTargetDesc/", "");
 
+    replaceFileTextsRecursive(current_path() / "llvm/lib/Target/X86",
+                              getFileNames(current_path() / "llvm/lib/Target/X86/GISel"), "GISel/", "");
+
     string from = R"(#if !__has_include(GET_PASS_REGISTRY)
 #error "must provide <Target>PassRegistry.def"
 #endif)";

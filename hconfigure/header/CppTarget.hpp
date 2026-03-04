@@ -14,14 +14,6 @@
 
 using std::same_as;
 
-/// Whether a file is Module, Header-File or Header-Unit
-enum class FileType : uint8_t
-{
-    MODULE,
-    HEADER_FILE,
-    HEADER_UNIT,
-};
-
 /// This class is responsible for managing c++ compilation. This class compiles multiple source-files, module-files,
 /// interface-module-files or header-units. The compile-command is same for all the files in one CppTarget.
 /// The API is designed so that user can compile their c++ code with or without header-units. These are classified as
@@ -79,9 +71,6 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     string reqCompilerFlags;
     string useReqCompilerFlags;
 
-    /// TargetCache::cacheIndex of our direct and transitive dependency CppTargets. It is cached in config-cache.
-    vector<uint32_t> reqDepsVecIndices;
-
     /// source-files. initialized from config-cache at build-time
     vector<CppSrc *> srcFileDeps;
 
@@ -136,11 +125,6 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// header-files, the mapping is stored in config-cache.
     uint32_t useReqHeaderFilesSize = 0;
 
-    /// Used only at build-time. include-dirs are stored first in config-cache and are read in constructor while other
-    /// config-cache is read later in CppTarget::updateBTarget. include-dirs are read early as our CppTarget dependents
-    /// will rely on them.
-    uint32_t configRead = 0;
-
     /// Whether this is a system target. if true, header-files, header-units and include-dirs are all system. Compilers
     /// generally ignore warnings from such code.
     bool isSystem = false;
@@ -167,11 +151,16 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     void completeRoundOne() override;
     /// Called in signal-handler or at the end when build-system is writing build-cache.
     bool writeBuildCache(string &buffer) override;
+
+    /// Checks if one of the
+    void setHeaderFileStatusChangedCppMod(BuildCache::Cpp::ModuleFile &modCache, bool calledFromConfiguration);
+
     /// Goes over the provided \p modCache header-files and header-units and checks if one of them has become
     /// header-unit or header-file respectively. if yes, sets BuildCache::Cpp::ModuleFile::headerStatusChanged to true.
     /// This will cause the rebuild of the respective module-file or header-unit and headerStatusChanged will be set
     /// false to avoid further rebuilds.
-    void setHeaderStatusChanged(BuildCache::Cpp::ModuleFile &modCache);
+    void setHeaderFileStatusChanged(bool calledFromConfiguration);
+
     /// Goes over the arrays of CppTarget::publicBigHus, CppTarget::privateBigHus and CppTarget::interfaceBigHus and
     /// writes them in myBuildDir. The content of these header-units is the header-includes for all the composing
     /// headers of these header-units
@@ -198,15 +187,14 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     void actuallyAddSourceFileConfigTime(Node *node);
     void actuallyAddModuleFileConfigTime(Node *node, string exportName);
     void checkSameHeaderNameMapping(string_view headerName);
-    bool emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, bool addInReq, bool suppressError);
+    void populateNameMappingsAndNodesType();
+    void emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, bool addInReq);
     void emplaceInNodesType(const Node *node, FileType type, bool addInReq);
     void makeHeaderFileAsUnit(const string &includeName, bool addInReq, bool addInUseReq);
     void removeHeaderFile(const string &includeName, bool addInReq, bool addInUseReq);
     void removeHeaderUnit(const Node *headerNode, const string &includeName, bool addInReq, bool addInUseReq);
-    void addHeaderFile(const string &includeName, const Node *headerFile, bool suppressError, bool addInReq,
-                       bool addInUseReq);
-    void addHeaderUnit(const string &includeName, const Node *headerUnit, bool suppressError, bool addInReq,
-                       bool addInUseReq);
+    void addHeaderFile(const string &includeName, const Node *headerFile, bool addInReq, bool addInUseReq);
+    void addHeaderUnit(const string &includeName, const Node *headerUnit, bool addInReq, bool addInUseReq);
     void addHeaderUnitOrFileDir(const Node *includeDir, const string &prefix, bool isHeaderFile, const string &regexStr,
                                 bool addInReq, bool addInUseReq);
     static void parseAndAddInComposingHeaders(CppMod &hu, const string &headerNames);
@@ -1061,7 +1049,7 @@ CppTarget &CppTarget::publicHeaderFiles(const string &includeName, const string 
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderFile(includeName, Node::getNodeNonNormalized(headerFile, true), false, true, true);
+            addHeaderFile(includeName, Node::getNodeNonNormalized(headerFile, true), true, true);
         }
     }
 
@@ -1082,7 +1070,7 @@ CppTarget &CppTarget::privateHeaderFiles(const string &includeName, const string
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderFile(includeName, Node::getNodeNonNormalized(headerFile, true), false, true, false);
+            addHeaderFile(includeName, Node::getNodeNonNormalized(headerFile, true), true, false);
         }
     }
 
@@ -1103,7 +1091,7 @@ CppTarget &CppTarget::interfaceHeaderFiles(const string &includeName, const stri
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderFile(includeName, Node::getNodeNonNormalized(headerFile, true), false, false, true);
+            addHeaderFile(includeName, Node::getNodeNonNormalized(headerFile, true), false, true);
         }
     }
 
@@ -1124,7 +1112,7 @@ CppTarget &CppTarget::publicHeaderUnits(const string &includeName, const string 
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderUnit(includeName, Node::getNodeNonNormalized(headerUnit, true), false, true, true);
+            addHeaderUnit(includeName, Node::getNodeNonNormalized(headerUnit, true), true, true);
         }
     }
 
@@ -1145,7 +1133,7 @@ CppTarget &CppTarget::privateHeaderUnits(const string &includeName, const string
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderUnit(includeName, Node::getNodeNonNormalized(headerUnit, true), false, true, false);
+            addHeaderUnit(includeName, Node::getNodeNonNormalized(headerUnit, true), true, false);
         }
     }
 
@@ -1166,7 +1154,7 @@ CppTarget &CppTarget::interfaceHeaderUnits(const string &includeName, const stri
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderUnit(includeName, Node::getNodeNonNormalized(headerUnit, true), false, false, true);
+            addHeaderUnit(includeName, Node::getNodeNonNormalized(headerUnit, true), false, true);
         }
     }
 

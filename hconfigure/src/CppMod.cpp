@@ -14,7 +14,7 @@
 #include "PointerPacking.h"
 #include <utility>
 
-using std::tie, std::ifstream, std::exception, std::lock_guard, N2978::IPCManagerBS;
+using std::tie, std::ifstream, std::exception, std::lock_guard, P2978::IPCManagerBS;
 
 bool CompareCppSrc::operator()(const CppSrc &lhs, const CppSrc &rhs) const
 {
@@ -419,11 +419,13 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
 
     if (run.output.empty())
     {
-        outputStr += FORMAT("C++Source {} {} ", node->filePath, target->name);
+        outputStr += FORMAT("[{}/{}]C++Source {} {}\n", builder.updatedCount, builder.updateBTargetsSizeGoal,
+                            node->filePath, target->name);
     }
     else
     {
         getCompileCommand(outputStr);
+        outputStr.push_back('\n');
     }
 
     if (isConsole)
@@ -431,8 +433,11 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
         outputStr += getColorCode(ColorIndex::reset);
     }
 
-    outputStr += run.output;
-    outputStr.push_back('\n');
+    if (!run.output.empty())
+    {
+        outputStr += run.output;
+        outputStr.push_back('\n');
+    }
     fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
     return false;
 }
@@ -449,6 +454,11 @@ CppMod::CppMod(CppTarget *target_, const Node *node_) : CppSrc(target_, node_)
 void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const uint32_t index,
                                   const uint64_t commandHash_)
 {
+    if (node->filePath.ends_with("DemangleConfig.h"))
+    {
+        bool breakpooint = true;
+    }
+
     myBuildCacheIndex = index;
     myBuildCache = &modCache;
     commandHash = commandHash_;
@@ -503,7 +513,7 @@ void CppMod::makeMemoryFileMapping()
         return;
     }
 
-    N2978::BMIFile file;
+    P2978::BMIFile file;
     file.filePath = interfaceNode->filePath;
     if (const auto &r = IPCManagerBS::createSharedMemoryBMIFile(file); !r)
     {
@@ -520,7 +530,7 @@ void CppMod::makeAndSendBTCModule(CppMod &mod)
     // write this buffer directly.
 
     mod.makeMemoryFileMapping();
-    N2978::BTCModule btcModule;
+    P2978::BTCModule btcModule;
     btcModule.requested.filePath = mod.interfaceNode->filePath;
     btcModule.requested.fileSize = mod.interfaceFileSize;
     btcModule.isSystem = mod.target->isSystem;
@@ -530,7 +540,7 @@ void CppMod::makeAndSendBTCModule(CppMod &mod)
         if (allCppModDependencies.emplace(modDep).second)
         {
             modDep->makeMemoryFileMapping();
-            N2978::ModuleDep dep;
+            P2978::ModuleDep dep;
             dep.isHeaderUnit = modDep->type == SM_FILE_TYPE::HEADER_UNIT;
             dep.file.filePath = modDep->interfaceNode->filePath;
             dep.file.fileSize = modDep->interfaceFileSize;
@@ -569,9 +579,9 @@ void CppMod::makeAndSendBTCModule(CppMod &mod)
 }
 
 // For debugging purposes
-N2978::BTCNonModule deserializeBTCNonModule(std::string_view buffer)
+P2978::BTCNonModule deserializeBTCNonModule(std::string_view buffer)
 {
-    N2978::BTCNonModule result;
+    P2978::BTCNonModule result;
     const char *ptr = buffer.data();
     uint32_t bytesRead = 0;
 
@@ -586,7 +596,7 @@ N2978::BTCNonModule deserializeBTCNonModule(std::string_view buffer)
     result.headerFiles.reserve(headerFilesCount);
     for (uint32_t i = 0; i < headerFilesCount; ++i)
     {
-        N2978::HeaderFile hf;
+        P2978::HeaderFile hf;
 
         // HeaderFile::logicalName
         std::string_view logicalNameView = readStringView(ptr, bytesRead);
@@ -628,7 +638,7 @@ N2978::BTCNonModule deserializeBTCNonModule(std::string_view buffer)
     result.huDeps.reserve(huDepsCount);
     for (uint32_t i = 0; i < huDepsCount; ++i)
     {
-        N2978::HuDep dep;
+        P2978::HuDep dep;
 
         // HuDep::file::filePath
         dep.file.filePath = readStringView(ptr, bytesRead);
@@ -652,7 +662,7 @@ N2978::BTCNonModule deserializeBTCNonModule(std::string_view buffer)
     }
 
     // Sanity check
-    if (bytesRead + strlen(N2978::delimiter) != buffer.size())
+    if (bytesRead + strlen(P2978::delimiter) != buffer.size())
     {
         HMAKE_HMAKE_INTERNAL_ERROR
         /*std::cerr << "WARNING: Deserialized " << bytesRead << " bytes but buffer size is " << buffer.size()
@@ -755,7 +765,7 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
         }
     }
     *reinterpret_cast<uint32_t *>(&toBeSend[placeHolderIndex]) = count;
-    toBeSend.append(N2978::delimiter, strlen(N2978::delimiter));
+    toBeSend.append(P2978::delimiter, strlen(P2978::delimiter));
 
     if (const auto &r2 = ipcManager->writeInternal(toBeSend); !r2)
     {
@@ -784,9 +794,8 @@ CppMod *CppMod::findModule(const string_view moduleName) const
 
     if (!moduleName.contains(':'))
     {
-        for (const uint32_t index : target->reqDepsVecIndices)
+        for (CppTarget *req : target->reqDeps)
         {
-            CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[index].targetCache);
             if (auto it2 = req->imodNames.find(moduleName); it2 != req->imodNames.end())
             {
                 return it2->second;
@@ -807,35 +816,28 @@ HeaderFileOrUnit CppMod::findHeaderFileOrUnit(const string_view headerName) cons
     if (const auto &it = target->configuration->headerNameMapping.find(headerName);
         it != target->configuration->headerNameMapping.end())
     {
-        if (it->second.size() == 1)
+        if (target->configuration->evaluate(UseConfigurationScope::YES))
         {
+            // If configuration scope is set, then there can't be more than one entry in
+            // Configuration::headerNameMapping. This is ensured at config-time.
             return it->second[0];
         }
 
+        for (const vector<HeaderFileOrUnit> &configHeaderFilesOrUnits = it->second;
+             const HeaderFileOrUnit &headerFileOrUnit : configHeaderFilesOrUnits)
         {
-            /*
-            for (const HeaderFileOrUnit &headerFileOrUnit : it->second)
+            CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[headerFileOrUnit.targetIndex].targetCache);
+            if (auto it2 = target->reqDeps.find(req); it2 != target->reqDeps.end())
             {
-                CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[headerFileOrUnit.targetIndex].targetCache);
-                printMessage(FORMAT("{} {}\n", headerFileOrUnit.targetIndex, req->name));
-            }
-            printErrorMessage(FORMAT("size is not 1 {}", headerName));
-        */
-        }
-
-        // finding out the dependency target headerFileOrUnit if any.
-        for (const HeaderFileOrUnit &headerFileOrUnit : it->second)
-        {
-            for (const uint32_t reqDepIndex : target->reqDepsVecIndices)
-            {
-                if (reqDepIndex == headerFileOrUnit.targetIndex)
-                {
-                    return headerFileOrUnit;
-                }
+                // this headerFileOrUnit is provided by one of our dependency cpp-target.
+                return headerFileOrUnit;
             }
         }
     }
 
+    printMessage(FORMAT("{}\n", target->configuration->headerNameMapping.size()));
+    printMessage(FORMAT("{}\n", target->reqHeaderNameMapping.size()));
+    fflush(stdout);
     return {static_cast<Node *>(nullptr), false};
 }
 
@@ -874,7 +876,7 @@ bool CppMod::isEventRegistered(Builder &builder)
     RealBTarget &rb = realBTargets[0];
     if (rb.updateStatus == UpdateStatus::ALREADY_UPDATED)
     {
-        rb.updateStatus = UpdateStatus::UPDATED;
+        rb.updateStatus = UpdateStatus::UPDATED_WITHOUT_BUILDING;
         return false;
     }
 
@@ -908,7 +910,7 @@ bool CppMod::isEventRegistered(Builder &builder)
     return true;
 }
 
-bool CppMod::completeModuleCompilation()
+bool CppMod::completeModuleCompilation(const Builder &builder)
 {
     RealBTarget &rb = realBTargets[0];
     if (rb.exitStatus == EXIT_SUCCESS)
@@ -916,7 +918,7 @@ bool CppMod::completeModuleCompilation()
         if (type == SM_FILE_TYPE::HEADER_UNIT || type == SM_FILE_TYPE::PRIMARY_EXPORT ||
             type == SM_FILE_TYPE::PARTITION_EXPORT)
         {
-            N2978::BMIFile file{.filePath = interfaceNode->filePath};
+            P2978::BMIFile file{.filePath = interfaceNode->filePath};
             if (const auto &r2 = IPCManagerBS::createSharedMemoryBMIFile(file); !r2)
             {
                 printErrorMessage(FORMAT("Failed to create shared-memory BMI-file {}\nof target {}\n",
@@ -933,7 +935,7 @@ bool CppMod::completeModuleCompilation()
         target->buildCacheUpdated = true;
     }
 
-    print(run.output);
+    print(builder, run.output);
 
     return false;
 }
@@ -956,7 +958,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     if (!target->useIPC)
     {
         parseHeaderDeps(run.output, builder);
-        return completeModuleCompilation();
+        return completeModuleCompilation(builder);
     }
 
     if (waitingFor)
@@ -986,12 +988,12 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
     if (message.empty())
     {
-        return completeModuleCompilation();
+        return completeModuleCompilation(builder);
     }
 
     char buffer[320];
-    N2978::CTB requestType;
-    if (const auto &r = ipcManager->receiveMessage(buffer, requestType, message); !r)
+    P2978::CTB requestType;
+    if (const auto &r = IPCManagerBS::receiveMessage(buffer, requestType, message); !r)
     {
         printErrorMessage(
             FORMAT("receive-message fail for module-file {}\n of target {}\n.", node->filePath, target->name));
@@ -999,9 +1001,9 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
     CppMod *found;
 
-    if (requestType == N2978::CTB::NON_MODULE)
+    if (requestType == P2978::CTB::NON_MODULE)
     {
-        auto &[isHURequested, headerName] = reinterpret_cast<N2978::CTBNonModule &>(buffer);
+        auto &[isHURequested, headerName] = reinterpret_cast<P2978::CTBNonModule &>(buffer);
 
         HeaderFileOrUnit f = findHeaderFileOrUnit(headerName);
         if (!f.data.cppMod)
@@ -1084,7 +1086,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
             // BTCNonModule::filePath
             writeStringView(toBeSend, f.data.node->filePath);
             toBeSend.push_back('\n');
-            toBeSend.append(N2978::delimiter, strlen(N2978::delimiter));
+            toBeSend.append(P2978::delimiter, strlen(P2978::delimiter));
 
             if (const auto &r2 = ipcManager->writeInternal(toBeSend); !r2)
             {
@@ -1111,7 +1113,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     }
     else
     {
-        string_view moduleName = reinterpret_cast<N2978::CTBModule &>(buffer).moduleName;
+        string_view moduleName = reinterpret_cast<P2978::CTBModule &>(buffer).moduleName;
         found = findModule(moduleName);
 
         if (!found)
@@ -1141,8 +1143,8 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     if (foundRb.updateStatus != UpdateStatus::UPDATED)
     {
         waitingFor = found;
-        // can be updated during the mutex locking
-        if (foundRb.updateStatus != UpdateStatus::UPDATED)
+        if (foundRb.updateStatus != UpdateStatus::UPDATED &&
+            foundRb.updateStatus != UpdateStatus::UPDATED_WITHOUT_BUILDING)
         {
             foundRb.dependents.emplace(&rb, BTargetDepType::FULL);
             rb.dependencies.emplace(&foundRb, BTargetDepType::FULL);
@@ -1163,7 +1165,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         return false;
     }
 
-    if (requestType == N2978::CTB::MODULE)
+    if (requestType == P2978::CTB::MODULE)
     {
         makeAndSendBTCModule(*found);
     }
@@ -1176,7 +1178,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     return true;
 }
 
-void CppMod::print(const string &output) const
+void CppMod::print(const Builder &builder, const string &output) const
 {
     constexpr uint32_t stackSize = 64 * 1024;
     char buffer[stackSize];
@@ -1189,8 +1191,8 @@ void CppMod::print(const string &output) const
 
     if (output.empty())
     {
-        outputStr += FORMAT("C++{} {} {}", type == SM_FILE_TYPE::HEADER_UNIT ? "Header-Unit" : "Module", node->filePath,
-                            target->name);
+        outputStr += FORMAT("[{}/{}]C++{} {} {}", builder.updatedCount, builder.updateBTargetsSizeGoal,
+                            type == SM_FILE_TYPE::HEADER_UNIT ? "Header-Unit" : "Module", node->filePath, target->name);
     }
     else
     {
@@ -1334,6 +1336,11 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand) const
 
 void CppMod::setFileStatusAndPopulateAllDependencies()
 {
+    if (node->filePath.ends_with("public-lib3.hpp"))
+    {
+        bool breakpooint = true;
+    }
+
     RealBTarget &rb = realBTargets[0];
     if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
     {
@@ -1427,12 +1434,13 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         headerFilesCache = &target->cppBuildCache.modFiles[myBuildCacheIndex].srcFile.headerFiles;
     }
 
-    for (const Node *headerNode : *headerFilesCache)
+    for (Node *headerNode : *headerFilesCache)
     {
         if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > endNode->lastWriteTime)
         {
             return;
         }
+        headerFiles.emplace(headerNode);
     }
 
     for (const BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &h : myBuildCache->headerUnitArray)

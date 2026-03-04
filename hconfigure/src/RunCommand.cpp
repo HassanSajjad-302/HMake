@@ -57,20 +57,20 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
                                              PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, 0, 0, INFINITE, NULL);
     if (readPipeHandle == INVALID_HANDLE_VALUE)
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
 
     index = builder.registerEventData(bTarget, (uint64_t)readPipeHandle);
-    if (!CreateIoCompletionPort(readPipeHandle, (HANDLE)builder.serverFd, eventDataIndex, 0))
+    if (!CreateIoCompletionPort(readPipeHandle, (HANDLE)builder.serverFd, index, 0))
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
 
-    if (CompletionKey &k = eventData[eventDataIndex];
+    if (CompletionKey &k = eventData[index];
         !ConnectNamedPipe(readPipeHandle, &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer)) &&
         GetLastError() != ERROR_IO_PENDING)
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
 
     // Get the write end of the pipe as a handle inheritable across processes.
@@ -80,7 +80,7 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     if (!DuplicateHandle(GetCurrentProcess(), outputWriteHandle, GetCurrentProcess(), &child_pipe, 0, TRUE,
                          DUPLICATE_SAME_ACCESS))
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
     CloseHandle(outputWriteHandle);
 
@@ -110,7 +110,7 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     if (!CreateProcessA(NULL, (char *)command, NULL, NULL,
                         /* inherit handles */ TRUE, process_flags, NULL, NULL, &startup_info, &process_info))
     {
-        printErrorMessage(FORMAT("CreateProcessA failed for Command\n{}\nError\n", command, N2978::getErrorString()));
+        printErrorMessage(FORMAT("CreateProcessA failed for Command\n{}\nError\n", command, P2978::getErrorString()));
     }
 
     // Close pipe channel only used by the child.
@@ -123,21 +123,22 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
 
     // todo
     // don't inherit the parent fds.
-    ...
+    /*
     HANDLE hd = (HANDLE) _get_osfhandle(fd);
     if (! SetHandleInformation(hd, HANDLE_FLAG_INHERIT, 0)) {
         fprintf(stderr, "SetHandleInformation(): %s", GetLastErrorString().c_str());
     }
+    */
     readPipe = (uint64_t)readPipeHandle;
     writePipe = (uint64_t)readPipeHandle;
     pid = (uint64_t)process_info.hProcess;
 
-    return eventDataIndex;
+    return index;
 }
 
-bool Builder::startRead(const uint64_t eventIndex, RunCommand &run)
+bool RunCommand::startRead()
 {
-    CompletionKey &k = eventData[eventIndex];
+    CompletionKey &k = eventData[index];
     memset(k.buffer, 0, sizeof(k.buffer));
     memset(k.overlappedBuffer, 0, sizeof(k.overlappedBuffer));
     DWORD bytesRead = 0;
@@ -159,13 +160,13 @@ bool Builder::startRead(const uint64_t eventIndex, RunCommand &run)
         return true;
     }
 
-    printErrorMessage(N2978::getErrorString());
+    printErrorMessage(P2978::getErrorString());
     return true;
 }
 
-CompleteReadType Builder::completeRead(const uint64_t eventIndex, RunCommand &run)
+CompleteReadType RunCommand::completeRead()
 {
-    CompletionKey &k = eventData[eventIndex];
+    CompletionKey &k = eventData[index];
     uint64_t bytesRead = 0;
     if (!GetOverlappedResult((HANDLE)k.handle, &(OVERLAPPED &)k.overlappedBuffer, (LPDWORD)&bytesRead, false))
     {
@@ -174,11 +175,11 @@ CompleteReadType Builder::completeRead(const uint64_t eventIndex, RunCommand &ru
             // ReadFile completed successfully
             return CompleteReadType::COMPLETE_PROCESS;
         }
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
 
-    run.output.append(string_view{k.buffer, bytesRead});
-    if (run.output.ends_with(N2978::delimiter))
+    output.append(string_view{k.buffer, bytesRead});
+    if (output.ends_with(P2978::delimiter))
     {
         return CompleteReadType::COMPLETE_MESSAGE;
     }
@@ -190,27 +191,27 @@ void RunCommand::reapProcess()
 {
     if (WaitForSingleObject((HANDLE)pid, INFINITE) == WAIT_FAILED)
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
     if (!GetExitCodeProcess((HANDLE)pid, (LPDWORD)&exitStatus))
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
 
     if (!CloseHandle((HANDLE)pid) || !CloseHandle((HANDLE)readPipe))
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
 }
 
-void RunCommand::killModuleProcess(const string &processName) const
+void RunCommand::killModuleProcess(Builder &builder) const
 {
     // Exit code you want to assign to the terminated process
     DWORD exitCode = 1;
 
     if (!TerminateProcess((HANDLE)pid, exitCode))
     {
-        printErrorMessage(FORMAT("Killing module process {} failed.\n", processName));
+        printErrorMessage(("Killing Process\n"));
     }
 
     CloseHandle((HANDLE)pid); // Clean up when you’re done
@@ -234,7 +235,7 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     int stdoutPipesLocal[2];
     if (pipe2(stdoutPipesLocal, O_CLOEXEC) == -1)
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
     readPipe = stdoutPipesLocal[0];
 
@@ -242,7 +243,7 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     if (haveWritePipe)
     {
         if (pipe2(stdinPipesLocal, O_CLOEXEC) == -1)
-            printErrorMessage(N2978::getErrorString());
+            printErrorMessage(P2978::getErrorString());
         writePipe = stdinPipesLocal[1];
     }
     else
@@ -254,7 +255,7 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     pid = vfork(); // <-- vfork
     if (pid == -1)
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
 
     if (pid == 0)
@@ -286,6 +287,7 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
         close(stdinPipesLocal[0]);
     }
 
+    ++builder.simultaneousProcessCount;
     return readPipe;
 }
 
@@ -300,14 +302,14 @@ CompleteReadType RunCommand::completeRead()
     const uint64_t readSize = read(readPipe, buffer, sizeof(buffer) - 1);
     if (readSize == -1)
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
     if (!readSize)
     {
         return CompleteReadType::COMPLETE_PROCESS;
     }
     output.append(buffer, readSize);
-    if (output.ends_with(N2978::delimiter))
+    if (output.ends_with(P2978::delimiter))
     {
         return CompleteReadType::COMPLETE_MESSAGE;
     }
@@ -389,30 +391,32 @@ void RunCommand::runProcess(const char *command)
     exitStatus = WEXITSTATUS(status);
 }
 
-void RunCommand::reapProcess()
+void RunCommand::reapProcess(Builder &builder)
 {
+    --builder.simultaneousProcessCount;
     int status;
     if (waitpid(pid, &status, 0) < 0)
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
     if (close(readPipe) == -1)
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
 
     if (writePipe != -1)
     {
         if (close(writePipe) == -1)
         {
-            printErrorMessage(N2978::getErrorString());
+            printErrorMessage(P2978::getErrorString());
         }
     }
-    exitStatus = WEXITSTATUS(status);  // extract actual exit code
+    exitStatus = WEXITSTATUS(status); // extract actual exit code
 }
 
 void RunCommand::killModuleProcess(Builder &builder) const
 {
+    --builder.simultaneousProcessCount;
     if (kill(pid, SIGKILL) != 0)
     {
         printErrorMessage("Killing process");
@@ -430,17 +434,17 @@ string RunCommand::pruneOutput()
 {
     // Prune the compiler output. and make a new string of the compiler-message output.
     const uint32_t outputSize = output.size();
-    if (outputSize < 4 + strlen(N2978::delimiter))
+    if (outputSize < 4 + strlen(P2978::delimiter))
     {
         printErrorMessage("Received string only has delimiter but not the size of payload\n");
     }
 
     const uint32_t payloadSize =
-        *reinterpret_cast<uint32_t *>(output.data() + (outputSize - (4 + strlen(N2978::delimiter))));
-    const char *payloadStart = output.data() + (outputSize - (4 + strlen(N2978::delimiter) + payloadSize));
+        *reinterpret_cast<uint32_t *>(output.data() + (outputSize - (4 + strlen(P2978::delimiter))));
+    const char *payloadStart = output.data() + (outputSize - (4 + strlen(P2978::delimiter) + payloadSize));
 
     string str{payloadStart, payloadSize};
-    output.resize(outputSize - (4 + strlen(N2978::delimiter) + payloadSize));
+    output.resize(outputSize - (4 + strlen(P2978::delimiter) + payloadSize));
 
     return str;
 }

@@ -116,7 +116,7 @@ struct CppMod final : CppSrc
 
     /// CppMod::updateBTarget will initialize this and then will call receiveMessage to learn about any dependencies the
     /// compiler require.
-    N2978::IPCManagerBS *ipcManager;
+    P2978::IPCManagerBS *ipcManager;
 
     /// The dependency module or hu we are waiting on to compile.
     CppMod *waitingFor = nullptr;
@@ -151,10 +151,10 @@ struct CppMod final : CppSrc
     /// file is updated, then the compiler creates the mapping. if not then the build-system.
     void makeMemoryFileMapping();
 
-    /// Called to send the N2978::BTCModule corresponding to a module CppMod whose compilation just completed
+    /// Called to send the P2978::BTCModule corresponding to a module CppMod whose compilation just completed
     void makeAndSendBTCModule(CppMod &mod);
 
-    /// Called to send the N2978::BTCNonModule corresponding to a hu CppMod whose compilation just completed
+    /// Called to send the P2978::BTCNonModule corresponding to a hu CppMod whose compilation just completed
     void makeAndSendBTCNonModule(CppMod &hu);
 
     /// Looks for the received module-name in just CppTarget::imodNames if module-name is of partition export. Looks in
@@ -169,14 +169,14 @@ struct CppMod final : CppSrc
     /// launches the module process if it needs to be compiled
     bool isEventRegistered(Builder &builder) override;
 
-    bool completeModuleCompilation();
+    bool completeModuleCompilation(const Builder &builder);
 
     /// \param message message of the c++ module or hu process if it is waiting on another dependency.
     /// \returns true if we are waiting on a dependency, false if we have completed the compilation.
     bool isEventCompleted(Builder &builder, string_view message) override;
 
     /// prints short status string if there is no output. prints full command + output, if there is output
-    void print(const string &output) const;
+    void print(const Builder &builder, const string &output) const;
 
     /// \returns BTargetType::CPPMOD
     BTargetType getBTargetType() const override;

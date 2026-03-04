@@ -1,6 +1,7 @@
 
 #include "Builder.hpp"
 #include "Cache.hpp"
+#include "CppMod.hpp"
 #include "JConsts.hpp"
 #include "Manager.hpp"
 #include "Node.hpp"
@@ -29,7 +30,7 @@ BOOL WINAPI ConsoleHandler(DWORD signal)
     {
         if (!PostQueuedCompletionStatus((HANDLE)consoleHandlerBuilder->serverFd, 0, -1, NULL))
         {
-            N2978::getErrorString("PostQueuedCompletionStatus");
+            P2978::getErrorString("PostQueuedCompletionStatus");
         }
         return TRUE;
     }
@@ -95,7 +96,7 @@ static uint64_t createMultiplex()
     );
     if (iocp == nullptr)
     {
-        printErrorMessage(N2978::getErrorString());
+        printErrorMessage(P2978::getErrorString());
     }
     return reinterpret_cast<uint64_t>(iocp);
 #else
@@ -179,7 +180,9 @@ void Builder::executeRoundZero()
     updateBTargetsSizeGoal = RealBTarget::sorted.size();
 
     uint64_t count = 0;
-    idleCount = cache.numberOfBuildThreads;
+    const uint16_t numberOfLaunchedThreads = cache.numberOfBuildThreads;
+    idleCount = numberOfLaunchedThreads;
+    maxSimultaneousProcessDesired = std::thread::hardware_concurrency() * 32;
 
     if (!idleCount)
     {
@@ -190,7 +193,7 @@ void Builder::executeRoundZero()
     consoleHandlerBuilder = this;
     if (!SetConsoleCtrlHandler(ConsoleHandler, TRUE))
     {
-        N2978::getErrorString("SetConsoleCtrlHandler");
+        P2978::getErrorString("SetConsoleCtrlHandler");
     }
 #else
     registerSignalHandler();
@@ -198,13 +201,38 @@ void Builder::executeRoundZero()
 
     while (true)
     {
-        while (idleCount)
+        while (true)
         {
-            const RealBTarget *b = updateBTargets.getItem();
+            const RealBTarget *b = updateBTargets.hasElement();
             if (!b)
             {
                 break;
             }
+            uint64_t pid = b->bTarget->run.pid;
+            bool launchNewOne = false;
+            if (pid == -1)
+            {
+                // Because it is gonna be a new process, we make sure that we don't exceed the process capacity, or we do
+                // so only when we are down to 0 active process.
+
+                const bool canLaunchNewProcess = maxSimultaneousProcessDesired > simultaneousProcessCount;
+                launchNewOne = (canLaunchNewProcess && idleCount) || idleCount == numberOfLaunchedThreads;
+            }
+            else
+            {
+                if (idleCount)
+                {
+                    launchNewOne = true;
+                }
+            }
+
+            if (!launchNewOne)
+            {
+                // printMessage(FORMAT("{}\n", simultaneousProcessCount));
+                break;
+            }
+
+            updateBTargets.moveForward();
             ++updatedCount;
 
             if (b->bTarget->isEventRegistered(*this))
@@ -225,7 +253,7 @@ void Builder::executeRoundZero()
             ULONG n = 0;
             if (!GetQueuedCompletionStatusEx((HANDLE)serverFd, events, 128, &n, INFINITE, FALSE))
             {
-                printErrorMessage(N2978::getErrorString());
+                printErrorMessage(P2978::getErrorString());
             }
 
             if constexpr (ndeb == NDEB::NO)
@@ -306,7 +334,7 @@ void Builder::executeRoundZero()
             break;
         }
 
-        if (idleCount == cache.numberOfBuildThreads)
+        if (idleCount == numberOfLaunchedThreads)
         {
             RealBTarget::sortGraph();
             printErrorMessage("HMake API misuse.\n");
@@ -354,7 +382,7 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
     if (epoll_ctl(serverFd, EPOLL_CTL_ADD, fd, &ev) == -1)
     {
         printErrorMessage(FORMAT("Failed to add BTarget\n{}\nread in epoll list. Error\n{}", target_->getPrintName(),
-                                 N2978::getErrorString()));
+                                 P2978::getErrorString()));
         HMAKE_HMAKE_INTERNAL_ERROR
     }
     return fd;
@@ -382,7 +410,7 @@ bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
         else
         {
             unregisterEventDataAtIndex(index);
-            bTarget->run.reapProcess();
+            bTarget->run.reapProcess(*this);
             bTarget->realBTargets[0].exitStatus = bTarget->run.exitStatus;
         }
 
@@ -410,7 +438,7 @@ void Builder::unregisterEventDataAtIndex(const uint64_t index)
     if (epoll_ctl(serverFd, EPOLL_CTL_DEL, index, NULL) == -1)
     {
         printErrorMessage(FORMAT("Failed to remove BTarget\n{}\nread from epoll list. Error\n{}",
-                                 eventData[index]->getPrintName(), N2978::getErrorString()));
+                                 eventData[index]->getPrintName(), P2978::getErrorString()));
         HMAKE_HMAKE_INTERNAL_ERROR
     }
     eventData[index] = nullptr;

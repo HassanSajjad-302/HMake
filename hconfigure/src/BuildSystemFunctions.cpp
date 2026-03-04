@@ -11,6 +11,7 @@
 #include <fstream>
 #include <print>
 #include <stacktrace>
+#include <thread>
 #include <utility>
 
 using std::filesystem::current_path, std::filesystem::directory_iterator, std::ifstream, std::ofstream;
@@ -513,7 +514,7 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
         // Check if the file handle is valid
         if (hFile == INVALID_HANDLE_VALUE)
         {
-            printErrorMessage(FORMAT("Failed to open file for writing. Error: {}\n", N2978::getErrorString()));
+            printErrorMessage(FORMAT("Failed to open file for writing. Error: {}\n", P2978::getErrorString()));
         }
 
         // Content to write to the file
@@ -522,13 +523,13 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
         // Write to the file
         if (!WriteFile(hFile, buffer, bufferSize, &bytesWritten, nullptr))
         {
-            printErrorMessage(FORMAT("Failed to write to file. Error: {}\n", N2978::getErrorString()));
+            printErrorMessage(FORMAT("Failed to write to file. Error: {}\n", P2978::getErrorString()));
             CloseHandle(hFile);
         }
 
         if (!FlushFileBuffers(hFile))
         {
-            printErrorMessage(FORMAT("Failed to flush file buffers. Error: {}\n", N2978::getErrorString()));
+            printErrorMessage(FORMAT("Failed to flush file buffers. Error: {}\n", P2978::getErrorString()));
         }
 
         if (bytesWritten != bufferSize)
@@ -580,7 +581,7 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
             // If ReplaceFile fails (e.g., target doesn't exist), fall back to MoveFileEx
             if (!MoveFileExA(str.c_str(), fileName.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
             {
-                printErrorMessage(FORMAT("Error:{}\n while writing file {}\n", N2978::getErrorString(), fileName));
+                printErrorMessage(FORMAT("Error:{}\n while writing file {}\n", P2978::getErrorString(), fileName));
             }
         }
 #else

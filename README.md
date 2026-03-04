@@ -183,7 +183,7 @@ If this parameter is empty, it means that the child process completed.
 In that case, ```run.output``` is the output of the child process.
 Build-system differentiates the output from the IPC message,
 as any IPC message must be followed by the message-size and the delimiter
-```N2978::delimiter```.
+```P2978::delimiter```.
 This is how HMake supports generic IPC which is then extended by ```CppSrc```
 and ```CppMod``` classes to support C++20 modules and header-units.
 

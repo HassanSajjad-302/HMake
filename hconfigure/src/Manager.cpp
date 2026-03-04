@@ -11,7 +11,7 @@
 #include <unistd.h>
 #endif
 
-namespace N2978
+namespace P2978
 {
 
 std::string getErrorString()
@@ -51,7 +51,7 @@ std::string getErrorString(const ErrorCategory errorCategory_)
     switch (errorCategory_)
     {
     case ErrorCategory::PARSING_ERROR:
-        errorString = "N2978 Message Parsing Error.";
+        errorString = "P2978 Message Parsing Error.";
         break;
     case ErrorCategory::READ_FILE_ZERO_BYTES_READ:
         errorString = "Error: ReadFile Zero Bytes Read.";
@@ -66,7 +66,7 @@ std::string getErrorString(const ErrorCategory errorCategory_)
         std::string str = __FILE__;
         str += ':';
         str += __LINE__;
-        errorString = "N2978 IPC API internal error" + str;
+        errorString = "P2978 IPC API internal error" + str;
         break;
     }
 
@@ -259,4 +259,4 @@ tl::expected<std::string_view, std::string> Manager::readPath(const std::string_
     return result;
 }
 
-} // namespace N2978
+} // namespace P2978

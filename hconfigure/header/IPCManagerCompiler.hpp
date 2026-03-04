@@ -7,10 +7,10 @@
 
 struct CompilerTest;
 struct BuildSystemTest;
-namespace N2978
+namespace P2978
 {
 
-inline std::vector<std::string*> allocations;
+inline std::vector<std::string *> allocations;
 
 enum class FileType : uint8_t
 {
@@ -87,5 +87,5 @@ class IPCManagerCompiler : Manager
 };
 
 inline IPCManagerCompiler *managerCompiler;
-} // namespace N2978
+} // namespace P2978
 #endif // IPC_MANAGER_COMPILER_HPP

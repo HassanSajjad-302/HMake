@@ -29,7 +29,7 @@ struct RunCommand
     string output;
     uint64_t readPipe;
     uint64_t writePipe = -1;
-    uint64_t pid;
+    uint64_t pid = -1;
     int exitStatus;
 #ifdef _WIN32
     CompleteReadType completeReadType = CompleteReadType::INCOMPLETE;
@@ -44,7 +44,7 @@ struct RunCommand
     uint64_t startAsyncProcess(const char *command, class Builder &builder, class BTarget *bTarget, bool haveWritePipe);
     bool startRead();
     CompleteReadType completeRead();
-    void reapProcess();
+    void reapProcess(Builder &builder);
     void killModuleProcess(Builder &builder) const;
     string pruneOutput();
 };

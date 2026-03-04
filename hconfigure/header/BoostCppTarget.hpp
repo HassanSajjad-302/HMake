@@ -580,12 +580,12 @@ void BoostCppTarget::getTargetFromConfiguration(const string_view name, Node *my
 
             for (const auto &[logicalName, node] : testReqHeaderFiles)
             {
-                testOrExmple->addHeaderFile(logicalName, node, false, true, false);
+                testOrExmple->addHeaderFile(logicalName, node, true, false);
             }
 
             for (const auto &[logicalName, node] : testReqHeaderUnits)
             {
-                testOrExmple->addHeaderUnit(logicalName, node, false, true, false);
+                testOrExmple->addHeaderUnit(logicalName, node, true, false);
             }
         }
     }

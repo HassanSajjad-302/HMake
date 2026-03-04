@@ -89,8 +89,11 @@ class Builder
     /// Builder::updateBTargetsSizeGoal).
     uint32_t updateBTargetsSizeGoal = 0;
 
+    inline static uint32_t maxSimultaneousProcessDesired = 0;
     inline static unsigned short round = 0;
     bool errorHappenedInRoundMode = false;
+
+    uint32_t simultaneousProcessCount = 0;
 
     /// This returns the index in the eventData. This returns the CompletionKey index on Windows and fd itself on Linux.
     /// With help of eventData array, this is used to determine the BTarget whose child process has an event.
@@ -103,11 +106,11 @@ class Builder
 
     uint32_t activeEventCount = 0;
 
+    uint32_t updatedCount = 0;
   private:
     unsigned short launchedCount = 0;
     unsigned short checkingCount = 0;
     unsigned short checkedCount = 0;
-    uint32_t updatedCount = 0;
     bool updateBTargetFailed = false;
     vector<Node *> uncheckedNodesCentral;
     vector<span<Node *>> uncheckedNodes;
