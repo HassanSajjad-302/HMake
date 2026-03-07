@@ -9,15 +9,16 @@ enum class LitExeType : uint8_t
     OPT = 1,
     FILE_CHECK = 2,
 };
+
 inline constexpr std::array<const char *, 3> exeNames = {"llc", "opt", "FileCheck"};
 struct LitCommand
 {
     LitExeType exeType;
-    string command;
+    string_view command;
     // can not be empty for the first test in LitTest::commands.
-    string inputFileText;
+    string_view inputFileText;
     // can not be empty if the next test in LitTest::commands depends on it.
-    string outputFileText;
+    string_view outputFileText;
 
     // one of the following must be true.
     bool inputFromPreviousTest = false;
@@ -29,7 +30,7 @@ struct LitCommand
 struct LitTest
 {
     // path to the .ll file. If the test fails, HMake will execute this test using the lit tool.
-    string testFilePath;
+    string_view testFilePath;
     // first command output will be the input for the second command and so on. last command is not expected to have any
     // output. if the test fails, the test is executed without IPC using the testFilePath. If it still fails, HMake
     // reports this as test failure, otherwise this is considered a failure due to state leakage by previous tests.
@@ -47,10 +48,13 @@ struct HMakeResponse
 {
     struct Response
     {
-        string command;
-        string input;
+        string_view command;
+        string_view input;
     };
 
+    // if true the data following it does not matter. HMake sends this message to let the process save state(if any for
+    // any reason) instead of killing it itself.
+    bool testsCompleted = false;
     // Build-system will mostly send one response. But it might send many if in future we implement batching to reduce
     // IPC cost (probably). But, importantly the lit tool like llc, opt might need to be debugged to test for the state
     // leakage bugs, so they need to have the ability to run more than one tests. In that case HMake can create an
@@ -60,7 +64,7 @@ struct HMakeResponse
 
 struct LitResponse
 {
-    string output;
+    string_view output;
     LitSuccessStatus status;
 };
 
@@ -78,7 +82,11 @@ class LitProcess : public BTarget
 
     bool isEventRegistered(Builder &builder) override
     {
+        const string command = exeName + "-useIPC";
+        run.startAsyncProcess(command.data(), builder, this, true);
+        return true;
     }
+
     bool isEventCompleted(Builder &builder, string_view message) override
     {
     }
