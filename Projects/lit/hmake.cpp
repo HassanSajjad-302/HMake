@@ -14,8 +14,15 @@ struct LitCommand
 {
     LitExeType exeType;
     string command;
-    string inputFile;
-    string outputFile;
+    // can not be empty for the first test in LitTest::commands.
+    string inputFileText;
+    // can not be empty if the next test in LitTest::commands depends on it.
+    string outputFileText;
+
+    // one of the following must be true.
+    bool inputFromPreviousTest = false;
+    // if this is true, the test is passed input of the first test.
+    bool inputFromFirstTest = false;
 };
 
 // I want the python lit to print this data in file. And then HMake will run these using IPC.
@@ -26,7 +33,35 @@ struct LitTest
     // first command output will be the input for the second command and so on. last command is not expected to have any
     // output. if the test fails, the test is executed without IPC using the testFilePath. If it still fails, HMake
     // reports this as test failure, otherwise this is considered a failure due to state leakage by previous tests.
+    // In that case HMake will prepare
     vector<LitCommand> commands;
+};
+
+enum class LitSuccessStatus
+{
+    SUCCESS = 0,
+    FAIL = 1,
+};
+
+struct HMakeResponse
+{
+    struct Response
+    {
+        string command;
+        string input;
+    };
+
+    // Build-system will mostly send one response. But it might send many if in future we implement batching to reduce
+    // IPC cost (probably). But, importantly the lit tool like llc, opt might need to be debugged to test for the state
+    // leakage bugs, so they need to have the ability to run more than one tests. In that case HMake can create an
+    // HMakeResponse file which can be passed to the tool to debug for such errors.
+    vector<Response> responses;
+};
+
+struct LitResponse
+{
+    string output;
+    LitSuccessStatus status;
 };
 
 // represents an individual lit process
@@ -94,11 +129,6 @@ class LitManager : public BTarget
 
         // We return false as we did not launch a new process. We just scheduled a few LitProcess in build-system queue.
         return false;
-    }
-
-    // This function is not used as this BTarget did not launch a new process.
-    bool isEventCompleted(Builder &builder, string_view message) override
-    {
     }
 };
 
