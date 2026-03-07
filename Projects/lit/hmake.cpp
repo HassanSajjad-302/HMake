@@ -2,13 +2,14 @@
 
 #include "Configure.hpp"
 
+inline constexpr uint32_t litExeTypeEnumSize = 3;
 enum class LitExeType : uint8_t
 {
     LLC = 0,
     OPT = 1,
     FILE_CHECK = 2,
 };
-
+inline constexpr std::array<const char *, 3> exeNames = {"llc", "opt", "FileCheck"};
 struct LitCommand
 {
     LitExeType exeType;
@@ -56,14 +57,8 @@ class LitManager : public BTarget
     vector<LitTest> tests;
 
     // list of launched-processes. process might be idling.
-    vector<LitProcess *> llcProcesses;
-    vector<LitProcess *> optProcesses;
-    vector<LitProcess *> fileCheckProcesses;
-
-    // list of freed-processes
-    vector<uint32_t> llcFreedIndices;
-    vector<uint32_t> optFreedIndices;
-    vector<uint32_t> fileCheckFreedIndices;
+    array<vector<LitProcess *>, litExeTypeEnumSize> processes;
+    array<vector<uint32_t *>, litExeTypeEnumSize> freedProcess;
 
     uint32_t currentTestIndex = 0;
 
@@ -74,14 +69,34 @@ class LitManager : public BTarget
 
     bool scheduleProcesses(Builder &builder)
     {
-
     }
 
     bool isEventRegistered(Builder &builder) override
     {
+        uint32_t count = std::max<uint32_t>(tests.size(), cache.numberOfBuildProcesses);
 
+        for (uint32_t litExeType = 0; litExeType < litExeTypeEnumSize; ++litExeType)
+        {
+            processes[litExeType].reserve(count);
+        }
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            uint8_t processTypeIndex = static_cast<uint8_t>(tests[count].commands[0].exeType);
+            const uint32_t currentSize = processes[processTypeIndex].size();
+            LitProcess *litProcess = processes[processTypeIndex].emplace_back(
+                new LitProcess(exeNames[processTypeIndex], static_cast<LitExeType>(processTypeIndex), currentSize));
+
+            // Now soon, LitProcess::isEventRegistered will be called for these LitProcess.
+            builder.updateBTargets.emplace_back(&litProcess->realBTargets[0]);
+        }
+        builder.updateBTargetsSizeGoal += count;
+
+        // We return false as we did not launch a new process. We just scheduled a few LitProcess in build-system queue.
+        return false;
     }
 
+    // This function is not used as this BTarget did not launch a new process.
     bool isEventCompleted(Builder &builder, string_view message) override
     {
     }

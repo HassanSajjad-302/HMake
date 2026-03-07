@@ -180,7 +180,9 @@ void Builder::executeRoundZero()
     updateBTargetsSizeGoal = RealBTarget::sorted.size();
 
     uint64_t count = 0;
-    const uint16_t numberOfLaunchedThreads = cache.numberOfBuildThreads;
+    // edit the following if you want to run in lesser threads.
+   // cache.numberOfBuildThreads = cache.numberOfBuildThreads;
+    const uint16_t numberOfLaunchedThreads = cache.numberOfBuildProcesses;
     idleCount = numberOfLaunchedThreads;
     maxSimultaneousProcessDesired = std::thread::hardware_concurrency() * 32;
 
@@ -595,4 +597,14 @@ void Builder::decrementFromDependents(const RealBTarget &rb)
 
     DEBUG_EXECUTE(FORMAT("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round, __LINE__,
                          updateBTargets.size(), updateBTargetsSizeGoal, getThreadId()));
+}
+
+uint32_t Builder::getCapacityForNewProcesses() const
+{
+    if (const uint32_t desiredCapacity = maxSimultaneousProcessDesired - simultaneousProcessCount;
+        desiredCapacity > idleCount)
+    {
+        return desiredCapacity;
+    }
+    return idleCount;
 }

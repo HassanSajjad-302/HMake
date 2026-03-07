@@ -122,6 +122,7 @@ class Builder
     void checkNodes();
     void execute();
     void decrementFromDependents(const RealBTarget &rb);
+    uint32_t getCapacityForNewProcesses() const;
 };
 
 #endif // HMAKE_BUILDER_HPP
