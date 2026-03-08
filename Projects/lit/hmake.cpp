@@ -75,10 +75,12 @@ struct LitResponse
 class LitManager;
 inline LitManager *manager = nullptr;
 
-struct Process : BTarget
+struct FailedTest : BTarget
 {
     string command;
-    explicit Process(string command_) : BTarget(true, false), command(std::move(command_))
+    uint32_t index;
+    explicit FailedTest(string command_, const uint32_t index_)
+        : BTarget(true, false), command(std::move(command_)), index(index_)
     {
     }
 };
@@ -133,7 +135,7 @@ class LitProcess : public BTarget
         }
         else
         {
-            // builder.updateBTargets.em
+            // builder.updateBTargets.emplace()
         }
     }
 };
@@ -147,11 +149,11 @@ class LitManager : public BTarget
 
     // list of launched-processes. process might be idling.
     array<vector<LitProcess *>, litExeTypeEnumSize> processes;
-    array<vector<uint32_t *>, litExeTypeEnumSize> freedProcessIndices;
+    array<vector<uint32_t>, litExeTypeEnumSize> freedProcessIndices;
 
     // list of processes for executing failed tests.
-    vector<Process *> failedTests;
-    vector<uint32_t> freedFailedProcessIndices;
+    vector<FailedTest *> failedTests;
+    vector<uint32_t> freedFailedTestIndices;
 
     uint32_t currentTestIndex = 0;
 
@@ -179,6 +181,7 @@ class LitManager : public BTarget
             const uint32_t currentSize = processes[processTypeIndex].size();
             LitProcess *litProcess = processes[processTypeIndex].emplace_back(
                 new LitProcess(exeNames[processTypeIndex], static_cast<LitExeType>(processTypeIndex), currentSize));
+            processes[processTypeIndex].emplace_back(litProcess);
 
             // Now soon, LitProcess::isEventRegistered will be called for these LitProcess.
             builder.updateBTargets.emplace_back(&litProcess->realBTargets[0]);
@@ -187,6 +190,38 @@ class LitManager : public BTarget
 
         // We return false as we did not launch a new process. We just scheduled a few LitProcess in build-system queue.
         return false;
+    }
+
+    LitProcess *getLitProcess(LitExeType type)
+    {
+        uint8_t processTypeIndex = static_cast<uint8_t>(type);
+
+        if (freedProcessIndices[processTypeIndex].empty())
+        {
+            const uint32_t currentSize = processes[processTypeIndex].size();
+            LitProcess *litProcess = processes[processTypeIndex].emplace_back(
+                new LitProcess(exeNames[processTypeIndex], static_cast<LitExeType>(processTypeIndex), currentSize));
+            processes[processTypeIndex].emplace_back(litProcess);
+            return litProcess;
+        }
+        const uint32_t processIndex = freedProcessIndices[processTypeIndex].back();
+        freedProcessIndices[processTypeIndex].pop_back();
+        return processes[processTypeIndex][processIndex];
+    }
+
+    FailedTest *getProcess(string command)
+    {
+        if (freedFailedTestIndices.empty())
+        {
+            const uint32_t currentSize = failedTests.size();
+            FailedTest *failedTest = failedTests.emplace_back(new FailedTest(std::move(command), currentSize));
+            failedTests.emplace_back(failedTest);
+            return failedTest;
+        }
+
+        const uint32_t failedIndex = freedFailedTestIndices.back();
+        freedFailedTestIndices.pop_back();
+        return failedTests[failedIndex];
     }
 };
 
