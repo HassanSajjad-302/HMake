@@ -2,6 +2,13 @@
 
 #include "Configure.hpp"
 
+// string_view is 4-byte of the size of the string followed by the string itself.
+
+// Following has data structures for specifying the tests with their steps by lit to be consumed by HMake. lit can write
+// a file that HMake can read and then run these tests. This is specified by LitTests struct.
+
+// Following also has structs for communication between HMake and lit tools like opt and llc. HMakeResponse is what
+// HMake sends to these lit tools while it expects to receive LitResponse.
 inline constexpr uint32_t litExeTypeEnumSize = 3;
 enum class LitExeType : uint8_t
 {
@@ -10,68 +17,98 @@ enum class LitExeType : uint8_t
     FILE_CHECK = 2,
 };
 
-inline constexpr std::array<const char *, 3> exeNames = {"llc", "opt", "FileCheck"};
+struct LitCommandLlc
+{
+    string_view command;
+    string_view input;
+};
+
+struct LitCommandOpt
+{
+    string_view command;
+    string_view input;
+};
+
+// LitCommandFileCheck must be preceded by LitCommandLlc or LitCommandOpt. Input to these is considered as input to the
+// following as well(directives instructions) while their output will be its second input. It does not generate any
+// output.
+struct LitCommandFileCheck
+{
+    string_view command;
+};
+
+union LitCommandUnion {
+    LitCommandLlc llc;
+    LitCommandOpt opt;
+};
+
 struct LitCommand
 {
     LitExeType exeType;
-    string_view command;
-    // can not be empty for the first test in LitTest::commands.
-    string_view inputFileText;
-    // can not be empty if the next test in LitTest::commands depends on it.
-    string_view outputFileText;
-
-    // one of the following must be true.
-    bool inputFromPreviousTest = false;
-    // if this is true, the test is passed input of the first test.
-    bool inputFromFirstTest = false;
+    LitCommandUnion litCommandUnion;
 };
 
 // I want the python lit to print this data in file. And then HMake will run these using IPC.
 struct LitTest
 {
-    // path to the .ll file. If the test fails, HMake will execute this test using the lit tool.
+    // path to the .ll file. If the test fails, HMake will execute this test without IPC using the lit tool. If it still
+    // fails, HMake reports this as test failure, otherwise this is considered a failure due to state leakage by
+    // previous tests. In that case HMake will prepare a file with write a file with all the inputs that this tools has
+    // received until this point. Now, you can easily debug opt or llc passing it this file.
     string_view testFilePath;
 
-    // first command output will be the input for the second command and so on. last command is not expected to have any
-    // output. if the test fails, the test is executed without IPC using the testFilePath. If it still fails, HMake
-    // reports this as test failure, otherwise this is considered a failure due to state leakage by previous tests.
-    // In that case HMake will prepare
-    vector<LitCommand> commands;
+    // opt or llc command.
+    LitCommand command;
 
-    // Indicates which step is happening of this LitTest
-    uint32_t currentIndex = 0;
+    LitCommandFileCheck fileCheck;
+
+    // Not to be sent by the lit. It is an HMake specific variable.
+    bool commandCompleted = false;
 };
 
-enum class LitSuccessStatus
-{
-    SUCCESS = 0,
-    FAIL = 1,
-};
+// 32-byte delimiter
+inline const char *delimiter = "DELIMITER"
+                               "\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5"
+                               "DELIMITER";
+
+// After HMake has received the above info, HMake will launch llc, opt and FileCheck binaries and will send them the
+// HMakeResponse and will wait for LitResponse. HMake will append the following with the above delimiter.
 
 struct HMakeResponse
 {
-    struct Response
-    {
-        string_view command;
-        string_view input;
-    };
-
-    // if true the data following it does not matter. HMake sends this message to let the process save state(if any for
+    // if true the data following it does not matter. HMake sends this message to let the process save state (if any for
     // any reason) instead of killing it itself.
     bool testsCompleted = false;
+
+    struct Response
+    {
+        string_view testPath;
+        string_view command;
+        string_view input;
+        // Only valid for FileCheck. It is not even sent / serialized.
+        string_view directivesInput;
+    };
+
     // Build-system will mostly send one response. But it might send many if in future we implement batching to reduce
     // IPC cost (probably). But, importantly the lit tool like llc, opt might need to be debugged to test for the state
-    // leakage bugs, so they need to have the ability to run more than one tests. In that case HMake can create an
-    // HMakeResponse file which can be passed to the tool to debug for such errors.
+    // leakage bugs, so they need to have the ability to run more than one tests. In that case HMake can create a
+    // response file which can be passed to the tool to debug for such errors. This will be a binary file containing the
+    // following data serialized.
     vector<Response> responses;
 };
 
+// HMake after launching opt, llc and FileCheck will send the above message and then wait for the following. The
+// following should be followed by the 4-byte size of the following message plus the above delimiter. So HMake can
+// prune-out the normal stdout from the IPC message. HMake will display the aggregated stdout for the test after it
+// finishes.
 struct LitResponse
 {
+    // if false, the output field does not matter. There should be no output for FileCheck.
+    bool succeeded;
     string_view output;
-    LitSuccessStatus status;
 };
 
+// The following is HMake specific. Under development / testing.
 class LitManager;
 inline LitManager *manager = nullptr;
 
@@ -160,10 +197,6 @@ class LitManager : public BTarget
     string getPrintName() const override
     {
         return "LitManager";
-    }
-
-    bool scheduleProcesses(Builder &builder)
-    {
     }
 
     bool isEventRegistered(Builder &builder) override
