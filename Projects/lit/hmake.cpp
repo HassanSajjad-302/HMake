@@ -31,11 +31,15 @@ struct LitTest
 {
     // path to the .ll file. If the test fails, HMake will execute this test using the lit tool.
     string_view testFilePath;
+
     // first command output will be the input for the second command and so on. last command is not expected to have any
     // output. if the test fails, the test is executed without IPC using the testFilePath. If it still fails, HMake
     // reports this as test failure, otherwise this is considered a failure due to state leakage by previous tests.
     // In that case HMake will prepare
     vector<LitCommand> commands;
+
+    // Indicates which step is happening of this LitTest
+    uint32_t currentIndex = 0;
 };
 
 enum class LitSuccessStatus
@@ -68,6 +72,17 @@ struct LitResponse
     LitSuccessStatus status;
 };
 
+class LitManager;
+inline LitManager *manager = nullptr;
+
+struct Process : BTarget
+{
+    string command;
+    explicit Process(string command_) : BTarget(true, false), command(std::move(command_))
+    {
+    }
+};
+
 // represents an individual lit process
 class LitProcess : public BTarget
 {
@@ -75,8 +90,17 @@ class LitProcess : public BTarget
     string exeName;
     LitExeType exeType;
     uint32_t index;
-    LitProcess(string exeName_, const LitExeType exeType_, uint32_t index_)
-        : exeName(std::move(exeName_)), exeType(exeType_), index(index_)
+    uint32_t currentIndex = 0;
+
+    struct ExecutedTests
+    {
+        uint32_t testIndex;
+        // The index of the step in the test
+        uint32_t currentIndex;
+    };
+
+    LitProcess(string exeName_, const LitExeType exeType_, const uint32_t index_)
+        : BTarget(true, false), exeName(std::move(exeName_)), exeType(exeType_), index(index_)
     {
     }
 
@@ -87,8 +111,30 @@ class LitProcess : public BTarget
         return true;
     }
 
-    bool isEventCompleted(Builder &builder, string_view message) override
+    bool isEventCompleted(Builder &builder, const string_view message) override
     {
+        LitResponse litResponse;
+
+        uint32_t bytesRead = 0;
+        litResponse.output = readStringView(message.data(), bytesRead);
+        litResponse.status = static_cast<LitSuccessStatus>(readUint8(message.data(), bytesRead));
+
+        if (bytesRead != message.size())
+        {
+            // should be neatly handled instead of exiting.
+            printErrorMessage(FORMAT("bytesRead != message.size() for {}", exeName));
+        }
+
+        litResponse.output = *new string(litResponse.output);
+
+        if (litResponse.status == LitSuccessStatus::SUCCESS)
+        {
+            // Let's execute the next step in the test
+        }
+        else
+        {
+            // builder.updateBTargets.em
+        }
     }
 };
 
@@ -101,7 +147,11 @@ class LitManager : public BTarget
 
     // list of launched-processes. process might be idling.
     array<vector<LitProcess *>, litExeTypeEnumSize> processes;
-    array<vector<uint32_t *>, litExeTypeEnumSize> freedProcess;
+    array<vector<uint32_t *>, litExeTypeEnumSize> freedProcessIndices;
+
+    // list of processes for executing failed tests.
+    vector<Process *> failedTests;
+    vector<uint32_t> freedFailedProcessIndices;
 
     uint32_t currentTestIndex = 0;
 
