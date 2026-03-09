@@ -2,14 +2,40 @@
 
 #include "Configure.hpp"
 
-// string_view is 4-byte of the size of the string followed by the string itself.
+// -----------------------------------------------------------------------------
+// Serialization Format
+// -----------------------------------------------------------------------------
+// string_view is serialized as: [4-byte little-endian length][raw string bytes]
+// No null terminator is included.
+// vector is serialized as: [4-byte little-endian size][vector entry bytes]
 
-// Following has data structures for specifying the tests with their steps by lit to be consumed by HMake. lit can write
-// a file that HMake can read and then run these tests. This is specified by LitTests struct.
+// -----------------------------------------------------------------------------
+// Overview: HMake + lit Integration
+// -----------------------------------------------------------------------------
+// This header defines the IPC (inter-process communication) protocol between
+// HMake (the build system) and LLVM lit tools (llc, opt, FileCheck).
+// These lit tools do not read any file from the disk.
+//
+// The overall flow is:
+//
+//   1. lit (Python) discovers tests and serializes them as a list of LitTest
+//      structs into a file.
+//
+//   2. HMake reads that file, launches the relevant tool processes (llc, opt,
+//      FileCheck), and communicates with them over IPC using the
+//      HMakeResponse / LitResponse protocol defined below.
+//
+//   3. Each tool process receives an HMakeResponse, executes the requested
+//      command(s), and replies with a LitResponse.
+//
+//   4. If a test fails, HMake re-runs it in isolation (outside IPC) to
+//      distinguish real failures from state-leakage failures caused by a
+//      prior test dirtying the process state.
 
-// Following also has structs for communication between HMake and lit tools like opt and llc. HMakeResponse is what
-// HMake sends to these lit tools while it expects to receive LitResponse.
-inline constexpr uint32_t litExeTypeEnumSize = 3;
+// -----------------------------------------------------------------------------
+// Section 1: Test Specification (written by lit, read by HMake)
+// -----------------------------------------------------------------------------
+
 enum class LitExeType : uint8_t
 {
     LLC = 0,
@@ -17,94 +43,154 @@ enum class LitExeType : uint8_t
     FILE_CHECK = 2,
 };
 
+/// Command and input for an `llc` invocation.
+/// - command: the full llc command line (e.g. "llc -mtriple=arc")
+/// - input:   the LLVM IR text to feed to llc via stdin. HMake or llc do not read the .ll file.
 struct LitCommandLlc
 {
     string_view command;
     string_view input;
 };
 
+/// Command and input for an `opt` invocation.
+/// - command: the full opt command line (e.g. "opt -passes=mem2reg")
+/// - input:   the LLVM IR text to feed to opt via stdin. HMake or opt do not read the .ll file
 struct LitCommandOpt
 {
     string_view command;
     string_view input;
 };
 
-// LitCommandFileCheck must be preceded by LitCommandLlc or LitCommandOpt. Input to these is considered as input to the
-// following as well(directives instructions) while their output will be its second input. It does not generate any
-// output.
+/// Command for a `FileCheck` invocation.
+///
+/// FileCheck always follows a LitCommandLlc or LitCommandOpt in the same
+/// LitTest. It implicitly receives two inputs:
+///   - directives input: the original .ll test file (source of CHECK lines)
+///   - match input:      the stdout output of the preceding llc/opt command
+///
+/// FileCheck produces no output on success; a non-zero exit code means failure.
 struct LitCommandFileCheck
 {
     string_view command;
 };
 
+/// Holds either a llc or opt command (they share the same memory layout).
 union LitCommandUnion {
     LitCommandLlc llc;
     LitCommandOpt opt;
 };
 
+/// A tagged union pairing a tool type with its command data.
 struct LitCommand
 {
     LitExeType exeType;
     LitCommandUnion litCommandUnion;
 };
 
-// I want the python lit to print this data in file. And then HMake will run these using IPC.
+/// Describes a single lit test — one .ll file with one tool invocation and one
+/// FileCheck verification step.
+///
+/// Written by the lit Python runner into a binary file; HMake reads and
+/// executes these over IPC.
+///
+/// Failure handling:
+///   If a test fails during IPC execution, HMake re-runs it in a fresh
+///   process (outside IPC) using llvm-lit. If it fails again, it is a genuine test failure.
+///   If it passes in isolation, it is a state-leakage failure caused by a
+///   prior test. In that case, HMake dumps a replay file containing all inputs
+///   the tool received up to that point, so you can reproduce and debug the
+///   exact sequence that caused the leak.
 struct LitTest
 {
-    // path to the .ll file. If the test fails, HMake will execute this test without IPC using the lit tool. If it still
-    // fails, HMake reports this as test failure, otherwise this is considered a failure due to state leakage by
-    // previous tests. In that case HMake will prepare a file with write a file with all the inputs that this tools has
-    // received until this point. Now, you can easily debug opt or llc passing it this file.
+    /// relative path (to llvm-project/) to the .ll source file.
+    /// Used for re-running the test in isolation and for error reporting.
     string_view testFilePath;
 
-    // opt or llc command.
+    /// The primary tool invocation: either llc or opt command.
     LitCommand command;
 
+    /// The FileCheck verification step that consumes the tool's output.
     LitCommandFileCheck fileCheck;
-
-    // Not to be sent by the lit. It is an HMake specific variable.
-    bool commandCompleted = false;
 };
 
-// 32-byte delimiter
+// -----------------------------------------------------------------------------
+// Section 2: IPC Protocol (HMake <-> tool processes)
+// -----------------------------------------------------------------------------
+
+/// Binary delimiter used to separate IPC messages from regular stdout.
+///
+/// Tool processes (llc, opt, FileCheck) may write ordinary stdout during
+/// execution. HMake uses this delimiter to locate and extract the LitResponse
+/// message appended at the end of the process's stdout stream.
+///
+/// Format: "DELIMITER" + 14 alternating 0x5A/0xA5 bytes + "DELIMITER"
+/// Total length: 32 bytes.
 inline const char *delimiter = "DELIMITER"
                                "\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5"
                                "DELIMITER";
 
-// After HMake has received the above info, HMake will launch llc, opt and FileCheck binaries and will send them the
-// HMakeResponse and will wait for LitResponse. HMake will append the following with the above delimiter.
-
+/// Message sent from HMake to a tool process (llc, opt, or FileCheck).
+///
+/// HMake launches each tool process once and communicates with it over IPC,
+/// sending one HMakeResponse and waiting for one LitResponse per round-trip.
+/// The message is serialized and appended with the delimiter defined above.
 struct HMakeResponse
 {
-    // if true the data following it does not matter. HMake sends this message to let the process save state (if any for
-    // any reason) instead of killing it itself.
+    /// When true, signals the tool process to shut down cleanly.
+    /// HMake sends this instead of killing the process directly, giving the
+    /// tool a chance to flush or save any state before exiting.
+    /// All other fields are ignored when this is true.
     bool testsCompleted = false;
 
+    /// A single unit of work for the tool process to execute.
     struct Response
     {
+        /// Path to the .ll test file (used for diagnostics and replay files).
         string_view testPath;
+
+        /// The command line to execute (e.g. "llc -mtriple=arc").
         string_view command;
+
+        /// stdin input for llc or opt (the LLVM IR file-text).
         string_view input;
-        // Only valid for FileCheck. It is not even sent / serialized.
+
+        /// The original .ll file content, used as the directives input for
+        /// FileCheck (i.e. the file containing the CHECK lines).
+        /// Only meaningful for FileCheck responses; not serialized over IPC.
         string_view directivesInput;
     };
 
-    // Build-system will mostly send one response. But it might send many if in future we implement batching to reduce
-    // IPC cost (probably). But, importantly the lit tool like llc, opt might need to be debugged to test for the state
-    // leakage bugs, so they need to have the ability to run more than one tests. In that case HMake can create a
-    // response file which can be passed to the tool to debug for such errors. This will be a binary file containing the
-    // following data serialized.
+    /// Contains exactly one Response during normal IPC operation.
+    ///
+    /// If a test fails only under IPC (passes when re-run in isolation), it
+    /// indicates a state-leakage bug in the tool. In that case, HMake kills the
+    /// daemon process (as it is now in a bad state) and writes a binary replay
+    /// file containing all HMakeResponse messages that were sent to that process
+    /// in order, serialized in the same format as originally used in IPC.
+    ///
+    /// The tool can then be pointed at this replay file directly to reproduce the
+    /// failure deterministically.
+    /// To support this, the tool must always parse this field as a loop regardless
+    /// of whether it is running under IPC or from a replay file — the only
+    /// difference is the number of entries (1 in IPC, N in the replay file).
     vector<Response> responses;
 };
 
-// HMake after launching opt, llc and FileCheck will send the above message and then wait for the following. The
-// following should be followed by the 4-byte size of the following message plus the above delimiter. So HMake can
-// prune-out the normal stdout from the IPC message. HMake will display the aggregated stdout for the test after it
-// finishes.
+/// Message sent from a tool process back to HMake after executing a command.
+///
+/// The tool writes this struct to stdout, followed by a 4-byte little-endian
+/// message length, followed by the delimiter. This lets HMake strip ordinary
+/// stdout from the IPC payload when parsing the response.
+///
+/// HMake collects and displays all non-IPC stdout for a test together after
+/// the test completes.
 struct LitResponse
 {
-    // if false, the output field does not matter. There should be no output for FileCheck.
+    /// True if the tool executed successfully (exit code 0).
     bool succeeded;
+
+    /// Captured stdout from the tool. Empty for FileCheck.
+    /// Only meaningful when succeeded is true;
     string_view output;
 };
 
@@ -121,6 +207,9 @@ struct FailedTest : BTarget
     {
     }
 };
+
+// Identifies which LLVM tool a LitCommand targets.
+inline constexpr uint32_t litExeTypeEnumSize = 3;
 
 // represents an individual lit process
 class LitProcess : public BTarget
