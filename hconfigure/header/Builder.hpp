@@ -1,5 +1,5 @@
 /// \file
-/// Defines the Builder class
+/// Defines `Builder`, the core graph scheduler/executor.
 
 #ifndef HMAKE_BUILDER_HPP
 #define HMAKE_BUILDER_HPP
@@ -13,115 +13,120 @@
 
 using std::vector, std::list, std::stack;
 
-/// Used only on Windows. Kernel fulfills the buffer memory if it is writing. This buffer is not released and is reused
-/// for next event.
+/// Windows-only event payload kept in `eventData`.
+/// The read buffer is reused across completions.
 struct CompletionKey
 {
-    /// for holding OVERLAPPED struct
+    /// Storage for an `OVERLAPPED` object.
     alignas(8) char overlappedBuffer[32];
-    /// This is the buffer to 4kb memory. Once allocated, it is reused.
+    /// Reusable 4 KiB read buffer.
     char *buffer;
     uint64_t handle;
     BTarget *target;
 };
 
-/// Simultaneously active file-descriptors array in the event loop. CompletionKey buffer is externally initialized.
+/// Active event-index table used by the event loop.
 #ifdef _WIN32
 GLOBAL_VARIABLE(CompletionKey *, eventData)
 #else
 GLOBAL_VARIABLE(BTarget **, eventData)
 #endif
 
-/// Only used on Windows. As we reuse the CompletionKey because it has buffer allocated of size 4096. This way eventData
-/// also not grow out-of-bounds from 32k entries allocated in constructGlobals function. We emplace the index of
-/// CompletionKey in this vector when it is unregistered. When registerEventData is called again, it pops back the last
-/// index to reuse the CompletionKey in the eventData at that index.
-/// On Linux eventData vector is assigned using the file-descriptor index which Linux kernel allocates as the minimum
-/// available.
+/// Windows-only free-list of reusable `eventData` indices.
+/// Linux maps file descriptors directly and does not use this pool.
+/// On Windows, HANDLE are not incremental.
 GLOBAL_VARIABLE(vector<uint64_t>, unusedKeysIndices)
 
-/// Incremented when we have used a new CompletionKey from eventData.
+/// Next unused slot in `eventData` (Windows only).
 inline uint32_t currentIndex = 0;
 
-/// Core class that has implementation of the build algorithm.
+/// Implements HMake scheduling and execution across both rounds.
 ///
-/// Build algorithm runs in 2 rounds.
-/// Before the round, dependency relations are specified between BTarget. Then those with 0 dependencies
-/// (RealBTarget::dependenciesSize == 0) are added in Builder::updateBTargets list. Then these targets are
-/// completed(BTarget::completeBTarget or BTarget::isEventRegistered). After we conclude a target,
-/// RealBTarget::dependenciesSize is decremented from the dependents. If this number is 0, then these RealBTarget are
-/// added to the Builder::updateBTargets list. Then we go over the Builder::updateBTargets list again.
+/// High-level flow:
+/// 1. Build dependency graph for a round. It is built in `buildSpecification` function and during the BTarget
+/// execution.
+/// 2. Seed `updateBTargets` with RealBTarget whose `dependenciesSize == 0`.
+/// 3. Execute each of these RealBTarget. By calling `BTarget::completeRoundOne` in round1 and,
+/// `BTarget::isEventRegistered` and then maybe `BTarget::isEventCompleted` for round0.
+/// 4. Decrement unresolved dependency counters of dependents. That is `RealBTarget::dependenciesSize`.
+/// 5. Enqueue newly ready dependents and continue until complete.
 ///
-/// For round1:
-/// main calls main2 which calls buildSpecification in which all dependency relations are specified. Then main2 calls
-/// configureOrBuild which calls Builder::Builder. This constructor will then call BTarget::sortGraph. Then add in
-/// Builder::updateBTargets list and then call Builder::execute function. This function will start going over the
-/// BTargets and call theirs BTarget::completeRoundOne to conclude them.
+/// Round 1:
+/// - Executes synchronous work via `BTarget::completeRoundOne`.
+/// - In configure mode, execution ends after this round.
 ///
-/// Build-System exits after round1 in BuildMode::CONFIGURE.
-///
-/// Then Builder::Builder call Builder::nodeCheck function which calls the Node::performNodeCheck of interesting nodes
-/// in parallel on Windows and using io-uring if available. After this Builder::round is decremented and round0  is
-/// performed.
-///
-/// In BuildMode::BUILD,
-/// For round0:
-///
-/// Lots of round0 dependency relations are already specified in buildSpecification and during the
-/// BTarget::completeRoundOne of round1.
-/// In this round, after soring and populating Builder::updateBTargets, the server initializes the serverFd which is
-/// epoll_create on Linux and CreateIoCompletionPort on Windows. Then we go over the Builder::updateBTargets and call
-/// BTarget::isEventRegistered which might launch new process. In this case event is registered in the event loop.
-/// When the event happens(process exits or has message for the build-system), BTarget::isEventCompleted is called of
-/// the BTarget returned from the event. After the process exits, we reap the process using RunCommand::reapProcess.
-/// After the BTarget::isEventRegistered (when no process is launched) or after reaping the process, we decrement from
-/// the dependent RealBTarget::dependenciesSize and if it is 0, add it in the Builder::updateBTargets list. And then go
-/// over this list again (call isEventRegistered of these BTargets).
+/// Round 0 (build mode only):
+/// - Performs async work using an event loop (`epoll` on Linux, IOCP on Windows).
+/// - Calls `BTarget::isEventRegistered` to start/attach work.
+/// - Calls `BTarget::isEventCompleted` on process/message events.
+/// - Marks targets complete when one of these functions return false.
 class Builder
 {
   public:
-    /// Contains those with RealBTarget::dependenciesSize == 0.
+    /// Ready queue containing nodes with `dependenciesSize == 0`.
     PointerArrayList<RealBTarget> updateBTargets;
 
-    /// In round0, we can not exit once the Builder::updateBTargets::getItem returns nullptr. Even though the list is
-    /// empty, the targets whose BTarget::isEventCompleted is being called can add new in this list after completion. We
-    /// exit from ExecuteMode::WAIT only when (Builder::updateBTargets.getItem() == nullptr && Builder::updatedCount ==
-    /// Builder::updateBTargetsSizeGoal).
+    /// Round-0 termination goal: number of nodes expected to be consumed.
+    /// Execution stops only when `updatedCount == updateBTargetsSizeGoal`.
     uint32_t updateBTargetsSizeGoal = 0;
 
+    /// Global cap derived from hardware for concurrent process pressure.
     inline static uint32_t maxSimultaneousProcessDesired = 0;
+    /// Active round (`1` then `0`).
     inline static unsigned short round = 0;
+    /// Set when any node fails during current round.
     bool errorHappenedInRoundMode = false;
 
+    /// Number of currently running child processes.
     uint32_t simultaneousProcessCount = 0;
 
-    /// This returns the index in the eventData. This returns the CompletionKey index on Windows and fd itself on Linux.
-    /// With help of eventData array, this is used to determine the BTarget whose child process has an event.
+    /// Registers an async source in `eventData`.
+    /// \return event index (`CompletionKey` slot on Windows, fd on Linux).
     uint64_t registerEventData(BTarget *target_, uint64_t fd);
 
+    /// Internal function that calls `BTarget::isEventCompleted` when an event is received.
+    /// \return true if target is still waiting on events; false if target is complete.
     bool callIsEventCompleted(BTarget *bTarget, uint64_t index);
+
+    /// Removes event registered at `index`.
     void unregisterEventDataAtIndex(uint64_t index);
+
+    /// Multiplexing handle (`epoll` fd or IOCP handle).
     uint64_t serverFd;
+
+    /// Available launcher slots.
     uint16_t idleCount = 0;
 
+    /// Count of targets currently registered in event loop. Used for debugging purposes.
     uint32_t activeEventCount = 0;
 
+    /// Number of targets already consumed from `updatedBTarget` queue.
     uint32_t updatedCount = 0;
+
   private:
+    /// Internal counters used by node-check code path.
     unsigned short launchedCount = 0;
     unsigned short checkingCount = 0;
     unsigned short checkedCount = 0;
     bool updateBTargetFailed = false;
+    /// Flattened list of nodes that requested a filesystem refresh.
     vector<Node *> uncheckedNodesCentral;
+    /// Optional chunked view of unchecked nodes.
     vector<span<Node *>> uncheckedNodes;
 
   public:
     explicit Builder();
+    /// Executes round 1 setup and synchronous scheduler loop.
     void executeRoundOne();
+    /// Executes round 0 setup and async event loop.
     void executeRoundZero();
+    /// Performs pending `Node::performSystemCheck()` calls.
     void checkNodes();
+    /// Core round-1 loop over `updateBTargets`.
     void execute();
+    /// Propagates completion to dependents and enqueues newly ready nodes.
     void decrementFromDependents(const RealBTarget &rb);
+    /// Returns how many new processes may be launched now.
     uint32_t getCapacityForNewProcesses() const;
 };
 

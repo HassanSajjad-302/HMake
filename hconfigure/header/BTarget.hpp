@@ -1,5 +1,5 @@
 /// \file
-/// Define BTarget and RealBTarget, core classes of HMake
+/// Defines `BTarget` and `RealBTarget`, the core scheduling units of HMake.
 
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
@@ -15,46 +15,44 @@ using std::size_t, std::vector, phmap::flat_hash_map, std::lock_guard, std::arra
 
 class BTarget;
 
-// TODO
-// Maybe remove this and use vector with in-place sorting.
+/// Compares `BTarget` pointers by round-0 topological order.
 struct IndexInTopologicalSortComparatorRoundZero
 {
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
 };
 
+/// Compares `BTarget` pointers by round-1 topological order.
 struct IndexInTopologicalSortComparatorRoundTwo
 {
     bool operator()(const BTarget *lhs, const BTarget *rhs) const;
 };
 
-/// Used in RealBTarget to specify the type of dependency of other RealBTargets.
+/// Dependency relation between two `RealBTarget` nodes.
 enum class BTargetDepType : uint8_t
 {
-    /// Build-system will wait for the dependency to finish before completing the dependent. Plus it will set the
-    /// dependent selectiveBuild if the dependency selectiveBuild is true
+    /// The dependent waits for completion.
+    /// In round 0, `selectiveBuild` propagates from dependent to dependency.
     FULL = 0,
 
-    /// Build-system will wait but not set the selectiveBuild of dependent based on dependency.
-    /// Unused currently
+    /// The dependent waits for completion, but does not propagate `selectiveBuild`.
+    /// Currently unused.
     WAIT = 1,
 
-    /// Build-system will not wait but the selectiveBuild will be set. Used in specifying CppTarget dep with the other
-    /// CppTarget as we want the dependency CppTarget's huDeps and imodDeps to be built.
+    /// The dependent does not wait, but `selectiveBuild` will be propagated. Used in specifying CppTarget dep with the
+    /// other CppTarget as we want the dependency CppTarget's huDeps and imodDeps to be built.
     SELECTIVE = 2,
 
-    /// Only for sorting. Used to specify static-lib dependency with other static-lib.
+    /// Order-only relation used for graph ordering. Used to specify stat-lib dependency with other static-lib.
     LOOSE = 3,
 };
 
-/// Not related to the build-algorithm. This is used by different BTarget to synchronize printing with build-cache
-/// updating.
+/// This is used by different BTarget to synchronize printing with build-cache updating.
 enum class UpdateStatus : char
 {
     ALREADY_UPDATED = 0,
     NEEDS_UPDATE = 1,
     UPDATED_WITHOUT_BUILDING = 2,
     UPDATED = 3,
-
 };
 
 /// Every BTarget has 2 of these so distinct dependency order can be specified for the 2 rounds.
@@ -63,7 +61,7 @@ class RealBTarget
     /// Contains RealBTarget* that form the cycle if there is any.
     inline static vector<RealBTarget *> cycle;
 
-    /// it is set by sortGraph function if there is a cycle in the graph
+    /// Set by `sortGraph()` when the dependency graph is cyclic.
     inline static bool cycleExists = false;
 
   public:
@@ -75,33 +73,36 @@ class RealBTarget
     alignas(64) UpdateStatus updateStatus = UpdateStatus::ALREADY_UPDATED;
 
   private:
-    // Used in BTarget::sortGraph
+    /// Mutable working counter used by `sortGraph()`.
     uint32_t dependentsCount = 0;
 
-    /// if there is a cycle, find out the exact RealBTarget involved
+    /// DFS helper to report one concrete cycle path.
     static bool findCycleDFS(RealBTarget *node, phmap::flat_hash_set<RealBTarget *> &visited,
                              phmap::flat_hash_set<RealBTarget *> &recursionStack, vector<RealBTarget *> &currentPath,
                              string &errorString);
 
   public:
-    /// sorted RealBTargets
+    /// Topologically sorted nodes produced by `sortGraph()`.
     inline static vector<RealBTarget *> sorted;
 
-    /// Input to the sortGraph function.
+    /// Graph view consumed by `sortGraph()`.
     inline static std::span<RealBTarget *> graphEdges;
 
+    /// Topologically sorts `graphEdges`; exits with an error when a cycle exists.
     static void sortGraph();
 
-    // for debugging
+    /// Debug utility that prints `sorted` in order.
     static void printSortedGraph();
 
+    /// Reverse edges: "who depends on me".
     flat_hash_map<RealBTarget *, BTargetDepType> dependents;
+    /// Forward edges: "what I depend on".
     flat_hash_map<RealBTarget *, BTargetDepType> dependencies;
 
-    /// reverse pointer to the BTarget
+    /// Owning high-level target.
     BTarget *bTarget = nullptr;
 
-    /// Once sorted the index of this RealBTarget in the topological sorted array. Used in sorting and providing static
+    /// Once sorted the index of this RealBTarget in the topological sorted array. Used in sorting to provide static
     /// libs in order as some linkers have this requirement.
     uint32_t indexInTopologicalSort = 0;
 
@@ -114,8 +115,7 @@ class RealBTarget
     //  Following describes the time taken for the completion of this task. Currently unused.
     // unsigned long timeTaken = 0;
 
-    /// This is set to EXIT_FAILURE by the BTarget::completeRoundOne if the work fails. Builder::decrementFromDependents
-    /// then assigns this value to the dependents as well.
+    /// Exit code for this RealBTarget. Failures are propagated to dependents.
     int exitStatus = EXIT_SUCCESS;
 
     // TODO
@@ -136,18 +136,16 @@ class RealBTarget
 
     // short supportsThread = -1;
 
-    /// \param bTarget_ the back-pointer to BTarget that owns this
-    /// \param round_ Constructor will add to BTarget::realBTargetsGlobal with the round index.
+    /// \param bTarget_ owning `BTarget`.
+    /// \param round_ Constructor will add this into `BTarget::realBTargetsGlobal[round]`.
     RealBTarget(BTarget *bTarget_, unsigned short round_);
 
-    /// \param bTarget_ the back-pointer to BTarget that owns this
-    /// \param round_ Constructor will add to BTarget::realBTargetsGlobal[round]
-    /// \param add whether to add for a round. Should be false if BTarget::completeRoundOne or
-    /// BTarget::isEventRegistered is not going to do any work in that round.
+    /// \param bTarget_ owning `BTarget`.
+    /// \param round_ Constructor will add this into `BTarget::realBTargetsGlobal[round]`.
+    /// \param add if false, Constructor will not add this in `BTarget::realBTargetsGlobal[round]`.
     RealBTarget(BTarget *bTarget_, unsigned short round_, bool add);
 
-    /// Assigns full-dependents RealBTarget::updateStatus with UpdateStatus::NEEDS_UPDATE.
-    /// This is used by CppSrc and CppMod so that the LOAT does not have to make an extra check.
+    /// Marks `FULL` dependents as `UpdateStatus::NEEDS_UPDATE`.
     void assignNeedsUpdateToDependents();
 };
 
@@ -159,28 +157,29 @@ enum class BTargetType : unsigned short
     CPP_TARGET = 3,
 };
 
-/// The building-block of HMake build-system
+/// Base class for all build graph tasks.
 ///
-/// Any class that wants to perform work in order needs to inherit from this and override one of
-/// BTarget::completeRoundOne, BTarget::isEventRegistered, BTarget::isEventCompleted functions. Dependencies between 2
-/// BTargets can be specified using BTarget::addDep. Now the build-system will complete(call BTarget::completeRoundOne
-/// in round 1 and isEventStarted in round 0) both BTarget in-order.
+/// Derived classes override one or more execution hooks:
+/// - `completeRoundOne()` for synchronous round-1 work
+/// - `isEventRegistered()` / `isEventCompleted()` for event-driven round-0 work
+///
+/// Ordering constraints are declared with `addDep`.
 class BTarget // BTarget
 {
     friend RealBTarget;
 
   public:
-    /// All the RealBTargets of a round except those whose add is false. BTarget::completeRoundOne will be called for
-    /// these in-order after sorting. This is populated by the RealBTarget constructor.
+    /// Per-round global storage of registered nodes.
+    /// Populated by `RealBTarget` constructors where `add == true`.
     inline static array<std::span<RealBTarget *>, 2> realBTargetsGlobal;
 
-    // Maybe 3 of the following could be pointers
-    /// count of BTarget::realBTargetsGlobal and the index where the pointer to the self will be added by the
-    /// RealBTarget constructor.
+    /// Current insertion count for each round in `realBTargetsGlobal`.
     inline static array<uint32_t, 2> realBTargetsArrayCount{};
 
-    /// run.startAsyncProcess should be called if the BTarget is to manage a child process in isEventRegistered
-    /// function. run.output is the output of the child-process.
+    // todo
+    // Maybe 3 of the RealBTarget[2] and the following could be pointers instead.
+
+    /// Process/event helper used by round-0 async workflows.
     RunCommand run;
 
   private:
@@ -190,7 +189,7 @@ class BTarget // BTarget
   public:
     alignas(64) inline static uint32_t total = 0;
 
-    /// One RealBTarget for every round.
+    /// One per round: index `0` (round 0), index `1` (round 1).
     array<RealBTarget, 2> realBTargets;
 
     string name;
@@ -200,12 +199,11 @@ class BTarget // BTarget
     // Following describes total time taken across all rounds. i.e. sum of all RealBTarget::timeTaken.
     // float totalTimeTaken = 0.0f;
 
-    /// selectiveBuild is set for target if hbuild is executed in the target directory or the target name is provided to
-    /// the build.exe or hbuild. It is set in BTarget::setSelectiveBuild which is called before
-    /// BTarget::completeRoundOne of round1.
+    /// Whether this target is selected for build in the current invocation.
+    /// Computed by `setSelectiveBuild()`.
     bool selectiveBuild = false;
 
-    /// if true selectiveBuild is only set if the target name is specified on cmd arguments.
+    /// If true, this target is selected only when explicitly requested on CLI.
     bool buildExplicit = false;
 
     BTarget();
@@ -219,40 +217,36 @@ class BTarget // BTarget
     virtual ~BTarget();
 
     /// Might set the BTarget::selectiveBuild variable based on BTarget::name, hbuild execution directory and passed
-    /// arguments.
+    /// arguments. Called in round1 before `completeRoundOne` call.
     void setSelectiveBuild();
 
-    /// returns true if hbuild is executed in same or child directory based on BTarget::name.
+    /// Returns true when `hbuild` runs in this target directory or one of its children.
     bool isHBuildInSameOrChildDirectory() const;
 
-    /// Used by findCycleDFS to report RealBTarget in cycle
+    /// string is used in logs and cycle diagnostics.
     virtual string getPrintName() const;
 
-    /// Can be overridden to differentiate between different BTarget class objects
+    /// Runtime classifier for derived target kinds.
     virtual BTargetType getBTargetType() const;
 
-    /// This is called by Builder in-order. Should be overridden to perform any work.
+    /// Round-1 synchronous work entry point.
     virtual void completeRoundOne();
 
-    /// This is called by Builder in order in BSMode::BUILD in round 0. This should be overridden to perform work in
-    /// round 0 by launching a new process.
-    /// \return true if the BTarget has launched a new process using run.startyAsyncProcess. If this function returns
-    /// false, Builder::decrementFromDependents is called. Otherwise, it is assumed that the BTarget is waiting on the
-    /// process event.
+    /// Round-0 registration hook for async/event-driven work.
+    /// \return true if the target registered/waits on an event; false if it completed immediately. Should return true
+    /// if run.startAsyncProcess is called.
     virtual bool isEventRegistered(Builder &builder);
 
-    /// This function will be called only if the child process exited, or it is waiting on input after printing on
-    /// stdout, followed by the delimiter. In case, the process exited, the following is called after reaping the
-    /// process and realBTargets[0].exitStatus is also set to the exitStatus of the process.
+    /// This function will be called only if the child process exited, or if it printed on stdout, followed by the
+    /// delimiter. In case, the process exited, the following is called after reaping the process and
+    /// realBTargets[0].exitStatus is also set to the exitStatus of the process.
     /// \message Child-process message to the build-system. if this is empty, it means that the child-process has
     /// exited, and it has been reaped. In that case, run.output is the output of the child process.
-    /// \return true if the BTarget has registered an event in the event loop of Builder. This can be done using Builder
-    /// function Builder::registerEventData. If this function returns false, Builder::decrementFromDependents is
-    /// called. Otherwise, it is assumed that the BTarget is waiting on an event.
+    /// \return If this function returns false, Builder::decrementFromDependents is called. Otherwise, it is assumed
+    /// that the BTarget is waiting for further messages.
     virtual bool isEventCompleted(Builder &builder, string_view message);
 
-    /// Does both steps. Should be called only in single-thread or under Builder::executeMutex in
-    /// BTarget::completeRoundOne
+    /// Adds dependency edge for a given round and dependency type.
     template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDep(BTarget &dep);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
