@@ -65,7 +65,7 @@ std::size_t NodeHash::operator()(const string_view &str) const
 
 Node::Node(const string_view filePath_) : filePath(filePath_)
 {
-    myId = reinterpret_cast<uint32_t &>(idCount)++;
+    myId = idCount++;
     nodeIndices[myId] = this;
 }
 
@@ -85,6 +85,7 @@ void Node::performSystemCheck()
     {
         return;
     }
+    systemCheckCompleted = true;
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA attrs;
     if (!GetFileAttributesExA(filePath.c_str(), GetFileExInfoStandard, &attrs))
@@ -136,14 +137,12 @@ void Node::performSystemCheck()
         lastWriteTime = entry.last_write_time();
     }
 #endif
-    systemCheckCompleted = true;
 }
 
 Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
 {
     const auto &[it, ok] = nodeAllFiles.emplace(filePath_);
     Node *node = &const_cast<Node &>(*it);
-    nodeAllFiles.emplace(filePath_);
 
     node->performSystemCheck();
     if (node->fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)
