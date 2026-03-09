@@ -1,51 +1,72 @@
 # HMake
 
-HMake is a build-system software.
-It does not invent a new DSL for the build specification.
-Currently, it only provides C++ build and C++ API.
-Later on, build support for other programming languages will be added.
-API in multiple other programming languages will be provided as well.
+HMake is a C++ build system with a pure C++ API — no DSL,
+no domain-specific configuration language.
+You describe your build in C++, and HMake executes it.
+Support for additional programming languages and API bindings is planned.
 
-HMake has advanced build algorithm that supports dynamic nodes
-and dynamic edges.
-It also has advanced dependency specification.
-See ```hconfigure/header/BTarget.hpp``` and ```hconfigure/header/Builder.hpp```.
-HMake has some great optimizations.
-See ```hconfigure/header/Node.hpp```,
-```hconfigure/header/TargetCache.hpp```.
+HMake features a novel build algorithm with dynamic nodes, dynamic edges, and advanced dependency specification.
+Its core is approximately 17,000 lines of C++ — significantly smaller than CMake + Ninja combined.
 
-```hconfigure``` lib totals at around 17k SLOC.
-This is much smaller compared to e.g. CMake + Ninja.
+## Architecture
 
-```BTarget```,```Builder```, ```Node``` and ```TargetCache```
-form the core of the build-system.
-These are extensively documented.
-I recommend that you read until [C++ Examples](#c-examples),
-then you go over these classes docs in the respective files
-before the C++ Examples.
+HMake separates concerns cleanly into two layers:
 
-HMake has the state-of-the-art support for C++20 modules and header-units.
-It is the only one that supports C++20 header-units.
-And the only one that supports modules and hu without scanning them first.
-These are supported using a newly invented IPC based approach.
-[2978](https://htmlpreview.github.io/?https://github.com/HassanSajjad-302/iso-papers/blob/main/generated/my-paper.html).
-Currently, this is available only in my
-[pull-request](https://github.com/llvm/llvm-project/pull/147682).
-Besides header-units, HMake also supports Big header-units.
-This means that with one switch you can compile your header-units individually
-or as one big hu composing all the header-files for improved build-speed.
+**Core layer** — `BTarget`, `Builder`, `Node`, `TargetCache`. These classes are general-purpose and have no knowledge of
+C++. Any build system can be built on top of them.
 
-Core of the build-system has no reference to the
-```CppTarget```, ```CppSrc```, ```CppMod```, ```LOAT``` classes
-which form the C++ build-system on the top of the core.
-This should tell you about the separation of concert
-and the extensibility of the core API .
-These classes are also extensively documented.
+**C++ layer** — `CppTarget`, `CppSrc`, `CppMod`, `LOAT`. These implement C++ compilation on top of the core. The core
+has zero references to these classes, which demonstrates how cleanly extensible the core API is.
 
-I am fully confident of reliability of my software.
-It is extensively tested.
-If you run the ```Tests``` CMake target,
-you can see a variety of Tests.
+---
+
+## Core Concepts
+
+### BTarget
+
+`BTarget` is the fundamental building block of HMake. Every unit of work in your build — compiling a file, linking a
+library, running a test — is a `BTarget`. You extend it by deriving from it and overriding its virtual functions.
+
+Each `BTarget` internally holds two `RealBTarget` instances (`realBTargets[0]` and `realBTargets[1]`), one for each
+build round. Dependencies and build logic are declared per-round using `addDep<0>()` and `addDep<1>()`.
+
+**Key virtual functions:**
+
+| Function                      | Round   | Purpose                                                                               |
+|-------------------------------|---------|---------------------------------------------------------------------------------------|
+| `completeRoundOne()`          | Round 1 | Runs when all round-1 dependencies are satisfied                                      |
+| `isEventRegistered(Builder&)` | Round 0 | Returns `true` if it launched an async process, `false` if it completed synchronously |
+| `isEventCompleted(...)`       | Round 0 | Called when a launched child process produces IPC output or exits                     |
+| `getPrintName()`              | Both    | Returns the name used in cycle/error messages                                         |
+
+### Node
+
+Every file and directory path in HMake is represented by a `Node`. A `Node` assigns a permanent integer ID to each
+filesystem path. This ID remains stable across rebuilds and reconfigurations, allowing the build cache and config cache
+to store IDs rather than full paths. The result is dramatically smaller caches — estimated under 10 MB for a project the
+size of UE5 — and near-instant build startup even for very large projects.
+
+Before round 0, HMake calls `Node::performSystemCheck` in parallel (using io_uring where available) for all nodes marked
+`toBeChecked`. This bulk, parallel stat eliminates redundant filesystem queries and contributes to HMake's rebuild speed
+being at least 2x faster than Ninja.
+
+### TargetCache
+
+`TargetCache` manages persistent data across configure-time and build-time. It takes a unique name (typically the same
+as `BTarget::name`) and creates entries in both the config cache and build cache. Config cache entries are written at
+configure-time and read at build-time without re-running configuration. For example, `CppTarget` uses `TargetCache` to
+store normalized, deduplicated node IDs for source files, module files, header units, headers, and include directories.
+
+### Builder
+
+`Builder` drives the build loop. It maintains `updateBTargets`, the queue of targets ready to execute (those whose
+`dependenciesSize` has reached zero). `dependenciesSize` holds the number for the dependencies of the target. After
+sorting, those targets whose `dependenciesSize == 0` are added to the `updateBTargets` list. As each target in this list
+completes, HMake decrements `dependenciesSize` on its dependents, and any dependent that reaches zero is enqueued.
+`updateBTargetsSizeGoal` tracks the expected total number of target executions for the current round, which is necessary
+when targets are dynamically added (see Example 6 below).
+
+---
 
 Currently, the build-system is set up only for my custom fork and only for Linux.
 This means that you will have to build my fork first.
@@ -106,9 +127,9 @@ MAIN_FUNCTION
 
 
 To extend the build-system, we need to derive from the ```BTarget```
-and override ```updateBTarget``` function.
+and override ```completeRoundOne``` function.
 If you build this example, it will print "Hello\nWorld\n" during the build.
-First ```a.updateBTarget``` runs and then ```b.updateBTarget``` runs.
+First ```a.completeRoundOne``` runs and then ```b.completeRoundOne``` runs.
 Because we specified a dependency relationship between ```a``` and ```b```.
 
 HMake does topological sorting and target updating 2 times in one execution.
@@ -233,7 +254,7 @@ This will print the following.
 Cycle found: Cat1 -> Cat2 -> Cat3 -> Cat1
 ```
 
-As we defined a cycle between the dependencies, 
+As we defined a cycle between the dependencies,
 HMake will detect it and inform the user.
 By default, it would have printed
 ```Cycle found: BTarget 0 -> BTarget 1 -> BTarget 2 -> BTarget 0```,
