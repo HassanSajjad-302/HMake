@@ -16,12 +16,19 @@ bool IndexInTopologicalSortComparatorRoundZero::operator()(const BTarget *lhs, c
 
 bool IndexInTopologicalSortComparatorRoundTwo::operator()(const BTarget *lhs, const BTarget *rhs) const
 {
-    return const_cast<BTarget *>(lhs)->realBTargets[2].indexInTopologicalSort <
-           const_cast<BTarget *>(rhs)->realBTargets[2].indexInTopologicalSort;
+    return const_cast<BTarget *>(lhs)->realBTargets[1].indexInTopologicalSort <
+           const_cast<BTarget *>(rhs)->realBTargets[1].indexInTopologicalSort;
 }
 
 void RealBTarget::sortGraph()
 {
+    if (graphEdges.empty())
+    {
+        sorted.clear();
+        cycleExists = false;
+        return;
+    }
+
     vector<RealBTarget *> noEdges;
     uint32_t noEdgesCount = 0;
 
