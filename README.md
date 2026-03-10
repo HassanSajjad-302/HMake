@@ -73,6 +73,162 @@ Better tool detection and easier setup will be a priority moving forward.
 
 Let's do some examples
 
+## Quick Start
+
+**Option A — Fresh clone:**
+
+```bash
+git clone --depth=1 --branch main https://github.com/HassanSajjad-302/llvm-project.git
+```
+
+**Option B — Already have the repo cloned:**
+
+```bash
+cd llvm-project
+git remote add hassan https://github.com/HassanSajjad-302/llvm-project.git
+git fetch --depth=1 hassan main
+git checkout hassan/main
+```
+
+**Build Clang:**
+
+Name of the build-dir must be my-fork. It is a hard reference in `HMake/Projects/LLVM/hmake.cpp`.
+
+```bash
+cd llvm-project
+mkdir my-fork && cd my-fork
+cmake ../llvm \
+    -GNinja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_ENABLE_PROJECTS=clang \
+    -DLLVM_TARGETS_TO_BUILD=X86
+ninja clang
+cd ../..
+```
+
+Edit `ToolsCache::detectToolsAndInitialize` in ToolsCache.cpp — Point to the absolute path of the clang binary:
+`llvm-project/my-fork/bin/clang`
+
+**Clone and build HMake:**
+
+```bash
+git clone https://github.com/HassanSajjad-302/HMake.git
+cd HMake
+mkdir build && cd build
+cmake ../ -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+cd ../..
+```
+
+**Add HMake to PATH:**
+
+```bash
+export PATH=$PATH:/path/to/HMake/build
+```
+
+**Detect and cache installed tools — run once, not per project:**
+
+```bash
+htools
+```
+
+**Build an example:**
+
+First run — generates `cache.json`:
+Second run — compiles `configure` and `build` executables, then runs `configure`:
+Produces `{buildDir}/release/app`:
+
+```bash
+cd HMake/Examples/Example1
+mkdir build && cd build
+hhelper
+hhelper
+hbuild
+```
+
+<details>
+<summary> Step-by-Step Explanation </summary>
+
+Any of the following example can be built by creating a build-dir in the example directory.
+These examples are same to those in `Example/` directory.
+
+To build these, follow the following steps.
+
+After fetching source-code,
+modify the last line in ```CppCompilerFeatures::initialize```
+to point to the path of release binary of my custom Clang fork.
+Then build the HMake project
+and add the build-dir in path environment variable.
+Run ```htools``` (with admin permission on Windows).
+This detects all the installed tools.
+Unlike few other build-systems, HMake does not
+detect the tools installed every time you configure a project but
+is instead done only when you run ```htools``` and the result is cached to
+```C:\Program Files (x86)\HMake\toolsCache.json```
+on Windows and ```/home/toolsCache.json``` in Linux.
+Currently, it is just a stud.
+HMake is more ```make``` like in this aspect:).
+It writes in ```toolsCache.json```
+whatever is specified in ```ToolsCache::detectToolsAndInitialize```.
+
+Now, create build-dir in Example1 directory
+and run hhelper twice and hbuild once.
+hhelper will create the cache.json file.
+cache.json file provides an opportunity to select a different toolset.
+It has array indices to the arrays of different tools in toolsCache.json.
+cache.json file also has the commands
+that will be used to build ```configure``` and ```build``` executables.
+build executable is built with ```BUILD_MODE``` macro defined.
+Running hhelper second time will create these executables,
+linking ```hconfigure-c``` and ```hconfigure-b``` respectively.
+Only difference is that ```hconfigure-b``` is compiled with
+```BUILD_MODE``` macro.
+If the compilation of these executables succeed,
+hhelper will run the ```configure``` exe in the build-dir
+completing the configure stage.
+Now running hbuild will run the ```build``` exe.
+This will create the app executable in ```{buildDir}/release/app```.
+
+CMakeLists.txt builds with address sanitizer,
+so you need to copy the respective dll
+in cmake build-dir for debugging on Windows.
+It has targets for all the Examples.
+You need to run these targets in the respective ```Build``` dir.
+
+```getConfiguration``` creates a default ```Configuration```
+with ```release``` name
+and with config-type ```ConfigType::RELEASE```.
+```CALL_CONFIGURATION_SPECIFICATION``` macro ensures that
+```configurationSpecification``` for a ```Configuration```
+is only called if ```hbuild``` is executed in build-dir
+or build-dir/{Configuration::name}
+directory.
+This way if a project has multiple configurations defined,
+and for the moment, we are interested in just one of them,
+we can skip the others by executing the ```hbuild``` in
+build-dir/{Configuration::name} of our interest.
+
+This line ```config.getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp");```
+in the file create a
+```DSC<CppTarget>```.
+```DSC<CppTarget>``` manages dependency specification as you will see
+later on.
+It has pointers to ```CppTarget``` and ```LOAT```.
+```getSourceTarget``` returns the ```CppTarget``` pointer to which we add the source-files.
+There are other ```get*``` functions available in ```Configuration```
+class.
+
+Every ```Configuration``` has ```stdCppTarget``` and
+```AssignStandardCppTarget``` defaulted to ```YES```.
+These two variables control whether an ```stdCppTarget``` is created and
+assigned as private dependency to all the ```Configuration``` targets.
+This ```std``` target has standard include-dirs initialized from
+```toolsCache.json``` file.
+```get*``` functions adds this target as a private dependency based on
+```AssignStandardCppTarget``` value.
+
+</details>
+
 ## HMake Architecture Examples
 
 ### Example 1
