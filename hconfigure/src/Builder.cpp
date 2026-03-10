@@ -198,6 +198,7 @@ void Builder::executeRoundZero()
         P2978::getErrorString("SetConsoleCtrlHandler");
     }
 #else
+    // Linux system calls do not check for EINTR as we will not return from the interrupt handler.
     registerSignalHandler();
 #endif
 

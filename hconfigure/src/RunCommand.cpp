@@ -5,11 +5,13 @@
 #include "Builder.hpp"
 #include "IPCManagerBS.hpp"
 
+#include <cstring>
 #include <utility>
 
 #ifndef _WIN32
 #include "sys/wait.h"
 #include "wordexp.h"
+#include <cerrno>
 #include <fcntl.h>
 #endif
 
@@ -139,7 +141,7 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
 bool RunCommand::startRead()
 {
     CompletionKey &k = eventData[index];
-    memset(k.buffer, 0, sizeof(k.buffer));
+    memset(k.buffer, 0, 4096);
     memset(k.overlappedBuffer, 0, sizeof(k.overlappedBuffer));
     DWORD bytesRead = 0;
     const BOOL result =
@@ -187,8 +189,9 @@ CompleteReadType RunCommand::completeRead()
     return CompleteReadType::INCOMPLETE;
 }
 
-void RunCommand::reapProcess()
+void RunCommand::reapProcess(Builder &builder)
 {
+    --builder.simultaneousProcessCount;
     if (WaitForSingleObject((HANDLE)pid, INFINITE) == WAIT_FAILED)
     {
         printErrorMessage(P2978::getErrorString());
@@ -206,6 +209,7 @@ void RunCommand::reapProcess()
 
 void RunCommand::killModuleProcess(Builder &builder) const
 {
+    --builder.simultaneousProcessCount;
     // Exit code you want to assign to the terminated process
     DWORD exitCode = 1;
 
@@ -443,6 +447,8 @@ string RunCommand::pruneOutput()
         *reinterpret_cast<uint32_t *>(output.data() + (outputSize - (4 + strlen(P2978::delimiter))));
     const char *payloadStart = output.data() + (outputSize - (4 + strlen(P2978::delimiter) + payloadSize));
 
+    // todo
+    // will like to return a string_view. this could be a problem for lit testing where whole files will be received.
     string str{payloadStart, payloadSize};
     output.resize(outputSize - (4 + strlen(P2978::delimiter) + payloadSize));
 

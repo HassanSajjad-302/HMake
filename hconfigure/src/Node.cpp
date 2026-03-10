@@ -5,9 +5,12 @@
 
 #ifdef _WIN32
 #include "Windows.h"
+#else
+#include <cerrno>
+#include <sys/stat.h>
 #endif
 
-using std::filesystem::directory_entry, std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard;
+using std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard;
 
 string getStatusString(const path &p)
 {
@@ -130,11 +133,39 @@ void Node::performSystemCheck()
 
     lastWriteTime = file_time_type(unix_time);
 #else
-    const auto entry = directory_entry(filePath);
-    fileType = entry.status().type();
-    if (fileType == file_type::regular)
+    struct stat st
     {
-        lastWriteTime = entry.last_write_time();
+    };
+    if (stat(filePath.c_str(), &st) != 0)
+    {
+        if (errno == ENOENT || errno == ENOTDIR)
+        {
+            fileType = file_type::not_found;
+        }
+        else
+        {
+            fileType = file_type::unknown;
+        }
+        lastWriteTime = {};
+        return;
+    }
+
+    if (S_ISREG(st.st_mode))
+    {
+        fileType = file_type::regular;
+        const auto sec = std::chrono::seconds(st.st_mtim.tv_sec);
+        const auto nsec = std::chrono::nanoseconds(st.st_mtim.tv_nsec);
+        lastWriteTime = file_time_type(std::chrono::duration_cast<file_time_type::duration>(sec + nsec));
+    }
+    else if (S_ISDIR(st.st_mode))
+    {
+        fileType = file_type::directory;
+        lastWriteTime = {};
+    }
+    else
+    {
+        fileType = file_type::unknown;
+        lastWriteTime = {};
     }
 #endif
 }
