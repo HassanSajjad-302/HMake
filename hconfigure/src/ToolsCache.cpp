@@ -128,14 +128,14 @@ void VSTools::initializeFromVSToolBatchCommand(const string &finalCommand, bool 
 
     string accumulatedPaths = fileToString(temporaryIncludeFilename);
     remove(temporaryIncludeFilename);
-    accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
+    accumulatedPaths.pop_back(); // Remove trailing newline/space from echo output.
     accumulatedPaths.pop_back();
     accumulatedPaths.append(";");
     includeDirs = splitPathsAndAssignToVector(accumulatedPaths);
     convertPathsToWSLPaths(includeDirs);
     accumulatedPaths = fileToString(temporaryLibFilename);
     remove(temporaryLibFilename);
-    accumulatedPaths.pop_back(); // Remove the last '\n' and ' '
+    accumulatedPaths.pop_back(); // Remove trailing newline/space from echo output.
     accumulatedPaths.pop_back();
     accumulatedPaths.append(";");
     libraryDirs = splitPathsAndAssignToVector(accumulatedPaths);
@@ -213,7 +213,7 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
         {
             for (size_t i = foundIndex + 1; i < endIndex; ++i)
             {
-                // first character is space, so substr is copied
+                // Each line starts with a leading space; trim it before storing.
                 emplaceInVector(includeDirs, string(lines[i].substr(1, lines[i].size() - 1)));
                 printMessage(FORMAT("Found standard include-dir {}\n", includeDirs[includeDirs.size() - 1]));
             }
@@ -265,9 +265,8 @@ ToolsCache::ToolsCache()
 
 void ToolsCache::detectToolsAndInitialize()
 {
-    // TODO
-    // HMake does not have installer yet. Otherwise, this maybe added in installer. Currently, nothing is detected yet.
-    // 2022 Visual Studio Community is req. So is g++-12.2.0.
+    // TODO: replace hardcoded defaults with tool auto-detection.
+    // Once an installer exists, these defaults can move into installation-time setup.
 
     if constexpr (os == OS::NT)
     {
