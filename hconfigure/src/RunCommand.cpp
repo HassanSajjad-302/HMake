@@ -300,12 +300,17 @@ bool RunCommand::startRead()
 CompleteReadType RunCommand::completeRead()
 {
     char buffer[64 * 1024];
-    const uint64_t readSize = read(readPipe, buffer, sizeof(buffer) - 1);
+    ssize_t readSize;
+    do
+    {
+        readSize = read(readPipe, buffer, sizeof(buffer) - 1);
+    } while (readSize == -1 && errno == EINTR);
+
     if (readSize == -1)
     {
         printErrorMessage(P2978::getErrorString());
     }
-    if (!readSize)
+    if (readSize == 0)
     {
         return CompleteReadType::COMPLETE_PROCESS;
     }
@@ -370,7 +375,18 @@ void RunCommand::runProcess(const char *command)
     char buffer[4096 * 16];
     while (true)
     {
-        if (const uint64_t readSize = read(readPipe, buffer, sizeof(buffer) - 1))
+        ssize_t readSize;
+        do
+        {
+            readSize = read(readPipe, buffer, sizeof(buffer) - 1);
+        } while (readSize == -1 && errno == EINTR);
+
+        if (readSize == -1)
+        {
+            printErrorMessage("read");
+        }
+
+        if (readSize > 0)
         {
             output.append(buffer, readSize);
         }
@@ -439,14 +455,20 @@ string RunCommand::pruneOutput()
         printErrorMessage("Received string only has delimiter but not the size of payload\n");
     }
 
-    const uint32_t payloadSize =
-        *reinterpret_cast<uint32_t *>(output.data() + (outputSize - (4 + strlen(P2978::delimiter))));
-    const char *payloadStart = output.data() + (outputSize - (4 + strlen(P2978::delimiter) + payloadSize));
+    uint32_t payloadSize = 0;
+    const size_t delimiterSize = strlen(P2978::delimiter);
+    const size_t payloadSizeOffset = outputSize - (sizeof(uint32_t) + delimiterSize);
+    memcpy(&payloadSize, output.data() + payloadSizeOffset, sizeof(payloadSize));
+    if (outputSize < sizeof(uint32_t) + delimiterSize + payloadSize)
+    {
+        printErrorMessage("Invalid output payload size while pruning output\n");
+    }
+    const char *payloadStart = output.data() + (outputSize - (sizeof(uint32_t) + delimiterSize + payloadSize));
 
     // todo
     // will like to return a string_view. this could be a problem for lit testing where whole files will be received.
     string str{payloadStart, payloadSize};
-    output.resize(outputSize - (4 + strlen(P2978::delimiter) + payloadSize));
+    output.resize(outputSize - (sizeof(uint32_t) + delimiterSize + payloadSize));
 
     return str;
 }
