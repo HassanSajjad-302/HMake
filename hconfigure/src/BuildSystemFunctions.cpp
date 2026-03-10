@@ -473,7 +473,7 @@ void writeBuildBuffer(string &buffer)
             buffer.append(fileCacheTarget.buildCache.begin(), fileCacheTarget.buildCache.end());
         }
         const uint32_t size = buffer.size() - (currentSize + 4);
-        *static_cast<uint32_t *>(static_cast<void *>(&buffer[currentSize])) = size;
+        memcpy(buffer.data() + currentSize, &size, sizeof(size));
     }
 
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -612,7 +612,8 @@ void writeBufferToCompressedFile(const string &fileName, const string &fileBuffe
         HMAKE_HMAKE_INTERNAL_ERROR
         errorExit();
     }
-    *reinterpret_cast<uint64_t *>(compressed.data()) = fileBuffer.size();
+    const uint64_t fileSize = fileBuffer.size();
+    memcpy(compressed.data(), &fileSize, sizeof(fileSize));
 
     writeFileAtomically(fileName, compressed.c_str(), compressedSize + 8, true);
 #endif
