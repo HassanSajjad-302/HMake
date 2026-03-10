@@ -100,7 +100,7 @@ void Node::performSystemCheck()
             lastWriteTime = {}; // Default initialize
             return;
         }
-        // Handle other errors - you might want to throw or set an error flag
+        // Non-not-found error: mark as unknown and leave timestamp unset.
         fileType = file_type::unknown;
         lastWriteTime = {};
         return;
@@ -113,21 +113,21 @@ void Node::performSystemCheck()
     }
     else if (attrs.dwFileAttributes & FILE_ATTRIBUTE_DEVICE)
     {
-        fileType = file_type::character; // or block, depending on your needs
+        fileType = file_type::character; // Windows does not directly map to POSIX block devices.
     }
     else
     {
         fileType = file_type::regular;
     }
 
-    // Always set lastWriteTime for all file types (not just regular files)
-    // Convert Windows FILETIME to std::filesystem::file_time_type
+    // Always set lastWriteTime for every resolved file type.
+    // Convert Windows FILETIME to std::filesystem::file_time_type.
     ULARGE_INTEGER ull;
     ull.LowPart = attrs.ftLastWriteTime.dwLowDateTime;
     ull.HighPart = attrs.ftLastWriteTime.dwHighDateTime;
 
-    // Convert to std::chrono time point
-    // Windows FILETIME is 100-nanosecond intervals since January 1, 1601
+    // Convert to std::chrono time point.
+    // Windows FILETIME uses 100ns intervals since Jan 1, 1601.
     const auto duration = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(ull.QuadPart);
     constexpr auto windows_epoch = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(116444736000000000LL);
     const auto unix_time = duration - windows_epoch;

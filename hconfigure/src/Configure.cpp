@@ -115,9 +115,7 @@ int main2(const int argc, char **argv)
     fflush(stdout);
     fflush(stderr);
 
-    //todo
-    //check if there is open file-handle or file-descriptor.
-    // there should be none.
+    // TODO: verify there are no leaked file handles or file descriptors.
 #ifdef NDEBUG
     if (errorHappened)
     {
