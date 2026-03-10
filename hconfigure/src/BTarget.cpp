@@ -209,10 +209,6 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory)
             create_directory(configureNode->filePath + slashc + name);
         }
     }
-    if (name.starts_with("conventional\\conventional\\"))
-    {
-        bool breakpoint = true;
-    }
 }
 
 BTarget::BTarget(const bool add0, const bool add1)
@@ -234,10 +230,6 @@ BTarget::BTarget(string name_, const bool buildExplicit_, bool makeDirectory, co
         {
             create_directory(configureNode->filePath + slashc + name);
         }
-    }
-    if (name.starts_with("conventional\\conventional\\"))
-    {
-        bool breakpoint = true;
     }
 }
 

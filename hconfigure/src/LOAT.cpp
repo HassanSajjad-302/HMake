@@ -405,10 +405,6 @@ bool LOAT::isEventRegistered(Builder &builder)
         objectFileProducer->getObjectFiles(&objectFiles);
     }
 
-    if (name == "hu/LLVMMinTableGen")
-    {
-        bool breakpoint = true;
-    }
     if (objectFiles.empty())
     {
         if (evaluate(TargetType::LIBRARY_STATIC))

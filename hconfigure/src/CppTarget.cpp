@@ -392,10 +392,6 @@ void CppTarget::populateNameMappingsAndNodesType()
 
         for (const auto &[headerName, type] : tempNameMapping)
         {
-            if (headerName == "TableGenBackends.h")
-            {
-                bool breakpoint = true;
-            }
             const auto &[it, ok] = configuration->headerNameMapping.emplace(headerName, vector(1, type));
             const HeaderFileOrUnit headerFileOrUnit = it->second[0];
             if (!ok)
@@ -468,10 +464,6 @@ void CppTarget::populateNameMappingsAndNodesType()
 
 void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, const bool addInReq)
 {
-    if (headerName == "clang/InstallAPI/HeaderFile.h")
-    {
-        bool breakpoint = true;
-    }
     const auto &[it, ok] = (addInReq ? reqHeaderNameMapping : useReqHeaderNameMapping).emplace(headerName, type);
     const HeaderFileOrUnit headerFileOrUnit = it->second;
 
@@ -504,11 +496,6 @@ void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrU
 
 void CppTarget::emplaceInNodesType(const Node *node, FileType type, const bool addInReq)
 {
-    if (node->filePath.contains("X86LegalizerInfo.h"))
-    {
-        bool breakpoint = true;
-    }
-
     if (const auto &[it, ok] = (addInReq ? reqNodesType : useReqNodesType).emplace(node, type); !ok)
     {
         printErrorMessage(
@@ -716,10 +703,6 @@ void CppTarget::addHeaderFile(const string &includeName, const Node *headerFile,
                               const bool addInUseReq)
 {
     string *p = new string(includeName);
-    if (headerFile->filePath.contains("workaround.hpp"))
-    {
-        bool breakpoint = true;
-    }
     lowerCaseOnWindows(p->data(), p->size());
     if (addInReq)
     {
@@ -1357,10 +1340,6 @@ void CppTarget::setHeaderFileStatusChanged(const bool calledFromConfiguration)
 
 void CppTarget::writeBigHeaderUnits()
 {
-    if (name.contains("mp11"))
-    {
-        bool breakpoint = true;
-    }
     auto writeBigHu = [&](const vector<CppMod *> &bigHeaderUnits) {
         for (CppMod *bigHu : bigHeaderUnits)
         {

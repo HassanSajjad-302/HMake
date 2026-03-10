@@ -296,10 +296,6 @@ void writeStringView(string &buffer, const string_view &data)
 void writeNode(string &buffer, const Node *node)
 {
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    if (!node)
-    {
-        bool breakpoint = true;
-    }
     writeUint32(buffer, node->myId);
 #else
     writeStringView(buffer, node->filePath);

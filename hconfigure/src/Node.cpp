@@ -79,6 +79,7 @@ string Node::getFileName() const
 
 string Node::getFileStem() const
 {
+    // file-name must have a dot character
     return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.begin() + filePath.find_last_of('.')};
 }
 
