@@ -74,13 +74,23 @@ Node::Node(const string_view filePath_) : filePath(filePath_)
 
 string Node::getFileName() const
 {
-    return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end()};
+    if (const size_t slashPos = filePath.find_last_of(slashc); slashPos != string::npos)
+    {
+        return string(filePath.substr(slashPos + 1));
+    }
+    return filePath;
 }
 
 string Node::getFileStem() const
 {
-    // file-name must have a dot character
-    return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.begin() + filePath.find_last_of('.')};
+    const size_t slashPos = filePath.find_last_of(slashc);
+    const size_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
+    const size_t dotPos = filePath.find_last_of('.');
+    if (dotPos == string::npos || dotPos <= nameStart)
+    {
+        return string(filePath.substr(nameStart));
+    }
+    return string(filePath.substr(nameStart, dotPos - nameStart));
 }
 
 void Node::performSystemCheck()
