@@ -59,12 +59,11 @@ store normalized, deduplicated node IDs for source files, module files, header u
 
 ### Builder
 
-`Builder` drives the build loop. It maintains `updateBTargets`, the queue of targets ready to execute (those whose
-`dependenciesSize` has reached zero). `dependenciesSize` holds the number for the dependencies of the target. After
-sorting, those targets whose `dependenciesSize == 0` are added to the `updateBTargets` list. As each target in this list
-completes, HMake decrements `dependenciesSize` on its dependents, and any dependent that reaches zero is enqueued.
-`updateBTargetsSizeGoal` tracks the expected total number of target executions for the current round, which is necessary
-when targets are dynamically added (see Example 6 below).
+`Builder` drives the build loop. It maintains `updateBTargets`, the queue of targets that are ready to execute (those
+whose `dependenciesSize` has reached zero). `dependenciesSize` holds the number for the dependencies of the target.
+After sorting, those targets whose `dependenciesSize == 0` are added to the `updateBTargets` list. As each target in
+this list completes, HMake decrements `dependenciesSize` on its dependents, and any dependent that reaches zero is
+added in `updateBTargets` list. Build finishes once all targets are completed.
 
 ---
 
@@ -72,25 +71,9 @@ Currently, the build-system is set up only for my custom fork and only for Linux
 This means that you will have to build my fork first.
 Better tool detection and easier setup will be a priority moving forward.
 
-## HMake Architecture
-
-class ```BTarget``` is the building block of the build-system.
-HMake has a very simple algorithm.
-You define all the targets and dependencies between them.
-HMake then topologically sorts.
-Those with 0 dependencies are added to a list, ```Builder::updatedBTargets```.
-Then we start building the targets in this list.
-As soon as we build a target, we decrement from all the dependents
-```RealBTarget::dependenciesSize```.
-If the dependent ```RealBTarget::dependenciesSize == 0```,
-i.e. no dependency of the target is left to be built,
-we add it to the list
-```Builder::updateBTargets```.
-```Builder::executeRoundOne``` or ```Builder::executeRoundZero```
-will continue until all targets in
-```Builder::updateBTargets``` are built.
-
 Let's do some examples
+
+## HMake Architecture Examples
 
 ### Example 1
 
@@ -125,21 +108,8 @@ MAIN_FUNCTION
 
 </details>
 
-
-To extend the build-system, we need to derive from the ```BTarget```
-and override ```completeRoundOne``` function.
-If you build this example, it will print "Hello\nWorld\n" during the build.
-First ```a.completeRoundOne``` runs and then ```b.completeRoundOne``` runs.
-Because we specified a dependency relationship between ```a``` and ```b```.
-
-HMake does topological sorting and target updating 2 times in one execution.
-In ```round == 1```, we develop the compile command
-and link command of different targets based on their dependencies.
-This is what the CMake does.
-and in ```round == 0```, we build these which is what Ninja does.
-In round1, ```completeRoundOne``` function is called by the build-system
-while in round0, ```isEventRegistered``` and ```isEventCompleted```
-functions are used.
+Output: `Hello\nWorld\n`. Because `b` depends on `a` in round 1, `a.completeRoundOne()` always runs before
+`b.completeRoundOne()`.
 
 Let's clarify this with more examples.
 
@@ -192,23 +162,12 @@ So, by declaring 1 ```BTarget```, you declare 2 ```RealBTargets```.
 ```addDep<0>``` will add dependency for round0 while
 ```addDep<1>``` will add dependency for round1.
 
-```isEventRegistered``` should return true if it launched a new process
-using ```run.startAsyncProcess``` function
-and false otherwise.
-In that case, ```isEventCompleted``` is called
-when the child process completes or when the child process outputs
-a message for the build-system on stdout.
-This message is passed as ```message``` parameter to the ```BTarget::isEventCompleted```
-function.
-If this parameter is empty, it means that the child process completed.
-In that case, ```run.output``` is the output of the child process.
-Build-system differentiates the output from the IPC message,
-as any IPC message must be followed by the message-size and the delimiter
-```P2978::delimiter```.
-This is how HMake supports generic IPC which is then extended by ```CppSrc```
-and ```CppMod``` classes to support C++20 modules and header-units.
+`isEventRegistered` should return `true` if it launched a subprocess via `run.startAsyncProcess`, and `false` if it
+completed synchronously. When a subprocess writes an IPC message to stdout, or exits, HMake calls `isEventCompleted`. An
+empty `message` parameter means the process exited; `run.output` contains its full output.
 
-### Example 4
+IPC messages are distinguished from ordinary stdout by being followed by the message size and `P2978::delimiter`. This
+is the same mechanism used by `CppSrc` and `CppMod` to implement C++20 modules and header-unit support.### Example 4
 
 <details>
 <summary>hmake.cpp</summary>
@@ -254,15 +213,7 @@ This will print the following.
 Cycle found: Cat1 -> Cat2 -> Cat3 -> Cat1
 ```
 
-As we defined a cycle between the dependencies,
-HMake will detect it and inform the user.
-By default, it would have printed
-```Cycle found: BTarget 0 -> BTarget 1 -> BTarget 2 -> BTarget 0```,
-but by overriding ```BTarget::getPrintName```,
-we customized this message to differentiate between different overrides of BTarget.
-By default, it prints ```BTarget``` and the id number.
-```CppTarget```, ```LOAT``` prints ```name```,
-while ```CppSrc``` and ```CppMod``` prints ```node->filePath```.
+Without `getPrintName()` overridden, HMake would print `BTarget 0 -> BTarget 1 -> BTarget 2 -> BTarget 0`.
 
 ### Example 5
 
@@ -319,11 +270,12 @@ This example demonstrates HMake error handling.
 If ```updateBTarget``` set ```RealBTarget::exitStatus```
 to anything but ```EXIT_SUCCESS```, then HMake will set the ```RealBTarget::exitStatus```
 of all the dependent targets to```EXIT_FAILURE```.
+
 This way target can learn the execution status of its dependents
 and also communicate theirs to their dependents.
-If in a round, ```RealBTarget::exitStatus``` of any one of the targets is
+If in round1, ```RealBTarget::exitStatus``` of any one of the targets is
 not equal to ```EXIT_SUCCESS```,
-then HMake will exit early and not execute the last round.
+then HMake will exit early and not execute the round0.
 
 ### Example 6
 
@@ -386,21 +338,21 @@ between these targets.
 These targets were not part of the DAG but instead dynamically added.
 Initially, only ```target2``` was the part of the DAG.
 
-HMake supports dynamic targets in last round as demonstrated.
+HMake supports dynamic targets in round0 as demonstrated.
 These are an HMake speciality.
 Not only you can add new edges in the DAG dynamically,
 but also new nodes as well.
 However, you have to take care of the following aspects:
 
 1. You have to update the ```Builder::updateBTargetsSizeGoal``` variable with the
-   additional number of times ```updateBTarget``` will be called.
+   additional number of times ```isEventRegistered``` will be called.
 2. If any newly added targets do not have any dependency
    then it must be added in ```updateBTargets``` list like we added ```c``` target.
 3. Besides new targets, we can also modify the dependencies of older targets.
    But these targets ```dependenciesSize``` should not be zero.
    Because if the target ```dependenciesSize``` becomes zero,
    it is added to the ```updateBTargets``` list.
-   HMake does not allow removing elements from this list.
+   HMake does not allow removing or modifying elements in this list.
 
 ### Example 7
 
@@ -435,10 +387,8 @@ MAIN_FUNCTION
 
 </details>
 
-In this example, we define a new dependency relationship between older targets.
-This is completely legal as we don't break the Rule 3.
-But, we have added a cyclic dependency.
-This will be detected and HMake will print the following error.
+
+Adding edges dynamically that form a cycle is detected and reported the same way as static cycles.
 
 ```
 Cycle found: BTarget 0 -> BTarget 1 -> BTarget 0
@@ -482,65 +432,7 @@ This breaks the rule 2.
 Uncommenting the line above will fix this.
 This might hang or HMake might detect and print ```HMake API misuse```.
 
-## Nodes
-
-<details>
-<summary></summary>
-
-Every file and dir-path is represented by `Node` class in HMake.
-This class assigns a permanent number to a filesystem path,
-and it will remain consistent across
-rebuilds and reconfigurations.
-The build-cache and config-cache can use this number instead of the full
-path.
-This results in upto 200x lesser total cache
-(config-cache + build-cache + nodes).
-I estimate that for a project like UE5, for one configuration,
-the total cache would be less than 10MB.
-This means that even for very big projects,
-build starts instantaneously and consumes very less memory.
-
-During the build, in the first round,
-```Node::toBeChecked``` is set to true for nodes whose status we are
-interested in (last update time of the Node and whether the Node exits
-or not).
-Then after the round1 and before the round0,
-for these Nodes, in ```Builder::nodeCheck``` function,
-```Node::performSystemCheck``` is called in-parallel.
-While io-uring is used when supported.
-Node abstraction and HMake architecture allows a single file to be checked
-just once and that too in bulk.
-This allows HMake to have rebuild speeds at-least 2x faster than Ninja.
-
-</details>
-
-## TargetCache
-
-<details>
-<summary></summary>
-
-```TargetCache``` class allows for storing cache at config-time and build-time.
-Its constructor takes a unique name (generally same as ```BTarget::name```)
-and at config-time creates an entry in both config-cache and build-cache
-(if it did not exist before).
-config-cache can only be written at config-time.
-For example, for ```CppTarget```,
-HMake stores the node numbers for source-files, module-files, header-units,
-header-files and include-dirs in the config-cache.
-User specify relative paths for these values in ```buildSpecification```
-function.
-HMake normalizes these and checks for uniqueness before storing in the
-config-cache.
-Now, at build-time ```buildSpecification```,
-retrieves these values from the config-cache.
-
-</details>
-
-```BTarget```, ```Node```, ```Builder``` and ```TargetCache```
-form the core of the HMake build-system.
-Mega projects can use these to design project specific APIs.
-
-## C++ Examples
+## Examples: C++ Build
 
 ### Example 1
 

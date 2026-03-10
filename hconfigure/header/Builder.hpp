@@ -45,7 +45,7 @@ inline uint32_t currentIndex = 0;
 /// High-level flow:
 /// 1. Build dependency graph for a round. It is built in `buildSpecification` function and during the BTarget
 /// execution.
-/// 2. Seed `updateBTargets` with RealBTarget whose `dependenciesSize == 0`.
+/// 2. Seed `updateBTargets` with ready RealBTarget.Those whose `dependenciesSize == 0`.
 /// 3. Execute each of these RealBTarget. By calling `BTarget::completeRoundOne` in round1 and,
 /// `BTarget::isEventRegistered` and then maybe `BTarget::isEventCompleted` for round0.
 /// 4. Decrement unresolved dependency counters of dependents. That is `RealBTarget::dependenciesSize`.
