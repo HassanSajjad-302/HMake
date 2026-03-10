@@ -11,6 +11,7 @@
 #include <mutex>
 #include <stack>
 #include <thread>
+#include <algorithm>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -179,7 +180,6 @@ void Builder::executeRoundZero()
     serverFd = createMultiplex();
     updateBTargetsSizeGoal = RealBTarget::sorted.size();
 
-    uint64_t count = 0;
     // edit the following if you want to run in lesser threads.
    // cache.numberOfBuildThreads = cache.numberOfBuildThreads;
     const uint16_t numberOfLaunchedThreads = cache.numberOfBuildProcesses;
@@ -265,12 +265,6 @@ void Builder::executeRoundZero()
                 {
                     printErrorMessage(FORMAT("n > activeCount, n {} activeCount {}\n", n, activeEventCount));
                 }
-
-                ++count;
-                if (count == 5)
-                {
-                    bool breakpoint = true;
-                }
             }
             for (ULONG i = 0; i < n; i++)
             {
@@ -312,7 +306,6 @@ void Builder::executeRoundZero()
                         }
                     }
                     HMAKE_HMAKE_INTERNAL_ERROR
-                    bool breakpoint = true;
                 }
             }
             for (int i = 0; i < n; i++)
@@ -343,7 +336,6 @@ void Builder::executeRoundZero()
             printErrorMessage("HMake API misuse.\n");
         }
     }
-    bool breakpoint = true;
     if (activeEventCount)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
@@ -512,6 +504,7 @@ template <typename T> std::vector<std::span<T>> divideInChunk(std::vector<T> &v,
 
 void Builder::checkNodes()
 {
+    uncheckedNodesCentral.clear();
     uncheckedNodesCentral.reserve(Node::idCount);
     for (uint32_t i = 0; i < Node::idCount; ++i)
     {
@@ -521,32 +514,46 @@ void Builder::checkNodes()
         }
     }
 
-    // todo
-    // use threads on windows and io_uring on Linux. io_uring can probably be used for the dependency file reading on
-    // Linux as well.
-    for (Node *node : uncheckedNodesCentral)
+    if (uncheckedNodesCentral.empty())
     {
-        node->performSystemCheck();
-        node->systemCheckCompleted = true;
-    }
-    return;
-    uncheckedNodes = divideInChunk(uncheckedNodesCentral, launchedCount);
-    if (checkingCount < launchedCount)
-    {
-        const unsigned short nodeCheckIndex = checkingCount;
-        ++checkingCount;
-        for (Node *node : uncheckedNodes[nodeCheckIndex])
-        {
-            node->performSystemCheck();
-            node->systemCheckCompleted = true;
-        }
-        ++checkedCount;
+        return;
     }
 
-    if (checkedCount == launchedCount)
+    constexpr  uint16_t configuredWorkers = 12;
+    const uint16_t workerCount2 = static_cast<uint16_t>(std::min<size_t>(configuredWorkers, uncheckedNodesCentral.size()));
+    const uint16_t workerCount = static_cast<uint16_t>(std::min<size_t>(workerCount2, std::thread::hardware_concurrency()));
+
+    if (workerCount == 1)
     {
-        DEBUG_EXECUTE(
-            FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
+        for (Node *node : uncheckedNodesCentral)
+        {
+            node->performSystemCheck();
+        }
+        return;
+    }
+
+    const vector<span<Node *>> chunks = divideInChunk(uncheckedNodesCentral, workerCount);
+    vector<thread> workers;
+    workers.reserve(workerCount - 1);
+
+    for (uint16_t i = 1; i < workerCount; ++i)
+    {
+        workers.emplace_back([chunk = chunks[i]]() {
+            for (Node *node : chunk)
+            {
+                node->performSystemCheck();
+            }
+        });
+    }
+
+    for (Node *node : chunks[0])
+    {
+        node->performSystemCheck();
+    }
+
+    for (thread &worker : workers)
+    {
+        worker.join();
     }
 }
 

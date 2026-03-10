@@ -14,7 +14,6 @@
 // -----------------------------------------------------------------------------
 // This header defines the IPC (inter-process communication) protocol between
 // HMake (the build system) and LLVM lit tools (llc, opt, FileCheck).
-// These lit tools do not read any file from the disk.
 //
 // The overall flow is:
 //
@@ -45,7 +44,7 @@ enum class LitExeType : uint8_t
 
 /// Command and input for an `llc` invocation.
 /// - command: the full llc command line (e.g. "llc -mtriple=arc")
-/// - input:   the LLVM IR text to feed to llc via stdin. HMake or llc do not read the .ll file.
+/// - input:   the LLVM IR text to feed to llc via stdin. llc do not read the .ll file.
 struct LitCommandLlc
 {
     string_view command;
@@ -54,7 +53,7 @@ struct LitCommandLlc
 
 /// Command and input for an `opt` invocation.
 /// - command: the full opt command line (e.g. "opt -passes=mem2reg")
-/// - input:   the LLVM IR text to feed to opt via stdin. HMake or opt do not read the .ll file
+/// - input:   the LLVM IR text to feed to opt via stdin. opt do not read the .ll file
 struct LitCommandOpt
 {
     string_view command;
@@ -65,7 +64,8 @@ struct LitCommandOpt
 ///
 /// FileCheck always follows a LitCommandLlc or LitCommandOpt in the same
 /// LitTest. It implicitly receives two inputs:
-///   - directives input: the original .ll test file (source of CHECK lines)
+///   - directives input: the original .ll test file (source of CHECK lines) which is the input to the preceding llc/opt
+///   test.
 ///   - match input:      the stdout output of the preceding llc/opt command
 ///
 /// FileCheck produces no output on success; a non-zero exit code means failure.
