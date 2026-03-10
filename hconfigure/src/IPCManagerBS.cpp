@@ -99,6 +99,9 @@ tl::expected<void, std::string> IPCManagerBS::receiveMessage(char (&ctbBuffer)[3
         fileSize = fileSizeExpected;
     }
     break;
+
+    default:
+        return tl::unexpected(getErrorString(ErrorCategory::UNKNOWN_CTB_TYPE));
     }
 
     if (serverReadString.size() != bytesRead)
