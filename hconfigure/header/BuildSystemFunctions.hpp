@@ -100,6 +100,9 @@ template <typename T> inline deque<T> targets;
 // constructor.
 template <typename T> inline flat_hash_set<T *> targetPointers;
 
+// Builder instance that will be used in configuration and build steps.
+inline class Builder *builder;
+
 inline string currentMinusConfigure;
 void initializeCache();
 inline const string dashCpp = "-cpp";

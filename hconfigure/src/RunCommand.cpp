@@ -5,11 +5,13 @@
 #include "Builder.hpp"
 #include "IPCManagerBS.hpp"
 
+#include <cstring>
 #include <utility>
 
 #ifndef _WIN32
 #include "sys/wait.h"
 #include "wordexp.h"
+#include <cerrno>
 #include <fcntl.h>
 #endif
 
@@ -47,7 +49,7 @@ void RunCommand::runProcess(const char *command)
     std::filesystem::remove(stderrFile);
 }
 
-// Copied partially from Ninja
+// Partially adapted from Ninja's process management approach.
 uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget, bool haveWritePipe)
 {
     const string readPipeName =
@@ -73,7 +75,7 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
         printErrorMessage(P2978::getErrorString());
     }
 
-    // Get the write end of the pipe as a handle inheritable across processes.
+    // Get an inheritable write-end handle for the child process.
     HANDLE outputWriteHandle =
         CreateFileA(readPipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
     HANDLE child_pipe;
@@ -96,24 +98,23 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
         startup_info.hStdOutput = child_pipe;
         startup_info.hStdError = child_pipe;
     }
-    // In the console case, child_pipe is still inherited by the child and closed
-    // when the subprocess finishes, which then notifies ninja.
+    // In console mode, child_pipe is still inherited and closed when the subprocess exits,
+    // which then notifies the event loop.
 
     PROCESS_INFORMATION process_info;
     memset(&process_info, 0, sizeof(process_info));
 
-    // Ninja handles ctrl-c, except for subprocesses in console pools.
+    // Ctrl+C is handled outside console-pool subprocesses.
     DWORD process_flags = use_console_ ? 0 : CREATE_NEW_PROCESS_GROUP;
 
-    // Do not prepend 'cmd /c' on Windows, this breaks command
-    // lines greater than 8,191 chars.
+    // Do not prepend "cmd /c" on Windows; it breaks long command lines (>8191 chars).
     if (!CreateProcessA(NULL, (char *)command, NULL, NULL,
                         /* inherit handles */ TRUE, process_flags, NULL, NULL, &startup_info, &process_info))
     {
         printErrorMessage(FORMAT("CreateProcessA failed for Command\n{}\nError\n", command, P2978::getErrorString()));
     }
 
-    // Close pipe channel only used by the child.
+    // Close the pipe handle used only by the child.
     if (child_pipe)
     {
         CloseHandle(child_pipe);
@@ -121,8 +122,7 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
 
     CloseHandle(process_info.hThread);
 
-    // todo
-    // don't inherit the parent fds.
+    // TODO: prevent inheriting unintended parent file descriptors.
     /*
     HANDLE hd = (HANDLE) _get_osfhandle(fd);
     if (! SetHandleInformation(hd, HANDLE_FLAG_INHERIT, 0)) {
@@ -133,20 +133,21 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     writePipe = (uint64_t)readPipeHandle;
     pid = (uint64_t)process_info.hProcess;
 
+    ++builder.simultaneousProcessCount;
     return index;
 }
 
 bool RunCommand::startRead()
 {
     CompletionKey &k = eventData[index];
-    memset(k.buffer, 0, sizeof(k.buffer));
+    memset(k.buffer, 0, 4096);
     memset(k.overlappedBuffer, 0, sizeof(k.overlappedBuffer));
     DWORD bytesRead = 0;
     const BOOL result =
         ReadFile((HANDLE)k.handle, k.buffer, 4096, &bytesRead, &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer));
     if (result)
     {
-        // Event if synchronous succeeded, we need to process the stale completion event sent to the event loop.
+        // Even if the read completed synchronously, consume the stale completion event.
         return false;
     }
     const DWORD error = GetLastError();
@@ -156,7 +157,7 @@ bool RunCommand::startRead()
     }
     if (error == ERROR_BROKEN_PIPE)
     {
-        // ReadFile completed successfully
+        // ReadFile reached EOF successfully.
         return true;
     }
 
@@ -172,7 +173,7 @@ CompleteReadType RunCommand::completeRead()
     {
         if (GetLastError() == ERROR_BROKEN_PIPE)
         {
-            // ReadFile completed successfully
+            // ReadFile reached EOF successfully.
             return CompleteReadType::COMPLETE_PROCESS;
         }
         printErrorMessage(P2978::getErrorString());
@@ -187,8 +188,9 @@ CompleteReadType RunCommand::completeRead()
     return CompleteReadType::INCOMPLETE;
 }
 
-void RunCommand::reapProcess()
+void RunCommand::reapProcess(Builder &builder)
 {
+    --builder.simultaneousProcessCount;
     if (WaitForSingleObject((HANDLE)pid, INFINITE) == WAIT_FAILED)
     {
         printErrorMessage(P2978::getErrorString());
@@ -206,7 +208,8 @@ void RunCommand::reapProcess()
 
 void RunCommand::killModuleProcess(Builder &builder) const
 {
-    // Exit code you want to assign to the terminated process
+    --builder.simultaneousProcessCount;
+    // Exit code assigned to the terminated process.
     DWORD exitCode = 1;
 
     if (!TerminateProcess((HANDLE)pid, exitCode))
@@ -214,14 +217,13 @@ void RunCommand::killModuleProcess(Builder &builder) const
         printErrorMessage(("Killing Process\n"));
     }
 
-    CloseHandle((HANDLE)pid); // Clean up when you’re done
+    CloseHandle((HANDLE)pid); // Cleanup process handle.
     builder.unregisterEventDataAtIndex(index);
 }
 
 #else
 
-// todo
-//  unaccounted for close() calls.
+// TODO: audit and account for all close() calls.
 
 uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget, bool haveWritePipe)
 {
@@ -248,11 +250,10 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     }
     else
     {
-        // todo
-        // in child redirect /dev/null for both Windows and Linux.
+        // TODO: in the child, redirect stdin from /dev/null (or NUL on Windows).
     }
 
-    pid = vfork(); // <-- vfork
+    pid = vfork(); // vfork is intentional here.
     if (pid == -1)
     {
         printErrorMessage(P2978::getErrorString());
@@ -260,7 +261,7 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
 
     if (pid == 0)
     {
-        // Child — only dup2, close, execvp and _exit allowed
+        // Child process: only async-signal-safe calls are allowed before exec.
         dup2(stdoutPipesLocal[1], STDOUT_FILENO);
         dup2(stdoutPipesLocal[1], STDERR_FILENO);
         close(stdoutPipesLocal[0]);
@@ -274,12 +275,12 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
         }
 
         execvp(p.we_wordv[0], p.we_wordv);
-        _exit(127); // must use _exit, never exit()
+        _exit(127); // Must use _exit(), never exit().
     }
 
-    // Parent
+    // Parent process.
     close(stdoutPipesLocal[1]);
-    wordfree(&p); // safe to free here, child has already exec'd
+    wordfree(&p); // Safe here: child has already exec'd.
     builder.registerEventData(bTarget, readPipe);
 
     if (haveWritePipe)
@@ -299,12 +300,17 @@ bool RunCommand::startRead()
 CompleteReadType RunCommand::completeRead()
 {
     char buffer[64 * 1024];
-    const uint64_t readSize = read(readPipe, buffer, sizeof(buffer) - 1);
+    ssize_t readSize;
+    do
+    {
+        readSize = read(readPipe, buffer, sizeof(buffer) - 1);
+    } while (readSize == -1 && errno == EINTR);
+
     if (readSize == -1)
     {
         printErrorMessage(P2978::getErrorString());
     }
-    if (!readSize)
+    if (readSize == 0)
     {
         return CompleteReadType::COMPLETE_PROCESS;
     }
@@ -334,11 +340,11 @@ void RunCommand::runProcess(const char *command)
     }
     if (pid == 0)
     {
-        // Child process
+        // Child process.
 
-        // Redirect stdout and stderr to the pipes
-        dup2(stdPipesLocal[1], STDOUT_FILENO); // Redirect stdout to stdout_pipe
-        dup2(stdPipesLocal[1], STDERR_FILENO); // Redirect stderr to stderr_pipe
+        // Redirect stdout/stderr to the same pipe.
+        dup2(stdPipesLocal[1], STDOUT_FILENO); // Redirect stdout to pipe.
+        dup2(stdPipesLocal[1], STDERR_FILENO); // Redirect stderr to pipe.
 
         // Close unused pipe ends
         close(stdPipesLocal[0]);
@@ -351,26 +357,36 @@ void RunCommand::runProcess(const char *command)
             _exit(127);
         }
 
-        // p.we_wordv is a NULL-terminated argv suitable for exec*
+        // p.we_wordv is a null-terminated argv for exec*.
         char **argv = p.we_wordv;
 
-        // Use execvp so PATH is searched and environment is inherited
+        // Use execvp so PATH is searched and the current environment is inherited.
         execvp(argv[0], argv);
 
-        // If execvp returns, it failed:
+        // If execvp returns, execution failed.
         perror("execvp");
         wordfree(&p);
         _exit(127);
     }
 
-    // Parent process
-    // Close unused pipe ends
+    // Parent process: close unused pipe ends.
     close(stdPipesLocal[1]);
 
     char buffer[4096 * 16];
     while (true)
     {
-        if (const uint64_t readSize = read(readPipe, buffer, sizeof(buffer) - 1))
+        ssize_t readSize;
+        do
+        {
+            readSize = read(readPipe, buffer, sizeof(buffer) - 1);
+        } while (readSize == -1 && errno == EINTR);
+
+        if (readSize == -1)
+        {
+            printErrorMessage("read");
+        }
+
+        if (readSize > 0)
         {
             output.append(buffer, readSize);
         }
@@ -380,7 +396,7 @@ void RunCommand::runProcess(const char *command)
         }
     }
 
-    // Close the read ends of the pipes
+    // Close the read end of the pipe.
     close(readPipe);
 
     int status;
@@ -411,7 +427,7 @@ void RunCommand::reapProcess(Builder &builder)
             printErrorMessage(P2978::getErrorString());
         }
     }
-    exitStatus = WEXITSTATUS(status); // extract actual exit code
+    exitStatus = WEXITSTATUS(status); // Extract child exit code.
 }
 
 void RunCommand::killModuleProcess(Builder &builder) const
@@ -432,19 +448,27 @@ void RunCommand::killModuleProcess(Builder &builder) const
 
 string RunCommand::pruneOutput()
 {
-    // Prune the compiler output. and make a new string of the compiler-message output.
+    // Extract the serialized payload from the output buffer.
     const uint32_t outputSize = output.size();
     if (outputSize < 4 + strlen(P2978::delimiter))
     {
         printErrorMessage("Received string only has delimiter but not the size of payload\n");
     }
 
-    const uint32_t payloadSize =
-        *reinterpret_cast<uint32_t *>(output.data() + (outputSize - (4 + strlen(P2978::delimiter))));
-    const char *payloadStart = output.data() + (outputSize - (4 + strlen(P2978::delimiter) + payloadSize));
+    uint32_t payloadSize = 0;
+    const size_t delimiterSize = strlen(P2978::delimiter);
+    const size_t payloadSizeOffset = outputSize - (sizeof(uint32_t) + delimiterSize);
+    memcpy(&payloadSize, output.data() + payloadSizeOffset, sizeof(payloadSize));
+    if (outputSize < sizeof(uint32_t) + delimiterSize + payloadSize)
+    {
+        printErrorMessage("Invalid output payload size while pruning output\n");
+    }
+    const char *payloadStart = output.data() + (outputSize - (sizeof(uint32_t) + delimiterSize + payloadSize));
 
+    // todo
+    // will like to return a string_view. this could be a problem for lit testing where whole files will be received.
     string str{payloadStart, payloadSize};
-    output.resize(outputSize - (4 + strlen(P2978::delimiter) + payloadSize));
+    output.resize(outputSize - (sizeof(uint32_t) + delimiterSize + payloadSize));
 
     return str;
 }

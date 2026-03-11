@@ -12,11 +12,6 @@ using std::filesystem::directory_iterator, std::filesystem::remove;
 static DSC<CppTarget> &getMainTarget(const string &name, Configuration *configuration, const bool headerOnly,
                                      const bool hasBigHeader)
 {
-    if (name == "boost/core/noncopyable.hpp")
-    {
-        bool breakpoint = true;
-    }
-
     Node *myBuildDir = nullptr;
 
     if constexpr (bsMode == BSMode::CONFIGURE)

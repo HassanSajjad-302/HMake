@@ -115,9 +115,10 @@ int main2(const int argc, char **argv)
     fflush(stdout);
     fflush(stderr);
 
-    //todo
-    //check if there is open file-handle or file-descriptor.
-    // there should be none.
+    // TODO: verify there are no leaked file handles or file descriptors. builder->serverFd is not closed because
+    // closing it might cause an error as there could be an unhandled interrupt event. but it is alright since we have
+    // already written the cache. or a better solution could be to return from the builder constructor instead of
+    // returning from here.
 #ifdef NDEBUG
     if (errorHappened)
     {

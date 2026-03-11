@@ -17,6 +17,7 @@
 #include <winternl.h>
 #else
 #include "sys/epoll.h"
+#include "sys/signalfd.h"
 #endif
 
 using std::thread, std::mutex, std::make_unique, std::unique_ptr, std::ifstream, std::ofstream, std::stack,
@@ -33,55 +34,6 @@ BOOL WINAPI ConsoleHandler(DWORD signal)
             P2978::getErrorString("PostQueuedCompletionStatus");
         }
         return TRUE;
-    }
-}
-#else
-std::atomic<bool> signal_received;
-
-void signal_handler(int signum)
-{
-    // Prevent re-entry if another signal arrives
-    if (signal_received)
-    {
-        return;
-    }
-    signal_received = true;
-
-    // Save progress
-    string buffer;
-    writeBuildBuffer(buffer);
-    exit(EXIT_SUCCESS);
-}
-
-void registerSignalHandler()
-{
-    struct sigaction sa;
-    sigset_t block_mask;
-
-    // Initialize the sigaction structure
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = signal_handler;
-
-    // Create a mask of signals to block during handler execution
-    // This blocks ALL signals while the handler is running
-    sigfillset(&block_mask);
-    sa.sa_mask = block_mask;
-
-    // SA_RESTART: Restart interrupted system calls
-    sa.sa_flags = SA_RESTART;
-
-    // Register handler for SIGINT (Ctrl+C)
-    if (sigaction(SIGINT, &sa, NULL) == -1)
-    {
-        perror("sigaction SIGINT");
-        exit(1);
-    }
-
-    // Register handler for SIGTERM (kill command)
-    if (sigaction(SIGTERM, &sa, NULL) == -1)
-    {
-        perror("sigaction SIGTERM");
-        exit(1);
     }
 }
 #endif
@@ -179,8 +131,9 @@ void Builder::executeRoundZero()
     serverFd = createMultiplex();
     updateBTargetsSizeGoal = RealBTarget::sorted.size();
 
-    uint64_t count = 0;
-    const uint16_t numberOfLaunchedThreads = cache.numberOfBuildThreads;
+    // edit the following if you want to run in lesser threads.
+    // cache.numberOfBuildThreads = cache.numberOfBuildThreads;
+    const uint16_t numberOfLaunchedThreads = cache.numberOfBuildProcesses;
     idleCount = numberOfLaunchedThreads;
     maxSimultaneousProcessDesired = std::thread::hardware_concurrency() * 32;
 
@@ -196,7 +149,35 @@ void Builder::executeRoundZero()
         P2978::getErrorString("SetConsoleCtrlHandler");
     }
 #else
-    registerSignalHandler();
+    // 1. Block signals so they are consumed from signalfd.
+    sigset_t mask;
+    sigset_t oldMask;
+    sigemptyset(&mask);
+    if (sigaddset(&mask, SIGINT) == -1 || sigaddset(&mask, SIGTERM) == -1)
+    {
+        printErrorMessage(FORMAT("sigaddset failed. Error\n{}\n", P2978::getErrorString()));
+    }
+    if (sigprocmask(SIG_BLOCK, &mask, &oldMask) == -1)
+    {
+        printErrorMessage(FORMAT("sigprocmask(SIG_BLOCK) failed. Error\n{}\n", P2978::getErrorString()));
+    }
+
+    // 2. Create a signalfd for blocked signals.
+    const int sfd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
+    if (sfd == -1)
+    {
+        printErrorMessage(FORMAT("signalfd failed. Error\n{}\n", P2978::getErrorString()));
+    }
+
+    // 3. Add signalfd to epoll.
+    epoll_event ev{};
+    ev.events = EPOLLIN;
+    ev.data.fd = sfd;
+    if (epoll_ctl(serverFd, EPOLL_CTL_ADD, sfd, &ev) == -1)
+    {
+        printErrorMessage(FORMAT("epoll_ctl add signalfd failed. Error\n{}\n", P2978::getErrorString()));
+    }
+
 #endif
 
     while (true)
@@ -212,8 +193,8 @@ void Builder::executeRoundZero()
             bool launchNewOne = false;
             if (pid == -1)
             {
-                // Because it is gonna be a new process, we make sure that we don't exceed the process capacity, or we do
-                // so only when we are down to 0 active process.
+                // Because it is gonna be a new process, we make sure that we don't exceed the process capacity, or we
+                // do so only when we are down to 0 active process.
 
                 const bool canLaunchNewProcess = maxSimultaneousProcessDesired > simultaneousProcessCount;
                 launchNewOne = (canLaunchNewProcess && idleCount) || idleCount == numberOfLaunchedThreads;
@@ -262,12 +243,6 @@ void Builder::executeRoundZero()
                 {
                     printErrorMessage(FORMAT("n > activeCount, n {} activeCount {}\n", n, activeEventCount));
                 }
-
-                ++count;
-                if (count == 5)
-                {
-                    bool breakpoint = true;
-                }
             }
             for (ULONG i = 0; i < n; i++)
             {
@@ -299,7 +274,8 @@ void Builder::executeRoundZero()
 
             if constexpr (ndeb == NDEB::NO)
             {
-                if (n > activeEventCount)
+                // +1 accounts for possible signalfd readiness event.
+                if (n > activeEventCount + 1)
                 {
                     for (uint32_t i = 0; i < 4096; i++)
                     {
@@ -309,12 +285,32 @@ void Builder::executeRoundZero()
                         }
                     }
                     HMAKE_HMAKE_INTERNAL_ERROR
-                    bool breakpoint = true;
                 }
             }
+
             for (int i = 0; i < n; i++)
             {
-                const uint64_t fd = events[i].data.fd;
+                const int fd = events[i].data.fd;
+                if (fd == sfd)
+                {
+                    signalfd_siginfo signalInfo{};
+                    const ssize_t bytesRead = read(sfd, &signalInfo, sizeof(signalInfo));
+                    if (bytesRead == -1)
+                    {
+                        if (errno == EAGAIN || errno == EWOULDBLOCK)
+                        {
+                            continue;
+                        }
+                        printErrorMessage(FORMAT("read(signalfd) failed. Error\n{}\n", P2978::getErrorString()));
+                    }
+                    if (bytesRead != sizeof(signalInfo))
+                    {
+                        printErrorMessage("Short read from signalfd\n");
+                    }
+                    string buffer;
+                    writeBuildBuffer(buffer);
+                    std::_Exit(EXIT_SUCCESS);
+                }
                 if (BTarget *bt = eventData[fd]; !callIsEventCompleted(bt, fd))
                 {
                     decrementFromDependents(bt->realBTargets[0]);
@@ -340,11 +336,24 @@ void Builder::executeRoundZero()
             printErrorMessage("HMake API misuse.\n");
         }
     }
-    bool breakpoint = true;
     if (activeEventCount)
     {
         HMAKE_HMAKE_INTERNAL_ERROR
     }
+#ifndef _WIN32
+    if (epoll_ctl(serverFd, EPOLL_CTL_DEL, sfd, nullptr) == -1)
+    {
+        printErrorMessage(FORMAT("epoll_ctl del signalfd failed. Error\n{}\n", P2978::getErrorString()));
+    }
+    if (close(sfd) == -1)
+    {
+        printErrorMessage(FORMAT("close(signalfd) failed. Error\n{}\n", P2978::getErrorString()));
+    }
+    if (sigprocmask(SIG_SETMASK, &oldMask, nullptr) == -1)
+    {
+        printErrorMessage(FORMAT("sigprocmask(SIG_SETMASK) failed. Error\n{}\n", P2978::getErrorString()));
+    }
+#endif
 }
 
 uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
@@ -509,6 +518,7 @@ template <typename T> std::vector<std::span<T>> divideInChunk(std::vector<T> &v,
 
 void Builder::checkNodes()
 {
+    uncheckedNodesCentral.clear();
     uncheckedNodesCentral.reserve(Node::idCount);
     for (uint32_t i = 0; i < Node::idCount; ++i)
     {
@@ -518,32 +528,48 @@ void Builder::checkNodes()
         }
     }
 
-    // todo
-    // use threads on windows and io_uring on Linux. io_uring can probably be used for the dependency file reading on
-    // Linux as well.
-    for (Node *node : uncheckedNodesCentral)
+    if (uncheckedNodesCentral.empty())
     {
-        node->performSystemCheck();
-        node->systemCheckCompleted = true;
-    }
-    return;
-    uncheckedNodes = divideInChunk(uncheckedNodesCentral, launchedCount);
-    if (checkingCount < launchedCount)
-    {
-        const unsigned short nodeCheckIndex = checkingCount;
-        ++checkingCount;
-        for (Node *node : uncheckedNodes[nodeCheckIndex])
-        {
-            node->performSystemCheck();
-            node->systemCheckCompleted = true;
-        }
-        ++checkedCount;
+        return;
     }
 
-    if (checkedCount == launchedCount)
+    constexpr uint16_t configuredWorkers = 12;
+    const uint16_t workerCount2 =
+        static_cast<uint16_t>(std::min<size_t>(configuredWorkers, uncheckedNodesCentral.size()));
+    const uint16_t workerCount =
+        static_cast<uint16_t>(std::min<size_t>(workerCount2, std::thread::hardware_concurrency()));
+
+    if (workerCount == 1)
     {
-        DEBUG_EXECUTE(
-            FORMAT("{} {} {}\n", round, "UPDATE_BTARGET threadCount == numberOfLaunchThreads", getThreadId()));
+        for (Node *node : uncheckedNodesCentral)
+        {
+            node->performSystemCheck();
+        }
+        return;
+    }
+
+    const vector<span<Node *>> chunks = divideInChunk(uncheckedNodesCentral, workerCount);
+    vector<thread> workers;
+    workers.reserve(workerCount - 1);
+
+    for (uint16_t i = 1; i < workerCount; ++i)
+    {
+        workers.emplace_back([chunk = chunks[i]] {
+            for (Node *node : chunk)
+            {
+                node->performSystemCheck();
+            }
+        });
+    }
+
+    for (Node *node : chunks[0])
+    {
+        node->performSystemCheck();
+    }
+
+    for (thread &worker : workers)
+    {
+        worker.join();
     }
 }
 
@@ -595,4 +621,14 @@ void Builder::decrementFromDependents(const RealBTarget &rb)
 
     DEBUG_EXECUTE(FORMAT("{} {} Info: updateBTargets.size() {} updateBTargetsSizeGoal {} {}\n", round, __LINE__,
                          updateBTargets.size(), updateBTargetsSizeGoal, getThreadId()));
+}
+
+uint32_t Builder::getCapacityForNewProcesses() const
+{
+    if (const uint32_t desiredCapacity = maxSimultaneousProcessDesired - simultaneousProcessCount;
+        desiredCapacity > idleCount)
+    {
+        return desiredCapacity;
+    }
+    return idleCount;
 }

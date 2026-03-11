@@ -51,8 +51,8 @@ void initializeCache()
         const string str = p.string();
         nodesCacheGlobal = readBufferFromCompressedFile(str);
 
-        // The Node is constructed from cache. It is placed in the hash set and also in nodeIndices.
-        // However, performSystemCheck is not called and is called in multithreaded fashion.
+        // Nodes loaded from cache are inserted into the hash set and nodeIndices. performSystemCheck() is deferred and
+        // later run in parallel.
 
         const uint64_t bufferSize = nodesCacheGlobal.size();
         uint64_t bufferRead = 0;
@@ -156,7 +156,7 @@ void printErrorMessageNoReturn(const string &message)
 
 bool configureOrBuild()
 {
-    const Builder b{};
+    builder = new Builder{};
     string buffer;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -165,14 +165,14 @@ bool configureOrBuild()
         buffer.clear();
     }
     writeBuildBuffer(buffer);
-    return b.errorHappenedInRoundMode;
+    return builder->errorHappenedInRoundMode;
 }
 
 void constructGlobals()
 {
-    // We don't zero initialize these big arrays. This makes difference of around 4-5% in zero-target build speed-up.
+    // We intentionally skip zero-initializing these large arrays. This improves zero-target build time by roughly 4-5%.
 
-    // 1MB. Deallocated after round.
+    // ~1 MB per round; released after the round finishes.
     for (span<RealBTarget *> &realBTargets : BTarget::realBTargetsGlobal)
     {
         constexpr uint32_t count = 128 * 1024;
@@ -259,7 +259,7 @@ string_view removeDashCppFromNameSV(string_view name)
     return {name.data(), name.size() - 4}; // Removing -cpp from the name
 }
 
-// Rapid Helper PlatformSpecific OStream
+// RapidJSON helper: platform-specific output stream wrapper.
 struct RHPOStream
 {
     FILE *fp = nullptr;
@@ -447,8 +447,7 @@ void writeConfigBuffer(string &buffer)
 static std::atomic callOnce(false);
 void writeBuildBuffer(string &buffer)
 {
-    // This condition is to ensure that function gets executed only once in build-mode either when the build is
-    // interrupted or when the build-system returns in main2 or in printErrorMessage.
+    // Ensure this runs once in build mode: either on interruption or on normal build-system shutdown.
     if (callOnce.exchange(true, std::memory_order_seq_cst))
     {
         return;
@@ -460,7 +459,7 @@ void writeBuildBuffer(string &buffer)
     for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
     {
         const uint32_t currentSize = buffer.size();
-        // reserve space of 4bytes.
+        // Reserve 4 bytes for the serialized size prefix.
         writeUint32(buffer, 0);
         if (fileCacheTarget.targetCache)
         {
@@ -474,7 +473,7 @@ void writeBuildBuffer(string &buffer)
             buffer.append(fileCacheTarget.buildCache.begin(), fileCacheTarget.buildCache.end());
         }
         const uint32_t size = buffer.size() - (currentSize + 4);
-        *static_cast<uint32_t *>(static_cast<void *>(&buffer[currentSize])) = size;
+        memcpy(buffer.data() + currentSize, &size, sizeof(size));
     }
 
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -492,9 +491,7 @@ void writeBuildBuffer(string &buffer)
 #define fopen_s(pFile, filename, mode) ((*(pFile)) = fopen((filename), (mode))) == NULL
 #endif
 
-// In configure mode only 2 files target-cache.json and nodes.json are written which are written at the end.
-// While in build-mode TargetCacheDisWriteManager asynchronously writes these files multiple times as the data is
-// updated. Hence, these file write is atomic in build mode
+// cache files are written atomically.
 static void writeFileAtomically(const string &fileName, const char *buffer, uint64_t bufferSize, bool binary)
 {
     const string str = fileName + ".tmp";
@@ -541,7 +538,7 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
         CloseHandle(hFile);
 
 #else
-        // For some reason, this does not work in Windows.
+        // This code path is not used on Windows.
         if (binary)
         {
             std::ofstream f(str, std::ios::binary);
@@ -615,7 +612,8 @@ void writeBufferToCompressedFile(const string &fileName, const string &fileBuffe
         HMAKE_HMAKE_INTERNAL_ERROR
         errorExit();
     }
-    *reinterpret_cast<uint64_t *>(compressed.data()) = fileBuffer.size();
+    const uint64_t fileSize = fileBuffer.size();
+    memcpy(compressed.data(), &fileSize, sizeof(fileSize));
 
     writeFileAtomically(fileName, compressed.c_str(), compressedSize + 8, true);
 #endif
@@ -658,11 +656,7 @@ string getNormalizedPath(path filePath)
 
     if constexpr (os == OS::NT)
     {
-        // TODO
-        //  This is illegal
-        //  TODO
-        //  Needed because MSVC cl.exe returns header-unit paths is smrules file that are all lowercase instead of the
-        //  actual paths. In Windows paths could be case-insensitive. Just another wrinkle hahaha.
+        // TODO: avoid mutating the path buffer through const_cast.
         for (auto it = const_cast<path::value_type *>(filePath.c_str()); *it != '\0'; ++it)
         {
             *it = std::tolower(*it);
@@ -671,8 +665,7 @@ string getNormalizedPath(path filePath)
     return filePath.string();
 }
 
-// TODO
-// Review this function and its usage.
+// TODO: review this function and all callers for correctness.
 bool childInParentPathNormalized(const string_view parent, const string_view child)
 {
     if (child.size() < parent.size())

@@ -1,5 +1,5 @@
 /// \file
-/// This class has definition for Node class
+/// Defines `Node`, the interned filesystem-path record used by caches and build checks.
 
 #ifndef HMAKE_NODE_HPP
 #define HMAKE_NODE_HPP
@@ -10,6 +10,7 @@
 using std::lock_guard, std::filesystem::file_time_type, std::filesystem::file_type;
 
 class Node;
+/// Heterogeneous equality for `NodeHashSet` lookups (`Node` and `string_view`).
 struct NodeEqual
 {
     using is_transparent = void;
@@ -19,74 +20,72 @@ struct NodeEqual
     bool operator()(const string_view &lhs, const Node &rhs) const;
 };
 
+/// Heterogeneous hash for `NodeHashSet` lookups (`Node` and `string_view`).
 struct NodeHash
 {
-    using is_transparent = void; // or std::equal_to<>
+    using is_transparent = void;
 
     std::size_t operator()(const Node &node) const;
     std::size_t operator()(const string_view &str) const;
 };
 
-/// This class is used to store the filesystem path in build-cache or config-cache. This class constructor is private.
-/// Instead, Node::get* functions are used to retrieve a Node* which points to a pointer in nodeAllFiles set. This set
-/// ensures uniqueness based on the path string. Some Node::get* functions normalize (and lower-case on windows) the
-/// path. An invariant is that all paths added in nodeAllFiles must be normalized and lower-cased (on Windows).
+/// Interned representation of one filesystem path.
 ///
-///  Node::performSystemCheck is called just once as it is a slow operation. In build-mode, usually this is done in
-///  parallel by Builder::nodeCheck. BTarget::completeRoundOne of different BTargets will set Node::toBeChecked for
-///  different Nodes. Node::performSystemCheck is called only for these nodes.
+/// `Node` objects are unique by normalized path and stored in `nodeAllFiles`.
+/// Most callers should obtain instances via `getNode*`/`getHalfNode*` helpers, not by direct construction.
 ///
-///  The constructor of this class assigns an incrementing id to its object. And also assigns itself at the id index in
-///  nodeIndices array. In config-cache and build-cache, instead of the path, this 4-byte id is stored. And before
-///  writing config-cache or build-cache, the nodeIndices array is written to node-cache. This is also read first and
-///  nodeAllFiles set is initialized before reading the config-cache or build-cache. Node cache array only increases and
-///  can not be removed from.
+/// `performSystemCheck()` is intentionally cached because filesystem metadata calls are slow.
+/// Build steps mark interesting nodes via `toBeChecked`; `Builder::checkNodes()` refreshes those.
 ///
-///  All Node::* function also call Node::performSystemCheck except those with half in their name.
-///  All Node::* function expect normalized-path except those with NonNormalized in their name.
+/// Each `Node` has a stable 32-bit id (`myId`) used by build/config caches instead of writing full paths.
 class Node
 {
   public:
     // todo
     // make this string_view to improve the initial load time from Nodes.bin
-    /// The normalized (and lower-case on windows) path representing the file or directory
+    /// Normalized path (and lower-cased on Windows) for file or directory.
     string filePath;
 
-    /// std::filesystem::file_type. assigned in Node::performSystemCheck.
+    /// Cached filesystem type, assigned by `performSystemCheck()`.
     file_type fileType;
 
-    /// assigned in performSystemCheck.
+    /// Cached last-write timestamp, assigned by `performSystemCheck()`.
     file_time_type lastWriteTime{file_time_type::duration{UINT64_MAX}};
 
+    /// Total number of created nodes.
     inline static uint32_t idCount = 0;
 
+    /// Stable index in `nodeIndices`.
     uint32_t myId;
 
+    /// True after filesystem metadata has been fetched at least once.
     bool systemCheckCompleted{false};
 
-    /// if set to true, Builder::executeMutex will call Node::performSystemCheck for this and all such nodes in parallel
-    /// in ExecuteMode::NODE_CHECK before round 0 ExecuteMode::GENERAL.
+    /// Marks this node for refresh in the pre-round-0 node-check phase.
     bool toBeChecked = false;
 
     explicit Node(string_view filePath_);
+    /// Returns basename (characters after final path separator).
     string getFileName() const;
+    /// Returns basename without extension.
     string getFileStem() const;
 
-    /// slow file-system call that initializes lastWriteTime and fileType variable.
+    /// Fetches filesystem metadata once and caches it in this object.
     void performSystemCheck();
 
-    /// filePath_ must be normalized string (and lower-cased on Windows). This function will give an error if after
-    /// calling performSystemCheck, attributes do not match the provided arguments.
+    /// Retrieves/creates a node from normalized path and validates file-vs-directory shape.
+    /// \param filePath_ normalized path (lower-cased on Windows).
+    /// \param isFile expected shape (`true` regular file, `false` directory).
+    /// \param mayNotExist allow `not_found` without raising an error.
     static Node *getNode(string_view filePath_, bool isFile, bool mayNotExist = false);
 
-    /// This function will give an error if after calling performSystemCheck, attributes do not match the provided
-    /// arguments.
+    /// Same as `getNode`, but accepts a non-normalized path and normalizes it internally.
     static Node *getNodeNonNormalized(const string &filePath_, bool isFile, bool mayNotExist = false);
 
-    /// Does not performSystemCheck.
+    /// Retrieves/creates node without performing filesystem checks.
     static Node *getHalfNode(string_view filePath_);
 
-    /// returns the Node* at nodeIndices[index]
+    /// Returns node by stable id index.
     static Node *getHalfNode(uint32_t index);
 };
 

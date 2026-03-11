@@ -5,9 +5,12 @@
 
 #ifdef _WIN32
 #include "Windows.h"
+#else
+#include <cerrno>
+#include <sys/stat.h>
 #endif
 
-using std::filesystem::directory_entry, std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard;
+using std::filesystem::file_type, std::filesystem::file_time_type, std::lock_guard;
 
 string getStatusString(const path &p)
 {
@@ -65,18 +68,29 @@ std::size_t NodeHash::operator()(const string_view &str) const
 
 Node::Node(const string_view filePath_) : filePath(filePath_)
 {
-    myId = reinterpret_cast<uint32_t &>(idCount)++;
+    myId = idCount++;
     nodeIndices[myId] = this;
 }
 
 string Node::getFileName() const
 {
-    return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.end()};
+    if (const size_t slashPos = filePath.find_last_of(slashc); slashPos != string::npos)
+    {
+        return string(filePath.substr(slashPos + 1));
+    }
+    return filePath;
 }
 
 string Node::getFileStem() const
 {
-    return {filePath.begin() + filePath.find_last_of(slashc) + 1, filePath.begin() + filePath.find_last_of('.')};
+    const size_t slashPos = filePath.find_last_of(slashc);
+    const size_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
+    const size_t dotPos = filePath.find_last_of('.');
+    if (dotPos == string::npos || dotPos <= nameStart)
+    {
+        return string(filePath.substr(nameStart));
+    }
+    return string(filePath.substr(nameStart, dotPos - nameStart));
 }
 
 void Node::performSystemCheck()
@@ -85,6 +99,7 @@ void Node::performSystemCheck()
     {
         return;
     }
+    systemCheckCompleted = true;
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA attrs;
     if (!GetFileAttributesExA(filePath.c_str(), GetFileExInfoStandard, &attrs))
@@ -95,7 +110,7 @@ void Node::performSystemCheck()
             lastWriteTime = {}; // Default initialize
             return;
         }
-        // Handle other errors - you might want to throw or set an error flag
+        // Non-not-found error: mark as unknown and leave timestamp unset.
         fileType = file_type::unknown;
         lastWriteTime = {};
         return;
@@ -108,42 +123,68 @@ void Node::performSystemCheck()
     }
     else if (attrs.dwFileAttributes & FILE_ATTRIBUTE_DEVICE)
     {
-        fileType = file_type::character; // or block, depending on your needs
+        fileType = file_type::character; // Windows does not directly map to POSIX block devices.
     }
     else
     {
         fileType = file_type::regular;
     }
 
-    // Always set lastWriteTime for all file types (not just regular files)
-    // Convert Windows FILETIME to std::filesystem::file_time_type
+    // Always set lastWriteTime for every resolved file type.
+    // Convert Windows FILETIME to std::filesystem::file_time_type.
     ULARGE_INTEGER ull;
     ull.LowPart = attrs.ftLastWriteTime.dwLowDateTime;
     ull.HighPart = attrs.ftLastWriteTime.dwHighDateTime;
 
-    // Convert to std::chrono time point
-    // Windows FILETIME is 100-nanosecond intervals since January 1, 1601
+    // Convert to std::chrono time point.
+    // Windows FILETIME uses 100ns intervals since Jan 1, 1601.
     const auto duration = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(ull.QuadPart);
     constexpr auto windows_epoch = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(116444736000000000LL);
     const auto unix_time = duration - windows_epoch;
 
     lastWriteTime = file_time_type(unix_time);
 #else
-    const auto entry = directory_entry(filePath);
-    fileType = entry.status().type();
-    if (fileType == file_type::regular)
+    struct stat st
     {
-        lastWriteTime = entry.last_write_time();
+    };
+    if (stat(filePath.c_str(), &st) != 0)
+    {
+        if (errno == ENOENT || errno == ENOTDIR)
+        {
+            fileType = file_type::not_found;
+        }
+        else
+        {
+            fileType = file_type::unknown;
+        }
+        lastWriteTime = {};
+        return;
+    }
+
+    if (S_ISREG(st.st_mode))
+    {
+        fileType = file_type::regular;
+        const auto sec = std::chrono::seconds(st.st_mtim.tv_sec);
+        const auto nsec = std::chrono::nanoseconds(st.st_mtim.tv_nsec);
+        lastWriteTime = file_time_type(std::chrono::duration_cast<file_time_type::duration>(sec + nsec));
+    }
+    else if (S_ISDIR(st.st_mode))
+    {
+        fileType = file_type::directory;
+        lastWriteTime = {};
+    }
+    else
+    {
+        fileType = file_type::unknown;
+        lastWriteTime = {};
     }
 #endif
-    systemCheckCompleted = true;
 }
 
 Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
 {
     const auto &[it, ok] = nodeAllFiles.emplace(filePath_);
     Node *node = &const_cast<Node &>(*it);
-    nodeAllFiles.emplace(filePath_);
 
     node->performSystemCheck();
     if (node->fileType != (isFile ? file_type::regular : file_type::directory) && !mayNotExist)

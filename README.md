@@ -1,77 +1,203 @@
 # HMake
 
-HMake is a build-system software.
-It does not invent a new DSL for the build specification.
-Currently, it only provides C++ build and C++ API.
-Later on, build support for other programming languages will be added.
-API in multiple other programming languages will be provided as well.
+HMake is a C++ build system with a pure C++ API — no DSL,
+no domain-specific configuration language.
+You describe your build in C++, and HMake executes it.
+Support for additional programming languages and API bindings is planned.
 
-HMake has advanced build algorithm that supports dynamic nodes
-and dynamic edges.
-It also has advanced dependency specification.
-See ```hconfigure/header/BTarget.hpp``` and ```hconfigure/header/Builder.hpp```.
-HMake has some great optimizations.
-See ```hconfigure/header/Node.hpp```,
-```hconfigure/header/TargetCache.hpp```.
+HMake features a novel build algorithm with dynamic nodes, dynamic edges, and advanced dependency specification.
+Its core is approximately 17,000 lines of C++ — significantly smaller than CMake + Ninja combined.
 
-```hconfigure``` lib totals at around 17k SLOC.
-This is much smaller compared to e.g. CMake + Ninja.
+## Architecture
 
-```BTarget```,```Builder```, ```Node``` and ```TargetCache```
-form the core of the build-system.
-These are extensively documented.
-I recommend that you read until [C++ Examples](#c-examples),
-then you go over these classes docs in the respective files
-before the C++ Examples.
+HMake separates concerns cleanly into two layers:
 
-HMake has the state-of-the-art support for C++20 modules and header-units.
-It is the only one that supports C++20 header-units.
-And the only one that supports modules and hu without scanning them first.
-These are supported using a newly invented IPC based approach.
-[2978](https://htmlpreview.github.io/?https://github.com/HassanSajjad-302/iso-papers/blob/main/generated/my-paper.html).
-Currently, this is available only in my
-[pull-request](https://github.com/llvm/llvm-project/pull/147682).
-Besides header-units, HMake also supports Big header-units.
-This means that with one switch you can compile your header-units individually
-or as one big hu composing all the header-files for improved build-speed.
+**Core layer** — `BTarget`, `Builder`, `Node`, `TargetCache`. These classes are general-purpose and have no knowledge of
+C++. Any build system can be built on top of them.
 
-Core of the build-system has no reference to the
-```CppTarget```, ```CppSrc```, ```CppMod```, ```LOAT``` classes
-which form the C++ build-system on the top of the core.
-This should tell you about the separation of concert
-and the extensibility of the core API .
-These classes are also extensively documented.
+**C++ layer** — `CppTarget`, `CppSrc`, `CppMod`, `LOAT`. These implement C++ compilation on top of the core. The core
+has zero references to these classes, which demonstrates how cleanly extensible the core API is.
 
-I am fully confident of reliability of my software.
-It is extensively tested.
-If you run the ```Tests``` CMake target,
-you can see a variety of Tests.
+---
+
+## Core Concepts
+
+### BTarget
+
+`BTarget` is the fundamental building block of HMake. Every unit of work in your build — compiling a file, linking a
+library, running a test — is a `BTarget`. You extend it by deriving from it and overriding its virtual functions.
+
+Each `BTarget` internally holds two `RealBTarget` instances (`realBTargets[0]` and `realBTargets[1]`), one for each
+build round. Dependencies and build logic are declared per-round using `addDep<0>()` and `addDep<1>()`.
+
+**Key virtual functions:**
+
+| Function                      | Round   | Purpose                                                                               |
+|-------------------------------|---------|---------------------------------------------------------------------------------------|
+| `completeRoundOne()`          | Round 1 | Runs when all round-1 dependencies are satisfied                                      |
+| `isEventRegistered(Builder&)` | Round 0 | Returns `true` if it launched an async process, `false` if it completed synchronously |
+| `isEventCompleted(...)`       | Round 0 | Called when a launched child process produces IPC output or exits                     |
+| `getPrintName()`              | Both    | Returns the name used in cycle/error messages                                         |
+
+### Node
+
+Every file and directory path in HMake is represented by a `Node`. A `Node` assigns a permanent integer ID to each
+filesystem path. This ID remains stable across rebuilds and reconfigurations, allowing the build cache and config cache
+to store IDs rather than full paths. The result is dramatically smaller caches — estimated under 10 MB for a project the
+size of UE5 — and near-instant build startup even for very large projects.
+
+Before round 0, HMake calls `Node::performSystemCheck` in parallel (using io_uring where available) for all nodes marked
+`toBeChecked`. This bulk, parallel stat eliminates redundant filesystem queries and contributes to HMake's rebuild speed
+being at least 2x faster than Ninja.
+
+### TargetCache
+
+`TargetCache` manages persistent data across configure-time and build-time. It takes a unique name (typically the same
+as `BTarget::name`) and creates entries in both the config cache and build cache. Config cache entries are written at
+configure-time and read at build-time without re-running configuration. For example, `CppTarget` uses `TargetCache` to
+store normalized, deduplicated node IDs for source files, module files, header units, headers, and include directories.
+
+### Builder
+
+`Builder` drives the build loop. It maintains `updateBTargets`, the queue of targets that are ready to execute (those
+whose `dependenciesSize` has reached zero). `dependenciesSize` holds the number for the dependencies of the target.
+After sorting, those targets whose `dependenciesSize == 0` are added to the `updateBTargets` list. As each target in
+this list completes, HMake decrements `dependenciesSize` on its dependents, and any dependent that reaches zero is
+added in `updateBTargets` list. Build finishes once all targets are completed.
+
+---
 
 Currently, the build-system is set up only for my custom fork and only for Linux.
 This means that you will have to build my fork first.
 Better tool detection and easier setup will be a priority moving forward.
 
-## HMake Architecture
-
-class ```BTarget``` is the building block of the build-system.
-HMake has a very simple algorithm.
-You define all the targets and dependencies between them.
-HMake then topologically sorts.
-Those with 0 dependencies are added to a list, ```Builder::updatedBTargets```.
-Then we start building the targets in this list.
-As soon as we build a target, we decrement from all the dependents
-```RealBTarget::dependenciesSize```.
-If the dependent ```RealBTarget::dependenciesSize == 0```,
-i.e. no dependency of the target is left to be built,
-we add it to the list
-```Builder::updateBTargets```.
-```Builder::executeRoundOne``` or ```Builder::executeRoundZero```
-will continue until all targets in
-```Builder::updateBTargets``` are built.
-
 Let's do some examples
 
-### Example 1
+## Quick Start
+
+**Option A — Fresh clone:**
+
+```bash
+git clone --depth=1 --branch main https://github.com/HassanSajjad-302/llvm-project.git
+```
+
+**Option B — Already have the repo cloned:**
+
+```bash
+cd llvm-project
+git remote add hassan https://github.com/HassanSajjad-302/llvm-project.git
+git fetch --depth=1 hassan main
+git checkout hassan/main
+```
+
+**Build Clang:**
+
+Name of the build-dir must be my-fork. It is a hard reference in `HMake/Projects/LLVM/hmake.cpp`.
+
+```bash
+cd llvm-project
+mkdir my-fork && cd my-fork
+cmake ../llvm \
+    -GNinja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_ENABLE_PROJECTS=clang \
+    -DLLVM_TARGETS_TO_BUILD=X86
+ninja clang
+cd ../..
+```
+
+On Linux, edit `ToolsCache::detectToolsAndInitialize` in ToolsCache.cpp — Point to the absolute path of the clang
+binary:
+`llvm-project/my-fork/bin/clang`.
+On Windows, edit last line in `CppCompilerFeatures::initialize`.
+
+**Clone and build HMake:**
+
+```bash
+git clone https://github.com/HassanSajjad-302/HMake.git
+cd HMake
+mkdir build && cd build
+cmake ../ -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+cd ../..
+```
+
+**Add HMake to PATH:**
+
+```bash
+export PATH=$PATH:/path/to/HMake/build
+```
+
+**Detect and cache installed tools — run once, not per project:**
+
+On Windows you would need administrative permissions for that.
+
+```bash
+htools
+```
+
+**Build an example:**
+
+You can build any example by running `hhelper`, `hhelper`, `hbuild`
+
+1) Run hhelper — generates `cache.json`:
+2) Run hhelper — compiles `configure` and `build` executables, then runs `configure`:
+3) Run hbuild - runs `build` executable. Produces `{buildDir}/release/app`:
+
+```bash
+cd HMake/Examples/Example1
+mkdir build && cd build
+hhelper
+hhelper
+hbuild
+```
+
+<details>
+<summary> Step-by-Step Explanation </summary>
+
+Unlike few other build-systems, HMake does not
+detect the tools installed every time you configure a project but
+is instead done only when you run ```htools``` and the result is cached to
+```C:\Program Files (x86)\HMake\toolsCache.json```
+on Windows and ```/home/toolsCache.json``` in Linux.
+Currently, it is just a stud.
+HMake is more ```make``` like in this aspect:).
+It writes in ```toolsCache.json```
+whatever is specified in ```ToolsCache::detectToolsAndInitialize```.
+
+First hhelper will create the cache.json file.
+cache.json file provides an opportunity to select a different toolset.
+It has array indices to the arrays of different tools in toolsCache.json.
+cache.json file also has the commands
+that will be used to build ```configure``` and ```build``` executables.
+build executable is built with ```BUILD_MODE``` macro defined.
+Running hhelper second time will create these executables,
+linking ```hconfigure-c``` and ```hconfigure-b``` respectively.
+Only difference is that ```hconfigure-b``` is compiled with
+```BUILD_MODE``` macro.
+If the compilation of these executables succeed,
+hhelper will run the ```configure``` exe in the build-dir
+completing the configure stage.
+Now running hbuild will run the ```build``` exe.
+This will create the app executable in ```{buildDir}/release/app```.
+
+CMakeLists.txt builds with address sanitizer,
+so you need to copy the respective dll
+in cmake build-dir for debugging on Windows.
+It has targets for all the Examples.
+You need to run these targets in the respective ```Build``` dir.
+E.g. for `Example1`, there is `Example1Build` and `Example1Config`.
+To replicate what `configure` does, run `Example1Config` in `Examples/Example1/Build`.
+Similarly, to replicate the `build`, run `Example1Build` in `Examples/Example1/Build`.
+
+</details>
+
+Any of the following example can be built by creating a build-dir in the example directory.
+These examples are same to those in `Example/` directory.
+
+## HMake Architecture Examples
+
+### Example 1 — Basic dependency ordering
 
 <details>
 <summary>hmake.cpp</summary>
@@ -104,25 +230,12 @@ MAIN_FUNCTION
 
 </details>
 
-
-To extend the build-system, we need to derive from the ```BTarget```
-and override ```updateBTarget``` function.
-If you build this example, it will print "Hello\nWorld\n" during the build.
-First ```a.updateBTarget``` runs and then ```b.updateBTarget``` runs.
-Because we specified a dependency relationship between ```a``` and ```b```.
-
-HMake does topological sorting and target updating 2 times in one execution.
-In ```round == 1```, we develop the compile command
-and link command of different targets based on their dependencies.
-This is what the CMake does.
-and in ```round == 0```, we build these which is what Ninja does.
-In round1, ```completeRoundOne``` function is called by the build-system
-while in round0, ```isEventRegistered``` and ```isEventCompleted```
-functions are used.
+Output: `Hello\nWorld\n`. Because `b` depends on `a` in round 1, `a.completeRoundOne()` always runs before
+`b.completeRoundOne()`.
 
 Let's clarify this with more examples.
 
-### Example 2
+### Example 2 — Inverting dependency order between rounds
 
 <details>
 <summary>hmake.cpp</summary>
@@ -171,23 +284,14 @@ So, by declaring 1 ```BTarget```, you declare 2 ```RealBTargets```.
 ```addDep<0>``` will add dependency for round0 while
 ```addDep<1>``` will add dependency for round1.
 
-```isEventRegistered``` should return true if it launched a new process
-using ```run.startAsyncProcess``` function
-and false otherwise.
-In that case, ```isEventCompleted``` is called
-when the child process completes or when the child process outputs
-a message for the build-system on stdout.
-This message is passed as ```message``` parameter to the ```BTarget::isEventCompleted```
-function.
-If this parameter is empty, it means that the child process completed.
-In that case, ```run.output``` is the output of the child process.
-Build-system differentiates the output from the IPC message,
-as any IPC message must be followed by the message-size and the delimiter
-```P2978::delimiter```.
-This is how HMake supports generic IPC which is then extended by ```CppSrc```
-and ```CppMod``` classes to support C++20 modules and header-units.
+`isEventRegistered` should return `true` if it launched a subprocess via `run.startAsyncProcess`, and `false` if it
+completed synchronously. When a subprocess writes an IPC message to stdout, or exits, HMake calls `isEventCompleted`. An
+empty `message` parameter means the process exited; `run.output` contains its full output.
 
-### Example 4
+IPC messages are distinguished from ordinary stdout by being followed by the message size and `P2978::delimiter`. This
+is the same mechanism used by `CppSrc` and `CppMod` to implement C++20 modules and header-unit support.
+
+### Example 4 — Cycle detection
 
 <details>
 <summary>hmake.cpp</summary>
@@ -233,17 +337,9 @@ This will print the following.
 Cycle found: Cat1 -> Cat2 -> Cat3 -> Cat1
 ```
 
-As we defined a cycle between the dependencies, 
-HMake will detect it and inform the user.
-By default, it would have printed
-```Cycle found: BTarget 0 -> BTarget 1 -> BTarget 2 -> BTarget 0```,
-but by overriding ```BTarget::getPrintName```,
-we customized this message to differentiate between different overrides of BTarget.
-By default, it prints ```BTarget``` and the id number.
-```CppTarget```, ```LOAT``` prints ```name```,
-while ```CppSrc``` and ```CppMod``` prints ```node->filePath```.
+Without `getPrintName()` overridden, HMake would print `BTarget 0 -> BTarget 1 -> BTarget 2 -> BTarget 0`.
 
-### Example 5
+### Example 5 — Error propagation
 
 <details>
 <summary>hmake.cpp</summary>
@@ -298,13 +394,14 @@ This example demonstrates HMake error handling.
 If ```updateBTarget``` set ```RealBTarget::exitStatus```
 to anything but ```EXIT_SUCCESS```, then HMake will set the ```RealBTarget::exitStatus```
 of all the dependent targets to```EXIT_FAILURE```.
+
 This way target can learn the execution status of its dependents
 and also communicate theirs to their dependents.
-If in a round, ```RealBTarget::exitStatus``` of any one of the targets is
+If in round1, ```RealBTarget::exitStatus``` of any one of the targets is
 not equal to ```EXIT_SUCCESS```,
-then HMake will exit early and not execute the last round.
+then HMake will exit early and not execute the round0.
 
-### Example 6
+### Example 6 — Dynamic targets
 
 <details>
 <summary>hmake.cpp</summary>
@@ -365,23 +462,23 @@ between these targets.
 These targets were not part of the DAG but instead dynamically added.
 Initially, only ```target2``` was the part of the DAG.
 
-HMake supports dynamic targets in last round as demonstrated.
+HMake supports dynamic targets in round0 as demonstrated.
 These are an HMake speciality.
 Not only you can add new edges in the DAG dynamically,
 but also new nodes as well.
 However, you have to take care of the following aspects:
 
 1. You have to update the ```Builder::updateBTargetsSizeGoal``` variable with the
-   additional number of times ```updateBTarget``` will be called.
+   additional number of times ```isEventRegistered``` will be called.
 2. If any newly added targets do not have any dependency
    then it must be added in ```updateBTargets``` list like we added ```c``` target.
 3. Besides new targets, we can also modify the dependencies of older targets.
    But these targets ```dependenciesSize``` should not be zero.
    Because if the target ```dependenciesSize``` becomes zero,
    it is added to the ```updateBTargets``` list.
-   HMake does not allow removing elements from this list.
+   HMake does not allow removing or modifying elements in this list.
 
-### Example 7
+### Example 7 — Dynamic edges with cycle detection
 
 <details>
 <summary>hmake.cpp</summary>
@@ -414,16 +511,14 @@ MAIN_FUNCTION
 
 </details>
 
-In this example, we define a new dependency relationship between older targets.
-This is completely legal as we don't break the Rule 3.
-But, we have added a cyclic dependency.
-This will be detected and HMake will print the following error.
+
+Adding edges dynamically that form a cycle is detected and reported the same way as static cycles.
 
 ```
 Cycle found: BTarget 0 -> BTarget 1 -> BTarget 0
 ```
 
-### Example 8
+### Example 8 — Breaking dynamic target rules
 
 <details>
 <summary>hmake.cpp</summary>
@@ -461,67 +556,9 @@ This breaks the rule 2.
 Uncommenting the line above will fix this.
 This might hang or HMake might detect and print ```HMake API misuse```.
 
-## Nodes
+## Examples: C++ Build
 
-<details>
-<summary></summary>
-
-Every file and dir-path is represented by `Node` class in HMake.
-This class assigns a permanent number to a filesystem path,
-and it will remain consistent across
-rebuilds and reconfigurations.
-The build-cache and config-cache can use this number instead of the full
-path.
-This results in upto 200x lesser total cache
-(config-cache + build-cache + nodes).
-I estimate that for a project like UE5, for one configuration,
-the total cache would be less than 10MB.
-This means that even for very big projects,
-build starts instantaneously and consumes very less memory.
-
-During the build, in the first round,
-```Node::toBeChecked``` is set to true for nodes whose status we are
-interested in (last update time of the Node and whether the Node exits
-or not).
-Then after the round1 and before the round0,
-for these Nodes, in ```Builder::nodeCheck``` function,
-```Node::performSystemCheck``` is called in-parallel.
-While io-uring is used when supported.
-Node abstraction and HMake architecture allows a single file to be checked
-just once and that too in bulk.
-This allows HMake to have rebuild speeds at-least 2x faster than Ninja.
-
-</details>
-
-## TargetCache
-
-<details>
-<summary></summary>
-
-```TargetCache``` class allows for storing cache at config-time and build-time.
-Its constructor takes a unique name (generally same as ```BTarget::name```)
-and at config-time creates an entry in both config-cache and build-cache
-(if it did not exist before).
-config-cache can only be written at config-time.
-For example, for ```CppTarget```,
-HMake stores the node numbers for source-files, module-files, header-units,
-header-files and include-dirs in the config-cache.
-User specify relative paths for these values in ```buildSpecification```
-function.
-HMake normalizes these and checks for uniqueness before storing in the
-config-cache.
-Now, at build-time ```buildSpecification```,
-retrieves these values from the config-cache.
-
-</details>
-
-```BTarget```, ```Node```, ```Builder``` and ```TargetCache```
-form the core of the HMake build-system.
-Mega projects can use these to design project specific APIs.
-
-## C++ Examples
-
-### Example 1
+### Example 1 — Minimal executable
 
 <details>
 <summary>hmake.cpp</summary>
@@ -545,80 +582,19 @@ MAIN_FUNCTION
 
 </details>
 
-After fetching source-code,
-modify the last line in ```CppCompilerFeatures::initialize```
-to point to the path of release binary of my custom Clang fork.
-Then build the HMake project
-and add the build-dir in path environment variable.
-Run ```htools``` (with admin permission on Windows).
-This detects all the installed tools.
-Unlike few other build-systems, HMake does not
-detect the tools installed every time you configure a project but
-is instead done only when you run ```htools``` and the result is cached to
-```C:\Program Files (x86)\HMake\toolsCache.json```
-on Windows and ```/home/toolsCache.json``` in Linux.
-Currently, it is just a stud.
-HMake is more ```make``` like in this aspect:).
-It writes in ```toolsCache.json```
-whatever is specified in ```ToolsCache::detectToolsAndInitialize```.
 
-Now, create build-dir in Example1 directory
-and run hhelper twice and hbuild once.
-hhelper will create the cache.json file.
-cache.json file provides an opportunity to select a different toolset.
-It has array indices to the arrays of different tools in toolsCache.json.
-cache.json file also has the commands
-that will be used to build ```configure``` and ```build``` executables.
-build executable is built with ```BUILD_MODE``` macro defined.
-Running hhelper second time will create these executables,
-linking ```hconfigure-c``` and ```hconfigure-b``` respectively.
-Only difference is that ```hconfigure-b``` is compiled with
-```BUILD_MODE``` macro.
-If the compilation of these executables succeed,
-hhelper will run the ```configure``` exe in the build-dir
-completing the configure stage.
-Now running hbuild will run the ```build``` exe.
-This will create the app executable in ```{buildDir}/release/app```.
+`getConfiguration()` creates a default `Configuration` named `release` with `ConfigType::RELEASE`.
+`CALL_CONFIGURATION_SPECIFICATION` ensures `configurationSpecification` is only invoked when `hbuild` is executed in the
+build directory or a matching configuration subdirectory. This allows a multi-configuration project to build only the
+active configuration without running the others.
 
-CMakeLists.txt builds with address sanitizer,
-so you need to copy the respective dll
-in cmake build-dir for debugging on Windows.
-It has targets for all the Examples.
-You need to run these targets in the respective ```Build``` dir.
+`getCppExeDSC` returns a `DSC<CppTarget>` (Dependency Specification Container). `getSourceTarget()` returns the
+`CppTarget` to which source files, include directories, and module files are attached.
 
-```getConfiguration``` creates a default ```Configuration```
-with ```release``` name
-and with config-type ```ConfigType::RELEASE```.
-```CALL_CONFIGURATION_SPECIFICATION``` macro ensures that
-```configurationSpecification``` for a ```Configuration```
-is only called if ```hbuild``` is executed in build-dir
-or build-dir/{Configuration::name}
-directory.
-This way if a project has multiple configurations defined,
-and for the moment, we are interested in just one of them,
-we can skip the others by executing the ```hbuild``` in
-build-dir/{Configuration::name} of our interest.
+Every `Configuration` creates a `stdCppTarget` by default, which carries the standard include directories from
+`toolsCache.json`. All targets created via `get*` functions receive this as a private dependency automatically.
 
-This line ```config.getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp");```
-in the file create a
-```DSC<CppTarget>```.
-```DSC<CppTarget>``` manages dependency specification as you will see
-later on.
-It has pointers to ```CppTarget``` and ```LOAT```.
-```getSourceTarget``` returns the ```CppTarget``` pointer to which we add the source-files.
-There are other ```get*``` functions available in ```Configuration```
-class.
-
-Every ```Configuration``` has ```stdCppTarget``` and
-```AssignStandardCppTarget``` defaulted to ```YES```.
-These two variables control whether an ```stdCppTarget``` is created and
-assigned as private dependency to all the ```Configuration``` targets.
-This ```std``` target has standard include-dirs initialized from
-```toolsCache.json``` file.
-```get*``` functions adds this target as a private dependency based on
-```AssignStandardCppTarget``` value.
-
-### Example 2
+### Example 2 — Multiple configurations and source filtering
 
 <details>
 <summary>hmake.cpp</summary>
@@ -643,18 +619,15 @@ MAIN_FUNCTION
 
 </details>
 
-Building this example will create two dirs ```Debug``` and ```Release```, based on the
-```getConfiguraion``` line in ```buildSpecification```.
-In both of these dirs the target ```app``` will be built with the respective configuration
-properties, because,
-we set these properties in ```assign``` call.
-These features and the flags they result in are modeled on the Boost build-system b2.
-A complete list of such features can be found in ```Features.hpp```.
-```sourceDirsRE``` function also takes the ```regex``` argument,
-which otherwise is defaulted to ```.*``` in ```sourceDirs```
-while ```rSourceDirs``` uses a recursive dir iterator.
 
-### Example 3
+Each `getConfiguration` call creates a named configuration subdirectory. `assign()` sets build features on the
+configuration. The full list of available features (optimization level, LTO, RTTI, exceptions, sanitizers, etc.) is in
+`Features.hpp`, modeled on the Boost.Build feature system.
+
+`sourceDirsRE` accepts a regex to filter files; `sourceDirs` defaults the regex to `.*`; `rSourceDirs` uses a recursive
+directory iterator.
+
+### Example 3 — Cache variables
 
 <details>
 <summary>hmake.cpp</summary>
@@ -692,12 +665,10 @@ MAIN_FUNCTION
 
 </details>
 
-This example showcases the cache variable.
-Changing ```FILE1``` bool to ```false``` and then
-running ```hbuild``` after reconfiguring will rebuild the project,
-and file2 will be used this time.
+`CacheVariable` persists a typed value in `cache.hmake`. Edit the value and re-run configure to change which branch is
+taken without modifying source. Any type with nlohmann/json serialization support can be used.
 
-### Example 4
+### Example 4 — Static and shared libraries
 
 <details>
 <summary>hmake.cpp</summary>
@@ -729,20 +700,15 @@ MAIN_FUNCTION
 
 </details>
 
-This example showcases dependency specification.
-Also, ```getCppStatic``` and ```getCppShared``` are called with two optional arguments besides
-the mandatory ```name``` argument.
-The ```true``` means that the code would be compiled with the suitable compile-definition and
-suitable compile-definition will also be propagated above,
-based on whether the ```DSC``` is a static-library or a shared-library.
-```DSC``` handles all that.
-The third argument specifies what compile-definition to use.
-By default ```name + "_EXPORT"``` compile-definition will be used.
-On Windows, HMake by default, copies the shared library dependencies to the build-dir.
-You can change that by ```assign(CopyDLLToExeDirOnNTOs::NO)``` call of the
-```Configuration```.
 
-### Example 6
+The second argument `true` enables automatic export macro handling: HMake emits the appropriate compile definition for a
+static vs. shared build and propagates it to dependents. The third argument overrides the default macro name (which
+would otherwise be `Cat-Static_EXPORT`).
+
+On Windows, HMake copies shared library dependencies to the executable directory by default. Disable with
+`config.assign(CopyDLLToExeDirOnNTOs::NO)`.
+
+### Example 6 — Prebuilt libraries and dependency propagation
 
 <details>
 <summary>hmake.cpp</summary>
@@ -793,15 +759,16 @@ MAIN_FUNCTION
 
 </details>
 
-This example showcases the consumption of a prebuilt library.
-Also showcases the dependency propagation,
-and the controlling prowess of ```DSC```
-e.g. if a static-library has another static-library as dependency,
-then this dependency will be propagated above up to the Shared-Library or Exe.
-Also, static libraries will be specified in order as it may cause problems with
-some linkers.
 
-### Example 7
+`DSC` correctly handles transitive static library dependencies. If a static library depends on another static library,
+`DSC` propagates that dependency up the chain until it reaches a shared library or executable, and ensures the link
+order is correct for linkers that require it.
+
+`getCppTargetDSC_P` accepts an output directory `Node*`, allowing consumption of a prebuilt library from another build
+tree. Pass `nullptr` at build time (only needed at configure time. why do an extra `Node::getNodeNonNormalized` function
+call).
+
+### Example 7 — C++20 modules and header units
 
 <details>
 <summary>hmake.cpp</summary>
@@ -834,30 +801,32 @@ MAIN_FUNCTION
 
 </details>
 
-This example showcases the HMake Modules Support.
-if we want to compile hu or module,
-then ```IsCppMod::YES``` must be supplied.
-Specifying modules will be an error in ```IsCppMod::NO``` mode.
-However, hu related API will instead use header-files.
-This is to support backward compatibility so that if library supports
-multiple compilers,
-it can be compiled as hu with one and as header-files with the other.
 
-If ```IsCppMod::YES``` supplied,
-then all targets of configuration will compile using IPC based approach.
+HMake has first-class support for C++20 modules and header units, including the ability to compile them without a prior
+scanning step. It is currently the only build system with this capability. The approach is described
+in [ISO paper P2978](https://htmlpreview.github.io/?https://github.com/HassanSajjad-302/iso-papers/blob/main/generated/my-paper.html)
+and requires [this Clang fork](https://github.com/llvm/llvm-project/pull/147682).
 
-```StdAsHeaderUnit::NO``` ensures that standard target is not configured with header-units.
-This ensures that all includes in MSVC ```std``` module are treated as header-files.
-Compilation was failing otherwise.
+HMake also supports **Big Header Units**: with a single configuration flag, all header files for a target can be
+compiled as individual header units, or merged into one large composite header unit for faster incremental builds.
 
-```BigHeaderUnit::YES``` ensures that libraries are compiled as big hu.
-This will compile 2 header-units.
-One will contain all the ```stl``` includes.
-While one will contain only ```Windows.h```.
-On Linux, this also compile 2 with different contents.
-This is set up in ```Configuration::initialize```.
+To enable modules for a configuration:
 
-### Example 8
+```cpp
+getConfiguration("modules").assign(IsCppMod::YES);
+```
+
+All targets in that configuration will be compiled using the IPC-based module protocol. Setting `IsCppMod::YES` is
+required to use `moduleFiles()`, `moduleFilesRE()`, and related APIs. In `IsCppMod::NO` mode, header-unit API calls fall
+back to treating files as ordinary headers, enabling source-compatible support across compilers.
+
+`StdAsHeaderUnit::NO` prevents the standard library target from being configured as a header unit, which is required
+when using the MSVC `std` module (certain includes inside it fail when treated as header units).
+
+`BigHeaderUnit::YES` compiles two composite header units per platform (one for STL headers, one for platform headers
+such as `Windows.h` on Windows). This is set up in `Configuration::initialize()` function.
+
+### Example 8 — Module directories
 
 <details>
 <summary>hmake.cpp</summary>
@@ -881,7 +850,7 @@ MAIN_FUNCTION
 
 </details>
 
-### Example 9
+### Example 9 — Header-Units across multiple targets from one parent directory
 
 <details>
 <summary>hmake.cpp</summary>
@@ -932,7 +901,7 @@ Using ```interfaceIncludesSource```
 and ```privateHUDirsRE``` ensure that header-units from ```include/lib1/```
 and ```src/lib1/``` are considered header-units of ```lib1``` and so.
 
-### Example 10
+### Example 10 — Header units across multiple targets in the same directory
 
 <details>
 <summary>hmake.cpp</summary>
@@ -1097,7 +1066,7 @@ Run `hbuild` in the configure dir:
 
 Sample Output: `ABEDF`
 
-C is skipped because `buildExplicit = true`, and it wasn’t explicitly named.
+C is skipped because `buildExplicit = true`, and it wasn't explicitly named.
 
 2.
 
@@ -1121,7 +1090,7 @@ Run hbuild in the configure dir with A/C, `hbuild A/C`:
 
 Sample Output: `ABEDCF`
 
-C is explicitly named, so it’s included with other targets.
+C is explicitly named, so it's included with other targets.
 
 5.
 
@@ -1149,30 +1118,22 @@ Run hbuild in A with C and ../d, `hbuild C ../D`:
 Sample Output: `BAECD`
 All except F, which lacks a directory, and has ```buildExplicit == false```,
 and does not have any dependent targets either.
-F is only printed when `hbuild` runs in the configure dir.
+F is only printed when `hbuild` runs in to configure dir.
 
 </details>
 
-# Future Direction
+## Future Direction
 
-HMake 1.0 will only be released when, a few of the mega projects like UE5, AOSP, Qt, etc. could be
-supported.
-So, the API can be considered idiomatic.
-Also, the support for popular languages, and frameworks like Android, IOS, and,
-the popular CI/CD etc. could be supported.
-I am confident about releasing 1.0 in the next 1-3 years.
-This depends, depends on reception.
+HMake 1.0 will be released when it can build several large projects (UE5, AOSP, Qt, and similar) using the idiomatic
+API, with support for popular languages, frameworks (Android, iOS), and CI/CD systems. A 1.0 release is expected within
+1–3 years, depending on reception.
 
-If you maintain the build of a mega-project,
-and want to compile your software 10x faster today,
-I am very interested in collaboration.
-Minimal source-code changes will be needed.
-If you just need help related to any aspect of HMake or have any opinion to share,
-Please feel free to approach me.
+If you maintain the build system of a large project and are interested in significantly faster builds, collaboration is
+welcome. The required source changes are minimal.
+
+---
 
 ## Support
 
-I have been working on this project, for over 4 years.
-Please consider donating.
-Contact me here if you want to donate hassan.sajjad069@gmail.com,
-or you can donate to me through Patreon. Thanks.
+HMake has been in development for over 4 years. If you find it useful, please consider supporting the project
+via [Patreon](https://www.patreon.com) or by contacting hassan.sajjad069@gmail.com.

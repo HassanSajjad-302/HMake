@@ -22,7 +22,7 @@ struct Cache
     uint8_t selectedArchiverArrayIndex;
     bool isScannerInToolsArray;
     uint8_t selectedScannerArrayIndex;
-    uint16_t numberOfBuildThreads;
+    uint16_t numberOfBuildProcesses;
     Json cacheVariables;
     string configureExeBuildScript;
     string buildExeBuildScript;

@@ -20,7 +20,7 @@ Cache::Cache()
     selectedArchiverArrayIndex = 0;
     isScannerInToolsArray = isPresentInTools;
     selectedScannerArrayIndex = 0;
-    numberOfBuildThreads = std::thread::hardware_concurrency();
+    numberOfBuildProcesses = std::thread::hardware_concurrency();
 }
 
 void Cache::initializeCacheVariableFromCacheFile()
@@ -56,7 +56,7 @@ void to_json(Json &j, const Cache &cacheLocal)
     j[JConsts::archiverSelectedArrayIndex] = cacheLocal.selectedArchiverArrayIndex;
     j[JConsts::isScannerInToolsArray] = cacheLocal.isScannerInToolsArray;
     j[JConsts::scannerSelectedArrayIndex] = cacheLocal.selectedScannerArrayIndex;
-    j[JConsts::numberOfBuildThreads] = cacheLocal.numberOfBuildThreads;
+    j[JConsts::numberOfBuildThreads] = cacheLocal.numberOfBuildProcesses;
     j[JConsts::cacheVariables] = cacheLocal.cacheVariables;
     j[JConsts::configureExeBuildScript] = cacheLocal.configureExeBuildScript;
     j[JConsts::buildExeBuildScript] = cacheLocal.buildExeBuildScript;
@@ -83,7 +83,7 @@ void from_json(const Json &j, Cache &cacheLocal)
     cacheLocal.selectedArchiverArrayIndex = j.at(JConsts::archiverSelectedArrayIndex).get<uint8_t>();
     cacheLocal.isScannerInToolsArray = j.at(JConsts::isScannerInToolsArray).get<bool>();
     cacheLocal.selectedScannerArrayIndex = j.at(JConsts::scannerSelectedArrayIndex).get<uint8_t>();
-    cacheLocal.numberOfBuildThreads = j.at(JConsts::numberOfBuildThreads).get<uint16_t>();
+    cacheLocal.numberOfBuildProcesses = j.at(JConsts::numberOfBuildThreads).get<uint16_t>();
     cacheLocal.cacheVariables = j.at(JConsts::cacheVariables).get<Json>();
     cacheLocal.configureExeBuildScript = j.at(JConsts::configureExeBuildScript).get<string>();
     cacheLocal.buildExeBuildScript = j.at(JConsts::buildExeBuildScript).get<string>();
