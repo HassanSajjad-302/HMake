@@ -156,7 +156,7 @@ void printErrorMessageNoReturn(const string &message)
 
 bool configureOrBuild()
 {
-    const Builder b{};
+    builder = new Builder{};
     string buffer;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -165,7 +165,7 @@ bool configureOrBuild()
         buffer.clear();
     }
     writeBuildBuffer(buffer);
-    return b.errorHappenedInRoundMode;
+    return builder->errorHappenedInRoundMode;
 }
 
 void constructGlobals()
