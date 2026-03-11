@@ -763,7 +763,8 @@ MAIN_FUNCTION
 order is correct for linkers that require it.
 
 `getCppTargetDSC_P` accepts an output directory `Node*`, allowing consumption of a prebuilt library from another build
-tree. Pass `nullptr` at build time (only needed at configure time).
+tree. Pass `nullptr` at build time (only needed at configure time. why do an extra `Node::getNodeNonNormalized` function
+call).
 
 ### Example 7
 
@@ -798,28 +799,30 @@ MAIN_FUNCTION
 
 </details>
 
-This example showcases the HMake Modules Support.
-if we want to compile hu or module,
-then ```IsCppMod::YES``` must be supplied.
-Specifying modules will be an error in ```IsCppMod::NO``` mode.
-However, hu related API will instead use header-files.
-This is to support backward compatibility so that if library supports
-multiple compilers,
-it can be compiled as hu with one and as header-files with the other.
 
-If ```IsCppMod::YES``` supplied,
-then all targets of configuration will compile using IPC based approach.
+HMake has first-class support for C++20 modules and header units, including the ability to compile them without a prior
+scanning step. It is currently the only build system with this capability. The approach is described
+in [ISO paper P2978](https://htmlpreview.github.io/?https://github.com/HassanSajjad-302/iso-papers/blob/main/generated/my-paper.html)
+and requires [this Clang fork](https://github.com/llvm/llvm-project/pull/147682).
 
-```StdAsHeaderUnit::NO``` ensures that standard target is not configured with header-units.
-This ensures that all includes in MSVC ```std``` module are treated as header-files.
-Compilation was failing otherwise.
+HMake also supports **Big Header Units**: with a single configuration flag, all header files for a target can be
+compiled as individual header units, or merged into one large composite header unit for faster incremental builds.
 
-```BigHeaderUnit::YES``` ensures that libraries are compiled as big hu.
-This will compile 2 header-units.
-One will contain all the ```stl``` includes.
-While one will contain only ```Windows.h```.
-On Linux, this also compile 2 with different contents.
-This is set up in ```Configuration::initialize```.
+To enable modules for a configuration:
+
+```cpp
+getConfiguration("modules").assign(IsCppMod::YES);
+```
+
+All targets in that configuration will be compiled using the IPC-based module protocol. Setting `IsCppMod::YES` is
+required to use `moduleFiles()`, `moduleFilesRE()`, and related APIs. In `IsCppMod::NO` mode, header-unit API calls fall
+back to treating files as ordinary headers, enabling source-compatible support across compilers.
+
+`StdAsHeaderUnit::NO` prevents the standard library target from being configured as a header unit, which is required
+when using the MSVC `std` module (certain includes inside it fail when treated as header units).
+
+`BigHeaderUnit::YES` compiles two composite header units per platform (one for STL headers, one for platform headers
+such as `Windows.h` on Windows). This is set up in `Configuration::initialize()` function.
 
 ### Example 8
 
@@ -1113,30 +1116,22 @@ Run hbuild in A with C and ../d, `hbuild C ../D`:
 Sample Output: `BAECD`
 All except F, which lacks a directory, and has ```buildExplicit == false```,
 and does not have any dependent targets either.
-F is only printed when `hbuild` runs in the configure dir.
+F is only printed when `hbuild` runs in to configure dir.
 
 </details>
 
-# Future Direction
+## Future Direction
 
-HMake 1.0 will only be released when, a few of the mega projects like UE5, AOSP, Qt, etc. could be
-supported.
-So, the API can be considered idiomatic.
-Also, the support for popular languages, and frameworks like Android, IOS, and,
-the popular CI/CD etc. could be supported.
-I am confident about releasing 1.0 in the next 1-3 years.
-This depends, depends on reception.
+HMake 1.0 will be released when it can build several large projects (UE5, AOSP, Qt, and similar) using the idiomatic
+API, with support for popular languages, frameworks (Android, iOS), and CI/CD systems. A 1.0 release is expected within
+1–3 years, depending on reception.
 
-If you maintain the build of a mega-project,
-and want to compile your software 10x faster today,
-I am very interested in collaboration.
-Minimal source-code changes will be needed.
-If you just need help related to any aspect of HMake or have any opinion to share,
-Please feel free to approach me.
+If you maintain the build system of a large project and are interested in significantly faster builds, collaboration is
+welcome. The required source changes are minimal.
+
+---
 
 ## Support
 
-I have been working on this project, for over 4 years.
-Please consider donating.
-Contact me here if you want to donate hassan.sajjad069@gmail.com,
-or you can donate to me through Patreon. Thanks.
+HMake has been in development for over 4 years. If you find it useful, please consider supporting the project
+via [Patreon](https://www.patreon.com) or by contacting hassan.sajjad069@gmail.com.
