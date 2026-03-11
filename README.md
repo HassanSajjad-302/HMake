@@ -197,7 +197,7 @@ These examples are same to those in `Example/` directory.
 
 ## HMake Architecture Examples
 
-### Example 1
+### Example 1 — Basic dependency ordering
 
 <details>
 <summary>hmake.cpp</summary>
@@ -235,7 +235,7 @@ Output: `Hello\nWorld\n`. Because `b` depends on `a` in round 1, `a.completeRoun
 
 Let's clarify this with more examples.
 
-### Example 2
+### Example 2 — Inverting dependency order between rounds
 
 <details>
 <summary>hmake.cpp</summary>
@@ -289,7 +289,9 @@ completed synchronously. When a subprocess writes an IPC message to stdout, or e
 empty `message` parameter means the process exited; `run.output` contains its full output.
 
 IPC messages are distinguished from ordinary stdout by being followed by the message size and `P2978::delimiter`. This
-is the same mechanism used by `CppSrc` and `CppMod` to implement C++20 modules and header-unit support.### Example 4
+is the same mechanism used by `CppSrc` and `CppMod` to implement C++20 modules and header-unit support.
+
+### Example 4 — Cycle detection
 
 <details>
 <summary>hmake.cpp</summary>
@@ -337,7 +339,7 @@ Cycle found: Cat1 -> Cat2 -> Cat3 -> Cat1
 
 Without `getPrintName()` overridden, HMake would print `BTarget 0 -> BTarget 1 -> BTarget 2 -> BTarget 0`.
 
-### Example 5
+### Example 5 — Error propagation
 
 <details>
 <summary>hmake.cpp</summary>
@@ -399,7 +401,7 @@ If in round1, ```RealBTarget::exitStatus``` of any one of the targets is
 not equal to ```EXIT_SUCCESS```,
 then HMake will exit early and not execute the round0.
 
-### Example 6
+### Example 6 — Dynamic targets
 
 <details>
 <summary>hmake.cpp</summary>
@@ -476,7 +478,7 @@ However, you have to take care of the following aspects:
    it is added to the ```updateBTargets``` list.
    HMake does not allow removing or modifying elements in this list.
 
-### Example 7
+### Example 7 — Dynamic edges with cycle detection
 
 <details>
 <summary>hmake.cpp</summary>
@@ -516,7 +518,7 @@ Adding edges dynamically that form a cycle is detected and reported the same way
 Cycle found: BTarget 0 -> BTarget 1 -> BTarget 0
 ```
 
-### Example 8
+### Example 8 — Breaking dynamic target rules
 
 <details>
 <summary>hmake.cpp</summary>
@@ -556,7 +558,7 @@ This might hang or HMake might detect and print ```HMake API misuse```.
 
 ## Examples: C++ Build
 
-### Example 1
+### Example 1 — Minimal executable
 
 <details>
 <summary>hmake.cpp</summary>
@@ -592,7 +594,7 @@ active configuration without running the others.
 Every `Configuration` creates a `stdCppTarget` by default, which carries the standard include directories from
 `toolsCache.json`. All targets created via `get*` functions receive this as a private dependency automatically.
 
-### Example 2
+### Example 2 — Multiple configurations and source filtering
 
 <details>
 <summary>hmake.cpp</summary>
@@ -625,7 +627,7 @@ configuration. The full list of available features (optimization level, LTO, RTT
 `sourceDirsRE` accepts a regex to filter files; `sourceDirs` defaults the regex to `.*`; `rSourceDirs` uses a recursive
 directory iterator.
 
-### Example 3
+### Example 3 — Cache variables
 
 <details>
 <summary>hmake.cpp</summary>
@@ -666,7 +668,7 @@ MAIN_FUNCTION
 `CacheVariable` persists a typed value in `cache.hmake`. Edit the value and re-run configure to change which branch is
 taken without modifying source. Any type with nlohmann/json serialization support can be used.
 
-### Example 4
+### Example 4 — Static and shared libraries
 
 <details>
 <summary>hmake.cpp</summary>
@@ -706,7 +708,7 @@ would otherwise be `Cat-Static_EXPORT`).
 On Windows, HMake copies shared library dependencies to the executable directory by default. Disable with
 `config.assign(CopyDLLToExeDirOnNTOs::NO)`.
 
-### Example 6
+### Example 6 — Prebuilt libraries and dependency propagation
 
 <details>
 <summary>hmake.cpp</summary>
@@ -766,7 +768,7 @@ order is correct for linkers that require it.
 tree. Pass `nullptr` at build time (only needed at configure time. why do an extra `Node::getNodeNonNormalized` function
 call).
 
-### Example 7
+### Example 7 — C++20 modules and header units
 
 <details>
 <summary>hmake.cpp</summary>
@@ -824,7 +826,7 @@ when using the MSVC `std` module (certain includes inside it fail when treated a
 `BigHeaderUnit::YES` compiles two composite header units per platform (one for STL headers, one for platform headers
 such as `Windows.h` on Windows). This is set up in `Configuration::initialize()` function.
 
-### Example 8
+### Example 8 — Module directories
 
 <details>
 <summary>hmake.cpp</summary>
@@ -848,7 +850,7 @@ MAIN_FUNCTION
 
 </details>
 
-### Example 9
+### Example 9 — Header-Units across multiple targets from one parent directory
 
 <details>
 <summary>hmake.cpp</summary>
@@ -899,7 +901,7 @@ Using ```interfaceIncludesSource```
 and ```privateHUDirsRE``` ensure that header-units from ```include/lib1/```
 and ```src/lib1/``` are considered header-units of ```lib1``` and so.
 
-### Example 10
+### Example 10 — Header units across multiple targets in the same directory
 
 <details>
 <summary>hmake.cpp</summary>
@@ -1064,7 +1066,7 @@ Run `hbuild` in the configure dir:
 
 Sample Output: `ABEDF`
 
-C is skipped because `buildExplicit = true`, and it wasn’t explicitly named.
+C is skipped because `buildExplicit = true`, and it wasn't explicitly named.
 
 2.
 
@@ -1088,7 +1090,7 @@ Run hbuild in the configure dir with A/C, `hbuild A/C`:
 
 Sample Output: `ABEDCF`
 
-C is explicitly named, so it’s included with other targets.
+C is explicitly named, so it's included with other targets.
 
 5.
 
