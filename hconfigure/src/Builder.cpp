@@ -554,7 +554,7 @@ void Builder::checkNodes()
 
     for (uint16_t i = 1; i < workerCount; ++i)
     {
-        workers.emplace_back([chunk = chunks[i]]() {
+        workers.emplace_back([chunk = chunks[i]] {
             for (Node *node : chunk)
             {
                 node->performSystemCheck();
