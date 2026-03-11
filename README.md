@@ -106,8 +106,10 @@ ninja clang
 cd ../..
 ```
 
-Edit `ToolsCache::detectToolsAndInitialize` in ToolsCache.cpp — Point to the absolute path of the clang binary:
-`llvm-project/my-fork/bin/clang`
+On Linux, edit `ToolsCache::detectToolsAndInitialize` in ToolsCache.cpp — Point to the absolute path of the clang
+binary:
+`llvm-project/my-fork/bin/clang`.
+On Windows, edit last line in `CppCompilerFeatures::initialize`.
 
 **Clone and build HMake:**
 
@@ -128,15 +130,19 @@ export PATH=$PATH:/path/to/HMake/build
 
 **Detect and cache installed tools — run once, not per project:**
 
+On Windows you would need administrative permissions for that.
+
 ```bash
 htools
 ```
 
 **Build an example:**
 
-First run — generates `cache.json`:
-Second run — compiles `configure` and `build` executables, then runs `configure`:
-Produces `{buildDir}/release/app`:
+You can build any example by running `hhelper`, `hhelper`, `hbuild`
+
+1) Run hhelper — generates `cache.json`:
+2) Run hhelper — compiles `configure` and `build` executables, then runs `configure`:
+3) Run hbuild - runs `build` executable. Produces `{buildDir}/release/app`:
 
 ```bash
 cd HMake/Examples/Example1
@@ -149,18 +155,6 @@ hbuild
 <details>
 <summary> Step-by-Step Explanation </summary>
 
-Any of the following example can be built by creating a build-dir in the example directory.
-These examples are same to those in `Example/` directory.
-
-To build these, follow the following steps.
-
-After fetching source-code,
-modify the last line in ```CppCompilerFeatures::initialize```
-to point to the path of release binary of my custom Clang fork.
-Then build the HMake project
-and add the build-dir in path environment variable.
-Run ```htools``` (with admin permission on Windows).
-This detects all the installed tools.
 Unlike few other build-systems, HMake does not
 detect the tools installed every time you configure a project but
 is instead done only when you run ```htools``` and the result is cached to
@@ -171,9 +165,7 @@ HMake is more ```make``` like in this aspect:).
 It writes in ```toolsCache.json```
 whatever is specified in ```ToolsCache::detectToolsAndInitialize```.
 
-Now, create build-dir in Example1 directory
-and run hhelper twice and hbuild once.
-hhelper will create the cache.json file.
+First hhelper will create the cache.json file.
 cache.json file provides an opportunity to select a different toolset.
 It has array indices to the arrays of different tools in toolsCache.json.
 cache.json file also has the commands
@@ -194,40 +186,14 @@ so you need to copy the respective dll
 in cmake build-dir for debugging on Windows.
 It has targets for all the Examples.
 You need to run these targets in the respective ```Build``` dir.
-
-```getConfiguration``` creates a default ```Configuration```
-with ```release``` name
-and with config-type ```ConfigType::RELEASE```.
-```CALL_CONFIGURATION_SPECIFICATION``` macro ensures that
-```configurationSpecification``` for a ```Configuration```
-is only called if ```hbuild``` is executed in build-dir
-or build-dir/{Configuration::name}
-directory.
-This way if a project has multiple configurations defined,
-and for the moment, we are interested in just one of them,
-we can skip the others by executing the ```hbuild``` in
-build-dir/{Configuration::name} of our interest.
-
-This line ```config.getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp");```
-in the file create a
-```DSC<CppTarget>```.
-```DSC<CppTarget>``` manages dependency specification as you will see
-later on.
-It has pointers to ```CppTarget``` and ```LOAT```.
-```getSourceTarget``` returns the ```CppTarget``` pointer to which we add the source-files.
-There are other ```get*``` functions available in ```Configuration```
-class.
-
-Every ```Configuration``` has ```stdCppTarget``` and
-```AssignStandardCppTarget``` defaulted to ```YES```.
-These two variables control whether an ```stdCppTarget``` is created and
-assigned as private dependency to all the ```Configuration``` targets.
-This ```std``` target has standard include-dirs initialized from
-```toolsCache.json``` file.
-```get*``` functions adds this target as a private dependency based on
-```AssignStandardCppTarget``` value.
+E.g. for `Example1`, there is `Example1Build` and `Example1Config`.
+To replicate what `configure` does, run `Example1Config` in `Examples/Example1/Build`.
+Similarly, to replicate the `build`, run `Example1Build` in `Examples/Example1/Build`.
 
 </details>
+
+Any of the following example can be built by creating a build-dir in the example directory.
+These examples are same to those in `Example/` directory.
 
 ## HMake Architecture Examples
 
@@ -614,78 +580,17 @@ MAIN_FUNCTION
 
 </details>
 
-After fetching source-code,
-modify the last line in ```CppCompilerFeatures::initialize```
-to point to the path of release binary of my custom Clang fork.
-Then build the HMake project
-and add the build-dir in path environment variable.
-Run ```htools``` (with admin permission on Windows).
-This detects all the installed tools.
-Unlike few other build-systems, HMake does not
-detect the tools installed every time you configure a project but
-is instead done only when you run ```htools``` and the result is cached to
-```C:\Program Files (x86)\HMake\toolsCache.json```
-on Windows and ```/home/toolsCache.json``` in Linux.
-Currently, it is just a stud.
-HMake is more ```make``` like in this aspect:).
-It writes in ```toolsCache.json```
-whatever is specified in ```ToolsCache::detectToolsAndInitialize```.
 
-Now, create build-dir in Example1 directory
-and run hhelper twice and hbuild once.
-hhelper will create the cache.json file.
-cache.json file provides an opportunity to select a different toolset.
-It has array indices to the arrays of different tools in toolsCache.json.
-cache.json file also has the commands
-that will be used to build ```configure``` and ```build``` executables.
-build executable is built with ```BUILD_MODE``` macro defined.
-Running hhelper second time will create these executables,
-linking ```hconfigure-c``` and ```hconfigure-b``` respectively.
-Only difference is that ```hconfigure-b``` is compiled with
-```BUILD_MODE``` macro.
-If the compilation of these executables succeed,
-hhelper will run the ```configure``` exe in the build-dir
-completing the configure stage.
-Now running hbuild will run the ```build``` exe.
-This will create the app executable in ```{buildDir}/release/app```.
+`getConfiguration()` creates a default `Configuration` named `release` with `ConfigType::RELEASE`.
+`CALL_CONFIGURATION_SPECIFICATION` ensures `configurationSpecification` is only invoked when `hbuild` is executed in the
+build directory or a matching configuration subdirectory. This allows a multi-configuration project to build only the
+active configuration without running the others.
 
-CMakeLists.txt builds with address sanitizer,
-so you need to copy the respective dll
-in cmake build-dir for debugging on Windows.
-It has targets for all the Examples.
-You need to run these targets in the respective ```Build``` dir.
+`getCppExeDSC` returns a `DSC<CppTarget>` (Dependency Specification Container). `getSourceTarget()` returns the
+`CppTarget` to which source files, include directories, and module files are attached.
 
-```getConfiguration``` creates a default ```Configuration```
-with ```release``` name
-and with config-type ```ConfigType::RELEASE```.
-```CALL_CONFIGURATION_SPECIFICATION``` macro ensures that
-```configurationSpecification``` for a ```Configuration```
-is only called if ```hbuild``` is executed in build-dir
-or build-dir/{Configuration::name}
-directory.
-This way if a project has multiple configurations defined,
-and for the moment, we are interested in just one of them,
-we can skip the others by executing the ```hbuild``` in
-build-dir/{Configuration::name} of our interest.
-
-This line ```config.getCppExeDSC("app").getSourceTarget().sourceFiles("main.cpp");```
-in the file create a
-```DSC<CppTarget>```.
-```DSC<CppTarget>``` manages dependency specification as you will see
-later on.
-It has pointers to ```CppTarget``` and ```LOAT```.
-```getSourceTarget``` returns the ```CppTarget``` pointer to which we add the source-files.
-There are other ```get*``` functions available in ```Configuration```
-class.
-
-Every ```Configuration``` has ```stdCppTarget``` and
-```AssignStandardCppTarget``` defaulted to ```YES```.
-These two variables control whether an ```stdCppTarget``` is created and
-assigned as private dependency to all the ```Configuration``` targets.
-This ```std``` target has standard include-dirs initialized from
-```toolsCache.json``` file.
-```get*``` functions adds this target as a private dependency based on
-```AssignStandardCppTarget``` value.
+Every `Configuration` creates a `stdCppTarget` by default, which carries the standard include directories from
+`toolsCache.json`. All targets created via `get*` functions receive this as a private dependency automatically.
 
 ### Example 2
 
@@ -712,16 +617,13 @@ MAIN_FUNCTION
 
 </details>
 
-Building this example will create two dirs ```Debug``` and ```Release```, based on the
-```getConfiguraion``` line in ```buildSpecification```.
-In both of these dirs the target ```app``` will be built with the respective configuration
-properties, because,
-we set these properties in ```assign``` call.
-These features and the flags they result in are modeled on the Boost build-system b2.
-A complete list of such features can be found in ```Features.hpp```.
-```sourceDirsRE``` function also takes the ```regex``` argument,
-which otherwise is defaulted to ```.*``` in ```sourceDirs```
-while ```rSourceDirs``` uses a recursive dir iterator.
+
+Each `getConfiguration` call creates a named configuration subdirectory. `assign()` sets build features on the
+configuration. The full list of available features (optimization level, LTO, RTTI, exceptions, sanitizers, etc.) is in
+`Features.hpp`, modeled on the Boost.Build feature system.
+
+`sourceDirsRE` accepts a regex to filter files; `sourceDirs` defaults the regex to `.*`; `rSourceDirs` uses a recursive
+directory iterator.
 
 ### Example 3
 
@@ -761,10 +663,8 @@ MAIN_FUNCTION
 
 </details>
 
-This example showcases the cache variable.
-Changing ```FILE1``` bool to ```false``` and then
-running ```hbuild``` after reconfiguring will rebuild the project,
-and file2 will be used this time.
+`CacheVariable` persists a typed value in `cache.hmake`. Edit the value and re-run configure to change which branch is
+taken without modifying source. Any type with nlohmann/json serialization support can be used.
 
 ### Example 4
 
@@ -798,18 +698,13 @@ MAIN_FUNCTION
 
 </details>
 
-This example showcases dependency specification.
-Also, ```getCppStatic``` and ```getCppShared``` are called with two optional arguments besides
-the mandatory ```name``` argument.
-The ```true``` means that the code would be compiled with the suitable compile-definition and
-suitable compile-definition will also be propagated above,
-based on whether the ```DSC``` is a static-library or a shared-library.
-```DSC``` handles all that.
-The third argument specifies what compile-definition to use.
-By default ```name + "_EXPORT"``` compile-definition will be used.
-On Windows, HMake by default, copies the shared library dependencies to the build-dir.
-You can change that by ```assign(CopyDLLToExeDirOnNTOs::NO)``` call of the
-```Configuration```.
+
+The second argument `true` enables automatic export macro handling: HMake emits the appropriate compile definition for a
+static vs. shared build and propagates it to dependents. The third argument overrides the default macro name (which
+would otherwise be `Cat-Static_EXPORT`).
+
+On Windows, HMake copies shared library dependencies to the executable directory by default. Disable with
+`config.assign(CopyDLLToExeDirOnNTOs::NO)`.
 
 ### Example 6
 
@@ -862,13 +757,13 @@ MAIN_FUNCTION
 
 </details>
 
-This example showcases the consumption of a prebuilt library.
-Also showcases the dependency propagation,
-and the controlling prowess of ```DSC```
-e.g. if a static-library has another static-library as dependency,
-then this dependency will be propagated above up to the Shared-Library or Exe.
-Also, static libraries will be specified in order as it may cause problems with
-some linkers.
+
+`DSC` correctly handles transitive static library dependencies. If a static library depends on another static library,
+`DSC` propagates that dependency up the chain until it reaches a shared library or executable, and ensures the link
+order is correct for linkers that require it.
+
+`getCppTargetDSC_P` accepts an output directory `Node*`, allowing consumption of a prebuilt library from another build
+tree. Pass `nullptr` at build time (only needed at configure time).
 
 ### Example 7
 
