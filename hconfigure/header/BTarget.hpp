@@ -11,7 +11,8 @@
 #include <string>
 #include <vector>
 
-using std::size_t, std::vector, phmap::flat_hash_map, std::lock_guard, std::array, std::string, std::string_view;
+using std::size_t, std::vector, phmap::flat_hash_map, phmap::flat_hash_set, std::lock_guard, std::array, std::string,
+    std::string_view;
 
 class BTarget;
 
@@ -248,6 +249,14 @@ class BTarget // BTarget
 
     /// Adds dependency edge for a given round and dependency type.
     template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDep(BTarget &dep);
+
+    /// This function is called by dependents of BTarget, so the scriptFile could be populated. This script could then
+    /// be run alone without HMake. Used in producing the script for compiling module-file including its dependencies.
+    /// This function is not part of CppMod class because CppMod class could have some dependencies that could like to
+    /// add to the script
+    /// \param dirPath is the directory-path where the response files and the script file is written.
+    virtual void cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents,
+                                      const string &scriptDir);
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 

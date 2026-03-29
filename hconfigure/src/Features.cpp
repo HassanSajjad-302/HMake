@@ -1235,7 +1235,6 @@ CompilerFlags CppCompilerFeatures::getCompilerFlags() const
             }
         }
 
-        flags.lang += "-x c++ ";
         // From line 512 to line 625 as no library is using pch or obj
 
         // General options, link optimizations
@@ -1434,8 +1433,7 @@ string CppCompilerFeatures::getCompileCommand()
     compileCommand += '\"' + compiler.bTPath + "\" ";
     if (compiler.bTFamily == BTFamily::GCC)
     {
-        compileCommand +=
-            flags.lang + flags.options + flags.optionsCompile + flags.optionsCompileCpp + flags.definesCompileCpp;
+        compileCommand += flags.options + flags.optionsCompile + flags.optionsCompileCpp + flags.definesCompileCpp;
     }
     else if (compiler.bTFamily == BTFamily::MSVC)
     {

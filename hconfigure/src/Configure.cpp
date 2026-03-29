@@ -64,11 +64,14 @@ static void parseCmdArgumentsAndSetConfigureNode(const int argc, char **argv)
                 dryRun = true;
                 continue;
             }
-
             if (argument == "-hu")
             {
                 huOnly = true;
                 continue;
+            }
+            if (argument == "-s")
+            {
+                standAlone = true;
             }
 
             string targetArgFullPath = (current_path() / argument).lexically_normal().string();

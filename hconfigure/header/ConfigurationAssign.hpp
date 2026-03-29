@@ -122,6 +122,14 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         useConfigurationScope = property;
     }
+    else if constexpr (std::is_same_v<decltype(property), StandAloneCommand>)
+    {
+        standAloneCommand = property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DuplicationWarning>)
+    {
+        duplicationWarning = property;
+    }
     // CommonFeatures
     else if constexpr (std::is_same_v<decltype(property), TargetOS>)
     {

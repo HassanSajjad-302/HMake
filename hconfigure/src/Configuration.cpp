@@ -9,6 +9,10 @@
 
 Configuration::Configuration(const string &name_) : BTarget(name_, false, false)
 {
+    if (standAlone)
+    {
+        standAloneCommand = StandAloneCommand::YES;
+    }
 }
 
 void Configuration::postConfigurationSpecification() const

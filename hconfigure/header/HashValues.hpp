@@ -10,7 +10,6 @@ class CppTarget;
 struct DSCFeatures;
 template <typename T> struct DSC;
 class Configuration;
-struct RoundZeroUpdateBTarget;
 struct Define;
 
 uint64_t hash_value(const CppTarget &p);

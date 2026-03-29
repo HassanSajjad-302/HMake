@@ -87,7 +87,7 @@ class CppSrc : public ObjectFile
 
 bool operator<(const CppSrc &lhs, const CppSrc &rhs);
 
-enum class SM_FILE_TYPE : uint8_t
+enum class CppModType : uint8_t
 {
     PRIMARY_EXPORT = 0,
     PARTITION_EXPORT = 1,
@@ -97,6 +97,9 @@ enum class SM_FILE_TYPE : uint8_t
 
 struct CppMod final : CppSrc
 {
+    /// Used only if configuration->evaluate(DuplicationWarning::YES). Otherwise, CppSrc::headerFiles is used.
+    flat_hash_map<Node*, CppMod *> headerNodeCppMod;
+
     /// Those header-files which are #included in this module or hu. These are initialized from config-cache as big-hu
     /// have these. While Source::headerFiles have all the header-files of ours and our dependencies for accurate
     /// rebuilds.
@@ -126,7 +129,7 @@ struct CppMod final : CppSrc
 
     uint32_t interfaceFileSize;
 
-    SM_FILE_TYPE type;
+    CppModType type;
 
     /// Following is used only at config-time. Describes whether hu is private hu of the CppTarget.
     bool isReqHu = false;
@@ -140,6 +143,9 @@ struct CppMod final : CppSrc
     bool memoryMappingCompleted = false;
 
     bool compileCommandChanged = false;
+
+    bool isScheduled = false;
+    bool calledOnce = false;
 
     CppMod(CppTarget *target_, const Node *node_);
 
@@ -169,7 +175,7 @@ struct CppMod final : CppSrc
     /// launches the module process if it needs to be compiled
     bool isEventRegistered(Builder &builder) override;
 
-    bool completeModuleCompilation(const Builder &builder);
+    void completeModuleCompilation(const Builder &builder);
 
     /// \param message message of the c++ module or hu process if it is waiting on another dependency.
     /// \returns true if we are waiting on a dependency, false if we have completed the compilation.
@@ -185,12 +191,16 @@ struct CppMod final : CppSrc
     /// build-cache at myBuildCacheIndex, if this was updated.
     void updateBuildCache() override;
 
-    void getCompileCommand(std::pmr::string &compileCommand) const;
+    void getCompileCommand(std::pmr::string &compileCommand, bool useIPC) const;
 
     /// Checks whether this needs to be updated and sets round0 RealBTarget::updateStatus to UpdateStatus::NEEDS_UPDATE.
     /// Otherwise, populates CppTarget::allCppModDependencies based on myBuildCache. So, if any of our dependents need
     /// to be updated, makeAndSend* functions could send our dependencies with us in a single message.
     void setFileStatusAndPopulateAllDependencies();
+
+    /// Used to generate the script for standalone hu/module compilation. Generates a batch file on Windows and a bash
+    /// file on Linux.
+    void cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents, const string &scriptDir) override;
 };
 
 #endif // HMAKE_CPPMOD_HPP

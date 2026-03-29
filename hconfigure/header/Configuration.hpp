@@ -119,6 +119,19 @@ enum class UseConfigurationScope : bool
     YES,
 };
 
+enum class StandAloneCommand : bool
+{
+    NO,
+    YES,
+};
+
+enum class DuplicationWarning : bool
+{
+    NO,
+    YES,
+
+};
+
 class CSourceTarget;
 class PLOAT;
 class LOAT;
@@ -153,6 +166,9 @@ enum class FileType : uint8_t
 
 class Configuration : public BTarget
 {
+    // TODO:
+    // Use alignas for those that are accessed at build-time to bring them in one cache line
+
   public:
     vector<class BoostCppTarget *> boostCppTargets;
     vector<CppTarget *> cppTargets;
@@ -181,6 +197,8 @@ class Configuration : public BTarget
     IgnoreHeaderDeps ignoreHeaderDeps = IgnoreHeaderDeps::NO;
     UseIPC useIPC = UseIPC::YES;
     UseConfigurationScope useConfigurationScope = UseConfigurationScope::NO;
+    StandAloneCommand standAloneCommand = StandAloneCommand::NO;
+    DuplicationWarning duplicationWarning = DuplicationWarning::NO;
 
     // todo
     // add CppTarget::imodNames map here as-well.
@@ -359,6 +377,14 @@ template <typename T> bool Configuration::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), UseConfigurationScope>)
     {
         return useConfigurationScope == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), StandAloneCommand>)
+    {
+        return standAloneCommand == property;
+    }
+    else if constexpr (std::is_same_v<decltype(property), DuplicationWarning>)
+    {
+        return duplicationWarning == property;
     }
     // CppCompilerFeatures
     else if constexpr (std::is_same_v<decltype(property), CxxSTD>)

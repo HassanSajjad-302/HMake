@@ -228,6 +228,7 @@ void replaceInSingleFile(const string &relativePath, const string &from, const s
     {
         fileText.replace(pos, from.length(), to);
         pos += to.length(); // Move past the replacement to avoid infinite loop
+        printMessage(FORMAT("Replaced {} to {} in file {}\n", from, to, filePath));
     }
 
     std::ofstream(filePath) << fileText;
@@ -312,6 +313,17 @@ int main()
                                   "Common/GlobalISel/", "");
         replaceFileTextsRecursive(current_path() / "llvm/utils/TableGen/Common",
                                   getFileNames(current_path() / "llvm/utils/TableGen/Common"), "Common/", "");
+        replaceInSingleFile(
+            current_path() / "clang/lib/ScalableStaticAnalysisFramework/Core/Serialization/JSONFormat/JSONFormatImpl.h",
+            "../../ModelStringConversions.h", "ModelStringConversions.h");
+
+        replaceInSingleFile(
+            current_path() / "clang/lib/ScalableStaticAnalysisFramework/Core/Model/EntityLinkage.cpp",
+            "../ModelStringConversions.h", "ModelStringConversions.h");
+
+        replaceInSingleFile(
+            current_path() / "clang/lib/ScalableStaticAnalysisFramework/Core/Model/BuildNamespace.cpp",
+            "../ModelStringConversions.h", "ModelStringConversions.h");
     }
 
     const string str = current_path() / "llvm/include/llvm/Demangle";

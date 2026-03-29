@@ -253,7 +253,10 @@ void CppTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles) const
 
     for (const CppMod *objectFile : imodFileDeps)
     {
-        objectFiles->emplace_back(objectFile);
+        if (objectFile)
+        {
+            objectFiles->emplace_back(objectFile);
+        }
     }
 
     for (const CppSrc *objectFile : srcFileDeps)
@@ -283,7 +286,7 @@ void CppTarget::populateTransitiveProperties()
     }
 }
 
-void CppTarget::actuallyAddSourceFileConfigTime(Node *node)
+void CppTarget::actuallyAddSourceFileConfigTime(const Node *node)
 {
     if (configuration->evaluate(IsCppMod::YES))
     {
@@ -305,7 +308,50 @@ void CppTarget::actuallyAddSourceFileConfigTime(Node *node)
     srcFileDeps.emplace_back(new CppSrc(this, node));
 }
 
-void CppTarget::actuallyAddModuleFileConfigTime(Node *node, string exportName)
+string CppTarget::getExportNameFromFirstLine(const Node *node)
+{
+    constexpr string_view kModuleTag = "// module:";
+
+    ifstream file(node->filePath);
+    if (!file)
+    {
+        printErrorMessage(
+            FORMAT("Could not read the first line of file\n{}\n in actuallyAddModuleFileConfigTime\n", node->filePath));
+        return {};
+    }
+
+    string firstLine;
+    if (!std::getline(file, firstLine))
+    {
+        printErrorMessage(
+            FORMAT("Could not read the first line of file\n{}\n in actuallyAddModuleFileConfigTime\n", node->filePath));
+        return {};
+    }
+
+    if (!firstLine.empty() && firstLine.back() == '\r')
+    {
+        firstLine.pop_back();
+    }
+
+    if (!firstLine.starts_with(kModuleTag))
+    {
+        return {};
+    }
+
+    string_view exportName(firstLine.data() + kModuleTag.size(), firstLine.size() - kModuleTag.size());
+    while (!exportName.empty() && static_cast<unsigned char>(exportName.front()) <= ' ')
+    {
+        exportName.remove_prefix(1);
+    }
+    while (!exportName.empty() && static_cast<unsigned char>(exportName.back()) <= ' ')
+    {
+        exportName.remove_suffix(1);
+    }
+
+    return string{exportName};
+}
+
+void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportName)
 {
     if (configuration->evaluate(IsCppMod::NO))
     {
@@ -316,8 +362,7 @@ void CppTarget::actuallyAddModuleFileConfigTime(Node *node, string exportName)
     if (exportName.empty())
     {
         string fileName = node->getFileName();
-        if (const string ext = {fileName.begin() + fileName.find_last_of('.') + 1, fileName.end()};
-            ext == "cppm" || ext == "ixx")
+        if (const string ext = node->getExtension(); ext == ".cppm" || ext == ".ixx")
         {
             exportName = node->getFileStem();
         }
@@ -392,12 +437,12 @@ void CppTarget::populateNameMappingsAndNodesType()
 
         for (const auto &[headerName, type] : tempNameMapping)
         {
-            const auto &[it, ok] = configuration->headerNameMapping.emplace(headerName, vector(1, type));
-            const HeaderFileOrUnit headerFileOrUnit = it->second[0];
-            if (!ok)
+            if (const auto &[it, ok] = configuration->headerNameMapping.emplace(headerName, vector(1, type)); !ok)
             {
                 string alreadyAdded;
                 string tried;
+
+                const HeaderFileOrUnit headerFileOrUnit = it->second[0];
                 if (type.isUnit)
                 {
                     tried = "Header-Unit " + type.data.cppMod->node->filePath;
@@ -503,69 +548,75 @@ void CppTarget::emplaceInNodesType(const Node *node, FileType type, const bool a
     }
 }
 
-void CppTarget::makeHeaderFileAsUnit(const string &includeName, bool addInReq, bool addInUseReq)
+const Node *CppTarget::getIncludeNode(const bool isHeaderFile, const string &includeName, bool addInReq,
+                                      bool addInUseReq)
+{
+    if (addInReq)
+    {
+        if (const auto it = reqHeaderNameMapping.find(includeName); it != reqHeaderNameMapping.end())
+        {
+            return isHeaderFile ? it->second.data.node : it->second.data.cppMod->node;
+        }
+    }
+    else
+    {
+        if (const auto it = useReqHeaderNameMapping.find(includeName); it != useReqHeaderNameMapping.end())
+        {
+            return isHeaderFile ? it->second.data.node : it->second.data.cppMod->node;
+        }
+    }
+
+    return nullptr;
+}
+
+void CppTarget::makeHeaderFileHeaderUnit(const string &includeName, bool addInReq, bool addInUseReq)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
         return;
     }
 
-    if (configuration->evaluate(IsCppMod::NO))
+    if (configuration->isCppMod == IsCppMod::NO)
     {
         return;
     }
 
     string *p = new string(includeName);
     lowerCaseOnWindows(p->data(), p->size());
-
-    Node *headerNode = nullptr;
-    if (addInReq)
+    const Node *headerNode = getIncludeNode(true, *p, addInReq, addInUseReq);
+    if (!headerNode)
     {
-        if (const auto &it = reqHeaderNameMapping.find(*p); it == reqHeaderNameMapping.end())
-        {
-            printErrorMessage(FORMAT("Could not find the header {}\n in removeHeaderFile in target {}\n", *p, name));
-        }
-        else
-        {
-            headerNode = it->second.data.node;
-            reqHeaderNameMapping.erase(it);
-            --reqHeaderFilesSize;
-        }
-
-        if (const auto &it = reqNodesType.find(headerNode); it == reqNodesType.end())
-        {
-            HMAKE_HMAKE_INTERNAL_ERROR
-        }
-        else
-        {
-            reqNodesType.erase(headerNode);
-        }
+        printErrorMessage(FORMAT("Include-Name {} does not exist in target {} while calling makeHeaderFileHeaderUnit\n",
+                                 includeName, name));
     }
 
-    if (addInUseReq)
-    {
-        if (const auto &it = useReqHeaderNameMapping.find(*p); it == useReqHeaderNameMapping.end())
-        {
-            printErrorMessage(FORMAT("Could not find the header {}\n in removeHeaderFile in target {}\n", *p, name));
-        }
-        else
-        {
-            headerNode = it->second.data.node;
-            useReqHeaderNameMapping.erase(it);
-            --useReqHeaderFilesSize;
-        }
+    removeHeaderFile(includeName, addInReq, addInUseReq);
+    addHeaderUnit(includeName, headerNode, addInReq, addInUseReq);
+}
 
-        if (const auto &it = useReqNodesType.find(headerNode); it == useReqNodesType.end())
-        {
-            HMAKE_HMAKE_INTERNAL_ERROR
-        }
-        else
-        {
-            useReqNodesType.erase(headerNode);
-        }
+void CppTarget::makeHeaderUnitHeaderFile(const string &includeName, bool addInReq, bool addInUseReq)
+{
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        return;
     }
 
-    addHeaderUnit(*p, headerNode, addInReq, addInUseReq);
+    if (configuration->isCppMod == IsCppMod::NO)
+    {
+        return;
+    }
+
+    string *p = new string(includeName);
+    lowerCaseOnWindows(p->data(), p->size());
+    const Node *headerNode = getIncludeNode(false, *p, addInReq, addInUseReq);
+    if (!headerNode)
+    {
+        printErrorMessage(FORMAT("Include-Name {} does not exist in target {} while calling makeHeaderUnitHeaderFile\n",
+                                 includeName, name));
+    }
+
+    removeHeaderUnit(includeName, addInReq, addInUseReq);
+    addHeaderFile(includeName, headerNode, addInReq, addInUseReq);
 }
 
 void CppTarget::removeHeaderFile(const string &includeName, const bool addInReq, const bool addInUseReq)
@@ -577,17 +628,16 @@ void CppTarget::removeHeaderFile(const string &includeName, const bool addInReq,
 
     string *p = new string(includeName);
     lowerCaseOnWindows(p->data(), p->size());
+    const Node *headerNode = getIncludeNode(true, *p, addInReq, addInUseReq);
 
     if (addInReq)
     {
-        Node *headerNode = nullptr;
         if (const auto &it = reqHeaderNameMapping.find(*p); it == reqHeaderNameMapping.end())
         {
             printErrorMessage(FORMAT("Could not find the header {}\n in removeHeaderFile in target {}\n", *p, name));
         }
         else
         {
-            headerNode = it->second.data.node;
             reqHeaderNameMapping.erase(it);
             --reqHeaderFilesSize;
         }
@@ -604,14 +654,12 @@ void CppTarget::removeHeaderFile(const string &includeName, const bool addInReq,
 
     if (addInUseReq)
     {
-        Node *headerNode = nullptr;
         if (const auto &it = useReqHeaderNameMapping.find(*p); it == useReqHeaderNameMapping.end())
         {
             printErrorMessage(FORMAT("Could not find the header {}\n in removeHeaderFile in target {}\n", *p, name));
         }
         else
         {
-            headerNode = it->second.data.node;
             useReqHeaderNameMapping.erase(it);
             --useReqHeaderFilesSize;
         }
@@ -627,8 +675,7 @@ void CppTarget::removeHeaderFile(const string &includeName, const bool addInReq,
     }
 }
 
-void CppTarget::removeHeaderUnit(const Node *headerNode, const string &includeName, const bool addInReq,
-                                 const bool addInUseReq)
+void CppTarget::removeHeaderUnit(const string &includeName, const bool addInReq, const bool addInUseReq)
 {
     if constexpr (bsMode == BSMode::BUILD)
     {
@@ -637,8 +684,11 @@ void CppTarget::removeHeaderUnit(const Node *headerNode, const string &includeNa
 
     string *p = new string(includeName);
     lowerCaseOnWindows(p->data(), p->size());
+    const Node *headerNode = getIncludeNode(false, *p, addInReq, addInUseReq);
+
     if (configuration->evaluate(BigHeaderUnit::YES))
     {
+        // todo: following incomplete. not reviewed.
         CppMod *bigHu = nullptr;
         if (addInReq && addInUseReq)
         {
@@ -690,12 +740,44 @@ void CppTarget::removeHeaderUnit(const Node *headerNode, const string &includeNa
 
     if (addInReq)
     {
-        reqNodesType.erase(headerNode);
+        if (const auto &it = reqHeaderNameMapping.find(*p); it == reqHeaderNameMapping.end())
+        {
+            printErrorMessage(FORMAT("Could not find the header {}\n in removeHeaderUnit in target {}\n", *p, name));
+        }
+        else
+        {
+            reqHeaderNameMapping.erase(it);
+        }
+
+        if (const auto &it = reqNodesType.find(headerNode); it == reqNodesType.end())
+        {
+            HMAKE_HMAKE_INTERNAL_ERROR
+        }
+        else
+        {
+            reqNodesType.erase(headerNode);
+        }
     }
 
     if (addInUseReq)
     {
-        useReqNodesType.erase(headerNode);
+        if (const auto &it = useReqHeaderNameMapping.find(*p); it == useReqHeaderNameMapping.end())
+        {
+            printErrorMessage(FORMAT("Could not find the header {}\n in removeHeaderUnit in target {}\n", *p, name));
+        }
+        else
+        {
+            useReqHeaderNameMapping.erase(it);
+        }
+
+        if (const auto &it = useReqNodesType.find(headerNode); it == useReqNodesType.end())
+        {
+            HMAKE_HMAKE_INTERNAL_ERROR
+        }
+        else
+        {
+            useReqNodesType.erase(headerNode);
+        }
     }
 }
 
@@ -1210,7 +1292,10 @@ bool CppTarget::writeBuildCache(string &buffer)
         }
         for (CppMod *imod : imodFileDeps)
         {
-            imod->updateBuildCache();
+            if (imod)
+            {
+                imod->updateBuildCache();
+            }
         }
         for (CppMod *hu : huDeps)
         {
@@ -1526,7 +1611,7 @@ void CppTarget::readCacheAtBuildTime()
     {
         CppMod *cppMod = modFileDeps.emplace_back(new CppMod(this, readHalfNode(ptr, bytesRead)));
         cppMod->objectNode = readHalfNode(ptr, bytesRead);
-        cppMod->type = SM_FILE_TYPE::PRIMARY_IMPLEMENTATION;
+        cppMod->type = CppModType::PRIMARY_IMPLEMENTATION;
 
         addDep<0>(*cppMod);
     }
@@ -1544,7 +1629,7 @@ void CppTarget::readCacheAtBuildTime()
         cppMod->objectNode = readHalfNode(ptr, bytesRead);
         cppMod->interfaceNode = readHalfNode(ptr, bytesRead);
         cppMod->type =
-            cppMod->logicalNames[0].contains(':') ? SM_FILE_TYPE::PARTITION_EXPORT : SM_FILE_TYPE::PRIMARY_EXPORT;
+            cppMod->logicalNames[0].contains(':') ? CppModType::PARTITION_EXPORT : CppModType::PRIMARY_EXPORT;
         imodNames.emplace(cppMod->logicalNames[0], cppMod);
 
         addDep<0>(*cppMod);
@@ -1617,7 +1702,7 @@ void CppTarget::readCacheAtBuildTime()
             }
         }
 
-        hu->type = SM_FILE_TYPE::HEADER_UNIT;
+        hu->type = CppModType::HEADER_UNIT;
         addDep<0, BTargetDepType::SELECTIVE>(*hu);
     }
 

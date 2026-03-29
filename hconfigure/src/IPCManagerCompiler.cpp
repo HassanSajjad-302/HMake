@@ -7,7 +7,7 @@
 #include <utility>
 
 #ifdef _WIN32
-#include "rapidhash.h"
+#include "clang/IPC2978/rapidhash.h"
 #include <Windows.h>
 #else
 #include <cstring>

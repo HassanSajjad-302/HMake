@@ -93,6 +93,18 @@ string Node::getFileStem() const
     return string(filePath.substr(nameStart, dotPos - nameStart));
 }
 
+string Node::getExtension() const
+{
+    const size_t slashPos = filePath.find_last_of(slashc);
+    const size_t nameStart = slashPos == string::npos ? 0 : slashPos + 1;
+    const size_t dotPos = filePath.find_last_of('.');
+    if (dotPos == string::npos || dotPos <= nameStart)
+    {
+        return {};
+    }
+    return filePath.substr(dotPos);
+}
+
 void Node::performSystemCheck()
 {
     if (systemCheckCompleted)
@@ -144,9 +156,7 @@ void Node::performSystemCheck()
 
     lastWriteTime = file_time_type(unix_time);
 #else
-    struct stat st
-    {
-    };
+    struct stat st{};
     if (stat(filePath.c_str(), &st) != 0)
     {
         if (errno == ENOENT || errno == ENOTDIR)

@@ -265,6 +265,10 @@ bool BTarget::isEventCompleted(Builder &builder, string_view message)
     return false;
 }
 
+void BTarget::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents, const string &scriptDir)
+{
+}
+
 // selectiveBuild is set for the children if hbuild is executed in parent dir. selectiveBuild is set for all
 // targets that are present in cmdTargets. if a target explicitBuild is true, then it must be present in cmdTargets for
 // its selectiveBuild to be true.

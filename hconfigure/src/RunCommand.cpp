@@ -227,8 +227,14 @@ void RunCommand::killModuleProcess(Builder &builder) const
 
 uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget, bool haveWritePipe)
 {
+    // Prepend "stdbuf -o0 " to force unbuffered stdout in the child process.
+    // This ensures output is flushed even if the child crashes before exiting,
+    // since we do not own the child process and cannot rely on it flushing.
+    string unbufferedCommand = "stdbuf -o0 ";
+    unbufferedCommand += command;
+
     wordexp_t p;
-    if (wordexp(command, &p, 0) != 0)
+    if (wordexp(unbufferedCommand.c_str(), &p, 0) != 0)
     {
         printErrorMessage("wordexp failed\n");
         return -1;
@@ -299,7 +305,7 @@ bool RunCommand::startRead()
 
 CompleteReadType RunCommand::completeRead()
 {
-    char buffer[64 * 1024];
+    char buffer[64 * 1024]{};
     ssize_t readSize;
     do
     {

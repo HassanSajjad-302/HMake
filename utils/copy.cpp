@@ -4,19 +4,19 @@
 #include <string>
 #include <vector>
 #include <regex>
+#include <filesystem>
 
 // Reads an entire file into a vector of lines.
-static std::vector<std::string> readLines(const std::string &path) {
+// Returns false if file cannot be opened (instead of exiting).
+static bool readLines(const std::string &path, std::vector<std::string> &out) {
     std::ifstream f(path);
     if (!f) {
-        std::cerr << "Error: cannot open file: " << path << "\n";
-        std::exit(1);
+        return false;
     }
-    std::vector<std::string> lines;
     std::string line;
     while (std::getline(f, line))
-        lines.push_back(line);
-    return lines;
+        out.push_back(line);
+    return true;
 }
 
 int main(int argc, char *argv[]) {
@@ -24,15 +24,27 @@ int main(int argc, char *argv[]) {
     const std::string readmePath  = "README.md";
     const std::string examplesDir = "Examples/";
 
-    std::vector<std::string> readmeLines = readLines(readmePath);
+    std::vector<std::string> readmeLines;
+    if (!readLines(readmePath, readmeLines)) {
+        std::cerr << "Error: cannot open file: " << readmePath << "\n";
+        return 1;
+    }
 
     // -----------------------------------------------------------------------
     // Patterns
     // -----------------------------------------------------------------------
-    const std::regex reArchSection(R"(^## HMake Architecture\s*$)");
-    const std::regex reCppSection (R"(^## C\+\+ Examples\s*$)");
+    // FIX 1: "## HMake Architecture" was not matching "## HMake Architecture Examples"
+    const std::regex reArchSection(R"(^## HMake Architecture)");
+
+    // FIX 2: "## C\+\+ Examples" stays correct, but confirm it matches the actual heading
+    const std::regex reCppSection(R"(^## Examples: C\+\+)");
+
     const std::regex reAnyH2      (R"(^## )");
-    const std::regex reExampleH3  (R"(^### Example (\d+)\s*$)");
+
+    // FIX 3: The old pattern was ### Example (\d+)\s*$ which required end-of-line right
+    // after the digits. The headings now have trailing text like "— Minimal executable".
+    // New pattern: match ### Example N optionally followed by anything (space, dash, text).
+    const std::regex reExampleH3  (R"(^### Example (\d+)(?:\s|$))");
 
     // -----------------------------------------------------------------------
     // State machine
@@ -41,8 +53,10 @@ int main(int argc, char *argv[]) {
 
     Section currentSection = Section::NONE;
     int     currentExample = -1;
-    bool    inDetails      = false;   // inside <details><summary>hmake.cpp</summary>
+    bool    inDetails      = false;   // inside <details><summary>...</summary>
     bool    inCodeBlock    = false;   // inside the ```cpp … ``` we are replacing
+    // FIX 4: Track which file we are replacing (hmake.cpp or main.cpp)
+    std::string currentSummaryFile;
 
     std::vector<std::string> output;
     output.reserve(readmeLines.size());
@@ -91,6 +105,16 @@ int main(int argc, char *argv[]) {
             if (currentExample != -1 &&
                 line.find("<summary>hmake.cpp</summary>") != std::string::npos) {
                 inDetails = true;
+                currentSummaryFile = "hmake.cpp";
+                output.push_back(line);
+                continue;
+            }
+
+            // FIX 4: Also detect <summary>main.cpp</summary> for multi-file examples
+            if (currentExample != -1 &&
+                line.find("<summary>main.cpp</summary>") != std::string::npos) {
+                inDetails = true;
+                currentSummaryFile = "main.cpp";
                 output.push_back(line);
                 continue;
             }
@@ -98,6 +122,7 @@ int main(int argc, char *argv[]) {
             // </details> resets the details flag
             if (line.find("</details>") != std::string::npos) {
                 inDetails = false;
+                currentSummaryFile.clear();
                 output.push_back(line);
                 continue;
             }
@@ -110,21 +135,34 @@ int main(int argc, char *argv[]) {
                 // Build path to the source file
                 std::string folder;
                 if (currentSection == Section::ARCH)
-                    folder = examplesDir + "/Example-A" + std::to_string(currentExample);
+                    folder = examplesDir + "Example-A" + std::to_string(currentExample);
                 else
-                    folder = examplesDir + "/Example"   + std::to_string(currentExample);
+                    folder = examplesDir + "Example"   + std::to_string(currentExample);
 
-                const std::string srcPath = folder + "/hmake.cpp";
-                const std::vector<std::string> srcLines = readLines(srcPath);
+                // FIX 4: Use the detected filename (hmake.cpp or main.cpp)
+                const std::string fileName = currentSummaryFile.empty() ? "hmake.cpp" : currentSummaryFile;
+                const std::string srcPath  = folder + "/" + fileName;
 
-                std::cout << "  Updating Example " << currentExample
-                          << " (" << (currentSection == Section::ARCH ? "Architecture" : "C++")
-                          << ") from: " << srcPath << "\n";
+                std::vector<std::string> srcLines;
+                // FIX 5: Gracefully skip missing example directories instead of crashing
+                if (!readLines(srcPath, srcLines)) {
+                    std::cerr << "  Warning: source file not found, skipping: " << srcPath << "\n";
+                    // Leave old content in place — the closing ``` will be kept by the
+                    // inCodeBlock branch below (it stops skipping at the closing fence).
+                    // But we already emitted the opening fence, so we must re-emit the
+                    // old content. We do that by NOT setting inCodeBlock so the lines
+                    // pass through normally.
+                    inCodeBlock = false;
+                } else {
+                    std::cout << "  Updating Example " << currentExample
+                              << " (" << (currentSection == Section::ARCH ? "Architecture" : "C++")
+                              << ") [" << fileName << "] from: " << srcPath << "\n";
 
-                for (const std::string &sl : srcLines)
-                    output.push_back(sl);
+                    for (const std::string &sl : srcLines)
+                        output.push_back(sl);
+                    // Old content will be skipped in the inCodeBlock branch below.
+                }
 
-                // Old content will be skipped (handled in the inCodeBlock branch below)
                 continue;
             }
 
@@ -136,7 +174,6 @@ int main(int argc, char *argv[]) {
             // Skip old lines until we hit the closing fence
             if (line == "```") {
                 inCodeBlock = false;
-                inDetails   = false;
                 output.push_back(line);   // keep the closing fence
             }
             // else: discard old content

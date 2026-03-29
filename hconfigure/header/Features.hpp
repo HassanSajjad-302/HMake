@@ -858,7 +858,6 @@ struct CompilerFlags
     string optionsCompileCpp;
     string optionsCompile;
     string definesCompileCpp;
-    string lang;
 
     string translateInclude;
     // MSVC

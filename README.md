@@ -556,6 +556,202 @@ This breaks the rule 2.
 Uncommenting the line above will fix this.
 This might hang or HMake might detect and print ```HMake API misuse```.
 
+### Example 10 — Child Process IPC
+
+<details>
+<summary>hmake.cpp</summary>
+
+```cpp
+#include "Configure.hpp"
+
+struct Process : BTarget
+{
+    static constexpr const char *cmd = "./a.out";
+
+    bool isEventRegistered(Builder &builder) override
+    {
+        // Pass true so HMake keeps the child's stdin pipe open — this process
+        // sends a message to the build-system and then waits for a reply before
+        // continuing.
+        run.startAsyncProcess(cmd, builder, this, /*keepStdinOpen=*/true);
+        // launched async process. would have returned false otherwise (e.g. a module-file was already updated).
+        // HMake will call isEventCompleted when process exits or there is message for build-system.
+        return true;
+    }
+
+    bool firstReceived = false;
+
+    bool isEventCompleted(Builder &builder, const string_view message) override
+    {
+        if (message.empty())
+        {
+            // Empty message means the child process has exited. exitStatus reflects the exitStatus of child process.
+            const bool ok = run.exitStatus == EXIT_SUCCESS;
+
+            string out = getColorCode(ok ? ColorIndex::light_green : ColorIndex::red);
+            out += ok ? "./a.out finished successfully:\n" : "./a.out failed:\n";
+            out += getColorCode(ColorIndex::reset);
+            out += run.output;
+            printMessage(out);
+
+            return false; // stop waiting; we are done with this target
+        }
+
+        // The child sent an IPC message to the build-system (distinguished from ordinary stdout by the delimiter
+        // protocol).  Print it, then on the first message reply with the module name it requested.
+
+        string out = getColorCode(ColorIndex::orange);
+        out += "./a.out → build-system message:\n";
+        out += getColorCode(ColorIndex::reset);
+        out += string{message};
+        printMessage(out);
+
+        if (!firstReceived)
+        {
+            // Reply: send the module name the child asked for.
+            const string reply = "std\n";
+            if (write(run.writePipe, reply.data(), reply.size()) == -1)
+            {
+                printMessage("Warning: failed to write to child stdin\n");
+            }
+            firstReceived = true;
+        }
+
+        return true; // keep listening; more messages or exit event may follow
+    }
+};
+
+void buildSpecification()
+{
+    // Any BTarget must have application life-time.
+    new Process();
+}
+
+MAIN_FUNCTION
+```
+
+</details>
+
+
+
+<details>
+<summary>main.cpp</summary>
+
+```cpp
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include <string>
+#include <unistd.h>
+
+// ---------------------------------------------------------------------------
+// P2978 IPC protocol helpers
+//
+// HMake distinguishes build-system messages from ordinary stdout by checking for
+// a fixed 32-byte delimiter after each message.  The format of one message is:
+//
+//   <payload bytes>  <uint32 payload-length (LE)>  <32-byte delimiter>
+//
+// HMake strips message from the child's normal stdout which is run.output in
+// the build-system
+// ---------------------------------------------------------------------------
+
+namespace ipc
+{
+
+// The delimiter must match the one compiled into HMake exactly.
+inline constexpr char delimiter[] =
+    "DELIMITER"
+    "\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5\x5A\xA5"
+    "DELIMITER"; // 32 bytes total
+
+static void writeAll(int fd, const char *buf, std::size_t len)
+{
+    std::size_t written = 0;
+    while (written < len)
+    {
+        const ssize_t n = ::write(fd, buf + written, len - written);
+        if (n == -1)
+        {
+            if (errno == EINTR)
+                continue; // interrupted by signal — retry
+            std::perror("ipc::writeAll");
+            std::exit(EXIT_FAILURE);
+        }
+        written += static_cast<std::size_t>(n);
+    }
+}
+
+// Send a single IPC message to the build-system.
+// The payload is an arbitrary string; the build-system receives it verbatim
+// inside isEventCompleted(builder, message).
+void send(const std::string &payload)
+{
+    // Frame layout: payload | uint32 length | delimiter
+    const auto len = static_cast<uint32_t>(payload.size());
+
+    std::string frame;
+    frame.reserve(payload.size() + sizeof(uint32_t) + sizeof(delimiter) - 1);
+    frame.append(payload);
+    frame.append(reinterpret_cast<const char *>(&len), sizeof(len)); // little-endian on x86/ARM
+    frame.append(delimiter, sizeof(delimiter) - 1);                  // exclude null terminator
+
+    writeAll(STDOUT_FILENO, frame.data(), frame.size());
+}
+
+} // namespace ipc
+
+int main()
+{
+    // Tell the build-system which module we need.  HMake will call
+    // isEventCompleted() with this string and can write a reply to our stdin.
+    ipc::send("First message to build-system: this module depends on 'std'. Please provide it.\n");
+
+    // Wait for the build-system's reply (the module name).
+    std::string module;
+    if (!(std::cin >> module))
+    {
+        std::cerr << "main: failed to read module name from build-system\n";
+        return EXIT_FAILURE;
+    }
+
+    std::cout << "Hello World\n";
+    std::cout << "Module received: " << module << "\nYey\n";
+
+    // Optionally send a second message — demonstrates multiple IPC rounds.
+    ipc::send("Final message to build-system: compilation finished.\n");
+
+    return EXIT_SUCCESS;
+}
+```
+
+</details>
+
+This example is only for Linux currently.
+Before running `hbuild`, compile `main.cpp` to `a.out` in the build directory:
+
+```bash
+clang++ main.cpp -o a.out
+```
+
+This prints the following output:
+
+```
+./a.out → build-system message:
+First message to build-system: this module depends on 'std'. Please provide it.
+./a.out → build-system message:
+Final message to build-system: compilation finished.
+./a.out finished successfully:
+Hello World
+Module received: std
+Yey
+```
+
+The child process and build-system communicate over two channels simultaneously: ordinary stdout for human-readable
+output (captured in `run.output` and printed after exit), and the P2978 IPC protocol for structured messages that the
+build-system intercepts and routes to `isEventCompleted`. This is the same mechanism used internally by `CppMod` to
+implement C++20 module and header-unit support.
+
 ## Examples: C++ Build
 
 ### Example 1 — Minimal executable

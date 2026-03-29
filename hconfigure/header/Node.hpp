@@ -69,6 +69,7 @@ class Node
     string getFileName() const;
     /// Returns basename without extension.
     string getFileStem() const;
+    string getExtension() const;
 
     /// Fetches filesystem metadata once and caches it in this object.
     void performSystemCheck();

@@ -110,8 +110,6 @@ TEST(ExamplesTest, Example8)
                                                  "Hello World\n");
 }
 
-#ifdef _WIN32
-
 TEST(ExamplesTest, Example9)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example9"));
@@ -121,6 +119,7 @@ TEST(ExamplesTest, Example9)
                                                  "36\n");
 }
 
+#ifdef _WIN32
 TEST(ExamplesTest, Example10)
 {
     current_path(path(SOURCE_DIRECTORY) / path("Examples/Example10"));
@@ -129,7 +128,6 @@ TEST(ExamplesTest, Example10)
                                                      getActualNameFromTargetName(TargetType::EXECUTABLE, os, "appA"),
                                                  "My Name is Library A\nMy Name is Library B\n");
 }
-
 #endif
 
 TEST(AExamplesTest, Example_A1)
@@ -281,4 +279,51 @@ TEST(AExamplesTest, Example_A9)
     ASSERT_EQ(output.contains('D'), true);
 
     // ASSERT_EQ(output.contains('D'), true);
+}
+
+TEST(AExamplesTest, Example_A10)
+{
+    current_path(path(SOURCE_DIRECTORY) / path("Examples/Example-A10"));
+    string output;
+    int exitStatus;
+
+    if (exists(path("Build")))
+    {
+        remove_all(path("Build"));
+    }
+    create_directory("Build");
+    current_path("Build");
+
+    {
+        RunCommand r;
+        r.runProcess("hhelper");
+        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("First hhelper failed with output\n{}\n.", r.output);
+    }
+
+    {
+        RunCommand r;
+        r.runProcess("hhelper");
+        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("Second hhelper failed with output\n{}\n.", r.output);
+    }
+
+    {
+        ASSERT_EQ(system("c++ ../main.cpp"), EXIT_SUCCESS) << "c++ ../main.cpp failed\n";
+    }
+
+    {
+        RunCommand r;
+        r.runProcess("hbuild");
+        erase_if(r.output, [](const char c) { return c == '\r'; });
+        exitStatus = r.exitStatus;
+        output = std::move(r.output);
+    }
+
+    ASSERT_EQ(exitStatus, EXIT_SUCCESS);
+
+    const string str =
+        "\x1B[38;2;255;165;0m./a.out \xE2\x86\x92 build-system message:\n\x1B[0mFirst message to build-system: this "
+        "module depends on 'std'. Please provide it.\n\x1B[38;2;255;165;0m./a.out \xE2\x86\x92 build-system "
+        "message:\n\x1B[0mFinal message to build-system: compilation finished.\n\x1B[38;2;144;238;144m./a.out finished "
+        "successfully:\n\x1B[0mHello World\nModule received: std\nYey\n";
+    ASSERT_EQ(str, output);
 }

@@ -135,7 +135,7 @@ void Builder::executeRoundZero()
     // cache.numberOfBuildThreads = cache.numberOfBuildThreads;
     const uint16_t numberOfLaunchedThreads = cache.numberOfBuildProcesses;
     idleCount = numberOfLaunchedThreads;
-    maxSimultaneousProcessDesired = std::thread::hardware_concurrency() * 32;
+    maxSimultaneousProcessDesired = std::thread::hardware_concurrency() * 16;
 
     if (!idleCount)
     {
@@ -189,23 +189,14 @@ void Builder::executeRoundZero()
             {
                 break;
             }
-            uint64_t pid = b->bTarget->run.pid;
-            bool launchNewOne = false;
-            if (pid == -1)
-            {
-                // Because it is gonna be a new process, we make sure that we don't exceed the process capacity, or we
-                // do so only when we are down to 0 active process.
+            const uint64_t pid = b->bTarget->run.pid;
 
-                const bool canLaunchNewProcess = maxSimultaneousProcessDesired > simultaneousProcessCount;
-                launchNewOne = (canLaunchNewProcess && idleCount) || idleCount == numberOfLaunchedThreads;
-            }
-            else
-            {
-                if (idleCount)
-                {
-                    launchNewOne = true;
-                }
-            }
+            // Because it is gonna be a new process, we make sure that we don't exceed the process capacity, or we
+            // do so only when we are down to 0 active process.
+            const bool launchNewOne = pid == -1
+                                          ? (maxSimultaneousProcessDesired > simultaneousProcessCount && idleCount) ||
+                                                idleCount == numberOfLaunchedThreads
+                                          : idleCount > 0;
 
             if (!launchNewOne)
             {

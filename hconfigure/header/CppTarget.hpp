@@ -184,15 +184,18 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
 
     void populateTransitiveProperties();
 
-    void actuallyAddSourceFileConfigTime(Node *node);
-    void actuallyAddModuleFileConfigTime(Node *node, string exportName);
+    void actuallyAddSourceFileConfigTime(const Node *node);
+    static string getExportNameFromFirstLine(const Node *node);
+    void actuallyAddModuleFileConfigTime(const Node *node, string exportName);
     void checkSameHeaderNameMapping(string_view headerName);
     void populateNameMappingsAndNodesType();
     void emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, bool addInReq);
     void emplaceInNodesType(const Node *node, FileType type, bool addInReq);
-    void makeHeaderFileAsUnit(const string &includeName, bool addInReq, bool addInUseReq);
+    const Node* getIncludeNode(bool isHeaderFile, const string &includeName, bool addInReq, bool addInUseReq);
+    void makeHeaderFileHeaderUnit(const string &includeName, bool addInReq, bool addInUseReq);
+    void makeHeaderUnitHeaderFile(const string &includeName, bool addInReq, bool addInUseReq);
     void removeHeaderFile(const string &includeName, bool addInReq, bool addInUseReq);
-    void removeHeaderUnit(const Node *headerNode, const string &includeName, bool addInReq, bool addInUseReq);
+    void removeHeaderUnit(const string &includeName, bool addInReq, bool addInUseReq);
     void addHeaderFile(const string &includeName, const Node *headerFile, bool addInReq, bool addInUseReq);
     void addHeaderUnit(const string &includeName, const Node *headerUnit, bool addInReq, bool addInUseReq);
     void addHeaderUnitOrFileDir(const Node *includeDir, const string &prefix, bool isHeaderFile, const string &regexStr,

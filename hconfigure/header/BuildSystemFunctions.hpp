@@ -93,6 +93,10 @@ inline bool dryRun = false;
 // EXIT_FAILURE and return.
 inline bool huOnly = false;
 
+// In BsMode::BUILD, the build-system create script files for compiling the modules and header-units. This script will
+// first compile all the dependencies and will then compile the module or header-unit.
+inline bool standAlone = false;
+
 // Global variable for holding memory
 template <typename T> inline deque<T> targets;
 
