@@ -97,7 +97,6 @@ void RealBTarget::sortGraph()
         }
 
         printErrorMessage(errorString);
-        errorExit();
     }
 }
 

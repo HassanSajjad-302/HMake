@@ -85,6 +85,7 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     // .o + BMI
     expected += 2 * updates.imodFiles;
 
+    // .d file on Linux
     expected += (os == OS::NT ? 0 : 1) * updates.errorFiles;
 
     expected += updates.linkTargetsNoDebug * noDebugLinkTargetsMultiplier;

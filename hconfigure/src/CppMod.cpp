@@ -973,7 +973,7 @@ void CppMod::completeModuleCompilation(const Builder &builder)
     }
 
     rb.updateStatus = UpdateStatus::UPDATED;
- // This must be just before printing as this is asynchronousl accessed in savBuildCache
+    // This must be just before printing as this is asynchronousl accessed in savBuildCache
     target->buildCacheUpdated = true;
     print(builder, run.output);
 }
@@ -1000,6 +1000,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
     if (waitingFor)
     {
+        ++builder.activeEventCount;
         if (waitingFor->realBTargets[0].exitStatus != EXIT_SUCCESS)
         {
             run.killModuleProcess(builder);
@@ -1170,10 +1171,10 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
     if (foundRb.updateStatus != UpdateStatus::UPDATED)
     {
-        waitingFor = found;
         if (foundRb.updateStatus != UpdateStatus::UPDATED &&
             foundRb.updateStatus != UpdateStatus::UPDATED_WITHOUT_BUILDING)
         {
+            waitingFor = found;
             foundRb.dependents.emplace(&rb, BTargetDepType::FULL);
             rb.dependencies.emplace(&foundRb, BTargetDepType::FULL);
             ++rb.dependenciesSize;
@@ -1188,9 +1189,9 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
             ++builder.updateBTargetsSizeGoal;
             // This process is going to idle. Build-system will automatically decrement when it launches a new process.
             ++builder.idleCount;
+            --builder.activeEventCount;
             return true;
         }
-        waitingFor = nullptr;
     }
 
     if (foundRb.exitStatus != EXIT_SUCCESS)

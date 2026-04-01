@@ -239,8 +239,6 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
     if constexpr (bsMode == BSMode::BUILD)
     {
         readCacheAtBuildTime();
-        populateTransitiveProperties();
-        initSourceCache();
     }
 }
 
@@ -1269,6 +1267,11 @@ void CppTarget::completeRoundOne()
         }
         populateTransitiveProperties();
         return;
+    }
+    else
+    {
+        populateTransitiveProperties();
+        initSourceCache();
     }
 }
 

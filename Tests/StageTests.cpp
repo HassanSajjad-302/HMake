@@ -84,26 +84,27 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
 #include <stacktrace>
 static void executeSnapshotBalances(const Updates &updates, const path &hbuildExecutionPath = current_path())
 {
-    // Running configure.exe --build should not update any file
     const path p = current_path();
     current_path(hbuildExecutionPath);
     Snapshot snapshot(p);
-    const int exitCode = system(hbuildBuildStr.c_str());
-    /*if (exitCode)
+
     {
-        std::cout << std::stacktrace::current() << std::endl;
-    }*/
-    ASSERT_EQ(exitCode, 0) << hbuildBuildStr + " command failed.";
+        RunCommand r;
+        r.runProcess(hbuildBuildStr.c_str());
+        ASSERT_EQ(r.exitStatus, 0) << hbuildBuildStr + " command failed.";
+    }
+
     snapshot.after(p);
     ASSERT_EQ(snapshot.snapshotBalances(updates), true);
 
     snapshot.before(p);
-    const int exitCode2 = system(hbuildBuildStr.c_str());
-    /*if (exitCode2)
+
     {
-        std::cout << std::stacktrace::current() << std::endl;
-    }*/
-    ASSERT_EQ(exitCode2, 0) << hbuildBuildStr + " command failed.";
+        RunCommand r;
+        r.runProcess(hbuildBuildStr.c_str());
+        ASSERT_EQ(r.exitStatus, 0) << hbuildBuildStr + " command failed.";
+    }
+
     snapshot.after(p);
     current_path(p);
     ASSERT_EQ(snapshot.snapshotBalances(Updates{}), true);
@@ -130,7 +131,6 @@ static void executeTwoSnapshotBalances(const Updates &updates1, const Updates &u
 
 static void executeErroneousSnapshotBalances(const Updates &updates, const path &hbuildExecutionPath = current_path())
 {
-    // Running configure.exe --build should not update any file
     const path p = current_path();
     current_path(hbuildExecutionPath);
     Snapshot snapshot(p);
@@ -241,13 +241,9 @@ static void setupTest2Default()
     }
 }
 
-// Tests Property Transitiviy, rebuild in multiple dirs on touching file, source-file inclusion and exclusion,
+// Tests Property Transitivity, rebuild in multiple dirs on touching file, source-file inclusion and exclusion,
 // header-files exclusion and inclusion, libraries exclusion and inclusion, caching in-case of error in
 // file-compilation.
-
-// Haven't noticed recently.
-// Test2 clean build subtest fails sometimes on Linux. While debugging, target HMakeHelper returned 66 EREMOTE error
-// even when the program breakpoint on the line exit(EXIT_SUCCESS).
 TEST(StageTests, Test2)
 {
     path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test2");
@@ -430,12 +426,23 @@ TEST(StageTests, Test2)
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
     executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
 
-    // The following 2 tests are failing on windows and I think that is due to incremental linking. Same command
+    // The following 2 tests are failing on Windows and I think that is due to incremental linking. Same command
     // executed on console fails and then passes.
-#ifndef _WIN32
+#ifdef _WIN32
+    // ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
+#else
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
     executeSnapshotBalances(Updates{});
 #endif
+
+    // Adding a public compile definition for lib4 target. this is tested as compile-definition and compile-flags are
+    // not cached like include-dirs and others.
+    copyFilePath(testSourcePath / "Version/9/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(Updates{.sourceFiles = 2}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
+    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 }
 
 static void setupTest3Default(const path &testSourcePath)
@@ -540,11 +547,10 @@ TEST(StageTests, Test3)
 
     //  Touching public-lib4.hpp.
     //  lib3.cpp has a header-unit dep on public-lib3.hpp which has a header-dep on public-lib4.hpp, i.e.
-    //  public-lib3.hpp will be recompiled and its dependent lib3.cpp will also be recompiled but public-lib4.hpp is
-    //  itself a header-unit in lib4.cpp, so its smrule will also be generated.
+    //  public-lib3.hpp will be recompiled and its dependent lib3.cpp will also be recompiled.
     touchFile(testSourcePath / "lib4/public/public-lib4.hpp");
 
-    // 5 smruleFiles are generated. lib2.cpp, lib3.cpp, lib4.cpp, public-lib3.hpp, public-lib4.hpp.
+    // lib2.cpp, lib3.cpp, lib4.cpp, public-lib3.hpp, public-lib4.hpp.
     executeSnapshotBalances(Updates{.moduleFiles = 4}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib1-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
@@ -632,20 +638,85 @@ TEST(StageTests, Test4)
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
     executeSnapshotBalances(Updates{.linkTargetsDebug = 1}, "Debug/app");
 
-    //  Touching public-lib4.hpp.
-    //  lib3.cpp has a header-unit dep on public-lib3.hpp which has a header-dep on public-lib4.hpp, i.e.
-    //  public-lib3.hpp will be recompiled and its dependent lib3.cpp will also be recompiled but public-lib4.hpp is
-    //  itself a header-unit in lib4.cpp, so its smrule will also be generated.
+    //  Touching public-lib4.hpp. lib3.cpp has a header-unit dep on public-lib3.hpp which has a header-dep on
+    //  public-lib4.hpp, i.e. public-lib3.hpp will be recompiled and its dependent lib3.cpp will also be recompiled
     touchFile(testSourcePath / "lib4/public/public-lib4.hpp");
 
-    // 5 smruleFiles are generated. lib2.cpp, lib3.cpp, lib4.cpp, public-lib3.hpp, public-lib4.hpp.
+    // lib2.cpp, lib3.cpp, lib4.cpp, public-lib3.hpp, public-lib4.hpp.
     executeSnapshotBalances(Updates{.moduleFiles = 4}, "Debug/lib3-cpp");
     executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib1-cpp");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 }
 
+// Test for cycle in modules. In first case, we add an inverse module relationship between two modules. Then we fix
+// build then we add cycle involving three modules.
+TEST(StageTests, Test5)
+{
+    const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test5");
+    const path example8Path = path(SOURCE_DIRECTORY) / path("Examples/Example8");
+
+    copyFilePath(testSourcePath / "Version/0/ten.cppm", example8Path / "Mod_Src/ten.cppm");
+    copyFilePath(testSourcePath / "Version/0/fifteen.cppm", example8Path / "Mod_Src/fifteen.cppm");
+
+    current_path(example8Path);
+
+    ExamplesTestHelper::cleanBuild();
+    ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/Release/app/" +
+                                                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"),
+                                                 "Hello World\n");
+
+    // Clean build succeeds. two.cpp depends on ten.cppm. We edit ten.cppm to depend on two.cppm.
+    copyFilePath(testSourcePath / "Version/1/ten.cppm", example8Path / "Mod_Src/ten.cppm");
+
+    {
+        string twoPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/two.cppm");
+        string tenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/ten.cppm");
+
+        current_path(example8Path / "Build");
+        RunCommand r;
+        r.runProcess("hbuild");
+        erase_if(r.output, [](const char c) { return c == '\r'; });
+        int exitStatus = r.exitStatus;
+        string output = std::move(r.output);
+        ASSERT_EQ(exitStatus, EXIT_FAILURE);
+        const string str = "Cycle found: " + twoPath + " -> " + tenPath + " -> " + twoPath + "\n";
+        const string result = removeColorCodes(output);
+        printMessage("comparing output\n");
+        ASSERT_EQ(result, str);
+    }
+
+    // We correct the older cycle.
+    copyFilePath(testSourcePath / "Version/0/ten.cppm", example8Path / "Mod_Src/ten.cppm");
+    executeSnapshotBalances(Updates{.moduleFiles = 1, .imodFiles = 12, .linkTargetsDebug = 1}, example8Path / "Build");
+
+    // We add a bigger cycle this time
+    // We modify fifteen.cppm to depend on seven.cppm. but sever.cppm already -> fourteen.cppm -> fifteen.cppm.
+    copyFilePath(testSourcePath / "Version/1/fifteen.cppm", example8Path / "Mod_Src/fifteen.cppm");
+
+    {
+        string sevenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/seven.cppm");
+        string fourteenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fourteen.cppm");
+        string fifteenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fifteen.cppm");
+
+        current_path(example8Path / "Build");
+        RunCommand r;
+        r.runProcess("hbuild");
+        erase_if(r.output, [](const char c) { return c == '\r'; });
+        int exitStatus = r.exitStatus;
+        string output = std::move(r.output);
+        ASSERT_EQ(exitStatus, EXIT_FAILURE);
+        const string str =
+            "Cycle found: " + sevenPath + " -> " + fourteenPath + " -> " + fifteenPath + " -> " + sevenPath + "\n";
+        const string result = removeColorCodes(output);
+        ASSERT_EQ(result, str);
+    }
+
+    copyFilePath(testSourcePath / "Version/0/ten.cppm", example8Path / "Mod_Src/ten.cppm");
+    copyFilePath(testSourcePath / "Version/0/fifteen.cppm", example8Path / "Mod_Src/fifteen.cppm");
+}
+
 // TODO
-// Few features like PLOAT::outputName and PLOAT::name aren't tested. atm.
-// standard header-files, header-units and ignore-header-deps has not been tested as well.
-// Testing could be further expanded as-well.
+// Few features like PLOAT::outputName and PLOAT::directory aren't tested. atm.
+// standard header-files caching, standard header-units caching and ignore-header-deps has not been tested as well.
+// Testing could be further expanded as-well to test all the the error-messages.

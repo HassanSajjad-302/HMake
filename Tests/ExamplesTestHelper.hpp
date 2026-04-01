@@ -23,4 +23,6 @@ struct ExamplesTestHelper
     static void recreateBuildDir();
 };
 
+std::string removeColorCodes(const std::string &str);
+
 #endif // HMAKE_EXAMPLESTESTHELPER_HPP
