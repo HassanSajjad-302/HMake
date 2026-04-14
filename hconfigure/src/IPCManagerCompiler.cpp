@@ -4,10 +4,11 @@
 #include "Messages.hpp"
 
 #include <string>
+#include <unordered_set>
 #include <utility>
 
 #ifdef _WIN32
-#include "clang/IPC2978/rapidhash.h"
+#include "rapidhash.h"
 #include <Windows.h>
 #else
 #include <cstring>
@@ -325,7 +326,8 @@ tl::expected<void, std::string> IPCManagerCompiler::receiveBTCNonModule(const CT
     return {};
 }
 
-tl::expected<Response, std::string> IPCManagerCompiler::findResponse(std::string_view logicalName, const FileType type)
+tl::expected<Response, std::string> IPCManagerCompiler::findResponse(const std::string_view logicalName,
+                                                                     const FileType type)
 {
 #ifdef _WIN32
     std::string logicalName2{logicalName};
@@ -347,6 +349,11 @@ tl::expected<Response, std::string> IPCManagerCompiler::findResponse(std::string
         it == responses.end() ||
         (it->second.type != type && (it->second.type != FileType::HEADER_UNIT || type != FileType::HEADER_FILE)))
     {
+        if (isMocking)
+        {
+            return tl::unexpected("Could not find entry in mocking-mode");
+        }
+
         if (type == FileType::MODULE)
         {
             CTBModule ctbModule;
@@ -385,6 +392,62 @@ tl::expected<void, std::string> IPCManagerCompiler::sendCTBLastMessage(const uin
     {
         return tl::unexpected(r.error());
     }
+    return {};
+}
+
+static std::string fileToString(const std::string_view fileName)
+{
+    std::string fileBuffer;
+    FILE *fp;
+
+#ifdef WIN32
+    fopen_s(&fp, fileName.data(), "rb");
+#else
+    fp = fopen(fileName.data(), "r");
+#endif
+
+    fseek(fp, 0, SEEK_END);
+    const size_t filesize = (size_t)ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    fileBuffer.resize(filesize);
+    const uint64_t readLength = fread(fileBuffer.data(), 1, filesize, fp);
+    fclose(fp);
+    return fileBuffer;
+}
+
+tl::expected<void, std::string> IPCManagerCompiler::readEntriesFromFile(const std::string_view filePath)
+{
+    scanCacheFileData = fileToString(filePath);
+
+    uint32_t bytesRead = 0;
+    TRY_READ_VAL(entriesSize, readUInt32, scanCacheFileData, bytesRead);
+    for (uint32_t i = 0; i < entriesSize; ++i)
+    {
+        TRY_READ_VAL(responseKey, readString, scanCacheFileData, bytesRead);
+
+        TRY_READ_VAL(valueFilePath, readPath, scanCacheFileData, bytesRead);
+        TRY_READ_VAL(fileType, readUInt8, scanCacheFileData, bytesRead);
+        TRY_READ_VAL(isSystem, readBool, scanCacheFileData, bytesRead);
+
+        Mapping mapping{};
+        if (auto it = filePathProcessMapping.find(std::string(valueFilePath)); it == filePathProcessMapping.end())
+        {
+            if (static_cast<FileType>(fileType) != FileType::HEADER_FILE)
+            {
+                const std::string *fileText = new std::string{fileToString(valueFilePath)};
+                mapping.file = *fileText;
+                filePathProcessMapping.emplace(valueFilePath, mapping);
+            }
+        }
+        else
+        {
+            mapping.file = it->second.file;
+        }
+        responses.emplace(responseKey, Response{valueFilePath, mapping, static_cast<FileType>(fileType), isSystem});
+    }
+
+    mockFilePath = filePath;
+    isMocking = true;
     return {};
 }
 

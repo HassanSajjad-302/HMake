@@ -212,6 +212,18 @@ tl::expected<bool, std::string> Manager::readBool(const std::string_view message
     return result;
 }
 
+tl::expected<uint8_t, std::string> Manager::readUInt8(const std::string_view message, uint32_t &bytesRead)
+{
+    if (bytesRead + 1 > message.size())
+    {
+        return tl::unexpected(getErrorString(ErrorCategory::PARSING_ERROR));
+    }
+    uint8_t result = *reinterpret_cast<const uint8_t *>(message.data() + bytesRead);
+    bytesRead += 1;
+    return result;
+}
+
+
 tl::expected<uint32_t, std::string> Manager::readUInt32(const std::string_view message, uint32_t &bytesRead)
 {
     if (bytesRead + 4 > message.size())

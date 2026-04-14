@@ -4,10 +4,10 @@
 #include "BTarget.hpp"
 #include "DSC.hpp"
 #include "Features.hpp"
-#include "TargetCache.hpp"
+#include "IPCManagerCompiler.hpp"
 #include <memory>
 
-using std::shared_ptr;
+using std::shared_ptr, P2978::FileType;
 
 class CppTarget;
 
@@ -154,14 +154,6 @@ struct HeaderFileOrUnit
     HeaderFileOrUnit(CppMod *cppMod_, bool isSystem_);
     HeaderFileOrUnit(Node *node_, bool isSystem_);
     HeaderFileOrUnit() = default;
-};
-
-/// Whether a file is Module, Header-File or Header-Unit
-enum class FileType : uint8_t
-{
-    MODULE,
-    HEADER_FILE,
-    HEADER_UNIT,
 };
 
 class Configuration : public BTarget

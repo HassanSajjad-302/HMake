@@ -250,6 +250,10 @@ class BTarget // BTarget
     /// Adds dependency edge for a given round and dependency type.
     template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDep(BTarget &dep);
 
+    /// This function is called in standAlone mode, so the BTarget could generate stand-alone commands that could be run
+    /// stand-alone without the need for the build-system.
+    virtual void generateStandAloneCommand();
+
     /// This function is called by dependents of BTarget, so the scriptFile could be populated. This script could then
     /// be run alone without HMake. Used in producing the script for compiling module-file including its dependencies.
     /// This function is not part of CppMod class because CppMod class could have some dependencies that could like to

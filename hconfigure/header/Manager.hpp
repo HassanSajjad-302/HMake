@@ -75,6 +75,7 @@ class Manager
     static void writeVectorOfHeaderFiles(std::string &buffer, const std::vector<HeaderFile> &headerFiles);
 
     static tl::expected<bool, std::string> readBool(std::string_view message, uint32_t &bytesRead);
+    static tl::expected<uint8_t, std::string> readUInt8(std::string_view message, uint32_t &bytesRead);
     static tl::expected<uint32_t, std::string> readUInt32(std::string_view message, uint32_t &bytesRead);
     static tl::expected<std::string_view, std::string> readString(std::string_view message, uint32_t &bytesRead);
 

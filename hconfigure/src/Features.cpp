@@ -1437,10 +1437,6 @@ string CppCompilerFeatures::getCompileCommand()
     }
     else if (compiler.bTFamily == BTFamily::MSVC)
     {
-        if (compiler.btSubFamily == BTSubFamily::CLANG)
-        {
-            compileCommand += "-nostdinc ";
-        }
         compileCommand +=
             flags.cppFlagsCompileCpp + flags.cppFlagsCompile + flags.optionsCompile + flags.optionsCompileCpp;
     }

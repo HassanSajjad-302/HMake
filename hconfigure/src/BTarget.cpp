@@ -264,6 +264,10 @@ bool BTarget::isEventCompleted(Builder &builder, string_view message)
     return false;
 }
 
+void BTarget::generateStandAloneCommand()
+{
+}
+
 void BTarget::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents, const string &scriptDir)
 {
 }

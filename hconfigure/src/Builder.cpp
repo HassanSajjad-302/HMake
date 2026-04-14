@@ -73,6 +73,17 @@ Builder::Builder()
     delete[] BTarget::realBTargetsGlobal[1].data();
     --round;
     executeRoundZero();
+
+    if (standAlone)
+    {
+        RealBTarget::sortGraph();
+        for (uint32_t i = 0; i < RealBTarget::sorted.size(); i++)
+        {
+            RealBTarget *rb = RealBTarget::sorted[i];
+            rb->indexInTopologicalSort = i;
+            rb->bTarget->generateStandAloneCommand();
+        }
+    }
 }
 
 void Builder::executeRoundOne()
@@ -266,7 +277,7 @@ void Builder::executeRoundZero()
             if constexpr (ndeb == NDEB::NO)
             {
                 // +1 accounts for possible signalfd readiness event.
-                if (n > activeEventCount + 1)
+                if (n != -1 && n > activeEventCount + 1)
                 {
                     for (uint32_t i = 0; i < 4096; i++)
                     {

@@ -276,34 +276,32 @@ int main()
         replaceFileTextsRecursive(current_path() / "clang/lib/AST",
                                   getFileNames(current_path() / "clang/lib/AST/ByteCode"), "ByteCode/", "");
 
-        replaceFileTextsRecursive(current_path() / "clang/lib/Driver",
-                                  getFileNames(current_path() / "clang/lib/Driver/ToolChains/Arch"), "ToolChains/Arch/",
-                                  "");
-
-        replaceFileTextsRecursive(current_path() / "clang/lib/Driver",
-                                  getFileNames(current_path() / "clang/lib/Driver/ToolChains"), "ToolChains/", "");
-
-        replaceFileTextsRecursive(current_path() / "clang/lib/Driver",
-                                  getFileNames(current_path() / "clang/lib/Driver/ToolChains"), "ToolChains/", "");
-
-        vector<string> archFileNames = getFileNames(current_path() / "clang/lib/Driver/ToolChains/Arch/");
         {
+            vector<string> archFileNames = getFileNames(current_path() / "clang/lib/Driver/ToolChains/Arch");
+            replaceFileTextsRecursive(current_path() / "clang/lib/Driver/ToolChains/Arch", archFileNames,
+                                      "ToolChains/Arch/", "");
+
             for (string &arch : archFileNames)
             {
                 arch = "Arch/" + arch;
             }
+            replaceFileTextsRecursive(current_path() / "clang/lib/Driver/ToolChains", archFileNames, "ToolChains/", "");
 
-            replaceFileTextsRecursive(current_path() / "clang/lib/Driver", archFileNames, "ToolChains/", "");
+            archFileNames = getFileNames(current_path() / "clang/lib/Driver/ToolChains");
+            replaceFileTextsRecursive(current_path() / "clang/lib/Driver/ToolChains", archFileNames, "ToolChains/", "");
+
+            replaceInSingleFile(current_path() / "clang/lib/Driver/ToolChains/Arch/RISCV.cpp", "../Clang.h",
+                                "ToolChains/Clang.h");
+
+            replaceInSingleFile(current_path() / "clang/lib/Driver/ToolChains/Arch/LoongArch.cpp", "../Clang.h",
+                                "ToolChains/Clang.h");
+
+            replaceInSingleFile(current_path() / "clang/lib/Driver/ToolChains/Arch/LoongArch.cpp", "../Clang.h",
+                                "ToolChains/Clang.h");
         }
 
         // NCC is a macro defined in ioctl-types.h
         replaceInSingleFile(current_path() / "clang/lib/Serialization/ASTWriter.cpp", "NCC", "NCC_");
-
-        replaceInSingleFile(current_path() / "clang/lib/Driver/ToolChains/Arch/RISCV.cpp", "../Clang.h",
-                            "ToolChains/Clang.h");
-
-        replaceInSingleFile(current_path() / "clang/lib/Driver/ToolChains/Arch/LoongArch.cpp", "../Clang.h",
-                            "ToolChains/Clang.h");
 
         replaceInSingleFile(current_path() / "clang/include/clang/ExtractAPI/Serialization/APISetVisitor.h",
                             "../APIRecords.inc", "clang/ExtractAPI/APIRecords.inc");
@@ -317,13 +315,20 @@ int main()
             current_path() / "clang/lib/ScalableStaticAnalysisFramework/Core/Serialization/JSONFormat/JSONFormatImpl.h",
             "../../ModelStringConversions.h", "ModelStringConversions.h");
 
-        replaceInSingleFile(
-            current_path() / "clang/lib/ScalableStaticAnalysisFramework/Core/Model/EntityLinkage.cpp",
-            "../ModelStringConversions.h", "ModelStringConversions.h");
+        replaceInSingleFile(current_path() / "clang/lib/ScalableStaticAnalysisFramework/Core/Model/EntityLinkage.cpp",
+                            "../ModelStringConversions.h", "ModelStringConversions.h");
 
-        replaceInSingleFile(
-            current_path() / "clang/lib/ScalableStaticAnalysisFramework/Core/Model/BuildNamespace.cpp",
-            "../ModelStringConversions.h", "ModelStringConversions.h");
+        replaceInSingleFile(current_path() / "clang/lib/ScalableStaticAnalysisFramework/Core/Model/BuildNamespace.cpp",
+                            "../ModelStringConversions.h", "ModelStringConversions.h");
+
+        string from = R"(#if __has_include(<link.h>)
+#include <link.h>
+#endif
+)";
+
+        string to = R"(#include <link.h>
+)";
+        replaceInSingleFile("llvm/lib/Support/Unix/Signals.inc", from, to);
     }
 
     const string str = current_path() / "llvm/include/llvm/Demangle";

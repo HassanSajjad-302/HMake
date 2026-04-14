@@ -22,7 +22,6 @@ enum class FileType : uint8_t
 struct Response
 {
     std::string_view filePath;
-    // if type == HEADER_FILE, then fileSize has no meaning
     Mapping mapping;
     FileType type;
     bool isSystem;
@@ -57,8 +56,12 @@ class IPCManagerCompiler : Manager
     // IPCManagerCompiler::responses cache.
     [[nodiscard]] tl::expected<void, std::string> receiveBTCNonModule(const CTBNonModule &nonModule);
 
+public:
     // Internal cache for the possible future requests.
     std::unordered_map<std::string_view, Response> responses;
+
+    // Holds scan-cache file bytes; keys and paths in responses are views into this buffer.
+    std::string scanCacheFileData;
 
     //  Compiler can use this function to read the BMI file. BMI should be read using this function to conserve memory.
     static tl::expected<Mapping, std::string> readSharedMemoryBMIFile(const BMIFile &file);
@@ -66,6 +69,15 @@ class IPCManagerCompiler : Manager
     [[nodiscard]] tl::expected<void, std::string> sendCTBLastMessage(uint32_t fileSize) const;
 
   public:
+   // Stores the mockFilePath. Needed so compiler could generate argument correctly.
+    std::string mockFilePath;
+
+    // Whether we are mocking or are we doing IPC with the build-system
+    bool isMocking = false;
+
+    // This is an IPC mock. This reads all entries from the file
+    tl::expected<void, std::string> readEntriesFromFile(std::string_view filePath);
+
     // Compiler process can use this function to close the BMI file-mapping to reduce references to shared memory file.
     // Not needed as it will be cleared at process exit.
     static tl::expected<void, std::string> closeBMIFileMapping(const Mapping &processMappingOfBMIFile);

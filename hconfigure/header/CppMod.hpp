@@ -191,12 +191,25 @@ struct CppMod final : CppSrc
     /// build-cache at myBuildCacheIndex, if this was updated.
     void updateBuildCache() override;
 
-    void getCompileCommand(std::pmr::string &compileCommand, bool useIPC) const;
+    enum class CommandType
+    {
+        USE_IPC,
+        USE_IPC_MOCK_FILE,
+        CONVENTIONAL,
+    };
+
+    void getCompileCommand(std::pmr::string &compileCommand, CommandType commandType, string_view mockFilePath) const;
 
     /// Checks whether this needs to be updated and sets round0 RealBTarget::updateStatus to UpdateStatus::NEEDS_UPDATE.
     /// Otherwise, populates CppTarget::allCppModDependencies based on myBuildCache. So, if any of our dependents need
     /// to be updated, makeAndSend* functions could send our dependencies with us in a single message.
     void setFileStatusAndPopulateAllDependencies();
+
+
+    /// This function is called in standAlone mode, so the BTarget could generate stand-alone commands that could be run
+    /// stand-alone without the need for the build-system.
+    void generateStandAloneCommand() override;
+
 
     /// Used to generate the script for standalone hu/module compilation. Generates a batch file on Windows and a bash
     /// file on Linux.

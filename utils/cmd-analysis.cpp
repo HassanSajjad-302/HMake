@@ -198,6 +198,43 @@ void compareObjectFiles(string targetName, const set<string> &ninjaObjectFiles, 
     }
 }
 
+set<string> getDuplicateObjFiles()
+{
+    set<string> duplicateObjectFiles;
+
+    // following are of clangCodeGen target
+    duplicateObjectFiles.emplace("AArch64");
+    duplicateObjectFiles.emplace("ARC");
+    duplicateObjectFiles.emplace("AMDGPU");
+    duplicateObjectFiles.emplace("ARM");
+    duplicateObjectFiles.emplace("AVR");
+    duplicateObjectFiles.emplace("BPF");
+    duplicateObjectFiles.emplace("CSKY");
+    duplicateObjectFiles.emplace("DirectX");
+    duplicateObjectFiles.emplace("Hexagon");
+    duplicateObjectFiles.emplace("Lanai");
+    duplicateObjectFiles.emplace("LoongArch");
+    duplicateObjectFiles.emplace("M68k");
+    duplicateObjectFiles.emplace("Mips");
+    duplicateObjectFiles.emplace("MSP430");
+    duplicateObjectFiles.emplace("NVPTX");
+    duplicateObjectFiles.emplace("PPC");
+    duplicateObjectFiles.emplace("RISCV");
+    duplicateObjectFiles.emplace("Sparc");
+    duplicateObjectFiles.emplace("SPIR");
+    duplicateObjectFiles.emplace("SystemZ");
+    duplicateObjectFiles.emplace("TCE");
+    duplicateObjectFiles.emplace("VE");
+    duplicateObjectFiles.emplace("WebAssembly");
+    duplicateObjectFiles.emplace("X86");
+    duplicateObjectFiles.emplace("XCore");
+
+    // following of clangDriver target
+    duplicateObjectFiles.emplace("AMDGPU");
+
+    return duplicateObjectFiles;
+}
+
 void analyzeObjectFiles(string targetName, string ninjaLine, string hbuildLine)
 {
     set<string> ninjaObjectFileLines;
@@ -209,13 +246,21 @@ void analyzeObjectFiles(string targetName, string ninjaLine, string hbuildLine)
         }
     }
 
+    set<string> duplicateObjectFiles = getDuplicateObjFiles();
     set<string> ninjaObjectFiles;
+
+    uint32_t count = 0;
     for (string s : ninjaObjectFileLines)
     {
         if (string stemName = path(s).stem().stem(); !ninjaObjectFiles.emplace(stemName).second)
         {
-            printErrorMessage("Emplace failure means that there are 2 object-files of the same name. how to deal with "
-                              "this situation?\n");
+            if (duplicateObjectFiles.contains(stemName))
+            {
+                continue;
+            }
+            printErrorMessage(
+                FORMAT("There are 2 object-files with same name {} in ninjaObjectFileLinex in target {}\n", stemName,
+                       targetName));
         }
     }
 
@@ -233,8 +278,12 @@ void analyzeObjectFiles(string targetName, string ninjaLine, string hbuildLine)
     {
         if (string stemName = path(s).stem().stem(); !hbuildObjectFiles.emplace(stemName).second)
         {
-            printErrorMessage("Emplace failure means that there are 2 object-files of the same name. how to deal with "
-                              "this situation?\n");
+            if (duplicateObjectFiles.contains(stemName))
+            {
+                continue;
+            }
+            printErrorMessage(FORMAT("There are 2 object-files with same name {} in hbuildObjectFiles in target {}\n",
+                                     stemName, targetName));
         }
     }
 
@@ -252,10 +301,6 @@ void analyzeNinjaAndHbuildArchiveLines(const vector<string> &ninjaArchiveLines,
         const uint32_t pos = l.find(archiveStringPre) + archiveStringPre.size();
         string str{l.begin() + pos, l.begin() + l.find("&&", pos) - 1};
         // printMessage(FORMAT("{}", str));
-        if (str == "libclangCodeGen.a")
-        {
-            continue;
-        }
         staticLibs.emplace_back(str, l);
     }
 

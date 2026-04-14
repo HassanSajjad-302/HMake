@@ -4,6 +4,7 @@
 #include "Builder.hpp"
 #include "Configuration.hpp"
 #include "CppTarget.hpp"
+#include "IPCManagerCompiler.hpp"
 #include "JConsts.hpp"
 #include "PointerPacking.h"
 #include "TargetCache.hpp"
@@ -854,19 +855,6 @@ bool CppMod::isEventRegistered(Builder &builder)
     if (rb.updateStatus == UpdateStatus::ALREADY_UPDATED)
     {
         rb.updateStatus = UpdateStatus::UPDATED_WITHOUT_BUILDING;
-        if (target->configuration->evaluate(StandAloneCommand::YES))
-        {
-            path scriptDirectory = target->myBuildDir->filePath;
-            scriptDirectory /= node->getFileName() + toString(node->myId);
-            std::filesystem::create_directory(scriptDirectory);
-            string scriptContents =
-                FORMAT("#!/bin/bash\n\n# This script compiles {}. Run it in the build-dir with same "
-                       "name as current build-dir.\n\n",
-                       node->filePath);
-            flat_hash_set<string> createdDirs;
-            cppStandAloneCommand(createdDirs, scriptContents, target->myBuildDir->filePath);
-            std::ofstream(scriptDirectory / "script.sh") << scriptContents;
-        }
         return false;
     }
 
@@ -874,7 +862,7 @@ bool CppMod::isEventRegistered(Builder &builder)
     char buffer[stackSize];
     std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
     std::pmr::string cppFullCompileCommand(&alloc);
-    getCompileCommand(cppFullCompileCommand, target->useIPC);
+    getCompileCommand(cppFullCompileCommand, target->useIPC ? CommandType::USE_IPC : CommandType::CONVENTIONAL, "");
     if (dryRun)
     {
         cppFullCompileCommand += '\n';
@@ -1003,6 +991,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         ++builder.activeEventCount;
         if (waitingFor->realBTargets[0].exitStatus != EXIT_SUCCESS)
         {
+            waitingFor = nullptr;
             run.killModuleProcess(builder);
             rb.exitStatus = EXIT_FAILURE;
             rb.updateStatus = UpdateStatus::UPDATED_WITHOUT_BUILDING;
@@ -1169,29 +1158,32 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
     RealBTarget &foundRb = found->realBTargets[0];
 
-    if (foundRb.updateStatus != UpdateStatus::UPDATED)
+    if (foundRb.updateStatus != UpdateStatus::UPDATED && foundRb.updateStatus != UpdateStatus::UPDATED_WITHOUT_BUILDING)
     {
-        if (foundRb.updateStatus != UpdateStatus::UPDATED &&
-            foundRb.updateStatus != UpdateStatus::UPDATED_WITHOUT_BUILDING)
-        {
-            waitingFor = found;
-            foundRb.dependents.emplace(&rb, BTargetDepType::FULL);
-            rb.dependencies.emplace(&foundRb, BTargetDepType::FULL);
-            ++rb.dependenciesSize;
+        waitingFor = found;
+        foundRb.dependents.emplace(&rb, BTargetDepType::FULL);
+        rb.dependencies.emplace(&foundRb, BTargetDepType::FULL);
+        ++rb.dependenciesSize;
 
-            // if its dependenciesSize is zero, it means that it is already in the list. We just bring it to the front.
-            if (!found->isScheduled && foundRb.dependenciesSize == 0)
-            {
-                found->isScheduled = true;
-                ++builder.updateBTargetsSizeGoal;
-                builder.updateBTargets.emplace(&foundRb);
-            }
+        // if its dependenciesSize is zero, it means that it is already in the list. We just bring it to the front.
+        if (!found->isScheduled && foundRb.dependenciesSize == 0)
+        {
+            found->isScheduled = true;
             ++builder.updateBTargetsSizeGoal;
-            // This process is going to idle. Build-system will automatically decrement when it launches a new process.
-            ++builder.idleCount;
-            --builder.activeEventCount;
-            return true;
+            builder.updateBTargets.emplace(&foundRb);
         }
+        ++builder.updateBTargetsSizeGoal;
+        // This process is going to idle. Build-system will automatically decrement when it launches a new process.
+        ++builder.idleCount;
+        --builder.activeEventCount;
+        return true;
+    }
+
+    if (target->configuration->evaluate(StandAloneCommand::YES))
+    {
+        // we need this in standalone build to be able to generate the script for all the dependencies.
+        foundRb.dependents.emplace(&rb, BTargetDepType::FULL);
+        rb.dependencies.emplace(&foundRb, BTargetDepType::FULL);
     }
 
     if (foundRb.exitStatus != EXIT_SUCCESS)
@@ -1233,7 +1225,7 @@ void CppMod::print(const Builder &builder, const string &output) const
     }
     else
     {
-        getCompileCommand(outputStr, target->useIPC);
+        getCompileCommand(outputStr, target->useIPC ? CommandType::USE_IPC : CommandType::CONVENTIONAL, "");
     }
 
     outputStr += ' ';
@@ -1305,7 +1297,8 @@ void CppMod::updateBuildCache()
     }
 }
 
-void CppMod::getCompileCommand(std::pmr::string &compileCommand, const bool useIPC) const
+void CppMod::getCompileCommand(std::pmr::string &compileCommand, CommandType commandType,
+                               const string_view mockFilePath) const
 {
     if (sourceType != SourceType::CPP && type != CppModType::PRIMARY_IMPLEMENTATION)
     {
@@ -1329,10 +1322,22 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const bool useI
     target->setCompileCommand(compileCommand);
     compileCommand += "-Wno-experimental-header-units ";
 
-    const string useIPCsTR = useIPC ? "-noScanIPC " : "";
+    // if addMockFile is true, then -fuseIPC="mock-file-path" is used instead of -useIPC
+    string useIPCsTR;
+    if (commandType == CommandType::USE_IPC_MOCK_FILE)
+    {
+        useIPCsTR = "-useIPC=\"";
+        useIPCsTR += mockFilePath;
+        useIPCsTR += "\" ";
+    }
+    else if (commandType == CommandType::USE_IPC)
+    {
+        useIPCsTR = "-useIPC ";
+    }
     if (const Compiler &c = target->configuration->compilerFeatures.compiler;
         c.bTFamily == BTFamily::MSVC && c.btSubFamily == BTSubFamily::CLANG)
     {
+        compileCommand += commandType == CommandType::CONVENTIONAL ? "" : "-nostdinc -nostdinc++ ";
         if (type == CppModType::HEADER_UNIT)
         {
             compileCommand +=
@@ -1360,6 +1365,7 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const bool useI
     }
     else if (c.bTFamily == BTFamily::GCC && c.btSubFamily == BTSubFamily::CLANG)
     {
+        compileCommand += commandType == CommandType::CONVENTIONAL ? "" : "-nostdinc -nostdinc++ ";
         if (type == CppModType::HEADER_UNIT)
         {
             compileCommand += (target->isSystem ? "-fmodule-header=system -o\"" : "-fmodule-header=user -o\"") +
@@ -1385,11 +1391,12 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, const bool useI
         }
     }
 
-    if (useIPC)
+    if (commandType != CommandType::CONVENTIONAL)
     {
         return;
     }
 
+    // Only for convention command-line approach if the compiler supports such.
     for (const CppMod *mod : allCppModDependencies)
     {
         compileCommand += "-fmodule-file=\"" + mod->interfaceNode->filePath + "\" ";
@@ -1584,20 +1591,48 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
     rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
 }
 
+void CppMod::generateStandAloneCommand()
+{
+    if (target->configuration->evaluate(StandAloneCommand::YES))
+    {
+        if (const RealBTarget &rb = realBTargets[0];
+            rb.updateStatus == UpdateStatus::UPDATED ||
+            (rb.updateStatus == UpdateStatus::UPDATED_WITHOUT_BUILDING && rb.exitStatus != EXIT_SUCCESS))
+        {
+            path scriptDirectory = target->myBuildDir->filePath;
+            scriptDirectory /= node->getFileName() + toString(node->myId);
+            std::filesystem::create_directory(scriptDirectory);
+            string scriptContents =
+                FORMAT("#!/bin/bash\n\nset -x\n\n# This script compiles {}. Run it in the build-dir with same "
+                       "name as current build-dir.\n\n",
+                       node->filePath);
+            flat_hash_set<string> createdDirs;
+            cppStandAloneCommand(createdDirs, scriptContents, scriptDirectory);
+            std::ofstream(scriptDirectory / "script.sh") << scriptContents;
+        }
+    }
+}
+
 void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents, const string &scriptDir)
 {
     btree_set<BTarget *, IndexInTopologicalSortComparatorRoundTwo> allDeps;
-
-    for (CppMod *cppMod : allCppModDependencies)
-    {
-        allDeps.emplace(cppMod);
-    }
 
     for (const auto &[dep, depType] : realBTargets[0].dependencies)
     {
         allDeps.emplace(dep->bTarget);
     }
 
+    for (CppMod *cppMod : allCppModDependencies)
+    {
+        allDeps.emplace(cppMod);
+        for (const auto &[dep, depType] : cppMod->realBTargets[0].dependencies)
+        {
+            allDeps.emplace(dep->bTarget);
+        }
+    }
+
+    // This step is done so that if there are custom code generation steps, then those could be added to the script file
+    // as well.
     for (auto it = allDeps.rbegin(); it != allDeps.rend(); ++it)
     {
         (*it)->cppStandAloneCommand(createdDirs, scriptContents, scriptDir);
@@ -1613,11 +1648,81 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
         scriptContents += "mkdir " + target->name + '\n';
     }
 
+    if (!target->useIPC)
+    {
+        constexpr uint32_t stackSize = 64 * 1024;
+        char buffer[stackSize];
+        std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
+        std::pmr::string cppFullCompileCommand(&alloc);
+
+        getCompileCommand(cppFullCompileCommand,
+                          target->useIPC ? CommandType::USE_IPC_MOCK_FILE : CommandType::CONVENTIONAL, "");
+
+        scriptContents += cppFullCompileCommand;
+        scriptContents.push_back('\n');
+        return;
+    }
+
+    const string mockFilePath = path(scriptDir) / FORMAT("mock-file{}.bin", id);
+    {
+        // New scope for mock-file.bin
+        constexpr uint32_t stackSize = 256 * 1024;
+        char buffer[stackSize];
+        std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
+        std::pmr::string mockFileContents(&alloc);
+
+        flat_hash_set<string> ignoreNames;
+
+        uint32_t count = 0;
+        writeUint32(mockFileContents, count);
+
+        for (const CppMod *cppMod : allCppModDependencies)
+        {
+            for (const string &logicalName : cppMod->logicalNames)
+            {
+                ignoreNames.emplace(logicalName);
+                ++count;
+                writeStringView(mockFileContents, logicalName);
+                writeStringView(mockFileContents, cppMod->interfaceNode->filePath);
+                mockFileContents.push_back('\0');
+                P2978::FileType file;
+                if (cppMod->type == CppModType::HEADER_UNIT)
+                {
+                    file = P2978::FileType::HEADER_UNIT;
+                }
+                else
+                {
+                    file = P2978::FileType::MODULE;
+                }
+                writeUint8(mockFileContents, static_cast<uint8_t>(file));
+                writeBool(mockFileContents, cppMod->target->isSystem);
+            }
+        }
+
+        for (auto &[str, headerFile] : composingHeaders)
+        {
+            if (ignoreNames.emplace(str).second)
+            {
+                ++count;
+                writeStringView(mockFileContents, str);
+                writeStringView(mockFileContents, headerFile->filePath);
+                mockFileContents.push_back('\0');
+                writeUint8(mockFileContents, static_cast<uint8_t>(FileType::HEADER_FILE));
+                writeBool(mockFileContents, target->isSystem);
+            }
+        }
+
+        *reinterpret_cast<uint32_t *>(mockFileContents.data()) = count;
+        std::ofstream(mockFilePath) << mockFileContents;
+    }
+
     constexpr uint32_t stackSize = 64 * 1024;
     char buffer[stackSize];
     std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
     std::pmr::string cppFullCompileCommand(&alloc);
-    getCompileCommand(cppFullCompileCommand, false);
+
+    getCompileCommand(cppFullCompileCommand,
+                      target->useIPC ? CommandType::USE_IPC_MOCK_FILE : CommandType::CONVENTIONAL, mockFilePath);
 
     scriptContents += cppFullCompileCommand;
     scriptContents.push_back('\n');
