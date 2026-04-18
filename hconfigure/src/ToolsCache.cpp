@@ -281,9 +281,9 @@ void ToolsCache::detectToolsAndInitialize()
     else if constexpr (os == OS::LINUX)
     {
         linuxTools.emplace_back(Compiler(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0),
-                                         R"(/home/hassan/Projects/llvm-project/llvm/my-fork/bin/clang)"));
+                                         R"(/home/hassan/Projects/llvm-project/llvm/cmake-build-release/bin/clang)"));
         linkers.emplace_back(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0),
-                             R"(/home/hassan/Projects/llvm-project/llvm/my-fork/bin/clang++)");
+                             R"(/home/hassan/Projects/llvm-project/llvm/cmake-build-release/bin/clang++)");
         archivers.emplace_back(BTFamily::GCC, BTSubFamily::CLANG, Version(12, 2, 0), "/usr/bin/ar");
     }
 }

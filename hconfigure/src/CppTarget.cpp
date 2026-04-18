@@ -546,21 +546,66 @@ void CppTarget::emplaceInNodesType(const Node *node, FileType type, const bool a
     }
 }
 
-const Node *CppTarget::getIncludeNode(const bool isHeaderFile, const string &includeName, bool addInReq,
-                                      bool addInUseReq)
+const Node *CppTarget::getIncludeNode(const bool isHeaderFile, const string &includeName, const bool addInReq,
+                                      const bool addInUseReq)
 {
+    if (isHeaderFile)
+    {
+        if (addInReq)
+        {
+            if (const auto it = reqHeaderNameMapping.find(includeName); it != reqHeaderNameMapping.end())
+            {
+                return it->second.data.node;
+            }
+        }
+        else
+        {
+            if (const auto it = useReqHeaderNameMapping.find(includeName); it != useReqHeaderNameMapping.end())
+            {
+                return it->second.data.node;
+            }
+        }
+        return nullptr;
+    }
+
+    if (configuration->evaluate(BigHeaderUnit::YES))
+    {
+        CppMod *hu = nullptr;
+        if (addInReq && addInUseReq)
+        {
+            hu = getPublicBigHu(false);
+        }
+        else if (addInReq)
+        {
+            hu = getPrivateBigHu(false);
+        }
+        else if (addInUseReq)
+        {
+            hu = getInterfaceBigHu(false);
+        }
+
+        if (hu)
+        {
+            if (const auto it = hu->composingHeaders.find(includeName); it != hu->composingHeaders.end())
+            {
+                return it->second;
+            }
+        }
+        return nullptr;
+    }
+
     if (addInReq)
     {
         if (const auto it = reqHeaderNameMapping.find(includeName); it != reqHeaderNameMapping.end())
         {
-            return isHeaderFile ? it->second.data.node : it->second.data.cppMod->node;
+            return it->second.data.cppMod->node;
         }
     }
     else
     {
         if (const auto it = useReqHeaderNameMapping.find(includeName); it != useReqHeaderNameMapping.end())
         {
-            return isHeaderFile ? it->second.data.node : it->second.data.cppMod->node;
+            return it->second.data.cppMod->node;
         }
     }
 
@@ -701,17 +746,56 @@ void CppTarget::removeHeaderUnit(const string &includeName, const bool addInReq,
             bigHu = interfaceBigHus[interfaceBigHus.size() - 1];
         }
 
-        if (!std::erase(bigHu->logicalNames, *p))
+        if (addInReq)
         {
-            printErrorMessage(
-                FORMAT("Could not find logical-name {} to remove in public-header-unit in target {}\n.", *p, name));
+            if (const auto &it = reqHeaderNameMapping.find(*p); it == reqHeaderNameMapping.end())
+            {
+                printErrorMessage(
+                    FORMAT("Could not find the header {}\n in removeHeaderUnit in target {}\n", *p, name));
+            }
+            else
+            {
+                reqHeaderNameMapping.erase(it);
+            }
+
+            if (const auto &it = reqNodesType.find(headerNode); it == reqNodesType.end())
+            {
+                HMAKE_HMAKE_INTERNAL_ERROR
+            }
+            else
+            {
+                reqNodesType.erase(headerNode);
+            }
         }
+
+        if (addInUseReq)
+        {
+            if (const auto &it = useReqHeaderNameMapping.find(*p); it == useReqHeaderNameMapping.end())
+            {
+                printErrorMessage(
+                    FORMAT("Could not find the header {}\n in removeHeaderUnit in target {}\n", *p, name));
+            }
+            else
+            {
+                useReqHeaderNameMapping.erase(it);
+            }
+
+            if (const auto &it = useReqNodesType.find(headerNode); it == useReqNodesType.end())
+            {
+                HMAKE_HMAKE_INTERNAL_ERROR
+            }
+            else
+            {
+                useReqNodesType.erase(headerNode);
+            }
+        }
+
         if (!bigHu->composingHeaders.erase(*p))
         {
             printErrorMessage(
                 FORMAT("Could not find composing-header {} to remove in public-header-unit in target {}\n.", *p, name));
         }
-        if (bigHu->logicalNames.empty())
+        if (bigHu->composingHeaders.empty())
         {
             delete bigHu;
         }
