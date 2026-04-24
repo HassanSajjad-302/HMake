@@ -305,12 +305,26 @@ bool RunCommand::startRead()
 
 CompleteReadType RunCommand::completeRead()
 {
-    char buffer[64 * 1024]{};
     ssize_t readSize;
+    constexpr size_t chunkSize = 4 * 1024;
+    const size_t oldSize = output.size();
+
+    output.resize(oldSize + chunkSize);
+
     do
     {
-        readSize = read(readPipe, buffer, sizeof(buffer) - 1);
+        readSize = read(readPipe, output.data() + oldSize, chunkSize);
     } while (readSize == -1 && errno == EINTR);
+
+    // Trim the string back to the actual number of bytes read.
+    if (readSize <= 0)
+    {
+        output.resize(oldSize);
+    }
+    else
+    {
+        output.resize(oldSize + readSize);
+    }
 
     if (readSize == -1)
     {
@@ -320,7 +334,6 @@ CompleteReadType RunCommand::completeRead()
     {
         return CompleteReadType::COMPLETE_PROCESS;
     }
-    output.append(buffer, readSize);
     if (output.ends_with(P2978::delimiter))
     {
         return CompleteReadType::COMPLETE_MESSAGE;
