@@ -468,7 +468,7 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
         }
     }
 
-    if (run.output.empty())
+    if (run.output->empty())
     {
         string str;
         if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -495,7 +495,7 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
         outputStr += getColorCode(ColorIndex::reset);
     }
 
-    outputStr += run.output;
+    outputStr += *run.output;
     outputStr.push_back('\n');
     fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
 

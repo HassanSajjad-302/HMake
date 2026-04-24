@@ -40,6 +40,13 @@ GLOBAL_VARIABLE(vector<uint64_t>, unusedKeysIndices)
 /// Next unused slot in `eventData` (Windows only).
 inline uint32_t currentIndex = 0;
 
+GLOBAL_VARIABLE(string*, processOutputs)
+/// Linux-only free-list of reusable `processOutputs` indices.
+GLOBAL_VARIABLE(vector<uint64_t>, unusedOutputIndices)
+
+/// Next unused slot in `processOutputs` indices.
+inline uint32_t currentIndexOutput = 0;
+
 /// Implements HMake scheduling and execution across both rounds.
 ///
 /// High-level flow:

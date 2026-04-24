@@ -183,10 +183,10 @@ LinuxTools::LinuxTools(Compiler compiler_) : compiler{std::move(compiler_)}
     remove(temporaryCppFile);
     if (r.exitStatus != EXIT_SUCCESS)
     {
-        printErrorMessage(FORMAT("Error in Initializing Environment\n{}\n", r.output));
+        printErrorMessage(FORMAT("Error in Initializing Environment\n{}\n", *r.output));
     }
 
-    const vector<string_view> lines = split(r.output, '\n');
+    const vector<string_view> lines = split(*r.output, '\n');
     size_t foundIndex = 0;
     for (size_t i = 0; i < lines.size(); ++i)
     {

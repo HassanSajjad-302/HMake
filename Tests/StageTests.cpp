@@ -676,9 +676,9 @@ TEST(StageTests, Test5)
         current_path(example8Path / "Build");
         RunCommand r;
         r.runProcess("hbuild");
-        erase_if(r.output, [](const char c) { return c == '\r'; });
+        erase_if(*r.output, [](const char c) { return c == '\r'; });
         int exitStatus = r.exitStatus;
-        string output = std::move(r.output);
+        string output = std::move(*r.output);
         ASSERT_EQ(exitStatus, EXIT_FAILURE);
         const string str = "Cycle found: " + twoPath + " -> " + tenPath + " -> " + twoPath + "\n";
         const string result = removeColorCodes(output);
@@ -702,9 +702,9 @@ TEST(StageTests, Test5)
         current_path(example8Path / "Build");
         RunCommand r;
         r.runProcess("hbuild");
-        erase_if(r.output, [](const char c) { return c == '\r'; });
+        erase_if(*r.output, [](const char c) { return c == '\r'; });
         int exitStatus = r.exitStatus;
-        string output = std::move(r.output);
+        string output = std::move(*r.output);
         ASSERT_EQ(exitStatus, EXIT_FAILURE);
         const string str =
             "Cycle found: " + sevenPath + " -> " + fourteenPath + " -> " + fifteenPath + " -> " + sevenPath + "\n";

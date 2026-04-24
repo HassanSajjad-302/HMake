@@ -397,7 +397,7 @@ bool CppSrc::isEventRegistered(Builder &builder)
 
 bool CppSrc::isEventCompleted(Builder &builder, string_view)
 {
-    parseHeaderDeps(run.output, builder);
+    parseHeaderDeps(*run.output, builder);
 
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
@@ -422,7 +422,7 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
         outputStr += getColorCode(ColorIndex::cyan);
     }
 
-    if (run.output.empty())
+    if (run.output->empty())
     {
         outputStr += FORMAT("[{}/{}]C++Source {} {}\n", builder.updatedCount, builder.updateBTargetsSizeGoal,
                             node->filePath, target->name);
@@ -438,9 +438,9 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
         outputStr += getColorCode(ColorIndex::reset);
     }
 
-    if (!run.output.empty())
+    if (!run.output->empty())
     {
-        outputStr += run.output;
+        outputStr += *run.output;
         outputStr.push_back('\n');
     }
     fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
@@ -894,7 +894,7 @@ void CppMod::completeModuleCompilation(const Builder &builder)
     if (rb.exitStatus != EXIT_SUCCESS)
     {
         rb.updateStatus = UpdateStatus::UPDATED_WITHOUT_BUILDING;
-        print(builder, run.output);
+        print(builder, *run.output);
         return;
     }
 
@@ -963,7 +963,8 @@ void CppMod::completeModuleCompilation(const Builder &builder)
     rb.updateStatus = UpdateStatus::UPDATED;
     // This must be just before printing as this is asynchronousl accessed in savBuildCache
     target->buildCacheUpdated = true;
-    print(builder, run.output);
+    print(builder, *run.output);
+    unusedOutputIndices.emplace_back(run.outputIndex);
 }
 
 bool CppMod::isEventCompleted(Builder &builder, string_view message)
@@ -981,7 +982,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     RealBTarget &rb = realBTargets[0];
     if (!target->useIPC)
     {
-        parseHeaderDeps(run.output, builder);
+        parseHeaderDeps(*run.output, builder);
         completeModuleCompilation(builder);
         return false;
     }

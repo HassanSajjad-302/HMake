@@ -104,6 +104,7 @@ void Builder::executeRoundOne()
 
 void Builder::executeRoundZero()
 {
+    auto start = std::chrono::high_resolution_clock::now();
     RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
     RealBTarget::sortGraph();
     // RealBTarget::printSortedGraph();
@@ -230,6 +231,13 @@ void Builder::executeRoundZero()
 
         if (activeEventCount)
         {
+
+            /*
+            printMessage(getColorCode(ColorIndex::alice_blue));
+            auto end = std::chrono::high_resolution_clock::now();
+            printMessage(FORMAT("Active Event Count {} time-passed{}\n", activeEventCount, (end-start).count()));
+            printMessage(getColorCode(ColorIndex::reset));
+            */
 
 #ifdef _WIN32
             OVERLAPPED_ENTRY events[128];

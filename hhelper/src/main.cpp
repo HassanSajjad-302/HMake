@@ -270,10 +270,10 @@ int main(int argc, char **argv)
         if (r.exitStatus == EXIT_SUCCESS)
         {
             // Display any warnings in compilation process. MSVC displays the file-name.
-            if (!r.output.empty() && r.output != "hmake.cpp\r\n")
+            if (!r.output->empty() && *r.output != "hmake.cpp\r\n")
             {
                 printMessage(command);
-                printMessage(r.output);
+                printMessage(*r.output);
             }
             else
             {
@@ -284,7 +284,7 @@ int main(int argc, char **argv)
         {
             printMessage("Errors in Building " + configureOrBuildStr + " Executable");
             printMessage(command + "\n");
-            printMessage(r.output + "\n");
+            printMessage(*r.output + "\n");
             exit(r.exitStatus);
         }
 
@@ -305,11 +305,11 @@ int main(int argc, char **argv)
     r.runProcess(configureExePath.c_str());
     if (r.exitStatus == EXIT_SUCCESS)
     {
-        printMessage(r.output);
+        printMessage(*r.output);
     }
     else
     {
-        printErrorMessage(r.output);
+        printErrorMessage(*r.output);
     }
     // current_path("Release/std-cpp");
     // system("hbuild");

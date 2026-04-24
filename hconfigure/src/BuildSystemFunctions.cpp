@@ -189,6 +189,9 @@ void constructGlobals()
     unusedKeysIndices.reserve(32 * 1024);
     eventData = new CompletionKey[32 * 1024];
 #else
+    std::construct_at(&unusedOutputIndices);
+    unusedOutputIndices.reserve(4 * 1024);
+    processOutputs = new string[4 * 1024];
     eventData = new BTarget *[32 * 1024];
 #endif
 }
