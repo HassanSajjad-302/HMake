@@ -5,9 +5,9 @@
 #define TARGETCACHE_HPP
 
 #include "BuildSystemFunctions.hpp"
-#include "parallel-hashmap/parallel_hashmap/phmap.h"
+#include "gtl/include/gtl/phmap.hpp"
 
-using phmap::flat_hash_map;
+using gtl::flat_hash_map;
 
 /// HMake has 2 different cache that are config-cache and build-cache. config-cache is only read but not written at
 /// build-time. By separating config-cache and build-cache, we keep the build-cache smaller and keep the builds faster.

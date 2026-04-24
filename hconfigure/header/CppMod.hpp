@@ -7,13 +7,13 @@
 #include "IPCManagerBS.hpp"
 #include "ObjectFile.hpp"
 #include "TargetCache.hpp"
-#include "parallel-hashmap/parallel_hashmap/btree.h"
+#include "gtl/include/gtl/btree.hpp"
 #include <filesystem>
 #include <list>
 #include <utility>
 #include <vector>
 
-using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, phmap::btree_set, phmap::flat_hash_map;
+using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, gtl::btree_set, gtl::flat_hash_map;
 
 class CppTarget;
 class CppSrc;

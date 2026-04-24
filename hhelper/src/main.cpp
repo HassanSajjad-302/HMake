@@ -63,9 +63,6 @@ void replaceAll(string &str, const string &from, const string &to)
 #ifndef THIRD_PARTY_HEADER
 #define THROW true
 #endif
-#ifndef PARALLEL_HASHMAP
-#define THROW true
-#endif
 #ifndef LZ4_HEADER
 #define THROW true
 #endif
@@ -97,7 +94,6 @@ int main(int argc, char **argv)
         path jsonHeaderPath = path(JSON_HEADER);
         path rapidjsonHeaderPath = path(RAPIDJSON_HEADER);
         path thirdPartyHeaderPath = path(THIRD_PARTY_HEADER);
-        path parallelHashMap = path(PARALLEL_HASHMAP);
         path lz4Header = path(LZ4_HEADER);
         path hconfigureCStaticLibDirectoryPath = path(HCONFIGURE_C_STATIC_LIB_DIRECTORY);
         path hconfigureBStaticLibDirectoryPath = path(HCONFIGURE_B_STATIC_LIB_DIRECTORY);
@@ -138,7 +134,7 @@ int main(int argc, char **argv)
                     // a little slowness is acceptable at config time with better assertions.
                     string(configureExe ? "" : " -D BUILD_MODE -D NDEBUG ") +
                     " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
-                    " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
+                    " -I " LZ4_HEADER
                     " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_C_STATIC_LIB_DIRECTORY " -l" +
                     string(configureExe ? "hconfigure-c" : "hconfigure-b") +
                     " -Wl,--no-whole-archive -o {CONFIGURE_DIRECTORY}/" +
@@ -189,8 +185,7 @@ int main(int argc, char **argv)
                 command += configureExe ? "" : " /D BUILD_MODE /D NDEBUG ";
                 command +=
                     "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
-                    jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " +
-                    parallelHashMap.string() + " /I " + lz4Header.string() +
+                    jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " + lz4Header.string() +
                     " /std:c++latest /GR- /EHsc /MT /nologo {SOURCE_DIRECTORY}/hmake.cpp /Fo{CONFIGURE_DIRECTORY}/" +
                     (configureExe ? "configure.obj" : "build.obj") + " /link /SUBSYSTEM:CONSOLE /NOLOGO ";
                 for (const string &str : toolsCache.vsTools[0].libraryDirs)

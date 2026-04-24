@@ -2,7 +2,7 @@
 #define HMAKE_BUILDSYSTEMFUNCTIONS_HPP
 
 #include "HashValues.hpp"
-#include "parallel-hashmap/parallel_hashmap/phmap.h"
+#include "gtl/include/gtl/phmap.hpp"
 #include <deque>
 #include <filesystem>
 #include <format>
@@ -11,7 +11,7 @@
 #include <vector>
 
 using std::string, std::filesystem::path, std::wstring, std::unique_ptr, std::make_unique, std::vector, std::vector,
-    std::deque, phmap::node_hash_set, phmap::flat_hash_set, std::span, std::string_view;
+    std::deque, gtl::node_hash_set, gtl::flat_hash_set, std::span, std::string_view;
 
 // There is nothing platform-specific in this file. It is just another BuildSystemFunctions.hpp file. Some functions go
 // there, some go here.

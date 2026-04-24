@@ -5,7 +5,7 @@
 #define HMAKE_NODE_HPP
 
 #include "BuildSystemFunctions.hpp"
-#include "parallel-hashmap/parallel_hashmap/phmap.h"
+#include "gtl/include/gtl/phmap.hpp"
 
 using std::lock_guard, std::filesystem::file_time_type, std::filesystem::file_type;
 

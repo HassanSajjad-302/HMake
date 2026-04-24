@@ -5,13 +5,13 @@
 #define HMAKE_BASICTARGETS_HPP
 
 #include "RunCommand.hpp"
-#include "parallel-hashmap/parallel_hashmap/phmap.h"
+#include "gtl/include/gtl/phmap.hpp"
 #include <array>
 #include <span>
 #include <string>
 #include <vector>
 
-using std::size_t, std::vector, phmap::flat_hash_map, phmap::flat_hash_set, std::lock_guard, std::array, std::string,
+using std::size_t, std::vector, gtl::flat_hash_map, gtl::flat_hash_set, std::lock_guard, std::array, std::string,
     std::string_view;
 
 class BTarget;
@@ -78,8 +78,8 @@ class RealBTarget
     uint32_t dependentsCount = 0;
 
     /// DFS helper to report one concrete cycle path.
-    static bool findCycleDFS(RealBTarget *node, phmap::flat_hash_set<RealBTarget *> &visited,
-                             phmap::flat_hash_set<RealBTarget *> &recursionStack, vector<RealBTarget *> &currentPath,
+    static bool findCycleDFS(RealBTarget *node, gtl::flat_hash_set<RealBTarget *> &visited,
+                             gtl::flat_hash_set<RealBTarget *> &recursionStack, vector<RealBTarget *> &currentPath,
                              string &errorString);
 
   public:
