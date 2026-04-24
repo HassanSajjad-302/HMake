@@ -10,9 +10,6 @@
 [submodule "rapidjson"]
 	path = 3rdParty/rapidjson
 	url = https://github.com/Tencent/rapidjson
-[submodule "3rdParty/parallel-hashmap"]
-	path = 3rdParty/parallel-hashmap
-	url = https://github.com/greg7mdp/parallel-hashmap
 [submodule "3rdParty/rapidhash"]
 	path = 3rdParty/rapidhash
 	url = https://github.com/Nicoshev/rapidhash
