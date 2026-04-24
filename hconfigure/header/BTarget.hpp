@@ -116,6 +116,11 @@ class RealBTarget
     //  Following describes the time taken for the completion of this task. Currently unused.
     // unsigned long timeTaken = 0;
 
+    /// This describes the location where this RealBTarget was inserted in the Builder::updateBTargetsList. CppMod when
+    /// discovers a dependency sets the pointer on that index to nullptr and re-adds the dependency CppMod in the list
+    /// to prioritize the scheduling of that CppMod.
+    uint32_t insertionIndex = -1;
+
     /// Exit code for this RealBTarget. Failures are propagated to dependents.
     int exitStatus = EXIT_SUCCESS;
 

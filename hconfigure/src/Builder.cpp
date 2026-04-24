@@ -130,6 +130,7 @@ void Builder::executeRoundZero()
         }
     }
 
+    uint32_t elementCount = 0;
     updateBTargets.clear();
     for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
     {
@@ -137,6 +138,8 @@ void Builder::executeRoundZero()
         if (!localRb.dependenciesSize)
         {
             updateBTargets.emplace_front(&localRb);
+            localRb.insertionIndex = elementCount;
+            ++elementCount;
         }
     }
 
@@ -624,7 +627,9 @@ void Builder::decrementFromDependents(const RealBTarget &rb)
             --dependent->dependenciesSize;
             if (!dependent->dependenciesSize)
             {
-                updateBTargets.emplace(dependent);
+                uint32_t insertionIndex;
+                updateBTargets.emplace(dependent, insertionIndex);
+                dependent->insertionIndex = insertionIndex;
             }
         }
     }

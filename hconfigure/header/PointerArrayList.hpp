@@ -76,8 +76,9 @@ template <typename T> class PointerArrayList
     }
 
     // at least one item should be present. there is no empty check.
-    void emplace(T *bTarget)
+    void emplace(T *bTarget, uint32_t &insertionIndex)
     {
+        insertionIndex = arraySize;
         array[arraySize].value = bTarget;
         array[arraySize].next = currentIndex;
         currentIndex = arraySize;
@@ -86,23 +87,36 @@ template <typename T> class PointerArrayList
 
     T *getItem()
     {
-        if (currentIndex == -1)
+        while (true)
         {
-            return nullptr;
-        }
+            if (currentIndex == -1)
+            {
+                return nullptr;
+            }
 
-        T *bTarget = array[currentIndex].value;
-        currentIndex = array[currentIndex].next;
-        return bTarget;
+            T *bTarget = array[currentIndex].value;
+            currentIndex = array[currentIndex].next;
+            if (bTarget)
+            {
+                return bTarget;
+            }
+        }
     }
 
-    T *hasElement() const
+    T *hasElement()
     {
-        if (currentIndex == -1)
+        while (true)
         {
-            return nullptr;
+            if (currentIndex == -1)
+            {
+                return nullptr;
+            }
+            if (T *bTarget = array[currentIndex].value)
+            {
+                return bTarget;
+            }
+            currentIndex = array[currentIndex].next;
         }
-        return array[currentIndex].value;
     }
 
     void moveForward()

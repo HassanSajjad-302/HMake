@@ -661,6 +661,7 @@ P2978::BTCNonModule deserializeBTCNonModule(std::string_view buffer)
 
 void CppMod::makeAndSendBTCNonModule(CppMod &hu)
 {
+    lastSent = &hu;
     hu.makeMemoryFileMapping();
 
     constexpr uint32_t stackSize = 64 * 1024;
@@ -821,23 +822,11 @@ bool CppMod::isEventRegistered(Builder &builder)
     RealBTarget &rb = realBTargets[0];
     if (waitingFor)
     {
-        if (rb.dependenciesSize)
-        {
-            // This is a stale entry as if the waitingFor had completed, the dependenciesSize would have been 0.
-            ++builder.idleCount;
-            return true;
-        }
+        lastSent = waitingFor;
         return isEventCompleted(builder, string_view{});
     }
 
     isScheduled = true;
-    if (calledOnce)
-    {
-        // This is a stale entry as only once this code should be called.
-        ++builder.idleCount;
-        return true;
-    }
-    calledOnce = true;
 
     if (rb.exitStatus != EXIT_SUCCESS)
     {
@@ -1170,8 +1159,11 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         if (!found->isScheduled && foundRb.dependenciesSize == 0)
         {
             found->isScheduled = true;
-            ++builder.updateBTargetsSizeGoal;
-            builder.updateBTargets.emplace(&foundRb);
+            // Old index is reset and then we re-add
+            builder.updateBTargets.array[foundRb.insertionIndex].value = nullptr;
+            uint32_t insertionIndex = 0;
+            builder.updateBTargets.emplace(&foundRb, insertionIndex);
+            foundRb.insertionIndex = insertionIndex; // not needed probably
         }
         ++builder.updateBTargetsSizeGoal;
         // This process is going to idle. Build-system will automatically decrement when it launches a new process.
