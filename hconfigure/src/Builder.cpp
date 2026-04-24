@@ -445,6 +445,7 @@ bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
         }
         else
         {
+            unusedOutputIndices.emplace_back(bTarget->run.outputIndex);
             return false;
         }
     }

@@ -949,7 +949,6 @@ void CppMod::completeModuleCompilation(const Builder &builder)
     // This must be just before printing as this is asynchronousl accessed in savBuildCache
     target->buildCacheUpdated = true;
     print(builder, *run.output);
-    unusedOutputIndices.emplace_back(run.outputIndex);
 }
 
 bool CppMod::isEventCompleted(Builder &builder, string_view message)
