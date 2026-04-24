@@ -661,7 +661,6 @@ P2978::BTCNonModule deserializeBTCNonModule(std::string_view buffer)
 
 void CppMod::makeAndSendBTCNonModule(CppMod &hu)
 {
-    lastSent = &hu;
     hu.makeMemoryFileMapping();
 
     constexpr uint32_t stackSize = 64 * 1024;
@@ -822,7 +821,6 @@ bool CppMod::isEventRegistered(Builder &builder)
     RealBTarget &rb = realBTargets[0];
     if (waitingFor)
     {
-        lastSent = waitingFor;
         return isEventCompleted(builder, string_view{});
     }
 
@@ -868,8 +866,6 @@ bool CppMod::isEventRegistered(Builder &builder)
     rb.assignNeedsUpdateToDependents();
     headerFiles.clear();
     allCppModDependencies.clear();
-    myBuildCache->headerUnitArray.clear();
-    myBuildCache->moduleArray.clear();
 
     run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, true);
     ipcManager = new IPCManagerBS(run.writePipe);
@@ -1246,8 +1242,12 @@ void CppMod::updateBuildCache()
         return;
     }
 
+    // myBuildCache is only updated here only if the build has succeeded.
+
     myBuildCache->srcFile.compileCommand.hash = commandHash;
     myBuildCache->srcFile.headerFiles.clear();
+    myBuildCache->headerUnitArray.clear();
+    myBuildCache->moduleArray.clear();
 
     if (target->configuration->evaluate(DuplicationWarning::YES))
     {

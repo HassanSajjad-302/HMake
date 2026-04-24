@@ -9,6 +9,8 @@
 #include <utility>
 
 #ifndef _WIN32
+#include "sys/prctl.h"
+#include "sys/resource.h"
 #include "sys/wait.h"
 #include "wordexp.h"
 #include <cerrno>
@@ -227,12 +229,6 @@ void RunCommand::killModuleProcess(Builder &builder) const
 
 uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget, bool haveWritePipe)
 {
-    // Prepend "stdbuf -o0 " to force unbuffered stdout in the child process.
-    // This ensures output is flushed even if the child crashes before exiting,
-    // since we do not own the child process and cannot rely on it flushing.
-    /*string unbufferedCommand = "stdbuf -o0 ";
-    unbufferedCommand += command;*/
-
     wordexp_t p;
     if (wordexp(command, &p, 0) != 0)
     {
@@ -465,7 +461,19 @@ void RunCommand::reapProcess(Builder &builder)
             printErrorMessage(P2978::getErrorString());
         }
     }
-    exitStatus = WEXITSTATUS(status); // Extract child exit code.
+
+    if (WIFEXITED(status))
+    {
+        exitStatus = WEXITSTATUS(status);
+    }
+    else if (WIFSIGNALED(status))
+    {
+        exitStatus = EXIT_FAILURE; // or encode the signal: 128 + WTERMSIG(status)
+    }
+    else
+    {
+        exitStatus = EXIT_FAILURE;
+    }
 }
 
 void RunCommand::killModuleProcess(Builder &builder) const
