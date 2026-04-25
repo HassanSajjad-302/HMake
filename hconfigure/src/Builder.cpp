@@ -378,22 +378,27 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
         const uint32_t index = currentIndex;
         ++currentIndex;
 
-        CompletionKey &k = eventData[index];
-        memset(k.overlappedBuffer, 0, sizeof(k.overlappedBuffer));
-        k.buffer = new char[4096]{};
-        k.handle = fd;
-        k.target = target_;
+        auto &[overlappedBuffer, buffer, handle, target] = eventData[index];
+        memset(overlappedBuffer, 0, sizeof(overlappedBuffer));
+        handle = fd;
+        target = target_;
+        target->run.output = &buffer;
+        // We need to provide a buffer where Windows kernel would write asynchronously.
+        // On Linux,
+        buffer.resize(4096);
         return index;
     }
 
     const uint32_t index = unusedKeysIndices.back();
     unusedKeysIndices.pop_back();
 
-    // buffer can be reused as it was already initialized.
     auto &[overlappedBuffer, buffer, handle, target] = eventData[index];
     memset(overlappedBuffer, 0, sizeof(overlappedBuffer));
     handle = fd;
     target = target_;
+    target->run.output = &buffer;
+    buffer.clear();
+    buffer.resize(4096);
     return index;
 #else
     eventData[fd] = target_;
@@ -445,7 +450,14 @@ bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
         }
         else
         {
-            unusedOutputIndices.emplace_back(bTarget->run.outputIndex);
+            if constexpr (os == OS::NT)
+            {
+                unusedKeysIndices.emplace_back(index);
+            }
+            else
+            {
+                unusedOutputIndices.emplace_back(bTarget->run.outputIndex);
+            }
             return false;
         }
     }
@@ -454,9 +466,7 @@ bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
 void Builder::unregisterEventDataAtIndex(const uint64_t index)
 {
     --activeEventCount;
-#ifdef _WIN32
-    unusedKeysIndices.emplace_back(index);
-#else
+#ifndef _WIN32
     // Remove FDs from epoll now that process has exited
     if (epoll_ctl(serverFd, EPOLL_CTL_DEL, index, NULL) == -1)
     {

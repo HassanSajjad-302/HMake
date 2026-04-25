@@ -212,7 +212,7 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
         startPos = lineEnd + 1;
         if (output.size() == startPos)
         {
-            output = std::move(treatedOutput);
+            output = treatedOutput;
             break;
         }
         /*if (lineEnd > output.size() - 5)
@@ -220,6 +220,10 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
             bool breakpoint = true;
         }*/
         lineEnd = output.find('\n', startPos);
+        if (lineEnd == -1)
+        {
+            bool breakpoint = true;
+        }
     }
 }
 
@@ -1329,7 +1333,6 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, CommandType com
     if (const Compiler &c = target->configuration->compilerFeatures.compiler;
         c.bTFamily == BTFamily::MSVC && c.btSubFamily == BTSubFamily::CLANG)
     {
-        compileCommand += commandType == CommandType::CONVENTIONAL ? "" : "-nostdinc -nostdinc++ ";
         if (type == CppModType::HEADER_UNIT)
         {
             compileCommand +=

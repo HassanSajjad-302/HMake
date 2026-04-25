@@ -1119,7 +1119,7 @@ void CppTarget::addComposingHeadersMSVC()
     headerNames += "intrin.h,";
 
     // needed by boost
-    headerNames += "crtdbg.h,ntverp.h,";
+    headerNames += "crtdbg.h,ntverp.h,version,";
 
     parseAndAddInComposingHeaders(*getPublicBigHu(true), headerNames);
     headerNames = "windows.h,winapifamily.h,";

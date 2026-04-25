@@ -132,19 +132,20 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     pid = (uint64_t)process_info.hProcess;
 
     ++builder.simultaneousProcessCount;
-
-    output = new string();
     return index;
 }
 
 bool RunCommand::startRead()
 {
     CompletionKey &k = eventData[index];
-    memset(k.buffer, 0, 4096);
     memset(k.overlappedBuffer, 0, sizeof(k.overlappedBuffer));
-    DWORD bytesRead = 0;
-    const BOOL result =
-        ReadFile((HANDLE)k.handle, k.buffer, 4096, &bytesRead, &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer));
+
+    const uint64_t offset = output->size();
+    output->resize(offset + 4096);
+
+    const BOOL result = ReadFile((HANDLE)k.handle, output->data() + offset, 4096, nullptr,
+                                 &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer));
+
     if (result)
     {
         // Even if the read completed synchronously, consume the stale completion event.
@@ -157,6 +158,7 @@ bool RunCommand::startRead()
     }
     if (error == ERROR_BROKEN_PIPE)
     {
+        output->resize(offset);
         // ReadFile reached EOF successfully.
         return true;
     }
@@ -173,13 +175,13 @@ CompleteReadType RunCommand::completeRead()
     {
         if (GetLastError() == ERROR_BROKEN_PIPE)
         {
-            // ReadFile reached EOF successfully.
+            output->resize(output->size() - (4096 - bytesRead)); // trim unused tail
             return CompleteReadType::COMPLETE_PROCESS;
         }
         printErrorMessage(P2978::getErrorString());
     }
+    output->resize(output->size() - (4096 - bytesRead)); // trim unused tail
 
-    output->append(string_view{k.buffer, bytesRead});
     if (output->ends_with(P2978::delimiter))
     {
         return CompleteReadType::COMPLETE_MESSAGE;
