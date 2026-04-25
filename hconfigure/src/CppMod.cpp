@@ -137,7 +137,13 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
     uint64_t startPos = 0;
     uint64_t lineEnd;
     string_view line;
-    string treatedOutput;
+
+    constexpr uint32_t stackSize = 128 * 1024;
+    char buffer[stackSize];
+
+    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
+    std::pmr::string treatedOutput(&alloc);
+    treatedOutput.reserve(stackSize);
 
     if (!isClang)
     {
