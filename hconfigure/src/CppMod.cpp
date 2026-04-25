@@ -1599,7 +1599,7 @@ void CppMod::generateStandAloneCommand()
                        "name as current build-dir.\n\n",
                        node->filePath);
             flat_hash_set<string> createdDirs;
-            cppStandAloneCommand(createdDirs, scriptContents, scriptDirectory);
+            cppStandAloneCommand(createdDirs, scriptContents, scriptDirectory.string());
             std::ofstream(scriptDirectory / "script.sh") << scriptContents;
         }
     }
@@ -1655,7 +1655,7 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
         return;
     }
 
-    const string mockFilePath = path(scriptDir) / FORMAT("mock-file{}.bin", id);
+    const string mockFilePath = (path(scriptDir) / FORMAT("mock-file{}.bin", id)).string();
     {
         // New scope for mock-file.bin
         constexpr uint32_t stackSize = 256 * 1024;

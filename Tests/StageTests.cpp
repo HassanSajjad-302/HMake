@@ -670,8 +670,8 @@ TEST(StageTests, Test5)
     copyFilePath(testSourcePath / "Version/1/ten.cppm", example8Path / "Mod_Src/ten.cppm");
 
     {
-        string twoPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/two.cppm");
-        string tenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/ten.cppm");
+        string twoPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/two.cppm")).string();
+        string tenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/ten.cppm")).string();
 
         current_path(example8Path / "Build");
         RunCommand r;
@@ -695,9 +695,9 @@ TEST(StageTests, Test5)
     copyFilePath(testSourcePath / "Version/1/fifteen.cppm", example8Path / "Mod_Src/fifteen.cppm");
 
     {
-        string sevenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/seven.cppm");
-        string fourteenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fourteen.cppm");
-        string fifteenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fifteen.cppm");
+        string sevenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/seven.cppm")).string();
+        string fourteenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fourteen.cppm")).string();
+        string fifteenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fifteen.cppm")).string();
 
         current_path(example8Path / "Build");
         RunCommand r;

@@ -29,23 +29,19 @@ void RunCommand::runProcess(const char *command)
     string stdoutFile = FORMAT("temp_stdout_{}.txt", timestamp);
     string stderrFile = FORMAT("temp_stderr_{}.txt", timestamp);
 
-#ifdef _WIN32
     // Windows: Use cmd.exe /c with proper quoting
     const string finalCommand = FORMAT("cmd.exe /c \"({}) > {} 2> {}\"", command, stdoutFile, stderrFile);
-#else
-    // Unix/Linux/macOS: Standard shell redirection works fine
-    const string finalCommand = FORMAT("{} > {} 2> {}", command, stdoutFile, stderrFile);
-#endif
 
     exitStatus = system(finalCommand.c_str());
 
-    output = fileToString(stdoutFile);
+    output = new string();
+    *output = fileToString(stdoutFile);
     const string errorFileContent = fileToString(stderrFile);
-    if (!output.empty() && !errorFileContent.empty())
+    if (!output->empty() && !errorFileContent.empty())
     {
-        output += "\n--- STDERR ---\n";
+        *output += "\n--- STDERR ---\n";
     }
-    output += errorFileContent;
+    *output += errorFileContent;
 
     std::filesystem::remove(stdoutFile);
     std::filesystem::remove(stderrFile);
@@ -136,6 +132,8 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     pid = (uint64_t)process_info.hProcess;
 
     ++builder.simultaneousProcessCount;
+
+    output = new string();
     return index;
 }
 
