@@ -70,6 +70,7 @@ struct BuildCache
         {
             Node *node;
             CCOrHash compileCommand;
+            uint64_t launchTime; // process-launch time
             vector<Node *> headerFiles;
             void serialize(string &buffer) const;
             void deserialize(const char *ptr, uint32_t &bytesRead);
@@ -77,22 +78,23 @@ struct BuildCache
 
         struct ModuleFile
         {
-            struct SingleHeaderUnitDep
+
+            struct SingleDep
             {
                 Node *node;
+                CCOrHash compileCommand;
                 uint32_t targetIndex{};
                 uint32_t myIndex{};
                 void serialize(string &buffer) const;
                 void deserialize(const char *ptr, uint32_t &bytesRead);
             };
 
-            struct SingleModuleDep
+            struct SingleHeaderUnitDep : SingleDep
             {
-                Node *node;
-                uint32_t targetIndex{};
-                uint32_t myIndex{};
-                void serialize(string &buffer) const;
-                void deserialize(const char *ptr, uint32_t &bytesRead);
+            };
+
+            struct SingleModuleDep : SingleDep
+            {
             };
 
             SourceFile srcFile;

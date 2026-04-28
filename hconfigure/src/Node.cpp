@@ -174,9 +174,12 @@ void Node::performSystemCheck()
     if (S_ISREG(st.st_mode))
     {
         fileType = file_type::regular;
-        const auto sec = std::chrono::seconds(st.st_mtim.tv_sec);
-        const auto nsec = std::chrono::nanoseconds(st.st_mtim.tv_nsec);
-        lastWriteTime = file_time_type(std::chrono::duration_cast<file_time_type::duration>(sec + nsec));
+#if defined(__APPLE__)
+        lastWriteTime = static_cast<int64_t>(st.st_mtimespec.tv_sec) * 1'000'000'000LL +
+                        static_cast<int64_t>(st.st_mtimespec.tv_nsec);
+#else
+        lastWriteTime = st.st_mtim.tv_sec * 1'000'000'000LL + st.st_mtim.tv_nsec;
+#endif
     }
     else if (S_ISDIR(st.st_mode))
     {

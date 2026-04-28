@@ -130,6 +130,7 @@ void BuildCache::Cpp::SourceFile::serialize(string &buffer) const
 {
     writeNode(buffer, node);
     compileCommand.serialize(buffer);
+    writeUint64(buffer, launchTime);
     writeNodeVector(buffer, headerFiles);
 }
 
@@ -137,6 +138,7 @@ void BuildCache::Cpp::SourceFile::deserialize(const char *ptr, uint32_t &bytesRe
 {
     node = readHalfNode(ptr, bytesRead);
     compileCommand.deserialize(ptr, bytesRead);
+    launchTime = readUint64(ptr, bytesRead);
     const uint32_t headerSize = readUint32(ptr, bytesRead);
     headerFiles.reserve(headerSize);
     for (uint32_t i = 0; i < headerSize; ++i)
@@ -145,31 +147,18 @@ void BuildCache::Cpp::SourceFile::deserialize(const char *ptr, uint32_t &bytesRe
     }
 }
 
-void ModuleFile::SingleHeaderUnitDep::serialize(string &buffer) const
+void ModuleFile::SingleDep::serialize(string &buffer) const
 {
     writeNode(buffer, node);
+    compileCommand.serialize(buffer);
     writeUint32(buffer, targetIndex);
     writeUint32(buffer, myIndex);
 }
 
-void ModuleFile::SingleHeaderUnitDep::deserialize(const char *ptr, uint32_t &bytesRead)
+void ModuleFile::SingleDep::deserialize(const char *ptr, uint32_t &bytesRead)
 {
     node = readHalfNode(ptr, bytesRead);
-    targetIndex = readUint32(ptr, bytesRead);
-    myIndex = readUint32(ptr, bytesRead);
-}
-
-void ModuleFile::SingleModuleDep::serialize(string &buffer) const
-{
-    writeNode(buffer, node);
-    writeUint32(buffer, targetIndex);
-    writeUint32(buffer, myIndex);
-}
-
-void ModuleFile::SingleModuleDep::deserialize(const char *ptr, uint32_t &bytesRead)
-{
-
-    node = readHalfNode(ptr, bytesRead);
+    compileCommand.deserialize(ptr, bytesRead);
     targetIndex = readUint32(ptr, bytesRead);
     myIndex = readUint32(ptr, bytesRead);
 }

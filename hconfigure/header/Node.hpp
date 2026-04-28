@@ -50,7 +50,7 @@ class Node
     file_type fileType;
 
     /// Cached last-write timestamp, assigned by `performSystemCheck()`.
-    file_time_type lastWriteTime{file_time_type::duration{UINT64_MAX}};
+    uint64_t lastWriteTime = -1;
 
     /// Total number of created nodes.
     inline static uint32_t idCount = 0;

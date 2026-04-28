@@ -324,15 +324,15 @@ void CppSrc::setCppSrcFileStatus()
         return;
     }
 
-    if (objectNode->fileType == file_type::not_found || node->lastWriteTime > objectNode->lastWriteTime)
+    const BuildCache::Cpp::SourceFile &myBuildCache = target->cppBuildCache.srcFiles[myBuildCacheIndex];
+    if (objectNode->fileType == file_type::not_found || node->lastWriteTime > myBuildCache.launchTime)
     {
         return;
     }
 
-    for (const vector<Node *> &headers = target->cppBuildCache.srcFiles[myBuildCacheIndex].headerFiles;
-         const Node *headerNode : headers)
+    for (const vector<Node *> &headers = myBuildCache.headerFiles; const Node *headerNode : headers)
     {
-        if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > objectNode->lastWriteTime)
+        if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > myBuildCache.launchTime)
         {
             return;
         }
@@ -1484,21 +1484,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         return;
     }
 
-    const vector<Node *> *headerFilesCache = nullptr;
-    if (type == CppModType::HEADER_UNIT)
-    {
-        headerFilesCache = &target->cppBuildCache.headerUnits[myBuildCacheIndex].srcFile.headerFiles;
-    }
-    else if (type == CppModType::PRIMARY_EXPORT || type == CppModType::PARTITION_EXPORT)
-    {
-        headerFilesCache = &target->cppBuildCache.imodFiles[myBuildCacheIndex].srcFile.headerFiles;
-    }
-    else
-    {
-        headerFilesCache = &target->cppBuildCache.modFiles[myBuildCacheIndex].srcFile.headerFiles;
-    }
-
-    for (Node *headerNode : *headerFilesCache)
+    for (Node *headerNode : myBuildCache->srcFile.headerFiles)
     {
         if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > endNode->lastWriteTime)
         {
