@@ -1433,10 +1433,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             CppMod *hu = nullptr;
             if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[h.targetIndex].targetCache))
             {
-                if (h.myIndex < t->huDeps.size())
-                {
-                    hu = t->huDeps[h.myIndex];
-                }
+                hu = t->huDeps[h.myIndex];
             }
 
             if (!hu)
@@ -1457,10 +1454,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             CppMod *cppMod = nullptr;
             if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[m.targetIndex].targetCache))
             {
-                if (m.myIndex < t->imodFileDeps.size())
-                {
-                    cppMod = t->imodFileDeps[m.myIndex];
-                }
+                cppMod = t->imodFileDeps[m.myIndex];
             }
 
             if (!cppMod)
@@ -1518,10 +1512,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         CppMod *hu = nullptr;
         if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[h.targetIndex].targetCache))
         {
-            if (h.myIndex < t->huDeps.size())
-            {
-                hu = t->huDeps[h.myIndex];
-            }
+            hu = t->huDeps[h.myIndex];
         }
 
         if (!hu)
@@ -1556,10 +1547,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         CppMod *cppMod = nullptr;
         if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[m.targetIndex].targetCache))
         {
-            if (m.myIndex < t->imodFileDeps.size())
-            {
-                cppMod = t->imodFileDeps[m.myIndex];
-            }
+            cppMod = t->imodFileDeps[m.myIndex];
         }
 
         if (!cppMod)
