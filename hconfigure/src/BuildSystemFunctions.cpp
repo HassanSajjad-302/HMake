@@ -34,7 +34,7 @@ void setIsConsol()
 
 string getFileNameJsonOrOut(const string &name)
 {
-#ifdef USE_JSON_FILE_COMPRESSION
+#ifdef USE_FILE_COMPRESSION
     return name + ".bin.lz4";
 #else
     return name + ".bin";
@@ -157,6 +157,8 @@ void printErrorMessageNoReturn(const string &message)
 bool configureOrBuild()
 {
     builder = new Builder{};
+
+    writeNodesCacheIfNewNodesAdded();
     string buffer;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -340,7 +342,7 @@ void fileToString(const string &fileName, std::pmr::string &buffer)
 
 string readBufferFromCompressedFile(const string &fileName)
 {
-#ifndef USE_JSON_FILE_COMPRESSION
+#ifndef USE_FILE_COMPRESSION
     return fileToString(fileName);
 #else
     string compressedBuffer = fileToString(fileName);
@@ -394,6 +396,11 @@ void readConfigCache()
 
         ++count;
     }
+
+    if (bufferRead != bufferSize)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+    }
 }
 
 void readBuildCache()
@@ -417,6 +424,8 @@ void writeNodesCacheIfNewNodesAdded()
 {
     if (const uint64_t newNodesSize = Node::idCount; newNodesSize != nodesSizeBefore)
     {
+        // In this optimization, we calculate the new increment first and then extend size by that and then add the
+        // entries.
         /*uint32_t newNodesStrSize = 0;
         newNodesStrSize += (newNodesSize - nodesSizeBefore) * 2;
         for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
@@ -455,8 +464,6 @@ void writeBuildBuffer(string &buffer)
     {
         return;
     }
-
-    writeNodesCacheIfNewNodesAdded();
 
     bool cacheUpdated = false;
     for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
@@ -598,7 +605,7 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
 
 void writeBufferToCompressedFile(const string &fileName, const string &fileBuffer)
 {
-#ifndef USE_JSON_FILE_COMPRESSION
+#ifndef USE_FILE_COMPRESSION
     writeFileAtomically(fileName, fileBuffer.data(), fileBuffer.size(), true);
 #else
     const uint64_t maxCompressedSize = LZ4_compressBound(fileBuffer.size());

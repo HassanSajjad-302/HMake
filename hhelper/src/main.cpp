@@ -115,8 +115,8 @@ int main(int argc, char **argv)
             string useNodesCacheIndicesInCacheDef = "";
 #endif
 
-#ifdef USE_JSON_FILE_COMPRESSION
-            string useJsonFileCompressionDef = " -D USE_JSON_FILE_COMPRESSION ";
+#ifdef USE_FILE_COMPRESSION
+            string useJsonFileCompressionDef = " -D USE_FILE_COMPRESSION ";
 #else
             string useJsonFileCompressionDef = "";
 #endif
@@ -160,8 +160,8 @@ int main(int argc, char **argv)
             string useNodesCacheIndicesInCacheDef = "";
 #endif
 
-#ifdef USE_JSON_FILE_COMPRESSION
-            string useJsonFileCompressionDef = " /D USE_JSON_FILE_COMPRESSION ";
+#ifdef USE_FILE_COMPRESSION
+            string useJsonFileCompressionDef = " /D USE_FILE_COMPRESSION ";
 #else
             string useJsonFileCompressionDef = "";
 #endif
