@@ -1,7 +1,6 @@
 #ifndef HMAKE_LOAT_HPP
 #define HMAKE_LOAT_HPP
 #include "Features.hpp"
-#include "HashedCommand.hpp"
 #include "ObjectFile.hpp"
 #include "PLOAT.hpp"
 
@@ -19,7 +18,7 @@ class LOAT : public PLOAT
   public:
     BuildCache::Link linkBuildCache;
     // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
-    HashedCommand commandWithoutTargetsWithTool;
+    uint64_t commandWithoutTargetsWithTool;
 
     vector<const ObjectFile *> objectFiles;
     vector<PLOAT *> dllsToBeCopied;

@@ -103,12 +103,6 @@ int main(int argc, char **argv)
         if constexpr (os == OS::LINUX)
         {
 
-#ifdef USE_COMMAND_HASH
-            string useCommandHashDef = " -D USE_COMMAND_HASH ";
-#else
-            string useCommandHashDef = "";
-#endif
-
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
             string useNodesCacheIndicesInCacheDef = " -D USE_NODES_CACHE_INDICES_IN_CACHE ";
 #else
@@ -129,7 +123,7 @@ int main(int argc, char **argv)
 
             auto getCommand = [&](const bool configureExe) {
                 string compileCommand =
-                    "c++ -std=c++2b -fno-exceptions -fno-rtti -fvisibility=hidden " + tsan + useCommandHashDef +
+                    "c++ -std=c++2b -fno-exceptions -fno-rtti -fvisibility=hidden " + tsan +
                     useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef +
                     // a little slowness is acceptable at config time with better assertions.
                     string(configureExe ? "" : " -D BUILD_MODE -D NDEBUG ") +
@@ -147,13 +141,6 @@ int main(int argc, char **argv)
         }
         else
         {
-
-#ifdef USE_COMMAND_HASH
-            string useCommandHashDef = " /D USE_COMMAND_HASH ";
-#else
-            string useCommandHashDef = "";
-#endif
-
 #ifdef USE_NODES_CACHE_INDICES_IN_CACHE
             string useNodesCacheIndicesInCacheDef = " /D USE_NODES_CACHE_INDICES_IN_CACHE ";
 #else
@@ -181,7 +168,7 @@ int main(int argc, char **argv)
                 {
                     command += "/I " + addQuotes(str) + " ";
                 }
-                command += useCommandHashDef + useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef;
+                command += useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef;
                 command += configureExe ? "" : " /D BUILD_MODE /D NDEBUG ";
                 command +=
                     "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +

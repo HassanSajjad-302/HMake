@@ -4,6 +4,8 @@
 #include "Builder.hpp"
 #include "Configuration.hpp"
 #include "CppTarget.hpp"
+#include "rapidhash/rapidhash.h"
+
 #include <filesystem>
 #include <memory_resource>
 #include <stack>
@@ -84,7 +86,7 @@ void LOAT::setFileStatus()
         }
         else
         {
-            if (linkBuildCache.commandWithoutArgumentsWithTools.hash == commandWithoutTargetsWithTool.getHash())
+            if (linkBuildCache.commandWithoutArgumentsWithTools == commandWithoutTargetsWithTool)
             {
                 bool needsUpdate = false;
                 if (!evaluate(TargetType::LIBRARY_STATIC))
@@ -230,8 +232,7 @@ bool LOAT::writeBuildCache(string &buffer)
         return PLOAT::writeBuildCache(buffer);
     }
 
-    linkBuildCache.commandWithoutArgumentsWithTools.hash = commandWithoutTargetsWithTool.getHash();
-    linkBuildCache.commandWithoutArgumentsWithTools.serialize(buffer);
+    writeUint64(buffer, commandWithoutTargetsWithTool);
     writeUint32(buffer, objectFiles.size());
     for (const ObjectFile *obj : objectFiles)
     {
@@ -258,7 +259,7 @@ void LOAT::readCacheAtBuildTime()
     if (!buildCache.empty())
     {
         uint32_t bytesRead = 0;
-        linkBuildCache.commandWithoutArgumentsWithTools.deserialize(buildCache.data(), bytesRead);
+        linkBuildCache.commandWithoutArgumentsWithTools = readUint64(buildCache.data(), bytesRead);
         const uint32_t objCacheSize = readUint32(buildCache.data(), bytesRead);
         linkBuildCache.objectFiles.reserve(objCacheSize);
         for (uint32_t i = 0; i < objCacheSize; ++i)
@@ -302,7 +303,7 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets)
     }
 
     linkWithTargets += outputFileNode->filePath + "\" ";
-    commandWithoutTargetsWithTool.setCommand({linkWithTargets.data(), linkWithTargets.size()});
+    commandWithoutTargetsWithTool = rapidhash(linkWithTargets.data(), linkWithTargets.size());
     for (const ObjectFile *objectFile : objectFiles)
     {
         linkWithTargets += '\"' + objectFile->objectNode->filePath + "\" ";

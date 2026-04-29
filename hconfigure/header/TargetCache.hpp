@@ -49,19 +49,6 @@ struct FileTargetCache
 inline vector<FileTargetCache> fileTargetCaches;
 inline flat_hash_map<string, uint32_t> nameToIndexMap;
 
-/// Stores either compile-commands or its hash based on the USE_COMMAND_HASH CMake configuration macro.
-struct CCOrHash
-{
-#ifdef USE_COMMAND_HASH
-    uint64_t hash{};
-#else
-    string_view hash;
-#endif
-
-    void serialize(string &buffer) const;
-    void deserialize(const char *ptr, uint32_t &bytesRead);
-};
-
 struct BuildCache
 {
     struct Cpp
@@ -69,7 +56,7 @@ struct BuildCache
         struct SourceFile
         {
             Node *node;
-            CCOrHash compileCommand;
+            uint64_t compileCommand;
             uint64_t launchTime; // process-launch time
             vector<Node *> headerFiles;
             void serialize(string &buffer) const;
@@ -82,7 +69,7 @@ struct BuildCache
             struct SingleDep
             {
                 Node *node;
-                CCOrHash compileCommand;
+                uint64_t compileCommand;
                 uint32_t targetIndex{};
                 uint32_t myIndex{};
                 void serialize(string &buffer) const;
@@ -115,7 +102,7 @@ struct BuildCache
 
     struct Link
     {
-        CCOrHash commandWithoutArgumentsWithTools;
+        uint64_t commandWithoutArgumentsWithTools;
         vector<Node *> objectFiles;
     };
 };

@@ -39,7 +39,6 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/Builder.cpp
         hconfigure/src/BuildSystemFunctions.cpp
         hconfigure/src/Cache.cpp
-        hconfigure/src/HashedCommand.cpp
         hconfigure/src/CppMod.cpp
         hconfigure/src/Configuration.cpp
         hconfigure/src/CppTarget.cpp
@@ -84,8 +83,6 @@ if (${INCLUDE_CONFIGURE})
 
     if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
         message("HMAKE_USE_SMALL_FILE set")
-        # Comment out the following to switch from hash to compile-command in the build-log.
-        target_compile_definitions(hconfigure-c PUBLIC USE_COMMAND_HASH)
 
         # Comment out the following to switch from nodes.json numbers reflected in build-cache.json to full normalized paths in build-cache.json
         target_compile_definitions(hconfigure-c PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
@@ -126,7 +123,6 @@ if (${INCLUDE_BUILD})
 
     if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
         message("HMAKE_USE_SMALL_FILE set")
-        target_compile_definitions(hconfigure-b PUBLIC USE_COMMAND_HASH)
         target_compile_definitions(hconfigure-b PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
         #target_compile_definitions(hconfigure-b PUBLIC USE_FILE_COMPRESSION)
 
@@ -202,7 +198,6 @@ target_link_libraries(Analysis2 PRIVATE hconfigure-c)
 target_link_libraries(Dir-Mapping PRIVATE hconfigure-c)
 
 add_executable(benchmark Examples/benchmark/benchmark.cpp)
-
 
 function(add_dual_executables)
     math(EXPR count "${ARGC} / 2")

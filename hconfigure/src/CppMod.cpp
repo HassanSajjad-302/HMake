@@ -52,7 +52,7 @@ void CppSrc::initializeBuildCache(const uint32_t index, const uint64_t commandHa
     commandHash = commandHash_;
 
     const BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[index];
-    if (buildCache.compileCommand.hash != commandHash)
+    if (buildCache.compileCommand != commandHash)
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
         return;
@@ -355,7 +355,7 @@ void CppSrc::updateBuildCache()
         return;
     }
 
-    buildCache.compileCommand.hash = commandHash;
+    buildCache.compileCommand = commandHash;
     buildCache.launchTime = globalLaunchTime;
     buildCache.headerFiles.clear();
     for (Node *header : headerFiles)
@@ -484,7 +484,7 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
     myBuildCache = &modCache;
     commandHash = commandHash_;
 
-    if (modCache.srcFile.compileCommand.hash != commandHash)
+    if (modCache.srcFile.compileCommand != commandHash)
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
         return;
@@ -1270,7 +1270,7 @@ void CppMod::updateBuildCache()
 
     // myBuildCache is only updated here only if the build has succeeded.
 
-    myBuildCache->srcFile.compileCommand.hash = commandHash;
+    myBuildCache->srcFile.compileCommand = commandHash;
     myBuildCache->srcFile.launchTime = globalLaunchTime;
     myBuildCache->srcFile.headerFiles.clear();
     myBuildCache->headerUnitArray.clear();
@@ -1303,7 +1303,7 @@ void CppMod::updateBuildCache()
         {
             BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep huDep;
             huDep.node = const_cast<Node *>(dep->node);
-            huDep.compileCommand.hash = dep->commandHash;
+            huDep.compileCommand = dep->commandHash;
             huDep.myIndex = dep->myBuildCacheIndex;
             huDep.targetIndex = dep->target->cacheIndex;
             myBuildCache->headerUnitArray.emplace_back(huDep);
@@ -1312,7 +1312,7 @@ void CppMod::updateBuildCache()
         {
             BuildCache::Cpp::ModuleFile::SingleModuleDep modDep;
             modDep.node = dep->objectNode;
-            modDep.compileCommand.hash = dep->commandHash;
+            modDep.compileCommand = dep->commandHash;
             modDep.myIndex = dep->myBuildCacheIndex;
             modDep.targetIndex = dep->target->cacheIndex;
             myBuildCache->moduleArray.emplace_back(modDep);
@@ -1467,7 +1467,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
                 return;
             }
 
-            if (hu->commandHash != h.compileCommand.hash)
+            if (hu->commandHash != h.compileCommand)
             {
                 return;
             }
@@ -1488,7 +1488,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
                 return;
             }
 
-            if (cppMod->commandHash != m.compileCommand.hash)
+            if (cppMod->commandHash != m.compileCommand)
             {
                 return;
             }
@@ -1535,7 +1535,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
                 FORMAT("Header-Unit {}\n of target {}\n not found.\n", hu->node->filePath, hu->target->name));
         }
 
-        if (hu->commandHash != h.compileCommand.hash)
+        if (hu->commandHash != h.compileCommand)
         {
             return;
         }
@@ -1567,7 +1567,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
                 FORMAT("Module-file {}\n of target {}\n not found.\n", cppMod->node->filePath, cppMod->target->name));
         }
 
-        if (cppMod->commandHash != m.compileCommand.hash)
+        if (cppMod->commandHash != m.compileCommand)
         {
             return;
         }

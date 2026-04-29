@@ -1284,29 +1284,27 @@ void CppTarget::initSourceCache()
     std::pmr::string cFullCompileCommand(&cAlloc);
     std::pmr::string assemblyFullCompileCommand(&assemblyAlloc);
 
-    HashedCommand cppHashCommand;
-    HashedCommand cHashCommand;
-    HashedCommand assemblyHashCommand;
+    uint64_t cppHashCommand;
+    uint64_t cHashCommand;
+    uint64_t assemblyHashCommand;
 
     auto setCompileCommandSourceType = [&](const SourceType sourceType) {
         if (sourceType == SourceType::CPP && cppFullCompileCommand.empty())
         {
             cppFullCompileCommand = configuration->cppCompileCommand;
             setCompileCommand(cppFullCompileCommand);
-            cppHashCommand.setCommand(cppFullCompileCommand);
-            return cppHashCommand.getHash();
+            return rapidhash(cppFullCompileCommand.data(), cppFullCompileCommand.size());
         }
         if (sourceType == SourceType::C)
         {
             cFullCompileCommand = configuration->cCompileCommand;
             setCompileCommand(cFullCompileCommand);
-            cHashCommand.setCommand(cFullCompileCommand);
-            return cppHashCommand.getHash();
+            return rapidhash(cFullCompileCommand.data(), cFullCompileCommand.size());
         }
+
         assemblyFullCompileCommand = configuration->assemblyCompileCommand;
         setCompileCommand(assemblyFullCompileCommand);
-        assemblyHashCommand.setCommand(assemblyFullCompileCommand);
-        return cppHashCommand.getHash();
+        return rapidhash(assemblyFullCompileCommand.data(), assemblyFullCompileCommand.size());
     };
 
     for (uint32_t i = 0; i < srcFileDeps.size(); ++i)

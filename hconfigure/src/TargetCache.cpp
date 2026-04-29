@@ -54,27 +54,9 @@ TargetCache::TargetCache(const string &name)
 
 bool TargetCache::writeBuildCache(string &buffer)
 {
-    string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
+    const string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
     buffer.append(buildCache.begin(), buildCache.end());
     return false;
-}
-
-void CCOrHash::serialize(string &buffer) const
-{
-#ifdef USE_COMMAND_HASH
-    writeUint64(buffer, hash);
-#else
-    writeStringView(buffer, hash);
-#endif
-}
-
-void CCOrHash::deserialize(const char *ptr, uint32_t &bytesRead)
-{
-#ifdef USE_COMMAND_HASH
-    hash = readUint64(ptr, bytesRead);
-#else
-    hash = readStringView(ptr, bytesRead);
-#endif
 }
 
 bool readBool(const char *ptr, uint32_t &bytesRead)
@@ -129,7 +111,7 @@ Node *readHalfNode(const char *ptr, uint32_t &bytesRead)
 void BuildCache::Cpp::SourceFile::serialize(string &buffer) const
 {
     writeNode(buffer, node);
-    compileCommand.serialize(buffer);
+    writeUint64(buffer, compileCommand);
     writeUint64(buffer, launchTime);
     writeNodeVector(buffer, headerFiles);
 }
@@ -137,7 +119,7 @@ void BuildCache::Cpp::SourceFile::serialize(string &buffer) const
 void BuildCache::Cpp::SourceFile::deserialize(const char *ptr, uint32_t &bytesRead)
 {
     node = readHalfNode(ptr, bytesRead);
-    compileCommand.deserialize(ptr, bytesRead);
+    compileCommand = readUint64(ptr, bytesRead);
     launchTime = readUint64(ptr, bytesRead);
     const uint32_t headerSize = readUint32(ptr, bytesRead);
     headerFiles.reserve(headerSize);
@@ -150,7 +132,7 @@ void BuildCache::Cpp::SourceFile::deserialize(const char *ptr, uint32_t &bytesRe
 void ModuleFile::SingleDep::serialize(string &buffer) const
 {
     writeNode(buffer, node);
-    compileCommand.serialize(buffer);
+    writeUint64(buffer, compileCommand);
     writeUint32(buffer, targetIndex);
     writeUint32(buffer, myIndex);
 }
@@ -158,7 +140,7 @@ void ModuleFile::SingleDep::serialize(string &buffer) const
 void ModuleFile::SingleDep::deserialize(const char *ptr, uint32_t &bytesRead)
 {
     node = readHalfNode(ptr, bytesRead);
-    compileCommand.deserialize(ptr, bytesRead);
+    compileCommand = readUint64(ptr, bytesRead);
     targetIndex = readUint32(ptr, bytesRead);
     myIndex = readUint32(ptr, bytesRead);
 }
