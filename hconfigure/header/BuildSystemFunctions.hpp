@@ -67,6 +67,8 @@ inline Node *currentNode;
 
 inline uint32_t nodesSizeBefore = 0;
 
+inline uint64_t globalLaunchTime = 0;
+
 enum class BSMode : uint8_t // Build System Mode
 {
     CONFIGURE = 0,

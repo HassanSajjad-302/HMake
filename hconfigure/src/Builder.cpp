@@ -195,6 +195,9 @@ void Builder::executeRoundZero()
 
 #endif
 
+    globalLaunchTime =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count();
     while (true)
     {
         while (true)

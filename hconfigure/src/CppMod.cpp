@@ -306,6 +306,11 @@ bool pathContainsFile(string_view dir, const string_view file)
 
 void CppSrc::setCppSrcFileStatus()
 {
+    if (node->fileType == file_type::not_found)
+    {
+        printErrorMessage(FORMAT("Source-File {}\n of target {}\n not found.\n", node->filePath, target->name));
+    }
+
     RealBTarget &rb = realBTargets[0];
     if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
     {
@@ -351,6 +356,7 @@ void CppSrc::updateBuildCache()
     }
 
     buildCache.compileCommand.hash = commandHash;
+    buildCache.launchTime = globalLaunchTime;
     buildCache.headerFiles.clear();
     for (Node *header : headerFiles)
     {
@@ -481,7 +487,6 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
     if (modCache.srcFile.compileCommand.hash != commandHash)
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
-        compileCommandChanged = true;
         return;
     }
 
@@ -504,6 +509,8 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
         }
     }
 
+    // if ignoreHeaderDeps is true, it is assumed that user won't delete the source-file, however, object-file, pcm can
+    // be deleted.
     if (target->ignoreHeaderDeps)
     {
         return;
@@ -513,6 +520,16 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
     for (const vector<Node *> headers = modCache.srcFile.headerFiles; Node *headerFile : headers)
     {
         headerFile->toBeChecked = true;
+    }
+
+    for (const ModuleFile::SingleHeaderUnitDep &h : myBuildCache->headerUnitArray)
+    {
+        h.node->toBeChecked = true;
+    }
+
+    for (const ModuleFile::SingleModuleDep &m : myBuildCache->moduleArray)
+    {
+        m.node->toBeChecked = true;
     }
 }
 
@@ -1254,6 +1271,7 @@ void CppMod::updateBuildCache()
     // myBuildCache is only updated here only if the build has succeeded.
 
     myBuildCache->srcFile.compileCommand.hash = commandHash;
+    myBuildCache->srcFile.launchTime = globalLaunchTime;
     myBuildCache->srcFile.headerFiles.clear();
     myBuildCache->headerUnitArray.clear();
     myBuildCache->moduleArray.clear();
@@ -1277,23 +1295,26 @@ void CppMod::updateBuildCache()
             myBuildCache->srcFile.headerFiles.emplace_back(header);
         }
     }
+
     myBuildCache->headerStatusChanged = false;
-    for (const CppMod *cppMod : allCppModDependencies)
+    for (const CppMod *dep : allCppModDependencies)
     {
-        if (cppMod->type == CppModType::HEADER_UNIT)
+        if (dep->type == CppModType::HEADER_UNIT)
         {
             BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep huDep;
-            huDep.node = const_cast<Node *>(cppMod->node);
-            huDep.myIndex = cppMod->myBuildCacheIndex;
-            huDep.targetIndex = cppMod->target->cacheIndex;
+            huDep.node = const_cast<Node *>(dep->node);
+            huDep.compileCommand.hash = dep->commandHash;
+            huDep.myIndex = dep->myBuildCacheIndex;
+            huDep.targetIndex = dep->target->cacheIndex;
             myBuildCache->headerUnitArray.emplace_back(huDep);
         }
         else
         {
             BuildCache::Cpp::ModuleFile::SingleModuleDep modDep;
-            modDep.node = cppMod->objectNode;
-            modDep.myIndex = cppMod->myBuildCacheIndex;
-            modDep.targetIndex = cppMod->target->cacheIndex;
+            modDep.node = dep->objectNode;
+            modDep.compileCommand.hash = dep->commandHash;
+            modDep.myIndex = dep->myBuildCacheIndex;
+            modDep.targetIndex = dep->target->cacheIndex;
             myBuildCache->moduleArray.emplace_back(modDep);
         }
     }
@@ -1406,9 +1427,9 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, CommandType com
 
 void CppMod::setFileStatusAndPopulateAllDependencies()
 {
-    if (node->filePath.ends_with("public-lib3.hpp"))
+    if (node->fileType == file_type::not_found)
     {
-        bool breakpooint = true;
+        printErrorMessage(FORMAT("Module-file {}\n of target {}\n not found.\n", node->filePath, target->name));
     }
 
     RealBTarget &rb = realBTargets[0];
@@ -1441,7 +1462,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
                 return;
             }
 
-            if (hu->compileCommandChanged)
+            if (hu->commandHash != h.compileCommand.hash)
             {
                 return;
             }
@@ -1462,7 +1483,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
                 return;
             }
 
-            if (cppMod->compileCommandChanged)
+            if (cppMod->commandHash != m.compileCommand.hash)
             {
                 return;
             }
@@ -1474,19 +1495,16 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         return;
     }
 
-    if (node->fileType == file_type::not_found)
-    {
-        printErrorMessage(FORMAT("Module-file {}\n of target {}\n not found.\n", node->filePath, target->name));
-    }
+    const uint64_t cachedLaunchTime = myBuildCache->srcFile.launchTime;
 
-    if (endNode->fileType == file_type::not_found || node->lastWriteTime > endNode->lastWriteTime)
+    if (endNode->fileType == file_type::not_found || node->lastWriteTime > cachedLaunchTime)
     {
         return;
     }
 
     for (Node *headerNode : myBuildCache->srcFile.headerFiles)
     {
-        if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > endNode->lastWriteTime)
+        if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > cachedLaunchTime)
         {
             return;
         }
@@ -1509,20 +1527,17 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         if (hu->node->fileType == file_type::not_found)
         {
             printErrorMessage(
-                FORMAT("Module-file {}\n of target {}\n not found.\n", hu->node->filePath, hu->target->name));
+                FORMAT("Header-Unit {}\n of target {}\n not found.\n", hu->node->filePath, hu->target->name));
         }
 
-        if (hu->compileCommandChanged)
+        if (hu->commandHash != h.compileCommand.hash)
         {
             return;
         }
 
-        if (!hu->target->ignoreHeaderDeps)
+        if (hu->node->lastWriteTime > cachedLaunchTime)
         {
-            if (hu->node->lastWriteTime > endNode->lastWriteTime)
-            {
-                return;
-            }
+            return;
         }
 
         allCppModDependencies.emplace(hu);
@@ -1547,17 +1562,15 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
                 FORMAT("Module-file {}\n of target {}\n not found.\n", cppMod->node->filePath, cppMod->target->name));
         }
 
-        if (cppMod->compileCommandChanged)
+        if (cppMod->commandHash != m.compileCommand.hash)
         {
             return;
         }
 
-        if (!cppMod->target->ignoreHeaderDeps)
+        // for clang 2-phase compilation, following would be incorrect. Need more thinking.
+        if (cppMod->node->lastWriteTime > cachedLaunchTime)
         {
-            if (cppMod->node->lastWriteTime > objectNode->lastWriteTime)
-            {
-                return;
-            }
+            return;
         }
 
         allCppModDependencies.emplace(cppMod);

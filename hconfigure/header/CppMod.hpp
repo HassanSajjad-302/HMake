@@ -142,8 +142,6 @@ struct CppMod final : CppSrc
 
     bool memoryMappingCompleted = false;
 
-    bool compileCommandChanged = false;
-
     bool isScheduled = false;
     bool calledOnce = false;
 
