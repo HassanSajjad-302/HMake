@@ -475,7 +475,7 @@ CppMod::CppMod(CppTarget *target_, const Node *node_) : CppSrc(target_, node_)
 void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const uint32_t index,
                                   const uint64_t commandHash_)
 {
-    if (node->filePath.ends_with("DemangleConfig.h"))
+    if (node->filePath.contains("public-lib3.hpp"))
     {
         bool breakpooint = true;
     }
@@ -1427,6 +1427,11 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, CommandType com
 
 void CppMod::setFileStatusAndPopulateAllDependencies()
 {
+    if (node->filePath.contains("public-lib3.hpp"))
+    {
+        bool breakpoint = true;
+    }
+
     if (node->fileType == file_type::not_found)
     {
         printErrorMessage(FORMAT("Module-file {}\n of target {}\n not found.\n", node->filePath, target->name));
