@@ -133,7 +133,7 @@ void PLOAT::completeRoundOne()
             {
                 if (reqDep->hasObjectFiles)
                 {
-                    addDep<0, BTargetDepType::LOOSE>(*reqDep);
+                    addDep<0, BTargetDepKind::LOOSE>(*reqDep);
                 }
             }
             else

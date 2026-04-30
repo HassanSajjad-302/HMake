@@ -6,7 +6,6 @@
 #include "CppTarget.hpp"
 #include "IPCManagerCompiler.hpp"
 #include "JConsts.hpp"
-#include "PointerPacking.h"
 #include "TargetCache.hpp"
 #include <fcntl.h>
 #include <filesystem>
@@ -1173,8 +1172,8 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     if (foundRb.updateStatus != UpdateStatus::UPDATED && foundRb.updateStatus != UpdateStatus::UPDATED_WITHOUT_BUILDING)
     {
         waitingFor = found;
-        foundRb.dependents.emplace(&rb, BTargetDepType::FULL);
-        rb.dependencies.emplace(&foundRb, BTargetDepType::FULL);
+        foundRb.dependents.emplace(&rb, BTargetDepKind::FULL);
+        rb.dependencies.emplace(&foundRb, BTargetDepKind::FULL);
         ++rb.dependenciesSize;
 
         // if its dependenciesSize is zero, it means that it is already in the list. We just bring it to the front.
@@ -1197,8 +1196,8 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     if (target->configuration->evaluate(StandAloneCommand::YES))
     {
         // we need this in standalone build to be able to generate the script for all the dependencies.
-        foundRb.dependents.emplace(&rb, BTargetDepType::FULL);
-        rb.dependencies.emplace(&foundRb, BTargetDepType::FULL);
+        foundRb.dependents.emplace(&rb, BTargetDepKind::FULL);
+        rb.dependencies.emplace(&foundRb, BTargetDepKind::FULL);
     }
 
     if (foundRb.exitStatus != EXIT_SUCCESS)

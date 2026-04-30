@@ -1788,7 +1788,7 @@ void CppTarget::readCacheAtBuildTime()
         }
 
         hu->type = CppModType::HEADER_UNIT;
-        addDep<0, BTargetDepType::SELECTIVE>(*hu);
+        addDep<0, BTargetDepKind::SELECTIVE>(*hu);
     }
 
     myBuildDir = readHalfNode(ptr, bytesRead);

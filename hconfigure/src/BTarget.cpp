@@ -20,6 +20,12 @@ bool IndexInTopologicalSortComparatorRoundTwo::operator()(const BTarget *lhs, co
            const_cast<BTarget *>(rhs)->realBTargets[1].indexInTopologicalSort;
 }
 
+
+RBTWithType::RBTWithType(RealBTarget *ptr, const BTargetDepKind depType, const BTargetType abstractType)
+    : ptrAndDepKind(ptr, depType), type(abstractType)
+{
+}
+
 void RealBTarget::sortGraph()
 {
     if (graphEdges.empty())
@@ -174,9 +180,9 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
 
 void RealBTarget::assignNeedsUpdateToDependents()
 {
-    for (auto &[dependent, bTargetDepType] : dependents)
+    for (auto &[dependent, bTargetDepKind] : dependents)
     {
-        if (bTargetDepType == BTargetDepType::FULL)
+        if (bTargetDepKind == BTargetDepKind::FULL)
         {
             dependent->updateStatus = UpdateStatus::NEEDS_UPDATE;
         }

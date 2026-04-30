@@ -123,7 +123,7 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &objectFileProduce
     }
     else
     {
-        addDep<0, BTargetDepType::SELECTIVE>(objectFileProducer);
+        addDep<0, BTargetDepKind::SELECTIVE>(objectFileProducer);
     }
 
     if constexpr (sizeof...(objectFileProducers))

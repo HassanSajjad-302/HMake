@@ -4,6 +4,7 @@
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
 
+#include "PointerPacking.h"
 #include "RunCommand.hpp"
 #include "gtl/include/gtl/phmap.hpp"
 #include <array>
@@ -29,7 +30,7 @@ struct IndexInTopologicalSortComparatorRoundTwo
 };
 
 /// Dependency relation between two `RealBTarget` nodes.
-enum class BTargetDepType : uint8_t
+enum class BTargetDepKind : uint8_t
 {
     /// The dependent waits for completion.
     /// In round 0, `selectiveBuild` propagates from dependent to dependency.
@@ -45,7 +46,83 @@ enum class BTargetDepType : uint8_t
 
     /// Order-only relation used for graph ordering. Used to specify stat-lib dependency with other static-lib.
     LOOSE = 3,
+
+    /// This is not a BTargetDepKind. Used only with RealBTarget::dependencies. Some BTarget need to gather all the
+    /// transitive dependencies. They can instead use the very RealBTarget::dependencies but with the following
+    /// BTargetDepType.
+    INDIRECT = 4,
 };
+
+class RealBTarget;
+
+// Forward declaration — substitute your actual abstract class type enum
+enum class BTargetType : unsigned short
+{
+    DEFAULT = 0,
+    UNKNOWN = 1,
+    CPPMOD = 2,
+    LINK_OR_ARCHIVE_TARGET = 3,
+    CPP_TARGET = 4,
+};
+
+/// RealBTargetWithType
+struct RBTWithType
+{
+    PointerIntPair<RealBTarget *, 3, BTargetDepKind> ptrAndDepKind;
+    BTargetType type{};
+
+    RBTWithType(RealBTarget *ptr, BTargetDepKind depType, BTargetType abstractType);
+
+    RealBTarget *getPointer() const
+    {
+        return ptrAndDepKind.getPointer();
+    }
+    BTargetDepKind getDepType() const
+    {
+        return ptrAndDepKind.getInt();
+    }
+    BTargetType getAbstractType() const
+    {
+        return type;
+    }
+};
+
+struct RBTDepTypeHash
+{
+    using is_transparent = void;
+
+    size_t operator()(const RBTWithType &e) const
+    {
+        return std::hash<RealBTarget *>{}(e.getPointer());
+    }
+
+    size_t operator()(RealBTarget *ptr) const
+    {
+        return std::hash<RealBTarget *>{}(ptr);
+    }
+};
+
+struct RBTDepTypeEqual
+{
+    using is_transparent = void;
+
+    bool operator()(const RBTWithType &a, const RBTWithType &b) const
+    {
+        return a.getPointer() == b.getPointer();
+    }
+
+    bool operator()(const RBTWithType &a, RealBTarget *ptr) const
+    {
+        return a.getPointer() == ptr;
+    }
+
+    bool operator()(RealBTarget *ptr, const RBTWithType &a) const
+    {
+        return a.getPointer() == ptr;
+    }
+};
+
+using DepSet = flat_hash_set<RBTWithType, RBTDepTypeHash, RBTDepTypeEqual>;
 
 /// This is used by different BTarget to synchronize printing with build-cache updating.
 enum class UpdateStatus : char
@@ -96,9 +173,9 @@ class RealBTarget
     static void printSortedGraph();
 
     /// Reverse edges: "who depends on me".
-    flat_hash_map<RealBTarget *, BTargetDepType> dependents;
+    flat_hash_map<RealBTarget *, BTargetDepKind> dependents;
     /// Forward edges: "what I depend on".
-    flat_hash_map<RealBTarget *, BTargetDepType> dependencies;
+    flat_hash_map<RealBTarget *, BTargetDepKind> dependencies;
 
     /// Owning high-level target.
     BTarget *bTarget = nullptr;
@@ -155,13 +232,8 @@ class RealBTarget
     void assignNeedsUpdateToDependents();
 };
 
-enum class BTargetType : unsigned short
-{
-    DEFAULT = 0,
-    CPPMOD = 1,
-    LINK_OR_ARCHIVE_TARGET = 2,
-    CPP_TARGET = 3,
-};
+static_assert(alignof(RealBTarget) >= 8,
+              "RealBTarget must be at least 8-byte aligned to pack BTargetDepType into pointer bits");
 
 /// Base class for all build graph tasks.
 ///
@@ -253,7 +325,7 @@ class BTarget // BTarget
     virtual bool isEventCompleted(Builder &builder, string_view message);
 
     /// Adds dependency edge for a given round and dependency type.
-    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDep(BTarget &dep);
+    template <unsigned short round, BTargetDepKind depType = BTargetDepKind::FULL> void addDep(BTarget &dep);
 
     /// This function is called in standAlone mode, so the BTarget could generate stand-alone commands that could be run
     /// stand-alone without the need for the build-system.
@@ -269,12 +341,12 @@ class BTarget // BTarget
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
-template <unsigned short round, BTargetDepType depType> void BTarget::addDep(BTarget &dep)
+template <unsigned short round, BTargetDepKind depType> void BTarget::addDep(BTarget &dep)
 {
     if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], depType).second)
     {
         dep.realBTargets[round].dependents.try_emplace(&this->realBTargets[round], depType);
-        if constexpr (depType == BTargetDepType::FULL || depType == BTargetDepType::WAIT)
+        if constexpr (depType == BTargetDepKind::FULL || depType == BTargetDepKind::WAIT)
         {
             ++realBTargets[round].dependenciesSize;
         }

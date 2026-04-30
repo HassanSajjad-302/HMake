@@ -5,7 +5,6 @@
 #include "JConsts.hpp"
 #include "Manager.hpp"
 #include "Node.hpp"
-#include "PointerPacking.h"
 #include "RunCommand.hpp"
 
 #include <mutex>
@@ -119,9 +118,9 @@ void Builder::executeRoundZero()
 
             if (localRb.bTarget->selectiveBuild)
             {
-                for (auto &[dependency, bTargetDepType] : localRb.dependencies)
+                for (auto &[dependency, bTargetDepKind] : localRb.dependencies)
                 {
-                    if (bTargetDepType == BTargetDepType::FULL || bTargetDepType == BTargetDepType::SELECTIVE)
+                    if (bTargetDepKind == BTargetDepKind::FULL || bTargetDepKind == BTargetDepKind::SELECTIVE)
                     {
                         dependency->bTarget->selectiveBuild = true;
                     }
@@ -630,9 +629,9 @@ void Builder::decrementFromDependents(const RealBTarget &rb)
         errorHappenedInRoundMode = true;
     }
 
-    for (auto &[dependent, bTargetDepType] : rb.dependents)
+    for (auto &[dependent, bTargetDepKind] : rb.dependents)
     {
-        if (bTargetDepType == BTargetDepType::FULL)
+        if (bTargetDepKind == BTargetDepKind::FULL)
         {
             if (rb.exitStatus != EXIT_SUCCESS)
             {

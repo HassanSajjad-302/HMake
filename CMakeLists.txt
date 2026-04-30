@@ -84,10 +84,7 @@ if (${INCLUDE_CONFIGURE})
     if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
         message("HMAKE_USE_SMALL_FILE set")
 
-        # Comment out the following to switch from nodes.json numbers reflected in build-cache.json to full normalized paths in build-cache.json
-        target_compile_definitions(hconfigure-c PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
-
-        # Comment out the following to switch from json files stored as compressed vs stored as-it-is
+        # Comment out the following to switch from binary cache files stored as compressed vs stored as-it-is
         # target_compile_definitions(hconfigure-c PUBLIC USE_FILE_COMPRESSION)
 
     endif ()
@@ -123,7 +120,6 @@ if (${INCLUDE_BUILD})
 
     if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
         message("HMAKE_USE_SMALL_FILE set")
-        target_compile_definitions(hconfigure-b PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
         #target_compile_definitions(hconfigure-b PUBLIC USE_FILE_COMPRESSION)
 
     endif ()
