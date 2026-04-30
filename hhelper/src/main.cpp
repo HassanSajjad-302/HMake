@@ -103,12 +103,6 @@ int main(int argc, char **argv)
         if constexpr (os == OS::LINUX)
         {
 
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-            string useNodesCacheIndicesInCacheDef = " -D USE_NODES_CACHE_INDICES_IN_CACHE ";
-#else
-            string useNodesCacheIndicesInCacheDef = "";
-#endif
-
 #ifdef USE_FILE_COMPRESSION
             string useJsonFileCompressionDef = " -D USE_FILE_COMPRESSION ";
 #else
@@ -123,8 +117,7 @@ int main(int argc, char **argv)
 
             auto getCommand = [&](const bool configureExe) {
                 string compileCommand =
-                    "c++ -std=c++2b -fno-exceptions -fno-rtti -fvisibility=hidden " + tsan +
-                    useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef +
+                    "c++ -std=c++2b -fno-exceptions -fno-rtti -fvisibility=hidden " + tsan + useJsonFileCompressionDef +
                     // a little slowness is acceptable at config time with better assertions.
                     string(configureExe ? "" : " -D BUILD_MODE -D NDEBUG ") +
                     " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
@@ -141,12 +134,6 @@ int main(int argc, char **argv)
         }
         else
         {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-            string useNodesCacheIndicesInCacheDef = " /D USE_NODES_CACHE_INDICES_IN_CACHE ";
-#else
-            string useNodesCacheIndicesInCacheDef = "";
-#endif
-
 #ifdef USE_FILE_COMPRESSION
             string useJsonFileCompressionDef = " /D USE_FILE_COMPRESSION ";
 #else
@@ -168,7 +155,7 @@ int main(int argc, char **argv)
                 {
                     command += "/I " + addQuotes(str) + " ";
                 }
-                command += useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef;
+                command += useJsonFileCompressionDef;
                 command += configureExe ? "" : " /D BUILD_MODE /D NDEBUG ";
                 command +=
                     "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +

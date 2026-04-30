@@ -101,11 +101,7 @@ string_view readStringView(const char *ptr, uint32_t &bytesRead)
 
 Node *readHalfNode(const char *ptr, uint32_t &bytesRead)
 {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    return nodeIndices[readUint32(ptr, bytesRead)];
-#else
     return Node::getHalfNode(readStringView(ptr, bytesRead));
-#endif
 }
 
 void BuildCache::Cpp::SourceFile::serialize(string &buffer) const
@@ -266,11 +262,7 @@ void writeStringView(string &buffer, const string_view &data)
 
 void writeNode(string &buffer, const Node *node)
 {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-    writeUint32(buffer, node->myId);
-#else
     writeStringView(buffer, node->filePath);
-#endif
 }
 
 void writeNodeVector(string &buffer, const vector<Node *> &array)
