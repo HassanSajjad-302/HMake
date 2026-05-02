@@ -7,13 +7,13 @@
 #include "IPCManagerBS.hpp"
 #include "ObjectFile.hpp"
 #include "TargetCache.hpp"
-#include "parallel-hashmap/parallel_hashmap/btree.h"
+#include "gtl/include/gtl/btree.hpp"
 #include <filesystem>
 #include <list>
 #include <utility>
 #include <vector>
 
-using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, phmap::btree_set, phmap::flat_hash_map;
+using std::vector, std::filesystem::path, std::pair, std::list, std::shared_ptr, gtl::btree_set, gtl::flat_hash_map;
 
 class CppTarget;
 class CppSrc;
@@ -105,9 +105,6 @@ struct CppMod final : CppSrc
     /// rebuilds.
     flat_hash_map<string, Node *> composingHeaders;
 
-    /// All dependencies of this module or hu. includes both header-units and modules.
-    flat_hash_set<CppMod *> allCppModDependencies;
-
     /// A header-unit can be found by more than 1 logicalNames. Like "std/header1.hpp" and "./header1.hpp". Also, in big
     /// header-units case a big header-unit can be found by any of its composing headers. All composing includes are
     /// added in following array and is sent with requested hu to keep the number of messages minimal. In case of
@@ -141,8 +138,6 @@ struct CppMod final : CppSrc
     bool firstMessageSent = false;
 
     bool memoryMappingCompleted = false;
-
-    bool compileCommandChanged = false;
 
     bool isScheduled = false;
     bool calledOnce = false;
@@ -203,7 +198,7 @@ struct CppMod final : CppSrc
     /// Checks whether this needs to be updated and sets round0 RealBTarget::updateStatus to UpdateStatus::NEEDS_UPDATE.
     /// Otherwise, populates CppTarget::allCppModDependencies based on myBuildCache. So, if any of our dependents need
     /// to be updated, makeAndSend* functions could send our dependencies with us in a single message.
-    void setFileStatusAndPopulateAllDependencies();
+    void setFileStatusAndPopulateAllDependencies(std::pmr::vector<CppMod*> &cachedModDeps);
 
 
     /// This function is called in standAlone mode, so the BTarget could generate stand-alone commands that could be run

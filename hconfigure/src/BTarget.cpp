@@ -53,12 +53,17 @@ void RealBTarget::sortGraph()
         RealBTarget *rb = noEdges[noEdgesCount];
         sorted[index] = rb;
         --index;
-        for (auto [m, _] : rb->dependencies)
+        for (const RBTWithType &rbt : rb->dependencies)
         {
-            --edgesCount;
-            if (!--m->dependentsCount)
+            // Transitive dependencies are stored with others so new container is not used but otherwise they are not
+            // considered
+            if (rbt.getDepType() != BTargetDepKind::TRANSITIVE)
             {
-                noEdges.emplace_back(m);
+                --edgesCount;
+                if (!--rbt.getPointer()->dependentsCount)
+                {
+                    noEdges.emplace_back(rbt.getPointer());
+                }
             }
         }
         ++noEdgesCount;
@@ -102,7 +107,7 @@ void RealBTarget::sortGraph()
 
 void RealBTarget::printSortedGraph()
 {
-    for (RealBTarget *rb : sorted)
+    for (const RealBTarget *rb : sorted)
     {
         printMessage(rb->bTarget->getPrintName() + '\n');
     }
@@ -118,31 +123,36 @@ bool RealBTarget::findCycleDFS(RealBTarget *node, flat_hash_set<RealBTarget *> &
     currentPath.push_back(node);
 
     // Only consider dependencies that are still part of the cycle
-    for (auto [dependency, _] : node->dependencies)
+    for (const RBTWithType &rbt : node->dependencies)
     {
-        // Only follow edges to nodes that are part of the cycle
-        if (dependency->dependentsCount > 0)
+        // Transitive dependencies are stored with others so new container is not used but otherwise they are not
+        // considered
+        if (rbt.getDepType() != BTargetDepKind::TRANSITIVE)
         {
-            if (recursionStack.find(dependency) != recursionStack.end())
+            // Only follow edges to nodes that are part of the cycle
+            if (rbt.getPointer()->dependentsCount > 0)
             {
-                // Found a cycle! Print the path from dependency back to current node
-                auto cycleStart = find(currentPath.begin(), currentPath.end(), dependency);
-                if (cycleStart != currentPath.end())
+                if (recursionStack.find(rbt.getPointer()) != recursionStack.end())
                 {
-                    errorString += "Cycle found: ";
-                    for (auto it = cycleStart; it != currentPath.end(); ++it)
+                    // Found a cycle! Print the path from dependency back to current node
+                    if (auto cycleStart = find(currentPath.begin(), currentPath.end(), rbt.getPointer());
+                        cycleStart != currentPath.end())
                     {
-                        errorString += (*it)->bTarget->getPrintName() + " -> ";
+                        errorString += "Cycle found: ";
+                        for (auto it = cycleStart; it != currentPath.end(); ++it)
+                        {
+                            errorString += (*it)->bTarget->getPrintName() + " -> ";
+                        }
+                        errorString += rbt.getPointer()->bTarget->getPrintName() + "\n";
+                        return true;
                     }
-                    errorString += dependency->bTarget->getPrintName() + "\n";
-                    return true;
                 }
-            }
-            else if (visited.find(dependency) == visited.end())
-            {
-                if (findCycleDFS(dependency, visited, recursionStack, currentPath, errorString))
+                else if (visited.find(rbt.getPointer()) == visited.end())
                 {
-                    return true;
+                    if (findCycleDFS(rbt.getPointer(), visited, recursionStack, currentPath, errorString))
+                    {
+                        return true;
+                    }
                 }
             }
         }
@@ -155,8 +165,7 @@ bool RealBTarget::findCycleDFS(RealBTarget *node, flat_hash_set<RealBTarget *> &
 
 RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_) : bTarget(bTarget_)
 {
-    uint32_t i;
-    i = BTarget::realBTargetsArrayCount[round_];
+    uint32_t i = BTarget::realBTargetsArrayCount[round_];
     ++BTarget::realBTargetsArrayCount[round_];
     BTarget::realBTargetsGlobal[round_][i] = this;
 }
@@ -165,8 +174,7 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
 {
     if (add)
     {
-        uint32_t i;
-        i = BTarget::realBTargetsArrayCount[round_];
+        uint32_t i = BTarget::realBTargetsArrayCount[round_];
         ++BTarget::realBTargetsArrayCount[round_];
         BTarget::realBTargetsGlobal[round_][i] = this;
     }
@@ -174,11 +182,11 @@ RealBTarget::RealBTarget(BTarget *bTarget_, const unsigned short round_, const b
 
 void RealBTarget::assignNeedsUpdateToDependents()
 {
-    for (auto &[dependent, bTargetDepType] : dependents)
+    for (const RBTWithType &rbt : dependents)
     {
-        if (bTargetDepType == BTargetDepType::FULL)
+        if (rbt.getDepType() == BTargetDepKind::FULL)
         {
-            dependent->updateStatus = UpdateStatus::NEEDS_UPDATE;
+            rbt.getPointer()->updateStatus = UpdateStatus::NEEDS_UPDATE;
         }
     }
 }

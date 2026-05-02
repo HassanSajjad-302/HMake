@@ -518,7 +518,30 @@ TEST(StageTests, Test3)
     executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
-    // Making public-lib4.hpp and private-lib4.hpp header-units.
+    // Adding private compile-definition to lib3.
+    copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
+    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+
+    // Removing private compile-definition to lib3. And only compiling lib3-cpp. Then we add the definition again, only
+    // the lib3-cpp will be compiled. The compile-command did not change for lib2.cpp however. And not for any of its
+    // deps as per its cache.
+    copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(
+        Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+
+    // Just an extra re-configuration test.
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
+
+    // Making public-lib4.hpp and private-lib4.hpp header-units. compile-definition removed as well.
     copyFilePath(testSourcePath / "Version/2/hmake.cpp", testSourcePath / "hmake.cpp");
     // private-lib4.hpp, public-lib4.hpp, public-lib3.hpp, lib3.cpp, lib4.cpp.
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
@@ -611,7 +634,30 @@ TEST(StageTests, Test4)
     executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
     executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
-    // Making public-lib4.hpp and private-lib4.hpp header-units.
+    // Adding private compile-definition to lib3.
+    copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(Updates{.headerUnits = 1}, "Debug/lib4-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
+    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
+    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+
+    // Removing private compile-definition to lib3. And only compiling lib3-cpp. Then we add the definition again, only
+    // the lib3-cpp will be compiled. The compile-command did not change for lib2.cpp however. And not for any of its
+    // deps as per its cache.
+    copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(
+        Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+
+    // Just an extra re-configuration test.
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
+
+    // Making public-lib4.hpp and private-lib4.hpp header-units. compile-definition removed as well.
     copyFilePath(testSourcePath / "Version/2/hmake.cpp", testSourcePath / "hmake.cpp");
     // private-lib4.hpp, public-lib4.hpp, public-lib3.hpp, lib3.cpp, lib4.cpp.
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
@@ -670,15 +716,15 @@ TEST(StageTests, Test5)
     copyFilePath(testSourcePath / "Version/1/ten.cppm", example8Path / "Mod_Src/ten.cppm");
 
     {
-        string twoPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/two.cppm");
-        string tenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/ten.cppm");
+        string twoPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/two.cppm")).string();
+        string tenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/ten.cppm")).string();
 
         current_path(example8Path / "Build");
         RunCommand r;
         r.runProcess("hbuild");
-        erase_if(r.output, [](const char c) { return c == '\r'; });
+        erase_if(*r.output, [](const char c) { return c == '\r'; });
         int exitStatus = r.exitStatus;
-        string output = std::move(r.output);
+        string output = std::move(*r.output);
         ASSERT_EQ(exitStatus, EXIT_FAILURE);
         const string str = "Cycle found: " + twoPath + " -> " + tenPath + " -> " + twoPath + "\n";
         const string result = removeColorCodes(output);
@@ -695,16 +741,16 @@ TEST(StageTests, Test5)
     copyFilePath(testSourcePath / "Version/1/fifteen.cppm", example8Path / "Mod_Src/fifteen.cppm");
 
     {
-        string sevenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/seven.cppm");
-        string fourteenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fourteen.cppm");
-        string fifteenPath = path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fifteen.cppm");
+        string sevenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/seven.cppm")).string();
+        string fourteenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fourteen.cppm")).string();
+        string fifteenPath = (path(SOURCE_DIRECTORY) / path("Examples/Example8/Mod_Src/fifteen.cppm")).string();
 
         current_path(example8Path / "Build");
         RunCommand r;
         r.runProcess("hbuild");
-        erase_if(r.output, [](const char c) { return c == '\r'; });
+        erase_if(*r.output, [](const char c) { return c == '\r'; });
         int exitStatus = r.exitStatus;
-        string output = std::move(r.output);
+        string output = std::move(*r.output);
         ASSERT_EQ(exitStatus, EXIT_FAILURE);
         const string str =
             "Cycle found: " + sevenPath + " -> " + fourteenPath + " -> " + fifteenPath + " -> " + sevenPath + "\n";

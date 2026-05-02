@@ -63,9 +63,6 @@ void replaceAll(string &str, const string &from, const string &to)
 #ifndef THIRD_PARTY_HEADER
 #define THROW true
 #endif
-#ifndef PARALLEL_HASHMAP
-#define THROW true
-#endif
 #ifndef LZ4_HEADER
 #define THROW true
 #endif
@@ -97,7 +94,6 @@ int main(int argc, char **argv)
         path jsonHeaderPath = path(JSON_HEADER);
         path rapidjsonHeaderPath = path(RAPIDJSON_HEADER);
         path thirdPartyHeaderPath = path(THIRD_PARTY_HEADER);
-        path parallelHashMap = path(PARALLEL_HASHMAP);
         path lz4Header = path(LZ4_HEADER);
         path hconfigureCStaticLibDirectoryPath = path(HCONFIGURE_C_STATIC_LIB_DIRECTORY);
         path hconfigureBStaticLibDirectoryPath = path(HCONFIGURE_B_STATIC_LIB_DIRECTORY);
@@ -107,20 +103,8 @@ int main(int argc, char **argv)
         if constexpr (os == OS::LINUX)
         {
 
-#ifdef USE_COMMAND_HASH
-            string useCommandHashDef = " -D USE_COMMAND_HASH ";
-#else
-            string useCommandHashDef = "";
-#endif
-
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-            string useNodesCacheIndicesInCacheDef = " -D USE_NODES_CACHE_INDICES_IN_CACHE ";
-#else
-            string useNodesCacheIndicesInCacheDef = "";
-#endif
-
-#ifdef USE_JSON_FILE_COMPRESSION
-            string useJsonFileCompressionDef = " -D USE_JSON_FILE_COMPRESSION ";
+#ifdef USE_FILE_COMPRESSION
+            string useJsonFileCompressionDef = " -D USE_FILE_COMPRESSION ";
 #else
             string useJsonFileCompressionDef = "";
 #endif
@@ -133,12 +117,11 @@ int main(int argc, char **argv)
 
             auto getCommand = [&](const bool configureExe) {
                 string compileCommand =
-                    "c++ -std=c++2b -fno-exceptions -fno-rtti -fvisibility=hidden " + tsan + useCommandHashDef +
-                    useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef +
+                    "c++ -std=c++2b -fno-exceptions -fno-rtti -fvisibility=hidden " + tsan + useJsonFileCompressionDef +
                     // a little slowness is acceptable at config time with better assertions.
                     string(configureExe ? "" : " -D BUILD_MODE -D NDEBUG ") +
                     " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
-                    " -I " PARALLEL_HASHMAP " -I " LZ4_HEADER
+                    " -I " LZ4_HEADER
                     " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_C_STATIC_LIB_DIRECTORY " -l" +
                     string(configureExe ? "hconfigure-c" : "hconfigure-b") +
                     " -Wl,--no-whole-archive -o {CONFIGURE_DIRECTORY}/" +
@@ -151,21 +134,8 @@ int main(int argc, char **argv)
         }
         else
         {
-
-#ifdef USE_COMMAND_HASH
-            string useCommandHashDef = " /D USE_COMMAND_HASH ";
-#else
-            string useCommandHashDef = "";
-#endif
-
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
-            string useNodesCacheIndicesInCacheDef = " /D USE_NODES_CACHE_INDICES_IN_CACHE ";
-#else
-            string useNodesCacheIndicesInCacheDef = "";
-#endif
-
-#ifdef USE_JSON_FILE_COMPRESSION
-            string useJsonFileCompressionDef = " /D USE_JSON_FILE_COMPRESSION ";
+#ifdef USE_FILE_COMPRESSION
+            string useJsonFileCompressionDef = " /D USE_FILE_COMPRESSION ";
 #else
             string useJsonFileCompressionDef = "";
 #endif
@@ -185,12 +155,11 @@ int main(int argc, char **argv)
                 {
                     command += "/I " + addQuotes(str) + " ";
                 }
-                command += useCommandHashDef + useNodesCacheIndicesInCacheDef + useJsonFileCompressionDef;
+                command += useJsonFileCompressionDef;
                 command += configureExe ? "" : " /D BUILD_MODE /D NDEBUG ";
                 command +=
                     "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
-                    jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " +
-                    parallelHashMap.string() + " /I " + lz4Header.string() +
+                    jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " + lz4Header.string() +
                     " /std:c++latest /GR- /EHsc /MT /nologo {SOURCE_DIRECTORY}/hmake.cpp /Fo{CONFIGURE_DIRECTORY}/" +
                     (configureExe ? "configure.obj" : "build.obj") + " /link /SUBSYSTEM:CONSOLE /NOLOGO ";
                 for (const string &str : toolsCache.vsTools[0].libraryDirs)
@@ -270,10 +239,10 @@ int main(int argc, char **argv)
         if (r.exitStatus == EXIT_SUCCESS)
         {
             // Display any warnings in compilation process. MSVC displays the file-name.
-            if (!r.output.empty() && r.output != "hmake.cpp\r\n")
+            if (!r.output->empty() && *r.output != "hmake.cpp\r\n")
             {
                 printMessage(command);
-                printMessage(r.output);
+                printMessage(*r.output);
             }
             else
             {
@@ -284,7 +253,7 @@ int main(int argc, char **argv)
         {
             printMessage("Errors in Building " + configureOrBuildStr + " Executable");
             printMessage(command + "\n");
-            printMessage(r.output + "\n");
+            printMessage(*r.output + "\n");
             exit(r.exitStatus);
         }
 
@@ -305,11 +274,11 @@ int main(int argc, char **argv)
     r.runProcess(configureExePath.c_str());
     if (r.exitStatus == EXIT_SUCCESS)
     {
-        printMessage(r.output);
+        printMessage(*r.output);
     }
     else
     {
-        printErrorMessage(r.output);
+        printErrorMessage(*r.output);
     }
     // current_path("Release/std-cpp");
     // system("hbuild");

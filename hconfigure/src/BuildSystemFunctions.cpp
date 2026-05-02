@@ -34,7 +34,7 @@ void setIsConsol()
 
 string getFileNameJsonOrOut(const string &name)
 {
-#ifdef USE_JSON_FILE_COMPRESSION
+#ifdef USE_FILE_COMPRESSION
     return name + ".bin.lz4";
 #else
     return name + ".bin";
@@ -157,6 +157,8 @@ void printErrorMessageNoReturn(const string &message)
 bool configureOrBuild()
 {
     builder = new Builder{};
+
+    writeNodesCacheIfNewNodesAdded();
     string buffer;
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -189,6 +191,9 @@ void constructGlobals()
     unusedKeysIndices.reserve(32 * 1024);
     eventData = new CompletionKey[32 * 1024];
 #else
+    std::construct_at(&unusedOutputIndices);
+    unusedOutputIndices.reserve(4 * 1024);
+    processOutputs = new string[4 * 1024];
     eventData = new BTarget *[32 * 1024];
 #endif
 }
@@ -301,18 +306,15 @@ string fileToString(const string &fileName)
 {
     string fileBuffer;
     FILE *fp;
-
 #ifdef WIN32
     fopen_s(&fp, fileName.data(), "rb");
 #else
     fp = fopen(fileName.c_str(), "r");
 #endif
-
     fseek(fp, 0, SEEK_END);
     const size_t filesize = (size_t)ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    fileBuffer.resize(filesize);
-    const uint64_t readLength = fread(fileBuffer.data(), 1, filesize, fp);
+    fileBuffer.resize_and_overwrite(filesize, [&](char *buf, const size_t n) { return fread(buf, 1, n, fp); });
     fclose(fp);
     return fileBuffer;
 }
@@ -320,24 +322,21 @@ string fileToString(const string &fileName)
 void fileToString(const string &fileName, std::pmr::string &buffer)
 {
     FILE *fp;
-
 #ifdef WIN32
     fopen_s(&fp, fileName.data(), "rb");
 #else
     fp = fopen(fileName.c_str(), "r");
 #endif
-
     fseek(fp, 0, SEEK_END);
     const size_t filesize = (size_t)ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    buffer.resize(filesize);
-    const uint64_t readLength = fread(buffer.data(), 1, filesize, fp);
+    buffer.resize_and_overwrite(filesize, [&](char *buf, const size_t n) { return fread(buf, 1, n, fp); });
     fclose(fp);
 }
 
 string readBufferFromCompressedFile(const string &fileName)
 {
-#ifndef USE_JSON_FILE_COMPRESSION
+#ifndef USE_FILE_COMPRESSION
     return fileToString(fileName);
 #else
     string compressedBuffer = fileToString(fileName);
@@ -391,6 +390,11 @@ void readConfigCache()
 
         ++count;
     }
+
+    if (bufferRead != bufferSize)
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+    }
 }
 
 void readBuildCache()
@@ -414,6 +418,8 @@ void writeNodesCacheIfNewNodesAdded()
 {
     if (const uint64_t newNodesSize = Node::idCount; newNodesSize != nodesSizeBefore)
     {
+        // In this optimization, we calculate the new increment first and then extend size by that and then add the
+        // entries.
         /*uint32_t newNodesStrSize = 0;
         newNodesStrSize += (newNodesSize - nodesSizeBefore) * 2;
         for (uint64_t i = nodesSizeBefore; i < newNodesSize; ++i)
@@ -453,9 +459,28 @@ void writeBuildBuffer(string &buffer)
         return;
     }
 
-    writeNodesCacheIfNewNodesAdded();
-
     bool cacheUpdated = false;
+
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        cacheUpdated = true;
+    }
+    else
+    {
+        for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
+        {
+            if (fileCacheTarget.targetCache && fileCacheTarget.targetCache->isBuildCacheUpdated())
+            {
+                cacheUpdated = true;
+                break;
+            }
+        }
+        if (!cacheUpdated)
+        {
+            return;
+        }
+    }
+
     for (const FileTargetCache &fileCacheTarget : fileTargetCaches)
     {
         const uint32_t currentSize = buffer.size();
@@ -463,28 +488,18 @@ void writeBuildBuffer(string &buffer)
         writeUint32(buffer, 0);
         if (fileCacheTarget.targetCache)
         {
-            if (fileCacheTarget.targetCache->writeBuildCache(buffer))
-            {
-                cacheUpdated = true;
-            }
+            fileCacheTarget.targetCache->writeBuildCache(buffer);
         }
         else
         {
             buffer.append(fileCacheTarget.buildCache.begin(), fileCacheTarget.buildCache.end());
         }
+
+        // writing size to the placeholder above.
         const uint32_t size = buffer.size() - (currentSize + 4);
         memcpy(buffer.data() + currentSize, &size, sizeof(size));
     }
-
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        cacheUpdated = true;
-    }
-
-    if (cacheUpdated)
-    {
-        writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buffer);
-    }
+    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"), buffer);
 }
 
 #ifndef _WIN32
@@ -595,7 +610,7 @@ static void writeFileAtomically(const string &fileName, const char *buffer, uint
 
 void writeBufferToCompressedFile(const string &fileName, const string &fileBuffer)
 {
-#ifndef USE_JSON_FILE_COMPRESSION
+#ifndef USE_FILE_COMPRESSION
     writeFileAtomically(fileName, fileBuffer.data(), fileBuffer.size(), true);
 #else
     const uint64_t maxCompressedSize = LZ4_compressBound(fileBuffer.size());

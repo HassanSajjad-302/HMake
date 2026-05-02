@@ -6,7 +6,6 @@
 #include "CppTarget.hpp"
 #include "IPCManagerCompiler.hpp"
 #include "JConsts.hpp"
-#include "PointerPacking.h"
 #include "TargetCache.hpp"
 #include <fcntl.h>
 #include <filesystem>
@@ -52,7 +51,7 @@ void CppSrc::initializeBuildCache(const uint32_t index, const uint64_t commandHa
     commandHash = commandHash_;
 
     const BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[index];
-    if (buildCache.compileCommand.hash != commandHash)
+    if (buildCache.compileCommand != commandHash)
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
         return;
@@ -137,7 +136,13 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
     uint64_t startPos = 0;
     uint64_t lineEnd;
     string_view line;
-    string treatedOutput;
+
+    constexpr uint32_t stackSize = 128 * 1024;
+    char buffer[stackSize];
+
+    std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
+    std::pmr::string treatedOutput(&alloc);
+    treatedOutput.reserve(stackSize);
 
     if (!isClang)
     {
@@ -212,7 +217,7 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
         startPos = lineEnd + 1;
         if (output.size() == startPos)
         {
-            output = std::move(treatedOutput);
+            output = treatedOutput;
             break;
         }
         /*if (lineEnd > output.size() - 5)
@@ -220,6 +225,10 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
             bool breakpoint = true;
         }*/
         lineEnd = output.find('\n', startPos);
+        if (lineEnd == -1)
+        {
+            bool breakpoint = true;
+        }
     }
 }
 
@@ -296,6 +305,11 @@ bool pathContainsFile(string_view dir, const string_view file)
 
 void CppSrc::setCppSrcFileStatus()
 {
+    if (node->fileType == file_type::not_found)
+    {
+        printErrorMessage(FORMAT("Source-File {}\n of target {}\n not found.\n", node->filePath, target->name));
+    }
+
     RealBTarget &rb = realBTargets[0];
     if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
     {
@@ -314,15 +328,15 @@ void CppSrc::setCppSrcFileStatus()
         return;
     }
 
-    if (objectNode->fileType == file_type::not_found || node->lastWriteTime > objectNode->lastWriteTime)
+    const BuildCache::Cpp::SourceFile &myBuildCache = target->cppBuildCache.srcFiles[myBuildCacheIndex];
+    if (objectNode->fileType == file_type::not_found || node->lastWriteTime > myBuildCache.launchTime)
     {
         return;
     }
 
-    for (const vector<Node *> &headers = target->cppBuildCache.srcFiles[myBuildCacheIndex].headerFiles;
-         const Node *headerNode : headers)
+    for (const vector<Node *> &headers = myBuildCache.headerFiles; const Node *headerNode : headers)
     {
-        if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > objectNode->lastWriteTime)
+        if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > myBuildCache.launchTime)
         {
             return;
         }
@@ -340,7 +354,8 @@ void CppSrc::updateBuildCache()
         return;
     }
 
-    buildCache.compileCommand.hash = commandHash;
+    buildCache.compileCommand = commandHash;
+    buildCache.launchTime = globalLaunchTime;
     buildCache.headerFiles.clear();
     for (Node *header : headerFiles)
     {
@@ -397,7 +412,7 @@ bool CppSrc::isEventRegistered(Builder &builder)
 
 bool CppSrc::isEventCompleted(Builder &builder, string_view)
 {
-    parseHeaderDeps(run.output, builder);
+    parseHeaderDeps(*run.output, builder);
 
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
@@ -422,7 +437,7 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
         outputStr += getColorCode(ColorIndex::cyan);
     }
 
-    if (run.output.empty())
+    if (run.output->empty())
     {
         outputStr += FORMAT("[{}/{}]C++Source {} {}\n", builder.updatedCount, builder.updateBTargetsSizeGoal,
                             node->filePath, target->name);
@@ -438,9 +453,9 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
         outputStr += getColorCode(ColorIndex::reset);
     }
 
-    if (!run.output.empty())
+    if (!run.output->empty())
     {
-        outputStr += run.output;
+        outputStr += *run.output;
         outputStr.push_back('\n');
     }
     fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
@@ -454,12 +469,13 @@ bool operator<(const CppSrc &lhs, const CppSrc &rhs)
 
 CppMod::CppMod(CppTarget *target_, const Node *node_) : CppSrc(target_, node_)
 {
+    realBTargets[0].dependencies.reserve(400);
 }
 
 void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const uint32_t index,
                                   const uint64_t commandHash_)
 {
-    if (node->filePath.ends_with("DemangleConfig.h"))
+    if (node->filePath.contains("public-lib3.hpp"))
     {
         bool breakpooint = true;
     }
@@ -468,10 +484,9 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
     myBuildCache = &modCache;
     commandHash = commandHash_;
 
-    if (modCache.srcFile.compileCommand.hash != commandHash)
+    if (modCache.srcFile.compileCommand != commandHash)
     {
         realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
-        compileCommandChanged = true;
         return;
     }
 
@@ -494,6 +509,8 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
         }
     }
 
+    // if ignoreHeaderDeps is true, it is assumed that user won't delete the source-file, however, object-file, pcm can
+    // be deleted.
     if (target->ignoreHeaderDeps)
     {
         return;
@@ -503,6 +520,16 @@ void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const u
     for (const vector<Node *> headers = modCache.srcFile.headerFiles; Node *headerFile : headers)
     {
         headerFile->toBeChecked = true;
+    }
+
+    for (const ModuleFile::SingleHeaderUnitDep &h : myBuildCache->headerUnitArray)
+    {
+        h.node->toBeChecked = true;
+    }
+
+    for (const ModuleFile::SingleModuleDep &m : myBuildCache->moduleArray)
+    {
+        m.node->toBeChecked = true;
     }
 }
 
@@ -540,10 +567,15 @@ void CppMod::makeAndSendBTCModule(CppMod &mod)
     btcModule.requested.fileSize = mod.interfaceFileSize;
     btcModule.isSystem = mod.target->isSystem;
 
-    for (CppMod *modDep : mod.allCppModDependencies)
+    for (const RBTWithType &rbt : mod.realBTargets[0].dependencies)
     {
-        if (allCppModDependencies.emplace(modDep).second)
+        if (const auto &[it, ok] = realBTargets[0].dependencies.emplace(rbt); ok && it->getAbstractType() == BTargetType::CPP_MOD)
         {
+            CppMod *modDep = static_cast<CppMod *>(it->getPointer()->bTarget);
+            if (modDep->type == CppModType::PRIMARY_IMPLEMENTATION)
+            {
+                continue;
+            }
             modDep->makeMemoryFileMapping();
             P2978::ModuleDep dep;
             dep.isHeaderUnit = modDep->type == CppModType::HEADER_UNIT;
@@ -715,10 +747,15 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
     writeUint32(toBeSend, 0);
 
     uint32_t count = 0;
-    for (CppMod *huDep : hu.allCppModDependencies)
+    for (const RBTWithType &rbt : hu.realBTargets[0].dependencies)
     {
-        if (allCppModDependencies.emplace(huDep).second)
+        if (const auto &[it, ok] = realBTargets[0].dependencies.emplace(rbt); ok && it->getAbstractType() == BTargetType::CPP_MOD)
         {
+            CppMod *huDep = static_cast<CppMod *>(it->getPointer()->bTarget);
+            if (huDep->type != CppModType::HEADER_UNIT)
+            {
+                continue;
+            }
             ++count;
             huDep->makeMemoryFileMapping();
 
@@ -821,23 +858,10 @@ bool CppMod::isEventRegistered(Builder &builder)
     RealBTarget &rb = realBTargets[0];
     if (waitingFor)
     {
-        if (rb.dependenciesSize)
-        {
-            // This is a stale entry as if the waitingFor had completed, the dependenciesSize would have been 0.
-            ++builder.idleCount;
-            return true;
-        }
         return isEventCompleted(builder, string_view{});
     }
 
     isScheduled = true;
-    if (calledOnce)
-    {
-        // This is a stale entry as only once this code should be called.
-        ++builder.idleCount;
-        return true;
-    }
-    calledOnce = true;
 
     if (rb.exitStatus != EXIT_SUCCESS)
     {
@@ -850,7 +874,24 @@ bool CppMod::isEventRegistered(Builder &builder)
         return false;
     }
 
-    setFileStatusAndPopulateAllDependencies();
+    {
+        constexpr uint32_t stackSize = 64 * 1024;
+        char buffer[stackSize];
+        std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
+        std::pmr::vector<CppMod *> cachedModDeps(&alloc);
+        cachedModDeps.reserve(63 * 1024 / sizeof(CppMod *)); // 8064 pointers
+        setFileStatusAndPopulateAllDependencies(cachedModDeps);
+
+        if (rb.updateStatus == UpdateStatus::ALREADY_UPDATED)
+        {
+            // we populate the transitive deps so they are successfully passed to our dependents.
+            for (CppMod *dep : cachedModDeps)
+            {
+                realBTargets[0].dependencies.emplace(&dep->realBTargets[0], BTargetDepKind::TRANSITIVE,
+                                                     BTargetType::CPP_MOD);
+            }
+        }
+    }
 
     if (rb.updateStatus == UpdateStatus::ALREADY_UPDATED)
     {
@@ -878,9 +919,6 @@ bool CppMod::isEventRegistered(Builder &builder)
 
     rb.assignNeedsUpdateToDependents();
     headerFiles.clear();
-    allCppModDependencies.clear();
-    myBuildCache->headerUnitArray.clear();
-    myBuildCache->moduleArray.clear();
 
     run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, true);
     ipcManager = new IPCManagerBS(run.writePipe);
@@ -894,7 +932,7 @@ void CppMod::completeModuleCompilation(const Builder &builder)
     if (rb.exitStatus != EXIT_SUCCESS)
     {
         rb.updateStatus = UpdateStatus::UPDATED_WITHOUT_BUILDING;
-        print(builder, run.output);
+        print(builder, *run.output);
         return;
     }
 
@@ -925,8 +963,13 @@ void CppMod::completeModuleCompilation(const Builder &builder)
                 }
             }
 
-            for (CppMod *dep : allCppModDependencies)
+            FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, dep)
             {
+                if (dep->type == CppModType::PRIMARY_IMPLEMENTATION)
+                {
+                    continue;
+                }
+
                 for (const auto &[headerFile, cppMod] : dep->headerNodeCppMod)
                 {
                     if (const auto &[it, ok] = headerNodeCppMod.emplace(headerFile, cppMod); !ok)
@@ -949,8 +992,12 @@ void CppMod::completeModuleCompilation(const Builder &builder)
                     headerFiles.emplace(headerFile);
                 }
 
-                for (CppMod *cppMod : allCppModDependencies)
+                FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, cppMod)
                 {
+                    if (cppMod->type == CppModType::PRIMARY_IMPLEMENTATION)
+                    {
+                        continue;
+                    }
                     for (Node *headerFile : cppMod->headerFiles)
                     {
                         headerFiles.emplace(headerFile);
@@ -963,7 +1010,7 @@ void CppMod::completeModuleCompilation(const Builder &builder)
     rb.updateStatus = UpdateStatus::UPDATED;
     // This must be just before printing as this is asynchronousl accessed in savBuildCache
     target->buildCacheUpdated = true;
-    print(builder, run.output);
+    print(builder, *run.output);
 }
 
 bool CppMod::isEventCompleted(Builder &builder, string_view message)
@@ -981,7 +1028,7 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     RealBTarget &rb = realBTargets[0];
     if (!target->useIPC)
     {
-        parseHeaderDeps(run.output, builder);
+        parseHeaderDeps(*run.output, builder);
         completeModuleCompilation(builder);
         return false;
     }
@@ -1150,7 +1197,9 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         }
     }
 
-    if (!allCppModDependencies.emplace(found).second)
+    if (!realBTargets[0]
+             .dependencies.emplace(&found->realBTargets[0], BTargetDepKind::TRANSITIVE, BTargetType::CPP_MOD)
+             .second)
     {
         printErrorMessage(FORMAT("Warning: already sent the module {}\n with logical-name{}\n requested in {}\n.",
                                  found->node->filePath, found->logicalNames[0], node->filePath));
@@ -1158,32 +1207,31 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
     RealBTarget &foundRb = found->realBTargets[0];
 
-    if (foundRb.updateStatus != UpdateStatus::UPDATED && foundRb.updateStatus != UpdateStatus::UPDATED_WITHOUT_BUILDING)
+    if (foundRb.updateStatus == UpdateStatus::ALREADY_UPDATED || foundRb.updateStatus == UpdateStatus::NEEDS_UPDATE)
     {
         waitingFor = found;
-        foundRb.dependents.emplace(&rb, BTargetDepType::FULL);
-        rb.dependencies.emplace(&foundRb, BTargetDepType::FULL);
+
+        // This is the only place where dependency-relationship is being added dynamically. We are sure that
+        // decrementFromDependents has not been called for our dependency.
+        foundRb.dependents.emplace(&rb, BTargetDepKind::FULL, BTargetType::CPP_MOD);
+        rb.dependencies.emplace(&foundRb, BTargetDepKind::FULL, BTargetType::CPP_MOD);
         ++rb.dependenciesSize;
 
         // if its dependenciesSize is zero, it means that it is already in the list. We just bring it to the front.
         if (!found->isScheduled && foundRb.dependenciesSize == 0)
         {
             found->isScheduled = true;
-            ++builder.updateBTargetsSizeGoal;
-            builder.updateBTargets.emplace(&foundRb);
+            // Old index is reset and then we re-add
+            builder.updateBTargets.array[foundRb.insertionIndex].value = nullptr;
+            uint32_t insertionIndex = 0;
+            builder.updateBTargets.emplace(&foundRb, insertionIndex);
+            foundRb.insertionIndex = insertionIndex; // not needed probably
         }
         ++builder.updateBTargetsSizeGoal;
         // This process is going to idle. Build-system will automatically decrement when it launches a new process.
         ++builder.idleCount;
         --builder.activeEventCount;
         return true;
-    }
-
-    if (target->configuration->evaluate(StandAloneCommand::YES))
-    {
-        // we need this in standalone build to be able to generate the script for all the dependencies.
-        foundRb.dependents.emplace(&rb, BTargetDepType::FULL);
-        rb.dependencies.emplace(&foundRb, BTargetDepType::FULL);
     }
 
     if (foundRb.exitStatus != EXIT_SUCCESS)
@@ -1243,7 +1291,7 @@ void CppMod::print(const Builder &builder, const string &output) const
 
 BTargetType CppMod::getBTargetType() const
 {
-    return BTargetType::CPPMOD;
+    return BTargetType::CPP_MOD;
 }
 
 void CppMod::updateBuildCache()
@@ -1253,8 +1301,13 @@ void CppMod::updateBuildCache()
         return;
     }
 
-    myBuildCache->srcFile.compileCommand.hash = commandHash;
+    // myBuildCache is only updated here only if the build has succeeded.
+
+    myBuildCache->srcFile.compileCommand = commandHash;
+    myBuildCache->srcFile.launchTime = globalLaunchTime;
     myBuildCache->srcFile.headerFiles.clear();
+    myBuildCache->headerUnitArray.clear();
+    myBuildCache->moduleArray.clear();
 
     if (target->configuration->evaluate(DuplicationWarning::YES))
     {
@@ -1275,23 +1328,30 @@ void CppMod::updateBuildCache()
             myBuildCache->srcFile.headerFiles.emplace_back(header);
         }
     }
+
     myBuildCache->headerStatusChanged = false;
-    for (const CppMod *cppMod : allCppModDependencies)
+    FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, dep)
     {
-        if (cppMod->type == CppModType::HEADER_UNIT)
+        if (dep->type == CppModType::PRIMARY_IMPLEMENTATION)
+        {
+            continue;
+        }
+        if (dep->type == CppModType::HEADER_UNIT)
         {
             BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep huDep;
-            huDep.node = const_cast<Node *>(cppMod->node);
-            huDep.myIndex = cppMod->myBuildCacheIndex;
-            huDep.targetIndex = cppMod->target->cacheIndex;
+            huDep.node = const_cast<Node *>(dep->node);
+            huDep.compileCommand = dep->commandHash;
+            huDep.myIndex = dep->myBuildCacheIndex;
+            huDep.targetIndex = dep->target->cacheIndex;
             myBuildCache->headerUnitArray.emplace_back(huDep);
         }
         else
         {
             BuildCache::Cpp::ModuleFile::SingleModuleDep modDep;
-            modDep.node = cppMod->objectNode;
-            modDep.myIndex = cppMod->myBuildCacheIndex;
-            modDep.targetIndex = cppMod->target->cacheIndex;
+            modDep.node = dep->objectNode;
+            modDep.compileCommand = dep->commandHash;
+            modDep.myIndex = dep->myBuildCacheIndex;
+            modDep.targetIndex = dep->target->cacheIndex;
             myBuildCache->moduleArray.emplace_back(modDep);
         }
     }
@@ -1337,7 +1397,6 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, CommandType com
     if (const Compiler &c = target->configuration->compilerFeatures.compiler;
         c.bTFamily == BTFamily::MSVC && c.btSubFamily == BTSubFamily::CLANG)
     {
-        compileCommand += commandType == CommandType::CONVENTIONAL ? "" : "-nostdinc -nostdinc++ ";
         if (type == CppModType::HEADER_UNIT)
         {
             compileCommand +=
@@ -1397,17 +1456,26 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, CommandType com
     }
 
     // Only for convention command-line approach if the compiler supports such.
-    for (const CppMod *mod : allCppModDependencies)
+    FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, mod)
     {
+        if (mod->type == CppModType::PRIMARY_IMPLEMENTATION)
+        {
+            continue;
+        }
         compileCommand += "-fmodule-file=\"" + mod->interfaceNode->filePath + "\" ";
     }
 }
 
-void CppMod::setFileStatusAndPopulateAllDependencies()
+void CppMod::setFileStatusAndPopulateAllDependencies(std::pmr::vector<CppMod *> &cachedModDeps)
 {
-    if (node->filePath.ends_with("public-lib3.hpp"))
+    if (node->filePath.contains("public-lib3.hpp"))
     {
-        bool breakpooint = true;
+        bool breakpoint = true;
+    }
+
+    if (node->fileType == file_type::not_found)
+    {
+        printErrorMessage(FORMAT("Module-file {}\n of target {}\n not found.\n", node->filePath, target->name));
     }
 
     RealBTarget &rb = realBTargets[0];
@@ -1432,10 +1500,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             CppMod *hu = nullptr;
             if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[h.targetIndex].targetCache))
             {
-                if (h.myIndex < t->huDeps.size())
-                {
-                    hu = t->huDeps[h.myIndex];
-                }
+                hu = t->huDeps[h.myIndex];
             }
 
             if (!hu)
@@ -1443,12 +1508,12 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
                 return;
             }
 
-            if (hu->compileCommandChanged)
+            if (hu->commandHash != h.compileCommand)
             {
                 return;
             }
 
-            allCppModDependencies.emplace(hu);
+            cachedModDeps.emplace_back(hu);
         }
 
         for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache->moduleArray)
@@ -1456,10 +1521,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
             CppMod *cppMod = nullptr;
             if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[m.targetIndex].targetCache))
             {
-                if (m.myIndex < t->imodFileDeps.size())
-                {
-                    cppMod = t->imodFileDeps[m.myIndex];
-                }
+                cppMod = t->imodFileDeps[m.myIndex];
             }
 
             if (!cppMod)
@@ -1467,45 +1529,29 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
                 return;
             }
 
-            if (cppMod->compileCommandChanged)
+            if (cppMod->commandHash != m.compileCommand)
             {
                 return;
             }
 
-            allCppModDependencies.emplace(cppMod);
+            cachedModDeps.emplace_back(cppMod);
         }
 
         rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
         return;
     }
 
-    if (node->fileType == file_type::not_found)
-    {
-        printErrorMessage(FORMAT("Module-file {}\n of target {}\n not found.\n", node->filePath, target->name));
-    }
+    const uint64_t cachedLaunchTime = myBuildCache->srcFile.launchTime;
 
-    if (endNode->fileType == file_type::not_found || node->lastWriteTime > endNode->lastWriteTime)
+    if (endNode->fileType == file_type::not_found || node->lastWriteTime > cachedLaunchTime)
     {
         return;
     }
 
-    const vector<Node *> *headerFilesCache = nullptr;
-    if (type == CppModType::HEADER_UNIT)
+    headerFiles.reserve(myBuildCache->srcFile.headerFiles.size());
+    for (Node *headerNode : myBuildCache->srcFile.headerFiles)
     {
-        headerFilesCache = &target->cppBuildCache.headerUnits[myBuildCacheIndex].srcFile.headerFiles;
-    }
-    else if (type == CppModType::PRIMARY_EXPORT || type == CppModType::PARTITION_EXPORT)
-    {
-        headerFilesCache = &target->cppBuildCache.imodFiles[myBuildCacheIndex].srcFile.headerFiles;
-    }
-    else
-    {
-        headerFilesCache = &target->cppBuildCache.modFiles[myBuildCacheIndex].srcFile.headerFiles;
-    }
-
-    for (Node *headerNode : *headerFilesCache)
-    {
-        if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > endNode->lastWriteTime)
+        if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > cachedLaunchTime)
         {
             return;
         }
@@ -1517,10 +1563,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         CppMod *hu = nullptr;
         if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[h.targetIndex].targetCache))
         {
-            if (h.myIndex < t->huDeps.size())
-            {
-                hu = t->huDeps[h.myIndex];
-            }
+            hu = t->huDeps[h.myIndex];
         }
 
         if (!hu)
@@ -1531,23 +1574,20 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         if (hu->node->fileType == file_type::not_found)
         {
             printErrorMessage(
-                FORMAT("Module-file {}\n of target {}\n not found.\n", hu->node->filePath, hu->target->name));
+                FORMAT("Header-Unit {}\n of target {}\n not found.\n", hu->node->filePath, hu->target->name));
         }
 
-        if (hu->compileCommandChanged)
+        if (hu->commandHash != h.compileCommand)
         {
             return;
         }
 
-        if (!hu->target->ignoreHeaderDeps)
+        if (hu->node->lastWriteTime > cachedLaunchTime)
         {
-            if (hu->node->lastWriteTime > endNode->lastWriteTime)
-            {
-                return;
-            }
+            return;
         }
 
-        allCppModDependencies.emplace(hu);
+        cachedModDeps.emplace_back(hu);
     }
 
     for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache->moduleArray)
@@ -1555,10 +1595,7 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
         CppMod *cppMod = nullptr;
         if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[m.targetIndex].targetCache))
         {
-            if (m.myIndex < t->imodFileDeps.size())
-            {
-                cppMod = t->imodFileDeps[m.myIndex];
-            }
+            cppMod = t->imodFileDeps[m.myIndex];
         }
 
         if (!cppMod)
@@ -1572,20 +1609,18 @@ void CppMod::setFileStatusAndPopulateAllDependencies()
                 FORMAT("Module-file {}\n of target {}\n not found.\n", cppMod->node->filePath, cppMod->target->name));
         }
 
-        if (cppMod->compileCommandChanged)
+        if (cppMod->commandHash != m.compileCommand)
         {
             return;
         }
 
-        if (!cppMod->target->ignoreHeaderDeps)
+        // for clang 2-phase compilation, following would be incorrect. Need more thinking.
+        if (cppMod->node->lastWriteTime > cachedLaunchTime)
         {
-            if (cppMod->node->lastWriteTime > objectNode->lastWriteTime)
-            {
-                return;
-            }
+            return;
         }
 
-        allCppModDependencies.emplace(cppMod);
+        cachedModDeps.emplace_back(cppMod);
     }
 
     rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
@@ -1607,7 +1642,7 @@ void CppMod::generateStandAloneCommand()
                        "name as current build-dir.\n\n",
                        node->filePath);
             flat_hash_set<string> createdDirs;
-            cppStandAloneCommand(createdDirs, scriptContents, scriptDirectory);
+            cppStandAloneCommand(createdDirs, scriptContents, scriptDirectory.string());
             std::ofstream(scriptDirectory / "script.sh") << scriptContents;
         }
     }
@@ -1617,17 +1652,21 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
 {
     btree_set<BTarget *, IndexInTopologicalSortComparatorRoundTwo> allDeps;
 
-    for (const auto &[dep, depType] : realBTargets[0].dependencies)
+    for (const RBTWithType &rbt: realBTargets[0].dependencies)
     {
-        allDeps.emplace(dep->bTarget);
+        allDeps.emplace(rbt.getPointer()->bTarget);
     }
 
-    for (CppMod *cppMod : allCppModDependencies)
+    FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, cppMod)
     {
-        allDeps.emplace(cppMod);
-        for (const auto &[dep, depType] : cppMod->realBTargets[0].dependencies)
+        if (cppMod->type == CppModType::PRIMARY_IMPLEMENTATION)
         {
-            allDeps.emplace(dep->bTarget);
+            continue;
+        }
+        allDeps.emplace(cppMod);
+        for (const RBTWithType &rbt : cppMod->realBTargets[0].dependencies)
+        {
+            allDeps.emplace(rbt.getPointer()->bTarget);
         }
     }
 
@@ -1663,7 +1702,7 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
         return;
     }
 
-    const string mockFilePath = path(scriptDir) / FORMAT("mock-file{}.bin", id);
+    const string mockFilePath = (path(scriptDir) / FORMAT("mock-file{}.bin", id)).string();
     {
         // New scope for mock-file.bin
         constexpr uint32_t stackSize = 256 * 1024;
@@ -1676,8 +1715,12 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
         uint32_t count = 0;
         writeUint32(mockFileContents, count);
 
-        for (const CppMod *cppMod : allCppModDependencies)
+        FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, cppMod)
         {
+            if (cppMod->type == CppModType::PRIMARY_IMPLEMENTATION)
+            {
+                continue;
+            }
             for (const string &logicalName : cppMod->logicalNames)
             {
                 ignoreNames.emplace(logicalName);

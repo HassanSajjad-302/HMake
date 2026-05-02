@@ -115,7 +115,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
                 if (testTarget)
                 {
-                    testTarget->addDep<0>(cppTarget);
+                   testTarget->realBTargets[0].addDep<BTargetType::CPP_TARGET>(&cppTarget.realBTargets[0]);
                 }
             }
             else
@@ -127,14 +127,14 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
                 {
                     if (examplesTarget)
                     {
-                        examplesTarget->addDep<0>(uintTest.getLOAT());
+                        examplesTarget->realBTargets[0].addDep<BTargetType::LOAT>(&uintTest.getLOAT().realBTargets[0]);
                     }
                 }
                 else
                 {
                     if (testTarget)
                     {
-                        testTarget->addDep<0>(uintTest.getLOAT());
+                        testTarget->realBTargets[0].addDep<BTargetType::LOAT>(&uintTest.getLOAT().realBTargets[0]);
                     }
                 }
             }

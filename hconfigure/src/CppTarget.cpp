@@ -546,21 +546,66 @@ void CppTarget::emplaceInNodesType(const Node *node, FileType type, const bool a
     }
 }
 
-const Node *CppTarget::getIncludeNode(const bool isHeaderFile, const string &includeName, bool addInReq,
-                                      bool addInUseReq)
+const Node *CppTarget::getIncludeNode(const bool isHeaderFile, const string &includeName, const bool addInReq,
+                                      const bool addInUseReq)
 {
+    if (isHeaderFile)
+    {
+        if (addInReq)
+        {
+            if (const auto it = reqHeaderNameMapping.find(includeName); it != reqHeaderNameMapping.end())
+            {
+                return it->second.data.node;
+            }
+        }
+        else
+        {
+            if (const auto it = useReqHeaderNameMapping.find(includeName); it != useReqHeaderNameMapping.end())
+            {
+                return it->second.data.node;
+            }
+        }
+        return nullptr;
+    }
+
+    if (configuration->evaluate(BigHeaderUnit::YES))
+    {
+        CppMod *hu = nullptr;
+        if (addInReq && addInUseReq)
+        {
+            hu = getPublicBigHu(false);
+        }
+        else if (addInReq)
+        {
+            hu = getPrivateBigHu(false);
+        }
+        else if (addInUseReq)
+        {
+            hu = getInterfaceBigHu(false);
+        }
+
+        if (hu)
+        {
+            if (const auto it = hu->composingHeaders.find(includeName); it != hu->composingHeaders.end())
+            {
+                return it->second;
+            }
+        }
+        return nullptr;
+    }
+
     if (addInReq)
     {
         if (const auto it = reqHeaderNameMapping.find(includeName); it != reqHeaderNameMapping.end())
         {
-            return isHeaderFile ? it->second.data.node : it->second.data.cppMod->node;
+            return it->second.data.cppMod->node;
         }
     }
     else
     {
         if (const auto it = useReqHeaderNameMapping.find(includeName); it != useReqHeaderNameMapping.end())
         {
-            return isHeaderFile ? it->second.data.node : it->second.data.cppMod->node;
+            return it->second.data.cppMod->node;
         }
     }
 
@@ -701,17 +746,56 @@ void CppTarget::removeHeaderUnit(const string &includeName, const bool addInReq,
             bigHu = interfaceBigHus[interfaceBigHus.size() - 1];
         }
 
-        if (!std::erase(bigHu->logicalNames, *p))
+        if (addInReq)
         {
-            printErrorMessage(
-                FORMAT("Could not find logical-name {} to remove in public-header-unit in target {}\n.", *p, name));
+            if (const auto &it = reqHeaderNameMapping.find(*p); it == reqHeaderNameMapping.end())
+            {
+                printErrorMessage(
+                    FORMAT("Could not find the header {}\n in removeHeaderUnit in target {}\n", *p, name));
+            }
+            else
+            {
+                reqHeaderNameMapping.erase(it);
+            }
+
+            if (const auto &it = reqNodesType.find(headerNode); it == reqNodesType.end())
+            {
+                HMAKE_HMAKE_INTERNAL_ERROR
+            }
+            else
+            {
+                reqNodesType.erase(headerNode);
+            }
         }
+
+        if (addInUseReq)
+        {
+            if (const auto &it = useReqHeaderNameMapping.find(*p); it == useReqHeaderNameMapping.end())
+            {
+                printErrorMessage(
+                    FORMAT("Could not find the header {}\n in removeHeaderUnit in target {}\n", *p, name));
+            }
+            else
+            {
+                useReqHeaderNameMapping.erase(it);
+            }
+
+            if (const auto &it = useReqNodesType.find(headerNode); it == useReqNodesType.end())
+            {
+                HMAKE_HMAKE_INTERNAL_ERROR
+            }
+            else
+            {
+                useReqNodesType.erase(headerNode);
+            }
+        }
+
         if (!bigHu->composingHeaders.erase(*p))
         {
             printErrorMessage(
                 FORMAT("Could not find composing-header {} to remove in public-header-unit in target {}\n.", *p, name));
         }
-        if (bigHu->logicalNames.empty())
+        if (bigHu->composingHeaders.empty())
         {
             delete bigHu;
         }
@@ -1035,7 +1119,7 @@ void CppTarget::addComposingHeadersMSVC()
     headerNames += "intrin.h,";
 
     // needed by boost
-    headerNames += "crtdbg.h,ntverp.h,";
+    headerNames += "crtdbg.h,ntverp.h,version,";
 
     parseAndAddInComposingHeaders(*getPublicBigHu(true), headerNames);
     headerNames = "windows.h,winapifamily.h,";
@@ -1200,29 +1284,27 @@ void CppTarget::initSourceCache()
     std::pmr::string cFullCompileCommand(&cAlloc);
     std::pmr::string assemblyFullCompileCommand(&assemblyAlloc);
 
-    HashedCommand cppHashCommand;
-    HashedCommand cHashCommand;
-    HashedCommand assemblyHashCommand;
+    uint64_t cppHashCommand;
+    uint64_t cHashCommand;
+    uint64_t assemblyHashCommand;
 
     auto setCompileCommandSourceType = [&](const SourceType sourceType) {
         if (sourceType == SourceType::CPP && cppFullCompileCommand.empty())
         {
             cppFullCompileCommand = configuration->cppCompileCommand;
             setCompileCommand(cppFullCompileCommand);
-            cppHashCommand.setCommand(cppFullCompileCommand);
-            return cppHashCommand.getHash();
+            return rapidhash(cppFullCompileCommand.data(), cppFullCompileCommand.size());
         }
         if (sourceType == SourceType::C)
         {
             cFullCompileCommand = configuration->cCompileCommand;
             setCompileCommand(cFullCompileCommand);
-            cHashCommand.setCommand(cFullCompileCommand);
-            return cppHashCommand.getHash();
+            return rapidhash(cFullCompileCommand.data(), cFullCompileCommand.size());
         }
+
         assemblyFullCompileCommand = configuration->assemblyCompileCommand;
         setCompileCommand(assemblyFullCompileCommand);
-        assemblyHashCommand.setCommand(assemblyFullCompileCommand);
-        return cppHashCommand.getHash();
+        return rapidhash(assemblyFullCompileCommand.data(), assemblyFullCompileCommand.size());
     };
 
     for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
@@ -1275,42 +1357,48 @@ void CppTarget::completeRoundOne()
     }
 }
 
-bool CppTarget::writeBuildCache(string &buffer)
+bool CppTarget::isBuildCacheUpdated()
+{
+    return buildCacheUpdated;
+}
+
+void CppTarget::writeBuildCache(string &buffer)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         cppBuildCache.serialize(buffer);
-        return true;
+        return;
     }
 
-    if (buildCacheUpdated)
+    if (!buildCacheUpdated)
     {
-        for (CppSrc *src : srcFileDeps)
-        {
-            src->updateBuildCache();
-        }
-        for (CppMod *mod : modFileDeps)
-        {
-            mod->updateBuildCache();
-        }
-        for (CppMod *imod : imodFileDeps)
-        {
-            if (imod)
-            {
-                imod->updateBuildCache();
-            }
-        }
-        for (CppMod *hu : huDeps)
-        {
-            if (hu)
-            {
-                hu->updateBuildCache();
-            }
-        }
-        cppBuildCache.serialize(buffer);
-        return true;
+        TargetCache::writeBuildCache(buffer);
+        return;
     }
-    return TargetCache::writeBuildCache(buffer);
+
+    for (CppSrc *src : srcFileDeps)
+    {
+        src->updateBuildCache();
+    }
+    for (CppMod *mod : modFileDeps)
+    {
+        mod->updateBuildCache();
+    }
+    for (CppMod *imod : imodFileDeps)
+    {
+        if (imod)
+        {
+            imod->updateBuildCache();
+        }
+    }
+    for (CppMod *hu : huDeps)
+    {
+        if (hu)
+        {
+            hu->updateBuildCache();
+        }
+    }
+    cppBuildCache.serialize(buffer);
 }
 
 template <typename T> uint32_t findNodeInSourceCache(const vector<T> &sourceCache, const Node *node)
@@ -1442,6 +1530,10 @@ void CppTarget::writeBigHeaderUnits()
                 if (bigHu->node->fileType != file_type::not_found)
                 {
                     fileStr = fileToString(bigHu->node->filePath);
+                    if constexpr (os == OS::NT)
+                    {
+                        fileStr.erase(std::remove(fileStr.begin(), fileStr.end(), '\r'), fileStr.end());
+                    }
                 }
                 if (fileStr != str)
                 {
@@ -1590,6 +1682,7 @@ void CppTarget::readCacheAtBuildTime()
     const char *ptr = configCache.data();
     uint32_t bytesRead = 0;
 
+    RealBTarget &rb = realBTargets[0];
     hasObjectFiles = readBool(ptr, bytesRead);
 
     const uint32_t reqVecSize = readUint32(ptr, bytesRead);
@@ -1605,7 +1698,7 @@ void CppTarget::readCacheAtBuildTime()
         CppSrc *src = srcFileDeps.emplace_back(new CppSrc(this, readHalfNode(ptr, bytesRead)));
         src->objectNode = readHalfNode(ptr, bytesRead);
 
-        addDep<0>(*srcFileDeps[i]);
+        rb.addDep<BTargetType::CPP_SRC>(&srcFileDeps[i]->realBTargets[0]);
     }
 
     const uint32_t modSize = readUint32(ptr, bytesRead);
@@ -1616,7 +1709,7 @@ void CppTarget::readCacheAtBuildTime()
         cppMod->objectNode = readHalfNode(ptr, bytesRead);
         cppMod->type = CppModType::PRIMARY_IMPLEMENTATION;
 
-        addDep<0>(*cppMod);
+        rb.addDep<BTargetType::CPP_MOD>(&cppMod->realBTargets[0]);
     }
 
     imodFileDeps.resize(cppBuildCache.imodFiles.size());
@@ -1635,7 +1728,7 @@ void CppTarget::readCacheAtBuildTime()
             cppMod->logicalNames[0].contains(':') ? CppModType::PARTITION_EXPORT : CppModType::PRIMARY_EXPORT;
         imodNames.emplace(cppMod->logicalNames[0], cppMod);
 
-        addDep<0>(*cppMod);
+        rb.addDep<BTargetType::CPP_MOD>(&cppMod->realBTargets[0]);
     }
 
     huDeps.resize(cppBuildCache.headerUnits.size());
@@ -1706,7 +1799,7 @@ void CppTarget::readCacheAtBuildTime()
         }
 
         hu->type = CppModType::HEADER_UNIT;
-        addDep<0, BTargetDepType::SELECTIVE>(*hu);
+        rb.addDep<BTargetType::CPP_MOD, BTargetDepKind::SELECTIVE>(&hu->realBTargets[0]);
     }
 
     myBuildDir = readHalfNode(ptr, bytesRead);

@@ -5,9 +5,9 @@
 #define TARGETCACHE_HPP
 
 #include "BuildSystemFunctions.hpp"
-#include "parallel-hashmap/parallel_hashmap/phmap.h"
+#include "gtl/include/gtl/phmap.hpp"
 
-using phmap::flat_hash_map;
+using gtl::flat_hash_map;
 
 /// HMake has 2 different cache that are config-cache and build-cache. config-cache is only read but not written at
 /// build-time. By separating config-cache and build-cache, we keep the build-cache smaller and keep the builds faster.
@@ -32,7 +32,11 @@ class TargetCache
     /// Address of this element in fileTargetCaches vector
     uint32_t cacheIndex = -1;
     explicit TargetCache(const string &name);
-    virtual bool writeBuildCache(string &buffer);
+    virtual void writeBuildCache(string &buffer);
+    virtual bool isBuildCacheUpdated()
+    {
+        return false;
+    }
 };
 
 /// Every Target-Cache has representation on both config-cache and build-cache. It could be empty. The order is
@@ -49,19 +53,6 @@ struct FileTargetCache
 inline vector<FileTargetCache> fileTargetCaches;
 inline flat_hash_map<string, uint32_t> nameToIndexMap;
 
-/// Stores either compile-commands or its hash based on the USE_COMMAND_HASH CMake configuration macro.
-struct CCOrHash
-{
-#ifdef USE_COMMAND_HASH
-    uint64_t hash{};
-#else
-    string_view hash;
-#endif
-
-    void serialize(string &buffer) const;
-    void deserialize(const char *ptr, uint32_t &bytesRead);
-};
-
 struct BuildCache
 {
     struct Cpp
@@ -69,7 +60,8 @@ struct BuildCache
         struct SourceFile
         {
             Node *node;
-            CCOrHash compileCommand;
+            uint64_t compileCommand;
+            uint64_t launchTime; // process-launch time
             vector<Node *> headerFiles;
             void serialize(string &buffer) const;
             void deserialize(const char *ptr, uint32_t &bytesRead);
@@ -77,22 +69,23 @@ struct BuildCache
 
         struct ModuleFile
         {
-            struct SingleHeaderUnitDep
+
+            struct SingleDep
             {
                 Node *node;
+                uint64_t compileCommand;
                 uint32_t targetIndex{};
                 uint32_t myIndex{};
                 void serialize(string &buffer) const;
                 void deserialize(const char *ptr, uint32_t &bytesRead);
             };
 
-            struct SingleModuleDep
+            struct SingleHeaderUnitDep : SingleDep
             {
-                Node *node;
-                uint32_t targetIndex{};
-                uint32_t myIndex{};
-                void serialize(string &buffer) const;
-                void deserialize(const char *ptr, uint32_t &bytesRead);
+            };
+
+            struct SingleModuleDep : SingleDep
+            {
             };
 
             SourceFile srcFile;
@@ -113,7 +106,7 @@ struct BuildCache
 
     struct Link
     {
-        CCOrHash commandWithoutArgumentsWithTools;
+        uint64_t commandWithoutArgumentsWithTools;
         vector<Node *> objectFiles;
     };
 };

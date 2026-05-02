@@ -8,7 +8,6 @@
 #include "Configuration.hpp"
 #include "CppMod.hpp"
 #include "DSC.hpp"
-#include "HashedCommand.hpp"
 #include "ObjectFileProducer.hpp"
 #include <concepts>
 
@@ -149,8 +148,10 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// \returns an amalgamated string of names of all CppTarget deps of this (direct + transitive).
     string getDependenciesString() const;
     void completeRoundOne() override;
+
+    bool isBuildCacheUpdated() override;
     /// Called in signal-handler or at the end when build-system is writing build-cache.
-    bool writeBuildCache(string &buffer) override;
+    void writeBuildCache(string &buffer) override;
 
     /// Checks if one of the
     void setHeaderFileStatusChangedCppMod(BuildCache::Cpp::ModuleFile &modCache, bool calledFromConfiguration);

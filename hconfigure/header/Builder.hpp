@@ -20,7 +20,7 @@ struct CompletionKey
     /// Storage for an `OVERLAPPED` object.
     alignas(8) char overlappedBuffer[32];
     /// Reusable 4 KiB read buffer.
-    char *buffer;
+    string buffer;
     uint64_t handle;
     BTarget *target;
 };
@@ -39,6 +39,13 @@ GLOBAL_VARIABLE(vector<uint64_t>, unusedKeysIndices)
 
 /// Next unused slot in `eventData` (Windows only).
 inline uint32_t currentIndex = 0;
+
+GLOBAL_VARIABLE(string *, processOutputs)
+/// Linux-only free-list of reusable `processOutputs` indices.
+GLOBAL_VARIABLE(vector<uint64_t>, unusedOutputIndices)
+
+/// Next unused slot in `processOutputs` indices.
+inline uint32_t currentIndexOutput = 0;
 
 /// Implements HMake scheduling and execution across both rounds.
 ///

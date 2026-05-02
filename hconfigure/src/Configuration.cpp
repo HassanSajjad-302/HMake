@@ -137,7 +137,7 @@ CppTarget &Configuration::getCppObject(const string &name_)
     {
         if (evaluate(UseConfigurationScope::YES))
         {
-            addDep<1>(cppTarget);
+            realBTargets[1].addDep<BTargetType::CPP_TARGET>(&cppTarget.realBTargets[1]);
         }
     }
     return cppTarget;
@@ -151,7 +151,7 @@ CppTarget &Configuration::getCppObject(bool explicitBuild, Node *myBuildDir, con
     {
         if (evaluate(UseConfigurationScope::YES))
         {
-            addDep<1>(cppTarget);
+            realBTargets[1].addDep<BTargetType::CPP_TARGET>(&cppTarget.realBTargets[1]);
         }
     }
     return cppTarget;
@@ -165,7 +165,7 @@ CppTarget &Configuration::getCppObjectAddStdTarget(bool explicitBuild, Node *myB
     {
         if (evaluate(UseConfigurationScope::YES))
         {
-            addDep<1>(cppTarget);
+            realBTargets[1].addDep<BTargetType::CPP_TARGET>(&cppTarget.realBTargets[1]);
         }
     }
     return addStdCppDep(cppTarget);
@@ -390,7 +390,7 @@ CppTarget &Configuration::getCppObjectNoName(const string &name_)
     {
         if (evaluate(UseConfigurationScope::YES))
         {
-            addDep<1>(cppTarget);
+            realBTargets[1].addDep<BTargetType::CPP_TARGET>(&cppTarget.realBTargets[1]);
         }
     }
     return cppTarget;
@@ -404,7 +404,7 @@ CppTarget &Configuration::getCppObjectNoName(bool explicitBuild, Node *myBuildDi
     {
         if (evaluate(UseConfigurationScope::YES))
         {
-            addDep<1>(cppTarget);
+            realBTargets[1].addDep<BTargetType::CPP_TARGET>(&cppTarget.realBTargets[1]);
         }
     }
     return cppTarget;
@@ -418,7 +418,7 @@ CppTarget &Configuration::getCppObjectNoNameAddStdTarget(bool explicitBuild, Nod
     {
         if (evaluate(UseConfigurationScope::YES))
         {
-            addDep<1>(cppTarget);
+            realBTargets[1].addDep<BTargetType::CPP_TARGET>(&cppTarget.realBTargets[1]);
         }
     }
     return addStdCppDep(cppTarget);

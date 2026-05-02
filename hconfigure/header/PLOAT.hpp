@@ -7,11 +7,11 @@
 #include "FeaturesConvenienceFunctions.hpp"
 #include "SpecialNodes.hpp"
 #include "TargetCache.hpp"
-#include "parallel-hashmap/parallel_hashmap/btree.h"
+#include "gtl/include/gtl/btree.hpp"
 
 class Configuration;
 
-using phmap::node_hash_map, phmap::btree_set;
+using gtl::node_hash_map, gtl::btree_set;
 
 // PrebuiltLinkOrArchiveTarget
 class PLOAT : public BTarget, public TargetCache
@@ -136,17 +136,17 @@ template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat,
         {
             reqDeps.emplace(&ploat);
             useReqDeps.emplace(&ploat);
-            addDep<1>(ploat);
+            realBTargets[1].addDep<BTargetType::LOAT>(&ploat.realBTargets[1]);
         }
         else if (depType == DepType::PRIVATE)
         {
             reqDeps.emplace(&ploat);
-            addDep<1>(ploat);
+            realBTargets[1].addDep<BTargetType::LOAT>(&ploat.realBTargets[1]);
         }
         else
         {
             useReqDeps.emplace(&ploat);
-            addDep<1>(ploat);
+            realBTargets[1].addDep<BTargetType::LOAT>(&ploat.realBTargets[1]);
         }
     }
     else

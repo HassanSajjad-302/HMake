@@ -9,6 +9,8 @@
 #include <utility>
 
 #ifndef _WIN32
+#include "sys/prctl.h"
+#include "sys/resource.h"
 #include "sys/wait.h"
 #include "wordexp.h"
 #include <cerrno>
@@ -27,23 +29,19 @@ void RunCommand::runProcess(const char *command)
     string stdoutFile = FORMAT("temp_stdout_{}.txt", timestamp);
     string stderrFile = FORMAT("temp_stderr_{}.txt", timestamp);
 
-#ifdef _WIN32
     // Windows: Use cmd.exe /c with proper quoting
     const string finalCommand = FORMAT("cmd.exe /c \"({}) > {} 2> {}\"", command, stdoutFile, stderrFile);
-#else
-    // Unix/Linux/macOS: Standard shell redirection works fine
-    const string finalCommand = FORMAT("{} > {} 2> {}", command, stdoutFile, stderrFile);
-#endif
 
     exitStatus = system(finalCommand.c_str());
 
-    output = fileToString(stdoutFile);
+    output = new string();
+    *output = fileToString(stdoutFile);
     const string errorFileContent = fileToString(stderrFile);
-    if (!output.empty() && !errorFileContent.empty())
+    if (!output->empty() && !errorFileContent.empty())
     {
-        output += "\n--- STDERR ---\n";
+        *output += "\n--- STDERR ---\n";
     }
-    output += errorFileContent;
+    *output += errorFileContent;
 
     std::filesystem::remove(stdoutFile);
     std::filesystem::remove(stderrFile);
@@ -140,11 +138,14 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
 bool RunCommand::startRead()
 {
     CompletionKey &k = eventData[index];
-    memset(k.buffer, 0, 4096);
     memset(k.overlappedBuffer, 0, sizeof(k.overlappedBuffer));
-    DWORD bytesRead = 0;
-    const BOOL result =
-        ReadFile((HANDLE)k.handle, k.buffer, 4096, &bytesRead, &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer));
+
+    const uint64_t offset = output->size();
+    output->resize(offset + 4096);
+
+    const BOOL result = ReadFile((HANDLE)k.handle, output->data() + offset, 4096, nullptr,
+                                 &reinterpret_cast<OVERLAPPED &>(k.overlappedBuffer));
+
     if (result)
     {
         // Even if the read completed synchronously, consume the stale completion event.
@@ -157,6 +158,7 @@ bool RunCommand::startRead()
     }
     if (error == ERROR_BROKEN_PIPE)
     {
+        output->resize(offset);
         // ReadFile reached EOF successfully.
         return true;
     }
@@ -173,14 +175,14 @@ CompleteReadType RunCommand::completeRead()
     {
         if (GetLastError() == ERROR_BROKEN_PIPE)
         {
-            // ReadFile reached EOF successfully.
+            output->resize(output->size() - (4096 - bytesRead)); // trim unused tail
             return CompleteReadType::COMPLETE_PROCESS;
         }
         printErrorMessage(P2978::getErrorString());
     }
+    output->resize(output->size() - (4096 - bytesRead)); // trim unused tail
 
-    output.append(string_view{k.buffer, bytesRead});
-    if (output.ends_with(P2978::delimiter))
+    if (output->ends_with(P2978::delimiter))
     {
         return CompleteReadType::COMPLETE_MESSAGE;
     }
@@ -227,14 +229,8 @@ void RunCommand::killModuleProcess(Builder &builder) const
 
 uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BTarget *bTarget, bool haveWritePipe)
 {
-    // Prepend "stdbuf -o0 " to force unbuffered stdout in the child process.
-    // This ensures output is flushed even if the child crashes before exiting,
-    // since we do not own the child process and cannot rely on it flushing.
-    string unbufferedCommand = "stdbuf -o0 ";
-    unbufferedCommand += command;
-
     wordexp_t p;
-    if (wordexp(unbufferedCommand.c_str(), &p, 0) != 0)
+    if (wordexp(command, &p, 0) != 0)
     {
         printErrorMessage("wordexp failed\n");
         return -1;
@@ -295,6 +291,21 @@ uint64_t RunCommand::startAsyncProcess(const char *command, Builder &builder, BT
     }
 
     ++builder.simultaneousProcessCount;
+
+    if (unusedOutputIndices.empty())
+    {
+        outputIndex = currentIndexOutput;
+        ++currentIndexOutput;
+        output = &processOutputs[outputIndex];
+    }
+    else
+    {
+        outputIndex = unusedOutputIndices.back();
+        unusedOutputIndices.pop_back();
+        output = &processOutputs[outputIndex];
+        output->clear();
+    }
+
     return readPipe;
 }
 
@@ -305,12 +316,26 @@ bool RunCommand::startRead()
 
 CompleteReadType RunCommand::completeRead()
 {
-    char buffer[64 * 1024]{};
     ssize_t readSize;
+    constexpr size_t chunkSize = 4 * 1024;
+    const size_t oldSize = output->size();
+
+    output->resize(oldSize + chunkSize);
+
     do
     {
-        readSize = read(readPipe, buffer, sizeof(buffer) - 1);
+        readSize = read(readPipe, output->data() + oldSize, chunkSize);
     } while (readSize == -1 && errno == EINTR);
+
+    // Trim the string back to the actual number of bytes read.
+    if (readSize <= 0)
+    {
+        output->resize(oldSize);
+    }
+    else
+    {
+        output->resize(oldSize + readSize);
+    }
 
     if (readSize == -1)
     {
@@ -320,8 +345,7 @@ CompleteReadType RunCommand::completeRead()
     {
         return CompleteReadType::COMPLETE_PROCESS;
     }
-    output.append(buffer, readSize);
-    if (output.ends_with(P2978::delimiter))
+    if (output->ends_with(P2978::delimiter))
     {
         return CompleteReadType::COMPLETE_MESSAGE;
     }
@@ -378,30 +402,34 @@ void RunCommand::runProcess(const char *command)
     // Parent process: close unused pipe ends.
     close(stdPipesLocal[1]);
 
-    char buffer[4096 * 16];
+    output = new string();
+    output->resize(4096 * 16);
+    size_t totalRead = 0;
     while (true)
     {
         ssize_t readSize;
         do
         {
-            readSize = read(readPipe, buffer, sizeof(buffer) - 1);
+            readSize = read(readPipe, output->data() + totalRead, output->size() - totalRead);
         } while (readSize == -1 && errno == EINTR);
-
         if (readSize == -1)
         {
             printErrorMessage("read");
         }
-
         if (readSize > 0)
         {
-            output.append(buffer, readSize);
+            totalRead += readSize;
+            if (totalRead == output->size())
+            {
+                output->resize(output->size() * 2);
+            }
         }
         else
         {
             break;
         }
     }
-
+    output->resize(totalRead);
     // Close the read end of the pipe.
     close(readPipe);
 
@@ -433,7 +461,19 @@ void RunCommand::reapProcess(Builder &builder)
             printErrorMessage(P2978::getErrorString());
         }
     }
-    exitStatus = WEXITSTATUS(status); // Extract child exit code.
+
+    if (WIFEXITED(status))
+    {
+        exitStatus = WEXITSTATUS(status);
+    }
+    else if (WIFSIGNALED(status))
+    {
+        exitStatus = EXIT_FAILURE; // or encode the signal: 128 + WTERMSIG(status)
+    }
+    else
+    {
+        exitStatus = EXIT_FAILURE;
+    }
 }
 
 void RunCommand::killModuleProcess(Builder &builder) const
@@ -455,7 +495,7 @@ void RunCommand::killModuleProcess(Builder &builder) const
 string RunCommand::pruneOutput()
 {
     // Extract the serialized payload from the output buffer.
-    const uint32_t outputSize = output.size();
+    const uint32_t outputSize = output->size();
     if (outputSize < 4 + strlen(P2978::delimiter))
     {
         printErrorMessage("Received string only has delimiter but not the size of payload\n");
@@ -464,17 +504,17 @@ string RunCommand::pruneOutput()
     uint32_t payloadSize = 0;
     const size_t delimiterSize = strlen(P2978::delimiter);
     const size_t payloadSizeOffset = outputSize - (sizeof(uint32_t) + delimiterSize);
-    memcpy(&payloadSize, output.data() + payloadSizeOffset, sizeof(payloadSize));
+    memcpy(&payloadSize, output->data() + payloadSizeOffset, sizeof(payloadSize));
     if (outputSize < sizeof(uint32_t) + delimiterSize + payloadSize)
     {
         printErrorMessage("Invalid output payload size while pruning output\n");
     }
-    const char *payloadStart = output.data() + (outputSize - (sizeof(uint32_t) + delimiterSize + payloadSize));
+    const char *payloadStart = output->data() + (outputSize - (sizeof(uint32_t) + delimiterSize + payloadSize));
 
     // todo
     // will like to return a string_view. this could be a problem for lit testing where whole files will be received.
     string str{payloadStart, payloadSize};
-    output.resize(outputSize - (sizeof(uint32_t) + delimiterSize + payloadSize));
+    output->resize(outputSize - (sizeof(uint32_t) + delimiterSize + payloadSize));
 
     return str;
 }

@@ -4,14 +4,16 @@
 #ifndef HMAKE_BASICTARGETS_HPP
 #define HMAKE_BASICTARGETS_HPP
 
+#include "PointerPacking.h"
 #include "RunCommand.hpp"
-#include "parallel-hashmap/parallel_hashmap/phmap.h"
+#include "gtl/include/gtl/phmap.hpp"
 #include <array>
+#include <memory_resource>
 #include <span>
 #include <string>
 #include <vector>
 
-using std::size_t, std::vector, phmap::flat_hash_map, phmap::flat_hash_set, std::lock_guard, std::array, std::string,
+using std::size_t, std::vector, gtl::flat_hash_map, gtl::flat_hash_set, std::lock_guard, std::array, std::string,
     std::string_view;
 
 class BTarget;
@@ -29,7 +31,7 @@ struct IndexInTopologicalSortComparatorRoundTwo
 };
 
 /// Dependency relation between two `RealBTarget` nodes.
-enum class BTargetDepType : uint8_t
+enum class BTargetDepKind : uint8_t
 {
     /// The dependent waits for completion.
     /// In round 0, `selectiveBuild` propagates from dependent to dependency.
@@ -45,19 +47,125 @@ enum class BTargetDepType : uint8_t
 
     /// Order-only relation used for graph ordering. Used to specify stat-lib dependency with other static-lib.
     LOOSE = 3,
+
+    /// This is not a BTargetDepKind. Used only with RealBTarget::dependencies to store transitive dependencies instead
+    /// of using a new container, but otherwise these are not considered as part of graph.
+    TRANSITIVE = 4,
 };
+
+class RealBTarget;
+
+/// Runtime classifier for derived target kinds.
+/// 4 bits allocated (bits 3-6 of the packed pointer-int pair) — supports up to 16 values.
+enum class BTargetType : uint8_t
+{
+    DEFAULT    = 0,
+    UNKNOWN    = 1,
+    CPP_MOD    = 2,
+    LOAT       = 3,
+    CPP_TARGET = 4,
+    CPP_SRC    = 5,
+    // 6–15 reserved for future expansion
+};
+
+// we use true as there is no need for null check
+#define FOR_DEPS(container_, round_, btype_, type_, var_)                                                              \
+    for (const RBTWithType &_rbt_##var_ : (container_).realBTargets[(round_)].dependencies)                           \
+        if (_rbt_##var_.getAbstractType() == (btype_))                                                                 \
+            if (auto *var_ = static_cast<type_ *>(_rbt_##var_.getPointer()->bTarget); true)
+
+/// RealBTargetWithType
+/// Layout: single 8-byte word.
+///   bits 0-2  : BTargetDepKind  (3 bits, 5 values)
+///   bits 3-6  : BTargetType     (4 bits, 16 values)
+///   bits 7-63 : RealBTarget*    (requires alignas(128) on RealBTarget)
+struct RBTWithType
+{
+    PointerIntPair<RealBTarget *, 7, uint8_t> ptrAndBoth;
+
+    static constexpr uint8_t pack(BTargetDepKind depKind, BTargetType type)
+    {
+        return static_cast<uint8_t>(type) << 3 | static_cast<uint8_t>(depKind);
+    }
+
+    RBTWithType(RealBTarget *ptr, BTargetDepKind depKind, BTargetType type)
+        : ptrAndBoth(ptr, pack(depKind, type))
+    {
+    }
+
+    RealBTarget *getPointer() const
+    {
+        return ptrAndBoth.getPointer();
+    }
+
+    BTargetDepKind getDepType() const
+    {
+        return static_cast<BTargetDepKind>(ptrAndBoth.getInt() & 0x7);
+    }
+
+    BTargetType getAbstractType() const
+    {
+        return static_cast<BTargetType>(ptrAndBoth.getInt() >> 3);
+    }
+};
+
+static_assert(sizeof(RBTWithType) == 8, "RBTWithType must be 8 bytes — check RealBTarget alignment");
+
+struct RBTDepTypeHash
+{
+    using is_transparent = void;
+
+    size_t operator()(const RBTWithType &e) const
+    {
+        // RealBTarget is alignas(128) so low 7 bits are always zero — shift them out for better distribution
+        return reinterpret_cast<size_t>(e.getPointer()) >> 7;
+    }
+
+    size_t operator()(RealBTarget *ptr) const
+    {
+        return reinterpret_cast<size_t>(ptr) >> 7;
+    }
+};
+
+struct RBTDepTypeEqual
+{
+    using is_transparent = void;
+
+    bool operator()(const RBTWithType &a, const RBTWithType &b) const
+    {
+        return a.getPointer() == b.getPointer();
+    }
+
+    bool operator()(const RBTWithType &a, RealBTarget *ptr) const
+    {
+        return a.getPointer() == ptr;
+    }
+
+    bool operator()(RealBTarget *ptr, const RBTWithType &a) const
+    {
+        return a.getPointer() == ptr;
+    }
+};
+
+inline std::pmr::monotonic_buffer_resource pool(
+    2 * 1024 * 1024,
+    std::pmr::null_memory_resource() // throws std::bad_alloc instead of falling back to heap
+);
+
+using DepSet =
+    gtl::flat_hash_set<RBTWithType, RBTDepTypeHash, RBTDepTypeEqual, std::pmr::polymorphic_allocator<RBTWithType>>;
 
 /// This is used by different BTarget to synchronize printing with build-cache updating.
 enum class UpdateStatus : char
 {
-    ALREADY_UPDATED = 0,
-    NEEDS_UPDATE = 1,
+    ALREADY_UPDATED        = 0,
+    NEEDS_UPDATE           = 1,
     UPDATED_WITHOUT_BUILDING = 2,
-    UPDATED = 3,
+    UPDATED                = 3,
 };
 
 /// Every BTarget has 2 of these so distinct dependency order can be specified for the 2 rounds.
-class RealBTarget
+class alignas(128) RealBTarget
 {
     /// Contains RealBTarget* that form the cycle if there is any.
     inline static vector<RealBTarget *> cycle;
@@ -71,15 +179,15 @@ class RealBTarget
     /// CppSrc and CppMod in BTarget::completeRoundOne, assign this after exitStatus to ensure happens-before
     /// relationship in the signal-handler / console-handler function. Also, this is assigned before printing to avoid a
     /// situation where a target has printed the update but its cache is not yet updated in-case of build interruption.
-    alignas(64) UpdateStatus updateStatus = UpdateStatus::ALREADY_UPDATED;
+    UpdateStatus updateStatus = UpdateStatus::ALREADY_UPDATED;
 
   private:
     /// Mutable working counter used by `sortGraph()`.
     uint32_t dependentsCount = 0;
 
     /// DFS helper to report one concrete cycle path.
-    static bool findCycleDFS(RealBTarget *node, phmap::flat_hash_set<RealBTarget *> &visited,
-                             phmap::flat_hash_set<RealBTarget *> &recursionStack, vector<RealBTarget *> &currentPath,
+    static bool findCycleDFS(RealBTarget *node, gtl::flat_hash_set<RealBTarget *> &visited,
+                             gtl::flat_hash_set<RealBTarget *> &recursionStack, vector<RealBTarget *> &currentPath,
                              string &errorString);
 
   public:
@@ -96,9 +204,9 @@ class RealBTarget
     static void printSortedGraph();
 
     /// Reverse edges: "who depends on me".
-    flat_hash_map<RealBTarget *, BTargetDepType> dependents;
+    DepSet dependents;
     /// Forward edges: "what I depend on".
-    flat_hash_map<RealBTarget *, BTargetDepType> dependencies;
+    DepSet dependencies;
 
     /// Owning high-level target.
     BTarget *bTarget = nullptr;
@@ -115,6 +223,11 @@ class RealBTarget
     // TODO
     //  Following describes the time taken for the completion of this task. Currently unused.
     // unsigned long timeTaken = 0;
+
+    /// This describes the location where this RealBTarget was inserted in the Builder::updateBTargetsList. CppMod when
+    /// discovers a dependency sets the pointer on that index to nullptr and re-adds the dependency CppMod in the list
+    /// to prioritize the scheduling of that CppMod.
+    uint32_t insertionIndex = -1;
 
     /// Exit code for this RealBTarget. Failures are propagated to dependents.
     int exitStatus = EXIT_SUCCESS;
@@ -148,15 +261,13 @@ class RealBTarget
 
     /// Marks `FULL` dependents as `UpdateStatus::NEEDS_UPDATE`.
     void assignNeedsUpdateToDependents();
+
+    /// Adds dependency edge for a given round and dependency type.
+    template <BTargetType type, BTargetDepKind depType = BTargetDepKind::FULL> void addDep(RealBTarget *dep);
 };
 
-enum class BTargetType : unsigned short
-{
-    DEFAULT = 0,
-    CPPMOD = 1,
-    LINK_OR_ARCHIVE_TARGET = 2,
-    CPP_TARGET = 3,
-};
+static_assert(alignof(RealBTarget) >= 128,
+              "RealBTarget must be 128-byte aligned to pack 7 bits (3 BTargetDepKind + 4 BTargetType) into pointer");
 
 /// Base class for all build graph tasks.
 ///
@@ -188,7 +299,7 @@ class BTarget // BTarget
     friend void constructGlobals();
 
   public:
-    alignas(64) inline static uint32_t total = 0;
+    inline static uint32_t total = 0;
 
     /// One per round: index `0` (round 0), index `1` (round 1).
     array<RealBTarget, 2> realBTargets;
@@ -247,9 +358,6 @@ class BTarget // BTarget
     /// that the BTarget is waiting for further messages.
     virtual bool isEventCompleted(Builder &builder, string_view message);
 
-    /// Adds dependency edge for a given round and dependency type.
-    template <unsigned short round, BTargetDepType depType = BTargetDepType::FULL> void addDep(BTarget &dep);
-
     /// This function is called in standAlone mode, so the BTarget could generate stand-alone commands that could be run
     /// stand-alone without the need for the build-system.
     virtual void generateStandAloneCommand();
@@ -264,14 +372,14 @@ class BTarget // BTarget
 };
 bool operator<(const BTarget &lhs, const BTarget &rhs);
 
-template <unsigned short round, BTargetDepType depType> void BTarget::addDep(BTarget &dep)
+template <BTargetType type, BTargetDepKind depType> void RealBTarget::addDep(RealBTarget *dep)
 {
-    if (realBTargets[round].dependencies.try_emplace(&dep.realBTargets[round], depType).second)
+    if (dependencies.emplace(dep, depType, type).second)
     {
-        dep.realBTargets[round].dependents.try_emplace(&this->realBTargets[round], depType);
-        if constexpr (depType == BTargetDepType::FULL || depType == BTargetDepType::WAIT)
+        dep->dependents.emplace(this, depType, type);
+        if constexpr (depType == BTargetDepKind::FULL || depType == BTargetDepKind::WAIT)
         {
-            ++realBTargets[round].dependenciesSize;
+            ++dependenciesSize;
         }
     }
 }

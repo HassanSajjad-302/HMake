@@ -39,7 +39,6 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/Builder.cpp
         hconfigure/src/BuildSystemFunctions.cpp
         hconfigure/src/Cache.cpp
-        hconfigure/src/HashedCommand.cpp
         hconfigure/src/CppMod.cpp
         hconfigure/src/Configuration.cpp
         hconfigure/src/CppTarget.cpp
@@ -84,14 +83,9 @@ if (${INCLUDE_CONFIGURE})
 
     if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
         message("HMAKE_USE_SMALL_FILE set")
-        # Comment out the following to switch from hash to compile-command in the build-log.
-        target_compile_definitions(hconfigure-c PUBLIC USE_COMMAND_HASH)
 
-        # Comment out the following to switch from nodes.json numbers reflected in build-cache.json to full normalized paths in build-cache.json
-        target_compile_definitions(hconfigure-c PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
-
-        # Comment out the following to switch from json files stored as compressed vs stored as-it-is
-        # target_compile_definitions(hconfigure-c PUBLIC USE_JSON_FILE_COMPRESSION)
+        # Comment out the following to switch from binary cache files stored as compressed vs stored as-it-is
+        # target_compile_definitions(hconfigure-c PUBLIC USE_FILE_COMPRESSION)
 
     endif ()
 
@@ -126,9 +120,7 @@ if (${INCLUDE_BUILD})
 
     if ("${HMAKE_USE_SMALL_FILE}" MATCHES ON)
         message("HMAKE_USE_SMALL_FILE set")
-        target_compile_definitions(hconfigure-b PUBLIC USE_COMMAND_HASH)
-        target_compile_definitions(hconfigure-b PUBLIC USE_NODES_CACHE_INDICES_IN_CACHE)
-        #target_compile_definitions(hconfigure-b PUBLIC USE_JSON_FILE_COMPRESSION)
+        #target_compile_definitions(hconfigure-b PUBLIC USE_FILE_COMPRESSION)
 
     endif ()
 
@@ -150,7 +142,6 @@ if ((${INCLUDE_CONFIGURE} MATCHES ON) AND (${INCLUDE_BUILD} MATCHES ON))
     target_compile_definitions(hhelper PRIVATE THIRD_PARTY_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/")
     target_compile_definitions(hhelper PRIVATE JSON_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/json/include/")
     target_compile_definitions(hhelper PRIVATE RAPIDJSON_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/rapidjson/include/")
-    target_compile_definitions(hhelper PRIVATE PARALLEL_HASHMAP="${CMAKE_SOURCE_DIR}/3rdParty/parallel-hashmap/parallel_hashmap")
     target_compile_definitions(hhelper PRIVATE LZ4_HEADER="${CMAKE_SOURCE_DIR}/3rdParty/lz4/lib")
     target_compile_definitions(hhelper PRIVATE HCONFIGURE_HEADER="${CMAKE_SOURCE_DIR}/hconfigure/header/")
     target_compile_definitions(hhelper PRIVATE HCONFIGURE_C_STATIC_LIB_DIRECTORY="$<TARGET_FILE_DIR:hconfigure-c>")
@@ -203,7 +194,6 @@ target_link_libraries(Analysis2 PRIVATE hconfigure-c)
 target_link_libraries(Dir-Mapping PRIVATE hconfigure-c)
 
 add_executable(benchmark Examples/benchmark/benchmark.cpp)
-
 
 function(add_dual_executables)
     math(EXPR count "${ARGC} / 2")

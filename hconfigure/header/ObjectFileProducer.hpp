@@ -109,12 +109,12 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &objectFileProduce
         {
             reqDeps.emplace(&objectFileProducer);
             useReqDeps.emplace(&objectFileProducer);
-            addDep<1>(objectFileProducer);
+            realBTargets[1].template addDep<BTargetType::UNKNOWN>(&objectFileProducer.realBTargets[1]);
         }
         else if (depType == DepType::PRIVATE)
         {
             reqDeps.emplace(&objectFileProducer);
-            addDep<1>(objectFileProducer);
+            realBTargets[1].template addDep<BTargetType::UNKNOWN>(&objectFileProducer.realBTargets[1]);
         }
         else
         {
@@ -123,7 +123,7 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &objectFileProduce
     }
     else
     {
-        addDep<0, BTargetDepType::SELECTIVE>(objectFileProducer);
+        realBTargets[0].template addDep<BTargetType::UNKNOWN, BTargetDepKind::SELECTIVE>(&objectFileProducer.realBTargets[0]);
     }
 
     if constexpr (sizeof...(objectFileProducers))
@@ -137,7 +137,7 @@ template <typename T> void ObjectFileProducerWithDS<T>::populateReqAndUseReqDeps
 {
     // Set is copied because new elements are to be inserted in it.
 
-    for (auto localReqDeps = reqDeps; T * t : localReqDeps)
+    for (auto localReqDeps = reqDeps; T *t : localReqDeps)
     {
         for (T *t_ : t->useReqDeps)
         {
@@ -145,7 +145,7 @@ template <typename T> void ObjectFileProducerWithDS<T>::populateReqAndUseReqDeps
         }
     }
 
-    for (auto localUseReqDeps = useReqDeps; T * t : localUseReqDeps)
+    for (auto localUseReqDeps = useReqDeps; T *t : localUseReqDeps)
     {
         for (T *t_ : t->useReqDeps)
         {

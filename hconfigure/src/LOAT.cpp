@@ -4,6 +4,8 @@
 #include "Builder.hpp"
 #include "Configuration.hpp"
 #include "CppTarget.hpp"
+#include "rapidhash/rapidhash.h"
+
 #include <filesystem>
 #include <memory_resource>
 #include <stack>
@@ -70,7 +72,7 @@ void LOAT::setOutputName(string str)
 
 BTargetType LOAT::getBTargetType() const
 {
-    return BTargetType::LINK_OR_ARCHIVE_TARGET;
+    return BTargetType::LOAT;
 }
 
 void LOAT::setFileStatus()
@@ -84,7 +86,7 @@ void LOAT::setFileStatus()
         }
         else
         {
-            if (linkBuildCache.commandWithoutArgumentsWithTools.hash == commandWithoutTargetsWithTool.getHash())
+            if (linkBuildCache.commandWithoutArgumentsWithTools == commandWithoutTargetsWithTool)
             {
                 bool needsUpdate = false;
                 if (!evaluate(TargetType::LIBRARY_STATIC))
@@ -97,7 +99,7 @@ void LOAT::setFileStatus()
                         // No need to check whether ploat is a static-library since it is
                         // already-checked in that target's setFileStatus.
 
-                        if (reqDep->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
+                        if (reqDep->getBTargetType() == BTargetType::LOAT &&
                             static_cast<LOAT *>(reqDep)->objectFiles.empty())
                         {
                             continue;
@@ -218,26 +220,33 @@ void LOAT::completeRoundOne()
     }
 }
 
-bool LOAT::writeBuildCache(string &buffer)
+bool LOAT::isBuildCacheUpdated()
+{
+    return realBTargets[0].updateStatus == UpdateStatus::UPDATED && realBTargets[0].exitStatus == EXIT_SUCCESS;
+}
+void LOAT::writeBuildCache(string &buffer)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        return PLOAT::writeBuildCache(buffer);
+        PLOAT::writeBuildCache(buffer);
+        return;
     }
 
-    if (realBTargets[0].updateStatus != UpdateStatus::UPDATED || realBTargets[0].exitStatus != EXIT_SUCCESS)
+    if (realBTargets[0].updateStatus == UpdateStatus::UPDATED && realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
-        return PLOAT::writeBuildCache(buffer);
+    }
+    else
+    {
+        PLOAT::writeBuildCache(buffer);
+        return;
     }
 
-    linkBuildCache.commandWithoutArgumentsWithTools.hash = commandWithoutTargetsWithTool.getHash();
-    linkBuildCache.commandWithoutArgumentsWithTools.serialize(buffer);
+    writeUint64(buffer, commandWithoutTargetsWithTool);
     writeUint32(buffer, objectFiles.size());
     for (const ObjectFile *obj : objectFiles)
     {
         writeNode(buffer, obj->objectNode);
     }
-    return true;
 }
 
 void LOAT::writeCacheAtConfigureTime()
@@ -258,7 +267,7 @@ void LOAT::readCacheAtBuildTime()
     if (!buildCache.empty())
     {
         uint32_t bytesRead = 0;
-        linkBuildCache.commandWithoutArgumentsWithTools.deserialize(buildCache.data(), bytesRead);
+        linkBuildCache.commandWithoutArgumentsWithTools = readUint64(buildCache.data(), bytesRead);
         const uint32_t objCacheSize = readUint32(buildCache.data(), bytesRead);
         linkBuildCache.objectFiles.reserve(objCacheSize);
         for (uint32_t i = 0; i < objCacheSize; ++i)
@@ -302,7 +311,7 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets)
     }
 
     linkWithTargets += outputFileNode->filePath + "\" ";
-    commandWithoutTargetsWithTool.setCommand({linkWithTargets.data(), linkWithTargets.size()});
+    commandWithoutTargetsWithTool = rapidhash(linkWithTargets.data(), linkWithTargets.size());
     for (const ObjectFile *objectFile : objectFiles)
     {
         linkWithTargets += '\"' + objectFile->objectNode->filePath + "\" ";
@@ -323,8 +332,7 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets)
     for (const uint32_t index : reqDepsVecIndices)
     {
         PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
-        if (reqDep->getBTargetType() == BTargetType::LINK_OR_ARCHIVE_TARGET &&
-            static_cast<LOAT *>(reqDep)->objectFiles.empty())
+        if (reqDep->getBTargetType() == BTargetType::LOAT && static_cast<LOAT *>(reqDep)->objectFiles.empty())
         {
             continue;
         }
@@ -468,7 +476,7 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
         }
     }
 
-    if (run.output.empty())
+    if (run.output->empty())
     {
         string str;
         if (linkTargetType == TargetType::LIBRARY_STATIC)
@@ -495,7 +503,7 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
         outputStr += getColorCode(ColorIndex::reset);
     }
 
-    outputStr += run.output;
+    outputStr += *run.output;
     outputStr.push_back('\n');
     fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
 

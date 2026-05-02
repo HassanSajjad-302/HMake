@@ -5,7 +5,6 @@
 #include "JConsts.hpp"
 #include "Manager.hpp"
 #include "Node.hpp"
-#include "PointerPacking.h"
 #include "RunCommand.hpp"
 
 #include <mutex>
@@ -104,6 +103,7 @@ void Builder::executeRoundOne()
 
 void Builder::executeRoundZero()
 {
+    auto start = std::chrono::high_resolution_clock::now();
     RealBTarget::graphEdges = span(BTarget::realBTargetsGlobal[round].data(), BTarget::realBTargetsArrayCount[round]);
     RealBTarget::sortGraph();
     // RealBTarget::printSortedGraph();
@@ -118,17 +118,18 @@ void Builder::executeRoundZero()
 
             if (localRb.bTarget->selectiveBuild)
             {
-                for (auto &[dependency, bTargetDepType] : localRb.dependencies)
+                for (const RBTWithType &rbt : localRb.dependencies)
                 {
-                    if (bTargetDepType == BTargetDepType::FULL || bTargetDepType == BTargetDepType::SELECTIVE)
+                    if (rbt.getDepType() == BTargetDepKind::FULL || rbt.getDepType() == BTargetDepKind::SELECTIVE)
                     {
-                        dependency->bTarget->selectiveBuild = true;
+                        rbt.getPointer()->bTarget->selectiveBuild = true;
                     }
                 }
             }
         }
     }
 
+    uint32_t elementCount = 0;
     updateBTargets.clear();
     for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
     {
@@ -136,6 +137,8 @@ void Builder::executeRoundZero()
         if (!localRb.dependenciesSize)
         {
             updateBTargets.emplace_front(&localRb);
+            localRb.insertionIndex = elementCount;
+            ++elementCount;
         }
     }
 
@@ -191,6 +194,9 @@ void Builder::executeRoundZero()
 
 #endif
 
+    globalLaunchTime =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count();
     while (true)
     {
         while (true)
@@ -230,6 +236,13 @@ void Builder::executeRoundZero()
 
         if (activeEventCount)
         {
+
+            /*
+            printMessage(getColorCode(ColorIndex::alice_blue));
+            auto end = std::chrono::high_resolution_clock::now();
+            printMessage(FORMAT("Active Event Count {} time-passed{}\n", activeEventCount, (end-start).count()));
+            printMessage(getColorCode(ColorIndex::reset));
+            */
 
 #ifdef _WIN32
             OVERLAPPED_ENTRY events[128];
@@ -367,22 +380,27 @@ uint64_t Builder::registerEventData(BTarget *target_, const uint64_t fd)
         const uint32_t index = currentIndex;
         ++currentIndex;
 
-        CompletionKey &k = eventData[index];
-        memset(k.overlappedBuffer, 0, sizeof(k.overlappedBuffer));
-        k.buffer = new char[4096]{};
-        k.handle = fd;
-        k.target = target_;
+        auto &[overlappedBuffer, buffer, handle, target] = eventData[index];
+        memset(overlappedBuffer, 0, sizeof(overlappedBuffer));
+        handle = fd;
+        target = target_;
+        target->run.output = &buffer;
+        // We need to provide a buffer where Windows kernel would write asynchronously.
+        // On Linux,
+        buffer.resize(4096);
         return index;
     }
 
     const uint32_t index = unusedKeysIndices.back();
     unusedKeysIndices.pop_back();
 
-    // buffer can be reused as it was already initialized.
     auto &[overlappedBuffer, buffer, handle, target] = eventData[index];
     memset(overlappedBuffer, 0, sizeof(overlappedBuffer));
     handle = fd;
     target = target_;
+    target->run.output = &buffer;
+    buffer.clear();
+    buffer.resize(4096);
     return index;
 #else
     eventData[fd] = target_;
@@ -434,6 +452,14 @@ bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
         }
         else
         {
+            if constexpr (os == OS::NT)
+            {
+                unusedKeysIndices.emplace_back(index);
+            }
+            else
+            {
+                unusedOutputIndices.emplace_back(bTarget->run.outputIndex);
+            }
             return false;
         }
     }
@@ -442,9 +468,7 @@ bool Builder::callIsEventCompleted(BTarget *bTarget, const uint64_t index)
 void Builder::unregisterEventDataAtIndex(const uint64_t index)
 {
     --activeEventCount;
-#ifdef _WIN32
-    unusedKeysIndices.emplace_back(index);
-#else
+#ifndef _WIN32
     // Remove FDs from epoll now that process has exited
     if (epoll_ctl(serverFd, EPOLL_CTL_DEL, index, NULL) == -1)
     {
@@ -605,18 +629,20 @@ void Builder::decrementFromDependents(const RealBTarget &rb)
         errorHappenedInRoundMode = true;
     }
 
-    for (auto &[dependent, bTargetDepType] : rb.dependents)
+    for (const RBTWithType rbt : rb.dependents)
     {
-        if (bTargetDepType == BTargetDepType::FULL)
+        if (rbt.getDepType() == BTargetDepKind::FULL)
         {
             if (rb.exitStatus != EXIT_SUCCESS)
             {
-                dependent->exitStatus = EXIT_FAILURE;
+                rbt.getPointer()->exitStatus = EXIT_FAILURE;
             }
-            --dependent->dependenciesSize;
-            if (!dependent->dependenciesSize)
+            rbt.getPointer()->dependenciesSize -= 1;
+            if (!rbt.getPointer()->dependenciesSize)
             {
-                updateBTargets.emplace(dependent);
+                uint32_t insertionIndex;
+                updateBTargets.emplace(rbt.getPointer(), insertionIndex);
+                rbt.getPointer()->insertionIndex = insertionIndex;
             }
         }
     }

@@ -150,11 +150,12 @@ void Node::performSystemCheck()
 
     // Convert to std::chrono time point.
     // Windows FILETIME uses 100ns intervals since Jan 1, 1601.
-    const auto duration = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(ull.QuadPart);
-    constexpr auto windows_epoch = std::chrono::duration<int64_t, std::ratio<1, 10000000>>(116444736000000000LL);
+    const auto duration = std::chrono::duration<uint64_t, std::ratio<1, 10000000>>(ull.QuadPart);
+    constexpr auto windows_epoch = std::chrono::duration<uint64_t, std::ratio<1, 10000000>>(116444736000000000ULL);
     const auto unix_time = duration - windows_epoch;
 
-    lastWriteTime = file_time_type(unix_time);
+    // Cast to nanoseconds to match the POSIX path's unit.
+    lastWriteTime = std::chrono::duration_cast<std::chrono::nanoseconds>(unix_time).count();
 #else
     struct stat st{};
     if (stat(filePath.c_str(), &st) != 0)
@@ -174,9 +175,12 @@ void Node::performSystemCheck()
     if (S_ISREG(st.st_mode))
     {
         fileType = file_type::regular;
-        const auto sec = std::chrono::seconds(st.st_mtim.tv_sec);
-        const auto nsec = std::chrono::nanoseconds(st.st_mtim.tv_nsec);
-        lastWriteTime = file_time_type(std::chrono::duration_cast<file_time_type::duration>(sec + nsec));
+#if defined(__APPLE__)
+        lastWriteTime = static_cast<int64_t>(st.st_mtimespec.tv_sec) * 1'000'000'000LL +
+                        static_cast<int64_t>(st.st_mtimespec.tv_nsec);
+#else
+        lastWriteTime = st.st_mtim.tv_sec * 1'000'000'000LL + st.st_mtim.tv_nsec;
+#endif
     }
     else if (S_ISDIR(st.st_mode))
     {

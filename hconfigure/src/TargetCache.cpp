@@ -52,29 +52,10 @@ TargetCache::TargetCache(const string &name)
     fileTargetCaches[cacheIndex].targetCache = this;
 }
 
-bool TargetCache::writeBuildCache(string &buffer)
+void TargetCache::writeBuildCache(string &buffer)
 {
-    string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
+    const string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
     buffer.append(buildCache.begin(), buildCache.end());
-    return false;
-}
-
-void CCOrHash::serialize(string &buffer) const
-{
-#ifdef USE_COMMAND_HASH
-    writeUint64(buffer, hash);
-#else
-    writeStringView(buffer, hash);
-#endif
-}
-
-void CCOrHash::deserialize(const char *ptr, uint32_t &bytesRead)
-{
-#ifdef USE_COMMAND_HASH
-    hash = readUint64(ptr, bytesRead);
-#else
-    hash = readStringView(ptr, bytesRead);
-#endif
 }
 
 bool readBool(const char *ptr, uint32_t &bytesRead)
@@ -119,24 +100,22 @@ string_view readStringView(const char *ptr, uint32_t &bytesRead)
 
 Node *readHalfNode(const char *ptr, uint32_t &bytesRead)
 {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     return nodeIndices[readUint32(ptr, bytesRead)];
-#else
-    return Node::getHalfNode(readStringView(ptr, bytesRead));
-#endif
 }
 
 void BuildCache::Cpp::SourceFile::serialize(string &buffer) const
 {
     writeNode(buffer, node);
-    compileCommand.serialize(buffer);
+    writeUint64(buffer, compileCommand);
+    writeUint64(buffer, launchTime);
     writeNodeVector(buffer, headerFiles);
 }
 
 void BuildCache::Cpp::SourceFile::deserialize(const char *ptr, uint32_t &bytesRead)
 {
     node = readHalfNode(ptr, bytesRead);
-    compileCommand.deserialize(ptr, bytesRead);
+    compileCommand = readUint64(ptr, bytesRead);
+    launchTime = readUint64(ptr, bytesRead);
     const uint32_t headerSize = readUint32(ptr, bytesRead);
     headerFiles.reserve(headerSize);
     for (uint32_t i = 0; i < headerSize; ++i)
@@ -145,31 +124,18 @@ void BuildCache::Cpp::SourceFile::deserialize(const char *ptr, uint32_t &bytesRe
     }
 }
 
-void ModuleFile::SingleHeaderUnitDep::serialize(string &buffer) const
+void ModuleFile::SingleDep::serialize(string &buffer) const
 {
     writeNode(buffer, node);
+    writeUint64(buffer, compileCommand);
     writeUint32(buffer, targetIndex);
     writeUint32(buffer, myIndex);
 }
 
-void ModuleFile::SingleHeaderUnitDep::deserialize(const char *ptr, uint32_t &bytesRead)
+void ModuleFile::SingleDep::deserialize(const char *ptr, uint32_t &bytesRead)
 {
     node = readHalfNode(ptr, bytesRead);
-    targetIndex = readUint32(ptr, bytesRead);
-    myIndex = readUint32(ptr, bytesRead);
-}
-
-void ModuleFile::SingleModuleDep::serialize(string &buffer) const
-{
-    writeNode(buffer, node);
-    writeUint32(buffer, targetIndex);
-    writeUint32(buffer, myIndex);
-}
-
-void ModuleFile::SingleModuleDep::deserialize(const char *ptr, uint32_t &bytesRead)
-{
-
-    node = readHalfNode(ptr, bytesRead);
+    compileCommand = readUint64(ptr, bytesRead);
     targetIndex = readUint32(ptr, bytesRead);
     myIndex = readUint32(ptr, bytesRead);
 }
@@ -295,11 +261,7 @@ void writeStringView(string &buffer, const string_view &data)
 
 void writeNode(string &buffer, const Node *node)
 {
-#ifdef USE_NODES_CACHE_INDICES_IN_CACHE
     writeUint32(buffer, node->myId);
-#else
-    writeStringView(buffer, node->filePath);
-#endif
 }
 
 void writeNodeVector(string &buffer, const vector<Node *> &array)

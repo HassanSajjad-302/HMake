@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 
 #ifdef _WIN32
-#include "rapidhash.h"
+#include "rapidhash/rapidhash.h"
 #include <Windows.h>
 #else
 #include <fcntl.h>

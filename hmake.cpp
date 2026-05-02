@@ -20,8 +20,7 @@ void configurationSpecification(Configuration &config)
 
     if (smallFile)
     {
-        hconfigure.getSourceTarget().publicCompileDefines("USE_COMMAND_HASH", "", "USE_NODES_CACHE_INDICES_IN_CACHE",
-                                                          "", "USE_JSON_FILE_COMPRESSION", "");
+        hconfigure.getSourceTarget().publicCompileDefines("USE_FILE_COMPRESSION", "");
     }
 }
 

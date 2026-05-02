@@ -297,13 +297,13 @@ TEST(AExamplesTest, Example_A10)
     {
         RunCommand r;
         r.runProcess("hhelper");
-        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("First hhelper failed with output\n{}\n.", r.output);
+        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("First hhelper failed with output\n{}\n.", *r.output);
     }
 
     {
         RunCommand r;
         r.runProcess("hhelper");
-        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("Second hhelper failed with output\n{}\n.", r.output);
+        ASSERT_EQ(r.exitStatus, EXIT_SUCCESS) << FORMAT("Second hhelper failed with output\n{}\n.", *r.output);
     }
 
     {
@@ -313,9 +313,9 @@ TEST(AExamplesTest, Example_A10)
     {
         RunCommand r;
         r.runProcess("hbuild");
-        erase_if(r.output, [](const char c) { return c == '\r'; });
+        erase_if(*r.output, [](const char c) { return c == '\r'; });
         exitStatus = r.exitStatus;
-        output = std::move(r.output);
+        output = std::move(*r.output);
     }
 
     ASSERT_EQ(exitStatus, EXIT_SUCCESS);

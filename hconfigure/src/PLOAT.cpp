@@ -133,14 +133,14 @@ void PLOAT::completeRoundOne()
             {
                 if (reqDep->hasObjectFiles)
                 {
-                    addDep<0, BTargetDepType::LOOSE>(*reqDep);
+                    realBTargets[0].addDep<BTargetType::LOAT, BTargetDepKind::LOOSE>(&reqDep->realBTargets[0]);
                 }
             }
             else
             {
                 if (reqDep->hasObjectFiles)
                 {
-                    addDep<0>(*reqDep);
+                    realBTargets[0].addDep<BTargetType::LOAT>(&reqDep->realBTargets[0]);
                 }
             }
         }
@@ -160,7 +160,7 @@ void PLOAT::completeRoundOne()
     {
         if (objectFileProducer->hasObjectFiles)
         {
-            addDep<0>(*objectFileProducer);
+            realBTargets[0].addDep<BTargetType::UNKNOWN>(&objectFileProducer->realBTargets[0]);
         }
     }
 }

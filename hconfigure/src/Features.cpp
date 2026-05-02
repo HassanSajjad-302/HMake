@@ -899,8 +899,11 @@ void CppCompilerFeatures::initialize()
         }
     }
 
-    // compiler.btSubFamily = BTSubFamily::CLANG;
-    // compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-release\bin\clang-cl.exe)";
+    if constexpr (os == OS::NT)
+    {
+        compiler.btSubFamily = BTSubFamily::CLANG;
+        compiler.bTPath = R"(c:\projects\llvm-project\llvm\cmake-build-release\bin\clang-cl.exe)";
+    }
 }
 
 void CppCompilerFeatures::setConfigType(const ConfigType configType_)

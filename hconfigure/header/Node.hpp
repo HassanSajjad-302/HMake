@@ -5,7 +5,7 @@
 #define HMAKE_NODE_HPP
 
 #include "BuildSystemFunctions.hpp"
-#include "parallel-hashmap/parallel_hashmap/phmap.h"
+#include "gtl/include/gtl/phmap.hpp"
 
 using std::lock_guard, std::filesystem::file_time_type, std::filesystem::file_type;
 
@@ -50,7 +50,7 @@ class Node
     file_type fileType;
 
     /// Cached last-write timestamp, assigned by `performSystemCheck()`.
-    file_time_type lastWriteTime{file_time_type::duration{UINT64_MAX}};
+    uint64_t lastWriteTime = -1;
 
     /// Total number of created nodes.
     inline static uint32_t idCount = 0;
