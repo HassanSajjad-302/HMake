@@ -110,10 +110,6 @@ template <typename T, typename... Property> Configuration &Configuration::assign
     {
         systemTarget = property;
     }
-    else if constexpr (std::is_same_v<decltype(property), IgnoreHeaderDeps>)
-    {
-        ignoreHeaderDeps = property;
-    }
     else if constexpr (std::is_same_v<decltype(property), UseIPC>)
     {
         useIPC = property;

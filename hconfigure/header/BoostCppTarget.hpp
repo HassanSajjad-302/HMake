@@ -53,7 +53,7 @@ enum class IteratorTargetType : uint8_t
 // And has functions to define Tests and Examples based on BoostExampleOrTestType. (These functions consider the values
 // of buildTests, buildExamples, testsExplicit and examplesExplicit of Configuration class).
 // This also has testTarget and exampleTarget which you can run to build all the tests and examples.
-class BoostCppTarget : TargetCache
+class BoostCppTarget : BTarget
 {
     template <BoostExampleOrTestType boostExampleOrTestType, IteratorTargetType iteratorTargetType> struct GenericBase
     {

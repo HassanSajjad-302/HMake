@@ -6,7 +6,6 @@
 
 #include "IPCManagerBS.hpp"
 #include "ObjectFile.hpp"
-#include "TargetCache.hpp"
 #include "gtl/include/gtl/btree.hpp"
 #include <filesystem>
 #include <list>
@@ -28,7 +27,7 @@ struct CompareCppSrc
     bool operator()(const CppSrc &lhs, const Node *rhs) const;
 };
 
-enum class SourceType
+enum class SourceType : uint8_t
 {
     C,
     CPP,
@@ -50,21 +49,15 @@ class CppSrc : public ObjectFile
     /// Node pointer to the source-file
     const Node *node;
 
-    /// Current hash of the compile-command. Set in initializeBuildCache
     uint64_t commandHash;
-
-    /// Index in BuildCache::Cpp::srcFiles or BuildCache::Cpp::modFiles or BuildCache::Cpp::imodFiles or
-    /// BuildCache::Cpp::headerUnits
-    uint32_t myBuildCacheIndex = -1;
 
     /// If the file has .c extension, it is a C source-file. If .S or .s, it is an ASSEMBLY file. Otherwise, C++ file
     SourceType sourceType = SourceType::CPP;
 
-    CppSrc(CppTarget *target_, const Node *node_);
+    span<const uint32_t> cachedHeaderFiles;
+
+    CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType);
     string getPrintName() const override;
-    /// This function compares compile-command with build-cache and also set Node::toBeChecked of source-node,
-    /// object-node and header-files.
-    void initializeBuildCache(uint32_t index, uint64_t commandHash_);
     void getCompileCommand(std::pmr::string &compileCommand) const;
     bool ignoreHeaderFile(string_view child) const;
     /// MSVC prints header-files with the compilation output. This function parses them out from that output.
@@ -74,31 +67,88 @@ class CppSrc : public ObjectFile
     /// Calls either of parseDepsFromGCCDepsOutput or parseDepsFromMSVCTextOutput
     void parseHeaderDeps(string &output, Builder &builder);
     /// This compares lastWrite of source-node with object-node and header-files
-    void setCppSrcFileStatus();
-    /// Called at the end or in the signal-handler when the build-cache is being written. This function will update the
-    /// build-cache at myBuildCacheIndex, if this was updated.
-    virtual void updateBuildCache();
-    /// Sets CppSrc::sourceType. Called by CppTarget in CppTarget::updateBTarget in round1.
-    SourceType setSourceType();
+    void setFileStatus() override;
 
-    virtual bool isEventRegistered(Builder &builder) override;
-    virtual bool isEventCompleted(Builder &builder, string_view) override;
+    bool isEventRegistered(Builder &builder) override;
+    bool isEventCompleted(Builder &builder, string_view) override;
+    void writeConfigCacheAtConfigTime(string &buffer) override;
+    void writeBuildCacheAtConfigTime(string &buffer) override;
+    void writeBuildCacheAtBuildTime(string &buffer) override;
+    void verifyBuildCache(string_view buildCache) const override;
+    void verifyConfigCache(string_view configCache) const override;
 };
 
 bool operator<(const CppSrc &lhs, const CppSrc &rhs);
+class CppMod;
 
-enum class CppModType : uint8_t
+/// Packs a CppMod* with a 1-bit isDirect flag.
+/// CppMod contains pointer/container members so alignof(CppMod) >= 8 — 3 bits available; we use only 1.
+///   bit 0 : isDirect
+///   bits 1-63 : CppMod*
+struct CppModWithDirect
 {
-    PRIMARY_EXPORT = 0,
-    PARTITION_EXPORT = 1,
-    HEADER_UNIT = 2,
-    PRIMARY_IMPLEMENTATION = 3,
+    PointerIntPair<CppMod *, 1, uint8_t> ptrAndDirect;
+
+    static constexpr uintptr_t kDirectMask = uintptr_t(0x1);
+
+    CppModWithDirect(CppMod *ptr, bool isDirect_) : ptrAndDirect(ptr, static_cast<uint8_t>(isDirect_))
+    {
+    }
+
+    CppMod *getPointer() const
+    {
+        return ptrAndDirect.getPointer();
+    }
+
+    bool isDirect() const
+    {
+        return static_cast<bool>(ptrAndDirect.getRaw() & kDirectMask);
+    }
 };
 
-struct CppMod final : CppSrc
+struct CppModWithDirectHash
 {
+    using is_transparent = void;
+
+    size_t operator()(const CppModWithDirect &e) const
+    {
+        // alignof(CppMod) >= 8, so low 3 bits are always zero — shift for better distribution
+        return reinterpret_cast<size_t>(e.getPointer()) >> 3;
+    }
+
+    size_t operator()(const CppMod *ptr) const
+    {
+        return reinterpret_cast<size_t>(ptr) >> 3;
+    }
+};
+
+struct CppModWithDirectEqual
+{
+    using is_transparent = void;
+
+    bool operator()(const CppModWithDirect &a, const CppModWithDirect &b) const
+    {
+        return a.getPointer() == b.getPointer();
+    }
+    bool operator()(const CppModWithDirect &a, const CppMod *ptr) const
+    {
+        return a.getPointer() == ptr;
+    }
+    bool operator()(const CppMod *ptr, const CppModWithDirect &a) const
+    {
+        return a.getPointer() == ptr;
+    }
+};
+
+class CppMod : public CppSrc
+{
+  public:
+    flat_hash_set<CppModWithDirect, CppModWithDirectHash, CppModWithDirectEqual> allCppModDeps;
+
+    span<const uint32_t> cachedDeps;
+
     /// Used only if configuration->evaluate(DuplicationWarning::YES). Otherwise, CppSrc::headerFiles is used.
-    flat_hash_map<Node*, CppMod *> headerNodeCppMod;
+    flat_hash_map<Node *, CppMod *> headerNodeCppMod;
 
     /// Those header-files which are #included in this module or hu. These are initialized from config-cache as big-hu
     /// have these. While Source::headerFiles have all the header-files of ours and our dependencies for accurate
@@ -111,6 +161,8 @@ struct CppMod final : CppSrc
     /// module, logicalNames[0] is the exportName of the module.
     vector<string> logicalNames;
 
+    uint64_t originalLaunchTime;
+
     /// BMI node for header-units and module interface files. Initialized in CppTarget::readConfigCache.
     Node *interfaceNode;
 
@@ -120,9 +172,6 @@ struct CppMod final : CppSrc
 
     /// The dependency module or hu we are waiting on to compile.
     CppMod *waitingFor = nullptr;
-
-    /// Points to one of the arrays of CppTarget::cppBuildCache of the owning CppTarget.
-    BuildCache::Cpp::ModuleFile *myBuildCache;
 
     uint32_t interfaceFileSize;
 
@@ -141,16 +190,15 @@ struct CppMod final : CppSrc
 
     bool isScheduled = false;
     bool calledOnce = false;
+    bool isAllDepsPopulated = false;
 
-    CppMod(CppTarget *target_, const Node *node_);
-
-    /// Call by CppTarget. In this we set Node::toBeChecked of different Nodes like header-files, interface-node and
-    /// objectNode.
-    void initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, uint32_t index, uint64_t commandHash_);
+    CppMod(CppTarget *target_, const Node *node_, CppModType cppModType);
 
     /// Following ensures that build-system creates shared-memory bmi file before sending it to the compiler. if the
     /// file is updated, then the compiler creates the mapping. if not then the build-system.
     void makeMemoryFileMapping();
+
+    void populateAllDeps();
 
     /// Called to send the P2978::BTCModule corresponding to a module CppMod whose compilation just completed
     void makeAndSendBTCModule(CppMod &mod);
@@ -179,13 +227,6 @@ struct CppMod final : CppSrc
     /// prints short status string if there is no output. prints full command + output, if there is output
     void print(const Builder &builder, const string &output) const;
 
-    /// \returns BTargetType::CPPMOD
-    BTargetType getBTargetType() const override;
-
-    /// Called at the end or in the signal-handler when the build-cache is being written. This function will update the
-    /// build-cache at myBuildCacheIndex, if this was updated.
-    void updateBuildCache() override;
-
     enum class CommandType
     {
         USE_IPC,
@@ -196,19 +237,23 @@ struct CppMod final : CppSrc
     void getCompileCommand(std::pmr::string &compileCommand, CommandType commandType, string_view mockFilePath) const;
 
     /// Checks whether this needs to be updated and sets round0 RealBTarget::updateStatus to UpdateStatus::NEEDS_UPDATE.
-    /// Otherwise, populates CppTarget::allCppModDependencies based on myBuildCache. So, if any of our dependents need
-    /// to be updated, makeAndSend* functions could send our dependencies with us in a single message.
-    void setFileStatusAndPopulateAllDependencies(std::pmr::vector<CppMod*> &cachedModDeps);
-
+    void setFileStatus() override;
 
     /// This function is called in standAlone mode, so the BTarget could generate stand-alone commands that could be run
     /// stand-alone without the need for the build-system.
     void generateStandAloneCommand() override;
 
-
     /// Used to generate the script for standalone hu/module compilation. Generates a batch file on Windows and a bash
     /// file on Linux.
-    void cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents, const string &scriptDir) override;
+    void cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &scriptContents,
+                              const string &scriptDir) override;
+
+    void writeConfigCacheAtConfigTime(string &buffer) override;
+    void writeBuildCacheAtConfigTime(string &buffer) override;
+    void writeBuildCacheAtBuildTime(string &buffer) override;
+    void verifyConfigCache(string_view configCache) const override;
+    void verifyBuildCache(string_view buildCache) const override;
 };
 
+static_assert(alignof(CppMod) >= 2, "CppMod must be at least 2-byte aligned for PointerIntPair<CppMod*,1>");
 #endif // HMAKE_CPPMOD_HPP

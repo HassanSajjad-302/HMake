@@ -7,7 +7,7 @@
 #include "LOAT.hpp"
 #include "ToolsCache.hpp"
 
-Configuration::Configuration(const string &name_) : BTarget(name_, false, false)
+Configuration::Configuration(const string &name_) : BTarget(name_, false, BTargetType::CONFIGURATION)
 {
     if (standAlone)
     {
@@ -39,11 +39,9 @@ void Configuration::initialize()
     if (!stdCppTarget)
     {
         SystemTarget s1 = systemTarget;
-        IgnoreHeaderDeps i1 = ignoreHeaderDeps;
         BigHeaderUnit b1 = bigHeaderUnit;
         UseIPC u1 = useIPC;
         systemTarget = SystemTarget::YES;
-        ignoreHeaderDeps = IgnoreHeaderDeps::YES;
         bigHeaderUnit = BigHeaderUnit::YES;
         useIPC = UseIPC::NO;
 
@@ -112,7 +110,6 @@ void Configuration::initialize()
         }
 
         systemTarget = s1;
-        ignoreHeaderDeps = i1;
         bigHeaderUnit = b1;
         useIPC = u1;
     }
@@ -225,14 +222,14 @@ PLOAT &Configuration::getPLOAT(const string &name_, Node *myBuildDir, TargetType
 
 PLOAT &Configuration::getStaticPLOAT(const string &name_, Node *myBuildDir)
 {
-    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name + slashc + name_, myBuildDir, TargetType::LIBRARY_STATIC);
+    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name + slashc + name_, myBuildDir, TargetType::PLIBRARY_STATIC);
     ploats.emplace_back(&loat);
     return loat;
 }
 
 PLOAT &Configuration::getSharedPLOAT(const string &name_, Node *myBuildDir)
 {
-    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name + slashc + name_, myBuildDir, TargetType::LIBRARY_SHARED);
+    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name + slashc + name_, myBuildDir, TargetType::PLIBRARY_SHARED);
     ploats.emplace_back(&loat);
     return loat;
 }
@@ -475,14 +472,14 @@ PLOAT &Configuration::getPLOATNoName(const string &name_, Node *myBuildDir, Targ
 
 PLOAT &Configuration::getStaticPLOATNoName(const string &name_, Node *myBuildDir)
 {
-    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name_, myBuildDir, TargetType::LIBRARY_STATIC);
+    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name_, myBuildDir, TargetType::PLIBRARY_STATIC);
     ploats.emplace_back(&loat);
     return loat;
 }
 
 PLOAT &Configuration::getSharedPLOATNoName(const string &name_, Node *myBuildDir)
 {
-    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name_, myBuildDir, TargetType::LIBRARY_SHARED);
+    PLOAT &loat = targets<PLOAT>.emplace_back(*this, name_, myBuildDir, TargetType::PLIBRARY_SHARED);
     ploats.emplace_back(&loat);
     return loat;
 }

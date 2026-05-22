@@ -1,3 +1,6 @@
+#ifndef POINTERPACKING_H
+#define POINTERPACKING_H
+
 #include <cassert>
 #include <cstdint>
 #include <type_traits>
@@ -70,3 +73,5 @@ template <typename PtrType, unsigned IntBits, typename IntType = unsigned> class
         return getPointer() != nullptr;
     }
 };
+
+#endif // POINTERPACKING_H

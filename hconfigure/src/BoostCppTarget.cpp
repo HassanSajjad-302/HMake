@@ -58,8 +58,8 @@ static DSC<CppTarget> &getMainTarget(const string &name, Configuration *configur
 
 BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_, const bool headerOnly,
                                const bool hasBigHeader, const bool createTestsTarget, const bool createExamplesTarget)
-    : TargetCache(*new string(configuration_->name + "Boost_" + name)), configuration(configuration_),
-      mainTarget(getMainTarget(name, configuration_, headerOnly, hasBigHeader))
+    : BTarget(*new string(configuration_->name + "Boost_" + name), false, BTargetType::UNKNOWN),
+      configuration(configuration_), mainTarget(getMainTarget(name, configuration_, headerOnly, hasBigHeader))
 {
     // Reads config-cache at build-time and
     if constexpr (bsMode == BSMode::BUILD)
@@ -67,12 +67,14 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
         if (createTestsTarget)
         {
             string testsLocation = configuration->name + slashc + name + slashc + "Tests";
-            testTarget = &targets<BTarget>.emplace_back(std::move(testsLocation), true, false, true, false);
+            testTarget = &targets<BTarget>.emplace_back(std::move(testsLocation), false, BTargetType::UNKNOWN, true,
+                                                        false, true, false);
         }
         if (createExamplesTarget)
         {
             string examplesLocation = configuration->name + slashc + name + slashc + "Examples";
-            testTarget = &targets<BTarget>.emplace_back(std::move(examplesLocation), true, false, true, false);
+            testTarget = &targets<BTarget>.emplace_back(std::move(examplesLocation), false, BTargetType::UNKNOWN, true,
+                                                        false, true, false);
         }
 
         string_view configCache = fileTargetCaches[cacheIndex].configCache;
@@ -115,7 +117,7 @@ BoostCppTarget::BoostCppTarget(const string &name, Configuration *configuration_
 
                 if (testTarget)
                 {
-                   testTarget->realBTargets[0].addDep<BTargetType::CPP_TARGET>(&cppTarget.realBTargets[0]);
+                    testTarget->realBTargets[0].addDep<BTargetType::CPP_TARGET>(&cppTarget.realBTargets[0]);
                 }
             }
             else

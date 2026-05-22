@@ -15,19 +15,13 @@ using std::string, std::ofstream, std::ifstream, std::filesystem::create_directo
 
 static void touchFile(const path &filePath)
 {
-    string command;
-    if constexpr (os == OS::NT)
+    std::ofstream file(filePath, std::ios::app);
+    if (!file)
     {
-        command = FORMAT("powershell (ls {}).LastWriteTime = Get-Date", addQuotes(filePath.string()));
+        printErrorMessage(FORMAT("touchFile: could not open: {}\n", filePath.string()));
+        return;
     }
-    else if constexpr (os == OS::LINUX)
-    {
-        command = FORMAT("touch {}", addQuotes(filePath.string()));
-    }
-    if (system(command.c_str()) == EXIT_FAILURE)
-    {
-        printErrorMessage(FORMAT("Could not touch file {}\n", filePath.string()));
-    }
+    file << '\n';
 }
 
 static void removeFilePath(const path &filePath, bool removeDirContents = false)
@@ -81,6 +75,10 @@ static void copyFilePath(const path &sourceFilePath, const path &destinationFile
     }
 }
 
+// macro needed to ensure early exit from the tests if executeSnapshotBalances fails
+
+#define BALANCES(...) ASSERT_NO_FATAL_FAILURE(executeSnapshotBalances(__VA_ARGS__))
+
 #include <stacktrace>
 static void executeSnapshotBalances(const Updates &updates, const path &hbuildExecutionPath = current_path())
 {
@@ -91,6 +89,7 @@ static void executeSnapshotBalances(const Updates &updates, const path &hbuildEx
     {
         RunCommand r;
         r.runProcess(hbuildBuildStr.c_str());
+        printMessage(*r.output);
         ASSERT_EQ(r.exitStatus, 0) << hbuildBuildStr + " command failed.";
     }
 
@@ -102,6 +101,7 @@ static void executeSnapshotBalances(const Updates &updates, const path &hbuildEx
     {
         RunCommand r;
         r.runProcess(hbuildBuildStr.c_str());
+        printMessage(*r.output);
         ASSERT_EQ(r.exitStatus, 0) << hbuildBuildStr + " command failed.";
     }
 
@@ -110,24 +110,9 @@ static void executeSnapshotBalances(const Updates &updates, const path &hbuildEx
     ASSERT_EQ(snapshot.snapshotBalances(Updates{}), true);
 }
 
-static void executeTwoSnapshotBalances(const Updates &updates1, const Updates &updates2,
-                                       const path &hbuildExecutionPath = current_path())
-{
-    // Running configure.exe --build should not update any file
-    const path p = current_path();
-    current_path(hbuildExecutionPath);
-    Snapshot snapshot(p);
-    const int exitCode = system(hbuildBuildStr.c_str());
-    ASSERT_EQ(exitCode, 0) << hbuildBuildStr + " command failed.";
-    snapshot.after(p);
-    ASSERT_EQ(snapshot.snapshotBalances(updates1), true);
+// macro needed to ensure early exit from the tests if executeErroneousSnapshotBalances fails
 
-    snapshot.before(p);
-    ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
-    snapshot.after(p);
-    current_path(p);
-    ASSERT_EQ(snapshot.snapshotBalances(updates2), true);
-}
+#define ERROR_BALANCES(...) ASSERT_NO_FATAL_FAILURE(executeErroneousSnapshotBalances(__VA_ARGS__))
 
 static void executeErroneousSnapshotBalances(const Updates &updates, const path &hbuildExecutionPath = current_path())
 {
@@ -151,73 +136,72 @@ TEST(StageTests, Test1)
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "Hello World\n");
     current_path("../../");
 
-    executeSnapshotBalances(Updates{});
+    BALANCES(Updates{});
 
     // Touching main.cpp.
     const path mainFilePath = testSourcePath / "main.cpp";
     touchFile(mainFilePath);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
     // Touching main.cpp. But hbuild executed in app-cpp.
     touchFile(mainFilePath);
-    // Test currently failing because app-cpp is already added in nodes.json because of buildCacheFilesDirPath.
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Release/app-cpp/");
+    BALANCES(Updates{.sourceFiles = 1}, "Release/app-cpp/");
 
     // Now executing again in Build
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
+    BALANCES(Updates{.linkTargetsNoDebug = 1});
 
     // Touching main.cpp. But hbuild executed in app
     touchFile(mainFilePath);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
 
     // Deleting app.exe
     const path appExeFilePath =
         testSourcePath / "Build/Release/app" / path(getActualNameFromTargetName(TargetType::EXECUTABLE, os, "app"));
     removeFilePath(appExeFilePath);
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
+    BALANCES(Updates{.linkTargetsNoDebug = 1});
 
     // Deleting app.exe. But hbuild executed in app-cpp first and then in app
     removeFilePath(appExeFilePath);
-    executeSnapshotBalances(Updates{}, "Release/app-cpp/");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Release/app/");
+    BALANCES(Updates{}, "Release/app-cpp/");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Release/app/");
 
     // Deleting app-cpp dir
     const path appCppDirectory = testSourcePath / "Build/Release/app-cpp/";
     removeDirectory(appCppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
     // Deleting app-cpp dir but executing hbuild in app
     removeDirectory(appCppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
 
     // Deleting main.cpp.o
     const path appCppDir = testSourcePath / "Build/Release/app-cpp";
     removeFilePath(appCppDir, true);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
     // Deleting main.cpp.o but executing in app/
     removeFilePath(appCppDir, true);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Release/app/");
 
     // Updating compiler-flags
     copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
     // Updating compiler-flags but executing in app
     copyFilePath(testSourcePath / "Version/hmake0.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1});
 
     // Updating compiler-flags but executing in app-cpp
     copyFilePath(testSourcePath / "Version/hmake1.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Release/app-cpp/");
+    BALANCES(Updates{.sourceFiles = 1}, "Release/app-cpp/");
 
     // Executing in Build. Only app to be updated.
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1});
+    BALANCES(Updates{.linkTargetsNoDebug = 1});
 }
 
 static void setupTest2Default()
@@ -255,39 +239,39 @@ TEST(StageTests, Test2)
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "36\n");
     current_path("../../");
 
-    executeSnapshotBalances(Updates{});
+    BALANCES(Updates{});
 
     // Touching main.cpp
     path mainFilePath = testSourcePath / "main.cpp";
     touchFile(mainFilePath);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib3.hpp
     path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
     touchFile(publicLib3DotHpp);
-    executeSnapshotBalances(Updates{.sourceFiles = 2, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 2, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Touching private-lib1 and main.cpp
     path privateLib1DotHpp = testSourcePath / "lib1/private/private-lib1.hpp";
     touchFile(mainFilePath);
     touchFile(privateLib1DotHpp);
-    executeSnapshotBalances(Updates{.sourceFiles = 2, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 2, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching lib4.cpp
     path lib4DotCpp = testSourcePath / "lib4/private/lib4.cpp";
     touchFile(lib4DotCpp);
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib4.hpp
     path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
     touchFile(publicLib4DotHpp);
-    executeSnapshotBalances(Updates{.sourceFiles = 3, .linkTargetsNoDebug = 3, .linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 3, .linkTargetsNoDebug = 3, .linkTargetsDebug = 1});
 
     // Deleting lib3-cpp dir
     path lib3CppDirectory = testSourcePath / "Build/Debug/lib3-cpp/";
     removeDirectory(lib3CppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Deleting lib4 and lib2-cpp dir
     path lib4 = testSourcePath / "Build/Debug/lib4/" /
@@ -296,7 +280,7 @@ TEST(StageTests, Test2)
     removeFilePath(lib4);
     removeDirectory(lib2CppDirectory);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Touching main.cpp lib1.cpp lib1.hpp-public lib4.hpp-public
     path lib1DotCpp = testSourcePath / "lib1/private/lib1.cpp";
@@ -305,46 +289,46 @@ TEST(StageTests, Test2)
     touchFile(lib1DotCpp);
     touchFile(publicLib1DotHpp);
     touchFile(publicLib4DotHpp);
-    executeSnapshotBalances(Updates{.sourceFiles = 5, .linkTargetsNoDebug = 4, .linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 5, .linkTargetsNoDebug = 4, .linkTargetsDebug = 1});
 
     // Touching public-lib4 then running hbuild in lib4-cpp, lib3-cpp, lib3, Build
     touchFile(publicLib4DotHpp);
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
+    BALANCES(Updates{.sourceFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Touching lib2.cpp, then executing in lib4, lib3-cpp, lib3, lib1, lib1-cpp, app
     path lib2DotCpp = testSourcePath / "lib2/private/lib2.cpp";
     touchFile(lib2DotCpp);
-    executeSnapshotBalances(Updates{}, "Debug/lib4");
-    executeSnapshotBalances(Updates{}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{}, "Debug/lib3");
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib1");
-    executeSnapshotBalances(Updates{}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
+    BALANCES(Updates{}, "Debug/lib4");
+    BALANCES(Updates{}, "Debug/lib3-cpp");
+    BALANCES(Updates{}, "Debug/lib3");
+    BALANCES(Updates{.sourceFiles = 1}, "Debug/lib1");
+    BALANCES(Updates{}, "Debug/lib1-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
 
     // Touching main.cpp lib1.hpp-public, then hbuild in app
     touchFile(mainFilePath);
     touchFile(publicLib1DotHpp);
-    executeSnapshotBalances(Updates{.sourceFiles = 2, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
+    BALANCES(Updates{.sourceFiles = 2, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
 
     // Adding public-lib1.hpp contents to main.cpp and lib1.cpp and removing it from dir
     copyFilePath(testSourcePath / "Version/1/main.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/1/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
     removeFilePath(testSourcePath / "lib1/public/public-lib1.hpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
-    executeSnapshotBalances(Updates{});
+    BALANCES(Updates{.sourceFiles = 1}, "Debug/lib1-cpp");
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
+    BALANCES(Updates{});
 
     // Replacing public-lib1.hpp with two header-files and restoring lib1.cpp and main.cpp
     copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/0/lib1.cpp", testSourcePath / "lib1/private/lib1.cpp");
     copyFilePath(testSourcePath / "Version/2/public-lib1.hpp", testSourcePath / "lib1/public/public-lib1.hpp");
     copyFilePath(testSourcePath / "Version/2/extra-include.hpp", testSourcePath / "lib1/public/extra-include.hpp");
-    executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .nodesFile = true}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{}, "Debug/lib2-cpp");
+    BALANCES(Updates{.sourceFiles = 1, .nodesFile = true}, "Debug/lib1-cpp");
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Resorting to the default-version for the project
     setupTest2Default();
@@ -355,40 +339,40 @@ TEST(StageTests, Test2)
     copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
 
-    executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/app-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsDebug = 1}, "Debug/app");
+    BALANCES(Updates{}, "Debug/lib2-cpp");
+    BALANCES(Updates{.sourceFiles = 1}, "Debug/app-cpp");
+    BALANCES(Updates{.linkTargetsDebug = 1}, "Debug/app");
 
     // Resorting to the old-main and reconfiguring the project.
     copyFilePath(testSourcePath / "Version/0/main.cpp", testSourcePath / "main.cpp");
     copyFilePath(testSourcePath / "Version/0/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
 
-    executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{}, "Debug/lib2-cpp");
+    BALANCES(Updates{}, "Debug/lib4");
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsDebug = 1});
     // Moving lib4.cpp code to temp.cpp in lib4/
     removeFilePath(testSourcePath / "lib4/private/lib4.cpp");
     copyFilePath(testSourcePath / "Version/4/temp.cpp", testSourcePath / "lib4/private/temp.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1}, "Debug/lib2-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
+    BALANCES(Updates{.linkTargetsDebug = 1});
 
-    // Copying an erroneous lib4.cpp to lib4/private. Also touching temp.cpp and removing liblib3.lib
+    // Copying an erroneous lib4.cpp to lib4/private. Also touching temp.cpp and removing lib/lib3.lib
     copyFilePath(testSourcePath / "Version/5/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
     touchFile(testSourcePath / "lib4/private/temp.cpp");
     removeFilePath(testSourcePath / "Build/Debug/lib3/" /
                    getActualNameFromTargetName(TargetType::LIBRARY_STATIC, os, "lib3"));
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeErroneousSnapshotBalances(Updates{.errorFiles = 1, .sourceFiles = 1, .linkTargetsNoDebug = 1});
-    executeErroneousSnapshotBalances(Updates{.errorFiles = 1});
-    executeErroneousSnapshotBalances(Updates{.errorFiles = 1}, "Debug/lib3");
+    ERROR_BALANCES(Updates{.errorFiles = 1, .sourceFiles = 1, .linkTargetsNoDebug = 1});
+    ERROR_BALANCES(Updates{.errorFiles = 1});
+    ERROR_BALANCES(Updates{.errorFiles = 1}, "Debug/lib3");
 
     // Erroneous lib4.cpp replaced by an empty lib4.cpp
     copyFilePath(testSourcePath / "Version/6/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1}, "Debug/lib4-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Copying Erroneous lib4.cpp to lib4/private and changing the hmake.cpp and reconfiguring the project.
     copyFilePath(testSourcePath / "Version/5/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
@@ -397,25 +381,24 @@ TEST(StageTests, Test2)
 
     create_directories("Release/lib3/");
     create_directories("Release/lib4/");
-    executeErroneousSnapshotBalances(Updates{.errorFiles = 1, .sourceFiles = 2, .linkTargetsNoDebug = 1},
-                                     "Release/lib3/");
-    executeErroneousSnapshotBalances(Updates{.errorFiles = 1, .sourceFiles = 3, .linkTargetsNoDebug = 2});
-    executeErroneousSnapshotBalances(Updates{.errorFiles = 1});
+    ERROR_BALANCES(Updates{.errorFiles = 1, .sourceFiles = 2, .linkTargetsNoDebug = 1}, "Release/lib3/");
+    ERROR_BALANCES(Updates{.errorFiles = 1, .sourceFiles = 3, .linkTargetsNoDebug = 2});
+    ERROR_BALANCES(Updates{.errorFiles = 1});
 
     // Copying Empty lib4.cpp
     copyFilePath(testSourcePath / "Version/6/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Release/lib4-cpp/");
-    executeSnapshotBalances(Updates{}, "Release/lib3-cpp/");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2});
+    BALANCES(Updates{.sourceFiles = 1}, "Release/lib4-cpp/");
+    BALANCES(Updates{}, "Release/lib3-cpp/");
+    BALANCES(Updates{.linkTargetsNoDebug = 2});
 
     // Restoring lib4.cpp. This hmake.cpp will make the selection between lib4.cpp and temp.cpp based on the cache
     // variable use-lib4.cpp value
     copyFilePath(testSourcePath / "Version/8/hmake.cpp", testSourcePath / "hmake.cpp");
     copyFilePath(testSourcePath / "Version/0/lib4.cpp", testSourcePath / "lib4/private/lib4.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 1}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 1}, "Debug/lib2-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
+    BALANCES(Updates{.linkTargetsDebug = 1});
 
     path cacheFile = testSourcePath / "Build/cache.json";
     Json cacheJson;
@@ -424,25 +407,25 @@ TEST(StageTests, Test2)
     cacheJson["cache-variables"]["use-lib4.cpp"] = false;
     ofstream(cacheFile) << cacheJson.dump(4);
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{}, "Debug/lib2-cpp");
+    BALANCES(Updates{}, "Debug/lib2-cpp");
 
     // The following 2 tests are failing on Windows and I think that is due to incremental linking. Same command
     // executed on console fails and then passes.
 #ifdef _WIN32
     // ASSERT_EQ(system(hbuildBuildStr.c_str()), 0) << hbuildBuildStr + " command failed.";
 #else
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
-    executeSnapshotBalances(Updates{});
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1}, "Debug/app");
+    BALANCES(Updates{});
 #endif
 
     // Adding a public compile definition for lib4 target. this is tested as compile-definition and compile-flags are
     // not cached like include-dirs and others.
     copyFilePath(testSourcePath / "Version/9/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.sourceFiles = 2}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.sourceFiles = 2}, "Debug/lib3-cpp");
+    BALANCES(Updates{.sourceFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 }
 
 static void setupTest3Default(const path &testSourcePath)
@@ -477,96 +460,93 @@ TEST(StageTests, Test3)
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "36\n");
     current_path("../../");
 
-    executeSnapshotBalances(Updates{});
+    BALANCES(Updates{});
 
     // Making public-lib3.hpp a header-unit
     copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    BALANCES(Updates{}, "Debug/lib4-cpp");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Touching lib3.cpp
     const path publicLib3DotCpp = testSourcePath / "lib3/private/lib3.cpp";
     touchFile(publicLib3DotCpp);
-    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{}, "Debug/lib4-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib4.hpp
     const path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
     touchFile(publicLib4DotHpp);
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib4");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib3.hpp
     const path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
     touchFile(publicLib3DotHpp);
-    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{}, "Debug/lib4-cpp");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib4.hpp
     touchFile(publicLib4DotHpp);
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib4");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Adding private compile-definition to lib3.
     copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    BALANCES(Updates{}, "Debug/lib4-cpp");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
-    // Removing private compile-definition to lib3. And only compiling lib3-cpp. Then we add the definition again, only
-    // the lib3-cpp will be compiled. The compile-command did not change for lib2.cpp however. And not for any of its
-    // deps as per its cache.
+    // Removing private compile-definition lib3.cpp.
     copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
-    copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(
-        Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{}, "Debug/lib4-cpp");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Just an extra re-configuration test.
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
+    BALANCES(Updates{}, "Debug/lib4-cpp");
 
     // Making public-lib4.hpp and private-lib4.hpp header-units. compile-definition removed as well.
     copyFilePath(testSourcePath / "Version/2/hmake.cpp", testSourcePath / "hmake.cpp");
     // private-lib4.hpp, public-lib4.hpp, public-lib3.hpp, lib3.cpp, lib4.cpp.
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 3, .moduleFiles = 2}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    BALANCES(Updates{.headerUnits = 3, .moduleFiles = 2}, "Debug/lib3-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Making public-lib4.hpp and private-lib4.hpp header-files.
     copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 2}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 2}, "Debug/lib3-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Making public-lib4.hpp and private-lib4.hpp header-units again. Should not be recompiled.
     copyFilePath(testSourcePath / "Version/2/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 3}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{}, "Debug/app-cpp");
-    executeSnapshotBalances(Updates{}, "Debug/lib1");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.linkTargetsDebug = 1}, "Debug/app");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 3}, "Debug/lib1-cpp");
+    BALANCES(Updates{}, "Debug/app-cpp");
+    BALANCES(Updates{}, "Debug/lib1");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
+    BALANCES(Updates{.linkTargetsDebug = 1}, "Debug/app");
 
     //  Touching public-lib4.hpp.
     //  lib3.cpp has a header-unit dep on public-lib3.hpp which has a header-dep on public-lib4.hpp, i.e.
@@ -574,10 +554,10 @@ TEST(StageTests, Test3)
     touchFile(testSourcePath / "lib4/public/public-lib4.hpp");
 
     // lib2.cpp, lib3.cpp, lib4.cpp, public-lib3.hpp, public-lib4.hpp.
-    executeSnapshotBalances(Updates{.moduleFiles = 4}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    BALANCES(Updates{.moduleFiles = 4}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib1-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 }
 
 // Tests for header-file changing to header-unit, and back from heaader-unit to header-file. Tests header-file and
@@ -593,106 +573,103 @@ TEST(StageTests, Test4)
     ExamplesTestHelper::runAppWithExpectedOutput(current_path().string() + "/app", "36\n");
     current_path("../../");
 
-    executeSnapshotBalances(Updates{});
+    BALANCES(Updates{});
 
     // Making public-lib3.hpp a header-unit
     copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 1}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    BALANCES(Updates{.headerUnits = 1}, "Debug/lib4-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Touching lib3.cpp
     const path publicLib3DotCpp = testSourcePath / "lib3/private/lib3.cpp";
     touchFile(publicLib3DotCpp);
-    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{}, "Debug/lib4-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib4.hpp
     const path publicLib4DotHpp = testSourcePath / "lib4/public/public-lib4.hpp";
     touchFile(publicLib4DotHpp);
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib4");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib3.hpp
     const path publicLib3DotHpp = testSourcePath / "lib3/public/public-lib3.hpp";
     touchFile(publicLib3DotHpp);
-    executeSnapshotBalances(Updates{.headerUnits = 1}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.headerUnits = 1}, "Debug/lib4-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Touching public-lib4.hpp
     touchFile(publicLib4DotHpp);
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib4");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Adding private compile-definition to lib3.
     copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 1}, "Debug/lib4-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    BALANCES(Updates{.headerUnits = 1}, "Debug/lib4-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
-    // Removing private compile-definition to lib3. And only compiling lib3-cpp. Then we add the definition again, only
-    // the lib3-cpp will be compiled. The compile-command did not change for lib2.cpp however. And not for any of its
-    // deps as per its cache.
+    // Removing private compile-definition to lib3.
     copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 1}, "Debug/lib3-cpp");
-    copyFilePath(testSourcePath / "Version/3/hmake.cpp", testSourcePath / "hmake.cpp");
-    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(
-        Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.headerUnits = 1}, "Debug/lib4-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib2-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Just an extra re-configuration test.
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{}, "Debug/lib4-cpp");
+    BALANCES(Updates{}, "Debug/lib4-cpp");
 
     // Making public-lib4.hpp and private-lib4.hpp header-units. compile-definition removed as well.
     copyFilePath(testSourcePath / "Version/2/hmake.cpp", testSourcePath / "hmake.cpp");
     // private-lib4.hpp, public-lib4.hpp, public-lib3.hpp, lib3.cpp, lib4.cpp.
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 3, .moduleFiles = 2}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    BALANCES(Updates{.headerUnits = 3, .moduleFiles = 2}, "Debug/lib3-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 
     // Making public-lib4.hpp and private-lib4.hpp header-files.
     copyFilePath(testSourcePath / "Version/1/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 2}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 2}, "Debug/lib3-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsNoDebug = 1, .linkTargetsDebug = 1});
 
     // Making public-lib4.hpp and private-lib4.hpp header-units again. Should not be recompiled.
     copyFilePath(testSourcePath / "Version/2/hmake.cpp", testSourcePath / "hmake.cpp");
     ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
-    executeSnapshotBalances(Updates{.headerUnits = 1, .moduleFiles = 3}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{}, "Debug/app-cpp");
-    executeSnapshotBalances(Updates{}, "Debug/lib1");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
-    executeSnapshotBalances(Updates{.linkTargetsDebug = 1}, "Debug/app");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 3}, "Debug/lib1-cpp");
+    BALANCES(Updates{}, "Debug/app-cpp");
+    BALANCES(Updates{}, "Debug/lib1");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib3");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib4");
+    BALANCES(Updates{.linkTargetsDebug = 1}, "Debug/app");
 
     //  Touching public-lib4.hpp. lib3.cpp has a header-unit dep on public-lib3.hpp which has a header-dep on
     //  public-lib4.hpp, i.e. public-lib3.hpp will be recompiled and its dependent lib3.cpp will also be recompiled
     touchFile(testSourcePath / "lib4/public/public-lib4.hpp");
 
     // lib2.cpp, lib3.cpp, lib4.cpp, public-lib3.hpp, public-lib4.hpp.
-    executeSnapshotBalances(Updates{.moduleFiles = 4}, "Debug/lib3-cpp");
-    executeSnapshotBalances(Updates{.moduleFiles = 1}, "Debug/lib1-cpp");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
-    executeSnapshotBalances(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
+    BALANCES(Updates{.moduleFiles = 4}, "Debug/lib3-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Debug/lib1-cpp");
+    BALANCES(Updates{.linkTargetsNoDebug = 1}, "Debug/lib2");
+    BALANCES(Updates{.linkTargetsNoDebug = 2, .linkTargetsDebug = 1});
 }
 
 // Test for cycle in modules. In first case, we add an inverse module relationship between two modules. Then we fix
@@ -734,7 +711,7 @@ TEST(StageTests, Test5)
 
     // We correct the older cycle.
     copyFilePath(testSourcePath / "Version/0/ten.cppm", example8Path / "Mod_Src/ten.cppm");
-    executeSnapshotBalances(Updates{.moduleFiles = 1, .imodFiles = 12, .linkTargetsDebug = 1}, example8Path / "Build");
+    BALANCES(Updates{.moduleFiles = 1, .imodFiles = 12, .linkTargetsDebug = 1}, example8Path / "Build");
 
     // We add a bigger cycle this time
     // We modify fifteen.cppm to depend on seven.cppm. but sever.cppm already -> fourteen.cppm -> fifteen.cppm.
@@ -760,6 +737,95 @@ TEST(StageTests, Test5)
 
     copyFilePath(testSourcePath / "Version/0/ten.cppm", example8Path / "Mod_Src/ten.cppm");
     copyFilePath(testSourcePath / "Version/0/fifteen.cppm", example8Path / "Mod_Src/fifteen.cppm");
+}
+
+// Tests a custom code generator (HeaderGenerator). This generator generates a header-file based on input file. This
+// code-generator is built as part of the build. This ensures that a consuming module is built if any file of the
+// code-generator is changed, or input-command of code-generator is changed or the input-file of the code-generator is
+// changed.
+TEST(StageTests, Test6)
+{
+    const path testSourcePath = path(SOURCE_DIRECTORY) / path("Tests/Stage/Test6");
+
+    const path hmakeVersion0 = testSourcePath / "Version/hmakev0.cpp";
+    const path hmakeVersion1 = testSourcePath / "Version/hmakev1.cpp";
+
+    const path tool2Version0 = testSourcePath / "Version/tool2v0.cpp";
+    const path tool2Version1 = testSourcePath / "Version/tool2v1.cpp";
+
+    const path valueVersion0 = testSourcePath / "Version/valuev0.txt";
+    const path valueVersion1 = testSourcePath / "Version/valuev1.txt";
+
+    copyFilePath(hmakeVersion0, testSourcePath / "hmake.cpp");
+    copyFilePath(tool2Version0, testSourcePath / "tool2.cpp");
+    copyFilePath(valueVersion0, testSourcePath / "value.txt");
+
+    current_path(testSourcePath);
+    ExamplesTestHelper::cleanBuild();
+
+    ExamplesTestHelper::runAppWithExpectedOutput(testSourcePath / "Build/Release/app/app", "20\n");
+
+    BALANCES(Updates{});
+
+    const path toolCppFilePath = testSourcePath / path("tool.cpp");
+    touchFile(toolCppFilePath);
+
+    // app-hu.ifc, tool.cpp, app.cpp --- tool, app -- output.h
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 2, .linkTargetsDebug = 2, .generatedHeaders = 1});
+
+    touchFile(toolCppFilePath);
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsDebug = 1}, "Release/tool");
+    BALANCES(Updates{.generatedHeaders = 1}, "Release/IncGen");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsDebug = 1});
+
+    const path toolDepBuildDir = testSourcePath / "Build/Release/tooldep-cpp";
+
+    // removing dependency build-directory contents. only hu should be built. as hu is not being consumed anywhere
+    removeFilePath(toolDepBuildDir, true);
+    BALANCES(Updates{.headerUnits = 1}, "Release/tooldep-cpp");
+    BALANCES(Updates{});
+
+    const path toolBuildDir = testSourcePath / "Build/Release/tool-cpp";
+
+    // removing tool-cpp build-directory contents. header-gen should be built as-well as the tool would be updated.
+    removeFilePath(toolBuildDir, true);
+    BALANCES(Updates{.moduleFiles = 2, .linkTargetsDebug = 1}, "Release/tool");
+    BALANCES(Updates{.generatedHeaders = 1}, "Release/IncGen");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsDebug = 1});
+
+    // tool2 includes the hu by tool2-dep
+    copyFilePath(tool2Version1, testSourcePath / "tool2.cpp");
+    BALANCES(Updates{}, "Release/tooldep-cpp");
+    BALANCES(Updates{.moduleFiles = 1}, "Release/tool-cpp");
+    BALANCES(Updates{.linkTargetsDebug = 1, .generatedHeaders = 1}, "Release/IncGen");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsDebug = 1});
+
+    const path toolDepHuDepHeader = testSourcePath / "tool-hu-header.hpp";
+    touchFile(toolDepHuDepHeader);
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1}, "Release/tool-cpp");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsDebug = 2, .generatedHeaders = 1});
+
+    // We have tested the header-gen tool correctly generating the header-file. Now we would test the
+    // dependency-specification. We add the app2.cpp dependency on header-gen and then remove it. In both cases it would
+    // be rebuilt even though it never included the output.h header-file.
+
+    copyFilePath(hmakeVersion1, testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    BALANCES(Updates{}, "Release/tool-cpp");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsDebug = 1});
+
+    copyFilePath(hmakeVersion0, testSourcePath / "hmake.cpp");
+    ASSERT_EQ(system(hhelperStr.c_str()), 0) << hhelperStr + " command failed.";
+    BALANCES(Updates{}, "Release/tool-cpp");
+    BALANCES(Updates{.moduleFiles = 1, .linkTargetsDebug = 1});
+
+    copyFilePath(valueVersion1, testSourcePath / "value.txt");
+    BALANCES(Updates{}, "Release/tooldep-cpp");
+    BALANCES(Updates{}, "Release/tool-cpp");
+    BALANCES(Updates{.generatedHeaders = 1}, "Release/IncGen");
+    BALANCES(Updates{.headerUnits = 1, .moduleFiles = 1, .linkTargetsDebug = 1});
+
+    ExamplesTestHelper::runAppWithExpectedOutput(testSourcePath / "Build/Release/app/app", "30\n");
 }
 
 // TODO

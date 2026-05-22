@@ -6,7 +6,8 @@
 #include "CppTarget.hpp"
 #include "IPCManagerCompiler.hpp"
 #include "JConsts.hpp"
-#include "TargetCache.hpp"
+#include "rapidhash/rapidhash.h"
+
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
@@ -30,45 +31,62 @@ bool CompareCppSrc::operator()(const CppSrc &lhs, const Node *rhs) const
     return lhs.node < rhs;
 }
 
-#ifdef BUILD_MODE
-CppSrc::CppSrc(CppTarget *target_, const Node *node_) : ObjectFile(true, false), target(target_), node{node_}
+CppSrc::CppSrc(CppTarget *target_, const Node *node_, CppModType cppModType)
+    : ObjectFile(static_cast<uint64_t>(node_->myId) << 32 | static_cast<uint64_t>(target_->cacheIndex) << 3 |
+                     static_cast<uint64_t>(cppModType),
+                 cppModType == CppModType::CPP_SRC ? BTargetType::CPP_SRC : BTargetType::CPP_MOD, true, false),
+      target(target_), node{node_}
 {
+    if constexpr (bsMode == BSMode::CONFIGURE)
+    {
+        return;
+    }
+
+    if (cppModType != CppModType::CPP_SRC)
+    {
+        return;
+    }
+
+    {
+        // reading config-cache.
+
+        uint32_t bytesRead = 0;
+        const string_view configCache = fileTargetCaches[cacheIndex].configCache;
+        objectNode = readHalfNode(configCache.data(), bytesRead);
+
+        if (4 != configCache.size())
+        {
+            HMAKE_HMAKE_INTERNAL_ERROR
+        }
+    }
+
+    uint32_t bytesRead = 0;
+
+    const string_view buildCache = fileTargetCaches[cacheIndex].getBuildCache();
+    const char *ptr = buildCache.data();
+
+    const_cast<Node *>(node)->checkHashing = true;
+
+    const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
+
+    cachedHeaderFiles = span{reinterpret_cast<const uint32_t *>(ptr + bytesRead), headerFilesSize};
+    for (uint32_t i = 0; i < headerFilesSize; ++i)
+    {
+        Node *headerNode = readHalfNode(ptr, bytesRead);
+        headerNode->checkHashing = true;
+    }
+
+    if (bytesRead != buildCache.size())
+    {
+        HMAKE_HMAKE_INTERNAL_ERROR
+    }
+
+    objectNode->toBeChecked = true;
 }
-#else
-CppSrc::CppSrc(CppTarget *target_, const Node *node_) : ObjectFile(false, false), target(target_), node{node_}
-{
-}
-#endif
 
 string CppSrc::getPrintName() const
 {
     return node->filePath;
-}
-
-void CppSrc::initializeBuildCache(const uint32_t index, const uint64_t commandHash_)
-{
-    myBuildCacheIndex = index;
-    commandHash = commandHash_;
-
-    const BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[index];
-    if (buildCache.compileCommand != commandHash)
-    {
-        realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
-        return;
-    }
-
-    objectNode->toBeChecked = true;
-
-    if (target->ignoreHeaderDeps)
-    {
-        return;
-    }
-
-    const_cast<bool &>(node->toBeChecked) = true;
-    for (Node *headerFile : buildCache.headerFiles)
-    {
-        headerFile->toBeChecked = true;
-    }
 }
 
 void CppSrc::getCompileCommand(std::pmr::string &compileCommand) const
@@ -98,12 +116,15 @@ void CppSrc::getCompileCommand(std::pmr::string &compileCommand) const
     }
 }
 
+// TODO
+// currently un-used. should be used in ipc based builds?
 bool CppSrc::ignoreHeaderFile(const string_view child) const
 {
+    return false;
     // It is assumed that both paths are normalized strings
     for (const InclNode &inclNode : target->reqIncls)
     {
-        if (inclNode.ignoreHeaderDeps)
+        if (inclNode.isStandard)
         {
             if (childInParentPathNormalized(inclNode.node->filePath, child))
             {
@@ -118,7 +139,7 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
 {
     const string includeFileNote = "Note: including file:";
 
-    if (target->ignoreHeaderDeps || realBTargets[0].exitStatus != EXIT_SUCCESS)
+    if (realBTargets[0].exitStatus != EXIT_SUCCESS)
     {
         string str = output;
         output.clear();
@@ -234,10 +255,6 @@ void CppSrc::parseDepsFromMSVCTextOutput(string &output, const bool isClang)
 
 void CppSrc::parseDepsFromGCCDepsOutput(Builder &builder)
 {
-    if (target->ignoreHeaderDeps)
-    {
-        return;
-    }
     string headerDepsFile = objectNode->filePath;
     // replacing .o ext with .d
     headerDepsFile[headerDepsFile.size() - 1] = 'd';
@@ -303,77 +320,34 @@ bool pathContainsFile(string_view dir, const string_view file)
     return std::equal(dir.begin(), dir.end(), withoutFileName.begin());
 }
 
-void CppSrc::setCppSrcFileStatus()
+void CppSrc::setFileStatus()
 {
+    RealBTarget &rb = realBTargets[0];
+    assert(rb.updateStatus == UpdateStatus::UNCHECKED);
+
     if (node->fileType == file_type::not_found)
     {
         printErrorMessage(FORMAT("Source-File {}\n of target {}\n not found.\n", node->filePath, target->name));
     }
 
-    RealBTarget &rb = realBTargets[0];
-    if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
+    if (objectNode->fileType == file_type::not_found)
     {
+        rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
         return;
     }
 
-    rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
-
-    if (target->ignoreHeaderDeps)
+    // pmr
+    std::vector<uint64_t> contentHashes;
+    contentHashes.reserve(1 + 1 + cachedHeaderFiles.size());
+    contentHashes.emplace_back(commandHash);
+    contentHashes.emplace_back(node->contentHash);
+    for (const uint32_t nodeIndex : cachedHeaderFiles)
     {
-        if (objectNode->fileType == file_type::not_found)
-        {
-            return;
-        }
-        rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
-        return;
+        contentHashes.emplace_back(Node::getHalfNode(nodeIndex)->contentHash);
     }
+    rb.cumulativeHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
 
-    const BuildCache::Cpp::SourceFile &myBuildCache = target->cppBuildCache.srcFiles[myBuildCacheIndex];
-    if (objectNode->fileType == file_type::not_found || node->lastWriteTime > myBuildCache.launchTime)
-    {
-        return;
-    }
-
-    for (const vector<Node *> &headers = myBuildCache.headerFiles; const Node *headerNode : headers)
-    {
-        if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > myBuildCache.launchTime)
-        {
-            return;
-        }
-    }
-
-    rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
-}
-
-void CppSrc::updateBuildCache()
-{
-    BuildCache::Cpp::SourceFile &buildCache = target->cppBuildCache.srcFiles[myBuildCacheIndex];
-
-    if (realBTargets[0].updateStatus != UpdateStatus::UPDATED)
-    {
-        return;
-    }
-
-    buildCache.compileCommand = commandHash;
-    buildCache.launchTime = globalLaunchTime;
-    buildCache.headerFiles.clear();
-    for (Node *header : headerFiles)
-    {
-        buildCache.headerFiles.emplace_back(header);
-    }
-}
-
-SourceType CppSrc::setSourceType()
-{
-    if (node->filePath.ends_with(".c"))
-    {
-        sourceType = SourceType::C;
-    }
-    else if (node->filePath.ends_with(".S") || node->filePath.ends_with(".s"))
-    {
-        sourceType = SourceType::ASSEMBLY;
-    }
-    return sourceType;
+    ObjectFile::setFileStatus();
 }
 
 bool CppSrc::isEventRegistered(Builder &builder)
@@ -382,15 +356,15 @@ bool CppSrc::isEventRegistered(Builder &builder)
     {
         return false;
     }
-
-    setCppSrcFileStatus();
-    RealBTarget &rb = realBTargets[0];
-    if (rb.updateStatus != UpdateStatus::NEEDS_UPDATE)
+    const RealBTarget &rb = realBTargets[0];
+    if (rb.updateStatus == UpdateStatus::UNCHECKED)
+    {
+        setFileStatus();
+    }
+    if (rb.updateStatus != UpdateStatus::UPDATED_NEEDED)
     {
         return false;
     }
-
-    rb.assignNeedsUpdateToDependents();
 
     constexpr uint32_t stackSize = 64 * 1024;
     char buffer[stackSize];
@@ -406,6 +380,9 @@ bool CppSrc::isEventRegistered(Builder &builder)
         return false;
     }
 
+    realBTargets[0].launchTime =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count();
     run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, false);
     return true;
 }
@@ -416,13 +393,13 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
 
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
-        realBTargets[0].updateStatus = UpdateStatus::UPDATED;
-        // This must be just before printing as this is asynchronousl accessed in savBuildCache
-        target->buildCacheUpdated = true;
-    }
-    else
-    {
-        realBTargets[0].updateStatus = UpdateStatus::UPDATED_WITHOUT_BUILDING;
+        // maybe move to where these are parsed
+        for (Node *headerNode : headerFiles)
+        {
+            headerNode->checkHashing = true;
+        }
+        buildCacheUpdated = true;
+        buildFooterUpdated = true;
     }
 
     constexpr uint32_t stackSize = 64 * 1024;
@@ -462,84 +439,282 @@ bool CppSrc::isEventCompleted(Builder &builder, string_view)
     return false;
 }
 
+void CppSrc::writeConfigCacheAtConfigTime(string &buffer)
+{
+    const string fileNumber = toString(node->myId);
+    objectNode =
+        Node::getNode(target->myBuildDir->filePath + slashc + node->getFileName() + fileNumber + ".o", true, true);
+    writeNode(buffer, objectNode);
+}
+
+void CppSrc::writeBuildCacheAtConfigTime(string &buffer)
+{
+    // sizeof header-files
+    writeUint32(buffer, 0);
+}
+
+void CppSrc::writeBuildCacheAtBuildTime(string &buffer)
+{
+    RealBTarget &rb = realBTargets[0];
+    // pmr
+    std::vector<uint64_t> contentHashes;
+    contentHashes.reserve(1 + 1 + headerFiles.size()); // headerFiles, not cachedHeaderFiles
+    contentHashes.emplace_back(commandHash);
+    contentHashes.emplace_back(node->contentHash);
+    for (const Node *headerNode : headerFiles) // headerFiles, not cachedHeaderFiles
+    {
+        if (headerNode->lastWriteTime > rb.launchTime)
+        {
+            // File was modified after process launched — hash is stale.
+            contentHashes.emplace_back(0);
+        }
+        else
+        {
+            contentHashes.emplace_back(headerNode->contentHash);
+        }
+    }
+    rb.cumulativeHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
+    writeUint32(buffer, headerFiles.size());
+    for (const Node *header : headerFiles)
+    {
+        writeNode(buffer, header);
+    }
+}
+
+void CppSrc::verifyBuildCache(const string_view buildCache) const
+{
+    const RealBTarget &rb = realBTargets[0];
+
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        // Recompute cumulativeHash and dump to debug file for comparison.
+        std::vector<uint64_t> contentHashes;
+        contentHashes.reserve(1 + 1 + headerFiles.size());
+        contentHashes.emplace_back(commandHash);
+        contentHashes.emplace_back(node->contentHash);
+        for (const Node *headerNode : headerFiles)
+        {
+            if (headerNode->lastWriteTime > rb.launchTime)
+            {
+                contentHashes.emplace_back(0);
+            }
+            else
+            {
+                contentHashes.emplace_back(headerNode->contentHash);
+            }
+        }
+
+        {
+            const uint64_t recomputedHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
+            const path debugFile =
+                target->myBuildDir->filePath + slashc + string("hashes") + toString(node->myId) + ".txt";
+            if (std::ofstream out(debugFile, std::ios::app); out)
+            {
+                out << "commandHash:       " << commandHash << '\n';
+                out << "node->contentHash: " << node->contentHash << '\n';
+                uint32_t i = 0;
+                for (const Node *headerNode : headerFiles)
+                {
+                    out << "header[" << i++ << "] " << (headerNode ? headerNode->filePath : "<null>")
+                        << " hash=" << contentHashes[i + 1] << '\n'; // +2 offset: [0]=commandHash [1]=node->contentHash
+                }
+                out << "recomputedHash: " << recomputedHash << '\n';
+                out << "storedHash:     " << rb.cumulativeHash << '\n';
+            }
+
+            if (recomputedHash != rb.cumulativeHash)
+            {
+                printErrorMessage(FORMAT("{} caching-verification failed as recomputed cumulativeHash != stored\n"
+                                         "recomputed={} stored={}\n",
+                                         getPrintName(), recomputedHash, rb.cumulativeHash));
+            }
+        }
+    }
+
+    uint32_t bytesRead = 0;
+
+    const uint32_t cachedHeaderFilesSize = readUint32(buildCache.data(), bytesRead);
+    if (headerFiles.size() != cachedHeaderFilesSize)
+    {
+        printErrorMessage(FORMAT("{} caching-verification failed as headerFiles.size() != cached headerFilesSize\n"
+                                 "current={} cached={}\n",
+                                 getPrintName(), headerFiles.size(), cachedHeaderFilesSize));
+    }
+
+    for (uint32_t i = 0; i < cachedHeaderFilesSize; ++i)
+    {
+        const Node *cachedNode = readHalfNode(buildCache.data(), bytesRead);
+        if (!headerFiles.contains(cachedNode))
+        {
+            printErrorMessage(FORMAT("{} caching-verification failed as cached headerFile\n{} at index {}\n"
+                                     "is not present in current headerFiles\n",
+                                     getPrintName(), cachedNode ? cachedNode->filePath : "<null>", i));
+        }
+    }
+
+    verifyBTargetHeader(buildCache, bytesRead);
+    if (buildCache.size() != bytesRead)
+    {
+        printErrorMessage(FORMAT("{} caching-verification failed as buildCache.size() != bytesRead {} vs {}\n",
+                                 getPrintName(), buildCache.size(), bytesRead));
+    }
+}
+
+void CppSrc::verifyConfigCache(const string_view configCache) const
+{
+    ObjectFile::verifyConfigCache(configCache);
+}
+
 bool operator<(const CppSrc &lhs, const CppSrc &rhs)
 {
     return lhs.node < rhs.node;
 }
 
-CppMod::CppMod(CppTarget *target_, const Node *node_) : CppSrc(target_, node_)
+CppMod::CppMod(CppTarget *target_, const Node *node_, const CppModType cppModType)
+    : CppSrc(target_, node_, cppModType), type(cppModType)
+
 {
-    realBTargets[0].dependencies.reserve(400);
-}
-
-void CppMod::initializeBuildCache(BuildCache::Cpp::ModuleFile &modCache, const uint32_t index,
-                                  const uint64_t commandHash_)
-{
-    if (node->filePath.contains("public-lib3.hpp"))
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        bool breakpooint = true;
-    }
-
-    myBuildCacheIndex = index;
-    myBuildCache = &modCache;
-    commandHash = commandHash_;
-
-    if (modCache.srcFile.compileCommand != commandHash)
-    {
-        realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
         return;
     }
+    RealBTarget &rb = realBTargets[0];
 
-    if (modCache.headerStatusChanged)
-    {
-        realBTargets[0].updateStatus = UpdateStatus::NEEDS_UPDATE;
-        return;
-    }
+    const bool isHU = type == CppModType::HEADER_UNIT;
+    const bool isImpl = type == CppModType::PRIMARY_IMPLEMENTATION;
 
-    if (type == CppModType::HEADER_UNIT)
     {
-        interfaceNode->toBeChecked = true;
-    }
-    else
-    {
-        objectNode->toBeChecked = true;
-        if (type == CppModType::PARTITION_EXPORT || type == CppModType::PRIMARY_EXPORT)
+        uint32_t bytesRead = 0;
+        const string_view configCache = fileTargetCaches[cacheIndex].configCache;
+        const char *ptr = configCache.data();
+
+        if (!isImpl)
         {
-            interfaceNode->toBeChecked = true;
+            interfaceNode = readHalfNode(ptr, bytesRead);
+            if (!isHU)
+            {
+                logicalNames.emplace_back(readStringView(ptr, bytesRead));
+            }
+        }
+
+        if (!isHU)
+        {
+            objectNode = readHalfNode(ptr, bytesRead);
+
+            const uint32_t logicalNamesSize = readUint32(ptr, bytesRead);
+            logicalNames.reserve(logicalNamesSize);
+
+            for (uint32_t j = 0; j < logicalNamesSize; ++j)
+            {
+                string_view str = readStringView(ptr, bytesRead);
+                target->imodNames.emplace(str, this);
+            }
+        }
+        else
+        {
+            isReqHu = readBool(ptr, bytesRead);
+            isUseReqHu = readBool(ptr, bytesRead);
+
+            const uint32_t headerFileModuleSize = readUint32(ptr, bytesRead);
+            const uint32_t logicalNamesSize = readUint32(ptr, bytesRead);
+            logicalNames.reserve(logicalNamesSize + headerFileModuleSize);
+
+            for (uint32_t j = 0; j < headerFileModuleSize; ++j)
+            {
+                string_view headerFileName = readStringView(ptr, bytesRead);
+                if (target->useIPC)
+                {
+                    Node *headerNode = readHalfNode(ptr, bytesRead);
+                    composingHeaders.emplace(headerFileName, headerNode);
+                }
+                else
+                {
+                    composingHeaders.emplace(headerFileName, nullptr);
+                }
+                logicalNames.emplace_back(headerFileName);
+
+                if (isReqHu)
+                {
+                    target->reqHeaderNameMapping.emplace(headerFileName, HeaderFileOrUnit(this, target->isSystem));
+                }
+
+                if (isUseReqHu)
+                {
+                    const auto &[it, ok] =
+                        target->configuration->headerNameMapping.emplace(headerFileName, vector<HeaderFileOrUnit>{});
+                    it->second.emplace_back(target->cacheIndex, this, target->isSystem);
+                }
+            }
+
+            for (uint32_t j = 0; j < logicalNamesSize; ++j)
+            {
+                string_view str = readStringView(ptr, bytesRead);
+                logicalNames.emplace_back(str);
+                if (isReqHu)
+                {
+                    target->reqHeaderNameMapping.emplace(str, HeaderFileOrUnit(this, target->isSystem));
+                }
+
+                if (isUseReqHu)
+                {
+                    const auto &[it, ok] =
+                        target->configuration->headerNameMapping.emplace(str, vector<HeaderFileOrUnit>{});
+                    it->second.emplace_back(target->cacheIndex, this, target->isSystem);
+                }
+            }
+        }
+
+        if (bytesRead != configCache.size())
+        {
+            HMAKE_HMAKE_INTERNAL_ERROR
         }
     }
 
-    // if ignoreHeaderDeps is true, it is assumed that user won't delete the source-file, however, object-file, pcm can
-    // be deleted.
-    if (target->ignoreHeaderDeps)
+    uint32_t bytesRead = 0;
+
+    const string_view buildCache = fileTargetCaches[cacheIndex].getBuildCache();
+    const char *ptr = buildCache.data();
+
+    // headerStatusChanged
+    if (readBool(ptr, bytesRead))
     {
-        return;
+        rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
     }
 
-    const_cast<bool &>(node->toBeChecked) = true;
-    for (const vector<Node *> headers = modCache.srcFile.headerFiles; Node *headerFile : headers)
+    const_cast<Node *>(node)->checkHashing = true;
+
+    const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
+
+    cachedHeaderFiles = span{reinterpret_cast<const uint32_t *>(ptr + bytesRead), headerFilesSize};
+    for (uint32_t i = 0; i < headerFilesSize; ++i)
     {
-        headerFile->toBeChecked = true;
+        Node *headerNode = readHalfNode(ptr, bytesRead);
+        headerNode->checkHashing = true;
     }
 
-    for (const ModuleFile::SingleHeaderUnitDep &h : myBuildCache->headerUnitArray)
+    const uint32_t cachedDepsSize = readUint32(ptr, bytesRead);
+    cachedDeps = span{reinterpret_cast<const uint32_t *>(ptr + bytesRead), cachedDepsSize};
+
+    bytesRead += 4 * cachedDepsSize;
+
+    if (bytesRead != buildCache.size())
     {
-        h.node->toBeChecked = true;
+        HMAKE_HMAKE_INTERNAL_ERROR
     }
 
-    for (const ModuleFile::SingleModuleDep &m : myBuildCache->moduleArray)
+    if (!isImpl)
     {
-        m.node->toBeChecked = true;
+        interfaceNode->toBeChecked = true;
+    }
+
+    if (!isHU)
+    {
+        objectNode->toBeChecked = true;
     }
 }
 
 void CppMod::makeMemoryFileMapping()
 {
-    if (type == CppModType::PRIMARY_IMPLEMENTATION)
-    {
-        return;
-    }
-
     if (memoryMappingCompleted)
     {
         return;
@@ -556,38 +731,82 @@ void CppMod::makeMemoryFileMapping()
     memoryMappingCompleted = true;
 }
 
+void CppMod::populateAllDeps()
+{
+    if (isAllDepsPopulated)
+    {
+        return;
+    }
+
+    isAllDepsPopulated = true;
+
+    if (realBTargets[0].updateStatus == UpdateStatus::UPDATED_NEEDED)
+    {
+        for (const CppModWithDirect &depWithDirect : allCppModDeps)
+        {
+            if (CppMod *cppMod = depWithDirect.getPointer();
+                allCppModDeps.emplace(CppModWithDirect(cppMod, false)).second)
+            {
+                cppMod->populateAllDeps();
+                for (const CppModWithDirect &transitive : cppMod->allCppModDeps)
+                {
+                    allCppModDeps.emplace(transitive.getPointer(), false);
+                }
+            }
+        }
+    }
+    else
+    {
+        for (const uint32_t &dep : cachedDeps)
+        {
+            if (CppMod *cppMod = static_cast<CppMod *>(fileTargetCaches[dep].bTarget);
+                allCppModDeps.emplace(CppModWithDirect(cppMod, false)).second)
+            {
+                cppMod->populateAllDeps();
+                for (const CppModWithDirect &transitive : cppMod->allCppModDeps)
+                {
+
+                    allCppModDeps.emplace(transitive.getPointer(), false);
+                }
+            }
+        }
+    }
+}
+
 void CppMod::makeAndSendBTCModule(CppMod &mod)
 {
+    realBTargets[0].launchTime =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count();
     // todo
     // write this buffer directly.
 
     mod.makeMemoryFileMapping();
+    mod.populateAllDeps();
+
     P2978::BTCModule btcModule;
     btcModule.requested.filePath = mod.interfaceNode->filePath;
     btcModule.requested.fileSize = mod.interfaceFileSize;
     btcModule.isSystem = mod.target->isSystem;
 
-    for (const RBTWithType &rbt : mod.realBTargets[0].dependencies)
+    for (const CppModWithDirect &transitive : mod.allCppModDeps)
     {
-        if (const auto &[it, ok] = realBTargets[0].dependencies.emplace(rbt); ok && it->getAbstractType() == BTargetType::CPP_MOD)
+        CppMod *modDep = transitive.getPointer();
+        if (!allCppModDeps.emplace(modDep, false).second)
         {
-            CppMod *modDep = static_cast<CppMod *>(it->getPointer()->bTarget);
-            if (modDep->type == CppModType::PRIMARY_IMPLEMENTATION)
-            {
-                continue;
-            }
-            modDep->makeMemoryFileMapping();
-            P2978::ModuleDep dep;
-            dep.isHeaderUnit = modDep->type == CppModType::HEADER_UNIT;
-            dep.file.filePath = modDep->interfaceNode->filePath;
-            dep.file.fileSize = modDep->interfaceFileSize;
-            dep.isSystem = modDep->target->isSystem;
-            for (const string &l : modDep->logicalNames)
-            {
-                dep.logicalNames.emplace_back(l);
-            }
-            btcModule.modDeps.emplace_back(std::move(dep));
+            continue;
         }
+
+        modDep->makeMemoryFileMapping();
+
+        P2978::ModuleDep dep;
+        dep.isHeaderUnit = modDep->type == CppModType::HEADER_UNIT;
+        dep.file.filePath = modDep->interfaceNode->filePath;
+        dep.file.fileSize = modDep->interfaceFileSize;
+        dep.isSystem = modDep->target->isSystem;
+        dep.logicalNames.assign(modDep->logicalNames.begin(), modDep->logicalNames.end());
+
+        btcModule.modDeps.emplace_back(std::move(dep));
     }
 
     if (const auto &r2 = ipcManager->sendMessage(btcModule); !r2)
@@ -693,7 +912,12 @@ P2978::BTCNonModule deserializeBTCNonModule(std::string_view buffer)
 
 void CppMod::makeAndSendBTCNonModule(CppMod &hu)
 {
+    realBTargets[0].launchTime =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count();
+
     hu.makeMemoryFileMapping();
+    hu.populateAllDeps();
 
     constexpr uint32_t stackSize = 64 * 1024;
     char buffer[stackSize];
@@ -747,32 +971,30 @@ void CppMod::makeAndSendBTCNonModule(CppMod &hu)
     writeUint32(toBeSend, 0);
 
     uint32_t count = 0;
-    for (const RBTWithType &rbt : hu.realBTargets[0].dependencies)
+    for (const CppModWithDirect &transitive : hu.allCppModDeps)
     {
-        if (const auto &[it, ok] = realBTargets[0].dependencies.emplace(rbt); ok && it->getAbstractType() == BTargetType::CPP_MOD)
+        CppMod *modDep = transitive.getPointer();
+        if (!allCppModDeps.emplace(modDep, false).second)
         {
-            CppMod *huDep = static_cast<CppMod *>(it->getPointer()->bTarget);
-            if (huDep->type != CppModType::HEADER_UNIT)
-            {
-                continue;
-            }
-            ++count;
-            huDep->makeMemoryFileMapping();
+            continue;
+        }
 
-            // HuDep::file::filePath
-            writeStringView(toBeSend, huDep->interfaceNode->filePath);
-            toBeSend.push_back('\0');
-            // HuDep::file::fileSize
-            writeUint32(toBeSend, huDep->interfaceFileSize);
-            // BTCNonModule::isSystem
-            writeBool(toBeSend, huDep->target->isSystem);
+        ++count;
+        modDep->makeMemoryFileMapping();
 
-            // HuDep::logicalNames
-            writeUint32(toBeSend, huDep->logicalNames.size());
-            for (const string &str : huDep->logicalNames)
-            {
-                writeStringView(toBeSend, str);
-            }
+        // HuDep::file::filePath
+        writeStringView(toBeSend, modDep->interfaceNode->filePath);
+        toBeSend.push_back('\0');
+        // HuDep::file::fileSize
+        writeUint32(toBeSend, modDep->interfaceFileSize);
+        // BTCNonModule::isSystem
+        writeBool(toBeSend, modDep->target->isSystem);
+
+        // HuDep::logicalNames
+        writeUint32(toBeSend, modDep->logicalNames.size());
+        for (const string &str : modDep->logicalNames)
+        {
+            writeStringView(toBeSend, str);
         }
     }
     *reinterpret_cast<uint32_t *>(&toBeSend[placeHolderIndex]) = count;
@@ -827,8 +1049,7 @@ HeaderFileOrUnit CppMod::findHeaderFileOrUnit(const string_view headerName) cons
         for (const vector<HeaderFileOrUnit> &configHeaderFilesOrUnits = it->second;
              const HeaderFileOrUnit &headerFileOrUnit : configHeaderFilesOrUnits)
         {
-            CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[headerFileOrUnit.targetIndex].targetCache);
-            if (auto it2 = target->reqDeps.find(req); it2 != target->reqDeps.end())
+            if (std::ranges::find(target->cachedReqDeps, headerFileOrUnit.targetIndex) != target->cachedReqDeps.end())
             {
                 // this headerFileOrUnit is provided by one of our dependency cpp-target.
                 return headerFileOrUnit;
@@ -836,8 +1057,6 @@ HeaderFileOrUnit CppMod::findHeaderFileOrUnit(const string_view headerName) cons
         }
     }
 
-    printMessage(FORMAT("{}\n", target->configuration->headerNameMapping.size()));
-    printMessage(FORMAT("{}\n", target->reqHeaderNameMapping.size()));
     fflush(stdout);
     return {static_cast<Node *>(nullptr), false};
 }
@@ -874,28 +1093,12 @@ bool CppMod::isEventRegistered(Builder &builder)
         return false;
     }
 
+    if (rb.updateStatus == UpdateStatus::UNCHECKED)
     {
-        constexpr uint32_t stackSize = 64 * 1024;
-        char buffer[stackSize];
-        std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
-        std::pmr::vector<CppMod *> cachedModDeps(&alloc);
-        cachedModDeps.reserve(63 * 1024 / sizeof(CppMod *)); // 8064 pointers
-        setFileStatusAndPopulateAllDependencies(cachedModDeps);
-
-        if (rb.updateStatus == UpdateStatus::ALREADY_UPDATED)
-        {
-            // we populate the transitive deps so they are successfully passed to our dependents.
-            for (CppMod *dep : cachedModDeps)
-            {
-                realBTargets[0].dependencies.emplace(&dep->realBTargets[0], BTargetDepKind::TRANSITIVE,
-                                                     BTargetType::CPP_MOD);
-            }
-        }
+        setFileStatus();
     }
-
-    if (rb.updateStatus == UpdateStatus::ALREADY_UPDATED)
+    if (rb.updateStatus != UpdateStatus::UPDATED_NEEDED)
     {
-        rb.updateStatus = UpdateStatus::UPDATED_WITHOUT_BUILDING;
         return false;
     }
 
@@ -913,14 +1116,21 @@ bool CppMod::isEventRegistered(Builder &builder)
 
     if (!target->useIPC)
     {
+        rb.launchTime =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+                .count();
         run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, false);
+        originalLaunchTime = rb.launchTime;
         return true;
     }
 
-    rb.assignNeedsUpdateToDependents();
-    headerFiles.clear();
+    isAllDepsPopulated = true;
 
+    rb.launchTime =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count();
     run.startAsyncProcess(cppFullCompileCommand.c_str(), builder, this, true);
+    originalLaunchTime = rb.launchTime;
     ipcManager = new IPCManagerBS(run.writePipe);
 
     return true;
@@ -931,9 +1141,20 @@ void CppMod::completeModuleCompilation(const Builder &builder)
     RealBTarget &rb = realBTargets[0];
     if (rb.exitStatus != EXIT_SUCCESS)
     {
-        rb.updateStatus = UpdateStatus::UPDATED_WITHOUT_BUILDING;
         print(builder, *run.output);
         return;
+    }
+
+    if (target->useIPC)
+    {
+        // maybe move to where these are parsed
+        for (auto &[str, headerFile] : composingHeaders)
+        {
+            headerFile->checkHashing = true;
+        }
+    }
+    else
+    {
     }
 
     if (type == CppModType::HEADER_UNIT || type == CppModType::PRIMARY_EXPORT || type == CppModType::PARTITION_EXPORT)
@@ -963,14 +1184,10 @@ void CppMod::completeModuleCompilation(const Builder &builder)
                 }
             }
 
-            FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, dep)
+            for (const CppModWithDirect cppModWithDirect : allCppModDeps)
             {
-                if (dep->type == CppModType::PRIMARY_IMPLEMENTATION)
-                {
-                    continue;
-                }
-
-                for (const auto &[headerFile, cppMod] : dep->headerNodeCppMod)
+                for (const CppMod *dep = cppModWithDirect.getPointer();
+                     const auto &[headerFile, cppMod] : dep->headerNodeCppMod)
                 {
                     if (const auto &[it, ok] = headerNodeCppMod.emplace(headerFile, cppMod); !ok)
                     {
@@ -983,33 +1200,10 @@ void CppMod::completeModuleCompilation(const Builder &builder)
                 }
             }
         }
-        else
-        {
-            if (!target->ignoreHeaderDeps)
-            {
-                for (auto &[str, headerFile] : composingHeaders)
-                {
-                    headerFiles.emplace(headerFile);
-                }
-
-                FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, cppMod)
-                {
-                    if (cppMod->type == CppModType::PRIMARY_IMPLEMENTATION)
-                    {
-                        continue;
-                    }
-                    for (Node *headerFile : cppMod->headerFiles)
-                    {
-                        headerFiles.emplace(headerFile);
-                    }
-                }
-            }
-        }
     }
 
-    rb.updateStatus = UpdateStatus::UPDATED;
-    // This must be just before printing as this is asynchronousl accessed in savBuildCache
-    target->buildCacheUpdated = true;
+    buildCacheUpdated = true;
+    buildFooterUpdated = true;
     print(builder, *run.output);
 }
 
@@ -1028,7 +1222,9 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     RealBTarget &rb = realBTargets[0];
     if (!target->useIPC)
     {
-        parseHeaderDeps(*run.output, builder);
+        // todo
+        // command currently does not add .d file and that .d file must be passed as-well.
+        // parseHeaderDeps(*run.output, builder);
         completeModuleCompilation(builder);
         return false;
     }
@@ -1041,7 +1237,6 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
             waitingFor = nullptr;
             run.killModuleProcess(builder);
             rb.exitStatus = EXIT_FAILURE;
-            rb.updateStatus = UpdateStatus::UPDATED_WITHOUT_BUILDING;
             return false;
         }
 
@@ -1197,9 +1392,9 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
         }
     }
 
-    if (!realBTargets[0]
-             .dependencies.emplace(&found->realBTargets[0], BTargetDepKind::TRANSITIVE, BTargetType::CPP_MOD)
-             .second)
+    const auto &[it, ok] = allCppModDeps.emplace(found, true);
+
+    if (!ok)
     {
         printErrorMessage(FORMAT("Warning: already sent the module {}\n with logical-name{}\n requested in {}\n.",
                                  found->node->filePath, found->logicalNames[0], node->filePath));
@@ -1207,14 +1402,13 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
 
     RealBTarget &foundRb = found->realBTargets[0];
 
-    if (foundRb.updateStatus == UpdateStatus::ALREADY_UPDATED || foundRb.updateStatus == UpdateStatus::NEEDS_UPDATE)
+    if (!foundRb.isCompleted)
     {
         waitingFor = found;
 
         // This is the only place where dependency-relationship is being added dynamically. We are sure that
         // decrementFromDependents has not been called for our dependency.
-        foundRb.dependents.emplace(&rb, BTargetDepKind::FULL, BTargetType::CPP_MOD);
-        rb.dependencies.emplace(&foundRb, BTargetDepKind::FULL, BTargetType::CPP_MOD);
+        foundRb.dependents.emplace(&rb, RelationType::FULL, BTargetType::CPP_MOD);
         ++rb.dependenciesSize;
 
         // if its dependenciesSize is zero, it means that it is already in the list. We just bring it to the front.
@@ -1238,7 +1432,6 @@ bool CppMod::isEventCompleted(Builder &builder, string_view message)
     {
         run.killModuleProcess(builder);
         rb.exitStatus = EXIT_FAILURE;
-        rb.updateStatus = UpdateStatus::UPDATED_WITHOUT_BUILDING;
         return false;
     }
 
@@ -1289,75 +1482,7 @@ void CppMod::print(const Builder &builder, const string &output) const
     fwrite(outputStr.c_str(), 1, outputStr.size(), stdout);
 }
 
-BTargetType CppMod::getBTargetType() const
-{
-    return BTargetType::CPP_MOD;
-}
-
-void CppMod::updateBuildCache()
-{
-    if (realBTargets[0].updateStatus != UpdateStatus::UPDATED)
-    {
-        return;
-    }
-
-    // myBuildCache is only updated here only if the build has succeeded.
-
-    myBuildCache->srcFile.compileCommand = commandHash;
-    myBuildCache->srcFile.launchTime = globalLaunchTime;
-    myBuildCache->srcFile.headerFiles.clear();
-    myBuildCache->headerUnitArray.clear();
-    myBuildCache->moduleArray.clear();
-
-    if (target->configuration->evaluate(DuplicationWarning::YES))
-    {
-        // headerNodeCppMod is still populated as we want to warn for duplicate transitive header-file dependencies. So
-        // we need to check for ignoreHeaderDeps
-        if (target->ignoreHeaderDeps)
-        {
-            for (const auto &[header, cppMod] : headerNodeCppMod)
-            {
-                myBuildCache->srcFile.headerFiles.emplace_back(header);
-            }
-        }
-    }
-    else
-    {
-        for (Node *header : headerFiles)
-        {
-            myBuildCache->srcFile.headerFiles.emplace_back(header);
-        }
-    }
-
-    myBuildCache->headerStatusChanged = false;
-    FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, dep)
-    {
-        if (dep->type == CppModType::PRIMARY_IMPLEMENTATION)
-        {
-            continue;
-        }
-        if (dep->type == CppModType::HEADER_UNIT)
-        {
-            BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep huDep;
-            huDep.node = const_cast<Node *>(dep->node);
-            huDep.compileCommand = dep->commandHash;
-            huDep.myIndex = dep->myBuildCacheIndex;
-            huDep.targetIndex = dep->target->cacheIndex;
-            myBuildCache->headerUnitArray.emplace_back(huDep);
-        }
-        else
-        {
-            BuildCache::Cpp::ModuleFile::SingleModuleDep modDep;
-            modDep.node = dep->objectNode;
-            modDep.compileCommand = dep->commandHash;
-            modDep.myIndex = dep->myBuildCacheIndex;
-            modDep.targetIndex = dep->target->cacheIndex;
-            myBuildCache->moduleArray.emplace_back(modDep);
-        }
-    }
-}
-
-void CppMod::getCompileCommand(std::pmr::string &compileCommand, CommandType commandType,
+void CppMod::getCompileCommand(std::pmr::string &compileCommand, const CommandType commandType,
                                const string_view mockFilePath) const
 {
     if (sourceType != SourceType::CPP && type != CppModType::PRIMARY_IMPLEMENTATION)
@@ -1466,171 +1591,102 @@ void CppMod::getCompileCommand(std::pmr::string &compileCommand, CommandType com
     }
 }
 
-void CppMod::setFileStatusAndPopulateAllDependencies(std::pmr::vector<CppMod *> &cachedModDeps)
+void CppMod::setFileStatus()
 {
-    if (node->filePath.contains("public-lib3.hpp"))
-    {
-        bool breakpoint = true;
-    }
+    RealBTarget &rb = realBTargets[0];
+    assert(rb.updateStatus == UpdateStatus::UNCHECKED);
 
     if (node->fileType == file_type::not_found)
     {
-        printErrorMessage(FORMAT("Module-file {}\n of target {}\n not found.\n", node->filePath, target->name));
+        string str;
+        if (type == CppModType::HEADER_UNIT)
+        {
+            str = "C++HeaderUnit";
+        }
+        else if (type == CppModType::PRIMARY_IMPLEMENTATION)
+        {
+            str = "C++Module";
+        }
+        else
+        {
+            str = "C++InterfaceModule";
+        }
+
+        printErrorMessage(FORMAT("{} {}\n of target {}\n not found.\n", str, node->filePath, target->name));
     }
 
-    RealBTarget &rb = realBTargets[0];
-    if (rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
+    rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
+
+    if (type == CppModType::HEADER_UNIT)
     {
-        return;
-    }
-
-    rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
-
-    const Node *endNode = type == CppModType::HEADER_UNIT ? interfaceNode : objectNode;
-
-    if (target->ignoreHeaderDeps)
-    {
-        if (endNode->fileType == file_type::not_found)
+        if (interfaceNode->fileType == file_type::not_found)
         {
             return;
         }
-
-        for (const BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &h : myBuildCache->headerUnitArray)
-        {
-            CppMod *hu = nullptr;
-            if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[h.targetIndex].targetCache))
-            {
-                hu = t->huDeps[h.myIndex];
-            }
-
-            if (!hu)
-            {
-                return;
-            }
-
-            if (hu->commandHash != h.compileCommand)
-            {
-                return;
-            }
-
-            cachedModDeps.emplace_back(hu);
-        }
-
-        for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache->moduleArray)
-        {
-            CppMod *cppMod = nullptr;
-            if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[m.targetIndex].targetCache))
-            {
-                cppMod = t->imodFileDeps[m.myIndex];
-            }
-
-            if (!cppMod)
-            {
-                return;
-            }
-
-            if (cppMod->commandHash != m.compileCommand)
-            {
-                return;
-            }
-
-            cachedModDeps.emplace_back(cppMod);
-        }
-
-        rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
-        return;
     }
-
-    const uint64_t cachedLaunchTime = myBuildCache->srcFile.launchTime;
-
-    if (endNode->fileType == file_type::not_found || node->lastWriteTime > cachedLaunchTime)
+    else if (type == CppModType::PRIMARY_IMPLEMENTATION)
     {
-        return;
-    }
-
-    headerFiles.reserve(myBuildCache->srcFile.headerFiles.size());
-    for (Node *headerNode : myBuildCache->srcFile.headerFiles)
-    {
-        if (headerNode->fileType == file_type::not_found || headerNode->lastWriteTime > cachedLaunchTime)
+        if (objectNode->fileType == file_type::not_found)
         {
             return;
         }
-        headerFiles.emplace(headerNode);
+    }
+    else
+    {
+        if (interfaceNode->fileType == file_type::not_found || objectNode->fileType == file_type::not_found)
+        {
+            return;
+        }
     }
 
-    for (const BuildCache::Cpp::ModuleFile::SingleHeaderUnitDep &h : myBuildCache->headerUnitArray)
+    for (const uint32_t depIndex : cachedDeps)
     {
-        CppMod *hu = nullptr;
-        if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[h.targetIndex].targetCache))
-        {
-            hu = t->huDeps[h.myIndex];
-        }
+        CppMod *cppMod = static_cast<CppMod *>(fileTargetCaches[depIndex].bTarget);
 
-        if (!hu)
-        {
-            return;
-        }
-
-        if (hu->node->fileType == file_type::not_found)
-        {
-            printErrorMessage(
-                FORMAT("Header-Unit {}\n of target {}\n not found.\n", hu->node->filePath, hu->target->name));
-        }
-
-        if (hu->commandHash != h.compileCommand)
-        {
-            return;
-        }
-
-        if (hu->node->lastWriteTime > cachedLaunchTime)
-        {
-            return;
-        }
-
-        cachedModDeps.emplace_back(hu);
-    }
-
-    for (const BuildCache::Cpp::ModuleFile::SingleModuleDep &m : myBuildCache->moduleArray)
-    {
-        CppMod *cppMod = nullptr;
-        if (const CppTarget *t = static_cast<CppTarget *>(fileTargetCaches[m.targetIndex].targetCache))
-        {
-            cppMod = t->imodFileDeps[m.myIndex];
-        }
-
+        // Can happen because the export-name or the include-name got mapped to a different file in the same target.
         if (!cppMod)
         {
             return;
         }
 
-        if (cppMod->node->fileType == file_type::not_found)
+        const RealBTarget *depRb = &cppMod->realBTargets[0];
+        if (depRb->updateStatus == UpdateStatus::UNCHECKED)
         {
-            printErrorMessage(
-                FORMAT("Module-file {}\n of target {}\n not found.\n", cppMod->node->filePath, cppMod->target->name));
+            cppMod->setFileStatus();
         }
 
-        if (cppMod->commandHash != m.compileCommand)
-        {
-            return;
-        }
-
-        // for clang 2-phase compilation, following would be incorrect. Need more thinking.
-        if (cppMod->node->lastWriteTime > cachedLaunchTime)
+        if (depRb->updateStatus == UpdateStatus::UPDATED_NEEDED)
         {
             return;
         }
 
-        cachedModDeps.emplace_back(cppMod);
+        if (depRb->launchTime > rb.launchTime)
+        {
+            return;
+        }
     }
 
-    rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
+    rb.updateStatus = UpdateStatus::UNCHECKED;
+
+    // pmr
+    std::vector<uint64_t> contentHashes;
+    contentHashes.reserve(1 + 1 + cachedHeaderFiles.size());
+    contentHashes.emplace_back(commandHash);
+    contentHashes.emplace_back(node->contentHash);
+    for (const uint32_t nodeIndex : cachedHeaderFiles)
+    {
+        contentHashes.emplace_back(Node::getHalfNode(nodeIndex)->contentHash);
+    }
+    rb.cumulativeHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
+
+    ObjectFile::setFileStatus();
 }
 
 void CppMod::generateStandAloneCommand()
 {
     if (target->configuration->evaluate(StandAloneCommand::YES))
     {
-        if (const RealBTarget &rb = realBTargets[0];
+        /*if (const RealBTarget &rb = realBTargets[0];
             rb.updateStatus == UpdateStatus::UPDATED ||
             (rb.updateStatus == UpdateStatus::UPDATED_WITHOUT_BUILDING && rb.exitStatus != EXIT_SUCCESS))
         {
@@ -1644,7 +1700,7 @@ void CppMod::generateStandAloneCommand()
             flat_hash_set<string> createdDirs;
             cppStandAloneCommand(createdDirs, scriptContents, scriptDirectory.string());
             std::ofstream(scriptDirectory / "script.sh") << scriptContents;
-        }
+        }*/
     }
 }
 
@@ -1652,21 +1708,17 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
 {
     btree_set<BTarget *, IndexInTopologicalSortComparatorRoundTwo> allDeps;
 
-    for (const RBTWithType &rbt: realBTargets[0].dependencies)
+    for (const RBTWithType &rbt : realBTargets[0].dependencies)
     {
-        allDeps.emplace(rbt.getPointer()->bTarget);
+        allDeps.emplace(rbt.getPointer()->getBTarget());
     }
 
     FOR_DEPS(*this, 0, BTargetType::CPP_MOD, CppMod, cppMod)
     {
-        if (cppMod->type == CppModType::PRIMARY_IMPLEMENTATION)
-        {
-            continue;
-        }
         allDeps.emplace(cppMod);
         for (const RBTWithType &rbt : cppMod->realBTargets[0].dependencies)
         {
-            allDeps.emplace(rbt.getPointer()->bTarget);
+            allDeps.emplace(rbt.getPointer()->getBTarget());
         }
     }
 
@@ -1769,4 +1821,466 @@ void CppMod::cppStandAloneCommand(flat_hash_set<string> &createdDirs, string &sc
 
     scriptContents += cppFullCompileCommand;
     scriptContents.push_back('\n');
+}
+
+void CppMod::writeConfigCacheAtConfigTime(string &buffer)
+{
+    const string fileNumber = toString(node->myId);
+    const bool isHU = type == CppModType::HEADER_UNIT;
+    const bool isImpl = type == CppModType::PRIMARY_IMPLEMENTATION;
+
+    if (!isImpl)
+    {
+        interfaceNode = Node::getNode(target->myBuildDir->filePath + slashc + node->getFileName() + fileNumber + ".ifc",
+                                      true, true);
+        writeNode(buffer, interfaceNode);
+        if (!isHU)
+        {
+            writeStringView(buffer, logicalNames[0]);
+        }
+    }
+
+    if (!isHU)
+    {
+        objectNode =
+            Node::getNode(target->myBuildDir->filePath + slashc + node->getFileName() + fileNumber + ".o", true, true);
+        writeNode(buffer, objectNode);
+        writeUint32(buffer, logicalNames.size());
+        for (const string &str : logicalNames)
+        {
+            writeStringView(buffer, str);
+        }
+    }
+    else
+    {
+        writeBool(buffer, isReqHu);
+        writeBool(buffer, isUseReqHu);
+        writeUint32(buffer, composingHeaders.size());
+        writeUint32(buffer, logicalNames.size());
+        if (target->useIPC)
+        {
+            for (const auto &[headerName, headerNode] : composingHeaders)
+            {
+                writeStringView(buffer, headerName);
+                writeNode(buffer, headerNode);
+            }
+        }
+        else
+        {
+            for (const auto &[headerName, headerNode] : composingHeaders)
+            {
+                writeStringView(buffer, headerName);
+            }
+        }
+        for (const string &str : logicalNames)
+        {
+            writeStringView(buffer, str);
+        }
+    }
+}
+
+void CppMod::verifyConfigCache(const string_view configCache) const
+{
+    uint32_t bytesRead = 0;
+
+    const bool isHU = type == CppModType::HEADER_UNIT;
+    const bool isImpl = type == CppModType::PRIMARY_IMPLEMENTATION;
+
+    if (!isImpl)
+    {
+        if (const Node *cachedInterfaceNode = readHalfNode(configCache.data(), bytesRead);
+            interfaceNode != cachedInterfaceNode)
+        {
+            printErrorMessage(FORMAT("{} configCache-verification failed: interfaceNode mismatch\n"
+                                     "current=\"{}\"  cached=\"{}\"\n",
+                                     getPrintName(), interfaceNode ? interfaceNode->filePath : "<null>",
+                                     cachedInterfaceNode ? cachedInterfaceNode->filePath : "<null>"));
+        }
+
+        if (!isHU)
+        {
+            const string_view cachedLogicalName = readStringView(configCache.data(), bytesRead);
+            if (logicalNames.empty() || logicalNames[0] != cachedLogicalName)
+            {
+                printErrorMessage(FORMAT("{} configCache-verification failed: logicalName mismatch\n"
+                                         "current=\"{}\"  cached=\"{}\"\n",
+                                         getPrintName(), logicalNames.empty() ? "<empty>" : logicalNames[0],
+                                         cachedLogicalName));
+            }
+        }
+    }
+
+    if (!isHU)
+    {
+        const Node *cachedObjectNode = readHalfNode(configCache.data(), bytesRead);
+        if (objectNode != cachedObjectNode)
+        {
+            printErrorMessage(FORMAT("{} configCache-verification failed: objectNode mismatch\n"
+                                     "current=\"{}\"  cached=\"{}\"\n",
+                                     getPrintName(), objectNode ? objectNode->filePath : "<null>",
+                                     cachedObjectNode ? cachedObjectNode->filePath : "<null>"));
+        }
+    }
+    else
+    {
+        const bool cachedIsReqHu = readBool(configCache.data(), bytesRead);
+        if (isReqHu != cachedIsReqHu)
+        {
+            printErrorMessage(FORMAT("{} configCache-verification failed: isReqHu mismatch current={} cached={}\n",
+                                     getPrintName(), isReqHu, cachedIsReqHu));
+
+            const uint32_t cachedLogicalNamesSize = readUint32(configCache.data(), bytesRead);
+            if (logicalNames.size() != cachedLogicalNamesSize)
+            {
+                printErrorMessage(
+                    FORMAT("{} configCache-verification failed: logicalNames size mismatch current={} cached={}\n",
+                           getPrintName(), logicalNames.size(), cachedLogicalNamesSize));
+            }
+
+            for (uint32_t i = 0; i < cachedLogicalNamesSize; ++i)
+            {
+                const string_view cachedName = readStringView(configCache.data(), bytesRead);
+                const string_view currentName = (i < logicalNames.size()) ? string_view(logicalNames[i]) : "<missing>";
+                if (currentName != cachedName)
+                {
+                    printErrorMessage(FORMAT("{} configCache-verification failed: logicalName[{}] mismatch\n"
+                                             "current=\"{}\"  cached=\"{}\"\n",
+                                             getPrintName(), i, currentName, cachedName));
+                }
+            }
+        }
+
+        const bool cachedIsUseReqHu = readBool(configCache.data(), bytesRead);
+        if (isUseReqHu != cachedIsUseReqHu)
+        {
+            printErrorMessage(FORMAT("{} configCache-verification failed: isUseReqHu mismatch current={} cached={}\n",
+                                     getPrintName(), isUseReqHu, cachedIsUseReqHu));
+        }
+
+        const uint32_t cachedComposingHeadersSize = readUint32(configCache.data(), bytesRead);
+        if (composingHeaders.size() != cachedComposingHeadersSize)
+        {
+            printErrorMessage(
+                FORMAT("{} configCache-verification failed: composingHeaders size mismatch current={} cached={}\n",
+                       getPrintName(), composingHeaders.size(), cachedComposingHeadersSize));
+        }
+
+        const uint32_t cachedLogicalNamesSize = readUint32(configCache.data(), bytesRead);
+        if (logicalNames.size() != cachedLogicalNamesSize)
+        {
+            printErrorMessage(
+                FORMAT("{} configCache-verification failed: logicalNames size mismatch current={} cached={}\n",
+                       getPrintName(), logicalNames.size(), cachedLogicalNamesSize));
+        }
+
+        for (uint32_t i = 0; i < cachedComposingHeadersSize; ++i)
+        {
+            const string_view cachedHeaderName = readStringView(configCache.data(), bytesRead);
+            const auto it = composingHeaders.find(cachedHeaderName);
+            if (it == composingHeaders.end())
+            {
+                printErrorMessage(FORMAT("{} configCache-verification failed: cached composingHeader[{}] name\n\"{}\"\n"
+                                         "is not present in current composingHeaders\n",
+                                         getPrintName(), i, cachedHeaderName));
+            }
+
+            if (target->useIPC)
+            {
+                const Node *cachedHeaderNode = readHalfNode(configCache.data(), bytesRead);
+                if (it != composingHeaders.end() && it->second != cachedHeaderNode)
+                {
+                    printErrorMessage(
+                        FORMAT("{} configCache-verification failed: composingHeader \"{}\" node mismatch\n"
+                               "current=\"{}\"  cached=\"{}\"\n",
+                               getPrintName(), cachedHeaderName, it->second ? it->second->filePath : "<null>",
+                               cachedHeaderNode ? cachedHeaderNode->filePath : "<null>"));
+                }
+            }
+        }
+
+        for (uint32_t i = 0; i < cachedLogicalNamesSize; ++i)
+        {
+            const string_view cachedName = readStringView(configCache.data(), bytesRead);
+            const string_view currentName = (i < logicalNames.size()) ? string_view(logicalNames[i]) : "<missing>";
+            if (currentName != cachedName)
+            {
+                printErrorMessage(FORMAT("{} configCache-verification failed: logicalName[{}] mismatch\n"
+                                         "current=\"{}\"  cached=\"{}\"\n",
+                                         getPrintName(), i, currentName, cachedName));
+            }
+        }
+    }
+
+    if (configCache.size() != bytesRead)
+    {
+        printErrorMessage(FORMAT("{} configCache-verification failed as configCache.size() != bytesRead {} vs {}\n",
+                                 getPrintName(), configCache.size(), bytesRead));
+    }
+}
+
+void CppMod::writeBuildCacheAtConfigTime(string &buffer)
+{
+    // headerStatusChanged
+    writeBool(buffer, true);
+    // sizeof header-files
+    writeUint32(buffer, 0);
+    // sizeof cppMod-deps
+    writeUint32(buffer, 0);
+}
+
+void CppMod::writeBuildCacheAtBuildTime(string &buffer)
+{
+    RealBTarget &rb = realBTargets[0];
+
+    // pmr
+    std::vector<uint64_t> contentHashes;
+    contentHashes.reserve(1 + 1 + (target->useIPC ? composingHeaders.size() : headerFiles.size()));
+    contentHashes.emplace_back(commandHash);
+    contentHashes.emplace_back(node->contentHash);
+
+    if (target->useIPC)
+    {
+        for (const auto &[includeName, headerNode] : composingHeaders)
+        {
+            if (headerNode->lastWriteTime > originalLaunchTime)
+            {
+                // File was modified after process launched — hash is stale.
+                contentHashes.emplace_back(0);
+            }
+            else
+            {
+                contentHashes.emplace_back(headerNode->contentHash);
+            }
+        }
+    }
+    else
+    {
+        for (Node *headerNode : headerFiles)
+        {
+            if (headerNode->lastWriteTime > originalLaunchTime)
+            {
+                // File was modified after process launched — hash is stale.
+                contentHashes.emplace_back(0);
+            }
+            else
+            {
+                contentHashes.emplace_back(headerNode->contentHash);
+            }
+        }
+    }
+    rb.cumulativeHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
+
+    // headerStatusChanged. directly written as false
+    writeBool(buffer, false);
+    if (target->useIPC)
+    {
+        writeUint32(buffer, composingHeaders.size());
+        for (const auto &[includeName, headerNode] : composingHeaders)
+        {
+            writeNode(buffer, headerNode);
+        }
+    }
+    else
+    {
+        // sizeof header-files
+        writeUint32(buffer, headerFiles.size());
+        for (const Node *header : headerFiles)
+        {
+            writeNode(buffer, header);
+        }
+    }
+
+    const uint32_t currentSize = buffer.size();
+    uint32_t count = 0;
+    // placeholder for direct-deps count;
+    writeUint32(buffer, 0);
+
+    // make this pmr string
+    string cacheBuffer;
+    for (const CppModWithDirect &cppModDirect : allCppModDeps)
+    {
+        if (cppModDirect.isDirect())
+        {
+            ++count;
+            writeUint32(buffer, cppModDirect.getPointer()->cacheIndex);
+        }
+    }
+
+    memcpy(buffer.data() + currentSize, &count, sizeof(count));
+}
+
+void CppMod::verifyBuildCache(const string_view buildCache) const
+{
+    const RealBTarget &rb = realBTargets[0];
+
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        // Recompute cumulativeHash and dump to debug file for comparison.
+        std::vector<uint64_t> contentHashes;
+        contentHashes.reserve(1 + 1 + (target->useIPC ? composingHeaders.size() : headerFiles.size()));
+        contentHashes.emplace_back(commandHash);
+        contentHashes.emplace_back(node->contentHash);
+
+        if (target->useIPC)
+        {
+            for (const auto &[includeName, headerNode] : composingHeaders)
+            {
+                if (headerNode->lastWriteTime > originalLaunchTime)
+                {
+                    contentHashes.emplace_back(0);
+                }
+                else
+                {
+                    contentHashes.emplace_back(headerNode->contentHash);
+                }
+            }
+        }
+        else
+        {
+            for (const Node *headerNode : headerFiles)
+            {
+                if (headerNode->lastWriteTime > originalLaunchTime)
+                {
+                    contentHashes.emplace_back(0);
+                }
+                else
+                {
+                    contentHashes.emplace_back(headerNode->contentHash);
+                }
+            }
+        }
+
+        {
+            const uint64_t recomputedHash = rapidhash(contentHashes.data(), contentHashes.size() * 8);
+            const path debugFile =
+                target->myBuildDir->filePath + slashc + string("hashes") + toString(node->myId) + ".txt";
+            if (std::ofstream out(debugFile, std::ios::app); out)
+            {
+                out << "commandHash:       " << commandHash << '\n';
+                out << "node->contentHash: " << node->contentHash << '\n';
+                if (target->useIPC)
+                {
+                    uint32_t i = 0;
+                    for (const auto &[includeName, headerNode] : composingHeaders)
+                    {
+                        out << "composingHeader[" << i << "] " << includeName
+                            << " node=" << (headerNode ? headerNode->filePath : "<null>")
+                            << " hash=" << contentHashes[i + 2] << '\n';
+                        ++i;
+                    }
+                }
+                else
+                {
+                    uint32_t i = 0;
+                    for (const Node *headerNode : headerFiles)
+                    {
+                        out << "header[" << i << "] " << (headerNode ? headerNode->filePath : "<null>")
+                            << " hash=" << contentHashes[i + 2] << '\n';
+                        ++i;
+                    }
+                }
+                out << "recomputedHash: " << recomputedHash << '\n';
+                out << "storedHash:     " << rb.cumulativeHash << '\n';
+            }
+
+            if (recomputedHash != rb.cumulativeHash)
+            {
+                printErrorMessage(FORMAT("{} caching-verification failed as recomputed cumulativeHash != stored\n"
+                                         "recomputed={} stored={}\n",
+                                         getPrintName(), recomputedHash, rb.cumulativeHash));
+            }
+        }
+    }
+    uint32_t bytesRead = 0;
+
+    const bool cachedHeaderStatusChanged = readBool(buildCache.data(), bytesRead);
+    if (cachedHeaderStatusChanged)
+    {
+        if constexpr (bsMode == BSMode::BUILD)
+        {
+            printErrorMessage(FORMAT("{} caching-verification failed as headerStatusChanged is true at build time\n",
+                                     getPrintName()));
+        }
+    }
+
+    if (target->useIPC)
+    {
+        const uint32_t cachedComposingHeadersSize = readUint32(buildCache.data(), bytesRead);
+        if (composingHeaders.size() != cachedComposingHeadersSize)
+        {
+            printErrorMessage(
+                FORMAT("{} caching-verification failed as composingHeaders.size() != cached composingHeadersSize\n"
+                       "current={} cached={}\n",
+                       getPrintName(), composingHeaders.size(), cachedComposingHeadersSize));
+        }
+
+        for (uint32_t i = 0; i < cachedComposingHeadersSize; ++i)
+        {
+            const Node *cachedNode = readHalfNode(buildCache.data(), bytesRead);
+            const auto it = std::find_if(composingHeaders.begin(), composingHeaders.end(),
+                                         [cachedNode](const auto &kv) { return kv.second == cachedNode; });
+            if (it == composingHeaders.end())
+            {
+                printErrorMessage(
+                    FORMAT("{} caching-verification failed as cached composingHeader node\n{} at index {}\n"
+                           "is not present in current composingHeaders\n",
+                           getPrintName(), cachedNode ? cachedNode->filePath : "<null>", i));
+            }
+        }
+    }
+    else
+    {
+        const uint32_t cachedHeaderFilesSize = readUint32(buildCache.data(), bytesRead);
+        if (headerFiles.size() != cachedHeaderFilesSize)
+        {
+            printErrorMessage(FORMAT("{} caching-verification failed as headerFiles.size() != cached headerFilesSize\n"
+                                     "current={} cached={}\n",
+                                     getPrintName(), headerFiles.size(), cachedHeaderFilesSize));
+        }
+
+        for (uint32_t i = 0; i < cachedHeaderFilesSize; ++i)
+        {
+            const Node *cachedNode = readHalfNode(buildCache.data(), bytesRead);
+            if (!headerFiles.contains(cachedNode))
+            {
+                printErrorMessage(FORMAT("{} caching-verification failed as cached headerFile\n{} at index {}\n"
+                                         "is not present in current headerFiles\n",
+                                         getPrintName(), cachedNode ? cachedNode->filePath : "<null>", i));
+            }
+        }
+    }
+    return;
+
+    uint32_t cachedDirectDepsCount = readUint32(buildCache.data(), bytesRead);
+    uint32_t count = 0;
+    for (const CppModWithDirect &cppModDirect : allCppModDeps)
+    {
+        if (cppModDirect.isDirect())
+        {
+            const uint32_t cachedCacheIndex = readUint32(buildCache.data(), bytesRead);
+            if (cppModDirect.getPointer()->cacheIndex != cachedCacheIndex)
+            {
+                printErrorMessage(
+                    FORMAT("{} caching-verification failed as direct dep cacheIndex does not match cached\n"
+                           "current={} cached={} at index {}\n",
+                           getPrintName(), cppModDirect.getPointer()->cacheIndex, cachedCacheIndex, count));
+            }
+            ++count;
+        }
+    }
+
+    if (count != cachedDirectDepsCount)
+    {
+        printErrorMessage(FORMAT("{} caching-verification failed as direct deps count != cached\n"
+                                 "current={} cached={}\n",
+                                 getPrintName(), count, cachedDirectDepsCount));
+    }
+
+    verifyBTargetHeader(buildCache, bytesRead);
+
+    if (buildCache.size() != bytesRead)
+    {
+        printErrorMessage(FORMAT("{} caching-verification failed as buildCache.size() != bytesRead {} vs {}\n",
+                                 getPrintName(), buildCache.size(), bytesRead));
+    }
 }

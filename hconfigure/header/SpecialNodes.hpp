@@ -21,9 +21,8 @@ class InclNode : public LibDirNode
     // further granularity is unnecessary. Used with includeDirs to specify whether to ignore include-files from these
     // dirs from being stored in target-cache file
     bool isStandard = false;
-    bool ignoreHeaderDeps = false;
-    InclNode(Node *node_, const bool isStandard_, const bool ignoreHeaderDeps_)
-        : LibDirNode(node_), isStandard(isStandard_), ignoreHeaderDeps{ignoreHeaderDeps_}
+    InclNode(Node *node_, const bool isStandard_)
+        : LibDirNode(node_), isStandard(isStandard_)
     {
     }
 };

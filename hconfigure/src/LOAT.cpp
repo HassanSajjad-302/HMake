@@ -70,107 +70,84 @@ void LOAT::setOutputName(string str)
 #endif
 }
 
-BTargetType LOAT::getBTargetType() const
-{
-    return BTargetType::LOAT;
-}
-
 void LOAT::setFileStatus()
 {
     RealBTarget &rb = realBTargets[0];
-    if (rb.updateStatus != UpdateStatus::NEEDS_UPDATE)
+    assert(rb.updateStatus == UpdateStatus::UNCHECKED);
+
+    if (outputFileNode->fileType == file_type::not_found)
     {
-        if (outputFileNode->fileType == file_type::not_found)
+        rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
+        return;
+    }
+
+    PLOAT::setFileStatus();
+}
+
+void LOAT::completeRoundOne()
+{
+    PLOAT::completeRoundOne();
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        myBuildDir = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
+        if (fileTargetCaches[cacheIndex].configCache.size() != configCacheBytesRead)
         {
-            rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
+            HMAKE_HMAKE_INTERNAL_ERROR
         }
-        else
+
+        for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
         {
-            if (linkBuildCache.commandWithoutArgumentsWithTools == commandWithoutTargetsWithTool)
+            objectFileProducer->getObjectFiles(&objectFiles);
+        }
+
+        RealBTarget &rb = realBTargets[0];
+        if (objectFiles.empty())
+        {
+            if (evaluate(TargetType::LIBRARY_STATIC))
             {
-                bool needsUpdate = false;
-                if (!evaluate(TargetType::LIBRARY_STATIC))
-                {
-
-                    for (const uint32_t index : reqDepsVecIndices)
-                    {
-                        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
-
-                        // No need to check whether ploat is a static-library since it is
-                        // already-checked in that target's setFileStatus.
-
-                        if (reqDep->getBTargetType() == BTargetType::LOAT &&
-                            static_cast<LOAT *>(reqDep)->objectFiles.empty())
-                        {
-                            continue;
-                        }
-                        if (reqDep->outputFileNode->lastWriteTime > outputFileNode->lastWriteTime)
-                        {
-                            needsUpdate = true;
-                            break;
-                        }
-                    }
-                }
-
-                for (const ObjectFile *objectFile : objectFiles)
-                {
-                    if (std::ranges::find(linkBuildCache.objectFiles, objectFile->objectNode) ==
-                        linkBuildCache.objectFiles.end())
-                    {
-                        needsUpdate = true;
-                        break;
-                    }
-
-                    if (objectFile->objectNode->lastWriteTime > outputFileNode->lastWriteTime)
-                    {
-                        needsUpdate = true;
-                        break;
-                    }
-                }
-                if (needsUpdate)
-                {
-                    rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
-                }
+                rb.updateStatus = UpdateStatus::UPDATE_NOT_NEEDED;
             }
             else
             {
-                rb.updateStatus = UpdateStatus::NEEDS_UPDATE;
+                printErrorMessage(FORMAT("Target {} has no object-files.\n", name));
             }
         }
-    }
-
-    if constexpr (os == OS::NT)
-    {
-        if (linkTargetType == TargetType::EXECUTABLE &&
-            config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
-            rb.updateStatus == UpdateStatus::NEEDS_UPDATE)
+        else
         {
-            flat_hash_set<PLOAT *> checked;
-            // TODO:
-            // Use vector instead and call reserve before
-            stack<PLOAT *, vector<PLOAT *>> allDeps;
-
-            for (const uint32_t index : reqDepsVecIndices)
+            string linkWithTargets;
+            if (linkTargetType == TargetType::LIBRARY_STATIC)
             {
-                PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
-                checked.emplace(reqDep);
-                allDeps.emplace(reqDep);
+                linkWithTargets = config.archiveCommand;
             }
-            while (!allDeps.empty())
+            else
             {
-                PLOAT *ploat = allDeps.top();
-                allDeps.pop();
-                if (ploat->evaluate(TargetType::LIBRARY_SHARED))
-                {
-                    if (rb.updateStatus == UpdateStatus::UPDATED)
-                    {
-                        // latest dll will be built and copied
-                        dllsToBeCopied.emplace_back(ploat);
-                    }
-                    else
-                    {
-                        // latest dll exists, but it might not have been copied in the previous invocation.
+                linkWithTargets = config.linkCommand;
+            }
+        }
 
+        if constexpr (os == OS::NT)
+        {
+            if (linkTargetType == TargetType::EXECUTABLE &&
+                config.ploatFeatures.copyToExeDirOnNtOs == CopyDLLToExeDirOnNTOs::YES &&
+                rb.updateStatus == UpdateStatus::UPDATED_NEEDED)
+            {
+                flat_hash_set<PLOAT *> checked;
+                // TODO:
+                // Use vector instead and call reserve before
+                stack<PLOAT *, vector<PLOAT *>> allDeps;
+
+                for (const uint32_t index : reqDepsVecIndices)
+                {
+                    PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
+                    checked.emplace(reqDep);
+                    allDeps.emplace(reqDep);
+                }
+                while (!allDeps.empty())
+                {
+                    PLOAT *ploat = allDeps.top();
+                    allDeps.pop();
+                    if (ploat->evaluate(TargetType::LIBRARY_SHARED))
+                    {
                         if (const Node *copiedDLLNode = Node::getNode(
                                 string(getOutputDirectoryV()) + slashc + ploat->getActualOutputName(), true, true);
                             copiedDLLNode->fileType == file_type::not_found)
@@ -185,98 +162,16 @@ void LOAT::setFileStatus()
                             }
                         }
                     }
-                }
-                for (const uint32_t index : ploat->reqDepsVecIndices)
-                {
-                    PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
-                    if (checked.emplace(reqDep).second)
+                    for (const uint32_t index : ploat->reqDepsVecIndices)
                     {
-                        allDeps.emplace(reqDep);
+                        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
+                        if (checked.emplace(reqDep).second)
+                        {
+                            allDeps.emplace(reqDep);
+                        }
                     }
                 }
             }
-        }
-    }
-}
-
-void LOAT::completeRoundOne()
-{
-    PLOAT::completeRoundOne();
-    if constexpr (bsMode == BSMode::BUILD)
-    {
-        readCacheAtBuildTime();
-    }
-    if (!evaluate(TargetType::LIBRARY_STATIC))
-    {
-        for (const uint32_t index : reqDepsVecIndices)
-        {
-            const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
-        }
-    }
-
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        writeCacheAtConfigureTime();
-    }
-}
-
-bool LOAT::isBuildCacheUpdated()
-{
-    return realBTargets[0].updateStatus == UpdateStatus::UPDATED && realBTargets[0].exitStatus == EXIT_SUCCESS;
-}
-void LOAT::writeBuildCache(string &buffer)
-{
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        PLOAT::writeBuildCache(buffer);
-        return;
-    }
-
-    if (realBTargets[0].updateStatus == UpdateStatus::UPDATED && realBTargets[0].exitStatus == EXIT_SUCCESS)
-    {
-    }
-    else
-    {
-        PLOAT::writeBuildCache(buffer);
-        return;
-    }
-
-    writeUint64(buffer, commandWithoutTargetsWithTool);
-    writeUint32(buffer, objectFiles.size());
-    for (const ObjectFile *obj : objectFiles)
-    {
-        writeNode(buffer, obj->objectNode);
-    }
-}
-
-void LOAT::writeCacheAtConfigureTime()
-{
-    writeNode(configCacheBuffer, myBuildDir);
-    fileTargetCaches[cacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
-}
-
-void LOAT::readCacheAtBuildTime()
-{
-    myBuildDir = readHalfNode(fileTargetCaches[cacheIndex].configCache.data(), configCacheBytesRead);
-    if (fileTargetCaches[cacheIndex].configCache.size() != configCacheBytesRead)
-    {
-        HMAKE_HMAKE_INTERNAL_ERROR
-    }
-
-    const string_view buildCache = fileTargetCaches[cacheIndex].buildCache;
-    if (!buildCache.empty())
-    {
-        uint32_t bytesRead = 0;
-        linkBuildCache.commandWithoutArgumentsWithTools = readUint64(buildCache.data(), bytesRead);
-        const uint32_t objCacheSize = readUint32(buildCache.data(), bytesRead);
-        linkBuildCache.objectFiles.reserve(objCacheSize);
-        for (uint32_t i = 0; i < objCacheSize; ++i)
-        {
-            linkBuildCache.objectFiles.emplace_back(readHalfNode(buildCache.data(), bytesRead));
-        }
-        if (bytesRead != buildCache.size())
-        {
-            HMAKE_HMAKE_INTERNAL_ERROR
         }
     }
 }
@@ -299,7 +194,7 @@ string LOAT::getPrintName() const
     return str + " " + configureNode->filePath + slashc + name;
 }
 
-void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets)
+void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, const bool returnAfterSettingCommandHash) const
 {
     if (linkTargetType == TargetType::LIBRARY_STATIC)
     {
@@ -311,7 +206,10 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets)
     }
 
     linkWithTargets += outputFileNode->filePath + "\" ";
-    commandWithoutTargetsWithTool = rapidhash(linkWithTargets.data(), linkWithTargets.size());
+    if (returnAfterSettingCommandHash)
+    {
+        return;
+    }
     for (const ObjectFile *objectFile : objectFiles)
     {
         linkWithTargets += '\"' + objectFile->objectNode->filePath + "\" ";
@@ -331,8 +229,8 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets)
 
     for (const uint32_t index : reqDepsVecIndices)
     {
-        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
-        if (reqDep->getBTargetType() == BTargetType::LOAT && static_cast<LOAT *>(reqDep)->objectFiles.empty())
+        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
+        if (reqDep->bTargetType == BTargetType::LOAT && static_cast<LOAT *>(reqDep)->objectFiles.empty())
         {
             continue;
         }
@@ -373,7 +271,7 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets)
     {
         for (const uint32_t index : reqDepsVecIndices)
         {
-            if (const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
+            if (const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
                 reqDep->evaluate(TargetType::LIBRARY_SHARED))
             {
                 if (os != OS::NT)
@@ -391,7 +289,7 @@ void LOAT::setLinkOrArchiveCommands(std::pmr::string &linkWithTargets)
         {
             for (const uint32_t index : reqDepsVecIndices)
             {
-                if (const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
+                if (const PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
                     reqDep->evaluate(TargetType::LIBRARY_SHARED))
                 {
                     linkWithTargets += "-Wl,-rpath-link -Wl,\"" + string(reqDep->getOutputDirectoryV()) + "\" ";
@@ -408,20 +306,6 @@ bool LOAT::isEventRegistered(Builder &builder)
         return false;
     }
     RealBTarget &rb = realBTargets[0];
-    for (const ObjectFileProducer *objectFileProducer : objectFileProducers)
-    {
-        objectFileProducer->getObjectFiles(&objectFiles);
-    }
-
-    if (objectFiles.empty())
-    {
-        if (evaluate(TargetType::LIBRARY_STATIC))
-        {
-            rb.updateStatus = UpdateStatus::ALREADY_UPDATED;
-            return false;
-        }
-        printErrorMessage(FORMAT("Target {} has no object-files.\n", name));
-    }
 
     constexpr uint32_t stackSize = 64 * 1024;
     string output2;
@@ -429,14 +313,15 @@ bool LOAT::isEventRegistered(Builder &builder)
     std::pmr::monotonic_buffer_resource alloc(buffer, stackSize);
     std::pmr::string linkWithTargets(&alloc);
     setLinkOrArchiveCommands(linkWithTargets);
-    setFileStatus();
+    if (rb.updateStatus == UpdateStatus::UNCHECKED)
+    {
+        setFileStatus();
+    }
 
-    if (rb.updateStatus != UpdateStatus::NEEDS_UPDATE)
+    if (rb.updateStatus != UpdateStatus::UPDATED_NEEDED)
     {
         return false;
     }
-
-    rb.assignNeedsUpdateToDependents();
 
     if (dryRun)
     {
@@ -444,6 +329,9 @@ bool LOAT::isEventRegistered(Builder &builder)
         return false;
     }
 
+    realBTargets[0].launchTime =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count();
     run.startAsyncProcess(linkWithTargets.c_str(), builder, this, false);
     return true;
 }
@@ -457,10 +345,9 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
     std::pmr::string linkWithTargets(&alloc);
     setLinkOrArchiveCommands(linkWithTargets);
 
-    realBTargets[0].updateStatus = UpdateStatus::UPDATED;
     if (realBTargets[0].exitStatus == EXIT_SUCCESS)
     {
-        realBTargets[0].assignNeedsUpdateToDependents();
+        buildFooterUpdated = true;
     }
 
     string outputStr;
@@ -522,4 +409,10 @@ bool LOAT::isEventCompleted(Builder &builder, string_view)
         }
     }
     return false;
+}
+
+void LOAT::writeConfigCacheAtConfigTime(string &buffer)
+{
+    PLOAT::writeConfigCacheAtConfigTime(buffer);
+    writeNode(buffer, myBuildDir);
 }

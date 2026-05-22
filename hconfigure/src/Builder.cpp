@@ -68,7 +68,7 @@ Builder::Builder()
     {
         return;
     }
-    checkNodes();
+    checkNodes(true);
     delete[] BTarget::realBTargetsGlobal[1].data();
     --round;
     executeRoundZero();
@@ -80,7 +80,7 @@ Builder::Builder()
         {
             RealBTarget *rb = RealBTarget::sorted[i];
             rb->indexInTopologicalSort = i;
-            rb->bTarget->generateStandAloneCommand();
+            rb->getBTarget()->generateStandAloneCommand();
         }
     }
 }
@@ -101,6 +101,24 @@ void Builder::executeRoundOne()
     execute();
 }
 
+static void checkDepsChanged(RealBTarget &rb)
+{
+    const uint32_t cacheIdx = rb.getBTarget()->cacheIndex;
+    FileTargetCache &fc = fileTargetCaches[cacheIdx];
+
+    string *const newDeps = new string();
+    newDeps->reserve(4 + 4 * rb.dependenciesSize);
+    writeUint32(*newDeps, rb.dependenciesSize);
+    for (const RBTWithType &rbt : rb.dependencies)
+    {
+        if (const RelationType kind = rbt.getRelationType(); kind == RelationType::FULL || kind == RelationType::WAIT)
+        {
+            writeUint32(*newDeps, rbt.getPointer()->getBTarget()->cacheIndex);
+        }
+    }
+    fc.depsCache = *newDeps;
+}
+
 void Builder::executeRoundZero()
 {
     auto start = std::chrono::high_resolution_clock::now();
@@ -112,17 +130,36 @@ void Builder::executeRoundZero()
     {
         for (size_t i = RealBTarget::sorted.size(); i-- > 0;)
         {
-            RealBTarget &localRb = *RealBTarget::sorted[i];
+            RealBTarget &rb = *RealBTarget::sorted[i];
 
-            localRb.indexInTopologicalSort = topSize - (i + 1);
+            rb.indexInTopologicalSort = topSize - (i + 1);
 
-            if (localRb.bTarget->selectiveBuild)
+            if (rb.getBTarget()->selectiveBuild)
             {
-                for (const RBTWithType &rbt : localRb.dependencies)
+                // We need to check if our rb.dependenciesSize == 0, because it may have one in the deps-cache
+                if (rb.checkDepsChanged())
                 {
-                    if (rbt.getDepType() == BTargetDepKind::FULL || rbt.getDepType() == BTargetDepKind::SELECTIVE)
+                    checkDepsChanged(rb);
+                    rb.updateStatus = UpdateStatus::UPDATED_NEEDED;
+
+                    for (const RBTWithType &rbt : rb.dependencies)
                     {
-                        rbt.getPointer()->bTarget->selectiveBuild = true;
+                        if (rbt.getRelationType() == RelationType::FULL ||
+                            rbt.getRelationType() == RelationType::SELECTIVE)
+                        {
+                            rbt.getPointer()->getBTarget()->selectiveBuild = true;
+                        }
+                    }
+                }
+                else
+                {
+                    for (const RBTWithType &rbt : rb.dependencies)
+                    {
+                        if (rbt.getRelationType() == RelationType::FULL ||
+                            rbt.getRelationType() == RelationType::SELECTIVE)
+                        {
+                            rbt.getPointer()->getBTarget()->selectiveBuild = true;
+                        }
                     }
                 }
             }
@@ -147,7 +184,8 @@ void Builder::executeRoundZero()
 
     // edit the following if you want to run in lesser threads.
     // cache.numberOfBuildThreads = cache.numberOfBuildThreads;
-    const uint16_t numberOfLaunchedThreads = cache.numberOfBuildProcesses;
+    uint16_t numberOfLaunchedThreads = cache.numberOfBuildProcesses;
+    // numberOfLaunchedThreads = 1;
     idleCount = numberOfLaunchedThreads;
     maxSimultaneousProcessDesired = std::thread::hardware_concurrency() * 16;
 
@@ -194,9 +232,6 @@ void Builder::executeRoundZero()
 
 #endif
 
-    globalLaunchTime =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count();
     while (true)
     {
         while (true)
@@ -206,7 +241,7 @@ void Builder::executeRoundZero()
             {
                 break;
             }
-            const uint64_t pid = b->bTarget->run.pid;
+            const uint64_t pid = b->getBTarget()->run.pid;
 
             // Because it is gonna be a new process, we make sure that we don't exceed the process capacity, or we
             // do so only when we are down to 0 active process.
@@ -224,13 +259,13 @@ void Builder::executeRoundZero()
             updateBTargets.moveForward();
             ++updatedCount;
 
-            if (b->bTarget->isEventRegistered(*this))
+            if (b->getBTarget()->isEventRegistered(*this))
             {
                 --idleCount;
             }
             else
             {
-                decrementFromDependents(*b);
+                decrementFromDependents(const_cast<RealBTarget &>(*b));
             }
         }
 
@@ -322,8 +357,12 @@ void Builder::executeRoundZero()
                     {
                         printErrorMessage("Short read from signalfd\n");
                     }
-                    string buffer;
-                    writeBuildBuffer(buffer);
+
+                    const string buildCache = getBuildCache();
+                    writeNodesCacheIfNewNodesAdded();
+                    writeBufferToCompressedFile(configureNode->filePath + slashc + getFileNameJsonOrOut("build-cache"),
+                                                buildCache);
+
                     std::_Exit(EXIT_SUCCESS);
                 }
                 if (BTarget *bt = eventData[fd]; !callIsEventCompleted(bt, fd))
@@ -338,6 +377,11 @@ void Builder::executeRoundZero()
 
         if (updatedCount == updateBTargetsSizeGoal)
         {
+            // At this point the list must be empty
+            if (updateBTargets.hasElement())
+            {
+                HMAKE_HMAKE_INTERNAL_ERROR
+            }
             /*for (uint32_t i = 0; i < updateBTargetsSizeGoal; ++i)
             {
                 printMessage(updateBTargets.array[i].value->bTarget->getPrintName() + '\n');
@@ -542,60 +586,131 @@ template <typename T> std::vector<std::span<T>> divideInChunk(std::vector<T> &v,
     return result;
 }
 
-void Builder::checkNodes()
+void Builder::checkNodes(const bool isFirstTime)
 {
-    uncheckedNodesCentral.clear();
-    uncheckedNodesCentral.reserve(Node::idCount);
-    for (uint32_t i = 0; i < Node::idCount; ++i)
+    // maybe pmr
+    vector<Node *> statNodes;
+    vector<Node *> hashNodes;
+    statNodes.reserve(Node::idCount);
+    hashNodes.reserve(Node::idCount);
+
+    if (isFirstTime)
     {
-        if (nodeIndices[i]->toBeChecked)
+        for (uint32_t i = 0; i < Node::idCount; ++i)
         {
-            uncheckedNodesCentral.emplace_back(nodeIndices[i]);
+            Node *node = nodeIndices[i];
+            if (node->toBeChecked || node->checkHashing)
+            {
+                statNodes.emplace_back(node);
+            }
+            if (node->checkHashing)
+            {
+                hashNodes.emplace_back(node);
+            }
+        }
+    }
+    else
+    {
+        // This is called at the end before saving the cache. Here we cached those that were skipped earlier ( were
+        // generated during the build or initially there toBeChecked was false ( like dynamically discovered
+        // header-files)).
+
+        for (uint32_t i = 0; i < Node::idCount; ++i)
+        {
+            if (Node *node = nodeIndices[i]; node->checkHashing && !node->fileHashingDone)
+            {
+                statNodes.emplace_back(node);
+                hashNodes.emplace_back(node);
+            }
         }
     }
 
-    if (uncheckedNodesCentral.empty())
+    const uint32_t hwc = [] {
+        const uint32_t n = std::thread::hardware_concurrency();
+        return n ? n : 1;
+    }();
+
+    // Phase 1: stat — uniform cost, static chunks are fine.
+    if (statNodes.empty())
     {
         return;
     }
-
-    constexpr uint16_t configuredWorkers = 12;
-    const uint16_t workerCount2 =
-        static_cast<uint16_t>(std::min<size_t>(configuredWorkers, uncheckedNodesCentral.size()));
-    const uint16_t workerCount =
-        static_cast<uint16_t>(std::min<size_t>(workerCount2, std::thread::hardware_concurrency()));
-
-    if (workerCount == 1)
     {
-        for (Node *node : uncheckedNodesCentral)
+        const uint32_t workerCount = std::min<uint32_t>(hwc, statNodes.size());
+        const auto chunks = divideInChunk(statNodes, workerCount);
+
+        vector<thread> workers;
+        workers.reserve(workerCount - 1);
+        for (uint32_t i = 1; i < workerCount; ++i)
+        {
+            workers.emplace_back([chunk = chunks[i]] {
+                for (Node *node : chunk)
+                {
+                    node->performSystemCheck();
+                }
+            });
+        }
+        for (Node *node : chunks[0])
         {
             node->performSystemCheck();
         }
+        for (thread &w : workers)
+        {
+            w.join();
+        }
+    }
+
+    // Phase 2: hash — heterogeneous cost, LPT static assignment.
+    if (hashNodes.empty())
+    {
         return;
     }
 
-    const vector<span<Node *>> chunks = divideInChunk(uncheckedNodesCentral, workerCount);
+    // Partition not_found nodes to the end without shifting.
+    // Swap-with-last is O(n) and allocation-free.
+    uint32_t validCount = static_cast<uint32_t>(hashNodes.size());
+    for (uint32_t i = 0; i < validCount;)
+    {
+        if (hashNodes[i]->fileType == file_type::not_found)
+        {
+            hashNodes[i]->contentHash = 0;
+            std::swap(hashNodes[i], hashNodes[--validCount]);
+            // i stays: the swapped-in element must be rechecked.
+        }
+        else
+        {
+            ++i;
+        }
+    }
+
+    hashNodes.resize(validCount);
+
+    if (hashNodes.empty())
+    {
+        return;
+    }
+
+    const uint32_t workerCount = std::min<uint32_t>(hwc, static_cast<uint32_t>(hashNodes.size()));
+
+    std::ranges::sort(hashNodes, [](const Node *a, const Node *b) { return a->fileSize > b->fileSize; });
+
+    const auto hashStride = [&](const uint32_t threadId) {
+        for (uint32_t i = threadId; i < static_cast<uint32_t>(hashNodes.size()); i += workerCount)
+        {
+            hashNodes[i]->performContentHash();
+        }
+    };
+
     vector<thread> workers;
     workers.reserve(workerCount - 1);
-
-    for (uint16_t i = 1; i < workerCount; ++i)
+    for (uint32_t i = 1; i < workerCount; ++i)
     {
-        workers.emplace_back([chunk = chunks[i]] {
-            for (Node *node : chunk)
-            {
-                node->performSystemCheck();
-            }
-        });
+        workers.emplace_back([i, &hashStride] { hashStride(i); });
     }
-
-    for (Node *node : chunks[0])
+    hashStride(0);
+    for (thread &w : workers)
     {
-        node->performSystemCheck();
-    }
-
-    for (thread &worker : workers)
-    {
-        worker.join();
+        w.join();
     }
 }
 
@@ -607,9 +722,9 @@ void Builder::execute()
     {
         if (round == 1)
         {
-            rb->bTarget->setSelectiveBuild();
+            rb->getBTarget()->setSelectiveBuild();
         }
-        rb->bTarget->completeRoundOne();
+        rb->getBTarget()->completeRoundOne();
 
         if (rb->exitStatus != EXIT_SUCCESS)
         {
@@ -621,7 +736,7 @@ void Builder::execute()
     }
 }
 
-void Builder::decrementFromDependents(const RealBTarget &rb)
+void Builder::decrementFromDependents(RealBTarget &rb)
 {
     DEBUG_EXECUTE(FORMAT("{} Locking in try block {} {}\n", round, __LINE__, getThreadId()));
     if (rb.exitStatus != EXIT_SUCCESS)
@@ -629,20 +744,28 @@ void Builder::decrementFromDependents(const RealBTarget &rb)
         errorHappenedInRoundMode = true;
     }
 
+    const bool setToNeedsUpdate = rb.updateStatus == UpdateStatus::UPDATED_NEEDED;
+    rb.isCompleted = true;
+
     for (const RBTWithType rbt : rb.dependents)
     {
-        if (rbt.getDepType() == BTargetDepKind::FULL)
+        if (rbt.getRelationType() == RelationType::FULL)
         {
+            RealBTarget *dependent = rbt.getPointer();
+            if (setToNeedsUpdate)
+            {
+                dependent->updateStatus = UpdateStatus::UPDATED_NEEDED;
+            }
             if (rb.exitStatus != EXIT_SUCCESS)
             {
-                rbt.getPointer()->exitStatus = EXIT_FAILURE;
+                dependent->exitStatus = EXIT_FAILURE;
             }
-            rbt.getPointer()->dependenciesSize -= 1;
-            if (!rbt.getPointer()->dependenciesSize)
+            dependent->dependenciesSize -= 1;
+            if (!dependent->dependenciesSize)
             {
                 uint32_t insertionIndex;
                 updateBTargets.emplace(rbt.getPointer(), insertionIndex);
-                rbt.getPointer()->insertionIndex = insertionIndex;
+                dependent->insertionIndex = insertionIndex;
             }
         }
     }

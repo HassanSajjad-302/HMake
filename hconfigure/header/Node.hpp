@@ -46,11 +46,12 @@ class Node
     /// Normalized path (and lower-cased on Windows) for file or directory.
     string filePath;
 
-    /// Cached filesystem type, assigned by `performSystemCheck()`.
-    file_type fileType;
-
     /// Cached last-write timestamp, assigned by `performSystemCheck()`.
     uint64_t lastWriteTime = -1;
+
+    uint64_t fileSize = 0; // populated by performSystemCheck
+
+    uint64_t contentHash = 0;
 
     /// Total number of created nodes.
     inline static uint32_t idCount = 0;
@@ -58,11 +59,18 @@ class Node
     /// Stable index in `nodeIndices`.
     uint32_t myId;
 
+    /// Cached filesystem type, assigned by `performSystemCheck()`.
+    file_type fileType;
+
     /// True after filesystem metadata has been fetched at least once.
     bool systemCheckCompleted{false};
 
     /// Marks this node for refresh in the pre-round-0 node-check phase.
-    bool toBeChecked = false;
+    bool toBeChecked :1 = false;
+
+    bool checkHashing :1= false;
+
+    bool fileHashingDone :1 = false;
 
     explicit Node(string_view filePath_);
     /// Returns basename (characters after final path separator).
@@ -71,9 +79,13 @@ class Node
     string getFileStem() const;
     string getExtension() const;
 
+  private:
+    friend class Builder;
     /// Fetches filesystem metadata once and caches it in this object.
     void performSystemCheck();
+    void performContentHash();
 
+  public:
     /// Retrieves/creates a node from normalized path and validates file-vs-directory shape.
     /// \param filePath_ normalized path (lower-cased on Windows).
     /// \param isFile expected shape (`true` regular file, `false` directory).
@@ -85,6 +97,9 @@ class Node
 
     /// Retrieves/creates node without performing filesystem checks.
     static Node *getHalfNode(string_view filePath_);
+
+    /// Same as getHalfNode but accepts a non-normalized path and normalizes it internally.
+    static Node *getHalfNodeNonNormalized(string_view filePath_);
 
     /// Returns node by stable id index.
     static Node *getHalfNode(uint32_t index);

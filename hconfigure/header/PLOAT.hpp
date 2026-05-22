@@ -6,7 +6,6 @@
 #include "Features.hpp"
 #include "FeaturesConvenienceFunctions.hpp"
 #include "SpecialNodes.hpp"
-#include "TargetCache.hpp"
 #include "gtl/include/gtl/btree.hpp"
 
 class Configuration;
@@ -14,7 +13,7 @@ class Configuration;
 using gtl::node_hash_map, gtl::btree_set;
 
 // PrebuiltLinkOrArchiveTarget
-class PLOAT : public BTarget, public TargetCache
+class PLOAT : public BTarget
 {
 #ifndef BUILD_MODE
     string actualOutputName;
@@ -27,7 +26,6 @@ class PLOAT : public BTarget, public TargetCache
   public:
     Configuration &config;
     Node *outputFileNode = nullptr;
-    string configCacheBuffer;
     uint32_t configCacheBytesRead = 0;
     bool hasObjectFiles = true;
 
@@ -44,7 +42,6 @@ class PLOAT : public BTarget, public TargetCache
     void completeRoundOne() override;
 
   private:
-    void writeTargetConfigCacheAtConfigureTime();
     void readCacheAtBuildTime();
 
   public:
@@ -72,6 +69,7 @@ class PLOAT : public BTarget, public TargetCache
 
     void populateReqAndUseReqDeps();
     string getPrintName() const override;
+    void writeConfigCacheAtConfigTime(string &buffer) override;
 };
 
 template <typename T> bool PLOAT::evaluate(T property) const
@@ -123,8 +121,8 @@ template <typename... U> PLOAT &PLOAT::deps(const DepType depType, PLOAT &ploat,
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        TargetCache *us = static_cast<TargetCache *>(this);
-        TargetCache *ourDep = static_cast<TargetCache *>(&ploat);
+        BTarget *us = static_cast<BTarget *>(this);
+        BTarget *ourDep = static_cast<BTarget *>(&ploat);
         if (ourDep->cacheIndex > us->cacheIndex)
         {
             printErrorMessage(FORMAT("Please declare dependency \n{}\n before its dependent \n{}\nDependency "

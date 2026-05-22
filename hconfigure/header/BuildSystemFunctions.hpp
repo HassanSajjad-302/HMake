@@ -67,8 +67,6 @@ inline Node *currentNode;
 
 inline uint32_t nodesSizeBefore = 0;
 
-inline uint64_t globalLaunchTime = 0;
-
 enum class BSMode : uint8_t // Build System Mode
 {
     CONFIGURE = 0,
@@ -107,7 +105,7 @@ template <typename T> inline deque<T> targets;
 template <typename T> inline flat_hash_set<T *> targetPointers;
 
 // Builder instance that will be used in configuration and build steps.
-inline class Builder *builder;
+inline class Builder *builderPtr;
 
 inline string currentMinusConfigure;
 void initializeCache();
@@ -427,8 +425,8 @@ string readBufferFromCompressedFile(const string &fileName);
 void readConfigCache();
 void readBuildCache();
 void writeNodesCacheIfNewNodesAdded();
-void writeConfigBuffer(string &buffer);
-void writeBuildBuffer(string &buffer);
+string getConfigCache();
+string getBuildCache();
 string getThreadId();
 string getFileNameJsonOrOut(const string &name);
 
@@ -488,5 +486,27 @@ template <typename T> struct TPointerLess
 #define STATIC_VARIABLE(type, var)                                                                                     \
     static alignas(16) inline char _##var[sizeof(type)];                                                               \
     static inline type &var = reinterpret_cast<type &>(_##var);
+
+// Stack-backed pmr::vector with automatic alignment accounting.
+// Allocates 'StackCap_' elements inline on the stack via a monotonic_buffer_resource.
+// The buffer is oversized by (alignof - 1) bytes to absorb worst-case alignment padding,
+// and reserve() is computed to exactly fill the usable portion.
+// If the vector grows beyond StackCap_, it spills transparently to heap via new/delete.
+// Spilled memory is freed when the monotonic_buffer_resource goes out of scope —
+// monotonic_buffer_resource::deallocate() is a no-op; cleanup happens in its destructor
+// which releases all upstream chunks at once. Vector and resource must share the same scope.
+#define STACK_PMR_VECTOR(Type_, Name_, StackCap_)                                                                      \
+    char Name_##_buf_[sizeof(Type_) * (StackCap_) + alignof(Type_) - 1];                                               \
+    std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_, sizeof(Name_##_buf_));                              \
+    std::pmr::vector<Type_> Name_(&Name_##_res_);                                                                      \
+    Name_.reserve((sizeof(Name_##_buf_) - alignof(Type_) + 1) / sizeof(Type_))
+
+// Stack-backed pmr::string. Same semantics as STACK_PMR_VECTOR.
+// StackCap_ is in bytes (chars), not elements.
+#define STACK_PMR_STRING(Name_, StackCap_)                                                                             \
+    char Name_##_buf_[(StackCap_) + alignof(char) - 1];                                                                \
+    std::pmr::monotonic_buffer_resource Name_##_res_(Name_##_buf_, sizeof(Name_##_buf_));                              \
+    std::pmr::string Name_(&Name_##_res_);                                                                             \
+    Name_.reserve((sizeof(Name_##_buf_) - alignof(char) + 1) / sizeof(char))
 
 #endif // HMAKE_BUILDSYSTEMFUNCTIONS_HPP

@@ -56,6 +56,7 @@ set(HCONFIGURE_SOURCES
         hconfigure/src/IPCManagerCompiler.cpp
         hconfigure/src/Manager.cpp
         hconfigure/src/BoostCppTarget.cpp
+        hconfigure/src/CustomCodeGenerator.cpp
         hconfigure/src/CustomAllocator.cpp)
 
 set(INCLUDE_BUILD ON)
@@ -237,6 +238,7 @@ add_dual_executables(Example1 Examples/Example1/hmake.cpp
         Test2 Tests/Stage/Test2/hmake.cpp
         Test3 Tests/Stage/Test3/hmake.cpp
         Test4 Tests/Stage/Test4/hmake.cpp
+        Test6 Tests/Stage/Test6/hmake.cpp
         HMake hmake.cpp
         llvm Projects/LLVM/hmake.cpp
         lit Projects/lit/hmake.cpp

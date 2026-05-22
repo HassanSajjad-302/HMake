@@ -33,7 +33,9 @@ struct Updates
     unsigned short imodFiles = 0;
     unsigned short linkTargetsNoDebug = 0;
     unsigned short linkTargetsDebug = 0;
+    unsigned short generatedHeaders = 0;
     bool nodesFile = false;
+    bool buildCache = false;
 };
 
 struct NodeSnap

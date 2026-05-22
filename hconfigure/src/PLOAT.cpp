@@ -34,16 +34,31 @@ string_view PLOAT::getOutputDirectoryV() const
 #endif
 }
 
+static bool getLaunchesProcessPloat(const TargetType t)
+{
+    return t != TargetType::PLIBRARY_SHARED && t != TargetType::PLIBRARY_STATIC;
+}
+
+static BTargetType getBTargetTypePloat(const TargetType t)
+{
+    return t != TargetType::PLIBRARY_SHARED && t != TargetType::PLIBRARY_STATIC ? BTargetType::LOAT
+                                                                                : BTargetType::PLOAT;
+}
+
 #ifdef BUILD_MODE
-PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_)
-    : BTarget(outputName_, false, false), TargetCache(name), config(config_), linkTargetType{linkTargetType_}
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, const TargetType linkTargetType_)
+    : BTarget(outputName_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), false,
+              false),
+      config(config_), linkTargetType{linkTargetType_}
 {
     initializePLOAT();
 }
 
-PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_,
+PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, const TargetType linkTargetType_,
              string name_, bool buildExplicit, bool makeDirectory)
-    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name), config(config_), linkTargetType(linkTargetType_)
+    : BTarget(name_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), buildExplicit,
+              makeDirectory),
+      config(config_), linkTargetType(linkTargetType_)
 
 {
     initializePLOAT();
@@ -65,8 +80,10 @@ void PLOAT::initializePLOAT()
 #else
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_)
-    : BTarget(outputName_, false, false), TargetCache(name), config(config_),
-      outputName{getLastNameAfterSlash(outputName_)}, linkTargetType{linkTargetType_}, outputDirectory(myBuildDir_)
+    : BTarget(outputName_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), false,
+              false),
+      config(config_), outputName{getLastNameAfterSlash(outputName_)}, linkTargetType{linkTargetType_},
+      outputDirectory(myBuildDir_)
 {
     if (linkTargetType == TargetType::PLIBRARY_STATIC || linkTargetType == TargetType::PLIBRARY_SHARED)
     {
@@ -80,8 +97,9 @@ PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir
 
 PLOAT::PLOAT(Configuration &config_, const string &outputName_, Node *myBuildDir_, TargetType linkTargetType_,
              string name_, bool buildExplicit, bool makeDirectory)
-    : BTarget(name_, buildExplicit, makeDirectory), TargetCache(name), config(config_), outputName(outputName_),
-      linkTargetType(linkTargetType_), outputDirectory(myBuildDir_)
+    : BTarget(name_, getLaunchesProcessPloat(linkTargetType_), getBTargetTypePloat(linkTargetType_), buildExplicit,
+              makeDirectory),
+      config(config_), outputName(outputName_), linkTargetType(linkTargetType_), outputDirectory(myBuildDir_)
 
 {
     if (linkTargetType == TargetType::PLIBRARY_STATIC || linkTargetType == TargetType::PLIBRARY_SHARED)
@@ -121,19 +139,18 @@ void PLOAT::completeRoundOne()
 #endif
 
         populateReqAndUseReqDeps();
-        writeTargetConfigCacheAtConfigureTime();
     }
 
     for (const uint32_t index : reqDepsVecIndices)
     {
-        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].targetCache);
+        PLOAT *reqDep = static_cast<PLOAT *>(fileTargetCaches[index].bTarget);
         if constexpr (bsMode == BSMode::BUILD)
         {
             if (evaluate(TargetType::LIBRARY_STATIC))
             {
                 if (reqDep->hasObjectFiles)
                 {
-                    realBTargets[0].addDep<BTargetType::LOAT, BTargetDepKind::LOOSE>(&reqDep->realBTargets[0]);
+                    realBTargets[0].addDep<BTargetType::LOAT, RelationType::LOOSE>(&reqDep->realBTargets[0]);
                 }
             }
             else
@@ -163,31 +180,6 @@ void PLOAT::completeRoundOne()
             realBTargets[0].addDep<BTargetType::UNKNOWN>(&objectFileProducer->realBTargets[0]);
         }
     }
-}
-
-void PLOAT::writeTargetConfigCacheAtConfigureTime()
-{
-    writeNode(configCacheBuffer, outputFileNode);
-
-    writeUint32(configCacheBuffer, useReqLibraryDirs.size());
-    for (const LibDirNode &libDirNode : useReqLibraryDirs)
-    {
-        writeNode(configCacheBuffer, libDirNode.node);
-    }
-
-    writeUint32(configCacheBuffer, reqDeps.size());
-    for (const PLOAT *ploat : reqDeps)
-    {
-        writeUint32(configCacheBuffer, ploat->cacheIndex);
-    }
-
-    writeUint32(configCacheBuffer, reqLibraryDirs.size());
-    for (const LibDirNode &libDirNode : reqLibraryDirs)
-    {
-        writeNode(configCacheBuffer, libDirNode.node);
-    }
-
-    fileTargetCaches[cacheIndex].configCache = string_view(configCacheBuffer.data(), configCacheBuffer.size());
 }
 
 void PLOAT::readCacheAtBuildTime()
@@ -234,6 +226,29 @@ void PLOAT::populateReqAndUseReqDeps()
 string PLOAT::getPrintName() const
 {
     return FORMAT("PLOAT {}\n", name);
+}
+
+void PLOAT::writeConfigCacheAtConfigTime(string &buffer)
+{
+    writeNode(buffer, outputFileNode);
+
+    writeUint32(buffer, useReqLibraryDirs.size());
+    for (const LibDirNode &libDirNode : useReqLibraryDirs)
+    {
+        writeNode(buffer, libDirNode.node);
+    }
+
+    writeUint32(buffer, reqDeps.size());
+    for (const PLOAT *ploat : reqDeps)
+    {
+        writeUint32(buffer, ploat->cacheIndex);
+    }
+
+    writeUint32(buffer, reqLibraryDirs.size());
+    for (const LibDirNode &libDirNode : reqLibraryDirs)
+    {
+        writeNode(buffer, libDirNode.node);
+    }
 }
 
 bool operator<(const PLOAT &lhs, const PLOAT &rhs)

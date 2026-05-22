@@ -101,12 +101,6 @@ enum class SystemTarget : bool
     YES,
 };
 
-enum class IgnoreHeaderDeps : bool
-{
-    NO,
-    YES,
-};
-
 enum class UseIPC : bool
 {
     NO,
@@ -186,7 +180,6 @@ class Configuration : public BTarget
     BigHeaderUnit bigHeaderUnit = BigHeaderUnit::NO;
     TreatHUAsHeaderFile treatHuAsHeaderFile = TreatHUAsHeaderFile::NO;
     SystemTarget systemTarget = SystemTarget::NO;
-    IgnoreHeaderDeps ignoreHeaderDeps = IgnoreHeaderDeps::NO;
     UseIPC useIPC = UseIPC::YES;
     UseConfigurationScope useConfigurationScope = UseConfigurationScope::NO;
     StandAloneCommand standAloneCommand = StandAloneCommand::NO;
@@ -357,10 +350,6 @@ template <typename T> bool Configuration::evaluate(T property) const
     else if constexpr (std::is_same_v<decltype(property), SystemTarget>)
     {
         return systemTarget == property;
-    }
-    else if constexpr (std::is_same_v<decltype(property), IgnoreHeaderDeps>)
-    {
-        return ignoreHeaderDeps == property;
     }
     else if constexpr (std::is_same_v<decltype(property), UseIPC>)
     {

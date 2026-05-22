@@ -82,6 +82,10 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     // .o
     expected += 1 * updates.moduleFiles;
 
+    // generated .h file
+    // .h
+    expected += 1 * updates.generatedHeaders;
+
     // .o + BMI
     expected += 2 * updates.imodFiles;
 
@@ -98,7 +102,7 @@ bool Snapshot::snapshotBalances(const Updates &updates) const
     }
 
     if (updates.sourceFiles || updates.moduleFiles || updates.imodFiles || updates.headerUnits ||
-        updates.linkTargetsNoDebug || updates.linkTargetsDebug)
+        updates.linkTargetsNoDebug || updates.linkTargetsDebug || updates.buildCache || updates.generatedHeaders)
     {
         expected += 1; // build-cache.json
     }

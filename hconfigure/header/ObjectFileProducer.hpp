@@ -12,12 +12,9 @@ class ObjectFileProducer : public BTarget
 {
   public:
     bool hasObjectFiles = true;
-    ObjectFileProducer()
-    {
-    }
 
-    ObjectFileProducer(string name_, const bool buildExplicit, const bool makeDirectory)
-        : BTarget(std::move(name_), buildExplicit, makeDirectory)
+    ObjectFileProducer(string name_, const BTargetType bTargetType, const bool buildExplicit, const bool makeDirectory)
+        : BTarget(std::move(name_), false, bTargetType, buildExplicit, makeDirectory)
     {
     }
     virtual void getObjectFiles(vector<const ObjectFile *> *objectFiles) const
@@ -29,7 +26,7 @@ class ObjectFileProducer : public BTarget
 template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
 {
     ObjectFileProducerWithDS();
-    ObjectFileProducerWithDS(string name_, bool buildExplicit, bool makeDirectory);
+    ObjectFileProducerWithDS(string name_, BTargetType bTargetType, bool buildExplicit, bool makeDirectory);
 
     // Following 2 unused at BSMode::Build
     // we need this to be ordered in setCompileCommand. order is deterministic as insertions are supposed to be always
@@ -49,8 +46,9 @@ template <typename T> struct ObjectFileProducerWithDS : ObjectFileProducer
 template <typename T> ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS() = default;
 
 template <typename T>
-ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS(string name_, const bool buildExplicit, const bool makeDirectory)
-    : ObjectFileProducer(std::move(name_), buildExplicit, makeDirectory)
+ObjectFileProducerWithDS<T>::ObjectFileProducerWithDS(string name_, const BTargetType bTargetType, const bool buildExplicit,
+                                                      const bool makeDirectory)
+    : ObjectFileProducer(std::move(name_), bTargetType, buildExplicit, makeDirectory)
 {
 }
 
@@ -96,8 +94,8 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &objectFileProduce
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        TargetCache *us = static_cast<TargetCache *>(static_cast<T *>(this));
-        TargetCache *ourDep = static_cast<TargetCache *>(&objectFileProducer);
+        BTarget *us = static_cast<BTarget *>(static_cast<T *>(this));
+        BTarget *ourDep = static_cast<BTarget *>(&objectFileProducer);
         if (ourDep->cacheIndex > us->cacheIndex)
         {
             printErrorMessage(FORMAT("Please declare dependency \n{}\n before its dependent \n{}\nDependency "
@@ -123,7 +121,8 @@ T &ObjectFileProducerWithDS<T>::deps(const DepType depType, T &objectFileProduce
     }
     else
     {
-        realBTargets[0].template addDep<BTargetType::UNKNOWN, BTargetDepKind::SELECTIVE>(&objectFileProducer.realBTargets[0]);
+        realBTargets[0].template addDep<BTargetType::UNKNOWN, RelationType::SELECTIVE>(
+            &objectFileProducer.realBTargets[0]);
     }
 
     if constexpr (sizeof...(objectFileProducers))

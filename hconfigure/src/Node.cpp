@@ -1,6 +1,8 @@
 #include "Node.hpp"
-#include "TargetCache.hpp"
 #include "rapidhash/rapidhash.h"
+
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <utility>
 
 #ifdef _WIN32
@@ -107,11 +109,15 @@ string Node::getExtension() const
 
 void Node::performSystemCheck()
 {
-    if (systemCheckCompleted)
+    // In build-mode, this function can be called only once.
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        return;
+        if (systemCheckCompleted)
+        {
+            return;
+        }
+        systemCheckCompleted = true;
     }
-    systemCheckCompleted = true;
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA attrs;
     if (!GetFileAttributesExA(filePath.c_str(), GetFileExInfoStandard, &attrs))
@@ -140,6 +146,7 @@ void Node::performSystemCheck()
     else
     {
         fileType = file_type::regular;
+        fileSize = (static_cast<uint64_t>(attrs.nFileSizeHigh) << 32) | attrs.nFileSizeLow;
     }
 
     // Always set lastWriteTime for every resolved file type.
@@ -175,6 +182,8 @@ void Node::performSystemCheck()
     if (S_ISREG(st.st_mode))
     {
         fileType = file_type::regular;
+        fileSize = static_cast<uint64_t>(st.st_size);
+        // ... lastWriteTime as before
 #if defined(__APPLE__)
         lastWriteTime = static_cast<int64_t>(st.st_mtimespec.tv_sec) * 1'000'000'000LL +
                         static_cast<int64_t>(st.st_mtimespec.tv_nsec);
@@ -197,6 +206,10 @@ void Node::performSystemCheck()
 
 Node *Node::getNode(const string_view filePath_, const bool isFile, const bool mayNotExist)
 {
+#ifdef BUILD_MODE
+    printErrorMessage(FORMAT("For filePath {}\n Node::getNode is called at build-time.\n", filePath_));
+#endif
+
     const auto &[it, ok] = nodeAllFiles.emplace(filePath_);
     Node *node = &const_cast<Node &>(*it);
 
@@ -209,6 +222,67 @@ Node *Node::getNode(const string_view filePath_, const bool isFile, const bool m
     return node;
 }
 
+void Node::performContentHash()
+{
+    if (fileSize == 0)
+    {
+        contentHash = 0;
+        return;
+    }
+
+    if (fileHashingDone)
+    {
+        return;
+    }
+    fileHashingDone = true;
+
+#ifdef _WIN32
+    HANDLE hFile = CreateFileA(filePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                               FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        contentHash = 0;
+        return;
+    }
+    HANDLE hMap = CreateFileMappingA(hFile, nullptr, PAGE_READONLY, 0, 0, nullptr);
+    if (!hMap)
+    {
+        contentHash = 0;
+        CloseHandle(hFile);
+        return;
+    }
+    const void *view = MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, 0);
+    if (!view)
+    {
+        contentHash = 0;
+        CloseHandle(hMap);
+        CloseHandle(hFile);
+        return;
+    }
+    contentHash = rapidhash(view, fileSize);
+    UnmapViewOfFile(view);
+    CloseHandle(hMap);
+    CloseHandle(hFile);
+#else
+    const int fd = open(filePath.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd == -1)
+    {
+        contentHash = 0;
+        return;
+    }
+    void *mapping = mmap(nullptr, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
+    close(fd); // safe to close before hashing; mapping remains valid
+    if (mapping == MAP_FAILED)
+    {
+        contentHash = 0;
+        return;
+    }
+    madvise(mapping, fileSize, MADV_SEQUENTIAL);
+    contentHash = rapidhash(mapping, fileSize);
+    munmap(mapping, fileSize);
+#endif
+}
+
 Node *Node::getNodeNonNormalized(const string &filePath_, const bool isFile, const bool mayNotExist)
 {
     return getNode(getNormalizedPath(filePath_), isFile, mayNotExist);
@@ -218,6 +292,11 @@ Node *Node::getHalfNode(const string_view filePath_)
 {
     const auto &[it, ok] = nodeAllFiles.emplace(filePath_);
     return &const_cast<Node &>(*it);
+}
+
+Node *Node::getHalfNodeNonNormalized(const string_view filePath_)
+{
+    return getHalfNode(getNormalizedPath(filePath_));
 }
 
 Node *Node::getHalfNode(const uint32_t index)

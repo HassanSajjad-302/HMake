@@ -13,6 +13,29 @@
 
 using std::same_as;
 
+/// Lightweight wrapper accepted by all user-facing CppTarget path parameters.
+/// Implicitly constructible from const string&, const char*, or Node* so callers
+/// that already hold a Node* skip the getNodeNonNormalized lookup entirely.
+struct NodeOrStr
+{
+    Node       *node_ = nullptr;
+    string_view str_;
+    bool        hasNode_;
+
+    NodeOrStr(Node *n)           : node_(n),  hasNode_(true)  {}
+    NodeOrStr(const string &s)   : str_(s),   hasNode_(false) {}
+    NodeOrStr(string_view s)     : str_(s),   hasNode_(false) {}
+    NodeOrStr(const char *s)     : str_(s),   hasNode_(false) {}
+
+    /// Resolve to a Node*, performing the lookup only when a string was supplied.
+    /// \p isFile matches the second argument of Node::getNodeNonNormalized.
+    Node *resolve(bool isFile) const
+    {
+        if (hasNode_) return node_;
+        return Node::getNodeNonNormalized(string(str_), isFile);
+    }
+};
+
 /// This class is responsible for managing c++ compilation. This class compiles multiple source-files, module-files,
 /// interface-module-files or header-units. The compile-command is same for all the files in one CppTarget.
 /// The API is designed so that user can compile their c++ code with or without header-units. These are classified as
@@ -48,19 +71,9 @@ using std::same_as;
 /// functions that do not take the prefix add the fileName as the logical-name for header-files and header-units.
 ///
 ///
-class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
+class CppTarget : public ObjectFileProducerWithDS<CppTarget>
 {
   public:
-    /// BuildCache of this CppTarget. At config-time, entry is created for source-files, module-files and header-units.
-    /// Once an entry is created, it is persisted even if it is unused or un-configured so that if it is reconfigured
-    /// later, it won't be rebuilt. At build-time, CppSrc updates this using CppSrc::myBuildCacheIndex. This index is
-    /// the index in array for srcFileDeps and modFileDeps. CppTarget::adjustBuildCache ensures that order is same in
-    /// build-cache and config-cache for srcFileDeps and modFileDeps. It does not do this for imodFileDeps and huDeps as
-    /// these might be references in their dependents build. For these, BuildCache::Cpp::imodFiles and
-    /// BuildCache::Cpp::headerUnits is searched and the index is stored in config-cache and then later used at
-    /// build-time.
-    BuildCache::Cpp cppBuildCache;
-
     flat_hash_set<Define> reqCompileDefinitions;
     flat_hash_set<Define> useReqCompileDefinitions;
 
@@ -117,24 +130,11 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// CppTarget::getPublicBigHu will return the last entry of this.
     vector<CppMod *> interfaceBigHus;
 
-    /// Used only at configure time. Specifies the number of header-files in reqHeaderNameMapping. Only for
-    /// header-files, the mapping is stored in config-cache.
-    uint32_t reqHeaderFilesSize = 0;
-    /// Used only at configure time. Specifies the number of header-files in useReqHeaderNameMapping. Only for
-    /// header-files, the mapping is stored in config-cache.
-    uint32_t useReqHeaderFilesSize = 0;
+    span<const uint32_t> cachedReqDeps;
 
     /// Whether this is a system target. if true, header-files, header-units and include-dirs are all system. Compilers
     /// generally ignore warnings from such code.
     bool isSystem = false;
-    /// Whether to not save header-files target in build-cache. Could be set to true if source-files and header-files of
-    /// a target are not meant to be edited. This can improve zero-target build-speed.
-    bool ignoreHeaderDeps = false;
-
-    /// Whenever a source-file or module-file or header-unit compiles, it sets this variable. If set,
-    /// CppTarget::writeBuildCache will call CppSrc::updateBuildCache for all source-files, module-files and
-    /// header-units. These will update the corresponding entry in CppTarget::cppBuildCache if they were updated.
-    bool buildCacheUpdated = false;
 
     /// Determines whether the modules and hu of this target should be built using the IPC compilation. If false, then
     /// the user is itself responsible for specifying all the hu and module dependencies. This is useful for standard hu
@@ -149,15 +149,14 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     string getDependenciesString() const;
     void completeRoundOne() override;
 
-    bool isBuildCacheUpdated() override;
     /// Called in signal-handler or at the end when build-system is writing build-cache.
-    void writeBuildCache(string &buffer) override;
+    void writeConfigCacheAtConfigTime(string &buffer) override;
 
     /// Checks if one of the
-    void setHeaderFileStatusChangedCppMod(BuildCache::Cpp::ModuleFile &modCache, bool calledFromConfiguration);
+    void setHeaderFileStatusChangedCppMod(const vector<CppMod *> &cppModVec, bool calledFromConfiguration);
 
     /// Goes over the provided \p modCache header-files and header-units and checks if one of them has become
-    /// header-unit or header-file respectively. if yes, sets BuildCache::Cpp::ModuleFile::headerStatusChanged to true.
+    /// header-unit or header-file respectively. if yes, sets BuildCache::ModuleFile::headerStatusChanged to true.
     /// This will cause the rebuild of the respective module-file or header-unit and headerStatusChanged will be set
     /// false to avoid further rebuilds.
     void setHeaderFileStatusChanged(bool calledFromConfiguration);
@@ -166,12 +165,9 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     /// writes them in myBuildDir. The content of these header-units is the header-includes for all the composing
     /// headers of these header-units
     void writeBigHeaderUnits();
-    /// Writes build-cache and config-cache at config-time.
-    void writeCacheAtConfigTime();
     /// Reads build-cache and config-cache at build-time
-    void readCacheAtBuildTime();
+    void readConfigCacheAtBuildTime();
     string getPrintName() const override;
-    BTargetType getBTargetType() const override;
 
     CppTarget(const string &name_, Configuration *configuration_);
     CppTarget(bool buildExplicit, const string &name_, Configuration *configuration_);
@@ -192,7 +188,7 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     void populateNameMappingsAndNodesType();
     void emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrUnit type, bool addInReq);
     void emplaceInNodesType(const Node *node, FileType type, bool addInReq);
-    const Node* getIncludeNode(bool isHeaderFile, const string &includeName, bool addInReq, bool addInUseReq);
+    const Node *getIncludeNode(bool isHeaderFile, const string &includeName, bool addInReq, bool addInUseReq);
     void makeHeaderFileHeaderUnit(const string &includeName, bool addInReq, bool addInUseReq);
     void makeHeaderUnitHeaderFile(const string &includeName, bool addInReq, bool addInUseReq);
     void removeHeaderFile(const string &includeName, bool addInReq, bool addInUseReq);
@@ -209,115 +205,118 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     CppMod *getInterfaceBigHu(bool addNew);
     void addComposingHeadersDir(const Node *includeDir);
     void actuallyAddInclude(bool errorOnEmplaceFail, const Node *include, bool addInReq, bool addInUseReq);
-    void initSourceCache();
+    void setCommandHashes();
     void readModuleMapFromDir(const string &dir);
-    bool isEventRegistered(Builder &builder) override;
+    CppSrc &getCppSrc(const string &str);
+    CppMod &getCppInterfaceModule(const string &str);
+    CppMod &getCppModule(const string &str);
+    CppMod &getCppHeaderUnit(const string &str, bool addInReq, bool addInUseReq);
 
     template <typename... U> CppTarget &deps(CppTarget *dep, DepType dependency, const U... deps);
 
     template <typename... U> CppTarget &moduleMaps(const string &include, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as public header-files. file-name is used as the logical-name.
     /// In IsCppMod::NO, adds the public-include.
-    template <typename... U> CppTarget &publicIncludes(const string &include, U... includeDirectoryString);
+    template <typename... U> CppTarget &publicIncludes(NodeOrStr include, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as private header-files. file-name is used as the
     /// logical-name. In IsCppMod::NO, adds the private-include.
-    template <typename... U> CppTarget &privateIncludes(const string &include, U... includeDirectoryString);
+    template <typename... U> CppTarget &privateIncludes(NodeOrStr include, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as interface header-files. file-name is used as the
     /// logical-name. In IsCppMod::NO, adds the interface-include.
-    template <typename... U> CppTarget &interfaceIncludes(const string &include, U... includeDirectoryString);
+    template <typename... U> CppTarget &interfaceIncludes(NodeOrStr include, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as public header-units. In IsCppMod::NO, adds the
     /// public-include.
-    template <typename... U> CppTarget &publicHUIncludes(const string &include, U... includeDirectoryString);
+    template <typename... U> CppTarget &publicHUIncludes(NodeOrStr include, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as private header-units. file-name is used as the
     /// logical-name. In IsCppMod::NO, adds the private-include.
-    template <typename... U> CppTarget &privateHUIncludes(const string &include, U... includeDirectoryString);
+    template <typename... U> CppTarget &privateHUIncludes(NodeOrStr include, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as interface header-units. file-name is used as the
     /// logical-name. In IsCppMod::NO, adds the interface-include.
-    template <typename... U> CppTarget &interfaceHUIncludes(const string &include, U... includeDirectoryString);
+    template <typename... U> CppTarget &interfaceHUIncludes(NodeOrStr include, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as public header-files.
     /// file-name is used as the logical-name. In IsCppMod::NO, adds the public-include.
     template <typename... U>
-    CppTarget &publicIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    CppTarget &publicIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as private header-files.
     /// file-name is used as the logical-name. In IsCppMod::NO, adds the private-include.
     template <typename... U>
-    CppTarget &privateIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    CppTarget &privateIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as interface header-files.
     /// file-name is used as the logical-name. In IsCppMod::NO, adds the interface-include.
     template <typename... U>
-    CppTarget &interfaceIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    CppTarget &interfaceIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as public header-units.
     /// file-name is used as the logical-name. In IsCppMod::NO, adds the public-include.
     template <typename... U>
-    CppTarget &publicHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    CppTarget &publicHUIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as private header-units.
     /// file-name is used as the logical-name. In IsCppMod::NO, adds the private-include.
     template <typename... U>
-    CppTarget &privateHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    CppTarget &privateHUIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as interface header-units.
     /// file-name is used as the logical-name. In IsCppMod::NO, adds the interface-include.
     template <typename... U>
-    CppTarget &interfaceHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString);
+    CppTarget &interfaceHUIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as public header-units. prefix + file-name is used as
     /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &publicHUDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    CppTarget &publicHUDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as private header-units. prefix + file-name is used as
     /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &privateHUDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    CppTarget &privateHUDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as private header-units. prefix + file-name is used as
     /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &interfaceHUDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    CppTarget &interfaceHUDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as public header-units.
     /// prefix + file-name is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &publicHUDirsRE(const string &include, const string &prefix, const string &regexStr,
+    CppTarget &publicHUDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                               U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as private header-units.
     /// prefix + file-name is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &privateHUDirsRE(const string &include, const string &prefix, const string &regexStr,
+    CppTarget &privateHUDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as interface header-units.
     /// prefix + file-name is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &interfaceHUDirsRE(const string &include, const string &prefix, const string &regexStr,
+    CppTarget &interfaceHUDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                  U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as public header-files. prefix + file-name is used as
     /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &publicIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    CppTarget &publicIncDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as private header-files. prefix + file-name is used as
     /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &privateIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    CppTarget &privateIncDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory as interface header-files. prefix + file-name is used as
     /// logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &interfaceIncDirs(const string &include, const string &prefix, U... includeDirectoryString);
+    CppTarget &interfaceIncDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as public header-files.
     /// prefix + file-name is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &publicIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+    CppTarget &publicIncDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as private header-files.
     /// prefix + file-name is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &privateIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+    CppTarget &privateIncDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                 U... includeDirectoryString);
     /// In IsCppMod::YES, adds all files of the directory whose file-name matches the regex as interface header-files.
     /// prefix + file-name is used as logical-name. Does nothing in IsCppMod::NO.
     template <typename... U>
-    CppTarget &interfaceIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+    CppTarget &interfaceIncDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                   U... includeDirectoryString);
     /// In IsCppMod::NO, adds public include-dir. Does nothing in IsCppMod::YES.
-    template <typename... U> CppTarget &publicIncludesSource(const string &include, U... includeDirectoryString);
+    template <typename... U> CppTarget &publicIncludesSource(NodeOrStr include, U... includeDirectoryString);
     /// In IsCppMod::NO, adds private include-dir. Does nothing in IsCppMod::YES.
-    template <typename... U> CppTarget &privateIncludesSource(const string &include, U... includeDirectoryString);
+    template <typename... U> CppTarget &privateIncludesSource(NodeOrStr include, U... includeDirectoryString);
     /// In IsCppMod::NO, adds interface include-dir. Does nothing in IsCppMod::YES.
-    template <typename... U> CppTarget &interfaceIncludesSource(const string &include, U... includeDirectoryString);
+    template <typename... U> CppTarget &interfaceIncludesSource(NodeOrStr include, U... includeDirectoryString);
 
     CppTarget &publicCompilerFlags(const string &compilerFlags);
     CppTarget &privateCompilerFlags(const string &compilerFlags);
@@ -331,21 +330,21 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     CppTarget &interfaceCompileDefines(const string &cddName, const string &cddValue, U... compileDefines);
 
     template <typename... U>
-    CppTarget &interfaceFiles(const string &modFile, const string &exportName, U... moduleFileString);
+    CppTarget &interfaceFiles(NodeOrStr modFile, const string &exportName, U... moduleFileString);
     template <typename... U>
-    CppTarget &publicHeaderFiles(const string &includeName, const string &headerFile, U... headerUnitsString);
+    CppTarget &publicHeaderFiles(const string &includeName, NodeOrStr headerFile, U... headersString);
     template <typename... U>
-    CppTarget &privateHeaderFiles(const string &includeName, const string &headerFile, U... headerUnitsString);
+    CppTarget &privateHeaderFiles(const string &includeName, NodeOrStr headerFile, U... headersString);
     template <typename... U>
-    CppTarget &interfaceHeaderFiles(const string &includeName, const string &headerFile, U... headerUnitsString);
+    CppTarget &interfaceHeaderFiles(const string &includeName, NodeOrStr headerFile, U... headersString);
     template <typename... U>
-    CppTarget &publicHeaderUnits(const string &includeName, const string &headerUnit, U... headerUnitsString);
+    CppTarget &publicHeaderUnits(const string &includeName, NodeOrStr headerUnit, U... headerUnitsString);
     template <typename... U>
-    CppTarget &privateHeaderUnits(const string &includeName, const string &headerUnit, U... headerUnitsString);
+    CppTarget &privateHeaderUnits(const string &includeName, NodeOrStr headerUnit, U... headerUnitsString);
     template <typename... U>
-    CppTarget &interfaceHeaderUnits(const string &includeName, const string &headerUnit, U... headerUnitsString);
+    CppTarget &interfaceHeaderUnits(const string &includeName, NodeOrStr headerUnit, U... headerUnitsString);
     void parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceDirectory, string regexStr, bool recursive);
-    template <typename... U> CppTarget &sourceFiles(const string &srcFile, U... sourceFileString);
+    template <typename... U> CppTarget &sourceFiles(NodeOrStr srcFile, U... sourceFileString);
     template <typename... U> CppTarget &sourceDirs(const string &sourceDirectory, U... dirs);
     /// sourceDirs with Regex. Only those files of these directories will be added which match the regex.
     template <typename... U> CppTarget &sourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs);
@@ -353,7 +352,7 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     template <typename... U> CppTarget &rSourceDirs(const string &sourceDirectory, U... dirs);
     /// Recursive sourceDirs with Regex. Only those files of these directories will be added which match the regex.
     template <typename... U> CppTarget &rSourceDirsRE(const string &sourceDirectory, const string &regex, U... dirs);
-    template <typename... U> CppTarget &moduleFiles(const string &modFile, U... moduleFileString);
+    template <typename... U> CppTarget &moduleFiles(NodeOrStr modFile, U... moduleFileString);
     template <typename... U> CppTarget &moduleDirs(const string &moduleDirectory, U... dirs);
     /// moduleDirs with Regex. Only those files of these directories will be added which match the regex.
     template <typename... U> CppTarget &moduleDirsRE(const string &moduleDirectory, const string &regex, U... dirs);
@@ -364,6 +363,7 @@ class CppTarget : public ObjectFileProducerWithDS<CppTarget>, public TargetCache
     //
     template <DepType dependency = DepType::PRIVATE, typename T, typename... Property>
     CppTarget &assign(T property, Property... properties);
+    void verifyConfigCache(string_view configCache) const override;
 }; // class Target
 
 bool operator<(const CppTarget &lhs, const CppTarget &rhs);
@@ -385,11 +385,11 @@ template <typename... U> CppTarget &CppTarget::moduleMaps(const string &include,
     }
 }
 
-template <typename... U> CppTarget &CppTarget::publicIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::publicIncludes(NodeOrStr include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(true, inclNode, true, true);
         addHeaderUnitOrFileDir(inclNode, "", true, "", true, true);
     }
@@ -404,11 +404,11 @@ template <typename... U> CppTarget &CppTarget::publicIncludes(const string &incl
     }
 }
 
-template <typename... U> CppTarget &CppTarget::privateIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::privateIncludes(NodeOrStr include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(true, inclNode, true, false);
         addHeaderUnitOrFileDir(inclNode, "", true, "", true, false);
     }
@@ -423,11 +423,11 @@ template <typename... U> CppTarget &CppTarget::privateIncludes(const string &inc
     }
 }
 
-template <typename... U> CppTarget &CppTarget::interfaceIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::interfaceIncludes(NodeOrStr include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(true, inclNode, false, true);
         addHeaderUnitOrFileDir(inclNode, "", true, "", false, true);
     }
@@ -442,11 +442,11 @@ template <typename... U> CppTarget &CppTarget::interfaceIncludes(const string &i
     }
 }
 
-template <typename... U> CppTarget &CppTarget::publicHUIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::publicHUIncludes(NodeOrStr include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(true, inclNode, true, true);
         addHeaderUnitOrFileDir(inclNode, "", false, "", true, true);
     }
@@ -461,11 +461,11 @@ template <typename... U> CppTarget &CppTarget::publicHUIncludes(const string &in
     }
 }
 
-template <typename... U> CppTarget &CppTarget::privateHUIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::privateHUIncludes(NodeOrStr include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(true, inclNode, true, false);
         addHeaderUnitOrFileDir(inclNode, "", false, "", true, false);
     }
@@ -480,11 +480,11 @@ template <typename... U> CppTarget &CppTarget::privateHUIncludes(const string &i
     }
 }
 
-template <typename... U> CppTarget &CppTarget::interfaceHUIncludes(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::interfaceHUIncludes(NodeOrStr include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(true, inclNode, false, true);
         addHeaderUnitOrFileDir(inclNode, "", false, "", false, true);
     }
@@ -500,11 +500,11 @@ template <typename... U> CppTarget &CppTarget::interfaceHUIncludes(const string 
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
+CppTarget &CppTarget::publicIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(false, inclNode, true, true);
         addHeaderUnitOrFileDir(inclNode, "", true, regexStr, true, true);
     }
@@ -520,11 +520,11 @@ CppTarget &CppTarget::publicIncludesRE(const string &include, const string &rege
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
+CppTarget &CppTarget::privateIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(false, inclNode, true, false);
         addHeaderUnitOrFileDir(inclNode, "", true, regexStr, true, false);
     }
@@ -540,11 +540,11 @@ CppTarget &CppTarget::privateIncludesRE(const string &include, const string &reg
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
+CppTarget &CppTarget::interfaceIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(false, inclNode, false, true);
         addHeaderUnitOrFileDir(inclNode, "", true, regexStr, false, true);
     }
@@ -560,11 +560,11 @@ CppTarget &CppTarget::interfaceIncludesRE(const string &include, const string &r
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
+CppTarget &CppTarget::publicHUIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(false, inclNode, true, true);
         addHeaderUnitOrFileDir(inclNode, "", false, regexStr, true, true);
     }
@@ -580,11 +580,11 @@ CppTarget &CppTarget::publicHUIncludesRE(const string &include, const string &re
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
+CppTarget &CppTarget::privateHUIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(false, inclNode, true, false);
         addHeaderUnitOrFileDir(inclNode, "", false, regexStr, true, false);
     }
@@ -600,11 +600,11 @@ CppTarget &CppTarget::privateHUIncludesRE(const string &include, const string &r
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceHUIncludesRE(const string &include, const string &regexStr, U... includeDirectoryString)
+CppTarget &CppTarget::interfaceHUIncludesRE(NodeOrStr include, const string &regexStr, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(false, inclNode, false, true);
         addHeaderUnitOrFileDir(inclNode, "", false, regexStr, false, true);
     }
@@ -620,13 +620,13 @@ CppTarget &CppTarget::interfaceHUIncludesRE(const string &include, const string 
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicHUDirs(const string &include, const string &prefix, U... includeDirectoryString)
+CppTarget &CppTarget::publicHUDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, "", true, true);
         }
     }
@@ -642,13 +642,13 @@ CppTarget &CppTarget::publicHUDirs(const string &include, const string &prefix, 
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateHUDirs(const string &include, const string &prefix, U... includeDirectoryString)
+CppTarget &CppTarget::privateHUDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, "", true, false);
         }
     }
@@ -664,13 +664,13 @@ CppTarget &CppTarget::privateHUDirs(const string &include, const string &prefix,
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceHUDirs(const string &include, const string &prefix, U... includeDirectoryString)
+CppTarget &CppTarget::interfaceHUDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, "", false, true);
         }
     }
@@ -686,14 +686,14 @@ CppTarget &CppTarget::interfaceHUDirs(const string &include, const string &prefi
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicHUDirsRE(const string &include, const string &prefix, const string &regexStr,
+CppTarget &CppTarget::publicHUDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                      U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, regexStr, true, true);
         }
     }
@@ -709,14 +709,14 @@ CppTarget &CppTarget::publicHUDirsRE(const string &include, const string &prefix
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateHUDirsRE(const string &include, const string &prefix, const string &regexStr,
+CppTarget &CppTarget::privateHUDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                       U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, regexStr, true, false);
         }
     }
@@ -732,14 +732,14 @@ CppTarget &CppTarget::privateHUDirsRE(const string &include, const string &prefi
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceHUDirsRE(const string &include, const string &prefix, const string &regexStr,
+CppTarget &CppTarget::interfaceHUDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                         U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, false, regexStr, false, true);
         }
     }
@@ -755,13 +755,13 @@ CppTarget &CppTarget::interfaceHUDirsRE(const string &include, const string &pre
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicIncDirs(const string &include, const string &prefix, U... includeDirectoryString)
+CppTarget &CppTarget::publicIncDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, "", true, true);
         }
     }
@@ -777,13 +777,13 @@ CppTarget &CppTarget::publicIncDirs(const string &include, const string &prefix,
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateIncDirs(const string &include, const string &prefix, U... includeDirectoryString)
+CppTarget &CppTarget::privateIncDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, "", true, false);
         }
     }
@@ -799,13 +799,13 @@ CppTarget &CppTarget::privateIncDirs(const string &include, const string &prefix
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceIncDirs(const string &include, const string &prefix, U... includeDirectoryString)
+CppTarget &CppTarget::interfaceIncDirs(NodeOrStr include, const string &prefix, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, "", false, true);
         }
     }
@@ -821,14 +821,14 @@ CppTarget &CppTarget::interfaceIncDirs(const string &include, const string &pref
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+CppTarget &CppTarget::publicIncDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                       U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, regexStr, true, true);
         }
     }
@@ -844,14 +844,14 @@ CppTarget &CppTarget::publicIncDirsRE(const string &include, const string &prefi
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+CppTarget &CppTarget::privateIncDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                        U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, regexStr, true, false);
         }
     }
@@ -867,14 +867,14 @@ CppTarget &CppTarget::privateIncDirsRE(const string &include, const string &pref
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceIncDirsRE(const string &include, const string &prefix, const string &regexStr,
+CppTarget &CppTarget::interfaceIncDirsRE(NodeOrStr include, const string &prefix, const string &regexStr,
                                          U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            Node *inclNode = Node::getNodeNonNormalized(include, false);
+            Node *inclNode = include.resolve(false);
             addHeaderUnitOrFileDir(inclNode, prefix, true, regexStr, false, true);
         }
     }
@@ -889,11 +889,11 @@ CppTarget &CppTarget::interfaceIncDirsRE(const string &include, const string &pr
     }
 }
 
-template <typename... U> CppTarget &CppTarget::publicIncludesSource(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::publicIncludesSource(NodeOrStr include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(true, inclNode, true, true);
     }
 
@@ -907,11 +907,11 @@ template <typename... U> CppTarget &CppTarget::publicIncludesSource(const string
     }
 }
 
-template <typename... U> CppTarget &CppTarget::privateIncludesSource(const string &include, U... includeDirectoryString)
+template <typename... U> CppTarget &CppTarget::privateIncludesSource(NodeOrStr include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(true, inclNode, true, false);
     }
 
@@ -926,11 +926,11 @@ template <typename... U> CppTarget &CppTarget::privateIncludesSource(const strin
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceIncludesSource(const string &include, U... includeDirectoryString)
+CppTarget &CppTarget::interfaceIncludesSource(NodeOrStr include, U... includeDirectoryString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        Node *inclNode = Node::getNodeNonNormalized(include, false);
+        Node *inclNode = include.resolve(false);
         actuallyAddInclude(true, inclNode, false, true);
     }
 
@@ -944,11 +944,11 @@ CppTarget &CppTarget::interfaceIncludesSource(const string &include, U... includ
     }
 }
 
-template <typename... U> CppTarget &CppTarget::sourceFiles(const string &srcFile, U... sourceFileString)
+template <typename... U> CppTarget &CppTarget::sourceFiles(NodeOrStr srcFile, U... sourceFileString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        actuallyAddSourceFileConfigTime(Node::getNodeNonNormalized(srcFile, true));
+        actuallyAddSourceFileConfigTime(srcFile.resolve(true));
     }
 
     if constexpr (sizeof...(sourceFileString))
@@ -961,7 +961,7 @@ template <typename... U> CppTarget &CppTarget::sourceFiles(const string &srcFile
     }
 }
 
-template <typename... U> CppTarget &CppTarget::moduleFiles(const string &modFile, U... moduleFileString)
+template <typename... U> CppTarget &CppTarget::moduleFiles(NodeOrStr modFile, U... moduleFileString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
@@ -969,7 +969,7 @@ template <typename... U> CppTarget &CppTarget::moduleFiles(const string &modFile
         {
             return sourceFiles(modFile, moduleFileString...);
         }
-        actuallyAddModuleFileConfigTime(Node::getNodeNonNormalized(modFile, true), "");
+        actuallyAddModuleFileConfigTime(modFile.resolve(true), "");
     }
 
     if constexpr (sizeof...(moduleFileString))
@@ -1029,11 +1029,11 @@ CppTarget &CppTarget::interfaceCompileDefines(const string &cddName, const strin
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceFiles(const string &modFile, const string &exportName, U... moduleFileString)
+CppTarget &CppTarget::interfaceFiles(NodeOrStr modFile, const string &exportName, U... moduleFileString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        actuallyAddModuleFileConfigTime(Node::getNodeNonNormalized(modFile, true), exportName);
+        actuallyAddModuleFileConfigTime(modFile.resolve(true), exportName);
     }
 
     if constexpr (sizeof...(moduleFileString))
@@ -1047,13 +1047,13 @@ CppTarget &CppTarget::interfaceFiles(const string &modFile, const string &export
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicHeaderFiles(const string &includeName, const string &headerFile, U... headersString)
+CppTarget &CppTarget::publicHeaderFiles(const string &includeName, NodeOrStr headerFile, U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderFile(includeName, Node::getNodeNonNormalized(headerFile, true), true, true);
+            addHeaderFile(includeName, headerFile.resolve(true), true, true);
         }
     }
 
@@ -1068,13 +1068,13 @@ CppTarget &CppTarget::publicHeaderFiles(const string &includeName, const string 
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateHeaderFiles(const string &includeName, const string &headerFile, U... headersString)
+CppTarget &CppTarget::privateHeaderFiles(const string &includeName, NodeOrStr headerFile, U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderFile(includeName, Node::getNodeNonNormalized(headerFile, true), true, false);
+            addHeaderFile(includeName, headerFile.resolve(true), true, false);
         }
     }
 
@@ -1089,13 +1089,13 @@ CppTarget &CppTarget::privateHeaderFiles(const string &includeName, const string
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceHeaderFiles(const string &includeName, const string &headerFile, U... headersString)
+CppTarget &CppTarget::interfaceHeaderFiles(const string &includeName, NodeOrStr headerFile, U... headersString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderFile(includeName, Node::getNodeNonNormalized(headerFile, true), false, true);
+            addHeaderFile(includeName, headerFile.resolve(true), false, true);
         }
     }
 
@@ -1110,19 +1110,19 @@ CppTarget &CppTarget::interfaceHeaderFiles(const string &includeName, const stri
 }
 
 template <typename... U>
-CppTarget &CppTarget::publicHeaderUnits(const string &includeName, const string &headerUnit, U... headersString)
+CppTarget &CppTarget::publicHeaderUnits(const string &includeName, NodeOrStr headerUnit, U... headerUnitsString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderUnit(includeName, Node::getNodeNonNormalized(headerUnit, true), true, true);
+            addHeaderUnit(includeName, headerUnit.resolve(true), true, true);
         }
     }
 
-    if constexpr (sizeof...(headersString))
+    if constexpr (sizeof...(headerUnitsString))
     {
-        return publicHeaderUnits(headersString...);
+        return publicHeaderUnits(headerUnitsString...);
     }
     else
     {
@@ -1131,19 +1131,19 @@ CppTarget &CppTarget::publicHeaderUnits(const string &includeName, const string 
 }
 
 template <typename... U>
-CppTarget &CppTarget::privateHeaderUnits(const string &includeName, const string &headerUnit, U... headersString)
+CppTarget &CppTarget::privateHeaderUnits(const string &includeName, NodeOrStr headerUnit, U... headerUnitsString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderUnit(includeName, Node::getNodeNonNormalized(headerUnit, true), true, false);
+            addHeaderUnit(includeName, headerUnit.resolve(true), true, false);
         }
     }
 
-    if constexpr (sizeof...(headersString))
+    if constexpr (sizeof...(headerUnitsString))
     {
-        return privateHeaderUnits(headersString...);
+        return privateHeaderUnits(headerUnitsString...);
     }
     else
     {
@@ -1152,19 +1152,19 @@ CppTarget &CppTarget::privateHeaderUnits(const string &includeName, const string
 }
 
 template <typename... U>
-CppTarget &CppTarget::interfaceHeaderUnits(const string &includeName, const string &headerUnit, U... headersString)
+CppTarget &CppTarget::interfaceHeaderUnits(const string &includeName, NodeOrStr headerUnit, U... headerUnitsString)
 {
     if constexpr (bsMode == BSMode::CONFIGURE)
     {
         if (configuration->evaluate(IsCppMod::YES))
         {
-            addHeaderUnit(includeName, Node::getNodeNonNormalized(headerUnit, true), false, true);
+            addHeaderUnit(includeName, headerUnit.resolve(true), false, true);
         }
     }
 
-    if constexpr (sizeof...(headersString))
+    if constexpr (sizeof...(headerUnitsString))
     {
-        return interfaceHeaderUnits(headersString...);
+        return interfaceHeaderUnits(headerUnitsString...);
     }
     else
     {

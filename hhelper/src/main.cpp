@@ -117,12 +117,14 @@ int main(int argc, char **argv)
 
             auto getCommand = [&](const bool configureExe) {
                 string compileCommand =
-                    "c++ -std=c++2b -fno-exceptions -fno-rtti -fvisibility=hidden " + tsan + useJsonFileCompressionDef +
+                    "c++ -std=c++2b -O3 -march=native -flto -fno-exceptions -fno-rtti -fvisibility=hidden "
+                    "-ffunction-sections -fdata-sections " +
+                    tsan + useJsonFileCompressionDef +
                     // a little slowness is acceptable at config time with better assertions.
                     string(configureExe ? "" : " -D BUILD_MODE -D NDEBUG ") +
                     " -I " HCONFIGURE_HEADER "  -I " THIRD_PARTY_HEADER " -I " JSON_HEADER " -I " RAPIDJSON_HEADER
-                    " -I " LZ4_HEADER
-                    " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--whole-archive -L " HCONFIGURE_C_STATIC_LIB_DIRECTORY " -l" +
+                    " -I " LZ4_HEADER " {SOURCE_DIRECTORY}/hmake.cpp -Wl,--gc-sections -Wl,--whole-archive "
+                    "-L " HCONFIGURE_C_STATIC_LIB_DIRECTORY " -l" +
                     string(configureExe ? "hconfigure-c" : "hconfigure-b") +
                     " -Wl,--no-whole-archive -o {CONFIGURE_DIRECTORY}/" +
                     getActualNameFromTargetName(TargetType::EXECUTABLE, os, configureExe ? "configure" : "build");
@@ -157,11 +159,12 @@ int main(int argc, char **argv)
                 }
                 command += useJsonFileCompressionDef;
                 command += configureExe ? "" : " /D BUILD_MODE /D NDEBUG ";
-                command +=
-                    "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
-                    jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " + lz4Header.string() +
-                    " /std:c++latest /GR- /EHsc /MT /nologo {SOURCE_DIRECTORY}/hmake.cpp /Fo{CONFIGURE_DIRECTORY}/" +
-                    (configureExe ? "configure.obj" : "build.obj") + " /link /SUBSYSTEM:CONSOLE /NOLOGO ";
+                command += "/I " + hconfigureHeaderPath.string() + " /I " + thirdPartyHeaderPath.string() + " /I " +
+                           jsonHeaderPath.string() + " /I " + rapidjsonHeaderPath.string() + " /I " +
+                           lz4Header.string() +
+                           " /std:c++latest /O2 /GL /GR- /EHsc /MT /nologo {SOURCE_DIRECTORY}/hmake.cpp "
+                           "/Fo{CONFIGURE_DIRECTORY}/" +
+                           (configureExe ? "configure.obj" : "build.obj") + " /link /SUBSYSTEM:CONSOLE /NOLOGO /LTCG ";
                 for (const string &str : toolsCache.vsTools[0].libraryDirs)
                 {
                     command += "/LIBPATH:" + addQuotes(str) + " ";

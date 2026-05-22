@@ -126,11 +126,11 @@ void CppTarget::readModuleMapFromDir(const string &dir)
 }
 
 HeaderFileOrUnit::HeaderFileOrUnit(const uint32_t targetIndex_, CppMod *cppMod_, bool isSystem_)
-    : targetIndex{targetIndex_}, data{.cppMod = cppMod_}, isUnit(true), isSystem(isSystem_)
+    : data{.cppMod = cppMod_}, targetIndex{targetIndex_}, isUnit(true), isSystem(isSystem_)
 {
 }
 HeaderFileOrUnit::HeaderFileOrUnit(const uint32_t targetIndex_, Node *node_, bool isSystem_)
-    : targetIndex{targetIndex_}, data{.node = node_}, isUnit(false), isSystem(isSystem_)
+    : data{.node = node_}, targetIndex{targetIndex_}, isUnit(false), isSystem(isSystem_)
 {
 }
 HeaderFileOrUnit::HeaderFileOrUnit(CppMod *cppMod_, const bool isSystem_)
@@ -143,25 +143,25 @@ HeaderFileOrUnit::HeaderFileOrUnit(Node *node_, const bool isSystem_)
 }
 
 CppTarget::CppTarget(const string &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, false, false), TargetCache(name), configuration(configuration_)
+    : ObjectFileProducerWithDS(name_, BTargetType::CPP_TARGET, false, false), configuration(configuration_)
 {
     initializeCppTarget(name_, nullptr);
 }
 
 CppTarget::CppTarget(const bool buildExplicit, const string &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name), configuration(configuration_)
+    : ObjectFileProducerWithDS(name_, BTargetType::CPP_TARGET, buildExplicit, false), configuration(configuration_)
 {
     initializeCppTarget(name_, nullptr);
 }
 
 CppTarget::CppTarget(Node *myBuildDir_, const string &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, false, false), TargetCache(name), configuration(configuration_)
+    : ObjectFileProducerWithDS(name_, BTargetType::CPP_TARGET, false, false), configuration(configuration_)
 {
     initializeCppTarget(name_, myBuildDir_);
 }
 
 CppTarget::CppTarget(Node *myBuildDir_, const bool buildExplicit, const string &name_, Configuration *configuration_)
-    : ObjectFileProducerWithDS(name_, buildExplicit, false), TargetCache(name), configuration(configuration_)
+    : ObjectFileProducerWithDS(name_, BTargetType::CPP_TARGET, buildExplicit, false), configuration(configuration_)
 {
     initializeCppTarget(name_, myBuildDir_);
 }
@@ -175,52 +175,40 @@ void writeIncDirsAtConfigTime(string &buffer, const vector<InclNode> &include)
     }
 }
 
-void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNode> &include, bool isStandard,
-                             bool ignoreHeaderDeps)
+void readInclDirsAtBuildTime(const char *ptr, uint32_t &bytesRead, vector<InclNode> &include, bool isStandard)
 {
     const uint32_t reserveSize = readUint32(ptr, bytesRead);
     include.reserve(reserveSize);
     for (uint32_t i = 0; i < reserveSize; ++i)
     {
-        include.emplace_back(readHalfNode(ptr, bytesRead), isStandard, ignoreHeaderDeps);
+        include.emplace_back(readHalfNode(ptr, bytesRead), isStandard);
     }
 }
 
-void writeHeaderFilesAtConfigTime(string &buffer, flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping,
-                                  uint32_t headersSize)
+void writeHeaderFilesAtConfigTime(string &buffer, const flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping)
 {
-    writeUint32(buffer, headersSize);
+    // Reserve space for the count, fill it in after iteration.
+    const uint32_t countOffset = buffer.size();
+    writeUint32(buffer, 0);
+
+    uint32_t written = 0;
     for (const auto &[s, h] : headerNameMapping)
     {
         if (h.isUnit)
         {
             continue;
         }
-
         writeStringView(buffer, s);
         writeNode(buffer, h.data.node);
+        ++written;
     }
-}
 
-void readHeaderFilesAtBuildTime(const char *ptr, uint32_t &bytesRead,
-                                flat_hash_map<string_view, HeaderFileOrUnit> &headerNameMapping, bool isSystem)
-{
-    const uint32_t includeSize = readUint32(ptr, bytesRead);
-    for (uint32_t i = 0; i < includeSize; ++i)
-    {
-        string_view name = readStringView(ptr, bytesRead);
-        Node *node = readHalfNode(ptr, bytesRead);
-        if (!headerNameMapping.emplace(name, HeaderFileOrUnit{node, isSystem}).second)
-        {
-            HMAKE_HMAKE_INTERNAL_ERROR
-        }
-    }
+    memcpy(buffer.data() + countOffset, &written, sizeof(written));
 }
 
 void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
 {
     isSystem = configuration->evaluate(SystemTarget::YES);
-    ignoreHeaderDeps = configuration->evaluate(IgnoreHeaderDeps::YES);
     useIPC = configuration->evaluate(UseIPC::YES);
 
     if constexpr (bsMode == BSMode::CONFIGURE)
@@ -238,7 +226,7 @@ void CppTarget::initializeCppTarget(const string &name_, Node *myBuildDir_)
 
     if constexpr (bsMode == BSMode::BUILD)
     {
-        readCacheAtBuildTime();
+        readConfigCacheAtBuildTime();
     }
 }
 
@@ -251,10 +239,7 @@ void CppTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles) const
 
     for (const CppMod *objectFile : imodFileDeps)
     {
-        if (objectFile)
-        {
-            objectFiles->emplace_back(objectFile);
-        }
+        objectFiles->emplace_back(objectFile);
     }
 
     for (const CppSrc *objectFile : srcFileDeps)
@@ -265,6 +250,31 @@ void CppTarget::getObjectFiles(vector<const ObjectFile *> *objectFiles) const
 
 void CppTarget::populateTransitiveProperties()
 {
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        for (const uint32_t targetIndex : cachedReqDeps)
+        {
+            CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[targetIndex].bTarget);
+
+            if (configuration->evaluate(IsCppMod::NO) || !useIPC)
+            {
+                for (const InclNode &inclNode : req->useReqIncls)
+                {
+                    // Configure-time check.
+                    actuallyAddInclude(true, inclNode.node, true, false);
+                    reqIncls.emplace_back(inclNode);
+                }
+            }
+            reqCompilerFlags += req->useReqCompilerFlags;
+            for (const Define &define : req->useReqCompileDefinitions)
+            {
+                reqCompileDefinitions.emplace(define);
+            }
+        }
+
+        return;
+    }
+
     for (CppTarget *cppTarget : reqDeps)
     {
         if (configuration->evaluate(IsCppMod::NO) || !useIPC)
@@ -303,7 +313,7 @@ void CppTarget::actuallyAddSourceFileConfigTime(const Node *node)
             return;
         }
     }
-    srcFileDeps.emplace_back(new CppSrc(this, node));
+    srcFileDeps.emplace_back(new CppSrc(this, node, CppModType::CPP_SRC));
 }
 
 string CppTarget::getExportNameFromFirstLine(const Node *node)
@@ -378,7 +388,7 @@ void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportN
                 return;
             }
         }
-        modFileDeps.emplace_back(new CppMod(this, node));
+        modFileDeps.emplace_back(new CppMod(this, node, CppModType::PRIMARY_IMPLEMENTATION));
     }
     else
     {
@@ -392,7 +402,8 @@ void CppTarget::actuallyAddModuleFileConfigTime(const Node *node, string exportN
                 return;
             }
         }
-        imodFileDeps.emplace_back(new CppMod(this, node));
+        imodFileDeps.emplace_back(new CppMod(
+            this, node, exportName.contains(':') ? CppModType::PARTITION_EXPORT : CppModType::PRIMARY_EXPORT));
         imodFileDeps[imodFileDeps.size() - 1]->logicalNames.emplace_back(exportName);
     }
 }
@@ -430,8 +441,9 @@ void CppTarget::populateNameMappingsAndNodesType()
     if (configuration->evaluate(UseConfigurationScope::YES))
     {
         flat_hash_map<string_view, HeaderFileOrUnit> tempNameMapping;
-        tempNameMapping.merge(reqHeaderNameMapping);
-        tempNameMapping.merge(useReqHeaderNameMapping);
+        tempNameMapping.reserve(reqHeaderNameMapping.size() + useReqHeaderNameMapping.size());
+        tempNameMapping.insert(reqHeaderNameMapping.begin(), reqHeaderNameMapping.end());
+        tempNameMapping.insert(useReqHeaderNameMapping.begin(), useReqHeaderNameMapping.end());
 
         for (const auto &[headerName, type] : tempNameMapping)
         {
@@ -512,10 +524,6 @@ void CppTarget::emplaceInHeaderNameMapping(string_view headerName, HeaderFileOrU
 
     if (ok)
     {
-        if (!type.isUnit)
-        {
-            ++(addInReq ? reqHeaderFilesSize : useReqHeaderFilesSize);
-        }
         return;
     }
 
@@ -682,7 +690,6 @@ void CppTarget::removeHeaderFile(const string &includeName, const bool addInReq,
         else
         {
             reqHeaderNameMapping.erase(it);
-            --reqHeaderFilesSize;
         }
 
         if (const auto &it = reqNodesType.find(headerNode); it == reqNodesType.end())
@@ -704,7 +711,6 @@ void CppTarget::removeHeaderFile(const string &includeName, const bool addInReq,
         else
         {
             useReqHeaderNameMapping.erase(it);
-            --useReqHeaderFilesSize;
         }
 
         if (const auto &it = useReqNodesType.find(headerNode); it == useReqNodesType.end())
@@ -938,7 +944,7 @@ void CppTarget::addHeaderUnit(const string &includeName, const Node *headerUnit,
             }
         }
 
-        hu = huDeps.emplace_back(new CppMod(this, headerUnit));
+        hu = huDeps.emplace_back(new CppMod(this, headerUnit, CppModType::HEADER_UNIT));
 
         if (addInReq)
         {
@@ -1019,7 +1025,7 @@ CppMod *CppTarget::getPublicBigHu(const bool addNew)
         const string str(myBuildDir->filePath + slashc + std::to_string(index) + "public-" +
                          std::to_string(cacheIndex) + ".hpp");
         const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
-        publicBigHus[index] = new CppMod(this, bigHuNode);
+        publicBigHus[index] = new CppMod(this, bigHuNode, CppModType::HEADER_UNIT);
         publicBigHus[index]->isReqHu = true;
         publicBigHus[index]->isUseReqHu = true;
         emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
@@ -1037,7 +1043,7 @@ CppMod *CppTarget::getPrivateBigHu(const bool addNew)
         const string str(myBuildDir->filePath + slashc + std::to_string(index) + "private-" +
                          std::to_string(cacheIndex) + ".hpp");
         const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
-        privateBigHus[index] = new CppMod(this, bigHuNode);
+        privateBigHus[index] = new CppMod(this, bigHuNode, CppModType::HEADER_UNIT);
         privateBigHus[index]->isReqHu = true;
         emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
     }
@@ -1053,7 +1059,7 @@ CppMod *CppTarget::getInterfaceBigHu(const bool addNew)
         const string str(myBuildDir->filePath + slashc + std::to_string(index) + "interface-" +
                          std::to_string(cacheIndex) + ".hpp");
         const Node *bigHuNode = Node::getNodeNonNormalized(str, true, true);
-        interfaceBigHus[index] = new CppMod(this, bigHuNode);
+        interfaceBigHus[index] = new CppMod(this, bigHuNode, CppModType::HEADER_UNIT);
         interfaceBigHus[index]->isUseReqHu = true;
         emplaceInNodesType(bigHuNode, FileType::HEADER_UNIT, false);
         return interfaceBigHus[index];
@@ -1240,7 +1246,7 @@ void CppTarget::actuallyAddInclude(const bool errorOnEmplaceFail, const Node *in
 
             if (!found)
             {
-                reqIncls.emplace_back(const_cast<Node *>(include), isSystem, ignoreHeaderDeps);
+                reqIncls.emplace_back(const_cast<Node *>(include), isSystem);
             }
         }
 
@@ -1259,259 +1265,215 @@ void CppTarget::actuallyAddInclude(const bool errorOnEmplaceFail, const Node *in
                 }
             }
 
-            useReqIncls.emplace_back(const_cast<Node *>(include), isSystem, ignoreHeaderDeps);
+            useReqIncls.emplace_back(const_cast<Node *>(include), isSystem);
         }
     }
 }
 
-void CppTarget::initSourceCache()
+void CppTarget::setCommandHashes()
 {
-    if (name == "DLDebugInfoDIContext-cpp")
-    {
-        bool brekapoint = true;
-    }
-    constexpr uint32_t stackSize = 64 * 1024;
-
+    constexpr uint32_t stackSize = 64 * 3 * 1024;
     char cppBuffer[stackSize];
     char cBuffer[stackSize];
     char assemblyBuffer[stackSize];
-
     std::pmr::monotonic_buffer_resource cppAlloc(cppBuffer, stackSize);
-    std::pmr::monotonic_buffer_resource cAlloc(cppBuffer, stackSize);
-    std::pmr::monotonic_buffer_resource assemblyAlloc(cppBuffer, stackSize);
-
-    std::pmr::string cppFullCompileCommand(&cppAlloc);
-    std::pmr::string cFullCompileCommand(&cAlloc);
-    std::pmr::string assemblyFullCompileCommand(&assemblyAlloc);
-
-    uint64_t cppHashCommand;
-    uint64_t cHashCommand;
-    uint64_t assemblyHashCommand;
-
-    auto setCompileCommandSourceType = [&](const SourceType sourceType) {
-        if (sourceType == SourceType::CPP && cppFullCompileCommand.empty())
+    std::pmr::monotonic_buffer_resource cAlloc(cBuffer, stackSize);
+    std::pmr::monotonic_buffer_resource assemblyAlloc(assemblyBuffer, stackSize);
+    uint64_t cppHash = 0, cHash = 0, assemblyHash = 0;
+    bool cppDone = false, cDone = false, assemblyDone = false;
+    auto hashCommand = [&](std::pmr::monotonic_buffer_resource &alloc, const string &baseCommand, uint64_t &hash,
+                           bool &done) -> uint64_t {
+        if (!done)
         {
-            cppFullCompileCommand = configuration->cppCompileCommand;
-            setCompileCommand(cppFullCompileCommand);
-            return rapidhash(cppFullCompileCommand.data(), cppFullCompileCommand.size());
+            std::pmr::string cmd(&alloc);
+            cmd.reserve(63 * 1024);
+            cmd = baseCommand;
+            setCompileCommand(cmd);
+            hash = rapidhash(cmd.data(), cmd.size());
+            done = true;
+        }
+        return hash;
+    };
+    auto getHash = [&](const SourceType sourceType) -> uint64_t {
+        if (sourceType == SourceType::CPP)
+        {
+            return hashCommand(cppAlloc, configuration->cppCompileCommand, cppHash, cppDone);
         }
         if (sourceType == SourceType::C)
         {
-            cFullCompileCommand = configuration->cCompileCommand;
-            setCompileCommand(cFullCompileCommand);
-            return rapidhash(cFullCompileCommand.data(), cFullCompileCommand.size());
+            return hashCommand(cAlloc, configuration->cCompileCommand, cHash, cDone);
         }
-
-        assemblyFullCompileCommand = configuration->assemblyCompileCommand;
-        setCompileCommand(assemblyFullCompileCommand);
-        return rapidhash(assemblyFullCompileCommand.data(), assemblyFullCompileCommand.size());
+        return hashCommand(assemblyAlloc, configuration->assemblyCompileCommand, assemblyHash, assemblyDone);
     };
-
+    auto sourceTypeOf = [](const std::string_view path) -> SourceType {
+        if (path.ends_with(".c"))
+        {
+            return SourceType::C;
+        }
+        if (path.ends_with(".S") || path.ends_with(".s"))
+        {
+            return SourceType::ASSEMBLY;
+        }
+        return SourceType::CPP;
+    };
     for (uint32_t i = 0; i < srcFileDeps.size(); ++i)
     {
-        const uint64_t commandHash = setCompileCommandSourceType(srcFileDeps[i]->setSourceType());
-        srcFileDeps[i]->initializeBuildCache(i, commandHash);
+        srcFileDeps[i]->sourceType = sourceTypeOf(srcFileDeps[i]->node->filePath);
+        srcFileDeps[i]->commandHash = getHash(srcFileDeps[i]->sourceType);
     }
     for (uint32_t i = 0; i < modFileDeps.size(); ++i)
     {
-        const uint64_t commandHash = setCompileCommandSourceType(modFileDeps[i]->setSourceType());
-        modFileDeps[i]->initializeBuildCache(cppBuildCache.modFiles[i], i, commandHash);
+        modFileDeps[i]->sourceType = sourceTypeOf(modFileDeps[i]->node->filePath);
+        modFileDeps[i]->commandHash = getHash(modFileDeps[i]->sourceType);
     }
     for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
     {
-        if (imodFileDeps[i])
-        {
-            const uint64_t commandHash = setCompileCommandSourceType(SourceType::CPP);
-            imodFileDeps[i]->initializeBuildCache(cppBuildCache.imodFiles[i], i, commandHash);
-        }
+        imodFileDeps[i]->sourceType = SourceType::CPP;
+        imodFileDeps[i]->commandHash = getHash(SourceType::CPP);
     }
     for (uint32_t i = 0; i < huDeps.size(); ++i)
     {
-        if (huDeps[i])
-        {
-            const uint64_t commandHash = setCompileCommandSourceType(SourceType::CPP);
-            huDeps[i]->initializeBuildCache(cppBuildCache.headerUnits[i], i, commandHash);
-        }
+        huDeps[i]->sourceType = SourceType::CPP;
+        huDeps[i]->commandHash = getHash(SourceType::CPP);
     }
 }
 
 void CppTarget::completeRoundOne()
 {
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        writeBigHeaderUnits();
-        populateReqAndUseReqDeps();
-        writeCacheAtConfigTime();
-        populateNameMappingsAndNodesType();
-        if (configuration->evaluate(UseConfigurationScope::NO))
-        {
-            setHeaderFileStatusChanged(false);
-        }
-        populateTransitiveProperties();
-        return;
-    }
-    else
+    if constexpr (bsMode == BSMode::BUILD)
     {
         populateTransitiveProperties();
-        initSourceCache();
-    }
-}
-
-bool CppTarget::isBuildCacheUpdated()
-{
-    return buildCacheUpdated;
-}
-
-void CppTarget::writeBuildCache(string &buffer)
-{
-    if constexpr (bsMode == BSMode::CONFIGURE)
-    {
-        cppBuildCache.serialize(buffer);
+        setCommandHashes();
         return;
     }
 
-    if (!buildCacheUpdated)
+    writeBigHeaderUnits();
+    populateReqAndUseReqDeps();
+    populateNameMappingsAndNodesType();
+    if (configuration->evaluate(UseConfigurationScope::NO))
     {
-        TargetCache::writeBuildCache(buffer);
-        return;
+        setHeaderFileStatusChanged(false);
     }
-
-    for (CppSrc *src : srcFileDeps)
-    {
-        src->updateBuildCache();
-    }
-    for (CppMod *mod : modFileDeps)
-    {
-        mod->updateBuildCache();
-    }
-    for (CppMod *imod : imodFileDeps)
-    {
-        if (imod)
-        {
-            imod->updateBuildCache();
-        }
-    }
-    for (CppMod *hu : huDeps)
-    {
-        if (hu)
-        {
-            hu->updateBuildCache();
-        }
-    }
-    cppBuildCache.serialize(buffer);
+    populateTransitiveProperties();
+    setCommandHashes();
+    return;
 }
 
-template <typename T> uint32_t findNodeInSourceCache(const vector<T> &sourceCache, const Node *node)
+void CppTarget::writeConfigCacheAtConfigTime(string &buffer)
 {
-    for (uint32_t i = 0; i < sourceCache.size(); ++i)
+    writeUint32(buffer, reqDeps.size());
+    for (const CppTarget *r : reqDeps)
     {
-        Node *node2;
-        if constexpr (std::is_same_v<T, BuildCache::Cpp::ModuleFile>)
-        {
-            node2 = sourceCache[i].srcFile.node;
-        }
-        else
-        {
-            node2 = sourceCache[i].node;
-        }
-        if (node2 == node)
-        {
-            return i;
-        }
-    }
-    return -1;
-}
-
-/// This adjusts build cache during config time so the source and module-files point to the same index as in the config
-/// cache.
-template <typename T, typename U> void adjustBuildCache(vector<T> &oldCache, const vector<U> &sourceFiles)
-{
-    auto *newCache = new vector<T>{oldCache.begin(), oldCache.end()};
-    newCache->resize(oldCache.size() + sourceFiles.size());
-
-    uint32_t newlyFounded = 0;
-    for (uint32_t i = 0; i < sourceFiles.size(); ++i)
-    {
-        if (const uint32_t cacheIndex = findNodeInSourceCache(oldCache, sourceFiles[i]->node); cacheIndex == -1)
-        {
-            std::swap((*newCache)[i], (*newCache)[newlyFounded + oldCache.size()]);
-            ++newlyFounded;
-        }
-        else
-        {
-            std::swap((*newCache)[i], (*newCache)[cacheIndex]);
-        }
-        if constexpr (std::is_same_v<T, BuildCache::Cpp::ModuleFile>)
-        {
-            (*newCache)[i].srcFile.node = const_cast<Node *>(sourceFiles[i]->node);
-        }
-        else
-        {
-            (*newCache)[i].node = const_cast<Node *>(sourceFiles[i]->node);
-        }
+        writeUint32(buffer, r->cacheIndex);
     }
 
-    newCache->resize(newlyFounded + oldCache.size());
-    oldCache = std::move(*newCache);
+    const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty();
+    writeBool(buffer, hasObjFiles);
+
+    writeUint32(buffer, srcFileDeps.size());
+    for (const CppSrc *source : srcFileDeps)
+    {
+        writeNode(buffer, source->node);
+    }
+
+    writeUint32(buffer, modFileDeps.size());
+    for (const CppMod *cppMod : modFileDeps)
+    {
+        writeNode(buffer, cppMod->node);
+    }
+
+    writeUint32(buffer, imodFileDeps.size());
+    for (const CppMod *cppMod : imodFileDeps)
+    {
+        writeNode(buffer, cppMod->node);
+        writeBool(buffer, cppMod->type == CppModType::PRIMARY_EXPORT);
+    }
+
+    writeUint32(buffer, huDeps.size());
+    for (const CppMod *hu : huDeps)
+    {
+        writeNode(buffer, hu->node);
+    }
+
+    writeNode(buffer, myBuildDir);
+
+    if (configuration->evaluate(IsCppMod::NO) || !useIPC)
+    {
+        writeIncDirsAtConfigTime(buffer, reqIncls);
+        writeIncDirsAtConfigTime(buffer, useReqIncls);
+    }
+
+    if (configuration->evaluate(IsCppMod::YES))
+    {
+        writeHeaderFilesAtConfigTime(buffer, reqHeaderNameMapping);
+        writeHeaderFilesAtConfigTime(buffer, useReqHeaderNameMapping);
+    }
 }
 
-void CppTarget::setHeaderFileStatusChangedCppMod(BuildCache::Cpp::ModuleFile &modCache, bool calledFromConfiguration)
+void CppTarget::setHeaderFileStatusChangedCppMod(const vector<CppMod *> &cppModVec, const bool calledFromConfiguration)
 {
-    if (calledFromConfiguration)
+    for (const CppMod *cppModPtr : cppModVec)
     {
-        for (Node *node : modCache.srcFile.headerFiles)
+        const CppMod &cppMod = *cppModPtr;
+        if (cppMod.newlyAdded)
         {
-            if (auto it = configuration->nodesType.find(node); it != configuration->nodesType.end())
+            return;
+        }
+
+        char *ptr = const_cast<char *>(fileTargetCaches[cppMod.cacheIndex].getBuildCache().data());
+        if (calledFromConfiguration)
+        {
+            uint32_t bytesRead = 1; // (1 headerStatusChanged)
+            const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
+            for (uint32_t i = 0; i < headerFilesSize; ++i)
+            {
+                Node *headerNode = readHalfNode(ptr, bytesRead);
+
+                if (auto it = configuration->nodesType.find(headerNode); it != configuration->nodesType.end())
+                {
+                    if (it->second != FileType::HEADER_FILE)
+                    {
+                        *ptr = true;
+                        return;
+                    }
+                }
+                else
+                {
+                    *ptr = true;
+                    return;
+                }
+            }
+            return;
+        }
+
+        uint32_t bytesRead = 1; // (1 headerStatusChanged)
+        const uint32_t headerFilesSize = readUint32(ptr, bytesRead);
+        for (uint32_t i = 0; i < headerFilesSize; ++i)
+        {
+            Node *headerNode = readHalfNode(ptr, bytesRead);
+
+            if (auto it = reqNodesType.find(headerNode); it != reqNodesType.end())
             {
                 if (it->second != FileType::HEADER_FILE)
                 {
-                    modCache.headerStatusChanged = true;
+                    *ptr = true;
                     return;
                 }
             }
             else
             {
-                modCache.headerStatusChanged = true;
+                *ptr = true;
                 return;
             }
-        }
-        return;
-    }
-
-    for (Node *node : modCache.srcFile.headerFiles)
-    {
-        if (auto it = reqNodesType.find(node); it != reqNodesType.end())
-        {
-            if (it->second != FileType::HEADER_FILE)
-            {
-                modCache.headerStatusChanged = true;
-                return;
-            }
-        }
-        else
-        {
-            modCache.headerStatusChanged = true;
-            return;
         }
     }
 }
 
 void CppTarget::setHeaderFileStatusChanged(const bool calledFromConfiguration)
 {
-    for (uint32_t i = 0; i < modFileDeps.size(); ++i)
-    {
-        setHeaderFileStatusChangedCppMod(cppBuildCache.modFiles[i], calledFromConfiguration);
-    }
-
-    for (uint32_t i = 0; i < imodFileDeps.size(); ++i)
-    {
-        setHeaderFileStatusChangedCppMod(cppBuildCache.imodFiles[i], calledFromConfiguration);
-    }
-
-    for (CppMod *hu : huDeps)
-    {
-        setHeaderFileStatusChangedCppMod(cppBuildCache.headerUnits[hu->myBuildCacheIndex], calledFromConfiguration);
-    }
+    setHeaderFileStatusChangedCppMod(modFileDeps, calledFromConfiguration);
+    setHeaderFileStatusChangedCppMod(imodFileDeps, calledFromConfiguration);
+    setHeaderFileStatusChangedCppMod(huDeps, calledFromConfiguration);
 }
 
 void CppTarget::writeBigHeaderUnits()
@@ -1549,270 +1511,92 @@ void CppTarget::writeBigHeaderUnits()
     writeBigHu(interfaceBigHus);
 }
 
-void CppTarget::writeCacheAtConfigTime()
+void CppTarget::readConfigCacheAtBuildTime()
 {
-    cppBuildCache.deserialize(cacheIndex);
-    auto *configBuffer = new string{};
-
-    const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty();
-    writeBool(*configBuffer, hasObjFiles);
-
-    writeUint32(*configBuffer, reqDeps.size());
-    for (const CppTarget *r : reqDeps)
-    {
-        writeUint32(*configBuffer, r->cacheIndex);
-    }
-
-    writeUint32(*configBuffer, srcFileDeps.size());
-    for (CppSrc *source : srcFileDeps)
-    {
-        string fileNumber = toString(source->node->myId);
-        source->objectNode =
-            Node::getNode(myBuildDir->filePath + slashc + source->node->getFileName() + fileNumber + ".o", true, true);
-
-        writeNode(*configBuffer, source->node);
-        writeNode(*configBuffer, source->objectNode);
-    }
-
-    writeUint32(*configBuffer, modFileDeps.size());
-    for (CppMod *cppMod : modFileDeps)
-    {
-        string fileNumber = toString(cppMod->node->myId);
-        cppMod->objectNode =
-            Node::getNode(myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
-        writeNode(*configBuffer, cppMod->node);
-        writeNode(*configBuffer, cppMod->objectNode);
-    }
-
-    writeUint32(*configBuffer, imodFileDeps.size());
-    for (CppMod *cppMod : imodFileDeps)
-    {
-        string fileNumber = toString(cppMod->node->myId);
-        uint32_t index = findNodeInSourceCache(cppBuildCache.imodFiles, cppMod->node);
-        if (index == -1)
-        {
-            index = cppBuildCache.imodFiles.size();
-            cppBuildCache.imodFiles.emplace_back();
-            cppBuildCache.imodFiles[index].srcFile.node = const_cast<Node *>(cppMod->node);
-        }
-        cppMod->myBuildCacheIndex = index;
-        cppMod->objectNode =
-            Node::getNode(myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".o", true, true);
-        cppMod->interfaceNode = Node::getNode(
-            myBuildDir->filePath + slashc + cppMod->node->getFileName() + fileNumber + ".ifc", true, true);
-        writeUint32(*configBuffer, cppMod->myBuildCacheIndex);
-        writeNode(*configBuffer, cppMod->node);
-        writeStringView(*configBuffer, cppMod->logicalNames[0]);
-        writeNode(*configBuffer, cppMod->objectNode);
-        writeNode(*configBuffer, cppMod->interfaceNode);
-    }
-
-    writeUint32(*configBuffer, huDeps.size());
-    for (CppMod *hu : huDeps)
-    {
-        string fileNumber = toString(hu->node->myId);
-        uint32_t index = findNodeInSourceCache(cppBuildCache.headerUnits, hu->node);
-        if (index == -1)
-        {
-            index = cppBuildCache.headerUnits.size();
-            cppBuildCache.headerUnits.emplace_back();
-            cppBuildCache.headerUnits[index].srcFile.node = const_cast<Node *>(hu->node);
-        }
-        hu->myBuildCacheIndex = index;
-        hu->interfaceNode =
-            Node::getNode(myBuildDir->filePath + slashc + hu->node->getFileName() + fileNumber + ".ifc", true, true);
-
-        writeUint32(*configBuffer, hu->myBuildCacheIndex);
-        writeNode(*configBuffer, hu->node);
-        writeNode(*configBuffer, hu->interfaceNode);
-
-        writeBool(*configBuffer, hu->isReqHu);
-        writeBool(*configBuffer, hu->isUseReqHu);
-
-        writeUint32(*configBuffer, hu->composingHeaders.size());
-        writeUint32(*configBuffer, hu->logicalNames.size());
-
-        if (useIPC)
-        {
-            for (const auto &[headerName, headerNode] : hu->composingHeaders)
-            {
-                writeStringView(*configBuffer, headerName);
-                writeNode(*configBuffer, headerNode);
-            }
-        }
-        else
-        {
-            for (const auto &[headerName, headerNode] : hu->composingHeaders)
-            {
-                writeStringView(*configBuffer, headerName);
-            }
-        }
-
-        for (const string &str : hu->logicalNames)
-        {
-            writeStringView(*configBuffer, str);
-        }
-    }
-
-    writeNode(*configBuffer, myBuildDir);
-
-    if (configuration->evaluate(IsCppMod::NO) || !useIPC)
-    {
-        writeIncDirsAtConfigTime(*configBuffer, reqIncls);
-        writeIncDirsAtConfigTime(*configBuffer, useReqIncls);
-    }
-
-    if (configuration->evaluate(IsCppMod::YES))
-    {
-        writeHeaderFilesAtConfigTime(*configBuffer, reqHeaderNameMapping, reqHeaderFilesSize);
-        writeHeaderFilesAtConfigTime(*configBuffer, useReqHeaderNameMapping, useReqHeaderFilesSize);
-    }
-
-    fileTargetCaches[cacheIndex].configCache = string_view{configBuffer->data(), configBuffer->size()};
-
-    adjustBuildCache(cppBuildCache.srcFiles, srcFileDeps);
-    adjustBuildCache(cppBuildCache.modFiles, modFileDeps);
-}
-
-void CppTarget::readCacheAtBuildTime()
-{
-    cppBuildCache.deserialize(cacheIndex);
     const string_view configCache = fileTargetCaches[cacheIndex].configCache;
 
     const char *ptr = configCache.data();
     uint32_t bytesRead = 0;
 
     RealBTarget &rb = realBTargets[0];
-    hasObjectFiles = readBool(ptr, bytesRead);
 
     const uint32_t reqVecSize = readUint32(ptr, bytesRead);
-    for (uint32_t i = 0; i < reqVecSize; ++i)
-    {
-        CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[readUint32(ptr, bytesRead)].targetCache);
-        reqDeps.emplace(req);
-    }
+    cachedReqDeps = span{reinterpret_cast<const uint32_t *>(ptr + bytesRead), reqVecSize};
+    bytesRead += 4 * reqVecSize;
+
+    hasObjectFiles = readBool(ptr, bytesRead);
+
     const uint32_t sourceSize = readUint32(ptr, bytesRead);
     srcFileDeps.reserve(sourceSize);
     for (uint32_t i = 0; i < sourceSize; ++i)
     {
-        CppSrc *src = srcFileDeps.emplace_back(new CppSrc(this, readHalfNode(ptr, bytesRead)));
-        src->objectNode = readHalfNode(ptr, bytesRead);
-
-        rb.addDep<BTargetType::CPP_SRC>(&srcFileDeps[i]->realBTargets[0]);
+        CppSrc *cppSrc = new CppSrc(this, readHalfNode(ptr, bytesRead), CppModType::CPP_SRC);
+        srcFileDeps.emplace_back(cppSrc);
+        rb.addDep<BTargetType::CPP_SRC>(&cppSrc->realBTargets[0]);
     }
 
     const uint32_t modSize = readUint32(ptr, bytesRead);
     modFileDeps.reserve(modSize);
     for (uint32_t i = 0; i < modSize; ++i)
     {
-        CppMod *cppMod = modFileDeps.emplace_back(new CppMod(this, readHalfNode(ptr, bytesRead)));
-        cppMod->objectNode = readHalfNode(ptr, bytesRead);
-        cppMod->type = CppModType::PRIMARY_IMPLEMENTATION;
-
+        CppMod *cppMod = new CppMod(this, readHalfNode(ptr, bytesRead), CppModType::PRIMARY_IMPLEMENTATION);
+        modFileDeps.emplace_back(cppMod);
         rb.addDep<BTargetType::CPP_MOD>(&cppMod->realBTargets[0]);
     }
-
-    imodFileDeps.resize(cppBuildCache.imodFiles.size());
 
     const uint32_t imodSize = readUint32(ptr, bytesRead);
+    imodFileDeps.reserve(imodSize);
     for (uint32_t i = 0; i < imodSize; ++i)
     {
-        const uint32_t indexInBuildCache = readUint32(ptr, bytesRead);
-        CppMod *cppMod = imodFileDeps[indexInBuildCache] = new CppMod(this, readHalfNode(ptr, bytesRead));
-        cppMod->myBuildCacheIndex = indexInBuildCache;
-
-        cppMod->logicalNames.emplace_back(readStringView(ptr, bytesRead));
-        cppMod->objectNode = readHalfNode(ptr, bytesRead);
-        cppMod->interfaceNode = readHalfNode(ptr, bytesRead);
-        cppMod->type =
-            cppMod->logicalNames[0].contains(':') ? CppModType::PARTITION_EXPORT : CppModType::PRIMARY_EXPORT;
-        imodNames.emplace(cppMod->logicalNames[0], cppMod);
-
+        Node *node = readHalfNode(ptr, bytesRead);
+        CppModType type = readBool(ptr, bytesRead) ? CppModType::PRIMARY_EXPORT : CppModType::PARTITION_EXPORT;
+        CppMod *cppMod = new CppMod(this, node, type);
+        imodFileDeps.emplace_back(cppMod);
         rb.addDep<BTargetType::CPP_MOD>(&cppMod->realBTargets[0]);
     }
 
-    huDeps.resize(cppBuildCache.headerUnits.size());
-
-    bool selectiveBuildLocal = configuration->evaluate(UseConfigurationScope::YES);
     const uint32_t huSize = readUint32(ptr, bytesRead);
+    huDeps.reserve(huSize);
+    const bool selectiveBuildLocal = configuration->evaluate(UseConfigurationScope::YES);
     for (uint32_t i = 0; i < huSize; ++i)
     {
-        const uint32_t indexInBuildCache = readUint32(ptr, bytesRead);
-        CppMod *hu = huDeps[indexInBuildCache] = new CppMod(this, readHalfNode(ptr, bytesRead));
+        CppMod *hu = new CppMod(this, readHalfNode(ptr, bytesRead), CppModType::HEADER_UNIT);
+        huDeps.emplace_back(hu);
+        rb.addDep<BTargetType::CPP_MOD, RelationType::SELECTIVE>(&hu->realBTargets[0]);
+
         if (selectiveBuildLocal)
         {
             // if UseConfigurationScope is true, then we might depend on a hu from a dependent target whose
             // selectiveBuild might not true while ours is true.
             hu->selectiveBuild = selectiveBuildLocal;
         }
-        hu->myBuildCacheIndex = indexInBuildCache;
-        hu->interfaceNode = readHalfNode(ptr, bytesRead);
-
-        hu->isReqHu = readBool(ptr, bytesRead);
-        hu->isUseReqHu = readBool(ptr, bytesRead);
-
-        const uint32_t headerFileModuleSize = readUint32(ptr, bytesRead);
-        const uint32_t logicalNamesSize = readUint32(ptr, bytesRead);
-        hu->logicalNames.reserve(logicalNamesSize + headerFileModuleSize);
-
-        for (uint32_t j = 0; j < headerFileModuleSize; ++j)
-        {
-            string_view headerFileName = readStringView(ptr, bytesRead);
-            if (useIPC)
-            {
-                Node *headerNode = readHalfNode(ptr, bytesRead);
-                hu->composingHeaders.emplace(headerFileName, headerNode);
-            }
-            else
-            {
-                hu->composingHeaders.emplace(headerFileName, nullptr);
-            }
-            hu->logicalNames.emplace_back(headerFileName);
-
-            if (hu->isReqHu)
-            {
-                reqHeaderNameMapping.emplace(headerFileName, HeaderFileOrUnit(hu, isSystem));
-            }
-
-            if (hu->isUseReqHu)
-            {
-                const auto &[it, ok] =
-                    configuration->headerNameMapping.emplace(headerFileName, vector<HeaderFileOrUnit>{});
-                it->second.emplace_back(cacheIndex, hu, isSystem);
-            }
-        }
-
-        for (uint32_t j = 0; j < logicalNamesSize; ++j)
-        {
-            string_view str = readStringView(ptr, bytesRead);
-            hu->logicalNames.emplace_back(str);
-            if (hu->isReqHu)
-            {
-                reqHeaderNameMapping.emplace(str, HeaderFileOrUnit(hu, isSystem));
-            }
-
-            if (hu->isUseReqHu)
-            {
-                const auto &[it, ok] = configuration->headerNameMapping.emplace(str, vector<HeaderFileOrUnit>{});
-                it->second.emplace_back(cacheIndex, hu, isSystem);
-            }
-        }
-
-        hu->type = CppModType::HEADER_UNIT;
-        rb.addDep<BTargetType::CPP_MOD, BTargetDepKind::SELECTIVE>(&hu->realBTargets[0]);
     }
 
     myBuildDir = readHalfNode(ptr, bytesRead);
 
     if (configuration->evaluate(IsCppMod::NO) || !useIPC)
     {
-        readInclDirsAtBuildTime(ptr, bytesRead, reqIncls, isSystem, ignoreHeaderDeps);
-        readInclDirsAtBuildTime(ptr, bytesRead, useReqIncls, isSystem, ignoreHeaderDeps);
+        readInclDirsAtBuildTime(ptr, bytesRead, reqIncls, isSystem);
+        readInclDirsAtBuildTime(ptr, bytesRead, useReqIncls, isSystem);
     }
 
     if (configuration->evaluate(IsCppMod::YES))
     {
-        readHeaderFilesAtBuildTime(ptr, bytesRead, reqHeaderNameMapping, isSystem);
+        {
+            // reqHeaderNameMapping
+            const uint32_t includeSize = readUint32(ptr, bytesRead);
+            for (uint32_t i = 0; i < includeSize; ++i)
+            {
+                string_view name = readStringView(ptr, bytesRead);
+                if (Node *node = readHalfNode(ptr, bytesRead);
+                    !reqHeaderNameMapping.emplace(name, HeaderFileOrUnit{node, isSystem}).second)
+                {
+                    HMAKE_HMAKE_INTERNAL_ERROR
+                }
+            }
+        }
+
+        // useReqHeaderNameMapping always goes to the configuration->headerNameMapping
         const uint32_t includeSize = readUint32(ptr, bytesRead);
         for (uint32_t i = 0; i < includeSize; ++i)
         {
@@ -1832,11 +1616,6 @@ void CppTarget::readCacheAtBuildTime()
 string CppTarget::getPrintName() const
 {
     return "CppTarget " + configureNode->filePath + slashc + name;
-}
-
-BTargetType CppTarget::getBTargetType() const
-{
-    return BTargetType::CPP_TARGET;
 }
 
 CppTarget &CppTarget::publicCompilerFlags(const string &compilerFlags)
@@ -1907,14 +1686,78 @@ void CppTarget::parseRegexSourceDirs(bool assignToCppSrcs, const string &sourceD
     }
 }
 
-bool CppTarget::isEventRegistered(Builder &builder)
+CppSrc &CppTarget::getCppSrc(const string &str)
 {
-    // This is necessary since objectFile->outputFileNode is not updated once after it is compiled.
-    if (realBTargets[0].updateStatus == UpdateStatus::NEEDS_UPDATE)
+    const string normalized = getNormalizedPath(str);
+    for (CppSrc *cppSrc : srcFileDeps)
     {
-        realBTargets[0].assignNeedsUpdateToDependents();
+        if (compareStringsFromEnd(cppSrc->node->filePath, normalized))
+        {
+            return *cppSrc;
+        }
     }
-    return false;
+    printErrorMessage(FORMAT("Could not find the CppSrc \n{}\nin srcFileDeps.\nin Target {}", str, name));
+}
+
+CppMod &CppTarget::getCppInterfaceModule(const string &str)
+{
+    const string normalized = getNormalizedPath(str);
+    for (CppMod *cppMod : imodFileDeps)
+    {
+        if (!cppMod)
+        {
+            continue;
+        }
+        if (compareStringsFromEnd(cppMod->node->filePath, normalized))
+        {
+            return *cppMod;
+        }
+    }
+    printErrorMessage(FORMAT("Could not find the CppMod \n{}\nin imodFileDeps.\nin Target {}", str, name));
+    std::unreachable();
+}
+
+CppMod &CppTarget::getCppModule(const string &str)
+{
+    const string normalized = getNormalizedPath(str);
+    for (CppMod *cppMod : modFileDeps)
+    {
+        if (!cppMod)
+        {
+            continue;
+        }
+        if (compareStringsFromEnd(cppMod->node->filePath, normalized))
+        {
+            return *cppMod;
+        }
+    }
+    printErrorMessage(FORMAT("Could not find the CppMod \n{}\nin modFileDeps.\nin Target {}", str, name));
+    std::unreachable();
+}
+
+CppMod &CppTarget::getCppHeaderUnit(const string &str, const bool addInReq, const bool addInUseReq)
+{
+    string includeName = str;
+    lowerCaseOnWindows(includeName.data(), includeName.size());
+    if (addInReq)
+    {
+        if (const auto it = reqHeaderNameMapping.find(includeName);
+            it != reqHeaderNameMapping.end() && it->second.isUnit)
+        {
+            return *it->second.data.cppMod;
+        }
+    }
+
+    if (addInUseReq)
+    {
+        if (const auto it = useReqHeaderNameMapping.find(includeName);
+            it != useReqHeaderNameMapping.end() && it->second.isUnit)
+        {
+            return *it->second.data.cppMod;
+        }
+    }
+    printErrorMessage(FORMAT("Could not find the Header-Unit \n{}\nin huDeps.\nin Target {}", str, name));
+    std::unreachable();
 }
 
 void CppTarget::setCompileCommand(std::pmr::string &compileCommand)
@@ -1993,11 +1836,257 @@ void CppTarget::setCompileCommand(std::pmr::string &compileCommand)
 string CppTarget::getDependenciesString() const
 {
     string deps;
+    if constexpr (bsMode == BSMode::BUILD)
+    {
+        for (const uint32_t targetIndex : cachedReqDeps)
+        {
+            const CppTarget *req = static_cast<CppTarget *>(fileTargetCaches[targetIndex].bTarget);
+            deps += req->name + '\n';
+        }
+        return deps;
+    }
+
     for (CppTarget *cppTarget : reqDeps)
     {
         deps += cppTarget->name + '\n';
     }
     return deps;
+}
+
+void CppTarget::verifyConfigCache(const string_view configCache) const
+{
+    uint32_t bytesRead = 0;
+
+    const uint32_t cachedReqDepsSize = readUint32(configCache.data(), bytesRead);
+    if (reqDeps.size() != cachedReqDepsSize)
+    {
+        printErrorMessage(FORMAT("{} configCache-verification failed: reqDeps size mismatch current={} cached={}\n",
+                                 getPrintName(), reqDeps.size(), cachedReqDepsSize));
+    }
+
+    uint32_t reqDepsCount = 0;
+    for (const CppTarget *r : reqDeps)
+    {
+        if (const uint32_t cachedCacheIndex = readUint32(configCache.data(), bytesRead);
+            r->cacheIndex != cachedCacheIndex)
+        {
+            printErrorMessage(FORMAT("{} configCache-verification failed: reqDeps[{}] cacheIndex mismatch\n"
+                                     "current={}  cached={}\n",
+                                     getPrintName(), reqDepsCount, r->cacheIndex, cachedCacheIndex));
+        }
+        ++reqDepsCount;
+    }
+
+    for (uint32_t i = 0; i < cachedReqDepsSize; ++i)
+    {
+    }
+
+    const bool cachedHasObjFiles = readBool(configCache.data(), bytesRead);
+    const bool hasObjFiles = !srcFileDeps.empty() || !modFileDeps.empty() || !imodFileDeps.empty();
+    if (hasObjFiles != cachedHasObjFiles)
+    {
+        printErrorMessage(FORMAT("{} configCache-verification failed: hasObjFiles mismatch current={} cached={}\n",
+                                 getPrintName(), hasObjFiles, cachedHasObjFiles));
+    }
+
+    const uint32_t cachedSrcFileDepsSize = readUint32(configCache.data(), bytesRead);
+    if (srcFileDeps.size() != cachedSrcFileDepsSize)
+    {
+        printErrorMessage(FORMAT("{} configCache-verification failed: srcFileDeps size mismatch current={} cached={}\n",
+                                 getPrintName(), srcFileDeps.size(), cachedSrcFileDepsSize));
+    }
+
+    for (uint32_t i = 0; i < cachedSrcFileDepsSize; ++i)
+    {
+        const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+        if (i < srcFileDeps.size() && srcFileDeps[i]->node != cachedNode)
+        {
+            printErrorMessage(FORMAT("{} configCache-verification failed: srcFileDeps[{}] node mismatch\n"
+                                     "current=\"{}\"  cached=\"{}\"\n",
+                                     getPrintName(), i,
+                                     srcFileDeps[i]->node ? srcFileDeps[i]->node->filePath : "<null>",
+                                     cachedNode ? cachedNode->filePath : "<null>"));
+        }
+    }
+
+    const uint32_t cachedModFileDepsSize = readUint32(configCache.data(), bytesRead);
+    if (modFileDeps.size() != cachedModFileDepsSize)
+    {
+        printErrorMessage(FORMAT("{} configCache-verification failed: modFileDeps size mismatch current={} cached={}\n",
+                                 getPrintName(), modFileDeps.size(), cachedModFileDepsSize));
+    }
+
+    for (uint32_t i = 0; i < cachedModFileDepsSize; ++i)
+    {
+        const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+        if (i < modFileDeps.size() && modFileDeps[i]->node != cachedNode)
+        {
+            printErrorMessage(FORMAT("{} configCache-verification failed: modFileDeps[{}] node mismatch\n"
+                                     "current=\"{}\"  cached=\"{}\"\n",
+                                     getPrintName(), i,
+                                     modFileDeps[i]->node ? modFileDeps[i]->node->filePath : "<null>",
+                                     cachedNode ? cachedNode->filePath : "<null>"));
+        }
+    }
+
+    const uint32_t cachedImodFileDepsSize = readUint32(configCache.data(), bytesRead);
+    if (imodFileDeps.size() != cachedImodFileDepsSize)
+    {
+        printErrorMessage(
+            FORMAT("{} configCache-verification failed: imodFileDeps size mismatch current={} cached={}\n",
+                   getPrintName(), imodFileDeps.size(), cachedImodFileDepsSize));
+    }
+
+    for (uint32_t i = 0; i < cachedImodFileDepsSize; ++i)
+    {
+        const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+        if (i < imodFileDeps.size() && imodFileDeps[i]->node != cachedNode)
+        {
+            printErrorMessage(FORMAT("{} configCache-verification failed: imodFileDeps[{}] node mismatch\n"
+                                     "current=\"{}\"  cached=\"{}\"\n",
+                                     getPrintName(), i,
+                                     imodFileDeps[i]->node ? imodFileDeps[i]->node->filePath : "<null>",
+                                     cachedNode ? cachedNode->filePath : "<null>"));
+        }
+
+        const bool cachedIsPrimaryExport = readBool(configCache.data(), bytesRead);
+        if (i < imodFileDeps.size() && (imodFileDeps[i]->type == CppModType::PRIMARY_EXPORT) != cachedIsPrimaryExport)
+        {
+            printErrorMessage(FORMAT("{} configCache-verification failed: imodFileDeps[{}] isPrimaryExport mismatch\n"
+                                     "current={}  cached={}\n",
+                                     getPrintName(), i, imodFileDeps[i]->type == CppModType::PRIMARY_EXPORT,
+                                     cachedIsPrimaryExport));
+        }
+    }
+
+    const uint32_t cachedHuDepsSize = readUint32(configCache.data(), bytesRead);
+    if (huDeps.size() != cachedHuDepsSize)
+    {
+        printErrorMessage(FORMAT("{} configCache-verification failed: huDeps size mismatch current={} cached={}\n",
+                                 getPrintName(), huDeps.size(), cachedHuDepsSize));
+    }
+
+    for (uint32_t i = 0; i < cachedHuDepsSize; ++i)
+    {
+        const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+        if (i < huDeps.size() && huDeps[i]->node != cachedNode)
+        {
+            printErrorMessage(FORMAT("{} configCache-verification failed: huDeps[{}] node mismatch\n"
+                                     "current=\"{}\"  cached=\"{}\"\n",
+                                     getPrintName(), i, huDeps[i]->node ? huDeps[i]->node->filePath : "<null>",
+                                     cachedNode ? cachedNode->filePath : "<null>"));
+        }
+    }
+
+    const Node *cachedMyBuildDir = readHalfNode(configCache.data(), bytesRead);
+    if (myBuildDir != cachedMyBuildDir)
+    {
+        printErrorMessage(FORMAT("{} configCache-verification failed: myBuildDir mismatch\n"
+                                 "current=\"{}\"  cached=\"{}\"\n",
+                                 getPrintName(), myBuildDir ? myBuildDir->filePath : "<null>",
+                                 cachedMyBuildDir ? cachedMyBuildDir->filePath : "<null>"));
+    }
+
+    if (configuration->evaluate(IsCppMod::NO) || !useIPC)
+    {
+        const uint32_t cachedReqInclsSize = readUint32(configCache.data(), bytesRead);
+        if (reqIncls.size() != cachedReqInclsSize)
+        {
+            printErrorMessage(
+                FORMAT("{} configCache-verification failed: reqIncls size mismatch current={} cached={}\n",
+                       getPrintName(), reqIncls.size(), cachedReqInclsSize));
+        }
+
+        for (uint32_t i = 0; i < cachedReqInclsSize; ++i)
+        {
+            const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+            if (i < reqIncls.size() && reqIncls[i].node != cachedNode)
+            {
+                printErrorMessage(FORMAT("{} configCache-verification failed: reqIncls[{}] node mismatch\n"
+                                         "current=\"{}\"  cached=\"{}\"\n",
+                                         getPrintName(), i, reqIncls[i].node ? reqIncls[i].node->filePath : "<null>",
+                                         cachedNode ? cachedNode->filePath : "<null>"));
+            }
+        }
+
+        const uint32_t cachedUseReqInclsSize = readUint32(configCache.data(), bytesRead);
+        if (useReqIncls.size() != cachedUseReqInclsSize)
+        {
+            printErrorMessage(
+                FORMAT("{} configCache-verification failed: useReqIncls size mismatch current={} cached={}\n",
+                       getPrintName(), useReqIncls.size(), cachedUseReqInclsSize));
+        }
+
+        for (uint32_t i = 0; i < cachedUseReqInclsSize; ++i)
+        {
+            const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+            if (i < useReqIncls.size() && useReqIncls[i].node != cachedNode)
+            {
+                printErrorMessage(FORMAT("{} configCache-verification failed: useReqIncls[{}] node mismatch\n"
+                                         "current=\"{}\"  cached=\"{}\"\n",
+                                         getPrintName(), i,
+                                         useReqIncls[i].node ? useReqIncls[i].node->filePath : "<null>",
+                                         cachedNode ? cachedNode->filePath : "<null>"));
+            }
+        }
+    }
+
+    if (configuration->evaluate(IsCppMod::YES))
+    {
+        auto verifyHeaderNameMapping = [&](const flat_hash_map<string_view, HeaderFileOrUnit> &mapping,
+                                           const string_view mapName) {
+            const uint32_t cachedCount = readUint32(configCache.data(), bytesRead);
+            uint32_t verifiedCount = 0;
+
+            for (uint32_t i = 0; i < cachedCount; ++i)
+            {
+                const string_view cachedName = readStringView(configCache.data(), bytesRead);
+                const Node *cachedNode = readHalfNode(configCache.data(), bytesRead);
+
+                const auto it = mapping.find(cachedName);
+                if (it == mapping.end())
+                {
+                    printErrorMessage(FORMAT("{} configCache-verification failed: {}[{}] cached name\n\"{}\"\n"
+                                             "not found in current mapping\n",
+                                             getPrintName(), mapName, i, cachedName));
+                }
+                else if (it->second.data.node != cachedNode)
+                {
+                    printErrorMessage(FORMAT("{} configCache-verification failed: {}[\"{}\"] node mismatch\n"
+                                             "current=\"{}\"  cached=\"{}\"\n",
+                                             getPrintName(), mapName, cachedName,
+                                             it->second.data.node ? it->second.data.node->filePath : "<null>",
+                                             cachedNode ? cachedNode->filePath : "<null>"));
+                }
+                ++verifiedCount;
+            }
+
+            // verify cached count matches actual non-unit count in current mapping
+            uint32_t currentNonUnitCount = 0;
+            for (const auto &[s, h] : mapping)
+            {
+                if (!h.isUnit)
+                {
+                    ++currentNonUnitCount;
+                }
+            }
+            if (currentNonUnitCount != cachedCount)
+            {
+                printErrorMessage(FORMAT("{} configCache-verification failed: {} non-unit count mismatch\n"
+                                         "current={}  cached={}\n",
+                                         getPrintName(), mapName, currentNonUnitCount, cachedCount));
+            }
+        };
+
+        verifyHeaderNameMapping(reqHeaderNameMapping, "reqHeaderNameMapping");
+        verifyHeaderNameMapping(useReqHeaderNameMapping, "useReqHeaderNameMapping");
+    }
+
+    if (configCache.size() != bytesRead)
+    {
+        printErrorMessage(FORMAT("{} configCache-verification failed as configCache.size() != bytesRead {} vs {}\n",
+                                 getPrintName(), configCache.size(), bytesRead));
+    }
 }
 
 bool operator<(const CppTarget &lhs, const CppTarget &rhs)

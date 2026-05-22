@@ -16,14 +16,11 @@ class LOAT : public PLOAT
     bool recurrentCall = false;
 
   public:
-    BuildCache::Link linkBuildCache;
-    // Link Command excluding libraries(pre-built or other) that is also stored in the cache.
-    uint64_t commandWithoutTargetsWithTool;
-
     vector<const ObjectFile *> objectFiles;
     vector<PLOAT *> dllsToBeCopied;
     // Needed for pdb files.
     Node *myBuildDir = nullptr;
+    uint64_t commandWithoutTargets;
 
     bool archiving = false;
     bool archived = false;
@@ -36,20 +33,15 @@ class LOAT : public PLOAT
     LOAT(Configuration &config_, Node *myBuildDir_, bool buildExplicit, const string &name_, TargetType targetType);
     void setOutputName(string str);
 
-    BTargetType getBTargetType() const override;
-
-    void setFileStatus();
+    void setFileStatus() override;
     void completeRoundOne() override;
-    bool isBuildCacheUpdated() override;
-    void writeBuildCache(string &buffer) override;
-    void writeCacheAtConfigureTime();
-    void readCacheAtBuildTime();
 
     string getPrintName() const override;
-    void setLinkOrArchiveCommands(std::pmr::string &linkWithTargets);
+    void setLinkOrArchiveCommands(std::pmr::string &linkWithTargets, bool returnAfterSettingCommandHash = false) const;
     template <typename T> bool evaluate(T property) const;
     bool isEventRegistered(Builder &builder) override;
     bool isEventCompleted(Builder &builder, string_view) override;
+    void writeConfigCacheAtConfigTime(string &buffer) override;
 };
 
 bool operator<(const LOAT &lhs, const LOAT &rhs);

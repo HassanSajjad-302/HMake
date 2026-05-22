@@ -73,7 +73,7 @@ void from_json(const Json &j, Cache &cacheLocal)
         srcPath = srcPath.parent_path();
     }
 
-    srcNode = Node::getNodeNonNormalized(srcPath.string(), false);
+    srcNode = Node::getHalfNode(srcPath.string());
 
     cacheLocal.isCompilerInToolsArray = j.at(JConsts::isCompilerInToolsArray).get<bool>();
     cacheLocal.selectedCompilerArrayIndex = j.at(JConsts::compilerSelectedArrayIndex).get<uint8_t>();

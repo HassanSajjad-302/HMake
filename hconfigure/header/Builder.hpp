@@ -116,8 +116,6 @@ class Builder
     unsigned short checkingCount = 0;
     unsigned short checkedCount = 0;
     bool updateBTargetFailed = false;
-    /// Flattened list of nodes that requested a filesystem refresh.
-    vector<Node *> uncheckedNodesCentral;
     /// Optional chunked view of unchecked nodes.
     vector<span<Node *>> uncheckedNodes;
 
@@ -128,11 +126,11 @@ class Builder
     /// Executes round 0 setup and async event loop.
     void executeRoundZero();
     /// Performs pending `Node::performSystemCheck()` calls.
-    void checkNodes();
+    static void checkNodes(bool isFirstTime);
     /// Core round-1 loop over `updateBTargets`.
     void execute();
     /// Propagates completion to dependents and enqueues newly ready nodes.
-    void decrementFromDependents(const RealBTarget &rb);
+    void decrementFromDependents(RealBTarget &rb);
     /// Returns how many new processes may be launched now.
     uint32_t getCapacityForNewProcesses() const;
 };

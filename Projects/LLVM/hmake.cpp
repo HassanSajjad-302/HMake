@@ -6,20 +6,23 @@ using std::filesystem::recursive_directory_iterator;
 
 void editOutFilesRecursive(CppTarget *t, string directory, string extension, set<string> doNotInclude)
 {
-    set<Node *> noInclude;
-    for (const string &str : doNotInclude)
+    if constexpr (bsMode == BSMode::CONFIGURE)
     {
-        noInclude.emplace(Node::getNodeNonNormalized(directory + slashc + str, true));
-    }
-
-    for (const auto &f : recursive_directory_iterator(srcNode->filePath / path(directory)))
-    {
-        if (f.is_regular_file() && f.path().extension() == extension)
+        set<Node *> noInclude;
+        for (const string &str : doNotInclude)
         {
-            string str = f.path().string();
-            if (Node *n = Node::getNode(str, true); !noInclude.contains(n))
+            noInclude.emplace(Node::getNodeNonNormalized(directory + slashc + str, true));
+        }
+
+        for (const auto &f : recursive_directory_iterator(srcNode->filePath / path(directory)))
+        {
+            if (f.is_regular_file() && f.path().extension() == extension)
             {
-                t->moduleFiles(n->filePath);
+                string str = f.path().string();
+                if (Node *n = Node::getNode(str, true); !noInclude.contains(n))
+                {
+                    t->moduleFiles(n->filePath);
+                }
             }
         }
     }
@@ -40,7 +43,7 @@ void addLlvmDirectory(DSC<CppTarget> &target, const string &directory, const str
                 .privateIncDirsRE(privateDir, privatePrefix, ".*\\.def");
         }
 
-        if (const string cmakePrivateDir = "llvm/cmake-build-release/lib/" + directory;
+        if (const string cmakePrivateDir = "llvm/my-fork/lib/" + directory;
             exists(path(srcNode->filePath) / cmakePrivateDir))
         {
             llvmCpp.publicHUDirsRE(cmakePrivateDir, "", ".*\\.h")
@@ -58,7 +61,7 @@ void addLlvmDirectory(DSC<CppTarget> &target, const string &directory, const str
                 .publicIncDirsRE(publicDir, "llvm/" + directory + "/", ".*\\.def");
         }
 
-        if (const string cmakePublicDir = "llvm/cmake-build-release/include/llvm/" + directory;
+        if (const string cmakePublicDir = "llvm/my-fork/include/llvm/" + directory;
             exists(path(srcNode->filePath) / cmakePublicDir))
         {
             llvmCpp.publicHUDirsRE(cmakePublicDir, "llvm/" + directory + "/", ".*\\.h")
@@ -83,7 +86,7 @@ void addClangDirectory(DSC<CppTarget> &target, const string &directory, const st
                 .privateIncDirsRE(privateDir, privatePrefix, ".*\\.def");
         }
 
-        if (const string cmakePrivateDir = "llvm/cmake-build-release/tools/clang/lib/" + directory;
+        if (const string cmakePrivateDir = "llvm/my-fork/tools/clang/lib/" + directory;
             exists(path(srcNode->filePath) / cmakePrivateDir))
         {
             clangCpp.publicHUDirsRE(cmakePrivateDir, "", ".*\\.h")
@@ -101,7 +104,7 @@ void addClangDirectory(DSC<CppTarget> &target, const string &directory, const st
                 .publicIncDirsRE(publicDir, "clang/" + directory + "/", ".*\\.def");
         }
 
-        if (const string cmakePublicDir = "llvm/cmake-build-release/tools/clang/include/clang/" + directory;
+        if (const string cmakePublicDir = "llvm/my-fork/tools/clang/include/clang/" + directory;
             exists(path(srcNode->filePath) / cmakePublicDir))
         {
             clangCpp.publicHUDirsRE(cmakePublicDir, "clang/" + directory + "/", ".*\\.h")
@@ -123,7 +126,7 @@ void configurationSpecification(Configuration &config)
     config.cppCompileCommand =
         '\"' + config.compilerFeatures.compiler.bTPath +
         "\" -DGTEST_HAS_RTTI=0 -DNDEBUG -D_GLIBCXX_USE_CXX11_ABI=1 -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS "
-        "-D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -O3 -Wall -Wc++98-compat-extra-semi -Wcast-qual "
+        "-D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -O0 -Wall -Wc++98-compat-extra-semi -Wcast-qual "
         "-Wcovered-switch-default -Wctad-maybe-unsupported -Wdelete-non-virtual-dtor -Werror=date-time "
         "-Werror=unguarded-availability-new -Wextra -Wimplicit-fallthrough -Wmisleading-indentation "
         "-Wmissing-field-initializers -Wno-long-long -Wno-noexcept-type -Wno-pass-failed -Wno-unused-parameter "
@@ -138,15 +141,15 @@ void configurationSpecification(Configuration &config)
         "-Wmissing-field-initializers -Wno-long-long -Wno-unused-parameter -Wstring-conversion -Wwrite-strings "
         "-fdata-sections -fdiagnostics-color -ffunction-sections -fno-semantic-interposition -pedantic "
         "-DGTEST_HAS_RTTI=0 -DNDEBUG -D_GLIBCXX_USE_CXX11_ABI=1 -D_GNU_SOURCE "
-        "-D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -O3 -fPIC ";
+        "-D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -O0 -fPIC ";
 
     config.assemblyCompileCommand = '\"' + config.compilerFeatures.compiler.bTPath +
                                     "\" -DGTEST_HAS_RTTI=0 -DNDEBUG -D_GLIBCXX_USE_CXX11_ABI=1 -D_GNU_SOURCE "
-                                    "-D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -O3 -fPIC ";
+                                    "-D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -O0 -fPIC ";
 
     config.linkCommand =
         '\"' + config.linkerFeatures.linker.bTPath +
-        "\" -DNDEBUG -O3 -Wl,--gc-sections -Wall -Wc++98-compat-extra-semi -Wcast-qual -Wcovered-switch-default "
+        "\" -DNDEBUG -O0 -Wl,--gc-sections -Wall -Wc++98-compat-extra-semi -Wcast-qual -Wcovered-switch-default "
         "-Wctad-maybe-unsupported "
         "-Wdelete-non-virtual-dtor -Werror=date-time -Werror=unguarded-availability-new -Wextra -Wimplicit-fallthrough "
         " -Wmisleading-indentation "
@@ -171,9 +174,12 @@ void configurationSpecification(Configuration &config)
 
     if (config.name == "hu")
     {
-        Node *supportCBuildDir = Node::getNodeNonNormalized(
-            configureNode->filePath + string{slashc} + "standard" + string{slashc} + "LLVMSupportC", false);
-        PLOAT &llvmSupportCPloat = config.getStaticPLOAT("LLVMSupportC", supportCBuildDir);
+        PLOAT &llvmSupportCPloat = config.getStaticPLOAT(
+            "LLVMSupportC",
+            bsMode == BSMode::CONFIGURE
+                ? Node::getNodeNonNormalized(
+                      configureNode->filePath + string{slashc} + "standard" + string{slashc} + "LLVMSupportC", false)
+                : nullptr);
         llvmSupportCPloatPointer = &llvmSupportCPloat;
     }
     else
@@ -565,9 +571,9 @@ void configurationSpecification(Configuration &config)
     // header-units specification.
     DSC<CppTarget> &dlX86CodeGen = config.getCppObjectDSC("DLX86CodeGen");
     dlX86CodeGen.getSourceTarget()
-        .publicIncludesSource("llvm/cmake-build-release/lib/Target/X86", "llvm/lib/Target/X86")
-        .publicHUDirsRE("llvm/cmake-build-release/lib/Target/X86", "", ".*\\.h")
-        .publicIncDirsRE("llvm/cmake-build-release/lib/Target/X86", "", ".*\\.inc")
+        .publicIncludesSource("llvm/my-fork/lib/Target/X86", "llvm/lib/Target/X86")
+        .publicHUDirsRE("llvm/my-fork/lib/Target/X86", "", ".*\\.h")
+        .publicIncDirsRE("llvm/my-fork/lib/Target/X86", "", ".*\\.inc")
         .publicHUDirsRE("llvm/lib/Target/X86", "", ".*\\.h")
         .publicIncDirsRE("llvm/lib/Target/X86", "", ".*\\.def")
         .publicHUDirsRE("llvm/lib/Target/X86/MCTargetDesc", "MCTargetDesc/", ".*\\.h")
@@ -622,8 +628,7 @@ void configurationSpecification(Configuration &config)
         config.getCppStaticDSC("clangBasic").publicDeps(llvmSupport, llvmTargetParser, llvmFrontendOpenMP);
     addClangDirectory(clangBasic, "Basic");
     addClangDirectory(clangBasic, "Basic/Targets", "Targets/");
-    clangBasic.getSourceTarget().privateIncludesSource("clang/lib/Basic",
-                                                       "llvm/cmake-build-release/tools/clang/lib/Basic");
+    clangBasic.getSourceTarget().privateIncludesSource("clang/lib/Basic", "llvm/my-fork/tools/clang/lib/Basic");
 
     DSC<CppTarget> &clangAPINotes =
         config.getCppStaticDSC("clangAPINotes").publicDeps(llvmBitReader, llvmBitstreamReader, llvmSupport);
@@ -640,7 +645,7 @@ void configurationSpecification(Configuration &config)
                                                llvmSupport, llvmTargetParser);
     addClangDirectory(clangAST, "AST");
     addClangDirectory(clangAST, "AST/ByteCode", "ByteCode/");
-    clangAST.getSourceTarget().privateIncludesSource("llvm/cmake-build-release/tools/clang/lib/AST", "clang/lib/AST");
+    clangAST.getSourceTarget().privateIncludesSource("llvm/my-fork/tools/clang/lib/AST", "clang/lib/AST");
 
     DSC<CppTarget> &clangUnifiedSymbolResolution =
         config.getCppStaticDSC("clangUnifiedSymbolResolution").publicDeps(clangAST, clangBasic, clangLex, llvmSupport);
@@ -693,7 +698,7 @@ void configurationSpecification(Configuration &config)
                                                 llvmSupport, llvmTargetParser);
     addClangDirectory(clangSema, "Sema", "");
     clangSema.getSourceTarget().publicHUDirsRE("clang/include/clang-c", "clang-c/", ".*\\.h");
-    clangSema.getSourceTarget().privateIncludesSource("llvm/cmake-build-release/tools/clang/lib/Sema");
+    clangSema.getSourceTarget().privateIncludesSource("llvm/my-fork/tools/clang/lib/Sema");
 
     DSC<CppTarget> &clangSerialization =
         config.getCppStaticDSC("clangSerialization")
@@ -857,7 +862,7 @@ void configurationSpecification(Configuration &config)
     clang.getLOAT().setOutputName("clang-23");
     clang.getSourceTarget()
         .moduleDirsRE("clang/tools/driver", ".*cpp")
-        .moduleFiles("llvm/cmake-build-release/tools/clang/tools/driver/clang-driver.cpp")
+        .moduleFiles("llvm/my-fork/tools/clang/tools/driver/clang-driver.cpp")
         .privateIncludes("clang/tools/driver");
 
     // We are adding following includes for all the targets. And these are added before the by-default includes of the
@@ -875,8 +880,8 @@ void configurationSpecification(Configuration &config)
                 }
                 vector<InclNode> vec = std::move(t->reqIncls);
                 t->reqIncls.clear();
-                t->privateIncludesSource("llvm/cmake-build-release/include", "llvm/include", "clang/include",
-                                         "llvm/cmake-build-release/tools/clang/include");
+                t->privateIncludesSource("llvm/my-fork/include", "llvm/include", "clang/include",
+                                         "llvm/my-fork/tools/clang/include");
                 for (auto &inclNode : vec)
                 {
                     t->privateIncludesSource(inclNode.node->filePath);
@@ -890,7 +895,7 @@ void buildSpecification()
 {
     getConfiguration("standard");
     // Compilation does not work with big header-units.
-    getConfiguration("hu").assign(IsCppMod::YES, BigHeaderUnit::NO, UseConfigurationScope::YES, DuplicationWarning::YES);
+    getConfiguration("hu").assign(IsCppMod::YES, BigHeaderUnit::NO, UseConfigurationScope::YES);
     CALL_CONFIGURATION_SPECIFICATION
 }
 
